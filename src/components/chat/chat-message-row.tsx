@@ -7,13 +7,13 @@ import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useChatStore, DEMO_VISITOR_ID } from "@/lib/chat-store";
 import { MentionText } from "./mention-text";
 import { cn } from "cn";
+import EmojiPicker from "emoji-picker-react";
 
-// A small fixed reaction palette stands in for the live app's emoji-mart picker
-// (public/app.js's mountOpenEmojiPickers()) -- that library builds a real DOM node imperatively
-// and is explicitly called out in the original code as not fitting the declarative render model,
-// so it isn't ported here. toggleReaction() itself (chat-store.ts's react()) takes any emoji
-// string, so a full picker is a UI-only addition, not a missing capability, if ever wanted later.
-const QUICK_REACTIONS = ["👍", "😂", "😮", "🔥", "🎉"];
+// Real picker, unlike the live app's emoji-mart (public/app.js's mountOpenEmojiPickers()), which
+// built a real DOM node imperatively and was explicitly called out in the original code as not
+// fitting a declarative render model. emoji-picker-react is a normal React component, so it slots
+// straight into the same popup this component already had for the old fixed 5-emoji palette.
+// react() (chat-store.ts) already accepted any emoji string, so no store/API changes were needed.
 
 export function ChatMessageRow({ m, state }: { m: ChatMessage; state: LeagueState }) {
   const [editing, setEditing] = useState(false);
@@ -63,19 +63,15 @@ export function ChatMessageRow({ m, state }: { m: ChatMessage; state: LeagueStat
           +
         </button>
         {pickerOpen && (
-          <div className="absolute bottom-full left-0 z-10 mb-1 flex gap-1 rounded-lg border border-border bg-card p-1.5 shadow-md">
-            {QUICK_REACTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                className="rounded px-1 text-base hover:bg-secondary"
-                onClick={() => {
-                  react(m.id, emoji);
-                  setPickerOpen(false);
-                }}
-              >
-                {emoji}
-              </button>
-            ))}
+          <div className="absolute bottom-full left-0 z-10 mb-1 shadow-md">
+            <EmojiPicker
+              onEmojiClick={(data) => {
+                react(m.id, data.emoji);
+                setPickerOpen(false);
+              }}
+              width={300}
+              height={360}
+            />
           </div>
         )}
       </div>

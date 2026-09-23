@@ -1,7 +1,7 @@
 // Hand-written types for the league state shape produced/consumed by state-logic.js.
-// state-logic.js itself stays plain, untyped JS (verbatim copy from the live app — see the
-// provenance note at its top) so these are a best-effort description of its actual shape,
-// not a source of truth generated from it.
+// state-logic.js itself stays plain, untyped JS (forked from the live app — see the provenance
+// note at its top) so these are a best-effort description of its actual shape, not a source of
+// truth generated from it.
 
 export interface Player {
   id: string;
@@ -71,6 +71,8 @@ export interface LeagueSettings {
   finaleWinnerPoints: number;
   finalePredictionScope: string;
   draftScheduledAt?: string | null;
+  leagueTypeId: string;
+  showId: string;
 }
 
 export interface Membership {

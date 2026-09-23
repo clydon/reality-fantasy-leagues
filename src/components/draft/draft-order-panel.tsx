@@ -46,18 +46,16 @@ export function DraftOrderPanel({ state }: { state: LeagueState }) {
               </span>
               {canManage && (
                 <div className="flex gap-1">
-                  <Button variant="secondary" size="sm" disabled={i === 0} title="Move up" onClick={() => move(i, -1)}>
-                    ↑
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={i === state.draftOrder.length - 1}
-                    title="Move down"
-                    onClick={() => move(i, 1)}
-                  >
-                    ↓
-                  </Button>
+                  {i > 0 && (
+                    <Button variant="secondary" size="sm" title="Move up" onClick={() => move(i, -1)}>
+                      ↑
+                    </Button>
+                  )}
+                  {i < state.draftOrder.length - 1 && (
+                    <Button variant="secondary" size="sm" title="Move down" onClick={() => move(i, 1)}>
+                      ↓
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

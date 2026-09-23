@@ -152,6 +152,8 @@ export function buildMockSeasonState(): LeagueState {
       finaleTop3Points: 1,
       finaleWinnerPoints: 3,
       finalePredictionScope: "open",
+      leagueTypeId: "classic-draft",
+      showId: "survivor",
     },
   };
 }

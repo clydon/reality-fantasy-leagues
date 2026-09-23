@@ -1,7 +1,7 @@
-// COPIED VERBATIM from the live app repo (SurvivorDraft/shared/state-logic.js), not rewritten.
-// This validates docs/ARCHITECTURE.md Phase 0's assumption that the isomorphic game logic
-// carries over to this repo as-is, with zero changes. There is currently NO automated sync
-// between the two copies -- if the live app's version changes, re-copy it here by hand. This
+// Forked from the live app repo (SurvivorDraft/shared/state-logic.js) -- started as a verbatim
+// copy (see git history), but now diverges to support this repo's own league-type/show system
+// (LEAGUE_TYPES/SHOWS below), which the live vanilla-JS app has no concept of and never will.
+// The live repo is untouched by this fork; there is no sync in either direction anymore. This
 // file is imported as `StateLogic` via state-logic.d.ts's ambient types (see that file).
 //
 // Pure game logic for Survivor Draft League — no DOM, no localStorage, no network.
@@ -24,6 +24,21 @@
 // class for a genuinely new domain), then add its alias in the `return {...}` block at the
 // bottom. Cross-domain calls are plain `OtherClass.method(state, ...)` — see ReplenishLogic
 // calling ScoringLogic, or RosterLogic calling DraftLogic, for the existing pattern.
+//
+// League types: DraftLogic and ScoringLogic below are thin dispatchers, not the real
+// implementations -- they read `state.settings.leagueTypeId`, look it up in LEAGUE_TYPES, and
+// delegate to that entry's `draftStrategy`/`scoringStrategy`. Today LEAGUE_TYPES has exactly one
+// entry ('classic-draft' -> SnakeDraftStrategy + EliminationOrderScoringStrategy), so every
+// existing league behaves identically to before this split. Adding a second league type means:
+// write a new strategy class implementing the same static method shape as SnakeDraftStrategy
+// (syncOrder/currentTurn/isStarted/forceStart/reorder/move/pick/undo) and/or
+// EliminationOrderScoringStrategy (compute), register it under a new LEAGUE_TYPES key, and set
+// supportsReplenish/supportsTrade/supportsFinalePredictions for whether those mid-season features
+// apply to it. ReplenishLogic/TradeLogic deliberately are NOT behind this dispatch yet -- they're
+// mid-season features of the current league type, gated by those three support flags, not an
+// independently-varying axis on their own. A "weekly pick'em" league (no persistent roster, no
+// turn-based picks at all) almost certainly won't fit the DraftStrategy shape above -- don't force
+// it in; that's a sign it needs its own top-level state/UI branch, not a third DraftStrategy.
 (function(root, factory){
   if(typeof module === 'object' && module.exports) module.exports = factory();
   else root.StateLogic = factory();
@@ -41,8 +56,11 @@ class Core {
   static getTribe(state, id){ return state.tribes.find(t=>t.id===id); }
 }
 
-// ---------- ScoringLogic ----------
-class ScoringLogic {
+// ---------- EliminationOrderScoringStrategy: the 'classic-draft' league type's scoring ----------
+// Points = sum of your own eliminated castaways' placementOrder, plus an optional side-bet bonus
+// layer and an optional finale-prediction layer. A future league type (e.g. weekly pick'em) would
+// almost certainly need an entirely different formula here -- see LEAGUE_TYPES below.
+class EliminationOrderScoringStrategy {
   static compute(state){
     const results = {};
     state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
@@ -82,9 +100,15 @@ class ScoringLogic {
     return Object.values(results).sort((a,b)=>b.total-a.total);
   }
 }
+// Thin dispatcher -- see the "League types" comment near the top of this file. Delegates to
+// whichever league type's scoringStrategy is active; today that's always
+// EliminationOrderScoringStrategy, so behavior is unchanged from before this split.
+class ScoringLogic {
+  static compute(state){ return getLeagueType(state).scoringStrategy.compute(state); }
+}
 
-// ---------- DraftLogic ----------
-class DraftLogic {
+// ---------- SnakeDraftStrategy: the 'classic-draft' league type's draft mechanic ----------
+class SnakeDraftStrategy {
   // Keeps draftOrder in sync in case players were added/removed some other way. Inactive players
   // (joined after the draft concluded, not yet activated) are deliberately left out until
   // RosterLogic.activatePlayer() folds them in -- otherwise they'd silently re-enter the snake rotation.
@@ -94,7 +118,7 @@ class DraftLogic {
   }
   // Snake draft turn: round 0 goes draftOrder[0..N-1], round 1 goes reversed, etc.
   static currentTurn(state){
-    DraftLogic.syncOrder(state);
+    SnakeDraftStrategy.syncOrder(state);
     const order = state.draftOrder;
     const n = order.length;
     if(n===0) return null;
@@ -133,7 +157,7 @@ class DraftLogic {
     [arr[idx], arr[target]] = [arr[target], arr[idx]];
   }
   static pick(state, castawayId){
-    const turn = DraftLogic.currentTurn(state);
+    const turn = SnakeDraftStrategy.currentTurn(state);
     const c = Core.getCastaway(state, castawayId);
     if(!turn || turn.isComplete || !c || c.ownerId) return;
     c.ownerId = turn.playerId;
@@ -149,6 +173,45 @@ class DraftLogic {
     c.ownerId = null;
     c.acquiredVia = null;
   }
+}
+
+// ---------- League type + show registries ----------
+// See the "League types" comment near the top of this file for the extension pattern. Both
+// registries are plain data (id/name/description/etc.) so new entries are additive, not
+// rewrites -- SHOWS today is display/terminology metadata only, not wired to any behavior yet
+// (a future per-show wiki-sourcing config would attach here without changing this shape).
+const LEAGUE_TYPES = {
+  'classic-draft': {
+    id: 'classic-draft',
+    name: 'Classic Snake Draft',
+    description: 'Commissioner sets a draft order, players snake-draft castaways, score by elimination placement.',
+    draftStrategy: SnakeDraftStrategy,
+    scoringStrategy: EliminationOrderScoringStrategy,
+    supportsReplenish: true,
+    supportsTrade: true,
+    supportsFinalePredictions: true
+  }
+};
+const SHOWS = {
+  survivor: { id: 'survivor', name: 'Survivor', castawayTerm: 'Castaway', tribeTerm: 'Tribe' }
+};
+function getLeagueType(state){
+  return LEAGUE_TYPES[state.settings && state.settings.leagueTypeId] || LEAGUE_TYPES['classic-draft'];
+}
+
+// ---------- DraftLogic ----------
+// Thin dispatcher -- see the "League types" comment near the top of this file. Delegates every
+// method to whichever league type's draftStrategy is active; today that's always
+// SnakeDraftStrategy, so behavior is unchanged from before this split.
+class DraftLogic {
+  static syncOrder(state){ return getLeagueType(state).draftStrategy.syncOrder(state); }
+  static currentTurn(state){ return getLeagueType(state).draftStrategy.currentTurn(state); }
+  static isStarted(state){ return getLeagueType(state).draftStrategy.isStarted(state); }
+  static forceStart(state){ return getLeagueType(state).draftStrategy.forceStart(state); }
+  static reorder(state, fromIdx, toIdx){ return getLeagueType(state).draftStrategy.reorder(state, fromIdx, toIdx); }
+  static move(state, idx, delta){ return getLeagueType(state).draftStrategy.move(state, idx, delta); }
+  static pick(state, castawayId){ return getLeagueType(state).draftStrategy.pick(state, castawayId); }
+  static undo(state, castawayId){ return getLeagueType(state).draftStrategy.undo(state, castawayId); }
 }
 
 // ---------- RosterLogic: players, tribes, castaways, league settings ----------
@@ -502,7 +565,9 @@ class Migrations {
         finaleTop3Points: 1,
         finaleWinnerPoints: 3,
         finalePredictionScope: 'open',
-        draftScheduledAt: null
+        draftScheduledAt: null,
+        leagueTypeId: 'classic-draft',
+        showId: 'survivor'
       }
     };
   }
@@ -516,6 +581,8 @@ class Migrations {
     if(!s.settings.replenishOrderBy) s.settings.replenishOrderBy = 'mostPoints';
     if(!s.settings.defaultBetPoints) s.settings.defaultBetPoints = 1;
     if(!s.settings.finalePredictionScope) s.settings.finalePredictionScope = 'open';
+    if(!s.settings.leagueTypeId) s.settings.leagueTypeId = 'classic-draft';
+    if(!s.settings.showId) s.settings.showId = 'survivor';
     if(!s.draftOrder) s.draftOrder = (s.players||[]).map(p=>p.id);
     if(typeof s.draftPicksMade !== 'number') s.draftPicksMade = (s.castaways||[]).filter(c=>c.ownerId).length;
     if(typeof s.draftForceStarted !== 'boolean') s.draftForceStarted = false;
@@ -540,6 +607,7 @@ class Migrations {
 return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS, EXIT_METHODS,
+  LEAGUE_TYPES, SHOWS, getLeagueType,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct
@@ -567,7 +635,11 @@ return {
   setActualTop3: FinaleLogic.setActualTop3, setActualWinner: FinaleLogic.setActualWinner,
 
   // ---- domain classes: reference these directly in new code instead of the flat aliases above ----
-  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, Migrations
+  // ScoringLogic/DraftLogic are thin league-type dispatchers (see the "League types" comment near
+  // the top of this file); SnakeDraftStrategy/EliminationOrderScoringStrategy are their sole
+  // registered implementation today, exported directly for code that wants to bypass the dispatch.
+  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, Migrations,
+  SnakeDraftStrategy, EliminationOrderScoringStrategy
 };
 
 });

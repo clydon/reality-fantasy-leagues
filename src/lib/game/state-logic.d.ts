@@ -1,6 +1,23 @@
-// Minimal ambient typing for the verbatim-copied state-logic.js, covering only what this repo's
-// components actually call. Not exhaustive — extend as more of the file gets used.
+// Ambient typing for state-logic.js (forked from the live app -- see the provenance comment at
+// that file's top), covering what this repo's components actually call. Not exhaustive — extend
+// as more of the file gets used.
 import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Episode, ReplenishTurn } from "./types";
+
+export interface LeagueType {
+  id: string;
+  name: string;
+  description: string;
+  supportsReplenish: boolean;
+  supportsTrade: boolean;
+  supportsFinalePredictions: boolean;
+}
+
+export interface Show {
+  id: string;
+  name: string;
+  castawayTerm: string;
+  tribeTerm: string;
+}
 
 declare const StateLogic: {
   Core: {
@@ -16,11 +33,31 @@ declare const StateLogic: {
     currentTurn(state: LeagueState): DraftTurn | null;
     isStarted(state: LeagueState): boolean;
   };
+  LEAGUE_TYPES: Record<string, LeagueType>;
+  SHOWS: Record<string, Show>;
+  getLeagueType(state: LeagueState): LeagueType;
   getPlayer(state: LeagueState, id: string): Player | undefined;
   getCastaway(state: LeagueState, id: string): Castaway | undefined;
   computeScores(state: LeagueState): ScoreRow[];
   currentDraftTurn(state: LeagueState): DraftTurn | null;
   isDraftStarted(state: LeagueState): boolean;
+  defaultState(): LeagueState;
+  migrateLeagueState(raw: unknown): LeagueState;
+  freeAgents(state: LeagueState): Castaway[];
+  activeOwnedCount(state: LeagueState, playerId: string): number;
+  totalCastCount(state: LeagueState): number;
+  addPlayer(state: LeagueState, name: string): Player;
+  updatePlayer(state: LeagueState, id: string, field: string, value: unknown): void;
+  removePlayer(state: LeagueState, id: string): void;
+  disablePlayer(state: LeagueState, playerId: string): Player | null;
+  activatePlayer(state: LeagueState, playerId: string, castawayIds: string[]): Player | null;
+  addTribe(state: LeagueState, name: string, color: string): Tribe;
+  updateTribe(state: LeagueState, id: string, field: string, value: unknown): void;
+  removeTribe(state: LeagueState, id: string): void;
+  addCastaway(state: LeagueState, name: string): Castaway;
+  updateCastaway(state: LeagueState, id: string, field: string, value: unknown): void;
+  removeCastaway(state: LeagueState, id: string): void;
+  updateSettings(state: LeagueState, field: string, value: unknown): void;
   addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet;
   removeBet(state: LeagueState, epId: string, betId: string): void;
   addBetPrediction(state: LeagueState, epId: string, betId: string, playerId: string, guess: string): void;
