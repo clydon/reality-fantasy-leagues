@@ -8,6 +8,9 @@ import { useLeagueStore, useCanGuess, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { BetCard } from "./bet-card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // Direct port of renderBonusBetsSection() (public/app.js). overviewNewBetOpen was a single
 // global flag there; here it's this component's own state, same as BetCard's revealedBetCardId.
@@ -45,9 +48,9 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
         <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
           Side Bets{" "}
           {needsCount > 0 && (
-            <span className="ml-1 rounded-full bg-primary px-1.5 py-0.5 text-[0.65rem] font-bold normal-case text-primary-foreground">
+            <Badge className="ml-1 normal-case">
               {needsCount} need{needsCount === 1 ? "s" : ""} you
-            </span>
+            </Badge>
           )}
         </h3>
       </div>
@@ -57,8 +60,9 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
         ))}
         {formOpen ? (
           <div className="rounded-lg border-2 border-dashed border-border bg-card p-3">
-            <input
-              className="mb-2 w-full rounded border border-border bg-card px-2 py-1 text-sm"
+            <Input
+              size="sm"
+              className="mb-2 w-full"
               placeholder='e.g. "Who wins reward?"'
               value={label}
               onChange={(e) => setLabel(e.target.value)}
@@ -66,20 +70,21 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
             />
             <label className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               Points if correct:
-              <input
+              <Input
                 type="number"
-                className="w-16 rounded border border-border bg-card px-1.5 py-0.5 text-xs"
+                size="sm"
+                className="w-16"
                 value={points}
                 onChange={(e) => setPoints(parseInt(e.target.value) || 0)}
               />
             </label>
             <div className="flex justify-end gap-2">
-              <button className="text-xs text-muted-foreground" onClick={() => setFormOpen(false)}>
+              <Button variant="secondary" size="xs" onClick={() => setFormOpen(false)}>
                 Cancel
-              </button>
-              <button className="rounded bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground" onClick={submit}>
+              </Button>
+              <Button size="xs" onClick={submit}>
                 Propose
-              </button>
+              </Button>
             </div>
           </div>
         ) : (

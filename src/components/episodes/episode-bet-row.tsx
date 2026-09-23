@@ -6,6 +6,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -99,13 +100,9 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
           </>
         )}
         {creator && (
-          <span
-            className="rounded-full px-2 py-0.5 text-xs font-semibold text-white"
-            style={{ background: creator.color }}
-            title={`Proposed by ${creator.name}`}
-          >
+          <Badge className="text-white" style={{ background: creator.color }} title={`Proposed by ${creator.name}`}>
             {creator.name}
-          </span>
+          </Badge>
         )}
         {canToggleEdit && (
           <button
@@ -132,15 +129,12 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
           const pp = StateLogic.getPlayer(state, pred.playerId);
           return (
             <div key={pred.id} className="flex items-center gap-2 text-xs">
-              <span
-                className="rounded-full px-2 py-0.5 font-semibold text-white"
-                style={{ background: pp?.color || "#4a5245" }}
-              >
+              <Badge className="text-white" style={{ background: pp?.color || "#4a5245" }}>
                 {pp?.name || "?"}
-              </span>
+              </Badge>
               <span className="flex-1">guessed: &ldquo;{pred.guess}&rdquo;</span>
               <Select
-                className="text-xs"
+                size="sm"
                 disabled={!canManage}
                 defaultValue={pred.correct === true ? "true" : pred.correct === false ? "false" : ""}
                 onChange={(e) => grade(pred.id, e.target.value)}
@@ -150,7 +144,9 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
                 <option value="false">Incorrect</option>
               </Select>
               {pred.correct === true && (bet.predictions || []).length >= 2 && (
-                <span className="rounded bg-good/15 px-1.5 py-0.5 font-semibold text-good">+{bet.points} pts</span>
+                <Badge variant="secondary" className="bg-good/15 text-good">
+                  +{bet.points} pts
+                </Badge>
               )}
               {editing && canManage && (
                 <button title="Remove guess" onClick={() => removeGuess(pred.id)}>
@@ -167,11 +163,7 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
 
       <div className="mt-2 flex flex-wrap gap-1.5">
         {canManage ? (
-          <Select
-            className="text-xs"
-            value={guessPlayerId}
-            onChange={(e) => setGuessPlayerId(e.target.value)}
-          >
+          <Select size="sm" value={guessPlayerId} onChange={(e) => setGuessPlayerId(e.target.value)}>
             <option value="">— player —</option>
             {state.players.map((p) => (
               <option key={p.id} value={p.id}>
@@ -183,13 +175,14 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
           <span className="self-center text-xs text-muted-foreground">Your guess:</span>
         )}
         <Input
-          className="min-w-[140px] flex-1 text-xs"
+          size="sm"
+          className="min-w-[140px] flex-1"
           placeholder="Your guess (free text)"
           value={guessText}
           onChange={(e) => setGuessText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addGuess()}
         />
-        <Button size="sm" onClick={addGuess}>
+        <Button size="xs" onClick={addGuess}>
           Add Guess
         </Button>
       </div>

@@ -7,6 +7,10 @@ import { isBetSettled } from "@/lib/game/selectors";
 import { useLeagueStore, useCanManage, useCanGuess, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { cn } from "cn";
 
 // Direct port of renderBetCard() (public/app.js), converted from global toggle-state
@@ -82,9 +86,7 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
         </button>
       )}
       {canGuessThis && !revealed && (
-        <div className="absolute -right-1 -top-1 rounded bg-primary px-1.5 py-0.5 text-[0.6rem] font-bold text-primary-foreground">
-          NEEDS YOUR GUESS
-        </div>
+        <Badge className="absolute -right-1 -top-1 text-[0.6rem]">NEEDS YOUR GUESS</Badge>
       )}
       <div className="flex items-start justify-between gap-2">
         <div className="text-sm font-semibold">
@@ -126,18 +128,27 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
                 <span>
                   {pp?.name || "?"}: &ldquo;{p.guess}&rdquo;
                 </span>
-                {p.correct === true && <span className="ml-auto font-semibold text-good">+{bet.points} ✓</span>}
-                {p.correct === false && <span className="ml-auto font-semibold text-destructive">✗</span>}
+                {p.correct === true && (
+                  <Badge variant="secondary" className="ml-auto bg-good/15 text-good">
+                    +{bet.points} ✓
+                  </Badge>
+                )}
+                {p.correct === false && (
+                  <Badge variant="destructive" className="ml-auto">
+                    ✗
+                  </Badge>
+                )}
                 {canManage && p.correct === null && (
-                  <select
-                    className="ml-auto rounded border border-border bg-card text-[0.7rem]"
+                  <Select
+                    size="sm"
+                    className="ml-auto"
                     onChange={(e) => e.target.value && grade(p.id, e.target.value === "true")}
                     defaultValue=""
                   >
                     <option value="">—</option>
                     <option value="true">Correct</option>
                     <option value="false">Incorrect</option>
-                  </select>
+                  </Select>
                 )}
               </div>
             );
@@ -147,16 +158,17 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
       {needsOneMore && <div className="text-[0.7rem] italic text-muted-foreground">Needs 1 more guess to pay out</div>}
       {canGuessThis && (
         <div className="flex gap-1.5">
-          <input
-            className="min-w-0 flex-1 rounded border border-border bg-card px-2 py-1 text-xs"
+          <Input
+            size="sm"
+            className="min-w-0 flex-1"
             placeholder="Your guess..."
             value={guess}
             onChange={(e) => setGuess(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submitGuess()}
           />
-          <button className="rounded bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground" onClick={submitGuess}>
+          <Button size="xs" onClick={submitGuess}>
             Guess
-          </button>
+          </Button>
         </div>
       )}
     </div>

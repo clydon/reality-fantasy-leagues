@@ -3,14 +3,22 @@ import { cn } from "cn";
 
 // Ported 1:1 from public/styles.css's shared input[type=text],input[type=number],...,select rule
 // -- same component covers text/number/password/date/email, matching that CSS's own grouping.
-export function Input({ className, ...props }: React.ComponentProps<"input">) {
+// `size="sm"` has no original CSS rule to port (the live app's dense card-grid inputs -- bet-card,
+// side-bets-section -- were always bespoke one-off classes, not a variant of this shared rule);
+// it's new design for that same dense-card-grid job, sized to match Button's `size="xs"`.
+export function Input({
+  className,
+  size = "default",
+  ...props
+}: Omit<React.ComponentProps<"input">, "size"> & { size?: "default" | "sm" }) {
   return (
     <input
       data-slot="input"
       className={cn(
-        "rounded-md border border-border bg-card px-2.5 py-[7px] font-[family-name:var(--font-sans)] text-[0.88rem] text-foreground transition-[border-color,box-shadow] placeholder:text-muted-foreground",
+        "rounded-md border border-border bg-card font-[family-name:var(--font-sans)] text-foreground transition-[border-color,box-shadow] placeholder:text-muted-foreground",
         "hover:border-[#cfcabf] focus:border-primary focus:shadow-[0_0_0_3px_rgba(204,91,57,.12)] focus:outline-none",
         "disabled:cursor-not-allowed disabled:opacity-50",
+        size === "sm" ? "px-2 py-1 text-[0.75rem]" : "px-2.5 py-[7px] text-[0.88rem]",
         className
       )}
       {...props}

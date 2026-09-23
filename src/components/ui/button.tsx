@@ -22,6 +22,11 @@ const buttonVariants = cva(
         default: "px-[15px] py-2 text-[0.85rem]",
         // button.btn.small: padding 5px 10px, font-size .75rem
         sm: "px-2.5 py-[5px] text-[0.75rem]",
+        // No original CSS rule for this one -- the live app's bet-card controls were always
+        // bespoke, one-off classes (.btn-cancel/.btn-submit/etc, see bet-card.tsx), not a variant
+        // of .btn. This is new design for the same dense-card-grid job: guess/propose/grade
+        // controls packed several to a row inside a ~280px-wide card.
+        xs: "px-2 py-1 text-[0.7rem]",
       },
     },
     defaultVariants: {
