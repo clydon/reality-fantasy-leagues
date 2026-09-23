@@ -49,6 +49,7 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   me: () => apiFetch<MeResponse>("/api/auth/me"),
+  logout: () => apiFetch<{ ok: true }>("/api/auth/logout", { method: "POST" }),
   leagueState: (leagueId: string) =>
     apiFetch<LeagueStateResponse>(`/api/leagues/${leagueId}/state`),
 

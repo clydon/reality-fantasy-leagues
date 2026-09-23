@@ -136,6 +136,30 @@ repo's own `db/create-super-admin.js`, including that exact zero-leagues case; a
 plus a full create→reset-password→delete cycle on a disposable throwaway user (never touching
 the shared dev database's existing users/leagues).
 
+**Mobile nav chrome** (`src/components/mobile-nav/*`): port of the live app's Chess.com-style
+top bar + bottom tab bar (`public/index.html`'s `.mobile-topbar`/`.mobile-bottombar`, populated by
+`renderMobileNav()` in `public/app.js`) — the piece the earlier visual-fidelity pass explicitly
+left out. A custom Tailwind breakpoint (`--breakpoint-nav: 880px` in `globals.css`) matches the
+live app's single `@media (max-width:880px)` cutoff exactly, generating `nav:`/`max-nav:`
+variants; `Sidebar` hides and `MobileNav` shows below it, mirroring `body.in-league`'s rules.
+Includes the real SVG icon set (`icons.tsx`, copied from `MOBILE_ICONS`), the same 4th-bottom-slot
+swap (Draft while the draft is running, Mid-Season once it's done, with the other one demoted
+into the "More" sheet), and a working More sheet (backdrop + slide-up panel) with a real
+log out (calls the actual `/api/auth/logout` route in live mode).
+
+Two things this surfaced along the way, both fixed rather than left in:
+- **A real layout bug**: `MobileNav`'s top bar uses `position:sticky`, which still participates in
+  normal flex layout — nested inside the sidebar+main flex row, it became a flex item squeezing
+  main's width on mobile instead of stacking above it. Moved outside that flex row entirely.
+- **A demo-mode detail**: the live app hides the league-name button via `visibility:hidden` (not
+  removed — layout space stays reserved) when there's no real league to switch to; matched exactly
+  rather than conditionally rendering different text.
+
+Not ported: the league-switcher dropdown (this POC only ever loads one real league at a time, so
+there's nothing to switch between) and the chat unread-count badge (no unread tracking exists in
+`chat-store.ts`). League Settings and Rules aren't tabs in this POC at all, so the "More" sheet
+only lists what's actually real here, not a 1:1 copy of every row the live app's sheet has.
+
 ## Design tokens
 
 The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
@@ -161,12 +185,11 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
   all now done), so it wasn't in scope for validating that list.
 - **No signup/session-persistence UI polish** — the login form is functional but minimal (see
   `auth-gate.tsx`).
-- **Mobile nav chrome isn't ported** — the sidebar (`sidebar.tsx`) is desktop-only; the live app's
-  Chess.com-style bottom-tab-bar + top-bar for narrow viewports (a separate, sizeable section of
-  `public/app.js` per `CLAUDE.md`) is a distinct piece of work not started here.
 - **Buttons/inputs elsewhere still use Tailwind/shadcn defaults**, not measured 1:1 against the
   live app's `.btn`/`input[type=...]` CSS rules the way the sidebar, login screen, and Board grid
-  now are — those three got a rigorous screenshot-driven pass; the rest didn't yet.
+  now are — those got a rigorous screenshot-driven pass; the rest didn't yet.
+- **Mobile nav's league-switcher dropdown and chat unread badge aren't ported** — see the mobile
+  nav section below for why.
 
 ## Stack
 

@@ -5,6 +5,7 @@ import { api, ApiError } from "@/lib/api";
 import { useLeagueStore } from "@/lib/store";
 import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
+import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 
 type Status = "checking" | "idle" | "loading";
 
@@ -74,19 +75,32 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   // Matches .app-shell / main's exact layout from public/styles.css (flex, sidebar + a
-  // width-capped content column with 36px/44px/90px padding), not a centered max-w column.
+  // width-capped content column with 36px/44px/90px padding on desktop; below the 880px
+  // breakpoint the sidebar disappears entirely in favor of MobileNav's top/bottom bars, and
+  // main's padding shrinks to 16px sides with extra bottom clearance for the fixed bottom bar --
+  // see body.in-league's rules in public/styles.css).
+  //
+  // MobileNav renders outside the sidebar+main flex row on purpose: its top bar uses
+  // position:sticky (not fixed), which still participates in normal flex layout as a sibling --
+  // nested inside the row, it became a flex item squeezing main's width on mobile instead of
+  // stacking above it.
   return (
-    <div className="flex min-h-screen items-stretch">
-      <Sidebar />
-      <main className="min-w-0 max-w-[980px] flex-1 px-11 pb-[90px] pt-9">
-        {signedInUsername && mode === "mock" && (
-          <div className="mb-4 rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-muted-foreground">
-            Signed in as {signedInUsername} — no personal league, so these tabs show demo data. Admin tab uses your real
-            account.
-          </div>
-        )}
-        {children}
-      </main>
-    </div>
+    <>
+      <MobileNav />
+      <div className="flex min-h-screen items-stretch">
+        <div className="max-nav:hidden">
+          <Sidebar />
+        </div>
+        <main className="min-w-0 max-w-[980px] flex-1 px-11 pb-[90px] pt-9 max-nav:max-w-full max-nav:px-4 max-nav:pb-[calc(84px+env(safe-area-inset-bottom,0px))] max-nav:pt-4">
+          {signedInUsername && mode === "mock" && (
+            <div className="mb-4 rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-muted-foreground">
+              Signed in as {signedInUsername} — no personal league, so these tabs show demo data. Admin tab uses your
+              real account.
+            </div>
+          )}
+          {children}
+        </main>
+      </div>
+    </>
   );
 }

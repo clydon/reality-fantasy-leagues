@@ -4,6 +4,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Matches public/styles.css's single mobile-nav breakpoint exactly (@media (max-width:880px)) --
+   generates `nav:*` (min-width:880px, desktop) and `max-nav:*` (below 880px, mobile) variants. */
+@theme {
+  --breakpoint-nav: 880px;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
