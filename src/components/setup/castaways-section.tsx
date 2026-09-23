@@ -49,7 +49,8 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
       <div className="flex flex-col gap-2">
         {state.castaways.map((c) => {
-          const owner = c.ownerId ? StateLogic.getPlayer(state, c.ownerId) : null;
+          // Exclusive-ownership leagues have at most one owner per castaway.
+          const owner = c.ownerIds[0] ? StateLogic.getPlayer(state, c.ownerIds[0]) : null;
           return (
             <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2.5 text-sm">
               <Input

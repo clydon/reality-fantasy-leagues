@@ -156,7 +156,8 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
               <div className="flex flex-col gap-1.5">
                 {ep.events.map((ev) => {
                   const c = StateLogic.getCastaway(state, ev.castawayId);
-                  const owner = c?.ownerId ? StateLogic.getPlayer(state, c.ownerId) : null;
+                  // Exclusive-ownership leagues have at most one owner per castaway.
+                  const owner = c?.ownerIds[0] ? StateLogic.getPlayer(state, c.ownerIds[0]) : null;
                   return (
                     <div key={ev.castawayId} className="flex items-center gap-2 text-sm">
                       <span className="rounded bg-destructive px-1.5 py-0.5 text-xs font-bold text-white">

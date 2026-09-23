@@ -76,7 +76,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
 
   const turn = t.queue[t.index];
   const player = StateLogic.getPlayer(state, turn.playerId);
-  const owned = state.castaways.filter((c) => c.ownerId === turn.playerId && c.status === "active");
+  const owned = state.castaways.filter((c) => c.ownerIds.includes(turn.playerId) && c.status === "active");
   const fa = StateLogic.freeAgents(state);
   const effectiveDropId = dropId && owned.some((c) => c.id === dropId) ? dropId : null;
   const dropCastaway = effectiveDropId ? StateLogic.getCastaway(state, effectiveDropId) : null;

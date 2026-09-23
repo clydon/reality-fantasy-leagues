@@ -1,8 +1,9 @@
 # Plan: League types expansion (ownership modes, Pick'em, Active Roster) + wiki connector
 
-**Status:** Planned, not yet implemented. Written from a multi-turn design conversation — read
-this file plus the referenced source files and you have everything needed to execute without
-that conversation's history.
+**Status:** Step 1 of "Suggested execution order" (the `ownerId` -> `ownerIds` refactor) is
+**implemented and verified**; Features A-D are still unbuilt. Written from a multi-turn design
+conversation — read this file plus the referenced source files and you have everything needed to
+execute without that conversation's history.
 
 ## Context (read this first)
 
@@ -48,7 +49,20 @@ existing section is topically closest:
 
 ---
 
-## Foundational: `ownerId` → `ownerIds` (ships first, before any new league type)
+## Foundational: `ownerId` → `ownerIds` (ships first, before any new league type) — DONE
+
+**Implemented.** See README's "Castaway ownership is `ownerIds: string[]`" section for the shipped
+shape, the `Core` helper contract, and the verification that was run. Two notes for whoever builds
+Feature A on top of this:
+
+- One assumption in this section turned out to be wrong: it is **not** zero-migration. Ownership
+  does live in the `state` JSONB, but `withLeagueLock` reads that column raw and never calls
+  `Migrations.migrateLeagueState` (that runs on backup import only), so existing league rows needed
+  a real one-time conversion — `db/migrations/0003_castaway_owner_ids.sql`. Any future change to the
+  shape of `state` has the same trap; don't assume JSONB means migration-free.
+- `formerOwnerId` is still a scalar, on purpose — it's history/display only and never scored. Shared
+  mode will need to decide what "former owner" means when a castaway had several owners; that's
+  Feature A's call, not a gap in this step.
 
 **Decision, and why:** castaway ownership today is `castaway.ownerId: string | null` — exclusive
 by construction, one owner or none. Shared ownership (multiple players owning the same castaway)
@@ -245,8 +259,8 @@ connector coverage into Feature C's UI before this investigation happens.
 
 ## Suggested execution order
 
-1. `ownerId` → `ownerIds` refactor, verified in isolation against existing Classic Draft leagues
-   before anything else touches it.
+1. ~~`ownerId` → `ownerIds` refactor, verified in isolation against existing Classic Draft leagues
+   before anything else touches it.~~ **DONE** — see the Foundational section above.
 2. Classic Draft ownership setting + blind draft (builds directly on #1).
 3. Pick'em — fully independent of #1/#2 (no castaway ownership involved at all); can run in
    parallel with either.

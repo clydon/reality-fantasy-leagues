@@ -48,12 +48,50 @@ const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b
 const SEED_CASTAWAYS = ['Aaliyah','Alexis','Ana','Brady','Carter','Cristian','Devin','Eric','Jelly','Jenna','Kilby','Kristin','Lewis','Linnea','Maggie','Mike','Ori','Patt','Rob','Sharonda','Thien An'];
 const EXIT_METHODS = ['Voted Out','Medically Evacuated','Quit','Lost Fire-Making','Lost Final Tribal (Jury Vote)','Sole Survivor','Other'];
 
+// Reads a castaway object's owner list, tolerating a castaway that predates the field. Kept
+// module-private: the filter predicates below already hold the castaway object, so going through
+// Core.ownersOf (which looks it up by id) would be pointless indirection -- see the ownership
+// comment in Core for which call sites are expected to use the helpers instead.
+function ownerListOf(c){ return (c && c.ownerIds) || []; }
+
 // ---------- Core: id generation + basic entity lookups, used by every other class ----------
 class Core {
   static uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }
   static getPlayer(state, id){ return state.players.find(p=>p.id===id); }
   static getCastaway(state, id){ return state.castaways.find(c=>c.id===id); }
   static getTribe(state, id){ return state.tribes.find(t=>t.id===id); }
+
+  // ---- ownership ----
+  // Castaway ownership is `castaway.ownerIds: string[]`, not a scalar owner, for EVERY league
+  // type -- exclusive-ownership leagues (today's only shipped mode) are simply the case where the
+  // array never exceeds length 1, enforced by the draft strategy rather than by the data shape.
+  // That keeps shared-ownership league types (several players owning the same castaway) from
+  // needing a second parallel field that every ownership-aware call site would have to branch on.
+  // WRITES always go through setOwner/addOwner/removeOwner below -- that's where the one-owner-max
+  // invariant of exclusive mode lives. Plain reads of the array (`c.ownerIds[0]`,
+  // `c.ownerIds.includes(id)`) are fine where the caller already holds the castaway object; the
+  // read helpers here are for callers that only have an id.
+  static ownersOf(state, castawayId){ return ownerListOf(Core.getCastaway(state, castawayId)); }
+  static ownedCastawayIds(state, playerId){ return state.castaways.filter(c=>ownerListOf(c).includes(playerId)).map(c=>c.id); }
+  static isOwnedBy(state, castawayId, playerId){ return Core.ownersOf(state, castawayId).includes(playerId); }
+  // Exclusive-mode convenience: drops any existing owners and sets exactly one. A null/undefined
+  // playerId clears ownership entirely (used by undraft and by replenish/trade drops).
+  static setOwner(state, castawayId, playerId){
+    const c = Core.getCastaway(state, castawayId);
+    if(c) c.ownerIds = playerId ? [playerId] : [];
+  }
+  // Shared-mode primitives: add/remove a single owner without disturbing the others.
+  static addOwner(state, castawayId, playerId){
+    const c = Core.getCastaway(state, castawayId);
+    if(!c || !playerId) return;
+    if(!c.ownerIds) c.ownerIds = [];
+    if(!c.ownerIds.includes(playerId)) c.ownerIds.push(playerId);
+  }
+  static removeOwner(state, castawayId, playerId){
+    const c = Core.getCastaway(state, castawayId);
+    if(!c || !c.ownerIds) return;
+    c.ownerIds = c.ownerIds.filter(id=>id!==playerId);
+  }
 }
 
 // ---------- EliminationOrderScoringStrategy: the 'classic-draft' league type's scoring ----------
@@ -64,13 +102,20 @@ class EliminationOrderScoringStrategy {
   static compute(state){
     const results = {};
     state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
-    state.castaways.forEach(c=>{
-      if(c.ownerId && results[c.ownerId]){
-        results[c.ownerId].roster.push(c);
+    // Per-player, via Core.ownedCastawayIds rather than a single scalar owner per castaway, so a
+    // castaway with several owners (shared-ownership league types) contributes its placement to
+    // each of them. In exclusive-ownership leagues every castaway has at most one owner, so this
+    // sums to exactly what the old single-owner pass produced.
+    state.players.forEach(p=>{
+      Core.ownedCastawayIds(state, p.id).forEach(cid=>{
+        const c = Core.getCastaway(state, cid);
+        results[p.id].roster.push(c);
         if(c.status==='eliminated' && typeof c.placementOrder==='number'){
-          results[c.ownerId].locked += c.placementOrder;
+          results[p.id].locked += c.placementOrder;
         }
-      }
+      });
+    });
+    state.castaways.forEach(c=>{
       // Dropped via replenish/trade: no longer counts, but still shown (grayed out) for history.
       if(c.formerOwnerId && results[c.formerOwnerId]){
         results[c.formerOwnerId].formerRoster.push(c);
@@ -159,8 +204,8 @@ class SnakeDraftStrategy {
   static pick(state, castawayId){
     const turn = SnakeDraftStrategy.currentTurn(state);
     const c = Core.getCastaway(state, castawayId);
-    if(!turn || turn.isComplete || !c || c.ownerId) return;
-    c.ownerId = turn.playerId;
+    if(!turn || turn.isComplete || !c || ownerListOf(c).length) return;
+    Core.setOwner(state, castawayId, turn.playerId);
     c.acquiredVia = 'draft';
     state.draftPicksMade++;
   }
@@ -170,7 +215,7 @@ class SnakeDraftStrategy {
     if(c.acquiredVia==='draft'){
       state.draftPicksMade = Math.max(0, state.draftPicksMade - 1);
     }
-    c.ownerId = null;
+    Core.setOwner(state, castawayId, null);
     c.acquiredVia = null;
   }
 }
@@ -216,8 +261,11 @@ class DraftLogic {
 
 // ---------- RosterLogic: players, tribes, castaways, league settings ----------
 class RosterLogic {
-  static freeAgents(state){ return state.castaways.filter(c=>!c.ownerId && c.status==='active'); }
-  static activeOwnedCount(state, playerId){ return state.castaways.filter(c=>c.ownerId===playerId && c.status==='active').length; }
+  // Both of these are EXCLUSIVE-ownership concepts and stay that way: in a shared-ownership league
+  // nothing is ever removed from availability (every pick offers the full cast every time), so
+  // there is no such thing as a free agent. Shared-mode draft/roster UI simply doesn't call these.
+  static freeAgents(state){ return state.castaways.filter(c=>ownerListOf(c).length===0 && c.status==='active'); }
+  static activeOwnedCount(state, playerId){ return state.castaways.filter(c=>ownerListOf(c).includes(playerId) && c.status==='active').length; }
   static totalCastCount(state){ return state.castaways.length; }
 
   // Joining after the draft has already fully concluded has no fair turn order to slot into, so
@@ -243,7 +291,7 @@ class RosterLogic {
     if(!p) return null;
     (castawayIds||[]).forEach(cid=>{
       const c = Core.getCastaway(state, cid);
-      if(c && !c.ownerId){ c.ownerId = playerId; c.acquiredVia = 'draft'; }
+      if(c && ownerListOf(c).length===0){ Core.setOwner(state, cid, playerId); c.acquiredVia = 'draft'; }
     });
     p.active = true;
     if(!state.draftOrder.includes(playerId)) state.draftOrder.push(playerId);
@@ -251,7 +299,7 @@ class RosterLogic {
   }
   static updatePlayer(state, id, field, value){ const p=Core.getPlayer(state,id); if(p) p[field]=value; }
   static removePlayer(state, id){
-    state.castaways.forEach(c=>{ if(c.ownerId===id) c.ownerId=null; });
+    state.castaways.forEach(c=>{ Core.removeOwner(state, c.id, id); });
     state.players = state.players.filter(p=>p.id!==id);
     state.draftOrder = state.draftOrder.filter(pid=>pid!==id);
   }
@@ -273,7 +321,7 @@ class RosterLogic {
   }
   // Restores a disabled player's original name/active status when the same account (matched by
   // disabledFromUserId, not name -- names are guessable, account ids aren't) rejoins the league.
-  // Does NOT touch ownerId/status/placementOrder/points -- those were never cleared by
+  // Does NOT touch ownerIds/status/placementOrder/points -- those were never cleared by
   // disablePlayer, so there's nothing to restore there; this only undoes the disable/rename.
   static reclaimPlayer(state, playerId){
     const p = Core.getPlayer(state, playerId);
@@ -295,7 +343,7 @@ class RosterLogic {
     state.tribes = state.tribes.filter(t=>t.id!==id);
   }
   static addCastaway(state, name){
-    const c = {id:Core.uid('c'), name, tribeId:null, ownerId:null, photoUrl:'', status:'active', placementOrder:null, exitMethod:null, exitEpisodeId:null, replenishClaimed:false, acquiredVia:null, formerOwnerId:null, departedVia:null};
+    const c = {id:Core.uid('c'), name, tribeId:null, ownerIds:[], photoUrl:'', status:'active', placementOrder:null, exitMethod:null, exitEpisodeId:null, replenishClaimed:false, acquiredVia:null, formerOwnerId:null, departedVia:null};
     state.castaways.push(c);
     return c;
   }
@@ -310,7 +358,7 @@ class ReplenishLogic {
     const scores = ScoringLogic.compute(state);
     const scoreOf = playerId => (scores.find(s=>s.playerId===playerId)||{total:0}).total;
     const counts = state.players.map(p=>{
-      const losses = state.castaways.filter(c=> c.ownerId===p.id && c.status==='eliminated' && !c.replenishClaimed && c.exitMethod!=='Sole Survivor');
+      const losses = state.castaways.filter(c=> ownerListOf(c).includes(p.id) && c.status==='eliminated' && !c.replenishClaimed && c.exitMethod!=='Sole Survivor');
       return {playerId:p.id, losses, score: scoreOf(p.id)};
     }).filter(x=>x.losses.length>0);
     if(counts.length===0) return false;
@@ -354,9 +402,9 @@ class ReplenishLogic {
     const r = state.midSeason.replenish;
     if(!r || r.index>=r.sequence.length) return;
     const c = Core.getCastaway(state, castawayId);
-    if(!c || c.ownerId) return;
+    if(!c || ownerListOf(c).length) return;
     const turn = r.sequence[r.index];
-    c.ownerId = turn.playerId;
+    Core.setOwner(state, castawayId, turn.playerId);
     c.acquiredVia = 'replenish';
     const lossIds = r.lossIdsByPlayer[turn.playerId];
     const lossId = lossIds.pop();
@@ -365,9 +413,11 @@ class ReplenishLogic {
       lostCastaway.replenishClaimed = true;
       // The replenish pick replaces this slot, so its points no longer count for this player —
       // but formerOwnerId/departedVia keep the history so the Scoreboard can still show it.
-      lostCastaway.formerOwnerId = lostCastaway.ownerId;
+      // formerOwnerId stays a single id (history display only, not scoring) -- in exclusive mode
+      // there is exactly one owner to record here.
+      lostCastaway.formerOwnerId = ownerListOf(lostCastaway)[0] || null;
       lostCastaway.departedVia = 'replenish';
-      lostCastaway.ownerId = null;
+      Core.setOwner(state, lostCastaway.id, null);
     }
     r.index++;
   }
@@ -385,13 +435,13 @@ class TradeLogic {
     if(!t || t.index>=t.queue.length) return;
     const turn = t.queue[t.index];
     const drop = Core.getCastaway(state, dropId), add = Core.getCastaway(state, addId);
-    if(drop && drop.ownerId===turn.playerId && drop.status==='active'){
-      drop.formerOwnerId = drop.ownerId;
+    if(drop && Core.isOwnedBy(state, dropId, turn.playerId) && drop.status==='active'){
+      drop.formerOwnerId = turn.playerId;
       drop.departedVia = 'trade';
-      drop.ownerId = null;
+      Core.removeOwner(state, dropId, turn.playerId);
     }
-    if(add && !add.ownerId && add.status==='active'){
-      add.ownerId = turn.playerId;
+    if(add && ownerListOf(add).length===0 && add.status==='active'){
+      Core.setOwner(state, addId, turn.playerId);
       add.acquiredVia = 'trade';
     }
     t.index++;
@@ -559,7 +609,7 @@ class Migrations {
   static defaultState(){
     const players = [];
     const castaways = SEED_CASTAWAYS.map(name=>({
-      id:Core.uid('c'), name, tribeId:null, ownerId:null,
+      id:Core.uid('c'), name, tribeId:null, ownerIds:[],
       photoUrl:'photos/s51/'+name.toLowerCase().replace(/\s+/g,'_')+'.jpg',
       status:'active', placementOrder:null, exitMethod:null, exitEpisodeId:null, replenishClaimed:false,
       acquiredVia:null, formerOwnerId:null, departedVia:null
@@ -593,6 +643,16 @@ class Migrations {
   // an uploaded JSON backup, or a league row) and returns it. Pure — no localStorage access.
   static migrateLeagueState(raw){
     const s = raw;
+    // Scalar `ownerId` -> `ownerIds` array (see Core's ownership comment). Runs FIRST because
+    // everything below that reads ownership (draftPicksMade, acquiredVia) expects the new shape.
+    // Old saves are all exclusive-ownership, so a scalar owner becomes a one-element array.
+    // Note this only covers uploaded JSON backups and freshly-imported state -- league rows
+    // already in Postgres are converted once by db/migrations/0003_castaway_owner_ids.sql, since
+    // withLeagueLock reads leagues.state straight out of the JSONB column without migrating.
+    (s.castaways||[]).forEach(c=>{
+      if(!Array.isArray(c.ownerIds)) c.ownerIds = c.ownerId ? [c.ownerId] : [];
+      delete c.ownerId;
+    });
     if(!s.midSeason) s.midSeason = {replenish:null, trade:null};
     if(!s.finalePredictions) s.finalePredictions = [];
     if(!s.finaleActual) s.finaleActual = {top3:[], winner:null};
@@ -602,14 +662,14 @@ class Migrations {
     if(!s.settings.leagueTypeId) s.settings.leagueTypeId = 'classic-draft';
     if(!s.settings.showId) s.settings.showId = 'survivor';
     if(!s.draftOrder) s.draftOrder = (s.players||[]).map(p=>p.id);
-    if(typeof s.draftPicksMade !== 'number') s.draftPicksMade = (s.castaways||[]).filter(c=>c.ownerId).length;
+    if(typeof s.draftPicksMade !== 'number') s.draftPicksMade = (s.castaways||[]).filter(c=>ownerListOf(c).length).length;
     if(typeof s.draftForceStarted !== 'boolean') s.draftForceStarted = false;
     if(typeof s.settings.draftScheduledAt === 'undefined') s.settings.draftScheduledAt = null;
     (s.players||[]).forEach(p=>{ if(typeof p.active !== 'boolean') p.active = true; });
     (s.castaways||[]).forEach(c=>{
       // Migrate the old boolean flag to the richer acquiredVia/formerOwnerId/departedVia model.
       // Best-effort only: existing saves can't fully recover pre-replenish/trade history.
-      if(typeof c.acquiredVia === 'undefined') c.acquiredVia = c.draftedViaSnake ? 'draft' : (c.ownerId ? 'draft' : null);
+      if(typeof c.acquiredVia === 'undefined') c.acquiredVia = c.draftedViaSnake ? 'draft' : (ownerListOf(c).length ? 'draft' : null);
       if(typeof c.formerOwnerId === 'undefined') c.formerOwnerId = null;
       if(typeof c.departedVia === 'undefined') c.departedVia = null;
       delete c.draftedViaSnake;

@@ -28,7 +28,8 @@ export function BoardGrid({ state }: { state: LeagueState }) {
             </h3>
             <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(126px,1fr))] gap-3">
               {members.map((c) => {
-                const owner = c.ownerId ? StateLogic.getPlayer(state, c.ownerId) : null;
+                // Exclusive-ownership leagues have at most one owner per castaway.
+                const owner = c.ownerIds[0] ? StateLogic.getPlayer(state, c.ownerIds[0]) : null;
                 const formerOwner = !owner && c.formerOwnerId ? StateLogic.getPlayer(state, c.formerOwnerId) : null;
                 const medal = c.status === "eliminated" ? medalFor(state, c.placementOrder) : null;
                 const eliminatedNoMedal = c.status === "eliminated" && !medal;

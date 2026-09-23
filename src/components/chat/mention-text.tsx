@@ -7,7 +7,7 @@ import { Fragment } from "react";
 // React auto-escapes text content, so unlike the original this needs no esc() calls -- it just
 // returns React nodes instead of an HTML string.
 export function MentionText({ state, text }: { state: LeagueState; text: string }) {
-  const owned = state.castaways.filter((c) => c.ownerId);
+  const owned = state.castaways.filter((c) => c.ownerIds.length > 0);
   if (owned.length === 0) return <>{text}</>;
 
   const names = [...owned].map((c) => c.name).sort((a, b) => b.length - a.length);
@@ -20,7 +20,8 @@ export function MentionText({ state, text }: { state: LeagueState; text: string 
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > lastIndex) parts.push(<Fragment key={key++}>{text.slice(lastIndex, match.index)}</Fragment>);
     const c = owned.find((cc) => cc.name === match![0]);
-    const owner = c?.ownerId ? StateLogic.getPlayer(state, c.ownerId) : null;
+    // Exclusive-ownership leagues have at most one owner per castaway.
+    const owner = c?.ownerIds[0] ? StateLogic.getPlayer(state, c.ownerIds[0]) : null;
     parts.push(
       <Fragment key={key++}>
         {match[0]}

@@ -25,6 +25,12 @@ declare const StateLogic: {
     getPlayer(state: LeagueState, id: string): Player | undefined;
     getCastaway(state: LeagueState, id: string): Castaway | undefined;
     getTribe(state: LeagueState, id: string): Tribe | undefined;
+    ownersOf(state: LeagueState, castawayId: string): string[];
+    ownedCastawayIds(state: LeagueState, playerId: string): string[];
+    isOwnedBy(state: LeagueState, castawayId: string, playerId: string): boolean;
+    setOwner(state: LeagueState, castawayId: string, playerId: string | null): void;
+    addOwner(state: LeagueState, castawayId: string, playerId: string): void;
+    removeOwner(state: LeagueState, castawayId: string, playerId: string): void;
   };
   ScoringLogic: {
     compute(state: LeagueState): ScoreRow[];

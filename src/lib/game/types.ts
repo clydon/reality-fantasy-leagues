@@ -24,7 +24,9 @@ export interface Castaway {
   id: string;
   name: string;
   tribeId: string;
-  ownerId: string | null;
+  // Every league type uses this array, never a scalar owner -- exclusive-ownership leagues are
+  // just the case where it never exceeds length 1 (see Core's ownership helpers in state-logic.js).
+  ownerIds: string[];
   photoUrl?: string;
   status: "active" | "eliminated";
   placementOrder?: number;

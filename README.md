@@ -318,6 +318,48 @@ certainly won't fit the `DraftStrategy` shape regardless — noted directly in `
 comments as a sign it would need its own top-level state/UI branch, not a third `DraftStrategy`
 implementation forced to pretend it's turn-based.
 
+### Castaway ownership is `ownerIds: string[]`, not a scalar owner
+
+Castaway ownership is `castaway.ownerIds: string[]` for **every** league type, not
+`ownerId: string | null`. Exclusive-ownership leagues (`'classic-draft'`, today's only shipped
+type) are simply the case where the array never exceeds length 1 — that invariant is enforced by
+the draft strategy, not by the data shape. The alternative, bolting a second parallel field onto
+castaways for shared-ownership league types, would mean every ownership-aware call site branches on
+league mode forever; one representation avoids that.
+
+Read/write it through `Core`: `ownersOf`, `ownedCastawayIds`, `isOwnedBy` for reads,
+`setOwner` (exclusive-mode convenience — clears then sets one owner, or clears entirely when passed
+`null`) and `addOwner`/`removeOwner` (shared-mode primitives) for writes. **Writes always go
+through those helpers** — that's where the one-owner-max invariant lives. Plain array reads
+(`c.ownerIds[0]`, `c.ownerIds.includes(id)`) are fine where the caller already holds the castaway
+object, which is what the UI call sites do.
+
+Two things deliberately stayed as they were:
+
+- `formerOwnerId` is still a single id. It's history/display only (the grayed-out `formerRoster` on
+  the Scoreboard), never summed into a score, so it didn't need widening for this step.
+- `freeAgents`/`activeOwnedCount` remain **exclusive-mode-only** helpers. A shared-ownership league
+  has no concept of a free agent — nothing is ever removed from availability, so every pick offers
+  the full cast every time. Shared-mode draft/roster UI just won't call them.
+
+**The migration trap, and why `db/migrations/0003_castaway_owner_ids.sql` exists.** Ownership lives
+inside the `leagues.state` JSONB column rather than in real columns, which makes it tempting to
+call this a zero-migration change. It isn't: `withLeagueLock` (and every other
+`SELECT state FROM leagues`) hands the stored JSON straight to the game logic **without** running
+`Migrations.migrateLeagueState` — that only runs on backup import. So a code-only rename would have
+left every existing league carrying an `ownerId` the new code never reads: empty rosters, and every
+player's locked points silently reset to 0. Hence the one-time SQL conversion, which is idempotent
+and preserves cast order. `Migrations.migrateLeagueState` folds the scalar into the array too, for
+the separate case of importing an old JSON backup.
+
+**Verified as a pure refactor**, not eyeballed: a fixture script drove a full Classic Draft league
+(draft with undo/re-pick, owned *and* unowned eliminations, placement renumbering, side bets,
+replenish, trade including the drop-someone-else's-castaway no-op, post-draft late-joiner activate,
+disable/reclaim, finale, `removePlayer` releasing ownership) against the pre- and post-refactor
+`state-logic.js` and diffed the two logs — byte-identical across all 33 recorded steps, the sole
+intentional difference being the field name itself. A second pass then ran the same ground through
+the real API and Postgres (16 checks) to confirm the array survives the JSONB round-trip.
+
 **Future: auto-sourcing episode data.** Not built, but the direction this is headed: periodically
 having an LLM fetch and structure per-show, per-season data (contestants, episode-by-episode
 eliminations/exits — a source like the Survivor Fandom wiki has everything needed) and cache it,

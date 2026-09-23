@@ -32,7 +32,7 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {state.players.map((p) => {
           const picks = state.castaways.filter(
-            (c) => c.acquiredVia === "draft" && (c.ownerId === p.id || c.formerOwnerId === p.id)
+            (c) => c.acquiredVia === "draft" && (c.ownerIds.includes(p.id) || c.formerOwnerId === p.id)
           );
           return (
             <div key={p.id} className="rounded-md border-2 bg-secondary/40 p-2.5" style={{ borderColor: p.color }}>
@@ -49,11 +49,11 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
                         {initials(c.name)}
                       </span>
                       {c.name} {c.status === "eliminated" && <span className="text-muted-foreground">(#{c.placementOrder})</span>}
-                      {c.ownerId !== p.id && (
+                      {!c.ownerIds.includes(p.id) && (
                         <span className="text-muted-foreground">— {c.departedVia === "trade" ? "swapped away" : "replenished away"}</span>
                       )}
                     </span>
-                    {c.ownerId === p.id && c.status === "active" && canManage && (
+                    {c.ownerIds.includes(p.id) && c.status === "active" && canManage && (
                       <Button variant="secondary" size="sm" onClick={() => handleUndraft(c.id)}>
                         Undraft
                       </Button>

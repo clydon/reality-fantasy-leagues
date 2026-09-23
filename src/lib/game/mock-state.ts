@@ -43,21 +43,25 @@ export function buildMockSeasonState(): LeagueState {
     { k: "aubry", name: "Aubry Bracco", tribe: T.vatu, placement: 24, method: "Sole Survivor", episode: 15, owner: connie.id, acquiredVia: "draft" },
   ] as const;
 
-  const castaways = raw.map((r) => ({
-    id: "demo_c_" + r.k,
-    name: r.name,
-    tribeId: r.tribe,
-    ownerId: ("owner" in r ? r.owner : null) ?? null,
-    photoUrl: "photos/" + r.k + ".jpg",
-    status: "eliminated" as const,
-    placementOrder: r.placement,
-    exitMethod: r.method,
-    exitEpisodeId: "demo_ep" + r.episode,
-    replenishClaimed: "replenishClaimed" in r ? r.replenishClaimed : false,
-    acquiredVia: "acquiredVia" in r ? r.acquiredVia : null,
-    formerOwnerId: ("formerOwner" in r ? r.formerOwner : null) ?? null,
-    departedVia: "departedVia" in r ? r.departedVia : null,
-  }));
+  const castaways = raw.map((r) => {
+    // Every `raw` row here is exclusive-ownership, so an owner is a one-element ownerIds array.
+    const owner = ("owner" in r ? r.owner : null) ?? null;
+    return {
+      id: "demo_c_" + r.k,
+      name: r.name,
+      tribeId: r.tribe,
+      ownerIds: owner ? [owner] : [],
+      photoUrl: "photos/" + r.k + ".jpg",
+      status: "eliminated" as const,
+      placementOrder: r.placement,
+      exitMethod: r.method,
+      exitEpisodeId: "demo_ep" + r.episode,
+      replenishClaimed: "replenishClaimed" in r ? r.replenishClaimed : false,
+      acquiredVia: "acquiredVia" in r ? r.acquiredVia : null,
+      formerOwnerId: ("formerOwner" in r ? r.formerOwner : null) ?? null,
+      departedVia: "departedVia" in r ? r.departedVia : null,
+    };
+  });
   const byName = (key: string) => castaways.find((c) => c.id === "demo_c_" + key)!.id;
 
   function ep(num: number, eventKeys: string[], bets?: LeagueState["episodes"][number]["bets"]) {

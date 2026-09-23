@@ -75,7 +75,7 @@ export function FinalePanel({ state }: { state: LeagueState }) {
       <div className="flex flex-col gap-2.5">
         {state.players.map((p) => {
           const fp = state.finalePredictions.find((f) => f.playerId === p.id) || { playerId: p.id, top3: [null, null, null], winner: null };
-          const pool = s.finalePredictionScope === "ownPicksOnly" ? state.castaways.filter((c) => c.ownerId === p.id) : state.castaways;
+          const pool = s.finalePredictionScope === "ownPicksOnly" ? state.castaways.filter((c) => c.ownerIds.includes(p.id)) : state.castaways;
           const editable = canManage || p.id === myPlayerId;
           return (
             <div key={p.id} className="rounded-lg border border-border bg-card p-3">
