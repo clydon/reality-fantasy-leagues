@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { signInWithIdentifier } from "@/lib/auth-client";
-import { useLeagueStore, useIsPreviewingDemo } from "@/lib/store";
+import { useLeagueStore, useIsPreviewingDemo, useIsAuthenticated } from "@/lib/store";
 import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 import { ReportModal } from "@/components/report-modal";
+import { Dashboard } from "@/components/dashboard/dashboard";
 import { useLeaguePoll } from "@/lib/use-league-poll";
 import { Button } from "@/components/ui/button";
 
@@ -18,6 +20,14 @@ type Status = "checking" | "idle" | "loading";
 // inside "entered" league-scoped content -- they need to stay reachable before a session exists
 // (signing up IS how you get one) and while mock/demo mode is active.
 const PUBLIC_ROUTES = ["/account", "/forgot-password", "/reset-password"];
+
+// Full-page routes that skip the Sidebar/MobileNav shell once entered -- the Dashboard is a
+// landing page, not a league tab (same as the live app's renderDashboard() having no tabs).
+const STANDALONE_ROUTES = ["/dashboard"];
+
+// Pages a leagueless super-admin can still reach inside the app shell -- otherwise AuthGate's
+// zero-leagues case sends every route to the Dashboard (see below).
+const ADMIN_ROUTES = ["/admin", "/reports"];
 
 // Owns the same top-level branch the live app's boot()/renderLoginScreen() do: either the login
 // screen (no sidebar at all -- see public/index.html's <aside style="display:none">, only shown
@@ -33,6 +43,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const setIdentity = useLeagueStore((s) => s.setIdentity);
   const setLeagues = useLeagueStore((s) => s.setLeagues);
   const impersonating = useLeagueStore((s) => s.impersonating);
+  const leagues = useLeagueStore((s) => s.leagues);
+  const isSuperAdmin = useLeagueStore((s) => s.isSuperAdmin);
+  const flash = useLeagueStore((s) => s.flash);
+  const setFlash = useLeagueStore((s) => s.setFlash);
+  const isAuthenticated = useIsAuthenticated();
   // Lives in the store, not local state, so Sidebar/MobileNav can flip it back to false for
   // "Sign in"/"Exit Tour" while previewing mock data -- see useIsPreviewingDemo.
   const entered = useLeagueStore((s) => s.entered);
@@ -49,8 +64,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   async function loadFirstLeague() {
     const me = await api.me();
     // "My Leagues" reflects real membership only, even for a super-admin (see the live app's
-    // server/routes/auth.js) -- identity is set regardless, so a pure super-admin with no
-    // personal league still enters the app (with demo data underneath) rather than getting stuck.
+    // server/routes/auth.js) -- identity is set regardless; with no leagues the render below
+    // shows the Dashboard (join/create/invites) rather than demo data.
     setIdentity(me.user.id, me.user.isSuperAdmin, me.impersonating);
     setSignedInUsername(me.user.username);
     setLeagues(me.leagues);
@@ -126,6 +141,29 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <LoginScreen onLogin={handleLogin} onSkip={handleSkip} error={error} loading={status === "loading"} />;
   }
 
+  const impersonationBanner = impersonating && (
+    <div className="sticky top-0 z-[1000] flex items-center justify-center gap-2 bg-[#5089c4] px-3 py-2.5 text-center text-[0.85rem] text-white">
+      Viewing as <b>{signedInUsername}</b> — this is exactly what they see.
+      <Button variant="secondary" size="sm" onClick={handleStopImpersonating}>
+        Return to my account
+      </Button>
+    </div>
+  );
+
+  // A signed-in user with no league gets the Dashboard (join/create/invites) instead of demo
+  // data -- the unauthenticated "Take a Tour" path is untouched. /dashboard itself always renders
+  // standalone (its page is the Dashboard; it handles the not-signed-in case on its own).
+  const leaguelessUser =
+    isAuthenticated && leagues.length === 0 && mode === "mock" && !(isSuperAdmin && ADMIN_ROUTES.includes(pathname));
+  if (STANDALONE_ROUTES.includes(pathname) || leaguelessUser) {
+    return (
+      <>
+        {impersonationBanner}
+        {STANDALONE_ROUTES.includes(pathname) ? children : <Dashboard />}
+      </>
+    );
+  }
+
   // Matches .app-shell / main's exact layout from public/styles.css (flex, sidebar + a
   // width-capped content column with 36px/44px/90px padding on desktop; below the 880px
   // breakpoint the sidebar disappears entirely in favor of MobileNav's top/bottom bars, and
@@ -138,14 +176,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // stacking above it.
   return (
     <>
-      {impersonating && (
-        <div className="sticky top-0 z-[1000] flex items-center justify-center gap-2 bg-[#5089c4] px-3 py-2.5 text-center text-[0.85rem] text-white">
-          Viewing as <b>{signedInUsername}</b> — this is exactly what they see.
-          <Button variant="secondary" size="sm" onClick={handleStopImpersonating}>
-            Return to my account
-          </Button>
-        </div>
-      )}
+      {impersonationBanner}
       {/* Port of the live app's persistent "🎬 Exit Demo" button (public/index.html's
           #exitDemoBtn) -- always visible while previewing without an account, not tucked away as
           a footer link only, so there's an obvious way back to the login screen. */}
@@ -164,10 +195,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <Sidebar />
         </div>
         <main className="min-w-0 max-w-[980px] flex-1 px-11 pb-[90px] pt-9 max-nav:max-w-full max-nav:px-4 max-nav:pb-[calc(84px+env(safe-area-inset-bottom,0px))] max-nav:pt-4">
-          {signedInUsername && mode === "mock" && (
+          {isAuthenticated && mode === "mock" && (
             <div className="mb-4 rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-muted-foreground">
-              Signed in as {signedInUsername} — no personal league, so these tabs show demo data. Admin tab uses your
-              real account.
+              Signed in as {signedInUsername} — no personal league yet.{" "}
+              <Link href="/dashboard" className="font-semibold text-primary hover:underline">
+                Join or create one
+              </Link>
+              .
+            </div>
+          )}
+          {flash && (
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-primary/30 bg-[#fbeee8] px-3 py-2 text-sm">
+              <span className="flex-1">{flash}</span>
+              <button className="text-xs font-semibold text-muted-foreground hover:text-foreground" onClick={() => setFlash(null)}>
+                Dismiss
+              </button>
             </div>
           )}
           {children}

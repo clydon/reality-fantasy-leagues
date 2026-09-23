@@ -8,15 +8,17 @@ import StateLogic from "@/lib/game/state-logic.js";
 
 // Port of renderSetup()'s Leave League panel -- live-only (no real membership to leave in mock
 // mode), same as the live app only showing it when currentMembership.playerId exists. Falls back
-// to demo data afterward, same as any other "no personal league" case in this POC (e.g. a
-// super-admin with zero leagues) -- there's no multi-league dashboard to return to yet.
+// to the user's next league afterward, or -- if that was their last one -- to the Dashboard
+// (AuthGate shows it automatically once the store has no league loaded and no leagues listed).
 export function LeaveLeagueSection() {
   const router = useRouter();
   const mode = useLeagueStore((s) => s.mode);
   const membership = useLeagueStore((s) => s.membership);
   const state = useLeagueStore((s) => s.state);
   const leagueId = useLeagueStore((s) => s.leagueId);
-  const enterMockMode = useLeagueStore((s) => s.useMock);
+  const setLeagues = useLeagueStore((s) => s.setLeagues);
+  const switchLeague = useLeagueStore((s) => s.switchLeague);
+  const clearLeague = useLeagueStore((s) => s.clearLeague);
 
   if (mode !== "live" || !membership?.playerId) return null;
 
@@ -28,7 +30,10 @@ export function LeaveLeagueSection() {
     if (!confirm(msg)) return;
     try {
       await api.leaveLeague(leagueId!);
-      enterMockMode();
+      const me = await api.me();
+      setLeagues(me.leagues);
+      if (me.leagues.length > 0) await switchLeague(me.leagues[0].id);
+      else clearLeague();
       router.push("/");
     } catch (err) {
       alert(err instanceof ApiError ? err.message : "Could not leave the league.");

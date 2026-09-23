@@ -71,6 +71,14 @@ interface LeagueStore {
   // from a background poll, not the whole state object, so a poll landing mid-edit elsewhere
   // (e.g. a half-filled Episode form) can't clobber it. See use-league-poll.ts.
   setMidSeason: (midSeason: LeagueState["midSeason"]) => void;
+  // Drops the loaded league (back to mode:'mock' with demo state underneath) WITHOUT clearing
+  // identity, unlike useMock() -- for leaving your last league, where AuthGate should then show
+  // the Dashboard to a still-signed-in user rather than treat them as an anonymous tour.
+  clearLeague: () => void;
+  // One-off message shown above the current tab (e.g. "Welcome back" after reclaiming a seat) --
+  // there's no toast system in this app, so this is the lightweight equivalent.
+  flash: string | null;
+  setFlash: (flash: string | null) => void;
 }
 
 export const useLeagueStore = create<LeagueStore>((set, get) => ({
@@ -98,6 +106,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       impersonating: false,
       playerAccounts: [],
       leagues: [],
+      flash: null,
     }),
   loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts) =>
     set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts }),
@@ -108,6 +117,10 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
     set({ mode: "live", leagueId: league.id, state, leagueName: league.name, membership, playerAccounts });
   },
   setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason } }),
+  clearLeague: () =>
+    set({ mode: "mock", state: buildMockSeasonState(), leagueId: null, leagueName: null, membership: null, playerAccounts: [] }),
+  flash: null,
+  setFlash: (flash) => set({ flash }),
   // Mock-mode mutators (StateLogic.*) mutate `state` in place, same as the live app; spreading it
   // into a new top-level object is what actually triggers Zustand/React to notice the change.
   setState: (state) => set({ state: { ...state } }),

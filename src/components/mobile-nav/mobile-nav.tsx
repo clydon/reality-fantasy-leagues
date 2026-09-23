@@ -160,6 +160,15 @@ export function MobileNav() {
                     <span className="text-xs text-muted-foreground">{l.role}</span>
                   </button>
                 ))}
+                <button
+                  className="mt-1 flex w-full items-center rounded-md border-t border-border px-2.5 pb-1 pt-2 text-left text-sm font-semibold text-primary hover:bg-secondary"
+                  onClick={() => {
+                    setLeagueMenuOpen(false);
+                    router.push("/dashboard");
+                  }}
+                >
+                  + Join or create a league
+                </button>
               </div>
             )}
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLeagueStore, type LeagueSummary } from "@/lib/store";
 import { api } from "@/lib/api";
 import StateLogic from "@/lib/game/state-logic.js";
@@ -39,6 +40,7 @@ export function useLeagueTypeBadges(leagues: LeagueSummary[]) {
 // actual workflow, not just a hypothetical. `leagues` (GET /api/auth/me) was already being fetched
 // by AuthGate and thrown away after picking [0] -- see store.ts's loadFirstLeague.
 export function LeagueSwitcher() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const leagues = useLeagueStore((s) => s.leagues);
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -90,6 +92,15 @@ export function LeagueSwitcher() {
               <span className="text-xs text-muted-foreground">{l.role}</span>
             </button>
           ))}
+          <button
+            className="mt-1 flex w-full items-center rounded-md border-t border-border px-2.5 pb-1 pt-2 text-left text-sm font-semibold text-primary hover:bg-secondary"
+            onClick={() => {
+              setOpen(false);
+              router.push("/dashboard");
+            }}
+          >
+            + Join or create a league
+          </button>
         </div>
       )}
     </div>
