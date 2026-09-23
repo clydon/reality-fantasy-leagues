@@ -81,6 +81,10 @@ export interface LeagueSettings {
   teamSize: number;
   bonusEnabled: boolean;
   replenishOrderBy: "mostPoints" | "leastPoints";
+  // Optional mid-season mechanics, both default false. Gated together with the league type's own
+  // capability -- see replenishAvailable/tradeAvailable in state-logic.js.
+  replenishEnabled: boolean;
+  tradeEnabled: boolean;
   defaultBetPoints: number;
   finaleTop3Points: number;
   finaleWinnerPoints: number;

@@ -14,7 +14,7 @@ import { pool } from "./db";
 // routes each remembering to redact -- and it means a route added later by someone who's never
 // heard of blind draft cannot accidentally start leaking them.
 //
-// Read access is self-only, INCLUDING for the commissioner -- see readOwnPicks.
+// Read access is self-only, INCLUDING for the commissioner (impersonation aside) -- see readOwnPicks.
 
 export interface BlindDraftLockResult {
   /** Rewritten from the table inside the transaction; mirrored into state.blindDraft. */
@@ -105,6 +105,14 @@ export async function unlockBlindPicks(
 // draft stalled on an absent player -- and unavoidably knows what they submitted in that case. That
 // asymmetry is deliberate: submitting for someone is a visible, requested act, whereas reading
 // their picks is silent.)
+//
+// A super-admin IMPERSONATING a player does see that player's picks, and that's expected rather than
+// a hole in the above: impersonation makes you that user for every request (Better Auth's admin
+// plugin swaps the session, so requireLeagueRole resolves their membership.playerId), which is the
+// entire point of the feature -- it isn't specific to blind draft, and every other thing only that
+// player can see behaves the same way. Worth stating explicitly here only because the paragraph
+// above makes a privacy claim, and "self-only" should not be read as "unreachable by an admin who
+// deliberately becomes that player".
 export async function readOwnPicks(leagueId: string, playerId: string): Promise<string[] | null> {
   const { rows } = await pool.query(
     "SELECT castaway_ids FROM blind_draft_picks WHERE league_id=$1 AND player_id=$2",

@@ -48,6 +48,10 @@ declare const StateLogic: {
   LEAGUE_TYPES: Record<string, LeagueType>;
   SHOWS: Record<string, Show>;
   getLeagueType(state: LeagueState): LeagueType;
+  // Capability AND commissioner choice, together -- see their comment in state-logic.js. Anything
+  // that shows or starts a mid-season round should ask through these, not read either half alone.
+  replenishAvailable(state: LeagueState): boolean;
+  tradeAvailable(state: LeagueState): boolean;
   getPlayer(state: LeagueState, id: string): Player | undefined;
   getCastaway(state: LeagueState, id: string): Castaway | undefined;
   computeScores(state: LeagueState): ScoreRow[];

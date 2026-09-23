@@ -156,6 +156,9 @@ export function buildMockSeasonState(): LeagueState {
       teamSize: 3,
       bonusEnabled: true,
       replenishOrderBy: "mostPoints",
+      // The demo season shows off a completed replenish/swap history, so both are on here.
+      replenishEnabled: true,
+      tradeEnabled: true,
       defaultBetPoints: 1,
       finaleTop3Points: 1,
       finaleWinnerPoints: 3,

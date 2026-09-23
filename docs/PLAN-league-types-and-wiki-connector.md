@@ -127,11 +127,18 @@ design and the reasoning behind the one load-bearing decision. Notes for whoever
   for reveal atomicity (insert + "is everyone in?" read + reveal write all under one row lock).
   Every other caller ignores the extra argument. If you need to touch a table alongside `state`
   atomically in future, this is the seam.
-- **Replenish and Swap are off in shared mode** — both are free-agent mechanics and shared mode has
-  no free agents. A shared-mode replenish could plausibly mean "add any still-active castaway"
-  instead; that's an open design question, deliberately not guessed at. If the answer is wanted, it
-  changes `ReplenishLogic.assign`'s owner guard and flipping `supportsReplenish` back on in
-  `CLASSIC_DRAFT_SHARED`.
+- **Replenish and Swap are gated on capability AND commissioner choice**, via
+  `replenishAvailable`/`tradeAvailable`. Capability: shared mode sets `supportsReplenish`/
+  `supportsTrade` false, since both are free-agent mechanics and shared mode has no free agents.
+  Choice: `settings.replenishEnabled`/`tradeEnabled`, League Settings toggles, **both default off** —
+  they're optional mechanics, not something every league runs. A shared-mode replenish could
+  plausibly mean "add any still-active castaway" instead; that's an open design question,
+  deliberately not guessed at. If the answer is wanted, it changes `ReplenishLogic.assign`'s owner
+  guard and flips `supportsReplenish` back on in `CLASSIC_DRAFT_SHARED`.
+- **Impersonation sees the impersonated player's blind picks**, and that's expected rather than a
+  hole: impersonation makes you that user for every request, which is the point of the feature, and
+  isn't specific to blind draft. Noted explicitly in `src/lib/server/blind-draft.ts` so "self-only"
+  isn't misread as "unreachable by an admin who deliberately becomes that player".
 - **One permission exception, on purpose:** the commissioner may submit blind picks on a player's
   behalf but may NOT read anyone else's, not even as super-admin. Reading would hand a
   commissioner-who-is-also-a-player perfect information. Don't "fix" this asymmetry without

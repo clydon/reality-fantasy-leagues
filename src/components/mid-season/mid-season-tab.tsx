@@ -15,6 +15,9 @@ import { FinalePanel } from "./finale-panel";
 export function MidSeasonTab() {
   const state = useLeagueStore((s) => s.state);
   const leagueType = StateLogic.getLeagueType(state);
+  // Capability AND commissioner choice -- both default off, see replenishAvailable's comment.
+  const replenishOn = StateLogic.replenishAvailable(state);
+  const tradeOn = StateLogic.tradeAvailable(state);
 
   // The sidebar/mobile nav both hide this tab's link for a league type with no roster (pickem,
   // whose supportsReplenish/supportsTrade/supportsFinalePredictions are all false anyway, which
@@ -33,10 +36,9 @@ export function MidSeasonTab() {
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Mid-Season Tools</h2>
 
-      {/* Both mechanics this intro describes are free-agent based, so it's hidden when neither
-          applies -- shared-ownership leagues have no free agents (see CLASSIC_DRAFT_SHARED),
-          leaving only the Finale panel below. */}
-      {(leagueType.supportsReplenish || leagueType.supportsTrade) && (
+      {/* Hidden when neither mechanic is available -- either the league type can't support them
+          (shared ownership has no free agents) or the commissioner hasn't enabled them. */}
+      {(replenishOn || tradeOn) && (
         <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
           <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Replenish &amp; Swap</h3>
           <p className="text-sm text-muted-foreground">
@@ -46,14 +48,14 @@ export function MidSeasonTab() {
         </div>
       )}
 
-      {leagueType.supportsReplenish && (
+      {replenishOn && (
         <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
           <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Replenish</h3>
           <ReplenishPanel state={state} />
         </div>
       )}
 
-      {leagueType.supportsTrade && (
+      {tradeOn && (
         <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
           <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Swap (Drop &amp; Add)</h3>
           <TradePanel state={state} />

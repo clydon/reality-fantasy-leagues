@@ -495,12 +495,23 @@ the commissioner is normally also a player, so reading picks pre-reveal would ha
 information and defeat the mechanic. Submitting for someone is a visible, requested act; reading
 their picks would be silent.
 
-**Replenish and Swap are switched off in shared mode**, because both are free-agent mechanics and
-shared mode has no free agents — nothing is ever removed from availability. Left on, they'd be live
-buttons that silently accomplish nothing (`ReplenishLogic.assign`/`TradeLogic.swap` both refuse a
-castaway that already has an owner, and in shared mode every castaway does). A shared-mode replenish
-*could* instead mean "add any still-active castaway", but that's a design question the plan doesn't
-answer, so it's left out rather than guessed at.
+**Replenish and Swap availability is two independent things**, and `replenishAvailable(state)` /
+`tradeAvailable(state)` in `state-logic.js` are the single place both are asked about (the
+Mid-Season panels, the General Settings toggles and the `start` routes all go through them, so the
+UI can't offer a round the route would refuse):
+
+1. **Capability** — `supportsReplenish`/`supportsTrade` on the league type. Shared ownership sets
+   both false, because each is a free-agent mechanic and shared mode has no free agents — nothing is
+   ever removed from availability. Left on they'd be live buttons that silently accomplish nothing
+   (`ReplenishLogic.assign`/`TradeLogic.swap` both refuse a castaway that already has an owner, and
+   in shared mode every castaway does). This isn't the commissioner's call; it just doesn't mean
+   anything there. A shared-mode replenish *could* instead mean "add any still-active castaway", but
+   that's a design question the plan doesn't answer, so it's left out rather than guessed at.
+2. **Choice** — `settings.replenishEnabled`/`settings.tradeEnabled`, commissioner toggles in General
+   Settings, **both default off**. They're optional mid-season mechanics, not something every league
+   runs. Both `start` routes enforce this server-side too, so the setting isn't UI-only. Old saves
+   backfill to off like a new league, *except* where a round is already in flight — backfilling
+   those to off would strand it with no UI left to finish or cancel it.
 
 **Ripple this exposed in existing UI**, all fixed here: `SeasonStatusCard` rendered "?'s turn to
 draft (pick undefined)" for a live blind draft (there is no turn — `currentTurn` is `null` until the
@@ -535,7 +546,8 @@ genuinely selectable since a second entry exists, locked once canManage is false
 underway, Show still locked until a second entry exists too), Players (color/name edit, remove,
 activate a post-draft late joiner — the roster-count badge and activation flow are hidden for a
 league type with no roster), Tribes, Castaways, General Settings (hidden entirely for a league
-type with no roster — both its fields, roster size and replenish order, are roster concepts),
+type with no roster — every field there is a roster concept: roster size, the opt-in
+Replenish/Swap toggles, and replenish order, itself shown only once Replenish is on),
 Side-Bet/Finale settings (the latter gated on `supportsFinalePredictions`, same flag Mid-Season's
 panel checks), Pick'em Settings (a single field, points per correct pick — gated on
 `hasWeeklyPicks`, see "Pick'em" above), Backup (Export always works — pure client-side JSON

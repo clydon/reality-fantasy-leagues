@@ -10,6 +10,9 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   await requireLeagueRole(req, leagueId, "commissioner");
 
   const state = await withLeagueLock(leagueId, (s) => {
+    // Replenish is opt-in and off by default, and shared-ownership leagues can't run it at all --
+    // check here too rather than trusting the UI to have hidden the button.
+    if (!StateLogic.replenishAvailable(s)) throw new HttpError(400, "Replenish isn't enabled for this league");
     if (!StateLogic.startReplenish(s)) throw new HttpError(400, "No unclaimed losses to replenish");
   });
   return NextResponse.json(state);

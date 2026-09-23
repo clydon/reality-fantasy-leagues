@@ -556,6 +556,22 @@ function getLeagueType(state){
   return base;
 }
 
+// Whether Replenish / Swap are actually available right now. Two independent things have to be
+// true, and keeping them separate matters:
+//   1. CAPABILITY -- the league type/ownership mode can support it at all (supportsReplenish /
+//      supportsTrade). Shared ownership can't: both are free-agent mechanics and shared mode has
+//      no free agents. Not the commissioner's call, it just doesn't mean anything there.
+//   2. CHOICE -- the commissioner turned it on (settings.replenishEnabled / tradeEnabled). Both
+//      default OFF: they're optional mid-season mechanics, not something every league runs.
+// Everything that shows or starts a round asks through here rather than reading either half on its
+// own, so the UI can't offer a round the route would refuse (or vice versa).
+function replenishAvailable(state){
+  return !!getLeagueType(state).supportsReplenish && (state.settings && state.settings.replenishEnabled === true);
+}
+function tradeAvailable(state){
+  return !!getLeagueType(state).supportsTrade && (state.settings && state.settings.tradeEnabled === true);
+}
+
 // ---------- DraftLogic ----------
 // Thin dispatcher -- see the "League types" comment near the top of this file. Delegates every
 // method to whichever league type's draftStrategy is active; today that's always
@@ -952,6 +968,11 @@ class Migrations {
         draftScheduledAt: null,
         leagueTypeId: 'classic-draft',
         showId: 'survivor',
+        // Optional mid-season mechanics, both OFF until a commissioner turns them on -- plenty of
+        // leagues never run either. Gated together with the league type's own capability; see
+        // replenishAvailable/tradeAvailable above.
+        replenishEnabled: false,
+        tradeEnabled: false,
         // 'exclusive' (one owner per castaway, snake draft) or 'shared' (many owners, blind draft).
         // Classic-draft only; see CLASSIC_DRAFT_SHARED above for what flipping it changes.
         ownershipMode: 'exclusive',
@@ -990,6 +1011,10 @@ class Migrations {
     // Every pre-existing league is exclusive-ownership by construction (it's the only mode that
     // existed), so defaulting rather than inferring is correct here.
     if(!s.settings.ownershipMode) s.settings.ownershipMode = 'exclusive';
+    // Default OFF like a new league, EXCEPT where a round is already running -- backfilling those
+    // to false would strand an in-flight replenish/swap with no UI left to finish or cancel it.
+    if(typeof s.settings.replenishEnabled !== 'boolean') s.settings.replenishEnabled = !!(s.midSeason && s.midSeason.replenish);
+    if(typeof s.settings.tradeEnabled !== 'boolean') s.settings.tradeEnabled = !!(s.midSeason && s.midSeason.trade);
     if(!s.blindDraft) s.blindDraft = { lockedPlayerIds: [], revealedAt: null };
     if(!s.draftOrder) s.draftOrder = (s.players||[]).map(p=>p.id);
     if(typeof s.draftPicksMade !== 'number') s.draftPicksMade = (s.castaways||[]).filter(c=>ownerListOf(c).length).length;
@@ -1016,7 +1041,7 @@ class Migrations {
 return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS, EXIT_METHODS,
-  LEAGUE_TYPES, SHOWS, getLeagueType,
+  LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct

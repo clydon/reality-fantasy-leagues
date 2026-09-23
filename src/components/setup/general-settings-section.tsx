@@ -10,8 +10,9 @@ import { Select } from "@/components/ui/select";
 
 // Port of renderSetup()'s General Settings panel: teamSize (roster cap, consumed by
 // DraftLogic.currentTurn's totalPicksNeeded) and replenishOrderBy (mid-season pick-order
-// direction). Gated on hasRoster -- both fields are roster concepts (replenish specifically is a
-// roster-loss backfill mechanic), meaningless for a league type with no roster at all (pickem).
+// direction), plus the two opt-in mid-season toggles (Replenish/Swap, both default off). Gated on
+// hasRoster -- every field here is a roster concept (replenish specifically is a roster-loss
+// backfill mechanic), meaningless for a league type with no roster at all (pickem).
 export function GeneralSettingsSection({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
@@ -24,7 +25,8 @@ export function GeneralSettingsSection({ state }: { state: LeagueState }) {
     );
   }
 
-  if (!StateLogic.getLeagueType(state).hasRoster) return null;
+  const leagueType = StateLogic.getLeagueType(state);
+  if (!leagueType.hasRoster) return null;
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -40,17 +42,44 @@ export function GeneralSettingsSection({ state }: { state: LeagueState }) {
             onBlur={(e) => update("teamSize", parseInt(e.target.value) || 1)}
           />
         </label>
-        <label className="flex items-center gap-1.5 text-sm">
-          Replenish order:
-          <Select
-            disabled={!canManage}
-            defaultValue={state.settings.replenishOrderBy}
-            onChange={(e) => update("replenishOrderBy", e.target.value)}
-          >
-            <option value="mostPoints">Most points first</option>
-            <option value="leastPoints">Least points first</option>
-          </Select>
-        </label>
+        {/* Both mid-season mechanics are opt-in (default off). Hidden entirely when the league
+            type can't support them at all -- shared ownership has no free agents for either to draw
+            on -- so the commissioner is never offered a switch that would do nothing. */}
+        {leagueType.supportsReplenish && (
+          <label className="flex items-center gap-1.5 text-sm">
+            <input
+              type="checkbox"
+              disabled={!canManage}
+              checked={state.settings.replenishEnabled}
+              onChange={(e) => update("replenishEnabled", e.target.checked)}
+            />
+            Enable Replenish
+          </label>
+        )}
+        {leagueType.supportsTrade && (
+          <label className="flex items-center gap-1.5 text-sm">
+            <input
+              type="checkbox"
+              disabled={!canManage}
+              checked={state.settings.tradeEnabled}
+              onChange={(e) => update("tradeEnabled", e.target.checked)}
+            />
+            Enable Swap
+          </label>
+        )}
+        {StateLogic.replenishAvailable(state) && (
+          <label className="flex items-center gap-1.5 text-sm">
+            Replenish order:
+            <Select
+              disabled={!canManage}
+              defaultValue={state.settings.replenishOrderBy}
+              onChange={(e) => update("replenishOrderBy", e.target.value)}
+            >
+              <option value="mostPoints">Most points first</option>
+              <option value="leastPoints">Least points first</option>
+            </Select>
+          </label>
+        )}
       </div>
     </div>
   );
