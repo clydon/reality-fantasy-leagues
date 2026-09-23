@@ -11,9 +11,23 @@ Per `SurvivorDraft/docs/ARCHITECTURE.md`'s Phase 1 recommendation: React + Next.
 Tailwind CSS + shadcn/ui + Zustand, with the **Overview tab ported first** as a self-contained
 validation case before committing to a full port of the live app. **All seven tabs are now
 ported** (Overview, Draft, Episodes, Mid-Season, Scoreboard, Chat, Admin), with real
-routing/navigation between them (`src/components/top-nav.tsx`, real Next.js pages, not a
-client-side tab switcher) — the full live app's tab set, not just the one-tab proof of concept
-the plan called for as a first checkpoint.
+routing/navigation between them — the full live app's tab set, not just the one-tab proof of
+concept the plan called for as a first checkpoint.
+
+`ARCHITECTURE.md` is explicit that this should be **"a translation, not a redesign"** — visual
+parity with the live app is a real goal here, not a nice-to-have. A side-by-side screenshot
+comparison (Puppeteer, since browser automation was unavailable this session — see
+`docs/HANDOFF.md`) surfaced a real gap: the sidebar chrome had never been ported at all (a
+placeholder top-tab-bar stood in for it), several Board-grid card details were wrong (badge
+corner/color, no eliminated-✕ overlay, owner names styled as colored pills instead of the
+original's plain text), and the login/demo-content fallback had an actual bug — both were
+rendering stacked on the same page instead of being mutually exclusive. All three are fixed now
+(`src/components/sidebar.tsx`, `src/components/login-screen.tsx`, `board-grid.tsx`, and
+`auth-gate.tsx`'s rewritten state machine), verified by re-screenshotting and comparing again, not
+just by re-reading the code. What's genuinely still approximate rather than measured 1:1 against
+`styles.css`: exact button/input styling elsewhere (still using Tailwind/shadcn defaults, not the
+live app's `.btn`/`input[type=...]` rules), and the mobile bottom-tab-bar chrome isn't ported —
+this sidebar is desktop-only.
 
 Ported so far: the full Overview tab — Side Bets section (propose a bet, guess, commissioner
 grading, delete), the three dashboard cards (Latest Episode, Season Status, Standings), and the
@@ -109,7 +123,7 @@ React auto-escapes text content, so this needed no `esc()` equivalent at all.
 **Admin tab** (`src/components/admin/*`, `src/lib/admin-store.ts`, route `/admin`): direct port
 of `renderAdmin()`. Unlike every other tab, Admin has **no mock-mode equivalent at all** — the
 live app never shows its nav link to non-super-admins in the first place, demo mode included — so
-`admin-store.ts` only ever makes real API calls, and `TopNav`/`AdminTab` both replicate that
+`admin-store.ts` only ever makes real API calls, and `Sidebar`/`AdminTab` both replicate that
 same-origin gate (`useIsSuperAdmin()`) rather than just leaving the tab inert for non-admins.
 Cross-league scope (all users, all leagues — not the single league `useLeagueStore` holds), so it
 got its own store. Surfaced and fixed a real gap this uncovered: "My Leagues"
@@ -147,6 +161,12 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
   all now done), so it wasn't in scope for validating that list.
 - **No signup/session-persistence UI polish** — the login form is functional but minimal (see
   `auth-gate.tsx`).
+- **Mobile nav chrome isn't ported** — the sidebar (`sidebar.tsx`) is desktop-only; the live app's
+  Chess.com-style bottom-tab-bar + top-bar for narrow viewports (a separate, sizeable section of
+  `public/app.js` per `CLAUDE.md`) is a distinct piece of work not started here.
+- **Buttons/inputs elsewhere still use Tailwind/shadcn defaults**, not measured 1:1 against the
+  live app's `.btn`/`input[type=...]` CSS rules the way the sidebar, login screen, and Board grid
+  now are — those three got a rigorous screenshot-driven pass; the rest didn't yet.
 
 ## Stack
 

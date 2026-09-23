@@ -38,13 +38,13 @@ export function AdminTab() {
 
   if (mode === "mock" || !isSuperAdmin) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        <h2 className="mb-4 text-2xl font-bold tracking-tight">Admin</h2>
+      <>
+        <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Admin</h2>
         <p className="text-sm text-muted-foreground">
           Admin is only available when signed in as a real super-admin account — same as the live app, which never
           shows this nav link to anyone else, demo mode included.
         </p>
-      </div>
+      </>
     );
   }
 
@@ -58,8 +58,8 @@ export function AdminTab() {
   const selectedLeague = leagues.find((l) => l.id === selectedLeagueId);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <h2 className="mb-4 text-2xl font-bold tracking-tight">Admin</h2>
+    <>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Admin</h2>
 
       {lastTempPassword && (
         <div className="mb-4 rounded-lg border border-good/40 bg-good/10 p-4">
@@ -198,6 +198,6 @@ export function AdminTab() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

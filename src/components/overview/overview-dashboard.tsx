@@ -20,8 +20,8 @@ export function OverviewDashboard() {
   const draftComplete = !!(turn && turn.isComplete);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <h2 className="mb-4 text-2xl font-bold tracking-tight">Overview</h2>
+    <>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Overview</h2>
       <SideBetsSection state={state} />
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
         <LatestEpisodeCard state={state} />
@@ -34,6 +34,6 @@ export function OverviewDashboard() {
           <BoardGrid state={state} />
         </div>
       )}
-    </div>
+    </>
   );
 }

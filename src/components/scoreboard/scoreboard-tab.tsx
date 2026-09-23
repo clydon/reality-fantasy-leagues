@@ -11,8 +11,8 @@ export function ScoreboardTab() {
   const scores = StateLogic.computeScores(state);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <h2 className="mb-4 text-2xl font-bold tracking-tight">Scoreboard</h2>
+    <>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Scoreboard</h2>
       {scores.map((r, i) => (
         <LeaderboardRow key={r.playerId} r={r} rank={i + 1} state={state} />
       ))}
@@ -20,6 +20,6 @@ export function ScoreboardTab() {
         Total castaways this season: {state.castaways.length}. Sole Survivor should be logged as the final
         elimination-order event (method &ldquo;Sole Survivor&rdquo;) so their placement points count.
       </p>
-    </div>
+    </>
   );
 }

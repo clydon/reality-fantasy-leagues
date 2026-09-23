@@ -29,8 +29,8 @@ export function EpisodesTab() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <h2 className="mb-4 text-2xl font-bold tracking-tight">Episodes</h2>
+    <>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Episodes</h2>
       {canManage && (
         <div className="mb-4">
           <Button onClick={handleAddEpisode}>+ Add New Episode</Button>
@@ -41,6 +41,6 @@ export function EpisodesTab() {
       ) : (
         sorted.map((ep) => <EpisodeCard key={ep.id} ep={ep} state={state} defaultOpen={ep.number === latestNumber} />)
       )}
-    </div>
+    </>
   );
 }

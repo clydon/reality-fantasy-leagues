@@ -12,12 +12,12 @@ export function DraftBoard() {
   const state = useLeagueStore((s) => s.state);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <h2 className="mb-4 text-2xl font-bold tracking-tight">Draft</h2>
+    <>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Draft</h2>
       <DraftOrderPanel state={state} />
       <DraftStatusPanel state={state} />
       <DraftResultsPanel state={state} />
       <FreeAgentsPanel state={state} />
-    </div>
+    </>
   );
 }

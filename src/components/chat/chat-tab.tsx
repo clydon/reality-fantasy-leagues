@@ -25,8 +25,12 @@ export function ChatTab() {
     await send(text);
   }
 
+  // Note: the live app's Chat gets a special fixed-height, flush layout (.app-shell.chat-mode in
+  // public/styles.css, overriding main's normal padding) so the compose box stays pinned at the
+  // viewport bottom. Not replicated exactly here -- this just fits inside the normal content
+  // column's padding with its own bounded height, a simplification not a redesign.
   return (
-    <div className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-2xl flex-col px-4 py-6 sm:px-6">
+    <div className="flex h-[70vh] flex-col">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-2xl font-bold tracking-tight">Chat</h2>
         <button className="text-xs text-muted-foreground underline underline-offset-2" onClick={() => load()} disabled={loading}>

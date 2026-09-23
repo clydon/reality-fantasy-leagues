@@ -3,49 +3,51 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useLeagueStore } from "@/lib/store";
-import { Button } from "@/components/ui/button";
+import { Sidebar } from "@/components/sidebar";
+import { LoginScreen } from "@/components/login-screen";
 
-type Status = "checking" | "loggedOut" | "loading" | "ready" | "error";
+type Status = "checking" | "idle" | "loading";
 
-// Validates the real API-wiring path (CORS + session cookies + StateLogic against real Postgres
-// data) alongside the existing mock-data path. On mount, tries GET /api/auth/me: if a session
-// cookie already exists (e.g. from using the live app in the same browser) it loads that user's
-// first league's real state straight away; otherwise shows a small login form. Either way, the
-// mock dataset stays one click away via useMock() -- this doesn't replace the demo path, it adds
-// a second, real one next to it for comparison.
+// Owns the same top-level branch the live app's boot()/renderLoginScreen() do: either the login
+// screen (no sidebar at all -- see public/index.html's <aside style="display:none">, only shown
+// once renderTabs() runs after auth) or the full sidebar+content shell, never both at once. An
+// earlier version of this component rendered the login form and the app shell stacked on the
+// same page in the fallback case -- this rewrite makes the two states properly exclusive via
+// `entered`, matching the original's actual behavior instead of approximating it.
 export function AuthGate({ children }: { children: ReactNode }) {
-  const { mode, leagueName, loadLive, useMock, setIdentity } = useLeagueStore();
+  const mode = useLeagueStore((s) => s.mode);
+  const loadLive = useLeagueStore((s) => s.loadLive);
+  const enterMockMode = useLeagueStore((s) => s.useMock); // renamed locally -- a plain callback, not a hook, but eslint's rule flags anything named use*
+  const setIdentity = useLeagueStore((s) => s.setIdentity);
   const [status, setStatus] = useState<Status>("checking");
+  const [entered, setEntered] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [signedInUsername, setSignedInUsername] = useState<string | null>(null);
 
   async function loadFirstLeague() {
     const me = await api.me();
     // "My Leagues" reflects real membership only, even for a super-admin (see the live app's
     // server/routes/auth.js) -- identity is set regardless, so a pure super-admin with no
-    // personal league still gets real Admin-tab access even though league-scoped tabs fall back
-    // to demo data below (there's no real per-league data to show them by default).
+    // personal league still enters the app (with demo data underneath) rather than getting stuck.
     setIdentity(me.user.id, me.user.isSuperAdmin);
     setSignedInUsername(me.user.username);
     if (me.leagues.length > 0) {
       const { league, state, membership } = await api.leagueState(me.leagues[0].id);
       loadLive(league.id, state, league.name, membership, me.user.id, me.user.isSuperAdmin);
     }
-    setStatus("ready");
+    setEntered(true);
   }
 
   useEffect(() => {
-    // setState here runs inside the .catch() callback, after the async call resolves/rejects --
-    // not synchronously in the effect body -- so this is the standard "kick off an async check on
-    // mount" pattern, not the cascading-render footgun that rule targets.
+    // Silent check for an existing session (e.g. already logged into the live app in this same
+    // browser) -- failing this is the normal, expected first-load case, not an error to surface.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadFirstLeague().catch(() => setStatus("loggedOut"));
+    loadFirstLeague()
+      .catch(() => {})
+      .finally(() => setStatus("idle"));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleLogin(username: string, password: string) {
     setStatus("loading");
     setError(null);
     try {
@@ -53,80 +55,38 @@ export function AuthGate({ children }: { children: ReactNode }) {
       await loadFirstLeague();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't reach the API server.");
-      setStatus("loggedOut");
+    } finally {
+      setStatus("idle");
     }
   }
 
-  if (status === "checking" || status === "loading") {
-    return <div className="mx-auto max-w-4xl px-4 py-16 text-center text-sm text-muted-foreground">Loading…</div>;
+  function handleSkip() {
+    enterMockMode();
+    setEntered(true);
   }
 
-  if (status === "ready" && mode === "live") {
-    return (
-      <div>
-        <div className="mx-auto max-w-4xl px-4 pt-4 sm:px-6">
-          <div className="flex items-center justify-between rounded-md border border-good/30 bg-good/10 px-3 py-1.5 text-xs text-good">
-            <span>Live data from &ldquo;{leagueName}&rdquo; via the real API</span>
-            <button className="underline underline-offset-2" onClick={useMock}>
-              Switch to demo data
-            </button>
-          </div>
-        </div>
-        {children}
-      </div>
-    );
+  if (status === "checking") {
+    return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading…</div>;
   }
 
-  if (status === "ready" && signedInUsername) {
-    // Signed in (identity known -- e.g. Admin tab works), but no personal league to show live
-    // data for. Rare in the live app too (see the loadFirstLeague comment above); shown as its
-    // own state rather than looping back to the login form for someone who's already logged in.
-    return (
-      <div>
-        <div className="mx-auto max-w-4xl px-4 pt-4 sm:px-6">
-          <div className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-muted-foreground">
-            Signed in as {signedInUsername} — no personal league, so league-scoped tabs below show demo data. Admin tab
-            uses your real account.
-          </div>
-        </div>
-        {children}
-      </div>
-    );
+  if (!entered) {
+    return <LoginScreen onLogin={handleLogin} onSkip={handleSkip} error={error} loading={status === "loading"} />;
   }
 
+  // Matches .app-shell / main's exact layout from public/styles.css (flex, sidebar + a
+  // width-capped content column with 36px/44px/90px padding), not a centered max-w column.
   return (
-    <div>
-      <div className="mx-auto max-w-sm px-4 py-16 sm:px-6">
-        <h1 className="mb-1 text-xl font-bold">Sign in</h1>
-        <p className="mb-6 text-sm text-muted-foreground">
-          Uses the real SurvivorDraft API ({process.env.NEXT_PUBLIC_API_BASE}) over CORS.
-        </p>
-        <form onSubmit={handleLogin} className="flex flex-col gap-3">
-          <input
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="username"
-          />
-          <input
-            className="rounded-md border border-border bg-card px-3 py-2 text-sm"
-            placeholder="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-          />
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit">Sign in</Button>
-        </form>
-        <div className="mt-4 border-t border-border pt-4">
-          <Button variant="secondary" className="w-full" onClick={useMock}>
-            Skip — use demo data instead
-          </Button>
-        </div>
-      </div>
-      {mode === "mock" && children}
+    <div className="flex min-h-screen items-stretch">
+      <Sidebar />
+      <main className="min-w-0 max-w-[980px] flex-1 px-11 pb-[90px] pt-9">
+        {signedInUsername && mode === "mock" && (
+          <div className="mb-4 rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-muted-foreground">
+            Signed in as {signedInUsername} — no personal league, so these tabs show demo data. Admin tab uses your real
+            account.
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

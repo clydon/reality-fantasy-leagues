@@ -11,8 +11,8 @@ export function MidSeasonTab() {
   const state = useLeagueStore((s) => s.state);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <h2 className="mb-4 text-2xl font-bold tracking-tight">Mid-Season Tools</h2>
+    <>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Mid-Season Tools</h2>
 
       <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
         <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Replenish &amp; Swap</h3>
@@ -36,6 +36,6 @@ export function MidSeasonTab() {
         <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Finale Predictions</h3>
         <FinalePanel state={state} />
       </div>
-    </div>
+    </>
   );
 }
