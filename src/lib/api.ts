@@ -112,4 +112,44 @@ export const api = {
     apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/predictions/${predId}`, {
       method: "DELETE",
     }),
+
+  startReplenish: (leagueId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/replenish/start`, { method: "POST" }),
+  replenishAssign: (leagueId: string, castawayId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/replenish/assign`, {
+      method: "POST",
+      body: JSON.stringify({ castawayId }),
+    }),
+  cancelReplenish: (leagueId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/replenish/cancel`, { method: "POST" }),
+
+  startTrade: (leagueId: string) => apiFetch<LeagueState>(`/api/leagues/${leagueId}/trade/start`, { method: "POST" }),
+  tradeSwap: (leagueId: string, dropId: string, addId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/trade/swap`, {
+      method: "POST",
+      body: JSON.stringify({ dropId, addId }),
+    }),
+  tradeSkip: (leagueId: string) => apiFetch<LeagueState>(`/api/leagues/${leagueId}/trade/skip`, { method: "POST" }),
+  cancelTrade: (leagueId: string) => apiFetch<LeagueState>(`/api/leagues/${leagueId}/trade/cancel`, { method: "POST" }),
+
+  setFinalePick: (leagueId: string, playerId: string, idx: number, value: string | null) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/finale/predictions/${playerId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ idx, value }),
+    }),
+  setFinaleWinnerPick: (leagueId: string, playerId: string, value: string | null) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/finale/predictions/${playerId}/winner`, {
+      method: "PATCH",
+      body: JSON.stringify({ value }),
+    }),
+  setActualTop3: (leagueId: string, idx: number, value: string | null) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/finale/actual/top3`, {
+      method: "PATCH",
+      body: JSON.stringify({ idx, value }),
+    }),
+  setActualWinner: (leagueId: string, value: string | null) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/finale/actual/winner`, {
+      method: "PATCH",
+      body: JSON.stringify({ value }),
+    }),
 };

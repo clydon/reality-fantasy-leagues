@@ -56,7 +56,7 @@ export interface Episode {
 
 export interface FinalePrediction {
   playerId: string;
-  top3: string[];
+  top3: (string | null)[];
   winner: string | null;
 }
 
@@ -76,14 +76,27 @@ export interface Membership {
   playerId: string | null;
 }
 
+export interface ReplenishTurn {
+  isComplete: boolean;
+  playerId?: string;
+  personalPickNumber?: number;
+  overallPickNumber?: number;
+  scoreAtStart?: number;
+}
+
+export interface TradeState {
+  queue: { playerId: string }[];
+  index: number;
+}
+
 export interface LeagueState {
   players: Player[];
   tribes: Tribe[];
   castaways: Castaway[];
   episodes: Episode[];
   finalePredictions: FinalePrediction[];
-  finaleActual: { top3: string[]; winner: string | null } | null;
-  midSeason: { replenish: unknown | null; trade: unknown | null };
+  finaleActual: { top3: (string | null)[]; winner: string | null };
+  midSeason: { replenish: { sequence: unknown[]; index: number } | null; trade: TradeState | null };
   draftOrder: string[];
   draftPicksMade: number;
   settings: LeagueSettings;

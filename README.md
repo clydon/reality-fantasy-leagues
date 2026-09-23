@@ -62,6 +62,18 @@ elimination/bet-editing mutation routes (`addEpisode`, `removeEpisode`, `updateE
 `addElimination`, `removeElimination`, `updateBet`, `removeBetPrediction`) wired to the real API
 and independently verified against the fixture league.
 
+**Mid-Season tab** (`src/components/mid-season/*`, route `/mid-season`): direct port of
+`renderMidseason()` — Replenish (`replenish-panel.tsx`), Swap (`trade-panel.tsx`), and Finale
+Predictions (`finale-panel.tsx`), same three-panel order as the original. The live app's
+transient `tradeDropId` global becomes `TradePanel`'s own local state, same pattern as several
+other converted flags elsewhere in this POC. Every route (`replenish/start`, `replenish/assign`,
+`replenish/cancel`, `trade/start`, `trade/swap`, `trade/skip`, `trade/cancel`,
+`finale/predictions/:id`, `finale/predictions/:id/winner`, `finale/actual/top3`,
+`finale/actual/winner`) is commissioner-gated **server-side** (`requireLeagueRole('commissioner')`
+for Replenish/Swap; an explicit per-route check for Finale's Actual Result), and this repo's
+`useCanManage()` gating matches that exactly — a member never sees a control they'd be rejected
+for using.
+
 ## Design tokens
 
 The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
@@ -79,7 +91,7 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
   last poll", "it just became your turn"), which is a polling-infrastructure concern, not a
   componentization one. Worth its own pass once real-time/polling strategy for this repo is
   decided.
-- **No other tabs yet** (Mid-Season, Scoreboard, Chat, Admin) — Overview, Draft, and Episodes so
+- **No other tabs yet** (Scoreboard, Chat, Admin) — Overview, Draft, Episodes, and Mid-Season so
   far, per the phased/tab-by-tab plan.
 - **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
   cast photos.
