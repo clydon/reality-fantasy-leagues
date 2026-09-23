@@ -184,21 +184,21 @@ export const api = {
 
   // Chat lives in its own Postgres tables (chat_messages/chat_reactions), not the JSONB league
   // state, so these return their own shapes rather than a LeagueState.
-  getChat: (leagueId: string) => apiFetch<{ messages: ChatMessage[] }>(`/api/leagues/${leagueId}/chat`),
+  getChat: (leagueId: string) => localFetch<{ messages: ChatMessage[] }>(`/api/leagues/${leagueId}/chat`),
   sendChatMessage: (leagueId: string, text: string) =>
-    apiFetch<{ message: ChatMessage }>(`/api/leagues/${leagueId}/chat`, {
+    localFetch<{ message: ChatMessage }>(`/api/leagues/${leagueId}/chat`, {
       method: "POST",
       body: JSON.stringify({ text }),
     }),
   editChatMessage: (leagueId: string, messageId: string, text: string) =>
-    apiFetch<{ message: ChatMessage }>(`/api/leagues/${leagueId}/chat/${messageId}`, {
+    localFetch<{ message: ChatMessage }>(`/api/leagues/${leagueId}/chat/${messageId}`, {
       method: "PATCH",
       body: JSON.stringify({ text }),
     }),
   deleteChatMessage: (leagueId: string, messageId: string) =>
-    apiFetch<{ ok: true }>(`/api/leagues/${leagueId}/chat/${messageId}`, { method: "DELETE" }),
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/chat/${messageId}`, { method: "DELETE" }),
   reactToChatMessage: (leagueId: string, messageId: string, emoji: string) =>
-    apiFetch<{ ok: true }>(`/api/leagues/${leagueId}/chat/${messageId}/react`, {
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/chat/${messageId}/react`, {
       method: "POST",
       body: JSON.stringify({ emoji }),
     }),
