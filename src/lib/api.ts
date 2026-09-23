@@ -100,19 +100,19 @@ export const api = {
     }),
 
   reorderDraft: (leagueId: string, fromIndex: number, toIndex: number) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/draft/order`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/draft/order`, {
       method: "POST",
       body: JSON.stringify({ fromIndex, toIndex }),
     }),
   draftPick: (leagueId: string, castawayId: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/draft/pick`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/draft/pick`, {
       method: "POST",
       body: JSON.stringify({ castawayId }),
     }),
   undraft: (leagueId: string, castawayId: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/draft/pick/${castawayId}`, { method: "DELETE" }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/draft/pick/${castawayId}`, { method: "DELETE" }),
   forceStartDraft: (leagueId: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/draft/force-start`, { method: "POST" }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/draft/force-start`, { method: "POST" }),
 
   addEpisode: (leagueId: string) =>
     apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes`, { method: "POST" }),
@@ -244,46 +244,46 @@ export const api = {
       body: JSON.stringify({ field, value }),
     }),
   addPlayer: (leagueId: string, name: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/players`, { method: "POST", body: JSON.stringify({ name }) }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/players`, { method: "POST", body: JSON.stringify({ name }) }),
   updatePlayer: (leagueId: string, id: string, field: string, value: unknown) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}`, {
       method: "PATCH",
       body: JSON.stringify({ field, value }),
     }),
   removePlayer: (leagueId: string, id: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}`, { method: "DELETE" }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}`, { method: "DELETE" }),
   activatePlayer: (leagueId: string, id: string, castawayIds: string[]) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}/activate`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}/activate`, {
       method: "POST",
       body: JSON.stringify({ castawayIds }),
     }),
   addTribe: (leagueId: string, name: string, color: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/tribes`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/tribes`, {
       method: "POST",
       body: JSON.stringify({ name, color }),
     }),
   updateTribe: (leagueId: string, id: string, field: string, value: unknown) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/tribes/${id}`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/tribes/${id}`, {
       method: "PATCH",
       body: JSON.stringify({ field, value }),
     }),
   removeTribe: (leagueId: string, id: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/tribes/${id}`, { method: "DELETE" }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/tribes/${id}`, { method: "DELETE" }),
   addCastaway: (leagueId: string, name: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/castaways`, { method: "POST", body: JSON.stringify({ name }) }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/castaways`, { method: "POST", body: JSON.stringify({ name }) }),
   updateCastaway: (leagueId: string, id: string, field: string, value: unknown) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/castaways/${id}`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/castaways/${id}`, {
       method: "PATCH",
       body: JSON.stringify({ field, value }),
     }),
   removeCastaway: (leagueId: string, id: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/castaways/${id}`, { method: "DELETE" }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/castaways/${id}`, { method: "DELETE" }),
   // Whole-state replace -- the raw parsed JSON of a previously-exported backup, migrated
   // server-side (StateLogic.migrateLeagueState) before being saved.
   importLeagueState: (leagueId: string, raw: unknown) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/import`, { method: "POST", body: JSON.stringify(raw) }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/import`, { method: "POST", body: JSON.stringify(raw) }),
   resetLeague: (leagueId: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/reset`, { method: "POST" }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/reset`, { method: "POST" }),
   leaveLeague: (leagueId: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/leave`, { method: "POST" }),
 
