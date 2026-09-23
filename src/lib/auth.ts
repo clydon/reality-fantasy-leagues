@@ -1,12 +1,14 @@
 import { betterAuth } from "better-auth";
+import { username, admin } from "better-auth/plugins";
 import { Pool } from "pg";
 
-// This app's OWN account system (email/password + reset), completely separate from the
-// SurvivorDraft login elsewhere in this repo (src/lib/api.ts / auth-gate.tsx) -- that's a
-// different app's session reached over CORS. Better Auth gets its own Postgres database
-// (AUTH_DATABASE_URL, a plain pg.Pool -- no ORM, consistent with this project's conventions)
-// rather than reusing SurvivorDraft's `users` table, which means something else entirely
-// (friend-group league accounts, not this product's own signups). See README for why.
+// This app's OWN, and now ONLY, account system -- the real identity behind everything in this
+// repo (leagues, players, admin), not a parallel system nobody's league memberships are attached
+// to. That used to not be true (Better Auth was a standalone signup with nothing wired to it,
+// while real league access went through a totally separate SurvivorDraft session over CORS) --
+// see README for that history. It changed once this repo got its own backend instead of riding
+// on SurvivorDraft's: at that point there was no reason for two logins to keep existing, so this
+// one absorbed the job.
 //
 // Chosen per explicit direction: Better Auth (not NextAuth/Auth.js), traditional email+password
 // with a real reset-password flow (not magic-link-only) -- researched as the better-supported
@@ -31,6 +33,17 @@ export const auth = betterAuth({
       });
     },
   },
+  plugins: [
+    // Adds `username`/`displayUsername` to the user model and a `/sign-in/username` endpoint --
+    // signup is username + email + password, sign-in accepts either (the client picks which
+    // endpoint to call based on whether the input looks like an email; see login-screen.tsx).
+    username(),
+    // Covers nearly all of the Admin user-management surface natively: list/create/update users,
+    // set-password, impersonate/stop-impersonating, ban, sessions, remove -- see that endpoint
+    // list in node_modules/better-auth/dist/plugins/admin/routes.mjs. League-scoped admin actions
+    // (leagues/memberships) still need custom routes; this plugin has no concept of a league.
+    admin(),
+  ],
 });
 
 // Dev-mode fallback: without a real RESEND_API_KEY, reset links are logged to the server

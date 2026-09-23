@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Standalone Node CLI scripts (plain CommonJS, run directly via `node db/...`), not part of
+    // the Next.js app bundle -- same category as the above, not this app's TS/ESM code.
+    "db/**",
   ]),
 ]);
 

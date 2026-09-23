@@ -28,6 +28,22 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// This repo's own backend (src/app/api/*) -- same-origin, no CORS/credentials dance needed.
+// Mid-migration: functions are moving from apiFetch (SurvivorDraft, over CORS) to localFetch
+// (this repo's own routes) domain by domain -- see the standalone-backend plan. Once every
+// domain has moved, apiFetch/API_BASE go away entirely.
+async function localFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.error || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
 export interface MeResponse {
   user: { id: string; username: string; isSuperAdmin: boolean };
   leagues: { id: string; name: string; join_code: string; role: string }[];
@@ -49,11 +65,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),
-  me: () => apiFetch<MeResponse>("/api/auth/me"),
+  me: () => localFetch<MeResponse>("/api/me"),
   logout: () => apiFetch<{ ok: true }>("/api/auth/logout", { method: "POST" }),
   stopImpersonating: () => apiFetch<{ ok: true }>("/api/auth/stop-impersonating", { method: "POST" }),
   leagueState: (leagueId: string) =>
-    apiFetch<LeagueStateResponse>(`/api/leagues/${leagueId}/state`),
+    localFetch<LeagueStateResponse>(`/api/leagues/${leagueId}/state`),
+  createLeague: (name: string) =>
+    localFetch<{ league: { id: string; name: string; join_code: string }; state: LeagueState }>("/api/leagues", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  joinLeague: (code: string) =>
+    localFetch<{ league: { id: string; name: string } }>("/api/leagues/join", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
 
   proposeBet: (leagueId: string, epId: string, label: string, points: number) =>
     apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets`, {
@@ -211,9 +237,9 @@ export const api = {
   // League Settings -- commissioner-only server-side (requireLeagueRole('commissioner') on every
   // route in server/routes/roster.js), same generic field/value PATCH pattern as updateEpisode.
   renameLeague: (leagueId: string, name: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}`, { method: "PATCH", body: JSON.stringify({ name }) }),
   updateLeagueSettings: (leagueId: string, field: string, value: unknown) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/settings`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/settings`, {
       method: "PATCH",
       body: JSON.stringify({ field, value }),
     }),
@@ -259,7 +285,7 @@ export const api = {
   resetLeague: (leagueId: string) =>
     apiFetch<LeagueState>(`/api/leagues/${leagueId}/reset`, { method: "POST" }),
   leaveLeague: (leagueId: string) =>
-    apiFetch<{ ok: true }>(`/api/leagues/${leagueId}/leave`, { method: "POST" }),
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/leave`, { method: "POST" }),
 
   adminListReports: () => apiFetch<{ reports: Report[] }>("/api/admin/reports"),
   adminDeleteReport: (id: string) => apiFetch<{ ok: true }>(`/api/admin/reports/${id}`, { method: "DELETE" }),
