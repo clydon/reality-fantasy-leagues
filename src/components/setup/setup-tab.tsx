@@ -9,6 +9,7 @@ import { CastawaysSection } from "./castaways-section";
 import { GeneralSettingsSection } from "./general-settings-section";
 import { SideBetSettingsSection } from "./side-bet-settings-section";
 import { FinaleSettingsSection } from "./finale-settings-section";
+import { PickEmSettingsSection } from "./pickem-settings-section";
 import { BackupSection } from "./backup-section";
 import { LeaveLeagueSection } from "./leave-league-section";
 
@@ -36,6 +37,7 @@ export function SetupTab() {
       <GeneralSettingsSection state={state} />
       <SideBetSettingsSection state={state} />
       <FinaleSettingsSection state={state} />
+      <PickEmSettingsSection state={state} />
       <BackupSection state={state} />
       <LeaveLeagueSection />
     </>

@@ -278,11 +278,12 @@ confirm() with no handler, and via a direct API call to confirm the route itself
 ## League types and shows (`state-logic.js`'s `LEAGUE_TYPES`/`SHOWS`)
 
 The first real step past pure visual-parity validation: introducing a genuine **strategy pattern**
-for how a league plays, not just another settings toggle. Today there's exactly one implementation
-(`'classic-draft'` — the snake draft + elimination-order scoring the live app already has), but
-the goal is future league types with entirely different mechanics (hidden picks revealed at a
-point in the season, weekly pick'em with no persistent roster at all) without those turning
-`DraftLogic`/`ScoringLogic` into a pile of `if(leagueType===...)` special cases.
+for how a league plays, not just another settings toggle. `LEAGUE_TYPES` now has two entries —
+`'classic-draft'` (the snake draft + elimination-order scoring the live app already has) and
+`'pickem'` (see "Pick'em" below) — without `DraftLogic`/`ScoringLogic` turning into a pile of
+`if(leagueType===...)` special cases. The goal beyond these two is further league types with
+entirely different mechanics still (hidden picks revealed at a point in the season is next; see
+`docs/PLAN-league-types-and-wiki-connector.md`).
 
 **`src/lib/game/state-logic.js` now forks from the live app's `shared/state-logic.js`** rather
 than staying a verbatim copy (see that file's own top comment for the updated provenance note) —
@@ -290,33 +291,40 @@ the live repo is untouched by any of this, and there's no sync in either directi
 was a deliberate call: the live vanilla-JS app has no concept of league types and never will, so
 continuing to pretend this file is "the same file, just copied" stopped being true or useful.
 
-- `DraftLogic` and `ScoringLogic` are now **thin dispatchers**: they read
-  `state.settings.leagueTypeId`, look it up in `LEAGUE_TYPES`, and delegate every method to that
-  entry's `draftStrategy`/`scoringStrategy`. `SnakeDraftStrategy` and
-  `EliminationOrderScoringStrategy` are `'classic-draft'`'s sole registered implementation —
-  renamed straight from the old `DraftLogic`/`ScoringLogic` bodies, zero logic changes, so every
-  existing league behaves identically to before this split (verified with a smoke test exercising
-  add-player, draft turn/pick/undo, scoring, and old-state migration through the new dispatch
-  path).
+- `DraftLogic` and `ScoringLogic` are **thin dispatchers**: they read `state.settings.leagueTypeId`,
+  look it up in `LEAGUE_TYPES`, and delegate every method to that entry's
+  `draftStrategy`/`scoringStrategy`. `SnakeDraftStrategy`/`EliminationOrderScoringStrategy`
+  (classic-draft) and `NoDraftStrategy`/`PickEmScoringStrategy` (pickem) are the two registered
+  pairs today — the classic-draft pair renamed straight from the old `DraftLogic`/`ScoringLogic`
+  bodies with zero logic changes, so every pre-existing league behaves identically to before this
+  split (verified with a fixture script exercising add-player, draft turn/pick/undo, scoring, and
+  old-state migration through the new dispatch path — see "Castaway ownership" below for the same
+  treatment applied again for the `ownerIds` refactor).
 - `SHOWS` is a second, smaller registry (today: Survivor only) for display/terminology metadata —
   not wired to any behavior yet, but the natural home for a future per-show config (e.g. where to
   source episode data from — see "Future: auto-sourcing episode data" below).
-- `settings.leagueTypeId`/`settings.showId` are new fields (defaulted for new leagues, backfilled
-  via `Migrations.migrateLeagueState` for old ones).
-- Mid-Season's three panels (`mid-season-tab.tsx`) are now gated on the active league type's
-  `supportsReplenish`/`supportsTrade`/`supportsFinalePredictions` flags — a no-op today (all three
-  are `true` for `'classic-draft'`), but it's what makes the abstraction load-bearing rather than
-  decorative: a league type without a persistent roster just won't render those panels, with no
-  special-casing needed in `mid-season-tab.tsx` itself when that type is added.
+- `settings.leagueTypeId`/`settings.showId` are defaulted for new leagues, backfilled via
+  `Migrations.migrateLeagueState` for old ones.
+- Every `LEAGUE_TYPES` entry now also carries `hasRoster`/`hasWeeklyPicks`, orthogonal to the
+  three `supports*` flags below: those three are about which MID-SEASON mechanics apply to an
+  *existing* roster, while `hasRoster` is about whether a roster (and therefore a draft, the Draft
+  tab, the Overview Board grid) exists at all, and `hasWeeklyPicks` is about whether this league
+  type owes the frontend a per-episode pick UI (the Episode Card's "Your Pick" section — see
+  "Pick'em" below). classic-draft is `hasRoster:true, hasWeeklyPicks:false`; pickem is the
+  opposite. Sidebar/mobile-nav both read `hasRoster` to hide the Draft/Mid-Season tabs for a
+  league type that has neither.
+- Mid-Season's three panels (`mid-season-tab.tsx`) are gated on the active league type's
+  `supportsReplenish`/`supportsTrade`/`supportsFinalePredictions` flags — all three are `true` for
+  classic-draft and `false` for pickem, so no special-casing is needed in `mid-season-tab.tsx`
+  itself, but the whole tab is now ALSO gated on `hasRoster` (pickem has no roster at all, so the
+  tab would otherwise render nothing but its own static intro panel) with its own friendly message
+  if the route is visited directly by URL despite being hidden from nav.
 
-**Deliberately not done yet**: `ReplenishLogic`/`TradeLogic` still have their own inline
-snake-round-reversal logic rather than being forced through `SnakeDraftStrategy` — they're
-mid-season features of the current league type, not an independently-varying axis on their own; if
-a future league type needs different replenish/trade behavior, give them the same dispatcher
-treatment then. A "weekly pick'em" league (no persistent roster, no turn-based picks at all) almost
-certainly won't fit the `DraftStrategy` shape regardless — noted directly in `state-logic.js`'s
-comments as a sign it would need its own top-level state/UI branch, not a third `DraftStrategy`
-implementation forced to pretend it's turn-based.
+**Deliberately not done for classic-draft/pickem**: `ReplenishLogic`/`TradeLogic` still have their
+own inline snake-round-reversal logic rather than being forced through `SnakeDraftStrategy` —
+they're mid-season features of the current league type, not an independently-varying axis on
+their own; if a future league type needs different replenish/trade behavior, give them the same
+dispatcher treatment then.
 
 ### Castaway ownership is `ownerIds: string[]`, not a scalar owner
 
@@ -366,20 +374,87 @@ eliminations/exits — a source like the Survivor Fandom wiki has everything nee
 rather than paying an AI-request cost per user action. `SHOWS`' per-show metadata is the natural
 attachment point for that once it's built.
 
+### Pick'em — a second `LEAGUE_TYPES` entry with no roster at all
+
+Each episode, every player picks one still-active castaway they think survives; a correct pick
+scores `settings.pickemCorrectPoints` (default 1 — this was never explicitly confirmed in the
+design conversation this plan comes from, flagged in `docs/PLAN-league-types-and-wiki-connector.md`
+and in `defaultState`'s own comment; change the default if the real answer turns out to be
+something else). Picking the same castaway as the immediately-previous episode is rejected.
+
+**Investigated before building, per the plan's own instruction**: could this be a thin wrapper
+around the existing per-episode bet/prediction infrastructure (`BetLogic`) instead of new schema?
+No — `BetLogic`'s guesses are free-text and manually graded by the commissioner, need company
+(≥2 guessers) to pay out, and accumulate a list of guesses per bet rather than one-per-player. A
+pickem pick is a specific castaway reference, auto-graded from `ep.events`, scored solo, and
+carries a no-repeat-previous-episode business rule with no equivalent in `BetLogic` — different
+enough on every axis that reusing it would mean bending its semantics rather than sharing them.
+Built as its own class instead: `PickEmLogic` (`episode.picks: {playerId, castawayId}[]`, upserted
+in place — see that class's own comment for the full reasoning) plus `PickEmScoringStrategy`
+(reuses `ScoreRow.locked` as pickem's generic "core score" slot rather than widening the shared
+`ScoreRow` shape for a second league type). Exactly the shape this file's own top comment already
+warned a weekly pick'em league wouldn't fit (`DraftStrategy`) — so it isn't behind that dispatch;
+`NoDraftStrategy` is registered as pickem's `draftStrategy` purely as an inert stand-in so
+`DraftLogic`'s dispatch (and anything that calls through it) has something safe to call instead of
+crashing, not as a real implementation.
+
+**A real correctness bug caught during this build, not after**: the first version of
+`PickEmScoringStrategy.compute` scored a pick as soon as it was submitted, before the episode it
+was for had even happened — nothing in a future episode's `ep.events` yet to contradict a pick, so
+every pending pick silently read as "correct." Fixed by skipping any episode with zero elimination
+events logged (the same "hasn't happened yet" heuristic `EpisodeLogic.ensureUpcoming` already uses
+elsewhere in this file), both in the scoring strategy and in `pickem-rows.ts`'s
+`PlayerPickRow.correct` (which now reports `null`/"Pending" for those instead of a wrong verdict).
+
+**No hidden-state design needed here** — unlike Feature A's blind draft (not yet built; see the
+plan doc), the plan never asks for pickem picks to be hidden from other players before an episode
+airs, so they live in the ordinary broadcast `state` like everything else, no new persistence
+primitive required.
+
+**Frontend**: the pick UI lives in `EpisodeCard` (`episode-pick-row.tsx`'s `EpisodePicksSection`,
+gated on `leagueType.hasWeeklyPicks`) rather than a new top-level tab or page — Pick'em's weekly
+action is inherently per-episode, and Episodes already has an established per-episode home for
+player-submitted content (Side Bets), so this follows that same shape instead of inventing a
+parallel one. Same self-or-commissioner-on-anyone's-behalf permission model as bet predictions.
+Scoreboard gets its own row component (`PickEmLeaderboardRow`) rather than reusing
+`LeaderboardRow` as-is — "Boot Order"/roster-detail language describes classic-draft's scoring
+specifically and doesn't apply here. A second league type also exposed two latent gaps in
+existing, previously-unreachable code, both fixed as part of this feature rather than left for
+later: the League Type picker in League Info (`league-info-section.tsx`) was only ever "locked"
+because `LEAGUE_TYPES` had exactly one entry — real now, so its lock condition needed broadening
+from "draft started" (permanently false for pickem) to "any episode exists," or a pickem league
+with weeks of history could still switch to classic-draft and silently orphan its data; and
+`GeneralSettingsSection`/`PlayersSection`'s roster-size fields are now gated on `hasRoster` rather
+than always shown.
+
+**Verification**: a fixture script (matching the plan's own bullet almost line for line) drives
+3-4 players through several episodes, checking scoring on both an eliminated and a survived pick,
+that repicking last episode's castaway is rejected, that repicking an earlier non-consecutive
+castaway is allowed, that two players can pick the same castaway (no cross-player exclusivity),
+that a late joiner starts active immediately (no fair-turn-order concept to have missed, unlike
+classic-draft), and old-save migration backfilling `episode.picks`/`settings.pickemCorrectPoints`.
+A second pass ran the same ground through the real API and Postgres (9 checks) to confirm the new
+routes and the JSONB round-trip.
+
 ## League Settings tab (`src/components/setup/*`, route `/setup`)
 
 Port of the live app's `renderSetup()` — the last major tab left unported, and the biggest single
 tab the live app has. Same section boundaries as the original, one component per section: League
-Info (name, draft schedule, plus the new League Type/Show pickers from `LEAGUE_TYPES`/`SHOWS`
-above — populated from the real registry so a second entry becomes selectable the moment one's
-registered, but disabled today since there's only one of each and/or the draft may already be
-running), Players (color/name edit, remove, activate a post-draft late joiner), Tribes, Castaways,
-General/Side-Bet/Finale settings (the last gated on `supportsFinalePredictions`, same flag
-Mid-Season's panel checks), Backup (Export always works — pure client-side JSON download of
-`state`, works identically in both modes; Import/Reset are live-only, Reset additionally requires
-super-admin, matching the live app's server-side re-check beyond the route's own commissioner
-gate), Invites (live-only, any member — see the Dashboard/invites section below), and Leave League
-(live-only; afterward you land in your next league, or on the Dashboard if that was your last).
+Info (name, draft schedule — hidden for a league type with no draft — plus the League Type/Show
+pickers from `LEAGUE_TYPES`/`SHOWS` above, populated from the real registry; League Type is now
+genuinely selectable since a second entry exists, locked once canManage is false or the season is
+underway, Show still locked until a second entry exists too), Players (color/name edit, remove,
+activate a post-draft late joiner — the roster-count badge and activation flow are hidden for a
+league type with no roster), Tribes, Castaways, General Settings (hidden entirely for a league
+type with no roster — both its fields, roster size and replenish order, are roster concepts),
+Side-Bet/Finale settings (the latter gated on `supportsFinalePredictions`, same flag Mid-Season's
+panel checks), Pick'em Settings (a single field, points per correct pick — gated on
+`hasWeeklyPicks`, see "Pick'em" above), Backup (Export always works — pure client-side JSON
+download of `state`, works identically in both modes; Import/Reset are live-only, Reset
+additionally requires super-admin, matching the live app's server-side re-check beyond the route's
+own commissioner gate), Invites (live-only, any member — see the Dashboard/invites section below),
+and Leave League (live-only; afterward you land in your next league, or on the Dashboard if that
+was your last).
 
 Whole tab is visible to everyone; every field disables itself via `useCanManage()` rather than the
 tab being gated, matching the live app's own "viewable by everyone, only commissioner edits" model

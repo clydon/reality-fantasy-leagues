@@ -64,18 +64,28 @@ export function MobileNav() {
 
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
+  const hasRoster = StateLogic.getLeagueType(state).hasRoster;
   // Port of computeMobileFourthTab() (public/app.js): the 4th bottom-bar slot's badge is always
   // just "!" (no room for "Your Turn"/"Active" text at this size) -- red when it's genuinely your
   // turn/pick, muted when a round is merely active. Draft's badge also folds in the same
   // "it's your turn to draft" signal the Notifications banner uses (notifications tagged '/draft').
+  // Not in the original (predates this repo's second league type): a league type with no roster
+  // at all (pickem) has neither Draft nor Mid-Season to show here, so the slot promotes Chat
+  // instead (already reachable via the header icon too, but worth the always-visible bottom-bar
+  // spot given it's now this league type's only "other players' activity" surface) and there's
+  // nothing to demote into the More sheet.
   const draftUrgent = !!(turn && !turn.isComplete && myPlayerId && turn.playerId === myPlayerId) || notifications.some((n) => n.tab === "/draft");
   const midBadge = midseasonBadge(state, myPlayerId);
-  const fourth = draftComplete
-    ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon, urgent: midBadge?.urgent ?? null }
-    : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
-  const demoted = draftComplete
-    ? { href: "/draft", label: "Draft Results", icon: DraftIcon }
-    : { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon };
+  const fourth = !hasRoster
+    ? { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
+    : draftComplete
+      ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon, urgent: midBadge?.urgent ?? null }
+      : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
+  const demoted = !hasRoster
+    ? null
+    : draftComplete
+      ? { href: "/draft", label: "Draft Results", icon: DraftIcon }
+      : { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon };
 
   const tabs: { href: string; label: string; icon: typeof OverviewIcon; urgent?: boolean | null }[] = [
     { href: "/", label: "Overview", icon: OverviewIcon },
@@ -240,7 +250,7 @@ export function MobileNav() {
         )}
       >
         <div className="mx-auto mb-2.5 mt-1.5 h-1 w-9 rounded-full bg-border" />
-        <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />
+        {demoted && <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />}
         <MoreRow icon={GearIcon} label="League Settings" onClick={() => go("/setup")} />
         {isSuperAdmin && (
           <>

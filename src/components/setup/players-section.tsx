@@ -40,7 +40,8 @@ export function PlayersSection({ state }: { state: LeagueState }) {
   }
 
   async function remove(id: string, name: string) {
-    if (!confirm(`Remove "${name}"? Their drafted castaways will become free agents.`)) return;
+    const warning = hasRoster ? `Remove "${name}"? Their drafted castaways will become free agents.` : `Remove "${name}"?`;
+    if (!confirm(warning)) return;
     await mutate(
       (s) => StateLogic.removePlayer(s, id),
       () => api.removePlayer(leagueId!, id)
@@ -58,6 +59,7 @@ export function PlayersSection({ state }: { state: LeagueState }) {
   }
 
   const freeAgents = StateLogic.freeAgents(state);
+  const hasRoster = StateLogic.getLeagueType(state).hasRoster;
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -83,9 +85,11 @@ export function PlayersSection({ state }: { state: LeagueState }) {
                   disabled={!canManage}
                   onBlur={(e) => e.target.value.trim() && e.target.value !== p.name && update(p.id, "name", e.target.value.trim())}
                 />
-                <span className="text-xs text-muted-foreground">
-                  {activeCount}/{state.settings.teamSize} roster
-                </span>
+                {hasRoster && (
+                  <span className="text-xs text-muted-foreground">
+                    {activeCount}/{state.settings.teamSize} roster
+                  </span>
+                )}
                 {account ? (
                   <span className="text-xs text-muted-foreground">
                     {account.username} ({account.role})
@@ -97,7 +101,7 @@ export function PlayersSection({ state }: { state: LeagueState }) {
               </div>
               {canManage && (
                 <div className="flex flex-wrap gap-1.5">
-                  {p.active === false && (
+                  {hasRoster && p.active === false && (
                     <Button variant="secondary" size="sm" onClick={() => setActivatingId(activatingId === p.id ? null : p.id)}>
                       Activate
                     </Button>
@@ -107,7 +111,7 @@ export function PlayersSection({ state }: { state: LeagueState }) {
                   </Button>
                 </div>
               )}
-              {activatingId === p.id && (
+              {hasRoster && activatingId === p.id && (
                 <div className="mt-2 rounded-md border border-dashed border-border bg-secondary/40 p-2.5">
                   <p className="mb-1.5 text-xs text-muted-foreground">
                     Pick up to {state.settings.teamSize} free agents to assign directly (no fair turn order left post-draft):

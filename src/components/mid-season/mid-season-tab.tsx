@@ -16,6 +16,19 @@ export function MidSeasonTab() {
   const state = useLeagueStore((s) => s.state);
   const leagueType = StateLogic.getLeagueType(state);
 
+  // The sidebar/mobile nav both hide this tab's link for a league type with no roster (pickem,
+  // whose supportsReplenish/supportsTrade/supportsFinalePredictions are all false anyway, which
+  // would otherwise render this whole page down to just the static intro panel below), but this
+  // route is still directly reachable by URL -- guard here too.
+  if (!leagueType.hasRoster) {
+    return (
+      <>
+        <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Mid-Season Tools</h2>
+        <p className="text-sm text-muted-foreground">This league type has no roster, so there&rsquo;s nothing to replenish or swap.</p>
+      </>
+    );
+  }
+
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Mid-Season Tools</h2>

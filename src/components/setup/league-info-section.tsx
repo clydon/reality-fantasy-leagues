@@ -12,9 +12,9 @@ import { Select } from "@/components/ui/select";
 // Port of renderSetup()'s League Name + Draft Schedule panels, plus new League Type / Show
 // pickers (not in the live app at all -- see state-logic.js's LEAGUE_TYPES/SHOWS). Both are
 // populated from the real registry so a second entry becomes selectable the moment one is
-// registered, but stay disabled today since there's only one of each and the draft may already
-// be running -- "commissioner picks before the season starts" only means something once a second
-// option actually exists.
+// registered -- League Type now has two (classic-draft/pickem) and is genuinely choosable before
+// the season starts; Show still has only one, so its picker stays locked until a second is
+// registered. Both lock once the season is underway (see seasonUnderway below).
 export function LeagueInfoSection({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
@@ -24,8 +24,13 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
 
   const draftStarted = StateLogic.isDraftStarted(state);
   const leagueType = StateLogic.getLeagueType(state);
-  const typeLocked = !canManage || draftStarted || Object.keys(StateLogic.LEAGUE_TYPES).length <= 1;
-  const showLocked = !canManage || draftStarted || Object.keys(StateLogic.SHOWS).length <= 1;
+  // Locks once EITHER the draft has started (classic-draft's own signal) OR any episode exists
+  // (a league-type-agnostic "season is underway" signal, needed now that a second league type --
+  // pickem -- exists whose isDraftStarted() is permanently false: without this, a pickem league
+  // with weeks of logged picks could still switch to classic-draft and silently orphan them).
+  const seasonUnderway = draftStarted || state.episodes.length > 0;
+  const typeLocked = !canManage || seasonUnderway || Object.keys(StateLogic.LEAGUE_TYPES).length <= 1;
+  const showLocked = !canManage || seasonUnderway || Object.keys(StateLogic.SHOWS).length <= 1;
 
   async function saveName() {
     const trimmed = name.trim();
@@ -54,18 +59,20 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
           <Input value={name} disabled={!canManage} onChange={(e) => setName(e.target.value)} onBlur={saveName} />
         </label>
       </div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1.5 text-sm">
-          Draft scheduled for:
-          <Input
-            type="datetime-local"
-            disabled={!canManage}
-            defaultValue={state.settings.draftScheduledAt ? state.settings.draftScheduledAt.slice(0, 16) : ""}
-            onBlur={(e) => updateSetting("draftScheduledAt", e.target.value ? new Date(e.target.value).toISOString() : null)}
-          />
-        </label>
-        {state.draftForceStarted && <span className="text-xs text-muted-foreground">(force-started — schedule is moot)</span>}
-      </div>
+      {leagueType.hasRoster && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-1.5 text-sm">
+            Draft scheduled for:
+            <Input
+              type="datetime-local"
+              disabled={!canManage}
+              defaultValue={state.settings.draftScheduledAt ? state.settings.draftScheduledAt.slice(0, 16) : ""}
+              onBlur={(e) => updateSetting("draftScheduledAt", e.target.value ? new Date(e.target.value).toISOString() : null)}
+            />
+          </label>
+          {state.draftForceStarted && <span className="text-xs text-muted-foreground">(force-started — schedule is moot)</span>}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-1.5 text-sm">
           League Type:

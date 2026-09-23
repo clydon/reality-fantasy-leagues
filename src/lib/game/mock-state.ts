@@ -74,6 +74,7 @@ export function buildMockSeasonState(): LeagueState {
         method: raw.find((r) => r.k === k)!.method,
       })),
       bets: bets || [],
+      picks: [], // this demo league is classic-draft; pickem's weekly picks never apply here.
     };
   }
 
@@ -159,6 +160,7 @@ export function buildMockSeasonState(): LeagueState {
       finalePredictionScope: "open",
       leagueTypeId: "classic-draft",
       showId: "survivor",
+      pickemCorrectPoints: 1,
     },
   };
 }

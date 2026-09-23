@@ -10,7 +10,8 @@ import { Select } from "@/components/ui/select";
 
 // Port of renderSetup()'s General Settings panel: teamSize (roster cap, consumed by
 // DraftLogic.currentTurn's totalPicksNeeded) and replenishOrderBy (mid-season pick-order
-// direction).
+// direction). Gated on hasRoster -- both fields are roster concepts (replenish specifically is a
+// roster-loss backfill mechanic), meaningless for a league type with no roster at all (pickem).
 export function GeneralSettingsSection({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
@@ -22,6 +23,8 @@ export function GeneralSettingsSection({ state }: { state: LeagueState }) {
       () => api.updateLeagueSettings(leagueId!, field, value)
     );
   }
+
+  if (!StateLogic.getLeagueType(state).hasRoster) return null;
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">

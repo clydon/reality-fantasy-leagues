@@ -27,18 +27,23 @@
 //
 // League types: DraftLogic and ScoringLogic below are thin dispatchers, not the real
 // implementations -- they read `state.settings.leagueTypeId`, look it up in LEAGUE_TYPES, and
-// delegate to that entry's `draftStrategy`/`scoringStrategy`. Today LEAGUE_TYPES has exactly one
-// entry ('classic-draft' -> SnakeDraftStrategy + EliminationOrderScoringStrategy), so every
-// existing league behaves identically to before this split. Adding a second league type means:
-// write a new strategy class implementing the same static method shape as SnakeDraftStrategy
-// (syncOrder/currentTurn/isStarted/forceStart/reorder/move/pick/undo) and/or
-// EliminationOrderScoringStrategy (compute), register it under a new LEAGUE_TYPES key, and set
-// supportsReplenish/supportsTrade/supportsFinalePredictions for whether those mid-season features
-// apply to it. ReplenishLogic/TradeLogic deliberately are NOT behind this dispatch yet -- they're
-// mid-season features of the current league type, gated by those three support flags, not an
-// independently-varying axis on their own. A "weekly pick'em" league (no persistent roster, no
-// turn-based picks at all) almost certainly won't fit the DraftStrategy shape above -- don't force
-// it in; that's a sign it needs its own top-level state/UI branch, not a third DraftStrategy.
+// delegate to that entry's `draftStrategy`/`scoringStrategy`. LEAGUE_TYPES has two entries today:
+// 'classic-draft' (SnakeDraftStrategy + EliminationOrderScoringStrategy, a real turn-based roster
+// draft) and 'pickem' (NoDraftStrategy + PickEmScoringStrategy -- no roster, no draft at all; see
+// PickEmLogic for the actual weekly-pick mechanic, which is NOT behind this dispatch since it
+// doesn't fit the DraftStrategy shape below, per the note two sentences down). Adding a further
+// league type means: write a new strategy class implementing the same static method shape as
+// SnakeDraftStrategy (syncOrder/currentTurn/isStarted/forceStart/reorder/move/pick/undo) and/or
+// EliminationOrderScoringStrategy (compute) -- or reuse NoDraftStrategy as-is if the new type has
+// no draft either -- register it under a new LEAGUE_TYPES key, and set
+// supportsReplenish/supportsTrade/supportsFinalePredictions/hasRoster/hasWeeklyPicks for whether
+// those features apply to it. ReplenishLogic/TradeLogic deliberately are NOT behind this dispatch
+// yet -- they're mid-season features of the current league type, gated by those three support
+// flags, not an independently-varying axis on their own. A "weekly pick'em" league (no persistent
+// roster, no turn-based picks at all) almost certainly won't fit the DraftStrategy shape above --
+// don't force it in; that's why 'pickem' gets NoDraftStrategy (an inert stand-in so nothing that
+// dispatches through DraftLogic crashes) plus its own top-level state branch (PickEmLogic,
+// `episode.picks`) instead of a real third DraftStrategy pretending to be turn-based.
 (function(root, factory){
   if(typeof module === 'object' && module.exports) module.exports = factory();
   else root.StateLogic = factory();
@@ -145,6 +150,42 @@ class EliminationOrderScoringStrategy {
     return Object.values(results).sort((a,b)=>b.total-a.total);
   }
 }
+// ---------- PickEmScoringStrategy: the 'pickem' league type's scoring ----------
+// Points = (points per correct pick) x however many of a player's weekly picks survived their
+// episode. Reuses ScoreRow's `locked` field as the generic "core score" slot -- same field
+// EliminationOrderScoringStrategy sums boot-order into -- rather than widening the shared
+// ScoreRow shape for a second league type; PickEmLeaderboardRow (frontend) presents it with its
+// own pick'em-appropriate label instead of "Boot Order". `roster`/`formerRoster` stay empty:
+// pickem has no roster at all (see PickEmLogic below).
+class PickEmScoringStrategy {
+  static compute(state){
+    const results = {};
+    state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
+    const pointsPerCorrect = typeof state.settings.pickemCorrectPoints === 'number' ? state.settings.pickemCorrectPoints : 1;
+    state.episodes.forEach(ep=>{
+      // An episode with zero elimination events logged hasn't happened yet as far as this app's
+      // data model is concerned -- same heuristic EpisodeLogic.ensureUpcoming already uses to
+      // decide which episode is "upcoming" (events.length===0). Without this gate, a pick
+      // submitted for a future episode would score as "correct" the instant it's submitted
+      // (nothing in ep.events yet to contradict it), before that episode has even aired.
+      if(ep.events.length===0) return;
+      (ep.picks||[]).forEach(pk=>{
+        const r = results[pk.playerId];
+        if(!r) return;
+        // Correct = the picked castaway does NOT appear among this episode's elimination events
+        // (i.e. they survived that tribal). No stored `correct` flag -- always derived live from
+        // ep.events, same reasoning EliminationOrderScoringStrategy sums `locked` live from
+        // castaway.status rather than caching a point value: a stored flag would need explicit
+        // invalidation everywhere addElimination/removeElimination can touch this episode's
+        // events, and this sidesteps that whole bug class.
+        const survived = !ep.events.some(ev=>ev.castawayId===pk.castawayId);
+        if(survived) r.locked += pointsPerCorrect;
+      });
+    });
+    Object.values(results).forEach(r=> r.total = r.locked);
+    return Object.values(results).sort((a,b)=>b.total-a.total);
+  }
+}
 // Thin dispatcher -- see the "League types" comment near the top of this file. Delegates to
 // whichever league type's scoringStrategy is active; today that's always
 // EliminationOrderScoringStrategy, so behavior is unchanged from before this split.
@@ -220,6 +261,92 @@ class SnakeDraftStrategy {
   }
 }
 
+// ---------- NoDraftStrategy: the 'pickem' league type's (non-)draft mechanic ----------
+// Pick'em has no draft and no roster at all -- see this file's own top-of-file comment, which
+// specifically calls out a weekly pick'em league as a shape that doesn't fit DraftStrategy and
+// shouldn't be forced into it. This exists only so DraftLogic's dispatch (and everything that
+// calls through it: RosterLogic.addPlayer, the Draft tab's panels if visited directly by URL
+// even though the frontend hides that tab for this league type) has something safe to call
+// instead of crashing on `undefined.currentTurn(...)`. Every method is an inert no-op/safe
+// default; `currentTurn` returning `null` (not `{isComplete:true}`) matters specifically because
+// RosterLogic.addPlayer checks `turn && turn.isComplete` to decide whether a new player starts
+// inactive -- null keeps every pick'em player active from the moment they join, which is correct
+// here since there's no fair-turn-order concept to have missed.
+class NoDraftStrategy {
+  static syncOrder(){ /* no draft order to maintain */ }
+  static currentTurn(){ return null; }
+  static isStarted(){ return false; }
+  static forceStart(){ /* nothing to force-start */ }
+  static reorder(){ /* no draft order */ }
+  static move(){ /* no draft order */ }
+  static pick(){ /* pickem ownership isn't assigned through this path -- see PickEmLogic */ }
+  static undo(){ /* no draft picks to undo */ }
+}
+
+// ---------- PickEmLogic: the 'pickem' league type's weekly pick mechanic ----------
+// Each episode, each player picks one still-active castaway they think survives that episode's
+// tribal -- unlike Feature A's blind draft, the plan never asks for these to be hidden from other
+// players before the episode airs, so (unlike blind draft) this needs no private-storage design;
+// everyone's pick can live in the ordinary broadcast `state` same as everything else. Stored
+// per-episode
+// (`episode.picks: {playerId, castawayId}[]`), one pick per player per episode, upserted in
+// place rather than accumulating a history of guesses -- unlike BetLogic's predictions (which
+// this class deliberately does NOT extend: BetLogic's guesses are free-text, manually graded by
+// the commissioner, and only pay out with >=2 guessers; pickem picks are a specific castaway
+// reference, auto-graded from ep.events, graded solo, and carry a no-repeat-previous-episode
+// business rule with no equivalent in BetLogic -- different enough that reusing it would mean
+// bending its semantics rather than sharing them).
+//
+// No stored "correct" -- see PickEmScoringStrategy's compute() for why.
+class PickEmLogic {
+  static findEpisode(state, epId){ return state.episodes.find(e=>e.id===epId); }
+  // The episode immediately before this one BY NUMBER, not by array position -- episodes can be
+  // added/removed out of order (EpisodeLogic.remove renumbers placements, not episode numbers).
+  static previousEpisode(state, ep){
+    return state.episodes.find(e=>e.number === ep.number - 1) || null;
+  }
+  static pickFor(state, epId, playerId){
+    const ep = PickEmLogic.findEpisode(state, epId);
+    return ep ? (ep.picks||[]).find(pk=>pk.playerId===playerId) || null : null;
+  }
+  // For the frontend to know which castaway to exclude from the picker (the no-repeat rule) --
+  // keeps that business logic here rather than reimplemented in a component.
+  static previousPickFor(state, epId, playerId){
+    const ep = PickEmLogic.findEpisode(state, epId);
+    if(!ep) return null;
+    const prevEp = PickEmLogic.previousEpisode(state, ep);
+    return prevEp ? (prevEp.picks||[]).find(pk=>pk.playerId===playerId) || null : null;
+  }
+  // Silently no-ops on an invalid request (unknown episode/castaway/player, an already-eliminated
+  // castaway, or a repeat of the immediately-previous episode's pick) rather than throwing --
+  // matches this file's existing convention (see e.g. SnakeDraftStrategy.pick on an
+  // already-owned castaway). The frontend is expected to not offer the invalid options in the
+  // first place; this is the backstop, not the primary validation surface.
+  // No lock once an episode's eliminations are logged -- a pick can still be changed after the
+  // outcome is known, same trust model the rest of this app already uses for bet predictions
+  // (also editable at any time, no lock tied to an episode airing). The plan doesn't ask for one
+  // and this app has no adversarial-security posture anywhere else either; not adding a new kind
+  // of protection unprompted.
+  static setPick(state, epId, playerId, castawayId){
+    const ep = PickEmLogic.findEpisode(state, epId);
+    const c = Core.getCastaway(state, castawayId);
+    const player = Core.getPlayer(state, playerId);
+    if(!ep || !c || !player || c.status!=='active') return;
+    const prevEp = PickEmLogic.previousEpisode(state, ep);
+    const prevPick = prevEp ? (prevEp.picks||[]).find(pk=>pk.playerId===playerId) : null;
+    if(prevPick && prevPick.castawayId===castawayId) return;
+    ep.picks = ep.picks || [];
+    const existing = ep.picks.find(pk=>pk.playerId===playerId);
+    if(existing) existing.castawayId = castawayId;
+    else ep.picks.push({playerId, castawayId});
+  }
+  static removePick(state, epId, playerId){
+    const ep = PickEmLogic.findEpisode(state, epId);
+    if(!ep) return;
+    ep.picks = (ep.picks||[]).filter(pk=>pk.playerId!==playerId);
+  }
+}
+
 // ---------- League type + show registries ----------
 // See the "League types" comment near the top of this file for the extension pattern. Both
 // registries are plain data (id/name/description/etc.) so new entries are additive, not
@@ -234,7 +361,27 @@ const LEAGUE_TYPES = {
     scoringStrategy: EliminationOrderScoringStrategy,
     supportsReplenish: true,
     supportsTrade: true,
-    supportsFinalePredictions: true
+    supportsFinalePredictions: true,
+    // hasRoster/hasWeeklyPicks: orthogonal to the three supports* flags above, which are about
+    // which MID-SEASON mechanics apply to an existing roster -- these two are about whether a
+    // roster (and therefore a draft, Draft tab, Board grid) exists at all, and whether the
+    // frontend owes this league type a per-episode pick UI. Both start here explicit-but-inert
+    // for classic-draft (it has the roster, never the weekly picks) so a reader sees the full
+    // axis rather than inferring "pickem is the only type these apply to" from a single entry.
+    hasRoster: true,
+    hasWeeklyPicks: false
+  },
+  'pickem': {
+    id: 'pickem',
+    name: "Pick'em",
+    description: 'No draft, no roster -- every episode, each player picks one castaway they think survives. A correct pick scores points; picking the same castaway two episodes running is not allowed.',
+    draftStrategy: NoDraftStrategy,
+    scoringStrategy: PickEmScoringStrategy,
+    supportsReplenish: false,
+    supportsTrade: false,
+    supportsFinalePredictions: false,
+    hasRoster: false,
+    hasWeeklyPicks: true
   }
 };
 const SHOWS = {
@@ -457,7 +604,7 @@ class EpisodeLogic {
     const previousEp = state.episodes.find(e=>e.number===maxNum);
     // Once the season hits the merge, every later episode is post-merge too — carry the flag forward.
     const postMerge = previousEp ? previousEp.postMerge : false;
-    const newEp = { id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[] };
+    const newEp = { id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[], picks:[] };
     state.episodes.push(newEp);
     return newEp;
   }
@@ -471,7 +618,7 @@ class EpisodeLogic {
     const latest = state.episodes.find(e=>e.number===maxNum);
     if(latest && latest.events.length === 0) return false;
     const postMerge = latest ? latest.postMerge : false;
-    state.episodes.push({ id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[] });
+    state.episodes.push({ id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[], picks:[] });
     return true;
   }
   static renumberPlacements(state){
@@ -635,7 +782,13 @@ class Migrations {
         finalePredictionScope: 'open',
         draftScheduledAt: null,
         leagueTypeId: 'classic-draft',
-        showId: 'survivor'
+        showId: 'survivor',
+        // Pick'em-only, but defaulted for every league (same as finaleTop3Points/etc above being
+        // defaulted even for classic-draft leagues that will never read them): a league can
+        // switch leagueTypeId, so this should already be sane if it does. Value per the plan doc:
+        // "assumed +1 for a correct pick... never explicitly confirmed" -- flagged there, not
+        // resolved here; change this default if the real answer turns out to be something else.
+        pickemCorrectPoints: 1
       }
     };
   }
@@ -661,6 +814,7 @@ class Migrations {
     if(!s.settings.finalePredictionScope) s.settings.finalePredictionScope = 'open';
     if(!s.settings.leagueTypeId) s.settings.leagueTypeId = 'classic-draft';
     if(!s.settings.showId) s.settings.showId = 'survivor';
+    if(typeof s.settings.pickemCorrectPoints !== 'number') s.settings.pickemCorrectPoints = 1;
     if(!s.draftOrder) s.draftOrder = (s.players||[]).map(p=>p.id);
     if(typeof s.draftPicksMade !== 'number') s.draftPicksMade = (s.castaways||[]).filter(c=>ownerListOf(c).length).length;
     if(typeof s.draftForceStarted !== 'boolean') s.draftForceStarted = false;
@@ -676,6 +830,7 @@ class Migrations {
     });
     (s.episodes||[]).forEach(ep=>{
       if(!ep.bets) migrateEpisodeToBets(ep, s.settings.bonusCategories, s.castaways, s.tribes);
+      if(!ep.picks) ep.picks = [];
     });
     delete s.settings.bonusCategories;
     return s;
@@ -711,13 +866,19 @@ return {
   addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,
   getOrCreateFinalePred: FinaleLogic.getOrCreatePrediction, setFinalePick: FinaleLogic.setPick, setFinaleWinnerPick: FinaleLogic.setWinnerPick,
   setActualTop3: FinaleLogic.setActualTop3, setActualWinner: FinaleLogic.setActualWinner,
+  // Named setPickEmPick/removePickEmPick rather than the shorter setPick/removePick -- "pick" is
+  // already heavily overloaded in this file (draft picks, blind-draft picks once Feature A ships)
+  // and the longer name keeps call sites unambiguous about which kind.
+  pickEmPickFor: PickEmLogic.pickFor, previousPickEmPickFor: PickEmLogic.previousPickFor,
+  setPickEmPick: PickEmLogic.setPick, removePickEmPick: PickEmLogic.removePick,
 
   // ---- domain classes: reference these directly in new code instead of the flat aliases above ----
   // ScoringLogic/DraftLogic are thin league-type dispatchers (see the "League types" comment near
-  // the top of this file); SnakeDraftStrategy/EliminationOrderScoringStrategy are their sole
-  // registered implementation today, exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, Migrations,
-  SnakeDraftStrategy, EliminationOrderScoringStrategy
+  // the top of this file); SnakeDraftStrategy/EliminationOrderScoringStrategy and
+  // NoDraftStrategy/PickEmScoringStrategy are their two registered implementations, exported
+  // directly for code that wants to bypass the dispatch.
+  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, Migrations,
+  SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy
 };
 
 });

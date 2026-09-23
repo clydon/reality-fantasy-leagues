@@ -94,6 +94,15 @@ export const api = {
       body: JSON.stringify({ value }),
     }),
 
+  // Pick'em only.
+  setPickEmPick: (leagueId: string, epId: string, playerId: string, castawayId: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/picks`, {
+      method: "PUT",
+      body: JSON.stringify({ playerId, castawayId }),
+    }),
+  removePickEmPick: (leagueId: string, epId: string, playerId: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/picks/${playerId}`, { method: "DELETE" }),
+
   reorderDraft: (leagueId: string, fromIndex: number, toIndex: number) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/draft/order`, {
       method: "POST",

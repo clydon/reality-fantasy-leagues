@@ -53,12 +53,22 @@ export interface Bet {
   createdByPlayerId?: string | null;
 }
 
+export interface PickEmPick {
+  playerId: string;
+  castawayId: string;
+}
+
 export interface Episode {
   id: string;
   number: number;
   postMerge: boolean;
   events: { castawayId: string; method: string }[];
   bets: Bet[];
+  // Pick'em only (state-logic.js's PickEmLogic) -- one entry per player who's made a pick for
+  // this episode, upserted in place rather than accumulated. Always present (EpisodeLogic.add
+  // initializes it, migrateLeagueState backfills it on old saves) but only ever populated for a
+  // 'pickem' league.
+  picks: PickEmPick[];
 }
 
 export interface FinalePrediction {
@@ -78,6 +88,9 @@ export interface LeagueSettings {
   draftScheduledAt?: string | null;
   leagueTypeId: string;
   showId: string;
+  // Pick'em only, defaulted for every league regardless of type (see defaultState's comment) --
+  // points awarded for a correct weekly pick.
+  pickemCorrectPoints: number;
 }
 
 export interface Membership {

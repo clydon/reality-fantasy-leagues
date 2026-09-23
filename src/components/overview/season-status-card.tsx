@@ -8,6 +8,7 @@ import { DashCard, DashBig, DashLink } from "./dash-card";
 export function SeasonStatusCard({ state }: { state: LeagueState }) {
   const activeCount = state.castaways.filter((c) => c.status === "active").length;
   const eliminatedCount = state.castaways.length - activeCount;
+  const hasRoster = StateLogic.getLeagueType(state).hasRoster;
   const draftStarted = StateLogic.isDraftStarted(state);
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
@@ -15,7 +16,23 @@ export function SeasonStatusCard({ state }: { state: LeagueState }) {
   const tradeActive = !!state.midSeason.trade;
 
   let statusBody: React.ReactNode;
-  if (!draftStarted) {
+  if (!hasRoster) {
+    // No draft/roster concept at all (pickem) -- the "not started / drafting / replenish / trade
+    // / complete" branches below all describe classic-draft's own season lifecycle, none of which
+    // apply. Show the one thing that IS this league type's season lifecycle instead: how many
+    // players have made a pick for the latest episode.
+    const latestEp = [...state.episodes].sort((a, b) => b.number - a.number)[0];
+    statusBody = latestEp ? (
+      <>
+        <p className="mt-1.5 text-sm">
+          Episode {latestEp.number}: {(latestEp.picks || []).length}/{state.players.length} players have picked.
+        </p>
+        <DashLink>Go to Episodes →</DashLink>
+      </>
+    ) : (
+      <DashLink>Add an episode to start picking →</DashLink>
+    );
+  } else if (!draftStarted) {
     // TODO(post-POC): port formatScheduledTime + draftScheduledAt display once Draft is ported.
     statusBody = <DashLink>Go to draft →</DashLink>;
   } else if (!draftComplete) {

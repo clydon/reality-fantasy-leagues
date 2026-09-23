@@ -7,6 +7,7 @@ import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated } from "@/lib/store
 import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
+import StateLogic from "@/lib/game/state-logic.js";
 import { midseasonBadge } from "@/lib/game/selectors";
 import { LeagueSwitcher } from "@/components/league-switcher";
 import { cn } from "cn";
@@ -38,7 +39,14 @@ export function Sidebar() {
   const state = useLeagueStore((s) => s.state);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
-  const tabs = isSuperAdmin ? [...TABS, { href: "/admin", label: "Admin" }, { href: "/reports", label: "Reports" }] : TABS;
+  // Draft and Mid-Season are both roster concepts (a draft to run, a roster to replenish/swap) --
+  // meaningless for a league type with no roster at all (pickem, whose weekly pick UI lives in
+  // the Episode Card instead, under Episodes). Filtered here rather than removed from TABS
+  // outright so a league type that DOES have a roster (classic-draft, and Active Roster later)
+  // keeps seeing them.
+  const hasRoster = StateLogic.getLeagueType(state).hasRoster;
+  const baseTabs = hasRoster ? TABS : TABS.filter((t) => t.href !== "/draft" && t.href !== "/mid-season");
+  const tabs = isSuperAdmin ? [...baseTabs, { href: "/admin", label: "Admin" }, { href: "/reports", label: "Reports" }] : baseTabs;
 
   // Port of exitDemoMode() -- see auth-gate.tsx's handleExitDemo for why this always means "show
   // the login screen" here rather than the live app's silent-restore-if-still-logged-in path.

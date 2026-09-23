@@ -1,7 +1,7 @@
 // Ambient typing for state-logic.js (forked from the live app -- see the provenance comment at
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
-import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Episode, ReplenishTurn } from "./types";
+import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Episode, ReplenishTurn, PickEmPick } from "./types";
 
 export interface LeagueType {
   id: string;
@@ -10,6 +10,12 @@ export interface LeagueType {
   supportsReplenish: boolean;
   supportsTrade: boolean;
   supportsFinalePredictions: boolean;
+  // See LEAGUE_TYPES' own comment in state-logic.js: orthogonal to the three supports* flags
+  // above, which are about mid-season mechanics on an EXISTING roster. These are about whether a
+  // roster (draft, Draft tab, Board grid) exists at all, and whether this league type owes the
+  // frontend a per-episode pick UI (Episode Card's "Your Pick" section).
+  hasRoster: boolean;
+  hasWeeklyPicks: boolean;
 }
 
 export interface Show {
@@ -97,6 +103,10 @@ declare const StateLogic: {
   setFinaleWinnerPick(state: LeagueState, playerId: string, value: string | null): void;
   setActualTop3(state: LeagueState, idx: number, value: string | null): void;
   setActualWinner(state: LeagueState, value: string | null): void;
+  pickEmPickFor(state: LeagueState, epId: string, playerId: string): PickEmPick | null;
+  previousPickEmPickFor(state: LeagueState, epId: string, playerId: string): PickEmPick | null;
+  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string): void;
+  removePickEmPick(state: LeagueState, epId: string, playerId: string): void;
 };
 
 export default StateLogic;
