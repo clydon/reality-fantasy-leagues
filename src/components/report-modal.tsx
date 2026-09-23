@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 import { useReportModalStore } from "@/lib/report-modal-store";
 import { useLeagueStore } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
-import { cn } from "cn";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 // Port of the #reportModal (public/index.html) / openReportModal()-closeReportModal()-sendReport()
 // (public/app.js). Only meaningful in live mode -- POST /api/reports requires a real SurvivorDraft
@@ -56,16 +58,16 @@ export function ReportModal() {
         </button>
         <h3 className="mb-3 text-base font-bold">Report an Issue</h3>
         <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</label>
-        <select
-          className="mb-2.5 w-full rounded-md border border-border bg-card px-2.5 py-2 text-sm"
+        <Select
+          className="mb-2.5 w-full"
           value={type}
           onChange={(e) => setType(e.target.value as "issue" | "feature")}
         >
           <option value="issue">🐛 Something&rsquo;s broken</option>
           <option value="feature">💡 I have an idea</option>
-        </select>
-        <textarea
-          className="mb-3 w-full resize-y rounded-md border border-border bg-card px-2.5 py-2 text-sm"
+        </Select>
+        <Textarea
+          className="mb-3"
           rows={5}
           placeholder={"Bug: what happened, what you expected instead, and the steps to get there again.\nIdea: what you'd want to see and why it'd help."}
           value={message}
@@ -73,19 +75,12 @@ export function ReportModal() {
         />
         {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2">
-          <button className="rounded-md border border-border bg-card px-[15px] py-2 text-[0.85rem] font-semibold hover:bg-secondary" onClick={handleClose}>
+          <Button variant="secondary" onClick={handleClose}>
             Cancel
-          </button>
-          <button
-            className={cn(
-              "rounded-md bg-primary px-[15px] py-2 text-[0.85rem] font-semibold text-primary-foreground shadow-sm hover:brightness-[1.06]",
-              sending && "opacity-50"
-            )}
-            onClick={send}
-            disabled={sending}
-          >
+          </Button>
+          <Button onClick={send} disabled={sending}>
             {sending ? "Sending…" : "Send"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

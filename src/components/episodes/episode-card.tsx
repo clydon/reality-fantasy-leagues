@@ -7,6 +7,9 @@ import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { EpisodeBetRow } from "./episode-bet-row";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { cn } from "cn";
 
 // Port of renderEpisodeCard() (public/app.js). `<details open>`'s per-episode expand/collapse
@@ -110,9 +113,9 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
           <div className="mb-2 flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-1.5 text-sm">
               Episode #:
-              <input
+              <Input
                 type="number"
-                className="w-16 rounded border border-border bg-card px-1.5 py-0.5 text-sm"
+                className="w-16 text-sm"
                 defaultValue={ep.number}
                 disabled={!canManage}
                 onBlur={(e) => updateField("number", parseInt(e.target.value) || 1)}
@@ -139,9 +142,9 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
           </div>
           {editingEp && canManage && (
             <div className="mb-2">
-              <button className="rounded border border-destructive/40 px-2 py-1 text-xs text-destructive" onClick={handleDeleteEpisode}>
+              <Button variant="destructive" size="sm" onClick={handleDeleteEpisode}>
                 Delete Episode
-              </button>
+              </Button>
             </div>
           )}
 
@@ -171,12 +174,9 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                       )}
                       <span className="text-muted-foreground">{ev.method}</span>
                       {editingEp && canManage && (
-                        <button
-                          className="ml-auto rounded border border-destructive/40 px-1.5 py-0.5 text-xs text-destructive"
-                          onClick={() => handleRemoveElimination(ev.castawayId)}
-                        >
+                        <Button variant="destructive" size="sm" className="ml-auto" onClick={() => handleRemoveElimination(ev.castawayId)}>
                           Undo
-                        </button>
+                        </Button>
                       )}
                     </div>
                   );
@@ -191,30 +191,20 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                   boot <b>#{StateLogic.nextPlacementOrder(state)}</b>.
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  <select
-                    className="rounded border border-border bg-card px-1.5 py-1 text-sm"
-                    value={elimCastawayId}
-                    onChange={(e) => setElimCastawayId(e.target.value)}
-                  >
+                  <Select value={elimCastawayId} onChange={(e) => setElimCastawayId(e.target.value)}>
                     <option value="">— Select castaway —</option>
                     {activeCast.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
                     ))}
-                  </select>
-                  <select
-                    className="rounded border border-border bg-card px-1.5 py-1 text-sm"
-                    value={elimMethod}
-                    onChange={(e) => setElimMethod(e.target.value)}
-                  >
+                  </Select>
+                  <Select value={elimMethod} onChange={(e) => setElimMethod(e.target.value)}>
                     {StateLogic.EXIT_METHODS.map((m) => (
                       <option key={m}>{m}</option>
                     ))}
-                  </select>
-                  <button className="rounded bg-primary px-2.5 py-1 text-sm font-semibold text-primary-foreground" onClick={handleAddElimination}>
-                    + Add Eliminated Player
-                  </button>
+                  </Select>
+                  <Button onClick={handleAddElimination}>+ Add Eliminated Player</Button>
                 </div>
               </div>
             )}
@@ -229,24 +219,24 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                 (ep.bets || []).map((bet) => <EpisodeBetRow key={bet.id} ep={ep} bet={bet} state={state} />)
               )}
               <div className="flex flex-wrap gap-1.5">
-                <input
-                  className="min-w-[180px] flex-1 rounded border border-border bg-card px-2 py-1 text-sm"
+                <Input
+                  className="min-w-[180px] flex-1 text-sm"
                   placeholder="New bet, e.g. 'Who wins reward?'"
                   value={newBetLabel}
                   onChange={(e) => setNewBetLabel(e.target.value)}
                 />
                 <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   pts if correct:
-                  <input
+                  <Input
                     type="number"
-                    className="w-14 rounded border border-border bg-card px-1.5 py-1 text-xs"
+                    className="w-14 text-xs"
                     value={newBetPoints}
                     onChange={(e) => setNewBetPoints(parseInt(e.target.value) || 0)}
                   />
                 </label>
-                <button className="rounded bg-primary px-2.5 py-1 text-sm font-semibold text-primary-foreground" onClick={handleAddBet}>
+                <Button size="sm" onClick={handleAddBet}>
                   Add Bet
-                </button>
+                </Button>
               </div>
             </div>
           )}

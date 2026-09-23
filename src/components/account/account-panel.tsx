@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSession, signIn, signUp, signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // New, separate account system: Better Auth email+password with a real reset-password flow
 // (src/lib/auth.ts). Deliberately its own thing, not wired into AuthGate/useLeagueStore -- this
@@ -73,8 +74,7 @@ export function AccountPanel() {
         </div>
         <form onSubmit={submit} className="flex flex-col gap-2">
           {mode === "signup" && (
-            <input
-              className="rounded-md border border-border bg-card px-2.5 py-[7px] text-[0.88rem]"
+            <Input
               placeholder="Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -82,8 +82,7 @@ export function AccountPanel() {
               required
             />
           )}
-          <input
-            className="rounded-md border border-border bg-card px-2.5 py-[7px] text-[0.88rem]"
+          <Input
             placeholder="Email"
             type="email"
             value={email}
@@ -91,8 +90,7 @@ export function AccountPanel() {
             autoComplete="email"
             required
           />
-          <input
-            className="rounded-md border border-border bg-card px-2.5 py-[7px] text-[0.88rem]"
+          <Input
             placeholder="Password"
             type="password"
             value={password}
@@ -102,13 +100,9 @@ export function AccountPanel() {
             required
           />
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-md bg-primary px-[15px] py-2 text-[0.85rem] font-semibold text-primary-foreground shadow-sm hover:brightness-[1.06] disabled:opacity-40"
-          >
+          <Button type="submit" disabled={loading}>
             {loading ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
-          </button>
+          </Button>
         </form>
         {mode === "signin" && (
           <p className="mt-2.5 text-xs text-muted-foreground">

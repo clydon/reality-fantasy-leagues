@@ -5,6 +5,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 
 // Port of renderDraft()'s "Draft Order" panel (public/app.js). Drag-and-drop reordering isn't
 // ported -- only the ↑↓ buttons, which the live app itself already provides as the touch-device
@@ -45,22 +46,18 @@ export function DraftOrderPanel({ state }: { state: LeagueState }) {
               </span>
               {canManage && (
                 <div className="flex gap-1">
-                  <button
-                    className="rounded border border-border px-1.5 text-xs disabled:opacity-30"
-                    disabled={i === 0}
-                    title="Move up"
-                    onClick={() => move(i, -1)}
-                  >
+                  <Button variant="secondary" size="sm" disabled={i === 0} title="Move up" onClick={() => move(i, -1)}>
                     ↑
-                  </button>
-                  <button
-                    className="rounded border border-border px-1.5 text-xs disabled:opacity-30"
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     disabled={i === state.draftOrder.length - 1}
                     title="Move down"
                     onClick={() => move(i, 1)}
                   >
                     ↓
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>

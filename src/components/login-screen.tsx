@@ -3,6 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // Port of renderLoginScreen() (public/app.js) -- exact structure: 360px-wide centered column,
 // banner.png, a .panel box (h3 renders as small uppercase muted text via the global h3 rule,
@@ -44,36 +46,27 @@ export function LoginScreen({
         <h3 className="mb-2.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Log in</h3>
         {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
         <form onSubmit={submit} className="flex flex-col gap-2">
-          <input
-            className="rounded-md border border-border bg-card px-2.5 py-[7px] text-[0.88rem]"
+          <Input
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
           />
-          <input
-            className="rounded-md border border-border bg-card px-2.5 py-[7px] text-[0.88rem]"
+          <Input
             placeholder="Password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
           />
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-md bg-primary px-[15px] py-2 text-[0.85rem] font-semibold text-primary-foreground shadow-sm hover:brightness-[1.06] disabled:opacity-40"
-          >
+          <Button type="submit" disabled={loading}>
             {loading ? "Logging in…" : "Log In"}
-          </button>
+          </Button>
         </form>
       </div>
-      <button
-        className="w-full rounded-md border border-border bg-card px-[15px] py-2 text-[0.85rem] font-semibold text-foreground shadow-none hover:bg-secondary"
-        onClick={onSkip}
-      >
+      <Button variant="secondary" className="w-full" onClick={onSkip}>
         🎬 Take a Tour (Preview a Mock Season)
-      </button>
+      </Button>
       <p className="mt-3 text-center text-xs text-muted-foreground">
         Building the future version of this app?{" "}
         <Link href="/account" className="font-semibold text-primary hover:underline">

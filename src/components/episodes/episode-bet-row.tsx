@@ -6,6 +6,9 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 // Port of the per-bet block inside renderEpisodeCard() (public/app.js) -- the fuller editor
 // version of a bet (editable label/points, remove-a-guess, add-a-guess-on-anyone's-behalf for the
@@ -72,16 +75,16 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
       <div className="flex flex-wrap items-center gap-2">
         {editing && canManage ? (
           <>
-            <input
-              className="min-w-[140px] flex-1 rounded border border-border bg-card px-2 py-1 text-sm"
+            <Input
+              className="min-w-[140px] flex-1 text-sm"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               onBlur={() => label !== bet.label && saveField("label", label)}
             />
-            <input
+            <Input
               type="number"
               title="pts if correct"
-              className="w-16 rounded border border-border bg-card px-1.5 py-1 text-sm"
+              className="w-16 text-sm"
               value={points}
               onChange={(e) => setPoints(parseInt(e.target.value) || 0)}
               onBlur={() => points !== bet.points && saveField("points", points)}
@@ -118,9 +121,9 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
       {editing && canToggleEdit && (
         <div className="mt-1.5 flex items-center gap-2">
           {!canManage && <span className="text-xs text-muted-foreground">You can remove this until 2 people have guessed.</span>}
-          <button className="rounded border border-destructive/40 px-2 py-0.5 text-xs text-destructive" onClick={remove}>
+          <Button variant="destructive" size="sm" onClick={remove}>
             Remove Bet
-          </button>
+          </Button>
         </div>
       )}
 
@@ -136,8 +139,8 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
                 {pp?.name || "?"}
               </span>
               <span className="flex-1">guessed: &ldquo;{pred.guess}&rdquo;</span>
-              <select
-                className="rounded border border-border bg-card text-xs"
+              <Select
+                className="text-xs"
                 disabled={!canManage}
                 defaultValue={pred.correct === true ? "true" : pred.correct === false ? "false" : ""}
                 onChange={(e) => grade(pred.id, e.target.value)}
@@ -145,7 +148,7 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
                 <option value="">—</option>
                 <option value="true">Correct</option>
                 <option value="false">Incorrect</option>
-              </select>
+              </Select>
               {pred.correct === true && (bet.predictions || []).length >= 2 && (
                 <span className="rounded bg-good/15 px-1.5 py-0.5 font-semibold text-good">+{bet.points} pts</span>
               )}
@@ -164,8 +167,8 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
 
       <div className="mt-2 flex flex-wrap gap-1.5">
         {canManage ? (
-          <select
-            className="rounded border border-border bg-card px-1.5 py-1 text-xs"
+          <Select
+            className="text-xs"
             value={guessPlayerId}
             onChange={(e) => setGuessPlayerId(e.target.value)}
           >
@@ -175,20 +178,20 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         ) : (
           <span className="self-center text-xs text-muted-foreground">Your guess:</span>
         )}
-        <input
-          className="min-w-[140px] flex-1 rounded border border-border bg-card px-2 py-1 text-xs"
+        <Input
+          className="min-w-[140px] flex-1 text-xs"
           placeholder="Your guess (free text)"
           value={guessText}
           onChange={(e) => setGuessText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addGuess()}
         />
-        <button className="rounded bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground" onClick={addGuess}>
+        <Button size="sm" onClick={addGuess}>
           Add Guess
-        </button>
+        </Button>
       </div>
     </div>
   );

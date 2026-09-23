@@ -62,9 +62,9 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
       <>
         <p className="text-sm font-semibold text-good">Replenish complete.</p>
         {canManage && (
-          <button className="mt-2 rounded border border-border px-2.5 py-1 text-xs" onClick={cancel}>
+          <Button variant="secondary" size="sm" className="mt-2" onClick={cancel}>
             Clear
-          </button>
+          </Button>
         )}
       </>
     );
@@ -112,9 +112,9 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
         </div>
       )}
       {canManage && (
-        <button className="mt-3 rounded border border-destructive/40 px-2.5 py-1 text-xs text-destructive" onClick={cancel}>
+        <Button variant="destructive" size="sm" className="mt-3" onClick={cancel}>
           Cancel Replenish
-        </button>
+        </Button>
       )}
     </>
   );

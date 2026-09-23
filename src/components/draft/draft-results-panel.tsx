@@ -6,6 +6,7 @@ import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import StateLogic from "@/lib/game/state-logic.js";
+import { Button } from "@/components/ui/button";
 
 // Port of renderDraft()'s "Draft Results" panel -- who each player originally drafted, unaffected
 // by later Replenish/Swap (see the live app's own note: current rosters live on Scoreboard).
@@ -53,9 +54,9 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
                       )}
                     </span>
                     {c.ownerId === p.id && c.status === "active" && canManage && (
-                      <button className="rounded border border-border px-1.5 py-0.5 text-[0.65rem]" onClick={() => handleUndraft(c.id)}>
+                      <Button variant="secondary" size="sm" onClick={() => handleUndraft(c.id)}>
                         Undraft
-                      </button>
+                      </Button>
                     )}
                   </div>
                 ))

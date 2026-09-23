@@ -66,9 +66,9 @@ export function TradePanel({ state }: { state: LeagueState }) {
       <>
         <p className="text-sm font-semibold text-good">Swap round complete.</p>
         {canManage && (
-          <button className="mt-2 rounded border border-border px-2.5 py-1 text-xs" onClick={cancel}>
+          <Button variant="secondary" size="sm" className="mt-2" onClick={cancel}>
             Clear
-          </button>
+          </Button>
         )}
       </>
     );
@@ -148,9 +148,9 @@ export function TradePanel({ state }: { state: LeagueState }) {
                 ))}
               </div>
             )}
-            <button className="mt-2.5 rounded border border-border px-2.5 py-1 text-xs" onClick={() => setDropId(null)}>
+            <Button variant="secondary" size="sm" className="mt-2.5" onClick={() => setDropId(null)}>
               ← Back
-            </button>
+            </Button>
           </div>
         ))}
 
@@ -162,12 +162,12 @@ export function TradePanel({ state }: { state: LeagueState }) {
       </p>
       {canManage && (
         <div className="flex gap-2">
-          <button className="rounded border border-border px-2.5 py-1 text-xs" onClick={skip}>
+          <Button variant="secondary" size="sm" onClick={skip}>
             Skip This Player
-          </button>
-          <button className="rounded border border-destructive/40 px-2.5 py-1 text-xs text-destructive" onClick={cancel}>
+          </Button>
+          <Button variant="destructive" size="sm" onClick={cancel}>
             Cancel Swap Round
-          </button>
+          </Button>
         </div>
       )}
     </>

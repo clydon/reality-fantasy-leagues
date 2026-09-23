@@ -6,6 +6,7 @@ import { ordinal } from "@/lib/game/selectors";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
+import { Select } from "@/components/ui/select";
 
 // Port of renderFinalePanel() (public/app.js): each player's Top-3 + Winner prediction, plus the
 // commissioner-only Actual Result used to grade them all via ScoringLogic.compute.
@@ -95,7 +96,7 @@ export function FinalePanel({ state }: { state: LeagueState }) {
                     {[0, 1, 2].map((i) => (
                       <label key={i} className="flex items-center gap-1 text-xs">
                         {ordinal(i + 1)}
-                        <select
+                        <Select
                           className="rounded border border-border bg-card px-1 py-0.5 text-xs"
                           disabled={!editable}
                           defaultValue={fp.top3[i] ?? ""}
@@ -107,7 +108,7 @@ export function FinalePanel({ state }: { state: LeagueState }) {
                               {c.name}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </label>
                     ))}
                   </div>
@@ -118,7 +119,7 @@ export function FinalePanel({ state }: { state: LeagueState }) {
                 {pool.length === 0 ? (
                   <span className="text-xs text-muted-foreground">—</span>
                 ) : (
-                  <select
+                  <Select
                     className="rounded border border-border bg-card px-1.5 py-1 text-xs"
                     disabled={!editable}
                     defaultValue={fp.winner ?? ""}
@@ -130,7 +131,7 @@ export function FinalePanel({ state }: { state: LeagueState }) {
                         {c.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
               </div>
             </div>
@@ -147,7 +148,7 @@ export function FinalePanel({ state }: { state: LeagueState }) {
         {[0, 1, 2].map((i) => (
           <label key={i} className="flex items-center gap-1 text-xs">
             {ordinal(i + 1)}
-            <select
+            <Select
               className="rounded border border-border bg-card px-1 py-0.5 text-xs"
               disabled={!canManage}
               defaultValue={state.finaleActual.top3[i] ?? ""}
@@ -159,13 +160,13 @@ export function FinalePanel({ state }: { state: LeagueState }) {
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         ))}
       </div>
       <div className="flex items-center gap-2">
         <span className="text-sm text-muted-foreground">Winner:</span>
-        <select
+        <Select
           className="rounded border border-border bg-card px-1.5 py-1 text-sm"
           disabled={!canManage}
           defaultValue={state.finaleActual.winner ?? ""}
@@ -177,7 +178,7 @@ export function FinalePanel({ state }: { state: LeagueState }) {
               {c.name}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
     </div>
   );

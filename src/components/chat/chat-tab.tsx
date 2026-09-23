@@ -6,6 +6,7 @@ import { useLeagueStore } from "@/lib/store";
 import { useChatStore } from "@/lib/chat-store";
 import { ChatMessageRow } from "./chat-message-row";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // Port of renderChat() (public/app.js). Polls every 5s while mounted, matching the live app's
 // loadChatMessages interval -- gated to live mode only: polling in mock mode would periodically
@@ -62,8 +63,8 @@ export function ChatTab() {
         )}
       </div>
       <div className="mt-3 flex gap-2">
-        <input
-          className="min-w-0 flex-1 rounded-md border border-border bg-card px-3 py-2 text-sm"
+        <Input
+          className="min-w-0 flex-1"
           placeholder="Message your league..."
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

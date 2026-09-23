@@ -5,6 +5,7 @@ import { useIsSuperAdmin } from "@/lib/store";
 import { useAdminStore } from "@/lib/admin-store";
 import { LinkMembershipForm } from "./link-membership-form";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // Direct port of renderAdmin() (public/app.js). Unlike every other tab, Admin has NO mock-mode
 // equivalent -- the live app never shows its nav link to non-super-admins at all, demo mode
@@ -72,9 +73,9 @@ export function AdminTab() {
           <p className="mb-2 text-sm">
             Give this to them directly (it won&rsquo;t be shown again): <code className="rounded bg-card px-1.5 py-0.5">{lastTempPassword.password}</code>
           </p>
-          <button className="rounded border border-border px-2.5 py-1 text-xs" onClick={dismissTempPassword}>
+          <Button variant="secondary" size="sm" onClick={dismissTempPassword}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -91,22 +92,23 @@ export function AdminTab() {
                 {u.must_change_password && <span className="text-xs text-muted-foreground">must change password</span>}
               </div>
               <div className="flex flex-wrap gap-1.5">
-                <button className="rounded border border-border px-2 py-0.5 text-xs" onClick={() => resetPassword(u.id, u.username)}>
+                <Button variant="secondary" size="sm" onClick={() => resetPassword(u.id, u.username)}>
                   Reset Password
-                </button>
-                <button
-                  className="rounded border border-destructive/40 px-2 py-0.5 text-xs text-destructive"
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
                   onClick={() => deleteUser(u.id, u.username)}
                 >
                   Delete
-                </button>
+                </Button>
               </div>
             </div>
           ))}
         </div>
         <div className="mt-3 flex gap-1.5">
-          <input
-            className="min-w-0 flex-1 rounded border border-border bg-card px-2 py-1 text-sm"
+          <Input
+            className="min-w-0 flex-1 text-sm"
             placeholder="New username"
             value={newUsername}
             onChange={(e) => setNewUsername(e.target.value)}
@@ -127,16 +129,17 @@ export function AdminTab() {
                 <div className="mb-1.5 text-sm font-semibold">{l.name}</div>
                 <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
                   code: <b>{l.join_code}</b>
-                  <button className="rounded border border-border px-2 py-0.5" onClick={() => toggleLeague(l.id)}>
+                  <Button variant="secondary" size="sm" onClick={() => toggleLeague(l.id)}>
                     {selectedLeagueId === l.id ? "Hide Memberships" : "View Memberships"}
-                  </button>
+                  </Button>
                 </div>
-                <button
-                  className="rounded border border-destructive/40 px-2 py-0.5 text-xs text-destructive"
+                <Button
+                  variant="destructive"
+                  size="sm"
                   onClick={() => deleteLeague(l.id, l.name)}
                 >
                   Delete League
-                </button>
+                </Button>
               </div>
             ))}
           </div>
@@ -174,22 +177,23 @@ export function AdminTab() {
                     {!linking && (
                       <>
                         {!p.disabled && (
-                          <button className="rounded border border-border px-2 py-0.5 text-xs" onClick={() => setLinkingPlayerId(p.id)}>
+                          <Button variant="secondary" size="sm" onClick={() => setLinkingPlayerId(p.id)}>
                             {m ? "Change" : "Link Account"}
-                          </button>
+                          </Button>
                         )}
                         {m && (
-                          <button className="rounded border border-destructive/40 px-2 py-0.5 text-xs text-destructive" onClick={() => unlinkMembership(m.id)}>
+                          <Button variant="destructive" size="sm" onClick={() => unlinkMembership(m.id)}>
                             Unlink
-                          </button>
+                          </Button>
                         )}
                         {!p.disabled && (
-                          <button
-                            className="rounded border border-destructive/40 px-2 py-0.5 text-xs text-destructive"
+                          <Button
+                            variant="destructive"
+                            size="sm"
                             onClick={() => deletePlayer(p.id, p.name)}
                           >
                             Delete Player
-                          </button>
+                          </Button>
                         )}
                       </>
                     )}
