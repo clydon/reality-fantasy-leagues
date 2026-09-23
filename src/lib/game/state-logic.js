@@ -1,0 +1,573 @@
+// COPIED VERBATIM from the live app repo (SurvivorDraft/shared/state-logic.js), not rewritten.
+// This validates docs/ARCHITECTURE.md Phase 0's assumption that the isomorphic game logic
+// carries over to this repo as-is, with zero changes. There is currently NO automated sync
+// between the two copies -- if the live app's version changes, re-copy it here by hand. This
+// file is imported as `StateLogic` via state-logic.d.ts's ambient types (see that file).
+//
+// Pure game logic for Survivor Draft League — no DOM, no localStorage, no network.
+// Loaded both by the browser (<script src="/shared/state-logic.js">, defines window.StateLogic)
+// and by the Node server (require('../../shared/state-logic.js')).
+// Every function takes `state` as its first argument instead of closing over a global.
+//
+// Organized as one class per game-logic domain (Core, ScoringLogic, DraftLogic, RosterLogic,
+// ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, Migrations). This is
+// deliberately still ONE FILE, not one-file-per-class: the browser loads this via a plain
+// <script> tag with no bundler, so a real multi-file split would need either `require()` (which
+// doesn't exist in that context) or a generated/concatenated bundle (which creates an ongoing
+// "forgot to regenerate before committing" drift risk between what the server runs and what the
+// browser fetches, every single time this file changes). Classes-in-one-file gets the same
+// organizational win — clear domain boundaries, `DraftLogic.currentTurn(state)`-style
+// discoverability — with none of that risk. All exported functions are still exact 1:1 aliases
+// to class statics, so no existing call site (public/app.js, every server route) needs to change.
+//
+// Adding a new game-logic feature: add a static method to the relevant class below (or a new
+// class for a genuinely new domain), then add its alias in the `return {...}` block at the
+// bottom. Cross-domain calls are plain `OtherClass.method(state, ...)` — see ReplenishLogic
+// calling ScoringLogic, or RosterLogic calling DraftLogic, for the existing pattern.
+(function(root, factory){
+  if(typeof module === 'object' && module.exports) module.exports = factory();
+  else root.StateLogic = factory();
+})(typeof self !== 'undefined' ? self : this, function(){
+
+const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b0563f','#6b8fc9'];
+const SEED_CASTAWAYS = ['Aaliyah','Alexis','Ana','Brady','Carter','Cristian','Devin','Eric','Jelly','Jenna','Kilby','Kristin','Lewis','Linnea','Maggie','Mike','Ori','Patt','Rob','Sharonda','Thien An'];
+const EXIT_METHODS = ['Voted Out','Medically Evacuated','Quit','Lost Fire-Making','Lost Final Tribal (Jury Vote)','Sole Survivor','Other'];
+
+// ---------- Core: id generation + basic entity lookups, used by every other class ----------
+class Core {
+  static uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }
+  static getPlayer(state, id){ return state.players.find(p=>p.id===id); }
+  static getCastaway(state, id){ return state.castaways.find(c=>c.id===id); }
+  static getTribe(state, id){ return state.tribes.find(t=>t.id===id); }
+}
+
+// ---------- ScoringLogic ----------
+class ScoringLogic {
+  static compute(state){
+    const results = {};
+    state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
+    state.castaways.forEach(c=>{
+      if(c.ownerId && results[c.ownerId]){
+        results[c.ownerId].roster.push(c);
+        if(c.status==='eliminated' && typeof c.placementOrder==='number'){
+          results[c.ownerId].locked += c.placementOrder;
+        }
+      }
+      // Dropped via replenish/trade: no longer counts, but still shown (grayed out) for history.
+      if(c.formerOwnerId && results[c.formerOwnerId]){
+        results[c.formerOwnerId].formerRoster.push(c);
+      }
+    });
+    if(state.settings.bonusEnabled){
+      state.episodes.forEach(ep=>{
+        (ep.bets||[]).forEach(bet=>{
+          if((bet.predictions||[]).length < 2) return; // needs company: won't pay out if nobody else guessed
+          (bet.predictions||[]).forEach(pred=>{
+            if(pred.correct===true && results[pred.playerId]){
+              results[pred.playerId].bonus += (bet.points||0);
+            }
+          });
+        });
+      });
+    }
+    if(state.finaleActual && state.finaleActual.winner){
+      (state.finalePredictions||[]).forEach(fp=>{
+        if(!results[fp.playerId]) return;
+        const correctTop3 = (fp.top3||[]).filter(id=>id && (state.finaleActual.top3||[]).includes(id)).length;
+        results[fp.playerId].finale += correctTop3*(state.settings.finaleTop3Points||0);
+        if(fp.winner && fp.winner===state.finaleActual.winner) results[fp.playerId].finale += (state.settings.finaleWinnerPoints||0);
+      });
+    }
+    Object.values(results).forEach(r=> r.total = r.locked + (state.settings.bonusEnabled? r.bonus:0) + r.finale);
+    return Object.values(results).sort((a,b)=>b.total-a.total);
+  }
+}
+
+// ---------- DraftLogic ----------
+class DraftLogic {
+  // Keeps draftOrder in sync in case players were added/removed some other way. Inactive players
+  // (joined after the draft concluded, not yet activated) are deliberately left out until
+  // RosterLogic.activatePlayer() folds them in -- otherwise they'd silently re-enter the snake rotation.
+  static syncOrder(state){
+    state.draftOrder = state.draftOrder.filter(pid => Core.getPlayer(state, pid));
+    state.players.forEach(p=>{ if(p.active !== false && !state.draftOrder.includes(p.id)) state.draftOrder.push(p.id); });
+  }
+  // Snake draft turn: round 0 goes draftOrder[0..N-1], round 1 goes reversed, etc.
+  static currentTurn(state){
+    DraftLogic.syncOrder(state);
+    const order = state.draftOrder;
+    const n = order.length;
+    if(n===0) return null;
+    const totalPicksNeeded = n * state.settings.teamSize;
+    if(state.draftPicksMade >= totalPicksNeeded) return { isComplete:true };
+    const round = Math.floor(state.draftPicksMade / n);
+    const posInRound = state.draftPicksMade % n;
+    const roundOrder = round % 2 === 0 ? order : [...order].reverse();
+    const playerId = roundOrder[posInRound];
+    return {
+      isComplete:false,
+      playerId,
+      personalPickNumber: round + 1,
+      overallPickNumber: state.draftPicksMade + 1
+    };
+  }
+  // True once picks are allowed: a real pick has already been made, the commissioner forced it
+  // open early, or the scheduled start time (if any) has arrived. With no schedule set and no
+  // force-start, the draft simply never auto-starts -- the commissioner has to force it.
+  static isStarted(state){
+    if(state.draftPicksMade > 0) return true;
+    if(state.draftForceStarted) return true;
+    const scheduled = state.settings.draftScheduledAt;
+    return !!(scheduled && Date.now() >= new Date(scheduled).getTime());
+  }
+  static forceStart(state){ state.draftForceStarted = true; }
+  static reorder(state, fromIdx, toIdx){
+    if(fromIdx===toIdx) return;
+    const [moved] = state.draftOrder.splice(fromIdx, 1);
+    state.draftOrder.splice(toIdx, 0, moved);
+  }
+  static move(state, idx, delta){
+    const target = idx + delta;
+    if(target < 0 || target >= state.draftOrder.length) return;
+    const arr = state.draftOrder;
+    [arr[idx], arr[target]] = [arr[target], arr[idx]];
+  }
+  static pick(state, castawayId){
+    const turn = DraftLogic.currentTurn(state);
+    const c = Core.getCastaway(state, castawayId);
+    if(!turn || turn.isComplete || !c || c.ownerId) return;
+    c.ownerId = turn.playerId;
+    c.acquiredVia = 'draft';
+    state.draftPicksMade++;
+  }
+  static undo(state, castawayId){
+    const c = Core.getCastaway(state, castawayId);
+    if(!c || c.status!=='active') return;
+    if(c.acquiredVia==='draft'){
+      state.draftPicksMade = Math.max(0, state.draftPicksMade - 1);
+    }
+    c.ownerId = null;
+    c.acquiredVia = null;
+  }
+}
+
+// ---------- RosterLogic: players, tribes, castaways, league settings ----------
+class RosterLogic {
+  static freeAgents(state){ return state.castaways.filter(c=>!c.ownerId && c.status==='active'); }
+  static activeOwnedCount(state, playerId){ return state.castaways.filter(c=>c.ownerId===playerId && c.status==='active').length; }
+  static totalCastCount(state){ return state.castaways.length; }
+
+  // Joining after the draft has already fully concluded has no fair turn order to slot into, so
+  // the new player starts inactive (no roster, excluded from draftOrder/scoring) until the
+  // commissioner manually activates them via activatePlayer(). Joining before/during the draft
+  // is unaffected -- they just fold into the normal snake order as always.
+  static addPlayer(state, name){
+    const newPlayer = { id:Core.uid('p'), name, color: PALETTE[state.players.length % PALETTE.length], disabled:false, active:true };
+    const turn = DraftLogic.currentTurn(state); // reflects players/draftOrder BEFORE this one is added
+    state.players.push(newPlayer);
+    if(turn && turn.isComplete){
+      newPlayer.active = false;
+    }else{
+      state.draftOrder.push(newPlayer.id);
+    }
+    return newPlayer;
+  }
+  // Commissioner-only override for a player who joined after the draft concluded: directly
+  // assigns chosen free agents (not a live snake pick -- there's no fair turn order left) and
+  // marks the player active, folding them into draftOrder for future Replenish/Trade rounds.
+  static activatePlayer(state, playerId, castawayIds){
+    const p = Core.getPlayer(state, playerId);
+    if(!p) return null;
+    (castawayIds||[]).forEach(cid=>{
+      const c = Core.getCastaway(state, cid);
+      if(c && !c.ownerId){ c.ownerId = playerId; c.acquiredVia = 'draft'; }
+    });
+    p.active = true;
+    if(!state.draftOrder.includes(playerId)) state.draftOrder.push(playerId);
+    return p;
+  }
+  static updatePlayer(state, id, field, value){ const p=Core.getPlayer(state,id); if(p) p[field]=value; }
+  static removePlayer(state, id){
+    state.castaways.forEach(c=>{ if(c.ownerId===id) c.ownerId=null; });
+    state.players = state.players.filter(p=>p.id!==id);
+    state.draftOrder = state.draftOrder.filter(pid=>pid!==id);
+  }
+  // Used when a player leaves mid-draft (self-serve) or an admin removes them: the roster slot,
+  // its history, and any points it already earned all stay intact and keep counting -- only the
+  // name changes and the seat is flagged disabled, so nobody can draft/bet/predict as them again.
+  static disablePlayer(state, playerId){
+    const p = Core.getPlayer(state, playerId);
+    if(!p) return null;
+    const suffix = Math.floor(1000 + Math.random()*9000);
+    p.name = 'disabled_player_' + suffix;
+    p.disabled = true;
+    return p;
+  }
+  static addTribe(state, name, color){
+    const t = {id:Core.uid('t'), name, color};
+    state.tribes.push(t);
+    return t;
+  }
+  static updateTribe(state, id, field, value){ const t=Core.getTribe(state,id); if(t) t[field]=value; }
+  static removeTribe(state, id){
+    state.castaways.forEach(c=>{ if(c.tribeId===id) c.tribeId=null; });
+    state.tribes = state.tribes.filter(t=>t.id!==id);
+  }
+  static addCastaway(state, name){
+    const c = {id:Core.uid('c'), name, tribeId:null, ownerId:null, photoUrl:'', status:'active', placementOrder:null, exitMethod:null, exitEpisodeId:null, replenishClaimed:false, acquiredVia:null, formerOwnerId:null, departedVia:null};
+    state.castaways.push(c);
+    return c;
+  }
+  static updateCastaway(state, id, field, value){ const c=Core.getCastaway(state,id); if(c) c[field]=value; }
+  static removeCastaway(state, id){ state.castaways = state.castaways.filter(c=>c.id!==id); }
+  static updateSettings(state, field, value){ state.settings[field]=value; }
+}
+
+// ---------- ReplenishLogic ----------
+class ReplenishLogic {
+  static start(state){
+    const scores = ScoringLogic.compute(state);
+    const scoreOf = playerId => (scores.find(s=>s.playerId===playerId)||{total:0}).total;
+    const counts = state.players.map(p=>{
+      const losses = state.castaways.filter(c=> c.ownerId===p.id && c.status==='eliminated' && !c.replenishClaimed && c.exitMethod!=='Sole Survivor');
+      return {playerId:p.id, losses, score: scoreOf(p.id)};
+    }).filter(x=>x.losses.length>0);
+    if(counts.length===0) return false;
+    // Who needs a player = anyone with unclaimed losses. Order among them is by current total
+    // score, direction set in League Settings (most points first rewards strong drafts; least
+    // points first is a catch-up mechanic).
+    const dir = state.settings.replenishOrderBy === 'leastPoints' ? 1 : -1;
+    counts.sort((a,b)=> dir * (a.score - b.score));
+    // Build one pick PER TURN in snake order across players -- not everyone's whole allotment
+    // consecutively -- so someone owed 2+ picks can't claim the top 2 free agents before anyone
+    // else gets a turn. Direction reverses each round exactly like the original draft, same reason:
+    // whoever picks last in a round shouldn't also always pick last (or first) in every round.
+    const order = counts.map(x=>x.playerId);
+    const lossIdsByPlayer = {};
+    const scoreByPlayer = {};
+    counts.forEach(x=>{ lossIdsByPlayer[x.playerId] = x.losses.map(c=>c.id); scoreByPlayer[x.playerId] = x.score; });
+    const maxPicks = Math.max(...counts.map(x=>x.losses.length));
+    const sequence = [];
+    for(let round=0; round<maxPicks; round++){
+      const roundOrder = round % 2 === 0 ? order : [...order].reverse();
+      roundOrder.forEach(playerId=>{
+        if(lossIdsByPlayer[playerId].length > round) sequence.push({playerId, scoreAtStart: scoreByPlayer[playerId]});
+      });
+    }
+    // lossIdsByPlayer entries are only marked replenishClaimed as each pick is actually assigned
+    // (see ReplenishLogic.assign), so canceling mid-round never burns an unused credit.
+    state.midSeason.replenish = { sequence, index:0, lossIdsByPlayer };
+    return true;
+  }
+  // Mirrors DraftLogic.currentTurn's shape (playerId/personalPickNumber/overallPickNumber/isComplete)
+  // so the UI can reuse the same turn-banner treatment as the original draft.
+  static currentTurn(state){
+    const r = state.midSeason.replenish;
+    if(!r) return null;
+    if(r.index >= r.sequence.length) return { isComplete:true };
+    const turn = r.sequence[r.index];
+    const personalPickNumber = r.sequence.slice(0, r.index).filter(t=>t.playerId===turn.playerId).length + 1;
+    return { isComplete:false, playerId: turn.playerId, personalPickNumber, overallPickNumber: r.index+1, scoreAtStart: turn.scoreAtStart };
+  }
+  static assign(state, castawayId){
+    const r = state.midSeason.replenish;
+    if(!r || r.index>=r.sequence.length) return;
+    const c = Core.getCastaway(state, castawayId);
+    if(!c || c.ownerId) return;
+    const turn = r.sequence[r.index];
+    c.ownerId = turn.playerId;
+    c.acquiredVia = 'replenish';
+    const lossIds = r.lossIdsByPlayer[turn.playerId];
+    const lossId = lossIds.pop();
+    const lostCastaway = lossId ? Core.getCastaway(state, lossId) : null;
+    if(lostCastaway){
+      lostCastaway.replenishClaimed = true;
+      // The replenish pick replaces this slot, so its points no longer count for this player —
+      // but formerOwnerId/departedVia keep the history so the Scoreboard can still show it.
+      lostCastaway.formerOwnerId = lostCastaway.ownerId;
+      lostCastaway.departedVia = 'replenish';
+      lostCastaway.ownerId = null;
+    }
+    r.index++;
+  }
+  static cancel(state){ state.midSeason.replenish=null; }
+}
+
+// ---------- TradeLogic ----------
+class TradeLogic {
+  static start(state){
+    const order = [...state.players].reverse().map(p=>p.id);
+    state.midSeason.trade = { queue: order.map(id=>({playerId:id})), index:0 };
+  }
+  static swap(state, dropId, addId){
+    const t = state.midSeason.trade;
+    if(!t || t.index>=t.queue.length) return;
+    const turn = t.queue[t.index];
+    const drop = Core.getCastaway(state, dropId), add = Core.getCastaway(state, addId);
+    if(drop && drop.ownerId===turn.playerId && drop.status==='active'){
+      drop.formerOwnerId = drop.ownerId;
+      drop.departedVia = 'trade';
+      drop.ownerId = null;
+    }
+    if(add && !add.ownerId && add.status==='active'){
+      add.ownerId = turn.playerId;
+      add.acquiredVia = 'trade';
+    }
+    t.index++;
+  }
+  static skip(state){ const t=state.midSeason.trade; if(!t) return; t.index++; }
+  static cancel(state){ state.midSeason.trade=null; }
+}
+
+// ---------- EpisodeLogic: episodes + eliminations ----------
+class EpisodeLogic {
+  static add(state){
+    const maxNum = state.episodes.length ? Math.max(...state.episodes.map(e=>e.number)) : 0;
+    const previousEp = state.episodes.find(e=>e.number===maxNum);
+    // Once the season hits the merge, every later episode is post-merge too — carry the flag forward.
+    const postMerge = previousEp ? previousEp.postMerge : false;
+    const newEp = { id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[] };
+    state.episodes.push(newEp);
+    return newEp;
+  }
+  // Keeps there always being an "upcoming" episode (one with no eliminations logged yet) so
+  // members always have somewhere to post/guess bets, without the commissioner needing to
+  // remember to add one right after every tribal. Stops once a Sole Survivor is crowned.
+  static ensureUpcoming(state){
+    const seasonOver = state.castaways.some(c => c.exitMethod === 'Sole Survivor');
+    if(seasonOver) return false;
+    const maxNum = state.episodes.length ? Math.max(...state.episodes.map(e=>e.number)) : 0;
+    const latest = state.episodes.find(e=>e.number===maxNum);
+    if(latest && latest.events.length === 0) return false;
+    const postMerge = latest ? latest.postMerge : false;
+    state.episodes.push({ id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[] });
+    return true;
+  }
+  static renumberPlacements(state){
+    const eliminated = state.castaways.filter(c=>c.status==='eliminated' && typeof c.placementOrder==='number');
+    eliminated.sort((a,b)=>a.placementOrder-b.placementOrder);
+    eliminated.forEach((c,i)=> c.placementOrder = i+1);
+  }
+  static remove(state, epId){
+    const ep = state.episodes.find(e=>e.id===epId);
+    if(ep){
+      ep.events.forEach(ev=>{
+        const c = Core.getCastaway(state, ev.castawayId);
+        if(c){ c.status='active'; c.placementOrder=null; c.exitMethod=null; c.exitEpisodeId=null; c.replenishClaimed=false; }
+      });
+    }
+    state.episodes = state.episodes.filter(e=>e.id!==epId);
+    EpisodeLogic.renumberPlacements(state);
+  }
+  static update(state, epId, field, value){ const ep=state.episodes.find(e=>e.id===epId); if(ep) ep[field]=value; }
+  static nextPlacementOrder(state){
+    const used = state.castaways.filter(c=>typeof c.placementOrder==='number').map(c=>c.placementOrder);
+    return (used.length ? Math.max(...used) : 0) + 1;
+  }
+  static addElimination(state, epId, castawayId, method){
+    const ep = state.episodes.find(e=>e.id===epId);
+    const c = Core.getCastaway(state, castawayId);
+    if(!ep || !c || c.status==='eliminated') return;
+    const order = EpisodeLogic.nextPlacementOrder(state);
+    c.status='eliminated'; c.placementOrder=order; c.exitMethod=method; c.exitEpisodeId=epId;
+    ep.events.push({castawayId, method});
+  }
+  static removeElimination(state, epId, castawayId){
+    const ep = state.episodes.find(e=>e.id===epId);
+    const c = Core.getCastaway(state, castawayId);
+    if(!ep || !c) return;
+    ep.events = ep.events.filter(ev=>ev.castawayId!==castawayId);
+    c.status='active'; c.placementOrder=null; c.exitMethod=null; c.exitEpisodeId=null; c.replenishClaimed=false;
+    EpisodeLogic.renumberPlacements(state);
+  }
+}
+
+// ---------- BetLogic: side bets + predictions ----------
+class BetLogic {
+  static add(state, epId, label, points, createdByPlayerId){
+    const ep = state.episodes.find(e=>e.id===epId);
+    if(!ep || !label) return;
+    ep.bets = ep.bets || [];
+    const bet = { id: Core.uid('bet'), label, points, predictions: [], createdByPlayerId: createdByPlayerId || null };
+    ep.bets.push(bet);
+    return bet;
+  }
+  static update(state, epId, betId, field, value){
+    const ep = state.episodes.find(e=>e.id===epId);
+    const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
+    if(bet) bet[field]=value;
+  }
+  static remove(state, epId, betId){
+    const ep = state.episodes.find(e=>e.id===epId);
+    if(ep) ep.bets = ep.bets.filter(b=>b.id!==betId);
+  }
+  static addPrediction(state, epId, betId, playerId, guess){
+    const ep = state.episodes.find(e=>e.id===epId);
+    const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
+    if(!bet || !guess) return;
+    bet.predictions = bet.predictions || [];
+    const pred = { id: Core.uid('pred'), playerId, guess, correct: null };
+    bet.predictions.push(pred);
+    return pred;
+  }
+  static removePrediction(state, epId, betId, predId){
+    const ep = state.episodes.find(e=>e.id===epId);
+    const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
+    if(bet) bet.predictions = bet.predictions.filter(p=>p.id!==predId);
+  }
+  static setPredictionCorrect(state, epId, betId, predId, value){
+    const ep = state.episodes.find(e=>e.id===epId);
+    const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
+    const pred = bet && bet.predictions.find(p=>p.id===predId);
+    if(pred) pred.correct = value===true || value==='true' ? true : (value===false || value==='false' ? false : null);
+  }
+}
+
+// ---------- FinaleLogic ----------
+class FinaleLogic {
+  static getOrCreatePrediction(state, playerId){
+    let fp = state.finalePredictions.find(f=>f.playerId===playerId);
+    if(!fp){ fp = {playerId, top3:[null,null,null], winner:null}; state.finalePredictions.push(fp); }
+    return fp;
+  }
+  static setPick(state, playerId, idx, value){ const fp=FinaleLogic.getOrCreatePrediction(state,playerId); fp.top3[idx]=value; }
+  static setWinnerPick(state, playerId, value){ const fp=FinaleLogic.getOrCreatePrediction(state,playerId); fp.winner=value; }
+  static setActualTop3(state, idx, value){ state.finaleActual.top3[idx]=value; }
+  static setActualWinner(state, value){ state.finaleActual.winner=value; }
+}
+
+// ---------- Migrations: default state + backward-compat upgrades for older saved leagues ----------
+// Migrates an episode from the old fixed-category prediction schema (predictions[]
+// keyed by a settings.bonusCategories id, plus a single actual{} per category) to
+// free-text bets: one bet per old category, one prediction per player guess.
+// Not part of the public API (never called directly by app.js or any server route) -- only
+// Migrations.migrateLeagueState calls it, so it stays a plain function, not a class method.
+function migrateEpisodeToBets(ep, oldCategories, castaways, tribes){
+  ep.bets = [];
+  if(ep.predictions && ep.predictions.length){
+    const byCategory = {};
+    ep.predictions.forEach(pred=>{
+      (byCategory[pred.category] = byCategory[pred.category] || []).push(pred);
+    });
+    Object.keys(byCategory).forEach(catId=>{
+      const catDef = (oldCategories||[]).find(c=>c.id===catId);
+      const actualVal = ep.actual ? ep.actual[catId] : null;
+      const resolveText = id => {
+        const cw = (castaways||[]).find(c=>c.id===id);
+        if(cw) return cw.name;
+        const tb = (tribes||[]).find(t=>t.id===id);
+        return tb ? tb.name : String(id);
+      };
+      ep.bets.push({
+        id: Core.uid('bet'),
+        label: catDef ? catDef.label : 'Side Bet',
+        points: catDef ? catDef.points : 1,
+        predictions: byCategory[catId].map(p=>({
+          id: Core.uid('pred'),
+          playerId: p.playerId,
+          guess: resolveText(p.guess),
+          correct: actualVal ? (actualVal === p.guess) : null
+        }))
+      });
+    });
+  }
+  delete ep.predictions;
+  delete ep.actual;
+}
+class Migrations {
+  static defaultState(){
+    const players = [];
+    const castaways = SEED_CASTAWAYS.map(name=>({
+      id:Core.uid('c'), name, tribeId:null, ownerId:null,
+      photoUrl:'photos/s51/'+name.toLowerCase().replace(/\s+/g,'_')+'.jpg',
+      status:'active', placementOrder:null, exitMethod:null, exitEpisodeId:null, replenishClaimed:false,
+      acquiredVia:null, formerOwnerId:null, departedVia:null
+    }));
+    return {
+      players,
+      tribes: [],
+      castaways,
+      episodes: [],
+      finalePredictions: [],
+      finaleActual: { top3: [], winner: null },
+      midSeason: { replenish:null, trade:null },
+      draftOrder: players.map(p=>p.id),
+      draftPicksMade: 0,
+      draftForceStarted: false,
+      settings: {
+        teamSize: 3,
+        bonusEnabled: true,
+        replenishOrderBy: 'mostPoints',
+        defaultBetPoints: 1,
+        finaleTop3Points: 1,
+        finaleWinnerPoints: 3,
+        finalePredictionScope: 'open',
+        draftScheduledAt: null
+      }
+    };
+  }
+  // Applies all backward-compat migrations to a raw parsed state object (from localStorage,
+  // an uploaded JSON backup, or a league row) and returns it. Pure — no localStorage access.
+  static migrateLeagueState(raw){
+    const s = raw;
+    if(!s.midSeason) s.midSeason = {replenish:null, trade:null};
+    if(!s.finalePredictions) s.finalePredictions = [];
+    if(!s.finaleActual) s.finaleActual = {top3:[], winner:null};
+    if(!s.settings.replenishOrderBy) s.settings.replenishOrderBy = 'mostPoints';
+    if(!s.settings.defaultBetPoints) s.settings.defaultBetPoints = 1;
+    if(!s.settings.finalePredictionScope) s.settings.finalePredictionScope = 'open';
+    if(!s.draftOrder) s.draftOrder = (s.players||[]).map(p=>p.id);
+    if(typeof s.draftPicksMade !== 'number') s.draftPicksMade = (s.castaways||[]).filter(c=>c.ownerId).length;
+    if(typeof s.draftForceStarted !== 'boolean') s.draftForceStarted = false;
+    if(typeof s.settings.draftScheduledAt === 'undefined') s.settings.draftScheduledAt = null;
+    (s.players||[]).forEach(p=>{ if(typeof p.active !== 'boolean') p.active = true; });
+    (s.castaways||[]).forEach(c=>{
+      // Migrate the old boolean flag to the richer acquiredVia/formerOwnerId/departedVia model.
+      // Best-effort only: existing saves can't fully recover pre-replenish/trade history.
+      if(typeof c.acquiredVia === 'undefined') c.acquiredVia = c.draftedViaSnake ? 'draft' : (c.ownerId ? 'draft' : null);
+      if(typeof c.formerOwnerId === 'undefined') c.formerOwnerId = null;
+      if(typeof c.departedVia === 'undefined') c.departedVia = null;
+      delete c.draftedViaSnake;
+    });
+    (s.episodes||[]).forEach(ep=>{
+      if(!ep.bets) migrateEpisodeToBets(ep, s.settings.bonusCategories, s.castaways, s.tribes);
+    });
+    delete s.settings.bonusCategories;
+    return s;
+  }
+}
+
+return {
+  // ---- constants ----
+  PALETTE, SEED_CASTAWAYS, EXIT_METHODS,
+
+  // ---- flat API: exact same names as before this reorganization, so no existing call site
+  // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct
+  // alias to a class static -- see the class definitions above for the real implementation. ----
+  uid: Core.uid, getPlayer: Core.getPlayer, getCastaway: Core.getCastaway, getTribe: Core.getTribe,
+  defaultState: Migrations.defaultState, migrateLeagueState: Migrations.migrateLeagueState,
+  freeAgents: RosterLogic.freeAgents, activeOwnedCount: RosterLogic.activeOwnedCount, totalCastCount: RosterLogic.totalCastCount,
+  nextPlacementOrder: EpisodeLogic.nextPlacementOrder,
+  syncDraftOrder: DraftLogic.syncOrder, currentDraftTurn: DraftLogic.currentTurn, isDraftStarted: DraftLogic.isStarted, forceStartDraft: DraftLogic.forceStart,
+  computeScores: ScoringLogic.compute,
+  addPlayer: RosterLogic.addPlayer, updatePlayer: RosterLogic.updatePlayer, removePlayer: RosterLogic.removePlayer,
+  disablePlayer: RosterLogic.disablePlayer, activatePlayer: RosterLogic.activatePlayer,
+  addTribe: RosterLogic.addTribe, updateTribe: RosterLogic.updateTribe, removeTribe: RosterLogic.removeTribe,
+  addCastaway: RosterLogic.addCastaway, updateCastaway: RosterLogic.updateCastaway, removeCastaway: RosterLogic.removeCastaway,
+  updateSettings: RosterLogic.updateSettings,
+  reorderDraft: DraftLogic.reorder, moveDraftOrder: DraftLogic.move, draftToCurrentTurn: DraftLogic.pick, undraft: DraftLogic.undo,
+  startReplenish: ReplenishLogic.start, currentReplenishTurn: ReplenishLogic.currentTurn, replenishAssign: ReplenishLogic.assign, cancelReplenish: ReplenishLogic.cancel,
+  startTrade: TradeLogic.start, tradeSwap: TradeLogic.swap, tradeSkip: TradeLogic.skip, cancelTrade: TradeLogic.cancel,
+  addEpisode: EpisodeLogic.add, removeEpisode: EpisodeLogic.remove, updateEpisode: EpisodeLogic.update,
+  renumberPlacements: EpisodeLogic.renumberPlacements, addElimination: EpisodeLogic.addElimination, removeElimination: EpisodeLogic.removeElimination,
+  ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming,
+  addBet: BetLogic.add, updateBet: BetLogic.update, removeBet: BetLogic.remove,
+  addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,
+  getOrCreateFinalePred: FinaleLogic.getOrCreatePrediction, setFinalePick: FinaleLogic.setPick, setFinaleWinnerPick: FinaleLogic.setWinnerPick,
+  setActualTop3: FinaleLogic.setActualTop3, setActualWinner: FinaleLogic.setActualWinner,
+
+  // ---- domain classes: reference these directly in new code instead of the flat aliases above ----
+  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, Migrations
+};
+
+});

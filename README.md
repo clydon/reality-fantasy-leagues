@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Reality Fantasy Leagues — Next.js proof of concept
 
-## Getting Started
+**This is a proof-of-concept spike, not the live app.** The live, actively-used Survivor Fantasy
+Engine is the `SurvivorDraft` repo (vanilla JS/Express/Postgres) — see that repo's `CLAUDE.md`
+and `docs/ARCHITECTURE.md`/`docs/HANDOFF.md` for full context on why this repo exists and what
+it's validating.
 
-First, run the development server:
+## What this validates
+
+Per `SurvivorDraft/docs/ARCHITECTURE.md`'s Phase 1 recommendation: React + Next.js (App Router) +
+Tailwind CSS + shadcn/ui + Zustand, with the **Overview tab ported first** as a self-contained
+validation case before committing to a full port of the live app.
+
+Ported so far: the three Overview dashboard cards (Latest Episode, Season Status, Standings),
+using the live app's `shared/state-logic.js` **copied in verbatim** (`src/lib/game/state-logic.js`
+— see the provenance comment at its top) against a ported copy of the live app's mock/demo season
+data (`src/lib/game/mock-state.ts`). No real API wiring yet — see "Not done yet" below.
+
+## Design tokens
+
+The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
+into `src/app/globals.css`'s `:root` (mapped onto shadcn's semantic color slots — `--primary` is
+the terracotta accent, `--background`/`--card`/`--border`/etc. follow the live app's
+`--bg`/`--panel`/`--border`), plus a few extra `--color-*` theme entries (`panel-menu`, `accent-2`,
+`good`) for tokens that don't have a natural shadcn slot. Same IBM Plex Sans / IBM Plex Mono
+typefaces via `next/font/google`. This is meant to be a translation of the existing look, not a
+redesign — see `ARCHITECTURE.md`'s styling rationale.
+
+## Not done yet (intentionally, for this POC's scope)
+
+- **No real API wiring.** Uses the ported mock/demo dataset only. Wiring to the live Express API
+  needs CORS added there (currently none) since dev servers run on different origins/ports —
+  worth scoping as its own small change to the live repo before real data flows here.
+- **Notifications banner, Side Bets section, and the post-draft Board grid** — each a meaningful
+  chunk of interactive state, deliberately left for a later pass once the card-grid approach here
+  is validated.
+- **No other tabs** (Draft, Episodes, Mid-Season, Scoreboard, Chat, Admin) — Overview only, per
+  the phased/tab-by-tab plan.
+- **No auth, no routing beyond `/`.**
+
+## Stack
+
+- Next.js 16 (App Router, Turbopack), TypeScript
+- Tailwind CSS v4 + shadcn/ui (`base-nova` style/preset)
+- Zustand for state (`src/lib/store.ts`)
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open http://localhost:3000.
