@@ -1,6 +1,6 @@
 // Minimal ambient typing for the verbatim-copied state-logic.js, covering only what this repo's
 // components actually call. Not exhaustive — extend as more of the file gets used.
-import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe } from "./types";
+import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet } from "./types";
 
 declare const StateLogic: {
   Core: {
@@ -21,6 +21,10 @@ declare const StateLogic: {
   computeScores(state: LeagueState): ScoreRow[];
   currentDraftTurn(state: LeagueState): DraftTurn;
   isDraftStarted(state: LeagueState): boolean;
+  addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet;
+  removeBet(state: LeagueState, epId: string, betId: string): void;
+  addBetPrediction(state: LeagueState, epId: string, betId: string, playerId: string, guess: string): void;
+  setBetPredictionCorrect(state: LeagueState, epId: string, betId: string, predId: string, value: boolean | null): void;
 };
 
 export default StateLogic;

@@ -71,6 +71,11 @@ export interface LeagueSettings {
   draftScheduledAt?: string | null;
 }
 
+export interface Membership {
+  role: "member" | "commissioner";
+  playerId: string | null;
+}
+
 export interface LeagueState {
   players: Player[];
   tribes: Tribe[];

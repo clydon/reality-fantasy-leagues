@@ -11,9 +11,11 @@ Per `SurvivorDraft/docs/ARCHITECTURE.md`'s Phase 1 recommendation: React + Next.
 Tailwind CSS + shadcn/ui + Zustand, with the **Overview tab ported first** as a self-contained
 validation case before committing to a full port of the live app.
 
-Ported so far: the three Overview dashboard cards (Latest Episode, Season Status, Standings),
-using the live app's `shared/state-logic.js` **copied in verbatim** (`src/lib/game/state-logic.js`
-— see the provenance comment at its top). Two data sources, switchable at runtime:
+Ported so far: the full Overview tab — Side Bets section (propose a bet, guess, commissioner
+grading, delete), the three dashboard cards (Latest Episode, Season Status, Standings), and the
+post-draft Board grid (castaways by tribe, ownership, elimination medals) — using the live app's
+`shared/state-logic.js` **copied in verbatim** (`src/lib/game/state-logic.js` — see the provenance
+comment at its top) for every mutation, not just reads. Two data sources, switchable at runtime:
 
 - **Mock/demo data** (`src/lib/game/mock-state.ts`, a port of the live app's demo dataset) — the
   default, no server needed.
@@ -26,7 +28,14 @@ using the live app's `shared/state-logic.js` **copied in verbatim** (`src/lib/ga
   `.env.local` example below.
 
 Verified end-to-end (login → session cookie → cross-origin fetch → real Postgres data rendering
-in the Overview cards) against a throwaway fixture user/league, not just the mock path.
+in the Overview cards) against a throwaway fixture user/league, not just the mock path. Bet
+mutations also call the real API in live mode (`POST .../bets`, `POST .../predictions`, `PATCH
+.../predictions/:id`, `DELETE .../bets/:id`) — see `src/lib/use-mutate.ts`, one hook standing in
+for the `isDemoMode` branch every mutator in the live app's `public/app.js` has.
+
+Mock mode intentionally mirrors the live app's *actual* demo-mode behavior, not an idealized one:
+full commissioner powers (propose/delete/grade bets), but no personal player identity to submit a
+guess as — `enterDemoMode()` in the live app never sets a player identity either.
 
 ## Design tokens
 
@@ -40,11 +49,15 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
 
 ## Not done yet (intentionally, for this POC's scope)
 
-- **Notifications banner, Side Bets section, and the post-draft Board grid** — each a meaningful
-  chunk of interactive state, deliberately left for a later pass once the card-grid approach here
-  is validated.
+- **Notifications banner** — deliberately not ported. Unlike everything else here it isn't a pure
+  function of state; the live app builds it from cross-poll deltas ("a bet appeared since your
+  last poll", "it just became your turn"), which is a polling-infrastructure concern, not a
+  componentization one. Worth its own pass once real-time/polling strategy for this repo is
+  decided.
 - **No other tabs** (Draft, Episodes, Mid-Season, Scoreboard, Chat, Admin) — Overview only, per
   the phased/tab-by-tab plan.
+- **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
+  cast photos.
 - **No signup/session-persistence UI polish, no routing beyond `/`** — the login form is
   functional but minimal (see `auth-gate.tsx`), and there's nothing beyond the one page yet.
 

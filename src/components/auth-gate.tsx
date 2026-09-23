@@ -27,13 +27,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
       setStatus("error");
       return;
     }
-    const { league, state } = await api.leagueState(me.leagues[0].id);
-    loadLive(state, league.name);
+    const { league, state, membership } = await api.leagueState(me.leagues[0].id);
+    loadLive(league.id, state, league.name, membership);
     setStatus("ready");
   }
 
   useEffect(() => {
-    setStatus("loading");
+    // setState here runs inside the .catch() callback, after the async call resolves/rejects --
+    // not synchronously in the effect body -- so this is the standard "kick off an async check on
+    // mount" pattern, not the cascading-render footgun that rule targets.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadFirstLeague().catch(() => setStatus("loggedOut"));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

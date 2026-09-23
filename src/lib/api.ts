@@ -1,4 +1,4 @@
-import type { LeagueState } from "@/lib/game/types";
+import type { LeagueState, Membership } from "@/lib/game/types";
 
 // Thin fetch wrapper for the live Express API (see SurvivorDraft/server/routes/*.js). Requires
 // that API's dev-only CORS middleware (server/index.js) to be running and configured to allow
@@ -35,11 +35,13 @@ export interface MeResponse {
 
 export interface LeagueStateResponse {
   league: { id: string; name: string };
-  membership: unknown;
+  membership: Membership;
   state: LeagueState;
   playerAccounts: { player_id: string; role: string; username: string }[];
 }
 
+// Mutation routes below return the raw updated LeagueState directly (res.json(state)), not
+// wrapped in an envelope -- matches server/routes/episodes.js exactly, same contract app.js uses.
 export const api = {
   login: (username: string, password: string) =>
     apiFetch<{ user: MeResponse["user"] }>("/api/auth/login", {
@@ -49,4 +51,22 @@ export const api = {
   me: () => apiFetch<MeResponse>("/api/auth/me"),
   leagueState: (leagueId: string) =>
     apiFetch<LeagueStateResponse>(`/api/leagues/${leagueId}/state`),
+
+  proposeBet: (leagueId: string, epId: string, label: string, points: number) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets`, {
+      method: "POST",
+      body: JSON.stringify({ label, points }),
+    }),
+  removeBet: (leagueId: string, epId: string, betId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}`, { method: "DELETE" }),
+  addBetPrediction: (leagueId: string, epId: string, betId: string, playerId: string, guess: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/predictions`, {
+      method: "POST",
+      body: JSON.stringify({ playerId, guess }),
+    }),
+  setBetPredictionCorrect: (leagueId: string, epId: string, betId: string, predId: string, value: boolean) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/predictions/${predId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ value }),
+    }),
 };
