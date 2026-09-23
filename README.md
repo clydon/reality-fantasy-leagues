@@ -336,8 +336,8 @@ General/Side-Bet/Finale settings (the last gated on `supportsFinalePredictions`,
 Mid-Season's panel checks), Backup (Export always works — pure client-side JSON download of
 `state`, works identically in both modes; Import/Reset are live-only, Reset additionally requires
 super-admin, matching the live app's server-side re-check beyond the route's own commissioner
-gate), and Leave League (live-only, falls back to demo data afterward — there's no multi-league
-dashboard screen to return to instead).
+gate), Invites (live-only, any member — see the Dashboard/invites section below), and Leave League
+(live-only; afterward you land in your next league, or on the Dashboard if that was your last).
 
 Whole tab is visible to everyone; every field disables itself via `useCanManage()` rather than the
 tab being gated, matching the live app's own "viewable by everyone, only commissioner edits" model
@@ -379,6 +379,42 @@ to demo data" is a full reset to anonymous, not a preview while staying signed i
 Verified against two real fixture leagues under one fixture user, through the actual login UI and
 a live browser session: both leagues list with correct type badges, and switching leagues
 correctly swaps the sidebar league name and the underlying store state.
+
+## Dashboard, league invites, seat reclaim, admin users table
+
+Built from `docs/PLAN-dashboard-admin-reclaim-invites.md`.
+
+- **Dashboard** (`src/components/dashboard/dashboard.tsx`, also at `/dashboard`) — a signed-in user
+  with zero leagues now gets a full-page join-by-code / create / pending-invites screen instead of
+  demo data. `AuthGate` renders it with no Sidebar/MobileNav chrome; a leagueless super-admin can
+  still reach `/admin` and `/reports` in the normal shell. Both league switchers gained a
+  "+ Join or create a league" row that goes to `/dashboard`. The unauthenticated "Take a Tour" path
+  is unchanged. `useLeagueStore` gained `clearLeague()` (drop the loaded league but keep identity,
+  unlike `useMock()`) and a one-off `flash` message shown above the current tab.
+- **Invites** (`league_invites`, `db/migrations/0002_invites.sql`) — any member (not just the
+  commissioner) invites by username or email from League Settings. The identifier is stored as
+  typed and matched case-insensitively against `"user".username`/`email` at read time, so inviting
+  someone who hasn't signed up yet works. Routes: `GET/POST /api/leagues/[leagueId]/invites`,
+  `DELETE .../invites/[id]` (sender or commissioner), `GET /api/me/invites`,
+  `POST /api/invites/[id]/accept|decline` (server re-checks the invite is addressed to the caller).
+- **Seat reclaim** — `RosterLogic.disablePlayer` now records `formerName` and
+  `disabledFromUserId`; `reclaimPlayer` undoes the rename. Join-by-code and accept-invite share
+  `src/lib/server/join-league.ts`'s `joinLeague()`, which reuses a disabled seat matched by account
+  id (never by name) and returns `reclaimed: true` so the UI can say "Welcome back". It also runs
+  as one locked transaction now; the old join route did an unlocked read-modify-write.
+  **Limitation:** only self-serve Leave is reclaimable in practice. Admin account deletion records
+  `disabledFromUserId` too, but that account id is gone for good, and re-signing up makes a new id.
+  Admin "Delete Player" deliberately records no account id, so that seat stays kicked.
+- **Admin users table** — sortable columns (username, email, created, last login), where last login
+  is the newest Better Auth `session.createdAt` (no new column). A per-row Edit modal
+  (`admin/user-edit-modal.tsx`) handles username/email (`PATCH /api/admin/users/[userId]` →
+  `auth.api.adminUpdateUser`), password reset, per-league role/remove, and account deletion.
+  The PATCH route checks username uniqueness itself and only sends a changed username, because
+  the username plugin's update hook compares "taken" against the *admin's* session id rather than
+  the target user's.
+
+Verified with a throwaway script against the real dev server and database (58 checks covering
+all four features, including authorization edges), plus a Puppeteer screenshot pass.
 
 ## Bet card & Side Bets redesign (`overview/bet-card.tsx`, `overview/side-bets-section.tsx`, `episodes/episode-bet-row.tsx`)
 

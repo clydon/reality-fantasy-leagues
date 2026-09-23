@@ -1,8 +1,10 @@
 # Plan: Dashboard, Admin table overhaul, disabled-player reclaim, league invites
 
-**Status:** Planned, not yet implemented. Written for a fresh session to execute without needing
-prior conversation history — read this file plus the referenced source files and you have
-everything needed.
+**Status:** Implemented (all four features). See README's "Dashboard, league invites, seat
+reclaim, admin users table" section for what shipped and where it differs from this plan. In
+short: admin-delete-account seats can't actually be reclaimed, because the deleted account id
+never comes back; the PATCH route adds its own username-uniqueness check; `joinLeague()` runs as
+one locked transaction. Kept below as the original design record.
 
 ## Context (read this first)
 
