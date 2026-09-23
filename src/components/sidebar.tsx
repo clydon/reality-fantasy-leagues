@@ -33,11 +33,19 @@ export function Sidebar() {
   const mode = useLeagueStore((s) => s.mode);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const enterMockMode = useLeagueStore((s) => s.useMock);
+  const setEntered = useLeagueStore((s) => s.setEntered);
   const openReportModal = useReportModalStore((s) => s.openModal);
   const state = useLeagueStore((s) => s.state);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
   const tabs = isSuperAdmin ? [...TABS, { href: "/admin", label: "Admin" }, { href: "/reports", label: "Reports" }] : TABS;
+
+  // Port of exitDemoMode() -- see auth-gate.tsx's handleExitDemo for why this always means "show
+  // the login screen" here rather than the live app's silent-restore-if-still-logged-in path.
+  function exitDemo() {
+    enterMockMode();
+    setEntered(false);
+  }
 
   // Port of renderTabs()'s per-tab nav-badge logic (public/app.js): Mid-Season gets the
   // "Your Turn"/"Active" badge (midseasonBadge), Chat gets the unread count, and every other tab
@@ -106,7 +114,7 @@ export function Sidebar() {
           <p className="text-[0.8rem] text-muted-foreground">
             Viewing demo data.{" "}
             {!isAuthenticated && (
-              <button className="font-semibold text-primary hover:underline" onClick={() => window.location.reload()}>
+              <button className="font-semibold text-primary hover:underline" onClick={exitDemo}>
                 Sign in
               </button>
             )}

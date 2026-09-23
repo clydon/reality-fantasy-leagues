@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { signInWithIdentifier } from "@/lib/auth-client";
-import { useLeagueStore } from "@/lib/store";
+import { useLeagueStore, useIsPreviewingDemo } from "@/lib/store";
 import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
@@ -33,8 +33,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const setIdentity = useLeagueStore((s) => s.setIdentity);
   const setLeagues = useLeagueStore((s) => s.setLeagues);
   const impersonating = useLeagueStore((s) => s.impersonating);
+  // Lives in the store, not local state, so Sidebar/MobileNav can flip it back to false for
+  // "Sign in"/"Exit Tour" while previewing mock data -- see useIsPreviewingDemo.
+  const entered = useLeagueStore((s) => s.entered);
+  const setEntered = useLeagueStore((s) => s.setEntered);
+  const isPreviewingDemo = useIsPreviewingDemo();
   const [status, setStatus] = useState<Status>("checking");
-  const [entered, setEntered] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signedInUsername, setSignedInUsername] = useState<string | null>(null);
 
@@ -88,6 +92,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setEntered(true);
   }
 
+  // Port of exitDemoMode() (public/app.js): while previewing without an account, there's no real
+  // session to fall back to (useMock() already clears identity regardless of how demo mode was
+  // entered -- see that action's own comment), so this always means "show the login screen,"
+  // unlike the live app's exitDemoMode()/boot() combo which can also silently restore a real
+  // session if one exists. Reset the mock state too (not just hide it) so a stale demo edit isn't
+  // still sitting there if they skip back into the tour again later.
+  function handleExitDemo() {
+    enterMockMode();
+    setEntered(false);
+  }
+
   // Port of stopImpersonating() (public/app.js): a full reload re-runs AuthGate's own
   // loadFirstLeague from scratch against the now-restored session, exactly like the live app's
   // boot() re-run -- simpler and more robust than trying to patch every piece of client state
@@ -128,6 +143,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
           Viewing as <b>{signedInUsername}</b> — this is exactly what they see.
           <Button variant="secondary" size="sm" onClick={handleStopImpersonating}>
             Return to my account
+          </Button>
+        </div>
+      )}
+      {/* Port of the live app's persistent "🎬 Exit Demo" button (public/index.html's
+          #exitDemoBtn) -- always visible while previewing without an account, not tucked away as
+          a footer link only, so there's an obvious way back to the login screen. */}
+      {isPreviewingDemo && (
+        <div className="sticky top-0 z-[1000] flex items-center justify-center gap-2 bg-primary px-3 py-2.5 text-center text-[0.85rem] text-primary-foreground">
+          🎬 Previewing demo data — nothing here is saved.
+          <Button variant="secondary" size="sm" onClick={handleExitDemo}>
+            Exit Tour
           </Button>
         </div>
       )}

@@ -24,6 +24,12 @@ export interface PlayerAccount {
 }
 
 interface LeagueStore {
+  // Whether AuthGate has finished its initial decision and is showing the app shell (mock or
+  // live) rather than the login screen. Lives here, not as AuthGate's own local state, so any
+  // component (Sidebar, MobileNav) can flip it back to false to return to the login screen --
+  // needed for "Sign in"/"Exit Tour" while previewing mock data, see auth-gate.tsx.
+  entered: boolean;
+  setEntered: (entered: boolean) => void;
   mode: "mock" | "live";
   state: LeagueState;
   leagueId: string | null;
@@ -68,6 +74,8 @@ interface LeagueStore {
 }
 
 export const useLeagueStore = create<LeagueStore>((set, get) => ({
+  entered: false,
+  setEntered: (entered) => set({ entered }),
   mode: "mock",
   state: buildMockSeasonState(),
   leagueId: null,
@@ -134,4 +142,14 @@ export function useIsSuperAdmin(): boolean {
 
 export function useIsImpersonating(): boolean {
   return useLeagueStore((s) => s.impersonating);
+}
+
+// True for the "Take a Tour" / previewing-without-an-account case specifically -- not just any
+// mock mode, since a real signed-in super-admin with zero personal leagues also stays mode:'mock'
+// (see useIsAuthenticated's comment) but isn't "previewing a tour," they're just leagueless.
+// Drives the exit-demo affordance (see auth-gate.tsx) -- port of the live app's isDemoMode gate
+// on its persistent "Exit Demo" button, narrowed to the pre-auth case since useMock() already
+// clears identity regardless of how demo mode was entered (see that action's own comment).
+export function useIsPreviewingDemo(): boolean {
+  return useLeagueStore((s) => s.mode === "mock" && !s.userId);
 }

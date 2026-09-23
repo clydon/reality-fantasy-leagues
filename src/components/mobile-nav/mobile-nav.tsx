@@ -55,6 +55,7 @@ export function MobileNav() {
   const isSuperAdmin = useIsSuperAdmin();
   const isAuthenticated = useIsAuthenticated();
   const enterMockMode = useLeagueStore((s) => s.useMock);
+  const setEntered = useLeagueStore((s) => s.setEntered);
   const openReportModal = useReportModalStore((s) => s.openModal);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
@@ -101,15 +102,22 @@ export function MobileNav() {
 
   async function handleLogout() {
     setSheetOpen(false);
-    if (isAuthenticated) {
-      try {
-        await signOut();
-      } catch {
-        // best-effort -- fall through to resetting client state regardless
-      }
+    try {
+      await signOut();
+    } catch {
+      // best-effort -- fall through to resetting client state regardless
     }
     enterMockMode();
     router.push("/");
+  }
+
+  // Port of exitDemoMode() -- same as auth-gate.tsx's handleExitDemo/sidebar.tsx's exitDemo.
+  // This row only ever shows when !isAuthenticated (see the MoreRow below), so there's no real
+  // session to sign out of -- "Sign in" just means "show me the login screen."
+  function handleShowLogin() {
+    setSheetOpen(false);
+    enterMockMode();
+    setEntered(false);
   }
 
   return (
@@ -251,7 +259,12 @@ export function MobileNav() {
             <div className="my-1.5 h-px bg-border" />
           </>
         )}
-        <MoreRow icon={LogoutIcon} label={isAuthenticated ? "Log out" : "Sign in"} onClick={handleLogout} danger />
+        <MoreRow
+          icon={LogoutIcon}
+          label={isAuthenticated ? "Log out" : "Sign in"}
+          onClick={isAuthenticated ? handleLogout : handleShowLogin}
+          danger
+        />
       </div>
     </>
   );
