@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useIsSuperAdmin, useLeagueStore } from "@/lib/store";
 import { useAdminStore } from "@/lib/admin-store";
 import { LinkMembershipForm } from "./link-membership-form";
+import { UserEditModal } from "./user-edit-modal";
+import type { AdminUser } from "@/lib/game/types";
+import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -28,8 +31,6 @@ export function AdminTab() {
     load,
     toggleLeague,
     createUser,
-    resetPassword,
-    deleteUser,
     deleteLeague,
     unlinkMembership,
     deletePlayer,
@@ -41,6 +42,9 @@ export function AdminTab() {
   const [linkingPlayerId, setLinkingPlayerId] = useState<string | null>(null);
   const [userPage, setUserPage] = useState(0);
   const [leaguePage, setLeaguePage] = useState(0);
+  const [sortBy, setSortBy] = useState<SortKey>("username");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const PAGE_SIZE = 20;
 
   useEffect(() => {
@@ -67,9 +71,23 @@ export function AdminTab() {
   }
 
   const selectedLeague = leagues.find((l) => l.id === selectedLeagueId);
+  const editingUser = users.find((u) => u.id === editingUserId) ?? null;
+  const sortedUsers = sortUsers(users, sortBy, sortDir);
   const userPageCount = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
   const clampedUserPage = Math.min(userPage, userPageCount - 1);
-  const pagedUsers = users.slice(clampedUserPage * PAGE_SIZE, (clampedUserPage + 1) * PAGE_SIZE);
+  const pagedUsers = sortedUsers.slice(clampedUserPage * PAGE_SIZE, (clampedUserPage + 1) * PAGE_SIZE);
+
+  // Clicking the active column flips direction; a new column starts ascending, except the two
+  // dates, where newest-first is almost always what you want.
+  function toggleSort(key: SortKey) {
+    if (key === sortBy) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(key);
+      setSortDir(key === "createdAt" || key === "lastLoginAt" ? "desc" : "asc");
+    }
+    setUserPage(0);
+  }
   const leaguePageCount = Math.max(1, Math.ceil(leagues.length / PAGE_SIZE));
   const clampedLeaguePage = Math.min(leaguePage, leaguePageCount - 1);
   const pagedLeagues = leagues.slice(clampedLeaguePage * PAGE_SIZE, (clampedLeaguePage + 1) * PAGE_SIZE);
@@ -94,33 +112,53 @@ export function AdminTab() {
         <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
           Users {users.length > 0 && <span className="font-normal normal-case">({users.length})</span>}
         </h3>
-        <div className="flex flex-col gap-2">
-          {pagedUsers.map((u) => (
-            <div key={u.id} className="rounded-md border border-border p-2.5">
-              <div className="mb-1.5 flex flex-wrap items-center gap-2 text-sm">
-                <span className="flex-1 font-semibold">
-                  {u.username || u.email}
-                  {u.isSuperAdmin && <span className="ml-1 font-normal text-muted-foreground">(super-admin)</span>}
-                </span>
-                <span className="text-xs text-muted-foreground">{u.email}</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {u.id !== myUserId && (
-                  <Button variant="secondary" size="sm" onClick={() => impersonateUser(u.id, u.username || u.email)}>
-                    Impersonate
-                  </Button>
-                )}
-                <Button variant="secondary" size="sm" onClick={() => resetPassword(u.id, u.username || u.email)}>
-                  Reset Password
-                </Button>
-                {u.id !== myUserId && (
-                  <Button variant="destructive" size="sm" onClick={() => deleteUser(u.id, u.username || u.email)}>
-                    Delete
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
+        <div className="-mx-1 overflow-x-auto px-1">
+          <table className="w-full min-w-[620px] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                {USER_COLUMNS.map((col) => (
+                  <th key={col.key} className="px-2 py-1.5 font-normal">
+                    <button
+                      className={cn(
+                        "flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground",
+                        sortBy === col.key && "text-foreground"
+                      )}
+                      onClick={() => toggleSort(col.key)}
+                    >
+                      {col.label}
+                      <span className={cn("text-[0.65rem]", sortBy !== col.key && "invisible")}>{sortDir === "asc" ? "▲" : "▼"}</span>
+                    </button>
+                  </th>
+                ))}
+                <th className="px-2 py-1.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {pagedUsers.map((u) => (
+                <tr key={u.id} className="border-b border-border last:border-b-0">
+                  <td className="px-2 py-2 font-semibold">
+                    {u.username || <span className="font-normal italic text-muted-foreground">none</span>}
+                    {u.isSuperAdmin && <span className="ml-1 text-xs font-normal text-muted-foreground">(super-admin)</span>}
+                  </td>
+                  <td className="max-w-[200px] truncate px-2 py-2 text-xs text-muted-foreground">{u.email}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{formatDate(u.createdAt)}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{u.lastLoginAt ? formatDate(u.lastLoginAt) : "Never"}</td>
+                  <td className="px-2 py-2">
+                    <div className="flex justify-end gap-1.5">
+                      {u.id !== myUserId && (
+                        <Button variant="secondary" size="sm" onClick={() => impersonateUser(u.id, u.username || u.email)}>
+                          Impersonate
+                        </Button>
+                      )}
+                      <Button variant="secondary" size="sm" onClick={() => setEditingUserId(u.id)}>
+                        Edit
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <Pager page={clampedUserPage} setPage={setUserPage} pageCount={userPageCount} />
         <div className="mt-3 flex gap-1.5">
@@ -165,6 +203,8 @@ export function AdminTab() {
         )}
         <Pager page={clampedLeaguePage} setPage={setLeaguePage} pageCount={leaguePageCount} />
       </div>
+
+      {editingUser && <UserEditModal user={editingUser} isSelf={editingUser.id === myUserId} onClose={() => setEditingUserId(null)} />}
 
       {selectedLeagueId && membershipData && (
         <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -229,6 +269,33 @@ export function AdminTab() {
       )}
     </>
   );
+}
+
+type SortKey = "username" | "email" | "createdAt" | "lastLoginAt";
+
+const USER_COLUMNS: { key: SortKey; label: string }[] = [
+  { key: "username", label: "Username" },
+  { key: "email", label: "Email" },
+  { key: "createdAt", label: "Created" },
+  { key: "lastLoginAt", label: "Last login" },
+];
+
+// Nulls (no username / never signed in) always sort last, whichever direction.
+function sortUsers(users: AdminUser[], key: SortKey, dir: "asc" | "desc"): AdminUser[] {
+  const sign = dir === "asc" ? 1 : -1;
+  return [...users].sort((a, b) => {
+    const av = a[key];
+    const bv = b[key];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    // ISO timestamps compare correctly as strings, so one comparison covers every column.
+    return sign * av.localeCompare(bv, undefined, { sensitivity: "base" });
+  });
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 // Client-side only (no backend pagination support, and none needed yet) -- keeps the Users/

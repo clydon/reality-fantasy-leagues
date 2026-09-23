@@ -4,24 +4,15 @@ import { auth } from "@/lib/auth";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin } from "@/lib/server/auth-helpers";
 import { HttpError } from "@/lib/server/db";
-import type { AdminUser } from "@/lib/game/types";
-
-function toAdminUser(u: { id: string; email: string; createdAt: Date | string; username?: string | null; role?: string | null }): AdminUser {
-  return {
-    id: u.id,
-    username: u.username ?? null,
-    email: u.email,
-    isSuperAdmin: u.role === "admin",
-    createdAt: typeof u.createdAt === "string" ? u.createdAt : u.createdAt.toISOString(),
-  };
-}
+import { toAdminUser, lastLoginByUserId } from "@/lib/server/admin-users";
 
 // Port of SurvivorDraft's server/routes/admin.js GET/POST /users -- now backed by Better Auth's
 // admin plugin (auth.api.listUsers/createUser) instead of raw SQL against a custom users table.
 export const GET = apiRoute(async (req) => {
   await requireSuperAdmin(req);
   const result = await auth.api.listUsers({ query: { sortBy: "username", limit: 1000 }, headers: req.headers });
-  return NextResponse.json({ users: result.users.map(toAdminUser) });
+  const lastLogins = await lastLoginByUserId();
+  return NextResponse.json({ users: result.users.map((u) => toAdminUser(u, lastLogins.get(u.id) ?? null)) });
 });
 
 // Better Auth's admin plugin requires a real email to create a user; SurvivorDraft's original

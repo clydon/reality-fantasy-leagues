@@ -119,6 +119,9 @@ export interface AdminUser {
   email: string;
   isSuperAdmin: boolean;
   createdAt: string;
+  // Newest Better Auth session row's createdAt -- null if they've never signed in (or every
+  // session has since been cleaned up).
+  lastLoginAt: string | null;
 }
 
 export interface AdminLeague {

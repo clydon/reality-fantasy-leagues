@@ -20,7 +20,9 @@ interface AdminStore {
   toggleLeague: (leagueId: string) => void;
   createUser: (username: string) => Promise<void>;
   resetPassword: (userId: string, username: string) => Promise<void>;
-  deleteUser: (userId: string, username: string) => Promise<void>;
+  // Resolves true only if the account was actually deleted (both confirms accepted).
+  deleteUser: (userId: string, username: string) => Promise<boolean>;
+  updateUser: (userId: string, changes: { username?: string; email?: string }) => Promise<void>;
   deleteLeague: (leagueId: string, name: string) => Promise<void>;
   linkMembership: (playerId: string, userId: string, role: "member" | "commissioner") => Promise<void>;
   unlinkMembership: (membershipId: string) => Promise<void>;
@@ -73,12 +75,20 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     const { leagues } = await api.adminUserLeagues(userId);
     if (leagues.length > 0) {
       const names = leagues.map((l) => l.name).join(", ");
-      if (!confirm(`"${username}" is currently in ${names}. Are you sure you want to continue?`)) return;
+      if (!confirm(`"${username}" is currently in ${names}. Are you sure you want to continue?`)) return false;
     }
-    if (!confirm(`Are you sure you want to delete "${username}"? This action cannot be reversed.`)) return;
+    if (!confirm(`Are you sure you want to delete "${username}"? This action cannot be reversed.`)) return false;
     await api.adminDeleteUser(userId);
     const usersData = await api.adminListUsers();
     set({ users: usersData.users });
+    return true;
+  },
+
+  // Swaps the returned user into the list in place -- no full reload needed. Throws (ApiError) on
+  // validation failures so the edit modal can show the message inline.
+  async updateUser(userId, changes) {
+    const { user } = await api.adminUpdateUser(userId, changes);
+    set({ users: get().users.map((u) => (u.id === userId ? user : u)) });
   },
 
   async deleteLeague(leagueId, name) {

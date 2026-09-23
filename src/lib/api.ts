@@ -210,7 +210,12 @@ export const api = {
     localFetch<{ tempPassword: string }>(`/api/admin/users/${userId}/reset-password`, {
       method: "POST",
     }),
-  adminUserLeagues: (userId: string) => localFetch<{ leagues: { id: string; name: string; role: string }[] }>(`/api/admin/users/${userId}/leagues`),
+  adminUserLeagues: (userId: string) =>
+    localFetch<{ leagues: { id: string; name: string; role: "member" | "commissioner"; membership_id: string; player_id: string }[] }>(
+      `/api/admin/users/${userId}/leagues`
+    ),
+  adminUpdateUser: (userId: string, changes: { username?: string; email?: string }) =>
+    localFetch<{ user: AdminUser }>(`/api/admin/users/${userId}`, { method: "PATCH", body: JSON.stringify(changes) }),
   adminDeleteUser: (userId: string) => localFetch<{ ok: true }>(`/api/admin/users/${userId}`, { method: "DELETE" }),
   // Response body isn't used (the impersonation cookie swap is the whole point); the caller does
   // a full reload right after, same as stopImpersonating.
