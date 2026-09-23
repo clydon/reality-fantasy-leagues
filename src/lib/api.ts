@@ -1,12 +1,5 @@
 import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report } from "@/lib/game/types";
 
-// Thin fetch wrapper for the live Express API (see SurvivorDraft/server/routes/*.js). Requires
-// that API's dev-only CORS middleware (server/index.js) to be running and configured to allow
-// this app's origin -- see that repo's README/CLAUDE.md. `credentials: "include"` sends the
-// session cookie; the API's CORS config must echo back this exact origin with
-// `credentials: true` (not "*") for the browser to accept it.
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8934";
-
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -15,23 +8,12 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new ApiError(res.status, body.error || `Request failed (${res.status})`);
-  }
-  return res.json();
-}
-
-// This repo's own backend (src/app/api/*) -- same-origin, no CORS/credentials dance needed.
-// Mid-migration: functions are moving from apiFetch (SurvivorDraft, over CORS) to localFetch
-// (this repo's own routes) domain by domain -- see the standalone-backend plan. Once every
-// domain has moved, apiFetch/API_BASE go away entirely.
+// This repo's own backend (src/app/api/*) -- same-origin, no CORS/credentials dance needed. Used
+// to be one of two fetch wrappers here (the other, apiFetch, called the live SurvivorDraft
+// Express server over CORS) while this repo's backend was built out domain by domain -- see the
+// standalone-backend plan in project memory. That migration is done; every call in this file
+// hits this repo's own routes now, and login/signOut go through Better Auth's client
+// (auth-client.ts) directly rather than through here at all.
 async function localFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
@@ -60,13 +42,7 @@ export interface LeagueStateResponse {
 // Mutation routes below return the raw updated LeagueState directly (res.json(state)), not
 // wrapped in an envelope -- matches server/routes/episodes.js exactly, same contract app.js uses.
 export const api = {
-  login: (username: string, password: string) =>
-    apiFetch<{ user: MeResponse["user"] }>("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    }),
   me: () => localFetch<MeResponse>("/api/me"),
-  logout: () => apiFetch<{ ok: true }>("/api/auth/logout", { method: "POST" }),
   // Better Auth's own admin-plugin endpoint (not a custom route -- it already does exactly this,
   // swapping the session cookie back to the impersonator's). Needs an explicit empty JSON body --
   // Better Auth 400s on "Invalid JSON in request body" for a truly bodyless POST.

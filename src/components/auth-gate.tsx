@@ -2,7 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
+import { signInWithIdentifier } from "@/lib/auth-client";
 import { useLeagueStore } from "@/lib/store";
 import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
@@ -13,10 +14,9 @@ import { Button } from "@/components/ui/button";
 
 type Status = "checking" | "idle" | "loading";
 
-// This app's own Better Auth account pages (src/lib/auth.ts) are a deliberately separate concern
-// from the SurvivorDraft-login gate below -- they must stay reachable regardless of whether
-// there's a demo/SurvivorDraft session, so they bypass this gate entirely rather than being
-// nested inside "entered" league-scoped content.
+// /account, /forgot-password, /reset-password bypass this gate entirely rather than being nested
+// inside "entered" league-scoped content -- they need to stay reachable before a session exists
+// (signing up IS how you get one) and while mock/demo mode is active.
 const PUBLIC_ROUTES = ["/account", "/forgot-password", "/reset-password"];
 
 // Owns the same top-level branch the live app's boot()/renderLoginScreen() do: either the login
@@ -66,14 +66,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
       .finally(() => setStatus("idle"));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleLogin(username: string, password: string) {
+  async function handleLogin(identifier: string, password: string) {
     setStatus("loading");
     setError(null);
     try {
-      await api.login(username, password);
+      const result = await signInWithIdentifier(identifier, password);
+      if (result.error) {
+        setError(result.error.message || "Couldn't sign in.");
+        return;
+      }
       await loadFirstLeague();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Couldn't reach the API server.");
+    } catch {
+      setError("Couldn't reach the server.");
     } finally {
       setStatus("idle");
     }

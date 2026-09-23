@@ -9,27 +9,27 @@ import { Input } from "@/components/ui/input";
 // Port of renderLoginScreen() (public/app.js) -- exact structure: 360px-wide centered column,
 // banner.png, a .panel box (h3 renders as small uppercase muted text via the global h3 rule,
 // hence "LOG IN" rather than a normal heading), then a full-width secondary button below the
-// panel for the demo entry point. The live app has no signup here at all (accounts are
-// commissioner-created); this POC adds a link to /account below instead, since that's this app's
-// own separate, forward-looking account system (src/lib/auth.ts) -- not a port of anything in
-// the live app, so it's kept visually distinct rather than folded into this "Log in" panel.
+// panel for the demo entry point. Signs in via Better Auth now (src/lib/auth.ts), this app's own
+// real account system since it got a standalone backend -- accepts either a username or an
+// email (see auth-client.ts's signInWithIdentifier), not username-only like the live app's own
+// login. "Create an account" links to /account, which is this app's real signup now too.
 export function LoginScreen({
   onLogin,
   onSkip,
   error,
   loading,
 }: {
-  onLogin: (username: string, password: string) => void;
+  onLogin: (identifier: string, password: string) => void;
   onSkip: () => void;
   error: string | null;
   loading: boolean;
 }) {
-  const [username, setUsername] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    onLogin(username, password);
+    onLogin(identifier, password);
   }
 
   return (
@@ -47,9 +47,9 @@ export function LoginScreen({
         {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
         <form onSubmit={submit} className="flex flex-col gap-2">
           <Input
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username or email"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             autoComplete="username"
           />
           <Input
@@ -68,7 +68,7 @@ export function LoginScreen({
         🎬 Take a Tour (Preview a Mock Season)
       </Button>
       <p className="mt-3 text-center text-xs text-muted-foreground">
-        Building the future version of this app?{" "}
+        New here?{" "}
         <Link href="/account" className="font-semibold text-primary hover:underline">
           Create an account
         </Link>

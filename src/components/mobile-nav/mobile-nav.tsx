@@ -9,7 +9,7 @@ import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
-import { api } from "@/lib/api";
+import { signOut } from "@/lib/auth-client";
 import { cn } from "cn";
 import { midseasonBadge } from "@/lib/game/selectors";
 import { useLeagueTypeBadges } from "@/components/league-switcher";
@@ -103,7 +103,7 @@ export function MobileNav() {
     setSheetOpen(false);
     if (isAuthenticated) {
       try {
-        await api.logout();
+        await signOut();
       } catch {
         // best-effort -- fall through to resetting client state regardless
       }
