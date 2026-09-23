@@ -64,6 +64,15 @@ export function useMyPlayerId(): string | null {
   return useLeagueStore((s) => s.membership?.playerId ?? null);
 }
 
+// Whether there's a real, signed-in SurvivorDraft session -- NOT the same as `mode === 'live'`,
+// which only flips once a real league also loads. A super-admin with no personal league is
+// genuinely authenticated (userId set via setIdentity) but stays mode:'mock' since there's no
+// league state to show; features that just need "a real user, for a request the server will
+// authenticate" (e.g. submitting a report) should check this, not mode.
+export function useIsAuthenticated(): boolean {
+  return useLeagueStore((s) => !!s.userId);
+}
+
 export function useIsSuperAdmin(): boolean {
   return useLeagueStore((s) => s.isSuperAdmin);
 }

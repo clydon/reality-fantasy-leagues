@@ -3,17 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useLeagueStore, useIsSuperAdmin } from "@/lib/store";
+import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated } from "@/lib/store";
+import { useReportModalStore } from "@/lib/report-modal-store";
 import { cn } from "cn";
 
 // Port of the live app's real desktop sidebar chrome -- .sidebar/#tabs/.brand in
-// public/styles.css, populated by renderTabs() in public/app.js -- replacing the placeholder
-// top-tab-bar this POC had before. Values below (224px width, 20px/12px padding, 9px/12px button
-// padding, the #fbeee8 active tint, etc.) are copied from that CSS, not approximated.
-//
-// NOT ported: the mobile bottom-tab-bar chrome (a separate, sizeable chunk of public/app.js's
-// "mobile nav chrome" section per CLAUDE.md) or the hamburger-collapse behavior at narrow
-// viewports -- this sidebar is desktop-only for now. See README.
+// public/styles.css, populated by renderTabs() in public/app.js. Values below (224px width,
+// 20px/12px padding, 9px/12px button padding, the #fbeee8 active tint, etc.) are copied from
+// that CSS, not approximated. Mobile chrome is a separate component (mobile-nav/mobile-nav.tsx),
+// shown/hidden via the max-nav breakpoint rather than duplicated here.
 const TABS = [
   { href: "/", label: "Overview" },
   { href: "/draft", label: "Draft" },
@@ -26,10 +24,12 @@ const TABS = [
 export function Sidebar() {
   const pathname = usePathname();
   const isSuperAdmin = useIsSuperAdmin();
+  const isAuthenticated = useIsAuthenticated();
   const mode = useLeagueStore((s) => s.mode);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const enterMockMode = useLeagueStore((s) => s.useMock);
-  const tabs = isSuperAdmin ? [...TABS, { href: "/admin", label: "Admin" }] : TABS;
+  const openReportModal = useReportModalStore((s) => s.openModal);
+  const tabs = isSuperAdmin ? [...TABS, { href: "/admin", label: "Admin" }, { href: "/reports", label: "Reports" }] : TABS;
 
   return (
     <aside className="sticky top-0 flex h-screen w-[224px] flex-none flex-col overflow-y-auto border-r border-border bg-panel-menu p-[20px_12px]">
@@ -65,12 +65,23 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto border-t border-border px-2.5 pb-1 pt-3">
+        {/* Report an Issue posts as the real signed-in SurvivorDraft user (server-side
+            requireAuth) -- gated on real authentication (isAuthenticated/userId), not `mode`,
+            since a super-admin with no personal league is genuinely signed in but stays
+            mode:'mock' (no league to show live). Using `mode` here blocked that real case. */}
+        {isAuthenticated && (
+          <button className="mb-1.5 block text-[0.8rem] font-semibold text-primary hover:underline" onClick={openReportModal}>
+            Report an Issue
+          </button>
+        )}
         {mode === "mock" ? (
           <p className="text-[0.8rem] text-muted-foreground">
             Viewing demo data.{" "}
-            <button className="font-semibold text-primary hover:underline" onClick={() => window.location.reload()}>
-              Sign in
-            </button>
+            {!isAuthenticated && (
+              <button className="font-semibold text-primary hover:underline" onClick={() => window.location.reload()}>
+                Sign in
+              </button>
+            )}
           </p>
         ) : (
           <button className="text-[0.8rem] font-semibold text-primary hover:underline" onClick={enterMockMode}>

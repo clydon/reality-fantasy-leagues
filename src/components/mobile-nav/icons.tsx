@@ -67,6 +67,16 @@ export function ShieldIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+export function ClipboardIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...common} {...props}>
+      <rect x="8" y="2" width="8" height="4" rx="1" />
+      <path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3" />
+      <line x1="8" y1="11" x2="16" y2="11" />
+      <line x1="8" y1="15" x2="16" y2="15" />
+    </svg>
+  );
+}
 export function AlertIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...common} {...props}>

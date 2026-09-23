@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useLeagueStore, useIsSuperAdmin } from "@/lib/store";
+import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated } from "@/lib/store";
+import { useReportModalStore } from "@/lib/report-modal-store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
 import { cn } from "cn";
@@ -16,6 +17,7 @@ import {
   DraftIcon,
   MoreIcon,
   ShieldIcon,
+  ClipboardIcon,
   AlertIcon,
   LogoutIcon,
   ChatIcon,
@@ -32,8 +34,9 @@ import {
 // nothing to switch between) and the chat unread-count badge (no unread tracking exists in
 // chat-store.ts yet) -- both are visual/interactive details on top of chrome that otherwise
 // matches structurally. League Settings and Rules aren't tabs in this POC at all, so the
-// "More" sheet only lists what's actually real: the demoted 4th-slot tab, Admin (if applicable),
-// and Report an Issue / Log out placeholders where the live app has working ones.
+// "More" sheet only lists what's actually real: the demoted 4th-slot tab, Admin+Reports (if
+// applicable), a working Report an Issue (real-auth-only -- see the note by its row below), and
+// Log out.
 export function MobileNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const pathname = usePathname();
@@ -42,7 +45,9 @@ export function MobileNav() {
   const mode = useLeagueStore((s) => s.mode);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const isSuperAdmin = useIsSuperAdmin();
+  const isAuthenticated = useIsAuthenticated();
   const enterMockMode = useLeagueStore((s) => s.useMock);
+  const openReportModal = useReportModalStore((s) => s.openModal);
 
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
@@ -67,7 +72,7 @@ export function MobileNav() {
 
   async function handleLogout() {
     setSheetOpen(false);
-    if (mode === "live") {
+    if (isAuthenticated) {
       try {
         await api.logout();
       } catch {
@@ -148,12 +153,28 @@ export function MobileNav() {
             <div className="my-1.5 h-px bg-border" />
             <div className="px-3 pb-0.5 pt-2 text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">Admin</div>
             <MoreRow icon={ShieldIcon} label="Admin" onClick={() => go("/admin")} />
+            <MoreRow icon={ClipboardIcon} label="Reports" onClick={() => go("/reports")} />
           </>
         )}
         <div className="my-1.5 h-px bg-border" />
-        <MoreRow icon={AlertIcon} label="Report an Issue" onClick={() => setSheetOpen(false)} disabled />
-        <div className="my-1.5 h-px bg-border" />
-        <MoreRow icon={LogoutIcon} label={mode === "mock" ? "Sign in" : "Log out"} onClick={handleLogout} danger />
+        {/* Report an Issue posts as the real signed-in SurvivorDraft user (server-side
+            requireAuth) -- gated on real authentication, not `mode` (a super-admin with no
+            personal league is genuinely signed in but stays mode:'mock' -- see store.ts's
+            useIsAuthenticated for why that distinction matters). */}
+        {isAuthenticated && (
+          <>
+            <MoreRow
+              icon={AlertIcon}
+              label="Report an Issue"
+              onClick={() => {
+                setSheetOpen(false);
+                openReportModal();
+              }}
+            />
+            <div className="my-1.5 h-px bg-border" />
+          </>
+        )}
+        <MoreRow icon={LogoutIcon} label={isAuthenticated ? "Log out" : "Sign in"} onClick={handleLogout} danger />
       </div>
     </>
   );

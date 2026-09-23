@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report } from "@/lib/game/types";
 
 // Thin fetch wrapper for the live Express API (see SurvivorDraft/server/routes/*.js). Requires
 // that API's dev-only CORS middleware (server/index.js) to be running and configured to allow
@@ -205,4 +205,13 @@ export const api = {
     apiFetch<{ ok: true }>(`/api/admin/leagues/${leagueId}/memberships/${membershipId}`, { method: "DELETE" }),
   adminDeletePlayer: (leagueId: string, playerId: string) =>
     apiFetch<{ ok: true; player: Player }>(`/api/admin/leagues/${leagueId}/players/${playerId}`, { method: "DELETE" }),
+
+  adminListReports: () => apiFetch<{ reports: Report[] }>("/api/admin/reports"),
+  adminDeleteReport: (id: string) => apiFetch<{ ok: true }>(`/api/admin/reports/${id}`, { method: "DELETE" }),
+  // Not admin-gated -- any signed-in SurvivorDraft user can submit one (requireAuth server-side).
+  submitReport: (type: "issue" | "feature", message: string, route: string, leagueId: string | null, leagueName: string | null) =>
+    apiFetch<{ ok: true }>("/api/reports", {
+      method: "POST",
+      body: JSON.stringify({ type, message, route, leagueId, leagueName }),
+    }),
 };

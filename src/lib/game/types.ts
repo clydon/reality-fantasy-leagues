@@ -120,6 +120,18 @@ export interface AdminLeague {
   created_at: string;
 }
 
+export interface Report {
+  id: string;
+  user_id: string;
+  username: string;
+  league_id: string | null;
+  league_name: string | null;
+  type: "issue" | "feature";
+  message: string;
+  route: string | null;
+  created_at: string;
+}
+
 export interface AdminMembership {
   id: string;
   player_id: string;

@@ -7,6 +7,7 @@ import { useLeagueStore } from "@/lib/store";
 import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
+import { ReportModal } from "@/components/report-modal";
 
 type Status = "checking" | "idle" | "loading";
 
@@ -99,6 +100,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   return (
     <>
       <MobileNav />
+      <ReportModal />
       <div className="flex min-h-screen items-stretch">
         <div className="max-nav:hidden">
           <Sidebar />

@@ -197,6 +197,34 @@ signed in, requested a reset, completed the reset using the actual token from th
 confirmed the old password now fails and the new one works. Throwaway test account cleaned up
 after.
 
+## Reports tab (`/reports`) and Report an Issue
+
+Port of `renderAdminReports()` and the `#reportModal`/`sendReport()` flow (`public/app.js`) — the
+last two pieces from the "not built yet" list. Reports is its own super-admin-gated tab (own store,
+`reports-store.ts`, deliberately separate from `admin-store.ts` — matches the live app keeping
+Reports as a genuinely separate tab from Admin even though both need the same gate). It's also
+the one place in this POC using a real `<table>` instead of the card-grid vocabulary everywhere
+else, per the original CSS's own comment: "genuinely tabular data, unlike everything else here."
+
+Report an Issue is a modal (`report-modal.tsx`, triggered from the Sidebar footer and MobileNav's
+More sheet) that posts as the real signed-in SurvivorDraft user — `POST /api/reports` requires a
+real session server-side, so it's only shown when authenticated.
+
+**A real gating bug, caught by testing with a real account instead of just the seeded default
+state**: Admin/Reports/Report-an-Issue were all originally gated on `mode !== 'mock'`, which
+incorrectly blocked a real signed-in super-admin who simply has no personal league — `mode` only
+flips to `'live'` once a league loads, so a league-less super-admin stays `'mock'` despite being
+genuinely authenticated. Fixed by adding `useIsAuthenticated()` (backed by `userId`, which really
+does only ever get set via a real login) and gating Admin/Reports on `isSuperAdmin` alone, and
+Report an Issue on `useIsAuthenticated()` — this also fixed a related bug where "Log out" would
+skip the real `/api/auth/logout` call for that same account, leaving a stale session cookie.
+
+Verified against the real API and a fixture super-admin account: submitted a report through the
+actual modal in a real browser, confirmed it appeared in the Reports table, deleted it (both via
+the UI's own delete button, which correctly calls `window.confirm()` first exactly like the
+original — a Puppeteer test script hit this directly, since headless Chrome auto-dismisses
+confirm() with no handler, and via a direct API call to confirm the route itself works).
+
 ## Design tokens
 
 The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
@@ -216,10 +244,6 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
   decided.
 - **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
   cast photos.
-- **The Reports tab** (`renderAdminReports()`, super-admin-only bug/feature report inbox) and the
-  in-app "Report an Issue" submission modal — a separate, smaller super-admin utility not named in
-  `ARCHITECTURE.md`'s Phase 1 tab list (Overview/Draft/Episodes/Mid-Season/Scoreboard/Chat/Admin,
-  all now done), so it wasn't in scope for validating that list.
 - **`/account`'s UI is functional but minimal** — no email verification, no OAuth providers, no
   "change email" flow. The core signup/signin/reset cycle is real and verified; polish beyond
   that wasn't in scope yet.

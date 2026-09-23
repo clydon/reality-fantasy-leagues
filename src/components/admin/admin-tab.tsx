@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useIsSuperAdmin, useLeagueStore } from "@/lib/store";
+import { useIsSuperAdmin } from "@/lib/store";
 import { useAdminStore } from "@/lib/admin-store";
 import { LinkMembershipForm } from "./link-membership-form";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,14 @@ import { Button } from "@/components/ui/button";
 // Direct port of renderAdmin() (public/app.js). Unlike every other tab, Admin has NO mock-mode
 // equivalent -- the live app never shows its nav link to non-super-admins at all, demo mode
 // included -- so this component's first job is replicating that gate, not just its content.
+//
+// Gated on isSuperAdmin alone, NOT `mode === 'mock'` -- an earlier version also checked mode,
+// which incorrectly blocked a real signed-in super-admin with no personal league (mode only
+// becomes 'live' once a league loads; a league-less super-admin stays 'mock' despite being
+// genuinely authenticated). isSuperAdmin is already a reliable real-auth signal on its own: it's
+// only ever set via a real setIdentity()/loadLive() call, and useMock() explicitly clears it.
 export function AdminTab() {
   const isSuperAdmin = useIsSuperAdmin();
-  const mode = useLeagueStore((s) => s.mode);
   const {
     users,
     leagues,
@@ -36,7 +41,7 @@ export function AdminTab() {
     if (isSuperAdmin && !loaded) load();
   }, [isSuperAdmin, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (mode === "mock" || !isSuperAdmin) {
+  if (!isSuperAdmin) {
     return (
       <>
         <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Admin</h2>
