@@ -20,8 +20,9 @@ interface LeagueStore {
   leagueId: string | null;
   leagueName: string | null;
   membership: Membership | null;
+  userId: string | null; // the signed-in user's own id (not their player id) -- chat reactions/ownership key off this, same as public/app.js's currentUser.id
   useMock: () => void;
-  loadLive: (leagueId: string, state: LeagueState, leagueName: string, membership: Membership) => void;
+  loadLive: (leagueId: string, state: LeagueState, leagueName: string, membership: Membership, userId: string) => void;
   setState: (state: LeagueState) => void;
 }
 
@@ -31,10 +32,11 @@ export const useLeagueStore = create<LeagueStore>((set) => ({
   leagueId: null,
   leagueName: null,
   membership: null,
+  userId: null,
   useMock: () =>
-    set({ mode: "mock", state: buildMockSeasonState(), leagueId: null, leagueName: null, membership: null }),
-  loadLive: (leagueId, state, leagueName, membership) =>
-    set({ mode: "live", leagueId, state, leagueName, membership }),
+    set({ mode: "mock", state: buildMockSeasonState(), leagueId: null, leagueName: null, membership: null, userId: null }),
+  loadLive: (leagueId, state, leagueName, membership, userId) =>
+    set({ mode: "live", leagueId, state, leagueName, membership, userId }),
   // Mock-mode mutators (StateLogic.*) mutate `state` in place, same as the live app; spreading it
   // into a new top-level object is what actually triggers Zustand/React to notice the change.
   setState: (state) => set({ state: { ...state } }),

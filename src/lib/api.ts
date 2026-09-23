@@ -1,4 +1,4 @@
-import type { LeagueState, Membership } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage } from "@/lib/game/types";
 
 // Thin fetch wrapper for the live Express API (see SurvivorDraft/server/routes/*.js). Requires
 // that API's dev-only CORS middleware (server/index.js) to be running and configured to allow
@@ -151,5 +151,26 @@ export const api = {
     apiFetch<LeagueState>(`/api/leagues/${leagueId}/finale/actual/winner`, {
       method: "PATCH",
       body: JSON.stringify({ value }),
+    }),
+
+  // Chat lives in its own Postgres tables (chat_messages/chat_reactions), not the JSONB league
+  // state, so these return their own shapes rather than a LeagueState.
+  getChat: (leagueId: string) => apiFetch<{ messages: ChatMessage[] }>(`/api/leagues/${leagueId}/chat`),
+  sendChatMessage: (leagueId: string, text: string) =>
+    apiFetch<{ message: ChatMessage }>(`/api/leagues/${leagueId}/chat`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  editChatMessage: (leagueId: string, messageId: string, text: string) =>
+    apiFetch<{ message: ChatMessage }>(`/api/leagues/${leagueId}/chat/${messageId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ text }),
+    }),
+  deleteChatMessage: (leagueId: string, messageId: string) =>
+    apiFetch<{ ok: true }>(`/api/leagues/${leagueId}/chat/${messageId}`, { method: "DELETE" }),
+  reactToChatMessage: (leagueId: string, messageId: string, emoji: string) =>
+    apiFetch<{ ok: true }>(`/api/leagues/${leagueId}/chat/${messageId}/react`, {
+      method: "POST",
+      body: JSON.stringify({ emoji }),
     }),
 };

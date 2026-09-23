@@ -102,6 +102,22 @@ export interface LeagueState {
   settings: LeagueSettings;
 }
 
+export interface ChatReaction {
+  count: number;
+  userIds: string[];
+}
+
+export interface ChatMessage {
+  id: string;
+  user_id: string | null;
+  author_name: string;
+  type: "message" | "system";
+  text: string;
+  created_at: string;
+  edited_at: string | null;
+  reactions: Record<string, ChatReaction>;
+}
+
 export interface ScoreRow {
   playerId: string;
   name: string;

@@ -31,6 +31,14 @@ export function ordinal(n: number | undefined): string | number {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+// Port of formatScheduledTime() (public/app.js) -- used for both draft-scheduling display and
+// chat message timestamps there, same here.
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "" : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
 export function initials(name: string): string {
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }

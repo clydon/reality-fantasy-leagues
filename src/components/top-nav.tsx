@@ -14,6 +14,7 @@ const TABS = [
   { href: "/episodes", label: "Episodes" },
   { href: "/mid-season", label: "Mid-Season" },
   { href: "/scoreboard", label: "Scoreboard" },
+  { href: "/chat", label: "Chat" },
 ];
 
 export function TopNav() {

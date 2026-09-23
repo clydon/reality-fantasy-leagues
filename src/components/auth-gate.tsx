@@ -28,7 +28,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       return;
     }
     const { league, state, membership } = await api.leagueState(me.leagues[0].id);
-    loadLive(league.id, state, league.name, membership);
+    loadLive(league.id, state, league.name, membership, me.user.id);
     setStatus("ready");
   }
 

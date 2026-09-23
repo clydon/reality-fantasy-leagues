@@ -82,6 +82,29 @@ the toggle flags converted to local state elsewhere in this POC, there was no sh
 here to eliminate in the first place, so `<details>` is the more direct translation, not a step
 backward.
 
+**Chat tab** (`src/components/chat/*`, `src/lib/chat-store.ts`, route `/chat`): port of
+`renderChat()`/`renderChatMessage()`, with two deliberate simplifications flagged here rather
+than silently cut:
+
+- **No auto-polling.** The live app refreshes chat every 5 seconds; no tab in this POC has any
+  live-refresh yet (everything fetches once via `AuthGate`), so Chat doesn't introduce that
+  infrastructure alone. A manual Refresh button stands in for it. Same underlying reasoning as
+  the Notifications banner staying unported.
+- **A fixed 5-emoji reaction palette (👍😂😮🔥🎉) instead of the live app's full emoji-mart
+  picker.** That library is explicitly called out in the original code as unable to fit the
+  declarative render model (`new EmojiMart.Picker(...)` builds a real DOM node imperatively) —
+  it's the one part of the live UI that was never a template-string render to begin with. The
+  underlying capability (`toggleReaction`/`react()` takes any emoji string) isn't missing, just a
+  full picker UI, if that's ever wanted.
+
+Chat's data lives in its own Postgres tables (`chat_messages`/`chat_reactions`), not the JSONB
+league state, so it gets its own Zustand store (`chat-store.ts`) rather than folding into
+`useLeagueStore` — reads `mode`/`leagueId`/`userId` from that store rather than duplicating them.
+Send/edit/delete/react all wired to the real API and independently verified against the fixture
+league. `annotateMentions()` (owned-castaway names get a small colored owner badge inline) is
+ported as a proper React component (`mention-text.tsx`) rather than HTML-string concatenation —
+React auto-escapes text content, so this needed no `esc()` equivalent at all.
+
 ## Design tokens
 
 The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
@@ -99,8 +122,8 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
   last poll", "it just became your turn"), which is a polling-infrastructure concern, not a
   componentization one. Worth its own pass once real-time/polling strategy for this repo is
   decided.
-- **No other tabs yet** (Chat, Admin) — Overview, Draft, Episodes, Mid-Season, and Scoreboard so
-  far, per the phased/tab-by-tab plan.
+- **No Admin tab yet** — the only remaining tab per the phased/tab-by-tab plan (Overview, Draft,
+  Episodes, Mid-Season, Scoreboard, and Chat are all done).
 - **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
   cast photos.
 - **No signup/session-persistence UI polish** — the login form is functional but minimal (see
