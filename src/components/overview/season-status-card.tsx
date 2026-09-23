@@ -35,6 +35,20 @@ export function SeasonStatusCard({ state }: { state: LeagueState }) {
   } else if (!draftStarted) {
     // TODO(post-POC): port formatScheduledTime + draftScheduledAt display once Draft is ported.
     statusBody = <DashLink>Go to draft →</DashLink>;
+  } else if (!draftComplete && state.settings.ownershipMode === "shared") {
+    // A blind draft in progress has no turn to report -- everyone submits simultaneously, so
+    // currentTurn is null until the reveal. Without this branch the turn-based case below would
+    // render "?'s turn to draft (pick undefined)".
+    const waiting = StateLogic.BlindDraftLogic.waitingOn(state).length;
+    const locked = StateLogic.BlindDraftLogic.lockedPlayerIds(state).length;
+    statusBody = (
+      <>
+        <p className="mt-1.5 text-sm">
+          Blind draft: <b>{locked}</b> of <b>{locked + waiting}</b> locked in.
+        </p>
+        <DashLink>{waiting === 0 ? "Revealing →" : "Go to draft →"}</DashLink>
+      </>
+    );
   } else if (!draftComplete) {
     const player = turn ? StateLogic.getPlayer(state, turn.playerId ?? "") : undefined;
     statusBody = (

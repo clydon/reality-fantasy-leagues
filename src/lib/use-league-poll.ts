@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useLeagueStore } from "@/lib/store";
@@ -22,6 +22,7 @@ export function useLeaguePoll() {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const setMidSeason = useLeagueStore((s) => s.setMidSeason);
+  const setState = useLeagueStore((s) => s.setState);
   const { push, dismissByTab, setBetGuessNotifications, setWasMyTurn, notifWasMyTurn } = useNotificationsStore();
 
   const pathname = usePathname();
@@ -46,9 +47,22 @@ export function useLeaguePoll() {
     refetchIntervalInBackground: false,
   });
 
+  // Blind draft is the one thing the narrow patch below can't carry: its reveal rewrites ownership
+  // across many castaways at once (and flips blindDraft.revealedAt), so nothing short of the whole
+  // state object reflects it. Synced here as an EVENT rather than on a timer -- only when the
+  // blind-draft signature actually changes (someone locked in, or the reveal fired), which is a
+  // discrete, rare thing, not the every-15s full overwrite the narrow patch exists to avoid.
+  const lastBlindSig = useRef<string | null>(null);
+
   useEffect(() => {
     if (!data) return;
     const fresh = data.state;
+
+    const blindSig = JSON.stringify(fresh.blindDraft ?? null);
+    if (lastBlindSig.current !== null && lastBlindSig.current !== blindSig) {
+      setState(fresh);
+    }
+    lastBlindSig.current = blindSig;
 
     // Bets needing your guess -- recomputed fresh every poll (including the very first one right
     // after login), so a backlog from before you logged in shows up too, not just new arrivals.

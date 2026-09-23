@@ -88,6 +88,9 @@ export interface LeagueSettings {
   draftScheduledAt?: string | null;
   leagueTypeId: string;
   showId: string;
+  // classic-draft only: 'exclusive' (snake draft, one owner per castaway) or 'shared' (blind draft,
+  // many owners). Fixed pairing with the draft mechanic -- see CLASSIC_DRAFT_SHARED in state-logic.js.
+  ownershipMode: "exclusive" | "shared";
   // Pick'em only, defaulted for every league regardless of type (see defaultState's comment) --
   // points awarded for a correct weekly pick.
   pickemCorrectPoints: number;
@@ -111,6 +114,15 @@ export interface TradeState {
   index: number;
 }
 
+// The PUBLIC half of a blind draft: who has locked in (for the "waiting on N players" UI) and
+// whether the simultaneous reveal has happened. The submitted picks themselves are deliberately
+// NOT part of league state -- they live in the blind_draft_picks table so they can't be read out of
+// the broadcast state blob before the reveal. See db/migrations/0004_blind_draft_picks.sql.
+export interface BlindDraftState {
+  lockedPlayerIds: string[];
+  revealedAt: string | null;
+}
+
 export interface LeagueState {
   players: Player[];
   tribes: Tribe[];
@@ -122,6 +134,7 @@ export interface LeagueState {
   draftOrder: string[];
   draftPicksMade: number;
   draftForceStarted: boolean;
+  blindDraft: BlindDraftState;
   settings: LeagueSettings;
 }
 

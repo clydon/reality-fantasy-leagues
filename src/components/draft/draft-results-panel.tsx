@@ -14,6 +14,10 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const mutate = useMutate();
+  // Shared ownership: a castaway can legitimately sit on several rosters at once, and Undraft only
+  // takes a castawayId -- there'd be no way to say WHICH owner to strip -- so it's hidden here in
+  // that mode (BlindDraftStrategy.undo is inert for the same reason).
+  const shared = state.settings.ownershipMode === "shared";
 
   async function handleUndraft(castawayId: string) {
     await mutate(
@@ -26,8 +30,10 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
       <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Draft Results</h3>
       <p className="mb-3 text-sm text-muted-foreground">
-        Who each player originally drafted — this doesn&rsquo;t change after the draft. For CURRENT rosters (after
-        any mid-season Replenish or Swap), see the Scoreboard tab.
+        Who each player originally drafted — this doesn&rsquo;t change after the draft.{" "}
+        {shared
+          ? "This league shares ownership, so the same castaway may appear on more than one roster."
+          : "For CURRENT rosters (after any mid-season Replenish or Swap), see the Scoreboard tab."}
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {state.players.map((p) => {
@@ -53,7 +59,7 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
                         <span className="text-muted-foreground">— {c.departedVia === "trade" ? "swapped away" : "replenished away"}</span>
                       )}
                     </span>
-                    {c.ownerIds.includes(p.id) && c.status === "active" && canManage && (
+                    {!shared && c.ownerIds.includes(p.id) && c.status === "active" && canManage && (
                       <Button variant="secondary" size="sm" onClick={() => handleUndraft(c.id)}>
                         Undraft
                       </Button>

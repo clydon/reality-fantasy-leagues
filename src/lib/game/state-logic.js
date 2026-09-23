@@ -28,14 +28,20 @@
 // League types: DraftLogic and ScoringLogic below are thin dispatchers, not the real
 // implementations -- they read `state.settings.leagueTypeId`, look it up in LEAGUE_TYPES, and
 // delegate to that entry's `draftStrategy`/`scoringStrategy`. LEAGUE_TYPES has two entries today:
-// 'classic-draft' (SnakeDraftStrategy + EliminationOrderScoringStrategy, a real turn-based roster
-// draft) and 'pickem' (NoDraftStrategy + PickEmScoringStrategy -- no roster, no draft at all; see
-// PickEmLogic for the actual weekly-pick mechanic, which is NOT behind this dispatch since it
-// doesn't fit the DraftStrategy shape below, per the note two sentences down). Adding a further
-// league type means: write a new strategy class implementing the same static method shape as
-// SnakeDraftStrategy (syncOrder/currentTurn/isStarted/forceStart/reorder/move/pick/undo) and/or
-// EliminationOrderScoringStrategy (compute) -- or reuse NoDraftStrategy as-is if the new type has
-// no draft either -- register it under a new LEAGUE_TYPES key, and set
+// 'classic-draft' (EliminationOrderScoringStrategy, a real roster draft) and 'pickem'
+// (NoDraftStrategy + PickEmScoringStrategy -- no roster, no draft at all; see PickEmLogic for the
+// actual weekly-pick mechanic, which is NOT behind this dispatch since it doesn't fit the
+// DraftStrategy shape below, per the note two sentences down).
+//
+// One league type can carry more than one draft mechanic: 'classic-draft' resolves to
+// SnakeDraftStrategy or BlindDraftStrategy depending on `settings.ownershipMode`
+// ('exclusive'/'shared'), which getLeagueType applies as an override -- see CLASSIC_DRAFT_SHARED.
+// Call sites still just read getLeagueType(state) and never need to know ownershipMode exists.
+//
+// Adding a further league type means: write a new strategy class implementing the same static
+// method shape as SnakeDraftStrategy (syncOrder/currentTurn/isStarted/forceStart/reorder/move/
+// pick/undo) and/or EliminationOrderScoringStrategy (compute) -- or reuse NoDraftStrategy as-is if
+// the new type has no draft either -- register it under a new LEAGUE_TYPES key, and set
 // supportsReplenish/supportsTrade/supportsFinalePredictions/hasRoster/hasWeeklyPicks for whether
 // those features apply to it. ReplenishLogic/TradeLogic deliberately are NOT behind this dispatch
 // yet -- they're mid-season features of the current league type, gated by those three support
@@ -283,6 +289,137 @@ class NoDraftStrategy {
   static undo(){ /* no draft picks to undo */ }
 }
 
+// ---------- BlindDraftLogic + BlindDraftStrategy: Classic Draft's SHARED-ownership mechanic -------
+// `settings.ownershipMode` picks which draft mechanic 'classic-draft' runs (a fixed pairing, not
+// two independent choices):
+//   'exclusive' (default) -> SnakeDraftStrategy: turn-based, one owner per castaway.
+//   'shared'              -> BlindDraftStrategy: every player privately submits their whole set of
+//                            picks, nothing is revealed until EVERY eligible player has locked in,
+//                            then all reveal at once and the same castaway may end up on several
+//                            rosters (hence step 1's ownerIds array -- see Core's ownership note).
+//
+// WHERE THE UNREVEALED PICKS LIVE, and why not here: not in `state` at all, but in the
+// blind_draft_picks table (db/migrations/0004_blind_draft_picks.sql explains the reasoning in
+// full). `state` is broadcast wholesale to every league member, so picks kept in it would be
+// readable from any player's Network tab before the reveal. That means this class deliberately
+// does NOT hold the pick contents: it holds the PUBLIC half of the mechanic
+// (`state.blindDraft.lockedPlayerIds` -- who has locked in, for the "waiting on N players" UI --
+// and `state.blindDraft.revealedAt`), plus the pure rules for validating a submission and for
+// applying a reveal once the server hands it the picks it read from that table. The server-side
+// half lives in src/lib/server/blind-draft.ts.
+class BlindDraftLogic {
+  // Who must lock in before the reveal fires. Excludes inactive seats (joined after a draft
+  // concluded, not yet activated) and disabled ones (player left or was removed) -- a disabled
+  // seat can never lock in, so counting it would deadlock the draft for everyone else forever.
+  static eligiblePlayers(state){
+    return state.players.filter(p => p.active !== false && !p.disabled);
+  }
+  static isRevealed(state){ return !!(state.blindDraft && state.blindDraft.revealedAt); }
+  static lockedPlayerIds(state){ return (state.blindDraft && state.blindDraft.lockedPlayerIds) || []; }
+  static hasLocked(state, playerId){ return BlindDraftLogic.lockedPlayerIds(state).includes(playerId); }
+  static waitingOn(state){
+    const locked = BlindDraftLogic.lockedPlayerIds(state);
+    return BlindDraftLogic.eligiblePlayers(state).filter(p => !locked.includes(p.id));
+  }
+  // Rewrites the public mirror of who's locked in from the authoritative list the server read out
+  // of blind_draft_picks, rather than incrementally adding/removing ids -- the table is the source
+  // of truth, this field is a cache of it, and recomputing wholesale means the two can't drift.
+  static setLockedPlayerIds(state, playerIds){
+    if(!state.blindDraft) state.blindDraft = { lockedPlayerIds: [], revealedAt: null };
+    state.blindDraft.lockedPlayerIds = [...playerIds];
+  }
+  // True once every eligible player has a submission in. Deliberately takes the ids the server
+  // just read inside the transaction rather than reading the cached mirror, so the decision to
+  // reveal is made against the table, never against a field that might be mid-update.
+  static allLockedIn(state, lockedPlayerIds){
+    const eligible = BlindDraftLogic.eligiblePlayers(state);
+    if(eligible.length === 0) return false;
+    return eligible.every(p => lockedPlayerIds.includes(p.id));
+  }
+  // Validates one player's submission. Returns null if it's fine, or a human-readable reason --
+  // unlike most of this file (which silently no-ops on a bad request, see SnakeDraftStrategy.pick),
+  // a rejected blind submission needs to tell the player WHY: they can't see what anyone else did,
+  // so a silent no-op would be indistinguishable from a successful lock-in.
+  static validateSubmission(state, playerId, castawayIds){
+    if(getLeagueType(state).id !== 'classic-draft' || state.settings.ownershipMode !== 'shared'){
+      return 'This league is not running a blind draft';
+    }
+    if(!DraftLogic.isStarted(state)) return "The draft hasn't started yet";
+    if(BlindDraftLogic.isRevealed(state)) return 'The draft has already been revealed';
+    const player = Core.getPlayer(state, playerId);
+    if(!player) return 'No such player';
+    if(player.disabled) return 'That seat has been disabled';
+    if(player.active === false) return 'That player is not active in this draft';
+    const ids = Array.isArray(castawayIds) ? castawayIds : [];
+    const teamSize = state.settings.teamSize;
+    if(ids.length !== teamSize) return `Pick exactly ${teamSize} castaway${teamSize===1?'':'s'}`;
+    if(new Set(ids).size !== ids.length) return 'Same castaway picked more than once';
+    for(const id of ids){
+      const c = Core.getCastaway(state, id);
+      if(!c) return 'Unknown castaway in submission';
+      // No free-agent check: shared mode never removes anyone from availability, so the whole
+      // active cast is offered to every player every time (see RosterLogic.freeAgents' comment).
+      if(c.status !== 'active') return `${c.name} is already eliminated`;
+    }
+    return null;
+  }
+  // Applies every player's picks at once. `picksByPlayer` is {[playerId]: castawayId[]}, read from
+  // blind_draft_picks by the caller inside the same transaction that holds the league row lock.
+  // Uses addOwner (not setOwner) because shared mode is the whole point -- several players can and
+  // will land on the same castaway.
+  static reveal(state, picksByPlayer, revealedAt){
+    if(BlindDraftLogic.isRevealed(state)) return false;
+    let assigned = 0;
+    Object.keys(picksByPlayer).forEach(playerId => {
+      if(!Core.getPlayer(state, playerId)) return; // seat removed between locking and reveal
+      (picksByPlayer[playerId] || []).forEach(castawayId => {
+        const c = Core.getCastaway(state, castawayId);
+        if(!c) return;
+        Core.addOwner(state, castawayId, playerId);
+        c.acquiredVia = 'draft';
+        assigned++;
+      });
+    });
+    if(!state.blindDraft) state.blindDraft = { lockedPlayerIds: [], revealedAt: null };
+    state.blindDraft.revealedAt = revealedAt || new Date().toISOString();
+    // Keeps isStarted() true and gives the same "picks made" figure the snake draft exposes. Not a
+    // turn pointer here -- there are no turns to advance -- just a count of what landed.
+    state.draftPicksMade = assigned;
+    return true;
+  }
+}
+
+// Same static shape as SnakeDraftStrategy so DraftLogic's dispatch needs no special-casing, but
+// the parts that only mean something for a turn-based draft are inert: there is no turn order to
+// sync or reorder, and picks arrive through the blind-draft routes rather than through pick().
+class BlindDraftStrategy {
+  static syncOrder(){ /* no turn order in a simultaneous draft */ }
+  // `null` while picks are still being submitted -- same choice, for the same reason, as
+  // NoDraftStrategy's: RosterLogic.addPlayer reads `turn && turn.isComplete` to decide whether a
+  // new player starts inactive, and null keeps someone who joins mid-submission active so they
+  // can still lock in (the reveal then waits on them, which is correct). Once revealed, the draft
+  // really is complete, so a later joiner gets the same inactive-until-activated treatment a
+  // post-snake-draft joiner does.
+  static currentTurn(state){
+    return BlindDraftLogic.isRevealed(state) ? { isComplete: true } : null;
+  }
+  // Identical rule to SnakeDraftStrategy: "started" means submissions are open.
+  static isStarted(state){
+    if(BlindDraftLogic.isRevealed(state)) return true;
+    if(state.draftForceStarted) return true;
+    const scheduled = state.settings.draftScheduledAt;
+    return !!(scheduled && Date.now() >= new Date(scheduled).getTime());
+  }
+  static forceStart(state){ state.draftForceStarted = true; }
+  static reorder(){ /* no turn order */ }
+  static move(){ /* no turn order */ }
+  static pick(){ /* submissions go through BlindDraftLogic + the blind-draft routes */ }
+  // Deliberately inert: post-reveal a castaway may have several owners, and undo() only receives a
+  // castawayId, so there'd be no way to say WHICH owner to strip. The frontend hides Undraft in
+  // shared mode for the same reason.
+  static undo(){ /* ambiguous with multiple owners -- see comment */ }
+}
+
 // ---------- PickEmLogic: the 'pickem' league type's weekly pick mechanic ----------
 // Each episode, each player picks one still-active castaway they think survives that episode's
 // tribal -- unlike Feature A's blind draft, the plan never asks for these to be hidden from other
@@ -387,8 +524,36 @@ const LEAGUE_TYPES = {
 const SHOWS = {
   survivor: { id: 'survivor', name: 'Survivor', castawayTerm: 'Castaway', tribeTerm: 'Tribe' }
 };
+
+// 'classic-draft' running in shared-ownership mode. Same league type (same id, same scoring), but a
+// different draft mechanic and two mid-season features switched off:
+//
+// - draftStrategy -> BlindDraftStrategy. `ownershipMode` is a fixed pairing with the mechanic, not
+//   an independent choice: exclusive means snake, shared means blind-with-reveal.
+// - supportsReplenish/supportsTrade -> false. Both are free-agent mechanics, and shared mode has no
+//   free agents (nothing is ever removed from availability). Left on, they'd be live buttons that
+//   silently accomplish nothing: ReplenishLogic.assign and TradeLogic.swap both refuse a castaway
+//   that already has an owner, and in shared mode every castaway does. A shared-mode replenish
+//   COULD instead mean "add any still-active castaway" -- that's a real design question this plan
+//   doesn't answer, so it's left out rather than guessed at.
+//
+// Precomputed once rather than built per call, since getLeagueType runs on nearly every render and
+// every DraftLogic dispatch.
+const CLASSIC_DRAFT_SHARED = {
+  ...LEAGUE_TYPES['classic-draft'],
+  draftStrategy: BlindDraftStrategy,
+  supportsReplenish: false,
+  supportsTrade: false
+};
+// Resolves the active league type, applying the ownership-mode override above. Returns the registry
+// entry itself in every other case, so `getLeagueType(state).id` and the supports*/has* flags stay
+// the single thing callers read -- no call site needs to know ownershipMode exists.
 function getLeagueType(state){
-  return LEAGUE_TYPES[state.settings && state.settings.leagueTypeId] || LEAGUE_TYPES['classic-draft'];
+  const base = LEAGUE_TYPES[state.settings && state.settings.leagueTypeId] || LEAGUE_TYPES['classic-draft'];
+  if(base.id === 'classic-draft' && state.settings && state.settings.ownershipMode === 'shared'){
+    return CLASSIC_DRAFT_SHARED;
+  }
+  return base;
 }
 
 // ---------- DraftLogic ----------
@@ -772,6 +937,10 @@ class Migrations {
       draftOrder: players.map(p=>p.id),
       draftPicksMade: 0,
       draftForceStarted: false,
+      // The PUBLIC half of a blind draft (shared ownership mode only, inert otherwise) -- who has
+      // locked in and whether the reveal has happened. The picks themselves are deliberately not
+      // here; see BlindDraftLogic's comment and db/migrations/0004_blind_draft_picks.sql.
+      blindDraft: { lockedPlayerIds: [], revealedAt: null },
       settings: {
         teamSize: 3,
         bonusEnabled: true,
@@ -783,6 +952,9 @@ class Migrations {
         draftScheduledAt: null,
         leagueTypeId: 'classic-draft',
         showId: 'survivor',
+        // 'exclusive' (one owner per castaway, snake draft) or 'shared' (many owners, blind draft).
+        // Classic-draft only; see CLASSIC_DRAFT_SHARED above for what flipping it changes.
+        ownershipMode: 'exclusive',
         // Pick'em-only, but defaulted for every league (same as finaleTop3Points/etc above being
         // defaulted even for classic-draft leagues that will never read them): a league can
         // switch leagueTypeId, so this should already be sane if it does. Value per the plan doc:
@@ -815,6 +987,10 @@ class Migrations {
     if(!s.settings.leagueTypeId) s.settings.leagueTypeId = 'classic-draft';
     if(!s.settings.showId) s.settings.showId = 'survivor';
     if(typeof s.settings.pickemCorrectPoints !== 'number') s.settings.pickemCorrectPoints = 1;
+    // Every pre-existing league is exclusive-ownership by construction (it's the only mode that
+    // existed), so defaulting rather than inferring is correct here.
+    if(!s.settings.ownershipMode) s.settings.ownershipMode = 'exclusive';
+    if(!s.blindDraft) s.blindDraft = { lockedPlayerIds: [], revealedAt: null };
     if(!s.draftOrder) s.draftOrder = (s.players||[]).map(p=>p.id);
     if(typeof s.draftPicksMade !== 'number') s.draftPicksMade = (s.castaways||[]).filter(c=>ownerListOf(c).length).length;
     if(typeof s.draftForceStarted !== 'boolean') s.draftForceStarted = false;
@@ -867,18 +1043,18 @@ return {
   getOrCreateFinalePred: FinaleLogic.getOrCreatePrediction, setFinalePick: FinaleLogic.setPick, setFinaleWinnerPick: FinaleLogic.setWinnerPick,
   setActualTop3: FinaleLogic.setActualTop3, setActualWinner: FinaleLogic.setActualWinner,
   // Named setPickEmPick/removePickEmPick rather than the shorter setPick/removePick -- "pick" is
-  // already heavily overloaded in this file (draft picks, blind-draft picks once Feature A ships)
-  // and the longer name keeps call sites unambiguous about which kind.
+  // already heavily overloaded in this file (draft picks, blind-draft picks) and the longer name
+  // keeps call sites unambiguous about which kind.
   pickEmPickFor: PickEmLogic.pickFor, previousPickEmPickFor: PickEmLogic.previousPickFor,
   setPickEmPick: PickEmLogic.setPick, removePickEmPick: PickEmLogic.removePick,
 
   // ---- domain classes: reference these directly in new code instead of the flat aliases above ----
   // ScoringLogic/DraftLogic are thin league-type dispatchers (see the "League types" comment near
-  // the top of this file); SnakeDraftStrategy/EliminationOrderScoringStrategy and
-  // NoDraftStrategy/PickEmScoringStrategy are their two registered implementations, exported
-  // directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, Migrations,
-  SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy
+  // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
+  // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
+  // exported directly for code that wants to bypass the dispatch.
+  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, Migrations,
+  SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy
 };
 
 });

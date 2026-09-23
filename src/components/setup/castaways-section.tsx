@@ -49,8 +49,12 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
       <div className="flex flex-col gap-2">
         {state.castaways.map((c) => {
-          // Exclusive-ownership leagues have at most one owner per castaway.
-          const owner = c.ownerIds[0] ? StateLogic.getPlayer(state, c.ownerIds[0]) : null;
+          // Shared-ownership leagues can have several owners per castaway, so all of them are named
+          // rather than just ownerIds[0]. "Free agent" is an exclusive-mode idea (shared mode never
+          // takes anyone off the board), hence the unowned label differs by mode below.
+          const ownerNames = c.ownerIds
+            .map((id) => StateLogic.getPlayer(state, id)?.name)
+            .filter((n): n is string => !!n);
           return (
             <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2.5 text-sm">
               <Input
@@ -76,7 +80,13 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
                 disabled={!canManage}
                 onBlur={(e) => e.target.value !== (c.photoUrl ?? "") && update(c.id, "photoUrl", e.target.value)}
               />
-              <span className="text-xs text-muted-foreground">{owner ? owner.name : "Free agent"}</span>
+              <span className="text-xs text-muted-foreground">
+                {ownerNames.length > 0
+                  ? ownerNames.join(", ")
+                  : state.settings.ownershipMode === "shared"
+                  ? "Unpicked"
+                  : "Free agent"}
+              </span>
               <span className="text-xs text-muted-foreground">
                 {c.status === "eliminated" ? `#${c.placementOrder} — ${c.exitMethod}` : "Active"}
               </span>

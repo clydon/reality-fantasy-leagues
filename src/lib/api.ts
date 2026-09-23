@@ -118,6 +118,20 @@ export const api = {
   forceStartDraft: (leagueId: string) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/draft/force-start`, { method: "POST" }),
 
+  // Blind draft (shared-ownership classic-draft only). The submitted picks are NOT part of league
+  // state -- they're held server-side until every player has locked in (see
+  // src/lib/server/blind-draft.ts), so reading your own back takes its own request rather than
+  // coming along with the state blob like everything else here.
+  lockBlindPicks: (leagueId: string, playerId: string, castawayIds: string[]) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/draft/blind/lock`, {
+      method: "POST",
+      body: JSON.stringify({ playerId, castawayIds }),
+    }),
+  unlockBlindPicks: (leagueId: string, playerId: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/draft/blind/lock/${playerId}`, { method: "DELETE" }),
+  myBlindPicks: (leagueId: string, playerId: string) =>
+    localFetch<{ castawayIds: string[] | null }>(`/api/leagues/${leagueId}/draft/blind/lock/${playerId}`),
+
   addEpisode: (leagueId: string) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes`, { method: "POST" }),
   removeEpisode: (leagueId: string, epId: string) =>

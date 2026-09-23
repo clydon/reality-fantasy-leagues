@@ -28,8 +28,13 @@ export function BoardGrid({ state }: { state: LeagueState }) {
             </h3>
             <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(126px,1fr))] gap-3">
               {members.map((c) => {
-                // Exclusive-ownership leagues have at most one owner per castaway.
-                const owner = c.ownerIds[0] ? StateLogic.getPlayer(state, c.ownerIds[0]) : null;
+                // Shared-ownership leagues can have several owners per castaway, so this reads the
+                // whole list rather than just ownerIds[0]. The card's border colour still uses the
+                // first owner (a border can only be one colour), but every owner is named below it.
+                const owners = c.ownerIds
+                  .map((id) => StateLogic.getPlayer(state, id))
+                  .filter((p): p is NonNullable<typeof p> => !!p);
+                const owner = owners[0] ?? null;
                 const formerOwner = !owner && c.formerOwnerId ? StateLogic.getPlayer(state, c.formerOwnerId) : null;
                 const medal = c.status === "eliminated" ? medalFor(state, c.placementOrder) : null;
                 const eliminatedNoMedal = c.status === "eliminated" && !medal;
@@ -68,7 +73,11 @@ export function BoardGrid({ state }: { state: LeagueState }) {
                       {initials(c.name)}
                     </div>
                     <div className="text-[0.84rem] font-semibold text-foreground">{c.name}</div>
-                    {owner && <div className="mt-[3px] text-[0.7rem] font-semibold text-muted-foreground">{owner.name}</div>}
+                    {owners.length > 0 && (
+                      <div className="mt-[3px] text-[0.7rem] font-semibold text-muted-foreground">
+                        {owners.map((o) => o.name).join(", ")}
+                      </div>
+                    )}
                     {formerOwner && (
                       <div
                         className="mt-[3px] text-[0.7rem] font-semibold text-muted-foreground line-through"

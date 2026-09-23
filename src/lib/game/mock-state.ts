@@ -150,6 +150,8 @@ export function buildMockSeasonState(): LeagueState {
     draftOrder: [connie.id, annie.id, joey.id],
     draftPicksMade: 9,
     draftForceStarted: true,
+    // This demo league is exclusive-ownership (a finished snake draft), so blind draft is inert.
+    blindDraft: { lockedPlayerIds: [], revealedAt: null },
     settings: {
       teamSize: 3,
       bonusEnabled: true,
@@ -160,6 +162,7 @@ export function buildMockSeasonState(): LeagueState {
       finalePredictionScope: "open",
       leagueTypeId: "classic-draft",
       showId: "survivor",
+      ownershipMode: "exclusive" as const,
       pickemCorrectPoints: 1,
     },
   };

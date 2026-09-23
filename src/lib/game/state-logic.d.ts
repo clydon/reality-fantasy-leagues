@@ -103,6 +103,20 @@ declare const StateLogic: {
   setFinaleWinnerPick(state: LeagueState, playerId: string, value: string | null): void;
   setActualTop3(state: LeagueState, idx: number, value: string | null): void;
   setActualWinner(state: LeagueState, value: string | null): void;
+  // Blind draft (shared-ownership classic-draft). Note there is nothing here for reading the
+  // submitted picks: those never enter league state -- the server reads them straight out of
+  // blind_draft_picks (src/lib/server/blind-draft.ts). These are the state-side pieces only.
+  BlindDraftLogic: {
+    eligiblePlayers(state: LeagueState): Player[];
+    isRevealed(state: LeagueState): boolean;
+    lockedPlayerIds(state: LeagueState): string[];
+    hasLocked(state: LeagueState, playerId: string): boolean;
+    waitingOn(state: LeagueState): Player[];
+    setLockedPlayerIds(state: LeagueState, playerIds: string[]): void;
+    allLockedIn(state: LeagueState, lockedPlayerIds: string[]): boolean;
+    validateSubmission(state: LeagueState, playerId: string, castawayIds: string[]): string | null;
+    reveal(state: LeagueState, picksByPlayer: Record<string, string[]>, revealedAt?: string): boolean;
+  };
   pickEmPickFor(state: LeagueState, epId: string, playerId: string): PickEmPick | null;
   previousPickEmPickFor(state: LeagueState, epId: string, playerId: string): PickEmPick | null;
   setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string): void;

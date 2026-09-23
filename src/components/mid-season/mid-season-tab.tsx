@@ -33,13 +33,18 @@ export function MidSeasonTab() {
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Mid-Season Tools</h2>
 
-      <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Replenish &amp; Swap</h3>
-        <p className="text-sm text-muted-foreground">
-          Change who owns which castaway after eliminations — full mechanics are in the Rules tab. Usually run Replenish
-          first, right after the merge, then Swap.
-        </p>
-      </div>
+      {/* Both mechanics this intro describes are free-agent based, so it's hidden when neither
+          applies -- shared-ownership leagues have no free agents (see CLASSIC_DRAFT_SHARED),
+          leaving only the Finale panel below. */}
+      {(leagueType.supportsReplenish || leagueType.supportsTrade) && (
+        <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
+          <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Replenish &amp; Swap</h3>
+          <p className="text-sm text-muted-foreground">
+            Change who owns which castaway after eliminations — full mechanics are in the Rules tab. Usually run Replenish
+            first, right after the merge, then Swap.
+          </p>
+        </div>
+      )}
 
       {leagueType.supportsReplenish && (
         <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">

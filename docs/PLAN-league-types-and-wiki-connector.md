@@ -1,20 +1,20 @@
 # Plan: League types expansion (ownership modes, Pick'em, Active Roster) + wiki connector
 
-**Status:** Step 1 (the `ownerId` -> `ownerIds` refactor) and Feature B (Pick'em) of "Suggested
-execution order" are **implemented and verified**. Feature D's wiki-connector groundwork is
-**investigated** (real findings against real pages, connector itself not built). Features A and C
-are still unbuilt — note Feature A (ownership mode + blind draft) turned out to need real
-architectural judgment before any code lands (see its own status note below), not just CRUD; hold
-it for a stronger model pass rather than treating it as routine. Written from a multi-turn design
-conversation — read this file plus the referenced source files and you have everything needed to
-execute without that conversation's history.
+**Status:** Step 1 (`ownerId` -> `ownerIds`), Feature A (ownership mode + blind draft) and Feature B
+(Pick'em) are **implemented and verified**. Feature D's wiki-connector groundwork is
+**investigated** (real findings against real pages, connector itself not built). **Feature C (Active
+Roster) is the only unbuilt feature left** — its dependencies (#1's `ownerIds` and #2's blind-draft
+mechanic) are both in place now. Written from a multi-turn design conversation — read this file plus
+the referenced source files and you have everything needed to execute without that conversation's
+history.
 
 ## Context (read this first)
 
-Today there's exactly one league type (`classic-draft`: snake draft, exclusive ownership,
-elimination-order scoring) behind the `LEAGUE_TYPES`/`SHOWS` strategy-pattern seam in
-`src/lib/game/state-logic.js` — see that file's own top comment for the extension pattern before
-adding anything below. This plan:
+When this plan was written there was exactly one league type (`classic-draft`: snake draft,
+exclusive ownership, elimination-order scoring) behind the `LEAGUE_TYPES`/`SHOWS` strategy-pattern
+seam in `src/lib/game/state-logic.js`. As of now that seam carries two league types plus two draft
+mechanics for `classic-draft` (snake/blind, by `settings.ownershipMode`) — see that file's own top
+comment for the current extension pattern before adding anything below. This plan:
 
 1. Adds a configurable **ownership mode** (exclusive vs. shared) to Classic Draft, with a new
    blind-draft mechanic for shared mode.
@@ -111,33 +111,39 @@ observable changes for an existing exclusive-mode league, something's wrong.
 
 ---
 
-## Feature A: Classic Draft — ownership mode + blind draft — NOT STARTED, needs an Opus pass first
+## Feature A: Classic Draft — ownership mode + blind draft — DONE
 
-**Found while routing this feature to a session doing "well-trodden CRUD" on a faster model: this
-app has zero precedent anywhere for per-viewer-private data.** Every route (`GET .../state` and
-every mutation response) returns the entire `state` JSONB blob to every league member, unfiltered
-— confirmed by grep, nothing filters state per requester anywhere in `src/app/api/`. Blind draft's
-"picks stay hidden from other players until everyone has locked in" requirement can't be satisfied
-by storing pending picks inside `state` under a new key, even one the UI never renders — any
-player's Network tab would show everyone else's picks immediately, which fails this section's own
-verification bullet, not just a cosmetic nicety. Doing this for real needs either a redaction layer
-(state responses filtered per requesting player — new, app-wide) or a new persistence path outside
-`state` (its own table, which means `withLeagueLock`'s contract needs to grow — it doesn't
-currently hand callers the underlying transaction/client, only a `mutatorFn(state)` callback — plus
-a policy decision on who can act on whose behalf for data that's supposed to be private). That
-design decision is genuinely the bulk of "blind draft," not a narrow internal detail separable from
-the settings toggle and routes around it — there's no honest way to ship the `ownershipMode`
-commissioner toggle before it exists without "shared" silently no-op'ing. Hold the WHOLE feature
-(not just the reveal-timing internals) for a session with room to make that call properly, then
-implement it in one pass rather than routing pieces to different models.
+**Implemented and verified.** See README's "Shared ownership + blind draft" section for the shipped
+design and the reasoning behind the one load-bearing decision. Notes for whoever touches this next:
 
-**Precedent this session DID set that's relevant here:** Feature B (Pick'em, done — see below)
-proved a second `LEAGUE_TYPES` entry immediately exposes several latent assumptions the codebase
-carried from having only one (the League Type picker's lock condition, `GeneralSettingsSection`/
-`PlayersSection` assuming a roster, `SeasonStatusCard` assuming a draft, nav assuming Draft/
-Mid-Season are always relevant) — expect Feature A to surface the same kind of ripple, and grep for
-every `StateLogic.isDraftStarted`/`currentDraftTurn`/`freeAgents`/`activeOwnedCount` call site
-before assuming Pick'em's fixes (now gated on `hasRoster`) already cover blind draft's needs too.
+- **The escalation that preceded this was right, and the answer was a separate table.** Unrevealed
+  picks live in `blind_draft_picks`, not in `state`, because `state` is broadcast wholesale.
+  Redaction was the alternative and was rejected on failure mode: it makes ~40 current and all
+  future state-returning routes fail OPEN (miss one and picks leak silently), whereas keeping the
+  data out of `state` fails CLOSED. The privacy property is enforced by where the data lives, not by
+  remembering to filter — which is what makes it survive future edits by people who don't know this
+  feature exists. A direct leak test asserts it over the wire (see README).
+- `withLeagueLock`'s mutator now also receives the transaction `client`. Only blind draft uses it,
+  for reveal atomicity (insert + "is everyone in?" read + reveal write all under one row lock).
+  Every other caller ignores the extra argument. If you need to touch a table alongside `state`
+  atomically in future, this is the seam.
+- **Replenish and Swap are off in shared mode** — both are free-agent mechanics and shared mode has
+  no free agents. A shared-mode replenish could plausibly mean "add any still-active castaway"
+  instead; that's an open design question, deliberately not guessed at. If the answer is wanted, it
+  changes `ReplenishLogic.assign`'s owner guard and flipping `supportsReplenish` back on in
+  `CLASSIC_DRAFT_SHARED`.
+- **One permission exception, on purpose:** the commissioner may submit blind picks on a player's
+  behalf but may NOT read anyone else's, not even as super-admin. Reading would hand a
+  commissioner-who-is-also-a-player perfect information. Don't "fix" this asymmetry without
+  replacing it with something that keeps the mechanic honest.
+- **Known limitation, left as-is:** `RosterLogic.activatePlayer` (post-draft late joiner) still only
+  assigns castaways nobody owns, which is unnecessarily restrictive in shared mode where sharing is
+  the point. Degrades gracefully (the commissioner just has fewer options) rather than breaking, and
+  the plan doesn't cover late joiners in shared mode, so it wasn't guessed at either.
+- Sonnet's prediction in the previous version of this note held: a new mechanic again exposed latent
+  single-mode assumptions in existing UI (`SeasonStatusCard` rendered "?'s turn to draft (pick
+  undefined)" with no turn to report; Board grid and Castaways list showed only `ownerIds[0]`;
+  Mid-Season's intro described removed mechanics). Expect the same for Feature C.
 
 **Player count:** 2–6.
 
@@ -378,8 +384,8 @@ connector coverage into Feature C's UI before this investigation happens.
 
 1. ~~`ownerId` → `ownerIds` refactor, verified in isolation against existing Classic Draft leagues
    before anything else touches it.~~ **DONE** — see the Foundational section above.
-2. Classic Draft ownership setting + blind draft (builds directly on #1). **NOT STARTED — needs a
-   stronger-model pass before any code lands, see Feature A's own status note.**
+2. ~~Classic Draft ownership setting + blind draft (builds directly on #1).~~ **DONE** — see
+   Feature A's status note above.
 3. ~~Pick'em — fully independent of #1/#2 (no castaway ownership involved at all); can run in
    parallel with either.~~ **DONE** — see Feature B's status note above.
 4. Active Roster — depends on #1 (`ownerIds`) and #2 (the blind-draft mechanic).

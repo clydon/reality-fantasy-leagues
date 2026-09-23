@@ -436,6 +436,95 @@ classic-draft), and old-save migration backfilling `episode.picks`/`settings.pic
 A second pass ran the same ground through the real API and Postgres (9 checks) to confirm the new
 routes and the JSONB round-trip.
 
+### Shared ownership + blind draft (`settings.ownershipMode`)
+
+Classic Draft runs one of two draft mechanics, paired to `settings.ownershipMode` (commissioner-set
+in League Info, locked once the season is underway):
+
+- **`exclusive`** (default, every pre-existing league) — today's `SnakeDraftStrategy`, unchanged.
+- **`shared`** — `BlindDraftStrategy`: every player submits their whole set of picks privately, and
+  nothing is revealed until *every* eligible player has locked in, at which point all picks reveal
+  at once and the same castaway can end up on several rosters. This is what step 1's `ownerIds`
+  array was for.
+
+Both live under the same `'classic-draft'` league type; `getLeagueType(state)` applies the override
+(see `CLASSIC_DRAFT_SHARED`), so call sites keep reading `getLeagueType(state)` and never need to
+know `ownershipMode` exists.
+
+**Unrevealed picks are NOT in `state` — they're in their own table, and that's the whole design.**
+This was the one genuinely load-bearing decision in the feature. `state` is broadcast wholesale:
+`GET .../state` and every mutation route return the entire JSONB blob to any league member, so picks
+kept in it would be readable from anyone's Network tab before the reveal — the UI never rendering
+them is irrelevant. The two options were a redaction layer (filter state per requester) or a
+separate persistence path. **The deciding factor was failure mode, not effort:** redaction makes
+every one of ~40 state-returning routes fail *open* — miss one, or add a route later without knowing
+blind draft exists, and every player's picks leak silently. A separate table fails *closed*: routes
+that serialize `state` cannot leak what was never in it, and exposing the picks takes deliberately
+writing a route that does. For a privacy invariant that has to survive future edits by people who've
+never heard of this feature, enforcing it by *where the data lives* beats enforcing it by
+*remembering to filter*.
+
+That splits the mechanic along its real seam:
+
+- **Public, in `state`** — `state.blindDraft.lockedPlayerIds` (who has locked in, driving the
+  "waiting on N players" UI) and `revealedAt`. Who has committed isn't secret.
+- **Private, in `blind_draft_picks`** (`db/migrations/0004_blind_draft_picks.sql`) — *what* they
+  picked. Everything touching that table lives in `src/lib/server/blind-draft.ts`, so there's one
+  file to audit. Rows are deleted at reveal, since `ownerIds` is the durable record by then.
+
+`state.blindDraft.lockedPlayerIds` is a published *mirror* of the table, rewritten from it wholesale
+inside the same transaction on every lock/unlock — the table stays the source of truth, and the
+"is everyone in?" decision is made against the table, never against the cached field.
+
+**Reveal atomicity.** `withLeagueLock` grew a second mutator argument, the transaction's own
+`client` (every other caller ignores it). Blind draft needs it because the insert, the "is everyone
+in now?" read, and the reveal write all have to happen under the same `SELECT ... FOR UPDATE` row
+lock — otherwise two players locking in at the same instant could both see "still waiting" (draft
+never reveals) or both trigger the reveal (ownership applied twice).
+
+**Deadlock avoidance.** The reveal waits only on players who *can* lock in:
+`BlindDraftLogic.eligiblePlayers` excludes disabled seats (a departed player could otherwise stall
+the draft forever) and inactive ones. A seat deleted outright has its submission dropped in the same
+transaction; a seat merely *disabled* keeps any picks it already locked in, matching how a disabled
+seat's roster and points are deliberately preserved elsewhere.
+
+**One deliberate exception to this app's permission model.** Everywhere else, a commissioner can act
+on anyone's behalf. Here they may **submit** for a player (someone has to be able to unblock a draft
+stalled on an absent player) but may **not read** anyone else's submission, not even as super-admin —
+the commissioner is normally also a player, so reading picks pre-reveal would hand one player perfect
+information and defeat the mechanic. Submitting for someone is a visible, requested act; reading
+their picks would be silent.
+
+**Replenish and Swap are switched off in shared mode**, because both are free-agent mechanics and
+shared mode has no free agents — nothing is ever removed from availability. Left on, they'd be live
+buttons that silently accomplish nothing (`ReplenishLogic.assign`/`TradeLogic.swap` both refuse a
+castaway that already has an owner, and in shared mode every castaway does). A shared-mode replenish
+*could* instead mean "add any still-active castaway", but that's a design question the plan doesn't
+answer, so it's left out rather than guessed at.
+
+**Ripple this exposed in existing UI**, all fixed here: `SeasonStatusCard` rendered "?'s turn to
+draft (pick undefined)" for a live blind draft (there is no turn — `currentTurn` is `null` until the
+reveal); Mid-Season's static intro panel described mechanics that no longer exist; the Board grid and
+the Castaways settings list showed only `ownerIds[0]` and so hid co-owners; Draft Results' Undraft
+button is hidden in shared mode (it only receives a castawayId, so with several owners there's no
+way to say which one to strip). The Draft tab swaps the turn-based
+DraftOrder/Status/FreeAgents trio for a single `BlindDraftPanel`. `use-league-poll` now also syncs
+the *whole* state when the blind-draft signature changes — the reveal rewrites ownership across many
+castaways, which the deliberately-narrow `midSeason`-only patch can't carry; it's event-driven, not
+the every-15s full overwrite that patch exists to avoid.
+
+**Verification.** 48 pure-logic checks (mode pairing, turn semantics, eligibility/deadlock,
+submission validation, multi-owner reveal, idempotence, and scoring where a shared castaway's
+placement must count for *every* owner without double-counting) plus 23 through the real API and
+Postgres. The headline one is a direct **leak test**: after a player locks in, each submitted
+castaway id must appear *exactly once* in the served state blob — its own record in
+`state.castaways` — and nowhere else; if the picks were stored in state under any key, or applied to
+`ownerIds` early, the count would be higher. It also confirms reading another player's picks 403s,
+that the reveal doesn't fire at 1-of-3 or 2-of-3 but does on the third, and that a contested castaway
+lands on all three rosters. Exclusive mode was re-diffed byte-for-byte against its pre-change
+baseline across all 33 fixture steps, and the existing exclusive (16) and Pick'em (9) API suites
+were re-run green, since `withLeagueLock`'s signature and the player-delete route both changed.
+
 ## League Settings tab (`src/components/setup/*`, route `/setup`)
 
 Port of the live app's `renderSetup()` — the last major tab left unported, and the biggest single

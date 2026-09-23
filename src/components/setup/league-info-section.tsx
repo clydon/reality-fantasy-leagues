@@ -31,6 +31,11 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
   const seasonUnderway = draftStarted || state.episodes.length > 0;
   const typeLocked = !canManage || seasonUnderway || Object.keys(StateLogic.LEAGUE_TYPES).length <= 1;
   const showLocked = !canManage || seasonUnderway || Object.keys(StateLogic.SHOWS).length <= 1;
+  // Ownership mode locks on the same "season underway" signal, but NOT on the registry-size check
+  // the other two carry -- both of its options always exist, so there's nothing to wait for. It has
+  // to be locked before the draft runs rather than merely before episodes exist: flipping it
+  // mid-draft would swap the draft mechanic out from under picks already made.
+  const ownershipLocked = !canManage || seasonUnderway;
 
   async function saveName() {
     const trimmed = name.trim();
@@ -84,6 +89,19 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
             ))}
           </Select>
         </label>
+        {leagueType.hasRoster && (
+          <label className="flex items-center gap-1.5 text-sm">
+            Ownership:
+            <Select
+              value={state.settings.ownershipMode}
+              disabled={ownershipLocked}
+              onChange={(e) => updateSetting("ownershipMode", e.target.value)}
+            >
+              <option value="exclusive">Exclusive — snake draft, one owner each</option>
+              <option value="shared">Shared — blind draft, castaways can be shared</option>
+            </Select>
+          </label>
+        )}
         <label className="flex items-center gap-1.5 text-sm">
           Show:
           <Select
@@ -100,6 +118,13 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
         </label>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">{leagueType.description}</p>
+      {leagueType.hasRoster && state.settings.ownershipMode === "shared" && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Shared ownership runs a blind draft: everyone submits their whole set of picks privately and nothing
+          reveals until every player has locked in. Because nobody is ever taken off the board, Replenish and Swap
+          don&rsquo;t apply — there are no free agents to draw from.
+        </p>
+      )}
     </div>
   );
 }

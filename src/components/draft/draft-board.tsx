@@ -6,12 +6,18 @@ import { DraftOrderPanel } from "./draft-order-panel";
 import { DraftStatusPanel } from "./draft-status-panel";
 import { DraftResultsPanel } from "./draft-results-panel";
 import { FreeAgentsPanel } from "./free-agents-panel";
+import { BlindDraftPanel } from "./blind-draft-panel";
 
 // Direct port of renderDraft() (public/app.js), same panel order: Draft Order, status banner,
 // Draft Results, Free Agents. The sidebar/mobile nav both hide this tab's link for a league type
 // with no roster (pickem), but this route is still directly reachable by URL -- guard here too
 // rather than trusting the nav to be the only way in, same reasoning FinaleSettingsSection etc.
 // guard themselves instead of trusting only their parent to not render them.
+//
+// Shared ownership mode swaps the turn-based trio for a single BlindDraftPanel: there's no turn
+// order to set or show (everyone submits simultaneously) and no free-agent list (nothing is ever
+// removed from availability, so the panel offers the whole active cast itself). Draft Results still
+// applies to both modes -- post-reveal it's the same "who ended up with whom" view.
 export function DraftBoard() {
   const state = useLeagueStore((s) => s.state);
 
@@ -24,13 +30,28 @@ export function DraftBoard() {
     );
   }
 
+  const shared = state.settings.ownershipMode === "shared";
+
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Draft</h2>
-      <DraftOrderPanel state={state} />
-      <DraftStatusPanel state={state} />
-      <DraftResultsPanel state={state} />
-      <FreeAgentsPanel state={state} />
+      {shared ? (
+        <>
+          <DraftStatusPanel state={state} />
+          {StateLogic.BlindDraftLogic.isRevealed(state) ? (
+            <DraftResultsPanel state={state} />
+          ) : (
+            <BlindDraftPanel state={state} />
+          )}
+        </>
+      ) : (
+        <>
+          <DraftOrderPanel state={state} />
+          <DraftStatusPanel state={state} />
+          <DraftResultsPanel state={state} />
+          <FreeAgentsPanel state={state} />
+        </>
+      )}
     </>
   );
 }

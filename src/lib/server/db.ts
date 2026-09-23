@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import type { LeagueState } from "@/lib/game/types";
 import { HttpError } from "./http-error";
 
@@ -15,9 +15,16 @@ export const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL }
 // in-memory object, writes the result back, and returns the updated state. Direct port of
 // SurvivorDraft's server/db.js withLeagueLock -- a real row lock means two near-simultaneous
 // writes (e.g. two clicks from the same commissioner screen) can't silently clobber each other.
+//
+// The mutator also gets the transaction's own `client`, for the one case that needs to read or
+// write a table alongside `state` atomically: blind draft's lock/reveal (see
+// src/lib/server/blind-draft.ts), where "is everyone locked in now?" is read from
+// blind_draft_picks and the resulting reveal is written into `state` -- both under the same row
+// lock, so two players locking at the same moment can't both observe "not everyone yet" or both
+// trigger the reveal. Every other caller ignores the second argument and is unaffected.
 export async function withLeagueLock(
   leagueId: string,
-  mutatorFn: (state: LeagueState) => void | Promise<void>
+  mutatorFn: (state: LeagueState, client: PoolClient) => void | Promise<void>
 ): Promise<LeagueState> {
   const client = await pool.connect();
   try {
@@ -25,7 +32,7 @@ export async function withLeagueLock(
     const { rows } = await client.query("SELECT state FROM leagues WHERE id=$1 FOR UPDATE", [leagueId]);
     if (!rows.length) throw new HttpError(404, "League not found");
     const state: LeagueState = rows[0].state;
-    await mutatorFn(state);
+    await mutatorFn(state, client);
     await client.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), leagueId]);
     await client.query("COMMIT");
     return state;
