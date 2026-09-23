@@ -82,19 +82,19 @@ export const api = {
     }),
 
   proposeBet: (leagueId: string, epId: string, label: string, points: number) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets`, {
       method: "POST",
       body: JSON.stringify({ label, points }),
     }),
   removeBet: (leagueId: string, epId: string, betId: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}`, { method: "DELETE" }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}`, { method: "DELETE" }),
   addBetPrediction: (leagueId: string, epId: string, betId: string, playerId: string, guess: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/predictions`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/predictions`, {
       method: "POST",
       body: JSON.stringify({ playerId, guess }),
     }),
   setBetPredictionCorrect: (leagueId: string, epId: string, betId: string, predId: string, value: boolean) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/predictions/${predId}`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/predictions/${predId}`, {
       method: "PATCH",
       body: JSON.stringify({ value }),
     }),
@@ -115,30 +115,30 @@ export const api = {
     localFetch<LeagueState>(`/api/leagues/${leagueId}/draft/force-start`, { method: "POST" }),
 
   addEpisode: (leagueId: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes`, { method: "POST" }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes`, { method: "POST" }),
   removeEpisode: (leagueId: string, epId: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}`, { method: "DELETE" }),
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}`, { method: "DELETE" }),
   updateEpisode: (leagueId: string, epId: string, field: string, value: unknown) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}`, {
       method: "PATCH",
       body: JSON.stringify({ field, value }),
     }),
   addElimination: (leagueId: string, epId: string, castawayId: string, method: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/eliminations`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/eliminations`, {
       method: "POST",
       body: JSON.stringify({ castawayId, method }),
     }),
   removeElimination: (leagueId: string, epId: string, castawayId: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/eliminations/${castawayId}`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/eliminations/${castawayId}`, {
       method: "DELETE",
     }),
   updateBet: (leagueId: string, epId: string, betId: string, field: string, value: unknown) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}`, {
       method: "PATCH",
       body: JSON.stringify({ field, value }),
     }),
   removeBetPrediction: (leagueId: string, epId: string, betId: string, predId: string) =>
-    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/predictions/${predId}`, {
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/predictions/${predId}`, {
       method: "DELETE",
     }),
 
