@@ -24,10 +24,11 @@ original's plain text), and the login/demo-content fallback had an actual bug �
 rendering stacked on the same page instead of being mutually exclusive. All three are fixed now
 (`src/components/sidebar.tsx`, `src/components/login-screen.tsx`, `board-grid.tsx`, and
 `auth-gate.tsx`'s rewritten state machine), verified by re-screenshotting and comparing again, not
-just by re-reading the code. What's genuinely still approximate rather than measured 1:1 against
-`styles.css`: exact button/input styling elsewhere (still using Tailwind/shadcn defaults, not the
-live app's `.btn`/`input[type=...]` rules), and the mobile bottom-tab-bar chrome isn't ported —
-this sidebar is desktop-only.
+just by re-reading the code.
+
+A later pass (see "Shared UI components" below) closed the remaining gap this section used to
+flag — button/input/select styling everywhere, not just the sidebar/login/Board grid — against
+`styles.css`'s `.btn`/`input[type=...]` rules exactly.
 
 Ported so far: the full Overview tab — Side Bets section (propose a bet, guess, commissioner
 grading, delete), the three dashboard cards (Latest Episode, Season Status, Standings), and the
@@ -156,8 +157,9 @@ Two things this surfaced along the way, both fixed rather than left in:
   rather than conditionally rendering different text.
 
 Not ported: the league-switcher dropdown (this POC only ever loads one real league at a time, so
-there's nothing to switch between) and the chat unread-count badge (no unread tracking exists in
-`chat-store.ts`). League Settings and Rules aren't tabs in this POC at all, so the "More" sheet
+there's nothing to switch between) — the chat unread-count badge mentioned as missing here
+originally was added in the later Notifications pass, see that section below. League Settings and
+Rules aren't tabs in this POC at all, so the "More" sheet
 only lists what's actually real here, not a 1:1 copy of every row the live app's sheet has.
 
 ## Account system (`/account`, `/forgot-password`, `/reset-password`)
@@ -269,6 +271,42 @@ the UI's own delete button, which correctly calls `window.confirm()` first exact
 original — a Puppeteer test script hit this directly, since headless Chrome auto-dismisses
 confirm() with no handler, and via a direct API call to confirm the route itself works).
 
+## Shared UI components (`src/components/ui/button.tsx`, `input.tsx`, `select.tsx`, `textarea.tsx`)
+
+A visual-fidelity pass converting every hand-rolled `<button>`/`<input>`/`<select>` across the app
+(Draft, Episodes, Mid-Season, Admin, Account, Login, Chat, Report an Issue) to four shared
+components, each measured 1:1 against `public/styles.css` rather than left at Tailwind/shadcn
+defaults:
+
+- `button.tsx` — rewritten from shadcn's default variant set to match `.btn`/`.btn.secondary`/
+  `.btn.danger`/`.btn.small` exactly (`default`/`secondary`/`destructive` variants, `default`/`sm`
+  sizes only — shadcn's `outline`/`ghost`/`link` variants and `xs`/`lg`/icon sizes were unused
+  across the whole app, confirmed by grep before removing them).
+- `input.tsx`/`select.tsx` — ported from the live app's single shared
+  `input[type=...],select{...}` rule (same padding/border/focus-ring values for both, since the
+  original scopes them together).
+- `textarea.tsx` — ported from `.modal-box select,.modal-box textarea`, the only place the live
+  app uses a textarea at all (the report modal) — slightly larger padding/font than `input.tsx`,
+  matching that scoped rule rather than reusing Input's values.
+
+**Deliberately left bespoke, not converted**, because the live app itself styles these
+differently from `.btn`/`input[type=...]`:
+- `bet-card.tsx`/`side-bets-section.tsx`'s guess/propose forms — the original scopes these to
+  `.bet-guess-form input`, `.new-bet-form input`, `.btn-cancel`/`.btn-submit`, distinct classes
+  from `.btn`, confirmed by reading `renderBetCard()`/`renderBonusBetsSection()` in `public/app.js`
+  directly rather than assuming. Converting these to the shared components would make them *less*
+  faithful to the original, not more.
+- The ✏️/✕ icon-toggle buttons throughout (episode edit toggle, chat message edit/delete) — map to
+  the live app's `.icon-btn` pattern, which has no shared component yet.
+- Chat message bubble controls (edit/save/cancel, reactions) — styled contextually against the
+  message bubble's own `bg-primary`/`bg-secondary` background, not the standard card-background
+  input/button styling `input.tsx`/`button.tsx` assume.
+
+Verified: `npm run build` + `npm run lint` clean, then Puppeteer screenshots of Episodes (expanded
+card, both eliminations and side-bets forms), Draft (order ↑↓ buttons, Draft Results), and
+Mid-Season (Replenish/Swap/Finale selects) in mock mode, confirming the rendered padding/borders/
+focus states now match the live app rather than approximating it.
+
 ## Design tokens
 
 The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
@@ -286,11 +324,8 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
 - **`/account`'s UI is functional but minimal** — no email verification, no OAuth providers, no
   "change email" flow. The core signup/signin/reset cycle is real and verified; polish beyond
   that wasn't in scope yet.
-- **Buttons/inputs elsewhere still use Tailwind/shadcn defaults**, not measured 1:1 against the
-  live app's `.btn`/`input[type=...]` CSS rules the way the sidebar, login screen, and Board grid
-  now are — those got a rigorous screenshot-driven pass; the rest didn't yet.
-- **Mobile nav's league-switcher dropdown and chat unread badge aren't ported** — see the mobile
-  nav section below for why.
+- **Mobile nav's league-switcher dropdown isn't ported** — see the mobile nav section below for
+  why.
 
 ## Stack
 
