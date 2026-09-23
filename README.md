@@ -9,10 +9,12 @@ it's validating.
 
 Per `SurvivorDraft/docs/ARCHITECTURE.md`'s Phase 1 recommendation: React + Next.js (App Router) +
 Tailwind CSS + shadcn/ui + Zustand, with the **Overview tab ported first** as a self-contained
-validation case before committing to a full port of the live app. **All seven tabs are now
-ported** (Overview, Draft, Episodes, Mid-Season, Scoreboard, Chat, Admin), with real
-routing/navigation between them — the full live app's tab set, not just the one-tab proof of
-concept the plan called for as a first checkpoint.
+validation case before committing to a full port of the live app. **All seven of the live app's
+tabs are ported** (Overview, Draft, Episodes, Mid-Season, Scoreboard, Chat, Admin), with real
+routing/navigation between them, plus an eighth (**League Settings**, `/setup` — see that section
+below) that goes beyond a straight port: this repo is now moving past pure visual-parity
+validation toward being the real product, per this session's direction (see "League types and
+shows" below for the biggest example of that shift).
 
 `ARCHITECTURE.md` is explicit that this should be **"a translation, not a redesign"** — visual
 parity with the live app is a real goal here, not a nice-to-have. A side-by-side screenshot
@@ -57,8 +59,9 @@ full commissioner powers (propose/delete/grade bets), but no personal player ide
 guess as — `enterDemoMode()` in the live app never sets a player identity either.
 
 **Draft tab** (`src/components/draft/*`, route `/draft`): direct port of `renderDraft()` — draft
-order (reorder via ↑↓ buttons; drag-and-drop itself isn't ported, but the live app's own
-touch-device fallback already *is* this, so nothing loses its accessible equivalent), the
+order (reorder via ↑↓ buttons, which hide rather than render disabled at the ends of the list;
+drag-and-drop itself isn't ported, but the live app's own touch-device fallback already *is* this,
+so nothing loses its accessible equivalent), the
 not-started/in-progress/complete status banner, Draft Results (who each player originally
 drafted), and Free Agents (click to draft, with the same commissioner-drafting-for-someone-else
 confirm dialog). All four draft mutation routes (`force-start`, `order`, `pick`, `DELETE
@@ -106,12 +109,13 @@ than silently cut:
   live-refresh yet (everything fetches once via `AuthGate`), so Chat doesn't introduce that
   infrastructure alone. A manual Refresh button stands in for it. Same underlying reasoning as
   the Notifications banner staying unported.
-- **A fixed 5-emoji reaction palette (👍😂😮🔥🎉) instead of the live app's full emoji-mart
-  picker.** That library is explicitly called out in the original code as unable to fit the
-  declarative render model (`new EmojiMart.Picker(...)` builds a real DOM node imperatively) —
-  it's the one part of the live UI that was never a template-string render to begin with. The
-  underlying capability (`toggleReaction`/`react()` takes any emoji string) isn't missing, just a
-  full picker UI, if that's ever wanted.
+- **A real emoji picker ([`emoji-picker-react`](https://www.npmjs.com/package/emoji-picker-react)),
+  not the live app's emoji-mart.** An initial pass used a fixed 5-emoji palette as a stand-in,
+  since emoji-mart is explicitly called out in the original code as unable to fit the declarative
+  render model (`new EmojiMart.Picker(...)` builds a real DOM node imperatively) — it's the one
+  part of the live UI that was never a template-string render to begin with. `emoji-picker-react`
+  solves that directly (a normal React component), so the fixed palette was replaced with it. No
+  store/API changes needed — `toggleReaction`/`react()` already accepted any emoji string.
 
 Chat's data lives in its own Postgres tables (`chat_messages`/`chat_reactions`), not the JSONB
 league state, so it gets its own Zustand store (`chat-store.ts`) rather than folding into
@@ -156,11 +160,11 @@ Two things this surfaced along the way, both fixed rather than left in:
   removed — layout space stays reserved) when there's no real league to switch to; matched exactly
   rather than conditionally rendering different text.
 
-Not ported: the league-switcher dropdown (this POC only ever loads one real league at a time, so
-there's nothing to switch between) — the chat unread-count badge mentioned as missing here
-originally was added in the later Notifications pass, see that section below. League Settings and
-Rules aren't tabs in this POC at all, so the "More" sheet
-only lists what's actually real here, not a 1:1 copy of every row the live app's sheet has.
+The league-switcher dropdown mentioned as missing here originally (this POC only ever loaded one
+real league at a time) was added in a later pass — see "League switcher" below. The chat
+unread-count badge mentioned as missing here originally was added in the Notifications pass, see
+that section below. Rules isn't a tab in this POC at all, so the "More" sheet only lists what's
+actually real here, not a 1:1 copy of every row the live app's sheet has.
 
 ## Account system (`/account`, `/forgot-password`, `/reset-password`)
 
@@ -271,6 +275,139 @@ the UI's own delete button, which correctly calls `window.confirm()` first exact
 original — a Puppeteer test script hit this directly, since headless Chrome auto-dismisses
 confirm() with no handler, and via a direct API call to confirm the route itself works).
 
+## League types and shows (`state-logic.js`'s `LEAGUE_TYPES`/`SHOWS`)
+
+The first real step past pure visual-parity validation: introducing a genuine **strategy pattern**
+for how a league plays, not just another settings toggle. Today there's exactly one implementation
+(`'classic-draft'` — the snake draft + elimination-order scoring the live app already has), but
+the goal is future league types with entirely different mechanics (hidden picks revealed at a
+point in the season, weekly pick'em with no persistent roster at all) without those turning
+`DraftLogic`/`ScoringLogic` into a pile of `if(leagueType===...)` special cases.
+
+**`src/lib/game/state-logic.js` now forks from the live app's `shared/state-logic.js`** rather
+than staying a verbatim copy (see that file's own top comment for the updated provenance note) —
+the live repo is untouched by any of this, and there's no sync in either direction anymore. This
+was a deliberate call: the live vanilla-JS app has no concept of league types and never will, so
+continuing to pretend this file is "the same file, just copied" stopped being true or useful.
+
+- `DraftLogic` and `ScoringLogic` are now **thin dispatchers**: they read
+  `state.settings.leagueTypeId`, look it up in `LEAGUE_TYPES`, and delegate every method to that
+  entry's `draftStrategy`/`scoringStrategy`. `SnakeDraftStrategy` and
+  `EliminationOrderScoringStrategy` are `'classic-draft'`'s sole registered implementation —
+  renamed straight from the old `DraftLogic`/`ScoringLogic` bodies, zero logic changes, so every
+  existing league behaves identically to before this split (verified with a smoke test exercising
+  add-player, draft turn/pick/undo, scoring, and old-state migration through the new dispatch
+  path).
+- `SHOWS` is a second, smaller registry (today: Survivor only) for display/terminology metadata —
+  not wired to any behavior yet, but the natural home for a future per-show config (e.g. where to
+  source episode data from — see "Future: auto-sourcing episode data" below).
+- `settings.leagueTypeId`/`settings.showId` are new fields (defaulted for new leagues, backfilled
+  via `Migrations.migrateLeagueState` for old ones).
+- Mid-Season's three panels (`mid-season-tab.tsx`) are now gated on the active league type's
+  `supportsReplenish`/`supportsTrade`/`supportsFinalePredictions` flags — a no-op today (all three
+  are `true` for `'classic-draft'`), but it's what makes the abstraction load-bearing rather than
+  decorative: a league type without a persistent roster just won't render those panels, with no
+  special-casing needed in `mid-season-tab.tsx` itself when that type is added.
+
+**Deliberately not done yet**: `ReplenishLogic`/`TradeLogic` still have their own inline
+snake-round-reversal logic rather than being forced through `SnakeDraftStrategy` — they're
+mid-season features of the current league type, not an independently-varying axis on their own; if
+a future league type needs different replenish/trade behavior, give them the same dispatcher
+treatment then. A "weekly pick'em" league (no persistent roster, no turn-based picks at all) almost
+certainly won't fit the `DraftStrategy` shape regardless — noted directly in `state-logic.js`'s
+comments as a sign it would need its own top-level state/UI branch, not a third `DraftStrategy`
+implementation forced to pretend it's turn-based.
+
+**Future: auto-sourcing episode data.** Not built, but the direction this is headed: periodically
+having an LLM fetch and structure per-show, per-season data (contestants, episode-by-episode
+eliminations/exits — a source like the Survivor Fandom wiki has everything needed) and cache it,
+rather than paying an AI-request cost per user action. `SHOWS`' per-show metadata is the natural
+attachment point for that once it's built.
+
+## League Settings tab (`src/components/setup/*`, route `/setup`)
+
+Port of the live app's `renderSetup()` — the last major tab left unported, and the biggest single
+tab the live app has. Same section boundaries as the original, one component per section: League
+Info (name, draft schedule, plus the new League Type/Show pickers from `LEAGUE_TYPES`/`SHOWS`
+above — populated from the real registry so a second entry becomes selectable the moment one's
+registered, but disabled today since there's only one of each and/or the draft may already be
+running), Players (color/name edit, remove, activate a post-draft late joiner), Tribes, Castaways,
+General/Side-Bet/Finale settings (the last gated on `supportsFinalePredictions`, same flag
+Mid-Season's panel checks), Backup (Export always works — pure client-side JSON download of
+`state`, works identically in both modes; Import/Reset are live-only, Reset additionally requires
+super-admin, matching the live app's server-side re-check beyond the route's own commissioner
+gate), and Leave League (live-only, falls back to demo data afterward — there's no multi-league
+dashboard screen to return to instead).
+
+Whole tab is visible to everyone; every field disables itself via `useCanManage()` rather than the
+tab being gated, matching the live app's own "viewable by everyone, only commissioner edits" model
+and banner text.
+
+Every new `src/lib/api.ts` function (rename, settings, player/tribe/castaway CRUD, activate,
+import, reset, leave) hits an **already-existing** SurvivorDraft backend route
+(`server/routes/roster.js`, `server/routes/leagues.js`) — no backend changes anywhere in this
+work. Verified against the real API and a throwaway fixture league/user, not just mock mode:
+rename, both new settings fields, add/update/remove player/tribe/castaway, and confirmed reset is
+correctly rejected (403) for a plain commissioner.
+
+Also surfaced that `playerAccounts` (which player each account is linked to) was already being
+fetched by `api.leagueState()` and thrown away — now wired into `useLeagueStore` so the Players
+section can actually show it.
+
+## League switcher (`src/components/league-switcher.tsx`)
+
+The static league-name display in both `Sidebar` and `MobileNav`'s top bar becomes a real dropdown
+listing every league the signed-in user belongs to — data that was already being fetched
+(`GET /api/auth/me`) by `AuthGate`'s `loadFirstLeague` and discarded after picking `leagues[0]`.
+Needed now that testing a second league (to try a future league type against, once one exists) is
+an actual workflow, not just a hypothetical.
+
+Each row shows the league's name, the user's role, and a league-type badge. `/api/auth/me` doesn't
+return per-league settings, so the badge is resolved **lazily** — one `api.leagueState()` call per
+not-yet-seen league, fired on first open rather than upfront. Fine at friend-group scale (a
+handful of leagues per user); not built to scale further than that, and it doesn't need to be for
+this app's actual audience. The lazy-fetch-and-cache logic is shared between the desktop and
+mobile call sites via a `useLeagueTypeBadges` hook, so the two don't duplicate the async logic
+while keeping their layouts as genuinely separate components (per this repo's existing mobile-
+chrome convention — see the Mobile nav chrome section above).
+
+`useLeagueStore` gained `leagues`/`setLeagues`/`switchLeague(id)` (the last calls
+`api.leagueState` then the same load sequence `loadFirstLeague` already uses). `useMock()` now
+also clears `leagues` for consistency, alongside the identity fields it already cleared — "switch
+to demo data" is a full reset to anonymous, not a preview while staying signed in.
+
+Verified against two real fixture leagues under one fixture user, through the actual login UI and
+a live browser session: both leagues list with correct type badges, and switching leagues
+correctly swaps the sidebar league name and the underlying store state.
+
+## Bet card & Side Bets redesign (`overview/bet-card.tsx`, `overview/side-bets-section.tsx`, `episodes/episode-bet-row.tsx`)
+
+The one visual-parity call this repo made on purpose in the *other* direction: the live app's
+bet-card controls were always bespoke, one-off classes (`.btn-cancel`/`.btn-submit`/
+`.bet-guess-form input`/`.new-bet-form input`), never a variant of the shared `.btn`/
+`input[type=...]` rule — so there was no existing CSS to port for a "matches the original" version
+of shared components here. Asked to design something better long-term instead of preserving that
+one-off styling, landed on:
+
+- **`Badge`** (`src/components/ui/badge.tsx`, previously defined but unused anywhere in the app)
+  for the "NEEDS YOUR GUESS" corner tag, the needs-your-guess count pill, the correct/incorrect
+  result pills, and player-name pills — these were already pill-shaped in the live app's own CSS
+  (`.bet-corner-tag`, `.guess-row .result`), confirmed by reading `styles.css` directly rather than
+  assuming, so `Badge` was the right existing primitive for the job.
+- A new **`Button` `size="xs"`** and **`Input`/`Select` `size="sm"`**, sized for a dense card grid
+  — new design, not a port, chosen over adopting `ui/card.tsx` (also previously unused; its
+  `ring-1 ring-foreground/10` shadcn convention doesn't match this app's actual established
+  border-based card language, repeated by hand in ~15 files — using it here would have introduced
+  a *third* visual language rather than converging toward one).
+- Circular avatar-initial elements (creator/guesser color circles) stay plain `<div>`s, not
+  `Badge` — the live app's own `.avatar-pill` is a fixed 20×20 circle, not a text pill, so `Badge`'s
+  pill shape doesn't fit that job even though the name suggests it should.
+
+Caught a real type error while wiring the new `size` prop into `Input`/`Select`: `<input>`/
+`<select>` already have a native `size` HTML attribute (typed as `number` in React's DOM types),
+so `size?: "default" | "sm"` needs `Omit<..., "size">` first or the intersection silently collapses
+every prop on the component to `never` — caught by `npm run build`, not by inspection.
+
 ## Shared UI components (`src/components/ui/button.tsx`, `input.tsx`, `select.tsx`, `textarea.tsx`)
 
 A visual-fidelity pass converting every hand-rolled `<button>`/`<input>`/`<select>` across the app
@@ -289,18 +426,20 @@ defaults:
   app uses a textarea at all (the report modal) — slightly larger padding/font than `input.tsx`,
   matching that scoped rule rather than reusing Input's values.
 
-**Deliberately left bespoke, not converted**, because the live app itself styles these
-differently from `.btn`/`input[type=...]`:
+**Deliberately left bespoke at the time**, because the live app itself styles these differently
+from `.btn`/`input[type=...]`:
 - `bet-card.tsx`/`side-bets-section.tsx`'s guess/propose forms — the original scopes these to
   `.bet-guess-form input`, `.new-bet-form input`, `.btn-cancel`/`.btn-submit`, distinct classes
   from `.btn`, confirmed by reading `renderBetCard()`/`renderBonusBetsSection()` in `public/app.js`
-  directly rather than assuming. Converting these to the shared components would make them *less*
-  faithful to the original, not more.
-- The ✏️/✕ icon-toggle buttons throughout (episode edit toggle, chat message edit/delete) — map to
-  the live app's `.icon-btn` pattern, which has no shared component yet.
+  directly rather than assuming. Since this repo is no longer strictly chasing 1:1 visual parity
+  with the live app (see "League types and shows" below), a later pass *did* rebuild these on
+  shared components anyway — not the ones ported from the live app's CSS, but new ones designed
+  for the job. See "Bet card & Side Bets redesign" below.
+- The ✏️/✕ icon-toggle buttons throughout (episode edit toggle, chat message edit/delete) — still
+  map to the live app's `.icon-btn` pattern, which has no shared component yet. Still bespoke.
 - Chat message bubble controls (edit/save/cancel, reactions) — styled contextually against the
   message bubble's own `bg-primary`/`bg-secondary` background, not the standard card-background
-  input/button styling `input.tsx`/`button.tsx` assume.
+  input/button styling `input.tsx`/`button.tsx` assume. Still bespoke.
 
 Verified: `npm run build` + `npm run lint` clean, then Puppeteer screenshots of Episodes (expanded
 card, both eliminations and side-bets forms), Draft (order ↑↓ buttons, Draft Results), and
@@ -321,11 +460,11 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
 
 - **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
   cast photos.
-- **`/account`'s UI is functional but minimal** — no email verification, no OAuth providers, no
-  "change email" flow. The core signup/signin/reset cycle is real and verified; polish beyond
-  that wasn't in scope yet.
-- **Mobile nav's league-switcher dropdown isn't ported** — see the mobile nav section below for
-  why.
+- **`/account`'s UI is functional but minimal, and deliberately staying that way for now** — no
+  email verification, no OAuth providers, no "change email" flow. Explicit direction: this needs
+  to work out of the box for a friends-only launch with zero paid external services, which the
+  current setup already satisfies (no `RESEND_API_KEY` needed — see that section above), so email
+  verification/OAuth stay deprioritized rather than being a gap to close.
 
 ## Stack
 
@@ -335,6 +474,7 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
 - Better Auth for this app's own account system (`src/lib/auth.ts`) — its own Postgres database
   via plain `pg`, no ORM
 - TanStack Query for interval polling (Notifications, Chat — `use-league-poll.ts`)
+- `emoji-picker-react` for Chat's reaction picker
 
 ## Getting started
 
