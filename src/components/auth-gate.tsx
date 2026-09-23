@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useLeagueStore } from "@/lib/store";
 import { Sidebar } from "@/components/sidebar";
@@ -9,6 +10,12 @@ import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 
 type Status = "checking" | "idle" | "loading";
 
+// This app's own Better Auth account pages (src/lib/auth.ts) are a deliberately separate concern
+// from the SurvivorDraft-login gate below -- they must stay reachable regardless of whether
+// there's a demo/SurvivorDraft session, so they bypass this gate entirely rather than being
+// nested inside "entered" league-scoped content.
+const PUBLIC_ROUTES = ["/account", "/forgot-password", "/reset-password"];
+
 // Owns the same top-level branch the live app's boot()/renderLoginScreen() do: either the login
 // screen (no sidebar at all -- see public/index.html's <aside style="display:none">, only shown
 // once renderTabs() runs after auth) or the full sidebar+content shell, never both at once. An
@@ -16,6 +23,7 @@ type Status = "checking" | "idle" | "loading";
 // same page in the fallback case -- this rewrite makes the two states properly exclusive via
 // `entered`, matching the original's actual behavior instead of approximating it.
 export function AuthGate({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const mode = useLeagueStore((s) => s.mode);
   const loadLive = useLeagueStore((s) => s.loadLive);
   const enterMockMode = useLeagueStore((s) => s.useMock); // renamed locally -- a plain callback, not a hook, but eslint's rule flags anything named use*
@@ -64,6 +72,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
   function handleSkip() {
     enterMockMode();
     setEntered(true);
+  }
+
+  if (PUBLIC_ROUTES.includes(pathname)) {
+    return <div className="min-h-screen bg-background px-4 py-10">{children}</div>;
   }
 
   if (status === "checking") {

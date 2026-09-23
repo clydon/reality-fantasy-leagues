@@ -1,13 +1,16 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 
 // Port of renderLoginScreen() (public/app.js) -- exact structure: 360px-wide centered column,
 // banner.png, a .panel box (h3 renders as small uppercase muted text via the global h3 rule,
 // hence "LOG IN" rather than a normal heading), then a full-width secondary button below the
-// panel for the demo entry point. Signup isn't ported (no signup API wired in this POC), so
-// "Create an account" is omitted rather than shown as a dead link.
+// panel for the demo entry point. The live app has no signup here at all (accounts are
+// commissioner-created); this POC adds a link to /account below instead, since that's this app's
+// own separate, forward-looking account system (src/lib/auth.ts) -- not a port of anything in
+// the live app, so it's kept visually distinct rather than folded into this "Log in" panel.
 export function LoginScreen({
   onLogin,
   onSkip,
@@ -71,6 +74,12 @@ export function LoginScreen({
       >
         🎬 Take a Tour (Preview a Mock Season)
       </button>
+      <p className="mt-3 text-center text-xs text-muted-foreground">
+        Building the future version of this app?{" "}
+        <Link href="/account" className="font-semibold text-primary hover:underline">
+          Create an account
+        </Link>
+      </p>
     </div>
   );
 }

@@ -160,6 +160,43 @@ there's nothing to switch between) and the chat unread-count badge (no unread tr
 `chat-store.ts`). League Settings and Rules aren't tabs in this POC at all, so the "More" sheet
 only lists what's actually real here, not a 1:1 copy of every row the live app's sheet has.
 
+## Account system (`/account`, `/forgot-password`, `/reset-password`)
+
+A real email+password signup with a working password-reset flow, using
+[Better Auth](https://better-auth.com) — chosen deliberately over Auth.js/NextAuth after actually
+researching current (2026) community consensus rather than defaulting to older training-data
+familiarity. Magic-link-only was considered and rejected in favor of traditional password+reset,
+per explicit direction.
+
+**This is a separate, forward-looking account system, not a port of anything in the live app.**
+`SurvivorDraft` has no email/signup at all today (accounts are commissioner-created,
+username+password only) — this is what *this* product's own accounts look like per
+`ARCHITECTURE.md`'s Phase 4 roadmap ("self-serve signup/OAuth"). It intentionally doesn't touch
+the existing SurvivorDraft-login demo flow (`auth-gate.tsx`/`useLeagueStore`) at all: two
+unrelated identity systems coexist in this repo on purpose, and `/account`+`/forgot-password`+
+`/reset-password` bypass `AuthGate`'s SurvivorDraft gate entirely so they're reachable regardless
+of demo/login state (see `PUBLIC_ROUTES` in `auth-gate.tsx`).
+
+- `src/lib/auth.ts` — server instance. Its own Postgres database (`AUTH_DATABASE_URL`, a plain
+  `pg.Pool` — no ORM, consistent with this project's conventions), **not** shared with
+  `SurvivorDraft`'s database; that DB's `users` table means something else entirely. Schema
+  applied via `npx @better-auth/cli migrate`.
+- `src/lib/auth-client.ts` — the React client (`useSession`, `signIn`, `signUp`, `signOut`,
+  `requestPasswordReset`, `resetPassword`), same-origin (unlike the SurvivorDraft calls, which
+  cross origins over CORS).
+- `src/app/api/auth/[...all]/route.ts` — the whole API surface in one Next.js route handler
+  (`toNextJsHandler`).
+- **No real email sending configured.** Without `RESEND_API_KEY` set, reset/verification emails
+  are logged to the server console instead (see `sendAuthEmail` in `auth.ts`) — the entire signup
+  → forgot-password → reset flow is fully exercisable locally with zero external dependency, one
+  env var away from sending real mail via Resend.
+
+Verified end-to-end against the real database (not just built): signed up a real account,
+signed in, requested a reset, completed the reset using the actual token from the logged email
+(confirmed it correctly `302`s from the emailed API link to `/reset-password?token=...`), then
+confirmed the old password now fails and the new one works. Throwaway test account cleaned up
+after.
+
 ## Design tokens
 
 The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
@@ -183,8 +220,9 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
   in-app "Report an Issue" submission modal — a separate, smaller super-admin utility not named in
   `ARCHITECTURE.md`'s Phase 1 tab list (Overview/Draft/Episodes/Mid-Season/Scoreboard/Chat/Admin,
   all now done), so it wasn't in scope for validating that list.
-- **No signup/session-persistence UI polish** — the login form is functional but minimal (see
-  `auth-gate.tsx`).
+- **`/account`'s UI is functional but minimal** — no email verification, no OAuth providers, no
+  "change email" flow. The core signup/signin/reset cycle is real and verified; polish beyond
+  that wasn't in scope yet.
 - **Buttons/inputs elsewhere still use Tailwind/shadcn defaults**, not measured 1:1 against the
   live app's `.btn`/`input[type=...]` CSS rules the way the sidebar, login screen, and Board grid
   now are — those got a rigorous screenshot-driven pass; the rest didn't yet.
@@ -196,6 +234,8 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
 - Next.js 16 (App Router, Turbopack), TypeScript
 - Tailwind CSS v4 + shadcn/ui (`base-nova` style/preset)
 - Zustand for state (`src/lib/store.ts`)
+- Better Auth for this app's own account system (`src/lib/auth.ts`) — its own Postgres database
+  via plain `pg`, no ORM
 
 ## Getting started
 
@@ -213,3 +253,14 @@ NEXT_PUBLIC_API_BASE=http://localhost:<survivordraft-dev-port>
 ```
 
 and sign in with a real account on the "Sign in" screen (or click "Skip — use demo data instead").
+
+For the `/account` system (separate from the above — see that section), also add to `.env.local`:
+
+```
+AUTH_DATABASE_URL=postgres://<user>:<pass>@localhost:5432/<a database just for this>
+BETTER_AUTH_SECRET=<any random string>
+BETTER_AUTH_URL=http://localhost:<this app's dev port>
+```
+
+then apply the schema once: `npx @better-auth/cli migrate`. No email provider needed for local
+dev — reset links get logged to the server console (see that section above).
