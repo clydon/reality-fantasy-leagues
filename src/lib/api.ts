@@ -67,7 +67,10 @@ export const api = {
     }),
   me: () => localFetch<MeResponse>("/api/me"),
   logout: () => apiFetch<{ ok: true }>("/api/auth/logout", { method: "POST" }),
-  stopImpersonating: () => apiFetch<{ ok: true }>("/api/auth/stop-impersonating", { method: "POST" }),
+  // Better Auth's own admin-plugin endpoint (not a custom route -- it already does exactly this,
+  // swapping the session cookie back to the impersonator's). Needs an explicit empty JSON body --
+  // Better Auth 400s on "Invalid JSON in request body" for a truly bodyless POST.
+  stopImpersonating: () => localFetch<{ ok: true }>("/api/auth/admin/stop-impersonating", { method: "POST", body: "{}" }),
   leagueState: (leagueId: string) =>
     localFetch<LeagueStateResponse>(`/api/leagues/${leagueId}/state`),
   createLeague: (name: string) =>
@@ -205,34 +208,35 @@ export const api = {
 
   // Admin routes -- superAdmin-only server-side (requireSuperAdmin), cross-league scope (not
   // the per-league LeagueState everything else here reads/writes).
-  adminListUsers: () => apiFetch<{ users: AdminUser[] }>("/api/admin/users"),
+  adminListUsers: () => localFetch<{ users: AdminUser[] }>("/api/admin/users"),
   adminCreateUser: (username: string) =>
-    apiFetch<{ user: { id: string; username: string }; tempPassword: string }>("/api/admin/users", {
+    localFetch<{ user: AdminUser; tempPassword: string }>("/api/admin/users", {
       method: "POST",
       body: JSON.stringify({ username }),
     }),
   adminResetPassword: (userId: string) =>
-    apiFetch<{ user: { id: string; username: string }; tempPassword: string }>(`/api/admin/users/${userId}/reset-password`, {
+    localFetch<{ tempPassword: string }>(`/api/admin/users/${userId}/reset-password`, {
       method: "POST",
     }),
-  adminUserLeagues: (userId: string) => apiFetch<{ leagues: { id: string; name: string; role: string }[] }>(`/api/admin/users/${userId}/leagues`),
-  adminDeleteUser: (userId: string) => apiFetch<{ ok: true }>(`/api/admin/users/${userId}`, { method: "DELETE" }),
-  adminImpersonate: (userId: string) =>
-    apiFetch<{ ok: true; username: string }>(`/api/admin/users/${userId}/impersonate`, { method: "POST" }),
+  adminUserLeagues: (userId: string) => localFetch<{ leagues: { id: string; name: string; role: string }[] }>(`/api/admin/users/${userId}/leagues`),
+  adminDeleteUser: (userId: string) => localFetch<{ ok: true }>(`/api/admin/users/${userId}`, { method: "DELETE" }),
+  // Response body isn't used (the impersonation cookie swap is the whole point); the caller does
+  // a full reload right after, same as stopImpersonating.
+  adminImpersonate: (userId: string) => localFetch<unknown>(`/api/admin/users/${userId}/impersonate`, { method: "POST" }),
 
-  adminListLeagues: () => apiFetch<{ leagues: AdminLeague[] }>("/api/admin/leagues"),
-  adminDeleteLeague: (leagueId: string) => apiFetch<{ ok: true }>(`/api/admin/leagues/${leagueId}`, { method: "DELETE" }),
+  adminListLeagues: () => localFetch<{ leagues: AdminLeague[] }>("/api/admin/leagues"),
+  adminDeleteLeague: (leagueId: string) => localFetch<{ ok: true }>(`/api/admin/leagues/${leagueId}`, { method: "DELETE" }),
   adminLeagueMemberships: (leagueId: string) =>
-    apiFetch<{ players: Player[]; memberships: AdminMembership[] }>(`/api/admin/leagues/${leagueId}/memberships`),
+    localFetch<{ players: Player[]; memberships: AdminMembership[] }>(`/api/admin/leagues/${leagueId}/memberships`),
   adminLinkMembership: (leagueId: string, userId: string, playerId: string, role: "member" | "commissioner") =>
-    apiFetch<{ membership: AdminMembership }>(`/api/admin/leagues/${leagueId}/memberships`, {
+    localFetch<{ membership: AdminMembership }>(`/api/admin/leagues/${leagueId}/memberships`, {
       method: "POST",
       body: JSON.stringify({ userId, playerId, role }),
     }),
   adminUnlinkMembership: (leagueId: string, membershipId: string) =>
-    apiFetch<{ ok: true }>(`/api/admin/leagues/${leagueId}/memberships/${membershipId}`, { method: "DELETE" }),
+    localFetch<{ ok: true }>(`/api/admin/leagues/${leagueId}/memberships/${membershipId}`, { method: "DELETE" }),
   adminDeletePlayer: (leagueId: string, playerId: string) =>
-    apiFetch<{ ok: true; player: Player }>(`/api/admin/leagues/${leagueId}/players/${playerId}`, { method: "DELETE" }),
+    localFetch<{ ok: true; player: Player }>(`/api/admin/leagues/${leagueId}/players/${playerId}`, { method: "DELETE" }),
 
   // League Settings -- commissioner-only server-side (requireLeagueRole('commissioner') on every
   // route in server/routes/roster.js), same generic field/value PATCH pattern as updateEpisode.
@@ -287,11 +291,11 @@ export const api = {
   leaveLeague: (leagueId: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/leave`, { method: "POST" }),
 
-  adminListReports: () => apiFetch<{ reports: Report[] }>("/api/admin/reports"),
-  adminDeleteReport: (id: string) => apiFetch<{ ok: true }>(`/api/admin/reports/${id}`, { method: "DELETE" }),
-  // Not admin-gated -- any signed-in SurvivorDraft user can submit one (requireAuth server-side).
+  adminListReports: () => localFetch<{ reports: Report[] }>("/api/admin/reports"),
+  adminDeleteReport: (id: string) => localFetch<{ ok: true }>(`/api/admin/reports/${id}`, { method: "DELETE" }),
+  // Not admin-gated -- any signed-in user can submit one (requireAuth server-side).
   submitReport: (type: "issue" | "feature", message: string, route: string, leagueId: string | null, leagueName: string | null) =>
-    apiFetch<{ ok: true }>("/api/reports", {
+    localFetch<{ ok: true }>("/api/reports", {
       method: "POST",
       body: JSON.stringify({ type, message, route, leagueId, leagueName }),
     }),

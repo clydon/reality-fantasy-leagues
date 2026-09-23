@@ -59,7 +59,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   async createUser(username) {
     const data = await api.adminCreateUser(username);
-    set({ lastTempPassword: { username: data.user.username, password: data.tempPassword } });
+    set({ lastTempPassword: { username, password: data.tempPassword } });
     const usersData = await api.adminListUsers();
     set({ users: usersData.users });
   },

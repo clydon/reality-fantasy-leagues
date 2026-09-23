@@ -107,12 +107,15 @@ export interface LeagueState {
   settings: LeagueSettings;
 }
 
+// Shaped by Better Auth's user model (+ the admin/username plugins) now, not a custom `users`
+// table -- no must_change_password concept exists there, so admin-created accounts' temp
+// passwords are just shown once in the UI, same security property, simpler mechanism.
 export interface AdminUser {
   id: string;
-  username: string;
-  is_super_admin: boolean;
-  must_change_password: boolean;
-  created_at: string;
+  username: string | null;
+  email: string;
+  isSuperAdmin: boolean;
+  createdAt: string;
 }
 
 export interface AdminLeague {

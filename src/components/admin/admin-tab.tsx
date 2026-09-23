@@ -99,22 +99,22 @@ export function AdminTab() {
             <div key={u.id} className="rounded-md border border-border p-2.5">
               <div className="mb-1.5 flex flex-wrap items-center gap-2 text-sm">
                 <span className="flex-1 font-semibold">
-                  {u.username}
-                  {u.is_super_admin && <span className="ml-1 font-normal text-muted-foreground">(super-admin)</span>}
+                  {u.username || u.email}
+                  {u.isSuperAdmin && <span className="ml-1 font-normal text-muted-foreground">(super-admin)</span>}
                 </span>
-                {u.must_change_password && <span className="text-xs text-muted-foreground">must change password</span>}
+                <span className="text-xs text-muted-foreground">{u.email}</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {u.id !== myUserId && (
-                  <Button variant="secondary" size="sm" onClick={() => impersonateUser(u.id, u.username)}>
+                  <Button variant="secondary" size="sm" onClick={() => impersonateUser(u.id, u.username || u.email)}>
                     Impersonate
                   </Button>
                 )}
-                <Button variant="secondary" size="sm" onClick={() => resetPassword(u.id, u.username)}>
+                <Button variant="secondary" size="sm" onClick={() => resetPassword(u.id, u.username || u.email)}>
                   Reset Password
                 </Button>
                 {u.id !== myUserId && (
-                  <Button variant="destructive" size="sm" onClick={() => deleteUser(u.id, u.username)}>
+                  <Button variant="destructive" size="sm" onClick={() => deleteUser(u.id, u.username || u.email)}>
                     Delete
                   </Button>
                 )}
