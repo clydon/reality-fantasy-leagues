@@ -1,12 +1,13 @@
 # Plan: League types expansion (ownership modes, Pick'em, Active Roster) + wiki connector
 
 **Status:** Step 1 (the `ownerId` -> `ownerIds` refactor) and Feature B (Pick'em) of "Suggested
-execution order" are **implemented and verified**. Features A, C, D are still unbuilt — note
-Feature A (ownership mode + blind draft) turned out to need real architectural judgment before any
-code lands (see its own status note below), not just CRUD; hold it for a stronger model pass
-rather than treating it as routine. Written from a multi-turn design conversation — read this file
-plus the referenced source files and you have everything needed to execute without that
-conversation's history.
+execution order" are **implemented and verified**. Feature D's wiki-connector groundwork is
+**investigated** (real findings against real pages, connector itself not built). Features A and C
+are still unbuilt — note Feature A (ownership mode + blind draft) turned out to need real
+architectural judgment before any code lands (see its own status note below), not just CRUD; hold
+it for a stronger model pass rather than treating it as routine. Written from a multi-turn design
+conversation — read this file plus the referenced source files and you have everything needed to
+execute without that conversation's history.
 
 ## Context (read this first)
 
@@ -282,16 +283,78 @@ castaways start benched, trade behaves identically to Classic Draft's trade.
 
 ---
 
-## Feature D: Wiki connector (MediaWiki API + AI extraction + commissioner review)
+## Feature D: Wiki connector (MediaWiki API + AI extraction + commissioner review) — INVESTIGATED
 
-**Source:** MediaWiki Action API against `survivor.fandom.com` — wikitext via
+**Investigation done, connector itself NOT built** (per this section's own instruction: "first
+step is investigation, not implementation"). Real findings below, against real pages, via direct
+`curl` against `survivor.fandom.com/api.php` — not WebFetch, which returned HTTP 402 on every
+`survivor.fandom.com` URL tried (season page, api.php, Special:Search) while working fine against
+other sites (Wikipedia) in the same session; looked like Fandom's bot-protection rejecting
+WebFetch's request signature specifically. Irrelevant to the real connector (a standalone script
+using a normal HTTP client, same as `curl` here, not Claude's own tools) but worth knowing if a
+future Claude Code session tries to investigate further this same way.
+
+**Source confirmed workable**: MediaWiki Action API against `survivor.fandom.com` — wikitext via
 `action=query&prop=revisions`, not scraped rendered HTML, since it's more stable against layout
-drift and closer to structured source data (season pages have a consistent "Voting History"
-table with named fields).
+drift and closer to structured source data. Season pages exist at the predictable title
+`Survivor <N>` (confirmed via `action=query&list=search`, e.g. `Survivor 44`, `Survivor 43`).
+
+**Real structural finding the plan didn't anticipate: season pages do NOT contain the voting or
+episode data inline.** `Survivor 44`'s own wikitext has `==Voting History==` followed by nothing
+but `{{S44votetable}}` — a template transclusion. The actual per-player-per-episode vote grid
+lives on a SEPARATE page, `Template:S44votetable`, fetched with its own `action=query&prop=revisions`
+call. Same story for `==Season Summary==` and `{{S44epguide}}` → `Template:S44epguide` (the
+per-episode reward/immunity/elimination table). Confirmed this naming convention
+(`Template:S<N>votetable` / `Template:S<N>epguide`) holds for at least two seasons (44, 43) — a
+real connector needs to know it has to make (at least) three fetches per season, not one, and
+needs the season number to build the two template titles.
+
+**Field-by-field reliability, from real Survivor 44 data** (Bruce medically evacuated episode 1 —
+`{{tribebox|status|''Evacuated''}}` — with footnote prose "Bruce was evacuated due to a head
+injury. No vote occurred for his removal."; Matthew quit episode 6 for a shoulder injury, same
+`{{tribebox|status|''Quit''}}` pattern; five separate idol-negation events flagged across the
+season, e.g. `4-0{{sup|[[#endnote idol|2]]}}`; no double-boot episode found in either S44 or S43,
+so that specific case from this section's own list is still untested):
+- **Episode number, air date, tribe assignments, exit method (voted out / evacuated / quit)** —
+  reliably structured. The votetable's last populated cell in a player's row distinguishes a
+  normal vote-received cell (`{{tribebox|<tribe>|<name>}}`) from a `{{tribebox|status|<verb>}}`
+  terminal marker, consistently, across at least the two seasons checked. Good auto-suggest
+  candidates.
+- **Immunity/reward winners** — present and reasonably structured, but in the SEPARATE epguide
+  template, not the votetable — a connector needs both. The wiki's own columns don't distinguish
+  individual vs. tribe immunity as a field; that has to be inferred (pre-merge tribe columns vs.
+  post-merge individual cells), which an LLM handles better than a fixed-column parser would, but
+  it's inference, not a direct read. Auto-suggest candidate, flagged lower-confidence than exit
+  method.
+- **Idol plays, zero-vote safes** — present, but only via footnote-marker cross-referencing: a
+  numeric superscript on the episode's vote-count cell (e.g. `{{sup|[[#endnote idol|2]]}}`) that
+  has to be matched to prose in a `Notes:` block at the bottom of the SAME template, and separately
+  cross-referenced against which specific player's cell carries a matching marker to identify who.
+  Real, extractable, but a genuine multi-hop inference — and footnote numbers are page-specific
+  (season 44's idol marker happens to be "2"; nothing guarantees that number means the same thing
+  on a different season's page), so a rule-based parser keyed to a fixed number would silently
+  break the moment it's pointed at a different season. Auto-suggest, but clearly marked
+  lower-confidence / "verify this one" in the review queue, not treated the same as exit method.
+- **Idol finds** (as opposed to idol *plays*) — not present in either template checked. Likely
+  lives only in per-episode prose recaps or individual castaway pages, neither investigated here.
+  **Manual-only** until a further investigation finds a structured source for it — don't build
+  auto-suggest UI for this event type on the assumption the connector will cover it.
+- **Double/multiple-boot episodes** — the plan's own suggested "messier case" — not found in
+  either season checked (S44 has zero double boots; didn't dig further into S43). Untested, not
+  confirmed either way. Worth checking a season known to have one (the plan doc mentions this
+  possibility existing) before Feature C's UI locks in an assumption about it.
+
+**Recommendation for Active Roster's review-queue badge, per this section's own ask**:
+auto-suggested + high confidence for exit method/tribe assignments; auto-suggested + lower
+confidence (still commissioner-reviewed either way, per "every extraction is a pending proposal"
+below, but worth visually distinguishing) for immunity/reward winners and idol plays/zero-vote
+safes; manual-only for idol finds until further investigated.
+
+**Original plan text below, unchanged, for reference:**
 
 **Extraction:** AI extraction of structured data (episode number, boot, exit method, tribe
-assignments, and — pending investigation below — immunity/reward winners, idol finds/plays,
-zero-vote safes) from the fetched wikitext/page content.
+assignments, and — see the investigation findings above for per-field reliability — immunity/
+reward winners, idol finds/plays, zero-vote safes) from the fetched wikitext/page content.
 
 **Every extraction is a pending proposal, never auto-applied.** Commissioner reviews and
 confirms/edits/rejects before anything lands in league state. Applies uniformly to eliminations
@@ -320,9 +383,11 @@ connector coverage into Feature C's UI before this investigation happens.
 3. ~~Pick'em — fully independent of #1/#2 (no castaway ownership involved at all); can run in
    parallel with either.~~ **DONE** — see Feature B's status note above.
 4. Active Roster — depends on #1 (`ownerIds`) and #2 (the blind-draft mechanic).
-5. Wiki connector investigation — can start in parallel with any of the above; its *integration*
-   into Active Roster's event review queue naturally comes after #4 ships with manual entry
-   working end-to-end.
+5. ~~Wiki connector investigation — can start in parallel with any of the above~~ **INVESTIGATED**
+   — see Feature D's own status note above for the per-field reliability findings. The connector
+   *implementation* and its *integration* into Active Roster's event review queue are both still
+   unbuilt; integration still naturally comes after #4 ships with manual entry working
+   end-to-end.
 
 Commit and verify each numbered item independently, matching this repo's existing convention (one
 feature, build+lint+real-API-check, one commit) — not as a single giant change.
