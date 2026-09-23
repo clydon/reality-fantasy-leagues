@@ -12,6 +12,8 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
 import { cn } from "cn";
 import { midseasonBadge } from "@/lib/game/selectors";
+import { useLeagueTypeBadges } from "@/components/league-switcher";
+import { Badge } from "@/components/ui/badge";
 import {
   OverviewIcon,
   EpisodesIcon,
@@ -34,18 +36,22 @@ import {
 // bottom tab bar, replacing the desktop sidebar below the 880px breakpoint (see globals.css's
 // `nav`/`max-nav` custom breakpoint, matching the live app's single @media(max-width:880px) exactly).
 //
-// Not ported: the league-switcher dropdown (this POC only ever loads one real league, so there's
-// nothing to switch between yet -- see league-switcher.tsx). Rules isn't a tab in this POC at
-// all, so the "More" sheet only lists what's actually real: the demoted 4th-slot tab, League
-// Settings, Admin+Reports (if applicable), a working Report an Issue (real-auth-only -- see the
-// note by its row below), and Log out.
+// The top bar's league-name button is a real switcher now (see league-switcher.tsx's
+// useLeagueTypeBadges, shared with the desktop Sidebar version) rather than pure decoration.
+// Rules isn't a tab in this POC at all, so the "More" sheet only lists what's actually real: the
+// demoted 4th-slot tab, League Settings, Admin+Reports (if applicable), a working Report an Issue
+// (real-auth-only -- see the note by its row below), and Log out.
 export function MobileNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [leagueMenuOpen, setLeagueMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const state = useLeagueStore((s) => s.state);
   const mode = useLeagueStore((s) => s.mode);
+  const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
+  const leagues = useLeagueStore((s) => s.leagues);
+  const switchLeague = useLeagueStore((s) => s.switchLeague);
   const isSuperAdmin = useIsSuperAdmin();
   const isAuthenticated = useIsAuthenticated();
   const enterMockMode = useLeagueStore((s) => s.useMock);
@@ -53,6 +59,7 @@ export function MobileNav() {
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
   const notifications = useNotificationsStore((s) => s.notifications);
+  const { types: leagueTypes, resolve: resolveLeagueTypes } = useLeagueTypeBadges(leagues);
 
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
@@ -81,6 +88,17 @@ export function MobileNav() {
     router.push(href);
   }
 
+  function toggleLeagueMenu() {
+    setLeagueMenuOpen((o) => !o);
+    resolveLeagueTypes();
+  }
+
+  async function handleSelectLeague(id: string) {
+    setLeagueMenuOpen(false);
+    if (id === leagueId) return;
+    await switchLeague(id);
+  }
+
   async function handleLogout() {
     setSheetOpen(false);
     if (isAuthenticated) {
@@ -103,9 +121,39 @@ export function MobileNav() {
           </Link>
           {/* visibility, not display -- demo mode has nothing to switch between, but the button
               still reserves its layout space, exactly like the live app's leagueBtn.style.visibility. */}
-          <div className={cn("flex min-w-0 flex-1 items-center gap-1 py-0.5 text-foreground", mode === "mock" && "invisible")}>
-            <span className="truncate text-[0.95rem] font-bold">{mode === "mock" ? "Demo Mode" : leagueName}</span>
-            <ChevronDownIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <div className={cn("relative min-w-0 flex-1", mode === "mock" && "invisible")}>
+            <button
+              className="flex w-full min-w-0 items-center gap-1 py-0.5 text-foreground"
+              onClick={toggleLeagueMenu}
+              disabled={leagues.length === 0}
+            >
+              <span className="truncate text-[0.95rem] font-bold">{mode === "mock" ? "Demo Mode" : leagueName}</span>
+              <ChevronDownIcon className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
+            </button>
+            {leagueMenuOpen && (
+              <div className="absolute left-0 top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
+                {leagues.map((l) => (
+                  <button
+                    key={l.id}
+                    className={cn(
+                      "flex w-full flex-col items-start gap-0.5 rounded-md px-2.5 py-1.5 text-left hover:bg-secondary",
+                      l.id === leagueId && "bg-secondary"
+                    )}
+                    onClick={() => handleSelectLeague(l.id)}
+                  >
+                    <span className="flex w-full items-center gap-1.5">
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{l.name}</span>
+                      {leagueTypes[l.id] && (
+                        <Badge variant="secondary" className="shrink-0 text-[0.65rem]">
+                          {leagueTypes[l.id]}
+                        </Badge>
+                      )}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{l.role}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <Link
             href="/chat"

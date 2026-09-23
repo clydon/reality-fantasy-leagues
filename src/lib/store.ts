@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type { LeagueState, Membership } from "@/lib/game/types";
 import { buildMockSeasonState } from "@/lib/game/mock-state";
+import { api, type MeResponse } from "@/lib/api";
+
+export type LeagueSummary = MeResponse["leagues"][number];
 
 // POC-scoped store: one league's state, exactly like the live app's single global `state`
 // object (see CLAUDE.md's state model) but through Zustand instead of a bare global. Two
@@ -31,6 +34,13 @@ interface LeagueStore {
   // Which player each account is linked to, for League Settings' Players section -- previously
   // fetched by api.leagueState() but discarded, since nothing needed it until now.
   playerAccounts: PlayerAccount[];
+  // Every league the signed-in user belongs to (GET /api/auth/me), for the league switcher --
+  // previously fetched by AuthGate's loadFirstLeague() and discarded after picking leagues[0].
+  leagues: LeagueSummary[];
+  setLeagues: (leagues: LeagueSummary[]) => void;
+  // Loads a different one of `leagues` as the active league, same request sequence
+  // loadFirstLeague() already does for the initial load.
+  switchLeague: (leagueId: string) => Promise<void>;
   useMock: () => void;
   loadLive: (
     leagueId: string,
@@ -62,6 +72,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   userId: null,
   isSuperAdmin: false,
   playerAccounts: [],
+  leagues: [],
   useMock: () =>
     set({
       mode: "mock",
@@ -72,10 +83,16 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       userId: null,
       isSuperAdmin: false,
       playerAccounts: [],
+      leagues: [],
     }),
   loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts) =>
     set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts }),
   setIdentity: (userId, isSuperAdmin) => set({ userId, isSuperAdmin }),
+  setLeagues: (leagues) => set({ leagues }),
+  switchLeague: async (leagueId) => {
+    const { league, state, membership, playerAccounts } = await api.leagueState(leagueId);
+    set({ mode: "live", leagueId: league.id, state, leagueName: league.name, membership, playerAccounts });
+  },
   setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason } }),
   // Mock-mode mutators (StateLogic.*) mutate `state` in place, same as the live app; spreading it
   // into a new top-level object is what actually triggers Zustand/React to notice the change.

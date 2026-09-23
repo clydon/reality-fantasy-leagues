@@ -8,6 +8,7 @@ import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import { midseasonBadge } from "@/lib/game/selectors";
+import { LeagueSwitcher } from "@/components/league-switcher";
 import { cn } from "cn";
 
 // Port of the live app's real desktop sidebar chrome -- .sidebar/#tabs/.brand in
@@ -59,11 +60,7 @@ export function Sidebar() {
         </Link>
       </div>
 
-      {mode === "live" && leagueName && (
-        <div className="px-2.5 pb-3.5 pt-0.5">
-          <div className="break-words text-[0.95rem] font-bold text-foreground">{leagueName}</div>
-        </div>
-      )}
+      {mode === "live" && leagueName && <LeagueSwitcher />}
 
       <nav className="flex flex-col gap-0.5">
         {tabs.map((tab) => {

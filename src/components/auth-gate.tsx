@@ -30,6 +30,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const loadLive = useLeagueStore((s) => s.loadLive);
   const enterMockMode = useLeagueStore((s) => s.useMock); // renamed locally -- a plain callback, not a hook, but eslint's rule flags anything named use*
   const setIdentity = useLeagueStore((s) => s.setIdentity);
+  const setLeagues = useLeagueStore((s) => s.setLeagues);
   const [status, setStatus] = useState<Status>("checking");
   const [entered, setEntered] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +47,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     // personal league still enters the app (with demo data underneath) rather than getting stuck.
     setIdentity(me.user.id, me.user.isSuperAdmin);
     setSignedInUsername(me.user.username);
+    setLeagues(me.leagues);
     if (me.leagues.length > 0) {
       const { league, state, membership, playerAccounts } = await api.leagueState(me.leagues[0].id);
       loadLive(league.id, state, league.name, membership, me.user.id, me.user.isSuperAdmin, playerAccounts);
