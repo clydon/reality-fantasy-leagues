@@ -13,8 +13,20 @@ validation case before committing to a full port of the live app.
 
 Ported so far: the three Overview dashboard cards (Latest Episode, Season Status, Standings),
 using the live app's `shared/state-logic.js` **copied in verbatim** (`src/lib/game/state-logic.js`
-— see the provenance comment at its top) against a ported copy of the live app's mock/demo season
-data (`src/lib/game/mock-state.ts`). No real API wiring yet — see "Not done yet" below.
+— see the provenance comment at its top). Two data sources, switchable at runtime:
+
+- **Mock/demo data** (`src/lib/game/mock-state.ts`, a port of the live app's demo dataset) — the
+  default, no server needed.
+- **Real data from the live Express API** (`src/lib/api.ts`, gated by `src/components/auth-gate.tsx`)
+  — logs in against the real `/api/auth/login`, then fetches a real league's state via
+  `/api/leagues/:id/state`, exactly like the live app does. Requires the `SurvivorDraft` repo's dev
+  server running with its CORS middleware enabled (`NODE_ENV !== 'production'`) and
+  `DEV_CORS_ORIGINS` including this app's dev origin — see that repo's `server/index.js` and
+  `docs/HANDOFF.md`. Set `NEXT_PUBLIC_API_BASE` in `.env.local` (gitignored) to point at it; see
+  `.env.local` example below.
+
+Verified end-to-end (login → session cookie → cross-origin fetch → real Postgres data rendering
+in the Overview cards) against a throwaway fixture user/league, not just the mock path.
 
 ## Design tokens
 
@@ -28,15 +40,13 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
 
 ## Not done yet (intentionally, for this POC's scope)
 
-- **No real API wiring.** Uses the ported mock/demo dataset only. Wiring to the live Express API
-  needs CORS added there (currently none) since dev servers run on different origins/ports —
-  worth scoping as its own small change to the live repo before real data flows here.
 - **Notifications banner, Side Bets section, and the post-draft Board grid** — each a meaningful
   chunk of interactive state, deliberately left for a later pass once the card-grid approach here
   is validated.
 - **No other tabs** (Draft, Episodes, Mid-Season, Scoreboard, Chat, Admin) — Overview only, per
   the phased/tab-by-tab plan.
-- **No auth, no routing beyond `/`.**
+- **No signup/session-persistence UI polish, no routing beyond `/`** — the login form is
+  functional but minimal (see `auth-gate.tsx`), and there's nothing beyond the one page yet.
 
 ## Stack
 
@@ -51,4 +61,12 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000 — defaults to demo data. To use real data, first get the
+`SurvivorDraft` repo's dev server running locally with CORS enabled for this app's origin (see
+that repo's README/CLAUDE.md), then add a `.env.local` here:
+
+```
+NEXT_PUBLIC_API_BASE=http://localhost:<survivordraft-dev-port>
+```
+
+and sign in with a real account on the "Sign in" screen (or click "Skip — use demo data instead").
