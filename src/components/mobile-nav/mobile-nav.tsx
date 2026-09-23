@@ -6,9 +6,12 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated } from "@/lib/store";
 import { useReportModalStore } from "@/lib/report-modal-store";
+import { useChatStore } from "@/lib/chat-store";
+import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
 import { cn } from "cn";
+import { midseasonBadge } from "@/lib/game/selectors";
 import {
   OverviewIcon,
   EpisodesIcon,
@@ -31,9 +34,7 @@ import {
 // `nav`/`max-nav` custom breakpoint, matching the live app's single @media(max-width:880px) exactly).
 //
 // Not ported: the league-switcher dropdown (this POC only ever loads one real league, so there's
-// nothing to switch between) and the chat unread-count badge (no unread tracking exists in
-// chat-store.ts yet) -- both are visual/interactive details on top of chrome that otherwise
-// matches structurally. League Settings and Rules aren't tabs in this POC at all, so the
+// nothing to switch between). League Settings and Rules aren't tabs in this POC at all, so the
 // "More" sheet only lists what's actually real: the demoted 4th-slot tab, Admin+Reports (if
 // applicable), a working Report an Issue (real-auth-only -- see the note by its row below), and
 // Log out.
@@ -48,17 +49,26 @@ export function MobileNav() {
   const isAuthenticated = useIsAuthenticated();
   const enterMockMode = useLeagueStore((s) => s.useMock);
   const openReportModal = useReportModalStore((s) => s.openModal);
+  const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
+  const chatUnread = useChatStore((s) => s.unreadCount);
+  const notifications = useNotificationsStore((s) => s.notifications);
 
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
+  // Port of computeMobileFourthTab() (public/app.js): the 4th bottom-bar slot's badge is always
+  // just "!" (no room for "Your Turn"/"Active" text at this size) -- red when it's genuinely your
+  // turn/pick, muted when a round is merely active. Draft's badge also folds in the same
+  // "it's your turn to draft" signal the Notifications banner uses (notifications tagged '/draft').
+  const draftUrgent = !!(turn && !turn.isComplete && myPlayerId && turn.playerId === myPlayerId) || notifications.some((n) => n.tab === "/draft");
+  const midBadge = midseasonBadge(state, myPlayerId);
   const fourth = draftComplete
-    ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon }
-    : { href: "/draft", label: "Draft", icon: DraftIcon };
+    ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon, urgent: midBadge?.urgent ?? null }
+    : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
   const demoted = draftComplete
     ? { href: "/draft", label: "Draft Results", icon: DraftIcon }
     : { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon };
 
-  const tabs = [
+  const tabs: { href: string; label: string; icon: typeof OverviewIcon; urgent?: boolean | null }[] = [
     { href: "/", label: "Overview", icon: OverviewIcon },
     { href: "/episodes", label: "Episodes", icon: EpisodesIcon },
     { href: "/scoreboard", label: "Scoreboard", icon: TrophyIcon },
@@ -102,6 +112,11 @@ export function MobileNav() {
             aria-label="Chat"
           >
             <ChatIcon className="h-[19px] w-[19px]" />
+            {chatUnread > 0 && (
+              <span className="absolute right-0.5 top-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-[3px] text-[0.6rem] font-bold text-white ring-2 ring-panel-menu">
+                {chatUnread > 9 ? "9+" : chatUnread}
+              </span>
+            )}
           </Link>
         </div>
       </header>
@@ -116,10 +131,22 @@ export function MobileNav() {
           return (
             <button
               key={tab.href}
-              className={cn("flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground", active && "text-primary")}
+              className={cn("relative flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground", active && "text-primary")}
               onClick={() => go(tab.href)}
             >
-              <Icon className="h-[21px] w-[21px]" />
+              <span className="relative inline-flex">
+                <Icon className="h-[21px] w-[21px]" />
+                {tab.urgent != null && (
+                  <span
+                    className={cn(
+                      "absolute -right-2 -top-1 flex h-[15px] w-[15px] items-center justify-center rounded-full text-[0.62rem] font-bold text-white",
+                      tab.urgent ? "bg-destructive" : "bg-accent-2"
+                    )}
+                  >
+                    !
+                  </span>
+                )}
+              </span>
               <span className="text-[0.63rem] font-semibold">{tab.label}</span>
             </button>
           );

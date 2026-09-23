@@ -120,6 +120,15 @@ export interface AdminLeague {
   created_at: string;
 }
 
+export interface Notif {
+  id: string;
+  text: string;
+  ts: number;
+  tab: string;
+  kind?: "bet-guess";
+  betId?: string;
+}
+
 export interface Report {
   id: string;
   user_id: string;

@@ -197,6 +197,50 @@ signed in, requested a reset, completed the reset using the actual token from th
 confirmed the old password now fails and the new one works. Throwaway test account cleaned up
 after.
 
+## Notifications (`use-league-poll.ts`)
+
+Port of `pollForNotifications()` (public/app.js) — but this one got real discussion first rather
+than a straight port, since it's the one feature whose whole job is "poll and diff," and the
+right tool for that deserved actual research (see the exchange in this repo's history) rather
+than defaulting to whatever was already named in `ARCHITECTURE.md` or reflexively re-implementing
+`setInterval` by hand.
+
+**Chosen: TanStack Query** as the polling mechanism (`refetchInterval`, automatic pause while the
+tab is hidden, request dedup) — matches `ARCHITECTURE.md`'s existing naming. The actual
+transition-detection logic ("a bet now needs your guess," "it just became your turn") is a direct
+port regardless of which library does the scheduling; no data-fetching library hands you that for
+free, it's just diffing the current poll against the last one.
+
+- `src/lib/use-league-poll.ts` — the main 15s poll, mounted once in `AuthGate`. Two `useQuery`s:
+  one for league state (drives the Notifications banner + the Mid-Season nav badge, patching only
+  `state.midSeason` on each tick rather than the whole state object, exactly like the original's
+  own reasoning: a background poll landing mid-edit elsewhere, e.g. a half-filled Episode form,
+  shouldn't clobber it), one for the chat-unread badge (skipped while actually on `/chat`, where
+  `ChatTab`'s own faster 5s poll keeps it current instead).
+- `src/lib/notifications-store.ts` — the resulting notification list (capped at 20, newest
+  first) and the your-turn transition flag the diffing needs across polls.
+- Chat itself also gained real polling in this same pass (it had none before — see the earlier
+  gap note that used to be here): `ChatTab` polls every 5s while mounted, matching the live app's
+  own `loadChatMessages` interval.
+- Nav badges added throughout: Sidebar's per-tab counts, the Mid-Season "Your Turn"/"Active"
+  badge (`midseasonBadge()` in `selectors.ts` — ported from `computeMidseasonBadge()`, including
+  its "Your Turn" only when it's genuinely your own turn, never just because a viewer *can* act on
+  it" principle), and the mobile top bar's chat-icon unread count + bottom bar's 4th-slot "!" badge.
+
+**A real bug found via TanStack Query's own strictness, not by inspection**: a `queryFn` may not
+resolve to `undefined` — `chat-store.ts`'s `load()`/`pollUnread()` both did in their early-return
+branches, which silently surfaced as a Next.js dev-overlay error ("Query data cannot be
+undefined... Affected query key: chat-unread-poll") caught during verification, not by reading
+the code. Fixed by having both return a real value; the actual result still lives in the store as
+before.
+
+Verified against the real API and the fixture league, not just the mock dataset: advanced the
+fixture league's real draft turn and left a real unguessed bet in place via direct API calls, then
+loaded the app in an actual browser (desktop and mobile) and confirmed the Notifications banner,
+Side Bets' "needs your guess" tag, the Season Status card, and every nav badge (Sidebar, mobile
+top-bar chat icon, mobile bottom-bar Draft slot) all reflected that real state correctly — and
+confirmed the dev-overlay error was gone after the fix.
+
 ## Reports tab (`/reports`) and Report an Issue
 
 Port of `renderAdminReports()` and the `#reportModal`/`sendReport()` flow (`public/app.js`) — the
@@ -237,11 +281,6 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
 
 ## Not done yet (intentionally, for this POC's scope)
 
-- **Notifications banner** — deliberately not ported. Unlike everything else here it isn't a pure
-  function of state; the live app builds it from cross-poll deltas ("a bet appeared since your
-  last poll", "it just became your turn"), which is a polling-infrastructure concern, not a
-  componentization one. Worth its own pass once real-time/polling strategy for this repo is
-  decided.
 - **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
   cast photos.
 - **`/account`'s UI is functional but minimal** — no email verification, no OAuth providers, no
@@ -260,6 +299,7 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
 - Zustand for state (`src/lib/store.ts`)
 - Better Auth for this app's own account system (`src/lib/auth.ts`) — its own Postgres database
   via plain `pg`, no ORM
+- TanStack Query for interval polling (Notifications, Chat — `use-league-poll.ts`)
 
 ## Getting started
 

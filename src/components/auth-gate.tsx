@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 import { ReportModal } from "@/components/report-modal";
+import { useLeaguePoll } from "@/lib/use-league-poll";
 
 type Status = "checking" | "idle" | "loading";
 
@@ -33,6 +34,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [entered, setEntered] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signedInUsername, setSignedInUsername] = useState<string | null>(null);
+
+  // Internally gated on mode === 'live' (see use-league-poll.ts) -- safe to call unconditionally
+  // here regardless of auth state, matching the Rules of Hooks.
+  useLeaguePoll();
 
   async function loadFirstLeague() {
     const me = await api.me();

@@ -8,9 +8,12 @@ import { api } from "@/lib/api";
 // branch as everywhere else in this POC, read from useLeagueStore at call time rather than
 // duplicating `mode`/`leagueId` here.
 //
-// No polling: this POC has no live-refresh anywhere yet (every tab fetches once via AuthGate),
-// so Chat doesn't add a 5-second poll loop that nothing else here has either -- a manual Refresh
-// button stands in for it. See README for the reasoning and what a real port would need.
+// Polling: ChatTab itself polls every 5s while mounted (matches the live app's loadChatMessages
+// interval); the unread badge shown elsewhere is updated by the same 15s poll that drives
+// Notifications (use-league-poll.ts), exactly like pollForNotifications()'s own chat-unread check
+// in public/app.js. lastSeenAt is in-memory only here, not localStorage-persisted per user+league
+// like the original's chatSeenStorageKey() -- a real port would want that; this POC doesn't carry
+// it across page reloads. See README.
 export const DEMO_VISITOR_ID = "demo_visitor";
 
 const MOCK_SEED: ChatMessage[] = [
@@ -23,7 +26,14 @@ interface ChatStore {
   messages: ChatMessage[];
   loading: boolean;
   loaded: boolean;
-  load: () => Promise<void>;
+  unreadCount: number;
+  lastSeenAt: string | null;
+  // Both return a real value (not implicit undefined) since they double as TanStack Query
+  // queryFns (ChatTab's poll, and the background chat-unread poll respectively) -- a queryFn may
+  // not resolve to undefined. Callers that just want the side effect can ignore the return.
+  load: () => Promise<true>;
+  pollUnread: () => Promise<number | null>;
+  markSeen: () => void;
   send: (text: string) => Promise<void>;
   edit: (id: string, text: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
@@ -34,21 +44,44 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   messages: [],
   loading: false,
   loaded: false,
+  unreadCount: 0,
+  lastSeenAt: null,
 
   async load() {
     const { mode, leagueId } = useLeagueStore.getState();
     if (mode === "mock") {
       set({ messages: MOCK_SEED, loaded: true });
-      return;
+      return true;
     }
-    if (!leagueId) return;
+    if (!leagueId) return true;
     set({ loading: true });
     try {
       const { messages } = await api.getChat(leagueId);
       set({ messages, loaded: true });
+      get().markSeen();
+      return true;
     } finally {
       set({ loading: false });
     }
+  },
+
+  async pollUnread() {
+    // TanStack Query's queryFn may not return undefined -- these two branches both return a
+    // real value (rather than an implicit `undefined`) purely to satisfy that; the actual result
+    // lives in this store's own state (unreadCount), same pattern as load() below.
+    const { mode, leagueId, userId } = useLeagueStore.getState();
+    if (mode !== "live" || !leagueId) return null;
+    const { messages } = await api.getChat(leagueId);
+    const lastSeenAt = get().lastSeenAt;
+    const unread = messages.filter((m) => m.user_id !== userId && (!lastSeenAt || new Date(m.created_at) > new Date(lastSeenAt))).length;
+    set({ unreadCount: unread });
+    return unread;
+  },
+
+  markSeen() {
+    const { messages } = get();
+    const last = messages[messages.length - 1];
+    set({ unreadCount: 0, lastSeenAt: last ? last.created_at : new Date().toISOString() });
   },
 
   async send(text) {

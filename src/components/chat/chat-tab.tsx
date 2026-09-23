@@ -1,28 +1,50 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLeagueStore } from "@/lib/store";
 import { useChatStore } from "@/lib/chat-store";
 import { ChatMessageRow } from "./chat-message-row";
 import { Button } from "@/components/ui/button";
 
-// Port of renderChat() (public/app.js). No auto-polling here -- see chat-store.ts's note; a
-// manual Refresh button stands in for the live app's 5-second poll loop, since no tab in this
-// POC has live-refresh infrastructure yet.
+// Port of renderChat() (public/app.js). Polls every 5s while mounted, matching the live app's
+// loadChatMessages interval -- gated to live mode only: polling in mock mode would periodically
+// reset `messages` back to the seed data, discarding anything just sent locally, since mock mode
+// has no server to actually persist to. load() also calls markSeen() on success, keeping the
+// unread badge elsewhere at 0 while this tab is the one actively open.
 export function ChatTab() {
   const state = useLeagueStore((s) => s.state);
-  const { messages, loading, loaded, load, send } = useChatStore();
+  const mode = useLeagueStore((s) => s.mode);
+  const leagueId = useLeagueStore((s) => s.leagueId);
+  const { messages, loaded, load, markSeen, send } = useChatStore();
   const [draft, setDraft] = useState("");
 
   useEffect(() => {
-    if (!loaded) load();
-  }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (mode === "mock" && !loaded) load();
+  }, [mode, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useQuery({
+    queryKey: ["chat-active-poll", leagueId],
+    queryFn: () => load(),
+    enabled: mode === "live" && !!leagueId,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+  });
+
+  // markSeen() also runs once on mount even before the first poll resolves, in case messages
+  // were already loaded (e.g. navigating back to Chat) -- avoids a stale unread badge lingering
+  // for the ~5s until the first poll completes.
+  useEffect(() => {
+    markSeen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSend() {
     const text = draft.trim();
     if (!text) return;
     setDraft("");
     await send(text);
+    markSeen();
   }
 
   // Note: the live app's Chat gets a special fixed-height, flush layout (.app-shell.chat-mode in
@@ -31,12 +53,7 @@ export function ChatTab() {
   // column's padding with its own bounded height, a simplification not a redesign.
   return (
     <div className="flex h-[70vh] flex-col">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-2xl font-bold tracking-tight">Chat</h2>
-        <button className="text-xs text-muted-foreground underline underline-offset-2" onClick={() => load()} disabled={loading}>
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
+      <h2 className="mb-3 text-2xl font-bold tracking-tight">Chat</h2>
       <div className="flex-1 overflow-y-auto rounded-lg border border-border bg-card p-3">
         {messages.length === 0 ? (
           <div className="text-sm italic text-muted-foreground">No messages yet — say hello!</div>

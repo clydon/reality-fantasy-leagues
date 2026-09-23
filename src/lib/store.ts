@@ -30,9 +30,13 @@ interface LeagueStore {
   // super-admin with no personal league would never reach loadLive at all otherwise, yet the
   // Admin tab needs their identity regardless of whether they have a league of their own to view.
   setIdentity: (userId: string, isSuperAdmin: boolean) => void;
+  // Port of pollForNotifications()'s deliberately-narrow state patch: only midSeason is synced
+  // from a background poll, not the whole state object, so a poll landing mid-edit elsewhere
+  // (e.g. a half-filled Episode form) can't clobber it. See use-league-poll.ts.
+  setMidSeason: (midSeason: LeagueState["midSeason"]) => void;
 }
 
-export const useLeagueStore = create<LeagueStore>((set) => ({
+export const useLeagueStore = create<LeagueStore>((set, get) => ({
   mode: "mock",
   state: buildMockSeasonState(),
   leagueId: null,
@@ -45,6 +49,7 @@ export const useLeagueStore = create<LeagueStore>((set) => ({
   loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin) =>
     set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin }),
   setIdentity: (userId, isSuperAdmin) => set({ userId, isSuperAdmin }),
+  setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason } }),
   // Mock-mode mutators (StateLogic.*) mutate `state` in place, same as the live app; spreading it
   // into a new top-level object is what actually triggers Zustand/React to notice the change.
   setState: (state) => set({ state: { ...state } }),

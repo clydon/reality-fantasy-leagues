@@ -5,6 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated } from "@/lib/store";
 import { useReportModalStore } from "@/lib/report-modal-store";
+import { useChatStore } from "@/lib/chat-store";
+import { useNotificationsStore } from "@/lib/notifications-store";
+import { midseasonBadge } from "@/lib/game/selectors";
 import { cn } from "cn";
 
 // Port of the live app's real desktop sidebar chrome -- .sidebar/#tabs/.brand in
@@ -29,7 +32,23 @@ export function Sidebar() {
   const leagueName = useLeagueStore((s) => s.leagueName);
   const enterMockMode = useLeagueStore((s) => s.useMock);
   const openReportModal = useReportModalStore((s) => s.openModal);
+  const state = useLeagueStore((s) => s.state);
+  const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
+  const chatUnread = useChatStore((s) => s.unreadCount);
   const tabs = isSuperAdmin ? [...TABS, { href: "/admin", label: "Admin" }, { href: "/reports", label: "Reports" }] : TABS;
+
+  // Port of renderTabs()'s per-tab nav-badge logic (public/app.js): Mid-Season gets the
+  // "Your Turn"/"Active" badge (midseasonBadge), Chat gets the unread count, and every other tab
+  // gets a count of its own pending notifications (public/app.js: `notifications.filter(n =>
+  // n.tab===id).length`) -- for this POC's ported feature set that's only ever Draft
+  // ("it's your turn"), but the logic is generic, not special-cased to just that one tab.
+  const notifications = useNotificationsStore((s) => s.notifications);
+  function badgeFor(href: string): { label: string; urgent: boolean } | null {
+    if (href === "/mid-season") return midseasonBadge(state, myPlayerId);
+    if (href === "/chat" && chatUnread > 0) return { label: chatUnread > 9 ? "9+" : String(chatUnread), urgent: true };
+    const count = notifications.filter((n) => n.tab === href).length;
+    return count > 0 ? { label: count > 9 ? "9+" : String(count), urgent: true } : null;
+  }
 
   return (
     <aside className="sticky top-0 flex h-screen w-[224px] flex-none flex-col overflow-y-auto border-r border-border bg-panel-menu p-[20px_12px]">
@@ -48,6 +67,7 @@ export function Sidebar() {
       <nav className="flex flex-col gap-0.5">
         {tabs.map((tab) => {
           const active = pathname === tab.href;
+          const badge = badgeFor(tab.href);
           return (
             <Link
               key={tab.href}
@@ -59,6 +79,16 @@ export function Sidebar() {
             >
               <span className={cn("h-1.5 w-1.5 flex-none rounded-full bg-current", active ? "opacity-100" : "opacity-35")} />
               {tab.label}
+              {badge && (
+                <span
+                  className={cn(
+                    "ml-auto rounded-full px-1.5 py-0.5 text-[0.68rem] font-bold leading-none text-white",
+                    badge.urgent ? "bg-destructive" : "bg-accent-2"
+                  )}
+                >
+                  {badge.label}
+                </span>
+              )}
             </Link>
           );
         })}
