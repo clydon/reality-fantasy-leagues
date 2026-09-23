@@ -26,6 +26,7 @@ interface AdminStore {
   unlinkMembership: (membershipId: string) => Promise<void>;
   deletePlayer: (playerId: string, name: string) => Promise<void>;
   dismissTempPassword: () => void;
+  impersonateUser: (userId: string, username: string) => Promise<void>;
 }
 
 export const useAdminStore = create<AdminStore>((set, get) => ({
@@ -113,4 +114,16 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   dismissTempPassword: () => set({ lastTempPassword: null }),
+
+  // Port of impersonateUser() (public/app.js): a full reload re-runs AuthGate's loadFirstLeague
+  // against the now-impersonated session, same reasoning as auth-gate.tsx's
+  // handleStopImpersonating -- simplest way to get every piece of client state (identity, loaded
+  // league, membership) consistent with the new session rather than patching it by hand.
+  async impersonateUser(userId, username) {
+    if (!confirm(`Impersonate "${username}"? You'll see the app exactly as they do until you return to your own account.`)) return;
+    await api.adminImpersonate(userId);
+    // Deliberately a full reload, not router.push() -- see the comment above this function.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/";
+  },
 }));

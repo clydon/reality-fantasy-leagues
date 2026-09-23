@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useIsSuperAdmin } from "@/lib/store";
+import { useIsSuperAdmin, useLeagueStore } from "@/lib/store";
 import { useAdminStore } from "@/lib/admin-store";
 import { LinkMembershipForm } from "./link-membership-form";
 import { Button } from "@/components/ui/button";
@@ -34,9 +34,14 @@ export function AdminTab() {
     unlinkMembership,
     deletePlayer,
     dismissTempPassword,
+    impersonateUser,
   } = useAdminStore();
+  const myUserId = useLeagueStore((s) => s.userId);
   const [newUsername, setNewUsername] = useState("");
   const [linkingPlayerId, setLinkingPlayerId] = useState<string | null>(null);
+  const [userPage, setUserPage] = useState(0);
+  const [leaguePage, setLeaguePage] = useState(0);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
     if (isSuperAdmin && !loaded) load();
@@ -62,6 +67,12 @@ export function AdminTab() {
   }
 
   const selectedLeague = leagues.find((l) => l.id === selectedLeagueId);
+  const userPageCount = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
+  const clampedUserPage = Math.min(userPage, userPageCount - 1);
+  const pagedUsers = users.slice(clampedUserPage * PAGE_SIZE, (clampedUserPage + 1) * PAGE_SIZE);
+  const leaguePageCount = Math.max(1, Math.ceil(leagues.length / PAGE_SIZE));
+  const clampedLeaguePage = Math.min(leaguePage, leaguePageCount - 1);
+  const pagedLeagues = leagues.slice(clampedLeaguePage * PAGE_SIZE, (clampedLeaguePage + 1) * PAGE_SIZE);
 
   return (
     <>
@@ -80,9 +91,11 @@ export function AdminTab() {
       )}
 
       <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Users</h3>
+        <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+          Users {users.length > 0 && <span className="font-normal normal-case">({users.length})</span>}
+        </h3>
         <div className="flex flex-col gap-2">
-          {users.map((u) => (
+          {pagedUsers.map((u) => (
             <div key={u.id} className="rounded-md border border-border p-2.5">
               <div className="mb-1.5 flex flex-wrap items-center gap-2 text-sm">
                 <span className="flex-1 font-semibold">
@@ -92,20 +105,24 @@ export function AdminTab() {
                 {u.must_change_password && <span className="text-xs text-muted-foreground">must change password</span>}
               </div>
               <div className="flex flex-wrap gap-1.5">
+                {u.id !== myUserId && (
+                  <Button variant="secondary" size="sm" onClick={() => impersonateUser(u.id, u.username)}>
+                    Impersonate
+                  </Button>
+                )}
                 <Button variant="secondary" size="sm" onClick={() => resetPassword(u.id, u.username)}>
                   Reset Password
                 </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => deleteUser(u.id, u.username)}
-                >
-                  Delete
-                </Button>
+                {u.id !== myUserId && (
+                  <Button variant="destructive" size="sm" onClick={() => deleteUser(u.id, u.username)}>
+                    Delete
+                  </Button>
+                )}
               </div>
             </div>
           ))}
         </div>
+        <Pager page={clampedUserPage} setPage={setUserPage} pageCount={userPageCount} />
         <div className="mt-3 flex gap-1.5">
           <Input
             className="min-w-0 flex-1 text-sm"
@@ -119,12 +136,14 @@ export function AdminTab() {
       </div>
 
       <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Leagues</h3>
+        <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+          Leagues {leagues.length > 0 && <span className="font-normal normal-case">({leagues.length})</span>}
+        </h3>
         {leagues.length === 0 ? (
           <div className="text-sm italic text-muted-foreground">No leagues yet.</div>
         ) : (
           <div className="flex flex-col gap-2">
-            {leagues.map((l) => (
+            {pagedLeagues.map((l) => (
               <div key={l.id} className="rounded-md border border-border p-2.5">
                 <div className="mb-1.5 text-sm font-semibold">{l.name}</div>
                 <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
@@ -144,6 +163,7 @@ export function AdminTab() {
             ))}
           </div>
         )}
+        <Pager page={clampedLeaguePage} setPage={setLeaguePage} pageCount={leaguePageCount} />
       </div>
 
       {selectedLeagueId && membershipData && (
@@ -208,5 +228,25 @@ export function AdminTab() {
         </div>
       )}
     </>
+  );
+}
+
+// Client-side only (no backend pagination support, and none needed yet) -- keeps the Users/
+// Leagues lists from becoming one huge scrolling page as the real user/league count grows past
+// friend-group scale.
+function Pager({ page, setPage, pageCount }: { page: number; setPage: (p: number) => void; pageCount: number }) {
+  if (pageCount <= 1) return null;
+  return (
+    <div className="mt-3 flex items-center justify-center gap-3 text-xs text-muted-foreground">
+      <Button variant="secondary" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+        ← Prev
+      </Button>
+      <span>
+        Page {page + 1} of {pageCount}
+      </span>
+      <Button variant="secondary" size="sm" disabled={page >= pageCount - 1} onClick={() => setPage(page + 1)}>
+        Next →
+      </Button>
+    </div>
   );
 }

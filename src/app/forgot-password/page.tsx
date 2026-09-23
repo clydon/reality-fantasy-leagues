@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { requestPasswordReset } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -34,8 +36,7 @@ export default function ForgotPasswordPage() {
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-2">
             <p className="mb-1 text-sm text-muted-foreground">Enter your account email and we&rsquo;ll send a reset link.</p>
-            <input
-              className="rounded-md border border-border bg-card px-2.5 py-[7px] text-[0.88rem]"
+            <Input
               placeholder="Email"
               type="email"
               value={email}
@@ -49,6 +50,11 @@ export default function ForgotPasswordPage() {
           </form>
         )}
       </div>
+      <p className="mt-2.5 text-center text-xs text-muted-foreground">
+        <Link href="/account" className="font-semibold text-primary hover:underline">
+          Back to sign in
+        </Link>
+      </p>
     </div>
   );
 }

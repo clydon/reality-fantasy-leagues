@@ -25,16 +25,32 @@ export function AccountPanel() {
 
   if (session?.user) {
     return (
-      <div className="rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
-        <h3 className="mb-2.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Account</h3>
-        <p className="mb-1 text-sm">
-          Signed in as <b>{session.user.name}</b>
-        </p>
-        <p className="mb-4 text-sm text-muted-foreground">{session.user.email}</p>
-        <Button variant="secondary" onClick={() => signOut()}>
-          Sign out
-        </Button>
-      </div>
+      <>
+        <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Account</h2>
+        <div className="mx-auto max-w-[360px]">
+          <div className="mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
+            <p className="mb-1 text-sm">
+              Signed in as <b>{session.user.name}</b>
+            </p>
+            <p className="mb-4 text-sm text-muted-foreground">{session.user.email}</p>
+            <Button variant="secondary" onClick={() => signOut()}>
+              Sign out
+            </Button>
+          </div>
+          {/* This account (Better Auth) isn't connected to a SurvivorDraft league yet -- see
+              CLAUDE.md/README: two deliberately separate identity systems today. Without this,
+              signing up here was a dead end with no way back into the app. */}
+          <div className="rounded-lg border border-dashed border-border bg-secondary/40 p-[18px_20px]">
+            <p className="mb-3 text-sm text-muted-foreground">
+              This account isn&rsquo;t connected to a league yet — joining or creating a league still works through
+              the separate sign-in on the main app.
+            </p>
+            <Link href="/">
+              <Button className="w-full">Continue to the app →</Button>
+            </Link>
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -54,64 +70,72 @@ export function AccountPanel() {
   }
 
   return (
-    <div className="mx-auto max-w-[360px]">
-      <div className="mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
-        <div className="mb-3 flex gap-1 rounded-md bg-secondary p-1 text-sm">
-          <button
-            type="button"
-            className={`flex-1 rounded px-3 py-1.5 font-semibold ${mode === "signin" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
-            onClick={() => setMode("signin")}
-          >
-            Sign in
-          </button>
-          <button
-            type="button"
-            className={`flex-1 rounded px-3 py-1.5 font-semibold ${mode === "signup" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
-            onClick={() => setMode("signup")}
-          >
-            Sign up
-          </button>
-        </div>
-        <form onSubmit={submit} className="flex flex-col gap-2">
-          {mode === "signup" && (
+    <>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Account</h2>
+      <div className="mx-auto max-w-[360px]">
+        <div className="mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
+          <div className="mb-3 flex gap-1 rounded-md bg-secondary p-1 text-sm">
+            <button
+              type="button"
+              className={`flex-1 rounded px-3 py-1.5 font-semibold ${mode === "signin" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
+              onClick={() => setMode("signin")}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              className={`flex-1 rounded px-3 py-1.5 font-semibold ${mode === "signup" ? "bg-card shadow-sm" : "text-muted-foreground"}`}
+              onClick={() => setMode("signup")}
+            >
+              Sign up
+            </button>
+          </div>
+          <form onSubmit={submit} className="flex flex-col gap-2">
+            {mode === "signup" && (
+              <Input
+                placeholder="Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="name"
+                required
+              />
+            )}
             <Input
-              placeholder="Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoComplete="name"
+              placeholder="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
               required
             />
+            <Input
+              placeholder="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              minLength={8}
+              required
+            />
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" disabled={loading}>
+              {loading ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
+            </Button>
+          </form>
+          {mode === "signin" && (
+            <p className="mt-2.5 text-xs text-muted-foreground">
+              <Link href="/forgot-password" className="font-semibold text-primary hover:underline">
+                Forgot your password?
+              </Link>
+            </p>
           )}
-          <Input
-            placeholder="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-          />
-          <Input
-            placeholder="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            minLength={8}
-            required
-          />
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" disabled={loading}>
-            {loading ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
-          </Button>
-        </form>
-        {mode === "signin" && (
-          <p className="mt-2.5 text-xs text-muted-foreground">
-            <Link href="/forgot-password" className="font-semibold text-primary hover:underline">
-              Forgot your password?
-            </Link>
-          </p>
-        )}
+        </div>
+        <p className="text-center text-xs text-muted-foreground">
+          <Link href="/" className="font-semibold text-primary hover:underline">
+            ← Back to the app
+          </Link>
+        </p>
       </div>
-    </div>
+    </>
   );
 }

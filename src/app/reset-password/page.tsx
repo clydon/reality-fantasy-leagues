@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { resetPassword } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -46,8 +47,7 @@ function ResetPasswordForm() {
   return (
     <form onSubmit={submit} className="flex flex-col gap-2">
       <p className="mb-1 text-sm text-muted-foreground">Choose a new password (8+ characters).</p>
-      <input
-        className="rounded-md border border-border bg-card px-2.5 py-[7px] text-[0.88rem]"
+      <Input
         placeholder="New password"
         type="password"
         value={password}

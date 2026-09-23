@@ -31,6 +31,10 @@ interface LeagueStore {
   membership: Membership | null;
   userId: string | null; // the signed-in user's own id (not their player id) -- chat reactions/ownership key off this, same as public/app.js's currentUser.id
   isSuperAdmin: boolean; // global account flag, independent of role within the currently-loaded league -- gates the Admin tab, same as public/app.js's currentUser.isSuperAdmin
+  // True while a super-admin is impersonating another user (GET /api/auth/me's `impersonating`
+  // flag) -- drives the "Viewing as X — Return to my account" banner, port of the live app's
+  // updateImpersonationBanner()/currentUser.impersonating.
+  impersonating: boolean;
   // Which player each account is linked to, for League Settings' Players section -- previously
   // fetched by api.leagueState() but discarded, since nothing needed it until now.
   playerAccounts: PlayerAccount[];
@@ -56,7 +60,7 @@ interface LeagueStore {
   // for a super-admin (see the live app's server/routes/auth.js comment on that route) -- a pure
   // super-admin with no personal league would never reach loadLive at all otherwise, yet the
   // Admin tab needs their identity regardless of whether they have a league of their own to view.
-  setIdentity: (userId: string, isSuperAdmin: boolean) => void;
+  setIdentity: (userId: string, isSuperAdmin: boolean, impersonating: boolean) => void;
   // Port of pollForNotifications()'s deliberately-narrow state patch: only midSeason is synced
   // from a background poll, not the whole state object, so a poll landing mid-edit elsewhere
   // (e.g. a half-filled Episode form) can't clobber it. See use-league-poll.ts.
@@ -71,6 +75,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   membership: null,
   userId: null,
   isSuperAdmin: false,
+  impersonating: false,
   playerAccounts: [],
   leagues: [],
   useMock: () =>
@@ -82,12 +87,13 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       membership: null,
       userId: null,
       isSuperAdmin: false,
+      impersonating: false,
       playerAccounts: [],
       leagues: [],
     }),
   loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts) =>
     set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts }),
-  setIdentity: (userId, isSuperAdmin) => set({ userId, isSuperAdmin }),
+  setIdentity: (userId, isSuperAdmin, impersonating) => set({ userId, isSuperAdmin, impersonating }),
   setLeagues: (leagues) => set({ leagues }),
   switchLeague: async (leagueId) => {
     const { league, state, membership, playerAccounts } = await api.leagueState(leagueId);
@@ -124,4 +130,8 @@ export function useIsAuthenticated(): boolean {
 
 export function useIsSuperAdmin(): boolean {
   return useLeagueStore((s) => s.isSuperAdmin);
+}
+
+export function useIsImpersonating(): boolean {
+  return useLeagueStore((s) => s.impersonating);
 }

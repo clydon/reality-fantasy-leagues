@@ -9,6 +9,7 @@ import { LoginScreen } from "@/components/login-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 import { ReportModal } from "@/components/report-modal";
 import { useLeaguePoll } from "@/lib/use-league-poll";
+import { Button } from "@/components/ui/button";
 
 type Status = "checking" | "idle" | "loading";
 
@@ -31,6 +32,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const enterMockMode = useLeagueStore((s) => s.useMock); // renamed locally -- a plain callback, not a hook, but eslint's rule flags anything named use*
   const setIdentity = useLeagueStore((s) => s.setIdentity);
   const setLeagues = useLeagueStore((s) => s.setLeagues);
+  const impersonating = useLeagueStore((s) => s.impersonating);
   const [status, setStatus] = useState<Status>("checking");
   const [entered, setEntered] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     // "My Leagues" reflects real membership only, even for a super-admin (see the live app's
     // server/routes/auth.js) -- identity is set regardless, so a pure super-admin with no
     // personal league still enters the app (with demo data underneath) rather than getting stuck.
-    setIdentity(me.user.id, me.user.isSuperAdmin);
+    setIdentity(me.user.id, me.user.isSuperAdmin, me.impersonating);
     setSignedInUsername(me.user.username);
     setLeagues(me.leagues);
     if (me.leagues.length > 0) {
@@ -82,6 +84,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setEntered(true);
   }
 
+  // Port of stopImpersonating() (public/app.js): a full reload re-runs AuthGate's own
+  // loadFirstLeague from scratch against the now-restored session, exactly like the live app's
+  // boot() re-run -- simpler and more robust than trying to patch every piece of client state
+  // (store identity, loaded league, membership, playerAccounts) back by hand.
+  async function handleStopImpersonating() {
+    await api.stopImpersonating();
+    // Deliberately a full reload, not router.push() -- see the comment above this function.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/";
+  }
+
   if (PUBLIC_ROUTES.includes(pathname)) {
     return <div className="min-h-screen bg-background px-4 py-10">{children}</div>;
   }
@@ -106,6 +119,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // stacking above it.
   return (
     <>
+      {impersonating && (
+        <div className="sticky top-0 z-[1000] flex items-center justify-center gap-2 bg-[#5089c4] px-3 py-2.5 text-center text-[0.85rem] text-white">
+          Viewing as <b>{signedInUsername}</b> — this is exactly what they see.
+          <Button variant="secondary" size="sm" onClick={handleStopImpersonating}>
+            Return to my account
+          </Button>
+        </div>
+      )}
       <MobileNav />
       <ReportModal />
       <div className="flex min-h-screen items-stretch">

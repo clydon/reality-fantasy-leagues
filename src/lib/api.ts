@@ -31,6 +31,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export interface MeResponse {
   user: { id: string; username: string; isSuperAdmin: boolean };
   leagues: { id: string; name: string; join_code: string; role: string }[];
+  impersonating: boolean;
 }
 
 export interface LeagueStateResponse {
@@ -50,6 +51,7 @@ export const api = {
     }),
   me: () => apiFetch<MeResponse>("/api/auth/me"),
   logout: () => apiFetch<{ ok: true }>("/api/auth/logout", { method: "POST" }),
+  stopImpersonating: () => apiFetch<{ ok: true }>("/api/auth/stop-impersonating", { method: "POST" }),
   leagueState: (leagueId: string) =>
     apiFetch<LeagueStateResponse>(`/api/leagues/${leagueId}/state`),
 
