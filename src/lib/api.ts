@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player } from "@/lib/game/types";
 
 // Thin fetch wrapper for the live Express API (see SurvivorDraft/server/routes/*.js). Requires
 // that API's dev-only CORS middleware (server/index.js) to be running and configured to allow
@@ -173,4 +173,35 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ emoji }),
     }),
+
+  // Admin routes -- superAdmin-only server-side (requireSuperAdmin), cross-league scope (not
+  // the per-league LeagueState everything else here reads/writes).
+  adminListUsers: () => apiFetch<{ users: AdminUser[] }>("/api/admin/users"),
+  adminCreateUser: (username: string) =>
+    apiFetch<{ user: { id: string; username: string }; tempPassword: string }>("/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify({ username }),
+    }),
+  adminResetPassword: (userId: string) =>
+    apiFetch<{ user: { id: string; username: string }; tempPassword: string }>(`/api/admin/users/${userId}/reset-password`, {
+      method: "POST",
+    }),
+  adminUserLeagues: (userId: string) => apiFetch<{ leagues: { id: string; name: string; role: string }[] }>(`/api/admin/users/${userId}/leagues`),
+  adminDeleteUser: (userId: string) => apiFetch<{ ok: true }>(`/api/admin/users/${userId}`, { method: "DELETE" }),
+  adminImpersonate: (userId: string) =>
+    apiFetch<{ ok: true; username: string }>(`/api/admin/users/${userId}/impersonate`, { method: "POST" }),
+
+  adminListLeagues: () => apiFetch<{ leagues: AdminLeague[] }>("/api/admin/leagues"),
+  adminDeleteLeague: (leagueId: string) => apiFetch<{ ok: true }>(`/api/admin/leagues/${leagueId}`, { method: "DELETE" }),
+  adminLeagueMemberships: (leagueId: string) =>
+    apiFetch<{ players: Player[]; memberships: AdminMembership[] }>(`/api/admin/leagues/${leagueId}/memberships`),
+  adminLinkMembership: (leagueId: string, userId: string, playerId: string, role: "member" | "commissioner") =>
+    apiFetch<{ membership: AdminMembership }>(`/api/admin/leagues/${leagueId}/memberships`, {
+      method: "POST",
+      body: JSON.stringify({ userId, playerId, role }),
+    }),
+  adminUnlinkMembership: (leagueId: string, membershipId: string) =>
+    apiFetch<{ ok: true }>(`/api/admin/leagues/${leagueId}/memberships/${membershipId}`, { method: "DELETE" }),
+  adminDeletePlayer: (leagueId: string, playerId: string) =>
+    apiFetch<{ ok: true; player: Player }>(`/api/admin/leagues/${leagueId}/players/${playerId}`, { method: "DELETE" }),
 };

@@ -21,9 +21,15 @@ interface LeagueStore {
   leagueName: string | null;
   membership: Membership | null;
   userId: string | null; // the signed-in user's own id (not their player id) -- chat reactions/ownership key off this, same as public/app.js's currentUser.id
+  isSuperAdmin: boolean; // global account flag, independent of role within the currently-loaded league -- gates the Admin tab, same as public/app.js's currentUser.isSuperAdmin
   useMock: () => void;
-  loadLive: (leagueId: string, state: LeagueState, leagueName: string, membership: Membership, userId: string) => void;
+  loadLive: (leagueId: string, state: LeagueState, leagueName: string, membership: Membership, userId: string, isSuperAdmin: boolean) => void;
   setState: (state: LeagueState) => void;
+  // Separate from loadLive: "My Leagues" (GET /api/auth/me) reflects real membership only, even
+  // for a super-admin (see the live app's server/routes/auth.js comment on that route) -- a pure
+  // super-admin with no personal league would never reach loadLive at all otherwise, yet the
+  // Admin tab needs their identity regardless of whether they have a league of their own to view.
+  setIdentity: (userId: string, isSuperAdmin: boolean) => void;
 }
 
 export const useLeagueStore = create<LeagueStore>((set) => ({
@@ -33,10 +39,12 @@ export const useLeagueStore = create<LeagueStore>((set) => ({
   leagueName: null,
   membership: null,
   userId: null,
+  isSuperAdmin: false,
   useMock: () =>
-    set({ mode: "mock", state: buildMockSeasonState(), leagueId: null, leagueName: null, membership: null, userId: null }),
-  loadLive: (leagueId, state, leagueName, membership, userId) =>
-    set({ mode: "live", leagueId, state, leagueName, membership, userId }),
+    set({ mode: "mock", state: buildMockSeasonState(), leagueId: null, leagueName: null, membership: null, userId: null, isSuperAdmin: false }),
+  loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin) =>
+    set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin }),
+  setIdentity: (userId, isSuperAdmin) => set({ userId, isSuperAdmin }),
   // Mock-mode mutators (StateLogic.*) mutate `state` in place, same as the live app; spreading it
   // into a new top-level object is what actually triggers Zustand/React to notice the change.
   setState: (state) => set({ state: { ...state } }),
@@ -54,4 +62,8 @@ export function useCanGuess(): boolean {
 
 export function useMyPlayerId(): string | null {
   return useLeagueStore((s) => s.membership?.playerId ?? null);
+}
+
+export function useIsSuperAdmin(): boolean {
+  return useLeagueStore((s) => s.isSuperAdmin);
 }

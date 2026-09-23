@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "cn";
+import { useIsSuperAdmin } from "@/lib/store";
 
 // Minimal stand-in for the live app's sidebar/mobile-nav chrome (see CLAUDE.md's "mobile nav
 // chrome" section) -- just enough real Next.js routing between ported tabs to validate
@@ -19,10 +20,14 @@ const TABS = [
 
 export function TopNav() {
   const pathname = usePathname();
+  const isSuperAdmin = useIsSuperAdmin();
+  // Same gate as the live app's own admin dash-link (public/app.js: only rendered for
+  // currentUser.isSuperAdmin) -- the tab isn't just inert for non-super-admins, it's not shown.
+  const tabs = isSuperAdmin ? [...TABS, { href: "/admin", label: "Admin" }] : TABS;
   return (
     <nav className="border-b border-border bg-panel-menu">
       <div className="mx-auto flex max-w-4xl items-center gap-1 px-4 sm:px-6">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <Link
             key={tab.href}
             href={tab.href}

@@ -14,21 +14,25 @@ type Status = "checking" | "loggedOut" | "loading" | "ready" | "error";
 // mock dataset stays one click away via useMock() -- this doesn't replace the demo path, it adds
 // a second, real one next to it for comparison.
 export function AuthGate({ children }: { children: ReactNode }) {
-  const { mode, leagueName, loadLive, useMock } = useLeagueStore();
+  const { mode, leagueName, loadLive, useMock, setIdentity } = useLeagueStore();
   const [status, setStatus] = useState<Status>("checking");
   const [error, setError] = useState<string | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [signedInUsername, setSignedInUsername] = useState<string | null>(null);
 
   async function loadFirstLeague() {
     const me = await api.me();
-    if (me.leagues.length === 0) {
-      setError(`Signed in as ${me.user.username}, but that account has no leagues.`);
-      setStatus("error");
-      return;
+    // "My Leagues" reflects real membership only, even for a super-admin (see the live app's
+    // server/routes/auth.js) -- identity is set regardless, so a pure super-admin with no
+    // personal league still gets real Admin-tab access even though league-scoped tabs fall back
+    // to demo data below (there's no real per-league data to show them by default).
+    setIdentity(me.user.id, me.user.isSuperAdmin);
+    setSignedInUsername(me.user.username);
+    if (me.leagues.length > 0) {
+      const { league, state, membership } = await api.leagueState(me.leagues[0].id);
+      loadLive(league.id, state, league.name, membership, me.user.id, me.user.isSuperAdmin);
     }
-    const { league, state, membership } = await api.leagueState(me.leagues[0].id);
-    loadLive(league.id, state, league.name, membership, me.user.id);
     setStatus("ready");
   }
 
@@ -66,6 +70,23 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <button className="underline underline-offset-2" onClick={useMock}>
               Switch to demo data
             </button>
+          </div>
+        </div>
+        {children}
+      </div>
+    );
+  }
+
+  if (status === "ready" && signedInUsername) {
+    // Signed in (identity known -- e.g. Admin tab works), but no personal league to show live
+    // data for. Rare in the live app too (see the loadFirstLeague comment above); shown as its
+    // own state rather than looping back to the login form for someone who's already logged in.
+    return (
+      <div>
+        <div className="mx-auto max-w-4xl px-4 pt-4 sm:px-6">
+          <div className="rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-muted-foreground">
+            Signed in as {signedInUsername} — no personal league, so league-scoped tabs below show demo data. Admin tab
+            uses your real account.
           </div>
         </div>
         {children}

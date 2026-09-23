@@ -7,6 +7,8 @@ export interface Player {
   id: string;
   name: string;
   color: string;
+  disabled?: boolean;
+  active?: boolean;
 }
 
 export interface Tribe {
@@ -100,6 +102,30 @@ export interface LeagueState {
   draftOrder: string[];
   draftPicksMade: number;
   settings: LeagueSettings;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  is_super_admin: boolean;
+  must_change_password: boolean;
+  created_at: string;
+}
+
+export interface AdminLeague {
+  id: string;
+  name: string;
+  slug: string;
+  join_code: string;
+  created_at: string;
+}
+
+export interface AdminMembership {
+  id: string;
+  player_id: string;
+  role: "member" | "commissioner";
+  user_id: string;
+  username: string;
 }
 
 export interface ChatReaction {

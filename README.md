@@ -9,10 +9,11 @@ it's validating.
 
 Per `SurvivorDraft/docs/ARCHITECTURE.md`'s Phase 1 recommendation: React + Next.js (App Router) +
 Tailwind CSS + shadcn/ui + Zustand, with the **Overview tab ported first** as a self-contained
-validation case before committing to a full port of the live app — now joined by a **second real
-tab (Draft)** and real routing/navigation between them (`src/components/top-nav.tsx`, real
-Next.js pages at `/` and `/draft`, not a client-side tab switcher), validating that this approach
-holds up across more than one isolated tab.
+validation case before committing to a full port of the live app. **All seven tabs are now
+ported** (Overview, Draft, Episodes, Mid-Season, Scoreboard, Chat, Admin), with real
+routing/navigation between them (`src/components/top-nav.tsx`, real Next.js pages, not a
+client-side tab switcher) — the full live app's tab set, not just the one-tab proof of concept
+the plan called for as a first checkpoint.
 
 Ported so far: the full Overview tab — Side Bets section (propose a bet, guess, commissioner
 grading, delete), the three dashboard cards (Latest Episode, Season Status, Standings), and the
@@ -105,6 +106,22 @@ league. `annotateMentions()` (owned-castaway names get a small colored owner bad
 ported as a proper React component (`mention-text.tsx`) rather than HTML-string concatenation —
 React auto-escapes text content, so this needed no `esc()` equivalent at all.
 
+**Admin tab** (`src/components/admin/*`, `src/lib/admin-store.ts`, route `/admin`): direct port
+of `renderAdmin()`. Unlike every other tab, Admin has **no mock-mode equivalent at all** — the
+live app never shows its nav link to non-super-admins in the first place, demo mode included — so
+`admin-store.ts` only ever makes real API calls, and `TopNav`/`AdminTab` both replicate that
+same-origin gate (`useIsSuperAdmin()`) rather than just leaving the tab inert for non-admins.
+Cross-league scope (all users, all leagues — not the single league `useLeagueStore` holds), so it
+got its own store. Surfaced and fixed a real gap this uncovered: "My Leagues"
+(`GET /api/auth/me`) reflects real membership only, even for a super-admin, so a pure super-admin
+with zero personal leagues would never have reached `loadLive()` at all under the original
+`AuthGate` logic — `useLeagueStore` gained a separate `setIdentity()` action so identity
+(`userId`/`isSuperAdmin`) is known independent of whether the signed-in account has a league of
+its own to show. Verified against a dedicated fixture super-admin account created via the live
+repo's own `db/create-super-admin.js`, including that exact zero-leagues case; all read routes
+plus a full create→reset-password→delete cycle on a disposable throwaway user (never touching
+the shared dev database's existing users/leagues).
+
 ## Design tokens
 
 The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
@@ -122,10 +139,12 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
   last poll", "it just became your turn"), which is a polling-infrastructure concern, not a
   componentization one. Worth its own pass once real-time/polling strategy for this repo is
   decided.
-- **No Admin tab yet** — the only remaining tab per the phased/tab-by-tab plan (Overview, Draft,
-  Episodes, Mid-Season, Scoreboard, and Chat are all done).
 - **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
   cast photos.
+- **The Reports tab** (`renderAdminReports()`, super-admin-only bug/feature report inbox) and the
+  in-app "Report an Issue" submission modal — a separate, smaller super-admin utility not named in
+  `ARCHITECTURE.md`'s Phase 1 tab list (Overview/Draft/Episodes/Mid-Season/Scoreboard/Chat/Admin,
+  all now done), so it wasn't in scope for validating that list.
 - **No signup/session-persistence UI polish** — the login form is functional but minimal (see
   `auth-gate.tsx`).
 
