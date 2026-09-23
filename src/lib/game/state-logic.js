@@ -258,12 +258,30 @@ class RosterLogic {
   // Used when a player leaves mid-draft (self-serve) or an admin removes them: the roster slot,
   // its history, and any points it already earned all stay intact and keep counting -- only the
   // name changes and the seat is flagged disabled, so nobody can draft/bet/predict as them again.
-  static disablePlayer(state, playerId){
+  // The original name and (when given) the account it was unlinked from are kept so the same
+  // account can reclaim the seat later (reclaimPlayer). Disabling an already-disabled seat keeps
+  // the first formerName rather than overwriting it with a disabled_player_#### name.
+  static disablePlayer(state, playerId, disabledFromUserId){
     const p = Core.getPlayer(state, playerId);
     if(!p) return null;
     const suffix = Math.floor(1000 + Math.random()*9000);
+    if(!p.disabled) p.formerName = p.name;
     p.name = 'disabled_player_' + suffix;
     p.disabled = true;
+    if(disabledFromUserId) p.disabledFromUserId = disabledFromUserId;
+    return p;
+  }
+  // Restores a disabled player's original name/active status when the same account (matched by
+  // disabledFromUserId, not name -- names are guessable, account ids aren't) rejoins the league.
+  // Does NOT touch ownerId/status/placementOrder/points -- those were never cleared by
+  // disablePlayer, so there's nothing to restore there; this only undoes the disable/rename.
+  static reclaimPlayer(state, playerId){
+    const p = Core.getPlayer(state, playerId);
+    if(!p || !p.disabled) return null;
+    p.name = p.formerName || p.name;
+    delete p.formerName;
+    delete p.disabledFromUserId;
+    p.disabled = false;
     return p;
   }
   static addTribe(state, name, color){
@@ -619,7 +637,7 @@ return {
   syncDraftOrder: DraftLogic.syncOrder, currentDraftTurn: DraftLogic.currentTurn, isDraftStarted: DraftLogic.isStarted, forceStartDraft: DraftLogic.forceStart,
   computeScores: ScoringLogic.compute,
   addPlayer: RosterLogic.addPlayer, updatePlayer: RosterLogic.updatePlayer, removePlayer: RosterLogic.removePlayer,
-  disablePlayer: RosterLogic.disablePlayer, activatePlayer: RosterLogic.activatePlayer,
+  disablePlayer: RosterLogic.disablePlayer, reclaimPlayer: RosterLogic.reclaimPlayer, activatePlayer: RosterLogic.activatePlayer,
   addTribe: RosterLogic.addTribe, updateTribe: RosterLogic.updateTribe, removeTribe: RosterLogic.removeTribe,
   addCastaway: RosterLogic.addCastaway, updateCastaway: RosterLogic.updateCastaway, removeCastaway: RosterLogic.removeCastaway,
   updateSettings: RosterLogic.updateSettings,

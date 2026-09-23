@@ -9,6 +9,9 @@ export interface Player {
   color: string;
   disabled?: boolean;
   active?: boolean;
+  // Set by disablePlayer so the same account can reclaim the seat on rejoin (reclaimPlayer).
+  formerName?: string;
+  disabledFromUserId?: string;
 }
 
 export interface Tribe {

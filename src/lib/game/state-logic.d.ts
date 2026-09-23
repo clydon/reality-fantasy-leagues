@@ -49,7 +49,8 @@ declare const StateLogic: {
   addPlayer(state: LeagueState, name: string): Player;
   updatePlayer(state: LeagueState, id: string, field: string, value: unknown): void;
   removePlayer(state: LeagueState, id: string): void;
-  disablePlayer(state: LeagueState, playerId: string): Player | null;
+  disablePlayer(state: LeagueState, playerId: string, disabledFromUserId?: string): Player | null;
+  reclaimPlayer(state: LeagueState, playerId: string): Player | null;
   activatePlayer(state: LeagueState, playerId: string, castawayIds: string[]): Player | null;
   addTribe(state: LeagueState, name: string, color: string): Tribe;
   updateTribe(state: LeagueState, id: string, field: string, value: unknown): void;

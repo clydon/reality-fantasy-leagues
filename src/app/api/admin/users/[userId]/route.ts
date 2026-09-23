@@ -19,7 +19,7 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ userI
     const leagueRes = await pool.query("SELECT state FROM leagues WHERE id=$1", [m.league_id]);
     if (!leagueRes.rows.length) continue;
     const state = leagueRes.rows[0].state;
-    StateLogic.disablePlayer(state, m.player_id);
+    StateLogic.disablePlayer(state, m.player_id, userId);
     await pool.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), m.league_id]);
   }
 

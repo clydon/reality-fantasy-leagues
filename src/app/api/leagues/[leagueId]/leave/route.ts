@@ -27,7 +27,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   if (state.draftPicksMade === 0) {
     StateLogic.removePlayer(state, playerId);
   } else {
-    StateLogic.disablePlayer(state, playerId);
+    StateLogic.disablePlayer(state, playerId, user.id);
   }
   await pool.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), leagueId]);
   await pool.query("DELETE FROM league_memberships WHERE id=$1", [membership.rows[0].id]);
