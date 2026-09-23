@@ -50,6 +50,18 @@ pick/:id`) wired to the real API and verified against the fixture league, not ju
 `AuthGate` moved up into the root layout so login/live-data state persists across tab navigation
 instead of re-checking on every page.
 
+**Episodes tab** (`src/components/episodes/*`, route `/episodes`): direct port of
+`renderEpisodes()`/`renderEpisodeCard()` — expandable/collapsible episode cards (newest open by
+default), episode number/post-merge fields, Eliminations (log/undo, with the same
+already-replenished confirm warning as the original), and a fuller per-episode Side Bets editor
+(`episode-bet-row.tsx`) than Overview's read-mostly version: editable label/points, remove-a-guess,
+and the commissioner-can-guess-on-anyone's-behalf player picker. `renderUnsettledBetsPanel()`
+isn't ported — it's pure duplication of signals already available elsewhere (Overview's "needs
+your guess" count, inline grading here), so it wasn't validating anything new. All episode/
+elimination/bet-editing mutation routes (`addEpisode`, `removeEpisode`, `updateEpisode`,
+`addElimination`, `removeElimination`, `updateBet`, `removeBetPrediction`) wired to the real API
+and independently verified against the fixture league.
+
 ## Design tokens
 
 The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
@@ -67,8 +79,8 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
   last poll", "it just became your turn"), which is a polling-infrastructure concern, not a
   componentization one. Worth its own pass once real-time/polling strategy for this repo is
   decided.
-- **No other tabs yet** (Episodes, Mid-Season, Scoreboard, Chat, Admin) — Overview and Draft only,
-  per the phased/tab-by-tab plan.
+- **No other tabs yet** (Mid-Season, Scoreboard, Chat, Admin) — Overview, Draft, and Episodes so
+  far, per the phased/tab-by-tab plan.
 - **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
   cast photos.
 - **No signup/session-persistence UI polish** — the login form is functional but minimal (see

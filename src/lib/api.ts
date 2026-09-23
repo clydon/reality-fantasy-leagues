@@ -84,4 +84,32 @@ export const api = {
     apiFetch<LeagueState>(`/api/leagues/${leagueId}/draft/pick/${castawayId}`, { method: "DELETE" }),
   forceStartDraft: (leagueId: string) =>
     apiFetch<LeagueState>(`/api/leagues/${leagueId}/draft/force-start`, { method: "POST" }),
+
+  addEpisode: (leagueId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes`, { method: "POST" }),
+  removeEpisode: (leagueId: string, epId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}`, { method: "DELETE" }),
+  updateEpisode: (leagueId: string, epId: string, field: string, value: unknown) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ field, value }),
+    }),
+  addElimination: (leagueId: string, epId: string, castawayId: string, method: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/eliminations`, {
+      method: "POST",
+      body: JSON.stringify({ castawayId, method }),
+    }),
+  removeElimination: (leagueId: string, epId: string, castawayId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/eliminations/${castawayId}`, {
+      method: "DELETE",
+    }),
+  updateBet: (leagueId: string, epId: string, betId: string, field: string, value: unknown) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ field, value }),
+    }),
+  removeBetPrediction: (leagueId: string, epId: string, betId: string, predId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/predictions/${predId}`, {
+      method: "DELETE",
+    }),
 };
