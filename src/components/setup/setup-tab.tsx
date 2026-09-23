@@ -3,6 +3,7 @@
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { LeagueInfoSection } from "./league-info-section";
 import { PlayersSection } from "./players-section";
+import { InvitesSection } from "./invites-section";
 import { TribesSection } from "./tribes-section";
 import { CastawaysSection } from "./castaways-section";
 import { GeneralSettingsSection } from "./general-settings-section";
@@ -29,6 +30,7 @@ export function SetupTab() {
 
       <LeagueInfoSection state={state} />
       <PlayersSection state={state} />
+      <InvitesSection />
       <TribesSection state={state} />
       <CastawaysSection state={state} />
       <GeneralSettingsSection state={state} />

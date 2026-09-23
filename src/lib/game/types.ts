@@ -192,3 +192,24 @@ export interface DraftTurn {
   personalPickNumber?: number;
   overallPickNumber?: number;
 }
+
+// A row of league_invites as League Settings shows it (GET /api/leagues/[leagueId]/invites) --
+// `identifier` is whatever the inviter typed (username or email), not resolved to an account.
+export interface LeagueInvite {
+  id: string;
+  identifier: string;
+  status: "pending" | "accepted" | "declined";
+  invited_by: string;
+  invited_by_username: string | null;
+  created_at: string;
+  responded_at: string | null;
+}
+
+// A pending invite addressed to the signed-in user, as the Dashboard shows it (GET /api/me/invites).
+export interface MyInvite {
+  id: string;
+  league_id: string;
+  league_name: string;
+  invited_by_username: string | null;
+  created_at: string;
+}

@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -54,11 +54,27 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ name }),
     }),
+  // `reclaimed`: the user's own previously-disabled seat was restored rather than a new one made.
   joinLeague: (code: string) =>
-    localFetch<{ league: { id: string; name: string } }>("/api/leagues/join", {
+    localFetch<{ league: { id: string; name: string }; reclaimed: boolean }>("/api/leagues/join", {
       method: "POST",
       body: JSON.stringify({ code }),
     }),
+
+  // League invites live in their own table (league_invites), not the JSONB league state -- same
+  // as chat, so these return their own shapes and have no mock-mode branch.
+  sendInvite: (leagueId: string, identifier: string) =>
+    localFetch<{ invite: LeagueInvite }>(`/api/leagues/${leagueId}/invites`, {
+      method: "POST",
+      body: JSON.stringify({ identifier }),
+    }),
+  listLeagueInvites: (leagueId: string) => localFetch<{ invites: LeagueInvite[] }>(`/api/leagues/${leagueId}/invites`),
+  revokeInvite: (leagueId: string, inviteId: string) =>
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/invites/${inviteId}`, { method: "DELETE" }),
+  myInvites: () => localFetch<{ invites: MyInvite[] }>("/api/me/invites"),
+  acceptInvite: (inviteId: string) =>
+    localFetch<{ league: { id: string; name: string }; reclaimed: boolean }>(`/api/invites/${inviteId}/accept`, { method: "POST" }),
+  declineInvite: (inviteId: string) => localFetch<{ ok: true }>(`/api/invites/${inviteId}/decline`, { method: "POST" }),
 
   proposeBet: (leagueId: string, epId: string, label: string, points: number) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets`, {

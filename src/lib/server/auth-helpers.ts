@@ -12,6 +12,12 @@ export interface LeagueMembership {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// For validating UUID path params before they reach a query -- Postgres throws (a 500) on a
+// malformed uuid literal rather than just matching nothing.
+export function isUuid(id: string): boolean {
+  return UUID_RE.test(id);
+}
+
 function isSuperAdminUser(user: SessionUser): boolean {
   return (user as { role?: string | null }).role === "admin";
 }
