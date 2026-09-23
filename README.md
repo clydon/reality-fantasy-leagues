@@ -9,7 +9,10 @@ it's validating.
 
 Per `SurvivorDraft/docs/ARCHITECTURE.md`'s Phase 1 recommendation: React + Next.js (App Router) +
 Tailwind CSS + shadcn/ui + Zustand, with the **Overview tab ported first** as a self-contained
-validation case before committing to a full port of the live app.
+validation case before committing to a full port of the live app — now joined by a **second real
+tab (Draft)** and real routing/navigation between them (`src/components/top-nav.tsx`, real
+Next.js pages at `/` and `/draft`, not a client-side tab switcher), validating that this approach
+holds up across more than one isolated tab.
 
 Ported so far: the full Overview tab — Side Bets section (propose a bet, guess, commissioner
 grading, delete), the three dashboard cards (Latest Episode, Season Status, Standings), and the
@@ -37,6 +40,16 @@ Mock mode intentionally mirrors the live app's *actual* demo-mode behavior, not 
 full commissioner powers (propose/delete/grade bets), but no personal player identity to submit a
 guess as — `enterDemoMode()` in the live app never sets a player identity either.
 
+**Draft tab** (`src/components/draft/*`, route `/draft`): direct port of `renderDraft()` — draft
+order (reorder via ↑↓ buttons; drag-and-drop itself isn't ported, but the live app's own
+touch-device fallback already *is* this, so nothing loses its accessible equivalent), the
+not-started/in-progress/complete status banner, Draft Results (who each player originally
+drafted), and Free Agents (click to draft, with the same commissioner-drafting-for-someone-else
+confirm dialog). All four draft mutation routes (`force-start`, `order`, `pick`, `DELETE
+pick/:id`) wired to the real API and verified against the fixture league, not just the mock path.
+`AuthGate` moved up into the root layout so login/live-data state persists across tab navigation
+instead of re-checking on every page.
+
 ## Design tokens
 
 The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
@@ -54,12 +67,12 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
   last poll", "it just became your turn"), which is a polling-infrastructure concern, not a
   componentization one. Worth its own pass once real-time/polling strategy for this repo is
   decided.
-- **No other tabs** (Draft, Episodes, Mid-Season, Scoreboard, Chat, Admin) — Overview only, per
-  the phased/tab-by-tab plan.
+- **No other tabs yet** (Episodes, Mid-Season, Scoreboard, Chat, Admin) — Overview and Draft only,
+  per the phased/tab-by-tab plan.
 - **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
   cast photos.
-- **No signup/session-persistence UI polish, no routing beyond `/`** — the login form is
-  functional but minimal (see `auth-gate.tsx`), and there's nothing beyond the one page yet.
+- **No signup/session-persistence UI polish** — the login form is functional but minimal (see
+  `auth-gate.tsx`).
 
 ## Stack
 

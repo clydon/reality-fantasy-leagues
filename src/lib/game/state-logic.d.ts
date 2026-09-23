@@ -13,18 +13,25 @@ declare const StateLogic: {
     compute(state: LeagueState): ScoreRow[];
   };
   DraftLogic: {
-    currentTurn(state: LeagueState): DraftTurn;
+    currentTurn(state: LeagueState): DraftTurn | null;
     isStarted(state: LeagueState): boolean;
   };
   getPlayer(state: LeagueState, id: string): Player | undefined;
   getCastaway(state: LeagueState, id: string): Castaway | undefined;
   computeScores(state: LeagueState): ScoreRow[];
-  currentDraftTurn(state: LeagueState): DraftTurn;
+  currentDraftTurn(state: LeagueState): DraftTurn | null;
   isDraftStarted(state: LeagueState): boolean;
   addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet;
   removeBet(state: LeagueState, epId: string, betId: string): void;
   addBetPrediction(state: LeagueState, epId: string, betId: string, playerId: string, guess: string): void;
   setBetPredictionCorrect(state: LeagueState, epId: string, betId: string, predId: string, value: boolean | null): void;
+  syncDraftOrder(state: LeagueState): void;
+  freeAgents(state: LeagueState): Castaway[];
+  reorderDraft(state: LeagueState, fromIndex: number, toIndex: number): void;
+  moveDraftOrder(state: LeagueState, index: number, delta: number): void;
+  draftToCurrentTurn(state: LeagueState, castawayId: string): void;
+  undraft(state: LeagueState, castawayId: string): void;
+  forceStartDraft(state: LeagueState): void;
 };
 
 export default StateLogic;

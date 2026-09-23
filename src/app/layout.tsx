@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthGate } from "@/components/auth-gate";
+import { TopNav } from "@/components/top-nav";
 
 // Matches the live app's typography exactly (public/styles.css --font-body / --font-mono),
 // so ported components need zero font-related visual tweaking.
@@ -27,7 +29,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-background">
+        <TopNav />
+        <AuthGate>{children}</AuthGate>
+      </body>
     </html>
   );
 }

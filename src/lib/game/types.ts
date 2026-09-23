@@ -102,7 +102,8 @@ export interface ScoreRow {
 }
 
 export interface DraftTurn {
-  playerId: string | null;
-  personalPickNumber: number;
   isComplete: boolean;
+  playerId?: string;
+  personalPickNumber?: number;
+  overallPickNumber?: number;
 }

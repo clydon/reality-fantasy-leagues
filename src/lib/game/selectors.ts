@@ -24,6 +24,13 @@ export function getUpcomingEpisode(state: LeagueState): Episode {
   return [...state.episodes].sort((a, b) => b.number - a.number)[0];
 }
 
+export function ordinal(n: number | undefined): string | number {
+  if (n === undefined) return "";
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 export function initials(name: string): string {
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }

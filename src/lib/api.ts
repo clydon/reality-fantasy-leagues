@@ -69,4 +69,19 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ value }),
     }),
+
+  reorderDraft: (leagueId: string, fromIndex: number, toIndex: number) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/draft/order`, {
+      method: "POST",
+      body: JSON.stringify({ fromIndex, toIndex }),
+    }),
+  draftPick: (leagueId: string, castawayId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/draft/pick`, {
+      method: "POST",
+      body: JSON.stringify({ castawayId }),
+    }),
+  undraft: (leagueId: string, castawayId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/draft/pick/${castawayId}`, { method: "DELETE" }),
+  forceStartDraft: (leagueId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/draft/force-start`, { method: "POST" }),
 };

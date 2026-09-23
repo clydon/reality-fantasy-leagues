@@ -19,11 +19,11 @@ export function SeasonStatusCard({ state }: { state: LeagueState }) {
     // TODO(post-POC): port formatScheduledTime + draftScheduledAt display once Draft is ported.
     statusBody = <DashLink>Go to draft →</DashLink>;
   } else if (!draftComplete) {
-    const player = StateLogic.getPlayer(state, turn.playerId ?? "");
+    const player = turn ? StateLogic.getPlayer(state, turn.playerId ?? "") : undefined;
     statusBody = (
       <>
         <p className="mt-1.5 text-sm">
-          <b>{player?.name || "?"}&rsquo;s</b> turn to draft (pick {turn.personalPickNumber}).
+          <b>{player?.name || "?"}&rsquo;s</b> turn to draft (pick {turn?.personalPickNumber}).
         </p>
         <DashLink>Go to draft →</DashLink>
       </>
