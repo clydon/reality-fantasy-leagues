@@ -13,6 +13,7 @@ const TABS = [
   { href: "/draft", label: "Draft" },
   { href: "/episodes", label: "Episodes" },
   { href: "/mid-season", label: "Mid-Season" },
+  { href: "/scoreboard", label: "Scoreboard" },
 ];
 
 export function TopNav() {

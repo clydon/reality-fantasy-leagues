@@ -74,6 +74,14 @@ for Replenish/Swap; an explicit per-route check for Finale's Actual Result), and
 `useCanManage()` gating matches that exactly — a member never sees a control they'd be rejected
 for using.
 
+**Scoreboard tab** (`src/components/scoreboard/*`, route `/scoreboard`): direct port of
+`renderScoreboard()` — a pure-read tab, no mutations at all, so it needed no `use-mutate.ts`
+wiring. Per-player leaderboard rows with Roster detail and Bonus bets breakdowns, using the
+native `<details>` element directly rather than `useState` for the disclosure toggles — unlike
+the toggle flags converted to local state elsewhere in this POC, there was no shared/global state
+here to eliminate in the first place, so `<details>` is the more direct translation, not a step
+backward.
+
 ## Design tokens
 
 The terracotta/cream palette from the live app's `public/styles.css` `:root` block is ported 1:1
@@ -91,7 +99,7 @@ redesign — see `ARCHITECTURE.md`'s styling rationale.
   last poll", "it just became your turn"), which is a polling-infrastructure concern, not a
   componentization one. Worth its own pass once real-time/polling strategy for this repo is
   decided.
-- **No other tabs yet** (Scoreboard, Chat, Admin) — Overview, Draft, Episodes, and Mid-Season so
+- **No other tabs yet** (Chat, Admin) — Overview, Draft, Episodes, Mid-Season, and Scoreboard so
   far, per the phased/tab-by-tab plan.
 - **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
   cast photos.
