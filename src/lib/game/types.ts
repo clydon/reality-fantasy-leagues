@@ -103,6 +103,7 @@ export interface LeagueState {
   midSeason: { replenish: { sequence: unknown[]; index: number } | null; trade: TradeState | null };
   draftOrder: string[];
   draftPicksMade: number;
+  draftForceStarted: boolean;
   settings: LeagueSettings;
 }
 

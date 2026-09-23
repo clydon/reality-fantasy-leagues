@@ -206,6 +206,59 @@ export const api = {
   adminDeletePlayer: (leagueId: string, playerId: string) =>
     apiFetch<{ ok: true; player: Player }>(`/api/admin/leagues/${leagueId}/players/${playerId}`, { method: "DELETE" }),
 
+  // League Settings -- commissioner-only server-side (requireLeagueRole('commissioner') on every
+  // route in server/routes/roster.js), same generic field/value PATCH pattern as updateEpisode.
+  renameLeague: (leagueId: string, name: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+  updateLeagueSettings: (leagueId: string, field: string, value: unknown) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/settings`, {
+      method: "PATCH",
+      body: JSON.stringify({ field, value }),
+    }),
+  addPlayer: (leagueId: string, name: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/players`, { method: "POST", body: JSON.stringify({ name }) }),
+  updatePlayer: (leagueId: string, id: string, field: string, value: unknown) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ field, value }),
+    }),
+  removePlayer: (leagueId: string, id: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}`, { method: "DELETE" }),
+  activatePlayer: (leagueId: string, id: string, castawayIds: string[]) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}/activate`, {
+      method: "POST",
+      body: JSON.stringify({ castawayIds }),
+    }),
+  addTribe: (leagueId: string, name: string, color: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/tribes`, {
+      method: "POST",
+      body: JSON.stringify({ name, color }),
+    }),
+  updateTribe: (leagueId: string, id: string, field: string, value: unknown) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/tribes/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ field, value }),
+    }),
+  removeTribe: (leagueId: string, id: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/tribes/${id}`, { method: "DELETE" }),
+  addCastaway: (leagueId: string, name: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/castaways`, { method: "POST", body: JSON.stringify({ name }) }),
+  updateCastaway: (leagueId: string, id: string, field: string, value: unknown) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/castaways/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ field, value }),
+    }),
+  removeCastaway: (leagueId: string, id: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/castaways/${id}`, { method: "DELETE" }),
+  // Whole-state replace -- the raw parsed JSON of a previously-exported backup, migrated
+  // server-side (StateLogic.migrateLeagueState) before being saved.
+  importLeagueState: (leagueId: string, raw: unknown) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/import`, { method: "POST", body: JSON.stringify(raw) }),
+  resetLeague: (leagueId: string) =>
+    apiFetch<LeagueState>(`/api/leagues/${leagueId}/reset`, { method: "POST" }),
+  leaveLeague: (leagueId: string) =>
+    apiFetch<{ ok: true }>(`/api/leagues/${leagueId}/leave`, { method: "POST" }),
+
   adminListReports: () => apiFetch<{ reports: Report[] }>("/api/admin/reports"),
   adminDeleteReport: (id: string) => apiFetch<{ ok: true }>(`/api/admin/reports/${id}`, { method: "DELETE" }),
   // Not admin-gated -- any signed-in SurvivorDraft user can submit one (requireAuth server-side).

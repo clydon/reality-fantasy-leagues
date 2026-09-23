@@ -14,6 +14,12 @@ import { buildMockSeasonState } from "@/lib/game/mock-state";
 // commissioner powers (propose/delete/grade bets) but no personal player identity to guess with
 // -- enterDemoMode() in public/app.js never sets currentMembership either, so canGuess is false
 // there too. See canManage()/canGuess() below.
+export interface PlayerAccount {
+  player_id: string;
+  role: string;
+  username: string;
+}
+
 interface LeagueStore {
   mode: "mock" | "live";
   state: LeagueState;
@@ -22,8 +28,19 @@ interface LeagueStore {
   membership: Membership | null;
   userId: string | null; // the signed-in user's own id (not their player id) -- chat reactions/ownership key off this, same as public/app.js's currentUser.id
   isSuperAdmin: boolean; // global account flag, independent of role within the currently-loaded league -- gates the Admin tab, same as public/app.js's currentUser.isSuperAdmin
+  // Which player each account is linked to, for League Settings' Players section -- previously
+  // fetched by api.leagueState() but discarded, since nothing needed it until now.
+  playerAccounts: PlayerAccount[];
   useMock: () => void;
-  loadLive: (leagueId: string, state: LeagueState, leagueName: string, membership: Membership, userId: string, isSuperAdmin: boolean) => void;
+  loadLive: (
+    leagueId: string,
+    state: LeagueState,
+    leagueName: string,
+    membership: Membership,
+    userId: string,
+    isSuperAdmin: boolean,
+    playerAccounts: PlayerAccount[]
+  ) => void;
   setState: (state: LeagueState) => void;
   // Separate from loadLive: "My Leagues" (GET /api/auth/me) reflects real membership only, even
   // for a super-admin (see the live app's server/routes/auth.js comment on that route) -- a pure
@@ -44,10 +61,20 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   membership: null,
   userId: null,
   isSuperAdmin: false,
+  playerAccounts: [],
   useMock: () =>
-    set({ mode: "mock", state: buildMockSeasonState(), leagueId: null, leagueName: null, membership: null, userId: null, isSuperAdmin: false }),
-  loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin) =>
-    set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin }),
+    set({
+      mode: "mock",
+      state: buildMockSeasonState(),
+      leagueId: null,
+      leagueName: null,
+      membership: null,
+      userId: null,
+      isSuperAdmin: false,
+      playerAccounts: [],
+    }),
+  loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts) =>
+    set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts }),
   setIdentity: (userId, isSuperAdmin) => set({ userId, isSuperAdmin }),
   setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason } }),
   // Mock-mode mutators (StateLogic.*) mutate `state` in place, same as the live app; spreading it

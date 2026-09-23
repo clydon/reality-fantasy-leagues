@@ -22,6 +22,7 @@ const TABS = [
   { href: "/mid-season", label: "Mid-Season" },
   { href: "/scoreboard", label: "Scoreboard" },
   { href: "/chat", label: "Chat" },
+  { href: "/setup", label: "League Settings" },
 ];
 
 export function Sidebar() {

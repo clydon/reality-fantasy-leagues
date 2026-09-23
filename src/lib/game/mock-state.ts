@@ -144,6 +144,7 @@ export function buildMockSeasonState(): LeagueState {
     midSeason: { replenish: null, trade: null },
     draftOrder: [connie.id, annie.id, joey.id],
     draftPicksMade: 9,
+    draftForceStarted: true,
     settings: {
       teamSize: 3,
       bonusEnabled: true,

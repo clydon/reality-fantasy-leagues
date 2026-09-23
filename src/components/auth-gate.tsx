@@ -47,8 +47,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setIdentity(me.user.id, me.user.isSuperAdmin);
     setSignedInUsername(me.user.username);
     if (me.leagues.length > 0) {
-      const { league, state, membership } = await api.leagueState(me.leagues[0].id);
-      loadLive(league.id, state, league.name, membership, me.user.id, me.user.isSuperAdmin);
+      const { league, state, membership, playerAccounts } = await api.leagueState(me.leagues[0].id);
+      loadLive(league.id, state, league.name, membership, me.user.id, me.user.isSuperAdmin, playerAccounts);
     }
     setEntered(true);
   }

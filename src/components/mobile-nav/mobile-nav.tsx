@@ -25,6 +25,7 @@ import {
   LogoutIcon,
   ChatIcon,
   ChevronDownIcon,
+  GearIcon,
 } from "./icons";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
@@ -34,10 +35,10 @@ import {
 // `nav`/`max-nav` custom breakpoint, matching the live app's single @media(max-width:880px) exactly).
 //
 // Not ported: the league-switcher dropdown (this POC only ever loads one real league, so there's
-// nothing to switch between). League Settings and Rules aren't tabs in this POC at all, so the
-// "More" sheet only lists what's actually real: the demoted 4th-slot tab, Admin+Reports (if
-// applicable), a working Report an Issue (real-auth-only -- see the note by its row below), and
-// Log out.
+// nothing to switch between yet -- see league-switcher.tsx). Rules isn't a tab in this POC at
+// all, so the "More" sheet only lists what's actually real: the demoted 4th-slot tab, League
+// Settings, Admin+Reports (if applicable), a working Report an Issue (real-auth-only -- see the
+// note by its row below), and Log out.
 export function MobileNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const pathname = usePathname();
@@ -175,6 +176,7 @@ export function MobileNav() {
       >
         <div className="mx-auto mb-2.5 mt-1.5 h-1 w-9 rounded-full bg-border" />
         <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />
+        <MoreRow icon={GearIcon} label="League Settings" onClick={() => go("/setup")} />
         {isSuperAdmin && (
           <>
             <div className="my-1.5 h-px bg-border" />

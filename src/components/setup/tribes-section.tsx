@@ -1,0 +1,99 @@
+"use client";
+
+import { useState } from "react";
+import type { LeagueState } from "@/lib/game/types";
+import StateLogic from "@/lib/game/state-logic.js";
+import { useLeagueStore, useCanManage } from "@/lib/store";
+import { useMutate } from "@/lib/use-mutate";
+import { api } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+// Port of renderSetup()'s Tribes panel. Removing a tribe un-assigns (not removes) any castaways
+// in it -- RosterLogic.removeTribe sets their tribeId back to null rather than touching the
+// castaway records themselves.
+export function TribesSection({ state }: { state: LeagueState }) {
+  const leagueId = useLeagueStore((s) => s.leagueId);
+  const canManage = useCanManage();
+  const mutate = useMutate();
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState("#45a89a");
+
+  async function handleAdd() {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setNewName("");
+    await mutate(
+      (s) => StateLogic.addTribe(s, trimmed, newColor),
+      () => api.addTribe(leagueId!, trimmed, newColor)
+    );
+  }
+
+  async function update(id: string, field: string, value: unknown) {
+    await mutate(
+      (s) => StateLogic.updateTribe(s, id, field, value),
+      () => api.updateTribe(leagueId!, id, field, value)
+    );
+  }
+
+  async function remove(id: string, name: string) {
+    if (!confirm(`Remove tribe "${name}"? Its castaways become tribe-less, not removed.`)) return;
+    await mutate(
+      (s) => StateLogic.removeTribe(s, id),
+      () => api.removeTribe(leagueId!, id)
+    );
+  }
+
+  return (
+    <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
+      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Tribes</h3>
+      {state.tribes.length === 0 ? (
+        <div className="mb-2 text-sm italic text-muted-foreground">No tribes yet.</div>
+      ) : (
+        <div className="mb-3 flex flex-col gap-2">
+          {state.tribes.map((t) => (
+            <div key={t.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2.5 text-sm">
+              <input
+                type="color"
+                className="h-7 w-7 shrink-0 rounded border border-border p-0"
+                value={t.color}
+                disabled={!canManage}
+                onChange={(e) => update(t.id, "color", e.target.value)}
+              />
+              <Input
+                size="sm"
+                className="min-w-0 flex-1"
+                defaultValue={t.name}
+                disabled={!canManage}
+                onBlur={(e) => e.target.value.trim() && e.target.value !== t.name && update(t.id, "name", e.target.value.trim())}
+              />
+              {canManage && (
+                <Button variant="destructive" size="sm" onClick={() => remove(t.id, t.name)}>
+                  Remove
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {canManage && (
+        <div className="flex gap-1.5">
+          <input
+            type="color"
+            className="h-9 w-9 shrink-0 rounded border border-border p-0"
+            value={newColor}
+            onChange={(e) => setNewColor(e.target.value)}
+          />
+          <Input
+            className="min-w-0 flex-1"
+            placeholder="New tribe name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          />
+          <Button onClick={handleAdd}>Add Tribe</Button>
+        </div>
+      )}
+    </div>
+  );
+}
