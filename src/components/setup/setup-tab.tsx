@@ -11,6 +11,7 @@ import { SideBetSettingsSection } from "./side-bet-settings-section";
 import { FinaleSettingsSection } from "./finale-settings-section";
 import { PickEmSettingsSection } from "./pickem-settings-section";
 import { ActiveRosterSettingsSection } from "./active-roster-settings-section";
+import { WikiConnectorSection } from "./wiki-connector-section";
 import { BackupSection } from "./backup-section";
 import { LeaveLeagueSection } from "./leave-league-section";
 
@@ -40,6 +41,7 @@ export function SetupTab() {
       <FinaleSettingsSection state={state} />
       <PickEmSettingsSection state={state} />
       <ActiveRosterSettingsSection state={state} />
+      <WikiConnectorSection state={state} />
       <BackupSection state={state} />
       <LeaveLeagueSection />
     </>

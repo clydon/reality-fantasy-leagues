@@ -170,6 +170,7 @@ export function buildMockSeasonState(): LeagueState {
       leagueTypeId: "classic-draft",
       showId: "survivor",
       ownershipMode: "exclusive" as const,
+      wikiSeason: null,
       activeSlots: 3,
       benchSlots: 2,
       eventPoints: {},

@@ -782,6 +782,76 @@ the terracotta accent, `--background`/`--card`/`--border`/etc. follow the live a
 typefaces via `next/font/google`. This is meant to be a translation of the existing look, not a
 redesign — see `ARCHITECTURE.md`'s styling rationale.
 
+## Wiki connector (`db/wiki-sync.js`, `wiki_proposals`)
+
+Pulls a season's cast off survivor.fandom.com and files it as a **pending proposal** for the
+commissioner to confirm. Phase one of Feature D in
+`docs/PLAN-league-types-and-wiki-connector.md`; the per-episode event half is not built yet.
+
+**Nothing is ever applied automatically.** `db/wiki-sync.js` writes to the `wiki_proposals`
+table, never to league state. Applying is a separate commissioner action in League Settings, which
+is the whole point of the design and matters more than usual here because extraction is LLM-based.
+
+**Shape of a run** (`node db/wiki-sync.js cast <leagueId> [--dry]`):
+
+1. Read `settings.wikiSeason` (commissioner-set; the script refuses to guess).
+2. Fetch `Survivor <N>` wikitext via the MediaWiki Action API, keeping the revision id.
+3. Slice the `==Castaways==` section **deterministically** before the model sees it — a fixed
+   cut can't drop a row the way asking the model to find the section might, and it keeps the
+   extraction to ~1-2K tokens.
+4. Extract with Claude using **structured outputs** (`messages.parse` + a Zod schema), so a
+   response that doesn't fit the shape doesn't come back at all.
+5. **Re-validate the content** against the league's own state (below).
+6. Resolve photo filenames to real CDN URLs in one batched `imageinfo` call — deterministic, no
+   model involved, so there's no chance of an invented image URL. Best-effort: anything unresolved
+   just gets no photo, which `CastawayAvatar` already handles. (This composes with the
+   deliberate choice of `<img>` over `next/image` — see "Cast photos" below — since these
+   are arbitrary external hosts.)
+7. File one pending proposal, with provenance.
+
+**Shape-valid is not the same as correct, so validation is a separate layer.** The schema can't tell
+you whether the model invented a tribe. `validateCast` rejects the entire run — rather than
+filing a partly-trusted proposal someone might rubber-stamp — on duplicates, empty or implausibly
+long names, no tribes at all, or a cast size outside 4-40. A castaway pointing at a tribe that isn't
+in the extracted tribe list keeps the castaway and drops the unbacked link, reported as a note.
+
+**Every proposal records provenance** — page titles, wiki revision ids, model, timestamp — shown in
+the review UI. LLM extraction isn't reproducible from its inputs, so without this a commissioner
+reviewing a proposal later has no way to tell what the model actually read.
+
+**Applying is additive only**, matched on name case-insensitively (`RosterLogic.applyCastImport`).
+Anything already in the league is left exactly as it is. The second reason is the load-bearing one:
+overwriting would mean deleting and recreating castaways, which changes their ids — and ids are what
+`ownerIds`, `episode.events`, `episode.picks`, `episode.lineups` and
+`episode.scoringEvents` all reference. Replacing a drafted cast would silently orphan every one
+of those.
+
+**At most one pending proposal per league per kind** (a partial unique index), so a scheduled run
+that fires twice before anyone reviews replaces its own earlier suggestion instead of stacking
+duplicates. Rejected proposals are kept as resolved rows rather than deleted, so a rejected
+suggestion doesn't reappear looking new on the next run.
+
+**Choices made here were the user's, against my recommendation, and are worth knowing:** LLM
+extraction rather than a deterministic wikitext parser (the investigation found the templates are
+structured enough to parse, and footnote *anchors* — unlike their numbers — are stable across
+seasons), and a scheduled script rather than an on-demand button. The strict schema, the separate
+content-validation layer, and stored provenance all exist to blunt the non-determinism that choice
+brings. Model is `claude-opus-5`; at ~1-2K input and ~1K output tokens a run costs on the
+order of a cent, so model choice isn't the cost lever at this size.
+
+**Verified** in two parts. Everything that doesn't need a credential (26 checks): the real MediaWiki
+fetch and revision id, deterministic section slicing and its bounds, batched photo resolution
+including files that don't exist, every validation guard (each fatal case and the drop-the-unbacked-
+tribe case), the schema rejecting malformed shapes, and apply-into-state preserving existing ids and
+photos. Then the review half through the real API and Postgres (18 checks): pending listing,
+provenance round-trip, replace-not-stack, additive apply, re-apply adding nothing, double-apply →
+400, reject kept as history, cross-league apply → 404, and cascade delete with the league.
+
+**Not verified: the model call itself.** No Anthropic credential was available in the session this
+was built in, so the one hop from wikitext to structured JSON has never run. Everything around it
+has. Set `ANTHROPIC_API_KEY` in `.env.local` (or `ant auth login`) and run with
+`--dry` to exercise it without filing anything.
+
 ## Cast photos (`public/photos/`, `components/castaway-avatar.tsx`)
 
 The live app's cast photos are ported now (copied from `SurvivorDraft/public/photos`): 24 for the

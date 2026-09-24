@@ -918,6 +918,40 @@ class RosterLogic {
   }
   static updateCastaway(state, id, field, value){ const c=Core.getCastaway(state,id); if(c) c[field]=value; }
   static removeCastaway(state, id){ state.castaways = state.castaways.filter(c=>c.id!==id); }
+  // Applies a commissioner-approved cast proposal from the wiki connector (see db/wiki-sync.js).
+  //
+  // ADDITIVE ONLY, matched on name case-insensitively: anything already in the league is left
+  // exactly as it is, never overwritten. Two reasons, and the second is the important one:
+  //   1. A commissioner may have already typed part of the cast by hand, possibly with their own
+  //      spellings or photo URLs, and an import shouldn't discard that.
+  //   2. Overwriting would mean deleting and recreating castaways, which changes their ids -- and
+  //      ids are what castaway.ownerIds, episode.events, episode.picks, episode.lineups and
+  //      episode.scoringEvents all reference. Replacing a drafted cast would silently orphan every
+  //      one of those. Additive can't.
+  // Returns what it actually added, so the route can tell the commissioner rather than making them
+  // diff it themselves.
+  static applyCastImport(state, proposal){
+    const added = { tribes: [], castaways: [], skipped: [] };
+    const sameName = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
+    (proposal.tribes || []).forEach(t=>{
+      if(!t || !t.name) return;
+      if(state.tribes.some(x=>sameName(x.name, t.name))) return;
+      const created = RosterLogic.addTribe(state, t.name, t.color || PALETTE[state.tribes.length % PALETTE.length]);
+      added.tribes.push(created.name);
+    });
+    (proposal.castaways || []).forEach(c=>{
+      if(!c || !c.name) return;
+      if(state.castaways.some(x=>sameName(x.name, c.name))){ added.skipped.push(c.name); return; }
+      const created = RosterLogic.addCastaway(state, c.name);
+      if(c.photoUrl) created.photoUrl = c.photoUrl;
+      if(c.tribeName){
+        const t = state.tribes.find(x=>sameName(x.name, c.tribeName));
+        if(t) created.tribeId = t.id;
+      }
+      added.castaways.push(created.name);
+    });
+    return added;
+  }
   static updateSettings(state, field, value){ state.settings[field]=value; }
 }
 
@@ -1214,6 +1248,10 @@ class Migrations {
         draftScheduledAt: null,
         leagueTypeId: 'classic-draft',
         showId: 'survivor',
+        // Which real season this league is tracking, for the wiki connector (db/wiki-sync.js) to
+        // know what to fetch -- e.g. 44 means the "Survivor 44" wiki page. Null until a
+        // commissioner sets it; the connector refuses to run without it rather than guessing.
+        wikiSeason: null,
         // Optional mid-season mechanics, both OFF until a commissioner turns them on -- plenty of
         // leagues never run either. Gated together with the league type's own capability; see
         // replenishAvailable/tradeAvailable above.
@@ -1262,6 +1300,7 @@ class Migrations {
     // Every pre-existing league is exclusive-ownership by construction (it's the only mode that
     // existed), so defaulting rather than inferring is correct here.
     if(!s.settings.ownershipMode) s.settings.ownershipMode = 'exclusive';
+    if(typeof s.settings.wikiSeason === 'undefined') s.settings.wikiSeason = null;
     // Default OFF like a new league, EXCEPT where a round is already running -- backfilling those
     // to false would strand an in-flight replenish/swap with no UI left to finish or cancel it.
     if(typeof s.settings.activeSlots !== 'number') s.settings.activeSlots = 3;
@@ -1318,6 +1357,7 @@ return {
   disablePlayer: RosterLogic.disablePlayer, reclaimPlayer: RosterLogic.reclaimPlayer, activatePlayer: RosterLogic.activatePlayer,
   addTribe: RosterLogic.addTribe, updateTribe: RosterLogic.updateTribe, removeTribe: RosterLogic.removeTribe,
   addCastaway: RosterLogic.addCastaway, updateCastaway: RosterLogic.updateCastaway, removeCastaway: RosterLogic.removeCastaway,
+  applyCastImport: RosterLogic.applyCastImport,
   updateSettings: RosterLogic.updateSettings,
   reorderDraft: DraftLogic.reorder, moveDraftOrder: DraftLogic.move, draftToCurrentTurn: DraftLogic.pick, undraft: DraftLogic.undo,
   startReplenish: ReplenishLogic.start, currentReplenishTurn: ReplenishLogic.currentTurn, replenishAssign: ReplenishLogic.assign, cancelReplenish: ReplenishLogic.cancel,

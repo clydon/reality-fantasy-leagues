@@ -114,6 +114,8 @@ export interface LeagueSettings {
   // classic-draft only: 'exclusive' (snake draft, one owner per castaway) or 'shared' (blind draft,
   // many owners). Fixed pairing with the draft mechanic -- see CLASSIC_DRAFT_SHARED in state-logic.js.
   ownershipMode: "exclusive" | "shared";
+  /** Which real season this league tracks, for the wiki connector. Null until set. */
+  wikiSeason: number | null;
   // Active Roster only. rosterSize() derives the draft's per-player total from these for that
   // league type, so together they replace teamSize there rather than sitting alongside it.
   activeSlots: number;
@@ -147,6 +149,26 @@ export interface TradeState {
 // whether the simultaneous reveal has happened. The submitted picks themselves are deliberately
 // NOT part of league state -- they live in the blind_draft_picks table so they can't be read out of
 // the broadcast state blob before the reveal. See db/migrations/0004_blind_draft_picks.sql.
+// A reviewed-but-unapplied suggestion from the wiki connector (db/wiki-sync.js), as the League
+// Settings review UI shows it. Lives in its own table, not in league state -- see
+// db/migrations/0005_wiki_proposals.sql.
+export interface WikiProposal {
+  id: string;
+  kind: "cast" | "scoringEvents" | "eliminations";
+  status: "pending" | "applied" | "rejected";
+  payload: {
+    tribes?: { name: string; color?: string }[];
+    castaways?: { name: string; tribeName?: string | null; photoUrl?: string | null }[];
+  };
+  provenance: {
+    seasonNumber: number;
+    model: string;
+    extractedAt: string;
+    pages: { title: string; revisionId: number | null }[];
+  };
+  created_at: string;
+}
+
 export interface BlindDraftState {
   lockedPlayerIds: string[];
   revealedAt: string | null;

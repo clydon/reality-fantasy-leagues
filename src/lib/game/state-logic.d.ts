@@ -99,6 +99,10 @@ declare const StateLogic: {
   addCastaway(state: LeagueState, name: string): Castaway;
   updateCastaway(state: LeagueState, id: string, field: string, value: unknown): void;
   removeCastaway(state: LeagueState, id: string): void;
+  applyCastImport(
+    state: LeagueState,
+    proposal: { tribes?: { name: string; color?: string }[]; castaways?: { name: string; tribeName?: string | null; photoUrl?: string | null }[] }
+  ): { tribes: string[]; castaways: string[]; skipped: string[] };
   updateSettings(state: LeagueState, field: string, value: unknown): void;
   addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet;
   removeBet(state: LeagueState, epId: string, betId: string): void;

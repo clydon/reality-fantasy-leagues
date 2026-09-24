@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -328,6 +328,18 @@ export const api = {
     localFetch<LeagueState>(`/api/leagues/${leagueId}/reset`, { method: "POST" }),
   leaveLeague: (leagueId: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/leave`, { method: "POST" }),
+
+  // Wiki connector (db/wiki-sync.js). Proposals live in their own table, not in league state, so
+  // these return their own shapes and have no mock-mode branch -- same as invites and chat.
+  listWikiProposals: (leagueId: string) =>
+    localFetch<{ proposals: WikiProposal[] }>(`/api/leagues/${leagueId}/wiki-proposals`),
+  applyWikiProposal: (leagueId: string, id: string) =>
+    localFetch<{ state: LeagueState; applied: { tribes: string[]; castaways: string[]; skipped: string[] } | null }>(
+      `/api/leagues/${leagueId}/wiki-proposals/${id}`,
+      { method: "POST" }
+    ),
+  rejectWikiProposal: (leagueId: string, id: string) =>
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "DELETE" }),
 
   adminListReports: () => localFetch<{ reports: Report[] }>("/api/admin/reports"),
   adminDeleteReport: (id: string) => localFetch<{ ok: true }>(`/api/admin/reports/${id}`, { method: "DELETE" }),

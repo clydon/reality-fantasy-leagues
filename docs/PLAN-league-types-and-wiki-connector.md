@@ -1,12 +1,11 @@
 # Plan: League types expansion (ownership modes, Pick'em, Active Roster) + wiki connector
 
-**Status:** Step 1 (`ownerId` -> `ownerIds`) and Features A (ownership mode + blind draft),
-B (Pick'em) and C (Active Roster) are all **implemented and verified**. Feature D's wiki-connector
-groundwork is **investigated**, with per-field reliability recorded against real pages; the connector
-itself and its integration into Active Roster's event review queue are the only work left in this
-plan. Written from a multi-turn design conversation — read this file plus
-the referenced source files and you have everything needed to execute without that conversation's
-history.
+**Status:** Step 1 (`ownerId` -> `ownerIds`) and Features A (ownership mode + blind
+draft), B (Pick'em) and C (Active Roster) are all **implemented and verified**. Feature D (wiki
+connector) is **investigated, with cast import built** (`db/wiki-sync.js` plus the
+`wiki_proposals` review queue); its per-episode event extraction is the only work left in this
+plan. Written from a multi-turn design conversation — read this file plus the referenced source files
+and you have everything needed to execute without that conversation's history.
 
 ## Context (read this first)
 
@@ -319,8 +318,43 @@ castaways start benched, trade behaves identically to Classic Draft's trade.
 
 ---
 
-## Feature D: Wiki connector (MediaWiki API + AI extraction + commissioner review) — INVESTIGATED
+## Feature D: Wiki connector — CAST IMPORT BUILT; event extraction still to do
 
+**Phase one shipped: cast import.** `db/wiki-sync.js` fetches a season's cast, extracts it with
+Claude under a strict schema, validates it against the league, and files a pending proposal into the
+new `wiki_proposals` table; League Settings has the review/apply/reject UI. See README's "Wiki
+connector" section for the shipped design and what was and wasn't verified.
+
+**Still unbuilt:** the per-episode event half (Feature C's `scoringEvents` log and eliminations).
+The proposal table and review UI are already generic over `kind` — `'scoringEvents'` and
+`'eliminations'` are accepted values with no apply path yet, which the apply route refuses
+explicitly rather than guessing at.
+
+**Decisions, all the user's, two against my recommendation:** LLM extraction (not a deterministic
+parser), a scheduled script (not an on-demand button), cast import first then events. Mitigations for
+the non-determinism that brings: structured outputs for shape, a separate content-validation layer
+that rejects a whole run rather than filing a partly-trusted proposal, and stored provenance.
+
+**Two corrections to the investigation notes below, found when grounding the options:**
+
+- Footnote **numbers** are season-specific (`idol` is #2 in S44, #5 in S43) but footnote
+  **anchors** are semantic and recur, with verbatim-identical prose. A deterministic parser keyed on
+  the anchor is more viable than the note below implies. New mechanics do appear per season
+  (`votesteal`, `extravote`, `control`), so any parser must degrade on unknown anchors.
+- **Zero-votes-safe is derivable from the vote grid**, not footnote-dependent as stated below: the
+  grid records who each player voted for, so votes-received per castaway is arithmetic. Pre-merge it
+  additionally needs tribal attendance, which the epguide's immunity column gives. This matters
+  because it's the highest-volume event type (~10 per post-merge tribal) and therefore the biggest
+  labour saver.
+
+**Also newly established:** the `==Castaways==` table is inline on the season page (not a
+transclusion like the vote/episode tables) and is the most structured thing on the wiki — name,
+original tribe, finish, votes-against, photo filename — which is why cast import needs one page
+fetch and became phase one.
+
+---
+
+**Original investigation findings, unchanged, below.**
 **Investigation done, connector itself NOT built** (per this section's own instruction: "first
 step is investigation, not implementation"). Real findings below, against real pages, via direct
 `curl` against `survivor.fandom.com/api.php` — not WebFetch, which returned HTTP 402 on every
@@ -420,7 +454,7 @@ connector coverage into Feature C's UI before this investigation happens.
    parallel with either.~~ **DONE** — see Feature B's status note above.
 4. ~~Active Roster — depends on #1 (`ownerIds`) and #2 (the blind-draft mechanic).~~ **DONE**
    — see Feature C's status note above.
-5. ~~Wiki connector investigation — can start in parallel with any of the above~~ **INVESTIGATED**
+5. ~~Wiki connector investigation~~ **INVESTIGATED**, and **cast import now BUILT**
    — see Feature D's own status note above for the per-field reliability findings. The connector
    *implementation* and its *integration* into Active Roster's event review queue are both still
    unbuilt; integration still naturally comes after #4 ships with manual entry working
