@@ -18,18 +18,14 @@ import { Button } from "@/components/ui/button";
 
 type Status = "checking" | "idle" | "loading";
 
-// /account, /forgot-password, /reset-password bypass this gate entirely rather than being nested
-// inside "entered" league-scoped content -- they need to stay reachable before a session exists
-// (signing up IS how you get one) and while mock/demo mode is active.
-const PUBLIC_ROUTES = ["/account", "/forgot-password", "/reset-password"];
+// Password recovery bypasses this gate entirely: both are reached from an emailed link with no
+// session, and neither has anything to do with a league.
+const BARE_ROUTES = ["/forgot-password", "/reset-password"];
 
-// Full-page routes that skip the Sidebar/MobileNav shell once entered -- the Dashboard is a
-// landing page, not a league tab (same as the live app's renderDashboard() having no tabs).
-const STANDALONE_ROUTES = ["/dashboard"];
-
-// Pages a leagueless super-admin can still reach inside the app shell -- otherwise AuthGate's
-// zero-leagues case sends every route to the Dashboard (see below).
-const ADMIN_ROUTES = ["/admin", "/reports"];
+// Routes that mean something without a league loaded, so the zero-leagues case below leaves them
+// alone instead of substituting the Dashboard: the Dashboard itself, the admin pages a leagueless
+// super-admin can still use, and account settings.
+const LEAGUELESS_ROUTES = ["/dashboard", "/admin", "/reports", "/account"];
 
 // Owns the same top-level branch the live app's boot()/renderLoginScreen() do: either the login
 // screen (no sidebar at all -- see public/index.html's <aside style="display:none">, only shown
@@ -46,7 +42,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const setLeagues = useLeagueStore((s) => s.setLeagues);
   const impersonating = useLeagueStore((s) => s.impersonating);
   const leagues = useLeagueStore((s) => s.leagues);
-  const isSuperAdmin = useLeagueStore((s) => s.isSuperAdmin);
+  const demoPreview = useLeagueStore((s) => s.demoPreview);
+  const loadingLeague = useLeagueStore((s) => s.loadingLeague);
   const flash = useLeagueStore((s) => s.flash);
   const setFlash = useLeagueStore((s) => s.setFlash);
   const isAuthenticated = useIsAuthenticated();
@@ -144,12 +141,24 @@ export function AuthGate({ children }: { children: ReactNode }) {
     window.location.href = "/";
   }
 
-  if (PUBLIC_ROUTES.includes(pathname)) {
+  if (BARE_ROUTES.includes(pathname)) {
     return <div className="min-h-screen bg-background px-4 py-10">{children}</div>;
   }
 
-  if (status === "checking") {
+  // One loading screen for both "we don't know who you are yet" and "a league is on its way".
+  // The second half matters as much as the first: every path that swaps the loaded league
+  // (initial load, the switcher, join/create) goes through the store's loadingLeague flag, and
+  // whatever is in `state` until it resolves is the demo season. Rendering the shell over that is
+  // what flashed a grid of demo cast members after creating a league.
+  if (status === "checking" || loadingLeague) {
     return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  // Signing up is how you get a session, so /account has to render before there is one -- but only
+  // then. Once signed in it goes through the shell below like any other page, which is what gives
+  // a brand-new account a way off it (it used to be a dead end with no navigation at all).
+  if (pathname === "/account" && !entered) {
+    return <div className="min-h-screen bg-background px-4 py-10">{children}</div>;
   }
 
   if (!entered) {
@@ -165,19 +174,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
     </div>
   );
 
-  // A signed-in user with no league gets the Dashboard (join/create/invites) instead of demo
-  // data -- the unauthenticated "Take a Tour" path is untouched. /dashboard itself always renders
-  // standalone (its page is the Dashboard; it handles the not-signed-in case on its own).
-  const leaguelessUser =
-    isAuthenticated && leagues.length === 0 && mode === "mock" && !(isSuperAdmin && ADMIN_ROUTES.includes(pathname));
-  if (STANDALONE_ROUTES.includes(pathname) || leaguelessUser) {
-    return (
-      <>
-        {impersonationBanner}
-        {STANDALONE_ROUTES.includes(pathname) ? children : <Dashboard />}
-      </>
-    );
-  }
+  // A signed-in user with no league gets the Dashboard (join/create/invites) where a league tab
+  // would be -- there's no league to show one for. It renders INSIDE the shell now rather than as
+  // a bare page: a new account's first screen was otherwise three buttons and a log-out link, with
+  // no navigation, no way to reach the demo season, and nothing that looked like the app. The
+  // unauthenticated "Take a Tour" path is untouched, and so is an authenticated user who chose to
+  // preview the demo (demoPreview) -- they get the real tabs over demo data.
+  const leaguelessUser = isAuthenticated && leagues.length === 0 && mode === "mock" && !demoPreview;
+  const showsDashboard = leaguelessUser && !LEAGUELESS_ROUTES.includes(pathname);
 
   // Matches .app-shell / main's exact layout from public/styles.css (flex, sidebar + a
   // width-capped content column with 36px/44px/90px padding on desktop; below the 880px
@@ -217,9 +221,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <Sidebar />
         </div>
         <main className="min-w-0 max-w-[980px] flex-1 px-11 pb-[90px] pt-9 max-nav:max-w-full max-nav:px-4 max-nav:pb-[calc(84px+env(safe-area-inset-bottom,0px))] max-nav:pt-4">
-          {isAuthenticated && mode === "mock" && (
+          {/* Only worth saying on a page that isn't already the join/create screen -- on the
+              Dashboard itself it was telling people to go where they already are. */}
+          {leaguelessUser && !showsDashboard && pathname !== "/dashboard" && (
             <div className="mb-4 rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-muted-foreground">
-              Signed in as {signedInUsername} — no personal league yet.{" "}
+              Signed in as {signedInUsername} — no league yet.{" "}
               <Link href="/dashboard" className="font-semibold text-primary hover:underline">
                 Join or create one
               </Link>
@@ -234,7 +240,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               </button>
             </div>
           )}
-          {children}
+          {showsDashboard ? <Dashboard /> : children}
         </main>
       </div>
     </>

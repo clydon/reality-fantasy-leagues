@@ -32,9 +32,11 @@ export const metadata: Metadata = {
     // background would make the clock and battery all but invisible.
     statusBarStyle: "default",
   },
-  icons: {
-    apple: "/icons/apple-touch-icon.png",
-  },
+  // No `icons` here on purpose: src/app/icon.png and src/app/apple-icon.png are Next's own file
+  // conventions and generate the <link rel="icon"> / <link rel="apple-touch-icon"> tags with the
+  // right type and sizes. They replaced the framework's default favicon.ico, which was still
+  // Vercel's triangle -- deleting that file is what actually stops it being served, since a
+  // favicon.ico in app/ wins over everything else.
 };
 
 // viewportFit "cover" is what makes env(safe-area-inset-*) non-zero on notched iPhones -- the mobile

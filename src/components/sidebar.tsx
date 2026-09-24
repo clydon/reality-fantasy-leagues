@@ -3,12 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated } from "@/lib/store";
+import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
 import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { midseasonBadge } from "@/lib/game/selectors";
+import { logOut } from "@/lib/auth-client";
 import { LeagueSwitcher } from "@/components/league-switcher";
 import { cn } from "cn";
 
@@ -27,10 +28,19 @@ const TABS = [
   { href: "/setup", label: "League Settings" },
 ];
 
+// Admin and Reports are account-level, not league-level -- they say nothing about the league
+// you're looking at, and they're only there for one person. They live in the footer group with
+// the other account-level rows rather than mixed into the league tabs above.
+const ADMIN_TABS = [
+  { href: "/admin", label: "Admin" },
+  { href: "/reports", label: "Reports" },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   const isSuperAdmin = useIsSuperAdmin();
   const isAuthenticated = useIsAuthenticated();
+  const isPreviewingDemo = useIsPreviewingDemo();
   const mode = useLeagueStore((s) => s.mode);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const enterMockMode = useLeagueStore((s) => s.useMock);
@@ -40,14 +50,29 @@ export function Sidebar() {
   const state = useLeagueStore((s) => s.state);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
+
+  // Whether there's a season to browse at all: a real league, or the demo one someone deliberately
+  // stepped into. A signed-in user with no league has neither, and the league tabs would all be
+  // views onto the demo season they didn't ask for -- so they get the two rows below instead, which
+  // is what makes that first screen look like the app rather than a bare form.
+  const hasSeason = mode === "live" || isPreviewingDemo;
+
   // Draft and Mid-Season are both roster concepts (a draft to run, a roster to replenish/swap) --
   // meaningless for a league type with no roster at all (pickem, whose weekly pick UI lives in
   // the Episode Card instead, under Episodes). Filtered here rather than removed from TABS
   // outright so a league type that DOES have a roster (classic-draft, and Active Roster later)
   // keeps seeing them.
   const hasRoster = StateLogic.getLeagueType(state).hasRoster;
-  const baseTabs = hasRoster ? TABS : TABS.filter((t) => t.href !== "/draft" && t.href !== "/mid-season");
-  const tabs = isSuperAdmin ? [...baseTabs, { href: "/admin", label: "Admin" }, { href: "/reports", label: "Reports" }] : baseTabs;
+  // Mid-Season is both optional AND opt-in: replenish and trade each need the league type to
+  // support them and the commissioner to have turned them on (see replenishAvailable/tradeAvailable
+  // in state-logic.js). With neither, the tab is an empty page explaining that it's off -- so the
+  // link goes away instead, on the same "don't offer what the route would refuse" rule those two
+  // helpers exist for.
+  const hasMidSeason = StateLogic.replenishAvailable(state) || StateLogic.tradeAvailable(state);
+  const tabs = TABS.filter(
+    (t) =>
+      !((t.href === "/draft" || t.href === "/mid-season") && !hasRoster) && !(t.href === "/mid-season" && !hasMidSeason)
+  );
 
   // Port of exitDemoMode() -- see auth-gate.tsx's handleExitDemo for why this always means "show
   // the login screen" here rather than the live app's silent-restore-if-still-logged-in path.
@@ -80,65 +105,110 @@ export function Sidebar() {
       {mode === "live" && leagueName && <LeagueSwitcher />}
 
       <nav className="flex flex-col gap-0.5">
-        {tabs.map((tab) => {
-          const active = pathname === tab.href;
-          const badge = badgeFor(tab.href);
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={cn(
-                "flex items-center gap-2.5 rounded-[7px] px-3 py-2.5 text-[0.9rem] font-semibold text-muted-foreground transition-colors",
-                active ? "bg-[#fbeee8] text-primary" : "hover:bg-secondary hover:text-foreground"
-              )}
+        {hasSeason ? (
+          tabs.map((tab) => <NavLink key={tab.href} href={tab.href} label={tab.label} active={pathname === tab.href} badge={badgeFor(tab.href)} />)
+        ) : (
+          <>
+            <NavLink href="/dashboard" label="My Leagues" active={pathname === "/dashboard" || pathname === "/"} />
+            {/* The one way into the demo season for someone who has no league of their own. It was
+                previously only offered as "Switch to demo data" to people who already had one, and
+                as "Take a Tour" to people with no account at all -- a new signed-in user could
+                reach it from neither. */}
+            <button
+              className="flex items-center gap-2.5 rounded-[7px] px-3 py-2.5 text-left text-[0.9rem] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              onClick={previewDemo}
             >
-              <span className={cn("h-1.5 w-1.5 flex-none rounded-full bg-current", active ? "opacity-100" : "opacity-35")} />
-              {tab.label}
-              {badge && (
-                <span
-                  className={cn(
-                    "ml-auto rounded-full px-1.5 py-0.5 text-[0.68rem] font-bold leading-none text-white",
-                    badge.urgent ? "bg-destructive" : "bg-accent-2"
-                  )}
-                >
-                  {badge.label}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+              <span className="h-1.5 w-1.5 flex-none rounded-full bg-current opacity-35" />
+              Demo Season
+            </button>
+          </>
+        )}
       </nav>
 
-      <div className="mt-auto border-t border-border px-2.5 pb-1 pt-3">
+      <div className="mt-auto flex flex-col gap-1.5 border-t border-border px-2.5 pb-1 pt-3">
+        {isSuperAdmin && (
+          <div className="mb-1 flex flex-col gap-0.5">
+            {ADMIN_TABS.map((tab) => (
+              <NavLink key={tab.href} href={tab.href} label={tab.label} active={pathname === tab.href} dense />
+            ))}
+          </div>
+        )}
         {/* Report an Issue posts as the real signed-in SurvivorDraft user (server-side
             requireAuth) -- gated on real authentication (isAuthenticated/userId), not `mode`,
             since a super-admin with no personal league is genuinely signed in but stays
             mode:'mock' (no league to show live). Using `mode` here blocked that real case. */}
         {isAuthenticated && (
           <>
-            <Link href="/account" className="mb-1.5 block text-[0.8rem] font-semibold text-primary hover:underline">
+            <Link href="/account" className="block text-[0.8rem] font-semibold text-primary hover:underline">
               Account settings
             </Link>
-            <button className="mb-1.5 block text-[0.8rem] font-semibold text-primary hover:underline" onClick={openReportModal}>
+            <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={openReportModal}>
               Report an Issue
             </button>
           </>
         )}
         {mode === "mock" ? (
-          <p className="text-[0.8rem] text-muted-foreground">
-            Viewing demo data.{" "}
-            {!isAuthenticated && (
-              <button className="font-semibold text-primary hover:underline" onClick={exitDemo}>
-                Sign in
-              </button>
-            )}
-          </p>
+          hasSeason && (
+            <p className="text-[0.8rem] text-muted-foreground">
+              Viewing demo data.{" "}
+              {!isAuthenticated && (
+                <button className="font-semibold text-primary hover:underline" onClick={exitDemo}>
+                  Sign in
+                </button>
+              )}
+            </p>
+          )
         ) : (
-          <button className="text-[0.8rem] font-semibold text-primary hover:underline" onClick={previewDemo}>
+          <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={previewDemo}>
             Switch to demo data
+          </button>
+        )}
+        {/* Log out belongs with the rest of the account-level rows, not buried on the Dashboard --
+            which was the only place it existed, and only for a user with no league. */}
+        {isAuthenticated && (
+          <button className="block text-left text-[0.8rem] font-semibold text-destructive hover:underline" onClick={logOut}>
+            Log out
           </button>
         )}
       </div>
     </aside>
+  );
+}
+
+function NavLink({
+  href,
+  label,
+  active,
+  badge,
+  dense,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  badge?: { label: string; urgent: boolean } | null;
+  dense?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-2.5 rounded-[7px] font-semibold text-muted-foreground transition-colors",
+        dense ? "px-1 py-1.5 text-[0.8rem]" : "px-3 py-2.5 text-[0.9rem]",
+        active ? "bg-[#fbeee8] text-primary" : "hover:bg-secondary hover:text-foreground"
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 flex-none rounded-full bg-current", active ? "opacity-100" : "opacity-35")} />
+      {label}
+      {badge && (
+        <span
+          className={cn(
+            "ml-auto rounded-full px-1.5 py-0.5 text-[0.68rem] font-bold leading-none text-white",
+            badge.urgent ? "bg-destructive" : "bg-accent-2"
+          )}
+        >
+          {badge.label}
+        </span>
+      )}
+    </Link>
   );
 }

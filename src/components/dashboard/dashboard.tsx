@@ -5,8 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MyInvite } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
-import { signOut } from "@/lib/auth-client";
-import { useLeagueStore, useIsAuthenticated, useIsSuperAdmin } from "@/lib/store";
+import { useLeagueStore, useIsAuthenticated } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -21,7 +20,6 @@ const PANEL_TITLE = "mb-2.5 text-[0.7rem] font-bold uppercase tracking-wide text
 export function Dashboard() {
   const router = useRouter();
   const isAuthenticated = useIsAuthenticated();
-  const isSuperAdmin = useIsSuperAdmin();
   const mode = useLeagueStore((s) => s.mode);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const setLeagues = useLeagueStore((s) => s.setLeagues);
@@ -59,8 +57,14 @@ export function Dashboard() {
   // interesting thing is.
   async function enterLeague(leagueId: string, message: string, to = "/") {
     const me = await api.me();
-    setLeagues(me.leagues);
+    // switchLeague BEFORE setLeagues, and both before the push. Going the other way round put the
+    // store in a state it can't render honestly: `leagues` is non-empty (so AuthGate stops showing
+    // the Dashboard and renders the league shell) while `state` is still the demo season -- which
+    // is why creating a league flashed a grid of demo cast members. switchLeague also holds the
+    // store's loadingLeague flag for its duration, so the shell shows a loading screen rather than
+    // whatever was underneath.
     await switchLeague(leagueId);
+    setLeagues(me.leagues);
     setFlash(message);
     router.push(to);
   }
@@ -116,17 +120,6 @@ export function Dashboard() {
     });
   }
 
-  async function handleLogout() {
-    try {
-      await signOut();
-    } catch {
-      // best-effort -- fall through to resetting client state regardless
-    }
-    enterMockMode();
-    setEntered(false);
-    router.push("/");
-  }
-
   function handleShowLogin() {
     enterMockMode();
     setEntered(false);
@@ -134,15 +127,20 @@ export function Dashboard() {
   }
 
   return (
-    <div className="mx-auto mt-10 w-full max-w-[480px] px-4 pb-16">
-      <Image
-        src="/banner.png"
-        alt="Survivor Fantasy Engine"
-        width={1024}
-        height={360}
-        className="mx-auto mb-2 block h-auto max-w-[360px] w-full"
-        priority
-      />
+    <div className="mx-auto w-full max-w-[480px] pb-16">
+      {/* Branding only when this is the whole screen. Signed in, it renders inside the app shell,
+          whose sidebar already carries the logo -- two of them stacked just pushed the actual
+          join/create controls down the page. */}
+      {!isAuthenticated && (
+        <Image
+          src="/banner.png"
+          alt="Survivor Fantasy Engine"
+          width={1024}
+          height={360}
+          className="mx-auto mb-2 block h-auto w-full max-w-[360px]"
+          priority
+        />
+      )}
 
       {!isAuthenticated ? (
         <div className={PANEL}>
@@ -151,6 +149,10 @@ export function Dashboard() {
         </div>
       ) : (
         <>
+          {/* Admin and Log out used to live here too. They're account-level, they're in the
+              sidebar and the mobile More sheet now, and this page is no longer the only screen a
+              leagueless user can see -- so repeating them here was just three of the four things
+              on an otherwise empty page. */}
           <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span className="flex-1">{username ? <>Signed in as <b className="text-foreground">{username}</b></> : null}</span>
             {mode === "live" && leagueName && (
@@ -158,14 +160,6 @@ export function Dashboard() {
                 ← Back to {leagueName}
               </button>
             )}
-            {isSuperAdmin && (
-              <button className="font-semibold text-primary hover:underline" onClick={() => router.push("/admin")}>
-                Admin
-              </button>
-            )}
-            <button className="font-semibold text-primary hover:underline" onClick={handleLogout}>
-              Log out
-            </button>
           </div>
 
           {error && <p className="mb-3 rounded-md border border-destructive/30 bg-card px-3 py-2 text-sm text-destructive">{error}</p>}

@@ -44,10 +44,14 @@ export function ProfileSection() {
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
       <h3 className="mb-3 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Profile</h3>
+      {/* w-full on each field: an <input> is inline-block and sizes itself to ~20 characters by
+          default, so these sat narrow next to a full-width Email box and let the Save button ride
+          up onto the last field's line. Set here rather than on the shared Input, whose other call
+          sites (the admin catalog's `w-16`/`w-20` cells) depend on the intrinsic width. */}
       <label className="mb-2 block text-xs font-semibold text-muted-foreground">Display name</label>
-      <Input className="mb-3" value={name} onChange={(e) => setName(e.target.value)} />
+      <Input className="mb-3 w-full" value={name} onChange={(e) => setName(e.target.value)} />
       <label className="mb-2 block text-xs font-semibold text-muted-foreground">Username</label>
-      <Input className="mb-3" value={username} onChange={(e) => setUsername(e.target.value)} />
+      <Input className="mb-3 w-full" value={username} onChange={(e) => setUsername(e.target.value)} />
       <label className="mb-2 block text-xs font-semibold text-muted-foreground">Email</label>
       <p className="mb-3 rounded-md border border-dashed border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">{user.email}</p>
       {error && <p className="mb-2 text-sm font-semibold text-destructive">{error}</p>}

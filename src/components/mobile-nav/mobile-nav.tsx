@@ -4,12 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated } from "@/lib/store";
+import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
 import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
-import { signOut } from "@/lib/auth-client";
+import { logOut } from "@/lib/auth-client";
 import { cn } from "cn";
 import { midseasonBadge } from "@/lib/game/selectors";
 import { useLeagueTypeBadges } from "@/components/league-switcher";
@@ -56,7 +56,9 @@ export function MobileNav() {
   const isSuperAdmin = useIsSuperAdmin();
   const isAuthenticated = useIsAuthenticated();
   const enterMockMode = useLeagueStore((s) => s.useMock);
+  const previewDemo = useLeagueStore((s) => s.previewDemo);
   const setEntered = useLeagueStore((s) => s.setEntered);
+  const isPreviewingDemo = useIsPreviewingDemo();
   const openReportModal = useReportModalStore((s) => s.openModal);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
@@ -66,6 +68,14 @@ export function MobileNav() {
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
   const hasRoster = StateLogic.getLeagueType(state).hasRoster;
+  // Same gate the desktop sidebar uses: Mid-Season only exists when the league type supports
+  // replenish/trade AND the commissioner turned one on. Without it there's no round to promote
+  // into the 4th slot or demote into the More sheet -- see sidebar.tsx's note.
+  const hasMidSeason = StateLogic.replenishAvailable(state) || StateLogic.tradeAvailable(state);
+  // Whether there's a season to browse at all -- a real league, or the demo one someone stepped
+  // into deliberately. Mirrors sidebar.tsx's `hasSeason`, and for the same reason: a signed-in user
+  // with no league would otherwise get a tab bar of views onto demo data they never asked for.
+  const hasSeason = mode === "live" || isPreviewingDemo;
   // Port of computeMobileFourthTab() (public/app.js): the 4th bottom-bar slot's badge is always
   // just "!" (no room for "Your Turn"/"Active" text at this size) -- red when it's genuinely your
   // turn/pick, muted when a round is merely active. Draft's badge also folds in the same
@@ -77,26 +87,38 @@ export function MobileNav() {
   // nothing to demote into the More sheet.
   const draftUrgent = !!(turn && !turn.isComplete && myPlayerId && turn.playerId === myPlayerId) || notifications.some((n) => n.tab === "/draft");
   const midBadge = midseasonBadge(state, myPlayerId);
-  const fourth = !hasRoster
-    ? { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
-    : draftComplete
-      ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon, urgent: midBadge?.urgent ?? null }
-      : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
-  const demoted = !hasRoster
-    ? null
-    : draftComplete
-      ? { href: "/draft", label: "Draft Results", icon: DraftIcon }
-      : { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon };
+  const midSeasonSlot = hasMidSeason ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon } : null;
+  const fourth =
+    !hasRoster || (draftComplete && !midSeasonSlot)
+      ? { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
+      : draftComplete
+        ? { ...midSeasonSlot!, urgent: midBadge?.urgent ?? null }
+        : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
+  const demoted = !hasRoster ? null : draftComplete ? { href: "/draft", label: "Draft Results", icon: DraftIcon } : midSeasonSlot;
 
-  const tabs: { href: string; label: string; icon: typeof OverviewIcon; urgent?: boolean | null }[] = [
+  const leagueTabs: { href: string; label: string; icon: typeof OverviewIcon; urgent?: boolean | null }[] = [
     { href: "/", label: "Overview", icon: OverviewIcon },
     { href: "/episodes", label: "Episodes", icon: EpisodesIcon },
     { href: "/scoreboard", label: "Scoreboard", icon: TrophyIcon },
     fourth,
   ];
+  // No league and not previewing: the only two places worth going are the join/create screen and
+  // the demo season (the latter is a state change, not a route -- hence the null href below).
+  const tabs = hasSeason
+    ? leagueTabs
+    : [
+        { href: "/dashboard", label: "My Leagues", icon: OverviewIcon },
+        { href: "", label: "Demo Season", icon: EpisodesIcon },
+      ];
 
   function go(href: string) {
     setSheetOpen(false);
+    // The Demo Season slot has no route of its own -- entering the demo is a store change, and the
+    // page you're on re-renders against it (same as the sidebar's row).
+    if (!href) {
+      previewDemo();
+      return;
+    }
     router.push(href);
   }
 
@@ -111,15 +133,11 @@ export function MobileNav() {
     await switchLeague(id);
   }
 
-  async function handleLogout() {
+  function handleLogout() {
     setSheetOpen(false);
-    try {
-      await signOut();
-    } catch {
-      // best-effort -- fall through to resetting client state regardless
-    }
-    enterMockMode();
-    router.push("/");
+    // Shared with the sidebar and Account settings -- see logOut() in auth-client.ts for why this
+    // is a full load to "/" rather than a client-side reset.
+    logOut();
   }
 
   // Port of exitDemoMode() -- same as auth-gate.tsx's handleExitDemo/sidebar.tsx's exitDemo.
@@ -251,8 +269,9 @@ export function MobileNav() {
         )}
       >
         <div className="mx-auto mb-2.5 mt-1.5 h-1 w-9 rounded-full bg-border" />
-        {demoted && <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />}
-        <MoreRow icon={GearIcon} label="League Settings" onClick={() => go("/setup")} />
+        {hasSeason && demoted && <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />}
+        {hasSeason && <MoreRow icon={GearIcon} label="League Settings" onClick={() => go("/setup")} />}
+        {!hasSeason && <MoreRow icon={OverviewIcon} label="My Leagues" onClick={() => go("/dashboard")} />}
         {isSuperAdmin && (
           <>
             <div className="my-1.5 h-px bg-border" />

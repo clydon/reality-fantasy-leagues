@@ -48,6 +48,19 @@ interface LeagueStore {
   // previously fetched by AuthGate's loadFirstLeague() and discarded after picking leagues[0].
   leagues: LeagueSummary[];
   setLeagues: (leagues: LeagueSummary[]) => void;
+  // Keeps the switcher's copy of a league in step with an edit made elsewhere. `leagues` comes
+  // from GET /api/me and was previously only ever replaced wholesale on load, so renaming a league
+  // in League Settings or deleting one in Admin left the sidebar showing the old list until a
+  // reload -- the rename/delete call sites now say so here instead of re-fetching /me for one
+  // field.
+  renameLeagueLocally: (leagueId: string, name: string) => void;
+  removeLeagueLocally: (leagueId: string) => void;
+  // True while a league is being fetched and swapped in (initial load, switcher, join/create).
+  // AuthGate holds the shell on a loading screen for the duration: without it the shell renders
+  // the instant `leagues` changes but before the real state arrives, and what's underneath is the
+  // demo season -- which is how creating a league flashed a grid of demo cast members.
+  loadingLeague: boolean;
+  setLoadingLeague: (loading: boolean) => void;
   // Loads a different one of `leagues` as the active league, same request sequence
   // loadFirstLeague() already does for the initial load.
   switchLeague: (leagueId: string) => Promise<void>;
@@ -131,9 +144,22 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
     set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts, demoPreview: false }),
   setIdentity: (userId, isSuperAdmin, impersonating) => set({ userId, isSuperAdmin, impersonating }),
   setLeagues: (leagues) => set({ leagues }),
+  renameLeagueLocally: (leagueId, name) =>
+    set((s) => ({
+      leagues: s.leagues.map((l) => (l.id === leagueId ? { ...l, name } : l)),
+      leagueName: s.leagueId === leagueId ? name : s.leagueName,
+    })),
+  removeLeagueLocally: (leagueId) => set((s) => ({ leagues: s.leagues.filter((l) => l.id !== leagueId) })),
+  loadingLeague: false,
+  setLoadingLeague: (loadingLeague) => set({ loadingLeague }),
   switchLeague: async (leagueId) => {
-    const { league, state, membership, playerAccounts } = await api.leagueState(leagueId);
-    set({ mode: "live", leagueId: league.id, state, leagueName: league.name, membership, playerAccounts, demoPreview: false });
+    set({ loadingLeague: true });
+    try {
+      const { league, state, membership, playerAccounts } = await api.leagueState(leagueId);
+      set({ mode: "live", leagueId: league.id, state, leagueName: league.name, membership, playerAccounts, demoPreview: false });
+    } finally {
+      set({ loadingLeague: false });
+    }
   },
   setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason } }),
   clearLeague: () =>

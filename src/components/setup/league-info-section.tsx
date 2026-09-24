@@ -30,6 +30,7 @@ import { Select } from "@/components/ui/select";
 export function LeagueInfoSection({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
+  const renameLeagueLocally = useLeagueStore((s) => s.renameLeagueLocally);
   const canManage = useCanManage();
   const mutate = useMutate();
   const terms = useShowTerms();
@@ -80,6 +81,11 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
       },
       () => api.renameLeague(leagueId!, trimmed)
     );
+    // The name lives outside league state (it's a column on `leagues`, not a field in the JSONB),
+    // so the mutate() above updates nothing the sidebar reads -- the switcher and the mobile top
+    // bar both render store.leagues/leagueName, which only ever came from GET /api/me on load.
+    // Without this the rename didn't show up anywhere in the chrome until a reload.
+    if (leagueId) renameLeagueLocally(leagueId, trimmed);
   }
 
   async function updateSetting(field: string, value: unknown) {

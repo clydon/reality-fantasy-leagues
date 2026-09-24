@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { AdminUser, AdminLeague, AdminMembership, Player } from "@/lib/game/types";
 import { api } from "@/lib/api";
 import { confirm } from "@/lib/confirm-store";
+import { useLeagueStore } from "@/lib/store";
 
 // Admin is cross-league (all users, all leagues), not scoped to the single league
 // useLeagueStore holds -- and unlike every other tab, it has no mock-mode equivalent at all: the
@@ -104,6 +105,13 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     await api.adminDeleteLeague(leagueId);
     const leaguesData = await api.adminListLeagues();
     set({ leagues: leaguesData.leagues, selectedLeagueId: null, membershipData: null });
+    // The admin list and the league chrome are two different stores: deleting a league you're also
+    // a member of left it sitting in the sidebar switcher (and, if it was the one loaded, in the
+    // header) until a reload. Drop it from there too, and if it was the active league, drop the
+    // league itself -- AuthGate then shows the Dashboard, the same as leaving your last league.
+    const league = useLeagueStore.getState();
+    league.removeLeagueLocally(leagueId);
+    if (league.leagueId === leagueId) league.clearLeague();
   },
 
   async linkMembership(playerId, userId, role) {
