@@ -839,18 +839,28 @@ content-validation layer, and stored provenance all exist to blunt the non-deter
 brings. Model is `claude-opus-5`; at ~1-2K input and ~1K output tokens a run costs on the
 order of a cent, so model choice isn't the cost lever at this size.
 
-**Verified** in two parts. Everything that doesn't need a credential (26 checks): the real MediaWiki
-fetch and revision id, deterministic section slicing and its bounds, batched photo resolution
-including files that don't exist, every validation guard (each fatal case and the drop-the-unbacked-
-tribe case), the schema rejecting malformed shapes, and apply-into-state preserving existing ids and
-photos. Then the review half through the real API and Postgres (18 checks): pending listing,
-provenance round-trip, replace-not-stack, additive apply, re-apply adding nothing, double-apply →
-400, reject kept as history, cross-league apply → 404, and cascade delete with the league.
+**Verified** in three parts. Everything that doesn't need a credential (26 checks): the real
+MediaWiki fetch and revision id, deterministic section slicing and its bounds, batched photo
+resolution including files that don't exist, every validation guard (each fatal case and the
+drop-the-unbacked-tribe case), the schema rejecting malformed shapes, and apply-into-state
+preserving existing ids and photos. The review half through the real API and Postgres (18 checks):
+pending listing, provenance round-trip, replace-not-stack, additive apply, re-apply adding nothing,
+double-apply → 400, reject kept as history, cross-league apply → 404, and cascade delete with the
+league.
 
-**Not verified: the model call itself.** No Anthropic credential was available in the session this
-was built in, so the one hop from wikitext to structured JSON has never run. Everything around it
-has. Set `ANTHROPIC_API_KEY` in `.env.local` (or `ant auth login`) and run with
-`--dry` to exercise it without filing anything.
+**And, once a workspace-scoped key with credit was available: the model call itself, checked
+against ground truth derived independently from the same wikitext (not from the model's own
+output).** Ground truth was 18 castaways and their exact tribe assignments, read directly out of
+the `==Castaways==` wikitext with a regex, before any extraction ran. A real `--dry` run against
+`Survivor 44` matched it exactly: 18/18 names verbatim, all 18 tribe assignments correct, all 18
+photos resolved to real `static.wikia.nocookie.net` URLs, zero invented castaways. A real
+(non-dry) run was then taken through the full loop — filed, listed, applied via the real
+`POST .../wiki-proposals/:id` route — landing in league state additively (39 = 21 seed + 18
+imported) with tribes and photos correctly linked. Two things surfaced only by running against a
+real key, both fixed: an org-scoped key needs a `anthropic-workspace-id` header (now
+`ANTHROPIC_WORKSPACE_ID`, with an error message naming the fix instead of a raw 400), and API
+errors now surface Anthropic's own message instead of the SDK's, which prefixes the status and
+then embeds the whole raw JSON body.
 
 ## Cast photos (`public/photos/`, `components/castaway-avatar.tsx`)
 
