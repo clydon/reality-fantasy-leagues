@@ -3,10 +3,13 @@
 import { createAuthClient } from "better-auth/react";
 import { usernameClient, adminClient } from "better-auth/client/plugins";
 
-// This app's own, and now only, session (see src/lib/auth.ts for why "now only"). baseURL
-// defaults to same-origin, correct here since the API route lives in this same Next.js app.
+// This app's own, and now only, session (see src/lib/auth.ts for why "now only"). No baseURL: it
+// defaults to the same-origin "/api/auth" (better-auth/dist/client/config.mjs), which is correct
+// everywhere this runs since the API route lives in this same Next.js app. An explicit baseURL
+// here used to read process.env.BETTER_AUTH_URL -- a SERVER-only var Next.js never inlines into
+// the browser bundle (only NEXT_PUBLIC_* vars are), so every deployed environment silently fell
+// back to its hardcoded "http://localhost:8935" default and every fetch failed off that machine.
 export const authClient = createAuthClient({
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:8935",
   plugins: [usernameClient(), adminClient()],
 });
 
