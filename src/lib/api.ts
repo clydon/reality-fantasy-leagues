@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -409,6 +409,13 @@ export const api = {
     }),
   adminDeleteSeason: (id: string) =>
     localFetch<{ ok: true; leaguesAffected: number }>(`/api/admin/seasons/${id}`, { method: "DELETE" }),
+  // On-demand wiki pull for one season. Slow by nature (it reads the wiki, then runs an LLM
+  // extraction) -- callers show a pending state rather than assuming this returns quickly.
+  adminSyncSeason: (id: string, kind: "cast" | "episodes", force = false) =>
+    localFetch<WikiSeasonSyncResult>(`/api/admin/seasons/${id}/sync`, {
+      method: "POST",
+      body: JSON.stringify({ kind, force }),
+    }),
 
   // Web Push (src/lib/push-client.ts calls these; src/lib/server/push-core.js sends).
   registerPushSubscription: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>

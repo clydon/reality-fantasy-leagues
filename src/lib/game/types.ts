@@ -207,6 +207,21 @@ export interface AdminShow {
   seasons: ShowSeason[];
 }
 
+// What one admin-triggered wiki pull did (POST /api/admin/seasons/:id/sync, backed by
+// db/wiki-sync.js's runForSeason). The expensive half is season-scoped, so the result is reported
+// the same way: one read of the wiki, then a line per league that tracks this season.
+export interface WikiSeasonSyncResult {
+  kind: "cast" | "episodes";
+  showSlug: string;
+  season: number;
+  /** True when the wiki hadn't changed since the last read, so no model call was made. */
+  cached: boolean;
+  /** Every page the extraction saw, transcluded templates included. */
+  pages: { title: string; revisionId: number | null }[];
+  /** One entry per league tracking this season. Empty when no league does -- the read still caches. */
+  leagues: { id: string; name: string; ok: boolean; summary?: string; error?: string }[];
+}
+
 // Commissioner view of a show (GET /api/shows): non-archived only, no admin-only fields.
 export interface CatalogShow {
   slug: string;

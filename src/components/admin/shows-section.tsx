@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { AdminShow, ShowSeason } from "@/lib/game/types";
+import type { AdminShow, ShowSeason, WikiSeasonSyncResult } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
 import { plural } from "@/lib/use-show-terms";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +75,11 @@ export function ShowsSection() {
       <p className="mb-3 text-sm text-muted-foreground">
         The catalog leagues pick from. A season&rsquo;s wiki URL is what the connector reads to import a cast — paste the
         page straight from your browser and the API endpoint and page title are worked out from it.
+      </p>
+      <p className="mb-3 text-sm text-muted-foreground">
+        Each season has its own <b>Pull cast</b> and <b>Pull episodes</b> buttons: they run the connector for that
+        season on the spot, instead of waiting for the nightly job. One read is shared by every league tracking the
+        season, and the results are filed for each commissioner to confirm — nothing is applied automatically.
       </p>
 
       {isLoading ? (
@@ -357,55 +362,156 @@ function SeasonRow({
   busy: boolean;
   run: (fn: () => Promise<unknown>, note?: string) => Promise<boolean>;
 }) {
+  // A pull's own state is kept here rather than in the section's shared busy/note/error: it can run
+  // for a couple of minutes, its result is a list rather than a sentence, and it belongs next to the
+  // season it was run for -- three reasons the shared single-note channel above fits it badly.
+  const [pulling, setPulling] = useState<"cast" | "episodes" | null>(null);
+  const [result, setResult] = useState<WikiSeasonSyncResult | null>(null);
+  const [pullError, setPullError] = useState<string | null>(null);
+
+  async function pull(kind: "cast" | "episodes", force = false) {
+    setPulling(kind);
+    setResult(null);
+    setPullError(null);
+    try {
+      setResult(await api.adminSyncSeason(season.id, kind, force));
+    } catch (e) {
+      setPullError(e instanceof ApiError ? e.message : "That pull didn't work.");
+    } finally {
+      setPulling(null);
+    }
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded border border-border px-2 py-1 text-xs">
-      <span className="font-mono font-bold">S{season.seasonNumber}</span>
-      {season.name && <span>{season.name}</span>}
-      <Badge variant="secondary" className="text-[0.6rem]">
-        {season.status}
-      </Badge>
-      {season.castSize ? <span className="text-muted-foreground">{season.castSize} cast</span> : null}
-      {season.wikiPageTitle ? (
-        <span className="text-muted-foreground" title={season.wikiUrl || undefined}>
-          wiki: <code className="font-mono">{season.wikiPageTitle}</code>
+    <div className="rounded border border-border px-2 py-1 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono font-bold">S{season.seasonNumber}</span>
+        {season.name && <span>{season.name}</span>}
+        <Badge variant="secondary" className="text-[0.6rem]">
+          {season.status}
+        </Badge>
+        {season.castSize ? <span className="text-muted-foreground">{season.castSize} cast</span> : null}
+        {season.wikiPageTitle ? (
+          <span className="text-muted-foreground" title={season.wikiUrl || undefined}>
+            wiki: <code className="font-mono">{season.wikiPageTitle}</code>
+          </span>
+        ) : (
+          <span className="italic text-muted-foreground">no wiki page — connector can&rsquo;t import this season</span>
+        )}
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
+          {/* Two pulls rather than one, because they're genuinely different jobs: cast has to be
+              applied before episode results can be matched to anyone by name, and a season whose cast
+              is settled still needs re-pulling for episodes every week. */}
+          <Button
+            variant="secondary"
+            size="xs"
+            disabled={busy || pulling !== null}
+            title="Read this season's cast from the wiki and file it for review in every league tracking the season"
+            onClick={() => pull("cast")}
+          >
+            {pulling === "cast" ? "Pulling…" : "Pull cast"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="xs"
+            disabled={busy || pulling !== null}
+            title="Read this season's per-episode results (eliminations, scoring events) from the wiki and file them for review"
+            onClick={() => pull("episodes")}
+          >
+            {pulling === "episodes" ? "Pulling…" : "Pull episodes"}
+          </Button>
+          <Select
+            size="sm"
+            value={season.status}
+            disabled={busy}
+            onChange={(e) => run(() => api.adminUpdateSeason(season.id, { status: e.target.value }))}
+            title="Change status"
+          >
+            <option value="completed">Completed</option>
+            <option value="airing">Airing</option>
+            <option value="upcoming">Upcoming</option>
+          </Select>
+          <Button
+            variant="destructive"
+            size="xs"
+            disabled={busy}
+            onClick={async () => {
+              if (!(await confirm(`Delete season ${season.seasonNumber}?`, { danger: true, confirmLabel: "Delete" }))) return;
+              // The route reports leagues still pointing at this season -- they keep working, but the
+              // connector loses its page title for them, so it's worth surfacing rather than silent.
+              await run(async () => {
+                const res = await api.adminDeleteSeason(season.id);
+                if (res.leaguesAffected > 0) {
+                  alert(
+                    `Deleted. Note: ${res.leaguesAffected} league${res.leaguesAffected === 1 ? "" : "s"} still reference ` +
+                      `season ${season.seasonNumber}; the wiki connector will fall back to guessing a page title for them.`
+                  );
+                }
+              }, `Deleted season ${season.seasonNumber}.`);
+            }}
+          >
+            ✕
+          </Button>
         </span>
-      ) : (
-        <span className="italic text-muted-foreground">no wiki page — connector can&rsquo;t import this season</span>
+      </div>
+
+      {pulling && (
+        <p className="mt-1 italic text-muted-foreground">
+          Reading the wiki and extracting — a cast pull takes seconds, a full season of episodes can take a couple of
+          minutes. Leave this open.
+        </p>
       )}
-      <span className="ml-auto flex gap-1.5">
-        <Select
-          size="sm"
-          value={season.status}
-          disabled={busy}
-          onChange={(e) => run(() => api.adminUpdateSeason(season.id, { status: e.target.value }))}
-          title="Change status"
-        >
-          <option value="completed">Completed</option>
-          <option value="airing">Airing</option>
-          <option value="upcoming">Upcoming</option>
-        </Select>
-        <Button
-          variant="destructive"
-          size="xs"
-          disabled={busy}
-          onClick={async () => {
-            if (!(await confirm(`Delete season ${season.seasonNumber}?`, { danger: true, confirmLabel: "Delete" }))) return;
-            // The route reports leagues still pointing at this season -- they keep working, but the
-            // connector loses its page title for them, so it's worth surfacing rather than silent.
-            await run(async () => {
-              const res = await api.adminDeleteSeason(season.id);
-              if (res.leaguesAffected > 0) {
-                alert(
-                  `Deleted. Note: ${res.leaguesAffected} league${res.leaguesAffected === 1 ? "" : "s"} still reference ` +
-                    `season ${season.seasonNumber}; the wiki connector will fall back to guessing a page title for them.`
-                );
-              }
-            }, `Deleted season ${season.seasonNumber}.`);
-          }}
-        >
-          ✕
-        </Button>
-      </span>
+      {pullError && <p className="mt-1 font-semibold text-destructive">{pullError}</p>}
+      {result && <PullResult result={result} busy={busy || pulling !== null} onForce={() => pull(result.kind, true)} />}
+    </div>
+  );
+}
+
+// What one pull did, reported the way the connector actually works: one read of the wiki (shared),
+// then a line per league tracking the season. A league with no line isn't tracking this season.
+function PullResult({
+  result,
+  busy,
+  onForce,
+}: {
+  result: WikiSeasonSyncResult;
+  busy: boolean;
+  onForce: () => void;
+}) {
+  return (
+    <div className="mt-1 rounded border border-dashed border-border bg-secondary/40 p-1.5 text-[0.7rem]">
+      <p className="text-muted-foreground">
+        {result.cached
+          ? "Wiki unchanged since the last read — reused the cached extraction, no model call."
+          : "Read and extracted fresh from the wiki."}{" "}
+        {result.pages.map((p) => `${p.title}${p.revisionId ? ` (rev ${p.revisionId})` : ""}`).join(", ")}
+        {/* The only way past the revision-id cache. Offered only on a cache hit, because that's the
+            one case where clicking Pull again would do exactly nothing -- which is what you'd reach
+            for after an extraction that came back wrong from unchanged wikitext. */}
+        {result.cached && (
+          <Button variant="secondary" size="xs" className="ml-1.5" disabled={busy} onClick={onForce}>
+            Extract again anyway
+          </Button>
+        )}
+      </p>
+      {result.leagues.length === 0 ? (
+        <p className="mt-0.5 italic text-muted-foreground">
+          No league is tracking this season yet, so there was nobody to file for — the extraction is cached for when
+          one is.
+        </p>
+      ) : (
+        <ul className="mt-0.5 flex flex-col gap-0.5">
+          {result.leagues.map((l) => (
+            <li key={l.id} className={l.ok ? "" : "text-destructive"}>
+              <b>{l.name}:</b> {l.ok ? l.summary : l.error}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-0.5 text-muted-foreground">
+        Nothing is applied automatically — a cast pull waits for the commissioner in League Settings, episode results on
+        each episode&rsquo;s card.
+      </p>
     </div>
   );
 }

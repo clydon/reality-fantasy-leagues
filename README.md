@@ -995,10 +995,37 @@ that fires twice before anyone reviews replaces its own earlier suggestion inste
 duplicates. Rejected proposals are kept as resolved rows rather than deleted, so a rejected
 suggestion doesn't reappear looking new on the next run.
 
+### Running it on demand (Admin → Shows & Seasons)
+
+Every season row in the admin catalog has **Pull cast** and **Pull episodes** buttons
+(`POST /api/admin/seasons/:id/sync` → `runForSeason` in `db/wiki-sync.js`), so a super-admin can run
+the connector for one season without waiting for the nightly job or reaching for a shell.
+
+The unit is a **season**, not a league, for the same reason the nightly job groups by season: the
+expensive half of a run — fetch, then extract — is season-scoped and cached in `wiki_extractions`
+keyed on wiki revision ids, and the row an admin is looking at here *is* a season. One click reads
+the wiki once and fans the result out to every league tracking that season; the response reports a
+line per league, and one league failing (no cast imported yet, a name matching nobody) is reported
+against that league rather than failing the others. A season no league tracks still primes the
+extraction cache.
+
+It changes nothing about what gets written: a cast pull files a pending proposal for each
+commissioner, an episodes pull files per-decision items on their Episodes tab. It differs from the
+nightly run in one way only — it never suppresses a cast proposal that adds nobody new, since asking
+for the pull is the reason to see it (the `batch` flag, same as an explicit single-league CLI run).
+
+This route is slow by nature (a wiki read, then an LLM extraction: seconds for a cast, up to a
+couple of minutes for a full season of episodes), so it sets `maxDuration = 300` and the UI shows a
+pending state. A cut-off extraction is never filed and nothing is cached until it completes, so a
+timeout costs the model call and nothing else. It needs `ANTHROPIC_API_KEY` in the **app's** own
+environment, not just in the workflow's repository secrets — without one the connector says so
+before it calls anything.
+
 **Choices made here were the user's, against my recommendation, and are worth knowing:** LLM
 extraction rather than a deterministic wikitext parser (the investigation found the templates are
 structured enough to parse, and footnote *anchors* — unlike their numbers — are stable across
-seasons), and a scheduled script rather than an on-demand button. The strict schema, the separate
+seasons), and a scheduled script rather than an on-demand button (the per-season buttons above were
+added later, on request — the schedule is still what runs unattended). The strict schema, the separate
 content-validation layer, and stored provenance all exist to blunt the non-determinism that choice
 brings. Model is `claude-opus-5`; at ~1-2K input and ~1K output tokens a run costs on the
 order of a cent, so model choice isn't the cost lever at this size.

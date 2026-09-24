@@ -3,9 +3,15 @@
 // PROPOSAL for the commissioner to confirm. Nothing is ever applied automatically -- see
 // docs/PLAN-league-types-and-wiki-connector.md, Feature D.
 //
-// Standalone CLI, same shape as db/migrate.js and db/seed-dev-admin.js (plain CommonJS, run with
-// `node db/...`, not part of the Next.js bundle). The Next app has no persistent server process, so
-// recurring runs are scheduled externally -- Windows Task Scheduler locally.
+// Plain CommonJS, same shape as db/migrate.js and db/seed-dev-admin.js, with TWO callers:
+//
+//   1. the CLI below (`node db/wiki-sync.js ...`), which is what the nightly schedule runs. The Next
+//      app has no persistent server process, so recurring runs are scheduled externally --
+//      .github/workflows/wiki-sync.yml, or Windows Task Scheduler locally.
+//   2. `runForSeason`, imported by the admin route POST /api/admin/seasons/:id/sync, which is what
+//      the per-season Pull buttons in Admin > Shows & Seasons call. Nothing in here may import
+//      anything Next-specific, for the same reason push-core.js may not: the CLI has to keep
+//      running under bare `node`.
 //
 //   node db/wiki-sync.js all                       # every season any league tracks, read once each
 //   node db/wiki-sync.js cast <leagueId>           # import the cast list for the league's season
@@ -399,7 +405,9 @@ async function expandTranscludedTables(sectionText, apiUrl) {
 async function callModel({ system, user, schema, schemaName, maxTokens }) {
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
     throw new Error(
-      "No Anthropic credentials found. Set ANTHROPIC_API_KEY in .env.local (or run `ant auth login`).\n" +
+      "No Anthropic credentials found. Set ANTHROPIC_API_KEY in .env.local (or run `ant auth login`) for a " +
+        "local run, in the workflow's repository secrets for the nightly job, or in the deployment's " +
+        "environment variables for the admin Pull buttons.\n" +
         "This connector uses LLM extraction, so it cannot run without one."
     );
   }
@@ -826,10 +834,12 @@ async function fanOutCast(pool, extraction, league, terms, opts) {
     })),
   };
   const withPhotos = payload.castaways.filter((c) => c.photoUrl).length;
-  console.log(
-    `[wiki-sync]   ${league.name}: ${payload.castaways.length} ${terms.castaways} (${checked.newCount} new), ` +
-      `${payload.tribes.length} ${terms.tribes}, ${withPhotos} photos`
-  );
+  // The same sentence the CLI prints is also what the admin UI shows, so it's built once and
+  // returned rather than only logged -- see runForSeason.
+  const counts =
+    `${payload.castaways.length} ${terms.castaways} (${checked.newCount} new), ` +
+    `${payload.tribes.length} ${terms.tribes}, ${withPhotos} photos`;
+  console.log(`[wiki-sync]   ${league.name}: ${counts}`);
 
   // The batch job runs nightly against every league, so a league that already has its full cast
   // would otherwise get a fresh "0 new" proposal posted every single night. Only interrupt a
@@ -837,14 +847,15 @@ async function fanOutCast(pool, extraction, league, terms, opts) {
   // single-league `cast` run always files, because asking for it IS the reason to see it.
   if (opts.batch && checked.newCount === 0) {
     console.log(`[wiki-sync]   ${league.name}: nothing new, no proposal filed`);
-    return;
+    return { filed: false, summary: `${counts} — nothing new, no proposal filed` };
   }
   if (opts.dry) {
     console.log(`[wiki-sync]   --dry: would file a cast proposal for ${league.name}`);
-    return;
+    return { filed: false, summary: `${counts} — dry run, nothing filed` };
   }
   await fileProposal(pool, league.id, "cast", payload, extraction.provenance);
   console.log(`[wiki-sync]   ${league.name}: filed a pending cast proposal`);
+  return { filed: true, summary: `${counts} — filed a pending cast proposal` };
 }
 
 // ---------- per-episode import (phase 2) ----------
@@ -932,15 +943,15 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
   }
 
   const c = checked.counts;
-  console.log(
-    `[wiki-sync]   ${league.name}: ${items.length} decisions across ${c.episodes} episodes ` +
-      `(${c.eliminations} eliminations, ${c.newEliminations} new; ${c.events} events, ${c.lowConfidence} low-confidence)`
-  );
+  const counts =
+    `${items.length} decisions across ${c.episodes} episodes ` +
+    `(${c.eliminations} eliminations, ${c.newEliminations} new; ${c.events} events, ${c.lowConfidence} low-confidence)`;
+  console.log(`[wiki-sync]   ${league.name}: ${counts}`);
   if (opts.dry) {
     console.log(`[wiki-sync]   --dry: would write ${items.length} items for ${league.name}`);
-    return;
+    return { filed: false, summary: `${counts} — dry run, nothing written` };
   }
-  if (!items.length) return;
+  if (!items.length) return { filed: false, summary: `${counts} — nothing to write` };
 
   // All of one league's items in one transaction: a fan-out that dies halfway through shouldn't
   // leave a commissioner reviewing half an episode.
@@ -980,11 +991,12 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
   } finally {
     client.release();
   }
-  console.log(
-    `[wiki-sync]   ${league.name}: ${touched} pending item(s) written (${inserted} new)` +
-      (items.length - touched ? `, ${items.length - touched} already decided and left alone` : "")
-  );
+  const written =
+    `${touched} pending item(s) written (${inserted} new)` +
+    (items.length - touched ? `, ${items.length - touched} already decided and left alone` : "");
+  console.log(`[wiki-sync]   ${league.name}: ${written}`);
   if (inserted) await notifyCommissionersOfReview(pool, league, inserted);
+  return { filed: touched > 0, summary: `${counts} — ${written}` };
 }
 
 // Push the league's commissioners when the sync filed decisions they haven't seen before. Awaited
@@ -1060,7 +1072,10 @@ async function cachedExtraction(pool, showId, season, kind, provenance, opts) {
   console.log(
     `[wiki-sync] ${kind}: wiki unchanged since ${new Date(cached.extracted_at).toISOString()} -- reusing cached extraction (no model call)`
   );
-  return { id: cached.id, payload: cached.payload, provenance: cached.provenance };
+  // `cached` is carried on the result so a caller with a UI (the admin Pull buttons) can say whether
+  // the wiki was actually re-read -- otherwise a --force run and a cache hit look identical from
+  // outside, and "nothing changed" reads as "the button did nothing".
+  return { id: cached.id, payload: cached.payload, provenance: cached.provenance, cached: true };
 }
 
 function sameRevisions(a, b) {
@@ -1075,7 +1090,7 @@ function sameRevisions(a, b) {
 async function storeExtraction(pool, showId, season, kind, payload, provenance, opts) {
   if (opts.dry) {
     console.log(`[wiki-sync] --dry: not caching the ${kind} extraction`);
-    return { id: null, payload, provenance };
+    return { id: null, payload, provenance, cached: false };
   }
   const { rows } = await pool.query(
     `INSERT INTO wiki_extractions (show_id, season_number, kind, payload, provenance)
@@ -1085,7 +1100,7 @@ async function storeExtraction(pool, showId, season, kind, payload, provenance, 
      RETURNING id`,
     [showId, season, kind, JSON.stringify(payload), JSON.stringify(provenance)]
   );
-  return { id: rows[0].id, payload, provenance };
+  return { id: rows[0].id, payload, provenance, cached: false };
 }
 
 // One pending proposal per league per kind (partial unique index), so a second scheduled run before
@@ -1192,6 +1207,57 @@ async function runForLeague(pool, command, leagueId, opts) {
   await FANOUTS[command](pool, extraction, league, ctx.terms, opts);
 }
 
+// One SEASON, one kind -- what the admin catalog's per-season "Pull cast"/"Pull episodes" buttons
+// call (POST /api/admin/seasons/:id/sync). This is `all` narrowed to a single season rather than
+// `runForLeague` widened: the catalog row an admin clicks IS a (show, season), and the expensive
+// half of the work is already season-scoped, so the natural unit here is the season -- extract once,
+// then fan out to every league tracking it, however many that is (including none, which still
+// primes the extraction cache).
+//
+// Returns a structured result instead of only logging, because a route has to answer the request
+// with what happened. `opts.batch` is deliberately NOT set: asking for a pull IS the reason to see
+// the proposal, exactly as an explicit single-league CLI run is.
+//
+// One league's failure (no cast yet, a name that matches nobody) is reported against that league and
+// doesn't deny the others a result they'd have got fine -- same rule as runAll.
+async function runForSeason(pool, showSlug, season, kind, opts = {}) {
+  if (!EXTRACTORS[kind]) {
+    throw new Error(`Unknown kind "${kind}". Supported: ${Object.keys(EXTRACTORS).join(", ")}`);
+  }
+  const ctx = await resolveSeasonContext(pool, showSlug, season, `Season ${showSlug} ${season}`);
+  const extraction = await EXTRACTORS[kind](pool, ctx, opts);
+
+  // wikiSeason is a JSON number, so `->>` gives its digits; compared as text rather than cast to int
+  // because a single league with a non-numeric value there would make the cast error out for all of
+  // them -- see the same query shape in runAll's WHERE.
+  const { rows: leagues } = await pool.query(
+    `SELECT id, name, state FROM leagues
+      WHERE state->'settings'->>'showId' = $1
+        AND state->'settings'->>'wikiSeason' = $2
+      ORDER BY name`,
+    [showSlug, String(season)]
+  );
+
+  const results = [];
+  for (const league of leagues) {
+    try {
+      const out = await FANOUTS[kind](pool, extraction, league, ctx.terms, opts);
+      results.push({ id: league.id, name: league.name, ok: true, summary: (out && out.summary) || "done" });
+    } catch (e) {
+      console.error(`[wiki-sync]   ${league.name} (${kind}): ${e.message}`);
+      results.push({ id: league.id, name: league.name, ok: false, error: e.message });
+    }
+  }
+  return {
+    kind,
+    showSlug,
+    season,
+    cached: !!extraction.cached,
+    pages: (extraction.provenance.pages || []).map((p) => ({ title: p.title, revisionId: p.revisionId })),
+    leagues: results,
+  };
+}
+
 // The batch job (see .github/workflows/wiki-sync.yml). Reads each season ONCE and fans it out to
 // every league tracking it -- the whole point of the 0009 rework. Ten leagues on Survivor 51 cost
 // one model call between them, not ten.
@@ -1282,6 +1348,7 @@ if (require.main === module) {
 module.exports = {
   runAll,
   runForLeague,
+  runForSeason,
   fanOutCast,
   fanOutEpisodes,
   sameRevisions,
