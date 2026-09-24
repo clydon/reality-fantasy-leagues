@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError, insertSystemMessage } from "@/lib/server/db";
+import { notifyBetResult } from "@/lib/server/push-events";
 
 type RouteParams = { leagueId: string; epId: string; betId: string; predId: string };
 
@@ -25,8 +26,7 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<RoutePa
 });
 
 // Port of the same file's PATCH /:epId/bets/:betId/predictions/:predId -- commissioner-only
-// grading. Push-notification-on-resolved-bet isn't ported (out of scope); the chat system-message
-// feed entry is.
+// grading. Posts the chat system message and pushes the result to the person who guessed.
 export const PATCH = apiRoute(async (req, { params }: { params: Promise<RouteParams> }) => {
   const { leagueId, epId, betId, predId } = await params;
   const { membership } = await requireLeagueRole(req, leagueId, "member");
@@ -46,6 +46,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
       const verb = value ? "correctly guessed" : "incorrectly guessed";
       insertSystemMessage(leagueId, `${player.name} ${verb} on "${bet.label}"`).catch(() => {});
     }
+    notifyBetResult(leagueId, state, epId, betId, predId, value);
   }
 
   return NextResponse.json(state);

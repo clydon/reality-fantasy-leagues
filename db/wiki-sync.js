@@ -64,6 +64,8 @@ const { z } = require("zod");
 // EXACT same rule that apply-time uses (Core.findCastawayByName). Two copies of that matching logic
 // would be two chances for a proposal to validate and then fail to apply.
 const StateLogic = require("../src/lib/game/state-logic.js");
+// Same sender the Next routes use -- plain CommonJS for exactly this reason (see its header).
+const { sendPush } = require("../src/lib/server/push-core.js");
 
 const WIKI_API = "https://survivor.fandom.com/api.php";
 // Per the claude-api skill's default. Extraction input here is one table (~1-2K tokens) and output
@@ -944,12 +946,17 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
   // leave a commissioner reviewing half an episode.
   const client = await pool.connect();
   let touched = 0;
+  let inserted = 0;
   try {
     await client.query("BEGIN");
     for (const it of items) {
       // Leaves an already-accepted/rejected row completely alone (the WHERE) -- re-running must never
       // resurrect a decision the commissioner already made. See 0009's identity-index comment.
-      const { rowCount } = await client.query(
+      //
+      // RETURNING (xmax = 0) tells a fresh INSERT apart from an UPDATE of a still-pending row: only
+      // brand-new decisions should trigger a "results ready to review" push, or every nightly run
+      // would re-send it for as long as anything sat unreviewed.
+      const { rowCount, rows } = await client.query(
         `INSERT INTO wiki_proposal_items
            (league_id, extraction_id, episode_number, post_merge, kind, castaway_name, method, event_type, confidence)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -959,10 +966,12 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
                        post_merge = EXCLUDED.post_merge,
                        extraction_id = EXCLUDED.extraction_id,
                        created_at = now()
-         WHERE wiki_proposal_items.status = 'pending'`,
+         WHERE wiki_proposal_items.status = 'pending'
+         RETURNING (xmax = 0) AS inserted`,
         [league.id, extraction.id, it.episode, it.postMerge, it.kind, it.name, it.method, it.eventType, it.confidence]
       );
       touched += rowCount;
+      if (rows[0] && rows[0].inserted) inserted++;
     }
     await client.query("COMMIT");
   } catch (e) {
@@ -972,9 +981,31 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
     client.release();
   }
   console.log(
-    `[wiki-sync]   ${league.name}: ${touched} pending item(s) written` +
+    `[wiki-sync]   ${league.name}: ${touched} pending item(s) written (${inserted} new)` +
       (items.length - touched ? `, ${items.length - touched} already decided and left alone` : "")
   );
+  if (inserted) await notifyCommissionersOfReview(pool, league, inserted);
+}
+
+// Push the league's commissioners when the sync filed decisions they haven't seen before. Awaited
+// (this is a script, not a request -- nothing to return early to), and sendPush never throws.
+async function notifyCommissionersOfReview(pool, league, count) {
+  const { rows } = await pool.query(
+    "SELECT user_id FROM league_memberships WHERE league_id=$1 AND role='commissioner'",
+    [league.id]
+  );
+  const result = await sendPush(
+    pool,
+    rows.map((r) => r.user_id),
+    "wikiReview",
+    {
+      title: "Episode results ready to review",
+      body: `${count} new result${count === 1 ? "" : "s"} for ${league.name} came in from the wiki.`,
+      url: `/episodes?league=${encodeURIComponent(league.id)}`,
+      tag: `wiki-review-${league.id}`,
+    }
+  );
+  if (result.sent) console.log(`[wiki-sync]   ${league.name}: notified commissioner device(s): ${result.sent}`);
 }
 
 // ---------- shared helpers ----------

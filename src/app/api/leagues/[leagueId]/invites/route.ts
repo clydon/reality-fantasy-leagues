@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
+import { notifyInvite } from "@/lib/server/push-events";
 
 // Pending invites plus anything answered in the last 30 days -- older accepted/declined rows are
 // just history nobody needs in League Settings.
@@ -47,6 +48,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
       [leagueId, user.id, trimmed]
     );
     const username = (user as { username?: string | null }).username ?? null;
+    notifyInvite(leagueId, trimmed, username || user.name);
     return NextResponse.json({ invite: { ...rows[0], invited_by_username: username } });
   } catch (e) {
     // uq_league_invites_pending -- lost a race with an identical send.

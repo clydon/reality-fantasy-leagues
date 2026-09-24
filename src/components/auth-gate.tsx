@@ -11,6 +11,7 @@ import { LoginScreen } from "@/components/login-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 import { ReportModal } from "@/components/report-modal";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { InstallHint } from "@/components/install-hint";
 import { Dashboard } from "@/components/dashboard/dashboard";
 import { useLeaguePoll } from "@/lib/use-league-poll";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setSignedInUsername(me.user.username);
     setLeagues(me.leagues);
     if (me.leagues.length > 0) {
-      const { league, state, membership, playerAccounts } = await api.leagueState(me.leagues[0].id);
+      // A push notification link carries ?league=<id> (see push-events.ts), so tapping "your turn to
+      // draft" opens THAT league rather than whichever one happens to be first. Honoured only if
+      // it's one of the user's own leagues; otherwise fall back to the first as before.
+      const wanted = new URLSearchParams(window.location.search).get("league");
+      const target = me.leagues.find((l) => l.id === wanted) ?? me.leagues[0];
+      const { league, state, membership, playerAccounts } = await api.leagueState(target.id);
       loadLive(league.id, state, league.name, membership, me.user.id, me.user.isSuperAdmin, playerAccounts);
     }
     setEntered(true);
@@ -200,6 +206,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <MobileNav />
       <ReportModal />
       <ConfirmDialog />
+      {/* Phones only -- desktop browsers have their own install affordance (an icon in the address
+          bar) that doesn't need this app repeating it. See install-hint.tsx's own comment on why
+          the dismissal is remembered in localStorage rather than shown every visit. */}
+      <div className="max-nav:block hidden">
+        <InstallHint variant="banner" />
+      </div>
       <div className="flex min-h-screen items-stretch">
         <div className="max-nav:hidden">
           <Sidebar />

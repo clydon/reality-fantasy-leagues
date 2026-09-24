@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole, isUuid } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { notifyEpisodeResults } from "@/lib/server/push-events";
 
 type RouteParams = { leagueId: string; id: string };
 
@@ -29,6 +30,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
   const body: AcceptBody = await req.json().catch(() => ({}));
 
   let applied: unknown = null;
+  let eliminatedInEpisodeId: string | null = null;
   const state = await withLeagueLock(leagueId, async (s, client) => {
     const { rows } = await client.query(
       `SELECT episode_number, post_merge, kind, castaway_name, method, event_type, status
@@ -62,6 +64,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
     if (item.kind === "elimination") {
       if (!method) throw new HttpError(400, "An elimination needs a method");
       StateLogic.addElimination(s, ep.id, castaway.id, method);
+      eliminatedInEpisodeId = ep.id;
     } else if (item.kind === "event") {
       if (!eventType) throw new HttpError(400, "A scoring event needs a type");
       const added = StateLogic.ActiveRosterLogic.addEvent(s, ep.id, eventType, castaway.id);
@@ -79,5 +82,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
     );
   });
 
+  if (eliminatedInEpisodeId) notifyEpisodeResults(leagueId, state, eliminatedInEpisodeId, user.id);
   return NextResponse.json({ state, applied });
 });

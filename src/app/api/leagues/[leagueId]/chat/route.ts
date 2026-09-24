@@ -3,6 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { withReactions } from "@/lib/server/chat";
+import { notifyChat } from "@/lib/server/push-events";
 
 // Port of SurvivorDraft's server/routes/chat.js GET/POST /.
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
@@ -17,7 +18,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   return NextResponse.json({ messages: await withReactions(rows) });
 });
 
-// Push-notification-on-new-message isn't ported (out of scope, same as every other domain).
+// Pushes everyone else in the league (one notification per league, kept up to date).
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
   const { user } = await requireLeagueRole(req, leagueId, "member");
@@ -32,5 +33,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
      RETURNING id, user_id, author_name, type, text, created_at, edited_at`,
     [leagueId, user.id, authorName, text]
   );
+  notifyChat(leagueId, user.id, authorName, text);
   return NextResponse.json({ message: { ...rows[0], reactions: {} } });
 });

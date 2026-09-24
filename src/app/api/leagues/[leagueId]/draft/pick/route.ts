@@ -3,14 +3,13 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { notifyDraftTurn } from "@/lib/server/push-events";
 
 // Port of SurvivorDraft's server/routes/draft.js POST /pick -- a member may only draft on their
-// own turn; commissioner/super-admin can act for anyone. Push-notification-on-next-turn isn't
-// ported (push notifications aren't part of this repo's scope yet -- see the standalone-backend
-// plan's "out of scope" note).
+// own turn; commissioner/super-admin can act for anyone. Pushes the player now on the clock.
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
-  const { membership } = await requireLeagueRole(req, leagueId, "member");
+  const { user, membership } = await requireLeagueRole(req, leagueId, "member");
   const { castawayId } = (await req.json().catch(() => ({}))) as { castawayId?: string };
   if (!castawayId) throw new HttpError(400, "castawayId required");
 
@@ -23,5 +22,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     }
     StateLogic.draftToCurrentTurn(s, castawayId);
   });
+  notifyDraftTurn(leagueId, state, user.id);
   return NextResponse.json(state);
 });

@@ -5,11 +5,17 @@ import Link from "next/link";
 import { useSession, signIn, signUp, signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ProfileSection } from "./profile-section";
+import { PasswordSection } from "./password-section";
+import { NotificationsSection } from "./notifications-section";
+import { InstallHint } from "@/components/install-hint";
 
-// New, separate account system: Better Auth email+password with a real reset-password flow
-// (src/lib/auth.ts). Deliberately its own thing, not wired into AuthGate/useLeagueStore -- this
-// is this app's OWN future signup story (per docs/ARCHITECTURE.md's Phase 4), independent of the
-// "log into a real SurvivorDraft league" demo flow elsewhere in this repo. See README.
+// This app's own, and now only, account system (Better Auth, src/lib/auth.ts -- see
+// CLAUDE.md/README for the history of it becoming the one real login for everything, not a
+// parallel system). Signed-in view is Account Settings: profile, password, push notification
+// preferences, the install-app hint, and sign out. Reachable from the sidebar footer / mobile
+// More sheet ("Account settings"). Signed-out view is unchanged -- sign in/sign up still work
+// before a session exists, same as when this was a standalone future-signup page.
 export function AccountPanel() {
   const { data: session, isPending } = useSession();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -26,28 +32,16 @@ export function AccountPanel() {
   if (session?.user) {
     return (
       <>
-        <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Account</h2>
-        <div className="mx-auto max-w-[360px]">
-          <div className="mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
-            <p className="mb-1 text-sm">
-              Signed in as <b>{session.user.name}</b>
-            </p>
-            <p className="mb-4 text-sm text-muted-foreground">{session.user.email}</p>
+        <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Account settings</h2>
+        <div className="mx-auto max-w-[420px]">
+          <ProfileSection />
+          <PasswordSection />
+          <NotificationsSection />
+          <InstallHint variant="section" />
+          <div className="rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
             <Button variant="secondary" onClick={() => signOut()}>
               Sign out
             </Button>
-          </div>
-          {/* This account (Better Auth) isn't connected to a SurvivorDraft league yet -- see
-              CLAUDE.md/README: two deliberately separate identity systems today. Without this,
-              signing up here was a dead end with no way back into the app. */}
-          <div className="rounded-lg border border-dashed border-border bg-secondary/40 p-[18px_20px]">
-            <p className="mb-3 text-sm text-muted-foreground">
-              This account isn&rsquo;t connected to a league yet — joining or creating a league still works through
-              the separate sign-in on the main app.
-            </p>
-            <Link href="/">
-              <Button className="w-full">Continue to the app →</Button>
-            </Link>
           </div>
         </div>
       </>

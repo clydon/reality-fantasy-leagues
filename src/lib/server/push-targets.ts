@@ -1,0 +1,48 @@
+import { after } from "next/server";
+import { pool } from "./db";
+import { sendPush, type NotificationType, type PushMessage } from "./push-core";
+
+// Game concepts -> the accounts behind them. Pushes go to USERS (their devices), while league state
+// talks about PLAYERS; league_memberships is the bridge between the two. A player with no linked
+// account (a seat the commissioner manages) simply has no one to notify.
+
+export async function userIdsForPlayers(leagueId: string, playerIds: (string | null | undefined)[]): Promise<string[]> {
+  const ids = playerIds.filter((p): p is string => !!p);
+  if (!ids.length) return [];
+  const { rows } = await pool.query(
+    "SELECT user_id FROM league_memberships WHERE league_id=$1 AND player_id = ANY($2::text[])",
+    [leagueId, ids]
+  );
+  return rows.map((r) => r.user_id);
+}
+
+/** Everyone in the league, optionally minus the person who caused the event. */
+export async function leagueMemberUserIds(leagueId: string, except?: string | null): Promise<string[]> {
+  const { rows } = await pool.query("SELECT user_id FROM league_memberships WHERE league_id=$1", [leagueId]);
+  return rows.map((r) => r.user_id).filter((id) => id !== except);
+}
+
+export async function leagueName(leagueId: string): Promise<string> {
+  const { rows } = await pool.query("SELECT name FROM leagues WHERE id=$1", [leagueId]);
+  return rows[0]?.name ?? "your league";
+}
+
+// Schedules a push to run after the response is sent, via Next's after() -- on Vercel a plain
+// un-awaited promise can be frozen mid-flight once the function returns, silently dropping the
+// push. Resolving recipients happens inside too, so none of that DB work delays the response.
+//
+// Call this only AFTER the triggering write has committed: after() callbacks run even when the
+// request goes on to fail, and a push for a pick that was rolled back would be a lie.
+export function notifyAfter(
+  type: NotificationType,
+  resolve: () => Promise<{ userIds: string[]; message: PushMessage } | null>
+): void {
+  after(async () => {
+    try {
+      const target = await resolve();
+      if (target && target.userIds.length) await sendPush(pool, target.userIds, type, target.message);
+    } catch (e) {
+      console.error(`[push] ${type} notification failed:`, e);
+    }
+  });
+}

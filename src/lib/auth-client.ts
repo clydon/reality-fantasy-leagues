@@ -10,7 +10,7 @@ export const authClient = createAuthClient({
   plugins: [usernameClient(), adminClient()],
 });
 
-export const { useSession, signIn, signUp, signOut, requestPasswordReset, resetPassword, admin } = authClient;
+export const { useSession, signIn, signUp, signOut, requestPasswordReset, resetPassword, updateUser, changePassword, admin } = authClient;
 
 // signIn.username({username, password}) and signIn.email({email, password}) are two different
 // endpoints (the username plugin doesn't also do email lookup) -- this picks the right one based

@@ -410,6 +410,22 @@ export const api = {
   adminDeleteSeason: (id: string) =>
     localFetch<{ ok: true; leaguesAffected: number }>(`/api/admin/seasons/${id}`, { method: "DELETE" }),
 
+  // Web Push (src/lib/push-client.ts calls these; src/lib/server/push-core.js sends).
+  registerPushSubscription: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    localFetch<{ ok: true }>("/api/me/push-subscriptions", { method: "POST", body: JSON.stringify(sub) }),
+  unregisterPushSubscription: (endpoint: string) =>
+    localFetch<{ ok: true }>("/api/me/push-subscriptions", { method: "DELETE", body: JSON.stringify({ endpoint }) }),
+  getNotificationPrefs: () =>
+    localFetch<{ types: { id: string; label: string; description: string; enabled: boolean }[]; deviceCount: number }>(
+      "/api/me/notification-prefs"
+    ),
+  setNotificationPrefs: (enabled: Record<string, boolean>) =>
+    localFetch<{ types: { id: string; label: string; description: string; enabled: boolean }[]; deviceCount: number }>(
+      "/api/me/notification-prefs",
+      { method: "PUT", body: JSON.stringify({ enabled }) }
+    ),
+  sendTestPush: () => localFetch<{ sent: number; removed: number }>("/api/me/push-test", { method: "POST" }),
+
   adminListReports: () => localFetch<{ reports: Report[] }>("/api/admin/reports"),
   adminDeleteReport: (id: string) => localFetch<{ ok: true }>(`/api/admin/reports/${id}`, { method: "DELETE" }),
   // Not admin-gated -- any signed-in user can submit one (requireAuth server-side).

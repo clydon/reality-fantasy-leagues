@@ -115,9 +115,14 @@ export function Sidebar() {
             since a super-admin with no personal league is genuinely signed in but stays
             mode:'mock' (no league to show live). Using `mode` here blocked that real case. */}
         {isAuthenticated && (
-          <button className="mb-1.5 block text-[0.8rem] font-semibold text-primary hover:underline" onClick={openReportModal}>
-            Report an Issue
-          </button>
+          <>
+            <Link href="/account" className="mb-1.5 block text-[0.8rem] font-semibold text-primary hover:underline">
+              Account settings
+            </Link>
+            <button className="mb-1.5 block text-[0.8rem] font-semibold text-primary hover:underline" onClick={openReportModal}>
+              Report an Issue
+            </button>
+          </>
         )}
         {mode === "mock" ? (
           <p className="text-[0.8rem] text-muted-foreground">

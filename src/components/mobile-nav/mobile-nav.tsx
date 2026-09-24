@@ -28,6 +28,7 @@ import {
   ChatIcon,
   ChevronDownIcon,
   GearIcon,
+  UserIcon,
 } from "@/components/icons";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
@@ -267,6 +268,7 @@ export function MobileNav() {
             useIsAuthenticated for why that distinction matters). */}
         {isAuthenticated && (
           <>
+            <MoreRow icon={UserIcon} label="Account settings" onClick={() => go("/account")} />
             <MoreRow
               icon={AlertIcon}
               label="Report an Issue"
