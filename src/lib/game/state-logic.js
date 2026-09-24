@@ -746,6 +746,13 @@ const LEAGUE_TYPES = {
     hasActiveRoster: true
   }
 };
+// NOT the catalog any more -- just the bootstrap default for a brand-new league's settings.showId.
+// The real catalog of shows and seasons lives in Postgres (db/migrations/0006_shows_and_seasons.sql)
+// and is managed by a super-admin in the Admin tab, so adding a show no longer needs a code change.
+// The UI reads it over /api/shows; this file deliberately cannot, because keeping the game logic
+// free of any DB dependency is what lets it stay a pure fork of the file the live app loads straight
+// into a browser. Leagues store the show's SLUG, which is why 'survivor' here and the seeded row
+// there are the same string.
 const SHOWS = {
   survivor: { id: 'survivor', name: 'Survivor', castawayTerm: 'Castaway', tribeTerm: 'Tribe' }
 };

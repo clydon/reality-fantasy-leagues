@@ -149,6 +149,47 @@ export interface TradeState {
 // whether the simultaneous reveal has happened. The submitted picks themselves are deliberately
 // NOT part of league state -- they live in the blind_draft_picks table so they can't be read out of
 // the broadcast state blob before the reveal. See db/migrations/0004_blind_draft_picks.sql.
+// A season of a show, as the admin catalog stores it (db/migrations/0006_shows_and_seasons.sql).
+// Leagues reference a season by (show slug, seasonNumber) via settings.showId/settings.wikiSeason
+// rather than by id, which is why no league-state migration was needed to introduce these.
+export interface ShowSeason {
+  id: string;
+  seasonNumber: number;
+  name: string | null;
+  /** The page title the MediaWiki API needs, derived from wikiUrl but independently editable. */
+  wikiPageTitle: string | null;
+  /** The URL as pasted from a browser, kept so an admin can see what they entered. */
+  wikiUrl: string | null;
+  status: "upcoming" | "airing" | "completed";
+  /** Starting contestant count. Lets the shared-ownership nudge do real arithmetic pre-cast. */
+  castSize: number | null;
+  premiereDate: string | null;
+  finaleDate: string | null;
+}
+
+// Admin view of a show: everything, including archived ones and how many leagues reference it.
+export interface AdminShow {
+  id: string;
+  slug: string;
+  name: string;
+  castaway_term: string;
+  tribe_term: string;
+  wiki_api_url: string | null;
+  archived: boolean;
+  created_at: string;
+  league_count: number;
+  seasons: ShowSeason[];
+}
+
+// Commissioner view of a show (GET /api/shows): non-archived only, no admin-only fields.
+export interface CatalogShow {
+  slug: string;
+  name: string;
+  castaway_term: string;
+  tribe_term: string;
+  seasons: Pick<ShowSeason, "seasonNumber" | "name" | "status" | "castSize" | "premiereDate" | "finaleDate">[];
+}
+
 // A reviewed-but-unapplied suggestion from the wiki connector (db/wiki-sync.js), as the League
 // Settings review UI shows it. Lives in its own table, not in league state -- see
 // db/migrations/0005_wiki_proposals.sql.

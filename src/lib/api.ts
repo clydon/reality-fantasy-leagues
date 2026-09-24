@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AdminShow, CatalogShow, ShowSeason } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -340,6 +340,41 @@ export const api = {
     ),
   rejectWikiProposal: (leagueId: string, id: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "DELETE" }),
+
+  // Show/season catalog. The plain /api/shows read is commissioner-facing (the Show and Season
+  // pickers in League Settings); everything under /api/admin/* is super-admin catalog management.
+  listShows: () => localFetch<{ shows: CatalogShow[] }>("/api/shows"),
+
+  adminListShows: () => localFetch<{ shows: AdminShow[] }>("/api/admin/shows"),
+  adminCreateShow: (body: { name: string; castawayTerm?: string; tribeTerm?: string; wikiApiUrl?: string }) =>
+    localFetch<{ show: { id: string; slug: string; name: string } }>("/api/admin/shows", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  adminUpdateShow: (
+    id: string,
+    changes: Partial<{ name: string; castawayTerm: string; tribeTerm: string; wikiApiUrl: string; archived: boolean }>
+  ) =>
+    localFetch<{ show: { id: string; slug: string; name: string; archived: boolean } }>(`/api/admin/shows/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(changes),
+    }),
+  adminDeleteShow: (id: string) => localFetch<{ ok: true }>(`/api/admin/shows/${id}`, { method: "DELETE" }),
+  adminCreateSeason: (
+    showId: string,
+    body: { seasonNumber: number; name?: string; wikiUrl?: string; status?: string; castSize?: number; premiereDate?: string; finaleDate?: string }
+  ) =>
+    localFetch<{ season: ShowSeason }>(`/api/admin/shows/${showId}/seasons`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  adminUpdateSeason: (id: string, changes: Record<string, unknown>) =>
+    localFetch<{ season: ShowSeason; leaguesOnOldNumber: number }>(`/api/admin/seasons/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(changes),
+    }),
+  adminDeleteSeason: (id: string) =>
+    localFetch<{ ok: true; leaguesAffected: number }>(`/api/admin/seasons/${id}`, { method: "DELETE" }),
 
   adminListReports: () => localFetch<{ reports: Report[] }>("/api/admin/reports"),
   adminDeleteReport: (id: string) => localFetch<{ ok: true }>(`/api/admin/reports/${id}`, { method: "DELETE" }),

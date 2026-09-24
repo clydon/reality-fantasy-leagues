@@ -60,9 +60,11 @@ const CastSchema = z.object({
 });
 
 // ---------- MediaWiki ----------
-async function fetchWikitext(title) {
+// apiUrl defaults to Survivor's wiki so the exported helper stays usable standalone, but callers
+// pass the show's own endpoint from the catalog -- different shows, different wikis.
+async function fetchWikitext(title, apiUrl = WIKI_API) {
   const url =
-    `${WIKI_API}?action=query&prop=revisions&titles=${encodeURIComponent(title)}` +
+    `${apiUrl}?action=query&prop=revisions&titles=${encodeURIComponent(title)}` +
     `&rvprop=content|ids&rvslots=main&format=json&formatversion=2`;
   // A descriptive UA is the polite thing on a community wiki, and Fandom is friendlier to it.
   const res = await fetch(url, { headers: { "user-agent": "reality-fantasy-leagues/wiki-sync" } });
@@ -81,12 +83,12 @@ async function fetchWikitext(title) {
 // Resolves File: names to real CDN URLs in ONE batched call. Deterministic -- no model involved, so
 // no chance of an invented image URL. Best-effort: anything that doesn't resolve simply gets no
 // photo, which the app already handles (CastawayAvatar falls back to initials).
-async function resolvePhotoUrls(fileNames) {
+async function resolvePhotoUrls(fileNames, apiUrl = WIKI_API) {
   const wanted = fileNames.filter(Boolean).slice(0, 50); // API caps titles per request
   if (!wanted.length) return {};
   const titles = wanted.map((f) => "File:" + f).join("|");
   const url =
-    `${WIKI_API}?action=query&titles=${encodeURIComponent(titles)}` +
+    `${apiUrl}?action=query&titles=${encodeURIComponent(titles)}` +
     `&prop=imageinfo&iiprop=url&format=json&formatversion=2`;
   try {
     const res = await fetch(url, { headers: { "user-agent": "reality-fantasy-leagues/wiki-sync" } });
@@ -243,9 +245,30 @@ async function run(pool, command, leagueId, opts) {
     );
   }
 
-  const pageTitle = `Survivor ${season}`;
-  console.log(`[wiki-sync] league "${league.name}" -> ${pageTitle}`);
-  const page = await fetchWikitext(pageTitle);
+  // Resolve the page from the admin-managed catalog (db/migrations/0006_shows_and_seasons.sql):
+  // the season row carries the wiki page title an admin entered, and the show row the API endpoint
+  // for that show's wiki -- which is the point, since different shows live on different wikis.
+  //
+  // Falls back to the old hardcoded shape when there's no catalog row, so a league set up before the
+  // catalog existed (or one whose season row was deleted) still works rather than hard-failing.
+  const showSlug = (state.settings && state.settings.showId) || "survivor";
+  const { rows: catalog } = await pool.query(
+    `SELECT ss.wiki_page_title, ss.name AS season_name, s.name AS show_name, s.wiki_api_url
+       FROM shows s LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number = $2
+      WHERE s.slug = $1`,
+    [showSlug, season]
+  );
+  const entry = catalog[0] || {};
+  const pageTitle = entry.wiki_page_title || `${entry.show_name || "Survivor"} ${season}`;
+  const apiUrl = entry.wiki_api_url || WIKI_API;
+  if (!entry.wiki_page_title) {
+    console.log(
+      `[wiki-sync] no catalog page title for ${showSlug} season ${season} -- guessing "${pageTitle}". ` +
+        `Add the season's wiki URL in Admin > Shows & Seasons to make this exact.`
+    );
+  }
+  console.log(`[wiki-sync] league "${league.name}" -> ${pageTitle} (${apiUrl})`);
+  const page = await fetchWikitext(pageTitle, apiUrl);
   const section = sliceSection(page.wikitext, "==Castaways==");
   if (!section) throw new Error(`No ==Castaways== section found on "${page.title}"`);
   console.log(`[wiki-sync] castaways section: ${section.length} chars (rev ${page.revisionId})`);
@@ -257,7 +280,8 @@ async function run(pool, command, leagueId, opts) {
     throw new Error(`Extraction failed validation, nothing filed:\n  - ${checked.fatal.join("\n  - ")}`);
   }
 
-  const photos = await resolvePhotoUrls(checked.castaways.map((c) => c.photoFile));
+  // Same wiki as the page itself -- the File: names only resolve against their own wiki.
+  const photos = await resolvePhotoUrls(checked.castaways.map((c) => c.photoFile), apiUrl);
   const payload = {
     tribes: checked.tribes,
     castaways: checked.castaways.map((c) => ({
@@ -280,10 +304,13 @@ async function run(pool, command, leagueId, opts) {
   }
 
   const provenance = {
+    // Which show, not just which season: with a multi-show catalog, "season 44" alone no longer
+    // identifies what was read.
+    showSlug,
     seasonNumber: season,
     model: MODEL,
     extractedAt: new Date().toISOString(),
-    pages: [{ title: page.title, revisionId: page.revisionId }],
+    pages: [{ title: page.title, revisionId: page.revisionId, apiUrl }],
   };
   // One pending proposal per league per kind (partial unique index), so a second scheduled run before
   // anyone reviews replaces its own earlier suggestion instead of queueing a duplicate.

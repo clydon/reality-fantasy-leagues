@@ -300,9 +300,11 @@ continuing to pretend this file is "the same file, just copied" stopped being tr
   split (verified with a fixture script exercising add-player, draft turn/pick/undo, scoring, and
   old-state migration through the new dispatch path — see "Castaway ownership" below for the same
   treatment applied again for the `ownerIds` refactor).
-- `SHOWS` is a second, smaller registry (today: Survivor only) for display/terminology metadata —
-  not wired to any behavior yet, but the natural home for a future per-show config (e.g. where to
-  source episode data from — see "Future: auto-sourcing episode data" below).
+- `SHOWS` **is no longer a registry** — shows and their seasons moved into Postgres and are managed
+  by a super-admin in the Admin tab (see "Shows & seasons catalog" below). What's left in
+  `state-logic.js` is only the bootstrap default for a new league's `settings.showId`. League types
+  stayed in code because a league type *is* code (a draft strategy plus a scoring strategy); a show
+  is data, and needing a deploy to add one was the wrong shape.
 - `settings.leagueTypeId`/`settings.showId` are defaulted for new leagues, backfilled via
   `Migrations.migrateLeagueState` for old ones.
 - Every `LEAGUE_TYPES` entry now also carries `hasRoster`/`hasWeeklyPicks`, orthogonal to the
@@ -781,6 +783,79 @@ the terracotta accent, `--background`/`--card`/`--border`/etc. follow the live a
 `good`) for tokens that don't have a natural shadcn slot. Same IBM Plex Sans / IBM Plex Mono
 typefaces via `next/font/google`. This is meant to be a translation of the existing look, not a
 redesign — see `ARCHITECTURE.md`'s styling rationale.
+
+## Shows & seasons catalog (Admin tab, `shows`/`show_seasons`)
+
+Shows used to be a hardcoded registry in `state-logic.js` with exactly one entry, so adding a
+second show meant a code change and a deploy. They're database rows now, managed by a super-admin
+in the Admin tab: a show, and under it any number of seasons.
+
+**Why shows moved but league types didn't.** A league type is *code* — a draft strategy paired with
+a scoring strategy — so it can only ever be one of the things that have been written, and
+`LEAGUE_TYPES` stays in `state-logic.js`. A show is *data*. Keeping it in code meant a
+deploy to add one, for no benefit.
+
+**`state-logic.js` deliberately cannot read these tables.** That file is a fork of one the
+live app loads straight into a browser with no bundler, and its freedom from any DB dependency is
+load-bearing. So the catalog is consumed by the UI over `/api/shows`, and what remains in
+`SHOWS` is only the bootstrap default for a new league's `settings.showId`.
+
+**No league-state migration was needed**, because leagues reference the catalog by *value*, not by
+foreign key: `settings.showId` holds the show's `slug` and `settings.wikiSeason` a
+season number. Existing leagues already held `'survivor'`, which is exactly what the migration
+seeds. It also means a show row can be renamed or rebuilt without orphaning a league — which is why
+the slug is derived once on creation and then never editable, while the display `name` is.
+
+**The wiki URL is the friendly input.** The MediaWiki Action API needs two separate things: an API
+endpoint and a page title. Rather than ask an admin to understand that, a season takes the URL from
+the browser address bar (`https://survivor.fandom.com/wiki/Survivor_44`) and
+`src/lib/server/wiki-url.ts` derives both from it. The raw URL is stored alongside the derived
+title so it stays visible and checkable, and the title is independently editable for a wiki whose
+URL scheme and canonical page title differ. A URL that doesn't parse is **refused at the route**
+rather than stored, because the alternative is the connector failing later with a far less obvious
+message. Adding a season to a show that has no API endpoint yet backfills it from that URL.
+
+**Fields, and what each is actually for:**
+
+| Field | Why it exists |
+|---|---|
+| show `name` / `slug` | Display label vs. the immutable identity leagues reference |
+| `castaway_term` / `tribe_term` | Existed in the old registry and in the `Show` type but was never read. Editable now, because the moment there's a second show it matters: Big Brother has Houseguests, not Castaways |
+| `wiki_api_url` | Per show, since different shows live on different wikis — this is what made a single hardcoded endpoint in the connector wrong |
+| season `wiki_page_title` / `wiki_url` | The connector's actual target, plus the input it was derived from |
+| `status` (upcoming/airing/completed) | Lets the connector skip seasons not worth fetching, and the Season picker mark what's live |
+| `cast_size` | Closes a real gap: League Settings' shared-ownership nudge compares players x roster size against the cast, and before this it had nothing to compare against until someone had typed the whole cast in. It can now be specific from the moment a season is picked |
+| `premiere_date` / `finale_date` | Season framing, and a basis for "currently airing" |
+| show `archived` | Retire a show without deleting it |
+
+**Archive vs. delete is an informed choice, not a guess.** The admin list shows how many leagues
+reference each show, and deleting one that's still in use is **refused with a 409** that names the
+count and points at archiving instead — deleting would leave those leagues pointing at a slug that
+resolves to nothing. Archiving hides a show from the commissioner picker while every league already
+on it keeps working. Deleting a *season* only warns (it reports how many leagues referenced it),
+because a league survives that fine — the connector just falls back to guessing a page title.
+
+**Two read surfaces, deliberately.** `/api/shows` is commissioner-facing: any signed-in user,
+non-archived shows only, and none of the admin-only fields (no `wiki_api_url`, no
+`league_count`) — asserted in the tests, since managing the catalog is a super-admin job but
+*choosing* from it is an ordinary commissioner one. `/api/admin/shows` returns everything.
+
+**Connector wiring.** `db/wiki-sync.js` resolves the page title and API endpoint from the
+catalog by (show slug, season number). With no catalogued season it falls back to the old
+`<Show> <N>` guess and **says** it's guessing, rather than hard-failing — a league set up before
+the catalog existed still works. Provenance now records the show slug and API endpoint too: with a
+multi-show catalog, "season 44" alone no longer identifies what was read.
+
+**Verified** with 29 checks through the real API and Postgres: the seeded Survivor row and its
+season, both read surfaces (including that the commissioner one doesn't leak admin fields), slug
+derivation, duplicate show → 409, duplicate season → 409, empty name and season 0 → 400, URL → page
+title derivation, a non-wiki URL refused, API-endpoint backfill, status/cast-size edits, overriding
+a derived title, archive hiding a show from the commissioner catalog but not the admin one, delete
+refused while leagues use it, delete allowed once unused, and both routes requiring auth. Plus the
+connector resolving a real title from the catalog and falling back with a warning when
+uncatalogued, and 13 cases over the URL parser (Fandom, a non-Fandom host, percent-encoded and
+colon-bearing titles, `index.php?title=`, a copied `#anchor`, and six shapes that must
+return null rather than a guess).
 
 ## Wiki connector (`db/wiki-sync.js`, `wiki_proposals`)
 

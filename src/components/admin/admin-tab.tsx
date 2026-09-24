@@ -5,6 +5,7 @@ import { useIsSuperAdmin, useLeagueStore } from "@/lib/store";
 import { useAdminStore } from "@/lib/admin-store";
 import { LinkMembershipForm } from "./link-membership-form";
 import { UserEditModal } from "./user-edit-modal";
+import { ShowsSection } from "./shows-section";
 import type { AdminUser } from "@/lib/game/types";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -95,6 +96,10 @@ export function AdminTab() {
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Admin</h2>
+
+      {/* Catalog config rather than per-account admin, and what a fresh install needs set up first,
+          so it sits above the users/leagues tables. */}
+      <ShowsSection />
 
       {lastTempPassword && (
         <div className="mb-4 rounded-lg border border-good/40 bg-good/10 p-4">
