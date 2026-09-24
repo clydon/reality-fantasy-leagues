@@ -122,7 +122,13 @@ async function extractCast(sectionWikitext) {
         "This connector uses LLM extraction, so it cannot run without one."
     );
   }
-  const client = new Anthropic();
+  // An org-scoped API key (sk-ant-api...) has to say which workspace to bill/run in; a
+  // workspace-scoped key carries that already and needs no header. Set ANTHROPIC_WORKSPACE_ID in
+  // .env.local for the former, or leave it unset for the latter.
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
+  const client = new Anthropic(
+    workspaceId ? { defaultHeaders: { "anthropic-workspace-id": workspaceId } } : {}
+  );
   try {
     const response = await client.messages.parse({
       model: MODEL,
@@ -152,7 +158,24 @@ async function extractCast(sectionWikitext) {
     // Typed, most-specific-first, so a transient rate limit reads differently from a bad key.
     if (err instanceof Anthropic.AuthenticationError) throw new Error("Anthropic rejected the credentials (check ANTHROPIC_API_KEY).");
     if (err instanceof Anthropic.RateLimitError) throw new Error("Rate limited by the Anthropic API -- try again shortly.");
-    if (err instanceof Anthropic.APIError) throw new Error(`Anthropic API error ${err.status}: ${err.message}`);
+    // This one is worth naming explicitly: the raw 400 is long and the fix isn't obvious from it.
+    if (err instanceof Anthropic.BadRequestError && /anthropic-workspace-id/i.test(err.message || "")) {
+      throw new Error(
+        [
+          "That API key isn't scoped to a workspace, so the request needs a workspace id.",
+          "Either set ANTHROPIC_WORKSPACE_ID=wrkspc_... in .env.local (Console > Settings > Workspaces),",
+          "or create a workspace-scoped API key, which needs no extra config.",
+        ].join("\n")
+      );
+    }
+    if (err instanceof Anthropic.APIError) {
+      // Prefer the API's own human-readable message over err.message, which prefixes the status and
+      // then embeds the whole raw JSON body -- unhelpful for the cases an operator actually hits
+      // (no credit balance, bad model id, oversized request).
+      const apiMessage =
+        (err.error && err.error.error && err.error.error.message) || err.message || "unknown error";
+      throw new Error(`Anthropic API error ${err.status}: ${apiMessage}`);
+    }
     throw err;
   }
 }
