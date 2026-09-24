@@ -937,9 +937,13 @@ return null rather than a guess).
 
 ## Wiki connector (`db/wiki-sync.js`, `wiki_proposals`)
 
-Pulls a season's cast off survivor.fandom.com and files it as a **pending proposal** for the
-commissioner to confirm. Phase one of Feature D in
-`docs/PLAN-league-types-and-wiki-connector.md`; the per-episode event half is not built yet.
+Pulls a season's cast, and its per-episode results, off the show's wiki and files each as a **pending
+proposal** for the commissioner to confirm. Both phases of Feature D in
+`docs/PLAN-league-types-and-wiki-connector.md` are built:
+
+    node db/wiki-sync.js cast <leagueId>       # the season's cast and starting groups
+    node db/wiki-sync.js episodes <leagueId>   # per-episode eliminations + Active Roster events
+    node db/wiki-sync.js <command> <leagueId> --dry   # extract and print, write nothing
 
 **Nothing is ever applied automatically.** `db/wiki-sync.js` writes to the `wiki_proposals`
 table, never to league state. Applying is a separate commissioner action in League Settings, which
@@ -1082,6 +1086,120 @@ One thing worth knowing for a Traitors league that already exists: apply is addi
 importing 22 contestants into a league that still holds the old 21-name Survivor seed leaves 43. New
 leagues start empty (see "Guided first-time setup" above); an existing one needs those 21 removed, or a
 super-admin reset.
+
+### Per-episode import (phase 2): `node db/wiki-sync.js episodes <leagueId>`
+
+The other half of Feature D: who left each episode and how, plus the Active Roster event log. It reuses
+every piece built for the Traitors fix — section finding and transclusion following are exactly what
+gets at these tables, since `==Voting History==` and `==Season Summary==` are both bare transclusions
+of `Template:S<N>votetable` and `Template:S<N>epguide`.
+
+**One model call, two proposals.** The model sees both tables at once because it needs both —
+eliminations and exit methods come from the guide's Finish column and the vote grid's terminal cells,
+while immunity and reward wins are only in the guide. But the results are filed as *separate*
+proposals, `eliminations` and `scoringEvents`, because they don't deserve the same trust and a
+commissioner should be able to take one without the other:
+
+| | Source | Trust |
+|---|---|---|
+| `eliminations` | Finish column, plus the vote grid's terminal `{{tribebox&#124;status&#124;…}}` markers | High — a direct read of a well-formed column |
+| `scoringEvents` | Immunity/reward columns, footnote markers, vote arithmetic | Low — inference over rowspan-heavy cells |
+
+Each event also carries its **own** `confidence`, and the review UI badges the low-confidence count
+(`"N to verify"`) rather than presenting 185 events as equally solid. That's the plan's own
+recommendation — "auto-suggested + high confidence for exit method; auto-suggested + lower confidence …
+for immunity/reward winners and idol plays/zero-vote safes" — made concrete.
+
+**`idolFound` is absent from the schema's enum, not filtered out of the results.** The investigation
+found idol *finds* appear in neither template (they live in per-episode prose recaps, if anywhere), so
+the connector has no source for them. Leaving the value out of the enum makes it structurally
+impossible for the model to emit one; validation can't be the guard for something that should never be
+representable.
+
+**Names are the hard part, and the wiki is inconsistent about them.** The cast table prints full names
+("Bruce Perreault"); the episode guide and the vote grid's captions print first names only ("Bruce").
+An import keyed on exact names would match nothing at all from those two. `Core.findCastawayByName`
+resolves an exact full name first, then falls back to a unique first-name match — and **reports
+ambiguity instead of resolving it**, because picking one of two people named Sarah is the kind of quiet
+guess that lands wrong data in a scored league. A wrong *full* name is never retried loosely against
+first names, since that's a real mismatch rather than a shorthand. The prompt separately tells the model
+to prefer the `link=` target inside a cell's image markup, which carries the full name even where the
+caption doesn't.
+
+The resolver lives in `state-logic.js` and the connector requires it, so extraction-time validation and
+apply-time lookup use the **same** rule. Two copies would be two chances for a proposal to validate and
+then fail to apply.
+
+**Payloads reference episodes by NUMBER and castaways by NAME, never by id** — same reasoning as cast
+import. A proposal can sit pending while the league changes; a stale id applies silently wrong, where a
+stale name simply fails to resolve and gets reported.
+
+**Applying creates missing episodes**, filling any gap before the target so `postMerge` and Active
+Roster lineup carry-forward both inherit from the right predecessor, and it applies episodes in
+**ascending order** because `addElimination` assigns `placementOrder` sequentially — applying episode 7
+before episode 3 would invert the finishing order. Both apply paths are additive and idempotent:
+anything already recorded is reported as skipped, never rewritten, so a hand-entered exit method
+survives an import that disagrees with it.
+
+Episode creation itself moved into one `EpisodeLogic.create`, used by `add()`, `ensureUpcoming()` and
+the import. The episode literal used to be spelled out in the first two, so a new per-episode field had
+to be remembered in three places. Two new optional fields come along: `title` and `airDate`, which the
+guide gives for free — and the Episode Card renders them, rather than storing data nothing surfaces.
+
+**Content validation, beyond the schema.** `validateEpisodes` refuses the whole run on an unresolvable
+or ambiguous name, the same person eliminated twice, a duplicate or implausible episode number, or an
+empty extraction. Three checks are notes rather than refusals, because the commissioner can judge them
+and refusing would leave them nothing to look at: `postMerge` disagreeing with the extracted merge
+episode (corrected to match), `zeroVotesSafe` for someone eliminated that same episode (dropped), and
+`individualImmunity` in a pre-merge episode (dropped). An unrecognised `confidence` value defaults to
+`low` — never silently `high`.
+
+`episodes` refuses to run before a cast exists, naming the command to run first, rather than spending a
+model call to discover that no name can resolve.
+
+**Streaming, not a plain `parse()` call.** The SDK refuses a non-streaming request whose `max_tokens`
+implies it could exceed its 10-minute limit, which the episode extraction does — output scales with
+episodes × people, and a full season came back at ~18K output tokens. `messages.stream()` +
+`finalMessage()` still carries `parsed_output`, so structured outputs work unchanged. A
+`stop_reason: "max_tokens"` now fails the run explicitly, because a truncated season would otherwise
+look exactly like a season that had fewer episodes.
+
+**Verified** in two parts.
+
+73 pure checks with no DB, network or model: name resolution (full names, first names, the real
+Matt/Matthew pair, shared-first-name ambiguity reported rather than guessed, a wrong full name not
+retried loosely); both apply paths (placement order following episode order rather than payload order,
+gap filling, `postMerge` only on the named episode, double eliminations in one episode, a hand-entered
+elimination surviving untouched, re-applying leaving state byte-identical, an unknown event type
+refused); and every `validateEpisodes` guard, fatal and non-fatal, including that the connector's exit
+methods match `state-logic.js`'s `EXIT_METHODS` exactly and that the schema rejects `idolFound`
+structurally.
+
+Then 46 end-to-end checks against `Survivor 44` — real wiki, real model, real proposals, real apply
+route, real Postgres — compared with **ground truth derived independently from the same wikitext by
+regex, before the model ran**: the 18-name elimination order read off the vote table's `link=` targets,
+and the Finish column's labels. The extraction matched exactly, on **two separate runs**:
+
+- 18/18 eliminations, correct order, zero invented names — and the order matched again after applying,
+  read back out of persisted `placementOrder`.
+- Both "messier cases" the plan asked about typed correctly: Bruce's medevac → `Medically Evacuated`,
+  Matthew's quit → `Quit`. All 12 plain "Nth Voted Out" → `Voted Out`. The winner → `Sole Survivor`.
+- The final four, where the wiki's own wording needs interpreting rather than reading, also came out
+  right: Carson → `Lost Fire-Making` (which is only stated in a footnote), Carolyn and Heidi →
+  `Lost Final Tribal (Jury Vote)`.
+- Merge identified as episode 6, which is what the vote grid's header colspans actually say.
+- Provenance named all three pages with the exact revision ids the ground-truth fetch saw.
+- Apply, double-apply → 400, re-run not stacking pending duplicates, applied rows kept as history, and
+  a fresh proposal re-applied recording nothing new and leaving placement order unchanged.
+
+**What the two runs also showed, honestly: the low-confidence half is not stable.** Eliminations were
+identical both times. Scoring events were not — 189 events with 132 marked low-confidence on one run,
+185 with 175 on the other. The counts per type moved too (`zeroVotesSafe` 52 vs 50). Every event still
+passed the structural checks (real castaway, catalogued type, `individualImmunity` post-merge only), and
+the `zeroVotesSafe` guard caught genuine nonsense on **both** runs — someone marked safe-with-no-votes
+in the same episode they were eliminated, a different person each time. That is the review queue
+earning its place, and it's the concrete argument for the confidence badge: the eliminations proposal is
+close to rubber-stampable, the events one is a draft to check.
 
 ## Cast photos (`public/photos/`, `components/castaway-avatar.tsx`)
 

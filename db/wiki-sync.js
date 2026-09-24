@@ -7,10 +7,19 @@
 // `node db/...`, not part of the Next.js bundle). The Next app has no persistent server process, so
 // recurring runs are scheduled externally -- Windows Task Scheduler locally.
 //
-//   node db/wiki-sync.js cast <leagueId>          # import the cast list for the league's season
-//   node db/wiki-sync.js cast <leagueId> --dry    # extract and print, write nothing
+//   node db/wiki-sync.js cast <leagueId>           # import the cast list for the league's season
+//   node db/wiki-sync.js episodes <leagueId>       # import per-episode eliminations + scoring events
+//   node db/wiki-sync.js <command> <leagueId> --dry  # extract and print, write nothing
 //
-// The league's season comes from settings.wikiSeason; this refuses to run rather than guess it.
+// The league's show and season come from settings.showId/settings.wikiSeason; this refuses to run
+// rather than guess either.
+//
+// `episodes` files TWO proposals from ONE model call, because the two halves have very different
+// trustworthiness and a commissioner should be able to take one without the other: eliminations and
+// exit methods are read off a well-structured column (high confidence), while immunity/reward wins
+// and zero-vote-safes are inference over a rowspan-heavy grid and footnote markers (low). One call
+// because the model needs both tables in front of it either way -- eliminations come from the vote
+// table, immunity from the episode guide.
 //
 // ---------------------------------------------------------------------------------------------
 // WHAT THE INVESTIGATION FOUND, and why this is shaped the way it is (full notes in the plan doc):
@@ -31,6 +40,10 @@ const { Pool } = require("pg");
 const Anthropic = require("@anthropic-ai/sdk");
 const { zodOutputFormat } = require("@anthropic-ai/sdk/helpers/zod");
 const { z } = require("zod");
+// The game-logic engine, required here so extraction-time validation resolves wiki names with the
+// EXACT same rule that apply-time uses (Core.findCastawayByName). Two copies of that matching logic
+// would be two chances for a proposal to validate and then fail to apply.
+const StateLogic = require("../src/lib/game/state-logic.js");
 
 const WIKI_API = "https://survivor.fandom.com/api.php";
 // Per the claude-api skill's default. Extraction input here is one table (~1-2K tokens) and output
@@ -62,6 +75,92 @@ const CastSchema = z.object({
         .string()
         .nullable()
         .describe("The File: name from the row, e.g. 'S44 bruce t.png', without the 'File:' prefix. Null if absent."),
+    })
+  ),
+});
+
+// Exit methods, copied from state-logic.js's EXIT_METHODS. Deliberately a hard enum in the schema
+// rather than free text: applyEliminationsImport writes this straight onto castaway.exitMethod, which
+// the Episodes UI renders and ScoringLogic reads, so a value outside this list would be a silent
+// data-shape break rather than a visible error.
+const EXIT_METHODS = [
+  "Voted Out",
+  "Medically Evacuated",
+  "Quit",
+  "Lost Fire-Making",
+  "Lost Final Tribal (Jury Vote)",
+  "Sole Survivor",
+  "Other",
+];
+
+// Scoring-event types the connector is ALLOWED to suggest. This is ACTIVE_ROSTER_EVENTS minus
+// `idolFound`, and the omission is the point: the investigation found idol FINDS appear in neither
+// the vote table nor the episode guide (they live in per-episode prose recaps, if anywhere), so the
+// connector has no source for them. Leaving the value out of the enum makes it structurally
+// impossible for the model to emit one, which is a stronger guarantee than dropping it in validation.
+const EVENT_TYPES = ["individualImmunity", "tribeImmunity", "rewardWin", "idolPlayed", "zeroVotesSafe"];
+
+// Per-field confidence, which the plan asks for explicitly: "auto-suggested + high confidence for
+// exit method/tribe assignments; auto-suggested + lower confidence ... for immunity/reward winners and
+// idol plays/zero-vote safes". Carried through to the review UI so the two aren't reviewed alike.
+const EpisodesSchema = z.object({
+  mergeEpisode: z
+    .number()
+    .int()
+    .nullable()
+    .describe(
+      "The episode number from which the cast plays as one merged group, read from the vote table's " +
+        "top header row (its columns are grouped into original/shuffled/merged spans). Null if the " +
+        "table doesn't show a merge."
+    ),
+  episodes: z.array(
+    z.object({
+      number: z.number().int().describe("Episode number as the table numbers it, starting at 1."),
+      title: z.string().nullable().describe("Episode title if given, without wiki link markup."),
+      airDate: z.string().nullable().describe("Air date exactly as printed, e.g. 'March 1, 2023'. Null if absent."),
+      postMerge: z.boolean().describe("True if this episode is at or after mergeEpisode."),
+      eliminations: z
+        .array(
+          z.object({
+            name: z
+              .string()
+              .describe(
+                "The person's FULL name. The vote table's cells carry it in the image link target " +
+                  "(e.g. [[File:...|link=Bruce Perreault]]) even though the visible caption is just " +
+                  "the first name -- use the link target when one is present."
+              ),
+            method: z
+              .enum(EXIT_METHODS)
+              .describe(
+                "How they left, from the Finish column: 'Nth Voted Out' -> Voted Out; 'Evacuated' -> " +
+                  "Medically Evacuated; 'Quit' -> Quit; lost a fire-making challenge -> Lost " +
+                  "Fire-Making; lost the final jury vote -> Lost Final Tribal (Jury Vote); the winner " +
+                  "-> Sole Survivor. Use Other only if none of these fit."
+              ),
+          })
+        )
+        .describe("Everyone who left the game in this episode, in the order they left. Usually one; can be zero or more."),
+      events: z
+        .array(
+          z.object({
+            type: z.enum(EVENT_TYPES),
+            name: z.string().describe("FULL name, same rule as eliminations."),
+            confidence: z
+              .enum(["high", "low"])
+              .describe(
+                "'high' only when the table states this directly and unambiguously. Use 'low' for " +
+                  "anything inferred -- whether an immunity win was individual or tribal, anything " +
+                  "read via a footnote marker, and any zero-votes-safe you worked out by counting."
+              ),
+          })
+        )
+        .describe(
+          "Notable things that happened to individuals this episode. tribeImmunity/rewardWin: when a " +
+            "TRIBE wins, list every member of it. individualImmunity: post-merge individual wins only. " +
+            "idolPlayed: from the footnote marker on a vote cell. zeroVotesSafe: someone who attended " +
+            "Tribal Council and received no votes -- count the votes cast in that episode's column. " +
+            "Omit an event entirely rather than guessing at it."
+        ),
     })
   ),
 });
@@ -256,7 +355,9 @@ async function expandTranscludedTables(sectionText, apiUrl) {
 // the prompt asks about Contestants and Factions for a Traitors season rather than Castaways and
 // Tribes. The wikitext is the authority either way -- this only stops the prompt from describing a
 // table using a word that appears nowhere in it.
-async function extractCast(sectionWikitext, terms) {
+// One place that talks to the API, so both extractors share the credential handling and -- more to
+// the point -- the typed error translation, which is the part worth not duplicating.
+async function callModel({ system, user, schema, schemaName, maxTokens }) {
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
     throw new Error(
       "No Anthropic credentials found. Set ANTHROPIC_API_KEY in .env.local (or run `ant auth login`).\n" +
@@ -271,34 +372,32 @@ async function extractCast(sectionWikitext, terms) {
     workspaceId ? { defaultHeaders: { "anthropic-workspace-id": workspaceId } } : {}
   );
   try {
-    const response = await client.messages.parse({
+    // STREAMED, not a plain create/parse. The SDK refuses a non-streaming request whose max_tokens
+    // implies it could run past its 10-minute limit -- which the episodes extraction does, since its
+    // output scales with episodes x people. Streaming also removes the request-timeout risk on the
+    // long runs generally, and `finalMessage()` still carries `parsed_output` for a parseable
+    // output_config, so structured outputs work exactly as before.
+    const stream = client.messages.stream({
       model: MODEL,
-      max_tokens: 16000,
+      max_tokens: maxTokens || 16000,
       thinking: { type: "adaptive" },
-      system:
-        "You extract structured data from MediaWiki wikitext. Report only what the wikitext actually " +
-        "states. Never infer, complete or correct a name from outside knowledge of the show -- if a " +
-        `field isn't in the text, return null for it. Use each ${terms.castaway}'s ORIGINAL ` +
-        `${terms.tribe} (the first ${terms.tribe} column), not a later shuffled or merged one. ` +
-        "Some of the text may be tables pulled in from transcluded templates, each marked with an " +
-        "HTML comment naming where it came from; treat those as part of the same section. If the " +
-        "same person appears in more than one of those tables, return them ONCE.",
-      messages: [
-        {
-          role: "user",
-          content:
-            `Extract every ${terms.castaway} and the starting ${terms.tribes} from this season's ` +
-            `${terms.Castaways} section.\n\n` +
-            sectionWikitext,
-        },
-      ],
-      output_config: { format: zodOutputFormat(CastSchema) },
+      system,
+      messages: [{ role: "user", content: user }],
+      output_config: { format: zodOutputFormat(schema) },
     });
+    const response = await stream.finalMessage();
+    // Truncation shows up as a stop_reason, not as a parse failure, and a half-extracted season would
+    // otherwise look like a season that simply had fewer episodes.
+    if (response.stop_reason === "max_tokens") {
+      throw new Error(
+        `The extraction hit the ${maxTokens || 16000}-token output limit and was cut off, so it is incomplete -- nothing filed.`
+      );
+    }
     // parsed_output is null when the response couldn't be parsed into the schema.
     if (!response.parsed_output) {
-      throw new Error("Claude returned a response that did not match the cast schema.");
+      throw new Error(`Claude returned a response that did not match the ${schemaName} schema.`);
     }
-    return { cast: response.parsed_output, usage: response.usage };
+    return { parsed: response.parsed_output, usage: response.usage };
   } catch (err) {
     // Typed, most-specific-first, so a transient rate limit reads differently from a bad key.
     if (err instanceof Anthropic.AuthenticationError) throw new Error("Anthropic rejected the credentials (check ANTHROPIC_API_KEY).");
@@ -323,6 +422,62 @@ async function extractCast(sectionWikitext, terms) {
     }
     throw err;
   }
+}
+
+// `terms` carries the show's own vocabulary from the catalog (shows.castaway_term/tribe_term), so
+// the prompt asks about Contestants and Factions for a Traitors season rather than Castaways and
+// Tribes. The wikitext is the authority either way; this only stops the prompt from describing a
+// table using a word that appears nowhere in it.
+async function extractCast(sectionWikitext, terms) {
+  const { parsed, usage } = await callModel({
+    schema: CastSchema,
+    schemaName: "cast",
+    system:
+      "You extract structured data from MediaWiki wikitext. Report only what the wikitext actually " +
+      "states. Never infer, complete or correct a name from outside knowledge of the show -- if a " +
+      `field isn't in the text, return null for it. Use each ${terms.castaway}'s ORIGINAL ` +
+      `${terms.tribe} (the first ${terms.tribe} column), not a later shuffled or merged one. ` +
+      "Some of the text may be tables pulled in from transcluded templates, each marked with an " +
+      "HTML comment naming where it came from; treat those as part of the same section. If the " +
+      "same person appears in more than one of those tables, return them ONCE.",
+    user:
+      `Extract every ${terms.castaway} and the starting ${terms.tribes} from this season's ` +
+      `${terms.Castaways} section.\n\n` +
+      sectionWikitext,
+  });
+  return { cast: parsed, usage };
+}
+
+// Per-episode extraction. Gets BOTH tables in one call because it needs both: who left and how comes
+// from the vote table's terminal cells and the guide's Finish column, while immunity and reward wins
+// are only in the guide. max_tokens is higher than cast's because the output scales with
+// episodes x people -- a full post-merge season runs to roughly a hundred events, most of them
+// zero-votes-safes.
+async function extractEpisodes(wikitext, terms) {
+  const { parsed, usage } = await callModel({
+    schema: EpisodesSchema,
+    schemaName: "episodes",
+    maxTokens: 32000,
+    system:
+      "You extract structured data from MediaWiki wikitext. Report only what the wikitext actually " +
+      "states. Never infer, complete or correct anything from outside knowledge of the show -- if a " +
+      "field isn't in the text, return null, and if you cannot tell whether an event happened, omit " +
+      "it rather than guessing.\n\n" +
+      "The text contains more than one table, each marked with an HTML comment naming the template it " +
+      "came from. One is a per-episode guide (air date, reward and immunity winners, who was " +
+      "eliminated, their finish). Another is a vote grid with one column per episode and one row per " +
+      `${terms.castaway}. They describe the SAME episodes -- combine them, keyed on episode number.\n\n` +
+      "These tables use rowspan and colspan heavily, so one cell can belong to several rows or " +
+      "columns. Work out which episode each cell belongs to before reporting it.\n\n" +
+      "Footnote markers look like {{sup|[[#endnote <anchor>|<n>]]}} and resolve against the " +
+      "{{note|<anchor>|<n>}} entries in the Notes block at the bottom of the same table. Match them " +
+      "by ANCHOR, never by number: the numbers differ from season to season.",
+    user:
+      "Extract the per-episode record for this season: who left each episode and how, and which " +
+      "notable things happened to individuals.\n\n" +
+      wikitext,
+  });
+  return { episodes: parsed, usage };
 }
 
 // ---------- validation ----------
@@ -378,10 +533,350 @@ function validateCast(cast, state, terms) {
   return { tribes: tribeNames.map((name) => ({ name })), castaways, newCount: newCastaways.length, problems, fatal };
 }
 
+// Same job as validateCast, for the per-episode extraction: the schema guarantees SHAPE, this guards
+// CONTENT. There's more to guard here, because this extraction is inference over rowspan-heavy tables
+// and footnote markers rather than a read off one well-formed table.
+//
+// Splits into two payloads rather than one, because the two halves don't deserve the same trust and a
+// commissioner should be able to take eliminations without taking the event guesses. Each gets filed
+// as its own proposal kind.
+//
+// Every name is resolved against THIS LEAGUE'S cast here, at extraction time, so a proposal that
+// can't be applied never gets filed. Names (not ids) are what's stored, and apply resolves again --
+// see applyEliminationsImport's comment for why.
+function validateEpisodes(extracted, state, terms) {
+  const problems = [];
+  const fatal = [];
+  const seenEpisodes = new Set();
+  const eliminated = new Set(); // castaway ids claimed by an elimination in THIS proposal
+  const epsOut = [];
+  const eventsOut = [];
+  let eventCount = 0;
+  let lowConfidence = 0;
+
+  // Resolves one wiki name, recording why it failed. Ambiguity is a refusal, not a coin flip: the
+  // wiki prints first names in these tables, and two castaways can share one.
+  const resolve = (name, where) => {
+    const { castaway, ambiguous } = StateLogic.Core.findCastawayByName(state, name);
+    if (castaway) return castaway;
+    if (ambiguous) {
+      fatal.push(`"${name}" (${where}) matches more than one ${terms.castaway}: ${ambiguous.join(", ")}`);
+    } else {
+      fatal.push(`"${name}" (${where}) doesn't match any ${terms.castaway} in this league`);
+    }
+    return null;
+  };
+
+  const merge = extracted.mergeEpisode;
+  if (merge !== null && merge !== undefined && (!Number.isInteger(merge) || merge < 1)) {
+    problems.push(`implausible merge episode ${merge} (ignored)`);
+  }
+
+  for (const ep of extracted.episodes || []) {
+    const n = ep && ep.number;
+    if (!Number.isInteger(n) || n < 1 || n > 60) {
+      fatal.push(`implausible episode number ${JSON.stringify(n)}`);
+      continue;
+    }
+    if (seenEpisodes.has(n)) {
+      fatal.push(`episode ${n} appears twice`);
+      continue;
+    }
+    seenEpisodes.add(n);
+
+    // postMerge is cross-checked against mergeEpisode rather than taken on trust, since they come
+    // from the same read and disagreeing with itself is a sign the grid was misread.
+    let postMerge = !!ep.postMerge;
+    if (Number.isInteger(merge) && merge >= 1) {
+      const expected = n >= merge;
+      if (expected !== postMerge) {
+        problems.push(`episode ${n} said postMerge=${postMerge} but the merge is episode ${merge} -- using ${expected}`);
+        postMerge = expected;
+      }
+    }
+
+    const elims = [];
+    for (const el of ep.eliminations || []) {
+      const c = resolve(el && el.name, `episode ${n} elimination`);
+      if (!c) continue;
+      // The same person leaving twice is nonsense, and it would corrupt placement order.
+      if (eliminated.has(c.id)) {
+        fatal.push(`${c.name} is eliminated more than once (episode ${n})`);
+        continue;
+      }
+      eliminated.add(c.id);
+      elims.push({ name: c.name, method: el.method });
+    }
+
+    const evs = [];
+    for (const sev of ep.events || []) {
+      const c = resolve(sev && sev.name, `episode ${n} ${sev && sev.type}`);
+      if (!c) continue;
+      // Someone voted out this episode can't also have been safe at that Tribal with no votes. This
+      // is the cheapest real check available on the least reliable event type.
+      if (sev.type === "zeroVotesSafe" && eliminated.has(c.id)) {
+        problems.push(`dropped zeroVotesSafe for ${c.name} in episode ${n} -- they were eliminated that episode`);
+        continue;
+      }
+      // individualImmunity is a post-merge concept. Pre-merge, immunity is won by a tribe.
+      if (sev.type === "individualImmunity" && !postMerge) {
+        problems.push(`dropped individualImmunity for ${c.name} in pre-merge episode ${n}`);
+        continue;
+      }
+      const key = `${n}|${sev.type}|${c.id}`;
+      if (evs.some((x) => `${n}|${x.type}|${x.castawayKey}` === key)) {
+        problems.push(`duplicate ${sev.type} for ${c.name} in episode ${n} (kept once)`);
+        continue;
+      }
+      const confidence = sev.confidence === "high" ? "high" : "low";
+      if (confidence === "low") lowConfidence++;
+      evs.push({ name: c.name, type: sev.type, confidence, castawayKey: c.id });
+      eventCount++;
+    }
+
+    if (elims.length) epsOut.push({ number: n, postMerge, title: ep.title || null, airDate: ep.airDate || null, eliminations: elims });
+    if (evs.length) {
+      eventsOut.push({
+        number: n,
+        postMerge,
+        events: evs.map(({ name, type, confidence }) => ({ name, type, confidence })),
+      });
+    }
+  }
+
+  if (!epsOut.length && !eventsOut.length) fatal.push("nothing extracted at all");
+
+  // How much of this is new is the commissioner's actual question, so compute it rather than making
+  // them diff by eye.
+  let newEliminations = 0;
+  for (const ep of epsOut) {
+    for (const el of ep.eliminations) {
+      const { castaway } = StateLogic.Core.findCastawayByName(state, el.name);
+      if (castaway && castaway.status !== "eliminated") newEliminations++;
+    }
+  }
+
+  return {
+    eliminations: { episodes: epsOut, mergeEpisode: Number.isInteger(merge) ? merge : null },
+    scoringEvents: { episodes: eventsOut, mergeEpisode: Number.isInteger(merge) ? merge : null },
+    counts: {
+      episodes: seenEpisodes.size,
+      eliminations: epsOut.reduce((a, e) => a + e.eliminations.length, 0),
+      newEliminations,
+      events: eventCount,
+      lowConfidence,
+    },
+    problems,
+    fatal,
+  };
+}
+
+// What a season page might call the two per-episode tables. Same approach as castSectionCandidates:
+// generous synonyms rather than one hardcoded heading, because the Survivor wiki's "Season Summary"
+// is the Traitors wiki's "Season Overview". These aren't per-show DB columns (unlike
+// shows.cast_section_heading) because nothing has needed one yet -- if a wiki turns up that these
+// miss, the column pattern is already established next door.
+const VOTE_SECTIONS = ["Voting History", "Vote History", "Voting Table", "Votes", "Voting"];
+const GUIDE_SECTIONS = ["Season Summary", "Season Overview", "Episode Guide", "Episode Table", "Episodes", "Summary"];
+
+// Finds a section and pulls in anything it transcludes, in one step. Returns null when the page has
+// no such section -- callers decide whether that's fatal.
+async function sectionWithTables(page, candidates, apiUrl) {
+  const found = findSection(page.wikitext, candidates);
+  if (!found) return null;
+  const expanded = await expandTranscludedTables(found.text, apiUrl);
+  return { title: found.title, text: expanded.text, pages: expanded.pages };
+}
+
+// ---------- cast import (phase 1) ----------
+async function runCast(pool, league, leagueId, ctx, opts) {
+  const { state, page, apiUrl, terms, castawayTerm, entry, showSlug, season } = ctx;
+
+  // Which heading holds the cast is a per-show question, not a constant. See castSectionCandidates:
+  // the show's own castaway_term drives the guess, with shows.cast_section_heading as the override.
+  const candidates = castSectionCandidates(castawayTerm, entry.cast_section_heading);
+  const section = findSection(page.wikitext, candidates);
+  if (!section) {
+    // Name what was looked for AND what the page actually has. The old message said only
+    // `No ==Castaways== section found`, which gave an admin no way to tell whether the page was
+    // wrong, the heading was spelled differently, or the wiki uses another word entirely.
+    throw new Error(sectionNotFound("cast", page, candidates) + "\nSet the right one as the Cast section in Admin > Shows & Seasons.");
+  }
+  const expanded = await expandTranscludedTables(section.text, apiUrl);
+  console.log(
+    `[wiki-sync] "${section.title}" section: ${expanded.text.length} chars (rev ${page.revisionId})` +
+      (section.matched.toLowerCase() === section.title.toLowerCase() ? "" : ` [matched "${section.matched}"]`)
+  );
+
+  const { cast, usage } = await extractCast(expanded.text, terms);
+  const checked = validateCast(cast, state, terms);
+  checked.problems.forEach((p) => console.log(`[wiki-sync] note: ${p}`));
+  if (checked.fatal.length) {
+    throw new Error(`Extraction failed validation, nothing filed:\n  - ${checked.fatal.join("\n  - ")}`);
+  }
+
+  // Same wiki as the page itself -- the File: names only resolve against their own wiki.
+  const photos = await resolvePhotoUrls(checked.castaways.map((c) => c.photoFile), apiUrl);
+  const payload = {
+    tribes: checked.tribes,
+    castaways: checked.castaways.map((c) => ({
+      name: c.name,
+      tribeName: c.tribeName,
+      photoUrl: (c.photoFile && photos[c.photoFile]) || null,
+    })),
+  };
+  const withPhotos = payload.castaways.filter((c) => c.photoUrl).length;
+  console.log(
+    `[wiki-sync] extracted ${payload.castaways.length} ${terms.castaways} (${checked.newCount} new to this ` +
+      `league), ${payload.tribes.length} ${terms.tribes}, ${withPhotos} photos resolved`
+  );
+  logUsage(usage);
+
+  const provenance = baseProvenance(showSlug, season, page, apiUrl, expanded.pages, { castSection: section.title });
+
+  if (opts.dry) {
+    console.log("[wiki-sync] --dry: not filing a proposal");
+    console.log(JSON.stringify(payload, null, 2));
+    return;
+  }
+  await fileProposal(pool, leagueId, "cast", payload, provenance);
+  console.log("[wiki-sync] filed a pending proposal -- review it in League Settings.");
+}
+
+// ---------- per-episode import (phase 2) ----------
+// Reads the vote grid and the episode guide, extracts both in ONE model call, and files up to TWO
+// proposals: `eliminations` (who left, how, which episode) and `scoringEvents` (immunity, reward, idol
+// plays, zero-vote-safes). Two proposals because the first is read off well-formed columns and the
+// second is inference -- a commissioner should be able to accept one without the other.
+async function runEpisodes(pool, league, leagueId, ctx, opts) {
+  const { state, page, apiUrl, terms, showSlug, season } = ctx;
+
+  // Applying eliminations resolves wiki names against this league's cast, so with no cast there is
+  // nothing to resolve and every name would fail validation. Say that up front rather than burning a
+  // model call to discover it.
+  if (!state.castaways.length) {
+    throw new Error(
+      `League "${league.name}" has no ${terms.castaways} yet, so per-episode names can't be matched to ` +
+        `anyone. Run \`node db/wiki-sync.js cast ${leagueId}\` and apply that proposal first.`
+    );
+  }
+
+  const votes = await sectionWithTables(page, VOTE_SECTIONS, apiUrl);
+  const guide = await sectionWithTables(page, GUIDE_SECTIONS, apiUrl);
+  if (!votes && !guide) {
+    throw new Error(
+      sectionNotFound("per-episode", page, [...VOTE_SECTIONS, ...GUIDE_SECTIONS]) +
+        "\nThis command needs a voting table, an episode guide, or both."
+    );
+  }
+  // Each half is genuinely optional, but they cover different fields, so say what's missing rather
+  // than quietly extracting less: no guide means no immunity or reward wins, no vote grid means no
+  // idol plays or zero-vote-safes.
+  if (!votes) console.log("[wiki-sync] no voting table found -- idol plays and zero-vote-safes will be missing");
+  if (!guide) console.log("[wiki-sync] no episode guide found -- immunity and reward wins will be missing");
+
+  const parts = [];
+  if (guide) parts.push(guide.text);
+  if (votes) parts.push(votes.text);
+  const combined = parts.join("\n\n");
+  const readPages = [...(guide ? guide.pages : []), ...(votes ? votes.pages : [])];
+  console.log(
+    `[wiki-sync] sections: ${[guide && guide.title, votes && votes.title].filter(Boolean).join(" + ")} ` +
+      `-> ${combined.length} chars across ${readPages.length + 1} page(s)`
+  );
+
+  const { episodes, usage } = await extractEpisodes(combined, terms);
+  const checked = validateEpisodes(episodes, state, terms);
+  checked.problems.forEach((p) => console.log(`[wiki-sync] note: ${p}`));
+  if (checked.fatal.length) {
+    throw new Error(`Extraction failed validation, nothing filed:\n  - ${checked.fatal.join("\n  - ")}`);
+  }
+
+  const c = checked.counts;
+  console.log(
+    `[wiki-sync] extracted ${c.episodes} episodes: ${c.eliminations} eliminations (${c.newEliminations} new ` +
+      `to this league), ${c.events} scoring events (${c.lowConfidence} low-confidence)` +
+      (checked.eliminations.mergeEpisode ? `, merge at episode ${checked.eliminations.mergeEpisode}` : "")
+  );
+  logUsage(usage);
+
+  const provenance = baseProvenance(showSlug, season, page, apiUrl, readPages, {
+    sections: [guide && guide.title, votes && votes.title].filter(Boolean),
+  });
+
+  if (opts.dry) {
+    console.log("[wiki-sync] --dry: not filing proposals");
+    console.log(JSON.stringify({ eliminations: checked.eliminations, scoringEvents: checked.scoringEvents }, null, 2));
+    return;
+  }
+
+  // Filed separately, and only when non-empty: an empty proposal is something for a commissioner to
+  // review that says nothing.
+  const filed = [];
+  if (checked.eliminations.episodes.length) {
+    await fileProposal(pool, leagueId, "eliminations", checked.eliminations, provenance);
+    filed.push("eliminations");
+  }
+  if (checked.scoringEvents.episodes.length) {
+    await fileProposal(pool, leagueId, "scoringEvents", checked.scoringEvents, provenance);
+    filed.push("scoringEvents");
+  }
+  console.log(
+    filed.length
+      ? `[wiki-sync] filed ${filed.length} pending proposal(s) (${filed.join(", ")}) -- review them in League Settings.`
+      : "[wiki-sync] nothing worth filing -- no eliminations or events extracted."
+  );
+}
+
+// ---------- shared helpers ----------
+function sectionNotFound(what, page, candidates) {
+  const found = listHeadings(page.wikitext).map((h) => h.title);
+  return (
+    `No ${what} section found on "${page.title}".\n` +
+    `  looked for: ${candidates.join(", ")}\n` +
+    `  page has:   ${found.length ? found.join(", ") : "(no headings at all)"}`
+  );
+}
+
+function logUsage(usage) {
+  if (usage) console.log(`[wiki-sync] tokens: ${usage.input_tokens} in / ${usage.output_tokens} out`);
+}
+
+// LLM extraction isn't reproducible from its inputs, so a proposal has to carry what was actually
+// read. `pages` lists EVERY page, transcluded templates included -- with transclusion the season
+// page's own revision id no longer pins the content.
+function baseProvenance(showSlug, season, page, apiUrl, extraPages, extra) {
+  return {
+    // Which show, not just which season: with a multi-show catalog, "season 44" alone no longer
+    // identifies what was read.
+    showSlug,
+    seasonNumber: season,
+    model: MODEL,
+    extractedAt: new Date().toISOString(),
+    pages: [{ title: page.title, revisionId: page.revisionId, apiUrl }, ...(extraPages || [])],
+    ...(extra || {}),
+  };
+}
+
+// One pending proposal per league per kind (partial unique index), so a second scheduled run before
+// anyone reviews replaces its own earlier suggestion instead of queueing a duplicate.
+async function fileProposal(pool, leagueId, kind, payload, provenance) {
+  await pool.query(
+    `INSERT INTO wiki_proposals (league_id, kind, payload, provenance)
+     VALUES ($1,$2,$3::jsonb,$4::jsonb)
+     ON CONFLICT (league_id, kind) WHERE status='pending'
+     DO UPDATE SET payload=EXCLUDED.payload, provenance=EXCLUDED.provenance, created_at=now()`,
+    [leagueId, kind, JSON.stringify(payload), JSON.stringify(provenance)]
+  );
+}
+
 // ---------- main ----------
+const COMMANDS = { cast: runCast, episodes: runEpisodes };
+
 async function run(pool, command, leagueId, opts) {
-  if (command !== "cast") {
-    throw new Error(`Unknown command "${command}". Supported: cast`);
+  const handler = COMMANDS[command];
+  if (!handler) {
+    throw new Error(`Unknown command "${command}". Supported: ${Object.keys(COMMANDS).join(", ")}`);
   }
   const { rows } = await pool.query("SELECT id, name, state FROM leagues WHERE id=$1", [leagueId]);
   if (!rows.length) throw new Error(`No league with id ${leagueId}`);
@@ -397,9 +892,6 @@ async function run(pool, command, leagueId, opts) {
   // Resolve the page from the admin-managed catalog (db/migrations/0006_shows_and_seasons.sql):
   // the season row carries the wiki page title an admin entered, and the show row the API endpoint
   // for that show's wiki -- which is the point, since different shows live on different wikis.
-  //
-  // Falls back to the old hardcoded shape when there's no catalog row, so a league set up before the
-  // catalog existed (or one whose season row was deleted) still works rather than hard-failing.
   const showSlug = state.settings && state.settings.showId;
   if (!showSlug) {
     throw new Error(
@@ -455,89 +947,13 @@ async function run(pool, command, leagueId, opts) {
   console.log(`[wiki-sync] league "${league.name}" -> ${pageTitle} (${apiUrl})`);
   const page = await fetchWikitext(pageTitle, apiUrl);
 
-  // Which heading holds the cast is a per-show question, not a constant. See castSectionCandidates:
-  // the show's own castaway_term drives the guess, with shows.cast_section_heading as the override.
-  const candidates = castSectionCandidates(castawayTerm, entry.cast_section_heading);
-  const section = findSection(page.wikitext, candidates);
-  if (!section) {
-    // Name what was looked for AND what the page actually has. The old message said only
-    // `No ==Castaways== section found`, which gave an admin no way to tell whether the page was
-    // wrong, the heading was spelled differently, or the wiki uses another word entirely.
-    const found = listHeadings(page.wikitext).map((h) => h.title);
-    throw new Error(
-      `No cast section found on "${page.title}".
-` +
-        `  looked for: ${candidates.join(", ")}
-` +
-        `  page has:   ${found.length ? found.join(", ") : "(no headings at all)"}
-` +
-        `Set the right one as the Cast section in Admin > Shows & Seasons.`
-    );
-  }
-  const expanded = await expandTranscludedTables(section.text, apiUrl);
-  console.log(
-    `[wiki-sync] "${section.title}" section: ${expanded.text.length} chars (rev ${page.revisionId})` +
-      (section.matched.toLowerCase() === section.title.toLowerCase() ? "" : ` [matched "${section.matched}"]`)
-  );
-
-  const { cast, usage } = await extractCast(expanded.text, terms);
-  const checked = validateCast(cast, state, terms);
-  checked.problems.forEach((p) => console.log(`[wiki-sync] note: ${p}`));
-  if (checked.fatal.length) {
-    throw new Error(`Extraction failed validation, nothing filed:\n  - ${checked.fatal.join("\n  - ")}`);
-  }
-
-  // Same wiki as the page itself -- the File: names only resolve against their own wiki.
-  const photos = await resolvePhotoUrls(checked.castaways.map((c) => c.photoFile), apiUrl);
-  const payload = {
-    tribes: checked.tribes,
-    castaways: checked.castaways.map((c) => ({
-      name: c.name,
-      tribeName: c.tribeName,
-      photoUrl: (c.photoFile && photos[c.photoFile]) || null,
-    })),
-  };
-  const withPhotos = payload.castaways.filter((c) => c.photoUrl).length;
-  console.log(
-    `[wiki-sync] extracted ${payload.castaways.length} ${terms.castaways} (${checked.newCount} new to this ` +
-      `league), ${payload.tribes.length} ${terms.tribes}, ${withPhotos} photos resolved`
-  );
-  if (usage) console.log(`[wiki-sync] tokens: ${usage.input_tokens} in / ${usage.output_tokens} out`);
-
-  if (opts.dry) {
-    console.log("[wiki-sync] --dry: not filing a proposal");
-    console.log(JSON.stringify(payload, null, 2));
-    return;
-  }
-
-  const provenance = {
-    // Which show, not just which season: with a multi-show catalog, "season 44" alone no longer
-    // identifies what was read.
-    showSlug,
-    seasonNumber: season,
-    model: MODEL,
-    extractedAt: new Date().toISOString(),
-    // Every page the extraction actually read, season page first -- transcluded templates included,
-    // since with transclusion the season page's own revision id no longer pins what was extracted.
-    pages: [{ title: page.title, revisionId: page.revisionId, apiUrl }, ...expanded.pages],
-    castSection: section.title,
-  };
-  // One pending proposal per league per kind (partial unique index), so a second scheduled run before
-  // anyone reviews replaces its own earlier suggestion instead of queueing a duplicate.
-  await pool.query(
-    `INSERT INTO wiki_proposals (league_id, kind, payload, provenance)
-     VALUES ($1,'cast',$2::jsonb,$3::jsonb)
-     ON CONFLICT (league_id, kind) WHERE status='pending'
-     DO UPDATE SET payload=EXCLUDED.payload, provenance=EXCLUDED.provenance, created_at=now()`,
-    [leagueId, JSON.stringify(payload), JSON.stringify(provenance)]
-  );
-  console.log("[wiki-sync] filed a pending proposal -- review it in League Settings.");
+  return handler(pool, league, leagueId, { state, page, apiUrl, terms, castawayTerm, tribeTerm, entry, showSlug, season }, opts);
 }
 
 if (require.main === module) {
   const [command, leagueId, ...flags] = process.argv.slice(2);
   if (!command || !leagueId) {
-    console.error("usage: node db/wiki-sync.js cast <leagueId> [--dry]");
+    console.error("usage: node db/wiki-sync.js <cast|episodes> <leagueId> [--dry]");
     process.exitCode = 1;
   } else {
     const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL });
@@ -560,6 +976,12 @@ module.exports = {
   plural,
   singular,
   validateCast,
+  validateEpisodes,
   resolvePhotoUrls,
   CastSchema,
+  EpisodesSchema,
+  EXIT_METHODS,
+  EVENT_TYPES,
+  VOTE_SECTIONS,
+  GUIDE_SECTIONS,
 };

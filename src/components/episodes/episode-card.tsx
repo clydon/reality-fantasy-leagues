@@ -91,8 +91,12 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
       <button className="flex w-full items-start justify-between gap-2 p-4 text-left" onClick={() => setOpen((o) => !o)}>
         <div>
           <div className="text-sm font-semibold">
-            Episode {ep.number} — {summary}
+            Episode {ep.number}
+            {/* Title and air date only exist on episodes the wiki connector created (see the Episode
+                type) -- rendered when present rather than leaving them as data nothing surfaces. */}
+            {ep.title ? <span className="font-normal"> &ldquo;{ep.title}&rdquo;</span> : null} — {summary}
           </div>
+          {ep.airDate && <div className="mt-0.5 text-xs text-muted-foreground">Aired {ep.airDate}</div>}
           {(ep.postMerge || (ep.bets || []).length > 0) && (
             <div className="mt-1 flex gap-1.5">
               {ep.postMerge && (

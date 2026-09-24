@@ -71,6 +71,29 @@ function ownerListOf(c){ return (c && c.ownerIds) || []; }
 class Core {
   static uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }
   static getPlayer(state, id){ return state.players.find(p=>p.id===id); }
+  // Resolves a name FROM THE WIKI to a castaway in this league.
+  //
+  // Needed because the wiki is inconsistent about which name it prints where: the cast table gives
+  // full names ("Bruce Perreault"), but the episode guide and the vote table's own cells give first
+  // names only ("Bruce"). An import keyed on exact names would match nothing at all from those two.
+  //
+  // Returns {castaway} on a confident match, {ambiguous:[names]} when a first name fits more than one
+  // castaway, or {} when nothing fits. Ambiguity is reported rather than resolved -- picking one of
+  // two people named Matt is the kind of quiet guess that lands wrong data in a scored league.
+  static findCastawayByName(state, name){
+    const wanted = String(name || '').trim().toLowerCase();
+    if(!wanted) return {};
+    const exact = state.castaways.filter(c => String(c.name||'').trim().toLowerCase() === wanted);
+    if(exact.length === 1) return { castaway: exact[0] };
+    if(exact.length > 1) return { ambiguous: exact.map(c=>c.name) };
+    // First-name fallback, and only when the wiki gave a single word -- "Matt Blankinship" failing an
+    // exact match is a real mismatch, not something to re-try loosely against first names.
+    if(wanted.includes(' ')) return {};
+    const byFirst = state.castaways.filter(c => String(c.name||'').trim().split(/\s+/)[0].toLowerCase() === wanted);
+    if(byFirst.length === 1) return { castaway: byFirst[0] };
+    if(byFirst.length > 1) return { ambiguous: byFirst.map(c=>c.name) };
+    return {};
+  }
   static getCastaway(state, id){ return state.castaways.find(c=>c.id===id); }
   static getTribe(state, id){ return state.tribes.find(t=>t.id===id); }
 
@@ -1068,17 +1091,24 @@ class TradeLogic {
 
 // ---------- EpisodeLogic: episodes + eliminations ----------
 class EpisodeLogic {
+  // The shape of a new episode, in ONE place. add(), ensureUpcoming() and the wiki import all create
+  // episodes, and they used to each spell out this literal -- so a new per-episode field had to be
+  // remembered in three places or it would be missing from episodes created by two of the three
+  // paths. Creating through here also always carries lineups forward, which is what the Active Roster
+  // league type expects of any episode however it came to exist.
+  static create(state, number, postMerge){
+    const ep = { id:Core.uid('ep'), number, postMerge: !!postMerge, events:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
+    state.episodes.push(ep);
+    // Active Roster: start this episode's lineups from the previous one's so players adjust rather
+    // than retype. No-op for every other league type (nothing has lineups to carry).
+    ActiveRosterLogic.carryForwardLineups(state, ep.id);
+    return ep;
+  }
   static add(state){
     const maxNum = state.episodes.length ? Math.max(...state.episodes.map(e=>e.number)) : 0;
     const previousEp = state.episodes.find(e=>e.number===maxNum);
     // Once the season hits the merge, every later episode is post-merge too — carry the flag forward.
-    const postMerge = previousEp ? previousEp.postMerge : false;
-    const newEp = { id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
-    state.episodes.push(newEp);
-    // Active Roster: start this episode's lineups from last episode's so players adjust rather than
-    // retype. No-op for every other league type (nothing has lineups to carry).
-    ActiveRosterLogic.carryForwardLineups(state, newEp.id);
-    return newEp;
+    return EpisodeLogic.create(state, maxNum+1, previousEp ? previousEp.postMerge : false);
   }
   // Keeps there always being an "upcoming" episode (one with no eliminations logged yet) so
   // members always have somewhere to post/guess bets, without the commissioner needing to
@@ -1089,12 +1119,83 @@ class EpisodeLogic {
     const maxNum = state.episodes.length ? Math.max(...state.episodes.map(e=>e.number)) : 0;
     const latest = state.episodes.find(e=>e.number===maxNum);
     if(latest && latest.events.length === 0) return false;
-    const postMerge = latest ? latest.postMerge : false;
-    const created = { id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
-    state.episodes.push(created);
-    ActiveRosterLogic.carryForwardLineups(state, created.id);
+    EpisodeLogic.create(state, maxNum+1, latest ? latest.postMerge : false);
     return true;
   }
+  // ---------- wiki import: eliminations and scoring events (connector phase 2) ----------
+  // Both of these are the apply half of a reviewed proposal (db/wiki-sync.js -> wiki_proposals ->
+  // commissioner confirms). Both are ADDITIVE and IDEMPOTENT, for the same reason applyCastImport is:
+  // re-running a scheduled import, or applying a second proposal that overlaps the first, must never
+  // rewrite what's already there. Anything already recorded is reported as skipped, not replaced.
+  //
+  // Names are resolved HERE rather than being baked into the proposal as ids, matching cast import:
+  // a proposal can sit pending while the cast changes, and a stale id would be silently wrong where a
+  // stale name simply fails to resolve and gets reported.
+
+  // Finds the league's episode with this number, creating it (and any gap before it) if missing.
+  // Episodes are created in ascending order so postMerge and lineup carry-forward both inherit from
+  // the right predecessor.
+  static ensureEpisodeNumber(state, number, postMerge, created){
+    const existing = state.episodes.find(e => e.number === number);
+    if(existing) return existing;
+    const maxNum = state.episodes.length ? Math.max(...state.episodes.map(e=>e.number)) : 0;
+    for(let n = maxNum + 1; n <= number; n++){
+      const prev = state.episodes.find(e => e.number === n - 1);
+      // A filled gap inherits its predecessor's merge state; the requested episode uses what the
+      // proposal says, since that's the one the wiki actually told us about.
+      const flag = n === number ? postMerge : (prev ? prev.postMerge : false);
+      const ep = EpisodeLogic.create(state, n, flag);
+      if(created) created.push(ep.number);
+    }
+    return state.episodes.find(e => e.number === number);
+  }
+
+  static applyEliminationsImport(state, proposal){
+    const result = { episodesCreated: [], eliminations: [], skipped: [], unresolved: [] };
+    // Ascending, because addElimination assigns placementOrder sequentially from what's already
+    // recorded -- applying episode 7 before episode 3 would invert the finishing order.
+    const episodes = [...(proposal.episodes || [])].sort((a,b) => a.number - b.number);
+    episodes.forEach(pe => {
+      if(!pe || typeof pe.number !== 'number') return;
+      const ep = EpisodeLogic.ensureEpisodeNumber(state, pe.number, pe.postMerge, result.episodesCreated);
+      if(pe.title && !ep.title) ep.title = pe.title;
+      if(pe.airDate && !ep.airDate) ep.airDate = pe.airDate;
+      (pe.eliminations || []).forEach(el => {
+        const { castaway } = Core.findCastawayByName(state, el && el.name);
+        if(!castaway){ result.unresolved.push(String((el && el.name) || '?')); return; }
+        // Already out -- from an earlier import, or entered by hand. Either way, leave it alone: its
+        // placementOrder and exitEpisodeId are already correct and re-recording would double-count.
+        if(castaway.status === 'eliminated'){ result.skipped.push(castaway.name); return; }
+        EpisodeLogic.addElimination(state, ep.id, castaway.id, el.method);
+        result.eliminations.push({ episode: ep.number, name: castaway.name, method: el.method });
+      });
+    });
+    return result;
+  }
+
+  static applyScoringEventsImport(state, proposal){
+    const result = { episodesCreated: [], events: [], skipped: [], unresolved: [] };
+    const episodes = [...(proposal.episodes || [])].sort((a,b) => a.number - b.number);
+    episodes.forEach(pe => {
+      if(!pe || typeof pe.number !== 'number') return;
+      const ep = EpisodeLogic.ensureEpisodeNumber(state, pe.number, pe.postMerge, result.episodesCreated);
+      (pe.events || []).forEach(sev => {
+        const { castaway } = Core.findCastawayByName(state, sev && sev.name);
+        if(!castaway){ result.unresolved.push(String((sev && sev.name) || '?')); return; }
+        // Idempotency is per (episode, type, castaway): the same person can legitimately have two
+        // different event types in one episode, but not the same one twice.
+        const already = (ep.scoringEvents || []).some(x => x.type === sev.type && x.castawayId === castaway.id);
+        if(already){ result.skipped.push(`${castaway.name} (${sev.type}, ep ${ep.number})`); return; }
+        // addEvent rejects a type that isn't in ACTIVE_ROSTER_EVENTS, so an unknown type can't land
+        // here even if it survived the connector's own validation.
+        const added = ActiveRosterLogic.addEvent(state, ep.id, sev.type, castaway.id);
+        if(added) result.events.push({ episode: ep.number, name: castaway.name, type: sev.type });
+        else result.skipped.push(`${castaway.name} (unknown event type "${sev.type}")`);
+      });
+    });
+    return result;
+  }
+
   static renumberPlacements(state){
     const eliminated = state.castaways.filter(c=>c.status==='eliminated' && typeof c.placementOrder==='number');
     eliminated.sort((a,b)=>a.placementOrder-b.placementOrder);
@@ -1451,6 +1552,8 @@ return {
   addTribe: RosterLogic.addTribe, updateTribe: RosterLogic.updateTribe, removeTribe: RosterLogic.removeTribe,
   addCastaway: RosterLogic.addCastaway, updateCastaway: RosterLogic.updateCastaway, removeCastaway: RosterLogic.removeCastaway,
   applyCastImport: RosterLogic.applyCastImport,
+  applyEliminationsImport: EpisodeLogic.applyEliminationsImport,
+  applyScoringEventsImport: EpisodeLogic.applyScoringEventsImport,
   updateSettings: RosterLogic.updateSettings,
   reorderDraft: DraftLogic.reorder, moveDraftOrder: DraftLogic.move, draftToCurrentTurn: DraftLogic.pick, undraft: DraftLogic.undo,
   startReplenish: ReplenishLogic.start, currentReplenishTurn: ReplenishLogic.currentTurn, replenishAssign: ReplenishLogic.assign, cancelReplenish: ReplenishLogic.cancel,

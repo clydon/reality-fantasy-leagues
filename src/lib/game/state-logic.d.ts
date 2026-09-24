@@ -1,7 +1,7 @@
 // Ambient typing for state-logic.js (forked from the live app -- see the provenance comment at
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
-import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Episode, ReplenishTurn, PickEmPick, ScoringEvent } from "./types";
+import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Episode, ReplenishTurn, PickEmPick, ScoringEvent, EpisodeProposalPayload } from "./types";
 
 export interface ActiveRosterEventDef {
   id: string;
@@ -58,6 +58,14 @@ declare const StateLogic: {
     setOwner(state: LeagueState, castawayId: string, playerId: string | null): void;
     addOwner(state: LeagueState, castawayId: string, playerId: string): void;
     removeOwner(state: LeagueState, castawayId: string, playerId: string): void;
+    /**
+     * Resolves a name from the wiki to a castaway in this league, tolerating the first-name-only
+     * form the episode guide and vote grid use. Reports ambiguity instead of picking one.
+     */
+    findCastawayByName(
+      state: LeagueState,
+      name: string
+    ): { castaway?: Castaway; ambiguous?: string[] };
   };
   ScoringLogic: {
     compute(state: LeagueState): ScoreRow[];
@@ -125,6 +133,29 @@ declare const StateLogic: {
     state: LeagueState,
     proposal: { tribes?: { name: string; color?: string }[]; castaways?: { name: string; tribeName?: string | null; photoUrl?: string | null }[] }
   ): { tribes: string[]; castaways: string[]; skipped: string[] };
+  /**
+   * Apply halves of the connector's phase-2 proposals. Both additive and idempotent: they create any
+   * missing episodes by number, skip anything already recorded, and report unresolved names rather
+   * than guessing at them.
+   */
+  applyEliminationsImport(
+    state: LeagueState,
+    proposal: EpisodeProposalPayload
+  ): {
+    episodesCreated: number[];
+    eliminations: { episode: number; name: string; method: string }[];
+    skipped: string[];
+    unresolved: string[];
+  };
+  applyScoringEventsImport(
+    state: LeagueState,
+    proposal: EpisodeProposalPayload
+  ): {
+    episodesCreated: number[];
+    events: { episode: number; name: string; type: string }[];
+    skipped: string[];
+    unresolved: string[];
+  };
   updateSettings(state: LeagueState, field: string, value: unknown): void;
   addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet;
   removeBet(state: LeagueState, epId: string, betId: string): void;

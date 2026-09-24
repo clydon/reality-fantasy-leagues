@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AdminShow, CatalogShow, ShowSeason } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -333,11 +333,14 @@ export const api = {
   // these return their own shapes and have no mock-mode branch -- same as invites and chat.
   listWikiProposals: (leagueId: string) =>
     localFetch<{ proposals: WikiProposal[] }>(`/api/leagues/${leagueId}/wiki-proposals`),
+  // `applied` is shaped by `kind` -- the three apply paths report different things, so the caller
+  // narrows on kind rather than this pretending they share a shape.
   applyWikiProposal: (leagueId: string, id: string) =>
-    localFetch<{ state: LeagueState; applied: { tribes: string[]; castaways: string[]; skipped: string[] } | null }>(
-      `/api/leagues/${leagueId}/wiki-proposals/${id}`,
-      { method: "POST" }
-    ),
+    localFetch<{
+      state: LeagueState;
+      kind: "cast" | "eliminations" | "scoringEvents";
+      applied: AppliedProposal | null;
+    }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "POST" }),
   rejectWikiProposal: (leagueId: string, id: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "DELETE" }),
 

@@ -18,7 +18,11 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
   const { user } = await requireLeagueRole(req, leagueId, "commissioner");
   if (!isUuid(id)) throw new HttpError(404, "Proposal not found");
 
-  let summary: { tribes: string[]; castaways: string[]; skipped: string[] } | null = null;
+  // Shape differs by kind, so it's returned as-is for the review UI to describe. Each apply helper
+  // reports what it did and what it skipped -- see their comments in state-logic.js for why every one
+  // of them is additive.
+  let summary: unknown = null;
+  let kind = "";
   const state = await withLeagueLock(leagueId, async (s, client) => {
     const { rows } = await client.query(
       "SELECT kind, status, payload FROM wiki_proposals WHERE id=$1 AND league_id=$2 FOR UPDATE",
@@ -26,20 +30,25 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
     );
     if (!rows.length) throw new HttpError(404, "Proposal not found");
     if (rows[0].status !== "pending") throw new HttpError(400, "That proposal has already been resolved");
-    if (rows[0].kind !== "cast") {
-      // scoringEvents / eliminations proposals are reserved for the connector's later phases; there's
-      // no apply path for them yet, and guessing one would be worse than refusing.
-      throw new HttpError(400, `No apply path for proposal kind "${rows[0].kind}" yet`);
+    kind = rows[0].kind;
+    // Explicit dispatch rather than a lookup, so an unrecognised kind is refused loudly instead of
+    // silently applying nothing. All three paths are additive and idempotent.
+    if (kind === "cast") {
+      summary = StateLogic.applyCastImport(s, rows[0].payload);
+    } else if (kind === "eliminations") {
+      summary = StateLogic.applyEliminationsImport(s, rows[0].payload);
+    } else if (kind === "scoringEvents") {
+      summary = StateLogic.applyScoringEventsImport(s, rows[0].payload);
+    } else {
+      throw new HttpError(400, `No apply path for proposal kind "${kind}"`);
     }
-
-    summary = StateLogic.applyCastImport(s, rows[0].payload);
     await client.query(
       "UPDATE wiki_proposals SET status='applied', resolved_at=now(), resolved_by=$2 WHERE id=$1",
       [id, user.id]
     );
   });
 
-  return NextResponse.json({ state, applied: summary });
+  return NextResponse.json({ state, kind, applied: summary });
 });
 
 // Reject a proposal. Kept as a resolved row rather than deleted, so a rejected suggestion doesn't

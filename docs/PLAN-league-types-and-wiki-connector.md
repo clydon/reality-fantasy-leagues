@@ -318,17 +318,35 @@ castaways start benched, trade behaves identically to Classic Draft's trade.
 
 ---
 
-## Feature D: Wiki connector — CAST IMPORT BUILT; event extraction still to do
+## Feature D: Wiki connector — BOTH PHASES BUILT
 
-**Phase one shipped: cast import.** `db/wiki-sync.js` fetches a season's cast, extracts it with
-Claude under a strict schema, validates it against the league, and files a pending proposal into the
-new `wiki_proposals` table; League Settings has the review/apply/reject UI. See README's "Wiki
-connector" section for the shipped design and what was and wasn't verified.
+**Phase one: cast import.** `db/wiki-sync.js` fetches a season's cast, extracts it with Claude under a
+strict schema, validates it against the league, and files a pending proposal into the `wiki_proposals`
+table; League Settings has the review/apply/reject UI.
 
-**Still unbuilt:** the per-episode event half (Feature C's `scoringEvents` log and eliminations).
-The proposal table and review UI are already generic over `kind` — `'scoringEvents'` and
-`'eliminations'` are accepted values with no apply path yet, which the apply route refuses
-explicitly rather than guessing at.
+**Phase two: per-episode import** (`node db/wiki-sync.js episodes <leagueId>`). Reads the vote grid and
+the episode guide, extracts both in ONE model call, and files TWO proposals — `eliminations` (high
+trust: a direct read of the Finish column) and `scoringEvents` (low trust: inference over rowspan-heavy
+cells, footnote markers and vote arithmetic), each event carrying its own confidence. Both apply paths
+are additive and idempotent.
+
+See README's "Wiki connector" section for the shipped design of both, and for what was and wasn't
+verified — including the honest finding that the eliminations half reproduced exactly across two runs
+while the scoring-events half did not.
+
+**Answers to the open questions this section left:**
+
+- **Double/multiple-boot episodes** — still untested against a real season with one (S44 has none), but
+  the data model and both apply paths handle it: eliminations are a list per episode, order within the
+  list is preserved, and `placementOrder` is assigned in that order. Covered by fixture, not by real
+  data.
+- **Footnote numbers being season-specific** — handled by instructing extraction to match footnotes by
+  ANCHOR rather than by number, which is what the "two corrections" note below established.
+- **Zero-votes-safe** — extracted, and it is indeed the highest-volume event type (~50 per season). It
+  is also the least reliable: validation drops any that name someone eliminated in that same episode,
+  and that guard fired on both verification runs.
+- **Idol finds** — deliberately NOT offerable. The value is absent from the extraction schema's enum,
+  so it cannot be emitted at all, rather than being filtered afterwards. Manual-only, as recommended.
 
 **Decisions, all the user's, two against my recommendation:** LLM extraction (not a deterministic
 parser), a scheduled script (not an on-demand button), cast import first then events. Mitigations for

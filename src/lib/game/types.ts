@@ -71,6 +71,13 @@ export interface Episode {
   id: string;
   number: number;
   postMerge: boolean;
+  /**
+   * Both optional and both filled in only by the wiki connector's eliminations import, which gets them
+   * for free off the episode guide. Never overwritten once set, and absent on every hand-created
+   * episode -- the Episode Card renders them when present and omits them otherwise.
+   */
+  title?: string | null;
+  airDate?: string | null;
   events: { castawayId: string; method: string }[];
   bets: Bet[];
   // Pick'em only (state-logic.js's PickEmLogic) -- one entry per player who's made a pick for
@@ -202,19 +209,73 @@ export interface CatalogShow {
 // A reviewed-but-unapplied suggestion from the wiki connector (db/wiki-sync.js), as the League
 // Settings review UI shows it. Lives in its own table, not in league state -- see
 // db/migrations/0005_wiki_proposals.sql.
+/**
+ * What applying a proposal did. One variant per proposal kind -- they genuinely report different
+ * things, so the review UI narrows on the `kind` the apply response carries rather than treating them
+ * as one shape. All three have a `skipped` list, because all three are additive.
+ */
+export type AppliedProposal =
+  | { tribes: string[]; castaways: string[]; skipped: string[] }
+  | {
+      episodesCreated: number[];
+      eliminations: { episode: number; name: string; method: string }[];
+      skipped: string[];
+      unresolved: string[];
+    }
+  | {
+      episodesCreated: number[];
+      events: { episode: number; name: string; type: string }[];
+      skipped: string[];
+      unresolved: string[];
+    };
+
+/** Cast-import payload: the whole season's cast and its starting groups. */
+export interface CastProposalPayload {
+  tribes?: { name: string; color?: string }[];
+  castaways?: { name: string; tribeName?: string | null; photoUrl?: string | null }[];
+}
+
+/** One episode in a per-episode proposal. Keyed by NUMBER, not id -- see WikiProposal's comment. */
+export interface ProposalEpisode {
+  number: number;
+  postMerge: boolean;
+  title?: string | null;
+  airDate?: string | null;
+  eliminations?: { name: string; method: string }[];
+  /**
+   * `confidence` is 'high' only where the wiki states it outright. Immunity/reward inference, anything
+   * read through a footnote marker, and any counted zero-votes-safe come back 'low' -- the review UI
+   * distinguishes them rather than presenting all events alike.
+   */
+  events?: { name: string; type: string; confidence: "high" | "low" }[];
+}
+
+export interface EpisodeProposalPayload {
+  episodes: ProposalEpisode[];
+  mergeEpisode?: number | null;
+}
+
+/**
+ * A reviewed-but-unapplied suggestion from the wiki connector.
+ *
+ * Payloads reference castaways and episodes BY NAME and BY NUMBER rather than by id, deliberately: a
+ * proposal can sit pending while the league changes, and a stale id would apply silently wrong where a
+ * stale name simply fails to resolve and gets reported. Resolution happens at apply time, through
+ * Core.findCastawayByName.
+ */
 export interface WikiProposal {
   id: string;
   kind: "cast" | "scoringEvents" | "eliminations";
   status: "pending" | "applied" | "rejected";
-  payload: {
-    tribes?: { name: string; color?: string }[];
-    castaways?: { name: string; tribeName?: string | null; photoUrl?: string | null }[];
-  };
+  payload: CastProposalPayload & Partial<EpisodeProposalPayload>;
   provenance: {
     seasonNumber: number;
+    showSlug?: string;
     model: string;
     extractedAt: string;
     pages: { title: string; revisionId: number | null }[];
+    castSection?: string;
+    sections?: string[];
   };
   created_at: string;
 }
