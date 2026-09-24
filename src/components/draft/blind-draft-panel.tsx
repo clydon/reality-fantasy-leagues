@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ import { cn } from "cn";
 // Shared mode can't be reached in mock mode anyway (the demo league is exclusive), so a mock branch
 // would be dead code.
 export function BlindDraftPanel({ state }: { state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const setState = useLeagueStore((s) => s.setState);
   const canManage = useCanManage();
@@ -106,8 +108,9 @@ export function BlindDraftPanel({ state }: { state: LeagueState }) {
     <div className="mb-4 rounded-lg border border-primary/40 bg-card p-4 shadow-sm">
       <h3 className="mb-1 text-base font-bold">Blind draft</h3>
       <p className="mb-3 text-sm text-muted-foreground">
-        Everyone picks {teamSize} castaway{teamSize === 1 ? "" : "s"} privately. Nothing is revealed until every
-        player has locked in — then all picks reveal at once. The same castaway can be picked by more than one
+        Everyone picks {teamSize} {teamSize === 1 ? terms.castaway : terms.castaways} privately. Nothing is revealed
+        until every player has locked in — then all picks reveal at once. The same {terms.castaway} can be picked by
+        more than one
         player, so there&rsquo;s no rush to claim anyone.
       </p>
 

@@ -7,11 +7,13 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Port of renderSetup()'s Finale Prediction Settings panel. Gated by the same
 // supportsFinalePredictions flag Mid-Season's panel checks (state-logic.js's LEAGUE_TYPES) --
 // settings for a feature a league type doesn't support shouldn't be editable either.
 export function FinaleSettingsSection({ state }: { state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const mutate = useMutate();
@@ -56,7 +58,7 @@ export function FinaleSettingsSection({ state }: { state: LeagueState }) {
             defaultValue={state.settings.finalePredictionScope}
             onChange={(e) => update("finalePredictionScope", e.target.value)}
           >
-            <option value="open">Open — predict any castaway</option>
+            <option value="open">Open — predict any {terms.castaway}</option>
             <option value="ownPicksOnly">Own picks only</option>
           </Select>
         </label>

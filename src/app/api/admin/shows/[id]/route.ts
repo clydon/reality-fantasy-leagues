@@ -12,6 +12,8 @@ const EDITABLE: Record<string, string> = {
   castawayTerm: "castaway_term",
   tribeTerm: "tribe_term",
   wikiApiUrl: "wiki_api_url",
+  // Nullable on purpose -- clearing it means "go back to inferring the heading from castawayTerm".
+  castSectionHeading: "cast_section_heading",
   archived: "archived",
 };
 

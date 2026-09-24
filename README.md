@@ -646,6 +646,83 @@ Also surfaced that `playerAccounts` (which player each account is linked to) was
 fetched by `api.leagueState()` and thrown away — now wired into `useLeagueStore` so the Players
 section can actually show it.
 
+## Guided first-time setup and per-show terminology
+
+Three problems that only showed up once a second show existed, and all three had the same root
+cause: the app assumed Survivor.
+
+**A new league arrived pre-loaded with the wrong show's cast.** `defaultState()` seeded
+`SEED_CASTAWAYS` — 21 Survivor 51 names with `photos/s51/...` URLs — so a Traitors league opened with
+21 strangers in it that the commissioner had to delete by hand. A real league's cast comes from the
+commissioner or the wiki connector, so a new league now starts **empty**. `SEED_CASTAWAYS` stays
+exported as sample data, but nothing applies it; the demo league (`buildMockSeasonState`) has always
+built its own cast and is unaffected. Note that `POST /:id/reset` goes through `defaultState()` too,
+so a reset now leaves an empty league rather than a Survivor-51 one — the honest meaning of "reset".
+
+**Creating a league dropped you on Overview**, which for a league with no show, no season and no cast
+has nothing to show. Creation now lands on `/setup`. Joining an existing league still goes to
+Overview, where the interesting thing is.
+
+**Five questions have to come first**, in this order: name, show, season, league type, ownership. Two
+of them are expensive to get wrong — league type and ownership both lock the moment a draft runs or an
+episode is logged — and the rest of the tab depends on them (there's no point entering a cast before
+the season is known, and the Pick'em / Active Roster / finale panels are each specific to a league
+type nobody has chosen yet). So `SetupTab` hides everything below League Info, and League Info
+becomes a short wizard: a checklist, one question revealed at a time, and a button that ends the
+guide.
+
+The ordering and done-ness live in **`SetupLogic`** in `state-logic.js`, not in the component, so
+they're testable without React and so the reveal, the checklist and the gate all share one definition
+of "answered".
+
+- `settings.showId` is now `null` on a new league instead of `'survivor'` — nobody has chosen yet,
+  and pretending otherwise is what made "pick your show" invisible. `settings.wikiSeason` was already
+  null.
+- `leagueTypeId` and `ownershipMode` keep working defaults, because `getLeagueType()` and every
+  strategy lookup must resolve to something from the first render. Their steps are flagged
+  `defaulted`, so the checklist shows `(Classic Snake Draft, default)` rather than a tick that would
+  claim a human chose it. Confirming setup is what turns those into real decisions.
+- **`settings.setupComplete` is `false` only on leagues created after this shipped.** Every league
+  that predates it has no such key, and `SetupLogic.isComplete` treats anything that isn't an
+  explicit `false` as complete — so no migration, and no established league gets sent back through
+  setup just because it never set a `wikiSeason`.
+- Changing the show clears the season, because a season number belongs to a show: `44` means Survivor
+  44, not Traitors 44.
+- The connector now **refuses** a league with no show rather than falling back to `'survivor'`. That
+  fallback was a wrong answer that looked like a working one — it's how a Traitors league ends up
+  fetching Survivor's wiki. Same for a `showId` whose catalog row has been deleted, and for a show
+  with no wiki API endpoint.
+
+**Per-show terminology is now actually read.** `shows.castaway_term`/`tribe_term` have existed since
+the hardcoded `SHOWS` registry and became editable with the admin catalog, but *nothing read them* —
+so a Traitors league still said "castaway" and "tribe" in every label, dropdown, confirm dialog and
+hint. `src/lib/use-show-terms.ts` is what reads them: `useShowTerms()` returns
+`{Castaway, Castaways, castaway, castaways, Tribe, Tribes, tribe, tribes}` for the loaded league's
+show, and ~25 components use it instead of hardcoded words.
+
+- Terms come from the **catalog**, not copied into league state, so editing them in Admin takes effect
+  everywhere at once rather than only in leagues created afterwards. The cost is that the first paint
+  uses Survivor's defaults and swaps when the query resolves; one shared `queryKey` plus a long
+  `staleTime` keeps that to once per session, and the Show/Season pickers share the same fetch.
+- Both a singular and a plural are derived from whatever was typed, **in either direction**. That's
+  not hypothetical: the field is labelled as a singular and the first person to use it typed
+  `Contestants`, which a naive pluralizer turns into "Contestantses". `-ss/-us/-is/-sh/-ch/-x/-z` are
+  excluded from the already-plural test because those endings belong to singulars (Class, Bus, Iris).
+- Terminology is editable after creation now, in the expanded show row in Admin — getting it wrong
+  shouldn't mean recreating the show and orphaning its leagues.
+
+**Verified** with 43 checks: `SetupLogic`'s ordering as pure logic (the five steps in order, one
+revealed at a time, the ownership step dropping out for a rosterless league type, `defaulted` flags,
+each step's reported value, a cleared season re-opening its step, and a pre-guided-setup league never
+being gated), then the same walk through the real API and Postgres (empty cast and null show both
+returned *and* persisted as JSONB, the creator still added as first player, each answer saved,
+confirmation persisted, season cleared on a show change, and the connector refusing a league with no
+show). The pre-existing suites were re-run green after being updated to build their own casts —
+48/23/51 on the pure blind-draft/Pick'em/Active-Roster fixtures, 18/23/9/18 on their API suites, 35/35
+on shows — and the exclusive-draft byte-diff baseline is identical apart from the two intended
+`settings` lines once random ids are normalized (the fixture now builds its cast explicitly so it runs
+against both the old and new `state-logic.js`, which is the only way that diff means anything).
+
 ## League switcher (`src/components/league-switcher.tsx`)
 
 The static league-name display in both `Sidebar` and `MobileNav`'s top bar becomes a real dropdown
@@ -820,7 +897,8 @@ message. Adding a season to a show that has no API endpoint yet backfills it fro
 | Field | Why it exists |
 |---|---|
 | show `name` / `slug` | Display label vs. the immutable identity leagues reference |
-| `castaway_term` / `tribe_term` | Existed in the old registry and in the `Show` type but was never read. Editable now, because the moment there's a second show it matters: Big Brother has Houseguests, not Castaways |
+| `castaway_term` / `tribe_term` | Existed in the old registry and in the `Show` type but was never read *at all* until the terminology work below — the whole UI said "castaway"/"tribe" regardless. Editable after creation too, and they also drive which wiki section the connector looks for |
+| `cast_section_heading` | Added in `0007`. Override for the wikitext section holding the cast, for a wiki that calls it something the candidate list can't guess. NULL — the normal case — means infer it from `castaway_term` |
 | `wiki_api_url` | Per show, since different shows live on different wikis — this is what made a single hardcoded endpoint in the connector wrong |
 | season `wiki_page_title` / `wiki_url` | The connector's actual target, plus the input it was derived from |
 | `status` (upcoming/airing/completed) | Lets the connector skip seasons not worth fetching, and the Season picker mark what's live |
@@ -869,11 +947,14 @@ is the whole point of the design and matters more than usual here because extrac
 
 **Shape of a run** (`node db/wiki-sync.js cast <leagueId> [--dry]`):
 
-1. Read `settings.wikiSeason` (commissioner-set; the script refuses to guess).
-2. Fetch `Survivor <N>` wikitext via the MediaWiki Action API, keeping the revision id.
-3. Slice the `==Castaways==` section **deterministically** before the model sees it — a fixed
-   cut can't drop a row the way asking the model to find the section might, and it keeps the
-   extraction to ~1-2K tokens.
+1. Read `settings.showId` and `settings.wikiSeason` (commissioner-set; the script refuses to guess
+   either, and refuses outright rather than assuming Survivor — see below).
+2. Resolve the page title and wiki API endpoint from the catalog, then fetch the wikitext via the
+   MediaWiki Action API, keeping the revision id.
+3. Find and slice the cast section **deterministically** before the model sees it — a fixed cut
+   can't drop a row the way asking the model to find the section might, and it keeps the extraction
+   small. Which heading, and what to do when the section is pure transclusion, are both per-show
+   questions; see "Making the connector work for a second show" below.
 4. Extract with Claude using **structured outputs** (`messages.parse` + a Zod schema), so a
    response that doesn't fit the shape doesn't come back at all.
 5. **Re-validate the content** against the league's own state (below).
@@ -887,8 +968,12 @@ is the whole point of the design and matters more than usual here because extrac
 **Shape-valid is not the same as correct, so validation is a separate layer.** The schema can't tell
 you whether the model invented a tribe. `validateCast` rejects the entire run — rather than
 filing a partly-trusted proposal someone might rubber-stamp — on duplicates, empty or implausibly
-long names, no tribes at all, or a cast size outside 4-40. A castaway pointing at a tribe that isn't
-in the extracted tribe list keeps the castaway and drops the unbacked link, reported as a note.
+long names, or a cast size outside 4-40. A castaway pointing at a tribe that isn't in the extracted
+tribe list keeps the castaway and drops the unbacked link, reported as a note. "No tribes at all" used
+to be fatal too, on the assumption that every show divides its cast into groups; that's true of
+Survivor and not true in general, and refusing the run leaves the commissioner with nothing to look at
+instead of a cast list with no groupings — so it's a note now. Nothing is applied without their
+confirmation regardless, which is where a genuinely wrong extraction gets caught.
 
 **Every proposal records provenance** — page titles, wiki revision ids, model, timestamp — shown in
 the review UI. LLM extraction isn't reproducible from its inputs, so without this a commissioner
@@ -936,6 +1021,67 @@ real key, both fixed: an org-scoped key needs a `anthropic-workspace-id` header 
 `ANTHROPIC_WORKSPACE_ID`, with an error message naming the fix instead of a raw 400), and API
 errors now surface Anthropic's own message instead of the SDK's, which prefixes the status and
 then embeds the whole raw JSON body.
+
+### Making the connector work for a second show
+
+Pointing the connector at a Traitors season failed with `No ==Castaways== section found` on a page that
+plainly had a cast section. Three separate Survivor assumptions were in the way.
+
+**1. The heading was matched as a literal string.** `indexOf("==Castaways==")` misses
+`== Contestants ==` twice over — a different word *and* padded with spaces. Headings are now matched
+with a regex (`^(={2,6})\s*title\s*\1$`, any level), and the section runs to the next heading of the
+**same or shallower** level rather than the next `==` of any kind, so a cast table split into
+`===Tribe A===` / `===Tribe B===` subsections no longer gets truncated.
+
+Which heading to look for is derived, not hardcoded: the show's own `castaway_term`, pluralized, then
+singular, then the words wikis reach for regardless of show (`Castaways`, `Contestants`, `Cast`,
+`Cast Members`, `Houseguests`, `Players`, `Competitors`). Survivor's "Castaways", Traitors'
+"Contestants" and Big Brother's "Houseguests" all fall out of a term an admin has already entered for
+the UI's sake, so the common case needs no configuration at all. `shows.cast_section_heading`
+(migration `0007`) is the escape hatch for a wiki that calls it something unguessable — same reasoning
+as `wiki_page_title` being independently editable rather than always derived. When nothing matches, the
+error now names both what was looked for and **what headings the page actually has**, which is what
+makes it fixable; the old message named neither.
+
+**2. The section was pure transclusion.** The Traitors Contestants section is literally
+`{{US5 Contestant History}}` + `{{US5 Contestant Info}}` — the cast table lives on
+`Template:US5 Contestant Info`. So fixing the heading alone would have changed the error, not the
+outcome. `expandTranscludedTables` follows transclusions one level deep and appends any whose wikitext
+contains a table (`{|`), each labelled with an HTML comment naming where it came from. That `{|` test is
+what keeps inline formatting templates out of the prompt — `{{c|faithful|...}}` and `{{s|...}}` resolve
+to coloured spans, carry no rows, and would cost tokens for nothing. Provenance now records **every**
+page read, not just the season page: with transclusion the season page's own revision id no longer pins
+what was extracted. This is the same shape the original investigation found for Survivor's vote and
+episode tables (`{{S44votetable}}`), so it's built generically rather than for one show — and phase two
+needs it.
+
+**3. The prompt and the validation messages spoke Survivor.** Both now take the show's vocabulary, so a
+Traitors run asks for "every contestant and the starting factions" and the schema describes "the
+distinct starting groups the cast is divided into … tribes, factions, teams, houses". The wikitext is
+the authority either way; this only stops the prompt from describing a table using a word that appears
+nowhere in it. The system prompt also warns that some tables arrive transcluded and that a person
+appearing in more than one must be returned once.
+
+**Verified** with 27 pure checks (heading parsing and padding, subsection retention, stopping at the
+right level, candidate derivation and ordering for three shows, override precedence and dedup, the
+plural/singular pair in both directions, the transclusion name scan skipping parser functions and magic
+words) — of which 10 run against the **real** Traitors and Survivor wikis, asserting that the Traitors
+section is bare transclusion before expansion and has a table after, that the expansion names its pages
+and revision ids, that the inline `{{c}}` span template is *not* fetched as a page, and that Survivor's
+inline path is untouched.
+
+**Then the model call itself, against independently-derived ground truth.** Ground truth for
+`The Traitors (US)/New Blood` was read straight out of `Template:US5 Contestant Info` with a regex over
+the bolded `'''[[Name]]'''` cells — 22 contestants, and a Faction column of 20 Faithful / 2 Traitor —
+before any extraction ran. A real `--dry` run matched it **exactly**: 22/22 names, zero invented, zero
+missing, both factions, the right 2 people marked Traitor, and 22/22 photos resolved to real
+`static.wikia.nocookie.net` URLs. The catalogued `cast_size` of 22 agrees. `Survivor 44` was re-run as a
+regression and is unchanged — 18 castaways, 3 tribes, 18 photos, no transclusion needed.
+
+One thing worth knowing for a Traitors league that already exists: apply is additive by design, so
+importing 22 contestants into a league that still holds the old 21-name Survivor seed leaves 43. New
+leagues start empty (see "Guided first-time setup" above); an existing one needs those 21 removed, or a
+super-admin reset.
 
 ## Cast photos (`public/photos/`, `components/castaway-avatar.tsx`)
 

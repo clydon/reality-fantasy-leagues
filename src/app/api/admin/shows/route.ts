@@ -9,7 +9,8 @@ import { pool, HttpError } from "@/lib/server/db";
 export const GET = apiRoute(async (req) => {
   await requireSuperAdmin(req);
   const { rows } = await pool.query(
-    `SELECT s.id, s.slug, s.name, s.castaway_term, s.tribe_term, s.wiki_api_url, s.archived, s.created_at,
+    `SELECT s.id, s.slug, s.name, s.castaway_term, s.tribe_term, s.wiki_api_url, s.cast_section_heading,
+            s.archived, s.created_at,
             (SELECT count(*)::int FROM leagues l WHERE l.state->'settings'->>'showId' = s.slug) AS league_count,
             COALESCE(
               json_agg(
@@ -47,6 +48,7 @@ export const POST = apiRoute(async (req) => {
     castawayTerm?: string;
     tribeTerm?: string;
     wikiApiUrl?: string;
+    castSectionHeading?: string;
   };
   const name = (body.name || "").trim();
   if (!name) throw new HttpError(400, "name required");
@@ -55,14 +57,17 @@ export const POST = apiRoute(async (req) => {
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO shows (slug, name, castaway_term, tribe_term, wiki_api_url)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id, slug, name`,
+      `INSERT INTO shows (slug, name, castaway_term, tribe_term, wiki_api_url, cast_section_heading)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, slug, name`,
       [
         slug,
         name,
         (body.castawayTerm || "").trim() || "Castaway",
         (body.tribeTerm || "").trim() || "Tribe",
         (body.wikiApiUrl || "").trim() || null,
+        // Null is the normal case: wiki-sync infers the heading from castawayTerm and only needs
+        // telling when a wiki calls the section something unguessable.
+        (body.castSectionHeading || "").trim() || null,
       ]
     );
     return NextResponse.json({ show: rows[0] });

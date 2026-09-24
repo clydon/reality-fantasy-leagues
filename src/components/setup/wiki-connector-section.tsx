@@ -10,6 +10,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Review queue for the wiki connector (db/wiki-sync.js). Commissioner-only, and live-mode only --
 // proposals live in their own table, so there's nothing for mock mode to show, same as Invites.
@@ -20,6 +21,7 @@ import { Input } from "@/components/ui/input";
 // LLM-based -- which is also why each proposal shows its provenance (which wiki page, which revision,
 // which model, when) rather than asking you to trust it blind.
 export function WikiConnectorSection({ state }: { state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mode = useLeagueStore((s) => s.mode);
   const setState = useLeagueStore((s) => s.setState);
@@ -53,9 +55,11 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
       const a = res.applied;
       setNote(
         a
-          ? `Added ${a.castaways.length} castaway${a.castaways.length === 1 ? "" : "s"} and ` +
-            `${a.tribes.length} tribe${a.tribes.length === 1 ? "" : "s"}` +
-            (a.skipped.length ? `; left ${a.skipped.length} existing castaway${a.skipped.length === 1 ? "" : "s"} untouched.` : ".")
+          ? `Added ${a.castaways.length} ${a.castaways.length === 1 ? terms.castaway : terms.castaways} and ` +
+            `${a.tribes.length} ${a.tribes.length === 1 ? terms.tribe : terms.tribes}` +
+            (a.skipped.length
+              ? `; left ${a.skipped.length} existing ${a.skipped.length === 1 ? terms.castaway : terms.castaways} untouched.`
+              : ".")
           : "Applied."
       );
       refetch();
@@ -144,8 +148,8 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
                     <div className="mb-1.5 flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">{p.kind}</Badge>
                       <span className="text-sm font-semibold">
-                        {newOnes.length} new castaway{newOnes.length === 1 ? "" : "s"}, {tribes.length} tribe
-                        {tribes.length === 1 ? "" : "s"}
+                        {newOnes.length} new {newOnes.length === 1 ? terms.castaway : terms.castaways},{" "}
+                        {tribes.length} {tribes.length === 1 ? terms.tribe : terms.tribes}
                       </span>
                       {cast.length !== newOnes.length && (
                         <span className="text-xs text-muted-foreground">

@@ -4,6 +4,7 @@ import type { LeagueState, ScoreRow } from "@/lib/game/types";
 import { playerEventRows } from "@/lib/game/active-roster-rows";
 import { playerBetRows } from "@/lib/game/bet-rows";
 import { cn } from "cn";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Active Roster's leaderboard row. Separate from LeaderboardRow because that one's breakdown is
 // "Boot Order" plus a roster list with elimination placements -- which is exactly what this league
@@ -11,6 +12,7 @@ import { cn } from "cn";
 // roster disclosure has to distinguish what was ACTIVE from what sat on the bench, since a benched
 // castaway's events score nothing.
 export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; state: LeagueState }) {
+  const terms = useShowTerms();
   const bonusEnabled = state.settings.bonusEnabled;
   const bets = bonusEnabled ? playerBetRows(state, r.playerId) : [];
   const eventRows = playerEventRows(state, r.playerId);
@@ -77,7 +79,8 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
           ))}
         </div>
         <p className="mt-1.5 text-[0.7rem] text-muted-foreground">
-          Being on the roster isn&rsquo;t enough — only castaways in that episode&rsquo;s active lineup earned points.
+          Being on the roster isn&rsquo;t enough — only {terms.castaways} in that episode&rsquo;s active lineup earned
+          points.
         </p>
       </details>
 

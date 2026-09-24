@@ -2,6 +2,7 @@
 
 import type { LeagueState } from "@/lib/game/types";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
@@ -11,6 +12,7 @@ import { Button } from "@/components/ui/button";
 // Port of renderDraft()'s "Draft Results" panel -- who each player originally drafted, unaffected
 // by later Replenish/Swap (see the live app's own note: current rosters live on Scoreboard).
 export function DraftResultsPanel({ state }: { state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const mutate = useMutate();
@@ -32,7 +34,7 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
       <p className="mb-3 text-sm text-muted-foreground">
         Who each player originally drafted — this doesn&rsquo;t change after the draft.{" "}
         {shared
-          ? "This league shares ownership, so the same castaway may appear on more than one roster."
+          ? `This league shares ownership, so the same ${terms.castaway} may appear on more than one roster.`
           : "For CURRENT rosters (after any mid-season Replenish or Swap), see the Scoreboard tab."}
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

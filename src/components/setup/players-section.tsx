@@ -8,12 +8,14 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Port of renderSetup()'s Players panel: color/name edit, remove, and activating a player who
 // joined after the draft concluded (RosterLogic.addPlayer marks them inactive in that case --
 // there's no fair turn order left to slot them into, so the commissioner assigns free agents
 // directly instead of a live pick).
 export function PlayersSection({ state }: { state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const playerAccounts = useLeagueStore((s) => s.playerAccounts);
   const canManage = useCanManage();
@@ -40,7 +42,9 @@ export function PlayersSection({ state }: { state: LeagueState }) {
   }
 
   async function remove(id: string, name: string) {
-    const warning = hasRoster ? `Remove "${name}"? Their drafted castaways will become free agents.` : `Remove "${name}"?`;
+    const warning = hasRoster
+      ? `Remove "${name}"? Their drafted ${terms.castaways} will become free agents.`
+      : `Remove "${name}"?`;
     if (!confirm(warning)) return;
     await mutate(
       (s) => StateLogic.removePlayer(s, id),

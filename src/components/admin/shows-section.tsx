@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { AdminShow, ShowSeason } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
+import { plural } from "@/lib/use-show-terms";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,8 +123,9 @@ export function ShowsSection() {
           </Button>
         </div>
         <p className="mt-1 text-[0.7rem] text-muted-foreground">
-          Terms default to “Castaway”/“Tribe”. They exist so a second show can say what it actually calls people —
-          Houseguests, Racers, Teams.
+          Terms default to “Castaway”/“Tribe” and are what the whole app then calls people and groups —
+          Houseguests, Contestants, Factions, Teams. They also drive which wiki section the connector looks for,
+          so getting them right usually means no further configuration.
         </p>
       </div>
 
@@ -222,6 +224,67 @@ function ShowRow({
 
       {expanded && (
         <div className="mt-2 border-t border-border pt-2">
+          {/* Editable after creation, because the terminology is what the whole app says AND what
+              the connector uses to find the cast section -- getting it wrong shouldn't mean
+              recreating the show and orphaning its leagues. */}
+          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
+            <label className="flex items-center gap-1">
+              Calls people:
+              <Input
+                size="sm"
+                className="w-[120px]"
+                defaultValue={show.castaway_term}
+                disabled={busy}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v && v !== show.castaway_term) run(() => api.adminUpdateShow(show.id, { castawayTerm: v }));
+                }}
+              />
+            </label>
+            <label className="flex items-center gap-1">
+              Groups:
+              <Input
+                size="sm"
+                className="w-[110px]"
+                defaultValue={show.tribe_term}
+                disabled={busy}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v && v !== show.tribe_term) run(() => api.adminUpdateShow(show.id, { tribeTerm: v }));
+                }}
+              />
+            </label>
+            <label className="flex items-center gap-1">
+              Cast section:
+              <Input
+                size="sm"
+                className="w-[140px]"
+                placeholder={`auto (${plural(show.castaway_term)})`}
+                title="Wiki section heading holding the cast table. Leave blank to infer it from the term above."
+                defaultValue={show.cast_section_heading ?? ""}
+                disabled={busy}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v !== (show.cast_section_heading ?? "")) run(() => api.adminUpdateShow(show.id, { castSectionHeading: v }));
+                }}
+              />
+            </label>
+            <label className="flex min-w-[200px] flex-1 items-center gap-1">
+              Wiki API:
+              <Input
+                size="sm"
+                className="min-w-[160px] flex-1"
+                placeholder="https://example.fandom.com/api.php"
+                defaultValue={show.wiki_api_url ?? ""}
+                disabled={busy}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v !== (show.wiki_api_url ?? "")) run(() => api.adminUpdateShow(show.id, { wikiApiUrl: v }));
+                }}
+              />
+            </label>
+          </div>
+
           {show.seasons.length === 0 ? (
             <p className="mb-2 text-xs italic text-muted-foreground">No seasons yet.</p>
           ) : (

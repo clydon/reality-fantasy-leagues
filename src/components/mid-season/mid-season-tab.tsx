@@ -5,6 +5,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { ReplenishPanel } from "./replenish-panel";
 import { TradePanel } from "./trade-panel";
 import { FinalePanel } from "./finale-panel";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Direct port of renderMidseason() (public/app.js): intro panel, then Replenish, Swap, and
 // Finale Predictions, same order. Each panel is additionally gated on the active league type's
@@ -13,6 +14,7 @@ import { FinalePanel } from "./finale-panel";
 // a future league type without e.g. a persistent roster (so no Replenish/Swap) able to just not
 // show those panels, rather than needing a special case here later.
 export function MidSeasonTab() {
+  const terms = useShowTerms();
   const state = useLeagueStore((s) => s.state);
   const leagueType = StateLogic.getLeagueType(state);
   // Capability AND commissioner choice -- both default off, see replenishAvailable's comment.
@@ -42,7 +44,7 @@ export function MidSeasonTab() {
         <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
           <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Replenish &amp; Swap</h3>
           <p className="text-sm text-muted-foreground">
-            Change who owns which castaway after eliminations — full mechanics are in the Rules tab. Usually run Replenish
+            Change who owns which {terms.castaway} after eliminations — full mechanics are in the Rules tab. Usually run Replenish
             first, right after the merge, then Swap.
           </p>
         </div>

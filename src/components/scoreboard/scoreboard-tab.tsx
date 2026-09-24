@@ -5,12 +5,14 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { LeaderboardRow } from "./leaderboard-row";
 import { PickEmLeaderboardRow } from "./pickem-leaderboard-row";
 import { ActiveRosterLeaderboardRow } from "./active-roster-leaderboard-row";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Direct port of renderScoreboard() (public/app.js). Pure read -- no mutations, no canManage()
 // branching, so no use-mutate.ts hook needed here at all. Row component is chosen per league
 // type -- LeaderboardRow's "Boot Order"/roster framing is classic-draft-specific and doesn't
 // describe pickem's scoring at all (see PickEmLeaderboardRow's own comment).
 export function ScoreboardTab() {
+  const terms = useShowTerms();
   const state = useLeagueStore((s) => s.state);
   const scores = StateLogic.computeScores(state);
   const leagueType = StateLogic.getLeagueType(state);
@@ -32,7 +34,7 @@ export function ScoreboardTab() {
       ))}
       {!hasWeeklyPicks && !leagueType.hasActiveRoster && (
         <p className="mt-4 text-sm text-muted-foreground">
-          Total castaways this season: {state.castaways.length}. Sole Survivor should be logged as the final
+          Total {terms.castaways} this season: {state.castaways.length}. Sole Survivor should be logged as the final
           elimination-order event (method &ldquo;Sole Survivor&rdquo;) so their placement points count.
         </p>
       )}

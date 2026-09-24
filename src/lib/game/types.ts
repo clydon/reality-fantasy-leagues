@@ -110,7 +110,14 @@ export interface LeagueSettings {
   finalePredictionScope: string;
   draftScheduledAt?: string | null;
   leagueTypeId: string;
-  showId: string;
+  /** The catalog show's slug. Null on a new league until the commissioner picks one. */
+  showId: string | null;
+  /**
+   * Guided-setup gate. `false` only on leagues created after guided setup shipped; absent on every
+   * league that predates it, and anything other than an explicit `false` counts as complete -- see
+   * SetupLogic in state-logic.js.
+   */
+  setupComplete?: boolean;
   // classic-draft only: 'exclusive' (snake draft, one owner per castaway) or 'shared' (blind draft,
   // many owners). Fixed pairing with the draft mechanic -- see CLASSIC_DRAFT_SHARED in state-logic.js.
   ownershipMode: "exclusive" | "shared";
@@ -175,6 +182,8 @@ export interface AdminShow {
   castaway_term: string;
   tribe_term: string;
   wiki_api_url: string | null;
+  /** Override for which wikitext section holds the cast. Null = wiki-sync infers it. */
+  cast_section_heading: string | null;
   archived: boolean;
   created_at: string;
   league_count: number;

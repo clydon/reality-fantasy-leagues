@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
+import { useShowTerms } from "@/lib/use-show-terms";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Select } from "@/components/ui/select";
 export function CastawaysSection({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
+  const terms = useShowTerms();
   const mutate = useMutate();
   const [newName, setNewName] = useState("");
 
@@ -65,7 +67,7 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
                 onBlur={(e) => e.target.value.trim() && e.target.value !== c.name && update(c.id, "name", e.target.value.trim())}
               />
               <Select size="sm" value={c.tribeId ?? ""} disabled={!canManage} onChange={(e) => update(c.id, "tribeId", e.target.value || null)}>
-                <option value="">— no tribe —</option>
+                <option value="">— no {terms.tribe} —</option>
                 {state.tribes.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -103,12 +105,12 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
         <div className="mt-3 flex gap-1.5">
           <Input
             className="min-w-0 flex-1"
-            placeholder="New castaway name"
+            placeholder={`New ${terms.castaway} name`}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           />
-          <Button onClick={handleAdd}>Add Castaway</Button>
+          <Button onClick={handleAdd}>Add {terms.Castaway}</Button>
         </div>
       )}
     </div>

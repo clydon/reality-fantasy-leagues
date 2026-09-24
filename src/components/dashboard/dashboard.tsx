@@ -53,13 +53,16 @@ export function Dashboard() {
   }, [isAuthenticated]);
 
   // Same end state as AuthGate's loadFirstLeague: refreshed league list, the target league loaded
-  // live -- then straight into its Overview tab.
-  async function enterLeague(leagueId: string, message: string) {
+  // live -- then into a tab. `to` exists because a league you just CREATED has nothing to show on
+  // Overview: no show, no season, no cast. It goes to League Settings instead, where guided setup
+  // asks for those. Joining an existing league still lands on Overview, which is where the
+  // interesting thing is.
+  async function enterLeague(leagueId: string, message: string, to = "/") {
     const me = await api.me();
     setLeagues(me.leagues);
     await switchLeague(leagueId);
     setFlash(message);
-    router.push("/");
+    router.push(to);
   }
 
   async function run(key: string, fn: () => Promise<void>) {
@@ -91,7 +94,11 @@ export function Dashboard() {
     if (!name) return;
     run("create", async () => {
       const { league } = await api.createLeague(name);
-      await enterLeague(league.id, `Created ${league.name}. Share join code ${league.join_code} or send invites from League Settings.`);
+      await enterLeague(
+        league.id,
+        `Created ${league.name}. Set it up below, then share join code ${league.join_code} or send invites.`,
+        "/setup"
+      );
     });
   }
 

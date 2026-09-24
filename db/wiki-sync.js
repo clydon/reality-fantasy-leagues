@@ -43,14 +43,21 @@ const MODEL = "claude-opus-5";
 const CastSchema = z.object({
   tribes: z
     .array(z.object({ name: z.string() }))
-    .describe("The season's starting tribes, in the order the table presents them."),
+    .describe(
+      "The distinct starting groups the cast is divided into, in the order the table presents them. " +
+        "What these are called varies by show (tribes, factions, teams, houses); use whatever the " +
+        "table's own grouping column gives. Empty if the show has no such grouping."
+    ),
   castaways: z.array(
     z.object({
       name: z.string().describe("Full name as the wiki gives it, e.g. 'Bruce Perreault'."),
       tribeName: z
         .string()
         .nullable()
-        .describe("The castaway's ORIGINAL tribe name, or null if the table doesn't give one."),
+        .describe(
+          "This person's ORIGINAL group (the first grouping column: original tribe, starting " +
+            "faction, starting team), or null if the table doesn't give one."
+        ),
       photoFile: z
         .string()
         .nullable()
@@ -105,19 +112,151 @@ async function resolvePhotoUrls(fileNames, apiUrl = WIKI_API) {
   }
 }
 
-// The cast table is one section of a long page. Slicing to it before the model sees it keeps the
-// extraction focused and the token count small -- and it's a deterministic cut, so it can't drop a
-// row the way asking the model to "find the castaways section" might.
-function sliceSection(wikitext, heading) {
-  const start = wikitext.indexOf(heading);
-  if (start < 0) return null;
-  const rest = wikitext.slice(start + heading.length);
-  const nextHeading = rest.search(/\n==[^=]/);
-  return heading + (nextHeading < 0 ? rest : rest.slice(0, nextHeading));
+// ---------- finding the cast section ----------
+// Wikitext headings: ==Title==, at any level from 2 to 6. Matched with a regex rather than indexOf()
+// because the original did an exact `indexOf("==Castaways==")` and therefore missed
+// "== Contestants ==" -- a different word AND different spacing -- on the Traitors wiki.
+const HEADING_RE = /^(={2,6})[ \t]*([^=\n]+?)[ \t]*\1[ \t]*$/gm;
+
+function listHeadings(wikitext) {
+  const out = [];
+  HEADING_RE.lastIndex = 0;
+  let m;
+  while ((m = HEADING_RE.exec(wikitext))) {
+    out.push({ level: m[1].length, title: m[2].trim(), start: m.index });
+  }
+  return out;
+}
+
+// Just enough English to get a singular and a plural out of whatever term an admin typed --
+// including a term typed already-plural ("Contestants"), which a naive pluralizer turns into
+// "Contestantses". Mirrors plural()/singular() in src/lib/use-show-terms.ts; duplicated rather than
+// shared because this is a standalone CommonJS CLI with no access to the Next/TS build.
+const LOOKS_PLURAL = /[^sciux]s$/i;
+
+function plural(word) {
+  if (!word) return word;
+  if (LOOKS_PLURAL.test(word)) return word;
+  if (/(s|x|z|ch|sh)$/i.test(word)) return word + 'es';
+  if (/[^aeiou]y$/i.test(word)) return word.slice(0, -1) + 'ies';
+  return word + 's';
+}
+
+function singular(word) {
+  if (!word) return word;
+  if (/ies$/i.test(word)) return word.slice(0, -3) + 'y';
+  if (LOOKS_PLURAL.test(word)) return word.slice(0, -1);
+  return word;
+}
+
+// What a season page might call its cast section, best guess first:
+//   1. the show's explicit override, when an admin set one (shows.cast_section_heading)
+//   2. the show's own castaway_term, pluralized then singular -- which is how Survivor's
+//      "Castaways", Traitors' "Contestants" and Big Brother's "Houseguests" all fall out of a term
+//      the admin has already entered, with no extra configuration
+//   3. the words wikis reach for regardless of show
+// Deduplicated case-insensitively so an override that matches a guess doesn't get tried twice.
+function castSectionCandidates(castawayTerm, override) {
+  const term = singular((castawayTerm || 'Castaway').trim());
+  const seen = new Set();
+  return [override, plural(term), term, 'Castaways', 'Contestants', 'Cast', 'Cast Members', 'Houseguests', 'Players', 'Competitors']
+    .map((c) => (c || '').trim())
+    .filter((c) => c && !seen.has(c.toLowerCase()) && seen.add(c.toLowerCase()));
+}
+
+// Slices the page down to one section before the model sees it. Deterministic, which is the whole
+// point: asking the model to "find the cast section" is how a row goes missing.
+//
+// Runs to the next heading of the SAME OR SHALLOWER level, so a section with subsections keeps them.
+// The old version cut at the next `==` of any kind, which would have truncated a cast table split
+// into "===Tribe A===" / "===Tribe B===" subsections.
+function findSection(wikitext, candidates) {
+  const headings = listHeadings(wikitext);
+  for (const want of candidates) {
+    const i = headings.findIndex((h) => h.title.toLowerCase() === want.toLowerCase());
+    if (i < 0) continue;
+    const h = headings[i];
+    const next = headings.slice(i + 1).find((n) => n.level <= h.level);
+    return { matched: want, title: h.title, text: wikitext.slice(h.start, next ? next.start : wikitext.length) };
+  }
+  return null;
+}
+
+// ---------- transclusion ----------
+// A section can be nothing but template calls. The Traitors season page's Contestants section is
+// literally `{{US5 Contestant History}}` + `{{US5 Contestant Info}}` -- the cast table itself lives
+// on Template:US5 Contestant Info. That's the same shape the investigation found for Survivor's vote
+// and episode tables ({{S44votetable}}), so this is built generically rather than for one show.
+//
+// One level deep, and only templates whose wikitext actually contains a table (`{|`). That filter is
+// what keeps inline formatting templates out of the prompt -- {{c|faithful|...}}, {{s|...}} resolve
+// to coloured spans, carry no rows, and would cost tokens for nothing.
+const MAX_SECTION_CHARS = 60000;
+
+function transcludedNames(wikitext) {
+  const names = [];
+  // The name runs from `{{` to the first `|` or `}`. Parser functions and interwiki calls contain
+  // `:` or `#` and are excluded by the character class rather than filtered afterwards.
+  const re = /\{\{\s*([^|{}\n#:]+?)\s*(?=[|}])/g;
+  let m;
+  while ((m = re.exec(wikitext))) {
+    const name = m[1].trim();
+    // `{{!}}` and magic words like {{PAGENAME}} aren't pages worth fetching.
+    if (!name || name === '!' || /^[A-Z0-9_]+$/.test(name)) continue;
+    if (!names.some((n) => n.toLowerCase() === name.toLowerCase())) names.push(name);
+  }
+  return names;
+}
+
+// Returns the section text with any table-bearing templates appended, plus the pages that were read,
+// so provenance names every page the extraction actually saw and not just the season page.
+async function expandTranscludedTables(sectionText, apiUrl) {
+  const names = transcludedNames(sectionText).slice(0, 20);
+  if (!names.length) return { text: sectionText, pages: [] };
+
+  const titles = names.map((n) => (/^template:/i.test(n) ? n : 'Template:' + n));
+  const url =
+    `${apiUrl}?action=query&prop=revisions&titles=${encodeURIComponent(titles.join('|'))}` +
+    `&rvprop=content|ids&rvslots=main&format=json&formatversion=2`;
+  let data;
+  try {
+    const res = await fetch(url, { headers: { 'user-agent': 'reality-fantasy-leagues/wiki-sync' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (e) {
+    // Not fatal by itself: a season page whose cast IS inline needs none of this, and one whose cast
+    // is transcluded fails validation immediately after with a clear "too few" message.
+    console.log(`[wiki-sync] could not expand transcluded templates (${e.message}) -- using the section as-is`);
+    return { text: sectionText, pages: [] };
+  }
+
+  let text = sectionText;
+  const pages = [];
+  for (const page of (data.query && data.query.pages) || []) {
+    if (page.missing) continue;
+    const rev = page.revisions && page.revisions[0];
+    const content = (rev && rev.slots && rev.slots.main && rev.slots.main.content) || '';
+    if (!content.includes('{|')) continue; // no table -> nothing to extract from
+    if (text.length + content.length > MAX_SECTION_CHARS) {
+      console.log(`[wiki-sync] skipping "${page.title}" -- would exceed the ${MAX_SECTION_CHARS}-char extraction cap`);
+      continue;
+    }
+    // Labelled, so the model can tell one transcluded table from another and from the section body.
+    text += `\n\n<!-- transcluded from ${page.title} -->\n${content}`;
+    pages.push({ title: page.title, revisionId: rev ? rev.revid : null, apiUrl });
+  }
+  if (pages.length) {
+    console.log(`[wiki-sync] expanded ${pages.length} transcluded table(s): ${pages.map((p) => p.title).join(', ')}`);
+  }
+  return { text, pages };
 }
 
 // ---------- extraction ----------
-async function extractCast(sectionWikitext) {
+// `terms` carries the show's own vocabulary from the catalog (shows.castaway_term/tribe_term), so
+// the prompt asks about Contestants and Factions for a Traitors season rather than Castaways and
+// Tribes. The wikitext is the authority either way -- this only stops the prompt from describing a
+// table using a word that appears nowhere in it.
+async function extractCast(sectionWikitext, terms) {
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
     throw new Error(
       "No Anthropic credentials found. Set ANTHROPIC_API_KEY in .env.local (or run `ant auth login`).\n" +
@@ -139,13 +278,17 @@ async function extractCast(sectionWikitext) {
       system:
         "You extract structured data from MediaWiki wikitext. Report only what the wikitext actually " +
         "states. Never infer, complete or correct a name from outside knowledge of the show -- if a " +
-        "field isn't in the text, return null for it. Use each castaway's ORIGINAL tribe (the first " +
-        "tribe column), not a later shuffled or merged tribe.",
+        `field isn't in the text, return null for it. Use each ${terms.castaway}'s ORIGINAL ` +
+        `${terms.tribe} (the first ${terms.tribe} column), not a later shuffled or merged one. ` +
+        "Some of the text may be tables pulled in from transcluded templates, each marked with an " +
+        "HTML comment naming where it came from; treat those as part of the same section. If the " +
+        "same person appears in more than one of those tables, return them ONCE.",
       messages: [
         {
           role: "user",
           content:
-            "Extract every castaway and the starting tribes from this season's Castaways table.\n\n" +
+            `Extract every ${terms.castaway} and the starting ${terms.tribes} from this season's ` +
+            `${terms.Castaways} section.\n\n` +
             sectionWikitext,
         },
       ],
@@ -187,45 +330,51 @@ async function extractCast(sectionWikitext) {
 // that can be confidently wrong, so a proposal only gets filed if it survives all of this -- and a
 // failure rejects the whole run rather than filing a partially-trusted proposal for someone to
 // rubber-stamp.
-function validateCast(cast, state) {
+function validateCast(cast, state, terms) {
   const problems = [];
   const tribeNames = (cast.tribes || []).map((t) => (t.name || "").trim()).filter(Boolean);
-  if (!tribeNames.length) problems.push("no tribes extracted");
+  // A note, not a refusal. This used to be fatal, on the assumption that every show divides its cast
+  // into groups -- true of Survivor, not true in general, and refusing the whole run leaves the
+  // commissioner with nothing to look at instead of a cast list with no groupings. Nothing is applied
+  // without their confirmation anyway, which is where a genuinely wrong extraction gets caught.
+  if (!tribeNames.length) problems.push(`no ${terms.tribes} extracted`);
   if (new Set(tribeNames.map((n) => n.toLowerCase())).size !== tribeNames.length) {
-    problems.push("duplicate tribe names");
+    problems.push(`duplicate ${terms.tribe} names`);
   }
 
   const seen = new Set();
   const castaways = [];
   for (const c of cast.castaways || []) {
     const name = (c.name || "").trim();
-    if (!name) { problems.push("a castaway row had no name"); continue; }
+    if (!name) { problems.push(`a ${terms.castaway} row had no name`); continue; }
     // Wiki names are people's names -- anything wild here means the extraction went off the rails.
-    if (name.length > 60) { problems.push(`implausible castaway name: "${name.slice(0, 40)}..."`); continue; }
+    if (name.length > 60) { problems.push(`implausible ${terms.castaway} name: "${name.slice(0, 40)}..."`); continue; }
     const key = name.toLowerCase();
-    if (seen.has(key)) { problems.push(`duplicate castaway: ${name}`); continue; }
+    if (seen.has(key)) { problems.push(`duplicate ${terms.castaway}: ${name}`); continue; }
     seen.add(key);
 
     let tribeName = c.tribeName ? String(c.tribeName).trim() : null;
     // A tribe the model named but the tribe list doesn't contain is exactly the kind of quiet
     // invention worth dropping: keep the castaway, drop the unbacked tribe link.
     if (tribeName && !tribeNames.some((t) => t.toLowerCase() === tribeName.toLowerCase())) {
-      problems.push(`castaway "${name}" referenced unknown tribe "${tribeName}" (tribe link dropped)`);
+      problems.push(`${terms.castaway} "${name}" referenced unknown ${terms.tribe} "${tribeName}" (link dropped)`);
       tribeName = null;
     }
     castaways.push({ name, tribeName, photoFile: c.photoFile ? String(c.photoFile).trim() : null });
   }
 
-  if (castaways.length < 4) problems.push(`only ${castaways.length} castaways extracted -- too few to be a real season`);
-  if (castaways.length > 40) problems.push(`${castaways.length} castaways extracted -- more than any real season`);
+  if (castaways.length < 4) problems.push(`only ${castaways.length} ${terms.castaways} extracted -- too few to be a real season`);
+  if (castaways.length > 40) problems.push(`${castaways.length} ${terms.castaways} extracted -- more than any real season`);
 
   // How much of this is actually new is the commissioner's main question, so compute it here rather
   // than making them diff two lists by eye.
   const existing = new Set(state.castaways.map((c) => c.name.trim().toLowerCase()));
   const newCastaways = castaways.filter((c) => !existing.has(c.name.toLowerCase()));
 
-  // A dropped tribe link is a note, not a reason to refuse the whole run. Anything structural is.
-  const fatal = problems.filter((p) => !p.includes("tribe link dropped"));
+  // Notes vs. refusals: an unbacked grouping that got dropped, and a show with no groupings at all,
+  // are both things a commissioner can see and judge for themselves in the review UI. Anything
+  // structural -- a missing name, a duplicate, an implausible count -- refuses the run.
+  const fatal = problems.filter((p) => !p.includes("(link dropped)") && !p.startsWith("no "));
   return { tribes: tribeNames.map((name) => ({ name })), castaways, newCount: newCastaways.length, problems, fatal };
 }
 
@@ -251,16 +400,52 @@ async function run(pool, command, leagueId, opts) {
   //
   // Falls back to the old hardcoded shape when there's no catalog row, so a league set up before the
   // catalog existed (or one whose season row was deleted) still works rather than hard-failing.
-  const showSlug = (state.settings && state.settings.showId) || "survivor";
+  const showSlug = state.settings && state.settings.showId;
+  if (!showSlug) {
+    throw new Error(
+      `League "${league.name}" has no show set. Pick one in League Settings first -- this used to ` +
+        `assume Survivor, which is exactly how a Traitors league ends up fetching the wrong wiki.`
+    );
+  }
   const { rows: catalog } = await pool.query(
-    `SELECT ss.wiki_page_title, ss.name AS season_name, s.name AS show_name, s.wiki_api_url
+    `SELECT ss.wiki_page_title, ss.name AS season_name,
+            s.name AS show_name, s.wiki_api_url, s.castaway_term, s.tribe_term, s.cast_section_heading
        FROM shows s LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number = $2
       WHERE s.slug = $1`,
     [showSlug, season]
   );
-  const entry = catalog[0] || {};
-  const pageTitle = entry.wiki_page_title || `${entry.show_name || "Survivor"} ${season}`;
-  const apiUrl = entry.wiki_api_url || WIKI_API;
+  // No row for the slug at all means the show was deleted out from under this league. Refuse rather
+  // than fall back, because the fallback used to be Survivor's wiki -- a wrong answer that looks like
+  // a working one.
+  if (!catalog.length) {
+    throw new Error(
+      `League "${league.name}" points at show "${showSlug}", which isn't in the catalog. ` +
+        `Re-add it in Admin > Shows & Seasons, or pick a different show in League Settings.`
+    );
+  }
+  const entry = catalog[0];
+  const pageTitle = entry.wiki_page_title || `${entry.show_name} ${season}`;
+  const apiUrl = entry.wiki_api_url;
+  if (!apiUrl) {
+    throw new Error(
+      `Show "${entry.show_name}" has no wiki API endpoint. Add one (or add a season with its wiki ` +
+        `URL, which fills it in) in Admin > Shows & Seasons.`
+    );
+  }
+  // The show's own vocabulary, used both to guess the cast section heading and to word the
+  // extraction prompt. Normalized to singular so a term entered either way yields the same forms.
+  const castawayTerm = singular((entry.castaway_term || "Castaway").trim());
+  const tribeTerm = singular((entry.tribe_term || "Tribe").trim());
+  const terms = {
+    Castaway: castawayTerm,
+    Castaways: plural(castawayTerm),
+    castaway: castawayTerm.toLowerCase(),
+    castaways: plural(castawayTerm).toLowerCase(),
+    Tribe: tribeTerm,
+    Tribes: plural(tribeTerm),
+    tribe: tribeTerm.toLowerCase(),
+    tribes: plural(tribeTerm).toLowerCase(),
+  };
   if (!entry.wiki_page_title) {
     console.log(
       `[wiki-sync] no catalog page title for ${showSlug} season ${season} -- guessing "${pageTitle}". ` +
@@ -269,12 +454,34 @@ async function run(pool, command, leagueId, opts) {
   }
   console.log(`[wiki-sync] league "${league.name}" -> ${pageTitle} (${apiUrl})`);
   const page = await fetchWikitext(pageTitle, apiUrl);
-  const section = sliceSection(page.wikitext, "==Castaways==");
-  if (!section) throw new Error(`No ==Castaways== section found on "${page.title}"`);
-  console.log(`[wiki-sync] castaways section: ${section.length} chars (rev ${page.revisionId})`);
 
-  const { cast, usage } = await extractCast(section);
-  const checked = validateCast(cast, state);
+  // Which heading holds the cast is a per-show question, not a constant. See castSectionCandidates:
+  // the show's own castaway_term drives the guess, with shows.cast_section_heading as the override.
+  const candidates = castSectionCandidates(castawayTerm, entry.cast_section_heading);
+  const section = findSection(page.wikitext, candidates);
+  if (!section) {
+    // Name what was looked for AND what the page actually has. The old message said only
+    // `No ==Castaways== section found`, which gave an admin no way to tell whether the page was
+    // wrong, the heading was spelled differently, or the wiki uses another word entirely.
+    const found = listHeadings(page.wikitext).map((h) => h.title);
+    throw new Error(
+      `No cast section found on "${page.title}".
+` +
+        `  looked for: ${candidates.join(", ")}
+` +
+        `  page has:   ${found.length ? found.join(", ") : "(no headings at all)"}
+` +
+        `Set the right one as the Cast section in Admin > Shows & Seasons.`
+    );
+  }
+  const expanded = await expandTranscludedTables(section.text, apiUrl);
+  console.log(
+    `[wiki-sync] "${section.title}" section: ${expanded.text.length} chars (rev ${page.revisionId})` +
+      (section.matched.toLowerCase() === section.title.toLowerCase() ? "" : ` [matched "${section.matched}"]`)
+  );
+
+  const { cast, usage } = await extractCast(expanded.text, terms);
+  const checked = validateCast(cast, state, terms);
   checked.problems.forEach((p) => console.log(`[wiki-sync] note: ${p}`));
   if (checked.fatal.length) {
     throw new Error(`Extraction failed validation, nothing filed:\n  - ${checked.fatal.join("\n  - ")}`);
@@ -292,8 +499,8 @@ async function run(pool, command, leagueId, opts) {
   };
   const withPhotos = payload.castaways.filter((c) => c.photoUrl).length;
   console.log(
-    `[wiki-sync] extracted ${payload.castaways.length} castaways (${checked.newCount} new to this league), ` +
-      `${payload.tribes.length} tribes, ${withPhotos} photos resolved`
+    `[wiki-sync] extracted ${payload.castaways.length} ${terms.castaways} (${checked.newCount} new to this ` +
+      `league), ${payload.tribes.length} ${terms.tribes}, ${withPhotos} photos resolved`
   );
   if (usage) console.log(`[wiki-sync] tokens: ${usage.input_tokens} in / ${usage.output_tokens} out`);
 
@@ -310,7 +517,10 @@ async function run(pool, command, leagueId, opts) {
     seasonNumber: season,
     model: MODEL,
     extractedAt: new Date().toISOString(),
-    pages: [{ title: page.title, revisionId: page.revisionId, apiUrl }],
+    // Every page the extraction actually read, season page first -- transcluded templates included,
+    // since with transclusion the season page's own revision id no longer pins what was extracted.
+    pages: [{ title: page.title, revisionId: page.revisionId, apiUrl }, ...expanded.pages],
+    castSection: section.title,
   };
   // One pending proposal per league per kind (partial unique index), so a second scheduled run before
   // anyone reviews replaces its own earlier suggestion instead of queueing a duplicate.
@@ -340,4 +550,16 @@ if (require.main === module) {
   }
 }
 
-module.exports = { fetchWikitext, sliceSection, validateCast, resolvePhotoUrls, CastSchema };
+module.exports = {
+  fetchWikitext,
+  findSection,
+  listHeadings,
+  castSectionCandidates,
+  transcludedNames,
+  expandTranscludedTables,
+  plural,
+  singular,
+  validateCast,
+  resolvePhotoUrls,
+  CastSchema,
+};

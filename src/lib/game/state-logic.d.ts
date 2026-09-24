@@ -9,6 +9,19 @@ export interface ActiveRosterEventDef {
   defaultPoints: number;
 }
 
+/** One question in guided first-time setup, in the order it should be asked. */
+export interface SetupStep {
+  id: "name" | "show" | "season" | "type" | "ownership";
+  label: string;
+  done: boolean;
+  /** Currently-selected answer, for rendering the checklist as a summary. Null when unanswered. */
+  value: string | null;
+  /** True for the steps that arrive pre-filled with a working default rather than a real choice. */
+  defaulted?: boolean;
+  /** Absent unless the step can drop out for a league type it's meaningless for. */
+  applies?: boolean;
+}
+
 export interface LeagueType {
   id: string;
   name: string;
@@ -55,6 +68,15 @@ declare const StateLogic: {
   };
   LEAGUE_TYPES: Record<string, LeagueType>;
   SHOWS: Record<string, Show>;
+  /** Guided first-time setup: which of the five basics are answered, and in what order to offer them. */
+  SetupLogic: {
+    steps(state: LeagueState, leagueName: string | null): SetupStep[];
+    isComplete(state: LeagueState): boolean;
+    basicsAnswered(state: LeagueState, leagueName: string | null): boolean;
+    nextStep(state: LeagueState, leagueName: string | null): string | null;
+    isStepVisible(state: LeagueState, leagueName: string | null, stepId: string): boolean;
+    complete(state: LeagueState): void;
+  };
   getLeagueType(state: LeagueState): LeagueType;
   // Capability AND commissioner choice, together -- see their comment in state-logic.js. Anything
   // that shows or starts a mid-season round should ask through these, not read either half alone.

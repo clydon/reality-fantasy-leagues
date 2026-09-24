@@ -8,6 +8,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Pick'em only: the "Your Pick" section of EpisodeCard, modeled on EpisodeBetRow's guess-list
 // shape (per-player badge + a picker to submit/change your own, or anyone's if you can manage
@@ -16,6 +17,7 @@ import { Select } from "@/components/ui/select";
 // episode's logged eliminations rather than manually graded, so there's no grading Select here,
 // just a read-only Correct/Incorrect/Pending badge per player.
 export function EpisodePicksSection({ ep, state }: { ep: Episode; state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const myPlayerId = useMyPlayerId();
@@ -103,7 +105,7 @@ export function EpisodePicksSection({ ep, state }: { ep: Episode; state: LeagueS
           <span className="self-center text-xs text-muted-foreground">Your pick:</span>
         )}
         <Select size="sm" value="" disabled={!activePlayerId} onChange={(e) => setPick(e.target.value)}>
-          <option value="">— select castaway —</option>
+          <option value="">— select {terms.castaway} —</option>
           {eligibleForPicker.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 // this component's own local state -- same "was a global because there was nowhere else to put
 // it" pattern as several other flags already converted elsewhere in this POC.
 export function TradePanel({ state }: { state: LeagueState }) {
+  const terms = useShowTerms();
   const [dropId, setDropId] = useState<string | null>(null);
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
@@ -92,7 +94,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
             ? "Commissioner-run."
             : dropCastaway
             ? <>Dropping <b>{dropCastaway.name}</b> — pick a Free Agent to add below.</>
-            : "Click one of this player's castaways below to drop them, or skip this turn."}
+            : `Click one of this player's ${terms.castaways} below to drop them, or skip this turn.`}
         </p>
       </div>
 
@@ -101,7 +103,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
           <div className="mb-3">
             <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">{player?.name || "?"}&rsquo;s Roster</h4>
             {owned.length === 0 ? (
-              <div className="text-sm italic text-muted-foreground">No active castaways to drop.</div>
+              <div className="text-sm italic text-muted-foreground">No active {terms.castaways} to drop.</div>
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-3">
                 {owned.map((c) => (

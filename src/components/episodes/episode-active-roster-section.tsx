@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { cn } from "cn";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Active Roster's per-episode UI inside EpisodeCard: each player's active lineup for THIS episode,
 // the commissioner's lineup lock, and the scoring-event log.
@@ -21,6 +22,7 @@ import { cn } from "cn";
 // rather than useMutate's generic alert(), and Active Roster isn't reachable in mock mode (the demo
 // league is classic-draft), so a mock branch would be dead code.
 export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const setState = useLeagueStore((s) => s.setState);
   const canManage = useCanManage();
@@ -94,7 +96,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
         )}
       </div>
       <p className="mb-2 text-xs text-muted-foreground">
-        Only these castaways earn points for this episode. Benched ones score nothing.
+        Only these {terms.castaways} earn points for this episode. Benched ones score nothing.
         {!locked && " Locking freezes them so later changes can't affect this episode's score."}
       </p>
 
@@ -130,7 +132,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
               {isEditing && (
                 <div className="mt-2 rounded-md border border-dashed border-border bg-secondary/40 p-2">
                   <p className="mb-1.5 text-xs text-muted-foreground">
-                    Pick up to {activeSlots} of {p.name}&rsquo;s {owned.length} castaways ({draftLineup.length} selected):
+                    Pick up to {activeSlots} of {p.name}&rsquo;s {owned.length} {terms.castaways} ({draftLineup.length} selected):
                   </p>
                   <div className="mb-2 flex flex-wrap gap-2">
                     {owned.map((c) => {
@@ -150,7 +152,9 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
                         </label>
                       );
                     })}
-                    {owned.length === 0 && <span className="text-xs italic text-muted-foreground">No castaways drafted yet.</span>}
+                    {owned.length === 0 && (
+                      <span className="text-xs italic text-muted-foreground">No {terms.castaways} drafted yet.</span>
+                    )}
                   </div>
                   <Button size="xs" disabled={busy} onClick={() => saveLineup(p.id)}>
                     Save lineup
@@ -187,7 +191,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-muted-foreground" title="Nobody had this castaway active this episode">
+                  <span className="text-muted-foreground" title={`Nobody had this ${terms.castaway} active this episode`}>
                     benched — no points
                   </span>
                 )}
@@ -213,7 +217,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
             ))}
           </Select>
           <Select size="sm" value={eventCastawayId} onChange={(e) => setEventCastawayId(e.target.value)}>
-            <option value="">— castaway —</option>
+            <option value="">— {terms.castaway} —</option>
             {state.castaways.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}

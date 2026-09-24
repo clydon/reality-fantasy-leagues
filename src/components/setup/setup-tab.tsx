@@ -1,6 +1,8 @@
 "use client";
 
+import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
+import { useShowTerms } from "@/lib/use-show-terms";
 import { LeagueInfoSection } from "./league-info-section";
 import { PlayersSection } from "./players-section";
 import { InvitesSection } from "./invites-section";
@@ -18,9 +20,21 @@ import { LeaveLeagueSection } from "./leave-league-section";
 // Port of renderSetup() (public/app.js) -- same section order and the same "viewable by everyone,
 // only the commissioner can edit" model: every field below disables itself via useCanManage()
 // rather than the whole tab being gated, matching the original's own banner/behavior exactly.
+//
+// ADDED since the port: guided first-time setup. A brand-new league lands here (not on Overview)
+// and sees only League Info until the five basics are answered -- name, show, season, league type,
+// ownership. Everything downstream of those stays hidden, because it all depends on them: there's no
+// point entering a cast before the season is known, and the Pick'em/Active Roster/finale panels are
+// each specific to a league type that hasn't been chosen yet.
+//
+// The gate is SetupLogic.isComplete (state-logic.js), which is false only for leagues created after
+// this shipped -- an established league sees the whole tab exactly as before.
 export function SetupTab() {
   const state = useLeagueStore((s) => s.state);
   const canManage = useCanManage();
+  const terms = useShowTerms();
+
+  const guiding = !StateLogic.SetupLogic.isComplete(state);
 
   return (
     <>
@@ -32,17 +46,31 @@ export function SetupTab() {
       )}
 
       <LeagueInfoSection state={state} />
-      <PlayersSection state={state} />
-      <InvitesSection />
-      <TribesSection state={state} />
-      <CastawaysSection state={state} />
-      <GeneralSettingsSection state={state} />
-      <SideBetSettingsSection state={state} />
-      <FinaleSettingsSection state={state} />
-      <PickEmSettingsSection state={state} />
-      <ActiveRosterSettingsSection state={state} />
-      <WikiConnectorSection state={state} />
-      <BackupSection state={state} />
+
+      {/* While guiding, LeagueInfoSection owns the whole screen: it renders the checklist, reveals
+          one question at a time, and carries the button that ends the gate. Showing Players or
+          Castaways alongside it is exactly the "everything at once" the guide exists to avoid. */}
+      {guiding ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          The rest of League Settings — players, {terms.castaways}, scoring and the wiki connector —
+          unlocks once the basics above are set.
+        </p>
+      ) : (
+        <>
+          <PlayersSection state={state} />
+          <InvitesSection />
+          <TribesSection state={state} />
+          <CastawaysSection state={state} />
+          <GeneralSettingsSection state={state} />
+          <SideBetSettingsSection state={state} />
+          <FinaleSettingsSection state={state} />
+          <PickEmSettingsSection state={state} />
+          <ActiveRosterSettingsSection state={state} />
+          <WikiConnectorSection state={state} />
+          <BackupSection state={state} />
+        </>
+      )}
+      {/* Always available: leaving a league can't be gated behind finishing its setup. */}
       <LeaveLeagueSection />
     </>
   );

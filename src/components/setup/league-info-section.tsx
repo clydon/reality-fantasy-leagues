@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
+import { useShowCatalog, useShowTerms } from "@/lib/use-show-terms";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 
@@ -17,16 +18,21 @@ import { Select } from "@/components/ui/select";
 // draft strategy plus a scoring strategy), so it can only ever be what's been written.
 //
 // Shows and seasons, by contrast, are DATA: they come from the admin-managed catalog over
-// /api/shows (db/migrations/0006_shows_and_seasons.sql), not from state-logic's SHOWS, which is now
-// only the bootstrap default for a new league's settings.showId. That's what lets a super-admin add
-// a show without a deploy. The Season picker is driven by the selected show's seasons, falling back
-// to a free-text number when the catalog has none, so a league can still name a season the admin
-// hasn't catalogued yet.
+// /api/shows (db/migrations/0006_shows_and_seasons.sql), not from state-logic's SHOWS. That's what
+// lets a super-admin add a show without a deploy. The Season picker is driven by the selected show's
+// seasons, falling back to a free-text number when the catalog has none, so a league can still name
+// a season the admin hasn't catalogued yet.
+//
+// GUIDED SETUP: on a brand-new league this panel is a short wizard rather than a form -- one
+// question at a time, in the order SetupLogic defines (name, show, season, type, ownership), with a
+// checklist above it and a confirm button at the end. Ordering and done-ness live in SetupLogic so
+// they're testable without React; this file only renders them.
 export function LeagueInfoSection({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const canManage = useCanManage();
   const mutate = useMutate();
+  const terms = useShowTerms();
   const [name, setName] = useState(leagueName ?? "");
 
   const draftStarted = StateLogic.isDraftStarted(state);
@@ -36,23 +42,29 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
   // pickem -- exists whose isDraftStarted() is permanently false: without this, a pickem league
   // with weeks of logged picks could still switch to classic-draft and silently orphan them).
   const seasonUnderway = draftStarted || state.episodes.length > 0;
-  const typeLocked = !canManage || seasonUnderway || Object.keys(StateLogic.LEAGUE_TYPES).length <= 1;
 
-  // The catalog, not state-logic's SHOWS. Available to any signed-in user; in mock mode there's no
-  // real session, so this simply doesn't load and the picker falls back to showing the league's
-  // stored showId.
-  const mode = useLeagueStore((s) => s.mode);
-  const { data: catalog } = useQuery({
-    queryKey: ["shows-catalog"],
-    queryFn: () => api.listShows(),
-    enabled: mode === "live",
-  });
+  const Setup = StateLogic.SetupLogic;
+  const guiding = !Setup.isComplete(state);
+  const steps = Setup.steps(state, leagueName);
+  const basicsAnswered = Setup.basicsAnswered(state, leagueName);
+  // While guiding, a step's control appears only once everything before it is answered. Afterwards
+  // every control is simply visible, as it always was.
+  const visible = (stepId: string) => !guiding || Setup.isStepVisible(state, leagueName, stepId);
+
+  // The catalog, not state-logic's SHOWS. Shared query with useShowTerms, so the Show picker and
+  // every terminology label in the app come from one fetch. In mock mode there's no real session,
+  // so this simply doesn't load and the picker falls back to showing the league's stored showId.
+  const { data: catalog } = useShowCatalog();
   const shows = catalog?.shows ?? [];
   const currentShow = shows.find((s) => s.slug === state.settings.showId);
   const seasons = currentShow?.seasons ?? [];
-  // Locked when there's nothing to choose between -- one show (or none loaded) means the picker would
-  // be decorative, same reasoning the League Type picker uses.
-  const showLocked = !canManage || seasonUnderway || shows.length <= 1;
+  // Locked when there's nothing to choose between -- one show (or none loaded) means the picker
+  // would be decorative, same reasoning the League Type picker uses. Never locked while guiding,
+  // though: "pick the show" is a step the commissioner has to be able to answer even if the answer
+  // is the only show in the catalog.
+  const showLocked = !canManage || seasonUnderway || (!guiding && shows.length <= 1);
+  const typeLocked =
+    !canManage || seasonUnderway || (!guiding && Object.keys(StateLogic.LEAGUE_TYPES).length <= 1);
   // Ownership mode locks on the same "season underway" signal, but NOT on the registry-size check
   // the other two carry -- both of its options always exist, so there's nothing to wait for. It has
   // to be locked before the draft runs rather than merely before episodes exist: flipping it
@@ -77,16 +89,80 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
     );
   }
 
+  // Seasons belong to a show, so a season number carried across a show change is meaningless --
+  // "44" means Survivor 44, not Traitors 44. Clearing it also re-opens the season step in the guide,
+  // which is the correct thing to ask next.
+  async function changeShow(slug: string) {
+    await mutate(
+      (s) => {
+        StateLogic.updateSettings(s, "showId", slug || null);
+        StateLogic.updateSettings(s, "wikiSeason", null);
+      },
+      async () => {
+        await api.updateLeagueSettings(leagueId!, "showId", slug || null);
+        return api.updateLeagueSettings(leagueId!, "wikiSeason", null);
+      }
+    );
+  }
+
+  async function finishSetup() {
+    await mutate(
+      (s) => StateLogic.SetupLogic.complete(s),
+      () => api.updateLeagueSettings(leagueId!, "setupComplete", true)
+    );
+  }
+
+  const selectedSeason = seasons.find((x) => x.seasonNumber === state.settings.wikiSeason);
+
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">League Info</h3>
+      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+        {guiding ? "Set up your league" : "League Info"}
+      </h3>
+
+      {/* The checklist is the guide's whole affordance: it says how many questions there are, which
+          are answered, what each answer currently is, and -- by which one is highlighted -- what to
+          do next. `defaulted` steps get their value labelled as a default rather than a tick, because
+          league type and ownership arrive pre-filled and a tick would claim someone chose them. */}
+      {guiding && (
+        <ol className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          {steps.map((s, i) => {
+            const isNext = !s.done && steps.slice(0, i).every((p) => p.done);
+            const reached = steps.slice(0, i).every((p) => p.done);
+            return (
+              <li
+                key={s.id}
+                className={
+                  isNext
+                    ? "font-semibold text-primary"
+                    : reached
+                    ? "text-muted-foreground"
+                    : "text-muted-foreground/50"
+                }
+              >
+                {s.done && !s.defaulted ? "✓" : `${i + 1}.`} {s.label}
+                {reached && s.value && (
+                  <span className="ml-1 opacity-70">
+                    ({s.value}
+                    {s.defaulted ? ", default" : ""})
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1.5 text-sm">
           Name:
           <Input value={name} disabled={!canManage} onChange={(e) => setName(e.target.value)} onBlur={saveName} />
         </label>
       </div>
-      {leagueType.hasRoster && (
+
+      {/* Draft schedule isn't one of the basics, so it waits until the guide is done -- a date for a
+          draft is meaningless before the league type that decides whether there IS a draft. */}
+      {!guiding && leagueType.hasRoster && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 text-sm">
             Draft scheduled for:
@@ -100,18 +176,83 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
           {state.draftForceStarted && <span className="text-xs text-muted-foreground">(force-started — schedule is moot)</span>}
         </div>
       )}
+
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-1.5 text-sm">
-          League Type:
-          <Select value={leagueType.id} disabled={typeLocked} onChange={(e) => updateSetting("leagueTypeId", e.target.value)}>
-            {Object.values(StateLogic.LEAGUE_TYPES).map((lt) => (
-              <option key={lt.id} value={lt.id}>
-                {lt.name}
-              </option>
-            ))}
-          </Select>
-        </label>
-        {leagueType.hasRoster && (
+        {visible("show") && (
+          <label className="flex items-center gap-1.5 text-sm">
+            Show:
+            <Select value={state.settings.showId ?? ""} disabled={showLocked} onChange={(e) => changeShow(e.target.value)}>
+              {/* A new league genuinely hasn't picked one, so say so rather than showing the first
+                  show as though it were chosen. */}
+              {!state.settings.showId && <option value="">— pick a show —</option>}
+              {shows.map((s) => (
+                <option key={s.slug} value={s.slug}>
+                  {s.name}
+                </option>
+              ))}
+              {/* If the catalog hasn't loaded (mock mode) or the league points at a show that's since
+                  been archived, still show the stored value rather than silently rendering a
+                  different show as selected. */}
+              {state.settings.showId && !currentShow && (
+                <option value={state.settings.showId}>
+                  {state.settings.showId}
+                  {shows.length > 0 ? " (not in catalog)" : ""}
+                </option>
+              )}
+            </Select>
+          </label>
+        )}
+
+        {visible("season") && (
+          <label className="flex items-center gap-1.5 text-sm">
+            Season:
+            {seasons.length > 0 ? (
+              <Select
+                value={state.settings.wikiSeason ?? ""}
+                disabled={!canManage}
+                onChange={(e) => updateSetting("wikiSeason", e.target.value ? parseInt(e.target.value) : null)}
+              >
+                <option value="">— pick a season —</option>
+                {seasons.map((s) => (
+                  <option key={s.seasonNumber} value={s.seasonNumber}>
+                    {s.name || `Season ${s.seasonNumber}`}
+                    {s.status === "airing" ? " (airing)" : s.status === "upcoming" ? " (upcoming)" : ""}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              // No catalogued seasons for this show: keep a free-text number so a league isn't
+              // blocked waiting on an admin to add one. The connector will guess a page title for it.
+              <Input
+                type="number"
+                className="w-20"
+                disabled={!canManage}
+                defaultValue={state.settings.wikiSeason ?? ""}
+                placeholder="44"
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  const n = v === "" ? null : parseInt(v);
+                  if (n !== state.settings.wikiSeason) updateSetting("wikiSeason", Number.isFinite(n as number) ? n : null);
+                }}
+              />
+            )}
+          </label>
+        )}
+
+        {visible("type") && (
+          <label className="flex items-center gap-1.5 text-sm">
+            League Type:
+            <Select value={leagueType.id} disabled={typeLocked} onChange={(e) => updateSetting("leagueTypeId", e.target.value)}>
+              {Object.values(StateLogic.LEAGUE_TYPES).map((lt) => (
+                <option key={lt.id} value={lt.id}>
+                  {lt.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+        )}
+
+        {visible("ownership") && leagueType.hasRoster && (
           <label className="flex items-center gap-1.5 text-sm">
             Ownership:
             <Select
@@ -120,76 +261,23 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
               onChange={(e) => updateSetting("ownershipMode", e.target.value)}
             >
               <option value="exclusive">Exclusive — snake draft, one owner each</option>
-              <option value="shared">Shared — blind draft, castaways can be shared</option>
+              <option value="shared">Shared — blind draft, {terms.castaways} can be shared</option>
             </Select>
           </label>
         )}
-        <label className="flex items-center gap-1.5 text-sm">
-          Show:
-          <Select
-            value={state.settings.showId}
-            disabled={showLocked}
-            onChange={(e) => updateSetting("showId", e.target.value)}
-          >
-            {/* If the catalog hasn't loaded (mock mode) or the league points at a show that's since
-                been archived, still show the stored value rather than silently rendering a
-                different show as selected. */}
-            {shows.length === 0 && <option value={state.settings.showId}>{state.settings.showId}</option>}
-            {shows.map((s) => (
-              <option key={s.slug} value={s.slug}>
-                {s.name}
-              </option>
-            ))}
-            {shows.length > 0 && !currentShow && (
-              <option value={state.settings.showId}>{state.settings.showId} (not in catalog)</option>
-            )}
-          </Select>
-        </label>
-        <label className="flex items-center gap-1.5 text-sm">
-          Season:
-          {seasons.length > 0 ? (
-            <Select
-              value={state.settings.wikiSeason ?? ""}
-              disabled={!canManage}
-              onChange={(e) => updateSetting("wikiSeason", e.target.value ? parseInt(e.target.value) : null)}
-            >
-              <option value="">— none —</option>
-              {seasons.map((s) => (
-                <option key={s.seasonNumber} value={s.seasonNumber}>
-                  {s.name || `Season ${s.seasonNumber}`}
-                  {s.status === "airing" ? " (airing)" : s.status === "upcoming" ? " (upcoming)" : ""}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            // No catalogued seasons for this show: keep a free-text number so a league isn't blocked
-            // waiting on an admin to add one. The connector will guess a page title for it.
-            <Input
-              type="number"
-              className="w-20"
-              disabled={!canManage}
-              defaultValue={state.settings.wikiSeason ?? ""}
-              placeholder="44"
-              onBlur={(e) => {
-                const v = e.target.value.trim();
-                const n = v === "" ? null : parseInt(v);
-                if (n !== state.settings.wikiSeason) updateSetting("wikiSeason", Number.isFinite(n as number) ? n : null);
-              }}
-            />
-          )}
-        </label>
       </div>
+
       {/* The catalogued cast size makes the shared-ownership nudge below concrete before anyone has
           entered a cast -- that check previously had nothing to compare against. */}
-      {(() => {
-        const s = seasons.find((x) => x.seasonNumber === state.settings.wikiSeason);
-        return s?.castSize ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            {s.name || `Season ${s.seasonNumber}`} has {s.castSize} castaways per the show catalog.
-          </p>
-        ) : null;
-      })()}
-      <p className="mt-2 text-xs text-muted-foreground">{leagueType.description}</p>
+      {selectedSeason?.castSize ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {selectedSeason.name || `Season ${selectedSeason.seasonNumber}`} has {selectedSeason.castSize}{" "}
+          {selectedSeason.castSize === 1 ? terms.castaway : terms.castaways} per the show catalog.
+        </p>
+      ) : null}
+
+      {visible("type") && <p className="mt-2 text-xs text-muted-foreground">{leagueType.description}</p>}
+
       {/* Setup-time nudge toward shared ownership, per Feature C's "critically suggested, not
           required" framing -- deliberately advice, never a block, and only while exclusive is still
           selected and the draft hasn't run. Exclusive ownership needs one distinct castaway per
@@ -201,25 +289,26 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
           show_seasons. Before the catalog, an un-populated league had nothing to compare against and
           this fell back to a vague "once you've entered the cast" line; now it can be specific from
           the moment a season is picked. */}
-      {leagueType.hasRoster && state.settings.ownershipMode === "exclusive" && !seasonUnderway && (() => {
+      {visible("ownership") && leagueType.hasRoster && state.settings.ownershipMode === "exclusive" && !seasonUnderway && (() => {
         const seats = StateLogic.BlindDraftLogic.eligiblePlayers(state).length;
         const needed = seats * StateLogic.rosterSize(state);
-        const catalogued = seasons.find((x) => x.seasonNumber === state.settings.wikiSeason)?.castSize ?? null;
+        const catalogued = selectedSeason?.castSize ?? null;
         const castSize = state.castaways.length || catalogued || 0;
         const fromCatalog = state.castaways.length === 0 && !!catalogued;
         if (seats === 0) return null;
         if (castSize === 0) {
           return (
             <p className="mt-1 text-xs text-muted-foreground">
-              Exclusive ownership needs {needed} distinct castaways for {seats} player{seats === 1 ? "" : "s"}. Once
-              you&rsquo;ve entered the cast (or picked a season), switch to shared ownership if that doesn&rsquo;t fit.
+              Exclusive ownership needs {needed} distinct {terms.castaways} for {seats} player
+              {seats === 1 ? "" : "s"}. Once you&rsquo;ve entered the cast (or picked a season), switch to shared
+              ownership if that doesn&rsquo;t fit.
             </p>
           );
         }
         if (needed > castSize) {
           return (
             <p className="mt-1 text-xs font-semibold text-destructive">
-              {seats} players x {StateLogic.rosterSize(state)} roster slots needs {needed} castaways, but{" "}
+              {seats} players x {StateLogic.rosterSize(state)} roster slots needs {needed} {terms.castaways}, but{" "}
               {fromCatalog ? "this season has" : "the cast has"} {castSize}. The draft can&rsquo;t fill every roster —
               switch to shared ownership, or reduce roster size.
             </p>
@@ -228,19 +317,37 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
         if (needed > castSize * 0.75) {
           return (
             <p className="mt-1 text-xs text-muted-foreground">
-              Heads up: {needed} of {castSize} castaways would be claimed, leaving little room for Replenish or Swap.
-              Shared ownership is worth considering.
+              Heads up: {needed} of {castSize} {terms.castaways} would be claimed, leaving little room for Replenish
+              or Swap. Shared ownership is worth considering.
             </p>
           );
         }
         return null;
       })()}
-      {leagueType.hasRoster && state.settings.ownershipMode === "shared" && (
+
+      {visible("ownership") && leagueType.hasRoster && state.settings.ownershipMode === "shared" && (
         <p className="mt-1 text-xs text-muted-foreground">
           Shared ownership runs a blind draft: everyone submits their whole set of picks privately and nothing
           reveals until every player has locked in. Because nobody is ever taken off the board, Replenish and Swap
           don&rsquo;t apply — there are no free agents to draw from.
         </p>
+      )}
+
+      {/* Ends the guide. Only offered once every question is answered, and only to someone who can
+          actually change these -- a member watching a league being set up gets the checklist, not
+          the button. There's no "skip": the five answers are cheap, and skipping them is what
+          produced a league full of the wrong show's cast. */}
+      {guiding && canManage && (
+        <div className="mt-3 border-t border-border pt-3">
+          {basicsAnswered ? (
+            <Button onClick={finishSetup}>Looks good — open the rest of League Settings</Button>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Answer the highlighted step to continue. Nothing here is locked in — you can change any of it until
+              the draft runs or the first episode is logged.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

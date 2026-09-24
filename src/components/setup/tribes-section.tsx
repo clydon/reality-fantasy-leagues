@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
+import { useShowTerms } from "@/lib/use-show-terms";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { Input } from "@/components/ui/input";
 export function TribesSection({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
+  const terms = useShowTerms();
   const mutate = useMutate();
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("#45a89a");
@@ -37,7 +39,7 @@ export function TribesSection({ state }: { state: LeagueState }) {
   }
 
   async function remove(id: string, name: string) {
-    if (!confirm(`Remove tribe "${name}"? Its castaways become tribe-less, not removed.`)) return;
+    if (!confirm(`Remove ${terms.tribe} "${name}"? Its ${terms.castaways} become ${terms.tribe}-less, not removed.`)) return;
     await mutate(
       (s) => StateLogic.removeTribe(s, id),
       () => api.removeTribe(leagueId!, id)
@@ -46,9 +48,9 @@ export function TribesSection({ state }: { state: LeagueState }) {
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Tribes</h3>
+      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">{terms.Tribes}</h3>
       {state.tribes.length === 0 ? (
-        <div className="mb-2 text-sm italic text-muted-foreground">No tribes yet.</div>
+        <div className="mb-2 text-sm italic text-muted-foreground">No {terms.tribes} yet.</div>
       ) : (
         <div className="mb-3 flex flex-col gap-2">
           {state.tribes.map((t) => (
@@ -86,12 +88,12 @@ export function TribesSection({ state }: { state: LeagueState }) {
           />
           <Input
             className="min-w-0 flex-1"
-            placeholder="New tribe name"
+            placeholder={`New ${terms.tribe} name`}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           />
-          <Button onClick={handleAdd}>Add Tribe</Button>
+          <Button onClick={handleAdd}>Add {terms.Tribe}</Button>
         </div>
       )}
     </div>

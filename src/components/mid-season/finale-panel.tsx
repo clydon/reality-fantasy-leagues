@@ -7,10 +7,12 @@ import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Select } from "@/components/ui/select";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Port of renderFinalePanel() (public/app.js): each player's Top-3 + Winner prediction, plus the
 // commissioner-only Actual Result used to grade them all via ScoringLogic.compute.
 export function FinalePanel({ state }: { state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const myPlayerId = useMyPlayerId();
@@ -68,7 +70,7 @@ export function FinalePanel({ state }: { state: LeagueState }) {
           </>
         ) : (
           <>
-            Scope: <b>open</b> — predict any castaway.
+            Scope: <b>open</b> — predict any {terms.castaway}.
           </>
         )}
       </p>

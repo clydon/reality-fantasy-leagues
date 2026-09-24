@@ -56,6 +56,8 @@
 })(typeof self !== 'undefined' ? self : this, function(){
 
 const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b0563f','#6b8fc9'];
+// No longer seeded into new leagues (see Migrations.defaultState) -- a fresh league starts with an
+// empty cast so it isn't pre-filled with the wrong show's people. Kept as sample data.
 const SEED_CASTAWAYS = ['Aaliyah','Alexis','Ana','Brady','Carter','Cristian','Devin','Eric','Jelly','Jenna','Kilby','Kristin','Lewis','Linnea','Maggie','Mike','Ori','Patt','Rob','Sharonda','Thien An'];
 const EXIT_METHODS = ['Voted Out','Medically Evacuated','Quit','Lost Fire-Making','Lost Final Tribal (Jury Vote)','Sole Survivor','Other'];
 
@@ -746,13 +748,17 @@ const LEAGUE_TYPES = {
     hasActiveRoster: true
   }
 };
-// NOT the catalog any more -- just the bootstrap default for a brand-new league's settings.showId.
-// The real catalog of shows and seasons lives in Postgres (db/migrations/0006_shows_and_seasons.sql)
-// and is managed by a super-admin in the Admin tab, so adding a show no longer needs a code change.
-// The UI reads it over /api/shows; this file deliberately cannot, because keeping the game logic
-// free of any DB dependency is what lets it stay a pure fork of the file the live app loads straight
-// into a browser. Leagues store the show's SLUG, which is why 'survivor' here and the seeded row
-// there are the same string.
+// NOT the catalog, and no longer a default either: a new league starts with showId null and the
+// commissioner picks from the catalog (defaultState / SetupLogic). The real catalog of shows and
+// seasons lives in Postgres (db/migrations/0006_shows_and_seasons.sql), is managed by a super-admin
+// in the Admin tab, and is what the UI reads over /api/shows -- including each show's terminology,
+// via useShowTerms(). This file deliberately cannot read it, because keeping the game logic free of
+// any DB dependency is what lets it stay a pure fork of the file the live app loads straight into a
+// browser.
+//
+// What's left here is the DB-free fallback: the terms to use when there is no catalog to consult
+// (the demo league, which is a Survivor season). Leagues store the show's SLUG, which is why
+// 'survivor' here and the seeded row there are the same string.
 const SHOWS = {
   survivor: { id: 'survivor', name: 'Survivor', castawayTerm: 'Castaway', tribeTerm: 'Tribe' }
 };
@@ -1182,6 +1188,73 @@ class FinaleLogic {
   static setActualWinner(state, value){ state.finaleActual.winner=value; }
 }
 
+// ---------- SetupLogic: guided first-time setup ----------
+// A brand-new league has to answer five questions before anything else in League Settings means
+// much: what it's called, which show, which season, which league type, and (for roster types) how
+// ownership works. Until those are answered, entering a cast is premature -- the cast depends on the
+// season -- and the type/ownership pickers lock themselves the moment a draft runs or an episode is
+// logged, so getting them wrong is expensive to undo.
+//
+// So the Setup tab reveals these one at a time, in this order, and hides the rest of the tab until
+// they're done. This is the ORDERING and DONE-NESS logic for that, kept here rather than in the
+// component so it's testable without React and so the same definition of "answered" is used by the
+// reveal, the checklist and the gate.
+//
+// Backward compatibility: `setupComplete` is false only on leagues created after this shipped
+// (defaultState sets it). Every league that predates it has no such key, and `isComplete` treats
+// anything that isn't an explicit `false` as complete -- an established league is never sent back
+// through setup just because it never set a wikiSeason.
+class SetupLogic {
+  // Ordered, and the order is the point: each step is only offered once its predecessor is answered.
+  //
+  // `applies` lets a step drop out entirely for a league type it's meaningless for, rather than
+  // asking a Pick'em commissioner to answer an ownership question that has no effect.
+  //
+  // `defaulted` marks the two steps that arrive pre-filled. Name/show/season are genuinely blank
+  // until someone answers them; league type and ownership can't be, because getLeagueType() and
+  // every strategy lookup have to resolve to something from the first render. So they count as done
+  // -- the reveal shouldn't stall on them -- but the UI says "(default)" rather than showing a tick
+  // that implies a human chose it. Confirming setup is what turns that into a real decision.
+  //
+  // `value` is what's currently selected, so the checklist can double as a summary of the answers.
+  static steps(state, leagueName){
+    const st = state.settings || {};
+    const hasSeason = st.wikiSeason !== null && st.wikiSeason !== undefined && st.wikiSeason !== '';
+    return [
+      { id:'name', label:'Name your league', done: !!(leagueName && String(leagueName).trim()),
+        value: leagueName || null },
+      { id:'show', label:'Pick the show', done: !!st.showId, value: st.showId || null },
+      { id:'season', label:'Pick the season', done: hasSeason, value: hasSeason ? String(st.wikiSeason) : null },
+      { id:'type', label:'Choose a league type', done: !!st.leagueTypeId, defaulted: true,
+        value: getLeagueType(state).name },
+      { id:'ownership', label:'Choose how ownership works', done: !!st.ownershipMode, defaulted: true,
+        value: st.ownershipMode, applies: getLeagueType(state).hasRoster }
+    ].filter(s => s.applies !== false);
+  }
+  // True once a commissioner has confirmed the basics -- or for any league predating guided setup.
+  static isComplete(state){ return (state.settings || {}).setupComplete !== false; }
+  // Every step answered. Distinct from isComplete: answered-but-not-confirmed is the state in which
+  // the "finish setup" affordance appears.
+  static basicsAnswered(state, leagueName){ return SetupLogic.steps(state, leagueName).every(s => s.done); }
+  // The id of the first unanswered step, or null. Everything after it stays hidden.
+  static nextStep(state, leagueName){
+    const s = SetupLogic.steps(state, leagueName).find(x => !x.done);
+    return s ? s.id : null;
+  }
+  // Whether a given step's control should be shown yet: answered steps stay visible (so an answer
+  // can be changed), and exactly one unanswered step is offered at a time.
+  static isStepVisible(state, leagueName, stepId){
+    if(SetupLogic.isComplete(state)) return true;
+    const steps = SetupLogic.steps(state, leagueName);
+    const i = steps.findIndex(s => s.id === stepId);
+    if(i < 0) return false;
+    return steps.slice(0, i).every(s => s.done);
+  }
+  // Marks setup done. Idempotent, and deliberately one-way: there's no "unfinish", because the gate
+  // exists to guide a new league, not to be a mode someone toggles.
+  static complete(state){ state.settings.setupComplete = true; }
+}
+
 // ---------- Migrations: default state + backward-compat upgrades for older saved leagues ----------
 // Migrates an episode from the old fixed-category prediction schema (predictions[]
 // keyed by a settings.bonusCategories id, plus a single actual{} per category) to
@@ -1221,18 +1294,24 @@ function migrateEpisodeToBets(ep, oldCategories, castaways, tribes){
   delete ep.actual;
 }
 class Migrations {
+  // A brand-new league, with NOTHING assumed about what it's for.
+  //
+  // This used to seed SEED_CASTAWAYS -- the Survivor 51 cast -- so every new league, whatever show
+  // it was actually for, opened with 21 strangers already in it that a commissioner had to delete by
+  // hand. A real league's cast comes from the commissioner or the wiki connector; the demo builds
+  // its own (buildMockSeasonState). SEED_CASTAWAYS stays exported but is no longer auto-applied.
+  //
+  // showId is likewise null rather than 'survivor', because nobody has chosen yet and pretending
+  // otherwise is what made "pick your show" invisible. leagueTypeId/ownershipMode DO keep working
+  // defaults, because getLeagueType() and every strategy lookup must always resolve to something;
+  // setupComplete is what tracks whether a commissioner has actually confirmed them -- see
+  // setupChecklist below.
   static defaultState(){
     const players = [];
-    const castaways = SEED_CASTAWAYS.map(name=>({
-      id:Core.uid('c'), name, tribeId:null, ownerIds:[],
-      photoUrl:'photos/s51/'+name.toLowerCase().replace(/\s+/g,'_')+'.jpg',
-      status:'active', placementOrder:null, exitMethod:null, exitEpisodeId:null, replenishClaimed:false,
-      acquiredVia:null, formerOwnerId:null, departedVia:null
-    }));
     return {
       players,
       tribes: [],
-      castaways,
+      castaways: [],
       episodes: [],
       finalePredictions: [],
       finaleActual: { top3: [], winner: null },
@@ -1254,7 +1333,14 @@ class Migrations {
         finalePredictionScope: 'open',
         draftScheduledAt: null,
         leagueTypeId: 'classic-draft',
-        showId: 'survivor',
+        // Null until a commissioner picks one from the admin-managed catalog (/api/shows). Existing
+        // leagues hold 'survivor', which is why no migration is needed; only leagues created from
+        // here on start unanswered.
+        showId: null,
+        // False ONLY on leagues created after the guided-setup change; absent on every league that
+        // predates it, and `!== false` is what the UI tests, so an existing league is never sent
+        // back through setup. Flipped true when the commissioner confirms the basics.
+        setupComplete: false,
         // Which real season this league is tracking, for the wiki connector (db/wiki-sync.js) to
         // know what to fetch -- e.g. 44 means the "Survivor 44" wiki page. Null until a
         // commissioner sets it; the connector refuses to run without it rather than guessing.
@@ -1390,7 +1476,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, Migrations,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy
 };
 

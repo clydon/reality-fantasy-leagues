@@ -3,6 +3,7 @@
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
@@ -12,6 +13,7 @@ import { cn } from "cn";
 // turn it is. The commissioner-drafting-on-someone-else's-behalf confirm() dialog is ported too
 // (window.confirm works the same in a Next.js client component as it did in app.js).
 export function FreeAgentsPanel({ state }: { state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const myPlayerId = useMyPlayerId();
@@ -28,7 +30,7 @@ export function FreeAgentsPanel({ state }: { state: LeagueState }) {
     if (turn.playerId !== myPlayerId) {
       const castaway = StateLogic.getCastaway(state, castawayId);
       const ok = confirm(
-        `You are drafting a pick for ${turnPlayer?.name || "this player"}. Are you sure you want to draft ${castaway?.name || "this castaway"}?`
+        `You are drafting a pick for ${turnPlayer?.name || "this player"}. Are you sure you want to draft ${castaway?.name || `this ${terms.castaway}`}?`
       );
       if (!ok) return;
     }
@@ -42,7 +44,7 @@ export function FreeAgentsPanel({ state }: { state: LeagueState }) {
   if (!draftStarted) hint = "Waiting for the draft to start.";
   else if (turn && turn.isComplete) hint = "Draft complete — no more picks to make.";
   else if (!turnPlayer) hint = "";
-  else if (canPick) hint = `Click a castaway below to draft them for ${turnPlayer.name}.`;
+  else if (canPick) hint = `Click a ${terms.castaway} below to draft them for ${turnPlayer.name}.`;
   else hint = `Waiting for ${turnPlayer.name} to pick...`;
 
   return (

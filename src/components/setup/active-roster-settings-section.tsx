@@ -6,6 +6,7 @@ import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Active Roster's own settings section, gated on the league type's hasActiveRoster flag exactly the
 // way FinaleSettingsSection gates on supportsFinalePredictions -- rather than being dumped into
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 // shape as SideBetSettingsSection, including that a commissioner can zero a category out rather than
 // being stuck with whichever ones the catalog happens to ship.
 export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const mutate = useMutate();
@@ -65,13 +67,14 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
           />
         </label>
         <span className="text-xs text-muted-foreground">
-          Each player drafts <b>{activeSlots + benchSlots}</b> castaways and fields <b>{activeSlots}</b> each episode.
+          Each player drafts <b>{activeSlots + benchSlots}</b> {terms.castaways} and fields <b>{activeSlots}</b> each
+          episode.
         </span>
       </div>
 
       <h4 className="mb-1.5 text-xs font-bold">Points per event</h4>
       <p className="mb-2 text-xs text-muted-foreground">
-        Only your active castaways earn these. Set a category to <b>0</b> to switch it off.
+        Only your active {terms.castaways} earn these. Set a category to <b>0</b> to switch it off.
       </p>
       <div className="flex flex-col gap-1.5">
         {StateLogic.ACTIVE_ROSTER_EVENTS.map((ev) => (

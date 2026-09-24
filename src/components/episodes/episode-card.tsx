@@ -13,11 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { cn } from "cn";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Port of renderEpisodeCard() (public/app.js). `<details open>`'s per-episode expand/collapse
 // state (the live app's `openEpisodes` global Set) becomes this component's own `open` state --
 // same idea, one instance per card instead of a shared collection keyed by id.
 export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: LeagueState; defaultOpen: boolean }) {
+  const terms = useShowTerms();
   const [open, setOpen] = useState(defaultOpen);
   const [editingEp, setEditingEp] = useState(false);
   const [elimCastawayId, setElimCastawayId] = useState("");
@@ -51,7 +53,7 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
 
   async function handleAddElimination() {
     if (!elimCastawayId) {
-      alert("Select which castaway was eliminated first.");
+      alert(`Select which ${terms.castaway} was eliminated first.`);
       return;
     }
     await mutate(
@@ -195,7 +197,7 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   <Select value={elimCastawayId} onChange={(e) => setElimCastawayId(e.target.value)}>
-                    <option value="">— Select castaway —</option>
+                    <option value="">— Select {terms.castaway} —</option>
                     {activeCast.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}

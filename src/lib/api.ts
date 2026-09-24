@@ -346,14 +346,27 @@ export const api = {
   listShows: () => localFetch<{ shows: CatalogShow[] }>("/api/shows"),
 
   adminListShows: () => localFetch<{ shows: AdminShow[] }>("/api/admin/shows"),
-  adminCreateShow: (body: { name: string; castawayTerm?: string; tribeTerm?: string; wikiApiUrl?: string }) =>
+  adminCreateShow: (body: {
+    name: string;
+    castawayTerm?: string;
+    tribeTerm?: string;
+    wikiApiUrl?: string;
+    castSectionHeading?: string;
+  }) =>
     localFetch<{ show: { id: string; slug: string; name: string } }>("/api/admin/shows", {
       method: "POST",
       body: JSON.stringify(body),
     }),
   adminUpdateShow: (
     id: string,
-    changes: Partial<{ name: string; castawayTerm: string; tribeTerm: string; wikiApiUrl: string; archived: boolean }>
+    changes: Partial<{
+      name: string;
+      castawayTerm: string;
+      tribeTerm: string;
+      wikiApiUrl: string;
+      castSectionHeading: string;
+      archived: boolean;
+    }>
   ) =>
     localFetch<{ show: { id: string; slug: string; name: string; archived: boolean } }>(`/api/admin/shows/${id}`, {
       method: "PATCH",
