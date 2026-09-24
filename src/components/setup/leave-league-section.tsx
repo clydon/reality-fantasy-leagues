@@ -5,6 +5,7 @@ import { useLeagueStore } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import StateLogic from "@/lib/game/state-logic.js";
+import { confirm } from "@/lib/confirm-store";
 
 // Port of renderSetup()'s Leave League panel -- live-only (no real membership to leave in mock
 // mode), same as the live app only showing it when currentMembership.playerId exists. Falls back
@@ -27,7 +28,7 @@ export function LeaveLeagueSection() {
     const msg = draftStarted
       ? "Leave this league? Your roster and points stay intact but you'll be removed as an active player."
       : "Leave this league? You'll be removed from the draft order entirely.";
-    if (!confirm(msg)) return;
+    if (!(await confirm(msg, { danger: true, confirmLabel: "Leave" }))) return;
     try {
       await api.leaveLeague(leagueId!);
       const me = await api.me();

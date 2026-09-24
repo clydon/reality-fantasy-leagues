@@ -725,7 +725,7 @@ class PickEmLogic {
 const LEAGUE_TYPES = {
   'classic-draft': {
     id: 'classic-draft',
-    name: 'Classic Snake Draft',
+    name: 'Classic',
     description: 'Commissioner sets a draft order, players snake-draft castaways, score by elimination placement.',
     draftStrategy: SnakeDraftStrategy,
     scoringStrategy: EliminationOrderScoringStrategy,
@@ -847,6 +847,9 @@ function replenishAvailable(state){
 }
 function tradeAvailable(state){
   return !!getLeagueType(state).supportsTrade && (state.settings && state.settings.tradeEnabled === true);
+}
+function finalePredictionsAvailable(state){
+  return !!getLeagueType(state).supportsFinalePredictions && (state.settings && state.settings.finalePredictionsEnabled === true);
 }
 
 // ---------- DraftLogic ----------
@@ -1058,6 +1061,13 @@ class ReplenishLogic {
       lostCastaway.departedVia = 'replenish';
       Core.setOwner(state, lostCastaway.id, null);
     }
+    // `|| []`: league rows are read from Postgres without migrateLeagueState, so a league that
+    // predates the log (and 0008's backfill) has no array to push onto yet.
+    (state.midSeason.log = state.midSeason.log || []).push({
+      id: Core.uid('tx'), type:'replenish', playerId: turn.playerId,
+      addedCastawayId: castawayId, droppedCastawayId: lostCastaway ? lostCastaway.id : null,
+      at: new Date().toISOString()
+    });
     r.index++;
   }
   static cancel(state){ state.midSeason.replenish=null; }
@@ -1083,6 +1093,11 @@ class TradeLogic {
       Core.setOwner(state, addId, turn.playerId);
       add.acquiredVia = 'trade';
     }
+    (state.midSeason.log = state.midSeason.log || []).push({
+      id: Core.uid('tx'), type:'trade', playerId: turn.playerId,
+      addedCastawayId: addId, droppedCastawayId: dropId,
+      at: new Date().toISOString()
+    });
     t.index++;
   }
   static skip(state){ const t=state.midSeason.trade; if(!t) return; t.index++; }
@@ -1097,7 +1112,8 @@ class EpisodeLogic {
   // paths. Creating through here also always carries lineups forward, which is what the Active Roster
   // league type expects of any episode however it came to exist.
   static create(state, number, postMerge){
-    const ep = { id:Core.uid('ep'), number, postMerge: !!postMerge, events:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
+    // `events` is eliminations; `exiled` is the inert who-was-sent-away record (see addExiled).
+    const ep = { id:Core.uid('ep'), number, postMerge: !!postMerge, events:[], exiled:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
     state.episodes.push(ep);
     // Active Roster: start this episode's lineups from the previous one's so players adjust rather
     // than retype. No-op for every other league type (nothing has lineups to carry).
@@ -1233,6 +1249,30 @@ class EpisodeLogic {
     c.status='active'; c.placementOrder=null; c.exitMethod=null; c.exitEpisodeId=null; c.replenishClaimed=false;
     EpisodeLogic.renumberPlacements(state);
   }
+  // Exile Island and its equivalents: sent away from their tribe for an episode, still very much in
+  // the game. DELIBERATELY INERT -- this records the fact and nothing else. No owner change, no
+  // tribe change, no placement, no points: nothing in ScoringLogic or ActiveRosterLogic reads
+  // ep.exiled.
+  //
+  // Why record something that does nothing: what exile is WORTH is a live question (the twist is new
+  // this season and its effect on the game isn't settled), and the wiki connector -- an extraction
+  // tool -- is the wrong place to invent an answer. Capturing it now means that when there IS a
+  // rule for it, the history is already sitting in state instead of needing every past episode
+  // re-read. It's also the honest reason a castaway can show up in an episode's wiki data without
+  // being eliminated, which is exactly the confusion that produced the season 51 misread.
+  static addExiled(state, epId, castawayId){
+    const ep = state.episodes.find(e=>e.id===epId);
+    const c = Core.getCastaway(state, castawayId);
+    if(!ep || !c) return;
+    ep.exiled = ep.exiled || [];
+    if(ep.exiled.some(x=>x.castawayId===castawayId)) return;
+    ep.exiled.push({castawayId, at: new Date().toISOString()});
+  }
+  static removeExiled(state, epId, castawayId){
+    const ep = state.episodes.find(e=>e.id===epId);
+    if(!ep) return;
+    ep.exiled = (ep.exiled||[]).filter(x=>x.castawayId!==castawayId);
+  }
 }
 
 // ---------- BetLogic: side bets + predictions ----------
@@ -1283,9 +1323,18 @@ class FinaleLogic {
     if(!fp){ fp = {playerId, top3:[null,null,null], winner:null}; state.finalePredictions.push(fp); }
     return fp;
   }
-  static setPick(state, playerId, idx, value){ const fp=FinaleLogic.getOrCreatePrediction(state,playerId); fp.top3[idx]=value; }
+  static setPick(state, playerId, idx, value){
+    const fp=FinaleLogic.getOrCreatePrediction(state,playerId);
+    // The same castaway can't fill two Top-3 slots -- ScoringLogic counts each slot independently,
+    // so a duplicate would double-count one person's correct guess.
+    if(value && fp.top3.some((id,i)=>i!==idx && id===value)) return;
+    fp.top3[idx]=value;
+  }
   static setWinnerPick(state, playerId, value){ const fp=FinaleLogic.getOrCreatePrediction(state,playerId); fp.winner=value; }
-  static setActualTop3(state, idx, value){ state.finaleActual.top3[idx]=value; }
+  static setActualTop3(state, idx, value){
+    if(value && state.finaleActual.top3.some((id,i)=>i!==idx && id===value)) return;
+    state.finaleActual.top3[idx]=value;
+  }
   static setActualWinner(state, value){ state.finaleActual.winner=value; }
 }
 
@@ -1416,7 +1465,7 @@ class Migrations {
       episodes: [],
       finalePredictions: [],
       finaleActual: { top3: [], winner: null },
-      midSeason: { replenish:null, trade:null },
+      midSeason: { replenish:null, trade:null, log:[] },
       draftOrder: players.map(p=>p.id),
       draftPicksMade: 0,
       draftForceStarted: false,
@@ -1451,6 +1500,8 @@ class Migrations {
         // replenishAvailable/tradeAvailable above.
         replenishEnabled: false,
         tradeEnabled: false,
+        // Same opt-in shape, gated with supportsFinalePredictions; see finalePredictionsAvailable above.
+        finalePredictionsEnabled: false,
         // 'exclusive' (one owner per castaway, snake draft) or 'shared' (many owners, blind draft).
         // Roster league types only; see SHARED_OWNERSHIP_VARIANTS for what flipping it changes.
         ownershipMode: 'exclusive',
@@ -1482,7 +1533,8 @@ class Migrations {
       if(!Array.isArray(c.ownerIds)) c.ownerIds = c.ownerId ? [c.ownerId] : [];
       delete c.ownerId;
     });
-    if(!s.midSeason) s.midSeason = {replenish:null, trade:null};
+    if(!s.midSeason) s.midSeason = {replenish:null, trade:null, log:[]};
+    if(!Array.isArray(s.midSeason.log)) s.midSeason.log = [];
     if(!s.finalePredictions) s.finalePredictions = [];
     if(!s.finaleActual) s.finaleActual = {top3:[], winner:null};
     if(!s.settings.replenishOrderBy) s.settings.replenishOrderBy = 'mostPoints';
@@ -1504,6 +1556,12 @@ class Migrations {
     s.settings.eventPoints = { ...defaultEventPoints(), ...(s.settings.eventPoints || {}) };
     if(typeof s.settings.replenishEnabled !== 'boolean') s.settings.replenishEnabled = !!(s.midSeason && s.midSeason.replenish);
     if(typeof s.settings.tradeEnabled !== 'boolean') s.settings.tradeEnabled = !!(s.midSeason && s.midSeason.trade);
+    // Default OFF like a new league, EXCEPT where predictions already exist -- same reasoning as
+    // replenishEnabled/tradeEnabled above, backfilling those to false would strand picks already made.
+    if(typeof s.settings.finalePredictionsEnabled !== 'boolean'){
+      s.settings.finalePredictionsEnabled = (s.finalePredictions && s.finalePredictions.length > 0)
+        || !!(s.finaleActual && (s.finaleActual.winner || (s.finaleActual.top3||[]).some(Boolean)));
+    }
     if(!s.blindDraft) s.blindDraft = { lockedPlayerIds: [], revealedAt: null };
     if(!s.draftOrder) s.draftOrder = (s.players||[]).map(p=>p.id);
     if(typeof s.draftPicksMade !== 'number') s.draftPicksMade = (s.castaways||[]).filter(c=>ownerListOf(c).length).length;
@@ -1526,6 +1584,9 @@ class Migrations {
       if(!ep.scoringEvents) ep.scoringEvents = [];
       if(!ep.lineups) ep.lineups = {};
       if(typeof ep.lineupsLocked !== 'boolean') ep.lineupsLocked = false;
+      // Exile Island records (see addExiled). Nothing scores off these, so an old episode simply
+      // starting empty is correct -- there's no history to reconstruct.
+      if(!ep.exiled) ep.exiled = [];
     });
     delete s.settings.bonusCategories;
     return s;
@@ -1535,7 +1596,7 @@ class Migrations {
 return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS, EXIT_METHODS,
-  LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, rosterSize,
+  LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize,
   ACTIVE_ROSTER_EVENTS,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
@@ -1560,7 +1621,8 @@ return {
   startTrade: TradeLogic.start, tradeSwap: TradeLogic.swap, tradeSkip: TradeLogic.skip, cancelTrade: TradeLogic.cancel,
   addEpisode: EpisodeLogic.add, removeEpisode: EpisodeLogic.remove, updateEpisode: EpisodeLogic.update,
   renumberPlacements: EpisodeLogic.renumberPlacements, addElimination: EpisodeLogic.addElimination, removeElimination: EpisodeLogic.removeElimination,
-  ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming,
+  addExiled: EpisodeLogic.addExiled, removeExiled: EpisodeLogic.removeExiled,
+  ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,
   addBet: BetLogic.add, updateBet: BetLogic.update, removeBet: BetLogic.remove,
   addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,
   getOrCreateFinalePred: FinaleLogic.getOrCreatePrediction, setFinalePick: FinaleLogic.setPick, setFinaleWinnerPick: FinaleLogic.setWinnerPick,

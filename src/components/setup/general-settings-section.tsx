@@ -28,6 +28,17 @@ export function GeneralSettingsSection({ state }: { state: LeagueState }) {
   const leagueType = StateLogic.getLeagueType(state);
   if (!leagueType.hasRoster) return null;
 
+  // Every field below is independently gated (teamSize by !hasActiveRoster, the two toggles by
+  // supports*, replenish order by replenishAvailable) -- a shared-ownership Active Roster league
+  // fails all of them at once (no teamSize field, and shared ownership forces supportsReplenish/
+  // supportsTrade false), which would otherwise leave the header floating over an empty panel.
+  const hasAnyField =
+    !leagueType.hasActiveRoster ||
+    leagueType.supportsReplenish ||
+    leagueType.supportsTrade ||
+    StateLogic.replenishAvailable(state);
+  if (!hasAnyField) return null;
+
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
       <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">General Settings</h3>

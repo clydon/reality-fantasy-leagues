@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Episode, LeagueState } from "@/lib/game/types";
+import type { Episode, LeagueState, WikiProposalItem } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
@@ -9,16 +9,32 @@ import { api } from "@/lib/api";
 import { EpisodeBetRow } from "./episode-bet-row";
 import { EpisodePicksSection } from "./episode-pick-row";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
+import { WikiOutcomeSection } from "./wiki-outcome-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { ChevronDownIcon } from "@/components/icons";
+import { confirm } from "@/lib/confirm-store";
 import { cn } from "cn";
 import { useShowTerms } from "@/lib/use-show-terms";
 
 // Port of renderEpisodeCard() (public/app.js). `<details open>`'s per-episode expand/collapse
 // state (the live app's `openEpisodes` global Set) becomes this component's own `open` state --
 // same idea, one instance per card instead of a shared collection keyed by id.
-export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: LeagueState; defaultOpen: boolean }) {
+export function EpisodeCard({
+  ep,
+  state,
+  defaultOpen,
+  wikiItems,
+  onWikiItemsChanged,
+}: {
+  ep: Episode;
+  state: LeagueState;
+  defaultOpen: boolean;
+  /** This episode's own pending wiki-connector decisions -- already filtered by episodes-tab.tsx. */
+  wikiItems?: WikiProposalItem[];
+  onWikiItemsChanged?: () => void;
+}) {
   const terms = useShowTerms();
   const [open, setOpen] = useState(defaultOpen);
   const [editingEp, setEditingEp] = useState(false);
@@ -44,7 +60,13 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
   }
 
   async function handleDeleteEpisode() {
-    if (!confirm("Delete this episode and its logged events? (Elimination placements from it will be undone.)")) return;
+    if (
+      !(await confirm("Delete this episode and its logged events? (Elimination placements from it will be undone.)", {
+        danger: true,
+        confirmLabel: "Delete",
+      }))
+    )
+      return;
     await mutate(
       (s) => StateLogic.removeEpisode(s, ep.id),
       () => api.removeEpisode(leagueId!, ep.id)
@@ -67,7 +89,7 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
     const c = StateLogic.getCastaway(state, castawayId);
     if (
       c?.replenishClaimed &&
-      !confirm("This loss was already used in a Replenish round. Undoing it will NOT take back the replenish pick already granted. Continue?")
+      !(await confirm("This loss was already used in a Replenish round. Undoing it will NOT take back the replenish pick already granted. Continue?"))
     )
       return;
     await mutate(
@@ -97,7 +119,7 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
             {ep.title ? <span className="font-normal"> &ldquo;{ep.title}&rdquo;</span> : null} — {summary}
           </div>
           {ep.airDate && <div className="mt-0.5 text-xs text-muted-foreground">Aired {ep.airDate}</div>}
-          {(ep.postMerge || (ep.bets || []).length > 0) && (
+          {(ep.postMerge || (ep.bets || []).length > 0 || (wikiItems || []).length > 0) && (
             <div className="mt-1 flex gap-1.5">
               {ep.postMerge && (
                 <span className="rounded bg-[#5089c4] px-1.5 py-0.5 text-[0.65rem] font-bold text-white">Post-Merge</span>
@@ -110,10 +132,18 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                   Bets
                 </span>
               )}
+              {(wikiItems || []).length > 0 && (
+                <span
+                  className="rounded bg-[#c99a3e] px-1.5 py-0.5 text-[0.65rem] font-bold text-white"
+                  title="Pending decisions from the wiki connector, awaiting review"
+                >
+                  {wikiItems!.length} to reveal
+                </span>
+              )}
             </div>
           )}
         </div>
-        <span className={cn("mt-1 text-xs text-muted-foreground transition-transform", open && "rotate-180")}>▾</span>
+        <ChevronDownIcon className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
 
       {open && (
@@ -218,6 +248,10 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
               </div>
             )}
           </div>
+
+          {canManage && (wikiItems || []).length > 0 && (
+            <WikiOutcomeSection items={wikiItems!} state={state} onResolved={() => onWikiItemsChanged?.()} />
+          )}
 
           {StateLogic.getLeagueType(state).hasWeeklyPicks && <EpisodePicksSection ep={ep} state={state} />}
 

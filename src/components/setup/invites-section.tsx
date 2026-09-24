@@ -6,6 +6,7 @@ import { useLeagueStore } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { confirm } from "@/lib/confirm-store";
 
 // Not a port of anything in the live app (which only had join-by-code). Any member can invite,
 // not just the commissioner -- so this deliberately doesn't gate on useCanManage(); being able to
@@ -53,7 +54,7 @@ export function InvitesSection() {
   }
 
   async function handleRevoke(invite: LeagueInvite) {
-    if (!confirm(`Revoke the invite to "${invite.identifier}"?`)) return;
+    if (!(await confirm(`Revoke the invite to "${invite.identifier}"?`))) return;
     try {
       await api.revokeInvite(leagueId!, invite.id);
       setInvites((list) => list.filter((i) => i.id !== invite.id));

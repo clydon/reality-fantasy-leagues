@@ -52,6 +52,12 @@ interface LeagueStore {
   // loadFirstLeague() already does for the initial load.
   switchLeague: (leagueId: string) => Promise<void>;
   useMock: () => void;
+  // True only while an already-signed-in user is previewing demo data via "Switch to demo data"
+  // (Sidebar) -- unlike useMock(), does NOT clear userId/leagues/etc, so there's still a real
+  // session to fall back to. Drives useIsPreviewingDemo's banner for this case, since that hook's
+  // original `!userId` check is false here by design. See auth-gate.tsx's handleExitDemo.
+  demoPreview: boolean;
+  previewDemo: () => void;
   loadLive: (
     leagueId: string,
     state: LeagueState,
@@ -94,6 +100,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   impersonating: false,
   playerAccounts: [],
   leagues: [],
+  demoPreview: false,
   useMock: () =>
     set({
       mode: "mock",
@@ -107,14 +114,26 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       playerAccounts: [],
       leagues: [],
       flash: null,
+      demoPreview: false,
+    }),
+  previewDemo: () =>
+    set({
+      mode: "mock",
+      state: buildMockSeasonState(),
+      leagueId: null,
+      leagueName: null,
+      membership: null,
+      playerAccounts: [],
+      flash: null,
+      demoPreview: true,
     }),
   loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts) =>
-    set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts }),
+    set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts, demoPreview: false }),
   setIdentity: (userId, isSuperAdmin, impersonating) => set({ userId, isSuperAdmin, impersonating }),
   setLeagues: (leagues) => set({ leagues }),
   switchLeague: async (leagueId) => {
     const { league, state, membership, playerAccounts } = await api.leagueState(leagueId);
-    set({ mode: "live", leagueId: league.id, state, leagueName: league.name, membership, playerAccounts });
+    set({ mode: "live", leagueId: league.id, state, leagueName: league.name, membership, playerAccounts, demoPreview: false });
   },
   setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason } }),
   clearLeague: () =>
@@ -157,12 +176,12 @@ export function useIsImpersonating(): boolean {
   return useLeagueStore((s) => s.impersonating);
 }
 
-// True for the "Take a Tour" / previewing-without-an-account case specifically -- not just any
-// mock mode, since a real signed-in super-admin with zero personal leagues also stays mode:'mock'
-// (see useIsAuthenticated's comment) but isn't "previewing a tour," they're just leagueless.
-// Drives the exit-demo affordance (see auth-gate.tsx) -- port of the live app's isDemoMode gate
-// on its persistent "Exit Demo" button, narrowed to the pre-auth case since useMock() already
-// clears identity regardless of how demo mode was entered (see that action's own comment).
+// True for the "Take a Tour" / previewing-without-an-account case (mock mode with no identity),
+// OR an already-signed-in user deliberately previewing demo data via "Switch to demo data" (the
+// `demoPreview` flag -- see previewDemo() in the store). Not just any mock mode: a real signed-in
+// super-admin with zero personal leagues also stays mode:'mock' (see useIsAuthenticated's
+// comment) but isn't previewing anything, they're just leagueless. Drives the exit-demo
+// affordance (see auth-gate.tsx).
 export function useIsPreviewingDemo(): boolean {
-  return useLeagueStore((s) => s.mode === "mock" && !s.userId);
+  return useLeagueStore((s) => s.mode === "mock" && (!s.userId || s.demoPreview));
 }

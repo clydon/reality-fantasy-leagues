@@ -1,5 +1,7 @@
 // Exact SVG paths ported from MOBILE_ICONS (public/app.js) -- same viewBox/stroke settings, just
-// as React components instead of template-string fragments.
+// as React components instead of template-string fragments. Shared across mobile nav and desktop
+// chrome (not mobile-specific despite the original port site) -- see ChevronDownIcon/CrownIcon,
+// which replace ad hoc unicode glyphs (▾/▸) used inline in individual components.
 const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
 export function OverviewIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -114,6 +116,13 @@ export function ChevronDownIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+export function CrownIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M3 8.5 7 12l5-7 5 7 4-3.5-2 10.5a1 1 0 0 1-1 .8H6a1 1 0 0 1-1-.8L3 8.5z" />
     </svg>
   );
 }

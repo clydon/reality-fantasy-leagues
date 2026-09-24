@@ -8,11 +8,10 @@ import { FinalePanel } from "./finale-panel";
 import { useShowTerms } from "@/lib/use-show-terms";
 
 // Direct port of renderMidseason() (public/app.js): intro panel, then Replenish, Swap, and
-// Finale Predictions, same order. Each panel is additionally gated on the active league type's
-// supportsReplenish/supportsTrade/supportsFinalePredictions flags (see state-logic.js's
-// LEAGUE_TYPES) -- a no-op today since 'classic-draft' supports all three, but this is what makes
-// a future league type without e.g. a persistent roster (so no Replenish/Swap) able to just not
-// show those panels, rather than needing a special case here later.
+// Finale Predictions, same order. Each panel is gated on BOTH the active league type's
+// supportsReplenish/supportsTrade/supportsFinalePredictions capability (state-logic.js's
+// LEAGUE_TYPES) AND the commissioner's own enable toggle in League Settings -- see
+// replenishAvailable/tradeAvailable/finalePredictionsAvailable.
 export function MidSeasonTab() {
   const terms = useShowTerms();
   const state = useLeagueStore((s) => s.state);
@@ -20,6 +19,7 @@ export function MidSeasonTab() {
   // Capability AND commissioner choice -- both default off, see replenishAvailable's comment.
   const replenishOn = StateLogic.replenishAvailable(state);
   const tradeOn = StateLogic.tradeAvailable(state);
+  const finaleOn = StateLogic.finalePredictionsAvailable(state);
 
   // The sidebar/mobile nav both hide this tab's link for a league type with no roster (pickem,
   // whose supportsReplenish/supportsTrade/supportsFinalePredictions are all false anyway, which
@@ -64,7 +64,7 @@ export function MidSeasonTab() {
         </div>
       )}
 
-      {leagueType.supportsFinalePredictions && (
+      {finaleOn && (
         <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
           <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Finale Predictions</h3>
           <FinalePanel state={state} />

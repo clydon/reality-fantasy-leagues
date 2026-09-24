@@ -5,6 +5,7 @@ import type { LeagueState } from "@/lib/game/types";
 import { useLeagueStore, useCanManage, useIsSuperAdmin } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { confirm } from "@/lib/confirm-store";
 
 // Port of renderSetup()'s Backup panel. Export is client-only (dumps `state` as a JSON download)
 // and works identically in both modes; Import and Reset are live-only (there's no persisted
@@ -35,7 +36,7 @@ export function BackupSection({ state }: { state: LeagueState }) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!confirm("Import this backup? It will replace the league's entire current state.")) return;
+    if (!(await confirm("Import this backup? It will replace the league's entire current state.", { danger: true, confirmLabel: "Import" }))) return;
     try {
       const text = await file.text();
       const raw = JSON.parse(text);
@@ -47,7 +48,7 @@ export function BackupSection({ state }: { state: LeagueState }) {
   }
 
   async function handleReset() {
-    if (!confirm("Reset ALL data for this league? This cannot be undone.")) return;
+    if (!(await confirm("Reset ALL data for this league? This cannot be undone.", { danger: true, confirmLabel: "Reset" }))) return;
     try {
       const next = await api.resetLeague(leagueId!);
       setState(next);

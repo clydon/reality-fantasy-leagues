@@ -10,6 +10,7 @@ import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 import { ReportModal } from "@/components/report-modal";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Dashboard } from "@/components/dashboard/dashboard";
 import { useLeaguePoll } from "@/lib/use-league-poll";
 import { Button } from "@/components/ui/button";
@@ -107,13 +108,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setEntered(true);
   }
 
-  // Port of exitDemoMode() (public/app.js): while previewing without an account, there's no real
-  // session to fall back to (useMock() already clears identity regardless of how demo mode was
-  // entered -- see that action's own comment), so this always means "show the login screen,"
-  // unlike the live app's exitDemoMode()/boot() combo which can also silently restore a real
-  // session if one exists. Reset the mock state too (not just hide it) so a stale demo edit isn't
-  // still sitting there if they skip back into the tour again later.
+  // Port of exitDemoMode() (public/app.js). Two distinct cases share this one banner/button:
+  // - Previewing without an account ("Take a Tour"): there's no real session to fall back to
+  //   (useMock() clears identity), so this means "show the login screen."
+  // - An already-signed-in user who clicked "Switch to demo data" (Sidebar's previewDemo()):
+  //   their session cookie never went away, so a full reload re-runs loadFirstLeague() against
+  //   it and lands them back on their real league -- same reasoning as handleStopImpersonating
+  //   below, simpler and more robust than trying to patch every piece of client state back by
+  //   hand. Reset the mock state in the tour case too (not just hide it) so a stale demo edit
+  //   isn't still sitting there if they skip back into the tour again later.
   function handleExitDemo() {
+    if (isAuthenticated) {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = "/";
+      return;
+    }
     enterMockMode();
     setEntered(false);
   }
@@ -190,6 +199,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       )}
       <MobileNav />
       <ReportModal />
+      <ConfirmDialog />
       <div className="flex min-h-screen items-stretch">
         <div className="max-nav:hidden">
           <Sidebar />

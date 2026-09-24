@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { TransactionHistory } from "@/components/mid-season/transaction-history";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
@@ -21,6 +22,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
   const canManage = useCanManage();
   const mutate = useMutate();
   const t = state.midSeason.trade;
+  const log = (state.midSeason.log ?? []).filter((e) => e.type === "trade");
 
   async function handleStart() {
     await mutate(
@@ -57,9 +59,13 @@ export function TradePanel({ state }: { state: LeagueState }) {
       <>
         <p className="mb-2 text-sm text-muted-foreground">One optional swap each, reverse draft order.</p>
         <Button onClick={handleStart}>Start Swap Round</Button>
+        <TransactionHistory state={state} entries={log} />
       </>
     ) : (
-      <p className="text-sm text-muted-foreground">Commissioner-run.</p>
+      <>
+        <p className="text-sm text-muted-foreground">Commissioner-run.</p>
+        <TransactionHistory state={state} entries={log} />
+      </>
     );
   }
 
@@ -72,6 +78,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
             Clear
           </Button>
         )}
+        <TransactionHistory state={state} entries={log} />
       </>
     );
   }
@@ -174,6 +181,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
           </Button>
         </div>
       )}
+      <TransactionHistory state={state} entries={log} />
     </>
   );
 }

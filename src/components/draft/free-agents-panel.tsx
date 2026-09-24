@@ -7,11 +7,12 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
+import { confirm } from "@/lib/confirm-store";
 import { cn } from "cn";
 
 // Port of renderDraft()'s "Free Agents" panel -- click a castaway to draft them for whoever's
-// turn it is. The commissioner-drafting-on-someone-else's-behalf confirm() dialog is ported too
-// (window.confirm works the same in a Next.js client component as it did in app.js).
+// turn it is. The commissioner-drafting-on-someone-else's-behalf confirmation dialog is ported
+// too, now via the app's own styled confirm() rather than window.confirm().
 export function FreeAgentsPanel({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -29,7 +30,7 @@ export function FreeAgentsPanel({ state }: { state: LeagueState }) {
     if (!draftStarted || !turn || turn.isComplete) return;
     if (turn.playerId !== myPlayerId) {
       const castaway = StateLogic.getCastaway(state, castawayId);
-      const ok = confirm(
+      const ok = await confirm(
         `You are drafting a pick for ${turnPlayer?.name || "this player"}. Are you sure you want to draft ${castaway?.name || `this ${terms.castaway}`}?`
       );
       if (!ok) return;

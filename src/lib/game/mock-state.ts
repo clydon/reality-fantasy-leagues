@@ -64,7 +64,7 @@ export function buildMockSeasonState(): LeagueState {
   });
   const byName = (key: string) => castaways.find((c) => c.id === "demo_c_" + key)!.id;
 
-  function ep(num: number, eventKeys: string[], bets?: LeagueState["episodes"][number]["bets"]) {
+  function ep(num: number, eventKeys: string[], bets?: LeagueState["episodes"][number]["bets"], exiledKeys?: string[]) {
     return {
       id: "demo_ep" + num,
       number: num,
@@ -73,6 +73,8 @@ export function buildMockSeasonState(): LeagueState {
         castawayId: byName(k),
         method: raw.find((r) => r.k === k)!.method,
       })),
+      // Recorded, never scored -- see EpisodeLogic.addExiled.
+      exiled: (exiledKeys || []).map((k) => ({ castawayId: byName(k), at: "2026-04-09T03:00:00.000Z" })),
       bets: bets || [],
       picks: [], // this demo league is classic-draft; pickem's weekly picks never apply here.
       // Likewise Active Roster's per-episode lineups/events -- present but unused here.
@@ -99,7 +101,8 @@ export function buildMockSeasonState(): LeagueState {
         ],
       },
     ]),
-    ep(7, ["dee"]),
+    // Cirie sits out on Exile here, which is what the next episode's side bet is asking about.
+    ep(7, ["dee"], undefined, ["cirie"]),
     ep(8, ["chrissy", "coach"], [
       {
         id: "demo_bet_exile",
@@ -150,7 +153,20 @@ export function buildMockSeasonState(): LeagueState {
       { playerId: joey.id, top3: [byName("rizo"), byName("aubry"), byName("jonathan")], winner: byName("aubry") },
     ],
     finaleActual: { top3: [byName("aubry"), byName("jonathan"), byName("joe")], winner: byName("aubry") },
-    midSeason: { replenish: null, trade: null },
+    // The finished rounds that the castaways' acquiredVia/departedVia fields above already imply,
+    // recorded as log entries so the Mid-Season panels show their history. Genevieve is swapped
+    // while still active (before her Ep 6 exit); the replenish comes after Ep 6, once Q, Mike and
+    // Charlie were all out.
+    midSeason: {
+      replenish: null,
+      trade: null,
+      log: [
+        { id: "demo_tx1", type: "trade" as const, playerId: connie.id, addedCastawayId: byName("jonathan"), droppedCastawayId: byName("genevieve"), at: "2026-03-26T03:00:00.000Z" },
+        { id: "demo_tx2", type: "replenish" as const, playerId: connie.id, addedCastawayId: byName("rick"), droppedCastawayId: byName("q"), at: "2026-04-02T03:00:00.000Z" },
+        { id: "demo_tx3", type: "replenish" as const, playerId: joey.id, addedCastawayId: byName("cirie"), droppedCastawayId: byName("mike"), at: "2026-04-02T03:05:00.000Z" },
+        { id: "demo_tx4", type: "replenish" as const, playerId: joey.id, addedCastawayId: byName("joe"), droppedCastawayId: byName("charlie"), at: "2026-04-02T03:10:00.000Z" },
+      ],
+    },
     draftOrder: [connie.id, annie.id, joey.id],
     draftPicksMade: 9,
     draftForceStarted: true,
@@ -164,6 +180,7 @@ export function buildMockSeasonState(): LeagueState {
       replenishEnabled: true,
       tradeEnabled: true,
       defaultBetPoints: 1,
+      finalePredictionsEnabled: true,
       finaleTop3Points: 1,
       finaleWinnerPoints: 3,
       finalePredictionScope: "open",

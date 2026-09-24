@@ -90,6 +90,7 @@ declare const StateLogic: {
   // that shows or starts a mid-season round should ask through these, not read either half alone.
   replenishAvailable(state: LeagueState): boolean;
   tradeAvailable(state: LeagueState): boolean;
+  finalePredictionsAvailable(state: LeagueState): boolean;
   /** Castaways per player in the draft. Derived from activeSlots+benchSlots for Active Roster. */
   rosterSize(state: LeagueState): number;
   ACTIVE_ROSTER_EVENTS: ActiveRosterEventDef[];
@@ -173,6 +174,10 @@ declare const StateLogic: {
   updateEpisode(state: LeagueState, epId: string, field: string, value: unknown): void;
   addElimination(state: LeagueState, epId: string, castawayId: string, method: string): void;
   removeElimination(state: LeagueState, epId: string, castawayId: string): void;
+  addExiled(state: LeagueState, epId: string, castawayId: string): void;
+  removeExiled(state: LeagueState, epId: string, castawayId: string): void;
+  /** Finds the episode with this number, creating it (and any gap before it) if missing. */
+  ensureEpisodeNumber(state: LeagueState, number: number, postMerge: boolean, created?: number[]): Episode;
   nextPlacementOrder(state: LeagueState): number;
   updateBet(state: LeagueState, epId: string, betId: string, field: string, value: unknown): void;
   removeBetPrediction(state: LeagueState, epId: string, betId: string, predId: string): void;

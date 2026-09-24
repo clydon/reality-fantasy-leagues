@@ -1,16 +1,73 @@
 "use client";
 
-import type { LeagueState } from "@/lib/game/types";
+import type { Castaway, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { ordinal } from "@/lib/game/selectors";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
-import { Select } from "@/components/ui/select";
+import { CastawayAvatar } from "@/components/castaway-avatar";
 import { useShowTerms } from "@/lib/use-show-terms";
+import { cn } from "cn";
+
+// A grid of cast-photo cards for picking up to `max` castaways (3 for Top-3, 1 for Winner),
+// replacing what used to be a bare <select> of names -- same card pattern as the draft/mid-season
+// free-agent pickers (see free-agents-panel.tsx). `selected` holds ordered slot values (nulls for
+// empty slots); clicking an already-picked card clears its slot, clicking an empty card fills the
+// first empty slot, and a card can't be picked into two slots at once (state-logic.js's
+// FinaleLogic.setPick/setActualTop3 enforce the same rule server-side).
+function CastPickGrid({
+  pool,
+  selected,
+  editable,
+  onToggle,
+}: {
+  pool: Castaway[];
+  selected: (string | null)[];
+  editable: boolean;
+  onToggle: (castawayId: string) => void;
+}) {
+  const max = selected.length;
+  const filledCount = selected.filter(Boolean).length;
+  // Single-select (Winner) never needs a slot cleared first -- picking a new card just switches
+  // the pick, handled by the caller's onToggle. Only multi-select (Top-3) needs a slot free before
+  // it'll accept a new name, since there's no "current slot" to swap into otherwise.
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2">
+      {pool.map((c) => {
+        const idx = selected.indexOf(c.id);
+        const picked = idx !== -1;
+        const disabled = !editable || (max > 1 && !picked && filledCount >= max);
+        return (
+          <div
+            key={c.id}
+            role={editable ? "button" : undefined}
+            tabIndex={editable && !disabled ? 0 : undefined}
+            className={cn(
+              "relative flex flex-col items-center gap-1 rounded-lg border-2 p-1.5 text-center",
+              picked ? "border-primary bg-primary/10" : "border-border",
+              editable && !disabled && "cursor-pointer hover:border-primary",
+              disabled && !picked && "opacity-40"
+            )}
+            onClick={() => editable && !disabled && onToggle(c.id)}
+            onKeyDown={(e) => editable && !disabled && e.key === "Enter" && onToggle(c.id)}
+          >
+            {picked && (
+              <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[0.6rem] font-bold text-primary-foreground">
+                {max > 1 ? idx + 1 : "✓"}
+              </span>
+            )}
+            <CastawayAvatar castaway={c} className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold" />
+            <div className="w-full truncate text-[0.65rem] font-medium leading-tight">{c.name}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // Port of renderFinalePanel() (public/app.js): each player's Top-3 + Winner prediction, plus the
-// commissioner-only Actual Result used to grade them all via ScoringLogic.compute.
+// commissioner-only Actual Result used to grade them all via ScoringLogic.compute. Cast-photo
+// cards (CastPickGrid above) replace the original's plain <select> dropdowns.
 export function FinalePanel({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -23,29 +80,43 @@ export function FinalePanel({ state }: { state: LeagueState }) {
   const scores = StateLogic.computeScores(state);
   const finaleOf = (playerId: string) => scores.find((sc) => sc.playerId === playerId)?.finale ?? 0;
 
-  async function setPick(playerId: string, idx: number, value: string) {
+  async function setPick(playerId: string, idx: number, value: string | null) {
     await mutate(
-      (st) => StateLogic.setFinalePick(st, playerId, idx, value || null),
-      () => api.setFinalePick(leagueId!, playerId, idx, value || null)
+      (st) => StateLogic.setFinalePick(st, playerId, idx, value),
+      () => api.setFinalePick(leagueId!, playerId, idx, value)
     );
   }
-  async function setWinnerPick(playerId: string, value: string) {
+  async function setWinnerPick(playerId: string, value: string | null) {
     await mutate(
-      (st) => StateLogic.setFinaleWinnerPick(st, playerId, value || null),
-      () => api.setFinaleWinnerPick(leagueId!, playerId, value || null)
+      (st) => StateLogic.setFinaleWinnerPick(st, playerId, value),
+      () => api.setFinaleWinnerPick(leagueId!, playerId, value)
     );
   }
-  async function setActualTop3(idx: number, value: string) {
+  async function setActualTop3(idx: number, value: string | null) {
     await mutate(
-      (st) => StateLogic.setActualTop3(st, idx, value || null),
-      () => api.setActualTop3(leagueId!, idx, value || null)
+      (st) => StateLogic.setActualTop3(st, idx, value),
+      () => api.setActualTop3(leagueId!, idx, value)
     );
   }
-  async function setActualWinner(value: string) {
+  async function setActualWinner(value: string | null) {
     await mutate(
-      (st) => StateLogic.setActualWinner(st, value || null),
-      () => api.setActualWinner(leagueId!, value || null)
+      (st) => StateLogic.setActualWinner(st, value),
+      () => api.setActualWinner(leagueId!, value)
     );
+  }
+
+  // Toggling a card: clear its slot if already picked, otherwise fill the first empty slot.
+  function toggleTop3(playerId: string, top3: (string | null)[], castawayId: string) {
+    const idx = top3.indexOf(castawayId);
+    if (idx !== -1) return setPick(playerId, idx, null);
+    const empty = top3.indexOf(null);
+    if (empty !== -1) return setPick(playerId, empty, castawayId);
+  }
+  function toggleActualTop3(top3: (string | null)[], castawayId: string) {
+    const idx = top3.indexOf(castawayId);
+    if (idx !== -1) return setActualTop3(idx, null);
+    const empty = top3.indexOf(null);
+    if (empty !== -1) return setActualTop3(empty, castawayId);
   }
 
   return (
@@ -94,26 +165,7 @@ export function FinalePanel({ state }: { state: LeagueState }) {
                 {pool.length === 0 ? (
                   <span className="text-xs text-muted-foreground">No picks to predict with</span>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {[0, 1, 2].map((i) => (
-                      <label key={i} className="flex items-center gap-1 text-xs">
-                        {ordinal(i + 1)}
-                        <Select
-                          className="rounded border border-border bg-card px-1 py-0.5 text-xs"
-                          disabled={!editable}
-                          defaultValue={fp.top3[i] ?? ""}
-                          onChange={(e) => setPick(p.id, i, e.target.value)}
-                        >
-                          <option value="">—</option>
-                          {pool.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </Select>
-                      </label>
-                    ))}
-                  </div>
+                  <CastPickGrid pool={pool} selected={fp.top3} editable={editable} onToggle={(id) => toggleTop3(p.id, fp.top3, id)} />
                 )}
               </div>
               <div>
@@ -121,19 +173,12 @@ export function FinalePanel({ state }: { state: LeagueState }) {
                 {pool.length === 0 ? (
                   <span className="text-xs text-muted-foreground">—</span>
                 ) : (
-                  <Select
-                    className="rounded border border-border bg-card px-1.5 py-1 text-xs"
-                    disabled={!editable}
-                    defaultValue={fp.winner ?? ""}
-                    onChange={(e) => setWinnerPick(p.id, e.target.value)}
-                  >
-                    <option value="">—</option>
-                    {pool.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </Select>
+                  <CastPickGrid
+                    pool={pool}
+                    selected={[fp.winner]}
+                    editable={editable}
+                    onToggle={(id) => setWinnerPick(p.id, fp.winner === id ? null : id)}
+                  />
                 )}
               </div>
             </div>
@@ -145,42 +190,23 @@ export function FinalePanel({ state }: { state: LeagueState }) {
       <h4 className="mb-2 mt-4 text-sm font-bold">
         Actual Result <span className="ml-1 rounded bg-secondary px-1.5 py-0.5 text-[0.65rem] font-normal">Commissioner only</span>
       </h4>
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Top 3:</span>
-        {[0, 1, 2].map((i) => (
-          <label key={i} className="flex items-center gap-1 text-xs">
-            {ordinal(i + 1)}
-            <Select
-              className="rounded border border-border bg-card px-1 py-0.5 text-xs"
-              disabled={!canManage}
-              defaultValue={state.finaleActual.top3[i] ?? ""}
-              onChange={(e) => setActualTop3(i, e.target.value)}
-            >
-              <option value="">—</option>
-              {state.castaways.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </label>
-        ))}
+      <div className="mb-3">
+        <div className="mb-1 text-xs font-semibold text-muted-foreground">Top 3</div>
+        <CastPickGrid
+          pool={state.castaways}
+          selected={state.finaleActual.top3}
+          editable={canManage}
+          onToggle={(id) => toggleActualTop3(state.finaleActual.top3, id)}
+        />
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Winner:</span>
-        <Select
-          className="rounded border border-border bg-card px-1.5 py-1 text-sm"
-          disabled={!canManage}
-          defaultValue={state.finaleActual.winner ?? ""}
-          onChange={(e) => setActualWinner(e.target.value)}
-        >
-          <option value="">—</option>
-          {state.castaways.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
+      <div>
+        <div className="mb-1 text-xs font-semibold text-muted-foreground">Winner</div>
+        <CastPickGrid
+          pool={state.castaways}
+          selected={[state.finaleActual.winner]}
+          editable={canManage}
+          onToggle={(id) => setActualWinner(state.finaleActual.winner === id ? null : id)}
+        />
       </div>
     </div>
   );

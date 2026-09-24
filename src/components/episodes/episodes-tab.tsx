@@ -1,5 +1,7 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import type { WikiProposalItem } from "@/lib/game/types";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import StateLogic from "@/lib/game/state-logic.js";
@@ -15,11 +17,29 @@ import { Button } from "@/components/ui/button";
 export function EpisodesTab() {
   const state = useLeagueStore((s) => s.state);
   const leagueId = useLeagueStore((s) => s.leagueId);
+  const mode = useLeagueStore((s) => s.mode);
   const canManage = useCanManage();
   const mutate = useMutate();
 
   const sorted = [...state.episodes].sort((a, b) => b.number - a.number);
   const latestNumber = sorted[0]?.number;
+
+  // Wiki-connector decisions (db/migrations/0009) live in their own table, not league state --
+  // same "no mock-mode branch" reasoning as wiki-proposals (see wiki-connector-section.tsx).
+  // Fetched once here rather than per-card, then grouped by episode for each card's own "Reveal
+  // Outcome" section.
+  const live = mode === "live" && !!leagueId;
+  const { data, refetch } = useQuery({
+    queryKey: ["wiki-items", leagueId],
+    queryFn: () => api.listWikiItems(leagueId!),
+    enabled: live && canManage,
+  });
+  const itemsByEpisode = new Map<number, WikiProposalItem[]>();
+  for (const item of data?.items ?? []) {
+    const list = itemsByEpisode.get(item.episode_number);
+    if (list) list.push(item);
+    else itemsByEpisode.set(item.episode_number, [item]);
+  }
 
   async function handleAddEpisode() {
     await mutate(
@@ -39,7 +59,16 @@ export function EpisodesTab() {
       {sorted.length === 0 ? (
         <div className="text-sm italic text-muted-foreground">No episodes logged yet.</div>
       ) : (
-        sorted.map((ep) => <EpisodeCard key={ep.id} ep={ep} state={state} defaultOpen={ep.number === latestNumber} />)
+        sorted.map((ep) => (
+          <EpisodeCard
+            key={ep.id}
+            ep={ep}
+            state={state}
+            defaultOpen={ep.number === latestNumber}
+            wikiItems={itemsByEpisode.get(ep.number)}
+            onWikiItemsChanged={refetch}
+          />
+        ))
       )}
     </>
   );

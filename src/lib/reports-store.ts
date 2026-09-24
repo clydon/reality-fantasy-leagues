@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Report } from "@/lib/game/types";
 import { api } from "@/lib/api";
+import { confirm } from "@/lib/confirm-store";
 
 // Port of the live app's separate adminReports global + enterReportsTab()/renderAdminReports()
 // (public/app.js) -- its own store rather than folded into admin-store.ts, matching how the
@@ -21,7 +22,7 @@ export const useReportsStore = create<ReportsStore>((set, get) => ({
     set({ reports, loaded: true });
   },
   async deleteReport(id) {
-    if (!confirm("Delete this report?")) return;
+    if (!(await confirm("Delete this report?", { danger: true, confirmLabel: "Delete" }))) return;
     await api.adminDeleteReport(id);
     set({ reports: get().reports.filter((r) => r.id !== id) });
   },

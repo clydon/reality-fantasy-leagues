@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { ChevronDownIcon } from "@/components/icons";
+import { confirm } from "@/lib/confirm-store";
 import { cn } from "cn";
 
 // Super-admin management of the show/season catalog, which used to be a hardcoded registry in
@@ -179,8 +181,8 @@ function ShowRow({
   return (
     <div className={cn("rounded-md border border-border p-2.5", show.archived && "opacity-60")}>
       <div className="flex flex-wrap items-center gap-2">
-        <button className="text-xs text-muted-foreground" onClick={onToggle} title="Show seasons">
-          <span className={cn("inline-block transition-transform", expanded && "rotate-90")}>▸</span>
+        <button className="text-muted-foreground" onClick={onToggle} title="Show seasons">
+          <ChevronDownIcon className={cn("h-4 w-4 -rotate-90 transition-transform", expanded && "rotate-0")} />
         </button>
         <span className="text-sm font-bold">{show.name}</span>
         <code className="rounded bg-secondary px-1 py-0.5 font-mono text-[0.65rem]">{show.slug}</code>
@@ -207,8 +209,9 @@ function ShowRow({
             variant="destructive"
             size="xs"
             disabled={busy}
-            onClick={() => {
-              if (!confirm(`Delete "${show.name}" and all its seasons? This can't be undone.`)) return;
+            onClick={async () => {
+              if (!(await confirm(`Delete "${show.name}" and all its seasons? This can't be undone.`, { danger: true, confirmLabel: "Delete" })))
+                return;
               run(() => api.adminDeleteShow(show.id), `Deleted ${show.name}.`);
             }}
           >
@@ -386,7 +389,7 @@ function SeasonRow({
           size="xs"
           disabled={busy}
           onClick={async () => {
-            if (!confirm(`Delete season ${season.seasonNumber}?`)) return;
+            if (!(await confirm(`Delete season ${season.seasonNumber}?`, { danger: true, confirmLabel: "Delete" }))) return;
             // The route reports leagues still pointing at this season -- they keep working, but the
             // connector loses its page title for them, so it's worth surfacing rather than silent.
             await run(async () => {

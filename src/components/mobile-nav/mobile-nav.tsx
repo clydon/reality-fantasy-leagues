@@ -28,7 +28,7 @@ import {
   ChatIcon,
   ChevronDownIcon,
   GearIcon,
-} from "./icons";
+} from "@/components/icons";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
 // / <nav class="mobile-bottombar"> / <div class="mobile-more-sheet">, populated by
@@ -146,7 +146,7 @@ export function MobileNav() {
               disabled={leagues.length === 0}
             >
               <span className="truncate text-[0.95rem] font-bold">{mode === "mock" ? "Demo Mode" : leagueName}</span>
-              <ChevronDownIcon className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
+              <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
             </button>
             {leagueMenuOpen && (
               <div className="absolute left-0 top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">

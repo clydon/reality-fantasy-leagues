@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShowTerms } from "@/lib/use-show-terms";
+import { confirm } from "@/lib/confirm-store";
 
 // Port of renderSetup()'s Players panel: color/name edit, remove, and activating a player who
 // joined after the draft concluded (RosterLogic.addPlayer marks them inactive in that case --
@@ -45,7 +46,7 @@ export function PlayersSection({ state }: { state: LeagueState }) {
     const warning = hasRoster
       ? `Remove "${name}"? Their drafted ${terms.castaways} will become free agents.`
       : `Remove "${name}"?`;
-    if (!confirm(warning)) return;
+    if (!(await confirm(warning, { danger: true, confirmLabel: "Remove" }))) return;
     await mutate(
       (s) => StateLogic.removePlayer(s, id),
       () => api.removePlayer(leagueId!, id)

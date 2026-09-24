@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { confirm } from "@/lib/confirm-store";
 
 // Port of renderSetup()'s Castaways panel (unlabeled in the live app too -- it directly follows
 // Tribes). Removing a castaway is a hard delete (StateLogic.removeCastaway), unlike removing a
@@ -40,7 +41,7 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
   }
 
   async function remove(id: string, name: string) {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete "${name}"? This cannot be undone.`, { danger: true, confirmLabel: "Delete" }))) return;
     await mutate(
       (s) => StateLogic.removeCastaway(s, id),
       () => api.removeCastaway(leagueId!, id)

@@ -7,6 +7,7 @@ import { useAdminStore } from "@/lib/admin-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { confirm } from "@/lib/confirm-store";
 
 type UserLeague = Awaited<ReturnType<typeof api.adminUserLeagues>>["leagues"][number];
 
@@ -72,7 +73,7 @@ export function UserEditModal({ user, isSelf, onClose }: { user: AdminUser; isSe
   }
 
   async function handleRemove(l: UserLeague) {
-    if (!confirm(`Unlink "${label}" from ${l.name}? Their player seat stays in the league, just no longer tied to this account.`)) return;
+    if (!(await confirm(`Unlink "${label}" from ${l.name}? Their player seat stays in the league, just no longer tied to this account.`))) return;
     setError(null);
     try {
       await api.adminUnlinkMembership(l.id, l.membership_id);

@@ -32,36 +32,49 @@ export function FinaleSettingsSection({ state }: { state: LeagueState }) {
       <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Finale Prediction Settings</h3>
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-1.5 text-sm">
-          Points per correct Top-3 name:
-          <Input
-            type="number"
-            className="w-16"
+          <input
+            type="checkbox"
             disabled={!canManage}
-            defaultValue={state.settings.finaleTop3Points}
-            onBlur={(e) => update("finaleTop3Points", parseInt(e.target.value) || 0)}
+            checked={state.settings.finalePredictionsEnabled}
+            onChange={(e) => update("finalePredictionsEnabled", e.target.checked)}
           />
+          Enable Finale Predictions
         </label>
-        <label className="flex items-center gap-1.5 text-sm">
-          Points for correct Winner:
-          <Input
-            type="number"
-            className="w-16"
-            disabled={!canManage}
-            defaultValue={state.settings.finaleWinnerPoints}
-            onBlur={(e) => update("finaleWinnerPoints", parseInt(e.target.value) || 0)}
-          />
-        </label>
-        <label className="flex items-center gap-1.5 text-sm">
-          Prediction scope:
-          <Select
-            disabled={!canManage}
-            defaultValue={state.settings.finalePredictionScope}
-            onChange={(e) => update("finalePredictionScope", e.target.value)}
-          >
-            <option value="open">Open — predict any {terms.castaway}</option>
-            <option value="ownPicksOnly">Own picks only</option>
-          </Select>
-        </label>
+        {state.settings.finalePredictionsEnabled && (
+          <>
+            <label className="flex items-center gap-1.5 text-sm">
+              Points per correct Top-3 name:
+              <Input
+                type="number"
+                className="w-16"
+                disabled={!canManage}
+                defaultValue={state.settings.finaleTop3Points}
+                onBlur={(e) => update("finaleTop3Points", parseInt(e.target.value) || 0)}
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-sm">
+              Points for correct Winner:
+              <Input
+                type="number"
+                className="w-16"
+                disabled={!canManage}
+                defaultValue={state.settings.finaleWinnerPoints}
+                onBlur={(e) => update("finaleWinnerPoints", parseInt(e.target.value) || 0)}
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-sm">
+              Prediction scope:
+              <Select
+                disabled={!canManage}
+                defaultValue={state.settings.finalePredictionScope}
+                onChange={(e) => update("finalePredictionScope", e.target.value)}
+              >
+                <option value="open">Open — predict any {terms.castaway}</option>
+                <option value="ownPicksOnly">Own picks only</option>
+              </Select>
+            </label>
+          </>
+        )}
       </div>
     </div>
   );

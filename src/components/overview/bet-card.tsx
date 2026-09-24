@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { confirm } from "@/lib/confirm-store";
 import { cn } from "cn";
 
 // Direct port of renderBetCard() (public/app.js), converted from global toggle-state
@@ -50,9 +51,9 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
     );
   }
 
-  function handleDelete(e: React.MouseEvent) {
+  async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Remove this bet? This cannot be undone.")) return;
+    if (!(await confirm("Remove this bet? This cannot be undone.", { danger: true, confirmLabel: "Remove" }))) return;
     setRevealed(false);
     mutate(
       (s) => StateLogic.removeBet(s, ep.id, bet.id),

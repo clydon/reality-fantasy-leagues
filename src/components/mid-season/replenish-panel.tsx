@@ -4,6 +4,7 @@ import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { ordinal } from "@/lib/game/selectors";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { TransactionHistory } from "@/components/mid-season/transaction-history";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
@@ -18,6 +19,7 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
   const mutate = useMutate();
   const r = state.midSeason.replenish;
   const orderLabel = state.settings.replenishOrderBy === "leastPoints" ? "lowest points first" : "highest points first";
+  const log = (state.midSeason.log ?? []).filter((e) => e.type === "replenish");
 
   async function handleStart() {
     await mutate(
@@ -43,7 +45,12 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
   }
 
   if (!canManage && !r) {
-    return <p className="text-sm text-muted-foreground">Commissioner-run.</p>;
+    return (
+      <>
+        <p className="text-sm text-muted-foreground">Commissioner-run.</p>
+        <TransactionHistory state={state} entries={log} />
+      </>
+    );
   }
   if (!r) {
     return (
@@ -53,6 +60,7 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
           <span className="text-muted-foreground">(League Settings)</span>.
         </p>
         <Button onClick={handleStart}>Start Replenish</Button>
+        <TransactionHistory state={state} entries={log} />
       </>
     );
   }
@@ -67,6 +75,7 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
             Clear
           </Button>
         )}
+        <TransactionHistory state={state} entries={log} />
       </>
     );
   }
@@ -118,6 +127,7 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
           Cancel Replenish
         </Button>
       )}
+      <TransactionHistory state={state} entries={log} />
     </>
   );
 }

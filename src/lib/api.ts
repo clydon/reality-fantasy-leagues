@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -343,6 +343,24 @@ export const api = {
     }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "POST" }),
   rejectWikiProposal: (leagueId: string, id: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "DELETE" }),
+
+  // Per-item review (0009's wiki_proposal_items) -- the per-episode "Reveal Outcome" panel on the
+  // Episode Card. One elimination/event/exile at a time, instead of a whole proposal payload.
+  listWikiItems: (leagueId: string) => localFetch<{ items: WikiProposalItem[] }>(`/api/leagues/${leagueId}/wiki-items`),
+  // Body fields are corrections -- omit one to accept it exactly as extracted. `applied` is null
+  // unless something was actually corrected (see the route's own comment on why that distinction
+  // is kept rather than always echoing back what was committed).
+  acceptWikiItem: (
+    leagueId: string,
+    id: string,
+    edits?: { castawayName?: string; method?: string; eventType?: string }
+  ) =>
+    localFetch<{ state: LeagueState; applied: { castawayName: string; method?: string; eventType?: string } | null }>(
+      `/api/leagues/${leagueId}/wiki-items/${id}/accept`,
+      { method: "POST", body: JSON.stringify(edits || {}) }
+    ),
+  rejectWikiItem: (leagueId: string, id: string) =>
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-items/${id}/reject`, { method: "POST" }),
 
   // Show/season catalog. The plain /api/shows read is commissioner-facing (the Show and Season
   // pickers in League Settings); everything under /api/admin/* is super-admin catalog management.

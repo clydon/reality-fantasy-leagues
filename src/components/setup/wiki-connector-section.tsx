@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import type { LeagueState, WikiProposal, ProposalEpisode } from "@/lib/game/types";
+import type { LeagueState, WikiProposal } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
@@ -15,18 +16,11 @@ import { useShowTerms, type ShowTerms } from "@/lib/use-show-terms";
 // Review queue for the wiki connector (db/wiki-sync.js). Commissioner-only, and live-mode only --
 // proposals live in their own table, so there's nothing for mock mode to show, same as Invites.
 //
-// The connector never writes to league state itself; it files proposals here and this is where they
-// get confirmed. That's the whole point of the design (see the plan doc: "every extraction is a
-// pending proposal, never auto-applied"), and it matters more than usual because extraction is
-// LLM-based -- which is also why each proposal shows its provenance (which wiki pages, which
-// revisions, which model, when) rather than asking you to trust it blind.
-//
-// THREE KINDS now, and they are deliberately NOT presented alike:
-//   cast          - the season's cast and starting groups. Read off one well-formed table.
-//   eliminations  - who left each episode and how. Read off the guide's Finish column; high trust.
-//   scoringEvents - immunity/reward wins, idol plays, zero-vote-safes. Inference over rowspan-heavy
-//                   tables and footnote markers, so each event carries its own confidence and the
-//                   low-confidence ones are called out. The plan asks for exactly this distinction.
+// The connector never writes to league state itself; it files a cast proposal here for you to
+// confirm, and per-episode decisions (eliminations/events/exiles) as their own reviewable items on
+// the Episodes tab's "Reveal Outcome" panel (db/migrations/0009) -- that's what moved out of this
+// section. Only the season's cast list stays a whole-payload proposal: it arrives once, with no
+// per-episode axis to review it along, so "accept the whole list" is still the right question.
 export function WikiConnectorSection({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -44,6 +38,15 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
     queryFn: () => api.listWikiProposals(leagueId!),
     enabled: live && canManage,
   });
+  // Same query key/fn as episodes-tab.tsx's own fetch -- react-query dedupes it, this just reads
+  // the count for the nudge below rather than re-fetching.
+  const { data: itemsData } = useQuery({
+    queryKey: ["wiki-items", leagueId],
+    queryFn: () => api.listWikiItems(leagueId!),
+    enabled: live && canManage,
+  });
+  const pendingItems = itemsData?.items ?? [];
+  const pendingEpisodeCount = new Set(pendingItems.map((i) => i.episode_number)).size;
 
   async function updateSeason(value: number | null) {
     await mutate(
@@ -59,7 +62,7 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
     try {
       const res = await api.applyWikiProposal(leagueId!, p.id);
       setState(res.state);
-      setNote(describeApplied(res.kind, res.applied, terms));
+      setNote(describeApplied(res.applied, terms));
       refetch();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not apply that proposal.");
@@ -86,15 +89,30 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
 
   const season = state.settings.wikiSeason;
   const showLabel = terms.showName ?? state.settings.showId ?? "the show";
-  const proposals = data?.proposals ?? [];
+  // Only 'cast' is ever filed here now (see this component's own comment) -- filtered rather than
+  // trusted, since a league that ran the connector before this rework may still have an old
+  // eliminations/scoringEvents proposal sitting pending. Those are harmless left alone; nothing
+  // reads them once this section stops rendering them.
+  const proposals = (data?.proposals ?? []).filter((p) => p.kind === "cast");
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
       <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Wiki Connector</h3>
       <p className="mb-3 text-sm text-muted-foreground">
-        Pulls this season&rsquo;s cast and per-episode results from {showLabel}&rsquo;s wiki. Everything it finds arrives
-        here as a proposal for you to confirm — it never writes to your league on its own.
+        Pulls this season&rsquo;s cast from {showLabel}&rsquo;s wiki and files it here for you to confirm — it never
+        writes to your league on its own. Per-episode results (eliminations, scoring events, exiles) show up
+        directly on each episode&rsquo;s card instead, once the cast is in.
       </p>
+      {pendingItems.length > 0 && (
+        <p className="mb-3 rounded-md bg-secondary/50 px-3 py-2 text-sm">
+          <b>{pendingItems.length}</b> pending decision{pendingItems.length === 1 ? "" : "s"} across {pendingEpisodeCount}{" "}
+          episode{pendingEpisodeCount === 1 ? "" : "s"} — review them on the{" "}
+          <Link href="/episodes" className="font-semibold text-primary hover:underline">
+            Episodes
+          </Link>{" "}
+          tab.
+        </p>
+      )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1.5 text-sm">
@@ -122,7 +140,8 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
         <>
           <div className="mb-2 rounded-md border border-dashed border-border bg-secondary/40 p-2.5">
             <p className="text-xs text-muted-foreground">
-              To fetch, run{" "}
+              A scheduled job reads every season any league is tracking once and shares the result — nothing to run
+              yourself. To fetch on demand instead, run{" "}
               <code className="rounded bg-secondary px-1 py-0.5 font-mono text-[0.7rem]">
                 node db/wiki-sync.js cast {leagueId}
               </code>{" "}
@@ -130,9 +149,7 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
               <code className="rounded bg-secondary px-1 py-0.5 font-mono text-[0.7rem]">
                 node db/wiki-sync.js episodes {leagueId}
               </code>{" "}
-              for per-episode results (add <code className="font-mono">--dry</code> to preview without filing). Needs{" "}
-              <code className="font-mono">ANTHROPIC_API_KEY</code> set, since extraction uses Claude. Schedule it with
-              Task Scheduler to have proposals waiting for you.
+              for per-episode results (add <code className="font-mono">--dry</code> to preview without filing).
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               Run <code className="font-mono">cast</code> first — per-episode results are matched to the{" "}
@@ -146,13 +163,7 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
             <div className="flex flex-col gap-2">
               {proposals.map((p) => (
                 <div key={p.id} className="rounded-md border border-border p-2.5">
-                  {p.kind === "cast" ? (
-                    <CastSummary proposal={p} state={state} terms={terms} />
-                  ) : p.kind === "eliminations" ? (
-                    <EliminationsSummary proposal={p} state={state} terms={terms} />
-                  ) : (
-                    <EventsSummary proposal={p} state={state} terms={terms} />
-                  )}
+                  <CastSummary proposal={p} state={state} terms={terms} />
                   {/* Provenance: extraction is LLM-based, so what it read is part of the review. Every
                       page is listed, transcluded templates included -- with transclusion the season
                       page's own revision id no longer pins the content that was extracted. */}
@@ -212,139 +223,16 @@ function CastSummary({ proposal, state, terms }: { proposal: WikiProposal; state
   );
 }
 
-// Eliminations are the high-trust half: read off the episode guide's Finish column. The one thing
-// worth surfacing per row is whether it's NEW, since applying is additive and anything already
-// eliminated is left exactly as it is (including its placement order).
-function EliminationsSummary({ proposal, state, terms }: { proposal: WikiProposal; state: LeagueState; terms: ShowTerms }) {
-  const episodes = (proposal.payload.episodes ?? []) as ProposalEpisode[];
-  const rows = episodes.flatMap((ep) =>
-    (ep.eliminations ?? []).map((el) => {
-      const { castaway } = StateLogic.Core.findCastawayByName(state, el.name);
-      return { episode: ep.number, name: el.name, method: el.method, isNew: !!castaway && castaway.status !== "eliminated" };
-    })
-  );
-  const newRows = rows.filter((r) => r.isNew);
-  const existingEpisodes = new Set(state.episodes.map((e) => e.number));
-  const toCreate = episodes.filter((ep) => !existingEpisodes.has(ep.number)).map((ep) => ep.number);
+// One place that turns an apply response into a sentence. The proposal list above only ever shows
+// 'cast' proposals now (eliminations/scoringEvents moved to per-item review -- see this file's top
+// comment), so that's the only shape this needs to describe.
+function describeApplied(applied: Awaited<ReturnType<typeof api.applyWikiProposal>>["applied"], terms: ShowTerms): string {
+  if (!applied || !("castaways" in applied)) return "Applied.";
   return (
-    <>
-      <div className="mb-1.5 flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">eliminations</Badge>
-        <span className="text-sm font-semibold">
-          {newRows.length} new across {episodes.length} episode{episodes.length === 1 ? "" : "s"}
-        </span>
-        {rows.length !== newRows.length && (
-          <span className="text-xs text-muted-foreground">
-            ({rows.length - newRows.length} already recorded — those stay as they are)
-          </span>
-        )}
-        {toCreate.length > 0 && (
-          <span className="text-xs text-muted-foreground">
-            · will create episode{toCreate.length === 1 ? "" : "s"} {toCreate.join(", ")}
-          </span>
-        )}
-      </div>
-      <ul className="mb-1.5 flex flex-col gap-0.5 text-xs text-muted-foreground">
-        {rows.slice(0, 10).map((r, i) => (
-          <li key={i} className={r.isNew ? "" : "opacity-50"}>
-            Ep {r.episode}: {r.name} — {r.method}
-            {r.isNew ? "" : " (already recorded)"}
-          </li>
-        ))}
-        {rows.length > 10 && <li>+{rows.length - 10} more</li>}
-      </ul>
-      {/* An unresolvable name is the one failure mode worth warning about before Apply: the connector
-          refuses to file a proposal with one, but the cast can change while a proposal sits pending. */}
-      {rows.some((r) => !StateLogic.Core.findCastawayByName(state, r.name).castaway) && (
-        <p className="mb-1.5 text-xs font-semibold text-destructive">
-          Some names no longer match a {terms.castaway} in this league — those rows will be skipped and reported.
-        </p>
-      )}
-    </>
+    `Added ${applied.castaways.length} ${applied.castaways.length === 1 ? terms.castaway : terms.castaways} and ` +
+    `${applied.tribes.length} ${applied.tribes.length === 1 ? terms.tribe : terms.tribes}` +
+    (applied.skipped.length
+      ? `; left ${applied.skipped.length} existing ${applied.skipped.length === 1 ? terms.castaway : terms.castaways} untouched.`
+      : ".")
   );
-}
-
-// The low-trust half. Grouped by type and with the low-confidence count called out, because
-// "immunity was individual not tribal" and "this person received zero votes" are inferences, not
-// reads -- see the plan's own recommendation to visually distinguish these.
-function EventsSummary({ proposal, state, terms }: { proposal: WikiProposal; state: LeagueState; terms: ShowTerms }) {
-  const episodes = (proposal.payload.episodes ?? []) as ProposalEpisode[];
-  const all = episodes.flatMap((ep) => (ep.events ?? []).map((e) => ({ ...e, episode: ep.number })));
-  const low = all.filter((e) => e.confidence === "low");
-  const byType = new Map<string, number>();
-  all.forEach((e) => byType.set(e.type, (byType.get(e.type) ?? 0) + 1));
-  const labelFor = (type: string) =>
-    StateLogic.ACTIVE_ROSTER_EVENTS.find((d) => d.id === type)?.label ?? type;
-  const unresolved = all.filter((e) => !StateLogic.Core.findCastawayByName(state, e.name).castaway);
-  return (
-    <>
-      <div className="mb-1.5 flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">scoring events</Badge>
-        <span className="text-sm font-semibold">
-          {all.length} event{all.length === 1 ? "" : "s"} across {episodes.length} episode
-          {episodes.length === 1 ? "" : "s"}
-        </span>
-        {low.length > 0 && (
-          <span
-            className="rounded bg-[#c99a3e] px-1.5 py-0.5 text-[0.65rem] font-bold text-white"
-            title="Inferred rather than stated outright — worth a look before applying"
-          >
-            {low.length} to verify
-          </span>
-        )}
-      </div>
-      <ul className="mb-1.5 flex flex-col gap-0.5 text-xs text-muted-foreground">
-        {[...byType.entries()].map(([type, n]) => (
-          <li key={type}>
-            {labelFor(type)}: {n}
-          </li>
-        ))}
-      </ul>
-      {low.length > 0 && (
-        <p className="mb-1.5 text-[0.7rem] text-muted-foreground">
-          Lower-confidence ones are read from footnote markers or worked out by counting votes — for example{" "}
-          {low.slice(0, 3).map((e) => `${e.name} (${labelFor(e.type)}, ep ${e.episode})`).join("; ")}
-          {low.length > 3 ? `; +${low.length - 3} more` : ""}.
-        </p>
-      )}
-      {unresolved.length > 0 && (
-        <p className="mb-1.5 text-xs font-semibold text-destructive">
-          {unresolved.length} name{unresolved.length === 1 ? "" : "s"} no longer match a {terms.castaway} in this league
-          — those will be skipped and reported.
-        </p>
-      )}
-    </>
-  );
-}
-
-// One place that turns an apply response into a sentence. Narrows on `kind` rather than probing the
-// payload's shape, since the server already told us which of the three it was.
-function describeApplied(
-  kind: "cast" | "eliminations" | "scoringEvents",
-  applied: Awaited<ReturnType<typeof api.applyWikiProposal>>["applied"],
-  terms: ShowTerms
-): string {
-  if (!applied) return "Applied.";
-  const tail = (skipped: string[], unresolved: string[]) =>
-    (skipped.length ? ` Left ${skipped.length} already-recorded item${skipped.length === 1 ? "" : "s"} untouched.` : "") +
-    (unresolved.length ? ` Could not match ${unresolved.length} name${unresolved.length === 1 ? "" : "s"}: ${unresolved.slice(0, 5).join(", ")}.` : "");
-
-  if (kind === "cast" && "castaways" in applied) {
-    return (
-      `Added ${applied.castaways.length} ${applied.castaways.length === 1 ? terms.castaway : terms.castaways} and ` +
-      `${applied.tribes.length} ${applied.tribes.length === 1 ? terms.tribe : terms.tribes}` +
-      (applied.skipped.length
-        ? `; left ${applied.skipped.length} existing ${applied.skipped.length === 1 ? terms.castaway : terms.castaways} untouched.`
-        : ".")
-    );
-  }
-  if (kind === "eliminations" && "eliminations" in applied) {
-    const created = applied.episodesCreated.length ? ` Created episode${applied.episodesCreated.length === 1 ? "" : "s"} ${applied.episodesCreated.join(", ")}.` : "";
-    return `Recorded ${applied.eliminations.length} elimination${applied.eliminations.length === 1 ? "" : "s"}.${created}${tail(applied.skipped, applied.unresolved)}`;
-  }
-  if (kind === "scoringEvents" && "events" in applied) {
-    const created = applied.episodesCreated.length ? ` Created episode${applied.episodesCreated.length === 1 ? "" : "s"} ${applied.episodesCreated.join(", ")}.` : "";
-    return `Logged ${applied.events.length} scoring event${applied.events.length === 1 ? "" : "s"}.${created}${tail(applied.skipped, applied.unresolved)}`;
-  }
-  return "Applied.";
 }

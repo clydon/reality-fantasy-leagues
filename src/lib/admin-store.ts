@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { AdminUser, AdminLeague, AdminMembership, Player } from "@/lib/game/types";
 import { api } from "@/lib/api";
+import { confirm } from "@/lib/confirm-store";
 
 // Admin is cross-league (all users, all leagues), not scoped to the single league
 // useLeagueStore holds -- and unlike every other tab, it has no mock-mode equivalent at all: the
@@ -75,9 +76,10 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
     const { leagues } = await api.adminUserLeagues(userId);
     if (leagues.length > 0) {
       const names = leagues.map((l) => l.name).join(", ");
-      if (!confirm(`"${username}" is currently in ${names}. Are you sure you want to continue?`)) return false;
+      if (!(await confirm(`"${username}" is currently in ${names}. Are you sure you want to continue?`))) return false;
     }
-    if (!confirm(`Are you sure you want to delete "${username}"? This action cannot be reversed.`)) return false;
+    if (!(await confirm(`Are you sure you want to delete "${username}"? This action cannot be reversed.`, { danger: true, confirmLabel: "Delete" })))
+      return false;
     await api.adminDeleteUser(userId);
     const usersData = await api.adminListUsers();
     set({ users: usersData.users });
@@ -93,7 +95,10 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
 
   async deleteLeague(leagueId, name) {
     if (
-      !confirm(`Permanently delete "${name}"? This deletes the entire league, its history, and everyone's membership in it. This cannot be undone.`)
+      !(await confirm(
+        `Permanently delete "${name}"? This deletes the entire league, its history, and everyone's membership in it. This cannot be undone.`,
+        { danger: true, confirmLabel: "Delete" }
+      ))
     )
       return;
     await api.adminDeleteLeague(leagueId);
@@ -107,16 +112,17 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   },
 
   async unlinkMembership(membershipId) {
-    if (!confirm("Remove this membership link?")) return;
+    if (!(await confirm("Remove this membership link?"))) return;
     await api.adminUnlinkMembership(get().selectedLeagueId!, membershipId);
     await get().selectLeague(get().selectedLeagueId!);
   },
 
   async deletePlayer(playerId, name) {
     if (
-      !confirm(
-        `Delete "${name}" from this league? Their roster and points stay in the league's history, but the seat becomes disabled and any linked account is unlinked. This cannot be undone.`
-      )
+      !(await confirm(
+        `Delete "${name}" from this league? Their roster and points stay in the league's history, but the seat becomes disabled and any linked account is unlinked. This cannot be undone.`,
+        { danger: true, confirmLabel: "Delete" }
+      ))
     )
       return;
     await api.adminDeletePlayer(get().selectedLeagueId!, playerId);
@@ -130,7 +136,7 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   // handleStopImpersonating -- simplest way to get every piece of client state (identity, loaded
   // league, membership) consistent with the new session rather than patching it by hand.
   async impersonateUser(userId, username) {
-    if (!confirm(`Impersonate "${username}"? You'll see the app exactly as they do until you return to your own account.`)) return;
+    if (!(await confirm(`Impersonate "${username}"? You'll see the app exactly as they do until you return to your own account.`))) return;
     await api.adminImpersonate(userId);
     // Deliberately a full reload, not router.push() -- see the comment above this function.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination

@@ -7,6 +7,7 @@ import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { confirm } from "@/lib/confirm-store";
 
 // Port of renderDraft()'s three-way status banner (not started / in progress / complete).
 // formatScheduledTime()/draftScheduledAt display isn't wired up (no scheduling UI exists in this
@@ -19,7 +20,7 @@ export function DraftStatusPanel({ state }: { state: LeagueState }) {
   const turn = StateLogic.currentDraftTurn(state);
 
   async function handleForceStart() {
-    if (!confirm("Start the draft now, ignoring any scheduled time?")) return;
+    if (!(await confirm("Start the draft now, ignoring any scheduled time?"))) return;
     await mutate(
       (s) => StateLogic.forceStartDraft(s),
       () => api.forceStartDraft(leagueId!)

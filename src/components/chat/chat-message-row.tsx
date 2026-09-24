@@ -5,6 +5,7 @@ import type { ChatMessage, LeagueState } from "@/lib/game/types";
 import { formatDateTime } from "@/lib/game/selectors";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useChatStore, DEMO_VISITOR_ID } from "@/lib/chat-store";
+import { confirm } from "@/lib/confirm-store";
 import { MentionText } from "./mention-text";
 import { cn } from "cn";
 import EmojiPicker from "emoji-picker-react";
@@ -30,7 +31,7 @@ export function ChatMessageRow({ m, state }: { m: ChatMessage; state: LeagueStat
   const mine = mode === "mock" ? DEMO_VISITOR_ID : userId;
 
   async function handleDelete() {
-    if (!confirm("Delete this message?")) return;
+    if (!(await confirm("Delete this message?", { danger: true, confirmLabel: "Delete" }))) return;
     await remove(m.id);
   }
   async function saveEdit() {

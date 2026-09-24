@@ -6,6 +6,7 @@ import { useLeagueStore, type LeagueSummary } from "@/lib/store";
 import { api } from "@/lib/api";
 import StateLogic from "@/lib/game/state-logic.js";
 import { Badge } from "@/components/ui/badge";
+import { ChevronDownIcon, CrownIcon } from "@/components/icons";
 import { cn } from "cn";
 
 // /api/auth/me doesn't return each league's settings (just id/name/join_code/role), so the
@@ -47,6 +48,7 @@ export function LeagueSwitcher() {
   const leagueName = useLeagueStore((s) => s.leagueName);
   const switchLeague = useLeagueStore((s) => s.switchLeague);
   const { types, resolve } = useLeagueTypeBadges(leagues);
+  const currentLeague = leagues.find((l) => l.id === leagueId);
 
   function handleOpen() {
     setOpen((o) => !o);
@@ -64,11 +66,14 @@ export function LeagueSwitcher() {
   return (
     <div className="relative px-2.5 pb-3.5 pt-0.5">
       <button
-        className="flex w-full items-center gap-1.5 break-words text-left text-[0.95rem] font-bold text-foreground"
+        className="flex w-full items-center gap-1.5 text-left text-[0.95rem] font-bold text-foreground"
         onClick={handleOpen}
       >
+        {currentLeague?.role === "commissioner" && (
+          <CrownIcon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+        )}
         <span className="min-w-0 flex-1 truncate">{leagueName}</span>
-        <span className={cn("shrink-0 text-xs text-muted-foreground transition-transform", open && "rotate-180")}>▾</span>
+        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
       {open && (
         <div className="absolute left-2.5 right-2.5 top-full z-20 mt-1 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
@@ -83,13 +88,15 @@ export function LeagueSwitcher() {
             >
               <span className="flex w-full items-center gap-1.5">
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold">{l.name}</span>
-                {types[l.id] && (
-                  <Badge variant="secondary" className="shrink-0 text-[0.65rem]">
-                    {types[l.id]}
-                  </Badge>
+                {l.role === "commissioner" && (
+                  <CrownIcon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
                 )}
               </span>
-              <span className="text-xs text-muted-foreground">{l.role}</span>
+              {types[l.id] && (
+                <Badge variant="secondary" className="text-[0.65rem]">
+                  {types[l.id]}
+                </Badge>
+              )}
             </button>
           ))}
           <button

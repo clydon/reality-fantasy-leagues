@@ -9,6 +9,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { confirm } from "@/lib/confirm-store";
 
 // Port of renderSetup()'s Tribes panel. Removing a tribe un-assigns (not removes) any castaways
 // in it -- RosterLogic.removeTribe sets their tribeId back to null rather than touching the
@@ -39,7 +40,7 @@ export function TribesSection({ state }: { state: LeagueState }) {
   }
 
   async function remove(id: string, name: string) {
-    if (!confirm(`Remove ${terms.tribe} "${name}"? Its ${terms.castaways} become ${terms.tribe}-less, not removed.`)) return;
+    if (!(await confirm(`Remove ${terms.tribe} "${name}"? Its ${terms.castaways} become ${terms.tribe}-less, not removed.`, { danger: true, confirmLabel: "Remove" }))) return;
     await mutate(
       (s) => StateLogic.removeTribe(s, id),
       () => api.removeTribe(leagueId!, id)

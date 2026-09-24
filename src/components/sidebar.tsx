@@ -34,6 +34,7 @@ export function Sidebar() {
   const mode = useLeagueStore((s) => s.mode);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const enterMockMode = useLeagueStore((s) => s.useMock);
+  const previewDemo = useLeagueStore((s) => s.previewDemo);
   const setEntered = useLeagueStore((s) => s.setEntered);
   const openReportModal = useReportModalStore((s) => s.openModal);
   const state = useLeagueStore((s) => s.state);
@@ -128,7 +129,7 @@ export function Sidebar() {
             )}
           </p>
         ) : (
-          <button className="text-[0.8rem] font-semibold text-primary hover:underline" onClick={enterMockMode}>
+          <button className="text-[0.8rem] font-semibold text-primary hover:underline" onClick={previewDemo}>
             Switch to demo data
           </button>
         )}

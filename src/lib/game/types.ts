@@ -79,6 +79,13 @@ export interface Episode {
   title?: string | null;
   airDate?: string | null;
   events: { castawayId: string; method: string }[];
+  /**
+   * Who an Exile Island-style twist sent away from their tribe this episode. Still in the game --
+   * this is a RECORD, not a mechanic: nothing in ScoringLogic or ActiveRosterLogic reads it, and it
+   * changes no owner, tribe or placement. See EpisodeLogic.addExiled for why it's kept inert.
+   * Always present (EpisodeLogic.create initializes it, migrateLeagueState backfills old saves).
+   */
+  exiled: { castawayId: string; at: string }[];
   bets: Bet[];
   // Pick'em only (state-logic.js's PickEmLogic) -- one entry per player who's made a pick for
   // this episode, upserted in place rather than accumulated. Always present (EpisodeLogic.add
@@ -112,6 +119,9 @@ export interface LeagueSettings {
   replenishEnabled: boolean;
   tradeEnabled: boolean;
   defaultBetPoints: number;
+  // Same opt-in shape as replenishEnabled/tradeEnabled above, gated together with the league
+  // type's own supportsFinalePredictions -- see finalePredictionsAvailable in state-logic.js.
+  finalePredictionsEnabled: boolean;
   finaleTop3Points: number;
   finaleWinnerPoints: number;
   finalePredictionScope: string;
@@ -243,6 +253,13 @@ export interface ProposalEpisode {
   airDate?: string | null;
   eliminations?: { name: string; method: string }[];
   /**
+   * Someone sent away from their tribe this episode by an Exile Island-style twist -- still in the
+   * game, not eliminated. Informational only: never applied to league state (see
+   * EpisodeLogic.applyEliminationsImport), it exists so the wiki extraction has somewhere valid to
+   * put this instead of it bleeding into `eliminations`.
+   */
+  exiled?: string[];
+  /**
    * `confidence` is 'high' only where the wiki states it outright. Immunity/reward inference, anything
    * read through a footnote marker, and any counted zero-votes-safe come back 'low' -- the review UI
    * distinguishes them rather than presenting all events alike.
@@ -253,6 +270,8 @@ export interface ProposalEpisode {
 export interface EpisodeProposalPayload {
   episodes: ProposalEpisode[];
   mergeEpisode?: number | null;
+  /** Non-fatal extraction notes worth a commissioner's attention before applying -- see validateEpisodes in db/wiki-sync.js. */
+  problems?: string[];
 }
 
 /**
@@ -280,9 +299,41 @@ export interface WikiProposal {
   created_at: string;
 }
 
+/**
+ * One pending decision from the wiki connector's per-episode fan-out (db/migrations/0009) -- an
+ * elimination, a scoring event, or an exile, each accepted/rejected/edited on its own rather than
+ * as part of a whole-payload proposal like WikiProposal above. Rendered in the Episode Card's
+ * "Reveal Outcome" section, grouped by episode_number.
+ */
+export interface WikiProposalItem {
+  id: string;
+  episode_number: number;
+  post_merge: boolean;
+  kind: "elimination" | "event" | "exiled";
+  castaway_name: string;
+  /** Elimination only (an EXIT_METHODS value); '' for other kinds. */
+  method: string;
+  /** Event only (an EVENT_TYPES value); '' for other kinds. */
+  event_type: string;
+  /** Event only, meaningless for the other two kinds (which are always read off a stated column). */
+  confidence: "high" | "low";
+  created_at: string;
+}
+
 export interface BlindDraftState {
   lockedPlayerIds: string[];
   revealedAt: string | null;
+}
+
+// A completed replenish assignment or trade swap, for the visual history shown under each
+// panel -- ReplenishLogic.assign/TradeLogic.swap append one of these, never mutate/remove them.
+export interface MidSeasonLogEntry {
+  id: string;
+  type: "replenish" | "trade";
+  playerId: string;
+  addedCastawayId: string;
+  droppedCastawayId: string | null;
+  at: string;
 }
 
 export interface LeagueState {
@@ -292,7 +343,11 @@ export interface LeagueState {
   episodes: Episode[];
   finalePredictions: FinalePrediction[];
   finaleActual: { top3: (string | null)[]; winner: string | null };
-  midSeason: { replenish: { sequence: unknown[]; index: number } | null; trade: TradeState | null };
+  midSeason: {
+    replenish: { sequence: unknown[]; index: number } | null;
+    trade: TradeState | null;
+    log: MidSeasonLogEntry[];
+  };
   draftOrder: string[];
   draftPicksMade: number;
   draftForceStarted: boolean;
