@@ -53,6 +53,15 @@ export interface Bet {
   createdByPlayerId?: string | null;
 }
 
+// Active Roster: one point-earning occurrence in an episode. Deliberately NOT stored in
+// Episode.events, which already means eliminations -- see ActiveRosterLogic.addEvent's note.
+export interface ScoringEvent {
+  id: string;
+  /** One of ACTIVE_ROSTER_EVENTS' ids (state-logic.js). */
+  type: string;
+  castawayId: string;
+}
+
 export interface PickEmPick {
   playerId: string;
   castawayId: string;
@@ -69,6 +78,16 @@ export interface Episode {
   // initializes it, migrateLeagueState backfills it on old saves) but only ever populated for a
   // 'pickem' league.
   picks: PickEmPick[];
+  // Active Roster only, all three always present (EpisodeLogic.add initializes them,
+  // migrateLeagueState backfills old saves).
+  //
+  // `lineups` is the per-episode snapshot of who each player fielded THIS episode. Per-episode
+  // rather than one mutable "current" set plus a copy: that's what makes editing a later episode's
+  // lineup unable to change an earlier episode's score. `lineupsLocked` is an explicit commissioner
+  // action, not derived from whether eliminations exist yet -- see ActiveRosterLogic's comment.
+  scoringEvents: ScoringEvent[];
+  lineups: Record<string, string[]>;
+  lineupsLocked: boolean;
 }
 
 export interface FinalePrediction {
@@ -95,6 +114,12 @@ export interface LeagueSettings {
   // classic-draft only: 'exclusive' (snake draft, one owner per castaway) or 'shared' (blind draft,
   // many owners). Fixed pairing with the draft mechanic -- see CLASSIC_DRAFT_SHARED in state-logic.js.
   ownershipMode: "exclusive" | "shared";
+  // Active Roster only. rosterSize() derives the draft's per-player total from these for that
+  // league type, so together they replace teamSize there rather than sitting alongside it.
+  activeSlots: number;
+  benchSlots: number;
+  /** Points per scoring-event type, keyed by ACTIVE_ROSTER_EVENTS id. 0 switches a category off. */
+  eventPoints: Record<string, number>;
   // Pick'em only, defaulted for every league regardless of type (see defaultState's comment) --
   // points awarded for a correct weekly pick.
   pickemCorrectPoints: number;

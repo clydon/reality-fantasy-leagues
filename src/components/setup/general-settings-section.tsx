@@ -32,16 +32,20 @@ export function GeneralSettingsSection({ state }: { state: LeagueState }) {
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
       <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">General Settings</h3>
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-1.5 text-sm">
-          Roster size (picks per player):
-          <Input
-            type="number"
-            className="w-16"
-            disabled={!canManage}
-            defaultValue={state.settings.teamSize}
-            onBlur={(e) => update("teamSize", parseInt(e.target.value) || 1)}
-          />
-        </label>
+        {/* Active Roster derives its roster size from activeSlots+benchSlots (see rosterSize), so an
+            independent teamSize field there would silently do nothing. */}
+        {!leagueType.hasActiveRoster && (
+          <label className="flex items-center gap-1.5 text-sm">
+            Roster size (picks per player):
+            <Input
+              type="number"
+              className="w-16"
+              disabled={!canManage}
+              defaultValue={state.settings.teamSize}
+              onBlur={(e) => update("teamSize", parseInt(e.target.value) || 1)}
+            />
+          </label>
+        )}
         {/* Both mid-season mechanics are opt-in (default off). Hidden entirely when the league
             type can't support them at all -- shared ownership has no free agents for either to draw
             on -- so the commissioner is never offered a switch that would do nothing. */}

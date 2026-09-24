@@ -118,6 +118,43 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
         </label>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">{leagueType.description}</p>
+      {/* Setup-time nudge toward shared ownership, per Feature C's "critically suggested, not
+          required" framing -- deliberately advice, never a block, and only while exclusive is still
+          selected and the draft hasn't run. Exclusive ownership needs one distinct castaway per
+          roster slot per player, so it's the combination of player count and roster size that runs a
+          cast dry, not either alone. Before any cast is entered there's nothing to compare against,
+          hence the softer generic version. */}
+      {leagueType.hasRoster && state.settings.ownershipMode === "exclusive" && !seasonUnderway && (() => {
+        const seats = StateLogic.BlindDraftLogic.eligiblePlayers(state).length;
+        const needed = seats * StateLogic.rosterSize(state);
+        const castSize = state.castaways.length;
+        if (seats === 0) return null;
+        if (castSize === 0) {
+          return (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Exclusive ownership needs {needed} distinct castaways for {seats} player{seats === 1 ? "" : "s"}. Once
+              you&rsquo;ve entered the cast, switch to shared ownership if that doesn&rsquo;t fit.
+            </p>
+          );
+        }
+        if (needed > castSize) {
+          return (
+            <p className="mt-1 text-xs font-semibold text-destructive">
+              {seats} players x {StateLogic.rosterSize(state)} roster slots needs {needed} castaways, but the cast has{" "}
+              {castSize}. The draft can&rsquo;t fill every roster — switch to shared ownership, or reduce roster size.
+            </p>
+          );
+        }
+        if (needed > castSize * 0.75) {
+          return (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Heads up: {needed} of {castSize} castaways would be claimed, leaving little room for Replenish or Swap.
+              Shared ownership is worth considering.
+            </p>
+          );
+        }
+        return null;
+      })()}
       {leagueType.hasRoster && state.settings.ownershipMode === "shared" && (
         <p className="mt-1 text-xs text-muted-foreground">
           Shared ownership runs a blind draft: everyone submits their whole set of picks privately and nothing

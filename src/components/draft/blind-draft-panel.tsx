@@ -37,7 +37,10 @@ export function BlindDraftPanel({ state }: { state: LeagueState }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const teamSize = state.settings.teamSize;
+  // Active Roster derives this from its slot settings, so ask through rosterSize rather than
+  // reading teamSize -- otherwise a blind draft in an Active Roster league would demand the wrong
+  // number of picks from what the routes will accept.
+  const teamSize = StateLogic.rosterSize(state);
   const started = StateLogic.isDraftStarted(state);
   const revealed = StateLogic.BlindDraftLogic.isRevealed(state);
   const eligible = StateLogic.BlindDraftLogic.eligiblePlayers(state);

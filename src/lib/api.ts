@@ -103,6 +103,24 @@ export const api = {
   removePickEmPick: (leagueId: string, epId: string, playerId: string) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/picks/${playerId}`, { method: "DELETE" }),
 
+  // Active Roster only: per-episode lineups, the commissioner lineup lock, and the scoring-event log.
+  setActiveRosterLineup: (leagueId: string, epId: string, playerId: string, castawayIds: string[]) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/lineups/${playerId}`, {
+      method: "PUT",
+      body: JSON.stringify({ castawayIds }),
+    }),
+  lockLineups: (leagueId: string, epId: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/lineups/lock`, { method: "POST" }),
+  unlockLineups: (leagueId: string, epId: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/lineups/lock`, { method: "DELETE" }),
+  addScoringEvent: (leagueId: string, epId: string, type: string, castawayId: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/scoring-events`, {
+      method: "POST",
+      body: JSON.stringify({ type, castawayId }),
+    }),
+  removeScoringEvent: (leagueId: string, epId: string, eventId: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/scoring-events/${eventId}`, { method: "DELETE" }),
+
   reorderDraft: (leagueId: string, fromIndex: number, toIndex: number) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/draft/order`, {
       method: "POST",

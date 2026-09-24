@@ -87,7 +87,7 @@ export function PlayersSection({ state }: { state: LeagueState }) {
                 />
                 {hasRoster && (
                   <span className="text-xs text-muted-foreground">
-                    {activeCount}/{state.settings.teamSize} roster
+                    {activeCount}/{StateLogic.rosterSize(state)} roster
                   </span>
                 )}
                 {account ? (
@@ -114,7 +114,7 @@ export function PlayersSection({ state }: { state: LeagueState }) {
               {hasRoster && activatingId === p.id && (
                 <div className="mt-2 rounded-md border border-dashed border-border bg-secondary/40 p-2.5">
                   <p className="mb-1.5 text-xs text-muted-foreground">
-                    Pick up to {state.settings.teamSize} free agents to assign directly (no fair turn order left post-draft):
+                    Pick up to {StateLogic.rosterSize(state)} free agents to assign directly (no fair turn order left post-draft):
                   </p>
                   <div className="mb-2 flex flex-wrap gap-1.5">
                     {freeAgents.map((c) => (

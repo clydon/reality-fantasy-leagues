@@ -43,7 +43,7 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
           return (
             <div key={p.id} className="rounded-md border-2 bg-secondary/40 p-2.5" style={{ borderColor: p.color }}>
               <div className="mb-1 text-sm font-bold" style={{ color: p.color }}>
-                {p.name} ({picks.length}/{state.settings.teamSize} drafted)
+                {p.name} ({picks.length}/{StateLogic.rosterSize(state)} drafted)
               </div>
               {picks.length === 0 ? (
                 <div className="text-xs text-muted-foreground">No picks yet</div>

@@ -1,7 +1,13 @@
 // Ambient typing for state-logic.js (forked from the live app -- see the provenance comment at
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
-import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Episode, ReplenishTurn, PickEmPick } from "./types";
+import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Episode, ReplenishTurn, PickEmPick, ScoringEvent } from "./types";
+
+export interface ActiveRosterEventDef {
+  id: string;
+  label: string;
+  defaultPoints: number;
+}
 
 export interface LeagueType {
   id: string;
@@ -16,6 +22,8 @@ export interface LeagueType {
   // frontend a per-episode pick UI (Episode Card's "Your Pick" section).
   hasRoster: boolean;
   hasWeeklyPicks: boolean;
+  /** Active Roster: per-episode lineups + a scoring-event log (state-logic.js's ActiveRosterLogic). */
+  hasActiveRoster: boolean;
 }
 
 export interface Show {
@@ -52,6 +60,23 @@ declare const StateLogic: {
   // that shows or starts a mid-season round should ask through these, not read either half alone.
   replenishAvailable(state: LeagueState): boolean;
   tradeAvailable(state: LeagueState): boolean;
+  /** Castaways per player in the draft. Derived from activeSlots+benchSlots for Active Roster. */
+  rosterSize(state: LeagueState): number;
+  ACTIVE_ROSTER_EVENTS: ActiveRosterEventDef[];
+  ActiveRosterLogic: {
+    pointsFor(state: LeagueState, type: string): number;
+    activeSlots(state: LeagueState): number;
+    benchSlots(state: LeagueState): number;
+    lineupFor(state: LeagueState, epId: string, playerId: string): string[];
+    isLineupLocked(state: LeagueState, epId: string): boolean;
+    validateLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): string | null;
+    setLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;
+    lockLineups(state: LeagueState, epId: string): boolean;
+    unlockLineups(state: LeagueState, epId: string): boolean;
+    carryForwardLineups(state: LeagueState, epId: string): boolean;
+    addEvent(state: LeagueState, epId: string, type: string, castawayId: string): ScoringEvent | null;
+    removeEvent(state: LeagueState, epId: string, eventId: string): void;
+  };
   getPlayer(state: LeagueState, id: string): Player | undefined;
   getCastaway(state: LeagueState, id: string): Castaway | undefined;
   computeScores(state: LeagueState): ScoreRow[];
@@ -121,6 +146,12 @@ declare const StateLogic: {
     validateSubmission(state: LeagueState, playerId: string, castawayIds: string[]): string | null;
     reveal(state: LeagueState, picksByPlayer: Record<string, string[]>, revealedAt?: string): boolean;
   };
+  activeRosterLineupFor(state: LeagueState, epId: string, playerId: string): string[];
+  setActiveRosterLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;
+  lockActiveRosterLineups(state: LeagueState, epId: string): boolean;
+  unlockActiveRosterLineups(state: LeagueState, epId: string): boolean;
+  addScoringEvent(state: LeagueState, epId: string, type: string, castawayId: string): ScoringEvent | null;
+  removeScoringEvent(state: LeagueState, epId: string, eventId: string): void;
   pickEmPickFor(state: LeagueState, epId: string, playerId: string): PickEmPick | null;
   previousPickEmPickFor(state: LeagueState, epId: string, playerId: string): PickEmPick | null;
   setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string): void;

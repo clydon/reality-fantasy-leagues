@@ -1,10 +1,10 @@
 # Plan: League types expansion (ownership modes, Pick'em, Active Roster) + wiki connector
 
-**Status:** Step 1 (`ownerId` -> `ownerIds`), Feature A (ownership mode + blind draft) and Feature B
-(Pick'em) are **implemented and verified**. Feature D's wiki-connector groundwork is
-**investigated** (real findings against real pages, connector itself not built). **Feature C (Active
-Roster) is the only unbuilt feature left** — its dependencies (#1's `ownerIds` and #2's blind-draft
-mechanic) are both in place now. Written from a multi-turn design conversation — read this file plus
+**Status:** Step 1 (`ownerId` -> `ownerIds`) and Features A (ownership mode + blind draft),
+B (Pick'em) and C (Active Roster) are all **implemented and verified**. Feature D's wiki-connector
+groundwork is **investigated**, with per-field reliability recorded against real pages; the connector
+itself and its integration into Active Roster's event review queue are the only work left in this
+plan. Written from a multi-turn design conversation — read this file plus
 the referenced source files and you have everything needed to execute without that conversation's
 history.
 
@@ -241,7 +241,30 @@ scoring, confirm repicking last week's castaway is rejected, confirm repicking a
 
 ---
 
-## Feature C: Active Roster
+## Feature C: Active Roster — DONE
+
+**Implemented and verified.** See README's "Active Roster" section for the shipped design. Notes:
+
+- **This section's field name for the event log was wrong and had to change.** It specified
+  `episode.events: [{type, castawayId}]`, but `episode.events` already exists and means
+  ELIMINATIONS — it drives `placementOrder`, `EpisodeLogic.remove` walks it to un-eliminate
+  castaways, and it is the "has this episode happened" signal for `ensureUpcoming` AND Pick'em's
+  scoring. An "immunity win" in there would have made Pick'em score that castaway as voted out.
+  Scoring events live in `episode.scoringEvents`; eliminations keep `episode.events`.
+- **`teamSize` is derived, not duplicated.** `rosterSize(state)` returns
+  `activeSlots + benchSlots` for this league type and every draft mechanic asks through it, so a
+  commissioner can't set teamSize=3 against 3+2 slots and get an unfillable roster. The General
+  Settings roster-size field is hidden for this type.
+- **The lineup lock is explicit, not derived** from whether eliminations exist yet. Deriving it
+  would invert the intent: the lock belongs before the episode airs, eliminations are entered after,
+  so a derived lock leaves a window to rewrite a lineup already knowing the outcome.
+- Per-episode lineups (rather than a current set plus snapshots) are what make retroactive rescoring
+  structurally impossible. Asserted directly, in memory and over HTTP: rewriting a later episode's
+  lineup leaves the earlier episode's snapshot byte-identical.
+- "Replenished castaways start benched" needed no code — benched just means "not in this episode's
+  lineup", so a newly assigned castaway is benched until someone fields them.
+- The setup-time shared-ownership nudge is in League Info, advice only, never a block: it compares
+  eligible seats x rosterSize against cast size, with a softer generic line before any cast exists.
 
 **Player count:** 2–6, with a setup-time nudge toward shared ownership as player count rises —
 compare `players × teamSize` against the league's actual cast size (`state.castaways.length`)
@@ -395,7 +418,8 @@ connector coverage into Feature C's UI before this investigation happens.
    Feature A's status note above.
 3. ~~Pick'em — fully independent of #1/#2 (no castaway ownership involved at all); can run in
    parallel with either.~~ **DONE** — see Feature B's status note above.
-4. Active Roster — depends on #1 (`ownerIds`) and #2 (the blind-draft mechanic).
+4. ~~Active Roster — depends on #1 (`ownerIds`) and #2 (the blind-draft mechanic).~~ **DONE**
+   — see Feature C's status note above.
 5. ~~Wiki connector investigation — can start in parallel with any of the above~~ **INVESTIGATED**
    — see Feature D's own status note above for the per-field reliability findings. The connector
    *implementation* and its *integration* into Active Roster's event review queue are both still

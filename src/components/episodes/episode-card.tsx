@@ -8,6 +8,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { EpisodeBetRow } from "./episode-bet-row";
 import { EpisodePicksSection } from "./episode-pick-row";
+import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -213,6 +214,8 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
           </div>
 
           {StateLogic.getLeagueType(state).hasWeeklyPicks && <EpisodePicksSection ep={ep} state={state} />}
+
+          {StateLogic.getLeagueType(state).hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
 
           {state.settings.bonusEnabled && (
             <div className="border-t border-border pt-3">

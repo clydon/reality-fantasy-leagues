@@ -214,7 +214,7 @@ class SnakeDraftStrategy {
     const order = state.draftOrder;
     const n = order.length;
     if(n===0) return null;
-    const totalPicksNeeded = n * state.settings.teamSize;
+    const totalPicksNeeded = n * rosterSize(state);
     if(state.draftPicksMade >= totalPicksNeeded) return { isComplete:true };
     const round = Math.floor(state.draftPicksMade / n);
     const posInRound = state.draftPicksMade % n;
@@ -341,7 +341,7 @@ class BlindDraftLogic {
   // a rejected blind submission needs to tell the player WHY: they can't see what anyone else did,
   // so a silent no-op would be indistinguishable from a successful lock-in.
   static validateSubmission(state, playerId, castawayIds){
-    if(getLeagueType(state).id !== 'classic-draft' || state.settings.ownershipMode !== 'shared'){
+    if(!getLeagueType(state).hasRoster || state.settings.ownershipMode !== 'shared'){
       return 'This league is not running a blind draft';
     }
     if(!DraftLogic.isStarted(state)) return "The draft hasn't started yet";
@@ -351,7 +351,7 @@ class BlindDraftLogic {
     if(player.disabled) return 'That seat has been disabled';
     if(player.active === false) return 'That player is not active in this draft';
     const ids = Array.isArray(castawayIds) ? castawayIds : [];
-    const teamSize = state.settings.teamSize;
+    const teamSize = rosterSize(state);
     if(ids.length !== teamSize) return `Pick exactly ${teamSize} castaway${teamSize===1?'':'s'}`;
     if(new Set(ids).size !== ids.length) return 'Same castaway picked more than once';
     for(const id of ids){
@@ -418,6 +418,214 @@ class BlindDraftStrategy {
   // castawayId, so there'd be no way to say WHICH owner to strip. The frontend hides Undraft in
   // shared mode for the same reason.
   static undo(){ /* ambiguous with multiple owners -- see comment */ }
+}
+
+// ---------- Active Roster: event catalog, weekly lineups, event scoring ----------
+// The 'active-roster' league type: you draft a roster like Classic Draft, but only some of it is
+// ACTIVE each episode, and points come from what your active castaways DID that week (won immunity,
+// found an idol, ...) rather than from elimination placement.
+//
+// Candidate v1 catalog. Ordered so the settings UI renders one point input per row in a stable
+// order, and every default is commissioner-editable -- including down to 0, which is how you switch
+// a category off without needing the catalog itself to change (same shape as the existing side-bet
+// point inputs). Adding a type here automatically gives it a settings input and makes it selectable
+// in the event-entry UI; `eventPoints` falls back to the catalog default for any type a league
+// hasn't customised, so adding one never needs a migration.
+const ACTIVE_ROSTER_EVENTS = [
+  { id: 'individualImmunity', label: 'Individual immunity win', defaultPoints: 5 },
+  { id: 'tribeImmunity', label: 'Tribe/team immunity win', defaultPoints: 2 },
+  { id: 'rewardWin', label: 'Reward win', defaultPoints: 2 },
+  { id: 'idolFound', label: 'Idol/advantage found', defaultPoints: 3 },
+  { id: 'idolPlayed', label: 'Idol/advantage played', defaultPoints: 2 },
+  { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: 1 }
+];
+function defaultEventPoints(){
+  const out = {};
+  ACTIVE_ROSTER_EVENTS.forEach(e => { out[e.id] = e.defaultPoints; });
+  return out;
+}
+
+class ActiveRosterLogic {
+  // Points for one event type: the league's own value if set, else the catalog default. A type
+  // explicitly set to 0 stays 0 (that's how a commissioner switches a category off), which is why
+  // this tests for a number rather than using `||`.
+  static pointsFor(state, type){
+    const configured = state.settings && state.settings.eventPoints ? state.settings.eventPoints[type] : undefined;
+    if(typeof configured === 'number') return configured;
+    const def = ACTIVE_ROSTER_EVENTS.find(e => e.id === type);
+    return def ? def.defaultPoints : 0;
+  }
+  static activeSlots(state){ return (state.settings && state.settings.activeSlots) || 0; }
+  static benchSlots(state){ return (state.settings && state.settings.benchSlots) || 0; }
+
+  // ---- weekly lineups ----
+  // Lineups are stored PER EPISODE (`episode.lineups[playerId] = castawayId[]`), never as one
+  // mutable "current active set" plus a separate snapshot. That's the whole point, and it makes the
+  // retroactive-scoring bug the plan warns about structurally impossible rather than merely avoided:
+  // last week's lineup lives on last week's episode object, so editing this week's cannot reach back
+  // and change what last week scored. There is no single "current" set to drift out of sync.
+  //
+  // `episode.lineupsLocked` is a SEPARATE, EXPLICIT commissioner action -- deliberately NOT derived
+  // from "does this episode have eliminations yet" the way EpisodeLogic.ensureUpcoming infers "has
+  // this episode happened". Deriving it would be backwards: the lock is meant to land BEFORE the
+  // episode airs (you commit your lineup without knowing the outcome), while eliminations are
+  // entered after, so a derived lock would leave a window in which someone could rewrite their
+  // lineup already knowing what happened.
+  static lineupFor(state, epId, playerId){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep || !ep.lineups) return [];
+    return ep.lineups[playerId] || [];
+  }
+  static isLineupLocked(state, epId){
+    const ep = state.episodes.find(e => e.id === epId);
+    return !!(ep && ep.lineupsLocked);
+  }
+  // Returns null if the lineup is acceptable, else a human-readable reason. Like blind draft (and
+  // unlike most of this file) this reports WHY rather than silently no-opping -- a rejected lineup is
+  // something the player needs to understand and fix.
+  static validateLineup(state, epId, playerId, castawayIds){
+    if(!getLeagueType(state).hasActiveRoster) return 'This league type has no active roster';
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep) return 'No such episode';
+    if(ep.lineupsLocked) return 'Lineups for this episode are locked';
+    if(!Core.getPlayer(state, playerId)) return 'No such player';
+    const ids = Array.isArray(castawayIds) ? castawayIds : [];
+    if(new Set(ids).size !== ids.length) return 'Same castaway listed twice';
+    const slots = ActiveRosterLogic.activeSlots(state);
+    // "At most", not "exactly": late in a season a player may own fewer surviving castaways than they
+    // have slots, and they shouldn't be blocked from fielding what they do have.
+    if(ids.length > slots) return 'At most ' + slots + ' active castaway' + (slots === 1 ? '' : 's');
+    for(const id of ids){
+      const c = Core.getCastaway(state, id);
+      if(!c) return 'Unknown castaway in lineup';
+      // Ownership is the only real constraint. Eliminated castaways are deliberately still allowed:
+      // someone voted out in THIS episode was on the field for it and may well have earned events
+      // before going, so excluding them would lose real points.
+      if(!ownerListOf(c).includes(playerId)) return c.name + " isn't on your roster";
+    }
+    return null;
+  }
+  static setLineup(state, epId, playerId, castawayIds){
+    if(ActiveRosterLogic.validateLineup(state, epId, playerId, castawayIds)) return false;
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep.lineups) ep.lineups = {};
+    ep.lineups[playerId] = [...castawayIds];
+    return true;
+  }
+  static lockLineups(state, epId){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep || ep.lineupsLocked) return false;
+    ep.lineupsLocked = true;
+    return true;
+  }
+  static unlockLineups(state, epId){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep || !ep.lineupsLocked) return false;
+    ep.lineupsLocked = false;
+    return true;
+  }
+  // Seeds an episode's lineups from the previous episode's so players adjust rather than retype the
+  // same lineup every week. Only fills players with no lineup for this episode yet, and never touches
+  // a locked episode. Carries forward only what the player still OWNS -- a castaway lost to replenish
+  // or swap since then isn't theirs to field any more.
+  static carryForwardLineups(state, epId){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep || ep.lineupsLocked) return false;
+    const prev = state.episodes.filter(e => e.number < ep.number).sort((a,b) => b.number - a.number)[0];
+    if(!prev || !prev.lineups) return false;
+    if(!ep.lineups) ep.lineups = {};
+    let filled = 0;
+    Object.keys(prev.lineups).forEach(playerId => {
+      if(ep.lineups[playerId]) return;
+      const stillOwned = (prev.lineups[playerId] || []).filter(cid => {
+        const c = Core.getCastaway(state, cid);
+        return c && ownerListOf(c).includes(playerId);
+      });
+      ep.lineups[playerId] = stillOwned;
+      filled++;
+    });
+    return filled > 0;
+  }
+
+  // ---- per-episode scoring events ----
+  // NOTE ON THE FIELD NAME: these live in `episode.scoringEvents`, NOT `episode.events`, even though
+  // the plan doc sketched the latter. `episode.events` already exists and already means ELIMINATIONS
+  // ({castawayId, method}) -- it drives placementOrder, is reset by EpisodeLogic.remove, and is the
+  // "has this episode happened yet" signal for both EpisodeLogic.ensureUpcoming and
+  // PickEmScoringStrategy. Writing an "immunity win" into it would make Pick'em score that castaway
+  // as voted out and make episode deletion try to un-eliminate them. Two genuinely different things
+  // (a structural season fact vs. a point-earning occurrence), so they get two fields.
+  static addEvent(state, epId, type, castawayId){
+    const ep = state.episodes.find(e => e.id === epId);
+    const c = Core.getCastaway(state, castawayId);
+    if(!ep || !c || !type) return null;
+    if(!ACTIVE_ROSTER_EVENTS.some(e => e.id === type)) return null;
+    if(!ep.scoringEvents) ep.scoringEvents = [];
+    const ev = { id: Core.uid('sev'), type, castawayId };
+    ep.scoringEvents.push(ev);
+    return ev;
+  }
+  static removeEvent(state, epId, eventId){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep) return;
+    ep.scoringEvents = (ep.scoringEvents || []).filter(ev => ev.id !== eventId);
+  }
+}
+
+// ---------- ActiveRosterEventScoringStrategy: the 'active-roster' league type's scoring ----------
+// Per episode, a player scores every scoring event whose castaway was in THAT episode's lineup for
+// them. Elimination placement deliberately doesn't feature -- this league type scores what your
+// active castaways did, not how long they lasted (survival is represented in the catalog instead, by
+// the zero-votes-safe event).
+//
+// Reads each episode's own `lineups`, which is why editing a later episode's lineup can't change an
+// earlier episode's score. Benched castaways score nothing by construction: "benched" just means
+// "not in this episode's lineup", so there's no separate bench list to keep in sync.
+class ActiveRosterEventScoringStrategy {
+  static compute(state){
+    const results = {};
+    state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
+    state.players.forEach(p=>{
+      Core.ownedCastawayIds(state, p.id).forEach(cid=>{
+        results[p.id].roster.push(Core.getCastaway(state, cid));
+      });
+    });
+    state.castaways.forEach(c=>{
+      if(c.formerOwnerId && results[c.formerOwnerId]) results[c.formerOwnerId].formerRoster.push(c);
+    });
+    state.episodes.forEach(ep=>{
+      (ep.scoringEvents || []).forEach(ev=>{
+        state.players.forEach(p=>{
+          const lineup = (ep.lineups && ep.lineups[p.id]) || [];
+          if(lineup.includes(ev.castawayId)){
+            results[p.id].locked += ActiveRosterLogic.pointsFor(state, ev.type);
+          }
+        });
+      });
+    });
+    // The same optional layers classic-draft carries: side bets and finale predictions are orthogonal
+    // to how the main score is earned, so an Active Roster league can still use them.
+    if(state.settings.bonusEnabled){
+      state.episodes.forEach(ep=>{
+        (ep.bets||[]).forEach(bet=>{
+          if((bet.predictions||[]).length < 2) return;
+          (bet.predictions||[]).forEach(pred=>{
+            if(pred.correct===true && results[pred.playerId]) results[pred.playerId].bonus += (bet.points||0);
+          });
+        });
+      });
+    }
+    if(state.finaleActual && state.finaleActual.winner){
+      (state.finalePredictions||[]).forEach(fp=>{
+        if(!results[fp.playerId]) return;
+        const correctTop3 = (fp.top3||[]).filter(id=>id && (state.finaleActual.top3||[]).includes(id)).length;
+        results[fp.playerId].finale += correctTop3*(state.settings.finaleTop3Points||0);
+        if(fp.winner && fp.winner===state.finaleActual.winner) results[fp.playerId].finale += (state.settings.finaleWinnerPoints||0);
+      });
+    }
+    Object.values(results).forEach(r=> r.total = r.locked + (state.settings.bonusEnabled? r.bonus:0) + r.finale);
+    return Object.values(results).sort((a,b)=>b.total-a.total);
+  }
 }
 
 // ---------- PickEmLogic: the 'pickem' league type's weekly pick mechanic ----------
@@ -506,7 +714,8 @@ const LEAGUE_TYPES = {
     // for classic-draft (it has the roster, never the weekly picks) so a reader sees the full
     // axis rather than inferring "pickem is the only type these apply to" from a single entry.
     hasRoster: true,
-    hasWeeklyPicks: false
+    hasWeeklyPicks: false,
+    hasActiveRoster: false
   },
   'pickem': {
     id: 'pickem',
@@ -518,15 +727,31 @@ const LEAGUE_TYPES = {
     supportsTrade: false,
     supportsFinalePredictions: false,
     hasRoster: false,
-    hasWeeklyPicks: true
+    hasWeeklyPicks: true,
+    hasActiveRoster: false
+  },
+  'active-roster': {
+    id: 'active-roster',
+    name: 'Active Roster',
+    description: 'Draft a roster, then each episode field only some of it. Points come from what your active castaways do that week (immunity, idols, rewards), not from elimination placement.',
+    // Same draft mechanics as classic-draft, including the ownershipMode override below -- Active
+    // Roster changes what happens to a roster AFTER the draft, not how it's drafted.
+    draftStrategy: SnakeDraftStrategy,
+    scoringStrategy: ActiveRosterEventScoringStrategy,
+    supportsReplenish: true,
+    supportsTrade: true,
+    supportsFinalePredictions: true,
+    hasRoster: true,
+    hasWeeklyPicks: false,
+    hasActiveRoster: true
   }
 };
 const SHOWS = {
   survivor: { id: 'survivor', name: 'Survivor', castawayTerm: 'Castaway', tribeTerm: 'Tribe' }
 };
 
-// 'classic-draft' running in shared-ownership mode. Same league type (same id, same scoring), but a
-// different draft mechanic and two mid-season features switched off:
+// A roster league type running in shared-ownership mode. Same league type (same id, same scoring),
+// but a different draft mechanic and two mid-season features switched off:
 //
 // - draftStrategy -> BlindDraftStrategy. `ownershipMode` is a fixed pairing with the mechanic, not
 //   an independent choice: exclusive means snake, shared means blind-with-reveal.
@@ -537,23 +762,39 @@ const SHOWS = {
 //   COULD instead mean "add any still-active castaway" -- that's a real design question this plan
 //   doesn't answer, so it's left out rather than guessed at.
 //
-// Precomputed once rather than built per call, since getLeagueType runs on nearly every render and
-// every DraftLogic dispatch.
-const CLASSIC_DRAFT_SHARED = {
-  ...LEAGUE_TYPES['classic-draft'],
-  draftStrategy: BlindDraftStrategy,
-  supportsReplenish: false,
-  supportsTrade: false
-};
+// Built once per roster league type rather than per call, since getLeagueType runs on nearly every
+// render and every DraftLogic dispatch. Keyed by league type id so Active Roster gets the same
+// treatment as Classic Draft without either needing to know about the other.
+const SHARED_OWNERSHIP_VARIANTS = {};
+Object.values(LEAGUE_TYPES).forEach(lt => {
+  if(!lt.hasRoster) return;
+  SHARED_OWNERSHIP_VARIANTS[lt.id] = {
+    ...lt,
+    draftStrategy: BlindDraftStrategy,
+    supportsReplenish: false,
+    supportsTrade: false
+  };
+});
 // Resolves the active league type, applying the ownership-mode override above. Returns the registry
 // entry itself in every other case, so `getLeagueType(state).id` and the supports*/has* flags stay
 // the single thing callers read -- no call site needs to know ownershipMode exists.
 function getLeagueType(state){
   const base = LEAGUE_TYPES[state.settings && state.settings.leagueTypeId] || LEAGUE_TYPES['classic-draft'];
-  if(base.id === 'classic-draft' && state.settings && state.settings.ownershipMode === 'shared'){
-    return CLASSIC_DRAFT_SHARED;
+  if(state.settings && state.settings.ownershipMode === 'shared' && SHARED_OWNERSHIP_VARIANTS[base.id]){
+    return SHARED_OWNERSHIP_VARIANTS[base.id];
   }
   return base;
+}
+
+// How many castaways each player drafts. For Active Roster this is DERIVED from the slot settings
+// rather than read from teamSize: the roster is by definition the active slots plus the bench, and
+// keeping teamSize as an independent number would let a commissioner set 3 there against 3+2 slots
+// and produce a roster that can never fill its lineup. Every draft mechanic asks through here.
+function rosterSize(state){
+  if(getLeagueType(state).hasActiveRoster){
+    return ActiveRosterLogic.activeSlots(state) + ActiveRosterLogic.benchSlots(state);
+  }
+  return state.settings.teamSize;
 }
 
 // Whether Replenish / Swap are actually available right now. Two independent things have to be
@@ -785,8 +1026,11 @@ class EpisodeLogic {
     const previousEp = state.episodes.find(e=>e.number===maxNum);
     // Once the season hits the merge, every later episode is post-merge too — carry the flag forward.
     const postMerge = previousEp ? previousEp.postMerge : false;
-    const newEp = { id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[], picks:[] };
+    const newEp = { id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
     state.episodes.push(newEp);
+    // Active Roster: start this episode's lineups from last episode's so players adjust rather than
+    // retype. No-op for every other league type (nothing has lineups to carry).
+    ActiveRosterLogic.carryForwardLineups(state, newEp.id);
     return newEp;
   }
   // Keeps there always being an "upcoming" episode (one with no eliminations logged yet) so
@@ -799,7 +1043,9 @@ class EpisodeLogic {
     const latest = state.episodes.find(e=>e.number===maxNum);
     if(latest && latest.events.length === 0) return false;
     const postMerge = latest ? latest.postMerge : false;
-    state.episodes.push({ id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[], picks:[] });
+    const created = { id:Core.uid('ep'), number: maxNum+1, postMerge, events:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
+    state.episodes.push(created);
+    ActiveRosterLogic.carryForwardLineups(state, created.id);
     return true;
   }
   static renumberPlacements(state){
@@ -974,8 +1220,13 @@ class Migrations {
         replenishEnabled: false,
         tradeEnabled: false,
         // 'exclusive' (one owner per castaway, snake draft) or 'shared' (many owners, blind draft).
-        // Classic-draft only; see CLASSIC_DRAFT_SHARED above for what flipping it changes.
+        // Roster league types only; see SHARED_OWNERSHIP_VARIANTS for what flipping it changes.
         ownershipMode: 'exclusive',
+        // Active Roster only. rosterSize() derives the draft's per-player total from these two for
+        // that league type, so they replace teamSize there rather than sitting alongside it.
+        activeSlots: 3,
+        benchSlots: 2,
+        eventPoints: defaultEventPoints(),
         // Pick'em-only, but defaulted for every league (same as finaleTop3Points/etc above being
         // defaulted even for classic-draft leagues that will never read them): a league can
         // switch leagueTypeId, so this should already be sane if it does. Value per the plan doc:
@@ -1013,6 +1264,11 @@ class Migrations {
     if(!s.settings.ownershipMode) s.settings.ownershipMode = 'exclusive';
     // Default OFF like a new league, EXCEPT where a round is already running -- backfilling those
     // to false would strand an in-flight replenish/swap with no UI left to finish or cancel it.
+    if(typeof s.settings.activeSlots !== 'number') s.settings.activeSlots = 3;
+    if(typeof s.settings.benchSlots !== 'number') s.settings.benchSlots = 2;
+    // Merge rather than replace, so a league that customised some types keeps those and picks up
+    // catalog defaults for any type added since.
+    s.settings.eventPoints = { ...defaultEventPoints(), ...(s.settings.eventPoints || {}) };
     if(typeof s.settings.replenishEnabled !== 'boolean') s.settings.replenishEnabled = !!(s.midSeason && s.midSeason.replenish);
     if(typeof s.settings.tradeEnabled !== 'boolean') s.settings.tradeEnabled = !!(s.midSeason && s.midSeason.trade);
     if(!s.blindDraft) s.blindDraft = { lockedPlayerIds: [], revealedAt: null };
@@ -1032,6 +1288,11 @@ class Migrations {
     (s.episodes||[]).forEach(ep=>{
       if(!ep.bets) migrateEpisodeToBets(ep, s.settings.bonusCategories, s.castaways, s.tribes);
       if(!ep.picks) ep.picks = [];
+      // Active Roster's per-episode fields. scoringEvents is deliberately separate from events
+      // (eliminations) -- see ActiveRosterLogic.addEvent's note on why.
+      if(!ep.scoringEvents) ep.scoringEvents = [];
+      if(!ep.lineups) ep.lineups = {};
+      if(typeof ep.lineupsLocked !== 'boolean') ep.lineupsLocked = false;
     });
     delete s.settings.bonusCategories;
     return s;
@@ -1041,7 +1302,8 @@ class Migrations {
 return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS, EXIT_METHODS,
-  LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable,
+  LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, rosterSize,
+  ACTIVE_ROSTER_EVENTS,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct
@@ -1070,6 +1332,9 @@ return {
   // Named setPickEmPick/removePickEmPick rather than the shorter setPick/removePick -- "pick" is
   // already heavily overloaded in this file (draft picks, blind-draft picks) and the longer name
   // keeps call sites unambiguous about which kind.
+  activeRosterLineupFor: ActiveRosterLogic.lineupFor, setActiveRosterLineup: ActiveRosterLogic.setLineup,
+  lockActiveRosterLineups: ActiveRosterLogic.lockLineups, unlockActiveRosterLineups: ActiveRosterLogic.unlockLineups,
+  addScoringEvent: ActiveRosterLogic.addEvent, removeScoringEvent: ActiveRosterLogic.removeEvent,
   pickEmPickFor: PickEmLogic.pickFor, previousPickEmPickFor: PickEmLogic.previousPickFor,
   setPickEmPick: PickEmLogic.setPick, removePickEmPick: PickEmLogic.removePick,
 
@@ -1078,8 +1343,8 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, Migrations,
-  SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy
+  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, Migrations,
+  SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy
 };
 
 });

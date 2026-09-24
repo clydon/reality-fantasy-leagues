@@ -536,6 +536,76 @@ lands on all three rosters. Exclusive mode was re-diffed byte-for-byte against i
 baseline across all 33 fixture steps, and the existing exclusive (16) and Pick'em (9) API suites
 were re-run green, since `withLeagueLock`'s signature and the player-delete route both changed.
 
+### Active Roster — event scoring with a weekly lineup lock
+
+The third `LEAGUE_TYPES` entry. You draft a roster exactly as in Classic Draft (same
+`ownershipMode` pairing — snake for exclusive, blind for shared — and the same Replenish/Swap, all
+reused unchanged), but each episode you field only part of it, and points come from what your
+**active** castaways did that week rather than from elimination placement.
+
+**`activeSlots`/`benchSlots` replace `teamSize` here, and roster size is derived, not
+configured twice.** `rosterSize(state)` returns `activeSlots + benchSlots` for this league type
+and `teamSize` for the others, and every draft mechanic asks through it. Keeping `teamSize` as
+an independent number alongside the slots would let a commissioner set 3 against 3+2 slots and
+produce a roster that can never fill its lineup, so the General Settings roster-size field is hidden
+for this type.
+
+**The plan's field name for the event log had to change, and it's the one correction worth knowing
+about.** It specified `episode.events: [{type, castawayId}]` — but `episode.events` already
+exists and already means **eliminations** (`{castawayId, method}`). It drives
+`placementOrder`, it's what `EpisodeLogic.remove` walks to un-eliminate castaways, and it's the
+"has this episode happened yet" signal for both `EpisodeLogic.ensureUpcoming` and Pick'em's
+scoring. Writing an "immunity win" into it would have made Pick'em score that castaway as voted out
+and made episode deletion try to un-eliminate them. They're genuinely different things — a
+structural season fact versus a point-earning occurrence — so scoring events live in
+`episode.scoringEvents` and eliminations keep `episode.events` untouched.
+
+**The weekly lineup lock, and why retroactivity is impossible rather than merely avoided.** Lineups
+are stored **per episode** (`episode.lineups[playerId]`), never as one mutable "current active
+set" with snapshots copied off it. Last week's lineup lives on last week's episode object, so
+editing this week's cannot reach back and change what last week scored — there is no single current
+set for the snapshots to drift away from. Scoring reads each episode's own `lineups`, so a benched
+castaway scores nothing by construction: "benched" just means "not in this episode's lineup", and
+there's no separate bench list to keep in sync.
+
+`episode.lineupsLocked` is a **separate, explicit commissioner action**, deliberately *not* derived
+from whether the episode has eliminations logged yet (the heuristic used elsewhere for "has this
+episode happened"). Deriving it would be backwards: the lock is meant to land *before* the episode
+airs — you commit your lineup without knowing the outcome — while eliminations are entered *after*,
+so a derived lock would leave a window in which someone could rewrite their lineup already knowing
+what happened. The commissioner can reopen a lock, since locking a week early otherwise has no way
+back.
+
+New episodes **carry the previous episode's lineup forward** so players adjust rather than retype
+each week, filtered to what they still own — a castaway lost to Replenish or Swap since then isn't
+theirs to field. Newly replenished castaways **start benched** with no special code: they simply
+aren't in any lineup until someone puts them there.
+
+**Event catalog + configurable points.** `ACTIVE_ROSTER_EVENTS` in `state-logic.js` holds the
+v1 set (individual immunity, tribe immunity, reward, idol/advantage found, idol/advantage played,
+safe at Tribal with zero votes). Adding an entry there automatically gives it a settings input and
+makes it selectable in the entry UI. `settings.eventPoints` overrides per league and falls back to
+the catalog default, so **0 means "switched off"** rather than "unset" — which is why `pointsFor`
+tests for a number instead of using `||`.
+
+**Manual entry is the primary path and stays that way.** Every event type is commissioner-enterable
+by hand from day one; the wiki connector (Feature D, investigated but unbuilt) is designed to
+*propose* events into this same log for confirmation, not to replace the entry UI. Nothing here is
+gated on connector coverage.
+
+Scoreboard gets a third row component (`ActiveRosterLeaderboardRow`): "Boot Order" and a roster
+list of placements describe exactly what this type doesn't score on, so the breakdown is which
+events actually paid out, with the roster disclosure noting that being on the roster isn't enough.
+
+**Verification.** 51 pure-logic checks and 18 through the real API and Postgres. The ones that
+matter most: an active castaway's event scores while a benched one's doesn't; **rewriting a later
+episode's lineup leaves an earlier episode's snapshot byte-identical** (asserted both in memory and
+over HTTP); the same castaway's event scores in the episode they were active and not in the one they
+were benched; the lock is not derived from eliminations existing; scoring events and eliminations
+stay in separate fields with neither leaking into the other; replenished castaways start benched;
+and trade behaves identically to Classic Draft's. Classic Draft's own fixture was re-diffed
+byte-for-byte, and the blind-draft and Pick'em suites re-run green.
+
 ## League Settings tab (`src/components/setup/*`, route `/setup`)
 
 Port of the live app's `renderSetup()` — the last major tab left unported, and the biggest single
@@ -550,7 +620,9 @@ type with no roster — every field there is a roster concept: roster size, the 
 Replenish/Swap toggles, and replenish order, itself shown only once Replenish is on),
 Side-Bet/Finale settings (the latter gated on `supportsFinalePredictions`, same flag Mid-Season's
 panel checks), Pick'em Settings (a single field, points per correct pick — gated on
-`hasWeeklyPicks`, see "Pick'em" above), Backup (Export always works — pure client-side JSON
+`hasWeeklyPicks`, see "Pick'em" above), Active Roster Settings
+(slots plus one point input per event type, generated from `ACTIVE_ROSTER_EVENTS` — gated on
+`hasActiveRoster`), Backup (Export always works — pure client-side JSON
 download of `state`, works identically in both modes; Import/Reset are live-only, Reset
 additionally requires super-admin, matching the live app's server-side re-check beyond the route's
 own commissioner gate), Invites (live-only, any member — see the Dashboard/invites section below),

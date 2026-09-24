@@ -75,6 +75,10 @@ export function buildMockSeasonState(): LeagueState {
       })),
       bets: bets || [],
       picks: [], // this demo league is classic-draft; pickem's weekly picks never apply here.
+      // Likewise Active Roster's per-episode lineups/events -- present but unused here.
+      scoringEvents: [],
+      lineups: {},
+      lineupsLocked: false,
     };
   }
 
@@ -166,6 +170,9 @@ export function buildMockSeasonState(): LeagueState {
       leagueTypeId: "classic-draft",
       showId: "survivor",
       ownershipMode: "exclusive" as const,
+      activeSlots: 3,
+      benchSlots: 2,
+      eventPoints: {},
       pickemCorrectPoints: 1,
     },
   };
