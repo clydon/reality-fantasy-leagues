@@ -1,7 +1,7 @@
 "use client";
 
 import type { LeagueState } from "@/lib/game/types";
-import { initials } from "@/lib/game/selectors";
+import { CastawayAvatar } from "@/components/castaway-avatar";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
@@ -51,9 +51,10 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
                 picks.map((c) => (
                   <div key={c.id} className="my-1 flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold">
-                        {initials(c.name)}
-                      </span>
+                      <CastawayAvatar
+                        castaway={c}
+                        className="flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold"
+                      />
                       {c.name} {c.status === "eliminated" && <span className="text-muted-foreground">(#{c.placementOrder})</span>}
                       {!c.ownerIds.includes(p.id) && (
                         <span className="text-muted-foreground">— {c.departedVia === "trade" ? "swapped away" : "replenished away"}</span>

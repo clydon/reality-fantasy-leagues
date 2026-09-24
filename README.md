@@ -34,7 +34,7 @@ flag — button/input/select styling everywhere, not just the sidebar/login/Boar
 
 Ported so far: the full Overview tab — Side Bets section (propose a bet, guess, commissioner
 grading, delete), the three dashboard cards (Latest Episode, Season Status, Standings), and the
-post-draft Board grid (castaways by tribe, ownership, elimination medals) — using the live app's
+post-draft Board grid (castaways by tribe, with cast photos, ownership, elimination medals) — using the live app's
 `shared/state-logic.js` **copied in verbatim** (`src/lib/game/state-logic.js` — see the provenance
 comment at its top) for every mutation, not just reads. Two data sources, switchable at runtime:
 
@@ -782,10 +782,47 @@ the terracotta accent, `--background`/`--card`/`--border`/etc. follow the live a
 typefaces via `next/font/google`. This is meant to be a translation of the existing look, not a
 redesign — see `ARCHITECTURE.md`'s styling rationale.
 
+## Cast photos (`public/photos/`, `components/castaway-avatar.tsx`)
+
+The live app's cast photos are ported now (copied from `SurvivorDraft/public/photos`): 24 for the
+demo/mock season at `photos/<key>.jpg` and 21 for the default seed cast at
+`photos/s51/<name>.jpg`. Both sets were already referenced by code in this repo -- `defaultState()`
+and `mock-state.ts` have always written those exact `photoUrl` values -- so nothing needed
+renaming; the files simply weren't here, and no component rendered them.
+
+**`CastawayAvatar` replaced six copies of the same initials block.** The live app repeats
+`c.photoUrl ? <img ... object-fit:cover> : initials(c.name)` at every avatar site; this repo had
+the initials half of that duplicated across the Board grid, Free Agents, Draft Results, the blind
+draft picker, and both Trade grids. One component now takes the container classes from the caller, so
+each site keeps its own size and shape (64px rounded square on the Board, 44px circles in the
+pickers, 20px inline in Draft Results) and its own initials styling as the fallback.
+
+**Two things needed care beyond copying files:**
+
+- **Stored `photoUrl` values are relative without a leading slash** (`photos/s51/ana.jpg`),
+  which works in the live app because it's a single page served at `/`. This app has real routes,
+  so that same value on `/draft` would resolve to `/draft/photos/...` and 404.
+  `castawayPhotoSrc()` normalizes it, while passing through anything with a scheme, a
+  protocol-relative `//`, or an existing leading slash -- the Photo URL field in League Settings
+  accepts arbitrary external URLs and those must not be mangled.
+- **A `photoUrl` can point at nothing** (a hand-added castaway, a typo in that field, a dead
+  external link), so the avatar falls back to initials on load error rather than showing a broken
+  image icon.
+
+A plain `<img>` rather than `next/image`, deliberately: that same Photo URL field accepts
+arbitrary external hosts, and `next/image` rejects remote hosts not whitelisted in
+`next.config` -- it would break exactly the case the field exists for, in exchange for
+optimisation these small fixed-size avatars don't need.
+
+**Verified** by computing every `photoUrl` the code actually generates and checking each resolves
+to a real file (45/45), then creating a real league through the API and fetching all 21 of its
+castaway photos over HTTP as genuine images, plus confirming a missing path 404s so the fallback
+path is real. `castawayPhotoSrc` has its own 11-case check covering the relative, absolute,
+protocol-relative, data-URI and empty forms. Not visually confirmed in a browser -- no browser
+tooling was available in this session.
+
 ## Not done yet (intentionally, for this POC's scope)
 
-- **Photos aren't ported as assets** — the Board grid shows initials only, not the live app's
-  cast photos.
 - **`/account`'s UI is functional but minimal, and deliberately staying that way for now** — no
   email verification, no OAuth providers, no "change email" flow. Explicit direction: this needs
   to work out of the box for a friends-only launch with zero paid external services, which the

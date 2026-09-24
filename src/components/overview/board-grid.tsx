@@ -1,6 +1,7 @@
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { initials, medalFor, MEDAL_EMOJI } from "@/lib/game/selectors";
+import { medalFor, MEDAL_EMOJI } from "@/lib/game/selectors";
+import { CastawayAvatar } from "@/components/castaway-avatar";
 import { cn } from "cn";
 
 // Direct port of renderBoardGrid() (public/app.js) -- grouped by tribe, one card per castaway
@@ -68,10 +69,10 @@ export function BoardGrid({ state }: { state: LeagueState }) {
                           </div>
                         </>
                       ))}
-                    {/* Cast photos aren't ported as assets in this POC (see README) -- initials only, unlike the live app's photoUrl images. */}
-                    <div className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-secondary font-mono text-[1.05rem] font-bold text-muted-foreground">
-                      {initials(c.name)}
-                    </div>
+                    <CastawayAvatar
+                      castaway={c}
+                      className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-secondary font-mono text-[1.05rem] font-bold text-muted-foreground"
+                    />
                     <div className="text-[0.84rem] font-semibold text-foreground">{c.name}</div>
                     {owners.length > 0 && (
                       <div className="mt-[3px] text-[0.7rem] font-semibold text-muted-foreground">

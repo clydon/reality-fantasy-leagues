@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { initials } from "@/lib/game/selectors";
+import { CastawayAvatar } from "@/components/castaway-avatar";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -202,9 +202,10 @@ export function BlindDraftPanel({ state }: { state: LeagueState }) {
                       onClick={() => selectable && toggle(c.id)}
                       onKeyDown={(e) => selectable && e.key === "Enter" && toggle(c.id)}
                     >
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold">
-                        {initials(c.name)}
-                      </div>
+                      <CastawayAvatar
+                        castaway={c}
+                        className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold"
+                      />
                       <div className="text-xs font-medium leading-tight">{c.name}</div>
                       {isSelected && (
                         <div className="rounded bg-primary px-2 py-0.5 text-[0.65rem] font-bold text-primary-foreground">

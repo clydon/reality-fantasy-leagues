@@ -2,7 +2,7 @@
 
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { initials } from "@/lib/game/selectors";
+import { CastawayAvatar } from "@/components/castaway-avatar";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
@@ -67,9 +67,10 @@ export function FreeAgentsPanel({ state }: { state: LeagueState }) {
               onClick={() => canPick && pick(c.id)}
               onKeyDown={(e) => canPick && e.key === "Enter" && pick(c.id)}
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold">
-                {initials(c.name)}
-              </div>
+              <CastawayAvatar
+                castaway={c}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold"
+              />
               <div className="text-xs font-medium leading-tight">{c.name}</div>
               {canPick && (
                 <div className="rounded bg-primary px-2 py-0.5 text-[0.65rem] font-bold text-primary-foreground">Draft</div>

@@ -2,7 +2,8 @@
 
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { ordinal, initials } from "@/lib/game/selectors";
+import { ordinal } from "@/lib/game/selectors";
+import { CastawayAvatar } from "@/components/castaway-avatar";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
@@ -100,9 +101,10 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
               onClick={() => canManage && assign(c.id)}
               onKeyDown={(e) => canManage && e.key === "Enter" && assign(c.id)}
             >
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold">
-                {initials(c.name)}
-              </div>
+              <CastawayAvatar
+                castaway={c}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold"
+              />
               <div className="text-xs font-medium leading-tight">{c.name}</div>
               {canManage && (
                 <div className="rounded bg-primary px-2 py-0.5 text-[0.65rem] font-bold text-primary-foreground">Assign</div>

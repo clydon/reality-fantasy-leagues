@@ -44,6 +44,21 @@ export function initials(name: string): string {
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
+// Resolves a castaway's stored photoUrl into something usable as an <img src> from ANY route.
+//
+// Stored values are root-relative-without-the-slash ("photos/s51/ana.jpg") because the live app is a
+// single page served at "/", where a relative URL happens to resolve correctly. This app has real
+// routes, so the same value on /draft would resolve to /draft/photos/... and 404. Anything that
+// already carries a scheme (or a protocol-relative //) or a leading slash is passed through
+// untouched -- the Photo URL field in League Settings accepts arbitrary external URLs, and those
+// must not be mangled.
+export function castawayPhotoSrc(photoUrl: string | undefined | null): string | null {
+  const raw = (photoUrl || "").trim();
+  if (!raw) return null;
+  if (/^([a-z][a-z0-9+.-]*:|\/\/)/i.test(raw)) return raw;
+  return raw.startsWith("/") ? raw : "/" + raw;
+}
+
 const MEDAL_EMOJI: Record<string, string> = { gold: "🥇", silver: "🥈", bronze: "🥉" };
 export { MEDAL_EMOJI };
 
