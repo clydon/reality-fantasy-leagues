@@ -634,7 +634,9 @@ function validateEpisodes(extracted, state, terms, format) {
     // Double boots are real but rare and always explicit -- more than one is exactly the shape a
     // misread rowspan/vote-count cell would produce (see extractEpisodes' prompt), so it's surfaced
     // as a note for the commissioner rather than silently trusted like a single elimination is.
-    if (elims.length > (format.wiki.routineEliminations || 1)) {
+    // A finale legitimately has several (runners-up, fire-making, the winner), so it isn't flagged.
+    const finale = elims.some((e) => e.method === format.winnerExitMethod);
+    if (!finale && elims.length > (format.wiki.routineEliminations || 1)) {
       const msg = `episode ${n} has ${elims.length} eliminations (${elims.map((e) => e.name).join(", ")}) -- double-check this against the source before applying`;
       problems.push(msg);
       elimProblems.push(msg);
