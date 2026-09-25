@@ -1036,6 +1036,36 @@ class RosterLogic {
     });
     return added;
   }
+  // Applies the starting-tribe half of a cast import to castaways ALREADY in the league.
+  //
+  // applyCastImport can't do this: it skips anyone already present (deliberately -- it must never
+  // rewrite a castaway, because ids are referenced by rosters, picks and events), so a league that
+  // received its cast without tribes and is later told what they were would get the tribes created
+  // and nobody in them. That's the shape catch-up mode needs, though: a league playing from episode
+  // 0 shouldn't be handed the starting division before the premiere reveals it, and should get it
+  // the moment it does -- see season_cast.tribes_from_episode and the reveal route.
+  //
+  // Additive like everything else here: a castaway who already has a tribe keeps it (a commissioner
+  // may have sorted them by hand), tribes that already exist are reused rather than duplicated, and
+  // running it twice changes nothing the second time.
+  static applyCastTribes(state, proposal){
+    const result = { tribes: [], linked: [], unchanged: [] };
+    const sameName = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
+    (proposal.castaways || []).forEach(c=>{
+      if(!c || !c.name || !c.tribeName) return;
+      const castaway = state.castaways.find(x=>sameName(x.name, c.name));
+      if(!castaway) return;                       // not in this league; nothing to link
+      if(castaway.tribeId){ result.unchanged.push(castaway.name); return; }
+      let tribe = state.tribes.find(t=>sameName(t.name, c.tribeName));
+      if(!tribe){
+        tribe = RosterLogic.addTribe(state, c.tribeName, PALETTE[state.tribes.length % PALETTE.length]);
+        result.tribes.push(tribe.name);
+      }
+      castaway.tribeId = tribe.id;
+      result.linked.push(castaway.name);
+    });
+    return result;
+  }
   static updateSettings(state, field, value){
     // Generic setter (the PATCH route passes whatever the UI sends), with one normalized field:
     // revealedThroughEpisode decides what a league is allowed to SEE, so a junk value must not
@@ -1746,7 +1776,7 @@ return {
   disablePlayer: RosterLogic.disablePlayer, reclaimPlayer: RosterLogic.reclaimPlayer, activatePlayer: RosterLogic.activatePlayer,
   addTribe: RosterLogic.addTribe, updateTribe: RosterLogic.updateTribe, removeTribe: RosterLogic.removeTribe,
   addCastaway: RosterLogic.addCastaway, updateCastaway: RosterLogic.updateCastaway, removeCastaway: RosterLogic.removeCastaway,
-  applyCastImport: RosterLogic.applyCastImport,
+  applyCastImport: RosterLogic.applyCastImport, applyCastTribes: RosterLogic.applyCastTribes,
   applyEliminationsImport: EpisodeLogic.applyEliminationsImport,
   applyScoringEventsImport: EpisodeLogic.applyScoringEventsImport,
   updateSettings: RosterLogic.updateSettings,

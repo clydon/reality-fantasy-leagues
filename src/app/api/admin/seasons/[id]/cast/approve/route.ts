@@ -17,7 +17,8 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
 
   const { rows } = await pool.query(
-    `SELECT ss.season_number, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id=$1`,
+    `SELECT ss.season_number, ss.tribes_from_episode, s.slug
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id=$1`,
     [id]
   );
   if (!rows.length) throw new HttpError(404, "Season not found");
@@ -33,7 +34,15 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   // Applied AFTER the approval is recorded: if a league write fails, the cast is still approved and
   // the same rows reach that league the next time it's touched (a re-approve, or the league picking
   // the season again) rather than the approval being lost along with it.
-  const applied = await applyApprovedCastToLeagues(rows[0].slug, rows[0].season_number, cast);
+  // Each league gets the starting tribes only if it may see them yet (season_cast's hold vs. that
+  // league's reveal pointer) -- see tribesDue. A league that isn't there yet gets them on the reveal
+  // that brings it due, not here.
+  const applied = await applyApprovedCastToLeagues(
+    rows[0].slug,
+    rows[0].season_number,
+    cast,
+    rows[0].tribes_from_episode ?? null
+  );
 
   return NextResponse.json({ approvedAt: approved[0].cast_approved_at, castSize: cast.length, applied });
 });

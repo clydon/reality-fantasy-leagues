@@ -145,6 +145,16 @@ declare const StateLogic: {
   addCastaway(state: LeagueState, name: string): Castaway;
   updateCastaway(state: LeagueState, id: string, field: string, value: unknown): void;
   removeCastaway(state: LeagueState, id: string): void;
+  /**
+   * Links castaways ALREADY in the league to their starting tribes, creating any tribe that's
+   * missing. What applyCastImport can't do (it skips anyone already present), and what catch-up
+   * mode needs when a league finally reveals the episode that shows the division.
+   */
+  applyCastTribes(state: LeagueState, proposal: { castaways: { name: string; tribeName?: string | null }[] }): {
+    tribes: string[];
+    linked: string[];
+    unchanged: string[];
+  };
   applyCastImport(
     state: LeagueState,
     proposal: { tribes?: { name: string; color?: string }[]; castaways?: { name: string; tribeName?: string | null; photoUrl?: string | null }[] }

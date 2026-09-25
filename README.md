@@ -998,6 +998,45 @@ that fires twice before anyone reviews replaces its own earlier suggestion inste
 duplicates. Rejected proposals are kept as resolved rows rather than deleted, so a rejected
 suggestion doesn't reappear looking new on the next run.
 
+### Starting tribes are held, not deleted (`tribes_from_episode`, db/migrations/0013)
+
+0011 shipped this as a **Clear all tribes** button, and it was the wrong shape. The intent was right
+— a league catching up from episode 0 shouldn't be handed the starting division, because the
+premiere is what reveals it — but clearing threw the tribes away at the *season* level, so they
+never arrived for anyone, however far a league progressed. And re-approving afterwards made it
+worse: `applyCastImport` skips castaways that already exist, so the tribes got created with nobody
+in them.
+
+What that button was reaching for is the reveal pointer catch-up mode already has. So the tribe
+stays on the row and the season says which episode may show it:
+
+- `tribes_from_episode = NULL` — tribes go out with the cast (every season before this).
+- `= N` — a league **catching up** sees them once it has revealed episode N; a league playing
+  **live** gets them immediately, because it isn't hiding anything from itself.
+
+`tribesDue(state, tribesFromEpisode)` in `src/lib/server/season-cast.ts` is that rule, and three
+paths ask it: approving a cast, a league picking the season, and the reveal route. The reveal is the
+interesting one — when a catching-up league reveals the episode that brings tribes due, the same
+call that moves the pointer sorts its castaways into tribes, inside the same lock.
+
+That needed a new primitive. `applyCastImport` **can't** do it: it skips anyone already present,
+deliberately, because ids are referenced by rosters, picks and events, so it must never rewrite a
+castaway. `StateLogic.applyCastTribes` links castaways already in the league to their starting tribe
+instead, creating any tribe that's missing. Additive like everything else here: a castaway a
+commissioner sorted by hand keeps the tribe they were given, existing tribes are reused rather than
+duplicated, and a second run changes nothing.
+
+Staging gained the matching recovery path: a re-pull now fills a **blank** tribe (and photo) back in
+while leaving any value already on the row alone (`COALESCE`, not `EXCLUDED`) — so an admin's
+correction survives a re-read, and a season whose tribes were wiped by the old button gets them back
+by pulling again.
+
+**Verified** end to end against Postgres, on exactly the case that prompted it: episode 1 already
+aired so the wiki knows the tribes; the admin holds them and approves; the catching-up league
+receives four castaways and **zero** tribes; it opens and reveals episode 1 and all four are sorted
+into Ratu/Tika automatically; revealing episode 2 re-links nobody and creates no duplicate tribes;
+and a league playing live gets cast and tribes together with no wait.
+
 ### Photo URLs: cutting Fandom's revision suffix (db/migrations/0012)
 
 MediaWiki's `imageinfo` API returns a file's URL in a revision form:
@@ -1040,8 +1079,8 @@ So the cast moved up a level. `stageSeasonCast` writes what the model extracted 
 than to any league. **Admin → Shows & Seasons → Cast** shows exactly what a league would receive —
 the photo, the name, the tribe — with two edits that reviewing actually needs:
 
-- **Clear all tribes**, because the starting division is itself premiere-night information: a league
-  catching up from episode 0 shouldn't be handed it with the cast.
+- **Hold tribes until episode N** (`show_seasons.tribes_from_episode`, db/migrations/0013), because
+  the starting division is itself premiere-night information — see below.
 - **Remove a row**, for whatever the extraction shouldn't have picked up.
 
 **Approve** is the one button that reaches leagues. It marks the season reviewed and applies the

@@ -49,6 +49,7 @@ export function SeasonCastReview({ seasonId, seasonLabel }: { seasonId: string; 
   const approved = !!data?.approvedAt;
   const leagueCount = data?.leagueCount ?? 0;
   const withTribes = cast.filter((c) => c.tribeName).length;
+  const heldFrom = data?.tribesFromEpisode ?? null;
 
   if (!cast.length) {
     return (
@@ -102,7 +103,7 @@ export function SeasonCastReview({ seasonId, seasonLabel }: { seasonId: string; 
           </thead>
           <tbody>
             {cast.map((member) => (
-              <CastRow key={member.id} member={member} busy={busy} onRemove={() =>
+              <CastRow key={member.id} member={member} busy={busy} held={heldFrom !== null} onRemove={() =>
                 run(async () => {
                   if (!(await confirm(`Remove ${member.name} from this season's cast?`, { danger: true, confirmLabel: "Remove" }))) return null;
                   await api.adminEditSeasonCast(seasonId, { remove: member.id });
@@ -118,30 +119,43 @@ export function SeasonCastReview({ seasonId, seasonLabel }: { seasonId: string; 
         <Button size="xs" disabled={busy} onClick={() => run(approve)}>
           {approved ? "Re-approve & push to leagues" : `Approve cast${leagueCount ? ` & add to ${leagueCount} league${leagueCount === 1 ? "" : "s"}` : ""}`}
         </Button>
-        {/* The starting division is itself premiere-night information, so a league catching up from
-            episode 0 shouldn't be handed it with the cast. One button, because the useful action is
-            "all of them" -- clearing tribes one at a time is how you accidentally leave one in. */}
+        {/* HOLD rather than delete. The starting division is premiere-night information, so a league
+            catching up from episode 0 shouldn't be handed it with the cast -- but it should get it
+            the moment it reveals the premiere. The button this replaced stripped the tribes from the
+            season outright, which meant they never arrived for anyone, however far a league got. */}
         <Button
           variant="secondary"
           size="xs"
           disabled={busy || withTribes === 0}
-          title={`Strip every starting ${tribeTerm.toLowerCase()} — for leagues that shouldn't see the division before the premiere`}
+          title={
+            heldFrom
+              ? `Send ${plural(tribeTerm).toLowerCase()} with the cast instead of holding them`
+              : `Hold the starting ${plural(tribeTerm).toLowerCase()} back until a catching-up league reveals episode 1`
+          }
           onClick={() =>
             run(async () => {
-              if (!(await confirm(`Clear the starting ${plural(tribeTerm).toLowerCase()} from all ${cast.length} ${plural(term).toLowerCase()}? The cast will need approving again.`, { confirmLabel: "Clear" })))
-                return null;
-              await api.adminEditSeasonCast(seasonId, { clearTribes: true });
-              return `Cleared every ${tribeTerm.toLowerCase()}.`;
+              await api.adminEditSeasonCast(seasonId, { tribesFromEpisode: heldFrom ? null : 1 });
+              return heldFrom
+                ? `${plural(tribeTerm)} now go out with the cast.`
+                : `${plural(tribeTerm)} held until episode 1 is revealed.`;
             })
           }
         >
-          Clear all {plural(tribeTerm).toLowerCase()}
+          {heldFrom ? `Send ${plural(tribeTerm).toLowerCase()} with the cast` : `Hold ${plural(tribeTerm).toLowerCase()} until episode 1`}
         </Button>
       </div>
       <p className="mt-1 text-[0.7rem] text-muted-foreground">
         {approved
           ? `Approved — leagues on this season have it, and any league that picks this season later gets it automatically.`
           : `Nothing reaches a league until you approve. Adding is additive: a league that already has some of these keeps what it has.`}
+        {heldFrom ? (
+          <>
+            {" "}
+            {plural(tribeTerm)} are <b>held until episode {heldFrom}</b>: a league catching up gets the {plural(term).toLowerCase()}{" "}
+            ungrouped now and is sorted into {plural(tribeTerm).toLowerCase()} automatically when it reveals that episode. A league
+            playing live gets them straight away.
+          </>
+        ) : null}
       </p>
       {note && <p className="mt-1 text-[0.7rem] font-semibold text-good">{note}</p>}
       {error && <p className="mt-1 text-[0.7rem] font-semibold text-destructive">{error}</p>}
@@ -149,7 +163,7 @@ export function SeasonCastReview({ seasonId, seasonLabel }: { seasonId: string; 
   );
 }
 
-function CastRow({ member, busy, onRemove }: { member: SeasonCastMember; busy: boolean; onRemove: () => void }) {
+function CastRow({ member, busy, held, onRemove }: { member: SeasonCastMember; busy: boolean; held: boolean; onRemove: () => void }) {
   const [broken, setBroken] = useState(false);
   return (
     <tr className="border-b border-border last:border-0">
@@ -171,7 +185,16 @@ function CastRow({ member, busy, onRemove }: { member: SeasonCastMember; busy: b
         )}
       </td>
       <td className="px-2 py-1 font-semibold">{member.name}</td>
-      <td className="px-2 py-1 text-muted-foreground">{member.tribeName ?? <span className="italic">—</span>}</td>
+      <td className="px-2 py-1 text-muted-foreground">
+        {member.tribeName ? (
+          <>
+            {member.tribeName}
+            {held && <span className="ml-1.5 text-[0.65rem] italic opacity-70">held</span>}
+          </>
+        ) : (
+          <span className="italic">—</span>
+        )}
+      </td>
       <td className="px-2 py-1">
         <button className="text-muted-foreground hover:text-destructive disabled:opacity-40" disabled={busy} onClick={onRemove} title="Remove from this season's cast">
           ✕

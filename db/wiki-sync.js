@@ -927,13 +927,20 @@ async function stageSeasonCast(pool, ctx, extraction, opts) {
   let added = 0;
   for (let i = 0; i < ordered.length; i++) {
     const c = ordered[i];
-    const { rowCount } = await pool.query(
+    // COALESCE, not EXCLUDED: a value already on the row wins, so an admin's correction survives a
+    // re-pull -- but a BLANK one gets filled in. That second half is the recovery path for a season
+    // whose tribes were wiped by 0011's old "clear all tribes" button, and for a first pull that ran
+    // before the wiki listed tribes at all.
+    const { rows: upserted } = await pool.query(
       `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order)
        VALUES ($1,$2,$3,$4,$5)
-       ON CONFLICT (season_id, lower(name)) DO NOTHING`,
+       ON CONFLICT (season_id, lower(name)) DO UPDATE
+          SET tribe_name = COALESCE(season_cast.tribe_name, EXCLUDED.tribe_name),
+              photo_url  = COALESCE(season_cast.photo_url,  EXCLUDED.photo_url)
+       RETURNING (xmax = 0) AS inserted`,
       [seasonId, c.name, c.tribeName, normalizePhotoUrl(c.photoFile && photos[c.photoFile]), i]
     );
-    added += rowCount;
+    if (upserted[0] && upserted[0].inserted) added += 1;
   }
   // Only a change re-opens the review. An unchanged re-pull of an already-approved season leaves it
   // approved, so the nightly job can't quietly withdraw a cast leagues are already playing with.

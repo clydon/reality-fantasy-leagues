@@ -23,8 +23,11 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
     // (applyCastImport), so a league that already has those castaways gains nothing and loses
     // nothing, and a season with no approved cast is simply a no-op.
     if (field === "showId" || field === "wikiSeason") {
-      const cast = await approvedCastFor(client, s.settings.showId, s.settings.wikiSeason);
-      if (cast) applyCastToState(s, cast);
+      const approved = await approvedCastFor(client, s.settings.showId, s.settings.wikiSeason);
+      // The starting tribes ride along only if this league may see them yet -- a league catching up
+      // from episode 0 gets the people now and the division when it reveals the premiere. See
+      // tribesDue in season-cast.ts.
+      if (approved) applyCastToState(s, approved.cast, approved.tribesFromEpisode);
     }
   });
   return NextResponse.json(state);

@@ -37,6 +37,9 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
   // Kept apart from `note`: names the wiki used that this league's cast doesn't have are neither a
   // success nor a failure -- the reveal worked, and those particular results were skipped.
   const [unmatched, setUnmatched] = useState<string[]>([]);
+  // Castaways sorted into their starting tribe by this reveal, when the season held the division
+  // back until the premiere. Worth saying out loud -- it's a change to the cast the reveal made.
+  const [tribed, setTribed] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   if (!StateLogic.RevealLogic.isCatchingUp(state)) return null;
@@ -51,6 +54,7 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
     setBusy(true);
     setNote(null);
     setUnmatched([]);
+    setTribed([]);
     setError(null);
     try {
       await fn();
@@ -86,6 +90,7 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
             }
       );
       setUnmatched(res.unmatched);
+      setTribed(res.tribed);
       onRevealed();
     });
 
@@ -132,6 +137,12 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
       )}
       {note && (
         <p className={`mt-2 text-sm font-semibold ${note.ok ? "text-good" : "text-destructive"}`}>{note.text}</p>
+      )}
+      {tribed.length > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          This episode also revealed the starting line-up: <b>{tribed.length}</b> {tribed.length === 1 ? "castaway is" : "castaways are"}{" "}
+          now sorted into their tribes.
+        </p>
       )}
       {unmatched.length > 0 && (
         <p className="mt-1 text-xs text-muted-foreground">

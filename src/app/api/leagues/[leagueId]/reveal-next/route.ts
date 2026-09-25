@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, withLeagueLock, HttpError } from "@/lib/server/db";
 import { fanOutCachedEpisodes } from "@db/wiki-sync.js";
+import { approvedCastForLeague, tribesDue } from "@/lib/server/season-cast";
 
 // Catch-up mode's one moving part: reveal the next episode (StateLogic.RevealLogic).
 //
@@ -25,11 +26,25 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   await requireLeagueRole(req, leagueId, "commissioner");
 
   let revealed: number | null = null;
-  const state = await withLeagueLock(leagueId, (s) => {
+  let tribed: string[] = [];
+  const state = await withLeagueLock(leagueId, async (s, client) => {
     if (!StateLogic.RevealLogic.isCatchingUp(s)) {
       throw new HttpError(400, "This league isn't catching up — results arrive as soon as the connector reads them.");
     }
     revealed = StateLogic.RevealLogic.revealNext(s);
+
+    // The starting tribes are themselves something an episode reveals, so the season can hold them
+    // back (db/migrations/0013) until a catching-up league reaches the episode that shows the
+    // division -- usually the premiere. This is the moment that becomes true, so hand them over
+    // here, inside the same lock that moved the pointer. applyCastTribes links the castaways the
+    // league already has; it's additive and idempotent, so a reveal past the due episode is a no-op
+    // and a castaway a commissioner already sorted by hand keeps the tribe they gave them.
+    const approved = await approvedCastForLeague(client, s);
+    if (approved && tribesDue(s, approved.tribesFromEpisode)) {
+      tribed = StateLogic.applyCastTribes(s, {
+        castaways: approved.cast.map((c) => ({ name: c.name, tribeName: c.tribeName })),
+      }).linked;
+    }
   });
 
   // Outside the lock on purpose: the fan-out writes to wiki_proposal_items, not to league state, and
@@ -58,5 +73,5 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     note = e instanceof Error ? e.message : "The reveal worked, but filing its results didn't.";
   }
 
-  return NextResponse.json({ state, revealedThroughEpisode: revealed, filed, written, unmatched, note });
+  return NextResponse.json({ state, revealedThroughEpisode: revealed, filed, written, unmatched, tribed, note });
 });

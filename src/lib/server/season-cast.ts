@@ -29,6 +29,23 @@ export interface CastApplyResult {
   leagueName: string;
   added: string[];
   skipped: string[];
+  /** Castaways linked to a starting tribe by this call (see tribesDue). */
+  tribed?: string[];
+  error?: string;
+}
+
+/**
+ * Whether a league may see the season's starting tribes yet.
+ *
+ * `tribesFromEpisode` is the season's hold (db/migrations/0013): null means nothing is held back.
+ * A league playing LIVE is never holding anything back either -- it sees results as the connector
+ * reads them, so there's nothing to protect it from. Only a league catching up waits, until it has
+ * revealed the episode that shows the division.
+ */
+export function tribesDue(state: LeagueState, tribesFromEpisode: number | null | undefined): boolean {
+  if (tribesFromEpisode == null) return true;
+  const revealed = StateLogic.RevealLogic.revealedThrough(state);
+  return revealed === null || revealed >= tribesFromEpisode;
 }
 
 /** The season's staged/approved cast, in the order an admin arranged it. */
@@ -41,22 +58,40 @@ export async function seasonCastRows(seasonId: string): Promise<SeasonCastRow[]>
   return rows;
 }
 
-// The shape StateLogic.applyCastImport wants. Tribes are derived from whatever tribe names survive
-// on the rows -- so an admin who cleared them (a catching-up league shouldn't see the starting
-// division before the premiere) gets a cast with no tribes at all, rather than empty tribes.
-function payloadFor(cast: SeasonCastRow[]) {
+// The shape StateLogic.applyCastImport wants. `withTribes: false` strips the division entirely --
+// no tribe list, no tribeName on anyone -- which is what a league that hasn't revealed the premiere
+// gets. Empty tribes are never created: a tribe with nobody in it is a spoiler of its own (it names
+// the division and how many there are) and clutter besides.
+function payloadFor(cast: SeasonCastRow[], withTribes: boolean) {
   const tribes: { name: string }[] = [];
-  for (const c of cast) {
-    if (c.tribeName && !tribes.some((t) => t.name.toLowerCase() === c.tribeName!.toLowerCase())) {
-      tribes.push({ name: c.tribeName });
+  if (withTribes) {
+    for (const c of cast) {
+      if (c.tribeName && !tribes.some((t) => t.name.toLowerCase() === c.tribeName!.toLowerCase())) {
+        tribes.push({ name: c.tribeName });
+      }
     }
   }
-  return { tribes, castaways: cast.map((c) => ({ name: c.name, tribeName: c.tribeName, photoUrl: c.photoUrl })) };
+  return {
+    tribes,
+    castaways: cast.map((c) => ({ name: c.name, tribeName: withTribes ? c.tribeName : null, photoUrl: c.photoUrl })),
+  };
 }
 
-/** Applies a season's approved cast into one already-locked league state. Returns what it added. */
-export function applyCastToState(state: LeagueState, cast: SeasonCastRow[]) {
-  return StateLogic.applyCastImport(state, payloadFor(cast));
+/**
+ * Applies a season's approved cast into one already-locked league state, including the starting
+ * tribes only if this league is allowed to see them yet. Returns what it added.
+ *
+ * Two calls, not one, because they do different jobs: applyCastImport adds people who aren't there
+ * (and skips everyone who is), while applyCastTribes links people who ARE there to a tribe. A
+ * league receiving its cast for the first time uses the first; a league that already has the cast
+ * and has just revealed the premiere uses the second. Running both always is simplest and costs
+ * nothing -- each is additive and idempotent.
+ */
+export function applyCastToState(state: LeagueState, cast: SeasonCastRow[], tribesFromEpisode?: number | null) {
+  const withTribes = tribesDue(state, tribesFromEpisode);
+  const added = StateLogic.applyCastImport(state, payloadFor(cast, withTribes));
+  const tribed = withTribes ? StateLogic.applyCastTribes(state, payloadFor(cast, true)) : null;
+  return { ...added, tribed: tribed ? tribed.linked : [] };
 }
 
 /**
@@ -67,10 +102,11 @@ export async function approvedCastFor(
   client: PoolClient,
   showSlug: string | null | undefined,
   seasonNumber: number | null | undefined
-): Promise<SeasonCastRow[] | null> {
+): Promise<{ cast: SeasonCastRow[]; tribesFromEpisode: number | null } | null> {
   if (!showSlug || seasonNumber == null) return null;
   const { rows } = await client.query(
-    `SELECT sc.id, sc.name, sc.tribe_name AS "tribeName", sc.photo_url AS "photoUrl"
+    `SELECT sc.id, sc.name, sc.tribe_name AS "tribeName", sc.photo_url AS "photoUrl",
+            ss.tribes_from_episode AS "tribesFromEpisode"
        FROM season_cast sc
        JOIN show_seasons ss ON ss.id = sc.season_id
        JOIN shows s ON s.id = ss.show_id
@@ -78,7 +114,19 @@ export async function approvedCastFor(
       ORDER BY sc.sort_order ASC, sc.name ASC`,
     [showSlug, seasonNumber]
   );
-  return rows.length ? rows : null;
+  return rows.length ? { cast: rows, tribesFromEpisode: rows[0].tribesFromEpisode ?? null } : null;
+}
+
+/**
+ * The approved cast for the season a league is tracking, whatever its reveal state -- used by the
+ * reveal route, which has just moved the pointer and needs to know whether the starting tribes have
+ * come due. Resolves to null when the league's season has no approved cast.
+ */
+export async function approvedCastForLeague(
+  client: PoolClient,
+  state: LeagueState
+): Promise<{ cast: SeasonCastRow[]; tribesFromEpisode: number | null } | null> {
+  return approvedCastFor(client, state.settings.showId, state.settings.wikiSeason);
 }
 
 /**
@@ -89,7 +137,8 @@ export async function approvedCastFor(
 export async function applyApprovedCastToLeagues(
   showSlug: string,
   seasonNumber: number,
-  cast: SeasonCastRow[]
+  cast: SeasonCastRow[],
+  tribesFromEpisode: number | null
 ): Promise<CastApplyResult[]> {
   // Text comparison rather than ::int for the season: one league with a non-numeric value there
   // would otherwise make the cast error out for every league on the season.
@@ -104,19 +153,25 @@ export async function applyApprovedCastToLeagues(
   const results: CastApplyResult[] = [];
   for (const league of leagues) {
     try {
-      let added: { castaways: string[]; skipped: string[] } = { castaways: [], skipped: [] };
+      let added: { castaways: string[]; skipped: string[]; tribed: string[] } = { castaways: [], skipped: [], tribed: [] };
       await withLeagueLock(league.id, (state) => {
-        added = applyCastToState(state, cast) as typeof added;
+        added = applyCastToState(state, cast, tribesFromEpisode);
       });
-      results.push({ leagueId: league.id, leagueName: league.name, added: added.castaways, skipped: added.skipped });
+      results.push({
+        leagueId: league.id,
+        leagueName: league.name,
+        added: added.castaways,
+        skipped: added.skipped,
+        tribed: added.tribed,
+      });
     } catch (e) {
       results.push({
         leagueId: league.id,
         leagueName: league.name,
         added: [],
         skipped: [],
-        ...{ error: e instanceof Error ? e.message : "failed" },
-      } as CastApplyResult);
+        error: e instanceof Error ? e.message : "failed",
+      });
     }
   }
   return results;

@@ -361,6 +361,8 @@ export const api = {
       written: number;
       /** Names in the wiki's results that this league's cast doesn't have; those were skipped. */
       unmatched: string[];
+      /** Castaways sorted into their starting tribe by this reveal, if the season held them back. */
+      tribed: string[];
       note: string | null;
     }>(
       `/api/leagues/${leagueId}/reveal-next`,
@@ -436,15 +438,17 @@ export const api = {
     localFetch<{
       cast: SeasonCastMember[];
       approvedAt: string | null;
+      /** Held until a catching-up league reveals this episode; null sends tribes with the cast. */
+      tribesFromEpisode: number | null;
       leagueCount: number;
       castawayTerm: string;
       tribeTerm: string;
     }>(`/api/admin/seasons/${id}/cast`),
-  adminEditSeasonCast: (id: string, change: { clearTribes?: boolean; remove?: string }) =>
-    localFetch<{ cast: SeasonCastMember[]; approvedAt: null }>(`/api/admin/seasons/${id}/cast`, {
-      method: "PATCH",
-      body: JSON.stringify(change),
-    }),
+  adminEditSeasonCast: (id: string, change: { tribesFromEpisode?: number | null; remove?: string }) =>
+    localFetch<{ cast: SeasonCastMember[]; approvedAt: null; tribesFromEpisode: number | null }>(
+      `/api/admin/seasons/${id}/cast`,
+      { method: "PATCH", body: JSON.stringify(change) }
+    ),
   adminApproveSeasonCast: (id: string) =>
     localFetch<{
       approvedAt: string;

@@ -1,0 +1,19 @@
+-- Starting tribes become something a season HOLDS BACK, rather than something an admin deletes.
+--
+-- 0011 gave the cast review a "clear all tribes" button, for the case that prompted it: a league
+-- catching up from episode 0 shouldn't be handed the starting division, because the premiere is
+-- what reveals it. But clearing threw the tribes away at the SEASON level -- so they never arrived,
+-- for anyone, however far a league progressed. Worse, re-approving afterwards created the tribes
+-- with nobody in them, because applyCastImport skips castaways that already exist.
+--
+-- What that button was reaching for is the reveal pointer catch-up mode already has. So the tribe
+-- stays on the row, and the season says which episode is allowed to show it:
+--
+--   NULL -- send tribes with the cast (every season before this; nothing withheld).
+--   N    -- a league CATCHING UP sees them once it has revealed episode N; a league playing live
+--           (no catch-up pointer) gets them immediately, because it isn't hiding anything.
+--
+-- Applying them when that becomes true is StateLogic.applyCastTribes, called from the reveal route
+-- and from the cast-approval path. A season whose tribes were already cleared by the old button has
+-- lost them; re-pulling restores them, since staging now fills a blank tribe back in.
+ALTER TABLE show_seasons ADD COLUMN tribes_from_episode INTEGER;
