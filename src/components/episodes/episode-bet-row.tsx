@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { Bet, Episode, LeagueState } from "@/lib/game/types";
+import type { Bet, Episode, LeagueState, SuggestedBetAnswer } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,24 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
   const isCreator = !!myPlayerId && bet.createdByPlayerId === myPlayerId;
   const creatorCanDelete = isCreator && (bet.predictions || []).length < 2;
   const canToggleEdit = canManage || creatorCanDelete;
+
+  // Semantic-search grading aid (db/embeddings.js), fetched on demand rather than on every render --
+  // it costs a real embedding call, and most bets on an episode card are never opened to grade in a
+  // given visit. See the suggested-answer route's own comment for the same reasoning.
+  const [suggestion, setSuggestion] = useState<SuggestedBetAnswer | null>(null);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  async function fetchSuggestion() {
+    setSuggestionLoading(true);
+    setSuggestionError(null);
+    try {
+      setSuggestion(await api.suggestBetAnswer(leagueId!, ep.id, bet.id));
+    } catch (e) {
+      setSuggestionError(e instanceof ApiError ? e.message : "Could not check for a suggested answer.");
+    } finally {
+      setSuggestionLoading(false);
+    }
+  }
   const creator = bet.createdByPlayerId ? StateLogic.getPlayer(state, bet.createdByPlayerId) : null;
 
   async function saveField(field: "label" | "points", value: string | number) {
@@ -124,6 +142,8 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
         </div>
       )}
 
+      {canManage && <SuggestedAnswerBlock suggestion={suggestion} loading={suggestionLoading} error={suggestionError} onFetch={fetchSuggestion} />}
+
       <div className="mt-2 flex flex-col gap-1.5">
         {(bet.predictions || []).map((pred) => {
           const pp = StateLogic.getPlayer(state, pred.playerId);
@@ -186,6 +206,63 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
           Add Guess
         </Button>
       </div>
+    </div>
+  );
+}
+
+// The semantic-search grading aid itself: a button that fetches db/embeddings.js's suggestAnswer for
+// this bet's own free-text question, then shows the result. Deliberately never shows a guessed
+// answer without also showing what backs it and how sure it is -- an unlabeled suggestion next to a
+// grading dropdown is exactly the kind of thing that gets rubber-stamped without being checked, which
+// defeats the point of it being a SUGGESTION.
+function SuggestedAnswerBlock({
+  suggestion,
+  loading,
+  error,
+  onFetch,
+}: {
+  suggestion: SuggestedBetAnswer | null;
+  loading: boolean;
+  error: string | null;
+  onFetch: () => void;
+}) {
+  if (!suggestion && !loading && !error) {
+    return (
+      <div className="mt-2">
+        <Button variant="secondary" size="xs" onClick={onFetch}>
+          Suggest an answer from research
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 rounded border border-dashed border-border bg-secondary/40 px-2 py-1.5 text-xs">
+      {loading && <span className="italic text-muted-foreground">Searching research for this episode…</span>}
+      {error && (
+        <span className="font-semibold text-destructive">
+          {error} <button className="ml-1 underline" onClick={onFetch}>Try again</button>
+        </span>
+      )}
+      {suggestion && suggestion.status === "no-research" && (
+        <span className="italic text-muted-foreground">
+          No research has been run for this episode yet, so there&rsquo;s nothing to search.
+        </span>
+      )}
+      {suggestion && suggestion.status === "unconfident" && (
+        <span className="italic text-muted-foreground">Can&rsquo;t determine an answer confidently from research.</span>
+      )}
+      {suggestion && suggestion.status === "ok" && (
+        <div className="flex flex-wrap items-start gap-1.5">
+          <Badge variant={suggestion.confidence === "high" ? "default" : "secondary"} className="h-4 shrink-0 text-[0.6rem]">
+            {suggestion.confidence} confidence
+          </Badge>
+          <span>
+            {suggestion.castawayName && <b>{suggestion.castawayName}: </b>}
+            {suggestion.answer}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

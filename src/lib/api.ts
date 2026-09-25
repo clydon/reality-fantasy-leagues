@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, ResearchProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, ResearchProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -93,6 +93,10 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ value }),
     }),
+  // Semantic-search grading aid (db/embeddings.js). Fetched on demand -- see the route's own comment
+  // on why this isn't joined into every episode-card render.
+  suggestBetAnswer: (leagueId: string, epId: string, betId: string) =>
+    localFetch<SuggestedBetAnswer>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/suggested-answer`),
 
   // Pick'em only.
   setPickEmPick: (leagueId: string, epId: string, playerId: string, castawayId: string) =>

@@ -49,6 +49,7 @@ const { zodOutputFormat } = require("@anthropic-ai/sdk/helpers/zod");
 const { z } = require("zod");
 const { termsFor } = require("./wiki-sync.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
+const embeddings = require("./embeddings.js");
 
 // ---------- the checklist ----------
 // Deliberately three-valued. `unknown` is not a failure state, it is the honest answer when the
@@ -1197,6 +1198,21 @@ async function runFor(pool, ctx, opts) {
     problems: review.problems,
   };
   const stored = await storeResearch(pool, ctx, out.parsed, provenance, opts);
+
+  // Semantic search (db/embeddings.js) over the same answer, best-effort. Deliberately not fatal to
+  // this run: the checklist itself is already stored and is the valuable part, and an embedding
+  // hiccup (no GEMINI_API_KEY configured, a transient error) shouldn't undo a successful research
+  // run over a feature that only backs side-bet suggestions. --dry skips it, same as storeResearch
+  // itself -- there is nothing durable yet to search against.
+  if (!opts.dry && stored.id) {
+    try {
+      const { stored: chunkCount } = await embeddings.storeChunksForEpisode(pool, ctx, out.parsed);
+      console.log(`[research] embedded ${chunkCount} chunk(s) for semantic search`);
+    } catch (e) {
+      console.log(`[research] ! could not embed for semantic search (side-bet suggestions won't see this episode): ${e.message}`);
+    }
+  }
+
   return { ...ctx, ...review, payload: out.parsed, provenance, cached: false, id: stored.id };
 }
 

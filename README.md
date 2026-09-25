@@ -1669,6 +1669,75 @@ it. **Not verified:** real research output flowing through this pipeline end-to-
 real search to run first (see above), and only then is it worth judging whether these default point
 values feel right.
 
+## Semantic search over research (`db/embeddings.js`, `episode_text_chunks`, db/migrations/0016)
+
+A **second** consumer of `episode_research`, alongside the exact-match scoring mapper above, for a
+question that mapper structurally can't answer: a side bet's `label` (`BetLogic` in `state-logic.js`)
+is arbitrary prose a member typed — *"Will Jenna find an idol?"*, *"Who gets voted out first?"* —
+with no fixed candidate field to look up the way `foundAdvantage === 'yes'` is. That's exactly the
+shape semantic search is for and a structured lookup isn't, which is the whole reason this is a
+vector index and `episode_research_items` (0015) is a mapper rather than the other way round.
+
+Every successful (non-`--dry`, non-cached) research run embeds its own free text into
+`episode_text_chunks`: one chunk for the episode summary, and one per castaway who has something
+notable on their checklist — a castaway nothing happened to gets **no chunk at all**, deliberately,
+because a chunk that just says "nothing notable" still scores some nonzero similarity against any
+query and would sit in results for zero information. Embedding is best-effort and non-fatal to the
+research run itself (a missing key or a transient error is logged, not thrown) — the checklist is
+already stored and is the valuable part; a search index over it is a bonus.
+
+`GET .../bets/:betId/suggested-answer` (commissioner-only, fetched on demand by a "Suggest an answer
+from research" button rather than on every render — it costs a real embedding call) embeds the bet's
+own `label` and searches that episode's chunks, returning the closest match **verbatim** with a
+numeric confidence, never a model-generated summary of it — the rule this file leads with is that it
+never fabricates an answer. Three outcomes:
+
+- `no-research` — nobody has researched this episode yet, so there's nothing to search.
+- `unconfident` — there's research, but nothing cleared the confidence floor. The UI says "Can't
+  determine an answer confidently" rather than showing a weak guess.
+- `ok` — a real answer, tagged `high`/`medium`, with the matched castaway's name when the hit was a
+  per-castaway chunk rather than the episode summary.
+
+The confidence thresholds (`high` ≥ 0.70, `medium` ≥ 0.62 cosine similarity, below that is
+`unconfident`) come from a small hand-calibrated set — five realistic Survivor sentences, five
+queries — not a rigorous study: genuinely relevant matches scored 0.71–0.75, and a **deliberately
+off-topic** query's best match still scored ~0.55, which is this embedding model's noise floor for
+short sentences, not zero. A naive "similarity > 0" check would confidently return nonsense; these
+thresholds sit above that floor and below the relevant range, but they're a starting point to revisit
+once there's real grading history to check them against.
+
+Embeddings use `gemini-embedding-001` at 768 dimensions (the model defaults to 3072; 768 is the
+standard smaller size recommended for storage-cost-sensitive retrieval, and there's no evidence in a
+corpus this size — dozens of chunks a season — that the full size retrieves any better), with
+asymmetric task types (`RETRIEVAL_DOCUMENT` for what's stored, `RETRIEVAL_QUERY` for what's searched
+with) since Gemini's own guidance is that this measurably improves retrieval when the two are
+different kinds of text, which a short bet question and a descriptive research sentence are. Search
+is always scoped to one episode's own chunks — a bet is asked about one episode, and scoping out
+every other episode in the season is both the obviously correct behavior and, incidentally, why the
+noise floor above matters less in practice than the calibration numbers alone suggest.
+
+This needs the `vector` extension (`CREATE EXTENSION IF NOT EXISTS vector`, in the migration itself)
+on whatever Postgres this deploys to. It's confirmed available and installable on this project's own
+local dev Postgres; **not** confirmed against whatever manages the production database, and a
+provider that doesn't allow installing extensions would fail this migration and block the whole
+deploy (`npm run build` runs migrations before the Next build, exiting non-zero on failure) — worth
+checking before merging if that's a real risk for the host in use.
+
+**Verified** against the real local Postgres with real `gemini-embedding-001` calls throughout (no
+stub for this one — embedding calls returned 200 on the same key that's blocked from Search grounding
+by billing, confirming they're metered separately): a quiet castaway produces no chunk while a
+notable one does; a real question about idols surfaces the right castaway with real high confidence;
+a medical-evacuation question surfaces the right castaway; a question about **a different show
+entirely** (The Traitors, against Survivor data) correctly comes back unconfident rather than a false
+positive; re-embedding replaces rows rather than duplicating them; search scoped to one episode
+doesn't leak in a sibling episode's chunks; a research run auto-embeds while a `--dry` run and a cache
+hit embed nothing (no wasted calls). Then the full HTTP loop against a running server with a real bet:
+a genuinely answerable question returns `ok` with the right person and a real confidence; an
+unanswerable one returns `unconfident`, never a guess; unauthenticated (401); a bogus bet or episode
+id (404 either way). **Not verified:** how well this holds up once real bets, written by real members
+in whatever phrasing they choose, are graded against it at scale — that's the same kind of judgment
+call as the confidence thresholds themselves, and needs real use to answer.
+
 ## Cast photos (`public/photos/`, `components/castaway-avatar.tsx`)
 
 The live app's cast photos are ported now (copied from `SurvivorDraft/public/photos`): 24 for the

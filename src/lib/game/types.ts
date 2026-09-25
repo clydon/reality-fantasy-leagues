@@ -53,6 +53,17 @@ export interface Bet {
   createdByPlayerId?: string | null;
 }
 
+// GET .../bets/:id/suggested-answer (db/embeddings.js's suggestAnswer) -- a semantic-search grading
+// aid for a bet's free-text question. Never a fabricated guess: 'answer' is the closest matching
+// research chunk's text verbatim, or null when nothing cleared the confidence floor (see `status`).
+export interface SuggestedBetAnswer {
+  status: "no-research" | "unconfident" | "ok";
+  answer: string | null;
+  confidence: "high" | "medium" | null;
+  castawayName: string | null;
+  similarity: number | null;
+}
+
 // Active Roster: one point-earning occurrence in an episode. Deliberately NOT stored in
 // Episode.events, which already means eliminations -- see ActiveRosterLogic.addEvent's note.
 export interface ScoringEvent {
