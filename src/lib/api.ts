@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, ResearchProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -390,6 +390,17 @@ export const api = {
     ),
   rejectWikiItem: (leagueId: string, id: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-items/${id}/reject`, { method: "POST" }),
+
+  // Per-item review for the RESEARCH connector (0015's episode_research_items) -- the research
+  // counterpart to the three calls above, same shapes, rendered in the same panel.
+  listResearchItems: (leagueId: string) => localFetch<{ items: ResearchProposalItem[] }>(`/api/leagues/${leagueId}/research-items`),
+  acceptResearchItem: (leagueId: string, id: string, edits?: { castawayName?: string; eventType?: string }) =>
+    localFetch<{ state: LeagueState; applied: { castawayName: string; eventType?: string } | null }>(
+      `/api/leagues/${leagueId}/research-items/${id}/accept`,
+      { method: "POST", body: JSON.stringify(edits || {}) }
+    ),
+  rejectResearchItem: (leagueId: string, id: string) =>
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/research-items/${id}/reject`, { method: "POST" }),
 
   // Show/season catalog. The plain /api/shows read is commissioner-facing (the Show and Season
   // pickers in League Settings); everything under /api/admin/* is super-admin catalog management.

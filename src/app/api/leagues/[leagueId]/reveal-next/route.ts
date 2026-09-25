@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, withLeagueLock, HttpError } from "@/lib/server/db";
 import { fanOutCachedEpisodes } from "@db/wiki-sync.js";
+import { fanOutCachedResearch } from "@db/episode-research.js";
 import { approvedCastForLeague, tribesDue } from "@/lib/server/season-cast";
 
 // Catch-up mode's one moving part: reveal the next episode (StateLogic.RevealLogic).
@@ -79,6 +80,20 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     note = e instanceof Error ? e.message : "The reveal worked, but filing its results didn't.";
   }
 
+  // The research connector's own re-check, entirely separate from the wiki one above: a research
+  // run against this episode may have happened WHILE this league was still gated behind it (an admin
+  // researching ahead of every catching-up league's pointer is the normal case, not an edge one). Its
+  // own try block on purpose -- one connector's failure must not swallow the other's result, the same
+  // rule fanOutCachedEpisodes and fanOutCachedResearch each already follow for one LEAGUE among many.
+  let researchFiled = 0;
+  let researchNote: string | null = null;
+  try {
+    const result = rows.length && revealed !== null ? await fanOutCachedResearch(pool, rows[0], revealed) : null;
+    if (result) researchFiled = result.filed ?? 0;
+  } catch (e) {
+    researchNote = e instanceof Error ? e.message : "The reveal worked, but checking for research didn't.";
+  }
+
   // A revealed episode ALWAYS gets a card, even when the reveal filed nothing.
   //
   // Nothing used to create it: the episode row appeared only when someone ACCEPTED one of the
@@ -132,5 +147,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     noResultFor,
     tribed,
     note,
+    researchFiled,
+    researchNote,
   });
 });

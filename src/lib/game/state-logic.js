@@ -507,7 +507,15 @@ const ACTIVE_ROSTER_EVENTS = [
   { id: 'rewardWin', label: 'Reward win', defaultPoints: 2 },
   { id: 'idolFound', label: 'Idol/advantage found', defaultPoints: 3 },
   { id: 'idolPlayed', label: 'Idol/advantage played', defaultPoints: 2 },
-  { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: 1 }
+  { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: 1 },
+  // The next three exist because db/episode-research.js (a web search, not a wiki table) can answer
+  // questions the wiki connector structurally can't -- see docs/RESEARCH-extractable-stats.md tier D.
+  // Defaults are deliberately conservative (low or zero): these are new, unfamiliar categories and a
+  // commissioner should decide on purpose whether "survived a vote" or "sat out" should earn points,
+  // rather than inherit a value chosen for them. Changing any of these is a settings edit, not code.
+  { id: 'survivedVotes', label: 'Received votes at Tribal but survived', defaultPoints: 1 },
+  { id: 'advantageTargeted', label: 'Had an advantage used against them', defaultPoints: 1 },
+  { id: 'satOut', label: 'Sat out a challenge', defaultPoints: 0 }
 ];
 function defaultEventPoints(){
   const out = {};

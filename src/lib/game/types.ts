@@ -319,6 +319,9 @@ export interface SeasonResearchResult {
   provenance: EpisodeResearchProvenance;
   problems: string[];
   counts: { castaways: number; unknowns: number; lowConfidence: number; sourced: number };
+  /** One entry per league tracking this season -- what this run's fan-out staged for each, filtered
+   * by that league's own reveal gate. Empty on a --dry run. */
+  leagues: { id: string; name: string; ok: boolean; held?: boolean; filed?: number; updated?: number; error?: string }[];
 }
 
 // Commissioner view of a show (GET /api/shows): non-archived only, no admin-only fields.
@@ -431,6 +434,29 @@ export interface WikiProposalItem {
   event_type: string;
   /** Event only, meaningless for the other two kinds (which are always read off a stated column). */
   confidence: "high" | "low";
+  created_at: string;
+}
+
+/**
+ * One pending decision from the RESEARCH connector's per-episode fan-out
+ * (db/migrations/0015_episode_research_items.sql) -- the research counterpart to WikiProposalItem
+ * above, rendered alongside it in the same "Reveal Outcome" section grouped by episode_number.
+ *
+ * Deliberately its own shape, not WikiProposalItem reused: confidence is three-valued here (a real
+ * "unknown" the wiki source never has to express), there's no elimination kind (research doesn't
+ * propose eliminations -- see db/episode-research.js's fan-out comment), and every item carries the
+ * URLs behind it, because a search has no revision id for a reviewer to check against instead.
+ */
+export interface ResearchProposalItem {
+  id: string;
+  episode_number: number;
+  kind: "event" | "exiled";
+  castaway_name: string;
+  /** Event only (an ACTIVE_ROSTER_EVENTS id); '' for exiled. */
+  event_type: string;
+  confidence: "high" | "medium" | "low";
+  /** URLs the research actually cited for this claim. Empty only if research support was thin. */
+  sources: string[];
   created_at: string;
 }
 

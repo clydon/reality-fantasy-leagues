@@ -1595,9 +1595,79 @@ unlike the wiki connector's `claude-opus-5`. Google retires pinned ids out from 
 `gemini-2.5-flash` already answers 404 with "no longer available to new users" on a fresh key — so a
 pin here rots; `--model` / `RESEARCH_MODEL` is how to pin one deliberately.
 
-Nothing consumes `episode_research` yet: the answers it can produce (votes received, idol found, sat
-out, advantage used against them) have no event types or point values in `settings.eventPoints`, and
-those are a scoring decision rather than a connector one.
+### From answers to scoring (`episode_research_items`, db/migrations/0015)
+
+Research now feeds the same pipeline the wiki connector always has: `ActiveRosterLogic.addEvent` +
+`settings.eventPoints`. Three fields on `CastawayChecklist` map onto event types the wiki connector
+has always had a slot for but could never populate — `idolFound` in particular has carried a default
+point value since the Active Roster catalog was written, with nothing ever producing one, because a
+vote table doesn't say who found an idol. Research finally does:
+
+| research field | event type | pts |
+|---|---|---|
+| `wonIndividualImmunity` | `individualImmunity` (existing) | 5 |
+| `wonTribeImmunity` | `tribeImmunity` (existing) | 2 |
+| `wonIndividualReward` / `wonTribeReward` | `rewardWin` (existing — one item even if both are `yes`) | 2 |
+| `foundAdvantage` | `idolFound` (existing, **first source that can ever fire it**) | 3 |
+| `playedAdvantage` | `idolPlayed` (existing) | 2 |
+| `attendedTribal && votesReceived===0` | `zeroVotesSafe` (existing) | 1 |
+| `votesReceived>0 && leftTheGame!=='yes'` | `survivedVotes` (new) | 1 |
+| `advantageUsedAgainstThem` | `advantageTargeted` (new) | 1 |
+| `satOutOfChallenge` | `satOut` (new) | 0 |
+| `exiled` | fact only (`EpisodeLogic.addExiled`), no points — same as every other exile record | — |
+
+The three new defaults are deliberately conservative (1, 1, 0) rather than guessed at — these are
+unfamiliar categories, and a commissioner should decide on purpose whether "survived a vote" should
+earn points, not inherit a value picked for them. Changing any of it, old or new, is a settings edit:
+`ActiveRosterLogic.pointsFor` already falls back to the catalog default for any type a league's
+stored `eventPoints` predates, so this needed no data migration for leagues that existed before these
+three types did. `leftTheGame`/`exitMethod` is deliberately **not** mapped to an elimination in v1 —
+eliminations are the wiki's strongest tier (a stated Finish column), and generating a second,
+independent elimination proposal risks a duplicate or conflicting review item; worth adding later
+with a de-dup check against `wiki_proposal_items`, not now.
+
+`episode_research_items` is its own table, not a widened `wiki_proposal_items` (which the migration's
+own comment explains): that table's CHECK constraint hard-codes two-valued confidence and three
+mutually exclusive kinds with no per-item sources, and loosening it to fit research would weaken the
+higher-trust wiki data's own guardrails. Otherwise the shape matches on purpose — same
+pending/accepted/rejected lifecycle, same "decided rows are permanent, a re-run only touches what's
+still pending" upsert, same deferred name resolution (a name is resolved to a castaway at **accept**
+time, via `Core.findCastawayByName`, not when the item is filed) — so a commissioner reviewing an
+episode recognizes the shape immediately, whichever connector produced the row.
+
+Fan-out mirrors the wiki connector's own two-part shape:
+
+- `researchSeasonEpisode` (the admin route) stages items to **every** league tracking the season,
+  gated by each league's own `RevealLogic.revealedThrough` pointer — a catching-up league doesn't see
+  research-sourced spoilers any more than it sees wiki-sourced ones.
+- `fanOutCachedResearch` is the research connector's `fanOutCachedEpisodes`: what `reveal-next`
+  additionally runs, alongside the existing wiki re-check, the moment a league's pointer advances. An
+  admin can research episode 5 while a catching-up league is still gated at episode 2; nothing is
+  lost, it surfaces the instant that league reveals far enough, without paying for the search again.
+
+Reviewed in the same place as everything else: `WikiOutcomeSection` (the Episode Card's "Reveal
+Outcome" panel) now renders wiki and research items side by side, sorted together so the same kind of
+result — an idol find from research next to an immunity win from the wiki — reads as one list rather
+than two. A research row carries its own confidence badge (three-valued, unlike the wiki row's two)
+and numbered links to every source cited for that claim; an unsourced "yes" is called out in red on
+its own, since that's the one failure the whole checklist design exists to surface. New routes mirror
+the existing pair exactly: `research-items` (list, gated read-side as belt-and-braces even though the
+fan-out already refuses to *write* past the gate), `research-items/[id]/accept` (with the same
+edit-before-commit correction the wiki route offers), `research-items/[id]/reject`.
+
+**Verified** against the real local Postgres: the checklist-to-event-type mapping (including that
+winning both reward types produces exactly one item, that a person voted out with votes against them
+doesn't get `survivedVotes`, and that `unknown`/`no` never produce an item — only `yes` does), the
+reveal gate on both the write side (`stageResearchItemsForLeague`) and the read side (the route's own
+filter), re-staging updating a still-pending row without disturbing a decided one, and
+`fanOutCachedResearch` correctly holding a still-gated episode and then filing it the moment the
+league's pointer catches up. Then the full HTTP loop against a running server: list → accept (with a
+correction, checking the audit-trail `applied` field and the resulting `scoringEvents`) → reject →
+re-accept an already-decided item (400) → re-reject one (404) → unauthenticated (401) → a bogus item
+id (404) → `reveal-next` picking up research that was cached while the league was still gated behind
+it. **Not verified:** real research output flowing through this pipeline end-to-end — that needs a
+real search to run first (see above), and only then is it worth judging whether these default point
+values feel right.
 
 ## Cast photos (`public/photos/`, `components/castaway-avatar.tsx`)
 

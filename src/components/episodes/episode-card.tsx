@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Episode, LeagueState, WikiProposalItem } from "@/lib/game/types";
+import type { Episode, LeagueState, WikiProposalItem, ResearchProposalItem } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
@@ -26,6 +26,7 @@ export function EpisodeCard({
   state,
   defaultOpen,
   wikiItems,
+  researchItems,
   onWikiItemsChanged,
 }: {
   ep: Episode;
@@ -33,6 +34,9 @@ export function EpisodeCard({
   defaultOpen: boolean;
   /** This episode's own pending wiki-connector decisions -- already filtered by episodes-tab.tsx. */
   wikiItems?: WikiProposalItem[];
+  /** This episode's own pending research-connector decisions -- same filtering, other connector. */
+  researchItems?: ResearchProposalItem[];
+  /** Fired after EITHER connector's item resolves -- one refetch covers both lists. */
   onWikiItemsChanged?: () => void;
 }) {
   const terms = useShowTerms();
@@ -119,7 +123,7 @@ export function EpisodeCard({
             {ep.title ? <span className="font-normal"> &ldquo;{ep.title}&rdquo;</span> : null} — {summary}
           </div>
           {ep.airDate && <div className="mt-0.5 text-xs text-muted-foreground">Aired {ep.airDate}</div>}
-          {(ep.postMerge || (ep.bets || []).length > 0 || (wikiItems || []).length > 0) && (
+          {(ep.postMerge || (ep.bets || []).length > 0 || (wikiItems || []).length > 0 || (researchItems || []).length > 0) && (
             <div className="mt-1 flex gap-1.5">
               {ep.postMerge && (
                 <span className="rounded bg-[#5089c4] px-1.5 py-0.5 text-[0.65rem] font-bold text-white">Post-Merge</span>
@@ -132,12 +136,12 @@ export function EpisodeCard({
                   Bets
                 </span>
               )}
-              {(wikiItems || []).length > 0 && (
+              {(wikiItems || []).length + (researchItems || []).length > 0 && (
                 <span
                   className="rounded bg-[#c99a3e] px-1.5 py-0.5 text-[0.65rem] font-bold text-white"
-                  title="Pending decisions from the wiki connector, awaiting review"
+                  title="Pending decisions from the wiki and/or research connector, awaiting review"
                 >
-                  {wikiItems!.length} to reveal
+                  {(wikiItems || []).length + (researchItems || []).length} to reveal
                 </span>
               )}
             </div>
@@ -249,8 +253,14 @@ export function EpisodeCard({
             )}
           </div>
 
-          {canManage && (wikiItems || []).length > 0 && (
-            <WikiOutcomeSection items={wikiItems!} state={state} ep={ep} onResolved={() => onWikiItemsChanged?.()} />
+          {canManage && (wikiItems || []).length + (researchItems || []).length > 0 && (
+            <WikiOutcomeSection
+              items={wikiItems || []}
+              researchItems={researchItems || []}
+              state={state}
+              ep={ep}
+              onResolved={() => onWikiItemsChanged?.()}
+            />
           )}
 
           {StateLogic.getLeagueType(state).hasWeeklyPicks && <EpisodePicksSection ep={ep} state={state} />}

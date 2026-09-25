@@ -2,8 +2,9 @@
 // wiki-sync.d.ts: the implementation stays plain CommonJS so the CLI can require it under bare
 // `node`, and TypeScript sees it through this file.
 //
-// Only the season-scoped entry point is declared, because only that one is imported from
-// TypeScript. The league-scoped one is CLI surface.
+// The season-scoped entry point and the reveal-time fan-out are declared because both are imported
+// from TypeScript (the admin research route, and reveal-next). The league-scoped entry point is CLI
+// surface only.
 import type { Pool } from "pg";
 import type { EpisodeResearch, EpisodeResearchProvenance, ResearchAnswer } from "@/lib/game/types";
 
@@ -16,6 +17,22 @@ export interface EpisodeResearchOptions {
   provider?: string;
   /** Overrides the provider's default model. */
   model?: string;
+}
+
+/** One league's fan-out result -- the research connector's analogue of wiki-sync's FanOutResult. */
+export interface ResearchFanOutResult {
+  id: string;
+  name: string;
+  ok: boolean;
+  /** True when this league hasn't revealed far enough to see the episode yet (nothing was written). */
+  held?: boolean;
+  /** New pending items filed. */
+  filed?: number;
+  /** Existing pending items whose confidence/sources/research_id were refreshed. */
+  updated?: number;
+  /** True on a --dry run: `filed` is what WOULD have been written. */
+  dry?: boolean;
+  error?: string;
 }
 
 /** What one episode's research produced, as the admin route reshapes it for the UI. */
@@ -40,6 +57,9 @@ export interface EpisodeResearchRun {
   problems: string[];
   fatal: string[];
   counts: { castaways: number; unknowns: number; lowConfidence: number; sourced: number };
+  /** One entry per league tracking this season -- the items this run staged, filtered by each
+   * league's own reveal gate. Empty on a --dry run (nothing was staged to check). */
+  leagues: ResearchFanOutResult[];
 }
 
 /**
@@ -55,5 +75,18 @@ export function researchSeasonEpisode(
   episodeNumber: number,
   opts?: EpisodeResearchOptions
 ): Promise<EpisodeResearchRun>;
+
+/**
+ * Re-stages one already-cached episode's research for a single league -- the research connector's
+ * analogue of wiki-sync's fanOutCachedEpisodes. What reveal-next runs after raising a catching-up
+ * league's pointer: items a research run already produced but this league was gated from seeing
+ * become visible without paying for the search again. Resolves to null when nothing has been
+ * researched for that episode yet, which is not an error.
+ */
+export function fanOutCachedResearch(
+  pool: Pool,
+  league: { id: string; name: string; state: unknown },
+  episodeNumber: number
+): Promise<ResearchFanOutResult | null>;
 
 export type { ResearchAnswer };

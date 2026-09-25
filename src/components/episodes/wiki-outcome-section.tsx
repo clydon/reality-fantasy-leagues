@@ -1,19 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import type { Castaway, Episode, LeagueState, WikiProposalItem } from "@/lib/game/types";
+import type { Castaway, Episode, LeagueState, WikiProposalItem, ResearchProposalItem } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { useLeagueStore } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useShowTerms } from "@/lib/use-show-terms";
 
 function labelFor(item: WikiProposalItem): string {
   if (item.kind === "elimination") return item.method;
   if (item.kind === "exiled") return "Exile Island";
   return StateLogic.ACTIVE_ROSTER_EVENTS.find((d) => d.id === item.event_type)?.label ?? item.event_type;
+}
+
+// Research never proposes an elimination (see db/episode-research.js's fan-out comment), so this
+// only ever sees 'event' or 'exiled' -- sharing the same event-type catalog as the wiki connector's
+// labelFor above is what makes "idol found" read identically whichever source produced it.
+function labelForResearch(item: ResearchProposalItem): string {
+  if (item.kind === "exiled") return "Exile Island";
+  return StateLogic.ACTIVE_ROSTER_EVENTS.find((d) => d.id === item.event_type)?.label ?? item.event_type;
+}
+
+// high < medium < low, used only to order a group's rows (least-certain last, where it gets the
+// closer look it deserves) -- the wiki connector's own two-valued confidence maps onto the same
+// scale ('low' still sorts after 'high' with 'medium' never appearing for it).
+function confidenceRank(confidence: "high" | "medium" | "low"): number {
+  return confidence === "high" ? 0 : confidence === "medium" ? 1 : 2;
 }
 
 // One reviewable decision from the wiki connector's per-episode fan-out (db/migrations/0009) --
@@ -147,6 +163,137 @@ function WikiItemRow({ item, state, onResolved }: { item: WikiProposalItem; stat
   );
 }
 
+// One reviewable decision from the RESEARCH connector's per-episode fan-out
+// (db/migrations/0015_episode_research_items.sql) -- the research counterpart to WikiItemRow above.
+// Same controls (Accept / Edit / Reject), with two differences that follow from what research is:
+// no method to edit (there's no elimination kind here), and the sources it cited are always shown --
+// unlike a wiki row, which has a revision id backing it implicitly, this one has nothing behind it
+// except whatever's linked here, so hiding the links would hide the only way to check the claim.
+function ResearchItemRow({ item, state, onResolved }: { item: ResearchProposalItem; state: LeagueState; onResolved: () => void }) {
+  const terms = useShowTerms();
+  const leagueId = useLeagueStore((s) => s.leagueId);
+  const setState = useLeagueStore((s) => s.setState);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { castaway, ambiguous } = StateLogic.Core.findCastawayByName(state, item.castaway_name);
+  const activeCast = state.castaways.filter((c) => c.status === "active");
+  const [castawayId, setCastawayId] = useState(castaway?.id ?? "");
+  const [eventType, setEventType] = useState(item.event_type || StateLogic.ACTIVE_ROSTER_EVENTS[0].id);
+
+  async function accept(edits?: { castawayName?: string; eventType?: string }) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.acceptResearchItem(leagueId!, item.id, edits);
+      setState(res.state);
+      onResolved();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not accept that item.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reject() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.rejectResearchItem(leagueId!, item.id);
+      onResolved();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not reject that item.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function confirmEdit() {
+    const chosen = state.castaways.find((c) => c.id === castawayId);
+    if (!chosen) {
+      setError(`Select which ${terms.castaway} this actually was.`);
+      return;
+    }
+    accept({ castawayName: chosen.name, eventType: item.kind === "event" ? eventType : undefined });
+  }
+
+  return (
+    <div className="rounded-md bg-secondary/40 px-2.5 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {castaway ? (
+          <CastawayAvatar castaway={castaway} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold" />
+        ) : (
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-destructive text-[0.6rem] font-bold text-white">?</span>
+        )}
+        <span className="text-sm font-medium">{castaway?.name ?? item.castaway_name}</span>
+        {!castaway && (
+          <span className="text-xs font-semibold text-destructive">
+            {ambiguous ? `matches more than one ${terms.castaway}` : `no longer matches a ${terms.castaway} in this league`}
+          </span>
+        )}
+        <span className="text-sm text-muted-foreground">{labelForResearch(item)}</span>
+        <Badge
+          variant={item.confidence === "high" ? "default" : item.confidence === "medium" ? "secondary" : "outline"}
+          className="h-4 text-[0.6rem]"
+          title="How sure the research was, not how sure you should be -- check the sources either way"
+        >
+          {item.confidence}
+        </Badge>
+        {/* The only thing standing behind this claim -- there's no revision id the way a wiki item
+            has, so these ARE the provenance, not supplementary to it. */}
+        {item.sources.length ? (
+          <span className="text-xs text-muted-foreground">
+            {item.sources.map((url, i) => (
+              <a key={url} href={url} target="_blank" rel="noreferrer" className="ml-1 underline underline-offset-2" title={url}>
+                [{i + 1}]
+              </a>
+            ))}
+          </span>
+        ) : (
+          <span className="text-xs font-semibold text-destructive">no source</span>
+        )}
+        <div className="ml-auto flex gap-1.5">
+          <Button size="sm" disabled={busy} onClick={() => accept()}>
+            Accept
+          </Button>
+          <Button variant="secondary" size="sm" disabled={busy} onClick={() => setEditing((v) => !v)}>
+            Edit
+          </Button>
+          <Button variant="destructive" size="sm" disabled={busy} onClick={reject}>
+            Reject
+          </Button>
+        </div>
+      </div>
+      {editing && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border pt-2">
+          <Select value={castawayId} onChange={(e) => setCastawayId(e.target.value)}>
+            <option value="">— Select {terms.castaway} —</option>
+            {activeCast.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+          {item.kind === "event" && (
+            <Select value={eventType} onChange={(e) => setEventType(e.target.value)}>
+              {StateLogic.ACTIVE_ROSTER_EVENTS.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.label}
+                </option>
+              ))}
+            </Select>
+          )}
+          <Button size="sm" disabled={busy} onClick={confirmEdit}>
+            Confirm &amp; Accept
+          </Button>
+        </div>
+      )}
+      {error && <p className="mt-1.5 text-xs font-semibold text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 // A castaway the wiki reported NOTHING about this episode.
 //
 // This row exists because of a real case: someone who went to Tribal and took two votes without
@@ -223,9 +370,19 @@ function NoResultRow({ castaway, ep, onResolved }: { castaway: Castaway; ep: Epi
 //
 // Tribe groups follow the league's own tribe order; anyone without a tribe (a league catching up
 // that hasn't been given the division yet, or a name that didn't resolve) goes last under no header.
-type Row = { key: string; item: WikiProposalItem | null; castaway: Castaway | null; sort: [number, string, number, string] };
+// `item` and `researchItem` are mutually exclusive (a Row is either a wiki decision, a research
+// decision, or a no-result placeholder) -- kept as two optional fields rather than a tagged union so
+// the render below can stay a simple `row.item ? ... : row.researchItem ? ... : ...` without a
+// switch, matching how NoResultRow's `castaway`-or-nothing check already reads.
+type Row = {
+  key: string;
+  item: WikiProposalItem | null;
+  researchItem: ResearchProposalItem | null;
+  castaway: Castaway | null;
+  sort: [number, string, number, string];
+};
 
-function buildGroups(items: WikiProposalItem[], state: LeagueState, ep: Episode) {
+function buildGroups(items: WikiProposalItem[], researchItems: ResearchProposalItem[], state: LeagueState, ep: Episode) {
   const rows: { tribeId: string | null; row: Row }[] = [];
   const spokenFor = new Set<string>();
 
@@ -235,17 +392,30 @@ function buildGroups(items: WikiProposalItem[], state: LeagueState, ep: Episode)
     rows.push({
       tribeId: castaway?.tribeId ?? null,
       row: {
-        key: item.id,
+        key: `w-${item.id}`,
         item,
+        researchItem: null,
         castaway: castaway ?? null,
-        sort: [
-          item.kind === "elimination" ? 0 : 1,
-          labelFor(item),
-          // "high" before "low" -- compared explicitly rather than leaning on the alphabet, since a
-          // third confidence level would silently break that coincidence.
-          item.confidence === "high" ? 0 : 1,
-          item.castaway_name,
-        ],
+        sort: [item.kind === "elimination" ? 0 : 1, labelFor(item), confidenceRank(item.confidence), item.castaway_name],
+      },
+    });
+  }
+
+  // Same rows, from the research connector. Sharing sort tier 1 with the wiki connector's own
+  // events/exiles is deliberate: it's what makes an idol find from research and an immunity win from
+  // the wiki, on the same person, land next to each other rather than in two separate blocks -- a
+  // reviewer reading this episode shouldn't have to know which source said what to read it in order.
+  for (const item of researchItems) {
+    const { castaway } = StateLogic.Core.findCastawayByName(state, item.castaway_name);
+    if (castaway) spokenFor.add(castaway.id);
+    rows.push({
+      tribeId: castaway?.tribeId ?? null,
+      row: {
+        key: `r-${item.id}`,
+        item: null,
+        researchItem: item,
+        castaway: castaway ?? null,
+        sort: [1, labelForResearch(item), confidenceRank(item.confidence), item.castaway_name],
       },
     });
   }
@@ -262,7 +432,7 @@ function buildGroups(items: WikiProposalItem[], state: LeagueState, ep: Episode)
     if (castaway.status === "eliminated" || spokenFor.has(castaway.id)) continue;
     rows.push({
       tribeId: castaway.tribeId ?? null,
-      row: { key: `none-${castaway.id}`, item: null, castaway, sort: [2, "", 0, castaway.name] },
+      row: { key: `none-${castaway.id}`, item: null, researchItem: null, castaway, sort: [2, "", 0, castaway.name] },
     });
   }
 
@@ -290,33 +460,41 @@ function buildGroups(items: WikiProposalItem[], state: LeagueState, ep: Episode)
 }
 
 // Per-episode review panel -- the "Reveal Outcome" surface this replaces League Settings' old
-// whole-payload Apply/Reject with (see wiki-connector-section.tsx). `items` is already filtered to
-// this one episode by the caller (episodes-tab.tsx fetches once for the whole league and groups).
+// whole-payload Apply/Reject with (see wiki-connector-section.tsx). Both item lists are already
+// filtered to this one episode by the caller (episodes-tab.tsx fetches each once for the whole
+// league and groups). `researchItems` defaults to empty so a league that has never run research
+// costs this component nothing new to render.
 export function WikiOutcomeSection({
   items,
+  researchItems = [],
   state,
   ep,
   onResolved,
 }: {
   items: WikiProposalItem[];
+  researchItems?: ResearchProposalItem[];
   state: LeagueState;
   ep: Episode;
   onResolved: () => void;
 }) {
-  // Only once the connector has said something about this episode. With nothing revealed there is
-  // no review to do, and listing the whole cast under "Reveal Outcome" would be noise on every
-  // episode card of every league, connector or not.
-  if (items.length === 0) return null;
-  const groups = buildGroups(items, state, ep);
+  // Only once a connector has said something about this episode. With nothing revealed there is no
+  // review to do, and listing the whole cast under "Reveal Outcome" would be noise on every episode
+  // card of every league, connector or not.
+  if (items.length === 0 && researchItems.length === 0) return null;
+  const groups = buildGroups(items, researchItems, state, ep);
   // No header over a single unnamed pile -- a league that hasn't been given the tribe division yet
   // would otherwise get a meaningless bar across the top of its only group.
   const showHeaders = groups.some((g) => g.tribe);
-  const unreported = groups.reduce((n, g) => n + g.rows.filter((r) => !r.item).length, 0);
+  const unreported = groups.reduce((n, g) => n + g.rows.filter((r) => !r.item && !r.researchItem).length, 0);
 
   return (
     <div className="mb-4 border-t border-border pt-3">
       <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
-        Reveal Outcome <span className="ml-1 font-normal text-muted-foreground">— from the wiki connector, unreviewed</span>
+        Reveal Outcome{" "}
+        <span className="ml-1 font-normal text-muted-foreground">
+          — {researchItems.length > 0 && items.length > 0 ? "wiki + research" : researchItems.length > 0 ? "research" : "wiki connector"},
+          unreviewed
+        </span>
       </h4>
       <div className="flex flex-col gap-3">
         {groups.map((group) => (
@@ -332,13 +510,16 @@ export function WikiOutcomeSection({
                   <span className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">No tribe</span>
                 )}
                 <span className="text-[0.7rem] text-muted-foreground">
-                  {group.rows.filter((r) => r.item).length} result{group.rows.filter((r) => r.item).length === 1 ? "" : "s"}
+                  {group.rows.filter((r) => r.item || r.researchItem).length} result
+                  {group.rows.filter((r) => r.item || r.researchItem).length === 1 ? "" : "s"}
                 </span>
               </div>
             )}
             {group.rows.map((row) =>
               row.item ? (
                 <WikiItemRow key={row.key} item={row.item} state={state} onResolved={onResolved} />
+              ) : row.researchItem ? (
+                <ResearchItemRow key={row.key} item={row.researchItem} state={state} onResolved={onResolved} />
               ) : (
                 <NoResultRow key={row.key} castaway={row.castaway!} ep={ep} onResolved={onResolved} />
               )
@@ -348,9 +529,9 @@ export function WikiOutcomeSection({
       </div>
       {unreported > 0 && (
         <p className="mt-2 text-xs text-muted-foreground">
-          {unreported} {unreported === 1 ? "castaway has" : "castaways have"} no result from the wiki. That&rsquo;s
-          expected for anyone who went to Tribal and took votes — the connector has no event for that — so check them
-          against the episode before you finish.
+          {unreported} {unreported === 1 ? "castaway has" : "castaways have"} no result from {researchItems.length > 0 ? "either connector" : "the wiki"}.
+          That&rsquo;s expected for anyone who went to Tribal and took votes without it being researched yet — so check
+          them against the episode before you finish.
         </p>
       )}
     </div>
