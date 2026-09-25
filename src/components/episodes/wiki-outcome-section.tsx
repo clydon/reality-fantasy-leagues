@@ -147,20 +147,94 @@ function WikiItemRow({ item, state, onResolved }: { item: WikiProposalItem; stat
   );
 }
 
+// Groups one episode's decisions the way they're actually reviewed: by tribe, because that's how an
+// episode happens (this tribe went to Tribal, that one won immunity), and within a tribe by what
+// kind of thing it is.
+//
+// Ordering inside a group, in order of precedence:
+//   1. eliminations first -- the one decision that changes the season, and the one everything else
+//      in the group is context for;
+//   2. then by event, alphabetically, so the same kind of result reads as a block rather than being
+//      scattered through the list;
+//   3. then confidence, high before low, so anything inferred sits at the bottom of its block where
+//      it gets the closer look it deserves;
+//   4. then name, so the order is stable between renders and between reveals.
+//
+// Tribe groups follow the league's own tribe order; anyone without a tribe (a league catching up
+// that hasn't been given the division yet, or a name that didn't resolve) goes last under no header.
+function groupByTribe(items: WikiProposalItem[], state: LeagueState) {
+  const rank = (item: WikiProposalItem) => (item.kind === "elimination" ? 0 : 1);
+  const tribeOf = (item: WikiProposalItem) => {
+    const { castaway } = StateLogic.Core.findCastawayByName(state, item.castaway_name);
+    return castaway?.tribeId ?? null;
+  };
+
+  const groups = new Map<string | null, WikiProposalItem[]>();
+  for (const item of items) {
+    const key = tribeOf(item);
+    const list = groups.get(key);
+    if (list) list.push(item);
+    else groups.set(key, [item]);
+  }
+
+  const order = (a: WikiProposalItem, b: WikiProposalItem) =>
+    rank(a) - rank(b) ||
+    labelFor(a).localeCompare(labelFor(b)) ||
+    // "high" sorts before "low" alphabetically, which is also confidence descending -- but compared
+    // explicitly rather than relying on that coincidence, since a third level would break it.
+    (a.confidence === b.confidence ? 0 : a.confidence === "high" ? -1 : 1) ||
+    a.castaway_name.localeCompare(b.castaway_name);
+
+  return [...groups.entries()]
+    .map(([tribeId, list]) => ({
+      tribeId,
+      tribe: state.tribes.find((t) => t.id === tribeId) ?? null,
+      items: [...list].sort(order),
+    }))
+    .sort((a, b) => {
+      const ia = a.tribe ? state.tribes.indexOf(a.tribe) : Number.MAX_SAFE_INTEGER;
+      const ib = b.tribe ? state.tribes.indexOf(b.tribe) : Number.MAX_SAFE_INTEGER;
+      return ia - ib;
+    });
+}
+
 // Per-episode review panel -- the "Reveal Outcome" surface this replaces League Settings' old
 // whole-payload Apply/Reject with (see wiki-connector-section.tsx). `items` is already filtered to
 // this one episode by the caller (episodes-tab.tsx fetches once for the whole league and groups).
 export function WikiOutcomeSection({ items, state, onResolved }: { items: WikiProposalItem[]; state: LeagueState; onResolved: () => void }) {
   if (items.length === 0) return null;
+  const groups = groupByTribe(items, state);
+  // No header over a single unnamed pile -- a league that hasn't been given the tribe division yet
+  // would otherwise get a meaningless bar across the top of its only group.
+  const showHeaders = groups.some((g) => g.tribe);
 
   return (
     <div className="mb-4 border-t border-border pt-3">
       <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
         Reveal Outcome <span className="ml-1 font-normal text-muted-foreground">— from the wiki connector, unreviewed</span>
       </h4>
-      <div className="flex flex-col gap-1.5">
-        {items.map((item) => (
-          <WikiItemRow key={item.id} item={item} state={state} onResolved={onResolved} />
+      <div className="flex flex-col gap-3">
+        {groups.map((group) => (
+          <div key={group.tribeId ?? "none"} className="flex flex-col gap-1.5">
+            {showHeaders && (
+              <div className="flex items-center gap-1.5">
+                {group.tribe ? (
+                  <>
+                    <span className="h-2 w-2 rounded-full" style={{ background: group.tribe.color }} />
+                    <span className="text-[0.7rem] font-bold uppercase tracking-wide">{group.tribe.name}</span>
+                  </>
+                ) : (
+                  <span className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">No tribe</span>
+                )}
+                <span className="text-[0.7rem] text-muted-foreground">
+                  {group.items.length} result{group.items.length === 1 ? "" : "s"}
+                </span>
+              </div>
+            )}
+            {group.items.map((item) => (
+              <WikiItemRow key={item.id} item={item} state={state} onResolved={onResolved} />
+            ))}
+          </div>
         ))}
       </div>
     </div>

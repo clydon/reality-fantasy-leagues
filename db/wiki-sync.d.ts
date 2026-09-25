@@ -29,6 +29,12 @@ export interface FanOutResult {
    * `summary`, because a dropped result is a hole in the season somebody should fix.
    */
   unmatched?: string[];
+  /**
+   * Results the validation threw out, with the reason. Each refusal is defensible on its own, but a
+   * castaway whose ONLY result was dropped disappears from the review list -- so these are reported
+   * rather than left as a console line.
+   */
+  dropped?: { name: string; episode: number; why: string }[];
   /** Pending items actually written. */
   written?: number;
 }

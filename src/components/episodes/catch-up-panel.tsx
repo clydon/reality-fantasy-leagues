@@ -40,6 +40,12 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
   // Castaways sorted into their starting tribe by this reveal, when the season held the division
   // back until the premiere. Worth saying out loud -- it's a change to the cast the reveal made.
   const [tribed, setTribed] = useState<string[]>([]);
+  // The two ways a castaway can end up with nothing to review: a result the validation refused, and
+  // a castaway the wiki said nothing about. Both used to be invisible -- the first a console line,
+  // the second nothing at all -- which is how someone can be missing from the list entirely without
+  // anything looking wrong.
+  const [dropped, setDropped] = useState<{ name: string; why: string }[]>([]);
+  const [noResultFor, setNoResultFor] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   if (!StateLogic.RevealLogic.isCatchingUp(state)) return null;
@@ -63,6 +69,8 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
     setNote(null);
     setUnmatched([]);
     setTribed([]);
+    setDropped([]);
+    setNoResultFor([]);
     setError(null);
     try {
       await fn();
@@ -99,6 +107,8 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
       );
       setUnmatched(res.unmatched);
       setTribed(res.tribed);
+      setDropped(res.dropped);
+      setNoResultFor(res.noResultFor);
       onRevealed();
     });
 
@@ -165,6 +175,28 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
         <p className="mt-1 text-xs text-muted-foreground">
           This episode also revealed the starting line-up: <b>{tribed.length}</b> {tribed.length === 1 ? "castaway is" : "castaways are"}{" "}
           now sorted into their tribes.
+        </p>
+      )}
+      {dropped.length > 0 && (
+        <div className="mt-1 text-xs text-muted-foreground">
+          <b>{dropped.length}</b> result{dropped.length === 1 ? " was" : "s were"} thrown out as impossible, so{" "}
+          {dropped.length === 1 ? "that castaway has" : "those castaways have"} nothing to review:
+          <ul className="mt-0.5 list-inside list-disc">
+            {dropped.map((d) => (
+              <li key={`${d.name}-${d.why}`}>
+                <b>{d.name}</b> — {d.why}
+              </li>
+            ))}
+          </ul>
+          Add anything real by hand on the episode card below.
+        </div>
+      )}
+      {noResultFor.length > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          The wiki reported nothing this episode for <b>{noResultFor.length}</b>{" "}
+          {noResultFor.length === 1 ? "castaway" : "castaways"}: {noResultFor.join(", ")}. That&rsquo;s normal for
+          anyone who went to Tribal and took votes — but if one of them had a notable episode, the extraction missed it
+          and it needs adding by hand.
         </p>
       )}
       {unmatched.length > 0 && (

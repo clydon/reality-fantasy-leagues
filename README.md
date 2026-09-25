@@ -1165,6 +1165,26 @@ on an episode that doesn't exist, so the only way to get a card was to reveal it
 exactly backwards for a league whose whole reason for catching up is to play each episode before it
 knows the answer.
 
+**How a reveal's results are ordered.** The review list groups by tribe, because that's how an
+episode happens — this tribe went to Tribal, that one won immunity — and within a tribe:
+eliminations first (the one decision that changes the season, and the context for everything else in
+the group), then by event alphabetically so the same kind of result reads as a block, then
+confidence high-before-low so anything inferred sits at the bottom of its block where it gets a
+closer look, then name for a stable order. Tribe groups follow the league's own tribe order; a
+league that hasn't been given the division yet gets one unheaded list.
+
+**Three ways a castaway can vanish from a reveal, all now reported.** A name that doesn't resolve
+was already surfaced. Two more were invisible:
+
+- **Validation refusals.** A zero-votes-safe for someone voted out that episode, an individual
+  immunity before the merge, a duplicate — each refusal is right on its own, but they existed only
+  as a console line, so a castaway whose *only* result was refused simply wasn't in the list and
+  nothing said why. They now come back with the reason attached.
+- **Silence.** A castaway the extraction never mentioned. That's normal for anyone who went to
+  Tribal and took votes, so it's reported as information rather than an error — but it's the only
+  way to notice an extraction that skipped somebody, which is exactly how a castaway with a notable
+  episode went missing from a 21-person cast.
+
 **A revealed episode always has a card.** Nothing used to create one: the episode row appeared only
 when a commissioner ACCEPTED one of the filed decisions (the accept route's `ensureEpisodeNumber`).
 So a reveal that filed nothing — the wiki not read that far yet, every name unmatched — left a

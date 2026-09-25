@@ -55,6 +55,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   let filed: string | null = null;
   let written = 0;
   let unmatched: string[] = [];
+  let dropped: { name: string; why: string }[] = [];
   let note: string | null = null;
   try {
     const result = rows.length ? await fanOutCachedEpisodes(pool, rows[0]) : null;
@@ -67,6 +68,11 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
       // left inside `summary`, so the panel can show it as the warning it is instead of burying it
       // in a success sentence.
       unmatched = result.unmatched ?? [];
+      // Results the validation refused (a zero-votes-safe for someone voted out that episode, an
+      // individual immunity before the merge, a duplicate). Each refusal is right on its own, but a
+      // castaway whose only result was dropped would otherwise just be absent from the list with
+      // nothing said about it.
+      dropped = (result.dropped ?? []).filter((d) => d.episode === revealed).map((d) => ({ name: d.name, why: d.why }));
     }
   } catch (e) {
     // A league with no cast yet is the common one, and it's a real answer, not a 500.
@@ -99,5 +105,32 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     });
   }
 
-  return NextResponse.json({ state: finalState, revealedThroughEpisode: revealed, filed, written, unmatched, tribed, note });
+  // Who the wiki said NOTHING about this episode. Normal for some (a castaway who attended Tribal
+  // and received votes is neither immune nor zero-votes-safe, so there's nothing to report), but it
+  // is also the only way to notice the case that matters: an extraction that quietly skipped
+  // somebody, or a result dropped upstream. The commissioner can add anything real by hand from the
+  // episode card; what they couldn't do before was see that a name was missing at all.
+  let noResultFor: string[] = [];
+  if (revealed !== null) {
+    const { rows: named } = await pool.query(
+      "SELECT DISTINCT castaway_name FROM wiki_proposal_items WHERE league_id=$1 AND episode_number=$2",
+      [leagueId, revealed]
+    );
+    const heard = new Set(named.map((r) => String(r.castaway_name).trim().toLowerCase()));
+    noResultFor = finalState.castaways
+      .filter((c) => c.status !== "eliminated" && !heard.has(c.name.trim().toLowerCase()))
+      .map((c) => c.name);
+  }
+
+  return NextResponse.json({
+    state: finalState,
+    revealedThroughEpisode: revealed,
+    filed,
+    written,
+    unmatched,
+    dropped,
+    noResultFor,
+    tribed,
+    note,
+  });
 });

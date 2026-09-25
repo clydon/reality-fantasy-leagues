@@ -649,6 +649,12 @@ function validateEpisodes(extracted, state, terms) {
   // Names the wiki used that this league's cast doesn't have. Non-fatal (see resolve below) but
   // surfaced on its own, because a name dropped here is a result that will never be reviewed.
   const unmatched = [];
+  // Results thrown out by the checks below (a zero-votes-safe for someone voted out that episode, an
+  // individual immunity in a pre-merge episode, a duplicate). Each is a defensible refusal, but they
+  // used to exist only as a console line -- so a castaway whose ONLY result was dropped vanished
+  // from the review list with nothing said, and the commissioner had no way to know a name was
+  // missing. Carried out of here so the reveal can say who and why.
+  const dropped = [];
   const seenEpisodes = new Set();
   const eliminated = new Set(); // castaway ids claimed by an elimination in THIS proposal
   const epsOut = [];
@@ -754,18 +760,21 @@ function validateEpisodes(extracted, state, terms) {
       if (sev.type === "zeroVotesSafe" && eliminated.has(c.id)) {
         const msg = `dropped zeroVotesSafe for ${c.name} in episode ${n} -- they were eliminated that episode`;
         problems.push(msg); eventProblems.push(msg);
+        dropped.push({ name: c.name, episode: n, why: "marked safe with no votes, but they were voted out that episode" });
         continue;
       }
       // individualImmunity is a post-merge concept. Pre-merge, immunity is won by a tribe.
       if (sev.type === "individualImmunity" && !postMerge) {
         const msg = `dropped individualImmunity for ${c.name} in pre-merge episode ${n}`;
         problems.push(msg); eventProblems.push(msg);
+        dropped.push({ name: c.name, episode: n, why: "read as an individual immunity win, which can't happen before the merge" });
         continue;
       }
       const key = `${n}|${sev.type}|${c.id}`;
       if (evs.some((x) => `${n}|${x.type}|${x.castawayKey}` === key)) {
         const msg = `duplicate ${sev.type} for ${c.name} in episode ${n} (kept once)`;
         problems.push(msg); eventProblems.push(msg);
+        dropped.push({ name: c.name, episode: n, why: `the same ${sev.type} was reported twice (kept once)` });
         continue;
       }
       const confidence = sev.confidence === "high" ? "high" : "low";
@@ -803,6 +812,7 @@ function validateEpisodes(extracted, state, terms) {
 
   return {
     unmatched,
+    dropped,
     eliminations: { episodes: epsOut, mergeEpisode: Number.isInteger(merge) ? merge : null, problems: elimProblems },
     scoringEvents: { episodes: eventsOut, mergeEpisode: Number.isInteger(merge) ? merge : null, problems: eventProblems },
     counts: {
@@ -1090,9 +1100,9 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
   console.log(`[wiki-sync]   ${league.name}: ${counts}`);
   if (opts.dry) {
     console.log(`[wiki-sync]   --dry: would write ${visible.length} items for ${league.name}`);
-    return { filed: false, summary: `${counts} — dry run, nothing written`, unmatched: unmatchedNames, written: 0 };
+    return { filed: false, summary: `${counts} — dry run, nothing written`, unmatched: unmatchedNames, dropped: checked.dropped, written: 0 };
   }
-  if (!visible.length) return { filed: false, summary: `${counts} — nothing to write`, unmatched: unmatchedNames, written: 0 };
+  if (!visible.length) return { filed: false, summary: `${counts} — nothing to write`, unmatched: unmatchedNames, dropped: checked.dropped, written: 0 };
 
   // All of one league's items in one transaction: a fan-out that dies halfway through shouldn't
   // leave a commissioner reviewing half an episode.
@@ -1139,7 +1149,7 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
   // opts.silent: a commissioner who just clicked "Reveal episode 4" does not need a push telling
   // them episode 4's results are ready -- they're looking at the page that shows them.
   if (inserted && !opts.silent) await notifyCommissionersOfReview(pool, league, inserted);
-  return { filed: touched > 0, summary: `${counts} — ${written}`, unmatched: unmatchedNames, written: touched };
+  return { filed: touched > 0, summary: `${counts} — ${written}`, unmatched: unmatchedNames, dropped: checked.dropped, written: touched };
 }
 
 // Push the league's commissioners when the sync filed decisions they haven't seen before. Awaited

@@ -361,6 +361,10 @@ export const api = {
       written: number;
       /** Names in the wiki's results that this league's cast doesn't have; those were skipped. */
       unmatched: string[];
+      /** Results the validation refused, with the reason — each one is a castaway you won't see. */
+      dropped: { name: string; why: string }[];
+      /** Still-active castaways the wiki reported nothing about for this episode. */
+      noResultFor: string[];
       /** Castaways sorted into their starting tribe by this reveal, if the season held them back. */
       tribed: string[];
       note: string | null;
