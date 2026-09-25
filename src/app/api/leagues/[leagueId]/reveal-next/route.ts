@@ -73,5 +73,31 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     note = e instanceof Error ? e.message : "The reveal worked, but filing its results didn't.";
   }
 
-  return NextResponse.json({ state, revealedThroughEpisode: revealed, filed, written, unmatched, tribed, note });
+  // A revealed episode ALWAYS gets a card, even when the reveal filed nothing.
+  //
+  // Nothing used to create it: the episode row appeared only when someone ACCEPTED one of the
+  // filed decisions (the accept route's ensureEpisodeNumber) or opened it by hand. So a reveal that
+  // filed no results -- the wiki not read that far yet, every name unmatched, or an older build
+  // whose panel had no Open button -- left the league saying "played through episode 1" over an
+  // empty Episodes tab, and the panel moved on to offering episode 2. "Revealed" and "there is a
+  // card for it" have to mean the same thing.
+  //
+  // ensureEpisodeNumber fills any gap below it too, so this also repairs a league that got into
+  // that state before this existed. postMerge comes from what was actually filed rather than
+  // defaulting to false, so a post-merge episode isn't created marked pre-merge and left for
+  // someone to notice; with nothing filed, false is the only answer available and the card carries
+  // its own Post-merge checkbox.
+  let finalState = state;
+  if (revealed !== null) {
+    const { rows: filedItems } = await pool.query(
+      "SELECT bool_or(post_merge) AS post_merge FROM wiki_proposal_items WHERE league_id=$1 AND episode_number=$2",
+      [leagueId, revealed]
+    );
+    const postMerge = !!(filedItems[0] && filedItems[0].post_merge);
+    finalState = await withLeagueLock(leagueId, (s) => {
+      StateLogic.ensureEpisodeNumber(s, revealed as number, postMerge);
+    });
+  }
+
+  return NextResponse.json({ state: finalState, revealedThroughEpisode: revealed, filed, written, unmatched, tribed, note });
 });

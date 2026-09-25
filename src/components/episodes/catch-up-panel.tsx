@@ -44,11 +44,19 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
 
   if (!StateLogic.RevealLogic.isCatchingUp(state)) return null;
 
-  const revealed = StateLogic.RevealLogic.revealedThrough(state);
+  const revealed = StateLogic.RevealLogic.revealedThrough(state) as number;
   const next = StateLogic.RevealLogic.nextEpisode(state) as number;
-  const nextIsOpen = state.episodes.some((e) => e.number === next);
+  const has = (n: number) => state.episodes.some((e) => e.number === n);
+  const nextIsOpen = has(next);
   const live = mode === "live" && !!leagueId;
   const canAct = canManage && live;
+
+  // A revealed episode with no card. The reveal route now always creates one, so this can only be a
+  // league that revealed before it did -- or one whose reveal filed nothing back when that meant no
+  // card at all. Repairing it is one click (opening an episode fills every gap below it), and it
+  // comes FIRST, because "played through episode 1" over an empty Episodes tab is the confusing bit
+  // and offering episode 2 next only compounds it.
+  const missing = Array.from({ length: revealed }, (_, i) => i + 1).find((n) => !has(n)) ?? null;
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -65,10 +73,10 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
     }
   }
 
-  const open = () =>
+  const open = (number: number, message: string) =>
     run(async () => {
-      setState(await api.addEpisode(leagueId!, next));
-      setNote({ text: `Episode ${next} is open — add bets and make picks before you reveal it.`, ok: true });
+      setState(await api.addEpisode(leagueId!, number));
+      setNote({ text: message, ok: true });
     });
 
   const reveal = () =>
@@ -106,7 +114,12 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
             hidden until you reveal them.
           </>
         )}{" "}
-        {nextIsOpen ? (
+        {missing !== null ? (
+          <>
+            Episode {missing} was revealed but never got a card — open it to see{" "}
+            {missing === revealed ? "its" : "the"} results.
+          </>
+        ) : nextIsOpen ? (
           <>
             Episode {next} is <b className="text-foreground">open</b> — once everyone has placed their bets and picks,
             reveal what actually happened.
@@ -119,18 +132,28 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
         <div className="flex flex-wrap gap-1.5">
           {/* One at a time, in the order they're meant to happen: there's nothing to reveal on an
               episode nobody has been able to play yet. */}
-          {nextIsOpen ? (
+          {missing !== null ? (
+            <Button
+              disabled={busy}
+              onClick={() => open(missing, `Episode ${missing} is open — any results already revealed for it are on its card.`)}
+            >
+              {busy ? "Opening…" : `Open episode ${missing}`}
+            </Button>
+          ) : nextIsOpen ? (
             <Button disabled={busy} onClick={reveal}>
               {busy ? "Revealing…" : `Reveal episode ${next} results`}
             </Button>
           ) : (
-            <Button disabled={busy} onClick={open}>
+            <Button
+              disabled={busy}
+              onClick={() => open(next, `Episode ${next} is open — add bets and make picks before you reveal it.`)}
+            >
               {busy ? "Opening…" : `Open episode ${next}`}
             </Button>
           )}
         </div>
       )}
-      {canAct && nextIsOpen && (
+      {canAct && nextIsOpen && missing === null && (
         <p className="mt-2 text-xs text-muted-foreground">
           Revealing makes that episode&rsquo;s results reviewable — nothing is scored until you confirm each one.
         </p>

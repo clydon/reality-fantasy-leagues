@@ -1165,6 +1165,15 @@ on an episode that doesn't exist, so the only way to get a card was to reveal it
 exactly backwards for a league whose whole reason for catching up is to play each episode before it
 knows the answer.
 
+**A revealed episode always has a card.** Nothing used to create one: the episode row appeared only
+when a commissioner ACCEPTED one of the filed decisions (the accept route's `ensureEpisodeNumber`).
+So a reveal that filed nothing — the wiki not read that far yet, every name unmatched — left a
+league saying "played through episode 1" over an empty Episodes tab, with the panel moving on to
+offer episode 2. The reveal route now calls `ensureEpisodeNumber` itself, with the `post_merge` the
+filed items actually carry rather than a default, and because that call fills any gap below it, a
+league already in that state repairs itself on its next reveal. The panel offers the repair directly
+too: a revealed episode with no card is the first thing it shows, ahead of the next one.
+
 **Revealing** raises the pointer by one and re-runs the league-scoped fan-out against the season's
 **cached** extraction — no wiki read, no model call, the same cheap half a nightly run does per
 league. It makes the episode reviewable, not true: the commissioner still accepts, corrects or
