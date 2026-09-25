@@ -38,14 +38,42 @@ export interface CastApplyResult {
  * Whether a league may see the season's starting tribes yet.
  *
  * `tribesFromEpisode` is the season's hold (db/migrations/0013): null means nothing is held back.
- * A league playing LIVE is never holding anything back either -- it sees results as the connector
- * reads them, so there's nothing to protect it from. Only a league catching up waits, until it has
- * revealed the episode that shows the division.
+ * Otherwise the tribes wait until the league has REACHED that episode:
+ *
+ *   catching up -- it has revealed that episode (the reveal pointer is at or past it);
+ *   live        -- it has results logged for that episode or a later one (an elimination, a scoring
+ *                  event, or an exile on it).
+ *
+ * The live case used to return true unconditionally, on the reasoning that a live league has nothing
+ * to be protected from. That was wrong: an admin who holds the tribes means "don't show the division
+ * before the premiere's results do", and a live league created before the premiere airs -- the normal
+ * case -- was being handed the tribes the moment the cast was approved.
  */
 export function tribesDue(state: LeagueState, tribesFromEpisode: number | null | undefined): boolean {
   if (tribesFromEpisode == null) return true;
   const revealed = StateLogic.RevealLogic.revealedThrough(state);
-  return revealed === null || revealed >= tribesFromEpisode;
+  if (revealed !== null) return revealed >= tribesFromEpisode;
+  return (state.episodes || []).some(
+    (ep) =>
+      ep.number >= tribesFromEpisode &&
+      ((ep.events || []).length > 0 || (ep.scoringEvents || []).length > 0 || (ep.exiled || []).length > 0)
+  );
+}
+
+/**
+ * Hands a league its held starting tribes if they've just come due -- called inside the league lock
+ * by every route that records an episode's results (accepting a connector item, logging an
+ * elimination or scoring event by hand, revealing an episode), since any of them can be the moment a
+ * league reaches the held episode. Additive and idempotent: a castaway who already has a tribe keeps
+ * it, so calling this on every result write is harmless. Returns the names newly linked.
+ */
+export async function applyHeldTribesIfDue(client: PoolClient, state: LeagueState): Promise<string[]> {
+  const approved = await approvedCastForLeague(client, state);
+  if (!approved || approved.tribesFromEpisode == null) return [];
+  if (!tribesDue(state, approved.tribesFromEpisode)) return [];
+  return StateLogic.applyCastTribes(state, {
+    castaways: approved.cast.map((c) => ({ name: c.name, tribeName: c.tribeName })),
+  }).linked;
 }
 
 /** The season's staged/approved cast, in the order an admin arranged it. */

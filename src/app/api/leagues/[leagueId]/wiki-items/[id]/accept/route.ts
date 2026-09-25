@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole, isUuid } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { applyHeldTribesIfDue } from "@/lib/server/season-cast";
 import { notifyEpisodeResults } from "@/lib/server/push-events";
 
 type RouteParams = { leagueId: string; id: string };
@@ -76,6 +77,8 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
     }
 
     applied = edited ? { castawayName: castaway.name, method, eventType } : null;
+    // Accepting a result can be the moment a live league reaches the episode the tribes were held for.
+    await applyHeldTribesIfDue(client, s);
     await client.query(
       `UPDATE wiki_proposal_items SET status='accepted', decided_at=now(), decided_by=$2, applied=$3::jsonb WHERE id=$1`,
       [id, user.id, JSON.stringify(applied)]
