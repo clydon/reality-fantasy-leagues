@@ -1042,8 +1042,9 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
 // file). Which answers imply which results is the format's (format.research.items).
 function itemsFromChecklist(entry, format) {
   const items = [];
-  const add = (kind, eventType) =>
-    items.push({ castawayName: entry.name, kind, eventType, confidence: entry.confidence, sources: entry.sources || [] });
+  // `method` is only for a role (the role value); an event's identity is its eventType.
+  const add = (kind, eventType, method = "") =>
+    items.push({ castawayName: entry.name, kind, eventType, method, confidence: entry.confidence, sources: entry.sources || [] });
   format.research.items(entry, add);
   return items;
 }
@@ -1083,7 +1084,7 @@ async function stageResearchDecisions(pool, run, opts = {}) {
     postMerge,
     kind: c.kind,
     name: decisions.canonicalName(castState, c.castawayName),
-    method: "",
+    method: c.method || "",
     eventType: c.eventType,
     confidence: c.confidence,
     sources: c.sources,
@@ -1229,27 +1230,15 @@ async function runFor(pool, ctx, opts) {
 // What a human actually reads before deciding whether to trust any of this. Only the lines with
 // something on them -- a checklist where most answers are "no" is mostly noise on a terminal.
 function printResearch(result) {
-  const { payload, counts, terms } = result;
+  const { payload, counts, terms, format } = result;
   console.log(`\n${payload.episodeTitle || "(untitled episode)"}${payload.airDate ? ` -- ${payload.airDate}` : ""}`);
   console.log(payload.summary);
-  console.log(`Tribal Council held: ${payload.tribalCouncilHeld}\n`);
+  // The format's episode-level questions (Survivor: tribalCouncilHeld).
+  for (const key of Object.keys(format.research.episodeFields(z, Answer))) console.log(`${key}: ${payload[key]}`);
+  console.log("");
 
   for (const e of result.entries) {
-    const notes = [];
-    if (e.leftTheGame === "yes") notes.push(`OUT (${e.exitMethod || "method unknown"})`);
-    if (Number.isInteger(e.votesReceived) && e.votesReceived > 0) notes.push(`${e.votesReceived} vote(s)`);
-    if (e.votedFor) notes.push(`voted ${e.votedFor}`);
-    if (e.wonIndividualImmunity === "yes") notes.push("individual immunity");
-    if (e.wonTribeImmunity === "yes") notes.push("tribe immunity");
-    if (e.wonIndividualReward === "yes") notes.push("individual reward");
-    if (e.wonTribeReward === "yes") notes.push("tribe reward");
-    if (e.satOutOfChallenge === "yes") notes.push("sat out");
-    if (e.foundAdvantage === "yes") notes.push(`found ${e.advantageFoundName || "an advantage"}`);
-    if (e.playedAdvantage === "yes") notes.push(`played ${e.advantagePlayedName || "an advantage"}`);
-    if (Number.isInteger(e.votesNullified) && e.votesNullified > 0) notes.push(`${e.votesNullified} vote(s) nullified`);
-    if (e.advantageUsedAgainstThem === "yes") notes.push("advantage used against them");
-    if (e.exiled === "yes") notes.push("exiled");
-    if (e.notableTwist) notes.push(e.notableTwist);
+    const notes = format.research.notes(e);
     if (!notes.length) continue;
     console.log(`  ${e.name} [${e.confidence}] -- ${notes.join("; ")}`);
   }

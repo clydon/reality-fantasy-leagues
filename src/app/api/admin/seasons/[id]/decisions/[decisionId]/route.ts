@@ -48,15 +48,22 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
       if (!match) throw new HttpError(400, `"${body.castawayName}" isn't in this season's cast`);
       castawayName = match.name;
     }
-    const method = d.kind === "elimination" ? body.method?.trim() || d.method : undefined;
-    if (method && !format.exitMethods.includes(method)) throw new HttpError(400, `"${method}" isn't an exit method`);
+    // `method` is the exit method for an elimination, and the role value for a role.
+    const method = d.kind === "elimination" || d.kind === "role" ? body.method?.trim() || d.method : undefined;
+    if (d.kind === "elimination" && method && !format.exitMethods.includes(method)) {
+      throw new HttpError(400, `"${method}" isn't an exit method`);
+    }
+    if (d.kind === "role" && method && !(format.roles?.values ?? []).includes(method)) {
+      throw new HttpError(400, `"${method}" isn't a role`);
+    }
     const eventType = d.kind === "event" ? body.eventType?.trim() || d.event_type : undefined;
-    if (eventType && !format.events.some((e) => e.id === eventType)) {
+    // Implied events follow from exits and roles, so they can't be accepted as events of their own.
+    if (eventType && !format.events.some((e) => e.id === eventType && !e.implied)) {
       throw new HttpError(400, `"${eventType}" isn't a scoring event`);
     }
     const edited =
       castawayName !== d.castaway_name ||
-      (d.kind === "elimination" && method !== d.method) ||
+      ((d.kind === "elimination" || d.kind === "role") && method !== d.method) ||
       (d.kind === "event" && eventType !== d.event_type);
     applied = edited ? { castawayName, method, eventType } : null;
   }

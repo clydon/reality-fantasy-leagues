@@ -151,9 +151,59 @@ challenge win; safe while at risk. Research asks only generic questions.
      `src/components/admin/shows-section.tsx`) and the `ResearchCastaway` type. They only affect
      wording and tolerate missing fields, so generalise them once there's a second checklist to
      generalise against.
-2. **The Traitors.** Write `traitors.js` (catalog, wiki sections and prompt, research checklist,
-   default sites, roles if we want them). Pull a *completed* US season first, as ground truth to judge
-   extraction against, then Season 5.
+2. **The Traitors — BUILT (same branch), not yet run against the model or a database.**
+   - `formats/traitors.js`:
+     - Exit methods: Banished, Murdered, Left the game, Finalist, Winner, Other. The winner method is
+       `Winner`, and several people can share it, which ends the season the same way.
+     - No merge.
+     - The 8 confirmed events.
+     - Per-show defaults, all editable: 0 for Murdered and Caught, since whether those cost points is
+       the league's call.
+   - **Roles** are a fourth kind of season decision, `role` (migration `0022_role_decisions.sql`):
+     - The value is `Traitor` (original, episode 1) or `Recruited Traitor` (at the recruitment
+       episode), carried in `method`.
+     - They reach leagues through the same reveal-gated sync as eliminations. The audience knows the
+       Traitors from episode 1, so "hidden until revealed" means hidden until the league reaches that
+       episode.
+     - League state: `episode.roles`, `StateLogic.roleOf / addRole / removeRole`.
+   - **Implied events:** Murdered, Finalist, Won the season, Banished as a Traitor and Recruited are
+     not stored or reviewed.
+     - `ActiveRosterLogic.episodeEvents` derives them on every read from exits and roles
+       (`format.impliedEvents`).
+     - So correcting an exit moves the points with it, and nothing can be scored twice.
+     - `addEvent` refuses them. The UI marks them "auto" and "(automatic)".
+   - **Wiki read:**
+     - Contestants table → exits, original and recruited Traitors.
+     - Voting History → each Round Table's votes and banishment, plus shields.
+     - "Survived a Round Table" and "Voted out a Traitor" are derived in code from the votes
+       (`derivedEvents`), rather than tallied by the model.
+     - "Won a shield" counts the wiki's Shielded *and* Immune cells.
+   - **Cast read:** the format adds a note so the Faction column is never read as a tribe. Read as a
+     tribe, it would publish the Traitors to every league.
+   - **Research:** a Traitors checklist (shield, Round Table votes, voted out a Traitor, recruited).
+     A research "recruited" answer stages a `role` decision.
+   - The three display renderers deferred from phase 1 now go through `format.research.notes` /
+     `sentences`.
+   - **Verified offline:**
+     - Survivor harness output is unchanged except for two additive fields.
+     - A Traitors check script ran against the real US4/US5 wiki pages: sections found, templates
+       expanded, about 15K characters in total.
+     - It also checked the prompt and schema, derived events on a US4-shaped read, and roles,
+       implied-event scoring, exit correction and multiple winners in league state.
+     - `tsc`, `eslint` and `next build` pass.
+   - **Not verified yet:**
+     - A real model read of a Traitors season. Do US4 first (completed, ground truth), with
+       `--dry` / Opus.
+     - The new routes against a database.
+   - **Deferred:**
+     - Entering a role by hand in a league (roles arrive only through admin decisions, like exile).
+     - Showing a role badge on rosters and the draft board.
+   - **Switching the existing Traitors show over:**
+     - In Admin → Shows → Rules, pick "The Traitors".
+     - Its next pull re-reads the cast and episodes (cached reads are tied to the old format).
+     - If its cast was already pulled under Survivor rules, check the cast review: the Faction column
+       may have been staged as tribes ("Traitor"/"Faithful"). A re-pull won't overwrite a tribe
+       already staged, so clear those by hand.
 3. **The Challenge.** Same again. Teams and pairs change often, so check that the held-tribes and
    group logic copes with regrouping.
 4. **Tidy-up.** Remove the remaining Survivor wording from shared UI copy. ("Season over" is already

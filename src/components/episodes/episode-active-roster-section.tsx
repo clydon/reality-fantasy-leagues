@@ -31,7 +31,10 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [draftLineup, setDraftLineup] = useState<string[]>([]);
   const events = StateLogic.formatOf(state).events;
-  const [eventType, setEventType] = useState(events[0].id);
+  // Implied events come from exits and roles on their own, so only the rest can be logged by hand.
+  const loggable = events.filter((e) => !e.implied);
+  const episodeEvents = StateLogic.ActiveRosterLogic.episodeEvents(state, ep);
+  const [eventType, setEventType] = useState(loggable[0]?.id ?? "");
   const [eventCastawayId, setEventCastawayId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,11 +171,11 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
       </div>
 
       <h4 className="mb-1.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Events</h4>
-      {(ep.scoringEvents || []).length === 0 ? (
+      {episodeEvents.length === 0 ? (
         <div className="mb-2 text-sm italic text-muted-foreground">No events logged for this episode.</div>
       ) : (
         <div className="mb-2 flex flex-col gap-1.5">
-          {(ep.scoringEvents || []).map((sev) => {
+          {episodeEvents.map((sev) => {
             const def = events.find((e) => e.id === sev.type);
             const c = StateLogic.getCastaway(state, sev.castawayId);
             const pts = StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
@@ -197,10 +200,16 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
                   </span>
                 )}
                 <span className="font-mono font-bold">+{pts}</span>
-                {canManage && (
-                  <button title="Remove event" disabled={busy} onClick={() => run(() => api.removeScoringEvent(leagueId!, ep.id, sev.id))}>
-                    ✕
-                  </button>
+                {sev.implied ? (
+                  <span className="text-muted-foreground" title="Follows from how they left or their role, so it updates with those">
+                    auto
+                  </span>
+                ) : (
+                  canManage && (
+                    <button title="Remove event" disabled={busy} onClick={() => run(() => api.removeScoringEvent(leagueId!, ep.id, sev.id))}>
+                      ✕
+                    </button>
+                  )
                 )}
               </div>
             );
@@ -211,7 +220,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
       {canManage && (
         <div className="flex flex-wrap gap-1.5">
           <Select size="sm" value={eventType} onChange={(e) => setEventType(e.target.value)}>
-            {events.map((e) => (
+            {loggable.map((e) => (
               <option key={e.id} value={e.id}>
                 {e.label}
               </option>

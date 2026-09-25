@@ -203,6 +203,18 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                 })}
               </div>
             )}
+            {/* Secret roles taken on this episode (The Traitors). Only here once the league has this
+                episode's results, so a league catching up doesn't see them early. */}
+            {(ep.roles || []).length > 0 && (
+              <div className="mt-2 flex flex-col gap-1">
+                {(ep.roles || []).map((r) => (
+                  <div key={r.castawayId} className="flex items-center gap-2 text-sm">
+                    <span className="rounded bg-[#b0563f] px-1.5 py-0.5 text-xs font-bold text-white">{r.role}</span>
+                    <span>{StateLogic.getCastaway(state, r.castawayId)?.name ?? "?"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {canManage && (
               <div className="mt-3 border-t border-border pt-3">
                 <h4 className="mb-1 text-xs font-bold">Add Eliminated Player</h4>

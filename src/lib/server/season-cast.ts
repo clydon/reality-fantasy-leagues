@@ -53,11 +53,7 @@ export function tribesDue(state: LeagueState, tribesFromEpisode: number | null |
   if (tribesFromEpisode == null) return true;
   const revealed = StateLogic.RevealLogic.revealedThrough(state);
   if (revealed !== null) return revealed >= tribesFromEpisode;
-  return (state.episodes || []).some(
-    (ep) =>
-      ep.number >= tribesFromEpisode &&
-      ((ep.events || []).length > 0 || (ep.scoringEvents || []).length > 0 || (ep.exiled || []).length > 0)
-  );
+  return (state.episodes || []).some((ep) => ep.number >= tribesFromEpisode && StateLogic.episodeHasResults(ep));
 }
 
 /**

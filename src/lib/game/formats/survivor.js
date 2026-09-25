@@ -299,6 +299,45 @@ function researchItems(entry, add) {
   if (entry.exiled === "yes") add("exiled", "");
 }
 
+// One person's answers as short phrases for a reviewer (Admin, the CLI), listing only what happened.
+function researchNotes(c) {
+  const notes = [];
+  if (c.leftTheGame === "yes") notes.push(`OUT — ${c.exitMethod || "method unknown"}`);
+  if (typeof c.votesReceived === "number" && c.votesReceived > 0) notes.push(`${c.votesReceived} vote${c.votesReceived === 1 ? "" : "s"} against`);
+  if (c.votedFor) notes.push(`voted ${c.votedFor}`);
+  if (c.wonIndividualImmunity === "yes") notes.push("individual immunity");
+  if (c.wonTribeImmunity === "yes") notes.push("tribe immunity");
+  if (c.wonIndividualReward === "yes") notes.push("individual reward");
+  if (c.wonTribeReward === "yes") notes.push("tribe reward");
+  if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
+  if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
+  if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
+  if (typeof c.votesNullified === "number" && c.votesNullified > 0) notes.push(`nullified ${c.votesNullified} vote${c.votesNullified === 1 ? "" : "s"}`);
+  if (c.advantageUsedAgainstThem === "yes") notes.push("advantage used against them");
+  if (c.exiled === "yes") notes.push("exiled");
+  if (c.notableTwist) notes.push(c.notableTwist);
+  return notes;
+}
+
+// The same, as sentences, for semantic search (db/embeddings.js).
+function researchSentences(c) {
+  const notes = [];
+  if (c.leftTheGame === "yes") notes.push(`left the game (${c.exitMethod || "method unknown"})`);
+  if (typeof c.votesReceived === "number" && c.votesReceived > 0) notes.push(`received ${c.votesReceived} vote(s) at Tribal`);
+  if (c.votedFor) notes.push(`voted for ${c.votedFor}`);
+  if (c.wonIndividualImmunity === "yes") notes.push("won individual immunity");
+  if (c.wonTribeImmunity === "yes") notes.push("was on the tribe that won immunity");
+  if (c.wonIndividualReward === "yes") notes.push("won individual reward");
+  if (c.wonTribeReward === "yes") notes.push("was on the tribe that won reward");
+  if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
+  if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
+  if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
+  if (c.advantageUsedAgainstThem === "yes") notes.push("had an advantage used against them");
+  if (c.exiled === "yes") notes.push("was exiled");
+  if (c.notableTwist) notes.push(c.notableTwist);
+  return notes;
+}
+
 module.exports = {
   id: 'survivor',
   name: 'Survivor',
@@ -323,6 +362,9 @@ module.exports = {
     episodesSchema,
     episodesPrompt,
     rejectEvent: rejectWikiEvent,
+    // More eliminations than this in one episode is flagged for a second look: a double boot is rare
+    // and explicit, and it's exactly what a misread rowspan would produce.
+    routineEliminations: 1,
   },
   research: {
     checklistSchema,
@@ -331,5 +373,7 @@ module.exports = {
     entryProblems: researchEntryProblems,
     claims: researchClaims,
     items: researchItems,
+    notes: researchNotes,
+    sentences: researchSentences,
   },
 };

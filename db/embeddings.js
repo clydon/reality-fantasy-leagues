@@ -30,6 +30,8 @@
 // does not apply here.
 
 require("dotenv").config({ path: ".env.local", quiet: true });
+// How each show format words its research answers (format.research.sentences).
+const Formats = require("../src/lib/game/formats/index.js");
 
 const GEMINI_API_BASE = process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com/v1beta";
 const EMBED_MODEL = process.env.EMBED_MODEL || "gemini-embedding-001";
@@ -109,39 +111,17 @@ async function embedTexts(texts, taskType) {
   return json.embeddings.map((e) => e.values);
 }
 
-// One short, human-readable line per notable thing a checklist entry reports -- deliberately the
-// same vocabulary as the admin panel's own notesFor() (shows-section.tsx), so a chunk reads like the
-// facts a reviewer already sees, not a re-description of them. Kept as its own copy rather than
-// shared: that one is a client component (JSX, browser-only), this is a plain CommonJS module a
-// route handler calls server-side -- same reasoning as wiki-sync.js duplicating
-// plural()/singular() instead of importing the TS version.
-function notesFor(c) {
-  const notes = [];
-  if (c.leftTheGame === "yes") notes.push(`left the game (${c.exitMethod || "method unknown"})`);
-  if (typeof c.votesReceived === "number" && c.votesReceived > 0) notes.push(`received ${c.votesReceived} vote(s) at Tribal`);
-  if (c.votedFor) notes.push(`voted for ${c.votedFor}`);
-  if (c.wonIndividualImmunity === "yes") notes.push("won individual immunity");
-  if (c.wonTribeImmunity === "yes") notes.push("was on the tribe that won immunity");
-  if (c.wonIndividualReward === "yes") notes.push("won individual reward");
-  if (c.wonTribeReward === "yes") notes.push("was on the tribe that won reward");
-  if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
-  if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
-  if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
-  if (c.advantageUsedAgainstThem === "yes") notes.push("had an advantage used against them");
-  if (c.exiled === "yes") notes.push("was exiled");
-  if (c.notableTwist) notes.push(c.notableTwist);
-  return notes;
-}
-
 /** Turns one episode's research payload into the chunks worth embedding: one episode-level summary,
  * plus one per castaway who has something notable on their checklist -- see the file header on why
- * an empty note is worse than no chunk at all. */
-function chunksFromResearch(payload) {
+ * an empty note is worse than no chunk at all. The per-person lines are the show format's own
+ * wording for its checklist (format.research.sentences), so a chunk reads like the facts a reviewer
+ * already sees. */
+function chunksFromResearch(payload, format) {
   const chunks = [];
   const summaryText = [payload.episodeTitle, payload.summary].filter(Boolean).join(": ");
   if (summaryText) chunks.push({ castawayName: null, chunkType: "summary", text: summaryText });
   for (const entry of payload.castaways || []) {
-    const notes = notesFor(entry);
+    const notes = format.research.sentences(entry);
     if (!notes.length) continue;
     chunks.push({ castawayName: entry.name, chunkType: "castaway_note", text: `${entry.name}: ${notes.join("; ")}.` });
   }
@@ -151,8 +131,8 @@ function chunksFromResearch(payload) {
 /** Embeds and stores one episode's chunks. Replaces existing rows for the same
  * (show, season, episode, chunk_type, castaway) rather than accumulating -- a re-research (--force)
  * re-embeds cleanly rather than leaving stale chunks behind to compete in search. */
-async function storeChunksForEpisode(pool, { showId, season, episodeNumber }, payload) {
-  const chunks = chunksFromResearch(payload);
+async function storeChunksForEpisode(pool, { showId, season, episodeNumber, format }, payload) {
+  const chunks = chunksFromResearch(payload, format);
   if (!chunks.length) return { stored: 0 };
 
   const vectors = await embedTexts(chunks.map((c) => c.text), "RETRIEVAL_DOCUMENT");
@@ -211,7 +191,8 @@ async function suggestAnswer(pool, { showId, season, episodeNumber, question }) 
   // reporting that as "no research has been run" was simply wrong. Index it now instead, from the
   // stored answers; if that fails, the error says why rather than pretending nothing was researched.
   const { rows: researched } = await pool.query(
-    "SELECT payload FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3",
+    `SELECT er.payload, er.provenance, s.format FROM episode_research er JOIN shows s ON s.id = er.show_id
+      WHERE er.show_id=$1 AND er.season_number=$2 AND er.episode_number=$3`,
     [showId, season, episodeNumber]
   );
   if (!researched.length) return { status: "no-research", answer: null, confidence: null, castawayName: null, similarity: null };
@@ -221,7 +202,9 @@ async function suggestAnswer(pool, { showId, season, episodeNumber, question }) 
   );
   if (!indexed.length) {
     try {
-      await storeChunksForEpisode(pool, { showId, season, episodeNumber }, researched[0].payload);
+      // Worded by the format the answers were asked under.
+      const format = Formats.formatFor((researched[0].provenance && researched[0].provenance.format) || researched[0].format);
+      await storeChunksForEpisode(pool, { showId, season, episodeNumber, format }, researched[0].payload);
     } catch (e) {
       throw new Error(`This episode has been researched, but it couldn't be indexed for search: ${e.message}`);
     }
@@ -248,7 +231,6 @@ async function suggestAnswer(pool, { showId, season, episodeNumber, question }) 
 module.exports = {
   embedTexts,
   chunksFromResearch,
-  notesFor,
   storeChunksForEpisode,
   searchChunks,
   suggestAnswer,

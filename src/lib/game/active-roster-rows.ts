@@ -24,7 +24,7 @@ export function playerEventRows(state: LeagueState, playerId: string): PlayerEve
     .sort((a, b) => a.number - b.number)
     .forEach((ep) => {
       const lineup = (ep.lineups && ep.lineups[playerId]) || [];
-      (ep.scoringEvents || []).forEach((sev) => {
+      StateLogic.ActiveRosterLogic.episodeEvents(state, ep).forEach((sev) => {
         if (!lineup.includes(sev.castawayId)) return;
         const def = events.find((e) => e.id === sev.type);
         rows.push({

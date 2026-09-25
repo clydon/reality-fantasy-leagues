@@ -18,11 +18,19 @@ extraction prompts and validation, and the research checklist. The plan adds `sh
 3. Add The Challenge.
 4. Tidy-up.
 
-**Status (2026-09-25):** Phase 1 is built on branch `format-phase1-survivor`, not yet merged or pushed.
-It adds migration 0021, `src/lib/game/formats/` and a "Rules" picker in admin show settings. It is
-verified byte-identical for Survivor by a regression harness, and `tsc`, `eslint` and `next build`
-pass. It has **not** run against a database: the local dev DB is at migration 0015 and lacks
-`pgvector`, which migration 0016 needs. See the Phase 1 entry in the plan. Next is Phase 2 (Traitors).
+**Status (2026-09-25):** Phases 1 and 2 are built on branch `format-phase1-survivor`. Neither is merged
+or pushed yet.
+- Phase 1 adds migration 0021, `src/lib/game/formats/` and a "Rules" picker in admin show settings.
+- Phase 2 adds `traitors.js`, migration 0022 (role decisions), roles in league state, and implied
+  events.
+- Checks: Survivor is byte-identical in the regression harness. An offline Traitors check passes
+  against the real US4/US5 wiki pages. `tsc`, `eslint` and `next build` pass.
+- **Not yet run:** a real model read of a Traitors season, or the routes against a database. The local
+  dev DB is at migration 0015 and lacks `pgvector`, which migration 0016 needs.
+- The Phase 1 and 2 entries in the plan list what's deferred, and what to do when switching the
+  existing Traitors show over.
+- Next is Phase 3 (The Challenge).
+
 The open questions are all resolved:
 
 1. Roles: **track and score** Traitor/Faithful, hidden until revealed, with mid-season recruitment
@@ -90,7 +98,7 @@ local session):
   - Run `npx tsc --noEmit -p .` and `npx eslint src`.
   - If tsc complains about `.next/types`, run `rm -rf .next/types .next/dev/types && npx next typegen`.
 - **Migrations** are hand-written SQL in `db/migrations/NNNN_*.sql`. They're applied by
-  `node db/migrate.js` (also run on `npm run build`). Use the next free number (0022 at the time of
+  `node db/migrate.js` (also run on `npm run build`). Use the next free number (0023 at the time of
   writing).
 - **`db/*.js`** is plain CommonJS so the CLIs run under bare `node`. TypeScript sees these modules
   through `.d.ts` files next to them and the `@db/*` alias. The same pattern applies to

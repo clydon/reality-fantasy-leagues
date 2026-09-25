@@ -71,6 +71,8 @@ export interface ScoringEvent {
   /** One of the league's format's event ids (StateLogic.formatOf(state).events). */
   type: string;
   castawayId: string;
+  /** Derived from an exit or a role rather than recorded (ActiveRosterLogic.episodeEvents). */
+  implied?: boolean;
 }
 
 export interface PickEmPick {
@@ -97,6 +99,11 @@ export interface Episode {
    * Always present (EpisodeLogic.create initializes it, migrateLeagueState backfills old saves).
    */
   exiled: { castawayId: string; at: string }[];
+  /**
+   * Who took on a secret role this episode (The Traitors: "Traitor" at the start, "Recruited
+   * Traitor" later). See RoleLogic. Absent on episodes from before roles existed.
+   */
+  roles?: { castawayId: string; role: string }[];
   bets: Bet[];
   // Pick'em only (state-logic.js's PickEmLogic) -- one entry per player who's made a pick for
   // this episode, upserted in place rather than accumulated. Always present (EpisodeLogic.add
@@ -312,38 +319,29 @@ export interface ModelUsage {
  */
 export type ResearchAnswer = "yes" | "no" | "unknown";
 
-/** One castaway's answers. Every castaway gets one, including those nothing happened to. */
+/**
+ * One castaway's answers. Every castaway gets one, including those nothing happened to. The fields
+ * shared by every format are typed; the rest are the show format's own checklist questions
+ * (formats/survivor.js, formats/traitors.js) -- render them through format.research.notes.
+ */
 export interface ResearchCastaway {
   name: string;
   leftTheGame: ResearchAnswer;
   exitMethod: string | null;
-  attendedTribal: ResearchAnswer;
-  votesReceived: number | null;
-  votedFor: string | null;
-  wonIndividualImmunity: ResearchAnswer;
-  wonTribeImmunity: ResearchAnswer;
-  wonIndividualReward: ResearchAnswer;
-  wonTribeReward: ResearchAnswer;
-  satOutOfChallenge: ResearchAnswer;
-  foundAdvantage: ResearchAnswer;
-  advantageFoundName: string | null;
-  playedAdvantage: ResearchAnswer;
-  advantagePlayedName: string | null;
-  votesNullified: number | null;
-  advantageUsedAgainstThem: ResearchAnswer;
-  exiled: ResearchAnswer;
-  notableTwist: string | null;
+  notableTwist?: string | null;
   /** URLs behind THIS person's answers. Empty is itself information -- nothing backs them. */
   sources: string[];
   confidence: "high" | "medium" | "low";
+  [question: string]: unknown;
 }
 
 export interface EpisodeResearch {
   episodeTitle: string | null;
   airDate: string | null;
   summary: string;
-  tribalCouncilHeld: ResearchAnswer;
   castaways: ResearchCastaway[];
+  /** Episode-level questions, per format (Survivor: tribalCouncilHeld). */
+  [question: string]: unknown;
 }
 
 /**
@@ -359,6 +357,8 @@ export interface EpisodeResearchProvenance {
   showSlug: string;
   seasonNumber: number;
   episodeNumber: number;
+  /** The show format whose checklist was asked. Absent on research from before formats (Survivor). */
+  format?: string;
   castFrom: "season" | "league";
   castAsked: string[];
   queries: string[];
@@ -414,8 +414,9 @@ export interface SeasonDecision {
   id: string;
   episode_number: number;
   post_merge: boolean;
-  kind: "elimination" | "event" | "exiled";
+  kind: "elimination" | "event" | "exiled" | "role";
   castaway_name: string;
+  /** The exit method for an elimination; the role value ("Traitor") for a role. */
   method: string;
   event_type: string;
   confidence: "high" | "medium" | "low";

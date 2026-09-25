@@ -3,10 +3,12 @@
 //
 // Plain CommonJS for the same reason state-logic.js is: the browser bundle, the Next routes and the
 // bare-node connectors in db/ all read it.
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
+/* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see above */
 const survivor = require('./survivor.js');
+const traitors = require('./traitors.js');
+/* eslint-enable @typescript-eslint/no-require-imports */
 
-const FORMATS = { survivor };
+const FORMATS = { survivor, traitors };
 
 // Every show and league predates formats and has played by Survivor's rules, so that's what an absent
 // or unknown id means. Reading it this way (rather than backfilling) matters because league rows are

@@ -19,7 +19,7 @@ interface DecisionRow {
   id: string;
   episode_number: number;
   post_merge: boolean;
-  kind: "elimination" | "event" | "exiled";
+  kind: "elimination" | "event" | "exiled" | "role";
   castaway_name: string;
   method: string;
   event_type: string;
@@ -74,6 +74,12 @@ function applyDecision(state: LeagueState, d: DecisionRow): { detail?: LedgerDet
     if (!ev) return { skip: `"${type}" isn't a recognized scoring event` };
     return { detail: { ...base, eventType: type, eventId: ev.id } };
   }
+  if (d.kind === "role") {
+    const role = d.applied?.method || d.method;
+    if ((ep.roles || []).some((r) => r.castawayId === castaway.id)) return { detail: { ...base, preexisting: true } };
+    if (!StateLogic.addRole(state, ep.id, castaway.id, role)) return { skip: `"${role}" isn't a role this league's show has` };
+    return { detail: base };
+  }
   if ((ep.exiled || []).some((x) => x.castawayId === castaway.id)) return { detail: { ...base, preexisting: true } };
   StateLogic.addExiled(state, ep.id, castaway.id);
   return { detail: base };
@@ -89,6 +95,8 @@ function undoDetail(state: LeagueState, detail: LedgerDetail) {
     }
   } else if (detail.kind === "event") {
     if (detail.eventId) StateLogic.removeScoringEvent(state, ep.id, detail.eventId);
+  } else if (detail.kind === "role") {
+    StateLogic.removeRole(state, ep.id, detail.castawayId);
   } else {
     StateLogic.removeExiled(state, ep.id, detail.castawayId);
   }

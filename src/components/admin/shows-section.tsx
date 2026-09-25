@@ -903,6 +903,8 @@ function ResearchResult({
 }) {
   const [open, setOpen] = useState(false);
   const { payload, provenance, counts, problems } = research;
+  // The answers are the checklist of the format they were asked under.
+  const notesFor = (c: ResearchCastaway) => formatFor(provenance.format).research.notes(c);
   const noted = payload.castaways.filter((c) => notesFor(c).length > 0);
   const quiet = payload.castaways.filter((c) => notesFor(c).length === 0);
   const newItems = research.decisions?.inserted ?? 0;
@@ -1002,24 +1004,4 @@ function ResearchResult({
       )}
     </div>
   );
-}
-
-// One castaway's answers as a human-readable line, listing only what actually happened.
-function notesFor(c: ResearchCastaway): string[] {
-  const notes: string[] = [];
-  if (c.leftTheGame === "yes") notes.push(`OUT — ${c.exitMethod || "method unknown"}`);
-  if (typeof c.votesReceived === "number" && c.votesReceived > 0) notes.push(`${c.votesReceived} vote${c.votesReceived === 1 ? "" : "s"} against`);
-  if (c.votedFor) notes.push(`voted ${c.votedFor}`);
-  if (c.wonIndividualImmunity === "yes") notes.push("individual immunity");
-  if (c.wonTribeImmunity === "yes") notes.push("tribe immunity");
-  if (c.wonIndividualReward === "yes") notes.push("individual reward");
-  if (c.wonTribeReward === "yes") notes.push("tribe reward");
-  if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
-  if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
-  if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
-  if (typeof c.votesNullified === "number" && c.votesNullified > 0) notes.push(`nullified ${c.votesNullified} vote${c.votesNullified === 1 ? "" : "s"}`);
-  if (c.advantageUsedAgainstThem === "yes") notes.push("advantage used against them");
-  if (c.exiled === "yes") notes.push("exiled");
-  if (c.notableTwist) notes.push(c.notableTwist);
-  return notes;
 }

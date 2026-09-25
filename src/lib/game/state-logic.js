@@ -628,7 +628,9 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     const c = Core.getCastaway(state, castawayId);
     if(!ep || !c || !type) return null;
-    if(!formatOf(state).events.some(e => e.id === type)) return null;
+    // Implied events (see episodeEvents) are never recorded: they'd score twice.
+    const def = formatOf(state).events.find(e => e.id === type);
+    if(!def || def.implied) return null;
     if(!ep.scoringEvents) ep.scoringEvents = [];
     const ev = { id: Core.uid('sev'), type, castawayId };
     ep.scoringEvents.push(ev);
@@ -638,6 +640,52 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return;
     ep.scoringEvents = (ep.scoringEvents || []).filter(ev => ev.id !== eventId);
+  }
+  // Everything that scores in an episode: the recorded events plus any the format implies from the
+  // episode's exits and roles (The Traitors: murdered, finalist, winner, caught, recruited). Implied
+  // ones are derived on every read rather than stored, so correcting an exit or a role can't leave a
+  // stale event behind. They carry `implied: true` and a stable id, and can't be removed by hand.
+  static episodeEvents(state, ep){
+    const recorded = ep.scoringEvents || [];
+    const format = formatOf(state);
+    if(!format.impliedEvents) return recorded;
+    const implied = format.impliedEvents(ep, { roleOf: (cid, n) => RoleLogic.roleOf(state, cid, n) })
+      .map(ev => ({ id: 'implied_' + ev.type + '_' + ev.castawayId, type: ev.type, castawayId: ev.castawayId, implied: true }));
+    return [...recorded, ...implied];
+  }
+}
+
+// ---------- RoleLogic: secret roles (The Traitors) ----------
+// A role is recorded per episode (episode.roles, [{castawayId, role}]) as the episode it took effect
+// in, the same way exile is -- so it reaches a league through the reveal-gated season decisions, and a
+// league catching up doesn't learn a role before it reaches the episode that showed it.
+class RoleLogic {
+  // The role someone holds as of episode `throughEpisode` (or now, when omitted): the latest recorded
+  // at or before it, else the format's default. Null for a format without roles.
+  static roleOf(state, castawayId, throughEpisode){
+    const roles = formatOf(state).roles;
+    if(!roles) return null;
+    let latest = null;
+    [...state.episodes]
+      .filter(e => throughEpisode == null || e.number <= throughEpisode)
+      .sort((a,b) => a.number - b.number)
+      .forEach(e => (e.roles || []).forEach(r => { if(r.castawayId === castawayId) latest = r.role; }));
+    return latest ? roles.roleFor(latest) : roles.default;
+  }
+  static add(state, epId, castawayId, role){
+    const ep = state.episodes.find(e => e.id === epId);
+    const c = Core.getCastaway(state, castawayId);
+    const roles = formatOf(state).roles;
+    if(!ep || !c || !roles || !roles.values.includes(role)) return false;
+    ep.roles = ep.roles || [];
+    if(ep.roles.some(r => r.castawayId === castawayId)) return false;
+    ep.roles.push({ castawayId, role });
+    return true;
+  }
+  static remove(state, epId, castawayId){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep) return;
+    ep.roles = (ep.roles || []).filter(r => r.castawayId !== castawayId);
   }
 }
 
@@ -663,7 +711,7 @@ class ActiveRosterEventScoringStrategy {
       if(c.formerOwnerId && results[c.formerOwnerId]) results[c.formerOwnerId].formerRoster.push(c);
     });
     state.episodes.forEach(ep=>{
-      (ep.scoringEvents || []).forEach(ev=>{
+      ActiveRosterLogic.episodeEvents(state, ep).forEach(ev=>{
         state.players.forEach(p=>{
           const lineup = (ep.lineups && ep.lineups[p.id]) || [];
           if(lineup.includes(ev.castawayId)){
@@ -1193,8 +1241,9 @@ class EpisodeLogic {
   // paths. Creating through here also always carries lineups forward, which is what the Active Roster
   // league type expects of any episode however it came to exist.
   static create(state, number, postMerge){
-    // `events` is eliminations; `exiled` is the inert who-was-sent-away record (see addExiled).
-    const ep = { id:Core.uid('ep'), number, postMerge: !!postMerge, events:[], exiled:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
+    // `events` is eliminations; `exiled` is the inert who-was-sent-away record (see addExiled);
+    // `roles` is who took on a secret role this episode (see RoleLogic).
+    const ep = { id:Core.uid('ep'), number, postMerge: !!postMerge, events:[], exiled:[], roles:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
     state.episodes.push(ep);
     // Active Roster: start this episode's lineups from the previous one's so players adjust rather
     // than retype. No-op for every other league type (nothing has lineups to carry).
@@ -1208,9 +1257,10 @@ class EpisodeLogic {
     return EpisodeLogic.create(state, maxNum+1, previousEp ? previousEp.postMerge : false);
   }
   // An episode "has results" once anything that happened in it is recorded: an elimination, a
-  // scoring event, or an exile. That's what "this episode has been played" means everywhere below.
+  // scoring event, an exile or a role. That's what "this episode has been played" means everywhere
+  // below.
   static hasResults(ep){
-    return !!ep && ((ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0);
+    return !!ep && ((ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0 || (ep.roles||[]).length > 0);
   }
   // Whether the season is underway for THIS league -- the League Settings lock on league type and
   // ownership. It used to be "any episode exists", which was fine while episodes only appeared once
@@ -1818,6 +1868,7 @@ class Migrations {
       // Exile Island records (see addExiled). Nothing scores off these, so an old episode simply
       // starting empty is correct -- there's no history to reconstruct.
       if(!ep.exiled) ep.exiled = [];
+      if(!ep.roles) ep.roles = [];
     });
     delete s.settings.bonusCategories;
     return s;
@@ -1853,6 +1904,7 @@ return {
   addEpisode: EpisodeLogic.add, removeEpisode: EpisodeLogic.remove, updateEpisode: EpisodeLogic.update,
   renumberPlacements: EpisodeLogic.renumberPlacements, addElimination: EpisodeLogic.addElimination, removeElimination: EpisodeLogic.removeElimination,
   addExiled: EpisodeLogic.addExiled, removeExiled: EpisodeLogic.removeExiled,
+  RoleLogic, roleOf: RoleLogic.roleOf, addRole: RoleLogic.add, removeRole: RoleLogic.remove,
   ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,
   ensureNextEpisode: EpisodeLogic.ensureNextEpisode, seasonUnderway: EpisodeLogic.seasonUnderway, episodeHasResults: EpisodeLogic.hasResults,
   addBet: BetLogic.add, addBetToUpcoming: BetLogic.addToUpcoming, updateBet: BetLogic.update, removeBet: BetLogic.remove,

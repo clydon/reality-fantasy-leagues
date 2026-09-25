@@ -101,7 +101,19 @@ generic technique rather than specific to one show) so the next session doesn't 
 ## 8. Write the format
 
 Copy `src/lib/game/formats/survivor.js` as the template. It shows every piece a format has to supply:
-exit methods, winner, event catalog, merge, the wiki half and the research half. Register the new file
-in `formats/index.js`. The admin "Rules" picker lists whatever is registered, so switching a show over
-needs no other code. Keep event ids unique to the format rather than reusing Survivor's, unless the
-event really is the same thing.
+exit methods, winner, event catalog, merge, the wiki half and the research half. `traitors.js` shows
+the optional pieces:
+- `roles`: secret roles, recorded as season decisions.
+- `impliedEvents`: points that follow from an exit or a role, derived rather than stored.
+- `wiki.derivedEvents`: events worked out in code from other extracted data, such as votes.
+- `wiki.roles`: role facts from the read.
+- `wiki.castNote`: a warning added to the cast prompt.
+- `wiki.routineEliminations`: how many exits in one episode is normal.
+
+Register the new file in `formats/index.js`. The admin "Rules" picker lists whatever is registered, so
+switching a show over needs no other code. Keep event ids unique to the format rather than reusing
+Survivor's, unless the event really is the same thing.
+
+Prefer deriving over asking. If a result follows from something already recorded (an exit, a role,
+the vote record), derive it in code instead of asking the model or a reviewer for it separately. Two
+sources for one fact will eventually disagree.

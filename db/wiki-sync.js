@@ -434,7 +434,7 @@ async function callModel({ system, user, schema, schemaName, maxTokens, model = 
 // the prompt asks about Contestants and Factions for a Traitors season rather than Castaways and
 // Tribes. The wikitext is the authority either way; this only stops the prompt from describing a
 // table using a word that appears nowhere in it.
-async function extractCast(sectionWikitext, terms, model) {
+async function extractCast(sectionWikitext, terms, model, format) {
   const { parsed, usage } = await callModel({
     model: model || MODEL,
     schema: CastSchema,
@@ -446,7 +446,10 @@ async function extractCast(sectionWikitext, terms, model) {
       `${terms.tribe} (the first ${terms.tribe} column), not a later shuffled or merged one. ` +
       "Some of the text may be tables pulled in from transcluded templates, each marked with an " +
       "HTML comment naming where it came from; treat those as part of the same section. If the " +
-      "same person appears in more than one of those tables, return them ONCE.",
+      "same person appears in more than one of those tables, return them ONCE." +
+      // A format's own warning about its cast table (The Traitors: Faction is a secret role, not a
+      // group -- read as one, it would publish every Traitor as a tribe).
+      (format && format.wiki.castNote ? " " + format.wiki.castNote : ""),
     user:
       `Extract every ${terms.castaway} and the starting ${terms.tribes} from this season's ` +
       `${terms.Castaways} section.\n\n` +
@@ -580,6 +583,14 @@ function validateEpisodes(extracted, state, terms, format) {
     return null;
   };
 
+  // Whether two of the read's names are the same person -- the vote grid and the cast table spell
+  // people differently, so this compares who they resolve to, not the strings.
+  const personKey = (name) => {
+    const { castaway } = StateLogic.Core.findCastawayByName(state, name);
+    return castaway ? castaway.id : String(name || "").trim().toLowerCase();
+  };
+  const same = (a, b) => personKey(a) === personKey(b);
+
   const merge = extracted.mergeEpisode;
   if (merge !== null && merge !== undefined && (!Number.isInteger(merge) || merge < 1)) {
     problems.push(`implausible merge episode ${merge} (ignored)`);
@@ -623,7 +634,7 @@ function validateEpisodes(extracted, state, terms, format) {
     // Double boots are real but rare and always explicit -- more than one is exactly the shape a
     // misread rowspan/vote-count cell would produce (see extractEpisodes' prompt), so it's surfaced
     // as a note for the commissioner rather than silently trusted like a single elimination is.
-    if (elims.length > 1) {
+    if (elims.length > (format.wiki.routineEliminations || 1)) {
       const msg = `episode ${n} has ${elims.length} eliminations (${elims.map((e) => e.name).join(", ")}) -- double-check this against the source before applying`;
       problems.push(msg);
       elimProblems.push(msg);
@@ -643,8 +654,11 @@ function validateEpisodes(extracted, state, terms, format) {
       }
     }
 
+    // The read's own events, plus any the format works out from the rest of it (The Traitors: Round
+    // Table outcomes from the recorded votes), all held to the same checks below.
+    const derived = format.wiki.derivedEvents ? format.wiki.derivedEvents(ep, extracted, same) : [];
     const evs = [];
-    for (const sev of ep.events || []) {
+    for (const sev of [...(ep.events || []), ...derived]) {
       const c = resolve(sev && sev.name, `episode ${n} ${sev && sev.type}`);
       if (!c) continue;
       // The format's own sanity checks (Survivor: no zero-votes-safe for someone voted out that
@@ -683,7 +697,23 @@ function validateEpisodes(extracted, state, terms, format) {
     }
   }
 
-  if (!epsOut.length && !eventsOut.length && !unmatched.length) fatal.push("nothing extracted at all");
+  // Secret roles (The Traitors), resolved like everything else. One per person: the earliest wins,
+  // since a role once taken holds until another decision says otherwise.
+  const rolesOut = [];
+  const roleClaims = format.wiki.roles ? format.wiki.roles(extracted) : [];
+  for (const r of [...roleClaims].sort((a, b) => a.episode - b.episode)) {
+    if (!Number.isInteger(r.episode) || r.episode < 1) continue;
+    const c = resolve(r.name, `episode ${r.episode} ${r.role}`);
+    if (!c) continue;
+    if (rolesOut.some((x) => x.castawayKey === c.id)) {
+      const msg = `${c.name} is listed as ${r.role} more than once (kept episode ${rolesOut.find((x) => x.castawayKey === c.id).episode})`;
+      problems.push(msg); elimProblems.push(msg);
+      continue;
+    }
+    rolesOut.push({ episode: r.episode, name: c.name, role: r.role, castawayKey: c.id });
+  }
+
+  if (!epsOut.length && !eventsOut.length && !rolesOut.length && !unmatched.length) fatal.push("nothing extracted at all");
 
   // How much of this is new is the commissioner's actual question, so compute it rather than making
   // them diff by eye.
@@ -700,6 +730,7 @@ function validateEpisodes(extracted, state, terms, format) {
     dropped,
     eliminations: { episodes: epsOut, mergeEpisode: Number.isInteger(merge) ? merge : null, problems: elimProblems },
     scoringEvents: { episodes: eventsOut, mergeEpisode: Number.isInteger(merge) ? merge : null, problems: eventProblems },
+    roles: rolesOut.map(({ episode, name, role }) => ({ episode, name, role })),
     counts: {
       episodes: seenEpisodes.size,
       eliminations: epsOut.reduce((a, e) => a + e.eliminations.length, 0),
@@ -738,7 +769,8 @@ async function extractCastForSeason(pool, ctx, opts) {
     throw new Error(sectionNotFound("cast", page, candidates) + "\nSet the right one as the Cast section in Admin > Shows & Seasons.");
   }
   const expanded = await expandTranscludedTables(section.text, apiUrl);
-  const provenance = baseProvenance(showSlug, season, page, apiUrl, expanded.pages, { castSection: section.title });
+  // The format words part of the cast prompt (castNote), so a read under another one isn't reused.
+  const provenance = baseProvenance(showSlug, season, page, apiUrl, expanded.pages, { castSection: section.title, format: ctx.format.id });
 
   const reusable = await cachedExtraction(pool, showId, season, "cast", provenance, opts);
   if (reusable) return reusable;
@@ -747,7 +779,7 @@ async function extractCastForSeason(pool, ctx, opts) {
     `[wiki-sync] "${section.title}" section: ${expanded.text.length} chars (rev ${page.revisionId})` +
       (section.matched.toLowerCase() === section.title.toLowerCase() ? "" : ` [matched "${section.matched}"]`)
   );
-  const { cast, usage } = await extractCast(expanded.text, terms, opts.model);
+  const { cast, usage } = await extractCast(expanded.text, terms, opts.model, ctx.format);
   logUsage(usage);
   // What this read actually cost to make, for the admin panel's cost line.
   provenance.model = usage.model;
@@ -946,6 +978,10 @@ async function stageSeasonEpisodes(pool, ctx, extraction, opts = {}) {
     for (const ev of ep.events) {
       items.push({ episode: ep.number, postMerge: ep.postMerge, kind: "event", name: ev.name, method: "", eventType: ev.type, confidence: ev.confidence });
     }
+  }
+  // Roles read off a stated column (the Contestants table's Faction), so as trustworthy as an exit.
+  for (const r of checked.roles) {
+    items.push({ episode: r.episode, postMerge: false, kind: "role", name: r.name, method: r.role, eventType: "", confidence: "high" });
   }
 
   // Named in the result rather than buried in the console: results nobody will ever see unless the

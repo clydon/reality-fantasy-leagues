@@ -118,7 +118,13 @@ declare const StateLogic: {
     carryForwardLineups(state: LeagueState, epId: string): boolean;
     addEvent(state: LeagueState, epId: string, type: string, castawayId: string): ScoringEvent | null;
     removeEvent(state: LeagueState, epId: string, eventId: string): void;
+    /** Recorded events plus the ones the format implies from exits and roles (`implied: true`). */
+    episodeEvents(state: LeagueState, ep: Episode): ScoringEvent[];
   };
+  /** The role someone holds as of an episode (or now); null for a format without roles. */
+  roleOf(state: LeagueState, castawayId: string, throughEpisode?: number): string | null;
+  addRole(state: LeagueState, epId: string, castawayId: string, role: string): boolean;
+  removeRole(state: LeagueState, epId: string, castawayId: string): void;
   getPlayer(state: LeagueState, id: string): Player | undefined;
   getCastaway(state: LeagueState, id: string): Castaway | undefined;
   computeScores(state: LeagueState): ScoreRow[];

@@ -79,7 +79,14 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
       <div className="flex flex-col gap-1.5">
         {StateLogic.formatOf(state).events.map((ev) => (
           <label key={ev.id} className="flex items-center justify-between gap-2 text-sm">
-            <span>{ev.label}</span>
+            <span>
+              {ev.label}
+              {ev.implied && (
+                <span className="ml-1 text-xs text-muted-foreground" title="Scored automatically from how they left or their role">
+                  (automatic)
+                </span>
+              )}
+            </span>
             <Input
               type="number"
               className="w-16"

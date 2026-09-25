@@ -29,6 +29,7 @@ function nameOf(d: SeasonDecision) {
 function labelFor(d: SeasonDecision, format: GameFormat): string {
   if (d.kind === "elimination") return d.applied?.method || d.method;
   if (d.kind === "exiled") return "Exile Island";
+  if (d.kind === "role") return `Became ${d.applied?.method || d.method}`;
   const type = d.applied?.eventType || d.event_type;
   return format.events.find((e) => e.id === type)?.label ?? type;
 }
@@ -86,7 +87,7 @@ export function EpisodeDecisions({
     if (list) list.push(d);
     else groups.set(tribe, [d]);
   }
-  const kindOrder = (d: SeasonDecision) => (d.kind === "elimination" ? 0 : 1);
+  const kindOrder = (d: SeasonDecision) => (d.kind === "elimination" ? 0 : d.kind === "role" ? 1 : 2);
   const sortRows = (a: SeasonDecision, b: SeasonDecision) =>
     Number(!exited.has(nameOf(a).toLowerCase())) - Number(!exited.has(nameOf(b).toLowerCase())) ||
     nameOf(a).localeCompare(nameOf(b)) ||
@@ -142,8 +143,11 @@ function DecisionRow({
   const [error, setError] = useState<string | null>(null);
   const member = castFor(cast, nameOf(d));
   const [castawayName, setCastawayName] = useState(member?.name ?? "");
-  const [method, setMethod] = useState(d.applied?.method || d.method || format.exitMethods[0]);
-  const [eventType, setEventType] = useState(d.applied?.eventType || d.event_type || format.events[0].id);
+  // An exit method for an elimination, a role value for a role.
+  const methodChoices = d.kind === "role" ? format.roles?.values ?? [] : format.exitMethods;
+  const eventChoices = format.events.filter((e) => !e.implied);
+  const [method, setMethod] = useState(d.applied?.method || d.method || methodChoices[0]);
+  const [eventType, setEventType] = useState(d.applied?.eventType || d.event_type || eventChoices[0]?.id);
 
   async function decide(action: "accept" | "reject", edits?: { castawayName?: string; method?: string; eventType?: string }) {
     setBusy(true);
@@ -183,7 +187,7 @@ function DecisionRow({
         {d.applied && (
           <span className="text-[0.65rem] text-muted-foreground" title="Corrected before accepting">
             (was {d.castaway_name}
-            {d.kind === "elimination" && d.applied.method && d.applied.method !== d.method ? `, ${d.method}` : ""}
+            {(d.kind === "elimination" || d.kind === "role") && d.applied.method && d.applied.method !== d.method ? `, ${d.method}` : ""}
             {d.kind === "event" && d.applied.eventType && d.applied.eventType !== d.event_type ? `, ${d.event_type}` : ""})
           </span>
         )}
@@ -230,16 +234,16 @@ function DecisionRow({
               </option>
             ))}
           </Select>
-          {d.kind === "elimination" && (
+          {(d.kind === "elimination" || d.kind === "role") && (
             <Select size="sm" value={method} onChange={(e) => setMethod(e.target.value)}>
-              {format.exitMethods.map((m) => (
+              {methodChoices.map((m) => (
                 <option key={m}>{m}</option>
               ))}
             </Select>
           )}
           {d.kind === "event" && (
             <Select size="sm" value={eventType} onChange={(e) => setEventType(e.target.value)}>
-              {format.events.map((e) => (
+              {eventChoices.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.label}
                 </option>
@@ -252,7 +256,7 @@ function DecisionRow({
             onClick={() =>
               decide("accept", {
                 castawayName,
-                method: d.kind === "elimination" ? method : undefined,
+                method: d.kind === "elimination" || d.kind === "role" ? method : undefined,
                 eventType: d.kind === "event" ? eventType : undefined,
               })
             }

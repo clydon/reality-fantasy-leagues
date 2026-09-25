@@ -1,10 +1,21 @@
 // Types for formats/index.js (plain CommonJS so db/*.js can require it under bare node). Only the parts
-// TypeScript callers use; the wiki and research halves are read by the connectors in db/.
+// TypeScript callers use; the wiki and research halves are otherwise read by the connectors in db/.
 
 export interface ScoringEventDef {
   id: string;
   label: string;
   defaultPoints: number;
+  /** Follows from an exit or a role (impliedEvents), so it's never added or reviewed on its own. */
+  implied?: boolean;
+}
+
+export interface FormatRoles {
+  /** What everyone is until a role decision says otherwise ("Faithful"). */
+  default: string;
+  /** The values a role decision can record ("Traitor", "Recruited Traitor"). */
+  values: string[];
+  /** The role a recorded value makes someone ("Traitor"). */
+  roleFor(value: string): string;
 }
 
 export interface GameFormat {
@@ -17,6 +28,12 @@ export interface GameFormat {
   events: ScoringEventDef[];
   /** Whether episodes carry a post-merge flag. */
   hasMerge: boolean;
+  /** Secret roles (The Traitors). Absent for shows without them. */
+  roles?: FormatRoles;
+  research: {
+    /** One research answer as short phrases for a reviewer. */
+    notes(entry: Record<string, unknown>): string[];
+  };
 }
 
 export const FORMATS: Record<string, GameFormat>;
