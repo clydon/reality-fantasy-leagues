@@ -1532,17 +1532,36 @@ Cost, honestly: search results enter the context as input tokens, so this is dea
 the table extraction (roughly $0.10–0.40 against ~$0.25 for a whole season of tables, at
 `claude-opus-5` rates). It buys facts not otherwise obtainable.
 
-**Verified** with 25 checks against fake providers and a local stub HTTP server standing in for
+**Verified** with 24 checks against fake providers and a local stub HTTP server standing in for
 Gemini and Grok (both dialects of the generated JSON Schema; thinking parts filtered out of Gemini's
 answer; grounding chunks and Grok citations recorded from either place the API puts them; a
 `MAX_TOKENS`/`length` stop refused rather than half-saved; a 400 about schema-plus-tools becoming a
 fallback while every other 400 stays a failure; a key sent as a header and never in a query string),
 plus 10 against the real Postgres (season cast preferred over league roster, `--dry` writing
 nothing, provenance round-trip, cache hit making no call, `--force` replacing rather than stacking,
-and a checklist missing somebody refused with the previous row left intact). **Not** verified: a
-real call to any of the three providers — this sandbox has no credentials and no outbound reach to
-either the wiki or a search API, so the first live `--dry` run is yours. Judge it on one episode per
-provider before wiring any of it into scoring.
+and a checklist missing somebody refused with the previous row left intact).
+
+**And, once a Gemini key was available, against the real API** — which answered the one question a
+stub can't. Google's validator accepts the sanitized checklist schema as-is (the whole 20-field
+per-person object, nullable enums and all), and the three-valued design held up on a live model
+rather than only on paper: asked about a cast list that deliberately mixed two real Survivor 44
+castaways with two people who were never in that season, it came back `high` confidence with sources
+for the two real ones and `unknown` across the board with **zero** sources for the two it had
+nothing on. That is exactly the behaviour the `yes`/`no`/`unknown` split exists to get, and it's the
+first evidence it actually happens.
+
+**What that key could not do: search.** Google Search grounding has *no* free-tier quota — on a
+project without billing, plain generation and structured output both return 200 while every request
+carrying `google_search` returns `429 ... limit: 0`. It reads like rate limiting and isn't, so the
+Gemini path now says so in the error and names the two ways out. What remains unverified is
+therefore grounded search end to end, and any call to Grok (no key here): whether Gemini accepts
+grounding *and* a response schema in one request, and how good the answers get once it's really
+reading pages. Judge that on one episode per provider before wiring any of it into scoring.
+
+A note on model ids: the Gemini default is the `gemini-pro-latest` **alias**, not a pinned id,
+unlike the wiki connector's `claude-opus-5`. Google retires pinned ids out from under working code —
+`gemini-2.5-flash` already answers 404 with "no longer available to new users" on a fresh key — so a
+pin here rots; `--model` / `RESEARCH_MODEL` is how to pin one deliberately.
 
 Nothing consumes `episode_research` yet: the answers it can produce (votes received, idol found, sat
 out, advantage used against them) have no event types or point values in `settings.eventPoints`, and

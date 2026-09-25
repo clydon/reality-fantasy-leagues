@@ -478,7 +478,11 @@ const GEMINI_BASE = process.env.GEMINI_API_BASE || "https://generativelanguage.g
 
 const geminiProvider = {
   id: "gemini",
-  defaultModel: "gemini-2.5-pro",
+  // An alias, not a pinned id, unlike the Anthropic model above. Google retires pinned ids out from
+  // under existing code -- `gemini-2.5-flash` already answers 404 with "no longer available to new
+  // users" on a fresh key -- so a pin here is a time bomb, and --model / RESEARCH_MODEL is how to
+  // pin one deliberately when a run has to be reproducible.
+  defaultModel: "gemini-pro-latest",
   credentialError() {
     if (geminiKey()) return null;
     return "Set GEMINI_API_KEY (or GOOGLE_API_KEY) in .env.local.";
@@ -536,10 +540,42 @@ function geminiKey() {
   return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 }
 
-function geminiCall(model, body) {
-  // The key goes in a header, not the query string, so it can't end up in a log line or a proxy's
-  // access log the way ?key= does.
-  return postJson(`${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`, { "x-goog-api-key": geminiKey() }, body, "Gemini");
+async function geminiCall(model, body) {
+  try {
+    // The key goes in a header, not the query string, so it can't end up in a log line or a proxy's
+    // access log the way ?key= does.
+    return await postJson(
+      `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`,
+      { "x-goog-api-key": geminiKey() },
+      body,
+      "Gemini"
+    );
+  } catch (err) {
+    throw geminiHint(err, body);
+  }
+}
+
+// Two failures that are certain to be hit and that Google's own message doesn't explain. Measured,
+// not guessed: on a free-tier key, plain generation and structured output both return 200 while
+// anything carrying google_search returns 429 with "limit: 0" -- grounding simply has no free quota,
+// which reads like rate limiting and isn't.
+function geminiHint(err, body) {
+  const searched = !!(body && body.tools);
+  if (err.status === 429 && searched) {
+    return new Error(
+      `${err.message}\n` +
+        "Google Search grounding has NO free-tier quota -- a key on a project without billing gets " +
+        "429 for every grounded request while ungrounded ones succeed. Enable billing on the key's " +
+        "Google Cloud project, or run this with --provider=anthropic or --provider=grok."
+    );
+  }
+  if (err.status === 503) {
+    return new Error(`${err.message}\nThat is Google's capacity, not this request -- retry, or try --model=<another>.`);
+  }
+  if (err.status === 404 && /no longer available/i.test(err.message)) {
+    return new Error(`${err.message}\nPick a current model with --model=, or leave it unset to use the "latest" alias.`);
+  }
+  return err;
 }
 
 function geminiCandidate(json) {
