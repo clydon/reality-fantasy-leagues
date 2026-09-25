@@ -1449,5 +1449,15 @@ BETTER_AUTH_SECRET=<any random string>
 BETTER_AUTH_URL=http://localhost:<this app's dev port>
 ```
 
-then apply the schema once: `npx @better-auth/cli migrate`. No email provider needed for local
-dev — reset links get logged to the server console (see that section above).
+then apply Better Auth's own tables once: `npx @better-auth/cli migrate`. No email provider needed
+for local dev — reset links get logged to the server console (see that section above).
+
+**This app's own schema applies itself.** `npm run build` runs `node db/migrate.js` before
+`next build`, so every deploy brings the database up to date with the code being deployed. That
+wasn't always true, and the day it wasn't cost a feature: `0011_season_cast.sql` shipped to
+production unapplied and the admin's Cast button answered `relation "season_cast" does not exist`.
+The runner is idempotent (each file recorded in `schema_migrations`, applied once), takes a Postgres
+advisory lock so two concurrent deploys can't race, **skips with a warning and exits 0** when
+`AUTH_DATABASE_URL` isn't set (a build with no database configured is legitimate), and **fails the
+build** when a migration errors — shipping code whose schema didn't apply is the thing worth
+preventing. `npm run migrate` runs it on its own.

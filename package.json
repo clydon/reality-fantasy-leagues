@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node db/migrate.js && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "migrate": "node db/migrate.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
