@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
+import StateLogic from "@/lib/game/state-logic.js";
 
 // Pending wiki-connector DECISIONS for this league, one per elimination/event/exile (see
 // db/migrations/0009_wiki_extractions_and_items.sql) -- the per-episode "Reveal Outcome" panel
@@ -16,12 +17,21 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   const { leagueId } = await params;
   await requireLeagueRole(req, leagueId, "commissioner");
 
+  // Catch-up mode (StateLogic.RevealLogic): a league that started mid-season may only see episodes
+  // it has revealed. The connector's fan-out already refuses to WRITE past that gate, so this is
+  // belt and braces for one case it can't cover -- a league that synced first and switched into
+  // catch-up mode afterwards, whose table already holds the whole season. Those rows stay pending
+  // and simply stop being served until their episode is revealed.
+  const { rows: leagueRows } = await pool.query("SELECT state FROM leagues WHERE id=$1", [leagueId]);
+  const gate = leagueRows.length ? StateLogic.RevealLogic.revealedThrough(leagueRows[0].state) : null;
+
   const { rows } = await pool.query(
     `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, confidence, created_at
        FROM wiki_proposal_items
       WHERE league_id=$1 AND status='pending'
+        AND ($2::int IS NULL OR episode_number <= $2)
       ORDER BY episode_number ASC, created_at ASC`,
-    [leagueId]
+    [leagueId, gate]
   );
   return NextResponse.json({ items: rows });
 });

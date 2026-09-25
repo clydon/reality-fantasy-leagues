@@ -21,6 +21,20 @@ export function OverviewDashboard() {
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Overview</h2>
+      {/* Catch-up mode (StateLogic.RevealLogic): say so here, or the standings look inexplicably
+          early to anyone who knows how far the real season has run. Deliberately says nothing about
+          how much is left -- see catch-up-panel.tsx. */}
+      {StateLogic.RevealLogic.isCatchingUp(state) && (
+        <p className="mb-4 rounded-md border border-primary/30 bg-[#fbeee8] px-3 py-1.5 text-xs">
+          Catching up — this league has played through{" "}
+          <b>
+            {StateLogic.RevealLogic.revealedThrough(state) === 0
+              ? "none of the season yet"
+              : `episode ${StateLogic.RevealLogic.revealedThrough(state)}`}
+          </b>
+          . Later episodes stay hidden until the commissioner reveals them.
+        </p>
+      )}
       <NotificationsBanner />
       <SideBetsSection state={state} />
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">

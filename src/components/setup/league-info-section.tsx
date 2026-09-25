@@ -51,6 +51,8 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
   // While guiding, a step's control appears only once everything before it is answered. Afterwards
   // every control is simply visible, as it always was.
   const visible = (stepId: string) => !guiding || Setup.isStepVisible(state, leagueName, stepId);
+  const revealedThrough = StateLogic.RevealLogic.revealedThrough(state);
+  const catchingUp = revealedThrough !== null;
 
   // The catalog, not state-logic's SHOWS. Shared query with useShowTerms, so the Show picker and
   // every terminology label in the app come from one fetch. In mock mode there's no real session,
@@ -258,6 +260,24 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
           </label>
         )}
 
+        {/* Catch-up mode (StateLogic.RevealLogic). Asked during guided setup because it's a decision
+            about a season that may already be in progress, and it stops being worth anything the
+            moment the connector has filed the results the league was trying not to see. Locked once
+            something has been revealed -- there's no putting an episode back. */}
+        {visible("pace") && state.settings.wikiSeason != null && (
+          <label className="flex items-center gap-1.5 text-sm">
+            Results:
+            <Select
+              value={catchingUp ? "catchup" : "live"}
+              disabled={!canManage || revealedThrough !== null && revealedThrough > 0}
+              onChange={(e) => updateSetting("revealedThroughEpisode", e.target.value === "catchup" ? 0 : null)}
+            >
+              <option value="live">Live — as the wiki has them</option>
+              <option value="catchup">Catch up — start at episode 1, reveal one at a time</option>
+            </Select>
+          </label>
+        )}
+
         {visible("ownership") && leagueType.hasRoster && (
           <label className="flex items-center gap-1.5 text-sm">
             Ownership:
@@ -283,6 +303,16 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
       ) : null}
 
       {visible("type") && <p className="mt-2 text-xs text-muted-foreground">{leagueType.description}</p>}
+
+      {visible("pace") && state.settings.wikiSeason != null && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {catchingUp
+            ? revealedThrough === 0
+              ? `Catching up: this league starts at the beginning of the season whatever the wiki already knows. Reveal episodes one at a time from the Episodes tab.`
+              : `Catching up: revealed through episode ${revealedThrough}. Locked now that the season has started — reveal the rest from the Episodes tab.`
+            : `Live: results are offered for review as soon as the connector reads them. Switch to catch up if your league is starting a season that has already aired episodes.`}
+        </p>
+      )}
 
       {/* Setup-time nudge toward shared ownership, per Feature C's "critically suggested, not
           required" framing -- deliberately advice, never a block, and only while exclusive is still

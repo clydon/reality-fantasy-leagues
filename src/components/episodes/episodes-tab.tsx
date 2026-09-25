@@ -7,6 +7,7 @@ import { useMutate } from "@/lib/use-mutate";
 import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
 import { EpisodeCard } from "./episode-card";
+import { CatchUpPanel } from "./catch-up-panel";
 import { Button } from "@/components/ui/button";
 
 // Port of renderEpisodes() (public/app.js): + Add New Episode button, then episode cards newest
@@ -51,6 +52,10 @@ export function EpisodesTab() {
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Episodes</h2>
+      {/* Above the episode list on purpose: in a catch-up league this is the control that makes the
+          next episode exist at all, so it belongs before the episodes it produces. Renders nothing
+          for a league that isn't catching up. */}
+      <CatchUpPanel state={state} onRevealed={refetch} />
       {canManage && (
         <div className="mb-4">
           <Button onClick={handleAddEpisode}>+ Add New Episode</Button>

@@ -995,6 +995,72 @@ that fires twice before anyone reviews replaces its own earlier suggestion inste
 duplicates. Rejected proposals are kept as resolved rows rather than deleted, so a rejected
 suggestion doesn't reappear looking new on the next run.
 
+### Catch-up mode (a league that starts mid-season plays from episode 0)
+
+The connector reads a **whole season** at once, which is wrong for a league that forms in week 4:
+its first sync would hand the commissioner every elimination to date before anyone has drafted.
+Catch-up mode lets that league play episode 1 as though it were airing tonight.
+
+One integer does it — `settings.revealedThroughEpisode` (`StateLogic.RevealLogic`):
+
+- `null` — **live**. No gate. Every league behaved this way before this existed, and an absent
+  setting reads as null, so there was no migration and no existing league changed behaviour.
+- `0..n` — **catching up**. Episodes 1..n are visible; n+1 and beyond do not exist as far as this
+  league is concerned. `0` is the starting line.
+
+**It derives, it doesn't snapshot** — that was the design decision, and it went against the way the
+feature was first described (store a copy of cast + episode data per episode, taken as the season
+aired). Snapshots only work for a season somebody was already tracking before it premiered, which
+is exactly the case this feature *isn't* for, and there turned out to be nothing spoiler-bearing to
+snapshot that isn't already keyed by episode: the episode extraction carries an episode number on
+every decision, and the cast extraction reads only name, original tribe and photo — all
+pre-premiere facts, since it never looks at the wiki's Finish column. So the gate is applied to the
+one shared season extraction instead. One model call still serves a caught-up league and a live
+league on the same season, and the feature works on any season, tracked early or not.
+Full reasoning in `docs/PLAN-spoiler-free-catch-up.md`.
+
+**Enforced in three places**, each covering something the others can't:
+
+1. `fanOutEpisodes` (`db/wiki-sync.js`) never *writes* an item past the gate — so a hidden episode
+   also can't trigger the "results ready to review" push, which would name it.
+2. `GET /wiki-items` never *serves* one — which covers a league that synced first and switched into
+   catch-up mode afterwards, whose table already holds the whole season.
+3. `POST /api/leagues/:id/reveal-next` is the only thing that moves the pointer, and only forward.
+
+**Revealing** raises the pointer by one and re-runs the league-scoped fan-out against the season's
+**cached** extraction — no wiki read, no model call, the same cheap half a nightly run does per
+league. It makes the episode reviewable, not true: the commissioner still accepts, corrects or
+rejects each decision. Re-running is safe because `wiki_proposal_items`' identity index leaves
+already-decided rows alone, so an accepted item stays accepted and a rejected one stays rejected.
+There's no un-reveal — by the time anyone wants one the room has seen the episode, and may have
+scored it.
+
+The UI never says how much more the wiki knows. "3 more episodes are ready" is itself the spoiler:
+it tells a league how far the season has run, and a short remaining count says the finale is close.
+The Episodes panel talks only about the episode being revealed next; Overview carries a "catching
+up, played through episode N" marker so the standings don't look inexplicably early; the mode is
+picked in guided setup (once a season is chosen) and locks once anything has been revealed.
+
+**Also fixed here, and worth knowing on its own:** the wiki's cast table is ordered **by finish** on
+most season pages — first boot at the top, winner at the bottom — so importing it in table order
+handed every league the season's placement order in the cast list itself. `fanOutCast` now files the
+cast grouped by starting tribe, then alphabetically. That applies to every league, catch-up or not.
+
+**Verified** in two parts, no credential needed for either (the connector's expensive half is
+untouched). Twelve logic checks: an absent setting reading as live, a new league defaulting to live,
+pointer 0 hiding everything, `1..n` visible and `n+1` not, `revealNext` refusing in live mode,
+`updateSettings` normalizing `"3"`/`2.7`/`-5`/`""`/`"banana"`/`null` rather than storing them, the
+guided-setup step appearing only once a season is picked, the fan-out writing exactly episodes
+`[1,2,3,4]` / `[]` / `[1,2]` / `[1,2,3,4]` at pointers `null`/`0`/`2`/`4`, and a cast extraction in
+wiki finish order coming out tribe-grouped and alphabetical. Twelve more through the real routes and
+Postgres, against a seeded four-episode extraction: the settings route storing the pointer, an item
+filed *before* catch-up was enabled disappearing from `/wiki-items`, reveal returning pointer 1 and
+serving only episode 1, nothing past the gate reaching the table at all, accepting a revealed item
+still applying it to league state, a second reveal adding exactly episode 2, an accepted item not
+returning as pending, switching back to live serving everything again, and `reveal-next` 400ing in
+live mode. Then the whole loop in a browser: picking catch-up in League Settings, revealing episode
+1 from the Episodes tab, and the Overview marker.
+
 ### Running it on demand (Admin → Shows & Seasons)
 
 Every season row in the admin catalog has **Pull cast** and **Pull episodes** buttons

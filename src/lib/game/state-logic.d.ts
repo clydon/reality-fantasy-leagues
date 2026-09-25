@@ -85,6 +85,21 @@ declare const StateLogic: {
     isStepVisible(state: LeagueState, leagueName: string | null, stepId: string): boolean;
     complete(state: LeagueState): void;
   };
+  /**
+   * Catch-up mode: how much of a season this league may see. `revealedThrough` is null in live
+   * mode (no gate, every league's behaviour before this existed) or the highest episode number the
+   * commissioner has revealed. See RevealLogic's comment in state-logic.js for why this is a
+   * derived gate rather than per-episode snapshots of the wiki payload.
+   */
+  RevealLogic: {
+    revealedThrough(state: LeagueState): number | null;
+    isCatchingUp(state: LeagueState): boolean;
+    nextEpisode(state: LeagueState): number | null;
+    isRevealed(state: LeagueState, episodeNumber: number): boolean;
+    /** Advances the pointer by one and returns it; null (and a no-op) in live mode. */
+    revealNext(state: LeagueState): number | null;
+    normalize(value: unknown): number | null;
+  };
   getLeagueType(state: LeagueState): LeagueType;
   // Capability AND commissioner choice, together -- see their comment in state-logic.js. Anything
   // that shows or starts a mid-season round should ask through these, not read either half alone.

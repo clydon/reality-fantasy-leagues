@@ -293,6 +293,29 @@ function singular(word) {
   return word;
 }
 
+// The show's own vocabulary, in every form the prompts and messages need. Normalized to singular
+// first so a term entered either way ("Castaway" or "Castaways") yields the same set. Its own
+// function because the reveal path (fanOutCachedEpisodes) needs the terms from a catalog row
+// WITHOUT resolving a season context -- that would fetch the wiki, which a reveal must never do.
+function termsFor(entry) {
+  const castawayTerm = singular(((entry && entry.castaway_term) || "Castaway").trim());
+  const tribeTerm = singular(((entry && entry.tribe_term) || "Tribe").trim());
+  return {
+    castawayTerm,
+    tribeTerm,
+    terms: {
+      Castaway: castawayTerm,
+      Castaways: plural(castawayTerm),
+      castaway: castawayTerm.toLowerCase(),
+      castaways: plural(castawayTerm).toLowerCase(),
+      Tribe: tribeTerm,
+      Tribes: plural(tribeTerm),
+      tribe: tribeTerm.toLowerCase(),
+      tribes: plural(tribeTerm).toLowerCase(),
+    },
+  };
+}
+
 // What a season page might call its cast section, best guess first:
 //   1. the show's explicit override, when an admin set one (shows.cast_section_heading)
 //   2. the show's own castaway_term, pluralized then singular -- which is how Survivor's
@@ -825,9 +848,22 @@ async function fanOutCast(pool, extraction, league, terms, opts) {
     throw new Error(`failed validation, nothing filed:\n    - ${checked.fatal.join("\n    - ")}`);
   }
 
+  // Re-ordered before filing, and that IS a spoiler fix rather than tidiness: the wiki's cast table
+  // is ordered BY FINISH on most season pages -- first boot at the top, winner at the bottom -- so
+  // importing it in table order hands a league the season's placement order in the cast list itself,
+  // before a single episode has been reviewed. Grouping by starting tribe (in the order the table
+  // introduced the tribes, which is not a result) and then alphabetically says nothing the cast
+  // didn't already know on day one. Nothing downstream depends on the incoming order: applyCastImport
+  // is additive and matches on name.
+  const tribeRank = new Map(checked.tribes.map((t, i) => [t.name.toLowerCase(), i]));
+  const spoilerFreeOrder = [...checked.castaways].sort((a, b) => {
+    const ra = a.tribeName ? tribeRank.get(a.tribeName.toLowerCase()) ?? checked.tribes.length : checked.tribes.length;
+    const rb = b.tribeName ? tribeRank.get(b.tribeName.toLowerCase()) ?? checked.tribes.length : checked.tribes.length;
+    return ra - rb || a.name.localeCompare(b.name);
+  });
   const payload = {
     tribes: checked.tribes,
-    castaways: checked.castaways.map((c) => ({
+    castaways: spoilerFreeOrder.map((c) => ({
       name: c.name,
       tribeName: c.tribeName,
       photoUrl: (c.photoFile && photos[c.photoFile]) || null,
@@ -942,16 +978,32 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
     }
   }
 
+  // CATCH-UP GATE (StateLogic.RevealLogic). A league that started mid-season can be deliberately
+  // behind the wiki: it may see episodes 1..n and nothing past that. Filtering here, before anything
+  // is written, is what keeps the rest of the app honest -- an item that never lands in the table
+  // can't show up on an episode card, can't be accepted by accident, and can't trigger the "results
+  // ready to review" push, which would name an episode the league hasn't reached. Live leagues
+  // (pointer null, which is every league that predates this) filter nothing.
+  //
+  // The SEASON half of the run above is untouched: the extraction is still read and cached once for
+  // everyone, so a caught-up league and a live league on the same season still cost one model call
+  // between them. Raising the pointer later re-runs this fan-out against that same cache -- see
+  // fanOutCachedEpisodes.
+  const gate = StateLogic.RevealLogic.revealedThrough(state);
+  const held = gate === null ? [] : items.filter((it) => it.episode > gate);
+  const visible = gate === null ? items : items.filter((it) => it.episode <= gate);
+
   const c = checked.counts;
   const counts =
     `${items.length} decisions across ${c.episodes} episodes ` +
-    `(${c.eliminations} eliminations, ${c.newEliminations} new; ${c.events} events, ${c.lowConfidence} low-confidence)`;
+    `(${c.eliminations} eliminations, ${c.newEliminations} new; ${c.events} events, ${c.lowConfidence} low-confidence)` +
+    (held.length ? `; ${held.length} held back past revealed episode ${gate}` : "");
   console.log(`[wiki-sync]   ${league.name}: ${counts}`);
   if (opts.dry) {
-    console.log(`[wiki-sync]   --dry: would write ${items.length} items for ${league.name}`);
+    console.log(`[wiki-sync]   --dry: would write ${visible.length} items for ${league.name}`);
     return { filed: false, summary: `${counts} — dry run, nothing written` };
   }
-  if (!items.length) return { filed: false, summary: `${counts} — nothing to write` };
+  if (!visible.length) return { filed: false, summary: `${counts} — nothing to write` };
 
   // All of one league's items in one transaction: a fan-out that dies halfway through shouldn't
   // leave a commissioner reviewing half an episode.
@@ -960,7 +1012,7 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
   let inserted = 0;
   try {
     await client.query("BEGIN");
-    for (const it of items) {
+    for (const it of visible) {
       // Leaves an already-accepted/rejected row completely alone (the WHERE) -- re-running must never
       // resurrect a decision the commissioner already made. See 0009's identity-index comment.
       //
@@ -993,9 +1045,11 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
   }
   const written =
     `${touched} pending item(s) written (${inserted} new)` +
-    (items.length - touched ? `, ${items.length - touched} already decided and left alone` : "");
+    (visible.length - touched ? `, ${visible.length - touched} already decided and left alone` : "");
   console.log(`[wiki-sync]   ${league.name}: ${written}`);
-  if (inserted) await notifyCommissionersOfReview(pool, league, inserted);
+  // opts.silent: a commissioner who just clicked "Reveal episode 4" does not need a push telling
+  // them episode 4's results are ready -- they're looking at the page that shows them.
+  if (inserted && !opts.silent) await notifyCommissionersOfReview(pool, league, inserted);
   return { filed: touched > 0, summary: `${counts} — ${written}` };
 }
 
@@ -1152,19 +1206,8 @@ async function resolveSeasonContext(pool, showSlug, season, label) {
     );
   }
   // The show's own vocabulary, used both to guess the cast section heading and to word the
-  // extraction prompt. Normalized to singular so a term entered either way yields the same forms.
-  const castawayTerm = singular((entry.castaway_term || "Castaway").trim());
-  const tribeTerm = singular((entry.tribe_term || "Tribe").trim());
-  const terms = {
-    Castaway: castawayTerm,
-    Castaways: plural(castawayTerm),
-    castaway: castawayTerm.toLowerCase(),
-    castaways: plural(castawayTerm).toLowerCase(),
-    Tribe: tribeTerm,
-    Tribes: plural(tribeTerm),
-    tribe: tribeTerm.toLowerCase(),
-    tribes: plural(tribeTerm).toLowerCase(),
-  };
+  // extraction prompt.
+  const { terms, castawayTerm, tribeTerm } = termsFor(entry);
   if (!entry.wiki_page_title) {
     console.log(
       `[wiki-sync] no catalog page title for ${showSlug} season ${season} -- guessing "${pageTitle}". ` +
@@ -1205,6 +1248,40 @@ async function runForLeague(pool, command, leagueId, opts) {
   const ctx = await resolveSeasonContext(pool, showSlug, season, `League "${league.name}"`);
   const extraction = await EXTRACTORS[command](pool, ctx, opts);
   await FANOUTS[command](pool, extraction, league, ctx.terms, opts);
+}
+
+// The reveal path: fan out ONE league's episode decisions from the extraction already cached for
+// its season (db/migrations/0009's wiki_extractions), with no wiki read and no model call.
+//
+// This is what POST /api/leagues/:id/reveal-next calls after raising the league's reveal pointer.
+// Re-running the fan-out is all a reveal has to do, because the gate lives in fanOutEpisodes: the
+// same cached payload that filed episodes 1-3 last time files 1-4 now, and the identity index on
+// wiki_proposal_items means the three it already wrote are left exactly as they are (accepted ones
+// stay accepted, rejected ones stay rejected -- see that migration's comment).
+//
+// Returns null when there's nothing cached for the season yet, which is a real and unremarkable
+// state: the wiki hasn't been read since that episode aired. The reveal still counts; the next sync
+// fills it in.
+async function fanOutCachedEpisodes(pool, league, opts = {}) {
+  const { showSlug, season } = leagueSeasonOf(league);
+  if (!showSlug || !season) return null;
+
+  const { rows } = await pool.query(
+    `SELECT s.id AS show_id, s.castaway_term, s.tribe_term
+       FROM shows s WHERE s.slug = $1`,
+    [showSlug]
+  );
+  if (!rows.length) return null;
+  const { terms } = termsFor(rows[0]);
+
+  const { rows: cached } = await pool.query(
+    "SELECT id, payload, provenance FROM wiki_extractions WHERE show_id=$1 AND season_number=$2 AND kind='episodes'",
+    [rows[0].show_id, season]
+  );
+  if (!cached.length) return null;
+
+  // silent by default: the person who triggered this is looking at the page that shows the result.
+  return fanOutEpisodes(pool, { ...cached[0], cached: true }, league, terms, { silent: true, ...opts });
 }
 
 // One SEASON, one kind -- what the admin catalog's per-season "Pull cast"/"Pull episodes" buttons
@@ -1349,6 +1426,7 @@ module.exports = {
   runAll,
   runForLeague,
   runForSeason,
+  fanOutCachedEpisodes,
   fanOutCast,
   fanOutEpisodes,
   sameRevisions,

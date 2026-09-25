@@ -344,6 +344,15 @@ export const api = {
   rejectWikiProposal: (leagueId: string, id: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "DELETE" }),
 
+  // Catch-up mode (StateLogic.RevealLogic): raise this league's reveal pointer by one episode and
+  // file that episode's connector decisions from the season's cached extraction. `filed` is the
+  // fan-out's own summary, `note` the reason nothing was filed (nothing cached yet, no cast yet).
+  revealNextEpisode: (leagueId: string) =>
+    localFetch<{ state: LeagueState; revealedThroughEpisode: number; filed: string | null; note: string | null }>(
+      `/api/leagues/${leagueId}/reveal-next`,
+      { method: "POST" }
+    ),
+
   // Per-item review (0009's wiki_proposal_items) -- the per-episode "Reveal Outcome" panel on the
   // Episode Card. One elimination/event/exile at a time, instead of a whole proposal payload.
   listWikiItems: (leagueId: string) => localFetch<{ items: WikiProposalItem[] }>(`/api/leagues/${leagueId}/wiki-items`),

@@ -19,6 +19,25 @@ export interface WikiSyncOptions {
   batch?: boolean;
 }
 
+/** What one league's fan-out did, as the CLI logs it and the admin UI shows it. */
+export interface FanOutResult {
+  filed: boolean;
+  summary: string;
+}
+
+/**
+ * Fans one league's episode decisions out from the extraction already CACHED for its season -- no
+ * wiki read, no model call. What a reveal runs after raising the league's catch-up pointer; the
+ * episode gate itself lives in the fan-out, so re-running it is the whole of a reveal. Resolves to
+ * null when nothing is cached for that season yet (the wiki hasn't been read since that episode
+ * aired), which is not an error.
+ */
+export function fanOutCachedEpisodes(
+  pool: Pool,
+  league: { id: string; name: string; state: unknown },
+  opts?: WikiSyncOptions & { silent?: boolean }
+): Promise<FanOutResult | null>;
+
 /**
  * Reads one (show, season) from the wiki once -- cache-aware, keyed on wiki revision ids -- then
  * fans the extraction out to every league tracking that season. Throws if the season itself can't

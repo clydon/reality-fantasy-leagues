@@ -991,7 +991,13 @@ class RosterLogic {
     });
     return added;
   }
-  static updateSettings(state, field, value){ state.settings[field]=value; }
+  static updateSettings(state, field, value){
+    // Generic setter (the PATCH route passes whatever the UI sends), with one normalized field:
+    // revealedThroughEpisode decides what a league is allowed to SEE, so a junk value must not
+    // quietly become a number that lets more through than the commissioner picked. See RevealLogic.
+    if(field === 'revealedThroughEpisode') value = RevealLogic.normalize(value);
+    state.settings[field]=value;
+  }
 }
 
 // ---------- ReplenishLogic ----------
@@ -1354,6 +1360,74 @@ class FinaleLogic {
 // (defaultState sets it). Every league that predates it has no such key, and `isComplete` treats
 // anything that isn't an explicit `false` as complete -- an established league is never sent back
 // through setup just because it never set a wikiSeason.
+// ---------- RevealLogic ----------
+// Catch-up mode: how much of a season a league is allowed to see.
+//
+// The wiki connector reads a WHOLE season at once (db/wiki-sync.js), which is right for the data
+// and wrong for a league that starts in week 4: its first sync would hand the commissioner every
+// elimination to date before anyone has drafted. A league that wants to play episode 1 as though it
+// were airing tonight needs the app to forget what it knows for a while.
+//
+// That's this: one integer per league, settings.revealedThroughEpisode.
+//
+//   null  -- LIVE. No gate. Every league behaved this way before catch-up existed, and every
+//            existing league still does (absent reads as null, so there's no migration).
+//   0..n  -- CATCHING UP. Episodes 1..n are visible; n+1 and beyond do not exist as far as this
+//            league is concerned. 0 is the starting line -- nothing revealed yet.
+//
+// Deliberately NOT a per-episode snapshot of the wiki payload, which was the other way to do this.
+// Snapshots only work for a season somebody was already tracking before it premiered, which is
+// exactly the case this feature ISN'T for, and there's nothing spoiler-bearing to snapshot that
+// isn't already keyed by episode: the episode extraction carries an episode number on every
+// decision, and the cast extraction reads only name, original tribe and photo -- all pre-premiere
+// facts (it never looks at the wiki's Finish column). So the gate derives from the one shared
+// season extraction instead, which means one model call still serves a caught-up league and a
+// spoiler-free one at the same time. See docs/PLAN-spoiler-free-catch-up.md.
+//
+// Enforced in three places, because each covers a case the others can't:
+//   1. the connector's fan-out (wiki-sync.js) -- never WRITES an item past the gate, so a
+//      commissioner is never pushed a notification about an episode they haven't revealed;
+//   2. GET /wiki-items -- never SERVES one, which also covers items filed before the league
+//      switched into catch-up mode;
+//   3. the reveal route -- the only thing that moves the pointer, and only ever forward.
+class RevealLogic {
+  // The pointer, or null for live mode. Anything stored that isn't a non-negative integer reads as
+  // live, matching how an older league with no such setting at all behaves.
+  static revealedThrough(state){
+    const v = (state.settings || {}).revealedThroughEpisode;
+    return Number.isInteger(v) && v >= 0 ? v : null;
+  }
+  static isCatchingUp(state){ return RevealLogic.revealedThrough(state) !== null; }
+  // The episode a reveal would show next, or null in live mode (nothing to reveal -- it's already
+  // all visible).
+  static nextEpisode(state){
+    const r = RevealLogic.revealedThrough(state);
+    return r === null ? null : r + 1;
+  }
+  // Whether this league may see a given episode number. Live mode says yes to everything.
+  static isRevealed(state, episodeNumber){
+    const r = RevealLogic.revealedThrough(state);
+    return r === null || Number(episodeNumber) <= r;
+  }
+  // Advances by one and returns the new pointer. Refuses in live mode rather than inventing a
+  // starting point -- "reveal the next episode" means nothing when nothing is hidden. One-way by
+  // design: once the room knows, it knows, and the decisions may already be applied.
+  static revealNext(state){
+    const r = RevealLogic.revealedThrough(state);
+    if(r === null) return null;
+    state.settings.revealedThroughEpisode = r + 1;
+    return r + 1;
+  }
+  // What updateSettings stores. null/''/undefined mean live; anything numeric is floored and
+  // clamped at 0; anything else is refused back to live rather than guessed at.
+  static normalize(value){
+    if(value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    if(!Number.isFinite(n)) return null;
+    return Math.max(0, Math.floor(n));
+  }
+}
+
 class SetupLogic {
   // Ordered, and the order is the point: each step is only offered once its predecessor is answered.
   //
@@ -1378,7 +1452,16 @@ class SetupLogic {
       { id:'type', label:'Choose a league type', done: !!st.leagueTypeId, defaulted: true,
         value: getLeagueType(state).name },
       { id:'ownership', label:'Choose how ownership works', done: !!st.ownershipMode, defaulted: true,
-        value: st.ownershipMode, applies: getLeagueType(state).hasRoster }
+        value: st.ownershipMode, applies: getLeagueType(state).hasRoster },
+      // Only worth asking once there IS a season to be behind, and defaulted like type/ownership so
+      // it can never stall the guide. It's asked here rather than left to League Settings because
+      // it's a decision about a season already in progress -- the answer stops mattering the moment
+      // the connector has filed the results the league was trying not to see.
+      { id:'pace', label:'Choose when results arrive', done: true, defaulted: true,
+        applies: hasSeason,
+        value: RevealLogic.isCatchingUp(state)
+          ? `catching up, through episode ${RevealLogic.revealedThrough(state)}`
+          : 'live' }
     ].filter(s => s.applies !== false);
   }
   // True once a commissioner has confirmed the basics -- or for any league predating guided setup.
@@ -1495,6 +1578,12 @@ class Migrations {
         // know what to fetch -- e.g. 44 means the "Survivor 44" wiki page. Null until a
         // commissioner sets it; the connector refuses to run without it rather than guessing.
         wikiSeason: null,
+        // Catch-up mode (see RevealLogic): null means live -- whatever the wiki knows is offered
+        // for review as soon as the connector reads it, which is what every league did before this
+        // existed. An integer means the league is deliberately behind: it may see episodes 1..n and
+        // nothing past that, so a league formed in week 4 can still play episode 1 as though it
+        // were airing tonight. 0 is the starting line.
+        revealedThroughEpisode: null,
         // Optional mid-season mechanics, both OFF until a commissioner turns them on -- plenty of
         // leagues never run either. Gated together with the league type's own capability; see
         // replenishAvailable/tradeAvailable above.
@@ -1641,7 +1730,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, RevealLogic, Migrations,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy
 };
 

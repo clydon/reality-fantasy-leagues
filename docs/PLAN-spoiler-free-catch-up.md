@@ -1,6 +1,21 @@
 # Plan: spoiler-free catch-up (a league that starts mid-season plays from episode 0)
 
-**Status:** Designed, not built. Written in response to: *"there's an edge case where someone
+**Status:** Implemented. See README's "Catch-up mode" section for what shipped. Three differences
+from the design below, all found while building it:
+
+1. **A third enforcement point.** The plan gated the connector's fan-out; that can't cover a league
+   that synced FIRST and switched into catch-up mode afterwards, whose `wiki_proposal_items` already
+   holds the whole season. `GET /wiki-items` filters on the pointer too, so those rows stay pending
+   and simply stop being served.
+2. **The guided-setup step is offered as soon as a season is picked**, rather than only for a season
+   the catalog marks `airing`/`completed`. A league can name a season the catalog doesn't have at
+   all (the free-text season field), and that league needs the choice as much as any other.
+3. **Revealing doesn't push.** `fanOutEpisodes` takes a `silent` option, because a commissioner who
+   just clicked "Reveal episode 4" does not need a notification telling them episode 4 is ready.
+
+Kept below as the original design record.
+
+Written in response to: *"there's an edge case where someone
 creates a league after the first episode or two have premiered and they don't want to know the
 details of those later episodes (maybe they want their friends to catch up and play as if it hadn't
 aired yet)."*

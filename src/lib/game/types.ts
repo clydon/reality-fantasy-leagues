@@ -118,6 +118,11 @@ export interface LeagueSettings {
   // capability -- see replenishAvailable/tradeAvailable in state-logic.js.
   replenishEnabled: boolean;
   tradeEnabled: boolean;
+  /**
+   * Catch-up mode (StateLogic.RevealLogic): null = live, an integer = this league may only see
+   * episodes 1..n. Absent on every league that predates it, which reads as null.
+   */
+  revealedThroughEpisode?: number | null;
   defaultBetPoints: number;
   // Same opt-in shape as replenishEnabled/tradeEnabled above, gated together with the league
   // type's own supportsFinalePredictions -- see finalePredictionsAvailable in state-logic.js.
