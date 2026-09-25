@@ -1,3 +1,4 @@
+import StateLogic from "@/lib/game/state-logic.js";
 import { Pool, type PoolClient } from "pg";
 import type { LeagueState } from "@/lib/game/types";
 import { HttpError } from "./http-error";
@@ -33,6 +34,9 @@ export async function withLeagueLock(
     if (!rows.length) throw new HttpError(404, "League not found");
     const state: LeagueState = rows[0].state;
     await mutatorFn(state, client);
+    // Every write leaves the league with an episode to play next (bets and picks always have
+    // somewhere to go; nobody creates episodes by hand). See EpisodeLogic.ensureNextEpisode.
+    StateLogic.ensureNextEpisode(state);
     await client.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), leagueId]);
     await client.query("COMMIT");
     return state;

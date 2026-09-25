@@ -36,13 +36,13 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const [name, setName] = useState(leagueName ?? "");
 
-  const draftStarted = StateLogic.isDraftStarted(state);
   const leagueType = StateLogic.getLeagueType(state);
   // Locks once EITHER the draft has started (classic-draft's own signal) OR any episode exists
   // (a league-type-agnostic "season is underway" signal, needed now that a second league type --
   // pickem -- exists whose isDraftStarted() is permanently false: without this, a pickem league
   // with weeks of logged picks could still switch to classic-draft and silently orphan them).
-  const seasonUnderway = draftStarted || state.episodes.length > 0;
+  // An EMPTY episode doesn't count: the upcoming one always exists now (ensureNextEpisode).
+  const seasonUnderway = StateLogic.seasonUnderway(state);
 
   const Setup = StateLogic.SetupLogic;
   const guiding = !Setup.isComplete(state);

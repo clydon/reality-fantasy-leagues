@@ -1215,17 +1215,63 @@ class EpisodeLogic {
     // Once the season hits the merge, every later episode is post-merge too — carry the flag forward.
     return EpisodeLogic.create(state, maxNum+1, previousEp ? previousEp.postMerge : false);
   }
-  // Keeps there always being an "upcoming" episode (one with no eliminations logged yet) so
-  // members always have somewhere to post/guess bets, without the commissioner needing to
-  // remember to add one right after every tribal. Stops once a Sole Survivor is crowned.
+  // An episode "has results" once anything that happened in it is recorded: an elimination, a
+  // scoring event, or an exile. That's what "this episode has been played" means everywhere below.
+  static hasResults(ep){
+    return !!ep && ((ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0);
+  }
+  // Whether the season is underway for THIS league -- the League Settings lock on league type and
+  // ownership. It used to be "any episode exists", which was fine while episodes only appeared once
+  // someone logged one. Now the upcoming episode always exists (ensureNextEpisode), so an empty one
+  // mustn't count: only a draft, a played episode, or picks already made do.
+  static seasonUnderway(state){
+    if(DraftLogic.isStarted(state)) return true;
+    return state.episodes.some(ep => EpisodeLogic.hasResults(ep) || (ep.picks||[]).length > 0);
+  }
+  // Live mode's half of ensureNextEpisode: the latest episode is the upcoming one until it has
+  // results, then the next one is created. Stops once a Sole Survivor is crowned.
   static ensureUpcoming(state){
     const seasonOver = state.castaways.some(c => c.exitMethod === 'Sole Survivor');
     if(seasonOver) return false;
     const maxNum = state.episodes.length ? Math.max(...state.episodes.map(e=>e.number)) : 0;
     const latest = state.episodes.find(e=>e.number===maxNum);
-    if(latest && latest.events.length === 0) return false;
+    if(latest && !EpisodeLogic.hasResults(latest)) return false;
     EpisodeLogic.create(state, maxNum+1, latest ? latest.postMerge : false);
     return true;
+  }
+  // THE rule: there is always an episode to play next, so bets, picks and lineups always have
+  // somewhere to go without anyone creating an episode by hand. Enforced server-side after every
+  // league write (withLeagueLock), at league creation, and on load for leagues that predate it.
+  //
+  //   catching up -- the next episode is the one after the reveal pointer: it exists (so it can be
+  //                  bet on) but its results stay hidden until it's revealed. Revealing it creates
+  //                  the one after.
+  //   live        -- the latest episode, until it has results; then the next one (ensureUpcoming).
+  //
+  // Once a Sole Survivor is crowned nothing more is created, and any trailing episode that is
+  // completely empty (no results, bets or picks) and numbered after the winner's episode is removed
+  // -- the reveal of the finale creates a "next" episode before anyone has confirmed the winner, and
+  // it shouldn't outlive that. Returns true if it changed anything.
+  static ensureNextEpisode(state){
+    if(!Array.isArray(state.episodes)) state.episodes = [];
+    const winner = (state.castaways||[]).find(c => c.exitMethod === 'Sole Survivor');
+    if(winner){
+      const finale = state.episodes.find(e => e.id === winner.exitEpisodeId);
+      if(!finale) return false;
+      const before = state.episodes.length;
+      state.episodes = state.episodes.filter(e =>
+        e.number <= finale.number || EpisodeLogic.hasResults(e) || (e.bets||[]).length > 0 || (e.picks||[]).length > 0);
+      return state.episodes.length !== before;
+    }
+    const revealed = RevealLogic.revealedThrough(state);
+    if(revealed !== null){
+      const next = revealed + 1;
+      if(state.episodes.some(e => e.number === next)) return false;
+      const prev = state.episodes.find(e => e.number === revealed);
+      EpisodeLogic.ensureEpisodeNumber(state, next, prev ? prev.postMerge : false);
+      return true;
+    }
+    return EpisodeLogic.ensureUpcoming(state);
   }
   // ---------- wiki import: eliminations and scoring events (connector phase 2) ----------
   // Both of these are the apply half of a reviewed proposal (db/wiki-sync.js -> wiki_proposals ->
@@ -1813,6 +1859,7 @@ return {
   renumberPlacements: EpisodeLogic.renumberPlacements, addElimination: EpisodeLogic.addElimination, removeElimination: EpisodeLogic.removeElimination,
   addExiled: EpisodeLogic.addExiled, removeExiled: EpisodeLogic.removeExiled,
   ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,
+  ensureNextEpisode: EpisodeLogic.ensureNextEpisode, seasonUnderway: EpisodeLogic.seasonUnderway, episodeHasResults: EpisodeLogic.hasResults,
   addBet: BetLogic.add, addBetToUpcoming: BetLogic.addToUpcoming, updateBet: BetLogic.update, removeBet: BetLogic.remove,
   addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,
   getOrCreateFinalePred: FinaleLogic.getOrCreatePrediction, setFinalePick: FinaleLogic.setPick, setFinaleWinnerPick: FinaleLogic.setWinnerPick,

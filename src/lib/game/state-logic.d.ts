@@ -204,6 +204,11 @@ declare const StateLogic: {
   removeExiled(state: LeagueState, epId: string, castawayId: string): void;
   /** Finds the episode with this number, creating it (and any gap before it) if missing. */
   ensureEpisodeNumber(state: LeagueState, number: number, postMerge: boolean, created?: number[]): Episode;
+  /** The always-an-episode-to-play-next rule; true if it changed anything. See EpisodeLogic. */
+  ensureNextEpisode(state: LeagueState): boolean;
+  /** Draft started, or any episode with results or picks -- the League Settings lock. */
+  seasonUnderway(state: LeagueState): boolean;
+  episodeHasResults(ep: Episode): boolean;
   nextPlacementOrder(state: LeagueState): number;
   updateBet(state: LeagueState, epId: string, betId: string, field: string, value: unknown): void;
   removeBetPrediction(state: LeagueState, epId: string, betId: string, predId: string): void;

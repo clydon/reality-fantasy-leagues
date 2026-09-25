@@ -3,12 +3,9 @@
 import { useQuery } from "@tanstack/react-query";
 import type { WikiProposalItem, ResearchProposalItem } from "@/lib/game/types";
 import { useLeagueStore, useCanManage } from "@/lib/store";
-import { useMutate } from "@/lib/use-mutate";
-import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
 import { EpisodeCard } from "./episode-card";
 import { CatchUpPanel } from "./catch-up-panel";
-import { Button } from "@/components/ui/button";
 
 // Port of renderEpisodes() (public/app.js): + Add New Episode button, then episode cards newest
 // first. renderUnsettledBetsPanel() isn't ported -- it's pure duplication of the "needs your
@@ -20,7 +17,6 @@ export function EpisodesTab() {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mode = useLeagueStore((s) => s.mode);
   const canManage = useCanManage();
-  const mutate = useMutate();
 
   const sorted = [...state.episodes].sort((a, b) => b.number - a.number);
   const latestNumber = sorted[0]?.number;
@@ -61,25 +57,12 @@ export function EpisodesTab() {
     refetchResearch();
   }
 
-  async function handleAddEpisode() {
-    await mutate(
-      (s) => StateLogic.addEpisode(s),
-      () => api.addEpisode(leagueId!)
-    );
-  }
-
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Episodes</h2>
-      {/* Above the episode list on purpose: in a catch-up league this is the control that makes the
-          next episode exist at all, so it belongs before the episodes it produces. Renders nothing
-          for a league that isn't catching up. */}
+      {/* Above the episode list: in a catch-up league this is where the next episode gets revealed.
+          Renders nothing for a league that isn't catching up. */}
       <CatchUpPanel state={state} onRevealed={refetchBoth} />
-      {canManage && (
-        <div className="mb-4">
-          <Button onClick={handleAddEpisode}>+ Add New Episode</Button>
-        </div>
-      )}
       {sorted.length === 0 ? (
         <div className="text-sm italic text-muted-foreground">No episodes logged yet.</div>
       ) : (

@@ -13,6 +13,8 @@ export const POST = apiRoute(async (req) => {
   if (!name) throw new HttpError(400, "League name required");
 
   const state = StateLogic.defaultState();
+  // Born with episode 1 ready to bet on -- see EpisodeLogic.ensureNextEpisode.
+  StateLogic.ensureNextEpisode(state);
   const creator = StateLogic.addPlayer(state, (user as { username?: string | null }).username || user.name);
 
   let league: { id: string; name: string; join_code: string } | null = null;
