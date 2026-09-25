@@ -15,7 +15,8 @@ stand-in. Do not re-introduce a dependency on the SurvivorDraft repo (its Expres
 Identity is Better Auth (`src/lib/auth.ts`) with the `username` and `admin` plugins — the one real
 account system for everything (league access, admin, all of it). There is no other login.
 
-If you're picking this up in a fresh session: check for a `docs/PLAN-*.md` file describing
+If you're picking this up in a fresh session: read `docs/HANDOFF.md` first (current state, what's next,
+what's waiting on the user). Also check for a `docs/PLAN-*.md` file describing
 in-flight feature work before assuming something is undesigned — one may already exist with a
 concrete plan, routes, and schema ready to execute against.
 
