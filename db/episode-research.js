@@ -272,14 +272,60 @@ function parseJsonAnswer(text, schema, label) {
   } catch (e) {
     throw new Error(`${label}: the model's answer wasn't valid JSON (${e.message}).`);
   }
-  const result = schema.safeParse(raw);
-  if (!result.success) {
-    const first = result.error.issues[0];
-    throw new Error(
-      `${label}: the answer didn't match the checklist schema at ${(first.path || []).join(".") || "(root)"}: ${first.message}`
-    );
+  return validateLeniently(raw, schema, label);
+}
+
+// A value outside one of the checklist's fixed lists -- an exit method the show's rules don't have
+// ("Murdered" for a Survivor-rules season), a stray yes/no answer -- used to reject the WHOLE run,
+// throwing away every other person's answers with it. Instead, that one field takes its list's own
+// catch-all ("Other" for how someone left, "unknown" for a yes/no) and the original is kept in
+// `repairs`, which the run reports as a problem for the reviewer. Anything else still fails.
+function validateLeniently(raw, schema, label) {
+  const repairs = [];
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const result = schema.safeParse(raw);
+    if (result.success) {
+      if (repairs.length) result.data.repairs = repairs;
+      return result.data;
+    }
+    const fixable = result.error.issues.filter((i) => i.code === "invalid_value" && Array.isArray(i.values));
+    if (!fixable.length) {
+      const first = result.error.issues[0];
+      throw new Error(`${label}: the answer didn't match the checklist schema at ${(first.path || []).join(".") || "(root)"}: ${first.message}`);
+    }
+    for (const issue of fixable) {
+      const fallback = issue.values.includes("Other") ? "Other" : issue.values.includes("unknown") ? "unknown" : null;
+      if (!fallback) {
+        throw new Error(`${label}: the answer didn't match the checklist schema at ${issue.path.join(".")}: ${issue.message}`);
+      }
+      let parent = raw;
+      for (const key of issue.path.slice(0, -1)) parent = parent[key];
+      const field = issue.path[issue.path.length - 1];
+      const who = issue.path[0] === "castaways" && raw.castaways[issue.path[1]] ? `${raw.castaways[issue.path[1]].name}: ` : "";
+      repairs.push(`${who}${field} "${parent[field]}" isn't one of this show's options -- recorded as "${fallback}"`);
+      parent[field] = fallback;
+    }
   }
-  return result.data;
+  throw new Error(`${label}: the answer didn't match the checklist schema.`);
+}
+
+// The SDK's zodOutputFormat, with its all-or-nothing parse swapped for validateLeniently. Same JSON
+// schema sent to the API, so the model is still held to the lists; this only decides what happens
+// when it strays from one.
+function lenientOutputFormat(schema) {
+  const format = zodOutputFormat(schema);
+  return {
+    ...format,
+    parse: (content) => {
+      let raw;
+      try {
+        raw = JSON.parse(content);
+      } catch (e) {
+        throw new Error(`Failed to parse structured output as JSON: ${e.message}`);
+      }
+      return validateLeniently(raw, schema, "Research");
+    },
+  };
 }
 
 // ---- JSON Schema, in the two dialects the REST providers accept ----
@@ -385,7 +431,7 @@ const anthropicProvider = {
     try {
       const response = await client.messages
         .stream({
-          ...anthropicBase(model, system, user, zodOutputFormat(schema)),
+          ...anthropicBase(model, system, user, lenientOutputFormat(schema)),
           tools: [searchToolFor(model, domains)],
         })
         .finalMessage();
@@ -426,7 +472,7 @@ const anthropicProvider = {
     const client = anthropicClient();
     try {
       const response = await client.messages
-        .stream(anthropicBase(model, STRUCTURE_SYSTEM, notes, zodOutputFormat(schema)))
+        .stream(anthropicBase(model, STRUCTURE_SYSTEM, notes, lenientOutputFormat(schema)))
         .finalMessage();
       return { parsed: anthropicParsed(response), usage: anthropicUsage(response) };
     } catch (err) {
@@ -1306,6 +1352,8 @@ async function runFor(pool, ctx, opts) {
   if (bets.length) out.parsed.betAnswers = betAnswersFrom(out.parsed, bets);
 
   const review = validateResearch(out.parsed, ctx.castNames, ctx.terms, ctx.format);
+  // Answers that strayed outside a fixed list and were set to its catch-all (validateLeniently).
+  review.problems.unshift(...(out.parsed.repairs || []));
   for (const problem of review.problems) console.log(`[research] ! ${problem}`);
   if (review.fatal.length) {
     throw new Error(
