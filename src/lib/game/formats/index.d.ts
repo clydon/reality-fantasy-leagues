@@ -28,6 +28,8 @@ export interface GameFormat {
   events: ScoringEventDef[];
   /** Whether episodes carry a post-merge flag. */
   hasMerge: boolean;
+  /** Whether players are in tribes/teams that can change during the season. */
+  hasGroups: boolean;
   /** Secret roles (The Traitors). Absent for shows without them. */
   roles?: FormatRoles;
   research: {

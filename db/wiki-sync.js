@@ -699,6 +699,38 @@ function validateEpisodes(extracted, state, terms, format) {
     }
   }
 
+  // Tribe/team changes (swaps, merges, new teams, weekly pairs, playing alone). Someone already out in
+  // an EARLIER episode can't move, which is the likeliest misread (a row's later colour cells); moving
+  // and leaving in the same episode is real (the first boot after a merge). A pair is named both ways
+  // round by its two members, so it's put in one order here to make them the same group.
+  const exitEpisode = new Map();
+  for (const ep of extracted.episodes || []) {
+    for (const el of ep.eliminations || []) {
+      const { castaway } = StateLogic.Core.findCastawayByName(state, el && el.name);
+      if (castaway && !(exitEpisode.get(castaway.id) <= ep.number)) exitEpisode.set(castaway.id, ep.number);
+    }
+  }
+  const groupLabel = (g) => {
+    const label = String(g == null ? "" : g).trim();
+    return label.includes(" & ") ? label.split("&").map((s) => s.trim()).filter(Boolean).sort().join(" & ") : label;
+  };
+  const groupsOut = [];
+  for (const ep of extracted.episodes || []) {
+    const n = ep && ep.number;
+    if (!Number.isInteger(n)) continue;
+    for (const gc of ep.groupChanges || []) {
+      const c = resolve(gc && gc.name, `episode ${n} group change`);
+      if (!c) continue;
+      if (exitEpisode.has(c.id) && exitEpisode.get(c.id) < n) {
+        const msg = `dropped ${c.name}'s move to ${groupLabel(gc.group) || "no group"} in episode ${n} -- they left in episode ${exitEpisode.get(c.id)}`;
+        problems.push(msg); elimProblems.push(msg);
+        continue;
+      }
+      if (groupsOut.some((x) => x.episode === n && x.castawayKey === c.id)) continue;
+      groupsOut.push({ episode: n, name: c.name, group: groupLabel(gc.group), castawayKey: c.id });
+    }
+  }
+
   // Secret roles (The Traitors), resolved like everything else. One per person: the earliest wins,
   // since a role once taken holds until another decision says otherwise.
   const rolesOut = [];
@@ -715,7 +747,7 @@ function validateEpisodes(extracted, state, terms, format) {
     rolesOut.push({ episode: r.episode, name: c.name, role: r.role, castawayKey: c.id });
   }
 
-  if (!epsOut.length && !eventsOut.length && !rolesOut.length && !unmatched.length) fatal.push("nothing extracted at all");
+  if (!epsOut.length && !eventsOut.length && !rolesOut.length && !groupsOut.length && !unmatched.length) fatal.push("nothing extracted at all");
 
   // How much of this is new is the commissioner's actual question, so compute it rather than making
   // them diff by eye.
@@ -733,6 +765,7 @@ function validateEpisodes(extracted, state, terms, format) {
     eliminations: { episodes: epsOut, mergeEpisode: Number.isInteger(merge) ? merge : null, problems: elimProblems },
     scoringEvents: { episodes: eventsOut, mergeEpisode: Number.isInteger(merge) ? merge : null, problems: eventProblems },
     roles: rolesOut.map(({ episode, name, role }) => ({ episode, name, role })),
+    groups: groupsOut.map(({ episode, name, group }) => ({ episode, name, group })),
     counts: {
       episodes: seenEpisodes.size,
       eliminations: epsOut.reduce((a, e) => a + e.eliminations.length, 0),
@@ -921,9 +954,10 @@ async function extractEpisodesForSeason(pool, ctx, opts) {
   const readPages = [...context.flatMap((c) => c.pages), ...(guide ? guide.pages : []), ...(votes ? votes.pages : [])];
   const provenance = baseProvenance(showSlug, season, page, apiUrl, readPages, {
     sections: [...context.map((c) => c.title), guide && guide.title, votes && votes.title].filter(Boolean),
-    // The format shaped the read (its schema and prompt), so a read made under another one can't be
-    // reused -- see cachedExtraction.
+    // The format shaped the read (its schema and prompt), so a read made under another one -- or an
+    // older version of this one -- can't be reused. See cachedExtraction.
     format: format.id,
+    formatVersion: format.wiki.version || 1,
   });
 
   const reusable = await cachedExtraction(pool, showId, season, "episodes", provenance, opts);
@@ -994,6 +1028,13 @@ async function stageSeasonEpisodes(pool, ctx, extraction, opts = {}) {
   // Roles read off a stated column (the Contestants table's Faction), so as trustworthy as an exit.
   for (const r of checked.roles) {
     items.push({ episode: r.episode, postMerge: false, kind: "role", name: r.name, method: r.role, eventType: "", confidence: "high" });
+  }
+  // Group changes: the new group's name in `method`, "" for playing as an individual. Worked out from
+  // spans and colour cells rather than read off one column, so reviewed as inferred.
+  const merge = checked.eliminations.mergeEpisode;
+  for (const g of checked.groups) {
+    const postMerge = Number.isInteger(merge) && g.episode >= merge;
+    items.push({ episode: g.episode, postMerge, kind: "group", name: g.name, method: g.group, eventType: "", confidence: "low" });
   }
 
   // Named in the result rather than buried in the console: results nobody will ever see unless the
@@ -1073,6 +1114,9 @@ async function cachedExtraction(pool, showId, season, kind, provenance, opts) {
   // Same pages read under a different format (the show was switched) is a different read. Reads from
   // before formats recorded none, and were all made under the default.
   if (provenance.format && (cached.provenance.format || Formats.DEFAULT_FORMAT) !== provenance.format) return null;
+  // A format whose read has since learned to ask for more (its wiki.version went up) reads again once,
+  // so a finished season picks up the new fields too -- not only a season whose wiki keeps changing.
+  if (provenance.formatVersion && (cached.provenance.formatVersion || 1) < provenance.formatVersion) return null;
   console.log(
     `[wiki-sync] ${kind}: wiki unchanged since ${new Date(cached.extracted_at).toISOString()} -- reusing cached extraction (no model call)`
   );

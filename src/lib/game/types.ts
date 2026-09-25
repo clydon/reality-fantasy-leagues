@@ -23,7 +23,10 @@ export interface Tribe {
 export interface Castaway {
   id: string;
   name: string;
+  /** Their CURRENT tribe/team (null for none); follows any recorded moves -- see GroupLogic. */
   tribeId: string;
+  /** Their starting group, kept once they've moved. Absent means tribeId is still the starting one. */
+  startTribeId?: string | null;
   // Every league type uses this array, never a scalar owner -- exclusive-ownership leagues are
   // just the case where it never exceeds length 1 (see Core's ownership helpers in state-logic.js).
   ownerIds: string[];
@@ -104,6 +107,8 @@ export interface Episode {
    * Traitor" later). See RoleLogic. Absent on episodes from before roles existed.
    */
   roles?: { castawayId: string; role: string }[];
+  /** Who changed tribe/team this episode (tribeId null = no group now). See GroupLogic. */
+  groups?: { castawayId: string; tribeId: string | null }[];
   bets: Bet[];
   // Pick'em only (state-logic.js's PickEmLogic) -- one entry per player who's made a pick for
   // this episode, upserted in place rather than accumulated. Always present (EpisodeLogic.add
@@ -414,9 +419,12 @@ export interface SeasonDecision {
   id: string;
   episode_number: number;
   post_merge: boolean;
-  kind: "elimination" | "event" | "exiled" | "role";
+  kind: "elimination" | "event" | "exiled" | "role" | "group";
   castaway_name: string;
-  /** The exit method for an elimination; the role value ("Traitor") for a role. */
+  /**
+   * The exit method for an elimination; the role value ("Traitor") for a role; the new tribe/team's
+   * name for a group change ("" = no group now).
+   */
   method: string;
   event_type: string;
   confidence: "high" | "medium" | "low";

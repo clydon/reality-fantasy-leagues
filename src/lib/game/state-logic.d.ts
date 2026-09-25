@@ -125,6 +125,9 @@ declare const StateLogic: {
   roleOf(state: LeagueState, castawayId: string, throughEpisode?: number): string | null;
   addRole(state: LeagueState, epId: string, castawayId: string, role: string): boolean;
   removeRole(state: LeagueState, epId: string, castawayId: string): void;
+  /** Records that someone changed tribe/team this episode (null/"" = no group now). See GroupLogic. */
+  addGroupChange(state: LeagueState, epId: string, castawayId: string, groupName: string | null): boolean;
+  removeGroupChange(state: LeagueState, epId: string, castawayId: string): void;
   getPlayer(state: LeagueState, id: string): Player | undefined;
   getCastaway(state: LeagueState, id: string): Castaway | undefined;
   computeScores(state: LeagueState): ScoreRow[];

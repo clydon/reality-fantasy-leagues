@@ -98,6 +98,25 @@ function episodesSchema(z) {
               "...), from the Elimination chart's Arena contestants and outcome columns and the Episode " +
               "Progress key. Empty if the episode had no elimination."
           ),
+        groupChanges: z
+          .array(
+            z.object({
+              name: person,
+              group: z
+                .string()
+                .nullable()
+                .describe(
+                  "Their team from this episode, by its name ('Gray', 'Yellow Team'); for a pair, both " +
+                    "partners' first names as 'A & B'; null if they now play as an individual."
+                ),
+            })
+          )
+          .describe(
+            "Everyone whose team, partner or individual status in THIS episode differs from the previous " +
+              "episode's -- from the Team Progress or Partner Progress grid, the Episode Progress colours " +
+              "and the season's key, or the Elimination chart. Teams formed at the start of the season " +
+              "(the draft) are not changes; a team disbanding or merging is. Only people still in the game."
+          ),
         events: z
           .array(
             z.object({
@@ -138,8 +157,8 @@ function episodesPrompt(terms) {
       "(link=Full Name) or the Contestants table.",
     user:
       "Extract the per-episode record for this season: who left each episode and how, who won each daily " +
-      "challenge, who was nominated for or went into each elimination and how it went, and who was " +
-      "captain.",
+      "challenge, who was nominated for or went into each elimination and how it went, who was captain, " +
+      "and whose team or partner changed.",
   };
 }
 
@@ -253,7 +272,11 @@ module.exports = {
   events,
   impliedEvents,
   hasMerge: false,
+  // Teams, pairs or individuals, changing as often as every episode -- see GroupLogic.
+  hasGroups: true,
   wiki: {
+    // Bumped when the episodes read asks for something new (see survivor.js). 2: team changes.
+    version: 2,
     // Game Summary holds the Elimination chart and every progress grid, as subsections.
     voteSections: ["Game Summary", "Elimination Chart", "Episode Progress"],
     guideSections: ["Contestants", "Cast"],

@@ -48,8 +48,14 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
       if (!match) throw new HttpError(400, `"${body.castawayName}" isn't in this season's cast`);
       castawayName = match.name;
     }
-    // `method` is the exit method for an elimination, and the role value for a role.
-    const method = d.kind === "elimination" || d.kind === "role" ? body.method?.trim() || d.method : undefined;
+    // `method` is the exit method for an elimination, the role value for a role, and the new group's
+    // name for a group change -- where "" is a real answer (no group now), so only an absent field
+    // falls back to what was proposed.
+    const method =
+      d.kind === "group"
+        ? body.method !== undefined ? String(body.method).trim() : d.method
+        : d.kind === "elimination" || d.kind === "role" ? body.method?.trim() || d.method : undefined;
+    if (d.kind === "group" && method && method.length > 60) throw new HttpError(400, "That group name is too long");
     if (d.kind === "elimination" && method && !format.exitMethods.includes(method)) {
       throw new HttpError(400, `"${method}" isn't an exit method`);
     }
@@ -63,7 +69,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
     }
     const edited =
       castawayName !== d.castaway_name ||
-      ((d.kind === "elimination" || d.kind === "role") && method !== d.method) ||
+      ((d.kind === "elimination" || d.kind === "role" || d.kind === "group") && method !== d.method) ||
       (d.kind === "event" && eventType !== d.event_type);
     applied = edited ? { castawayName, method, eventType } : null;
   }

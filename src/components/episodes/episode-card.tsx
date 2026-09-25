@@ -29,6 +29,8 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
   const [elimMethod, setElimMethod] = useState(format.exitMethods[0]);
   const [roleCastawayId, setRoleCastawayId] = useState("");
   const [roleValue, setRoleValue] = useState(format.roles?.values[0] ?? "");
+  const [moveCastawayId, setMoveCastawayId] = useState("");
+  const [moveGroup, setMoveGroup] = useState("");
   const [newBetLabel, setNewBetLabel] = useState("");
   const [newBetPoints, setNewBetPoints] = useState(state.settings.defaultBetPoints);
 
@@ -100,6 +102,23 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
     await mutate(
       (s) => StateLogic.removeRole(s, ep.id, castawayId),
       () => api.removeRole(leagueId!, ep.id, castawayId)
+    );
+  }
+
+  async function handleAddMove() {
+    if (!moveCastawayId) return;
+    const group = moveGroup.trim() || null;
+    await mutate(
+      (s) => StateLogic.addGroupChange(s, ep.id, moveCastawayId, group),
+      () => api.addGroupChange(leagueId!, ep.id, moveCastawayId, group)
+    );
+    setMoveCastawayId("");
+  }
+
+  async function handleRemoveMove(castawayId: string) {
+    await mutate(
+      (s) => StateLogic.removeGroupChange(s, ep.id, castawayId),
+      () => api.removeGroupChange(leagueId!, ep.id, castawayId)
     );
   }
 
@@ -238,6 +257,31 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                 ))}
               </div>
             )}
+            {/* Tribe/team changes this episode (swaps, the merge, new teams or partners). Like roles,
+                only here once the league has this episode's results. */}
+            {(ep.groups || []).length > 0 && (
+              <div className="mt-2 flex flex-col gap-1">
+                {(ep.groups || []).map((g) => {
+                  const tribe = g.tribeId ? StateLogic.Core.getTribe(state, g.tribeId) : null;
+                  return (
+                    <div key={g.castawayId} className="flex items-center gap-2 text-sm">
+                      <span
+                        className="rounded px-1.5 py-0.5 text-xs font-bold text-white"
+                        style={{ background: tribe?.color ?? "#4a5245" }}
+                      >
+                        → {tribe?.name ?? "on their own"}
+                      </span>
+                      <span>{StateLogic.getCastaway(state, g.castawayId)?.name ?? "?"}</span>
+                      {editingEp && canManage && (
+                        <Button variant="destructive" size="sm" className="ml-auto" onClick={() => handleRemoveMove(g.castawayId)}>
+                          Undo
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {canManage && (
               <div className="mt-3 border-t border-border pt-3">
                 <h4 className="mb-1 text-xs font-bold">Add Eliminated Player</h4>
@@ -290,6 +334,42 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                   </Select>
                   <Button disabled={!roleCastawayId} onClick={handleAddRole}>
                     + Record Role
+                  </Button>
+                </div>
+              </div>
+            )}
+            {canManage && format.hasGroups && (
+              <div className="mt-3 border-t border-border pt-3">
+                <h4 className="mb-1 text-xs font-bold">Record a {terms.tribe} Change</h4>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  A swap, the merge, a new team or partner. Pick an existing {terms.tribe.toLowerCase()} or type a new name;
+                  leave it blank if they now play on their own.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Select value={moveCastawayId} onChange={(e) => setMoveCastawayId(e.target.value)}>
+                    <option value="">— Select {terms.castaway} —</option>
+                    {activeCast
+                      .filter((c) => !(ep.groups || []).some((g) => g.castawayId === c.id))
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </Select>
+                  <Input
+                    className="w-40 text-sm"
+                    list={`groups-${ep.id}`}
+                    placeholder={`${terms.tribe} name`}
+                    value={moveGroup}
+                    onChange={(e) => setMoveGroup(e.target.value)}
+                  />
+                  <datalist id={`groups-${ep.id}`}>
+                    {state.tribes.map((t) => (
+                      <option key={t.id} value={t.name} />
+                    ))}
+                  </datalist>
+                  <Button disabled={!moveCastawayId} onClick={handleAddMove}>
+                    + Record Change
                   </Button>
                 </div>
               </div>

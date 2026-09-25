@@ -19,7 +19,7 @@ interface DecisionRow {
   id: string;
   episode_number: number;
   post_merge: boolean;
-  kind: "elimination" | "event" | "exiled" | "role";
+  kind: "elimination" | "event" | "exiled" | "role" | "group";
   castaway_name: string;
   method: string;
   event_type: string;
@@ -74,6 +74,14 @@ function applyDecision(state: LeagueState, d: DecisionRow): { detail?: LedgerDet
     if (!ev) return { skip: `"${type}" isn't a recognized scoring event` };
     return { detail: { ...base, eventType: type, eventId: ev.id } };
   }
+  if (d.kind === "group") {
+    // `applied.method` can legitimately be "" (corrected to "no group"), so it's checked for presence
+    // rather than truthiness.
+    const group = d.applied && d.applied.method !== undefined ? d.applied.method : d.method;
+    if ((ep.groups || []).some((g) => g.castawayId === castaway.id)) return { detail: { ...base, preexisting: true } };
+    StateLogic.addGroupChange(state, ep.id, castaway.id, group || null);
+    return { detail: base };
+  }
   if (d.kind === "role") {
     const role = d.applied?.method || d.method;
     if ((ep.roles || []).some((r) => r.castawayId === castaway.id)) return { detail: { ...base, preexisting: true } };
@@ -97,6 +105,8 @@ function undoDetail(state: LeagueState, detail: LedgerDetail) {
     if (detail.eventId) StateLogic.removeScoringEvent(state, ep.id, detail.eventId);
   } else if (detail.kind === "role") {
     StateLogic.removeRole(state, ep.id, detail.castawayId);
+  } else if (detail.kind === "group") {
+    StateLogic.removeGroupChange(state, ep.id, detail.castawayId);
   } else {
     StateLogic.removeExiled(state, ep.id, detail.castawayId);
   }

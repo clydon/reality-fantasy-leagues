@@ -7,6 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { ConfidenceDot, StatusNote, decidedButtonClass, rowTint } from "@/components/review-bits";
 import { cn } from "cn";
 
@@ -30,6 +31,10 @@ function labelFor(d: SeasonDecision, format: GameFormat): string {
   if (d.kind === "elimination") return d.applied?.method || d.method;
   if (d.kind === "exiled") return "Exile Island";
   if (d.kind === "role") return `Became ${d.applied?.method || d.method}`;
+  if (d.kind === "group") {
+    const group = d.applied && d.applied.method !== undefined ? d.applied.method : d.method;
+    return group ? `→ ${group}` : "→ no team (on their own)";
+  }
   const type = d.applied?.eventType || d.event_type;
   return format.events.find((e) => e.id === type)?.label ?? type;
 }
@@ -79,9 +84,13 @@ export function EpisodeDecisions({
   const exited = new Set(
     decisions.filter((d) => d.kind === "elimination" && d.status !== "rejected").map((d) => nameOf(d).toLowerCase())
   );
+  // Team changes get their own collapsed block: a weekly reshuffle can move nearly everyone, and those
+  // rows would otherwise bury the eliminations and events among them.
+  const moves = decisions.filter((d) => d.kind === "group").sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+  const pendingMoves = moves.filter((d) => d.status === "pending").length;
   const tribes = [...new Set(cast.map((c) => c.tribeName).filter(Boolean))] as string[];
   const groups = new Map<string | null, SeasonDecision[]>();
-  for (const d of decisions) {
+  for (const d of decisions.filter((x) => x.kind !== "group")) {
     const tribe = castFor(cast, nameOf(d))?.tribeName ?? null;
     const list = groups.get(tribe);
     if (list) list.push(d);
@@ -119,6 +128,19 @@ export function EpisodeDecisions({
           ))}
         </div>
       ))}
+      {moves.length > 0 && (
+        <details className="rounded-md border border-dashed border-border px-2 py-1">
+          <summary className="cursor-pointer text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+            Team changes ({moves.length}
+            {pendingMoves ? `, ${pendingMoves} pending` : ""})
+          </summary>
+          <div className="mt-1 flex flex-col gap-1">
+            {moves.map((d) => (
+              <DecisionRow key={d.id} seasonId={seasonId} decision={d} cast={cast} leagueCount={leagueCount} format={format} onSynced={onSynced} />
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
@@ -143,10 +165,15 @@ function DecisionRow({
   const [error, setError] = useState<string | null>(null);
   const member = castFor(cast, nameOf(d));
   const [castawayName, setCastawayName] = useState(member?.name ?? "");
-  // An exit method for an elimination, a role value for a role.
+  // An exit method for an elimination, a role value for a role; a group change's name is typed, since a
+  // correction can name a group the season hasn't had yet.
   const methodChoices = d.kind === "role" ? format.roles?.values ?? [] : format.exitMethods;
   const eventChoices = format.events.filter((e) => !e.implied);
-  const [method, setMethod] = useState(d.applied?.method || d.method || methodChoices[0]);
+  const [method, setMethod] = useState(
+    d.kind === "group"
+      ? (d.applied && d.applied.method !== undefined ? d.applied.method : d.method) ?? ""
+      : d.applied?.method || d.method || methodChoices[0]
+  );
   const [eventType, setEventType] = useState(d.applied?.eventType || d.event_type || eventChoices[0]?.id);
 
   async function decide(action: "accept" | "reject", edits?: { castawayName?: string; method?: string; eventType?: string }) {
@@ -241,6 +268,15 @@ function DecisionRow({
               ))}
             </Select>
           )}
+          {d.kind === "group" && (
+            <Input
+              size="sm"
+              className="w-[160px]"
+              placeholder="team — blank for none"
+              value={method}
+              onChange={(e) => setMethod(e.target.value)}
+            />
+          )}
           {d.kind === "event" && (
             <Select size="sm" value={eventType} onChange={(e) => setEventType(e.target.value)}>
               {eventChoices.map((e) => (
@@ -256,7 +292,7 @@ function DecisionRow({
             onClick={() =>
               decide("accept", {
                 castawayName,
-                method: d.kind === "elimination" || d.kind === "role" ? method : undefined,
+                method: d.kind === "elimination" || d.kind === "role" || d.kind === "group" ? method : undefined,
                 eventType: d.kind === "event" ? eventType : undefined,
               })
             }

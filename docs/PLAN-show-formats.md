@@ -253,10 +253,39 @@ challenge win; safe while at risk. Research asks only generic questions.
      - A `RoleBadge` ("Traitor") shows on the board, both scoreboard roster lists, draft results and
        free agents. It reads league state, so it only appears once the league has reached that
        episode.
-   - **Still open:**
-     - Team changes mid-season. The Challenge regroups often, and Survivor swaps have the same gap.
-       This is its own piece of design: groups as per-episode facts, like roles.
-     - The "Survivor Fantasy Engine" logo and alt text. That's a branding call, not wording.
+   - **Still open:** the "Survivor Fantasy Engine" logo and alt text. That's a branding call, not
+     wording, and the user will decide it later.
+5. **Team changes mid-season — DONE (2026-09-25).**
+   - The user chose to track *every* change, including weekly pairs, and to show the current team plus
+     history.
+   - **League state:**
+     - `episode.groups` records `[{castawayId, tribeId}]`, where null means playing on their own.
+     - `castaway.tribeId` stays the current group, recomputed from the latest move (`GroupLogic`).
+     - `castaway.startTribeId` is captured on someone's first move. Undoing any move, even one from the
+       middle of their history, recomputes correctly.
+     - A merged tribe, new team or pair is created as a tribe when it first appears.
+   - **Season decisions:** new kind `group` (migration `0024_group_decisions.sql`). The new group's
+     name goes in `method`, where "" means no group. Changes reach leagues through the same
+     reveal-gated sync as eliminations.
+   - **Admin review:** an episode's team changes collapse into one "Team changes (N)" block.
+     Corrections use a text box, since new names can appear.
+   - **Commissioners:** "Record a Tribe/Team Change" on the episode card, with Undo, via
+     `POST/DELETE /api/leagues/:id/episodes/:epId/groups`. Shown only for formats with
+     `hasGroups: true` (Survivor and the Challenge, not the Traitors).
+   - **Wiki reads:**
+     - Survivor and the Challenge schemas gain `groupChanges`, listing who moved each episode.
+     - Validation drops a move by someone who left in an earlier episode. It keeps moving and leaving
+       in the same episode, and sorts pair names so both partners get the same group.
+     - `format.wiki.version` is now 2 for both, so each cached read is done again once to pick up
+       team changes. That's about $0.50 per tracked season, at its next pull.
+   - **Real reads (Opus 5, 2026-09-25):**
+     - **Survivor 44**: the ep4 shuffle is exact (Josh, Jaime and Carson were the only movers). The
+       first read put Josh in the merged tribe because he was voted out at the merge episode before
+       joining ("Earn the Merge"). The prompt now follows each row's own tribe columns, and the re-read
+       gets the ep6 merge exactly: 11 into Va Va.
+     - **All Stars 4**: every weekly team, pair and individual change matches Team Progress, checked
+       row by row for three players.
+     - **Cutthroat**: Blue disbanding into Gray in ep9 is exact.
 
 ## Risks and open points
 

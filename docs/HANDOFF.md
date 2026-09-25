@@ -32,9 +32,9 @@ and pushed.
 - The plan's phase entries list what's deferred, and what to do when switching an existing show's
   Rules. The regression and check scripts are session scratch files; they're described in the plan
   but not committed.
-- Phase 4 (tidy-up), hand-entry of roles and role badges are done and merged too.
-- Still open: team changes mid-season, and the "Survivor Fantasy Engine" branding. Both are in the
-  plan's Phase 4 entry.
+- Phase 4 (tidy-up), hand-entry of roles, role badges and team changes mid-season (Phase 5, migration
+  0024) are done and merged too.
+- Still open: the "Survivor Fantasy Engine" branding. The user will decide it later.
 
 The open questions are all resolved:
 
@@ -104,7 +104,7 @@ local session):
   - Run `npx tsc --noEmit -p .` and `npx eslint src`.
   - If tsc complains about `.next/types`, run `rm -rf .next/types .next/dev/types && npx next typegen`.
 - **Migrations** are hand-written SQL in `db/migrations/NNNN_*.sql`. They're applied by
-  `node db/migrate.js` (also run on `npm run build`). Use the next free number (0024 at the time of
+  `node db/migrate.js` (also run on `npm run build`). Use the next free number (0025 at the time of
   writing).
 - **`db/*.js`** is plain CommonJS so the CLIs run under bare `node`. TypeScript sees these modules
   through `.d.ts` files next to them and the `@db/*` alias. The same pattern applies to

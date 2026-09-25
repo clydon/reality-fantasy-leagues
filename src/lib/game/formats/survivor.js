@@ -101,6 +101,25 @@ function episodesSchema(z) {
               "currently exiled/away from their tribe here, NEVER in eliminations. Omit entirely if " +
               "the season has no such twist or none is in effect this episode."
           ),
+        groupChanges: z
+          .array(
+            z.object({
+              name: z.string().describe("FULL name, same rule as eliminations."),
+              group: z
+                .string()
+                .nullable()
+                .describe("The tribe they're on from this episode, as the table names it. Null if they no longer have one."),
+            })
+          )
+          .describe(
+            "Everyone whose tribe changes in THIS episode: a tribe swap, the merge, a new tribe formed or " +
+              "one dissolved. Who moved where comes from each person's own row in the cast table's tribe " +
+              "columns (Switched, Shuffled, Merged, ...) -- someone whose row has no entry in a column never " +
+              "joined that tribe, even if they were in the game when it formed (e.g. voted out at the merge " +
+              "before joining it). The vote grid's header spans show the episode each arrangement starts. " +
+              "Someone whose later column repeats their earlier tribe didn't move. Never list anyone's " +
+              "STARTING tribe. Empty for an episode where nobody changed tribe."
+          ),
         events: z
           .array(
             z.object({
@@ -156,8 +175,8 @@ function episodesPrompt(terms) {
       "twist, away from their tribe but still in the game -- goes in exiled, never in eliminations. " +
       "When in doubt about whether a name belongs in eliminations, leave it out rather than guess.",
     user:
-      "Extract the per-episode record for this season: who left each episode and how, and which " +
-      "notable things happened to individuals.",
+      "Extract the per-episode record for this season: who left each episode and how, which notable " +
+      "things happened to individuals, and whose tribe changed.",
   };
 }
 
@@ -348,7 +367,12 @@ module.exports = {
   events,
   // The season has a merge, so episodes carry a post-merge flag and the UI offers it.
   hasMerge: true,
+  // Players are in tribes, which can change (swaps, the merge) -- see GroupLogic.
+  hasGroups: true,
   wiki: {
+    // Bumped when the episodes read asks for something new, so cached reads are re-done once (see
+    // wiki-sync.js's cachedExtraction). 2: tribe changes (groupChanges).
+    version: 2,
     // What a season page might call the two per-episode tables. Generous synonyms rather than one
     // hardcoded heading, because the Survivor wiki's "Season Summary" is another wiki's "Season
     // Overview".

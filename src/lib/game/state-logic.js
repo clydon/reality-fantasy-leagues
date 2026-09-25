@@ -655,6 +655,57 @@ class ActiveRosterLogic {
   }
 }
 
+// ---------- GroupLogic: tribe/team changes during a season ----------
+// Swaps, merges, new teams, weekly pairs, playing as individuals. Recorded per episode
+// (episode.groups, [{castawayId, tribeId}] -- tribeId null means "no group now"), the same way roles
+// and exile are, so they reach a league through the reveal-gated season decisions: a league catching
+// up sees the swap when it reaches the swap episode.
+//
+// castaway.tribeId stays what everything reads (the board, the admin review) and always means the
+// CURRENT group: it's recomputed from the latest change, or from castaway.startTribeId when there are
+// none. startTribeId is captured the first time someone moves, which is why it can be absent: absent
+// means tribeId is still their starting group.
+class GroupLogic {
+  static changesFor(state, castawayId){
+    return [...state.episodes]
+      .sort((a,b) => a.number - b.number)
+      .flatMap(e => (e.groups || []).filter(g => g.castawayId === castawayId));
+  }
+  static recompute(state, castawayId){
+    const c = Core.getCastaway(state, castawayId);
+    if(!c) return;
+    const changes = GroupLogic.changesFor(state, castawayId);
+    if(changes.length){ c.tribeId = changes[changes.length - 1].tribeId; return; }
+    if(c.startTribeId !== undefined){ c.tribeId = c.startTribeId; delete c.startTribeId; }
+  }
+  // The league's group with this name, created if it's new (a merged tribe, a new team, a pair).
+  // Null for no name: playing as an individual.
+  static tribeNamed(state, name){
+    const wanted = String(name == null ? '' : name).trim();
+    if(!wanted) return null;
+    const existing = state.tribes.find(t => t.name.trim().toLowerCase() === wanted.toLowerCase());
+    return existing || RosterLogic.addTribe(state, wanted, PALETTE[state.tribes.length % PALETTE.length]);
+  }
+  static add(state, epId, castawayId, groupName){
+    const ep = state.episodes.find(e => e.id === epId);
+    const c = Core.getCastaway(state, castawayId);
+    if(!ep || !c) return false;
+    ep.groups = ep.groups || [];
+    if(ep.groups.some(g => g.castawayId === castawayId)) return false;
+    if(c.startTribeId === undefined) c.startTribeId = c.tribeId || null;
+    const tribe = GroupLogic.tribeNamed(state, groupName);
+    ep.groups.push({ castawayId, tribeId: tribe ? tribe.id : null });
+    GroupLogic.recompute(state, castawayId);
+    return true;
+  }
+  static remove(state, epId, castawayId){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep) return;
+    ep.groups = (ep.groups || []).filter(g => g.castawayId !== castawayId);
+    GroupLogic.recompute(state, castawayId);
+  }
+}
+
 // ---------- RoleLogic: secret roles (The Traitors) ----------
 // A role is recorded per episode (episode.roles, [{castawayId, role}]) as the episode it took effect
 // in, the same way exile is -- so it reaches a league through the reveal-gated season decisions, and a
@@ -1039,7 +1090,12 @@ class RosterLogic {
   }
   static updateTribe(state, id, field, value){ const t=Core.getTribe(state,id); if(t) t[field]=value; }
   static removeTribe(state, id){
-    state.castaways.forEach(c=>{ if(c.tribeId===id) c.tribeId=null; });
+    state.castaways.forEach(c=>{
+      if(c.tribeId===id) c.tribeId=null;
+      if(c.startTribeId===id) c.startTribeId=null;
+    });
+    // Moves into it now read as "no group", so a later recompute can't point back at a tribe that's gone.
+    state.episodes.forEach(ep=>(ep.groups||[]).forEach(g=>{ if(g.tribeId===id) g.tribeId=null; }));
     state.tribes = state.tribes.filter(t=>t.id!==id);
   }
   static addCastaway(state, name){
@@ -1102,13 +1158,17 @@ class RosterLogic {
       if(!c || !c.name || !c.tribeName) return;
       const castaway = state.castaways.find(x=>sameName(x.name, c.name));
       if(!castaway) return;                       // not in this league; nothing to link
-      if(castaway.tribeId){ result.unchanged.push(castaway.name); return; }
+      // Someone who has already moved (GroupLogic) with no starting group on record gets it filled in
+      // underneath their moves; otherwise a group already set is left alone.
+      const startMissing = castaway.startTribeId === null;
+      if(castaway.tribeId && !startMissing){ result.unchanged.push(castaway.name); return; }
       let tribe = state.tribes.find(t=>sameName(t.name, c.tribeName));
       if(!tribe){
         tribe = RosterLogic.addTribe(state, c.tribeName, PALETTE[state.tribes.length % PALETTE.length]);
         result.tribes.push(tribe.name);
       }
-      castaway.tribeId = tribe.id;
+      if(startMissing){ castaway.startTribeId = tribe.id; GroupLogic.recompute(state, castaway.id); }
+      else castaway.tribeId = tribe.id;
       result.linked.push(castaway.name);
     });
     return result;
@@ -1242,8 +1302,9 @@ class EpisodeLogic {
   // league type expects of any episode however it came to exist.
   static create(state, number, postMerge){
     // `events` is eliminations; `exiled` is the inert who-was-sent-away record (see addExiled);
-    // `roles` is who took on a secret role this episode (see RoleLogic).
-    const ep = { id:Core.uid('ep'), number, postMerge: !!postMerge, events:[], exiled:[], roles:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
+    // `roles` is who took on a secret role this episode (see RoleLogic); `groups` is who changed tribe
+    // or team (see GroupLogic).
+    const ep = { id:Core.uid('ep'), number, postMerge: !!postMerge, events:[], exiled:[], roles:[], groups:[], bets:[], picks:[], scoringEvents:[], lineups:{}, lineupsLocked:false };
     state.episodes.push(ep);
     // Active Roster: start this episode's lineups from the previous one's so players adjust rather
     // than retype. No-op for every other league type (nothing has lineups to carry).
@@ -1257,10 +1318,11 @@ class EpisodeLogic {
     return EpisodeLogic.create(state, maxNum+1, previousEp ? previousEp.postMerge : false);
   }
   // An episode "has results" once anything that happened in it is recorded: an elimination, a
-  // scoring event, an exile or a role. That's what "this episode has been played" means everywhere
-  // below.
+  // scoring event, an exile, a role or a group change. That's what "this episode has been played"
+  // means everywhere below.
   static hasResults(ep){
-    return !!ep && ((ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0 || (ep.roles||[]).length > 0);
+    return !!ep && ((ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0
+      || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0);
   }
   // Whether the season is underway for THIS league -- the League Settings lock on league type and
   // ownership. It used to be "any episode exists", which was fine while episodes only appeared once
@@ -1869,6 +1931,7 @@ class Migrations {
       // starting empty is correct -- there's no history to reconstruct.
       if(!ep.exiled) ep.exiled = [];
       if(!ep.roles) ep.roles = [];
+      if(!ep.groups) ep.groups = [];
     });
     delete s.settings.bonusCategories;
     return s;
@@ -1905,6 +1968,7 @@ return {
   renumberPlacements: EpisodeLogic.renumberPlacements, addElimination: EpisodeLogic.addElimination, removeElimination: EpisodeLogic.removeElimination,
   addExiled: EpisodeLogic.addExiled, removeExiled: EpisodeLogic.removeExiled,
   RoleLogic, roleOf: RoleLogic.roleOf, addRole: RoleLogic.add, removeRole: RoleLogic.remove,
+  GroupLogic, addGroupChange: GroupLogic.add, removeGroupChange: GroupLogic.remove,
   ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,
   ensureNextEpisode: EpisodeLogic.ensureNextEpisode, seasonUnderway: EpisodeLogic.seasonUnderway, episodeHasResults: EpisodeLogic.hasResults,
   addBet: BetLogic.add, addBetToUpcoming: BetLogic.addToUpcoming, updateBet: BetLogic.update, removeBet: BetLogic.remove,

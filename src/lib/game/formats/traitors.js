@@ -317,6 +317,7 @@ module.exports = {
   events,
   impliedEvents,
   hasMerge: false,
+  hasGroups: false,
   roles: {
     // What everyone is until a role decision says otherwise.
     default: 'Faithful',
