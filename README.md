@@ -937,17 +937,20 @@ return null rather than a guess).
 
 ## Wiki connector (`db/wiki-sync.js`, `wiki_proposals`)
 
-Pulls a season's cast, and its per-episode results, off the show's wiki and files each as a **pending
-proposal** for the commissioner to confirm. Both phases of Feature D in
+Pulls a season's cast, and its per-episode results, off the show's wiki. Nothing it reads is ever
+applied on its own: the **cast** is staged for an admin to review and approve once per season (see
+"Cast approval is the admin's" below), and **per-episode results** are filed as pending decisions
+for each league's commissioner to confirm. Both phases of Feature D in
 `docs/PLAN-league-types-and-wiki-connector.md` are built:
 
     node db/wiki-sync.js cast <leagueId>       # the season's cast and starting groups
     node db/wiki-sync.js episodes <leagueId>   # per-episode eliminations + Active Roster events
     node db/wiki-sync.js <command> <leagueId> --dry   # extract and print, write nothing
 
-**Nothing is ever applied automatically.** `db/wiki-sync.js` writes to the `wiki_proposals`
-table, never to league state. Applying is a separate commissioner action in League Settings, which
-is the whole point of the design and matters more than usual here because extraction is LLM-based.
+**Nothing is ever applied automatically.** `db/wiki-sync.js` writes to `season_cast` (staged, for
+admin review) and `wiki_proposal_items` (pending, for commissioner review), never straight to league
+state. A human approving is the whole point of the design and matters more than usual here because
+extraction is LLM-based.
 
 **Shape of a run** (`node db/wiki-sync.js cast <leagueId> [--dry]`):
 
@@ -995,6 +998,70 @@ that fires twice before anyone reviews replaces its own earlier suggestion inste
 duplicates. Rejected proposals are kept as resolved rows rather than deleted, so a rejected
 suggestion doesn't reappear looking new on the next run.
 
+### Cast approval is the admin's, not each commissioner's (`season_cast`, db/migrations/0011)
+
+A cast is a fact about the show — the same 18 people for every league playing the season. Episode
+results are not: each league reviews them against its own roster and scoring. The connector used to
+treat both the same way, filing a per-league `wiki_proposals` row and waiting for every commissioner
+to press Apply, and that was wrong in two ways that showed up immediately in use:
+
+- the admin who imports a season the moment they catalogue it **couldn't finish the job** — the cast
+  sat unapplied inside leagues they don't run;
+- a commissioner who pulled cast and then episodes, in the right order, hit *"no castaways in this
+  league yet"*, because pulling the cast had filed a proposal rather than applied one, and nothing
+  said that was a separate step.
+
+So the cast moved up a level. `stageSeasonCast` writes what the model extracted into `season_cast`
+(one row per person: name, starting tribe, photo, sort order), keyed to the catalogued season rather
+than to any league. **Admin → Shows & Seasons → Cast** shows exactly what a league would receive —
+the photo, the name, the tribe — with two edits that reviewing actually needs:
+
+- **Clear all tribes**, because the starting division is itself premiere-night information: a league
+  catching up from episode 0 shouldn't be handed it with the cast.
+- **Remove a row**, for whatever the extraction shouldn't have picked up.
+
+**Approve** is the one button that reaches leagues. It marks the season reviewed and applies the
+cast to every league already tracking it; a league that picks that season *later* gets it from the
+settings route instead (`src/lib/server/season-cast.ts` owns both paths). Both go through
+`StateLogic.applyCastImport`, which is additive and idempotent — a league that entered its cast by
+hand keeps exactly what it had and gains only whoever was missing, and re-approving adds nobody
+twice.
+
+Staging is additive too, which is what makes a re-pull safe: rows already there are left alone, so
+an admin's cleared tribes and corrections survive the connector reading the page again. Only a
+genuinely new person un-approves the season — a cast that changed since it was last looked at needs
+looking at — so an unchanged nightly re-read can't quietly withdraw a cast leagues are playing with.
+
+The commissioner-side proposal list still exists and still applies a `cast` proposal, because a
+league that ran the connector before this change can have one sitting pending. Nothing files new
+ones.
+
+### Matching a wiki name to a castaway (`Core.findCastawayByName`)
+
+The wiki's cast table gives a full name (`Kimberly "Kilby" Kilbourne`, `Thiên An Nguyen`) while its
+vote grid and episode guide use whatever the show calls that person on screen (`Kilby`, `Thien An`).
+The matcher used to try two things — the exact name, then, only for a single word, first names — so
+a nickname that isn't the first name, a two-word short name, and any name whose accents differ
+between the two tables all failed outright. Worse, one unmatched name failed the **whole** import:
+a single inferred zero-votes-safe was enough to throw away that episode's eliminations and leave the
+commissioner with *"failed validation, nothing filed"*.
+
+Both halves changed. Matching now runs in tiers, most exact first, and a tier that matches more than
+one person still **refuses** rather than guessing (two castaways really can share a short name):
+
+1. the same name ignoring case, accents and punctuation;
+2. every word of the wanted name appears in theirs — `Kilby` in `Kimberly "Kilby" Kilbourne`,
+   `Thien An` in `Thiên An Nguyen`, `Matt` in `Matt Blankinship`. Still strict in the way that
+   matters: `Matt Blankinship` can't match a different Matt, because both words have to be there;
+3. the reverse, for when the grid is fuller than the cast list (`Thien An Nguyen` → `Thien An`);
+4. prefixes of three letters or more, for shortenings the tiers above miss.
+
+And an unmatched name is **no longer fatal**. The decision that couldn't be resolved is dropped and
+named; everything that did resolve still files. The names come back as their own list (not buried in
+a summary string), so the Episodes panel reports them as what they are — "3 results named someone
+this league doesn't have and were skipped" — instead of a failure that looks like a success or a
+success that looks like a failure.
+
 ### Catch-up mode (a league that starts mid-season plays from episode 0)
 
 The connector reads a **whole season** at once, which is wrong for a league that forms in week 4:
@@ -1026,6 +1093,14 @@ Full reasoning in `docs/PLAN-spoiler-free-catch-up.md`.
 2. `GET /wiki-items` never *serves* one — which covers a league that synced first and switched into
    catch-up mode afterwards, whose table already holds the whole season.
 3. `POST /api/leagues/:id/reveal-next` is the only thing that moves the pointer, and only forward.
+
+**Two steps per episode, not one**, and keeping them apart is the point. **Open episode N** creates
+the episode card so bets can be proposed and guessed and picks made — nothing is known about how it
+went. **Reveal episode N results** then makes the connector's results for it reviewable. The first
+version only had Reveal, which quietly made it impossible to play an episode at all: you can't bet
+on an episode that doesn't exist, so the only way to get a card was to reveal its results first —
+exactly backwards for a league whose whole reason for catching up is to play each episode before it
+knows the answer.
 
 **Revealing** raises the pointer by one and re-runs the league-scoped fan-out against the season's
 **cached** extraction — no wiki read, no model call, the same cheap half a nightly run does per
@@ -1075,10 +1150,8 @@ line per league, and one league failing (no cast imported yet, a name matching n
 against that league rather than failing the others. A season no league tracks still primes the
 extraction cache.
 
-It changes nothing about what gets written: a cast pull files a pending proposal for each
-commissioner, an episodes pull files per-decision items on their Episodes tab. It differs from the
-nightly run in one way only — it never suppresses a cast proposal that adds nobody new, since asking
-for the pull is the reason to see it (the `batch` flag, same as an explicit single-league CLI run).
+It changes nothing about what gets written: a cast pull stages the season's cast for review right
+there in the admin UI, an episodes pull files per-decision items on each league's Episodes tab.
 
 This route is slow by nature (a wiki read, then an LLM extraction: seconds for a cast, up to a
 couple of minutes for a full season of episodes), so it sets `maxDuration = 300` and the UI shows a

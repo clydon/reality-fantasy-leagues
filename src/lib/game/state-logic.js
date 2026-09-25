@@ -68,6 +68,19 @@ const EXIT_METHODS = ['Voted Out','Medically Evacuated','Quit','Lost Fire-Making
 function ownerListOf(c){ return (c && c.ownerIds) || []; }
 
 // ---------- Core: id generation + basic entity lookups, used by every other class ----------
+// Names as compared, never as displayed: accents folded ('Thiên' -> 'thien'), punctuation and
+// quotes turned into separators ('Kimberly "Kilby" K.' -> 'kimberly kilby k'), case dropped,
+// whitespace collapsed. Wiki tables and hand-typed names disagree about all three, and none of
+// those disagreements should be able to lose a castaway. See Core.findCastawayByName.
+function normalizeName(name){
+  return String(name == null ? '' : name)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 class Core {
   static uid(prefix){ return prefix+'_'+Math.random().toString(36).slice(2,9); }
   static getPlayer(state, id){ return state.players.find(p=>p.id===id); }
@@ -80,19 +93,51 @@ class Core {
   // Returns {castaway} on a confident match, {ambiguous:[names]} when a first name fits more than one
   // castaway, or {} when nothing fits. Ambiguity is reported rather than resolved -- picking one of
   // two people named Matt is the kind of quiet guess that lands wrong data in a scored league.
+  // Resolves a name from OUTSIDE this league -- a wiki table, a commissioner's typing -- to one of
+  // its castaways. Returns {castaway}, {ambiguous:[names]}, or {} for no match.
+  //
+  // Tried in tiers, most exact first, and a tier that matches more than one person REFUSES rather
+  // than picking: the wiki prints short names in its vote tables and two castaways can share one, so
+  // a coin flip here would silently score the wrong person.
+  //
+  // The tiers exist because of what the wiki actually does. Its cast table gives a full name
+  // ('Kimberly "Kilby" Kilbourne', 'Thien An Nguyen') while its vote grid and episode guide use
+  // whatever the show calls that person on screen ('Kilby', 'Thien An'). The old version had one
+  // fallback -- a single word matched against first names only -- so a nickname that isn't the first
+  // name, a two-word short name, and any name whose accents differ between the two tables all failed
+  // outright, and an unmatched name used to fail the whole import.
   static findCastawayByName(state, name){
-    const wanted = String(name || '').trim().toLowerCase();
+    const wanted = normalizeName(name);
     if(!wanted) return {};
-    const exact = state.castaways.filter(c => String(c.name||'').trim().toLowerCase() === wanted);
-    if(exact.length === 1) return { castaway: exact[0] };
-    if(exact.length > 1) return { ambiguous: exact.map(c=>c.name) };
-    // First-name fallback, and only when the wiki gave a single word -- "Matt Blankinship" failing an
-    // exact match is a real mismatch, not something to re-try loosely against first names.
-    if(wanted.includes(' ')) return {};
-    const byFirst = state.castaways.filter(c => String(c.name||'').trim().split(/\s+/)[0].toLowerCase() === wanted);
-    if(byFirst.length === 1) return { castaway: byFirst[0] };
-    if(byFirst.length > 1) return { ambiguous: byFirst.map(c=>c.name) };
-    return {};
+    const cast = state.castaways || [];
+    const wantedTokens = wanted.split(' ');
+
+    // Each tier returns as soon as it finds anything at all -- one match wins, several are ambiguous,
+    // and only an empty tier falls through to a looser one.
+    const tier = (predicate) => {
+      const hits = cast.filter(predicate);
+      if(hits.length === 1) return { castaway: hits[0] };
+      if(hits.length > 1) return { ambiguous: hits.map(c=>c.name) };
+      return null;
+    };
+    const tokensOf = (c) => normalizeName(c.name).split(' ').filter(Boolean);
+
+    return (
+      // 1. the same name, ignoring case, accents and punctuation.
+      tier(c => normalizeName(c.name) === wanted) ||
+      // 2. every word of the wanted name appears in theirs: 'Kilby' in 'Kimberly Kilby Kilbourne',
+      //    'Thien An' in 'Thien An Nguyen', 'Matt' in 'Matt Blankinship'. Still strict in the way the
+      //    old comment cared about -- 'Matt Blankinship' can't match a different Matt, because BOTH
+      //    words have to be there.
+      tier(c => { const t = tokensOf(c); return wantedTokens.every(w => t.includes(w)); }) ||
+      // 3. the reverse, for when the wiki's grid is FULLER than the cast list: 'Thien An Nguyen'
+      //    matching a castaway entered as 'Thien An'.
+      tier(c => { const t = tokensOf(c); return t.length > 0 && t.every(w => wantedTokens.includes(w)); }) ||
+      // 4. last resort, prefixes of at least three letters, for shortenings the tiers above miss
+      //    ('Yam' -> 'Yamil'). Three rather than two so an initial can't sweep up a whole tribe.
+      tier(c => { const t = tokensOf(c); return wantedTokens.every(w => w.length >= 3 && t.some(x => x.startsWith(w) || w.startsWith(x))); }) ||
+      {}
+    );
   }
   static getCastaway(state, id){ return state.castaways.find(c=>c.id===id); }
   static getTribe(state, id){ return state.tribes.find(t=>t.id===id); }

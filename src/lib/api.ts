@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -150,8 +150,13 @@ export const api = {
   myBlindPicks: (leagueId: string, playerId: string) =>
     localFetch<{ castawayIds: string[] | null }>(`/api/leagues/${leagueId}/draft/blind/lock/${playerId}`),
 
-  addEpisode: (leagueId: string) =>
-    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes`, { method: "POST" }),
+  // `number` opens one specific episode (catch-up mode's "Open episode N"); omitted, it appends the
+  // next one, which is what the Episodes tab's own button does.
+  addEpisode: (leagueId: string, number?: number) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes`, {
+      method: "POST",
+      body: JSON.stringify(number ? { number } : {}),
+    }),
   removeEpisode: (leagueId: string, epId: string) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}`, { method: "DELETE" }),
   updateEpisode: (leagueId: string, epId: string, field: string, value: unknown) =>
@@ -348,7 +353,16 @@ export const api = {
   // file that episode's connector decisions from the season's cached extraction. `filed` is the
   // fan-out's own summary, `note` the reason nothing was filed (nothing cached yet, no cast yet).
   revealNextEpisode: (leagueId: string) =>
-    localFetch<{ state: LeagueState; revealedThroughEpisode: number; filed: string | null; note: string | null }>(
+    localFetch<{
+      state: LeagueState;
+      revealedThroughEpisode: number;
+      filed: string | null;
+      /** Pending decisions written for the newly revealed episode. */
+      written: number;
+      /** Names in the wiki's results that this league's cast doesn't have; those were skipped. */
+      unmatched: string[];
+      note: string | null;
+    }>(
       `/api/leagues/${leagueId}/reveal-next`,
       { method: "POST" }
     ),
@@ -416,6 +430,27 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(changes),
     }),
+  // The season's staged cast, as Admin > Shows & Seasons reviews it (db/migrations/0011). Approving
+  // is what puts it into leagues -- there's no per-league cast proposal any more.
+  adminSeasonCast: (id: string) =>
+    localFetch<{
+      cast: SeasonCastMember[];
+      approvedAt: string | null;
+      leagueCount: number;
+      castawayTerm: string;
+      tribeTerm: string;
+    }>(`/api/admin/seasons/${id}/cast`),
+  adminEditSeasonCast: (id: string, change: { clearTribes?: boolean; remove?: string }) =>
+    localFetch<{ cast: SeasonCastMember[]; approvedAt: null }>(`/api/admin/seasons/${id}/cast`, {
+      method: "PATCH",
+      body: JSON.stringify(change),
+    }),
+  adminApproveSeasonCast: (id: string) =>
+    localFetch<{
+      approvedAt: string;
+      castSize: number;
+      applied: { leagueId: string; leagueName: string; added: string[]; skipped: string[]; error?: string }[];
+    }>(`/api/admin/seasons/${id}/cast/approve`, { method: "POST" }),
   adminDeleteSeason: (id: string) =>
     localFetch<{ ok: true; leaguesAffected: number }>(`/api/admin/seasons/${id}`, { method: "DELETE" }),
   // On-demand wiki pull for one season. Slow by nature (it reads the wiki, then runs an LLM

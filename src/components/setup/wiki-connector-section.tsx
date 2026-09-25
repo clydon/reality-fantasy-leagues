@@ -89,19 +89,21 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
 
   const season = state.settings.wikiSeason;
   const showLabel = terms.showName ?? state.settings.showId ?? "the show";
-  // Only 'cast' is ever filed here now (see this component's own comment) -- filtered rather than
-  // trusted, since a league that ran the connector before this rework may still have an old
-  // eliminations/scoringEvents proposal sitting pending. Those are harmless left alone; nothing
-  // reads them once this section stops rendering them.
+  // Cast proposals aren't FILED any more -- the cast is season data an admin approves once
+  // (db/migrations/0011) -- but a league that ran the connector before that change can still have
+  // one sitting pending, and applying it is still the right thing to do with it. So this list keeps
+  // working and simply stops filling up. Eliminations/scoringEvents proposals are filtered out for
+  // the same "left over from an older shape" reason.
   const proposals = (data?.proposals ?? []).filter((p) => p.kind === "cast");
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
       <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Wiki Connector</h3>
       <p className="mb-3 text-sm text-muted-foreground">
-        Pulls this season&rsquo;s cast from {showLabel}&rsquo;s wiki and files it here for you to confirm — it never
-        writes to your league on its own. Per-episode results (eliminations, scoring events, exiles) show up
-        directly on each episode&rsquo;s card instead, once the cast is in.
+        Your league&rsquo;s cast comes from {showLabel}&rsquo;s wiki, reviewed and approved once by an admin for the
+        whole season — it arrives here on its own, and picking a season that already has one brings it with you.
+        Per-episode results (eliminations, scoring events, exiles) are yours to confirm, and show up directly on each
+        episode&rsquo;s card once the cast is in.
       </p>
       {pendingItems.length > 0 && (
         <p className="mb-3 rounded-md bg-secondary/50 px-3 py-2 text-sm">
@@ -152,8 +154,8 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
               for per-episode results (add <code className="font-mono">--dry</code> to preview without filing).
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Run <code className="font-mono">cast</code> first — per-episode results are matched to the{" "}
-              {terms.castaways} already in your league by name.
+              Per-episode results are matched by name against the {terms.castaways} already in your league, so the
+              season&rsquo;s cast has to be approved before they can land.
             </p>
           </div>
 

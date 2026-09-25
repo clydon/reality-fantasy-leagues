@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { ChevronDownIcon } from "@/components/icons";
 import { confirm } from "@/lib/confirm-store";
+import { SeasonCastReview } from "./season-cast-review";
 import { cn } from "cn";
 
 // Super-admin management of the show/season catalog, which used to be a hardcoded registry in
@@ -77,9 +78,10 @@ export function ShowsSection() {
         page straight from your browser and the API endpoint and page title are worked out from it.
       </p>
       <p className="mb-3 text-sm text-muted-foreground">
-        Each season has its own <b>Pull cast</b> and <b>Pull episodes</b> buttons: they run the connector for that
-        season on the spot, instead of waiting for the nightly job. One read is shared by every league tracking the
-        season, and the results are filed for each commissioner to confirm — nothing is applied automatically.
+        Each season has its own <b>Pull cast</b> and <b>Pull episodes</b> buttons, which run the connector for that
+        season on the spot instead of waiting for the nightly job — one read, shared by every league tracking it. The{" "}
+        <b>cast</b> is yours to review and approve here, under <b>Cast</b>, and approving puts it into every league on
+        the season; <b>episode results</b> stay each commissioner&rsquo;s to confirm, on their own episode cards.
       </p>
 
       {isLoading ? (
@@ -368,13 +370,18 @@ function SeasonRow({
   const [pulling, setPulling] = useState<"cast" | "episodes" | null>(null);
   const [result, setResult] = useState<WikiSeasonSyncResult | null>(null);
   const [pullError, setPullError] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
   async function pull(kind: "cast" | "episodes", force = false) {
     setPulling(kind);
     setResult(null);
     setPullError(null);
     try {
-      setResult(await api.adminSyncSeason(season.id, kind, force));
+      const res = await api.adminSyncSeason(season.id, kind, force);
+      setResult(res);
+      // A cast pull's whole point is the review that follows it, so open the table rather than
+      // leaving "staged for review" as a sentence with no visible next step.
+      if (kind === "cast") setReviewing(true);
     } catch (e) {
       setPullError(e instanceof ApiError ? e.message : "That pull didn't work.");
     } finally {
@@ -420,6 +427,17 @@ function SeasonRow({
           >
             {pulling === "episodes" ? "Pulling…" : "Pull episodes"}
           </Button>
+          {/* The cast is reviewed and approved here, not by each league's commissioner -- see
+              db/migrations/0011 and season-cast-review.tsx. */}
+          <Button
+            variant="secondary"
+            size="xs"
+            disabled={busy}
+            title="Review and approve this season's cast"
+            onClick={() => setReviewing((r) => !r)}
+          >
+            {reviewing ? "Hide cast" : "Cast"}
+          </Button>
           <Select
             size="sm"
             value={season.status}
@@ -463,6 +481,9 @@ function SeasonRow({
       )}
       {pullError && <p className="mt-1 font-semibold text-destructive">{pullError}</p>}
       {result && <PullResult result={result} busy={busy || pulling !== null} onForce={() => pull(result.kind, true)} />}
+      {reviewing && (
+        <SeasonCastReview seasonId={season.id} seasonLabel={season.name || `Season ${season.seasonNumber}`} />
+      )}
     </div>
   );
 }
@@ -494,7 +515,9 @@ function PullResult({
           </Button>
         )}
       </p>
-      {result.leagues.length === 0 ? (
+      {result.kind === "cast" ? (
+        <p className="mt-0.5">{result.staged?.summary ?? "Staged for review."}</p>
+      ) : result.leagues.length === 0 ? (
         <p className="mt-0.5 italic text-muted-foreground">
           No league is tracking this season yet, so there was nobody to file for — the extraction is cached for when
           one is.
@@ -514,9 +537,8 @@ function PullResult({
           ordering trap is what made a correct cast-then-episodes sequence look broken. */}
       {result.kind === "cast" ? (
         <p className="mt-0.5 text-muted-foreground">
-          Nothing is applied automatically. The cast isn&rsquo;t in a league until its commissioner opens{" "}
-          <b>League Settings → Wiki Connector</b> and clicks Apply — and <b>Pull episodes</b> has no names to match
-          against until they do.
+          Review it below and hit <b>Approve</b> — that&rsquo;s what puts the cast into leagues, and{" "}
+          <b>Pull episodes</b> has no names to match against until it&rsquo;s done.
         </p>
       ) : (
         <p className="mt-0.5 text-muted-foreground">

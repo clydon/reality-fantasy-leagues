@@ -23,6 +23,14 @@ export interface WikiSyncOptions {
 export interface FanOutResult {
   filed: boolean;
   summary: string;
+  /**
+   * Names the wiki used that this league's cast doesn't have. Non-fatal -- those decisions are
+   * dropped and the rest still files -- but carried separately so a UI can say so without parsing
+   * `summary`, because a dropped result is a hole in the season somebody should fix.
+   */
+  unmatched?: string[];
+  /** Pending items actually written. */
+  written?: number;
 }
 
 /**

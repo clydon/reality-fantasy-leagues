@@ -13,6 +13,14 @@ from the design below, all found while building it:
 3. **Revealing doesn't push.** `fanOutEpisodes` takes a `silent` option, because a commissioner who
    just clicked "Reveal episode 4" does not need a notification telling them episode 4 is ready.
 
+And one thing the design got wrong outright, found the first time it was used for real:
+
+4. **Opening an episode and revealing it are two steps, not one.** The plan had only Reveal, which
+   made it impossible to play an episode at all — you can't bet on an episode that doesn't exist, so
+   the only way to get a card was to reveal its results first, exactly backwards for a league whose
+   reason for catching up is to play each episode before it knows the answer. The panel now offers
+   **Open episode N** (creates the card; bets and picks go in) and then **Reveal episode N results**.
+
 Kept below as the original design record.
 
 Written in response to: *"there's an edge case where someone

@@ -38,6 +38,8 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   // the next sync (or the next reveal) files what this one didn't.
   const { rows } = await pool.query("SELECT id, name, state FROM leagues WHERE id=$1", [leagueId]);
   let filed: string | null = null;
+  let written = 0;
+  let unmatched: string[] = [];
   let note: string | null = null;
   try {
     const result = rows.length ? await fanOutCachedEpisodes(pool, rows[0]) : null;
@@ -45,11 +47,16 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
       note = `Episode ${revealed} is revealed, but the connector hasn't read it from the wiki yet — results will appear after the next sync.`;
     } else {
       filed = result.summary;
+      written = result.written ?? 0;
+      // Names the wiki used that this league's cast doesn't have. Reported separately rather than
+      // left inside `summary`, so the panel can show it as the warning it is instead of burying it
+      // in a success sentence.
+      unmatched = result.unmatched ?? [];
     }
   } catch (e) {
-    // A league with no cast imported yet is the common one, and it's a real answer, not a 500.
+    // A league with no cast yet is the common one, and it's a real answer, not a 500.
     note = e instanceof Error ? e.message : "The reveal worked, but filing its results didn't.";
   }
 
-  return NextResponse.json({ state, revealedThroughEpisode: revealed, filed, note });
+  return NextResponse.json({ state, revealedThroughEpisode: revealed, filed, written, unmatched, note });
 });

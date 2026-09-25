@@ -626,6 +626,9 @@ function validateCast(cast, state, terms) {
 function validateEpisodes(extracted, state, terms) {
   const problems = [];
   const fatal = [];
+  // Names the wiki used that this league's cast doesn't have. Non-fatal (see resolve below) but
+  // surfaced on its own, because a name dropped here is a result that will never be reviewed.
+  const unmatched = [];
   const seenEpisodes = new Set();
   const eliminated = new Set(); // castaway ids claimed by an elimination in THIS proposal
   const epsOut = [];
@@ -639,15 +642,23 @@ function validateEpisodes(extracted, state, terms) {
   const eventProblems = [];
 
   // Resolves one wiki name, recording why it failed. Ambiguity is a refusal, not a coin flip: the
-  // wiki prints first names in these tables, and two castaways can share one.
+  // wiki prints short names in these tables, and two castaways can share one.
+  //
+  // A name that doesn't resolve is NOT fatal any more, and that's the important change. It used to
+  // fail the entire run -- so one inferred zero-votes-safe naming somebody the extraction spelled
+  // differently threw away that episode's eliminations too, and the commissioner got
+  // "failed validation, nothing filed" with nothing they could act on. Now the decision that
+  // couldn't be resolved is dropped and named, and everything that DID resolve still gets filed.
+  // Unresolved names are collected separately from ordinary notes so callers can say so loudly:
+  // a dropped elimination is a hole in the season, not a nit.
   const resolve = (name, where) => {
     const { castaway, ambiguous } = StateLogic.Core.findCastawayByName(state, name);
     if (castaway) return castaway;
-    if (ambiguous) {
-      fatal.push(`"${name}" (${where}) matches more than one ${terms.castaway}: ${ambiguous.join(", ")}`);
-    } else {
-      fatal.push(`"${name}" (${where}) doesn't match any ${terms.castaway} in this league`);
-    }
+    const why = ambiguous
+      ? `"${name}" (${where}) matches more than one ${terms.castaway}: ${ambiguous.join(", ")}`
+      : `"${name}" (${where}) doesn't match any ${terms.castaway} in this league`;
+    unmatched.push(why);
+    problems.push(why);
     return null;
   };
 
@@ -758,7 +769,7 @@ function validateEpisodes(extracted, state, terms) {
     }
   }
 
-  if (!epsOut.length && !eventsOut.length) fatal.push("nothing extracted at all");
+  if (!epsOut.length && !eventsOut.length && !unmatched.length) fatal.push("nothing extracted at all");
 
   // How much of this is new is the commissioner's actual question, so compute it rather than making
   // them diff by eye.
@@ -771,6 +782,7 @@ function validateEpisodes(extracted, state, terms) {
   }
 
   return {
+    unmatched,
     eliminations: { episodes: epsOut, mergeEpisode: Number.isInteger(merge) ? merge : null, problems: elimProblems },
     scoringEvents: { episodes: eventsOut, mergeEpisode: Number.isInteger(merge) ? merge : null, problems: eventProblems },
     counts: {
@@ -838,60 +850,83 @@ async function extractCastForSeason(pool, ctx, opts) {
   return storeExtraction(pool, showId, season, "cast", { ...cast, photos }, provenance, opts);
 }
 
-// LEAGUE-scoped half: resolve what the model said against THIS league's own cast, and file it for
-// review. Cheap -- string matching and one insert, no model call and no wiki read.
-async function fanOutCast(pool, extraction, league, terms, opts) {
+// SEASON-scoped half for the cast: stage what the model extracted into `season_cast` for an admin
+// to review and approve (db/migrations/0011). Unlike episodes, this fans out to NOBODY -- a cast is
+// a fact about the show, identical for every league playing the season, so it's reviewed once by
+// the person who catalogued the season rather than once per commissioner. Approving it (POST
+// /api/admin/seasons/:id/cast/approve) is what puts castaways into leagues.
+//
+// Staging is ADDITIVE and never overwrites a row that's already there. That's what makes a re-pull
+// safe: an admin who cleared the tribes (so a catching-up league can't see the starting division)
+// or corrected a name doesn't lose that work when the connector reads the page again. New people --
+// a late replacement, a row the first extraction missed -- are inserted, and their arrival un-
+// approves the season, because a cast that changed since it was last looked at needs looking at.
+async function stageSeasonCast(pool, ctx, extraction, opts) {
   const { photos = {}, ...cast } = extraction.payload;
-  const checked = validateCast(cast, league.state, terms);
-  checked.problems.forEach((p) => console.log(`[wiki-sync]   note (${league.name}): ${p}`));
+  const { terms, season, showSlug } = ctx;
+  // Validated against an EMPTY league state: this is the season's cast, not any league's, so the
+  // "how many of these are new to you" half of validateCast has nothing to compare against here.
+  const checked = validateCast(cast, { castaways: [] }, terms);
+  checked.problems.forEach((p) => console.log(`[wiki-sync]   note: ${p}`));
   if (checked.fatal.length) {
-    throw new Error(`failed validation, nothing filed:\n    - ${checked.fatal.join("\n    - ")}`);
+    throw new Error(`failed validation, nothing staged:\n    - ${checked.fatal.join("\n    - ")}`);
   }
 
-  // Re-ordered before filing, and that IS a spoiler fix rather than tidiness: the wiki's cast table
-  // is ordered BY FINISH on most season pages -- first boot at the top, winner at the bottom -- so
-  // importing it in table order hands a league the season's placement order in the cast list itself,
-  // before a single episode has been reviewed. Grouping by starting tribe (in the order the table
-  // introduced the tribes, which is not a result) and then alphabetically says nothing the cast
-  // didn't already know on day one. Nothing downstream depends on the incoming order: applyCastImport
-  // is additive and matches on name.
+  // The order an admin reviews in, and the order leagues receive: grouped by starting tribe in the
+  // order the wiki's table introduced them, then alphabetically. NOT the table's own row order,
+  // which on most season pages is FINISH order -- first boot at the top, winner at the bottom -- and
+  // would hand every league the season's placement order in the cast list itself.
   const tribeRank = new Map(checked.tribes.map((t, i) => [t.name.toLowerCase(), i]));
-  const spoilerFreeOrder = [...checked.castaways].sort((a, b) => {
+  const ordered = [...checked.castaways].sort((a, b) => {
     const ra = a.tribeName ? tribeRank.get(a.tribeName.toLowerCase()) ?? checked.tribes.length : checked.tribes.length;
     const rb = b.tribeName ? tribeRank.get(b.tribeName.toLowerCase()) ?? checked.tribes.length : checked.tribes.length;
     return ra - rb || a.name.localeCompare(b.name);
   });
-  const payload = {
-    tribes: checked.tribes,
-    castaways: spoilerFreeOrder.map((c) => ({
-      name: c.name,
-      tribeName: c.tribeName,
-      photoUrl: (c.photoFile && photos[c.photoFile]) || null,
-    })),
-  };
-  const withPhotos = payload.castaways.filter((c) => c.photoUrl).length;
-  // The same sentence the CLI prints is also what the admin UI shows, so it's built once and
-  // returned rather than only logged -- see runForSeason.
-  const counts =
-    `${payload.castaways.length} ${terms.castaways} (${checked.newCount} new), ` +
-    `${payload.tribes.length} ${terms.tribes}, ${withPhotos} photos`;
-  console.log(`[wiki-sync]   ${league.name}: ${counts}`);
 
-  // The batch job runs nightly against every league, so a league that already has its full cast
-  // would otherwise get a fresh "0 new" proposal posted every single night. Only interrupt a
-  // commissioner when the wiki actually knows someone their league doesn't. An explicit
-  // single-league `cast` run always files, because asking for it IS the reason to see it.
-  if (opts.batch && checked.newCount === 0) {
-    console.log(`[wiki-sync]   ${league.name}: nothing new, no proposal filed`);
-    return { filed: false, summary: `${counts} — nothing new, no proposal filed` };
+  const { rows: seasonRows } = await pool.query(
+    `SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
+      WHERE s.slug = $1 AND ss.season_number = $2`,
+    [showSlug, season]
+  );
+  if (!seasonRows.length) {
+    // A league can track a season nobody catalogued (the free-text season field), and the connector
+    // will happily read it -- but there's no row to hang a reviewable cast off, so say which one to
+    // add rather than failing obscurely.
+    throw new Error(
+      `${showSlug} season ${season} isn't in the catalog, so there's nowhere to stage its cast. ` +
+        `Add the season in Admin > Shows & Seasons first.`
+    );
   }
+  const seasonId = seasonRows[0].id;
+
   if (opts.dry) {
-    console.log(`[wiki-sync]   --dry: would file a cast proposal for ${league.name}`);
-    return { filed: false, summary: `${counts} — dry run, nothing filed` };
+    console.log(`[wiki-sync]   --dry: would stage ${ordered.length} ${terms.castaways} for review`);
+    return { filed: false, staged: 0, total: ordered.length, summary: `${ordered.length} ${terms.castaways} — dry run, nothing staged` };
   }
-  await fileProposal(pool, league.id, "cast", payload, extraction.provenance);
-  console.log(`[wiki-sync]   ${league.name}: filed a pending cast proposal`);
-  return { filed: true, summary: `${counts} — filed a pending cast proposal` };
+
+  let added = 0;
+  for (let i = 0; i < ordered.length; i++) {
+    const c = ordered[i];
+    const { rowCount } = await pool.query(
+      `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (season_id, lower(name)) DO NOTHING`,
+      [seasonId, c.name, c.tribeName, (c.photoFile && photos[c.photoFile]) || null, i]
+    );
+    added += rowCount;
+  }
+  // Only a change re-opens the review. An unchanged re-pull of an already-approved season leaves it
+  // approved, so the nightly job can't quietly withdraw a cast leagues are already playing with.
+  if (added) {
+    await pool.query("UPDATE show_seasons SET cast_approved_at=NULL, cast_approved_by=NULL, updated_at=now() WHERE id=$1", [seasonId]);
+  }
+  const { rows: totalRows } = await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id=$1", [seasonId]);
+  const total = totalRows[0].n;
+  const summary =
+    `${total} ${terms.castaways} staged for review` +
+    (added ? ` (${added} new — needs approving in Admin > Shows & Seasons)` : " (nothing new; approval unchanged)");
+  console.log(`[wiki-sync]   ${summary}`);
+  return { filed: added > 0, staged: added, total, seasonId, summary };
 }
 
 // ---------- per-episode import (phase 2) ----------
@@ -1009,17 +1044,28 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
   const held = gate === null ? [] : items.filter((it) => it.episode > gate);
   const visible = gate === null ? items : items.filter((it) => it.episode <= gate);
 
+  // Named in the summary rather than buried in the console: these are results the league will never
+  // see unless someone fixes the cast. The commissioner's own panel shows this string.
+  const unmatchedNames = checked.unmatched
+    .map((u) => (u.match(/^"([^"]+)"/) || [])[1])
+    .filter(Boolean)
+    .filter((name, i, all) => all.indexOf(name) === i);
+  const unmatchedNote = unmatchedNames.length
+    ? ` — ${unmatchedNames.length} couldn't be matched to anyone in your cast: ${unmatchedNames.join(", ")}`
+    : "";
+
   const c = checked.counts;
   const counts =
     `${items.length} decisions across ${c.episodes} episodes ` +
     `(${c.eliminations} eliminations, ${c.newEliminations} new; ${c.events} events, ${c.lowConfidence} low-confidence)` +
-    (held.length ? `; ${held.length} held back past revealed episode ${gate}` : "");
+    (held.length ? `; ${held.length} held back past revealed episode ${gate}` : "") +
+    unmatchedNote;
   console.log(`[wiki-sync]   ${league.name}: ${counts}`);
   if (opts.dry) {
     console.log(`[wiki-sync]   --dry: would write ${visible.length} items for ${league.name}`);
-    return { filed: false, summary: `${counts} — dry run, nothing written` };
+    return { filed: false, summary: `${counts} — dry run, nothing written`, unmatched: unmatchedNames, written: 0 };
   }
-  if (!visible.length) return { filed: false, summary: `${counts} — nothing to write` };
+  if (!visible.length) return { filed: false, summary: `${counts} — nothing to write`, unmatched: unmatchedNames, written: 0 };
 
   // All of one league's items in one transaction: a fan-out that dies halfway through shouldn't
   // leave a commissioner reviewing half an episode.
@@ -1066,7 +1112,7 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
   // opts.silent: a commissioner who just clicked "Reveal episode 4" does not need a push telling
   // them episode 4's results are ready -- they're looking at the page that shows them.
   if (inserted && !opts.silent) await notifyCommissionersOfReview(pool, league, inserted);
-  return { filed: touched > 0, summary: `${counts} — ${written}` };
+  return { filed: touched > 0, summary: `${counts} — ${written}`, unmatched: unmatchedNames, written: touched };
 }
 
 // Push the league's commissioners when the sync filed decisions they haven't seen before. Awaited
@@ -1187,7 +1233,9 @@ async function fileProposal(pool, leagueId, kind, payload, provenance) {
 
 // ---------- main ----------
 const EXTRACTORS = { cast: extractCastForSeason, episodes: extractEpisodesForSeason };
-const FANOUTS = { cast: fanOutCast, episodes: fanOutEpisodes };
+// Only episodes fan out to leagues. The cast is staged once per season for admin review instead --
+// see stageSeasonCast for why that difference is the right shape rather than an inconsistency.
+const FANOUTS = { episodes: fanOutEpisodes };
 
 // Everything needed to read one season, derived from the catalog rather than from any league --
 // which is the whole reason this is its own function now. Two leagues on the same season resolve to
@@ -1263,7 +1311,11 @@ async function runForLeague(pool, command, leagueId, opts) {
   }
   const ctx = await resolveSeasonContext(pool, showSlug, season, `League "${league.name}"`);
   const extraction = await EXTRACTORS[command](pool, ctx, opts);
-  await FANOUTS[command](pool, extraction, league, ctx.terms, opts);
+  // `cast <leagueId>` now stages that league's SEASON for admin review rather than filing a
+  // proposal for this one league -- the cast stopped being per-league in db/migrations/0011. The
+  // command keeps taking a league id because a league is still how you say which season you mean.
+  if (command === "cast") await stageSeasonCast(pool, ctx, extraction, opts);
+  else await FANOUTS[command](pool, extraction, league, ctx.terms, opts);
 }
 
 // The reveal path: fan out ONE league's episode decisions from the extraction already cached for
@@ -1319,6 +1371,17 @@ async function runForSeason(pool, showSlug, season, kind, opts = {}) {
   }
   const ctx = await resolveSeasonContext(pool, showSlug, season, `Season ${showSlug} ${season}`);
   const extraction = await EXTRACTORS[kind](pool, ctx, opts);
+  const provenance = {
+    cached: !!extraction.cached,
+    pages: (extraction.provenance.pages || []).map((p) => ({ title: p.title, revisionId: p.revisionId })),
+  };
+
+  // The cast doesn't fan out. It's staged once for the season and reviewed by an admin (see
+  // stageSeasonCast); approving it is what reaches the leagues. Only episode results are per-league.
+  if (kind === "cast") {
+    const staged = await stageSeasonCast(pool, ctx, extraction, opts);
+    return { kind, showSlug, season, ...provenance, staged, leagues: [] };
+  }
 
   // wikiSeason is a JSON number, so `->>` gives its digits; compared as text rather than cast to int
   // because a single league with a non-numeric value there would make the cast error out for all of
@@ -1341,14 +1404,7 @@ async function runForSeason(pool, showSlug, season, kind, opts = {}) {
       results.push({ id: league.id, name: league.name, ok: false, error: e.message });
     }
   }
-  return {
-    kind,
-    showSlug,
-    season,
-    cached: !!extraction.cached,
-    pages: (extraction.provenance.pages || []).map((p) => ({ title: p.title, revisionId: p.revisionId })),
-    leagues: results,
-  };
+  return { kind, showSlug, season, ...provenance, staged: null, leagues: results };
 }
 
 // The batch job (see .github/workflows/wiki-sync.yml). Reads each season ONCE and fans it out to
@@ -1399,6 +1455,16 @@ async function runAll(pool, opts) {
         failures++;
         continue;
       }
+      // The cast is season data: staged once for review, never fanned out. See stageSeasonCast.
+      if (kind === "cast") {
+        try {
+          await stageSeasonCast(pool, ctx, extraction, opts);
+        } catch (e) {
+          console.error(`[wiki-sync] ${showSlug} season ${season} cast: ${e.message}`);
+          failures++;
+        }
+        continue;
+      }
       for (const league of members) {
         try {
           await FANOUTS[kind](pool, extraction, league, ctx.terms, { ...opts, batch: true });
@@ -1443,7 +1509,7 @@ module.exports = {
   runForLeague,
   runForSeason,
   fanOutCachedEpisodes,
-  fanOutCast,
+  stageSeasonCast,
   fanOutEpisodes,
   sameRevisions,
   fetchWikitext,

@@ -212,6 +212,15 @@ export interface AdminShow {
   seasons: ShowSeason[];
 }
 
+// One person in a catalogued season's admin-reviewed cast (db/migrations/0011). Season data, not
+// league data: approving it is what creates castaways in every league tracking that season.
+export interface SeasonCastMember {
+  id: string;
+  name: string;
+  tribeName: string | null;
+  photoUrl: string | null;
+}
+
 // What one admin-triggered wiki pull did (POST /api/admin/seasons/:id/sync, backed by
 // db/wiki-sync.js's runForSeason). The expensive half is season-scoped, so the result is reported
 // the same way: one read of the wiki, then a line per league that tracks this season.
@@ -223,8 +232,13 @@ export interface WikiSeasonSyncResult {
   cached: boolean;
   /** Every page the extraction saw, transcluded templates included. */
   pages: { title: string; revisionId: number | null }[];
-  /** One entry per league tracking this season. Empty when no league does -- the read still caches. */
+  /**
+   * One entry per league tracking this season, for an episodes pull. Always empty for a cast pull:
+   * a cast is staged once for the season and reviewed by an admin, never fanned out (see `staged`).
+   */
   leagues: { id: string; name: string; ok: boolean; summary?: string; error?: string }[];
+  /** Cast pulls only: what staging did, for the review panel to report. */
+  staged?: { filed: boolean; staged: number; total: number; summary: string } | null;
 }
 
 // Commissioner view of a show (GET /api/shows): non-archived only, no admin-only fields.
