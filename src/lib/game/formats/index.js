@@ -6,9 +6,10 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see above */
 const survivor = require('./survivor.js');
 const traitors = require('./traitors.js');
+const challenge = require('./challenge.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-const FORMATS = { survivor, traitors };
+const FORMATS = { survivor, traitors, challenge };
 
 // Every show and league predates formats and has played by Survivor's rules, so that's what an absent
 // or unknown id means. Reading it this way (rather than backfilling) matters because league rows are

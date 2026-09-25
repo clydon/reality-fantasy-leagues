@@ -904,13 +904,23 @@ async function extractEpisodesForSeason(pool, ctx, opts) {
   if (!votes) console.log(`[wiki-sync] ${format.wiki.missingVotesNote}`);
   if (!guide) console.log(`[wiki-sync] ${format.wiki.missingGuideNote}`);
 
-  const parts = [];
+  // Sections a format wants read before the tables (The Challenge: the season's own ==Format==, since
+  // its rules change every season, and ==Episodes== for titles and air dates). First, so the model
+  // knows the rules before it reads the results. Their templates count towards the cache's revision
+  // check like any other page read.
+  const context = [];
+  for (const name of format.wiki.contextSections || []) {
+    const found = await sectionWithTables(page, [name], apiUrl);
+    if (found) context.push(found);
+  }
+
+  const parts = context.map((c) => c.text);
   if (guide) parts.push(guide.text);
   if (votes) parts.push(votes.text);
   const combined = parts.join("\n\n");
-  const readPages = [...(guide ? guide.pages : []), ...(votes ? votes.pages : [])];
+  const readPages = [...context.flatMap((c) => c.pages), ...(guide ? guide.pages : []), ...(votes ? votes.pages : [])];
   const provenance = baseProvenance(showSlug, season, page, apiUrl, readPages, {
-    sections: [guide && guide.title, votes && votes.title].filter(Boolean),
+    sections: [...context.map((c) => c.title), guide && guide.title, votes && votes.title].filter(Boolean),
     // The format shaped the read (its schema and prompt), so a read made under another one can't be
     // reused -- see cachedExtraction.
     format: format.id,

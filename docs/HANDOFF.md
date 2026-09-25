@@ -18,18 +18,22 @@ extraction prompts and validation, and the research checklist. The plan adds `sh
 3. Add The Challenge.
 4. Tidy-up.
 
-**Status (2026-09-25):** Phases 1 and 2 are built on branch `format-phase1-survivor`. Neither is merged
-or pushed yet.
-- Phase 1 adds migration 0021, `src/lib/game/formats/` and a "Rules" picker in admin show settings.
-- Phase 2 adds `traitors.js`, migration 0022 (role decisions), roles in league state, and implied
-  events.
-- Checks: Survivor is byte-identical in the regression harness. An offline Traitors check passes
-  against the real US4/US5 wiki pages. `tsc`, `eslint` and `next build` pass.
-- **Not yet run:** a real model read of a Traitors season, or the routes against a database. The local
-  dev DB is at migration 0015 and lacks `pgvector`, which migration 0016 needs.
-- The Phase 1 and 2 entries in the plan list what's deferred, and what to do when switching the
-  existing Traitors show over.
-- Next is Phase 3 (The Challenge).
+**Status (2026-09-25):** Phases 1–3 (Survivor, The Traitors, The Challenge) are built on branch
+`format-phase1-survivor`. None of it is merged or pushed: the user said to hold off merging for now.
+- Migrations 0021 (`shows.format`) and 0022 (role decisions).
+- Checks: Survivor is unchanged in the regression harness.
+- Real model reads, graded against the wikis' own tables:
+  - Traitors US4: 23/23 exits, 5/5 roles.
+  - Challenge All Stars 4: 25/25 exits.
+  - Cutthroat cast: its three teams, correctly grouped.
+- `tsc`, `eslint` and `next build` pass.
+- **Not yet run against a database.** The local dev DB is at migration 0015 and lacks `pgvector`,
+  which migration 0016 needs.
+- The plan's phase entries list what's deferred, and what to do when switching an existing show's
+  Rules. The regression and check scripts are session scratch files; they're described in the plan
+  but not committed.
+- Next is Phase 4 (tidy-up), plus the deferred items: hand-entry of roles, role badges, and team
+  changes.
 
 The open questions are all resolved:
 

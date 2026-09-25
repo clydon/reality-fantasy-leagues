@@ -191,10 +191,14 @@ challenge win; safe while at risk. Research asks only generic questions.
      - It also checked the prompt and schema, derived events on a US4-shaped read, and roles,
        implied-event scoring, exit correction and multiple winners in league state.
      - `tsc`, `eslint` and `next build` pass.
-   - **Not verified yet:**
-     - A real model read of a Traitors season. Do US4 first (completed, ground truth), with
-       `--dry` / Opus.
-     - The new routes against a database.
+   - **Real model read of US4 (Opus 5, $0.44, 2026-09-25):**
+     - Exits 23/23 exact (person, episode, method) and roles 5/5 exact, graded against the Contestants
+       table.
+     - Every banishment is right, and vote counts match the wiki's tallies.
+     - Shields hand-checked across 6 episodes, including row-spanning cells.
+     - The only note was the finale's six exits, which led to not flagging an episode that crowns the
+       winner (applies to Survivor finales too).
+   - **Not verified yet:** the new routes against a database.
    - **Deferred:**
      - Entering a role by hand in a league (roles arrive only through admin decisions, like exile).
      - Showing a role badge on rosters and the draft board.
@@ -204,8 +208,37 @@ challenge win; safe while at risk. Research asks only generic questions.
      - If its cast was already pulled under Survivor rules, check the cast review: the Faction column
        may have been staged as tribes ("Traitor"/"Faithful"). A re-pull won't overwrite a tribe
        already staged, so clear those by hand.
-3. **The Challenge.** Same again. Teams and pairs change often, so check that the held-tribes and
-   group logic copes with regrouping.
+3. **The Challenge — BUILT (same branch).**
+   - `formats/challenge.js`:
+     - Exit methods: Eliminated, Disqualified, Quit, Medically removed, Finalist, Winner, Other.
+     - The 7 confirmed events. Finalist, Winner and the four ways of leaving are implied from the
+       exit.
+     - Daily win, elimination win, nominated-and-survived and captain are read from the Game
+       Summary.
+   - **Wiki read, all inline on the season page except the episode guide:**
+     - `==Format==` and `==Episodes==` are read first (new `wiki.contextSections`). Format explains
+       this season's rules; Episodes gives titles and air dates, and maps the Contestants table's
+       "Eliminated in <title>" to numbers. Episodes is a template on older seasons, which is expanded
+       and counted in the cache's revision check.
+     - Then `==Contestants==` (Finish), then `==Game Summary==`. Its Elimination chart has one row
+       per episode: daily winners, captains, Arena nominees and volunteers, winner and eliminated.
+       Its Episode Progress grid comes with a colour key that changes every season, and the prompt
+       says to read the key rather than assume colours.
+     - Daily win, elimination win and nominated-and-survived are derived in code from the chart's
+       rows. A nominee who quit or was removed in that episode doesn't get "survived".
+     - The Final's finishers are listed in finishing order, last place first, winner last, so
+       classic-draft placement comes out right.
+   - **Cast read:** the format adds a note that the male/female split isn't a group, and that a
+     starting team is only reported when the season starts in named teams.
+   - **Real model reads (Opus 5, 2026-09-25):**
+     - **All Stars 4** episodes ($0.31): exits 25/25 exact against the Contestants table, including
+       the ep11 purge and three quits. The Final is in finishing order. Titles and air dates were
+       read for all 12 episodes.
+     - **Cutthroat** cast ($0.09): 24 people in the drafted Blue / Gray / Orange teams, 8 each.
+   - **Not handled:**
+     - Team changes mid-season. Only the starting team is captured, the same as Survivor swaps today.
+     - Challenge-specific extras such as Stars, points and partners. They're read as context but not
+       scored.
 4. **Tidy-up.** Remove the remaining Survivor wording from shared UI copy. ("Season over" is already
    generic: phase 1 made it the format's `winnerExitMethod`.)
 
