@@ -1173,6 +1173,22 @@ confidence high-before-low so anything inferred sits at the bottom of its block 
 closer look, then name for a stable order. Tribe groups follow the league's own tribe order; a
 league that hasn't been given the division yet gets one unheaded list.
 
+**The review list shows the whole active roster**, not just the castaways the wiki had something to
+say about. That came out of a case the vocabulary can't express: a castaway who went to Tribal and
+took two votes without being voted out. That's not immunity, not a reward, not an idol and not "safe
+with zero votes against" — `ACTIVE_ROSTER_EVENTS` has no event for *receiving* votes — so the
+extraction correctly emitted nothing for her and she was simply absent from a list where all twenty
+of her castmates appeared. Nobody could tell whether the connector had missed her or there was
+genuinely nothing to record.
+
+Now every active castaway gets a row, ordered last within their tribe, reading *no result reported*.
+A league whose type has scoring events (Active Roster) gets an inline event picker on that row; one
+without (classic draft scores on elimination order alone) gets the statement on its own, with
+eliminations handled by "Add Eliminated Player" just above. A castaway counts as accounted-for if
+they have a pending item **or** the episode already records them — an elimination, a scoring event,
+an exile — because an item leaves the pending list the moment it's accepted, and without that check
+accepting a result would have moved that castaway straight into the unreported pile.
+
 **Three ways a castaway can vanish from a reveal, all now reported.** A name that doesn't resolve
 was already surfaced. Two more were invisible:
 

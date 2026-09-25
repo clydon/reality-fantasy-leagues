@@ -250,7 +250,7 @@ export function EpisodeCard({
           </div>
 
           {canManage && (wikiItems || []).length > 0 && (
-            <WikiOutcomeSection items={wikiItems!} state={state} onResolved={() => onWikiItemsChanged?.()} />
+            <WikiOutcomeSection items={wikiItems!} state={state} ep={ep} onResolved={() => onWikiItemsChanged?.()} />
           )}
 
           {StateLogic.getLeagueType(state).hasWeeklyPicks && <EpisodePicksSection ep={ep} state={state} />}
