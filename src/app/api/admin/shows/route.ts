@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { FORMATS, DEFAULT_FORMAT } from "@/lib/game/formats/index.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
@@ -10,7 +11,7 @@ export const GET = apiRoute(async (req) => {
   await requireSuperAdmin(req);
   const { rows } = await pool.query(
     `SELECT s.id, s.slug, s.name, s.castaway_term, s.tribe_term, s.wiki_api_url, s.cast_section_heading, s.research_domains,
-            s.archived, s.created_at,
+            s.format, s.archived, s.created_at,
             (SELECT count(*)::int FROM leagues l WHERE l.state->'settings'->>'showId' = s.slug) AS league_count,
             COALESCE(
               json_agg(
@@ -82,16 +83,19 @@ export const POST = apiRoute(async (req) => {
     tribeTerm?: string;
     wikiApiUrl?: string;
     castSectionHeading?: string;
+    format?: string;
   };
   const name = (body.name || "").trim();
   if (!name) throw new HttpError(400, "name required");
   const slug = slugify(name);
   if (!slug) throw new HttpError(400, "name must contain at least one letter or number");
+  const format = body.format || DEFAULT_FORMAT;
+  if (!(format in FORMATS)) throw new HttpError(400, `"${format}" isn't a show format`);
 
   try {
     const { rows } = await pool.query(
-      `INSERT INTO shows (slug, name, castaway_term, tribe_term, wiki_api_url, cast_section_heading)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, slug, name`,
+      `INSERT INTO shows (slug, name, castaway_term, tribe_term, wiki_api_url, cast_section_heading, format)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, slug, name`,
       [
         slug,
         name,
@@ -101,6 +105,7 @@ export const POST = apiRoute(async (req) => {
         // Null is the normal case: wiki-sync infers the heading from castawayTerm and only needs
         // telling when a wiki calls the section something unguessable.
         (body.castSectionHeading || "").trim() || null,
+        format,
       ]
     );
     return NextResponse.json({ show: rows[0] });

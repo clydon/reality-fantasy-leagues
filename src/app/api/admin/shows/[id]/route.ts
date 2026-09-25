@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { FORMATS } from "@/lib/game/formats/index.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
-import { pool, HttpError } from "@/lib/server/db";
+import { pool, withLeagueLock, HttpError } from "@/lib/server/db";
 
 type RouteParams = { id: string };
 
@@ -17,6 +18,9 @@ const EDITABLE: Record<string, string> = {
   // Sites episode research may search (db/migrations/0017). Accepts a comma/space/newline-separated
   // string or an array; empty clears it back to the defaults.
   researchDomains: "research_domains",
+  // Which game rules the show plays by (db/migrations/0021). Leagues cache it, so a change is pushed
+  // into each of them below.
+  format: "format",
   archived: "archived",
 };
 
@@ -56,16 +60,34 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
       value = key === "castawayTerm" ? "Castaway" : "Tribe";
     }
     if (key === "name" && !value) throw new HttpError(400, "name can't be empty");
+    if (key === "format" && !(typeof value === "string" && value in FORMATS)) {
+      throw new HttpError(400, `"${String(value)}" isn't a show format`);
+    }
     values.push(value);
     sets.push(`${column}=$${values.length}`);
   }
   if (!sets.length) throw new HttpError(400, "No editable fields supplied");
 
   const { rows } = await pool.query(
-    `UPDATE shows SET ${sets.join(", ")}, updated_at=now() WHERE id=$1 RETURNING id, slug, name, archived`,
+    `UPDATE shows SET ${sets.join(", ")}, updated_at=now() WHERE id=$1 RETURNING id, slug, name, archived, format`,
     values
   );
   if (!rows.length) throw new HttpError(404, "Show not found");
+
+  // Leagues on this show cache its format (settings.showFormat) so the game logic can read it without
+  // a database. Each is updated under its own lock rather than in one UPDATE, so a league write in
+  // flight can't overwrite the change with the state it read before it.
+  if ("format" in body) {
+    const { rows: leagues } = await pool.query(
+      "SELECT id FROM leagues WHERE state->'settings'->>'showId' = $1",
+      [rows[0].slug]
+    );
+    for (const league of leagues) {
+      await withLeagueLock(league.id, (s) => {
+        s.settings.showFormat = rows[0].format;
+      });
+    }
+  }
   return NextResponse.json({ show: rows[0] });
 });
 

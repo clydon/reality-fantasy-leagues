@@ -1,7 +1,9 @@
 # Handoff: where things stand (for a fresh session)
 
 Read this first, then `docs/PLAN-show-formats.md` (the next piece of work), then `README.md` for the
-full history. `CLAUDE.md` / `AGENTS.md` hold the standing project rules.
+full history. `CLAUDE.md` / `AGENTS.md` hold the standing project rules. `docs/ADDING-A-SHOW-FORMAT.md`
+is the reusable playbook for researching and folding in *future* shows — read it before adding a show
+beyond Survivor/Traitors/Challenge.
 
 ## Next up: show formats
 
@@ -16,24 +18,34 @@ extraction prompts and validation, and the research checklist. The plan adds `sh
 3. Add The Challenge.
 4. Tidy-up.
 
-**Status:** plan written and agreed in principle; no code yet. Waiting on the user for:
+**Status (2026-09-25):** Phase 1 is built on branch `format-phase1-survivor`, not yet merged or pushed.
+It adds migration 0021, `src/lib/game/formats/` and a "Rules" picker in admin show settings. It is
+verified byte-identical for Survivor by a regression harness, and `tsc`, `eslint` and `next build`
+pass. It has **not** run against a database: the local dev DB is at migration 0015 and lacks
+`pgvector`, which migration 0016 needs. See the Phase 1 entry in the plan. Next is Phase 2 (Traitors).
+The open questions are all resolved:
 
-1. Whether to track Traitor/Faithful roles (hidden until revealed) and score on them.
-2. Confirming the draft Traitors scoring events (see the plan).
-3. Confirming the draft Challenge scoring events.
-4. Go-ahead to start phase 1. The user was offered it, but hasn't confirmed yet.
+1. Roles: **track and score** Traitor/Faithful, hidden until revealed, with mid-season recruitment
+   supported (confirmed recurring mechanic, not a one-off).
+2. Traitors scoring events confirmed (8, see the plan): shield, survived Round Table, voted out a
+   Traitor, recruited as Traitor, Finalist, Winner, Murdered, banished-as-Traitor.
+3. Challenge scoring events confirmed (7, see the plan): challenge win, elimination-round win,
+   nominated-and-survived, finals placement, Winner, exit-method-as-event, served as captain.
+4. Phase 1 go-ahead: given, and Phase 1 is built (see above).
 
-**Seasons the user has added / will add** (use these to study wiki structure before writing the
-format prompts):
-- The Traitors (US) Season 5, "New Blood": https://thetraitors.fandom.com/wiki/The_Traitors_(US)/New_Blood
-- The Challenge: Cutthroat (2026): https://thechallenge.fandom.com/wiki/The_Challenge:_Cutthroat_(2026)
+**Wiki ground truth pulled** (via `curl` against each wiki's MediaWiki API — WebFetch tool itself
+402s in this environment, but direct API calls work fine, including from this Windows/PowerShell
+local session):
+- Traitors: `The_Traitors_(US)/New_Blood` (live, US5), `The_Traitors_(US)/Season_4` (completed),
+  `The_Traitors_(Australia)/Season_3` (completed, not yet pulled — do this before writing
+  `traitors.js` if AU is in scope).
+- Challenge: `The_Challenge:_Cutthroat_(2026)` (live), `The_Challenge:_Vets_%26_New_Threats`
+  (completed), `The_Challenge:_All_Stars_4` (completed, not yet pulled).
+- Key findings: Traitors' real tables are transcluded from per-season `Template:` pages (e.g.
+  `Template:US5 Contestant Info`). Survivor's are too, and wiki-sync already resolves them for any
+  show. The Challenge's table shape and rules vary season to season and are driven by its prose (the
+  `==Format==` section). Full detail is in `docs/PLAN-show-formats.md`.
 - Survivor 51: live, in production use.
-
-The previous cloud session could NOT reach `*.fandom.com` (network policy). A local session should be
-able to, e.g. via
-`https://thetraitors.fandom.com/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&format=json&titles=The_Traitors_(US)/New_Blood`.
-Look at the cast section heading, the per-episode / elimination tables, and where roles and teams
-appear. For ground truth, pull a *completed* season of each show before a live one.
 
 ## What was built recently (all merged to master)
 
@@ -78,7 +90,7 @@ appear. For ground truth, pull a *completed* season of each show before a live o
   - Run `npx tsc --noEmit -p .` and `npx eslint src`.
   - If tsc complains about `.next/types`, run `rm -rf .next/types .next/dev/types && npx next typegen`.
 - **Migrations** are hand-written SQL in `db/migrations/NNNN_*.sql`. They're applied by
-  `node db/migrate.js` (also run on `npm run build`). Use the next free number (0021 at the time of
+  `node db/migrate.js` (also run on `npm run build`). Use the next free number (0022 at the time of
   writing).
 - **`db/*.js`** is plain CommonJS so the CLIs run under bare `node`. TypeScript sees these modules
   through `.d.ts` files next to them and the `@db/*` alias. The same pattern applies to

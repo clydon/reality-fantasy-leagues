@@ -15,6 +15,7 @@ import { SeasonCastReview } from "./season-cast-review";
 import { SeasonEpisodes } from "./season-episodes";
 import { cn } from "cn";
 import { AI_MODELS, costOf, estimate, formatCost } from "@/lib/ai-cost";
+import { DEFAULT_FORMAT, formatFor, formatOptions } from "@/lib/game/formats/index.js";
 
 // Super-admin management of the show/season catalog, and the place a season's content comes from.
 //
@@ -95,6 +96,7 @@ export function ShowsSection() {
   const [showName, setShowName] = useState("");
   const [castawayTerm, setCastawayTerm] = useState("");
   const [tribeTerm, setTribeTerm] = useState("");
+  const [format, setFormat] = useState(DEFAULT_FORMAT);
   const [models, setModels] = useAiModels();
 
   async function run(fn: () => Promise<unknown>, successNote?: string) {
@@ -118,13 +120,14 @@ export function ShowsSection() {
     const name = showName.trim();
     if (!name) return;
     const ok = await run(
-      () => api.adminCreateShow({ name, castawayTerm: castawayTerm.trim(), tribeTerm: tribeTerm.trim() }),
+      () => api.adminCreateShow({ name, castawayTerm: castawayTerm.trim(), tribeTerm: tribeTerm.trim(), format }),
       `Added “${name}”.`
     );
     if (ok) {
       setShowName("");
       setCastawayTerm("");
       setTribeTerm("");
+      setFormat(DEFAULT_FORMAT);
       setAddingShow(false);
     }
   }
@@ -211,6 +214,13 @@ export function ShowsSection() {
               value={tribeTerm}
               onChange={(e) => setTribeTerm(e.target.value)}
             />
+            <Select size="sm" value={format} title="Which game rules the show plays by" onChange={(e) => setFormat(e.target.value)}>
+              {formatOptions().map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name} rules
+                </option>
+              ))}
+            </Select>
             <Button size="sm" disabled={busy || !showName.trim()} onClick={addShow}>
               Add show
             </Button>
@@ -222,7 +232,8 @@ export function ShowsSection() {
           </div>
           <p className="mt-1 text-[0.7rem] text-muted-foreground">
             The two terms are what the whole app calls people and groups, and how the connector finds the cast on the
-            wiki. Blank means Castaway / Tribe.
+            wiki. Blank means Castaway / Tribe. The rules decide how people leave, what scores, and what the wiki and
+            research look for.
           </p>
         </div>
       ) : (
@@ -387,6 +398,35 @@ function ShowSettings({ show, busy, run }: { show: AdminShow; busy: boolean; run
               if (v && v !== show.tribe_term) run(() => api.adminUpdateShow(show.id, { tribeTerm: v }));
             }}
           />
+        </label>
+        <label className="flex items-center gap-1" title="How people leave, what scores, and what the wiki and research look for">
+          Rules
+          <Select
+            size="sm"
+            value={show.format}
+            disabled={busy}
+            onChange={async (e) => {
+              const next = e.target.value;
+              // Switching changes the exit methods and scoring events every league on the show uses
+              // from here on. Results already recorded keep their old wording, so say so first.
+              if (
+                show.league_count > 0 &&
+                !(await confirm(
+                  `Switch ${show.name} to ${formatFor(next).name} rules? Its ${show.league_count} league` +
+                    `${show.league_count === 1 ? "" : "s"} switch too. Results already recorded keep their current wording.`,
+                  { confirmLabel: "Switch" }
+                ))
+              )
+                return;
+              run(() => api.adminUpdateShow(show.id, { format: next }), `${show.name} now plays by ${formatFor(next).name} rules.`);
+            }}
+          >
+            {formatOptions().map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </Select>
         </label>
       </div>
       {/* Both of these are normally worked out automatically -- the endpoint from the first season

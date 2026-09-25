@@ -383,6 +383,7 @@ export const api = {
     tribeTerm?: string;
     wikiApiUrl?: string;
     castSectionHeading?: string;
+    format?: string;
   }) =>
     localFetch<{ show: { id: string; slug: string; name: string } }>("/api/admin/shows", {
       method: "POST",
@@ -397,6 +398,7 @@ export const api = {
       wikiApiUrl: string;
       castSectionHeading: string;
       researchDomains: string;
+      format: string;
       archived: boolean;
     }>
   ) =>

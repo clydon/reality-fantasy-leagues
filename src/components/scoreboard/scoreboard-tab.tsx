@@ -17,6 +17,7 @@ export function ScoreboardTab() {
   const scores = StateLogic.computeScores(state);
   const leagueType = StateLogic.getLeagueType(state);
   const hasWeeklyPicks = leagueType.hasWeeklyPicks;
+  const winner = StateLogic.formatOf(state).winnerExitMethod;
   // One row component per scoring model. Each league type's breakdown describes how ITS points are
   // earned -- boot order, correct picks, or scoring events -- rather than forcing all three through
   // classic-draft's labels.
@@ -34,8 +35,8 @@ export function ScoreboardTab() {
       ))}
       {!hasWeeklyPicks && !leagueType.hasActiveRoster && (
         <p className="mt-4 text-sm text-muted-foreground">
-          Total {terms.castaways} this season: {state.castaways.length}. Sole Survivor should be logged as the final
-          elimination-order event (method &ldquo;Sole Survivor&rdquo;) so their placement points count.
+          Total {terms.castaways} this season: {state.castaways.length}. {winner} should be logged as the final
+          elimination-order event (method &ldquo;{winner}&rdquo;) so their placement points count.
         </p>
       )}
     </>

@@ -12,8 +12,8 @@ import { useShowTerms } from "@/lib/use-show-terms";
 // way FinaleSettingsSection gates on supportsFinalePredictions -- rather than being dumped into
 // General Settings, which is about the roster/replenish concepts every roster league shares.
 //
-// The point-value list is generated from state-logic.js's ACTIVE_ROSTER_EVENTS, so adding an event
-// type to that catalog gives it an input here automatically. Same "one point input per category"
+// The point-value list is generated from the league's format's event catalog (formats/), so adding an
+// event type to that catalog gives it an input here automatically. Same "one point input per category"
 // shape as SideBetSettingsSection, including that a commissioner can zero a category out rather than
 // being stuck with whichever ones the catalog happens to ship.
 export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
@@ -77,7 +77,7 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
         Only your active {terms.castaways} earn these. Set a category to <b>0</b> to switch it off.
       </p>
       <div className="flex flex-col gap-1.5">
-        {StateLogic.ACTIVE_ROSTER_EVENTS.map((ev) => (
+        {StateLogic.formatOf(state).events.map((ev) => (
           <label key={ev.id} className="flex items-center justify-between gap-2 text-sm">
             <span>{ev.label}</span>
             <Input

@@ -68,7 +68,7 @@ export interface SuggestedBetAnswer {
 // Episode.events, which already means eliminations -- see ActiveRosterLogic.addEvent's note.
 export interface ScoringEvent {
   id: string;
-  /** One of ACTIVE_ROSTER_EVENTS' ids (state-logic.js). */
+  /** One of the league's format's event ids (StateLogic.formatOf(state).events). */
   type: string;
   castawayId: string;
 }
@@ -146,6 +146,11 @@ export interface LeagueSettings {
   /** The catalog show's slug. Null on a new league until the commissioner picks one. */
   showId: string | null;
   /**
+   * The show's format id (shows.format), cached when showId is set. Absent or null on leagues from
+   * before formats, which play by the default (Survivor) -- read it through StateLogic.formatOf.
+   */
+  showFormat?: string | null;
+  /**
    * Guided-setup gate. `false` only on leagues created after guided setup shipped; absent on every
    * league that predates it, and anything other than an explicit `false` counts as complete -- see
    * SetupLogic in state-logic.js.
@@ -160,7 +165,7 @@ export interface LeagueSettings {
   // league type, so together they replace teamSize there rather than sitting alongside it.
   activeSlots: number;
   benchSlots: number;
-  /** Points per scoring-event type, keyed by ACTIVE_ROSTER_EVENTS id. 0 switches a category off. */
+  /** Points per scoring-event type, keyed by the format's event ids. 0 switches a category off. */
   eventPoints: Record<string, number>;
   // Pick'em only, defaulted for every league regardless of type (see defaultState's comment) --
   // points awarded for a correct weekly pick.
@@ -244,6 +249,8 @@ export interface AdminShow {
   cast_section_heading: string | null;
   /** Sites episode research may search; null = defaults (the show's wiki + general recap sites). */
   research_domains: string[] | null;
+  /** Which game rules the show plays by (formats/index.js). */
+  format: string;
   archived: boolean;
   created_at: string;
   league_count: number;
@@ -442,6 +449,8 @@ export interface SeasonDecisionsResponse {
   decisions: SeasonDecision[];
   cast: { name: string; tribeName: string | null; photoUrl: string | null }[];
   leagueCount: number;
+  /** The show's format id (formats/index.js). */
+  format: string;
 }
 
 // Commissioner view of a show (GET /api/shows): non-archived only, no admin-only fields.

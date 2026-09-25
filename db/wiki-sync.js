@@ -66,6 +66,9 @@ const { z } = require("zod");
 // EXACT same rule that apply-time uses (Core.findCastawayByName). Two copies of that matching logic
 // would be two chances for a proposal to validate and then fail to apply.
 const StateLogic = require("../src/lib/game/state-logic.js");
+// The show's game rules (docs/PLAN-show-formats.md): the per-episode schema, prompt, section names and
+// event checks are the format's, not this file's. The cast read is the same for every format.
+const Formats = require("../src/lib/game/formats/index.js");
 // Same sender the Next routes use -- plain CommonJS for exactly this reason (see its header).
 const decisions = require("./season-decisions.js");
 
@@ -114,108 +117,10 @@ const CastSchema = z.object({
   ),
 });
 
-// Exit methods, copied from state-logic.js's EXIT_METHODS. Deliberately a hard enum in the schema
-// rather than free text: applyEliminationsImport writes this straight onto castaway.exitMethod, which
-// the Episodes UI renders and ScoringLogic reads, so a value outside this list would be a silent
-// data-shape break rather than a visible error.
-const EXIT_METHODS = [
-  "Voted Out",
-  "Medically Evacuated",
-  "Quit",
-  "Lost Fire-Making",
-  "Lost Final Tribal (Jury Vote)",
-  "Sole Survivor",
-  "Other",
-];
-
-// Scoring-event types the connector is ALLOWED to suggest. This is ACTIVE_ROSTER_EVENTS minus
-// `idolFound`, and the omission is the point: the investigation found idol FINDS appear in neither
-// the vote table nor the episode guide (they live in per-episode prose recaps, if anywhere), so the
-// connector has no source for them. Leaving the value out of the enum makes it structurally
-// impossible for the model to emit one, which is a stronger guarantee than dropping it in validation.
-const EVENT_TYPES = ["individualImmunity", "tribeImmunity", "rewardWin", "idolPlayed", "zeroVotesSafe"];
-
-// Per-field confidence, which the plan asks for explicitly: "auto-suggested + high confidence for
-// exit method/tribe assignments; auto-suggested + lower confidence ... for immunity/reward winners and
-// idol plays/zero-vote safes". Carried through to the review UI so the two aren't reviewed alike.
-const EpisodesSchema = z.object({
-  mergeEpisode: z
-    .number()
-    .int()
-    .nullable()
-    .describe(
-      "The episode number from which the cast plays as one merged group, read from the vote table's " +
-        "top header row (its columns are grouped into original/shuffled/merged spans). Null if the " +
-        "table doesn't show a merge."
-    ),
-  episodes: z.array(
-    z.object({
-      number: z.number().int().describe("Episode number as the table numbers it, starting at 1."),
-      title: z.string().nullable().describe("Episode title if given, without wiki link markup."),
-      airDate: z.string().nullable().describe("Air date exactly as printed, e.g. 'March 1, 2023'. Null if absent."),
-      postMerge: z.boolean().describe("True if this episode is at or after mergeEpisode."),
-      eliminations: z
-        .array(
-          z.object({
-            name: z
-              .string()
-              .describe(
-                "The person's FULL name. The vote table's cells carry it in the image link target " +
-                  "(e.g. [[File:...|link=Bruce Perreault]]) even though the visible caption is just " +
-                  "the first name -- use the link target when one is present."
-              ),
-            method: z
-              .enum(EXIT_METHODS)
-              .describe(
-                "How they left, from the Finish column: 'Nth Voted Out' -> Voted Out; 'Evacuated' -> " +
-                  "Medically Evacuated; 'Quit' -> Quit; lost a fire-making challenge -> Lost " +
-                  "Fire-Making; lost the final jury vote -> Lost Final Tribal (Jury Vote); the winner " +
-                  "-> Sole Survivor. Use Other only if none of these fit."
-              ),
-          })
-        )
-        .describe(
-          "Everyone who left the game PERMANENTLY in this episode, in the order they left. Almost " +
-            "always exactly one -- only include more than one if the Finish column explicitly marks " +
-            "more than one person as out THIS episode (a rare, explicit double/triple boot). " +
-            "Receiving votes is NOT the same as being eliminated: only the person(s) the Finish " +
-            "column actually marks as out belong here. Someone who received votes but was saved by " +
-            "an idol, a steal-a-vote, or a random-chance advantage (e.g. a 'Shot in the Dark') is " +
-            "still active -- do not list them. Do not guess based on vote counts alone."
-        ),
-      exiled: z
-        .array(z.object({ name: z.string().describe("FULL name, same rule as eliminations.") }))
-        .describe(
-          "Some seasons run an 'Exile Island'-style twist: one or more people are sent away from " +
-            "their tribe for this episode (or until a later one) WITHOUT being eliminated -- they " +
-            "stay in the game and return to a tribe later. List anyone the text identifies as " +
-            "currently exiled/away from their tribe here, NEVER in eliminations. Omit entirely if " +
-            "the season has no such twist or none is in effect this episode."
-        ),
-      events: z
-        .array(
-          z.object({
-            type: z.enum(EVENT_TYPES),
-            name: z.string().describe("FULL name, same rule as eliminations."),
-            confidence: z
-              .enum(["high", "low"])
-              .describe(
-                "'high' only when the table states this directly and unambiguously. Use 'low' for " +
-                  "anything inferred -- whether an immunity win was individual or tribal, anything " +
-                  "read via a footnote marker, and any zero-votes-safe you worked out by counting."
-              ),
-          })
-        )
-        .describe(
-          "Notable things that happened to individuals this episode. tribeImmunity/rewardWin: when a " +
-            "TRIBE wins, list every member of it. individualImmunity: post-merge individual wins only. " +
-            "idolPlayed: from the footnote marker on a vote cell. zeroVotesSafe: someone who attended " +
-            "Tribal Council and received no votes -- count the votes cast in that episode's column. " +
-            "Omit an event entirely rather than guessing at it."
-        ),
-    })
-  ),
-});
+// The per-episode schema is the show format's (format.wiki.episodesSchema) -- its exit methods and
+// event types are hard enums, because applyEliminationsImport writes the method straight onto
+// castaway.exitMethod, and a value outside the list would be a silent data-shape break rather than a
+// visible error.
 
 // ---------- MediaWiki ----------
 // apiUrl defaults to Survivor's wiki so the exported helper stays usable standalone, but callers
@@ -550,44 +455,18 @@ async function extractCast(sectionWikitext, terms, model) {
   return { cast: parsed, usage };
 }
 
-// Per-episode extraction. Gets BOTH tables in one call because it needs both: who left and how comes
-// from the vote table's terminal cells and the guide's Finish column, while immunity and reward wins
-// are only in the guide. max_tokens is higher than cast's because the output scales with
-// episodes x people -- a full post-merge season runs to roughly a hundred events, most of them
-// zero-votes-safes.
-async function extractEpisodes(wikitext, terms, model) {
+// Per-episode extraction, worded and shaped by the show's format (format.wiki). max_tokens is higher
+// than cast's because the output scales with episodes x people -- a full post-merge Survivor season
+// runs to roughly a hundred events, most of them zero-votes-safes.
+async function extractEpisodes(wikitext, terms, model, format) {
+  const prompt = format.wiki.episodesPrompt(terms);
   const { parsed, usage } = await callModel({
     model: model || MODEL,
-    schema: EpisodesSchema,
+    schema: format.wiki.episodesSchema(z),
     schemaName: "episodes",
     maxTokens: 32000,
-    system:
-      "You extract structured data from MediaWiki wikitext. Report only what the wikitext actually " +
-      "states. Never infer, complete or correct anything from outside knowledge of the show -- if a " +
-      "field isn't in the text, return null, and if you cannot tell whether an event happened, omit " +
-      "it rather than guessing.\n\n" +
-      "The text contains more than one table, each marked with an HTML comment naming the template it " +
-      "came from. One is a per-episode guide (air date, reward and immunity winners, who was " +
-      "eliminated, their finish). Another is a vote grid with one column per episode and one row per " +
-      `${terms.castaway}. They describe the SAME episodes -- combine them, keyed on episode number.\n\n` +
-      "These tables use rowspan and colspan heavily, so one cell can belong to several rows or " +
-      "columns. Work out which episode each cell belongs to before reporting it.\n\n" +
-      "Footnote markers look like {{sup|[[#endnote <anchor>|<n>]]}} and resolve against the " +
-      "{{note|<anchor>|<n>}} entries in the Notes block at the bottom of the same table. Match them " +
-      "by ANCHOR, never by number: the numbers differ from season to season.\n\n" +
-      "The vote grid's per-episode column can carry several DIFFERENT kinds of cell that are easy to " +
-      "conflate -- keep them separate: (1) who was voted out this episode -- goes in eliminations, " +
-      "and is normally exactly one person; (2) how many votes each attendee received -- a count, not " +
-      "an elimination, even for the person with the most votes if someone else was actually voted out " +
-      "or if a save changed the result; (3) an advantage played that changed or nullified the result " +
-      "(idol, steal-a-vote, a random-chance save like a 'Shot in the Dark') -- the person it saved is " +
-      "NOT eliminated even though they were in the vote; (4) someone sent to an 'Exile Island'-style " +
-      "twist, away from their tribe but still in the game -- goes in exiled, never in eliminations. " +
-      "When in doubt about whether a name belongs in eliminations, leave it out rather than guess.",
-    user:
-      "Extract the per-episode record for this season: who left each episode and how, and which " +
-      "notable things happened to individuals.\n\n" +
-      wikitext,
+    system: prompt.system,
+    user: prompt.user + "\n\n" + wikitext,
   });
   return { episodes: parsed, usage };
 }
@@ -656,7 +535,7 @@ function validateCast(cast, state, terms) {
 // Every name is resolved against THIS LEAGUE'S cast here, at extraction time, so a proposal that
 // can't be applied never gets filed. Names (not ids) are what's stored, and apply resolves again --
 // see applyEliminationsImport's comment for why.
-function validateEpisodes(extracted, state, terms) {
+function validateEpisodes(extracted, state, terms, format) {
   const problems = [];
   const fatal = [];
   // Names the wiki used that this league's cast doesn't have. Non-fatal (see resolve below) but
@@ -768,19 +647,12 @@ function validateEpisodes(extracted, state, terms) {
     for (const sev of ep.events || []) {
       const c = resolve(sev && sev.name, `episode ${n} ${sev && sev.type}`);
       if (!c) continue;
-      // Someone voted out this episode can't also have been safe at that Tribal with no votes. This
-      // is the cheapest real check available on the least reliable event type.
-      if (sev.type === "zeroVotesSafe" && eliminated.has(c.id)) {
-        const msg = `dropped zeroVotesSafe for ${c.name} in episode ${n} -- they were eliminated that episode`;
-        problems.push(msg); eventProblems.push(msg);
-        dropped.push({ name: c.name, episode: n, why: "marked safe with no votes, but they were voted out that episode" });
-        continue;
-      }
-      // individualImmunity is a post-merge concept. Pre-merge, immunity is won by a tribe.
-      if (sev.type === "individualImmunity" && !postMerge) {
-        const msg = `dropped individualImmunity for ${c.name} in pre-merge episode ${n}`;
-        problems.push(msg); eventProblems.push(msg);
-        dropped.push({ name: c.name, episode: n, why: "read as an individual immunity win, which can't happen before the merge" });
+      // The format's own sanity checks (Survivor: no zero-votes-safe for someone voted out that
+      // episode, no individual immunity before the merge).
+      const rejected = format.wiki.rejectEvent({ type: sev.type, name: c.name, episode: n, eliminated: eliminated.has(c.id), postMerge });
+      if (rejected) {
+        problems.push(rejected.problem); eventProblems.push(rejected.problem);
+        dropped.push({ name: c.name, episode: n, why: rejected.why });
         continue;
       }
       const key = `${n}|${sev.type}|${c.id}`;
@@ -839,14 +711,6 @@ function validateEpisodes(extracted, state, terms) {
     fatal,
   };
 }
-
-// What a season page might call the two per-episode tables. Same approach as castSectionCandidates:
-// generous synonyms rather than one hardcoded heading, because the Survivor wiki's "Season Summary"
-// is the Traitors wiki's "Season Overview". These aren't per-show DB columns (unlike
-// shows.cast_section_heading) because nothing has needed one yet -- if a wiki turns up that these
-// miss, the column pattern is already established next door.
-const VOTE_SECTIONS = ["Voting History", "Vote History", "Voting Table", "Votes", "Voting"];
-const GUIDE_SECTIONS = ["Season Summary", "Season Overview", "Episode Guide", "Episode Table", "Episodes", "Summary"];
 
 // Finds a section and pulls in anything it transcludes, in one step. Returns null when the page has
 // no such section -- callers decide whether that's fatal.
@@ -992,21 +856,19 @@ async function stageSeasonCast(pool, ctx, extraction, opts) {
 // who left comes from the vote table's terminal cells and the guide's Finish column, while immunity
 // and reward wins are only in the guide).
 async function extractEpisodesForSeason(pool, ctx, opts) {
-  const { page, apiUrl, terms, showSlug, season, showId } = ctx;
+  const { page, apiUrl, terms, showSlug, season, showId, format } = ctx;
+  const { voteSections, guideSections } = format.wiki;
 
-  const votes = await sectionWithTables(page, VOTE_SECTIONS, apiUrl);
-  const guide = await sectionWithTables(page, GUIDE_SECTIONS, apiUrl);
+  const votes = await sectionWithTables(page, voteSections, apiUrl);
+  const guide = await sectionWithTables(page, guideSections, apiUrl);
   if (!votes && !guide) {
     throw new Error(
-      sectionNotFound("per-episode", page, [...VOTE_SECTIONS, ...GUIDE_SECTIONS]) +
+      sectionNotFound("per-episode", page, [...voteSections, ...guideSections]) +
         "\nThis command needs a voting table, an episode guide, or both."
     );
   }
-  // Each half is genuinely optional, but they cover different fields, so say what's missing rather
-  // than quietly extracting less: no guide means no immunity or reward wins, no vote grid means no
-  // idol plays or zero-vote-safes.
-  if (!votes) console.log("[wiki-sync] no voting table found -- idol plays and zero-vote-safes will be missing");
-  if (!guide) console.log("[wiki-sync] no episode guide found -- immunity and reward wins will be missing");
+  if (!votes) console.log(`[wiki-sync] ${format.wiki.missingVotesNote}`);
+  if (!guide) console.log(`[wiki-sync] ${format.wiki.missingGuideNote}`);
 
   const parts = [];
   if (guide) parts.push(guide.text);
@@ -1015,6 +877,9 @@ async function extractEpisodesForSeason(pool, ctx, opts) {
   const readPages = [...(guide ? guide.pages : []), ...(votes ? votes.pages : [])];
   const provenance = baseProvenance(showSlug, season, page, apiUrl, readPages, {
     sections: [guide && guide.title, votes && votes.title].filter(Boolean),
+    // The format shaped the read (its schema and prompt), so a read made under another one can't be
+    // reused -- see cachedExtraction.
+    format: format.id,
   });
 
   const reusable = await cachedExtraction(pool, showId, season, "episodes", provenance, opts);
@@ -1024,7 +889,7 @@ async function extractEpisodesForSeason(pool, ctx, opts) {
     `[wiki-sync] sections: ${[guide && guide.title, votes && votes.title].filter(Boolean).join(" + ")} ` +
       `-> ${combined.length} chars across ${readPages.length + 1} page(s)`
   );
-  const { episodes, usage } = await extractEpisodes(combined, terms, opts.model);
+  const { episodes, usage } = await extractEpisodes(combined, terms, opts.model, format);
   logUsage(usage);
   // What this read actually cost to make, for the admin panel's cost line.
   provenance.model = usage.model;
@@ -1059,7 +924,7 @@ async function stageSeasonEpisodes(pool, ctx, extraction, opts = {}) {
     );
   }
 
-  const checked = validateEpisodes(extraction.payload, castState, ctx.terms);
+  const checked = validateEpisodes(extraction.payload, castState, ctx.terms, ctx.format);
   checked.problems.forEach((p) => console.log(`[wiki-sync]   note: ${p}`));
   if (checked.fatal.length) {
     throw new Error(`failed validation, nothing staged:\n    - ${checked.fatal.join("\n    - ")}`);
@@ -1157,6 +1022,9 @@ async function cachedExtraction(pool, showId, season, kind, provenance, opts) {
   if (!rows.length) return null;
   const cached = rows[0];
   if (!sameRevisions(cached.provenance.pages, provenance.pages)) return null;
+  // Same pages read under a different format (the show was switched) is a different read. Reads from
+  // before formats recorded none, and were all made under the default.
+  if (provenance.format && (cached.provenance.format || Formats.DEFAULT_FORMAT) !== provenance.format) return null;
   console.log(
     `[wiki-sync] ${kind}: wiki unchanged since ${new Date(cached.extracted_at).toISOString()} -- reusing cached extraction (no model call)`
   );
@@ -1215,7 +1083,7 @@ async function resolveSeasonContext(pool, showSlug, season, label) {
   // which is the point, since different shows live on different wikis.
   const { rows: catalog } = await pool.query(
     `SELECT s.id AS show_id, ss.wiki_page_title, ss.name AS season_name,
-            s.name AS show_name, s.wiki_api_url, s.castaway_term, s.tribe_term, s.cast_section_heading
+            s.name AS show_name, s.wiki_api_url, s.castaway_term, s.tribe_term, s.cast_section_heading, s.format
        FROM shows s LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number = $2
       WHERE s.slug = $1`,
     [showSlug, season]
@@ -1249,7 +1117,7 @@ async function resolveSeasonContext(pool, showSlug, season, label) {
   }
   console.log(`[wiki-sync] ${showSlug} season ${season} -> ${pageTitle} (${apiUrl})`);
   const page = await fetchWikitext(pageTitle, apiUrl);
-  return { showId: entry.show_id, showSlug, season, entry, page, apiUrl, terms, castawayTerm, tribeTerm };
+  return { showId: entry.show_id, showSlug, season, entry, page, apiUrl, terms, castawayTerm, tribeTerm, format: Formats.formatFor(entry.format) };
 }
 
 function leagueSeasonOf(league) {
@@ -1295,7 +1163,7 @@ async function runForLeague(pool, command, leagueId, opts) {
  */
 async function stageCachedSeasonEpisodes(pool, seasonId) {
   const { rows } = await pool.query(
-    `SELECT we.id, we.payload, we.provenance, s.id AS show_id, s.slug, s.castaway_term, s.tribe_term, ss.season_number
+    `SELECT we.id, we.payload, we.provenance, s.id AS show_id, s.slug, s.castaway_term, s.tribe_term, s.format, ss.season_number
        FROM show_seasons ss
        JOIN shows s ON s.id = ss.show_id
        JOIN wiki_extractions we ON we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
@@ -1304,7 +1172,9 @@ async function stageCachedSeasonEpisodes(pool, seasonId) {
   );
   if (!rows.length) return null;
   const row = rows[0];
-  const ctx = { showId: row.show_id, showSlug: row.slug, season: row.season_number, terms: termsFor(row).terms };
+  // The format the read was made under, which is what its payload's shape follows.
+  const format = Formats.formatFor(row.provenance.format || row.format);
+  const ctx = { showId: row.show_id, showSlug: row.slug, season: row.season_number, terms: termsFor(row).terms, format };
   return stageSeasonEpisodes(pool, ctx, { id: row.id, payload: row.payload, provenance: row.provenance, cached: true });
 }
 
@@ -1456,9 +1326,4 @@ module.exports = {
   resolvePhotoUrls,
   normalizePhotoUrl,
   CastSchema,
-  EpisodesSchema,
-  EXIT_METHODS,
-  EVENT_TYPES,
-  VOTE_SECTIONS,
-  GUIDE_SECTIONS,
 };

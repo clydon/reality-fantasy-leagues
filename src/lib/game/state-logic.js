@@ -50,16 +50,27 @@
 // don't force it in; that's why 'pickem' gets NoDraftStrategy (an inert stand-in so nothing that
 // dispatches through DraftLogic crashes) plus its own top-level state branch (PickEmLogic,
 // `episode.picks`) instead of a real third DraftStrategy pretending to be turn-based.
+//
+// Show formats: a league's game vocabulary -- exit methods, the scoring-event catalog, what ends the
+// season -- comes from its show's format (./formats/, docs/PLAN-show-formats.md) via formatOf(state),
+// never from a constant in here. The format id is cached on the league as settings.showFormat when its
+// show is picked, because this file can't read the database.
 (function(root, factory){
-  if(typeof module === 'object' && module.exports) module.exports = factory();
-  else root.StateLogic = factory();
-})(typeof self !== 'undefined' ? self : this, function(){
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
+  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'));
+  else root.StateLogic = factory(root.GameFormats);
+})(typeof self !== 'undefined' ? self : this, function(Formats){
 
 const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b0563f','#6b8fc9'];
 // No longer seeded into new leagues (see Migrations.defaultState) -- a fresh league starts with an
 // empty cast so it isn't pre-filled with the wrong show's people. Kept as sample data.
 const SEED_CASTAWAYS = ['Aaliyah','Alexis','Ana','Brady','Carter','Cristian','Devin','Eric','Jelly','Jenna','Kilby','Kristin','Lewis','Linnea','Maggie','Mike','Ori','Patt','Rob','Sharonda','Thien An'];
-const EXIT_METHODS = ['Voted Out','Medically Evacuated','Quit','Lost Fire-Making','Lost Final Tribal (Jury Vote)','Sole Survivor','Other'];
+
+// The rules this league plays by. A league with no showFormat (every league from before formats, and
+// a new one whose show isn't picked yet) gets the registry's default, which is Survivor's.
+function formatOf(state){
+  return Formats.formatFor(state && state.settings ? state.settings.showFormat : null);
+}
 
 // Reads a castaway object's owner list, tolerating a castaway that predates the field. Kept
 // module-private: the filter predicates below already hold the castaway object, so going through
@@ -495,31 +506,11 @@ class BlindDraftStrategy {
 // ACTIVE each episode, and points come from what your active castaways DID that week (won immunity,
 // found an idol, ...) rather than from elimination placement.
 //
-// Candidate v1 catalog. Ordered so the settings UI renders one point input per row in a stable
-// order, and every default is commissioner-editable -- including down to 0, which is how you switch
-// a category off without needing the catalog itself to change (same shape as the existing side-bet
-// point inputs). Adding a type here automatically gives it a settings input and makes it selectable
-// in the event-entry UI; `eventPoints` falls back to the catalog default for any type a league
-// hasn't customised, so adding one never needs a migration.
-const ACTIVE_ROSTER_EVENTS = [
-  { id: 'individualImmunity', label: 'Individual immunity win', defaultPoints: 5 },
-  { id: 'tribeImmunity', label: 'Tribe/team immunity win', defaultPoints: 2 },
-  { id: 'rewardWin', label: 'Reward win', defaultPoints: 2 },
-  { id: 'idolFound', label: 'Idol/advantage found', defaultPoints: 3 },
-  { id: 'idolPlayed', label: 'Idol/advantage played', defaultPoints: 2 },
-  { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: 1 },
-  // The next three exist because db/episode-research.js (a web search, not a wiki table) can answer
-  // questions the wiki connector structurally can't -- see docs/RESEARCH-extractable-stats.md tier D.
-  // Defaults are deliberately conservative (low or zero): these are new, unfamiliar categories and a
-  // commissioner should decide on purpose whether "survived a vote" or "sat out" should earn points,
-  // rather than inherit a value chosen for them. Changing any of these is a settings edit, not code.
-  { id: 'survivedVotes', label: 'Received votes at Tribal but survived', defaultPoints: 1 },
-  { id: 'advantageTargeted', label: 'Had an advantage used against them', defaultPoints: 1 },
-  { id: 'satOut', label: 'Sat out a challenge', defaultPoints: 0 }
-];
-function defaultEventPoints(){
+// The event catalog is the league's format's (formatOf(state).events -- see formats/survivor.js for
+// Survivor's); these are the catalog defaults for a league that hasn't customised a type.
+function defaultEventPoints(state){
   const out = {};
-  ACTIVE_ROSTER_EVENTS.forEach(e => { out[e.id] = e.defaultPoints; });
+  formatOf(state).events.forEach(e => { out[e.id] = e.defaultPoints; });
   return out;
 }
 
@@ -530,7 +521,7 @@ class ActiveRosterLogic {
   static pointsFor(state, type){
     const configured = state.settings && state.settings.eventPoints ? state.settings.eventPoints[type] : undefined;
     if(typeof configured === 'number') return configured;
-    const def = ACTIVE_ROSTER_EVENTS.find(e => e.id === type);
+    const def = formatOf(state).events.find(e => e.id === type);
     return def ? def.defaultPoints : 0;
   }
   static activeSlots(state){ return (state.settings && state.settings.activeSlots) || 0; }
@@ -637,7 +628,7 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     const c = Core.getCastaway(state, castawayId);
     if(!ep || !c || !type) return null;
-    if(!ACTIVE_ROSTER_EVENTS.some(e => e.id === type)) return null;
+    if(!formatOf(state).events.some(e => e.id === type)) return null;
     if(!ep.scoringEvents) ep.scoringEvents = [];
     const ev = { id: Core.uid('sev'), type, castawayId };
     ep.scoringEvents.push(ev);
@@ -1088,8 +1079,9 @@ class ReplenishLogic {
   static start(state){
     const scores = ScoringLogic.compute(state);
     const scoreOf = playerId => (scores.find(s=>s.playerId===playerId)||{total:0}).total;
+    const winnerMethod = formatOf(state).winnerExitMethod;
     const counts = state.players.map(p=>{
-      const losses = state.castaways.filter(c=> ownerListOf(c).includes(p.id) && c.status==='eliminated' && !c.replenishClaimed && c.exitMethod!=='Sole Survivor');
+      const losses = state.castaways.filter(c=> ownerListOf(c).includes(p.id) && c.status==='eliminated' && !c.replenishClaimed && c.exitMethod!==winnerMethod);
       return {playerId:p.id, losses, score: scoreOf(p.id)};
     }).filter(x=>x.losses.length>0);
     if(counts.length===0) return false;
@@ -1229,9 +1221,11 @@ class EpisodeLogic {
     return state.episodes.some(ep => EpisodeLogic.hasResults(ep) || (ep.picks||[]).length > 0);
   }
   // Live mode's half of ensureNextEpisode: the latest episode is the upcoming one until it has
-  // results, then the next one is created. Stops once a Sole Survivor is crowned.
+  // results, then the next one is created. Stops once a winner is crowned (the format's winner exit
+  // method -- Survivor's is Sole Survivor).
   static ensureUpcoming(state){
-    const seasonOver = state.castaways.some(c => c.exitMethod === 'Sole Survivor');
+    const winnerMethod = formatOf(state).winnerExitMethod;
+    const seasonOver = state.castaways.some(c => c.exitMethod === winnerMethod);
     if(seasonOver) return false;
     const maxNum = state.episodes.length ? Math.max(...state.episodes.map(e=>e.number)) : 0;
     const latest = state.episodes.find(e=>e.number===maxNum);
@@ -1248,13 +1242,14 @@ class EpisodeLogic {
   //                  the one after.
   //   live        -- the latest episode, until it has results; then the next one (ensureUpcoming).
   //
-  // Once a Sole Survivor is crowned nothing more is created, and any trailing episode that is
-  // completely empty (no results, bets or picks) and numbered after the winner's episode is removed
-  // -- the reveal of the finale creates a "next" episode before anyone has confirmed the winner, and
-  // it shouldn't outlive that. Returns true if it changed anything.
+  // Once a winner is crowned nothing more is created, and any trailing episode that is completely
+  // empty (no results, bets or picks) and numbered after the winner's episode is removed -- the
+  // reveal of the finale creates a "next" episode before anyone has confirmed the winner, and it
+  // shouldn't outlive that. Returns true if it changed anything.
   static ensureNextEpisode(state){
     if(!Array.isArray(state.episodes)) state.episodes = [];
-    const winner = (state.castaways||[]).find(c => c.exitMethod === 'Sole Survivor');
+    const winnerMethod = formatOf(state).winnerExitMethod;
+    const winner = (state.castaways||[]).find(c => c.exitMethod === winnerMethod);
     if(winner){
       const finale = state.episodes.find(e => e.id === winner.exitEpisodeId);
       if(!finale) return false;
@@ -1337,7 +1332,7 @@ class EpisodeLogic {
         // different event types in one episode, but not the same one twice.
         const already = (ep.scoringEvents || []).some(x => x.type === sev.type && x.castawayId === castaway.id);
         if(already){ result.skipped.push(`${castaway.name} (${sev.type}, ep ${ep.number})`); return; }
-        // addEvent rejects a type that isn't in ACTIVE_ROSTER_EVENTS, so an unknown type can't land
+        // addEvent rejects a type that isn't in the format's catalog, so an unknown type can't land
         // here even if it survived the connector's own validation.
         const added = ActiveRosterLogic.addEvent(state, ep.id, sev.type, castaway.id);
         if(added) result.events.push({ episode: ep.number, name: castaway.name, type: sev.type });
@@ -1714,6 +1709,9 @@ class Migrations {
         // leagues hold 'survivor', which is why no migration is needed; only leagues created from
         // here on start unanswered.
         showId: null,
+        // The show's format id (shows.format), cached here by the server whenever showId is set, so
+        // formatOf() can answer without a database. Null reads as the default format.
+        showFormat: null,
         // False ONLY on leagues created after the guided-setup change; absent on every league that
         // predates it, and `!== false` is what the UI tests, so an existing league is never sent
         // back through setup. Flipped true when the commissioner confirms the basics.
@@ -1786,7 +1784,7 @@ class Migrations {
     if(typeof s.settings.benchSlots !== 'number') s.settings.benchSlots = 2;
     // Merge rather than replace, so a league that customised some types keeps those and picks up
     // catalog defaults for any type added since.
-    s.settings.eventPoints = { ...defaultEventPoints(), ...(s.settings.eventPoints || {}) };
+    s.settings.eventPoints = { ...defaultEventPoints(s), ...(s.settings.eventPoints || {}) };
     if(typeof s.settings.replenishEnabled !== 'boolean') s.settings.replenishEnabled = !!(s.midSeason && s.midSeason.replenish);
     if(typeof s.settings.tradeEnabled !== 'boolean') s.settings.tradeEnabled = !!(s.midSeason && s.midSeason.trade);
     // Default OFF like a new league, EXCEPT where predictions already exist -- same reasoning as
@@ -1828,9 +1826,9 @@ class Migrations {
 
 return {
   // ---- constants ----
-  PALETTE, SEED_CASTAWAYS, EXIT_METHODS,
+  PALETTE, SEED_CASTAWAYS,
   LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize,
-  ACTIVE_ROSTER_EVENTS,
+  formatOf,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct

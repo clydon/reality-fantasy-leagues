@@ -16,7 +16,10 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: stri
   await requireSuperAdmin(req);
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
 
-  const { rows: season } = await pool.query("SELECT id FROM show_seasons WHERE id=$1", [id]);
+  const { rows: season } = await pool.query(
+    "SELECT ss.id, s.format FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id=$1",
+    [id]
+  );
   if (!season.length) throw new HttpError(404, "Season not found");
 
   const { rows: any } = await pool.query("SELECT 1 FROM season_decisions WHERE season_id=$1 LIMIT 1", [id]);
@@ -45,5 +48,6 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: stri
        FROM season_cast WHERE season_id=$1 ORDER BY sort_order ASC, name ASC`,
     [id]
   );
-  return NextResponse.json({ decisions, cast, leagueCount: await leagueCountForSeason(id) });
+  // The show's format, so the review offers its exit methods and events when correcting a result.
+  return NextResponse.json({ decisions, cast, leagueCount: await leagueCountForSeason(id), format: season[0].format });
 });

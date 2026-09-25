@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import StateLogic from "@/lib/game/state-logic.js";
+import { formatFor } from "@/lib/game/formats/index.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
@@ -27,11 +27,17 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
   if (body.action !== "accept" && body.action !== "reject") throw new HttpError(400, 'action must be "accept" or "reject"');
 
   const { rows } = await pool.query(
-    "SELECT kind, castaway_name, method, event_type FROM season_decisions WHERE id=$1 AND season_id=$2",
+    `SELECT d.kind, d.castaway_name, d.method, d.event_type, s.format
+       FROM season_decisions d
+       JOIN show_seasons ss ON ss.id = d.season_id
+       JOIN shows s ON s.id = ss.show_id
+      WHERE d.id=$1 AND d.season_id=$2`,
     [decisionId, id]
   );
   if (!rows.length) throw new HttpError(404, "Decision not found");
   const d = rows[0];
+  // Corrections are checked against the show's own rules.
+  const format = formatFor(d.format);
 
   let applied: { castawayName: string; method?: string; eventType?: string } | null = null;
   if (body.action === "accept") {
@@ -43,9 +49,9 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
       castawayName = match.name;
     }
     const method = d.kind === "elimination" ? body.method?.trim() || d.method : undefined;
-    if (method && !StateLogic.EXIT_METHODS.includes(method)) throw new HttpError(400, `"${method}" isn't an exit method`);
+    if (method && !format.exitMethods.includes(method)) throw new HttpError(400, `"${method}" isn't an exit method`);
     const eventType = d.kind === "event" ? body.eventType?.trim() || d.event_type : undefined;
-    if (eventType && !StateLogic.ACTIVE_ROSTER_EVENTS.some((e) => e.id === eventType)) {
+    if (eventType && !format.events.some((e) => e.id === eventType)) {
       throw new HttpError(400, `"${eventType}" isn't a scoring event`);
     }
     const edited =

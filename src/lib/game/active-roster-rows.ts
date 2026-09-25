@@ -19,13 +19,14 @@ export interface PlayerEventRow {
 // points: it never was this player's event to score.
 export function playerEventRows(state: LeagueState, playerId: string): PlayerEventRow[] {
   const rows: PlayerEventRow[] = [];
+  const events = StateLogic.formatOf(state).events;
   [...state.episodes]
     .sort((a, b) => a.number - b.number)
     .forEach((ep) => {
       const lineup = (ep.lineups && ep.lineups[playerId]) || [];
       (ep.scoringEvents || []).forEach((sev) => {
         if (!lineup.includes(sev.castawayId)) return;
-        const def = StateLogic.ACTIVE_ROSTER_EVENTS.find((e) => e.id === sev.type);
+        const def = events.find((e) => e.id === sev.type);
         rows.push({
           episode: ep.number,
           postMerge: ep.postMerge,

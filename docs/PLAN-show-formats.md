@@ -1,5 +1,8 @@
 # Plan: show formats (Survivor, The Traitors, The Challenge, …)
 
+See `docs/ADDING-A-SHOW-FORMAT.md` for the reusable research playbook this plan's Traitors/Challenge
+sections were built from — use it for any show added after these three.
+
 ## The problem
 
 The pipeline itself is already show-agnostic: the show catalog, per-show terminology (`castaway_term`,
@@ -54,49 +57,118 @@ caches `showId`, so the client-side `StateLogic` knows the league's exit methods
 database call. Survivor's event ids stay exactly as they are, so no existing league state needs
 migrating. New formats add their own ids.
 
-## Draft catalogs for the new formats (to confirm)
+## Catalogs for the new formats (confirmed with the user 2026-09-25, informed by ground-truth wiki
+pulls of two completed seasons — Traitors US4 and Challenge: Vets & New Threats — and the two
+in-production seasons, Traitors US5 and Challenge: Cutthroat. Traitors AU3 and Challenge: All Stars 4
+were suggested as further ground truth but haven't been pulled yet.)
 
 **The Traitors**
-- Exit methods: Banished (at the Round Table), Murdered, Left/Quit, Eliminated at the end game,
-  Winner (Faithful), Winner (Traitor), Other.
-- Roles: Traitor / Faithful. A role is often secret until the person leaves, and a Faithful can be
-  recruited mid-season. Proposal: a per-castaway `role`, recorded as a season decision like everything
-  else, and hidden from league members until it's publicly revealed.
-- Candidate scoring events: won a shield; survived a Round Table where they received votes; voted for
-  a Traitor who was banished; recruited as a Traitor; nominated for murder / on the "death list" and
-  survived; won or contributed to a mission (only if sources attribute it to named people).
+- Exit methods / placements, confirmed against US4's full cast table: **Murdered**, **Banished**
+  (Faithful `banf` or Traitor `bant` — the wiki distinguishes these visually but it's the same
+  banishment event), **Finalist** (reached the end, didn't win — *not* an elimination), **Winner**
+  (Faithful or Traitor). Left/Quit and Other stay as fallbacks for anything not seen yet.
+- Roles: Traitor / Faithful, **tracked and scored**. A per-castaway `role`, recorded as a season
+  decision like everything else, hidden from league members until publicly revealed (murder,
+  banishment, or recruitment). Mid-season recruitment (Faithful → Traitor) is a confirmed recurring
+  mechanic, not a one-off — Katie in US5 (from Episode 3), Eric Nam in US4 (from Episode 9) — so the
+  schema needs a `role_reveal_episode` (or equivalent) and to allow role to change mid-season, not
+  just be fixed at draft.
+- Scoring events (confirmed):
+  1. Won a shield (individual safety)
+  2. Survived a Round Table (received banishment votes but wasn't banished)
+  3. Voted for a Traitor who was banished
+  4. Recruited as a Traitor mid-season
+  5. Reached the end as Finalist (non-winner)
+  6. Won the season (as Faithful or Traitor)
+  7. Murdered
+  8. Banished as a Traitor (caught)
+- Wiki structure note: a season's real tables are **not** on the season page itself — they're
+  transcluded from per-season `Template:` pages, e.g. `Template:US5 Contestant Info`,
+  `Template:US5 Contestant History`, `Template:US5 Voting History` (naming pattern:
+  `{ShowCode}{SeasonNumber} Contestant Info` / `Contestant History` / `Voting History`), confirmed on
+  US4 and US5. This is **already handled**: Survivor's wiki does the same (`{{S44votetable}}`), and
+  `expandTranscludedTables` in `db/wiki-sync.js` resolves table-bearing templates for any show. What
+  Traitors needs is the right section names: its per-episode table sits under `== Voting History ==`,
+  which Survivor's `voteSections` list already includes, and its cast table (Faction / Result / Exit
+  Episode / Finish) sits under `== Contestants ==`.
 
 **The Challenge**
-- Exit methods: Eliminated (lost an elimination), Disqualified, Quit, Medically removed, Finalist
-  (placed), Winner, Other.
+- Exit methods / placements, confirmed against Vets & New Threats' full cast table: **Eliminated**,
+  **Disqualified**, **Quit**, **Medically removed**, **Runner-up** (reached the final, didn't win —
+  *not* an elimination, same shape as Traitors' Finalist), **Winner**. Other stays as a fallback.
 - Groups: teams or pairs that change during the season (the existing "tribe" plumbing, relabelled).
-- Candidate scoring events: daily challenge win; elimination win (e.g. The Arena / Jungle); thrown
-  into or nominated for elimination and survived; finals placement.
+  Team identity in the wikitext is color-coded (`bgcolor="#FFA500"` etc.) rather than a named column,
+  so team assignment needs to be resolved from nearby prose/infobox naming (e.g. "Blue Team", "Gray
+  Team", "Orange Team" on the Cutthroat page) within that season's pull, not assumed to be a stable
+  scheme across seasons.
+- Scoring events (confirmed):
+  1. Daily/main challenge win
+  2. Elimination round win (Arena / Jungle / etc.)
+  3. Nominated for elimination and survived
+  4. Finals placement (reached and completed the final)
+  5. Won the season
+  6. Eliminated / Disqualified / Quit / Medically removed (as its own trackable event, not just the
+     exit method)
+  7. Served as team captain / leader
+- Format variance note: unlike Traitors (whose rules are stable across seasons), the Challenge's rules
+  genuinely change season to season — Cutthroat's page has 3-then-2 team mechanics with rotating
+  captains; Vets & New Threats additionally has `Partner Progress` and `Performance Points Progress`
+  tables that Cutthroat doesn't. The `==Format==` prose section is load-bearing per season, not
+  boilerplate. The extraction prompt/checklist likely needs to read that season's Format section
+  before extracting, rather than assuming one fixed table shape across all Challenge seasons.
 
 **Generic** (the fallback for any other show): Eliminated / Quit / Removed / Winner / Other;
 challenge win; safe while at risk. Research asks only generic questions.
 
 ## Phases
 
-1. **Plumbing, no behaviour change.** `shows.format` column (existing Survivor show = `survivor`,
-   others = `generic`), a format picker in Admin → Add show / show Settings, and the format registry
-   with `survivor.js` holding today's lists and prompts, moved rather than rewritten. Every call site
-   in the table above reads from `formatFor(show.format)`. Success = all current tests pass and a
-   Survivor pull/research gives byte-identical prompts.
+1. **Plumbing, no behaviour change — DONE (branch `format-phase1-survivor`).**
+   - Migration `0021_show_format.sql` adds `shows.format`. Every existing show gets `survivor`,
+     including the Traitors show already added, because that's how every show has been read and scored
+     so far. An admin switches a show's rules in Admin → Shows → show settings ("Rules").
+   - `src/lib/game/formats/` holds the registry (`index.js`, `formatFor`, default `survivor`) and
+     `survivor.js`: exit methods, winner, event catalog, merge, the wiki's episodes schema, prompt,
+     section names and event checks, and research's checklist, search hint, contradiction checks and
+     answer→event mapping. Everything was moved verbatim. The schemas are functions handed `z`, so the
+     module has no dependencies and can go in the browser bundle.
+   - `state-logic.js` reads rules through `formatOf(state)`, which uses `settings.showFormat`. That
+     field is set by the league settings route when a show is picked, and pushed to every league on a
+     show when an admin changes its format. A missing value reads as Survivor, so there's no
+     league-state backfill. That matters because league rows are read without `migrateLeagueState`.
+     `EXIT_METHODS` and `ACTIVE_ROSTER_EVENTS` are gone from its exports.
+   - Wiki and research reads record `format` in their provenance. A cached read made under a different
+     format isn't reused. Reads from before this record none and count as Survivor, so nothing
+     existing is re-read or re-billed.
+   - There's no `generic.js` yet. The default stays `survivor` so nothing changes; add `generic` when
+     there's a show that needs it.
+   - Verified: a regression harness captured every request the connectors send (system prompt, user
+     prompt, JSON schema) plus validation and game-rule results on fixed fixtures. Output before and
+     after the refactor is byte-identical. `tsc`, `eslint src` and `next build` pass. **Not verified
+     against a database:** the local dev DB is at migration 0015 and lacks `pgvector` (needed by 0016),
+     so the new routes haven't been exercised locally.
+   - Deferred to phase 2: three display-only renderers of Survivor research answers (`printResearch`
+     in `db/episode-research.js`, `notesFor` in `db/embeddings.js`, `notesFor` in
+     `src/components/admin/shows-section.tsx`) and the `ResearchCastaway` type. They only affect
+     wording and tolerate missing fields, so generalise them once there's a second checklist to
+     generalise against.
 2. **The Traitors.** Write `traitors.js` (catalog, wiki sections and prompt, research checklist,
    default sites, roles if we want them). Pull a *completed* US season first, as ground truth to judge
    extraction against, then Season 5.
 3. **The Challenge.** Same again. Teams and pairs change often, so check that the held-tribes and
    group logic copes with regrouping.
-4. **Tidy-up.** Remove the remaining Survivor wording from shared UI copy, and make "season over"
-   generic (the format's winner exit method, not the string "Sole Survivor").
+4. **Tidy-up.** Remove the remaining Survivor wording from shared UI copy. ("Season over" is already
+   generic: phase 1 made it the format's `winnerExitMethod`.)
 
 ## Risks and open points
 
-- **Wiki shape.** Each show's wiki lays out its tables differently. The format's section names and
-  prompt are the lever, but only a real pull tells us whether they work. This dev environment can't
-  reach fandom.com (network policy), so the first pulls happen on the live site, or after allowing
-  `*.fandom.com` in this environment's network settings.
+- **Wiki shape — largely de-risked.** Ground-truth pulls (via `curl` against each wiki's MediaWiki
+  API, which this dev environment *can* reach even though the WebFetch tool 402s — use
+  `https://<wiki>.fandom.com/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&format=json&titles=...`)
+  confirm the exit-method/placement taxonomies above. Traitors' template-transcluded tables are the
+  same shape as Survivor's and already handled. The real structural difference is the Challenge: its
+  table shape (and rules) vary season to season and are driven by the season's prose. It's still to
+  be proven that extraction holds up against a *live, incomplete* season (US5, Cutthroat), not just
+  the completed seasons pulled so far.
 - **Research-only facts.** Things like mission contributions or who was on the death list may not be
   in any table; research is the only source, so confidence matters more for these.
 - **Existing leagues** on a show that later changes format keep their past results. Only new

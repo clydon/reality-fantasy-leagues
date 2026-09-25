@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { LeagueDecisionSync, SeasonDecision, SeasonDecisionsResponse } from "@/lib/game/types";
-import StateLogic from "@/lib/game/state-logic.js";
+import type { GameFormat } from "@/lib/game/formats/index.js";
 import { api, ApiError } from "@/lib/api";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { Button } from "@/components/ui/button";
@@ -26,11 +26,11 @@ function nameOf(d: SeasonDecision) {
   return d.applied?.castawayName || d.castaway_name;
 }
 
-function labelFor(d: SeasonDecision): string {
+function labelFor(d: SeasonDecision, format: GameFormat): string {
   if (d.kind === "elimination") return d.applied?.method || d.method;
   if (d.kind === "exiled") return "Exile Island";
   const type = d.applied?.eventType || d.event_type;
-  return StateLogic.ACTIVE_ROSTER_EVENTS.find((e) => e.id === type)?.label ?? type;
+  return format.events.find((e) => e.id === type)?.label ?? type;
 }
 
 function castFor(cast: Cast[], name: string): Cast | null {
@@ -44,6 +44,7 @@ export function EpisodeDecisions({
   decisions,
   cast,
   leagueCount,
+  format,
   onSynced,
 }: {
   seasonId: string;
@@ -51,6 +52,8 @@ export function EpisodeDecisions({
   decisions: SeasonDecision[];
   cast: Cast[];
   leagueCount: number;
+  /** The show's rules: which exit methods and events a correction may pick. */
+  format: GameFormat;
   onSynced: (leagues: LeagueDecisionSync[]) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -88,7 +91,7 @@ export function EpisodeDecisions({
     Number(!exited.has(nameOf(a).toLowerCase())) - Number(!exited.has(nameOf(b).toLowerCase())) ||
     nameOf(a).localeCompare(nameOf(b)) ||
     kindOrder(a) - kindOrder(b) ||
-    labelFor(a).localeCompare(labelFor(b));
+    labelFor(a, format).localeCompare(labelFor(b, format));
   const ordered = [...groups.entries()].sort(
     ([a], [b]) => (a === null ? 999 : tribes.indexOf(a)) - (b === null ? 999 : tribes.indexOf(b))
   );
@@ -111,7 +114,7 @@ export function EpisodeDecisions({
             <span className="text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">{tribe ?? "No tribe"}</span>
           )}
           {[...rows].sort(sortRows).map((d) => (
-            <DecisionRow key={d.id} seasonId={seasonId} decision={d} cast={cast} leagueCount={leagueCount} onSynced={onSynced} />
+            <DecisionRow key={d.id} seasonId={seasonId} decision={d} cast={cast} leagueCount={leagueCount} format={format} onSynced={onSynced} />
           ))}
         </div>
       ))}
@@ -124,12 +127,14 @@ function DecisionRow({
   decision: d,
   cast,
   leagueCount,
+  format,
   onSynced,
 }: {
   seasonId: string;
   decision: SeasonDecision;
   cast: Cast[];
   leagueCount: number;
+  format: GameFormat;
   onSynced: (leagues: LeagueDecisionSync[]) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -137,8 +142,8 @@ function DecisionRow({
   const [error, setError] = useState<string | null>(null);
   const member = castFor(cast, nameOf(d));
   const [castawayName, setCastawayName] = useState(member?.name ?? "");
-  const [method, setMethod] = useState(d.applied?.method || d.method || StateLogic.EXIT_METHODS[0]);
-  const [eventType, setEventType] = useState(d.applied?.eventType || d.event_type || StateLogic.ACTIVE_ROSTER_EVENTS[0].id);
+  const [method, setMethod] = useState(d.applied?.method || d.method || format.exitMethods[0]);
+  const [eventType, setEventType] = useState(d.applied?.eventType || d.event_type || format.events[0].id);
 
   async function decide(action: "accept" | "reject", edits?: { castawayName?: string; method?: string; eventType?: string }) {
     setBusy(true);
@@ -174,7 +179,7 @@ function DecisionRow({
         )}
         <span className="text-sm font-medium">{nameOf(d)}</span>
         {!member && <span className="font-semibold text-destructive">not in the cast</span>}
-        <span className="text-sm text-muted-foreground">{labelFor(d)}</span>
+        <span className="text-sm text-muted-foreground">{labelFor(d, format)}</span>
         {d.applied && (
           <span className="text-[0.65rem] text-muted-foreground" title="Corrected before accepting">
             (was {d.castaway_name}
@@ -227,14 +232,14 @@ function DecisionRow({
           </Select>
           {d.kind === "elimination" && (
             <Select size="sm" value={method} onChange={(e) => setMethod(e.target.value)}>
-              {StateLogic.EXIT_METHODS.map((m) => (
+              {format.exitMethods.map((m) => (
                 <option key={m}>{m}</option>
               ))}
             </Select>
           )}
           {d.kind === "event" && (
             <Select size="sm" value={eventType} onChange={(e) => setEventType(e.target.value)}>
-              {StateLogic.ACTIVE_ROSTER_EVENTS.map((e) => (
+              {format.events.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.label}
                 </option>

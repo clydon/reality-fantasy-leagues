@@ -1,0 +1,11 @@
+-- Which game rules a show plays by (docs/PLAN-show-formats.md). The rules themselves -- exit methods,
+-- scoring events, the merge, wiki prompts, the research checklist -- are code, in
+-- src/lib/game/formats/; this column only says which of them a show uses.
+--
+-- Every existing show gets 'survivor', because every show has been read and scored with Survivor's
+-- rules until now, so nothing changes until an admin picks another format for a show.
+--
+-- No CHECK constraint on the value: the registry in formats/index.js is the list of valid formats,
+-- and the admin API validates against it. A constraint here would have to be migrated every time a
+-- format is added, and an unknown value already reads as the default.
+ALTER TABLE shows ADD COLUMN format TEXT NOT NULL DEFAULT 'survivor';

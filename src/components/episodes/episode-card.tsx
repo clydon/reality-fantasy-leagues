@@ -22,10 +22,11 @@ import { useShowTerms } from "@/lib/use-show-terms";
 // same idea, one instance per card instead of a shared collection keyed by id.
 export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: LeagueState; defaultOpen: boolean }) {
   const terms = useShowTerms();
+  const format = StateLogic.formatOf(state);
   const [open, setOpen] = useState(defaultOpen);
   const [editingEp, setEditingEp] = useState(false);
   const [elimCastawayId, setElimCastawayId] = useState("");
-  const [elimMethod, setElimMethod] = useState(StateLogic.EXIT_METHODS[0]);
+  const [elimMethod, setElimMethod] = useState(format.exitMethods[0]);
   const [newBetLabel, setNewBetLabel] = useState("");
   const [newBetPoints, setNewBetPoints] = useState(state.settings.defaultBetPoints);
 
@@ -105,9 +106,9 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
             {ep.title ? <span className="font-normal"> &ldquo;{ep.title}&rdquo;</span> : null} — {summary}
           </div>
           {ep.airDate && <div className="mt-0.5 text-xs text-muted-foreground">Aired {ep.airDate}</div>}
-          {(ep.postMerge || (ep.bets || []).length > 0) && (
+          {((format.hasMerge && ep.postMerge) || (ep.bets || []).length > 0) && (
             <div className="mt-1 flex gap-1.5">
-              {ep.postMerge && (
+              {format.hasMerge && ep.postMerge && (
                 <span className="rounded bg-[#5089c4] px-1.5 py-0.5 text-[0.65rem] font-bold text-white">Post-Merge</span>
               )}
               {(ep.bets || []).length > 0 && (
@@ -137,15 +138,17 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                 onBlur={(e) => updateField("number", parseInt(e.target.value) || 1)}
               />
             </label>
-            <label className="flex items-center gap-1.5 text-sm">
-              <input
-                type="checkbox"
-                defaultChecked={ep.postMerge}
-                disabled={!canManage}
-                onChange={(e) => updateField("postMerge", e.target.checked)}
-              />
-              Post-merge
-            </label>
+            {format.hasMerge && (
+              <label className="flex items-center gap-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  defaultChecked={ep.postMerge}
+                  disabled={!canManage}
+                  onChange={(e) => updateField("postMerge", e.target.checked)}
+                />
+                Post-merge
+              </label>
+            )}
             {canManage && (
               <button
                 className={cn("rounded border border-border px-2 py-0.5 text-xs", editingEp && "bg-secondary")}
@@ -217,7 +220,7 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                     ))}
                   </Select>
                   <Select value={elimMethod} onChange={(e) => setElimMethod(e.target.value)}>
-                    {StateLogic.EXIT_METHODS.map((m) => (
+                    {format.exitMethods.map((m) => (
                       <option key={m}>{m}</option>
                     ))}
                   </Select>

@@ -18,6 +18,13 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
   const state = await withLeagueLock(leagueId, async (s, client) => {
     StateLogic.updateSettings(s, field, value);
 
+    // The show's format rides along with it, cached so the game logic (which can't read the
+    // database) knows the league's rules. Kept in step afterwards by the admin show route.
+    if (field === "showId") {
+      const { rows } = await client.query("SELECT format FROM shows WHERE slug=$1", [s.settings.showId]);
+      s.settings.showFormat = rows.length ? rows[0].format : null;
+    }
+
     // Picking a show or a season is the other moment a league should receive the season's
     // admin-approved cast (db/migrations/0011) -- approval itself covers the leagues already on the
     // season, and this covers the ones that arrive afterwards. Additive and idempotent

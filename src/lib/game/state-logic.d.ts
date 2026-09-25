@@ -2,12 +2,7 @@
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
 import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Episode, ReplenishTurn, PickEmPick, ScoringEvent, EpisodeProposalPayload } from "./types";
-
-export interface ActiveRosterEventDef {
-  id: string;
-  label: string;
-  defaultPoints: number;
-}
+import type { GameFormat } from "./formats/index.js";
 
 /** One question in guided first-time setup, in the order it should be asked. */
 export interface SetupStep {
@@ -108,7 +103,8 @@ declare const StateLogic: {
   finalePredictionsAvailable(state: LeagueState): boolean;
   /** Castaways per player in the draft. Derived from activeSlots+benchSlots for Active Roster. */
   rosterSize(state: LeagueState): number;
-  ACTIVE_ROSTER_EVENTS: ActiveRosterEventDef[];
+  /** The league's show format (exit methods, scoring events, merge, winner). See formats/index.js. */
+  formatOf(state: LeagueState): GameFormat;
   ActiveRosterLogic: {
     pointsFor(state: LeagueState, type: string): number;
     activeSlots(state: LeagueState): number;
@@ -212,7 +208,6 @@ declare const StateLogic: {
   nextPlacementOrder(state: LeagueState): number;
   updateBet(state: LeagueState, epId: string, betId: string, field: string, value: unknown): void;
   removeBetPrediction(state: LeagueState, epId: string, betId: string, predId: string): void;
-  EXIT_METHODS: string[];
   startReplenish(state: LeagueState): boolean;
   currentReplenishTurn(state: LeagueState): ReplenishTurn | null;
   replenishAssign(state: LeagueState, castawayId: string): void;

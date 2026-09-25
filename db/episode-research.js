@@ -50,6 +50,10 @@ const { zodOutputFormat } = require("@anthropic-ai/sdk/helpers/zod");
 const { z } = require("zod");
 const { termsFor } = require("./wiki-sync.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
+// The show's game rules (docs/PLAN-show-formats.md): what the checklist asks, which contradictions to
+// flag, and which answers become which results are the format's. The run, the providers, the
+// coverage rules and the cache are the same for every format.
+const Formats = require("../src/lib/game/formats/index.js");
 const embeddings = require("./embeddings.js");
 
 // ---------- the checklist ----------
@@ -57,88 +61,20 @@ const embeddings = require("./embeddings.js");
 // sources don't say, and it is the difference between "this didn't happen" and "we couldn't tell".
 const Answer = z.enum(["yes", "no", "unknown"]);
 
-// Exit methods, copied from state-logic.js's EXIT_METHODS, as a hard enum for the same reason
-// wiki-sync.js does it: the value is written onto castaway.exitMethod, so anything outside this list
-// is a silent data-shape break rather than a visible error.
-const EXIT_METHODS = [
-  "Voted Out",
-  "Medically Evacuated",
-  "Quit",
-  "Lost Fire-Making",
-  "Lost Final Tribal (Jury Vote)",
-  "Sole Survivor",
-  "Other",
-];
-
-const CastawayChecklist = z.object({
-  name: z.string().describe("The castaway's full name, exactly as given in the list you were sent."),
-
-  // --- leaving the game ---
-  leftTheGame: Answer.describe("Did this person leave the game permanently in THIS episode?"),
-  exitMethod: z
-    .enum(EXIT_METHODS)
-    .nullable()
-    .describe("How they left, if they left. Null if they did not leave."),
-
-  // --- tribal council ---
-  attendedTribal: Answer.describe("Did they attend Tribal Council this episode?"),
-  votesReceived: z
-    .number()
-    .int()
-    .nullable()
-    .describe("How many votes were cast against them at Tribal this episode. 0 if they attended and got none. Null if unknown or no Tribal."),
-  votedFor: z
-    .string()
-    .nullable()
-    .describe("The full name of the person they voted for, if reported. Null if unknown or they did not vote."),
-
-  // --- challenges ---
-  wonIndividualImmunity: Answer,
-  wonTribeImmunity: Answer.describe("Were they on the tribe/team that won immunity?"),
-  wonIndividualReward: Answer,
-  wonTribeReward: Answer.describe("Were they on the tribe/team that won reward?"),
-  satOutOfChallenge: Answer.describe("Did they sit out of a challenge this episode?"),
-
-  // --- advantages ---
-  foundAdvantage: Answer.describe("Did they FIND a hidden immunity idol or any advantage this episode?"),
-  advantageFoundName: z
-    .string()
-    .nullable()
-    .describe("What they found, in the show's own words ('hidden immunity idol', 'Beware Advantage', 'Shot in the Dark'). Null if nothing."),
-  playedAdvantage: Answer.describe("Did they PLAY an idol or advantage this episode (their own or on someone else)?"),
-  advantagePlayedName: z.string().nullable(),
-  votesNullified: z
-    .number()
-    .int()
-    .nullable()
-    .describe("If an idol they played nullified votes, how many. Null otherwise."),
-  advantageUsedAgainstThem: Answer.describe("Was an advantage used against them (a vote stolen, blocked, nullified)?"),
-
-  // --- twists ---
-  exiled: Answer.describe("Were they sent away from their tribe by an Exile Island-style twist while staying in the game?"),
-  notableTwist: z
-    .string()
-    .nullable()
-    .describe("Any other notable, checkable thing that happened to this person this episode, in one short phrase. Null if nothing."),
-
-  // --- provenance, per person ---
-  sources: z
-    .array(z.string())
-    .describe("URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."),
-  confidence: z
-    .enum(["high", "medium", "low"])
-    .describe("high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."),
-});
-
-const EpisodeResearchSchema = z.object({
-  episodeTitle: z.string().nullable(),
-  airDate: z.string().nullable().describe("As printed on the source, e.g. 'March 5, 2026'."),
-  summary: z.string().describe("Two or three sentences on what happened this episode, for a human reviewer to orient on."),
-  tribalCouncilHeld: Answer,
-  castaways: z
-    .array(CastawayChecklist)
-    .describe("EXACTLY ONE ENTRY PER CASTAWAY in the list you were sent, in that same order, including anyone nothing happened to."),
-});
+// The whole answer for one episode: a few episode-level fields, then one checklist entry per person.
+// The checklist itself is the format's (format.research.checklistSchema); its exit methods are a hard
+// enum for the same reason wiki-sync.js's are -- the value is written onto castaway.exitMethod.
+function researchSchemaFor(format) {
+  return z.object({
+    episodeTitle: z.string().nullable(),
+    airDate: z.string().nullable().describe("As printed on the source, e.g. 'March 5, 2026'."),
+    summary: z.string().describe("Two or three sentences on what happened this episode, for a human reviewer to orient on."),
+    ...format.research.episodeFields(z, Answer),
+    castaways: z
+      .array(format.research.checklistSchema(z, Answer))
+      .describe("EXACTLY ONE ENTRY PER CASTAWAY in the list you were sent, in that same order, including anyone nothing happened to."),
+  });
+}
 
 // ---------- the prompt ----------
 // The instruction that matters most is the one about not answering from memory. The entire reason to
@@ -150,7 +86,7 @@ const EpisodeResearchSchema = z.object({
 // Provider-neutral on purpose: it says "search" and never names a tool, because the three providers
 // expose search as three different mechanisms (a server tool, a grounding flag, a search parameter)
 // and none of them needs to be told what its own search is called.
-function buildPrompt({ showName, season, episodeNumber, castNames, terms, domains = [] }) {
+function buildPrompt({ showName, season, episodeNumber, castNames, terms, domains = [], format }) {
   const system = [
     `You research reality-TV episodes and answer a fixed checklist about every ${terms.castaway} still in the game.`,
     "",
@@ -177,8 +113,7 @@ function buildPrompt({ showName, season, episodeNumber, castNames, terms, domain
     "",
     ...castNames.map((n, i) => `${i + 1}. ${n}`),
     "",
-    "Search for the episode recap, the episode's wiki page, and any reporting on idols or advantages",
-    "found or played in it. Then answer the checklist for every person above.",
+    ...format.research.searchHint,
     // Anthropic enforces this list (allowed_domains on its search tool); for the others it's advice.
     ...(domains.length ? ["", `Use these sites: ${domains.join(", ")}.`] : []),
     "Two or three good pages are enough -- don't keep searching once the episode is covered.",
@@ -861,7 +796,7 @@ function sumUsage(a, b) {
 // The schema guarantees shape; this guards content, same division of labour as wiki-sync.js. The
 // checks that matter are about COVERAGE and about answers contradicting themselves -- a checklist
 // whose whole promise is "everyone is accounted for" has to be held to it.
-function validateResearch(parsed, castNames, terms) {
+function validateResearch(parsed, castNames, terms, format) {
   const problems = [];
   const fatal = [];
   const byName = new Map();
@@ -891,18 +826,9 @@ function validateResearch(parsed, castNames, terms) {
       problems.push(`${entry.name}: an exit method on someone who didn't leave (ignored)`);
       entry.exitMethod = null;
     }
-    if (entry.attendedTribal === "no" && Number.isInteger(entry.votesReceived) && entry.votesReceived > 0) {
-      problems.push(`${entry.name}: ${entry.votesReceived} votes against someone who didn't attend Tribal`);
-    }
-    if (entry.wonIndividualImmunity === "yes" && entry.leftTheGame === "yes" && entry.exitMethod === "Voted Out") {
-      problems.push(`${entry.name}: voted out despite winning individual immunity`);
-    }
-    if (entry.foundAdvantage === "yes" && !entry.advantageFoundName) {
-      problems.push(`${entry.name}: found an advantage but didn't say what`);
-    }
+    problems.push(...format.research.entryProblems(entry));
     // The rule the whole design rests on: a positive claim with nothing behind it.
-    const claims = ["leftTheGame", "wonIndividualImmunity", "wonIndividualReward", "foundAdvantage", "playedAdvantage", "satOutOfChallenge"]
-      .filter((k) => entry[k] === "yes");
+    const claims = format.research.claims.filter((k) => entry[k] === "yes");
     if (claims.length && (!entry.sources || !entry.sources.length)) {
       problems.push(`${entry.name}: claims ${claims.join(", ")} with no source cited`);
     }
@@ -932,7 +858,7 @@ function validateResearch(parsed, castNames, terms) {
 async function catalogEntry(pool, showSlug, season, label) {
   const { rows } = await pool.query(
     `SELECT s.id AS show_id, s.name AS show_name, s.castaway_term, s.tribe_term,
-            s.research_domains, s.wiki_api_url,
+            s.research_domains, s.wiki_api_url, s.format,
             ss.id AS season_id, ss.name AS season_name
        FROM shows s LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number = $2
       WHERE s.slug = $1`,
@@ -1016,6 +942,7 @@ function contextFrom(entry, showSlug, season, episodeNumber, castNames, castFrom
     castNames,
     castFrom,
     terms: termsFor(entry).terms,
+    format: Formats.formatFor(entry.format),
   };
 }
 
@@ -1069,7 +996,7 @@ async function resolveResearchContext(pool, leagueId, episodeNumber) {
 // Keyed on (show, season, episode) and NOT on anything about the sources, unlike wiki_extractions:
 // there is no revision id for "the internet as it was last Thursday", so the only honest cache rule
 // is "we already researched this episode once; ask again only if you say so".
-async function cachedResearch(pool, showId, season, episodeNumber, opts) {
+async function cachedResearch(pool, showId, season, episodeNumber, formatId, opts) {
   if (opts.force) return null;
   const { rows } = await pool.query(
     `SELECT id, payload, provenance, researched_at FROM episode_research
@@ -1077,6 +1004,9 @@ async function cachedResearch(pool, showId, season, episodeNumber, opts) {
     [showId, season, episodeNumber]
   );
   if (!rows.length) return null;
+  // Answers to another format's checklist (the show was switched since) don't answer this one.
+  // Research from before formats recorded none, and was all asked under the default.
+  if (((rows[0].provenance && rows[0].provenance.format) || Formats.DEFAULT_FORMAT) !== formatId) return null;
   console.log(
     `[research] episode ${episodeNumber} was researched ${new Date(rows[0].researched_at).toISOString()} ` +
       "-- reusing it (no model call). Pass --force to research it again."
@@ -1109,39 +1039,23 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
 // One "yes" answer -> one item CANDIDATE. Only 'yes' ever produces one: 'no' is a fact worth
 // recording but not a scoring event, and 'unknown' must never silently become one -- collapsing that
 // distinction is exactly the failure the three-valued schema exists to prevent (see the top of this
-// file). rewardWin covers both individual and tribe reward with the SAME event type, matching the
-// wiki connector's own catalog, so winning both in one episode still earns exactly one item -- the
-// unique index below collapses it rather than the fan-out needing to know that.
-function itemsFromChecklist(entry) {
+// file). Which answers imply which results is the format's (format.research.items).
+function itemsFromChecklist(entry, format) {
   const items = [];
   const add = (kind, eventType) =>
     items.push({ castawayName: entry.name, kind, eventType, confidence: entry.confidence, sources: entry.sources || [] });
-  if (entry.wonIndividualImmunity === "yes") add("event", "individualImmunity");
-  if (entry.wonTribeImmunity === "yes") add("event", "tribeImmunity");
-  if (entry.wonIndividualReward === "yes" || entry.wonTribeReward === "yes") add("event", "rewardWin");
-  if (entry.foundAdvantage === "yes") add("event", "idolFound");
-  if (entry.playedAdvantage === "yes") add("event", "idolPlayed");
-  if (entry.attendedTribal === "yes" && entry.votesReceived === 0) add("event", "zeroVotesSafe");
-  // Survived, not eliminated THIS episode: someone voted out with votes against them was voted out,
-  // not "safe despite votes", so leftTheGame excludes them from this one.
-  if (typeof entry.votesReceived === "number" && entry.votesReceived > 0 && entry.leftTheGame !== "yes") {
-    add("event", "survivedVotes");
-  }
-  if (entry.advantageUsedAgainstThem === "yes") add("event", "advantageTargeted");
-  if (entry.satOutOfChallenge === "yes") add("event", "satOut");
-  // Exile is a fact, not a scoring event -- same as everywhere else exile appears in this app
-  // (EpisodeLogic.addExiled). eventType stays '' to satisfy episode_research_items_shape.
-  if (entry.exiled === "yes") add("exiled", "");
+  format.research.items(entry, add);
   return items;
 }
 
 // All the candidates for one episode's research, deduplicated by (name, kind, eventType) -- the same
-// identity the unique index enforces. Computed once because the answers are identical for every
-// league on the season; only the reveal gate below varies per league.
-function candidatesFor(payload) {
+// identity the unique index enforces, which is also what collapses two answers that imply the same
+// result (Survivor's individual and tribe reward both mean rewardWin). Computed once because the
+// answers are identical for every league on the season; only the reveal gate below varies per league.
+function candidatesFor(payload, format) {
   const byKey = new Map();
   for (const entry of payload.castaways || []) {
-    for (const item of itemsFromChecklist(entry)) {
+    for (const item of itemsFromChecklist(entry, format)) {
       const key = `${item.castawayName.toLowerCase()}|${item.kind}|${item.eventType}`;
       if (!byKey.has(key)) byKey.set(key, item);
     }
@@ -1164,7 +1078,7 @@ async function stageResearchDecisions(pool, run, opts = {}) {
     [seasonId, run.episodeNumber]
   );
   const postMerge = !!(merge[0] && merge[0].post_merge);
-  const items = candidatesFor(run.payload).map((c) => ({
+  const items = candidatesFor(run.payload, run.format).map((c) => ({
     episode: run.episodeNumber,
     postMerge,
     kind: c.kind,
@@ -1183,7 +1097,7 @@ async function stageResearchDecisions(pool, run, opts = {}) {
  * no model call. The research counterpart of wiki-sync's stageCachedSeasonEpisodes. */
 async function stageCachedSeasonResearch(pool, seasonId) {
   const { rows } = await pool.query(
-    `SELECT er.id, er.episode_number, er.payload, s.id AS show_id, s.slug, ss.season_number
+    `SELECT er.id, er.episode_number, er.payload, er.provenance, s.id AS show_id, s.slug, s.format, ss.season_number
        FROM show_seasons ss
        JOIN shows s ON s.id = ss.show_id
        JOIN episode_research er ON er.show_id = s.id AND er.season_number = ss.season_number
@@ -1201,6 +1115,8 @@ async function stageCachedSeasonResearch(pool, seasonId) {
       season: r.season_number,
       episodeNumber: r.episode_number,
       payload: r.payload,
+      // The format the answers were asked under, which is what their shape follows.
+      format: Formats.formatFor((r.provenance && r.provenance.format) || r.format),
     });
     inserted += out.inserted;
   }
@@ -1236,9 +1152,9 @@ async function runFor(pool, ctx, opts) {
   const provider = providerFor(opts.provider);
   const model = opts.model || process.env.RESEARCH_MODEL || provider.defaultModel;
 
-  const cached = await cachedResearch(pool, ctx.showId, ctx.season, episodeNumber, opts);
+  const cached = await cachedResearch(pool, ctx.showId, ctx.season, episodeNumber, ctx.format.id, opts);
   if (cached) {
-    const review = validateResearch(cached.payload, ctx.castNames, ctx.terms);
+    const review = validateResearch(cached.payload, ctx.castNames, ctx.terms, ctx.format);
     // `id` matters even on a cache hit: staging needs a research_id to file decisions against, and
     // re-staging a cached episode must not require paying for the search again.
     return { ...ctx, ...review, payload: cached.payload, provenance: cached.provenance, cached: true, id: cached.id };
@@ -1251,13 +1167,13 @@ async function runFor(pool, ctx, opts) {
       `${ctx.castNames.length} ${ctx.terms.castaways} (from the ${ctx.castFrom}), via ${provider.id}/${model}`
   );
   const { system, user } = buildPrompt(ctx);
-  const out = await runResearch({ system, user, schema: EpisodeResearchSchema, provider, model, domains: ctx.domains });
+  const out = await runResearch({ system, user, schema: researchSchemaFor(ctx.format), provider, model, domains: ctx.domains });
   console.log(
     `[research] tokens: ${out.usage.input_tokens} in / ${out.usage.output_tokens} out` +
       ` (${out.passes} call${out.passes === 1 ? "" : "s"}), ${out.pagesRead.length} page(s) read`
   );
 
-  const review = validateResearch(out.parsed, ctx.castNames, ctx.terms);
+  const review = validateResearch(out.parsed, ctx.castNames, ctx.terms, ctx.format);
   for (const problem of review.problems) console.log(`[research] ! ${problem}`);
   if (review.fatal.length) {
     throw new Error(
@@ -1277,6 +1193,8 @@ async function runFor(pool, ctx, opts) {
     showSlug: ctx.showSlug,
     seasonNumber: ctx.season,
     episodeNumber,
+    // Whose checklist this answers -- see cachedResearch.
+    format: ctx.format.id,
     castFrom: ctx.castFrom,
     castAsked: ctx.castNames,
     // Already out before this episode, so not asked about (see stillInGame).
@@ -1381,8 +1299,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  EpisodeResearchSchema,
-  CastawayChecklist,
+  researchSchemaFor,
   buildPrompt,
   validateResearch,
   researchEpisode,
@@ -1404,7 +1321,6 @@ module.exports = {
   dedupeLines,
   CombinationUnsupported,
   PROVIDERS,
-  EXIT_METHODS,
   SEARCH_TOOL,
   RESEARCH_MODELS,
   MAX_SEARCHES,
