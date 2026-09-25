@@ -508,10 +508,22 @@ function PullResult({
           ))}
         </ul>
       )}
-      <p className="mt-0.5 text-muted-foreground">
-        Nothing is applied automatically — a cast pull waits for the commissioner in League Settings, episode results on
-        each episode&rsquo;s card.
-      </p>
+      {/* Spelled out for the cast case specifically: "filed a pending cast proposal" reads like the
+          cast is in the league, and it isn't -- nothing from the connector is applied until a
+          commissioner says so, and Pull episodes can't match a single name until that happens. That
+          ordering trap is what made a correct cast-then-episodes sequence look broken. */}
+      {result.kind === "cast" ? (
+        <p className="mt-0.5 text-muted-foreground">
+          Nothing is applied automatically. The cast isn&rsquo;t in a league until its commissioner opens{" "}
+          <b>League Settings → Wiki Connector</b> and clicks Apply — and <b>Pull episodes</b> has no names to match
+          against until they do.
+        </p>
+      ) : (
+        <p className="mt-0.5 text-muted-foreground">
+          Nothing is applied automatically — episode results wait on each episode&rsquo;s card for the commissioner to
+          confirm.
+        </p>
+      )}
     </div>
   );
 }

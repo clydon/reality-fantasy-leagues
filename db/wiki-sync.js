@@ -947,10 +947,26 @@ async function fanOutEpisodes(pool, extraction, league, terms, opts) {
   const state = league.state;
   // Names resolve against this league's cast, so with no cast there is nothing to resolve and every
   // name would fail. Say that rather than reporting dozens of unmatched names.
+  //
+  // Which of the two reasons it is matters a lot, and the old message assumed the wrong one. Pulling
+  // the cast does NOT put a cast in the league -- it files a proposal a commissioner still has to
+  // apply (nothing from the connector is ever applied automatically). So someone who pulls cast and
+  // then pulls episodes, in the right order, still lands here, and telling them to "run
+  // `node db/wiki-sync.js cast <id>`" sends them to re-do the step they already did, by a route that
+  // isn't even the one they used. Look at whether a cast proposal is already waiting, and name the
+  // actual next click.
   if (!state.castaways.length) {
+    const { rows: waiting } = await pool.query(
+      "SELECT 1 FROM wiki_proposals WHERE league_id=$1 AND kind='cast' AND status='pending' LIMIT 1",
+      [league.id]
+    );
     throw new Error(
-      `no ${terms.castaways} yet, so per-episode names can't be matched to anyone -- ` +
-        `run \`node db/wiki-sync.js cast ${league.id}\` and apply that proposal first`
+      waiting.length
+        ? `no ${terms.castaways} in this league yet -- its cast import is filed but NOT applied. ` +
+            `A commissioner opens League Settings > Wiki Connector in "${league.name}" and clicks Apply on the ` +
+            `pending cast proposal; pulling episodes works from then on. (The connector never applies anything itself.)`
+        : `no ${terms.castaways} in this league yet, and no cast proposal is waiting either -- pull the cast for ` +
+            `this season first, then apply it in "${league.name}"'s League Settings > Wiki Connector.`
     );
   }
 
