@@ -1714,6 +1714,23 @@ once, by an admin, the way the cast already was (0011):
 - **Commissioners** no longer review anything: results land on episode cards on their own, and a
   catching-up league gets an episode's results when it reveals it.
 
+### Episode list, air schedule and auto-research (db/migrations/0020)
+
+Step 2 of each season is a list of its episodes rather than an episode-number box. Each season has an
+air schedule (premiere date + air time + time zone, weekly; the wiki's own air dates override), which
+is what marks an episode aired. Aired episodes offer **Review results** (when anything is staged) and
+**Research**; the next upcoming one only shows when it airs. The research route refuses an episode
+whose known air time is in the future.
+
+**Auto-research** (per season, inline above the list): on/off, weekday, time, model. When on,
+`db/auto-research.js` -- run hourly by `.github/workflows/auto-research.yml` -- researches each episode
+at the first slot after it airs, for slots after auto-research was switched on (older episodes stay
+manual, so switching it on mid-season doesn't research the whole back catalogue). Failures are logged
+in `auto_research_attempts` and retried after 6 hours, at most 3 times; each episode row shows when
+its auto-research will run, or why it failed. Results are staged for review like a manual run.
+All times are computed in the season's zone by `src/lib/game/air-schedule.js` (DST-safe, no date
+library).
+
 ## Semantic search over research (`db/embeddings.js`, `episode_text_chunks`, db/migrations/0016)
 
 A **second** consumer of `episode_research`, alongside the exact-match scoring mapper above, for a

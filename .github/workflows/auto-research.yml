@@ -1,0 +1,40 @@
+# Scheduled episode research (db/auto-research.js). Each season with auto-research switched on in
+# Admin > Shows & Seasons has its own weekly slot ("Thursdays at noon Eastern"); this job runs hourly
+# and researches whatever episode's slot has come round. Results are staged for admin review, never
+# applied to a league by themselves.
+#
+# Hourly is the schedule's resolution -- a noon slot is picked up by the first run after noon (GitHub
+# can start scheduled jobs a few minutes late). A run with nothing due exits in seconds and costs
+# nothing.
+#
+# Needs these repository secrets (Settings > Secrets and variables > Actions):
+#   AUTH_DATABASE_URL   -- the production database, same as the wiki-sync job.
+#   ANTHROPIC_API_KEY   -- research calls Claude with web search.
+#   GEMINI_API_KEY      -- optional: indexes the answers for side-bet suggestions.
+name: Auto research
+
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Run auto-research.js
+        env:
+          AUTH_DATABASE_URL: ${{ secrets.AUTH_DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node db/auto-research.js

@@ -3,6 +3,8 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { researchSeasonEpisode, RESEARCH_MODELS } from "@db/episode-research.js";
+import { episodeAirsAt } from "@db/auto-research.js";
+import { formatInTz } from "@/lib/game/air-schedule.js";
 
 // On-demand episode research for one catalog season -- what the "Research ep N" button on each
 // season row in Admin > Shows & Seasons calls. Super-admin only, like the rest of the catalog.
@@ -37,10 +39,17 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode must be a positive whole number");
 
   const { rows } = await pool.query(
-    `SELECT ss.season_number, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id=$1`,
+    `SELECT ss.season_number, ss.air_tz, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id=$1`,
     [id]
   );
   if (!rows.length) throw new HttpError(404, "Season not found");
+
+  // Nothing to find about an episode that hasn't aired -- and a search would happily return the
+  // previous week's recap. Only refused when the air time is actually known.
+  const airsAt = await episodeAirsAt(pool, id, episode);
+  if (airsAt && airsAt.getTime() > Date.now()) {
+    throw new HttpError(400, `Episode ${episode} hasn't aired yet — it airs ${formatInTz(airsAt, rows[0].air_tz)}.`);
+  }
 
   try {
     const run = await researchSeasonEpisode(pool, rows[0].slug, rows[0].season_number, episode, {

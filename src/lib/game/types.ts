@@ -217,6 +217,19 @@ export interface ShowSeason {
   researchedEpisodes?: number[];
   /** Episode results awaiting an admin decision (db/migrations/0019). */
   pendingDecisions?: number;
+  // Air schedule + auto-research (db/migrations/0020). Times are "HH:MM" wall-clock in airTz.
+  airTime?: string | null;
+  airTz?: string;
+  autoResearch?: boolean;
+  /** 0 = Sunday. */
+  researchWeekday?: number | null;
+  researchTime?: string | null;
+  researchModel?: string | null;
+  autoResearchSince?: string | null;
+  /** The wiki's printed air date per episode number, from the cached extraction. */
+  wikiAirDates?: Record<string, string> | null;
+  /** The latest scheduled attempt per episode number. */
+  lastAutoAttempts?: Record<string, { at: string; ok: boolean; message: string | null }> | null;
 }
 
 // Admin view of a show: everything, including archived ones and how many leagues reference it.

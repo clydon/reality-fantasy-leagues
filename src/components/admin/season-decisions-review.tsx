@@ -1,18 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import type { LeagueDecisionSync, SeasonDecision, SeasonDecisionsResponse } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { api, ApiError } from "@/lib/api";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { ChevronDownIcon } from "@/components/icons";
 import { ConfidenceDot, StatusNote, decidedButtonClass, rowTint } from "@/components/review-bits";
 import { cn } from "cn";
 
-// A season's episode results, decided once here for every league playing it (db/migrations/0019).
+// One episode's results, decided once here for every league playing the season (db/migrations/0019).
+// Embedded under each episode in season-episodes.tsx.
 //
 // Both connectors stage into this list -- the wiki's tables and web research -- and a fact they both
 // report is one row marked with both. Accepting applies it to every league on the season right away
@@ -39,92 +38,12 @@ function castFor(cast: Cast[], name: string): Cast | null {
   return cast.find((c) => c.name.toLowerCase() === lower) ?? null;
 }
 
-export function SeasonDecisionsReview({ seasonId, onChanged }: { seasonId: string; onChanged: () => void }) {
-  const { data, refetch, isLoading } = useQuery({
-    queryKey: ["season-decisions", seasonId],
-    queryFn: () => api.adminListDecisions(seasonId),
-  });
-  const [lastSync, setLastSync] = useState<{ text: string; problems: string[] } | null>(null);
-
-  if (isLoading) return <p className="ml-6 mt-1 italic text-muted-foreground">Loading results…</p>;
-  if (!data || data.decisions.length === 0) {
-    return (
-      <p className="ml-6 mt-1 italic text-muted-foreground">
-        No results to review yet — pull them from the wiki or research an episode.
-      </p>
-    );
-  }
-
-  const byEpisode = new Map<number, SeasonDecision[]>();
-  for (const d of data.decisions) {
-    const list = byEpisode.get(d.episode_number);
-    if (list) list.push(d);
-    else byEpisode.set(d.episode_number, [d]);
-  }
-  const episodes = [...byEpisode.keys()].sort((a, b) => b - a);
-  const firstPending = [...episodes].reverse().find((n) => byEpisode.get(n)!.some((d) => d.status === "pending"));
-
-  // After every decision: what the leagues did with it, in one line, plus anything that didn't land.
-  function reportSync(leagues: LeagueDecisionSync[]) {
-    const applied = leagues.reduce((n, l) => n + l.applied, 0);
-    const undone = leagues.reduce((n, l) => n + l.undone, 0);
-    const problems = [
-      ...leagues.filter((l) => l.error).map((l) => `${l.leagueName}: ${l.error}`),
-      ...leagues.flatMap((l) => l.skipped.map((s) => `${l.leagueName}: ${s.name} — ${s.why}`)),
-    ];
-    const parts = [];
-    if (applied) parts.push(`${applied} applied`);
-    if (undone) parts.push(`${undone} undone`);
-    setLastSync({
-      text: leagues.length
-        ? `${leagues.length} league${leagues.length === 1 ? "" : "s"} updated${parts.length ? ` (${parts.join(", ")})` : ""}.`
-        : "No leagues play this season yet — they'll get these results when they pick it.",
-      problems,
-    });
-    refetch();
-    onChanged();
-  }
-
-  return (
-    <div className="ml-6 mt-1.5 flex flex-col gap-1.5">
-      <p className="text-[0.7rem] text-muted-foreground">
-        Decide each result once — accepted results go to all {data.leagueCount} league{data.leagueCount === 1 ? "" : "s"} on
-        this season automatically (catching-up leagues get them when they reveal the episode). You can change any decision
-        later.
-      </p>
-      {lastSync && (
-        <div className="text-[0.7rem]">
-          <span className="text-good">{lastSync.text}</span>
-          {lastSync.problems.map((p) => (
-            <p key={p} className="text-destructive">
-              {p}
-            </p>
-          ))}
-        </div>
-      )}
-      {episodes.map((n) => (
-        <EpisodeDecisions
-          key={n}
-          seasonId={seasonId}
-          episode={n}
-          decisions={byEpisode.get(n)!}
-          cast={data.cast}
-          leagueCount={data.leagueCount}
-          defaultOpen={n === firstPending}
-          onSynced={reportSync}
-        />
-      ))}
-    </div>
-  );
-}
-
-function EpisodeDecisions({
+export function EpisodeDecisions({
   seasonId,
   episode,
   decisions,
   cast,
   leagueCount,
-  defaultOpen,
   onSynced,
 }: {
   seasonId: string;
@@ -132,15 +51,11 @@ function EpisodeDecisions({
   decisions: SeasonDecision[];
   cast: Cast[];
   leagueCount: number;
-  defaultOpen: boolean;
   onSynced: (leagues: LeagueDecisionSync[]) => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pending = decisions.filter((d) => d.status === "pending").length;
-  const accepted = decisions.filter((d) => d.status === "accepted").length;
-  const rejected = decisions.filter((d) => d.status === "rejected").length;
 
   async function acceptAll() {
     setBusy(true);
@@ -180,39 +95,26 @@ function EpisodeDecisions({
   const showHeaders = ordered.some(([t]) => t);
 
   return (
-    <div className="rounded-md border border-border">
-      <button className="flex w-full items-center gap-2 px-2 py-1.5 text-left" onClick={() => setOpen((v) => !v)}>
-        <span className="font-bold">Episode {episode}</span>
-        <span className="text-muted-foreground">
-          {pending > 0 ? <b className="text-[#c99a3e]">{pending} to review</b> : "all reviewed"}
-          {accepted > 0 && ` · ${accepted} accepted`}
-          {rejected > 0 && ` · ${rejected} rejected`}
-        </span>
-        <ChevronDownIcon className={cn("ml-auto h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="flex flex-col gap-2 border-t border-border p-2">
-          {pending > 0 && (
-            <div className="flex items-center gap-2">
-              <Button size="xs" disabled={busy} onClick={acceptAll}>
-                {busy ? "Accepting…" : `Accept all ${pending} pending`}
-              </Button>
-              <span className="text-[0.65rem] text-muted-foreground">as proposed — check the low-confidence ones first</span>
-            </div>
-          )}
-          {error && <p className="font-semibold text-destructive">{error}</p>}
-          {ordered.map(([tribe, rows]) => (
-            <div key={tribe ?? "none"} className="flex flex-col gap-1">
-              {showHeaders && (
-                <span className="text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">{tribe ?? "No tribe"}</span>
-              )}
-              {[...rows].sort(sortRows).map((d) => (
-                <DecisionRow key={d.id} seasonId={seasonId} decision={d} cast={cast} leagueCount={leagueCount} onSynced={onSynced} />
-              ))}
-            </div>
-          ))}
+    <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-2">
+      {pending > 0 && (
+        <div className="flex items-center gap-2">
+          <Button size="xs" disabled={busy} onClick={acceptAll}>
+            {busy ? "Accepting…" : `Accept all ${pending} pending`}
+          </Button>
+          <span className="text-[0.65rem] text-muted-foreground">as proposed — check the low-confidence ones first</span>
         </div>
       )}
+      {error && <p className="font-semibold text-destructive">{error}</p>}
+      {ordered.map(([tribe, rows]) => (
+        <div key={tribe ?? "none"} className="flex flex-col gap-1">
+          {showHeaders && (
+            <span className="text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">{tribe ?? "No tribe"}</span>
+          )}
+          {[...rows].sort(sortRows).map((d) => (
+            <DecisionRow key={d.id} seasonId={seasonId} decision={d} cast={cast} leagueCount={leagueCount} onSynced={onSynced} />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

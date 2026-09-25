@@ -3,6 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { parseWikiUrl } from "@/lib/server/wiki-url";
+import { RESEARCH_MODELS } from "@db/episode-research.js";
 
 type RouteParams = { id: string };
 
@@ -52,6 +53,41 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
   }
   if ("premiereDate" in body) push("premiere_date", body.premiereDate || null);
   if ("finaleDate" in body) push("finale_date", body.finaleDate || null);
+  // Air schedule + auto-research (0020).
+  const hhmm = (v: unknown, field: string) => {
+    const s = String(v ?? "").trim();
+    if (!s) return null;
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(s)) throw new HttpError(400, `${field} must be a time like 20:00`);
+    return s;
+  };
+  if ("airTime" in body) push("air_time", hhmm(body.airTime, "airTime"));
+  if ("airTz" in body) {
+    const tz = String(body.airTz || "").trim() || "America/New_York";
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    } catch {
+      throw new HttpError(400, `"${tz}" isn't a time zone`);
+    }
+    push("air_tz", tz);
+  }
+  if ("researchWeekday" in body) {
+    const n = body.researchWeekday === null || body.researchWeekday === "" ? null : Number(body.researchWeekday);
+    if (n !== null && !(Number.isInteger(n) && n >= 0 && n <= 6)) throw new HttpError(400, "researchWeekday must be 0 (Sunday) to 6");
+    push("research_weekday", n);
+  }
+  if ("researchTime" in body) push("research_time", hhmm(body.researchTime, "researchTime"));
+  if ("researchModel" in body) {
+    const m = String(body.researchModel || "");
+    if (m && !RESEARCH_MODELS.includes(m)) throw new HttpError(400, "Unknown research model");
+    push("research_model", m || null);
+  }
+  if ("autoResearch" in body) {
+    const on = body.autoResearch === true;
+    push("auto_research", on);
+    // Switching on starts the clock: only slots from now on are picked up (see 0020).
+    if (on) sets.push("auto_research_since = COALESCE(CASE WHEN auto_research THEN auto_research_since END, now())");
+    else sets.push("auto_research_since = NULL");
+  }
   if ("wikiUrl" in body) {
     const wikiUrl = String(body.wikiUrl || "").trim() || null;
     if (wikiUrl) {

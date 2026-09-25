@@ -12,7 +12,7 @@ import { Select } from "@/components/ui/select";
 import { ChevronDownIcon } from "@/components/icons";
 import { confirm } from "@/lib/confirm-store";
 import { SeasonCastReview } from "./season-cast-review";
-import { SeasonDecisionsReview } from "./season-decisions-review";
+import { SeasonEpisodes } from "./season-episodes";
 import { cn } from "cn";
 import { AI_MODELS, costOf, estimate, formatCost } from "@/lib/ai-cost";
 
@@ -487,7 +487,6 @@ function SeasonCard({
   const label = season.name || `Season ${season.seasonNumber}`;
   const staged = season.castStaged ?? 0;
   const approved = !!season.castApprovedAt;
-  const researched = season.researchedEpisodes ?? [];
   const wikiThrough = season.wikiEpisodesThrough ?? null;
   const hasWiki = !!season.wikiPageTitle;
 
@@ -496,7 +495,6 @@ function SeasonCard({
   // so it shouldn't be hidden behind a button.
   const [reviewing, setReviewing] = useState(staged > 0 && !approved);
   const pendingDecisions = season.pendingDecisions ?? 0;
-  const [reviewingResults, setReviewingResults] = useState(approved && pendingDecisions > 0);
   const queryClient = useQueryClient();
 
   // One in-flight action and one result slot per season. A pull can take a couple of minutes and
@@ -505,12 +503,7 @@ function SeasonCard({
   const [pullResult, setPullResult] = useState<WikiSeasonSyncResult | null>(null);
   const [research, setResearch] = useState<SeasonResearchResult | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  // The next episode worth researching: one past the highest already researched, or past the wiki's
-  // latest if research hasn't started -- rather than always "1", which was never the right answer
-  // after the first week.
-  const nextEpisode = researched.length ? Math.max(...researched) + 1 : wikiThrough ?? 1;
-  const [episode, setEpisode] = useState(String(nextEpisode));
+  const [researchingEpisode, setResearchingEpisode] = useState<number | null>(null);
 
   async function act<T>(kind: "cast" | "episodes" | "research", fn: () => Promise<T>, onDone: (r: T) => void) {
     setWorking(kind);
@@ -534,21 +527,11 @@ function SeasonCard({
       setReviewing(true);
     });
   const pullEpisodes = (force = false) =>
-    act("episodes", () => api.adminSyncSeason(season.id, "episodes", force, models.wiki), (r) => {
-      setPullResult(r);
-      setReviewingResults(true);
-    });
-  const doResearch = (force = false) => {
-    const n = Number(episode);
-    if (!Number.isInteger(n) || n < 1) {
-      setActionError("Give it an episode number first.");
-      return;
-    }
-    act("research", () => api.adminResearchEpisode(season.id, n, { force, model: models.research }), (r) => {
-      setResearch(r);
-      setReviewingResults(true);
-      setEpisode(String(n + 1));
-    });
+    act("episodes", () => api.adminSyncSeason(season.id, "episodes", force, models.wiki), setPullResult);
+  const doResearch = async (n: number, force = false) => {
+    setResearchingEpisode(n);
+    await act("research", () => api.adminResearchEpisode(season.id, n, { force, model: models.research }), setResearch);
+    setResearchingEpisode(null);
   };
 
   const locked = busy || working !== null;
@@ -631,53 +614,24 @@ function SeasonCard({
         status={
           !approved
             ? "Approve the cast first — results are matched to it by name"
-            : (wikiThrough ? `Wiki results through episode ${wikiThrough}` : "No results pulled yet") +
-              (pendingDecisions ? ` · ${pendingDecisions} to review` : "")
+            : pendingDecisions
+              ? `${pendingDecisions} result${pendingDecisions === 1 ? "" : "s"} to review below`
+              : wikiThrough
+                ? `Wiki results through episode ${wikiThrough}`
+                : "No results pulled yet"
         }
       >
         {approved && (
           <>
-            <Button variant="secondary" size="xs" title="Free" onClick={() => setReviewingResults((v) => !v)}>
-              {reviewingResults ? "Hide results" : "Review results"}
-            </Button>
             <CostHint title={`Typical cost with ${modelLabel(models.wiki)}. Free when the wiki hasn't changed since the last pull — nothing is sent to the model.`}>
               {estimate("episodes", models.wiki)} · free if unchanged
             </CostHint>
-            <Button size="xs" disabled={locked || !hasWiki} onClick={() => pullEpisodes()}>
+            <Button variant="secondary" size="xs" disabled={locked || !hasWiki} onClick={() => pullEpisodes()}>
               {working === "episodes" ? "Pulling…" : "Pull results from wiki"}
             </Button>
           </>
         )}
       </Step>
-      {approved && (
-        <div className="ml-6 mt-1 flex flex-wrap items-center gap-1.5">
-          <span className="text-muted-foreground">
-            Web research{researched.length ? ` (done: ep ${researched.join(", ")})` : ""} — idols, sit-outs, votes the wiki
-            doesn&rsquo;t list:
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="text-muted-foreground">ep</span>
-            <Input
-              value={episode}
-              onChange={(e) => setEpisode(e.target.value)}
-              inputMode="numeric"
-              className="h-6 w-11 px-1 text-center text-xs"
-              aria-label="Episode number to research"
-              disabled={locked}
-            />
-            <Button variant="secondary" size="xs" disabled={locked} onClick={() => doResearch()}>
-              {working === "research" ? "Researching…" : "Research"}
-            </Button>
-            <CostHint
-              title={`Typical cost with ${modelLabel(models.research)}: up to 5 web searches ($0.01 each) plus the pages they read. Free for an episode already researched.`}
-            >
-              {estimate("research", models.research)}
-            </CostHint>
-          </span>
-        </div>
-      )}
-
-      {approved && reviewingResults && <SeasonDecisionsReview seasonId={season.id} onChanged={() => refetch()} />}
 
       {working && (
         <p className="mt-1.5 italic text-muted-foreground">
@@ -696,7 +650,22 @@ function SeasonCard({
         </p>
       )}
       {research && (
-        <ResearchResult research={research} busy={locked} onForce={() => doResearch(true)} forceCost={estimate("research", models.research)} />
+        <ResearchResult
+          research={research}
+          busy={locked}
+          onForce={() => doResearch(research.episode, true)}
+          forceCost={estimate("research", models.research)}
+        />
+      )}
+      {/* The season's episodes, each with what to do next -- the main path through step 2. */}
+      {approved && (
+        <SeasonEpisodes
+          season={season}
+          researching={researchingEpisode}
+          locked={locked}
+          onResearch={(n, force) => doResearch(n, force)}
+          onChanged={() => refetch()}
+        />
       )}
     </div>
   );

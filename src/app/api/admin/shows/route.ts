@@ -28,6 +28,24 @@ export const GET = apiRoute(async (req) => {
                       FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e
                      WHERE we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
                   ),
+                  -- Air schedule + auto-research (0020): which episodes have aired, and when research
+                  -- runs on its own.
+                  'airTime', to_char(ss.air_time, 'HH24:MI'), 'airTz', ss.air_tz,
+                  'autoResearch', ss.auto_research, 'researchWeekday', ss.research_weekday,
+                  'researchTime', to_char(ss.research_time, 'HH24:MI'), 'researchModel', ss.research_model,
+                  'autoResearchSince', ss.auto_research_since,
+                  'wikiAirDates', (
+                    SELECT json_object_agg(e->>'number', e->>'airDate')
+                      FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e
+                     WHERE we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
+                       AND e->>'airDate' IS NOT NULL
+                  ),
+                  'lastAutoAttempts', (
+                    SELECT json_object_agg(a.episode_number, json_build_object('at', a.attempted_at, 'ok', a.ok, 'message', a.message))
+                      FROM (SELECT DISTINCT ON (episode_number) episode_number, attempted_at, ok, message
+                              FROM auto_research_attempts WHERE season_id = ss.id
+                             ORDER BY episode_number, attempted_at DESC) a
+                  ),
                   'pendingDecisions', (SELECT count(*)::int FROM season_decisions d WHERE d.season_id = ss.id AND d.status = 'pending'),
                   'researchedEpisodes', COALESCE((
                     SELECT json_agg(er.episode_number ORDER BY er.episode_number)
