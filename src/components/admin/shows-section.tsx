@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { AdminShow, ShowSeason, WikiSeasonSyncResult } from "@/lib/game/types";
+import type { AdminShow, ShowSeason, WikiSeasonSyncResult, SeasonResearchResult, ResearchCastaway } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
 import { plural } from "@/lib/use-show-terms";
 import { Badge } from "@/components/ui/badge";
@@ -372,6 +372,32 @@ function SeasonRow({
   const [pullError, setPullError] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState(false);
 
+  // Research is per EPISODE, not per season (a search is scoped to one episode, and a season in
+  // progress then costs one episode a week), so unlike the two pulls it needs an episode number
+  // from whoever clicks.
+  const [episode, setEpisode] = useState("1");
+  const [researching, setResearching] = useState(false);
+  const [research, setResearch] = useState<SeasonResearchResult | null>(null);
+  const [researchError, setResearchError] = useState<string | null>(null);
+
+  async function doResearch(force = false) {
+    const n = Number(episode);
+    if (!Number.isInteger(n) || n < 1) {
+      setResearchError("Give it an episode number first.");
+      return;
+    }
+    setResearching(true);
+    setResearch(null);
+    setResearchError(null);
+    try {
+      setResearch(await api.adminResearchEpisode(season.id, n, { force }));
+    } catch (e) {
+      setResearchError(e instanceof ApiError ? e.message : "That research didn't work.");
+    } finally {
+      setResearching(false);
+    }
+  }
+
   async function pull(kind: "cast" | "episodes", force = false) {
     setPulling(kind);
     setResult(null);
@@ -427,6 +453,30 @@ function SeasonRow({
           >
             {pulling === "episodes" ? "Pulling…" : "Pull episodes"}
           </Button>
+          {/* The second connector (db/episode-research.js): a web search answering a fixed checklist,
+              for the facts the wiki's tables don't carry -- idols found, sit-outs, advantages played
+              against someone. Sits next to Pull episodes because it answers the same question about
+              the same episode; it just asks the internet instead of a table. */}
+          <span className="inline-flex items-center gap-1">
+            <span className="text-muted-foreground">ep</span>
+            <Input
+              value={episode}
+              onChange={(e) => setEpisode(e.target.value)}
+              inputMode="numeric"
+              className="h-6 w-11 px-1 text-center text-xs"
+              aria-label="Episode number to research"
+              disabled={researching}
+            />
+            <Button
+              variant="secondary"
+              size="xs"
+              disabled={busy || researching || pulling !== null}
+              title="Ask a web-searching model a fixed checklist about every castaway in this episode — idols, sit-outs, votes, advantages. Nothing is applied or scored; it's filed for review."
+              onClick={() => doResearch()}
+            >
+              {researching ? "Researching…" : "Research"}
+            </Button>
+          </span>
           {/* The cast is reviewed and approved here, not by each league's commissioner -- see
               db/migrations/0011 and season-cast-review.tsx. */}
           <Button
@@ -481,6 +531,14 @@ function SeasonRow({
       )}
       {pullError && <p className="mt-1 font-semibold text-destructive">{pullError}</p>}
       {result && <PullResult result={result} busy={busy || pulling !== null} onForce={() => pull(result.kind, true)} />}
+      {researching && (
+        <p className="mt-1 italic text-muted-foreground">
+          Searching the web and answering the checklist for every cast member — tens of seconds, sometimes longer.
+          Leave this open.
+        </p>
+      )}
+      {researchError && <p className="mt-1 font-semibold text-destructive">{researchError}</p>}
+      {research && <ResearchResult research={research} busy={researching} onForce={() => doResearch(true)} />}
       {reviewing && (
         <SeasonCastReview seasonId={season.id} seasonLabel={season.name || `Season ${season.seasonNumber}`} />
       )}
@@ -548,4 +606,145 @@ function PullResult({
       )}
     </div>
   );
+}
+
+// What one episode's research found. Written for someone deciding whether to trust it, which is a
+// different job from reading a wiki pull's summary: every answer here came from a live web search
+// that can't be re-run to the same result, so the three things on screen are the claim, the
+// confidence, and the source behind it.
+//
+// EVERY castaway is listed, including the ones nothing was found for. That's deliberate and it's the
+// bug this app has already hit twice: a castaway who took votes and survived produced no "event" and
+// silently vanished from review. A quiet row here means "asked, nothing found" -- which is a fact
+// worth seeing, and the difference between that and "we never asked" is the whole point of the
+// checklist.
+function ResearchResult({
+  research,
+  busy,
+  onForce,
+}: {
+  research: SeasonResearchResult;
+  busy: boolean;
+  onForce: () => void;
+}) {
+  const { payload, provenance, counts, problems } = research;
+  const noted = payload.castaways.filter((c) => notesFor(c).length > 0);
+  const quiet = payload.castaways.filter((c) => notesFor(c).length === 0);
+
+  return (
+    <div className="mt-1 rounded border border-dashed border-border bg-secondary/40 p-1.5 text-[0.7rem]">
+      <p className="text-muted-foreground">
+        {research.cached
+          ? "Already researched — reused the stored answers, no search and no model call."
+          : `Searched the web and answered the checklist (${provenance.passes === 1 ? "one call" : "two calls"}).`}{" "}
+        <code className="font-mono">
+          {provenance.provider}/{provenance.model}
+        </code>
+        {provenance.usage ? ` · ${provenance.usage.input_tokens.toLocaleString()} in / ${provenance.usage.output_tokens.toLocaleString()} out` : null}
+        {/* Offered always, not only on a cache hit like the wiki pull's: there is no revision id
+            here, so "nothing changed" is never why an answer came back thin -- a re-run genuinely
+            reads different pages and can genuinely do better. */}
+        <Button variant="secondary" size="xs" className="ml-1.5" disabled={busy} onClick={onForce}>
+          Research again
+        </Button>
+      </p>
+
+      <p className="mt-1">
+        <b>
+          Episode {research.episode}
+          {payload.episodeTitle ? `: ${payload.episodeTitle}` : ""}
+        </b>
+        {payload.airDate ? <span className="text-muted-foreground"> · {payload.airDate}</span> : null}
+        {payload.tribalCouncilHeld !== "yes" ? (
+          <span className="text-muted-foreground"> · Tribal Council: {payload.tribalCouncilHeld}</span>
+        ) : null}
+      </p>
+      <p className="mt-0.5">{payload.summary}</p>
+
+      <ul className="mt-1 flex flex-col gap-0.5">
+        {noted.map((c) => (
+          <li key={c.name} className="flex flex-wrap items-baseline gap-1">
+            <Badge variant={c.confidence === "high" ? "default" : c.confidence === "medium" ? "secondary" : "outline"} className="h-4 text-[0.6rem]">
+              {c.confidence}
+            </Badge>
+            <b>{c.name}</b>
+            <span>{notesFor(c).join("; ")}</span>
+            {c.sources.length ? (
+              <span className="text-muted-foreground">
+                {c.sources.map((url, i) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="ml-1 underline underline-offset-2"
+                    title={url}
+                  >
+                    [{i + 1}]
+                  </a>
+                ))}
+              </span>
+            ) : (
+              /* A claim with nothing behind it is the one thing this whole design exists to make
+                 visible, so it is called out on the row rather than only counted below. */
+              <span className="font-semibold text-destructive">no source</span>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {quiet.length > 0 && (
+        <p className="mt-1 text-muted-foreground">
+          <b>Asked, nothing found:</b> {quiet.map((c) => c.name).join(", ")}
+        </p>
+      )}
+
+      {problems.length > 0 && (
+        <ul className="mt-1 flex flex-col gap-0.5 text-destructive">
+          {problems.map((p) => (
+            <li key={p}>! {p}</li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-1 text-muted-foreground">
+        {counts.castaways} asked · {counts.sourced} with a source · {counts.lowConfidence} low-confidence ·{" "}
+        {counts.unknowns} unknown answer{counts.unknowns === 1 ? "" : "s"} ·{" "}
+        {provenance.pagesRead.length} page{provenance.pagesRead.length === 1 ? "" : "s"} read
+        {provenance.pagesRead.length > 0 && (
+          <>
+            {" "}
+            <span title={provenance.pagesRead.join("\n")} className="underline decoration-dotted">
+              (hover for the list)
+            </span>
+          </>
+        )}
+      </p>
+      <p className="mt-0.5 text-muted-foreground">
+        Nothing here is applied or scored — it&rsquo;s stored for review. &ldquo;Unknown&rdquo; means the search
+        couldn&rsquo;t establish it either way, which is not the same as &ldquo;no&rdquo;.
+      </p>
+    </div>
+  );
+}
+
+// One castaway's answers as a human-readable line, listing only what actually happened. A castaway
+// with nothing on this list is reported as "asked, nothing found" rather than dropped.
+function notesFor(c: ResearchCastaway): string[] {
+  const notes: string[] = [];
+  if (c.leftTheGame === "yes") notes.push(`OUT — ${c.exitMethod || "method unknown"}`);
+  if (typeof c.votesReceived === "number" && c.votesReceived > 0) notes.push(`${c.votesReceived} vote${c.votesReceived === 1 ? "" : "s"} against`);
+  if (c.votedFor) notes.push(`voted ${c.votedFor}`);
+  if (c.wonIndividualImmunity === "yes") notes.push("individual immunity");
+  if (c.wonTribeImmunity === "yes") notes.push("tribe immunity");
+  if (c.wonIndividualReward === "yes") notes.push("individual reward");
+  if (c.wonTribeReward === "yes") notes.push("tribe reward");
+  if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
+  if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
+  if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
+  if (typeof c.votesNullified === "number" && c.votesNullified > 0) notes.push(`nullified ${c.votesNullified} vote${c.votesNullified === 1 ? "" : "s"}`);
+  if (c.advantageUsedAgainstThem === "yes") notes.push("advantage used against them");
+  if (c.exiled === "yes") notes.push("exiled");
+  if (c.notableTwist) notes.push(c.notableTwist);
+  return notes;
 }

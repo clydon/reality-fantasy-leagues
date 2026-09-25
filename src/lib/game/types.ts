@@ -241,6 +241,86 @@ export interface WikiSeasonSyncResult {
   staged?: { filed: boolean; staged: number; total: number; summary: string } | null;
 }
 
+// ---------- episode research (db/episode-research.js, db/migrations/0014) ----------
+// The second connector: a fixed checklist answered by a web-searching model, for the facts the
+// wiki's tables don't carry (idols found, sit-outs, advantages played against someone).
+
+/**
+ * Three-valued on purpose. "no" means the research looked and it didn't happen; "unknown" means it
+ * couldn't be established. Collapsing those two is what turns a gap in the sources into a confident
+ * wrong answer, so the UI has to be able to show the difference.
+ */
+export type ResearchAnswer = "yes" | "no" | "unknown";
+
+/** One castaway's answers. Every castaway gets one, including those nothing happened to. */
+export interface ResearchCastaway {
+  name: string;
+  leftTheGame: ResearchAnswer;
+  exitMethod: string | null;
+  attendedTribal: ResearchAnswer;
+  votesReceived: number | null;
+  votedFor: string | null;
+  wonIndividualImmunity: ResearchAnswer;
+  wonTribeImmunity: ResearchAnswer;
+  wonIndividualReward: ResearchAnswer;
+  wonTribeReward: ResearchAnswer;
+  satOutOfChallenge: ResearchAnswer;
+  foundAdvantage: ResearchAnswer;
+  advantageFoundName: string | null;
+  playedAdvantage: ResearchAnswer;
+  advantagePlayedName: string | null;
+  votesNullified: number | null;
+  advantageUsedAgainstThem: ResearchAnswer;
+  exiled: ResearchAnswer;
+  notableTwist: string | null;
+  /** URLs behind THIS person's answers. Empty is itself information -- nothing backs them. */
+  sources: string[];
+  confidence: "high" | "medium" | "low";
+}
+
+export interface EpisodeResearch {
+  episodeTitle: string | null;
+  airDate: string | null;
+  summary: string;
+  tribalCouncilHeld: ResearchAnswer;
+  castaways: ResearchCastaway[];
+}
+
+/**
+ * A search isn't reproducible, so there's no revision id to point at the way a wiki extraction has.
+ * This is the substitute, and it's what a reviewer checks against -- not optional metadata.
+ */
+export interface EpisodeResearchProvenance {
+  provider: string;
+  model: string;
+  /** 1 when the provider searched and answered in one call, 2 when it had to structure separately. */
+  passes: number;
+  researchedAt: string;
+  showSlug: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  castFrom: "season" | "league";
+  castAsked: string[];
+  queries: string[];
+  /** Every page the search actually fetched, read off the response -- not what the model claims. */
+  pagesRead: string[];
+  usage?: { input_tokens: number; output_tokens: number };
+  problems?: string[];
+}
+
+/** POST /api/admin/seasons/:id/research -- what one episode's research run reports to the UI. */
+export interface SeasonResearchResult {
+  showSlug: string;
+  season: number;
+  episode: number;
+  /** True when an existing row was reused: no search, no model call, nothing charged. */
+  cached: boolean;
+  payload: EpisodeResearch;
+  provenance: EpisodeResearchProvenance;
+  problems: string[];
+  counts: { castaways: number; unknowns: number; lowConfidence: number; sourced: number };
+}
+
 // Commissioner view of a show (GET /api/shows): non-archived only, no admin-only fields.
 export interface CatalogShow {
   slug: string;

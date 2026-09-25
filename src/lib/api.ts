@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -467,6 +467,17 @@ export const api = {
     localFetch<WikiSeasonSyncResult>(`/api/admin/seasons/${id}/sync`, {
       method: "POST",
       body: JSON.stringify({ kind, force }),
+    }),
+
+  /**
+   * Research one episode of a season with a web-searching model (db/episode-research.js). Slow and
+   * paid, so the UI asks for one episode at a time; `force` re-researches an episode that already
+   * has a cached answer.
+   */
+  adminResearchEpisode: (id: string, episode: number, opts: { force?: boolean; provider?: string } = {}) =>
+    localFetch<SeasonResearchResult>(`/api/admin/seasons/${id}/research`, {
+      method: "POST",
+      body: JSON.stringify({ episode, ...opts }),
     }),
 
   // Web Push (src/lib/push-client.ts calls these; src/lib/server/push-core.js sends).

@@ -1484,10 +1484,27 @@ against them (tier D in `docs/RESEARCH-extractable-stats.md`). Those are the mom
 league most wants to score, so this asks a **web-searching** model a fixed checklist instead of
 parsing a table:
 
+In **Admin → Shows & Seasons**, each season row has an episode box and a **Research** button next to
+**Pull episodes** (`POST /api/admin/seasons/:id/research`). Per *episode*, not per season, unlike the
+two pulls: a search is naturally scoped to one episode, and a season in progress then costs one
+episode's research a week rather than a re-read of everything. The panel that comes back lists every
+castaway — the ones something was found for, with a confidence badge and numbered links to the pages
+behind each claim, then a single line naming everyone who was asked about and had nothing found. A
+claim with no source is called out in red on its own row, because an unsourced "yes" is the one
+failure this whole design exists to make visible.
+
+The same thing from a shell, where a league id is what you have to hand:
+
     node db/episode-research.js <leagueId> <episode> --dry         # research and print, write nothing
     node db/episode-research.js <leagueId> <episode>               # research and cache it
     node db/episode-research.js <leagueId> <episode> --force       # research it again
     node db/episode-research.js <leagueId> <episode> --provider=gemini --model=...
+
+The two entry points share everything below the resolver: the admin route takes a season and uses
+its staged cast (there is no league to borrow a roster from, so a season with no staged cast is
+refused with a message saying to pull the cast first), the CLI takes a league and falls back to that
+league's own roster. Both land in the same `episode_research` row, so researching episode 3 from the
+admin UI and then from the CLI is one search, not two.
 
 Four things carry the design:
 
@@ -1537,9 +1554,21 @@ Gemini and Grok (both dialects of the generated JSON Schema; thinking parts filt
 answer; grounding chunks and Grok citations recorded from either place the API puts them; a
 `MAX_TOKENS`/`length` stop refused rather than half-saved; a 400 about schema-plus-tools becoming a
 fallback while every other 400 stays a failure; a key sent as a header and never in a query string),
-plus 10 against the real Postgres (season cast preferred over league roster, `--dry` writing
+plus 14 against the real Postgres (season cast preferred over league roster, `--dry` writing
 nothing, provenance round-trip, cache hit making no call, `--force` replacing rather than stacking,
-and a checklist missing somebody refused with the previous row left intact).
+a checklist missing somebody refused with the previous row left intact, and — for the season-scoped
+entry point the admin UI uses — the staged cast asked about, a season with no staged cast refused,
+and the admin and CLI paths sharing one cached row rather than researching twice).
+
+**Verified in the browser too**, once the UI existed: signed in as a super-admin, expanded the show,
+typed an episode number and clicked **Research** — with a local stand-in for Gemini's endpoint
+(`GEMINI_API_BASE`, which the provider already reads) returning a response shaped exactly like the
+real one, thinking parts and grounding chunks included. The panel rendered the answers, the sources,
+the "asked, nothing found" line and the token counts; clicking again came back *"Already researched
+— reused the stored answers, no search and no model call"* without touching the stub. Then the route
+itself: unauthenticated → 401, episode `0` and `"abc"` → 400, a non-UUID season → 404, and a request
+naming its own `provider` → ignored, because that value picks which external API the **server** calls
+with its own credentials and isn't something a request body gets to choose.
 
 **And, once a Gemini key was available, against the real API** — which answered the one question a
 stub can't. Google's validator accepts the sanitized checklist schema as-is (the whole 20-field
@@ -1553,7 +1582,10 @@ first evidence it actually happens.
 **What that key could not do: search.** Google Search grounding has *no* free-tier quota — on a
 project without billing, plain generation and structured output both return 200 while every request
 carrying `google_search` returns `429 ... limit: 0`. It reads like rate limiting and isn't, so the
-Gemini path now says so in the error and names the two ways out. What remains unverified is
+Gemini path now leads with what it actually is and what to do about it, *then* quotes Google —
+that order matters, because Google repeats its quota line once per metric and once per model, and an
+explanation appended after four near-identical sentences is an explanation nobody reads (which is
+exactly how it first looked in the admin panel; the repeats are deduplicated now too). What remains unverified is
 therefore grounded search end to end, and any call to Grok (no key here): whether Gemini accepts
 grounding *and* a response schema in one request, and how good the answers get once it's really
 reading pages. Judge that on one episode per provider before wiring any of it into scoring.

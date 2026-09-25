@@ -561,21 +561,34 @@ async function geminiCall(model, body) {
 // which reads like rate limiting and isn't.
 function geminiHint(err, body) {
   const searched = !!(body && body.tools);
+  // The hint goes FIRST and the vendor's own text after it. Google's quota error is a wall that
+  // repeats itself four times, so an explanation appended to the end is an explanation nobody reads
+  // -- which was exactly how it looked in the admin UI before this.
+  const lead = (hint) => new Error(`${hint}\n\nGoogle said: ${dedupeLines(err.message)}`);
   if (err.status === 429 && searched) {
-    return new Error(
-      `${err.message}\n` +
-        "Google Search grounding has NO free-tier quota -- a key on a project without billing gets " +
-        "429 for every grounded request while ungrounded ones succeed. Enable billing on the key's " +
-        "Google Cloud project, or run this with --provider=anthropic or --provider=grok."
+    return lead(
+      "Google Search grounding has NO free-tier quota: a key on a project without billing is refused " +
+        "every grounded request, while ungrounded ones succeed -- so this reads like rate limiting " +
+        "and isn't. Enable billing on this key's Google Cloud project, or switch the research " +
+        "provider to anthropic or grok."
     );
   }
-  if (err.status === 503) {
-    return new Error(`${err.message}\nThat is Google's capacity, not this request -- retry, or try --model=<another>.`);
-  }
+  if (err.status === 503) return lead("That is Google's capacity, not this request. Retry, or pick another model.");
   if (err.status === 404 && /no longer available/i.test(err.message)) {
-    return new Error(`${err.message}\nPick a current model with --model=, or leave it unset to use the "latest" alias.`);
+    return lead('Google has retired that model id. Pick a current one, or leave the model unset to use the "latest" alias.');
   }
   return err;
+}
+
+// Google repeats the same quota line once per metric and once per model, so the same sentence can
+// appear four times in one message. Identical lines add nothing to a reader.
+function dedupeLines(message) {
+  const seen = new Set();
+  return String(message)
+    .split(/\s*\*\s+|\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !seen.has(line) && seen.add(line) !== undefined)
+    .join(" · ");
 }
 
 function geminiCandidate(json) {
@@ -727,7 +740,8 @@ function requireCredentials(provider) {
   throw new Error(
     `No credentials for the "${provider.id}" research provider. ${problem}\n` +
       "This researcher uses a web-searching model, so it cannot run without one. " +
-      `Pick a different provider with --provider=<${Object.keys(PROVIDERS).join("|")}> or RESEARCH_PROVIDER.`
+      `The other providers are: ${Object.keys(PROVIDERS).filter((p) => p !== provider.id).join(", ")} ` +
+      "(set RESEARCH_PROVIDER, or pass --provider= on the CLI)."
   );
 }
 
@@ -830,10 +844,74 @@ function validateResearch(parsed, castNames, terms) {
 }
 
 // ---------- who to ask about ----------
-// The cast comes from the SEASON (db/migrations/0011) when an admin has staged one, and from the
-// league's own roster otherwise -- the same two places every other part of this app looks. Research
-// is keyed on the season, not the league, so a league is only ever the route to "which show, which
-// season, which people".
+// Research is SEASON data -- keyed on (show, season, episode), reviewed once, true for every league
+// playing it -- exactly like the cast is (db/migrations/0011). So the season is the real unit, and
+// there are two ways in:
+//
+//   by season  -- what Admin > Shows & Seasons calls. The staged cast is the cast, full stop.
+//   by league  -- what the CLI takes, because a league id is what a developer has to hand. It reads
+//                 the show and season off league state and then falls back to the league's own
+//                 roster if the season has no staged cast, which is the one thing the admin path
+//                 can't do (there is no league to fall back to).
+
+async function catalogEntry(pool, showSlug, season, label) {
+  const { rows } = await pool.query(
+    `SELECT s.id AS show_id, s.name AS show_name, s.castaway_term, s.tribe_term,
+            ss.id AS season_id, ss.name AS season_name
+       FROM shows s LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number = $2
+      WHERE s.slug = $1`,
+    [showSlug, season]
+  );
+  if (!rows.length) {
+    throw new Error(
+      `${label} points at show "${showSlug}", which isn't in the catalog. ` +
+        "Re-add it in Admin > Shows & Seasons, or pick a different show in League Settings."
+    );
+  }
+  return rows[0];
+}
+
+async function stagedCastNames(pool, seasonId) {
+  if (!seasonId) return [];
+  const { rows } = await pool.query(
+    "SELECT name FROM season_cast WHERE season_id=$1 ORDER BY sort_order ASC, name ASC",
+    [seasonId]
+  );
+  return rows.map((c) => c.name);
+}
+
+// Everyone in the cast gets asked about, including people already voted out. Cheaper than it looks
+// -- the checklist is one line per person and the search is shared -- and it is the only way the
+// answer can say "this person was already gone", which is itself a check on the research being real.
+function contextFrom(entry, showSlug, season, episodeNumber, castNames, castFrom) {
+  return {
+    showId: entry.show_id,
+    showSlug,
+    showName: entry.show_name,
+    season: Number(season),
+    seasonId: entry.season_id || null,
+    seasonName: entry.season_name || null,
+    episodeNumber,
+    castNames,
+    castFrom,
+    terms: termsFor(entry).terms,
+  };
+}
+
+async function resolveSeasonResearchContext(pool, showSlug, season, episodeNumber) {
+  const entry = await catalogEntry(pool, showSlug, season, `Season ${showSlug} ${season}`);
+  const castNames = await stagedCastNames(pool, entry.season_id);
+  if (!castNames.length) {
+    // No league fallback here on purpose: the admin path has no league to borrow a roster from, and
+    // researching a season whose cast nobody has staged would ask about nobody.
+    throw new Error(
+      `No cast to ask about for ${entry.show_name} season ${season}. Pull the season's cast first -- ` +
+        "the checklist is one question per person, so it needs the list of people."
+    );
+  }
+  return contextFrom(entry, showSlug, season, episodeNumber, castNames, "season");
+}
+
 async function resolveResearchContext(pool, leagueId, episodeNumber) {
   const { rows } = await pool.query("SELECT id, name, state FROM leagues WHERE id=$1", [leagueId]);
   if (!rows.length) throw new Error(`No league with id ${leagueId}`);
@@ -848,31 +926,9 @@ async function resolveResearchContext(pool, leagueId, episodeNumber) {
     );
   }
 
-  const { rows: catalog } = await pool.query(
-    `SELECT s.id AS show_id, s.name AS show_name, s.castaway_term, s.tribe_term,
-            ss.id AS season_id, ss.name AS season_name
-       FROM shows s LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number = $2
-      WHERE s.slug = $1`,
-    [showSlug, season]
-  );
-  if (!catalog.length) {
-    throw new Error(
-      `League "${league.name}" points at show "${showSlug}", which isn't in the catalog. ` +
-        "Re-add it in Admin > Shows & Seasons, or pick a different show in League Settings."
-    );
-  }
-  const entry = catalog[0];
-  const { terms } = termsFor(entry);
-
-  let castNames = [];
+  const entry = await catalogEntry(pool, showSlug, season, `League "${league.name}"`);
   let castFrom = "season";
-  if (entry.season_id) {
-    const { rows: cast } = await pool.query(
-      "SELECT name FROM season_cast WHERE season_id=$1 ORDER BY sort_order ASC, name ASC",
-      [entry.season_id]
-    );
-    castNames = cast.map((c) => c.name);
-  }
+  let castNames = await stagedCastNames(pool, entry.season_id);
   if (!castNames.length) {
     castFrom = "league";
     castNames = ((league.state && league.state.castaways) || []).map((c) => c.name).filter(Boolean);
@@ -883,22 +939,7 @@ async function resolveResearchContext(pool, leagueId, episodeNumber) {
         "cast in Admin > Shows & Seasons first, or enter the cast in the league."
     );
   }
-
-  // Everyone gets asked about, including people already voted out. Cheaper than it looks -- the
-  // checklist is one line per person and the search is shared -- and it is the only way the answer
-  // can say "this person was already gone", which is itself a check on the research being real.
-  return {
-    league,
-    showId: entry.show_id,
-    showSlug,
-    showName: entry.show_name,
-    season: Number(season),
-    seasonId: entry.season_id || null,
-    episodeNumber,
-    castNames,
-    castFrom,
-    terms,
-  };
+  return { league, ...contextFrom(entry, showSlug, season, episodeNumber, castNames, castFrom) };
 }
 
 // ---------- the cache (db/migrations/0014) ----------
@@ -937,13 +978,28 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
 }
 
 // ---------- the run ----------
+/** Admin > Shows & Seasons: research one episode of one catalogued season. */
+async function researchSeasonEpisode(pool, showSlug, season, episodeNumber, opts = {}) {
+  requireEpisodeNumber(episodeNumber);
+  return runFor(pool, await resolveSeasonResearchContext(pool, showSlug, season, episodeNumber), opts);
+}
+
+/** The CLI's way in: a league id, which is what a developer has to hand. */
 async function researchEpisode(pool, leagueId, episodeNumber, opts = {}) {
+  requireEpisodeNumber(episodeNumber);
+  return runFor(pool, await resolveResearchContext(pool, leagueId, episodeNumber), opts);
+}
+
+function requireEpisodeNumber(episodeNumber) {
   if (!Number.isInteger(episodeNumber) || episodeNumber < 1) {
     throw new Error(`Episode number must be a positive whole number, got "${episodeNumber}".`);
   }
+}
+
+async function runFor(pool, ctx, opts) {
+  const episodeNumber = ctx.episodeNumber;
   const provider = providerFor(opts.provider);
   const model = opts.model || process.env.RESEARCH_MODEL || provider.defaultModel;
-  const ctx = await resolveResearchContext(pool, leagueId, episodeNumber);
 
   const cached = await cachedResearch(pool, ctx.showId, ctx.season, episodeNumber, opts);
   if (cached) {
@@ -1073,8 +1129,10 @@ module.exports = {
   buildPrompt,
   validateResearch,
   researchEpisode,
+  researchSeasonEpisode,
   printResearch,
   resolveResearchContext,
+  resolveSeasonResearchContext,
   runResearch,
   providerFor,
   jsonSchemaFor,
@@ -1082,6 +1140,7 @@ module.exports = {
   strictSchema,
   parseJsonAnswer,
   looksLikeCombinationRejection,
+  dedupeLines,
   CombinationUnsupported,
   PROVIDERS,
   EXIT_METHODS,
