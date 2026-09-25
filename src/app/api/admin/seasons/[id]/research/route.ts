@@ -81,3 +81,52 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
 });
 
 const PROVIDERS = ["anthropic", "gemini", "grok"];
+
+// Throw away one episode's research -- for a run that shouldn't have happened (researched before the
+// episode aired, so whatever it found is about an earlier one). Removes the stored answers, their
+// search index, and the results they staged that nobody has decided yet; a result the wiki also
+// reported stays, minus the research's claim to it. Anything already accepted or rejected is kept:
+// that decision is history, and undoing it is a separate, deliberate click.
+export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params;
+  await requireSuperAdmin(req);
+  if (!isUuid(id)) throw new HttpError(404, "Season not found");
+  const episode = Number(new URL(req.url).searchParams.get("episode"));
+  if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode must be a positive whole number");
+
+  const { rows } = await pool.query("SELECT show_id, season_number FROM show_seasons WHERE id=$1", [id]);
+  if (!rows.length) throw new HttpError(404, "Season not found");
+  const { show_id: showId, season_number: season } = rows[0];
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rowCount: removed } = await client.query(
+      `DELETE FROM season_decisions
+        WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND from_research AND NOT from_wiki`,
+      [id, episode]
+    );
+    await client.query(
+      `UPDATE season_decisions SET from_research=false, research_id=NULL, sources='{}'
+        WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND from_research`,
+      [id, episode]
+    );
+    await client.query("DELETE FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2 AND episode_number=$3", [
+      showId,
+      season,
+      episode,
+    ]);
+    await client.query("DELETE FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3", [
+      showId,
+      season,
+      episode,
+    ]);
+    await client.query("COMMIT");
+    return NextResponse.json({ ok: true, removedResults: removed ?? 0 });
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+});

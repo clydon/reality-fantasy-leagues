@@ -89,17 +89,18 @@ function episodeAirTime(season, n, wikiAirDates) {
   const time = (season.airTime || DEFAULT_AIR_TIME).slice(0, 5);
   const fromWiki = parseAirDate(wikiAirDates && wikiAirDates[n]);
   if (fromWiki) return zonedToUtc(fromWiki, time, tz);
-  if (!season.premiereDate) return null;
-  // Weekly from the latest episode the wiki DID date, if any, so a schedule shift carries forward.
-  let anchorN = 1;
-  let anchorDate = String(season.premiereDate).slice(0, 10);
+  // Weekly from the latest earlier episode the wiki DID date (so a schedule shift carries forward),
+  // else from the premiere. Either one is enough on its own.
+  let anchorN = season.premiereDate ? 1 : null;
+  let anchorDate = season.premiereDate ? String(season.premiereDate).slice(0, 10) : null;
   for (const [k, v] of Object.entries(wikiAirDates || {})) {
     const d = parseAirDate(v);
-    if (d && Number(k) < n && Number(k) >= anchorN) {
+    if (d && Number(k) < n && (anchorN === null || Number(k) >= anchorN)) {
       anchorN = Number(k);
       anchorDate = d;
     }
   }
+  if (anchorDate === null) return null;
   return zonedToUtc(addDays(anchorDate, 7 * (n - anchorN)), time, tz);
 }
 

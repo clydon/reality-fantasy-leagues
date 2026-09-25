@@ -469,6 +469,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ action, ...(edits || {}) }),
     }),
+  // Throw away one episode's research and the undecided results it staged (e.g. run before it aired).
+  adminDiscardResearch: (seasonId: string, episode: number) =>
+    localFetch<{ ok: true; removedResults: number }>(`/api/admin/seasons/${seasonId}/research?episode=${episode}`, {
+      method: "DELETE",
+    }),
   adminAcceptEpisode: (seasonId: string, episode: number) =>
     localFetch<{ ok: true; accepted: number; leagues: LeagueDecisionSync[] }>(
       `/api/admin/seasons/${seasonId}/decisions/accept-episode`,

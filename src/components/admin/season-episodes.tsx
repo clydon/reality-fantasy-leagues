@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EpisodeDecisions } from "./season-decisions-review";
+import { confirm } from "@/lib/confirm-store";
 import { cn } from "cn";
 
 // A season's episodes as a list -- aired ones with what to do about them, the next upcoming one with
@@ -83,19 +84,25 @@ export function SeasonEpisodes({
     else byEpisode.set(d.episode_number, [d]);
   }
 
-  // Everything we know about, plus the next one to air.
-  let known = Math.max(0, season.wikiEpisodesThrough ?? 0, ...researched, ...byEpisode.keys());
+  // Every episode that has aired or has data, plus the next one to air -- but only one upcoming
+  // episode: if the latest with data hasn't aired yet (researched too early), it IS the next one.
+  const airsAtOf = (n: number) => (hasSchedule ? Air.episodeAirTime(schedule, n, wikiAirDates) : null);
+  const withData = Math.max(0, season.wikiEpisodesThrough ?? 0, ...researched, ...byEpisode.keys());
+  let lastAired = 0;
   if (hasSchedule) {
     for (let n = 1; n <= 60; n++) {
-      const t = Air.episodeAirTime(schedule, n, wikiAirDates);
+      const t = airsAtOf(n);
       if (!t || t > now) break;
-      known = Math.max(known, n);
+      lastAired = n;
     }
   }
-  const last = season.status === "completed" ? known : known + 1;
+  const known = Math.max(withData, lastAired);
+  const knownAirsAt = airsAtOf(known);
+  const knownIsUpcoming = !!knownAirsAt && knownAirsAt > now;
+  const last = season.status === "completed" || knownIsUpcoming ? known : known + 1;
   const rows: EpisodeRow[] = [];
   for (let n = last; n >= 1; n--) {
-    const airsAt = hasSchedule ? Air.episodeAirTime(schedule, n, wikiAirDates) : null;
+    const airsAt = airsAtOf(n);
     const hasData = researched.has(n) || byEpisode.has(n) || n <= (season.wikiEpisodesThrough ?? 0);
     rows.push({
       n,
@@ -150,6 +157,10 @@ export function SeasonEpisodes({
             researching={researching === row.n}
             locked={locked}
             onResearch={(force) => onResearch(row.n, force)}
+            onDiscarded={() => {
+              refetch();
+              onChanged();
+            }}
           >
             {open === row.n && data && row.decisions.length > 0 && (
               <EpisodeDecisions
@@ -184,6 +195,7 @@ function EpisodeLine({
   researching,
   locked,
   onResearch,
+  onDiscarded,
   children,
 }: {
   row: EpisodeRow;
@@ -195,10 +207,28 @@ function EpisodeLine({
   researching: boolean;
   locked: boolean;
   onResearch: (force: boolean) => void;
+  onDiscarded: () => void;
   children?: React.ReactNode;
 }) {
   const tz = season.airTz || "America/New_York";
   const pending = row.decisions.filter((d) => d.status === "pending").length;
+  const [discarding, setDiscarding] = useState(false);
+  async function discard() {
+    if (
+      !(await confirm(
+        `Discard episode ${row.n}'s research and its ${pending} undecided result${pending === 1 ? "" : "s"}? Anything you already accepted or rejected is kept.`,
+        { danger: true, confirmLabel: "Discard" }
+      ))
+    )
+      return;
+    setDiscarding(true);
+    try {
+      await api.adminDiscardResearch(season.id, row.n);
+      onDiscarded();
+    } finally {
+      setDiscarding(false);
+    }
+  }
   const model = season.researchModel || AI_MODELS[0].id;
 
   // When auto-research will pick this episode up -- only for one it hasn't researched yet, and only
@@ -232,8 +262,11 @@ function EpisodeLine({
           <span className="rounded bg-secondary px-1 text-[0.6rem] uppercase tracking-wide text-muted-foreground">researched</span>
         )}
         {row.researched && !row.aired && row.airsAt && (
-          <span className="text-[0.65rem] text-destructive" title="Anything it found is probably about an earlier episode">
-            researched before it aired — reject its results
+          <span className="flex items-center gap-1 text-[0.65rem] text-destructive" title="Anything it found is probably about an earlier episode">
+            researched before it aired
+            <Button variant="destructive" size="xs" disabled={locked || discarding} onClick={discard}>
+              {discarding ? "Discarding…" : "Discard research"}
+            </Button>
           </span>
         )}
         {autoNote && (
