@@ -2,6 +2,7 @@
 
 import type { LeagueState } from "@/lib/game/types";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { RoleBadge } from "@/components/role-badge";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
@@ -57,7 +58,9 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
                         castaway={c}
                         className="flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold"
                       />
-                      {c.name} {c.status === "eliminated" && <span className="text-muted-foreground">(#{c.placementOrder})</span>}
+                      {c.name}
+                      <RoleBadge state={state} castawayId={c.id} />{" "}
+                      {c.status === "eliminated" && <span className="text-muted-foreground">(#{c.placementOrder})</span>}
                       {!c.ownerIds.includes(p.id) && (
                         <span className="text-muted-foreground">— {c.departedVia === "trade" ? "swapped away" : "replenished away"}</span>
                       )}

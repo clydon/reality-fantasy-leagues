@@ -185,7 +185,10 @@ export function FinalePanel({ state }: { state: LeagueState }) {
           );
         })}
       </div>
-      <p className="mt-2.5 text-xs text-muted-foreground">Best set once, right after the merge — edit anytime before the finale airs.</p>
+      <p className="mt-2.5 text-xs text-muted-foreground">
+        Best set once, {StateLogic.formatOf(state).hasMerge ? "right after the merge" : "once the field has narrowed"} — edit anytime
+        before the finale airs.
+      </p>
 
       <h4 className="mb-2 mt-4 text-sm font-bold">
         Actual Result <span className="ml-1 rounded bg-secondary px-1.5 py-0.5 text-[0.65rem] font-normal">Commissioner only</span>

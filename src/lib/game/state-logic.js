@@ -850,7 +850,7 @@ const LEAGUE_TYPES = {
   'active-roster': {
     id: 'active-roster',
     name: 'Active Roster',
-    description: 'Draft a roster, then each episode field only some of it. Points come from what your active castaways do that week (immunity, idols, rewards), not from elimination placement.',
+    description: 'Draft a roster, then each episode field only some of it. Points come from what your active castaways do that week (winning challenges, surviving a vote, the show\'s own moments), not from elimination placement.',
     // Same draft mechanics as classic-draft, including the ownershipMode override below -- Active
     // Roster changes what happens to a roster AFTER the draft, not how it's drafted.
     draftStrategy: SnakeDraftStrategy,

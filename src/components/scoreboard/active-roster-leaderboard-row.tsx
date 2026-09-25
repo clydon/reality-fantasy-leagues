@@ -5,6 +5,7 @@ import { playerEventRows } from "@/lib/game/active-roster-rows";
 import { playerBetRows } from "@/lib/game/bet-rows";
 import { cn } from "cn";
 import { useShowTerms } from "@/lib/use-show-terms";
+import { RoleBadge } from "@/components/role-badge";
 
 // Active Roster's leaderboard row. Separate from LeaderboardRow because that one's breakdown is
 // "Boot Order" plus a roster list with elimination placements -- which is exactly what this league
@@ -62,6 +63,7 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
             <div key={c.id} className="flex items-center justify-between text-sm">
               <span>
                 {c.name}
+                <RoleBadge state={state} castawayId={c.id} />
                 {c.acquiredVia && c.acquiredVia !== "draft" && (
                   <span title={`Acquired via ${c.acquiredVia}, not an original pick`}> *</span>
                 )}

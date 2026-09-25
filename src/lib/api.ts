@@ -177,6 +177,15 @@ export const api = {
     localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/eliminations/${castawayId}`, {
       method: "DELETE",
     }),
+  addRole: (leagueId: string, epId: string, castawayId: string, role: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/roles`, {
+      method: "POST",
+      body: JSON.stringify({ castawayId, role }),
+    }),
+  removeRole: (leagueId: string, epId: string, castawayId: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/roles/${castawayId}`, {
+      method: "DELETE",
+    }),
   updateBet: (leagueId: string, epId: string, betId: string, field: string, value: unknown) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}`, {
       method: "PATCH",

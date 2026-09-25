@@ -2,6 +2,7 @@ import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { medalFor, MEDAL_EMOJI } from "@/lib/game/selectors";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { RoleBadge } from "@/components/role-badge";
 import { cn } from "cn";
 
 // Direct port of renderBoardGrid() (public/app.js) -- grouped by tribe, one card per castaway
@@ -21,12 +22,15 @@ export function BoardGrid({ state }: { state: LeagueState }) {
         if (members.length === 0) return null;
         return (
           <div key={g.id ?? "unassigned"}>
-            <h3
-              className="mb-0 inline-block rounded-md px-[13px] py-1.5 text-[0.78rem] uppercase tracking-[1px] text-white"
-              style={{ background: g.color }}
-            >
-              {g.name}
-            </h3>
+            {/* A show with no groups at all (The Traitors) puts everyone here -- no heading needed. */}
+            {state.tribes.length > 0 && (
+              <h3
+                className="mb-0 inline-block rounded-md px-[13px] py-1.5 text-[0.78rem] uppercase tracking-[1px] text-white"
+                style={{ background: g.color }}
+              >
+                {g.name}
+              </h3>
+            )}
             <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(126px,1fr))] gap-3">
               {members.map((c) => {
                 // Shared-ownership leagues can have several owners per castaway, so this reads the
@@ -73,7 +77,10 @@ export function BoardGrid({ state }: { state: LeagueState }) {
                       castaway={c}
                       className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-secondary font-mono text-[1.05rem] font-bold text-muted-foreground"
                     />
-                    <div className="text-[0.84rem] font-semibold text-foreground">{c.name}</div>
+                    <div className="text-[0.84rem] font-semibold text-foreground">
+                      {c.name}
+                      <RoleBadge state={state} castawayId={c.id} />
+                    </div>
                     {owners.length > 0 && (
                       <div className="mt-[3px] text-[0.7rem] font-semibold text-muted-foreground">
                         {owners.map((o) => o.name).join(", ")}

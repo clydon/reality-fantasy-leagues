@@ -3,6 +3,7 @@
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { RoleBadge } from "@/components/role-badge";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
@@ -74,7 +75,10 @@ export function FreeAgentsPanel({ state }: { state: LeagueState }) {
                 castaway={c}
                 className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold"
               />
-              <div className="text-xs font-medium leading-tight">{c.name}</div>
+              <div className="text-xs font-medium leading-tight">
+                {c.name}
+                <RoleBadge state={state} castawayId={c.id} />
+              </div>
               {canPick && (
                 <div className="rounded bg-primary px-2 py-0.5 text-[0.65rem] font-bold text-primary-foreground">Draft</div>
               )}

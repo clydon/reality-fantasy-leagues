@@ -239,8 +239,24 @@ challenge win; safe while at risk. Research asks only generic questions.
      - Team changes mid-season. Only the starting team is captured, the same as Survivor swaps today.
      - Challenge-specific extras such as Stars, points and partners. They're read as context but not
        scored.
-4. **Tidy-up.** Remove the remaining Survivor wording from shared UI copy. ("Season over" is already
-   generic: phase 1 made it the format's `winnerExitMethod`.)
+4. **Tidy-up — DONE (2026-09-25).**
+   - Shared wording:
+     - "Boot Order" → "Elimination order" on the scoreboard, and "boot #N" → "elimination #N" on the
+       episode card, which now also says to enter a finale from last place to the winner.
+     - "Right after the merge" in Mid-Season and Finale Predictions now only appears for a show with a
+       merge. The Mid-Season panel no longer points at a Rules tab that doesn't exist.
+     - The Active Roster league-type description no longer says "immunity, idols".
+   - The board drops the "Unassigned" heading when a show has no groups.
+   - Roles:
+     - Commissioners can record a role by hand on the episode card, with Undo, via
+       `POST/DELETE /api/leagues/:id/episodes/:epId/roles`.
+     - A `RoleBadge` ("Traitor") shows on the board, both scoreboard roster lists, draft results and
+       free agents. It reads league state, so it only appears once the league has reached that
+       episode.
+   - **Still open:**
+     - Team changes mid-season. The Challenge regroups often, and Survivor swaps have the same gap.
+       This is its own piece of design: groups as per-episode facts, like roles.
+     - The "Survivor Fantasy Engine" logo and alt text. That's a branding call, not wording.
 
 ## Risks and open points
 

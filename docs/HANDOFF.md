@@ -18,8 +18,8 @@ extraction prompts and validation, and the research checklist. The plan adds `sh
 3. Add The Challenge.
 4. Tidy-up.
 
-**Status (2026-09-25):** Phases 1–3 (Survivor, The Traitors, The Challenge) are built on branch
-`format-phase1-survivor`. None of it is merged or pushed: the user said to hold off merging for now.
+**Status (2026-09-25):** Phases 1–3 (Survivor, The Traitors, The Challenge) are merged to `master`
+and pushed.
 - Migrations 0021 (`shows.format`) and 0022 (role decisions).
 - Checks: Survivor is unchanged in the regression harness.
 - Real model reads, graded against the wikis' own tables:
@@ -32,8 +32,9 @@ extraction prompts and validation, and the research checklist. The plan adds `sh
 - The plan's phase entries list what's deferred, and what to do when switching an existing show's
   Rules. The regression and check scripts are session scratch files; they're described in the plan
   but not committed.
-- Next is Phase 4 (tidy-up), plus the deferred items: hand-entry of roles, role badges, and team
-  changes.
+- Phase 4 (tidy-up), hand-entry of roles and role badges are done and merged too.
+- Still open: team changes mid-season, and the "Survivor Fantasy Engine" branding. Both are in the
+  plan's Phase 4 entry.
 
 The open questions are all resolved:
 

@@ -27,6 +27,8 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
   const [editingEp, setEditingEp] = useState(false);
   const [elimCastawayId, setElimCastawayId] = useState("");
   const [elimMethod, setElimMethod] = useState(format.exitMethods[0]);
+  const [roleCastawayId, setRoleCastawayId] = useState("");
+  const [roleValue, setRoleValue] = useState(format.roles?.values[0] ?? "");
   const [newBetLabel, setNewBetLabel] = useState("");
   const [newBetPoints, setNewBetPoints] = useState(state.settings.defaultBetPoints);
 
@@ -82,6 +84,22 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
     await mutate(
       (s) => StateLogic.removeElimination(s, ep.id, castawayId),
       () => api.removeElimination(leagueId!, ep.id, castawayId)
+    );
+  }
+
+  async function handleAddRole() {
+    if (!roleCastawayId || !roleValue) return;
+    await mutate(
+      (s) => StateLogic.addRole(s, ep.id, roleCastawayId, roleValue),
+      () => api.addRole(leagueId!, ep.id, roleCastawayId, roleValue)
+    );
+    setRoleCastawayId("");
+  }
+
+  async function handleRemoveRole(castawayId: string) {
+    await mutate(
+      (s) => StateLogic.removeRole(s, ep.id, castawayId),
+      () => api.removeRole(leagueId!, ep.id, castawayId)
     );
   }
 
@@ -211,6 +229,11 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                   <div key={r.castawayId} className="flex items-center gap-2 text-sm">
                     <span className="rounded bg-[#b0563f] px-1.5 py-0.5 text-xs font-bold text-white">{r.role}</span>
                     <span>{StateLogic.getCastaway(state, r.castawayId)?.name ?? "?"}</span>
+                    {editingEp && canManage && (
+                      <Button variant="destructive" size="sm" className="ml-auto" onClick={() => handleRemoveRole(r.castawayId)}>
+                        Undo
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -219,8 +242,9 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
               <div className="mt-3 border-t border-border pt-3">
                 <h4 className="mb-1 text-xs font-bold">Add Eliminated Player</h4>
                 <p className="mb-2 text-xs text-muted-foreground">
-                  If more than one person left this episode, add them one at a time in the order it happened. This will be
-                  boot <b>#{StateLogic.nextPlacementOrder(state)}</b>.
+                  If more than one person left this episode, add them one at a time in the order it happened (for the
+                  finale, from last place to the winner). This will be elimination{" "}
+                  <b>#{StateLogic.nextPlacementOrder(state)}</b>.
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   <Select value={elimCastawayId} onChange={(e) => setElimCastawayId(e.target.value)}>
@@ -237,6 +261,36 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
                     ))}
                   </Select>
                   <Button onClick={handleAddElimination}>+ Add Eliminated Player</Button>
+                </div>
+              </div>
+            )}
+            {/* Secret roles by hand (The Traitors) -- for when the season's admin decisions don't cover
+                this league. Anyone still in the game can take one; one per person per episode. */}
+            {canManage && format.roles && (
+              <div className="mt-3 border-t border-border pt-3">
+                <h4 className="mb-1 text-xs font-bold">Record a Role</h4>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  Who became a Traitor this episode. Everyone else is {format.roles.default}.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Select value={roleCastawayId} onChange={(e) => setRoleCastawayId(e.target.value)}>
+                    <option value="">— Select {terms.castaway} —</option>
+                    {activeCast
+                      .filter((c) => !(ep.roles || []).some((r) => r.castawayId === c.id))
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </Select>
+                  <Select value={roleValue} onChange={(e) => setRoleValue(e.target.value)}>
+                    {format.roles.values.map((v) => (
+                      <option key={v}>{v}</option>
+                    ))}
+                  </Select>
+                  <Button disabled={!roleCastawayId} onClick={handleAddRole}>
+                    + Record Role
+                  </Button>
                 </div>
               </div>
             )}

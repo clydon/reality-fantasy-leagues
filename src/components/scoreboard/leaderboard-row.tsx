@@ -3,6 +3,7 @@
 import type { LeagueState, ScoreRow } from "@/lib/game/types";
 import { playerBetRows } from "@/lib/game/bet-rows";
 import { cn } from "cn";
+import { RoleBadge } from "@/components/role-badge";
 
 // Port of one iteration of renderScoreboard()'s .map() (public/app.js): the leaderboard row plus
 // its two <details> disclosures (Roster detail, Bonus bets). Both use the native <details>
@@ -22,7 +23,7 @@ export function LeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; 
         <div className="flex-1">
           <div className="font-bold">{r.name}</div>
           <div className="text-xs text-muted-foreground">
-            Boot Order: {r.locked}
+            Elimination order: {r.locked}
             {bonusEnabled ? ` · Bonus: ${r.bonus}` : ""} · Finale: {r.finale}
           </div>
         </div>
@@ -39,6 +40,7 @@ export function LeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; 
             <div key={c.id} className="flex items-center justify-between text-sm">
               <span>
                 {c.name}
+                <RoleBadge state={state} castawayId={c.id} />
                 {c.acquiredVia && c.acquiredVia !== "draft" && (
                   <span title={`Acquired via ${c.acquiredVia}, not an original pick`}> *</span>
                 )}
