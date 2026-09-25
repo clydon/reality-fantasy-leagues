@@ -53,10 +53,25 @@ export function initials(name: string): string {
 // untouched -- the Photo URL field in League Settings accepts arbitrary external URLs, and those
 // must not be mangled.
 export function castawayPhotoSrc(photoUrl: string | undefined | null): string | null {
-  const raw = (photoUrl || "").trim();
+  const raw = stripWikiRevisionSuffix((photoUrl || "").trim());
   if (!raw) return null;
   if (/^([a-z][a-z0-9+.-]*:|\/\/)/i.test(raw)) return raw;
   return raw.startsWith("/") ? raw : "/" + raw;
+}
+
+// A Fandom image address copied off a wiki page carries a revision suffix:
+//
+//   .../images/5/57/S51_aaliyah_t.png/revision/latest?cb=20260904163427
+//
+// which doesn't load from another site, while the canonical path above it does. The connector cuts
+// this at import (db/wiki-sync.js's normalizePhotoUrl); this second copy covers the other way such a
+// URL gets in -- someone pasting one into League Settings' Photo URL field, which is the obvious
+// thing to do when you have a wiki page open. Scoped to wikia's own hosts so it can't mangle an
+// unrelated URL that happens to contain "/revision/".
+function stripWikiRevisionSuffix(raw: string): string {
+  if (!/(^|\.)(wikia\.nocookie\.net|fandom\.com)\//i.test(raw)) return raw;
+  const cut = raw.indexOf("/revision/");
+  return cut === -1 ? raw : raw.slice(0, cut);
 }
 
 const MEDAL_EMOJI: Record<string, string> = { gold: "🥇", silver: "🥈", bronze: "🥉" };

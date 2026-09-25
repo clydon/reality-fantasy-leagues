@@ -234,6 +234,26 @@ async function fetchWikitext(title, apiUrl = WIKI_API) {
 // Resolves File: names to real CDN URLs in ONE batched call. Deterministic -- no model involved, so
 // no chance of an invented image URL. Best-effort: anything that doesn't resolve simply gets no
 // photo, which the app already handles (CastawayAvatar falls back to initials).
+// Fandom's imageinfo hands back the REVISION form of a file URL:
+//
+//   https://static.wikia.nocookie.net/survivor/images/5/57/S51_aaliyah_t.png/revision/latest?cb=20260904163427
+//
+// which doesn't load from another site -- an <img> pointing at it fails, and every imported castaway
+// shows initials instead of a photo. The canonical path above it, the same URL up to the extension,
+// always loads. So the suffix is cut here, at the one place wiki file URLs enter this app, rather
+// than left for each consumer to deal with.
+//
+// The same rule is applied again in src/lib/game/selectors.ts's castawayPhotoSrc, for a URL somebody
+// pastes into League Settings' Photo URL field by hand -- copying an image address off a Fandom page
+// gives you exactly this form. Two small copies rather than a shared module, because state-logic and
+// its selectors deliberately have no dependency on anything under db/.
+function normalizePhotoUrl(url) {
+  const raw = String(url == null ? "" : url).trim();
+  if (!raw) return null;
+  const cut = raw.indexOf("/revision/");
+  return cut === -1 ? raw : raw.slice(0, cut);
+}
+
 async function resolvePhotoUrls(fileNames, apiUrl = WIKI_API) {
   const wanted = fileNames.filter(Boolean).slice(0, 50); // API caps titles per request
   if (!wanted.length) return {};
@@ -248,7 +268,7 @@ async function resolvePhotoUrls(fileNames, apiUrl = WIKI_API) {
     const out = {};
     for (const page of (data.query && data.query.pages) || []) {
       if (page.missing || !page.imageinfo || !page.imageinfo[0]) continue;
-      out[page.title.replace(/^File:/, "")] = page.imageinfo[0].url;
+      out[page.title.replace(/^File:/, "")] = normalizePhotoUrl(page.imageinfo[0].url);
     }
     return out;
   } catch {
@@ -911,7 +931,7 @@ async function stageSeasonCast(pool, ctx, extraction, opts) {
       `INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order)
        VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (season_id, lower(name)) DO NOTHING`,
-      [seasonId, c.name, c.tribeName, (c.photoFile && photos[c.photoFile]) || null, i]
+      [seasonId, c.name, c.tribeName, normalizePhotoUrl(c.photoFile && photos[c.photoFile]), i]
     );
     added += rowCount;
   }
@@ -1523,6 +1543,7 @@ module.exports = {
   validateCast,
   validateEpisodes,
   resolvePhotoUrls,
+  normalizePhotoUrl,
   CastSchema,
   EpisodesSchema,
   EXIT_METHODS,

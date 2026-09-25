@@ -998,6 +998,30 @@ that fires twice before anyone reviews replaces its own earlier suggestion inste
 duplicates. Rejected proposals are kept as resolved rows rather than deleted, so a rejected
 suggestion doesn't reappear looking new on the next run.
 
+### Photo URLs: cutting Fandom's revision suffix (db/migrations/0012)
+
+MediaWiki's `imageinfo` API returns a file's URL in a revision form:
+
+    https://static.wikia.nocookie.net/survivor/images/5/57/S51_aaliyah_t.png/revision/latest?cb=20260904163427
+
+which does **not** load from another site. Every imported castaway fell back to initials, and because
+`CastawayAvatar` degrades to initials on error rather than showing a broken image, it looked like the
+photos simply hadn't been found. The canonical path above it — the same URL up to the extension —
+always loads.
+
+Cut in two places, on purpose. `normalizePhotoUrl` in `db/wiki-sync.js` handles the import path, at
+the one point wiki file URLs enter the app. `castawayPhotoSrc` in `src/lib/game/selectors.ts` handles
+the other way one gets in: somebody pasting an image address into League Settings' Photo URL field,
+which is the obvious thing to do with a wiki page open — that copy is scoped to wikia/fandom hosts so
+it can't mangle an unrelated URL containing `/revision/`. They're two small copies rather than a
+shared helper because state-logic and its selectors deliberately have no dependency on anything under
+`db/`.
+
+`0012` cleans what was already written, in all three places such a URL can be sitting: `season_cast`,
+each league's own `state.castaways[].photoUrl`, and the cached extraction's `payload.photos` — that
+last one matters because the cache is keyed on wiki revision ids, so an unchanged season would
+otherwise keep handing the old URLs to the next staging run without ever re-reading the wiki.
+
 ### Cast approval is the admin's, not each commissioner's (`season_cast`, db/migrations/0011)
 
 A cast is a fact about the show — the same 18 people for every league playing the season. Episode
