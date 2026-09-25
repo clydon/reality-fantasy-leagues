@@ -254,7 +254,11 @@ function SuggestedAnswerBlock({
       )}
       {suggestion && suggestion.status === "ok" && (
         <div className="flex flex-wrap items-start gap-1.5">
-          <Badge variant={suggestion.confidence === "high" ? "default" : "secondary"} className="h-4 shrink-0 text-[0.6rem]">
+          <Badge
+            variant={suggestion.confidence === "high" ? "default" : "secondary"}
+            className="h-4 shrink-0 cursor-help text-[0.6rem]"
+            title={`Confidence: ${suggestion.confidence}${suggestion.similarity != null ? ` — ${Math.round(suggestion.similarity * 100)}% match to the research` : ""}`}
+          >
             {suggestion.confidence} confidence
           </Badge>
           <span>

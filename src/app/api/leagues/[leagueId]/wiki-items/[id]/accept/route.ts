@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole, isUuid } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { undoAppliedItem } from "@/lib/server/connector-items";
 import { applyHeldTribesIfDue } from "@/lib/server/season-cast";
 import { notifyEpisodeResults } from "@/lib/server/push-events";
 
@@ -34,13 +35,16 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
   let eliminatedInEpisodeId: string | null = null;
   const state = await withLeagueLock(leagueId, async (s, client) => {
     const { rows } = await client.query(
-      `SELECT episode_number, post_merge, kind, castaway_name, method, event_type, status
+      `SELECT episode_number, post_merge, kind, castaway_name, method, event_type, status, applied
          FROM wiki_proposal_items WHERE id=$1 AND league_id=$2 FOR UPDATE`,
       [id, leagueId]
     );
     if (!rows.length) throw new HttpError(404, "Item not found");
     const item = rows[0];
-    if (item.status !== "pending") throw new HttpError(400, "That item has already been decided");
+    // Re-deciding is allowed: rows stay on the episode card after a decision with their buttons live.
+    // Accepting an already-accepted item (an edit after the fact) first undoes what the earlier accept
+    // applied, so the new values replace the old rather than stacking on top of them.
+    if (item.status === "accepted") undoAppliedItem(s, item);
 
     // An edit overrides exactly the field(s) it names; everything else comes from the item as
     // extracted. `applied` records the ACTUAL committed values only when they differ from

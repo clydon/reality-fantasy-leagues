@@ -205,8 +205,33 @@ async function searchChunks(pool, { showId, season, episodeNumber, query, limit 
  * confidence label for a match that didn't clear the floor -- see confidenceFor.
  */
 async function suggestAnswer(pool, { showId, season, episodeNumber, question }) {
+  // "Has this episode been researched?" is answered by episode_research, NOT by whether chunks exist.
+  // Embedding is a best-effort step after research (it needs GEMINI_API_KEY, which a deployment
+  // researching with another provider may not have), so research can exist with no chunks -- and
+  // reporting that as "no research has been run" was simply wrong. Index it now instead, from the
+  // stored answers; if that fails, the error says why rather than pretending nothing was researched.
+  const { rows: researched } = await pool.query(
+    "SELECT payload FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3",
+    [showId, season, episodeNumber]
+  );
+  if (!researched.length) return { status: "no-research", answer: null, confidence: null, castawayName: null, similarity: null };
+  const { rows: indexed } = await pool.query(
+    "SELECT 1 FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 LIMIT 1",
+    [showId, season, episodeNumber]
+  );
+  if (!indexed.length) {
+    try {
+      await storeChunksForEpisode(pool, { showId, season, episodeNumber }, researched[0].payload);
+    } catch (e) {
+      throw new Error(`This episode has been researched, but it couldn't be indexed for search: ${e.message}`);
+    }
+  }
+
   const { hasResearch, matches } = await searchChunks(pool, { showId, season, episodeNumber, query: question, limit: 1 });
-  if (!hasResearch) return { status: "no-research", answer: null, confidence: null, castawayName: null, similarity: null };
+  if (!hasResearch) {
+    // Researched, indexed, and still nothing: every castaway was quiet and there was no summary.
+    return { status: "unconfident", answer: null, confidence: null, castawayName: null, similarity: null };
+  }
   const top = matches[0];
   if (!top || !top.confidence) {
     return {

@@ -40,6 +40,8 @@ export function EpisodeCard({
   onWikiItemsChanged?: () => void;
 }) {
   const terms = useShowTerms();
+  // Decided items stay listed (tinted) so a decision can be changed; only undecided ones need a badge.
+  const pendingCount = [...(wikiItems || []), ...(researchItems || [])].filter((i) => i.status === "pending").length;
   const [open, setOpen] = useState(defaultOpen);
   const [editingEp, setEditingEp] = useState(false);
   const [elimCastawayId, setElimCastawayId] = useState("");
@@ -123,7 +125,7 @@ export function EpisodeCard({
             {ep.title ? <span className="font-normal"> &ldquo;{ep.title}&rdquo;</span> : null} — {summary}
           </div>
           {ep.airDate && <div className="mt-0.5 text-xs text-muted-foreground">Aired {ep.airDate}</div>}
-          {(ep.postMerge || (ep.bets || []).length > 0 || (wikiItems || []).length > 0 || (researchItems || []).length > 0) && (
+          {(ep.postMerge || (ep.bets || []).length > 0 || pendingCount > 0) && (
             <div className="mt-1 flex gap-1.5">
               {ep.postMerge && (
                 <span className="rounded bg-[#5089c4] px-1.5 py-0.5 text-[0.65rem] font-bold text-white">Post-Merge</span>
@@ -136,12 +138,12 @@ export function EpisodeCard({
                   Bets
                 </span>
               )}
-              {(wikiItems || []).length + (researchItems || []).length > 0 && (
+              {pendingCount > 0 && (
                 <span
                   className="rounded bg-[#c99a3e] px-1.5 py-0.5 text-[0.65rem] font-bold text-white"
                   title="Pending decisions from the wiki and/or research connector, awaiting review"
                 >
-                  {(wikiItems || []).length + (researchItems || []).length} to reveal
+                  {pendingCount} to reveal
                 </span>
               )}
             </div>

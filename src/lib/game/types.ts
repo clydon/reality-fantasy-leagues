@@ -455,6 +455,10 @@ export interface WikiProposalItem {
   event_type: string;
   /** Event only, meaningless for the other two kinds (which are always read off a stated column). */
   confidence: "high" | "low";
+  /** Decided rows stay listed (tinted on the episode card) so a decision can be changed. */
+  status: "pending" | "accepted" | "rejected";
+  /** What was actually committed when the commissioner corrected it before accepting; null otherwise. */
+  applied: { castawayName?: string; method?: string; eventType?: string } | null;
   created_at: string;
 }
 
@@ -478,6 +482,8 @@ export interface ResearchProposalItem {
   confidence: "high" | "medium" | "low";
   /** URLs the research actually cited for this claim. Empty only if research support was thin. */
   sources: string[];
+  status: "pending" | "accepted" | "rejected";
+  applied: { castawayName?: string; eventType?: string } | null;
   created_at: string;
 }
 

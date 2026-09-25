@@ -45,7 +45,7 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
     queryFn: () => api.listWikiItems(leagueId!),
     enabled: live && canManage,
   });
-  const pendingItems = itemsData?.items ?? [];
+  const pendingItems = (itemsData?.items ?? []).filter((i) => i.status === "pending");
   const pendingEpisodeCount = new Set(pendingItems.map((i) => i.episode_number)).size;
 
   async function updateSeason(value: number | null) {

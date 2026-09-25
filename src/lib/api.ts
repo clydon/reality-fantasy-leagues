@@ -393,7 +393,7 @@ export const api = {
       { method: "POST", body: JSON.stringify(edits || {}) }
     ),
   rejectWikiItem: (leagueId: string, id: string) =>
-    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-items/${id}/reject`, { method: "POST" }),
+    localFetch<{ ok: true; state: LeagueState }>(`/api/leagues/${leagueId}/wiki-items/${id}/reject`, { method: "POST" }),
 
   // Per-item review for the RESEARCH connector (0015's episode_research_items) -- the research
   // counterpart to the three calls above, same shapes, rendered in the same panel.
@@ -404,7 +404,7 @@ export const api = {
       { method: "POST", body: JSON.stringify(edits || {}) }
     ),
   rejectResearchItem: (leagueId: string, id: string) =>
-    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/research-items/${id}/reject`, { method: "POST" }),
+    localFetch<{ ok: true; state: LeagueState }>(`/api/leagues/${leagueId}/research-items/${id}/reject`, { method: "POST" }),
 
   // Show/season catalog. The plain /api/shows read is commissioner-facing (the Show and Season
   // pickers in League Settings); everything under /api/admin/* is super-admin catalog management.

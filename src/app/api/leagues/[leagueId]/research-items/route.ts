@@ -14,6 +14,9 @@ import StateLogic from "@/lib/game/state-logic.js";
 // (db/episode-research.js's CastawayChecklist), not two -- carried through unchanged rather than
 // collapsed, because collapsing 'unknown' into 'low' is exactly the failure the schema exists to
 // avoid.
+// Decided rows are returned too (with their status): the episode card keeps them visible, tinted
+// green/red, with their buttons still live so a decision can be changed. Callers that only care
+// about what's still awaiting review filter on status === "pending".
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
   await requireLeagueRole(req, leagueId, "commissioner");
@@ -25,9 +28,9 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   const gate = leagueRows.length ? StateLogic.RevealLogic.revealedThrough(leagueRows[0].state) : null;
 
   const { rows } = await pool.query(
-    `SELECT id, episode_number, kind, castaway_name, event_type, confidence, sources, created_at
+    `SELECT id, episode_number, kind, castaway_name, event_type, confidence, sources, status, applied, created_at
        FROM episode_research_items
-      WHERE league_id=$1 AND status='pending'
+      WHERE league_id=$1
         AND ($2::int IS NULL OR episode_number <= $2)
       ORDER BY episode_number ASC, created_at ASC`,
     [leagueId, gate]

@@ -8,7 +8,6 @@ import { useLeagueStore } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useShowTerms } from "@/lib/use-show-terms";
 
 function labelFor(item: WikiProposalItem): string {
@@ -25,11 +24,43 @@ function labelForResearch(item: ResearchProposalItem): string {
   return StateLogic.ACTIVE_ROSTER_EVENTS.find((d) => d.id === item.event_type)?.label ?? item.event_type;
 }
 
-// high < medium < low, used only to order a group's rows (least-certain last, where it gets the
-// closer look it deserves) -- the wiki connector's own two-valued confidence maps onto the same
-// scale ('low' still sorts after 'high' with 'medium' never appearing for it).
-function confidenceRank(confidence: "high" | "medium" | "low"): number {
-  return confidence === "high" ? 0 : confidence === "medium" ? 1 : 2;
+
+// Confidence as a small coloured dot whose level shows on hover -- present on every row (not only
+// the low ones) so it can be read consistently, and kept out of the way until wanted. These levels
+// are also what a future auto-accept would key on.
+const CONFIDENCE_MEANING: Record<"high" | "medium" | "low", string> = {
+  high: "stated plainly by the source",
+  medium: "implied by the source",
+  low: "inferred or from a single weak source — worth a look before accepting",
+};
+function ConfidenceDot({ level }: { level: "high" | "medium" | "low" }) {
+  const color = level === "high" ? "bg-good" : level === "medium" ? "bg-[#c99a3e]" : "bg-destructive";
+  return (
+    <span
+      className="inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full border border-border bg-card"
+      title={`Confidence: ${level} — ${CONFIDENCE_MEANING[level]}`}
+      aria-label={`Confidence: ${level}`}
+    >
+      <span className={`h-2 w-2 rounded-full ${color}`} />
+    </span>
+  );
+}
+
+// A decided row stays on the card, tinted, with its buttons dimmed but still live -- so a misclick
+// or a change of mind is one click away (the routes undo what the earlier decision applied).
+function rowTint(status: "pending" | "accepted" | "rejected") {
+  return status === "accepted" ? "bg-good/10 ring-1 ring-good/30" : status === "rejected" ? "bg-destructive/10 ring-1 ring-destructive/25" : "bg-secondary/40";
+}
+function decidedButtonClass(status: "pending" | "accepted" | "rejected") {
+  return status === "pending" ? "" : "opacity-45 hover:opacity-100";
+}
+function StatusNote({ status }: { status: "pending" | "accepted" | "rejected" }) {
+  if (status === "pending") return null;
+  return (
+    <span className={`text-[0.65rem] font-semibold uppercase tracking-wide ${status === "accepted" ? "text-good" : "text-destructive"}`}>
+      {status}
+    </span>
+  );
 }
 
 // One reviewable decision from the wiki connector's per-episode fan-out (db/migrations/0009) --
@@ -46,7 +77,7 @@ function WikiItemRow({ item, state, onResolved }: { item: WikiProposalItem; stat
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { castaway, ambiguous } = StateLogic.Core.findCastawayByName(state, item.castaway_name);
+  const { castaway, ambiguous } = StateLogic.Core.findCastawayByName(state, item.applied?.castawayName || item.castaway_name);
   const activeCast = state.castaways.filter((c) => c.status === "active");
   const [castawayId, setCastawayId] = useState(castaway?.id ?? "");
   const [method, setMethod] = useState(item.method || StateLogic.EXIT_METHODS[0]);
@@ -70,7 +101,8 @@ function WikiItemRow({ item, state, onResolved }: { item: WikiProposalItem; stat
     setBusy(true);
     setError(null);
     try {
-      await api.rejectWikiItem(leagueId!, item.id);
+      const res = await api.rejectWikiItem(leagueId!, item.id);
+      setState(res.state);
       onResolved();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not reject that item.");
@@ -93,7 +125,7 @@ function WikiItemRow({ item, state, onResolved }: { item: WikiProposalItem; stat
   }
 
   return (
-    <div className="rounded-md bg-secondary/40 px-2.5 py-2">
+    <div className={`rounded-md px-2.5 py-2 ${rowTint(item.status)}`}>
       <div className="flex flex-wrap items-center gap-2">
         {castaway ? (
           <CastawayAvatar castaway={castaway} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold" />
@@ -107,22 +139,16 @@ function WikiItemRow({ item, state, onResolved }: { item: WikiProposalItem; stat
           </span>
         )}
         <span className="text-sm text-muted-foreground">{labelFor(item)}</span>
-        {item.kind === "event" && item.confidence === "low" && (
-          <span
-            className="rounded bg-[#c99a3e] px-1.5 py-0.5 text-[0.65rem] font-bold text-white"
-            title="Inferred rather than stated outright -- worth a look before accepting"
-          >
-            low confidence
-          </span>
-        )}
+        <ConfidenceDot level={item.confidence} />
+        <StatusNote status={item.status} />
         <div className="ml-auto flex gap-1.5">
-          <Button size="sm" disabled={busy} onClick={() => accept()}>
+          <Button size="sm" className={decidedButtonClass(item.status)} disabled={busy} onClick={() => accept()}>
             Accept
           </Button>
-          <Button variant="secondary" size="sm" disabled={busy} onClick={() => setEditing((v) => !v)}>
+          <Button variant="secondary" size="sm" className={decidedButtonClass(item.status)} disabled={busy} onClick={() => setEditing((v) => !v)}>
             Edit
           </Button>
-          <Button variant="destructive" size="sm" disabled={busy} onClick={reject}>
+          <Button variant="destructive" size="sm" className={decidedButtonClass(item.status)} disabled={busy} onClick={reject}>
             Reject
           </Button>
         </div>
@@ -177,7 +203,7 @@ function ResearchItemRow({ item, state, onResolved }: { item: ResearchProposalIt
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { castaway, ambiguous } = StateLogic.Core.findCastawayByName(state, item.castaway_name);
+  const { castaway, ambiguous } = StateLogic.Core.findCastawayByName(state, item.applied?.castawayName || item.castaway_name);
   const activeCast = state.castaways.filter((c) => c.status === "active");
   const [castawayId, setCastawayId] = useState(castaway?.id ?? "");
   const [eventType, setEventType] = useState(item.event_type || StateLogic.ACTIVE_ROSTER_EVENTS[0].id);
@@ -200,7 +226,8 @@ function ResearchItemRow({ item, state, onResolved }: { item: ResearchProposalIt
     setBusy(true);
     setError(null);
     try {
-      await api.rejectResearchItem(leagueId!, item.id);
+      const res = await api.rejectResearchItem(leagueId!, item.id);
+      setState(res.state);
       onResolved();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not reject that item.");
@@ -219,7 +246,7 @@ function ResearchItemRow({ item, state, onResolved }: { item: ResearchProposalIt
   }
 
   return (
-    <div className="rounded-md bg-secondary/40 px-2.5 py-2">
+    <div className={`rounded-md px-2.5 py-2 ${rowTint(item.status)}`}>
       <div className="flex flex-wrap items-center gap-2">
         {castaway ? (
           <CastawayAvatar castaway={castaway} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold" />
@@ -233,13 +260,8 @@ function ResearchItemRow({ item, state, onResolved }: { item: ResearchProposalIt
           </span>
         )}
         <span className="text-sm text-muted-foreground">{labelForResearch(item)}</span>
-        <Badge
-          variant={item.confidence === "high" ? "default" : item.confidence === "medium" ? "secondary" : "outline"}
-          className="h-4 text-[0.6rem]"
-          title="How sure the research was, not how sure you should be -- check the sources either way"
-        >
-          {item.confidence}
-        </Badge>
+        <ConfidenceDot level={item.confidence} />
+        <StatusNote status={item.status} />
         {/* The only thing standing behind this claim -- there's no revision id the way a wiki item
             has, so these ARE the provenance, not supplementary to it. */}
         {item.sources.length ? (
@@ -254,13 +276,13 @@ function ResearchItemRow({ item, state, onResolved }: { item: ResearchProposalIt
           <span className="text-xs font-semibold text-destructive">no source</span>
         )}
         <div className="ml-auto flex gap-1.5">
-          <Button size="sm" disabled={busy} onClick={() => accept()}>
+          <Button size="sm" className={decidedButtonClass(item.status)} disabled={busy} onClick={() => accept()}>
             Accept
           </Button>
-          <Button variant="secondary" size="sm" disabled={busy} onClick={() => setEditing((v) => !v)}>
+          <Button variant="secondary" size="sm" className={decidedButtonClass(item.status)} disabled={busy} onClick={() => setEditing((v) => !v)}>
             Edit
           </Button>
-          <Button variant="destructive" size="sm" disabled={busy} onClick={reject}>
+          <Button variant="destructive" size="sm" className={decidedButtonClass(item.status)} disabled={busy} onClick={reject}>
             Reject
           </Button>
         </div>
@@ -352,24 +374,13 @@ function NoResultRow({ castaway, ep, onResolved }: { castaway: Castaway; ep: Epi
   );
 }
 
-// Groups one episode's review the way it's actually read: by tribe, because that's how an episode
-// happens (this tribe went to Tribal, that one won immunity), and within a tribe by what kind of
-// thing each row is.
+// Groups one episode's review the way it's actually read: by tribe (how an episode happens -- this
+// tribe went to Tribal, that one won immunity), then by player, with whoever left the game at the top
+// of their tribe. Each player's rows stay together; every ACTIVE castaway gets a row, whether or not
+// anything was reported for them (see NoResultRow). Decided rows stay in place, tinted.
 //
-// Every ACTIVE castaway gets a row, whether the wiki reported anything for them or not -- see
-// NoResultRow for why that matters. Ordering inside a group, in order of precedence:
-//   1. eliminations first -- the one decision that changes the season, and the one everything else
-//      in the group is context for;
-//   2. then by event, alphabetically, so the same kind of result reads as a block rather than being
-//      scattered through the list;
-//   3. then confidence, high before low, so anything inferred sits at the bottom of its block where
-//      it gets the closer look it deserves;
-//   4. then name, so the order is stable between renders and between reveals;
-//   5. and castaways with no result at all last within their tribe, since they're what's left over
-//      rather than something to review.
-//
-// Tribe groups follow the league's own tribe order; anyone without a tribe (a league catching up
-// that hasn't been given the division yet, or a name that didn't resolve) goes last under no header.
+// Tribe groups follow the league's own tribe order; anyone without a tribe (a league that hasn't
+// been given the division yet, or a name that didn't resolve) goes last under no header.
 // `item` and `researchItem` are mutually exclusive (a Row is either a wiki decision, a research
 // decision, or a no-result placeholder) -- kept as two optional fields rather than a tagged union so
 // the render below can stay a simple `row.item ? ... : row.researchItem ? ... : ...` without a
@@ -385,9 +396,26 @@ type Row = {
 function buildGroups(items: WikiProposalItem[], researchItems: ResearchProposalItem[], state: LeagueState, ep: Episode) {
   const rows: { tribeId: string | null; row: Row }[] = [];
   const spokenFor = new Set<string>();
+  const resolve = (name: string) => StateLogic.Core.findCastawayByName(state, name).castaway ?? null;
 
+  // Who left the game this episode: an elimination proposed and not rejected, or one already
+  // recorded on the episode. They go to the top of their tribe, since everything else in the group
+  // reads as context for that.
+  const exited = new Set<string>();
+  for (const it of items) {
+    if (it.kind !== "elimination" || it.status === "rejected") continue;
+    const c = resolve(it.applied?.castawayName || it.castaway_name);
+    exited.add(c ? c.id : it.castaway_name.toLowerCase());
+  }
+  for (const e of ep.events || []) exited.add(e.castawayId);
+  const exitTier = (c: Castaway | null, name: string) => (exited.has(c ? c.id : name.toLowerCase()) ? 0 : 1);
+
+  // Sort key within a tribe: [exited first, player name, this row's place within the player (an
+  // elimination first, then their other results, then "no result"), result label]. So each player's
+  // rows sit together, players run alphabetically, and whoever went home heads their tribe.
   for (const item of items) {
-    const { castaway } = StateLogic.Core.findCastawayByName(state, item.castaway_name);
+    const name = item.applied?.castawayName || item.castaway_name;
+    const castaway = resolve(name);
     if (castaway) spokenFor.add(castaway.id);
     rows.push({
       tribeId: castaway?.tribeId ?? null,
@@ -395,18 +423,14 @@ function buildGroups(items: WikiProposalItem[], researchItems: ResearchProposalI
         key: `w-${item.id}`,
         item,
         researchItem: null,
-        castaway: castaway ?? null,
-        sort: [item.kind === "elimination" ? 0 : 1, labelFor(item), confidenceRank(item.confidence), item.castaway_name],
+        castaway,
+        sort: [exitTier(castaway, name), castaway?.name ?? name, item.kind === "elimination" ? 0 : 1, labelFor(item)],
       },
     });
   }
-
-  // Same rows, from the research connector. Sharing sort tier 1 with the wiki connector's own
-  // events/exiles is deliberate: it's what makes an idol find from research and an immunity win from
-  // the wiki, on the same person, land next to each other rather than in two separate blocks -- a
-  // reviewer reading this episode shouldn't have to know which source said what to read it in order.
   for (const item of researchItems) {
-    const { castaway } = StateLogic.Core.findCastawayByName(state, item.castaway_name);
+    const name = item.applied?.castawayName || item.castaway_name;
+    const castaway = resolve(name);
     if (castaway) spokenFor.add(castaway.id);
     rows.push({
       tribeId: castaway?.tribeId ?? null,
@@ -414,8 +438,8 @@ function buildGroups(items: WikiProposalItem[], researchItems: ResearchProposalI
         key: `r-${item.id}`,
         item: null,
         researchItem: item,
-        castaway: castaway ?? null,
-        sort: [1, labelForResearch(item), confidenceRank(item.confidence), item.castaway_name],
+        castaway,
+        sort: [exitTier(castaway, name), castaway?.name ?? name, 1, labelForResearch(item)],
       },
     });
   }
@@ -432,7 +456,7 @@ function buildGroups(items: WikiProposalItem[], researchItems: ResearchProposalI
     if (castaway.status === "eliminated" || spokenFor.has(castaway.id)) continue;
     rows.push({
       tribeId: castaway.tribeId ?? null,
-      row: { key: `none-${castaway.id}`, item: null, researchItem: null, castaway, sort: [2, "", 0, castaway.name] },
+      row: { key: `none-${castaway.id}`, item: null, researchItem: null, castaway, sort: [exitTier(castaway, castaway.name), castaway.name, 2, ""] },
     });
   }
 
@@ -485,6 +509,7 @@ export function WikiOutcomeSection({
   // No header over a single unnamed pile -- a league that hasn't been given the tribe division yet
   // would otherwise get a meaningless bar across the top of its only group.
   const showHeaders = groups.some((g) => g.tribe);
+  const pending = [...items, ...researchItems].filter((i) => i.status === "pending").length;
   const unreported = groups.reduce((n, g) => n + g.rows.filter((r) => !r.item && !r.researchItem).length, 0);
 
   return (
@@ -492,8 +517,8 @@ export function WikiOutcomeSection({
       <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
         Reveal Outcome{" "}
         <span className="ml-1 font-normal text-muted-foreground">
-          — {researchItems.length > 0 && items.length > 0 ? "wiki + research" : researchItems.length > 0 ? "research" : "wiki connector"},
-          unreviewed
+          — {researchItems.length > 0 && items.length > 0 ? "wiki + research" : researchItems.length > 0 ? "research" : "wiki connector"}
+          {pending > 0 ? `, ${pending} to review` : ", all reviewed"}
         </span>
       </h4>
       <div className="flex flex-col gap-3">
