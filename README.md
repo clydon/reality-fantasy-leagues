@@ -1475,6 +1475,79 @@ in the same episode they were eliminated, a different person each time. That is 
 earning its place, and it's the concrete argument for the confidence badge: the eliminations proposal is
 close to rubber-stampable, the events one is a draft to check.
 
+## Episode research (`db/episode-research.js`, `episode_research`)
+
+A **second** source, deliberately not folded into the wiki connector. The wiki's tables are the
+better source for what they hold — who went home, who won immunity, who voted for whom — and hold
+nothing at all about who found an idol, who sat out a challenge, or who had an advantage played
+against them (tier D in `docs/RESEARCH-extractable-stats.md`). Those are the moments a fantasy
+league most wants to score, so this asks a **web-searching** model a fixed checklist instead of
+parsing a table:
+
+    node db/episode-research.js <leagueId> <episode> --dry         # research and print, write nothing
+    node db/episode-research.js <leagueId> <episode>               # research and cache it
+    node db/episode-research.js <leagueId> <episode> --force       # research it again
+    node db/episode-research.js <leagueId> <episode> --provider=gemini --model=...
+
+Four things carry the design:
+
+- **A checklist, not an extraction.** Every castaway gets an entry whether or not anything happened
+  to them, so coverage is structural — a missing person is a missing array element that validation
+  catches, rather than an absence nobody can see. That is precisely the bug this repo hit twice: a
+  castaway who took votes and survived produced no "event", so she vanished from review.
+- **Three-valued answers.** Every categorical answer is `yes` / `no` / `unknown`. Collapsing "we
+  looked and it didn't happen" into "we couldn't tell" is what turns a gap in the sources into a
+  confident wrong answer.
+- **Sources on every answer.** A search isn't reproducible — run it tomorrow and it reads different
+  pages — so there's no revision id to cache on, the way `wiki_extractions` does. Each person's
+  entry carries the URLs behind it, and the run records every page the search actually fetched (read
+  off the response, not from what the model says it read). Nothing here is scored until a human
+  confirms it.
+- **The provider is config, not code.** Anthropic, Gemini and Grok all sell a searching model, and
+  which one is best at finding last night's recap is an empirical question nobody has answered yet.
+  `--provider=` or `RESEARCH_PROVIDER` picks one (`anthropic` default, then `gemini`, `grok`);
+  `--model=` or `RESEARCH_MODEL` overrides its default model. Credentials are
+  `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) / `XAI_API_KEY`, and a missing one is
+  named in the error along with how to switch providers.
+
+The checklist, the prompt, the validation and the cache are shared; only the ~40 lines that phrase
+the request differ per provider, and every provider returns the same three things — schema-valid
+answers, token usage, and the pages read. Running the same episode through two providers is then a
+flag, which is the cheapest quality measurement available. Anthropic uses the `web_search` server
+tool with structured output; Gemini uses Google Search grounding (its schema goes through an OpenAPI
+3.0 sanitizer — no `additionalProperties`, `nullable` flags instead of type unions); Grok uses Live
+Search with `mode: "on"`, because letting the model decide it already knows is exactly the failure
+the prompt's first rule exists to prevent. Where a provider refuses "search **and** a response
+schema in one request", the runner searches first and structures the notes in a second call with no
+search of its own — so the second pass can only reorganise what the first found, never add to it.
+
+`episode_research` is keyed on `(show_id, season_number, episode_number)`, one row per episode,
+replaced on re-research. Per-episode rather than per-season because a search is naturally scoped to
+one episode, and a season in progress then costs one episode's research a week. The cast asked about
+comes from the season's approved `season_cast` when there is one and the league's own roster
+otherwise, and everyone is asked about, including people already voted out — that's how the answer
+can say "this person was already gone", which is itself a check that the research is real.
+
+Cost, honestly: search results enter the context as input tokens, so this is dearer per episode than
+the table extraction (roughly $0.10–0.40 against ~$0.25 for a whole season of tables, at
+`claude-opus-5` rates). It buys facts not otherwise obtainable.
+
+**Verified** with 25 checks against fake providers and a local stub HTTP server standing in for
+Gemini and Grok (both dialects of the generated JSON Schema; thinking parts filtered out of Gemini's
+answer; grounding chunks and Grok citations recorded from either place the API puts them; a
+`MAX_TOKENS`/`length` stop refused rather than half-saved; a 400 about schema-plus-tools becoming a
+fallback while every other 400 stays a failure; a key sent as a header and never in a query string),
+plus 10 against the real Postgres (season cast preferred over league roster, `--dry` writing
+nothing, provenance round-trip, cache hit making no call, `--force` replacing rather than stacking,
+and a checklist missing somebody refused with the previous row left intact). **Not** verified: a
+real call to any of the three providers — this sandbox has no credentials and no outbound reach to
+either the wiki or a search API, so the first live `--dry` run is yours. Judge it on one episode per
+provider before wiring any of it into scoring.
+
+Nothing consumes `episode_research` yet: the answers it can produce (votes received, idol found, sat
+out, advantage used against them) have no event types or point values in `settings.eventPoints`, and
+those are a scoring decision rather than a connector one.
+
 ## Cast photos (`public/photos/`, `components/castaway-avatar.tsx`)
 
 The live app's cast photos are ported now (copied from `SurvivorDraft/public/photos`): 24 for the

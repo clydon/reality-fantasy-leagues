@@ -1557,6 +1557,7 @@ module.exports = {
   expandTranscludedTables,
   plural,
   singular,
+  termsFor,
   validateCast,
   validateEpisodes,
   resolvePhotoUrls,
