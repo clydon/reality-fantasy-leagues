@@ -10,7 +10,9 @@
 # Needs these repository secrets (Settings > Secrets and variables > Actions):
 #   AUTH_DATABASE_URL   -- the production database, same as the wiki-sync job.
 #   ANTHROPIC_API_KEY   -- research calls Claude with web search.
-#   GEMINI_API_KEY      -- optional: indexes the answers for side-bet suggestions.
+#   GEMINI_API_KEY      -- optional: only if RESEARCH_PROVIDER is set to gemini. Indexing the answers
+#                          for side-bet suggestions needs no key: it runs a local model (db/embeddings.js),
+#                          fetched on first use below.
 name: Auto research
 
 on:

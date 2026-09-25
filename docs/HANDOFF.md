@@ -92,7 +92,8 @@ local session):
   premiere date.
 - GitHub repo secrets for the auto-research workflow: `AUTH_DATABASE_URL`, `ANTHROPIC_API_KEY`, and
   optionally `GEMINI_API_KEY`.
-- Confirm `GEMINI_API_KEY` is set in Vercel, so side-bet suggestions can index research.
+- ~~Confirm `GEMINI_API_KEY` is set in Vercel~~: no longer needed. Research search now runs a local
+  embedding model inside the app (migration 0023, `db/embeddings.js`).
 
 ## Working conventions (from this collaboration)
 
@@ -102,7 +103,7 @@ local session):
   - Run `npx tsc --noEmit -p .` and `npx eslint src`.
   - If tsc complains about `.next/types`, run `rm -rf .next/types .next/dev/types && npx next typegen`.
 - **Migrations** are hand-written SQL in `db/migrations/NNNN_*.sql`. They're applied by
-  `node db/migrate.js` (also run on `npm run build`). Use the next free number (0023 at the time of
+  `node db/migrate.js` (also run on `npm run build`). Use the next free number (0024 at the time of
   writing).
 - **`db/*.js`** is plain CommonJS so the CLIs run under bare `node`. TypeScript sees these modules
   through `.d.ts` files next to them and the `@db/*` alias. The same pattern applies to

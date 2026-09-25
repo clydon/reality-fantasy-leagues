@@ -1768,7 +1768,21 @@ short sentences, not zero. A naive "similarity > 0" check would confidently retu
 thresholds sit above that floor and below the relevant range, but they're a starting point to revisit
 once there's real grading history to check them against.
 
-Embeddings use `gemini-embedding-001` at 768 dimensions (the model defaults to 3072; 768 is the
+**Update (migration 0023):** embeddings now come from a model that runs inside the app, with no API
+key or outside service:
+- The model is `bge-small-en-v1.5` (8-bit, 34MB, 384 dimensions), run through transformers.js and
+  ONNX. It loads in about 0.2s and embeds an episode's notes in tens of milliseconds.
+- It's fetched at build (`db/fetch-embedding-model.js`) into `.models/`, and `next.config.ts` ships it
+  only with the two routes that embed. Those bundles come to about 120MB, with the ONNX binaries for
+  other operating systems excluded.
+- Only the query side carries bge's retrieval instruction.
+- The thresholds below were re-checked for this model on seven research notes and eight bet questions.
+  Correct matches scored 0.62–0.80; off-topic questions scored 0.46–0.58. The 0.70/0.62 cut-offs held.
+- A small model leans on shared words, so a question can land on a neighbouring note that uses the same
+  word. Suggestions stay a quoted note with a confidence that a person confirms.
+- The Gemini paragraphs below are history.
+
+Embeddings used `gemini-embedding-001` at 768 dimensions (the model defaults to 3072; 768 is the
 standard smaller size recommended for storage-cost-sensitive retrieval, and there's no evidence in a
 corpus this size — dozens of chunks a season — that the full size retrieves any better), with
 asymmetric task types (`RETRIEVAL_DOCUMENT` for what's stored, `RETRIEVAL_QUERY` for what's searched

@@ -1212,7 +1212,7 @@ async function runFor(pool, ctx, opts) {
 
   // Semantic search (db/embeddings.js) over the same answer, best-effort. Deliberately not fatal to
   // this run: the checklist itself is already stored and is the valuable part, and an embedding
-  // hiccup (no GEMINI_API_KEY configured, a transient error) shouldn't undo a successful research
+  // hiccup (the model failing to load, a transient error) shouldn't undo a successful research
   // run over a feature that only backs side-bet suggestions. --dry skips it, same as storeResearch
   // itself -- there is nothing durable yet to search against.
   if (!opts.dry && stored.id) {

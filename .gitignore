@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# the embedding model's files, fetched at build (db/fetch-embedding-model.js)
+/.models/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

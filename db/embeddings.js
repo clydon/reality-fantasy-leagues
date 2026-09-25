@@ -16,35 +16,39 @@
 //      checklist's three-valued answers follow: an honest "can't tell" beats a plausible-looking
 //      wrong answer, because a human is about to act on it.
 //
-//   3. ASYMMETRIC EMBEDDINGS. Gemini's embedding model takes a `taskType` that measurably improves
-//      retrieval when the thing being embedded and the thing being searched for are different kinds
-//      of text (a short question vs. a descriptive sentence) -- RETRIEVAL_DOCUMENT for what gets
-//      stored, RETRIEVAL_QUERY for what gets searched with. Getting this backwards doesn't error, it
-//      just quietly retrieves worse, so it's worth being deliberate about which is which.
+//   3. ASYMMETRIC EMBEDDINGS. The model is trained with an instruction on the QUERY side only
+//      (QUERY_PREFIX below) -- a short question and a descriptive note are different kinds of text,
+//      and marking which is which measurably improves retrieval. Getting this backwards doesn't
+//      error, it just quietly retrieves worse, so it's worth being deliberate about.
 //
-// Cost: one batchEmbedContents call per episode's research (a handful of chunks, one HTTP round
-// trip), plus one embedContent call per bet a commissioner actually opens for grading. Both are
-// embedding calls, not generation -- on the free tier of the same key that's blocked from Search
-// grounding, embedding requests returned 200 in testing (measured, not assumed): grounding and
-// embeddings are billed separately, so the grounding quota wall documented in db/episode-research.js
-// does not apply here.
+// The model runs INSIDE the app (transformers.js + ONNX), not behind an API: no key, no external
+// service, no per-call cost. It's small (bge-small-en-v1.5, 8-bit, 34MB): loads in ~0.2s from disk
+// and embeds a whole episode's notes in tens of milliseconds. The files are fetched at build time
+// (db/fetch-embedding-model.js) into .models/ and shipped with the functions that use them (see
+// next.config.ts); anywhere they're missing -- a fresh checkout, the GitHub Action -- the first use
+// downloads them once.
 
 require("dotenv").config({ path: ".env.local", quiet: true });
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 // How each show format words its research answers (format.research.sentences).
 const Formats = require("../src/lib/game/formats/index.js");
 
-const GEMINI_API_BASE = process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com/v1beta";
-const EMBED_MODEL = process.env.EMBED_MODEL || "gemini-embedding-001";
-const DIMENSIONS = 768;
+const EMBED_MODEL = "Xenova/bge-small-en-v1.5";
+const DIMENSIONS = 384;
+// bge's retrieval instruction, for the searching side only.
+const QUERY_PREFIX = "Represent this sentence for searching relevant passages: ";
+// cwd, not __dirname: this file is bundled into the Next routes, where __dirname isn't the repo.
+// On Vercel cwd is the function's root, which is where the traced .models/ files land.
+const MODEL_DIR = path.join(process.cwd(), ".models");
 
-// Calibrated against a small hand-built set of realistic Survivor sentences (five chunks, five
-// queries -- see the PR that introduced this file for the raw numbers), not a rigorous statistical
-// sample. Genuinely relevant matches scored 0.71-0.75; a deliberately off-topic query's BEST match
-// still scored ~0.55, which is this model's noise floor for short sentences, not zero -- so a naive
-// "similarity > 0" check would confidently return nonsense. These thresholds sit safely above that
-// floor and below the observed relevant range, but they are a starting point, not a proof: revisit
-// once there's real grading history to check them against (does a "low confidence" answer actually
-// tend to be wrong more often than a "high confidence" one?).
+// Calibrated for bge-small on a hand-built set of research notes and side-bet questions (seven notes,
+// eight questions, including "Was a woman voted off?" and two off-topic ones) -- not a rigorous
+// sample. Correct matches scored 0.62-0.80; the off-topic questions' best matches scored 0.46-0.58,
+// and so did the one question whose right note wasn't the top match -- so below 0.62 means "can't
+// tell", which is what the thresholds make it. Revisit once there's real grading history to check
+// them against (does a "medium" answer actually tend to be wrong more often than a "high" one?).
 const CONFIDENCE_THRESHOLDS = { high: 0.7, medium: 0.62 };
 
 function confidenceFor(similarity) {
@@ -53,62 +57,47 @@ function confidenceFor(similarity) {
   return null; // below the floor: "can't determine confidently" territory, not a real answer.
 }
 
-function embedKey() {
-  return process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+// Whether the model's files are already on disk (fetched at build, or by an earlier run).
+function modelOnDisk() {
+  return fs.existsSync(path.join(MODEL_DIR, EMBED_MODEL, "onnx", "model_quantized.onnx"));
 }
 
-// One HTTP shape, matching db/episode-research.js's postJson -- duplicated rather than imported
-// because that function isn't exported (it's a private helper there) and this is a three-line
-// fetch, not worth threading a new export through a file this one doesn't otherwise depend on.
-async function embedApi(path, body) {
-  const key = embedKey();
-  if (!key) {
-    throw new Error(
-      "No embedding credentials found. Set GEMINI_API_KEY (or GOOGLE_API_KEY) in .env.local -- " +
-        "semantic search over research needs an embedding model, same key the research provider uses."
-    );
-  }
-  let res;
-  try {
-    res = await fetch(`${GEMINI_API_BASE}/models/${EMBED_MODEL}:${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify(body),
+// Loaded once per process and reused: loading is the only slow part, embedding is milliseconds.
+let extractor = null;
+function loadModel() {
+  if (!extractor) {
+    extractor = (async () => {
+      // A dynamic import because transformers.js is ESM and this file is CommonJS.
+      const { pipeline, env } = await import("@huggingface/transformers");
+      // Read from .models/ when it's there. Otherwise download once, into .models/ where that's
+      // writable (a dev machine, the GitHub Action) or the temp dir where it isn't (a serverless
+      // function whose .models/ didn't get shipped).
+      let writable = true;
+      try {
+        fs.mkdirSync(MODEL_DIR, { recursive: true });
+        fs.accessSync(MODEL_DIR, fs.constants.W_OK);
+      } catch {
+        writable = false;
+      }
+      env.cacheDir = modelOnDisk() || writable ? MODEL_DIR : path.join(os.tmpdir(), "rfl-models");
+      return pipeline("feature-extraction", EMBED_MODEL, { dtype: "q8" });
+    })().catch((e) => {
+      extractor = null; // let the next call try again rather than caching the failure
+      throw new Error(`Embeddings: couldn't load the ${EMBED_MODEL} model (${e.message}).`);
     });
-  } catch (e) {
-    throw new Error(`Embeddings: could not reach the API (${e.message}).`);
   }
-  const text = await res.text();
-  let json = null;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    /* left null -- the raw text below is the better error */
-  }
-  if (!res.ok) {
-    const message = (json && json.error && json.error.message) || text.slice(0, 300);
-    throw new Error(`Embeddings HTTP ${res.status}: ${message}`);
-  }
-  return json;
+  return extractor;
 }
 
-/** Embeds one or more texts in a single request. `taskType` is `RETRIEVAL_DOCUMENT` for text being
- * stored, `RETRIEVAL_QUERY` for text being searched with -- see the file header on why that split
- * matters. Returns one 768-dim vector per input text, in the same order. */
-async function embedTexts(texts, taskType) {
+/** Embeds one or more texts. `kind` is "document" for text being stored and "query" for text being
+ * searched with -- see the file header on why that split matters. Returns one 384-dim unit vector
+ * per input text, in the same order. */
+async function embedTexts(texts, kind) {
   if (!texts.length) return [];
-  const json = await embedApi("batchEmbedContents", {
-    requests: texts.map((text) => ({
-      model: `models/${EMBED_MODEL}`,
-      content: { parts: [{ text }] },
-      outputDimensionality: DIMENSIONS,
-      taskType,
-    })),
-  });
-  if (!json.embeddings || json.embeddings.length !== texts.length) {
-    throw new Error("Embeddings: the API returned a different number of vectors than texts sent.");
-  }
-  return json.embeddings.map((e) => e.values);
+  const model = await loadModel();
+  const input = kind === "query" ? texts.map((t) => QUERY_PREFIX + t) : texts;
+  const output = await model(input, { pooling: "cls", normalize: true });
+  return output.tolist();
 }
 
 /** Turns one episode's research payload into the chunks worth embedding: one episode-level summary,
@@ -135,7 +124,7 @@ async function storeChunksForEpisode(pool, { showId, season, episodeNumber, form
   const chunks = chunksFromResearch(payload, format);
   if (!chunks.length) return { stored: 0 };
 
-  const vectors = await embedTexts(chunks.map((c) => c.text), "RETRIEVAL_DOCUMENT");
+  const vectors = await embedTexts(chunks.map((c) => c.text), "document");
   for (let i = 0; i < chunks.length; i++) {
     await pool.query(
       `INSERT INTO episode_text_chunks (show_id, season_number, episode_number, castaway_name, chunk_type, text, embedding, model)
@@ -155,21 +144,23 @@ async function storeChunksForEpisode(pool, { showId, season, episodeNumber, form
  * useful answer than "found nothing relevant" for a caller deciding what to tell a commissioner.
  */
 async function searchChunks(pool, { showId, season, episodeNumber, query, limit = 3 }) {
+  // Only this model's vectors: another model's live in a different space, and comparing across them
+  // returns confident nonsense rather than an error.
   const { rows: any } = await pool.query(
-    "SELECT 1 FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 LIMIT 1",
-    [showId, season, episodeNumber]
+    "SELECT 1 FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND model=$4 LIMIT 1",
+    [showId, season, episodeNumber, EMBED_MODEL]
   );
   if (!any.length) return { hasResearch: false, matches: [] };
 
-  const [queryVector] = await embedTexts([query], "RETRIEVAL_QUERY");
+  const [queryVector] = await embedTexts([query], "query");
   const { rows } = await pool.query(
     `SELECT castaway_name AS "castawayName", chunk_type AS "chunkType", text,
             1 - (embedding <=> $4::vector) AS similarity
        FROM episode_text_chunks
-      WHERE show_id=$1 AND season_number=$2 AND episode_number=$3
+      WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND model=$6
       ORDER BY embedding <=> $4::vector
       LIMIT $5`,
-    [showId, season, episodeNumber, `[${queryVector.join(",")}]`, limit]
+    [showId, season, episodeNumber, `[${queryVector.join(",")}]`, limit, EMBED_MODEL]
   );
   return {
     hasResearch: true,
@@ -186,10 +177,10 @@ async function searchChunks(pool, { showId, season, episodeNumber, query, limit 
  */
 async function suggestAnswer(pool, { showId, season, episodeNumber, question }) {
   // "Has this episode been researched?" is answered by episode_research, NOT by whether chunks exist.
-  // Embedding is a best-effort step after research (it needs GEMINI_API_KEY, which a deployment
-  // researching with another provider may not have), so research can exist with no chunks -- and
-  // reporting that as "no research has been run" was simply wrong. Index it now instead, from the
-  // stored answers; if that fails, the error says why rather than pretending nothing was researched.
+  // Embedding is a best-effort step after research, so research can exist with no chunks (it failed,
+  // or ran before search existed, or under an older embedding model) -- and reporting that as "no
+  // research has been run" was simply wrong. Index it now instead, from the stored answers; if that
+  // fails, the error says why rather than pretending nothing was researched.
   const { rows: researched } = await pool.query(
     `SELECT er.payload, er.provenance, s.format FROM episode_research er JOIN shows s ON s.id = er.show_id
       WHERE er.show_id=$1 AND er.season_number=$2 AND er.episode_number=$3`,
@@ -197,8 +188,8 @@ async function suggestAnswer(pool, { showId, season, episodeNumber, question }) 
   );
   if (!researched.length) return { status: "no-research", answer: null, confidence: null, castawayName: null, similarity: null };
   const { rows: indexed } = await pool.query(
-    "SELECT 1 FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 LIMIT 1",
-    [showId, season, episodeNumber]
+    "SELECT 1 FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND model=$4 LIMIT 1",
+    [showId, season, episodeNumber, EMBED_MODEL]
   );
   if (!indexed.length) {
     try {
