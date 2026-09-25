@@ -23,6 +23,8 @@ import { useShowTerms } from "@/lib/use-show-terms";
 export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: LeagueState; defaultOpen: boolean }) {
   const terms = useShowTerms();
   const format = StateLogic.formatOf(state);
+  // False for an episode before the league's start episode (settings.startEpisode): watched, not scored.
+  const inPlay = StateLogic.inPlay(state, ep.number);
   const [open, setOpen] = useState(defaultOpen);
   const [editingEp, setEditingEp] = useState(false);
   const [elimCastawayId, setElimCastawayId] = useState("");
@@ -143,8 +145,16 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
             {ep.title ? <span className="font-normal"> &ldquo;{ep.title}&rdquo;</span> : null} — {summary}
           </div>
           {ep.airDate && <div className="mt-0.5 text-xs text-muted-foreground">Aired {ep.airDate}</div>}
-          {((format.hasMerge && ep.postMerge) || (ep.bets || []).length > 0) && (
+          {((format.hasMerge && ep.postMerge) || (ep.bets || []).length > 0 || !inPlay) && (
             <div className="mt-1 flex gap-1.5">
+              {!inPlay && (
+                <span
+                  className="rounded bg-secondary px-1.5 py-0.5 text-[0.65rem] font-bold text-muted-foreground"
+                  title="Before this league's start episode — watched, not scored"
+                >
+                  Before league start
+                </span>
+              )}
               {format.hasMerge && ep.postMerge && (
                 <span className="rounded bg-[#5089c4] px-1.5 py-0.5 text-[0.65rem] font-bold text-white">Post-Merge</span>
               )}
@@ -376,9 +386,10 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
             )}
           </div>
 
-          {StateLogic.getLeagueType(state).hasWeeklyPicks && <EpisodePicksSection ep={ep} state={state} />}
+          {/* Before the league's start episode there's nothing to pick or field -- it's history. */}
+          {inPlay && StateLogic.getLeagueType(state).hasWeeklyPicks && <EpisodePicksSection ep={ep} state={state} />}
 
-          {StateLogic.getLeagueType(state).hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
+          {inPlay && StateLogic.getLeagueType(state).hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
 
           {state.settings.bonusEnabled && (
             <div className="border-t border-border pt-3">

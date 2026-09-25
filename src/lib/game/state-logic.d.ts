@@ -105,6 +105,10 @@ declare const StateLogic: {
   rosterSize(state: LeagueState): number;
   /** The league's show format (exit methods, scoring events, merge, winner). See formats/index.js. */
   formatOf(state: LeagueState): GameFormat;
+  /** The episode this league starts playing at (settings.startEpisode, default 1). */
+  startEpisode(state: LeagueState): number;
+  /** Whether an episode counts for this league -- at or after its start episode. */
+  inPlay(state: LeagueState, episodeNumber: number): boolean;
   ActiveRosterLogic: {
     pointsFor(state: LeagueState, type: string): number;
     activeSlots(state: LeagueState): number;

@@ -72,6 +72,16 @@ function formatOf(state){
   return Formats.formatFor(state && state.settings ? state.settings.showFormat : null);
 }
 
+// The episode this league starts playing at (settings.startEpisode, default 1). A league formed
+// mid-season -- "we've all watched episode 1, we'll draft before episode 2" -- starts at 2: earlier
+// episodes are history everyone has seen, so they're shown but nothing in them scores, and no picks
+// or lineups are made for them.
+function startEpisode(state){
+  const n = Number(state && state.settings ? state.settings.startEpisode : 1);
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
+function inPlay(state, episodeNumber){ return episodeNumber >= startEpisode(state); }
+
 // Reads a castaway object's owner list, tolerating a castaway that predates the field. Kept
 // module-private: the filter predicates below already hold the castaway object, so going through
 // Core.ownersOf (which looks it up by id) would be pointless indirection -- see the ownership
@@ -544,6 +554,7 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return 'No such episode';
     if(ep.lineupsLocked) return 'Lineups for this episode are locked';
+    if(!inPlay(state, ep.number)) return 'This league starts at episode ' + startEpisode(state);
     if(!Core.getPlayer(state, playerId)) return 'No such player';
     const ids = Array.isArray(castawayIds) ? castawayIds : [];
     if(new Set(ids).size !== ids.length) return 'Same castaway listed twice';
@@ -749,6 +760,7 @@ class ActiveRosterEventScoringStrategy {
       if(c.formerOwnerId && results[c.formerOwnerId]) results[c.formerOwnerId].formerRoster.push(c);
     });
     state.episodes.forEach(ep=>{
+      if(!inPlay(state, ep.number)) return; // before this league started (settings.startEpisode)
       ActiveRosterLogic.episodeEvents(state, ep).forEach(ev=>{
         state.players.forEach(p=>{
           const lineup = (ep.lineups && ep.lineups[p.id]) || [];
@@ -807,7 +819,9 @@ class PickEmLogic {
   // The episode picks are being made for: the next one to reveal when catching up, otherwise the
   // latest. Same target Overview's side bets use.
   static upcomingEpisode(state){
-    return state.episodes.find(e => e.number === BetLogic.upcomingEpisodeNumber(state)) || null;
+    // Never before the league's first episode: a league set to start at a later one picks for that.
+    const number = Math.max(BetLogic.upcomingEpisodeNumber(state), startEpisode(state));
+    return state.episodes.find(e => e.number === number) || null;
   }
   // An episode has "happened" for scoring once its eliminations are logged -- a pick for a future
   // episode would otherwise count as correct the moment it's made (nothing yet contradicts it).
@@ -862,7 +876,8 @@ class PickEmLogic {
     const perCorrect = typeof state.settings.pickemCorrectPoints === 'number' ? state.settings.pickemCorrectPoints : 1;
     const rows = [];
     let current = 0, longest = 0, total = 0;
-    [...state.episodes].sort((a,b) => a.number - b.number).forEach(ep => {
+    // Episodes before the league started are history, not missed picks (settings.startEpisode).
+    [...state.episodes].filter(ep => inPlay(state, ep.number)).sort((a,b) => a.number - b.number).forEach(ep => {
       const pick = (ep.picks||[]).find(pk => pk.playerId === playerId) || null;
       if(!PickEmLogic.decided(ep)){
         if(pick) rows.push({ episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick.castawayId, correct: null, points: 0, streak: current });
@@ -892,7 +907,7 @@ class PickEmLogic {
     const ep = PickEmLogic.findEpisode(state, epId);
     const c = Core.getCastaway(state, castawayId);
     const player = Core.getPlayer(state, playerId);
-    if(!ep || !c || !player || c.status!=='active') return;
+    if(!ep || !c || !player || c.status!=='active' || !inPlay(state, ep.number)) return;
     if(!PickEmLogic.eligibility(state, epId, playerId).available.includes(castawayId)) return;
     ep.picks = ep.picks || [];
     const existing = ep.picks.find(pk=>pk.playerId===playerId);
@@ -1224,7 +1239,14 @@ class RosterLogic {
     // revealedThroughEpisode decides what a league is allowed to SEE, so a junk value must not
     // quietly become a number that lets more through than the commissioner picked. See RevealLogic.
     if(field === 'revealedThroughEpisode') value = RevealLogic.normalize(value);
+    if(field === 'startEpisode'){
+      const n = Math.floor(Number(value));
+      value = Number.isFinite(n) && n >= 1 ? n : 1;
+    }
     state.settings[field]=value;
+    // A start episode that isn't on the schedule yet is created, so picks and lineups have somewhere
+    // to go before it airs.
+    if(field === 'startEpisode') EpisodeLogic.ensureEpisodeNumber(state, value, false);
   }
 }
 
@@ -1993,7 +2015,7 @@ return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
   LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize,
-  formatOf,
+  formatOf, startEpisode, inPlay,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct

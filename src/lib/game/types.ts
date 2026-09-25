@@ -172,6 +172,11 @@ export interface LeagueSettings {
    * episodes 1..n. Absent on every league that predates it, which reads as null.
    */
   revealedThroughEpisode?: number | null;
+  /**
+   * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
+   * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode.
+   */
+  startEpisode?: number;
   defaultBetPoints: number;
   // Same opt-in shape as replenishEnabled/tradeEnabled above, gated together with the league
   // type's own supportsFinalePredictions -- see finalePredictionsAvailable in state-logic.js.

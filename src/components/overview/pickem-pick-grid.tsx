@@ -52,7 +52,9 @@ export function PickEmPickGrid({ state }: { state: LeagueState }) {
         </span>
       </div>
       <p className="mb-3 text-xs text-muted-foreground">
-        {closed
+        {!ep
+          ? "There's no episode to pick for yet."
+          : closed
           ? "Picks are closed — this episode's results are in."
           : myPick
             ? `Picked ${StateLogic.getCastaway(state, myPick.castawayId)?.name ?? "?"} to survive. Tap another to change it.`

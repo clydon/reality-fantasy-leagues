@@ -50,6 +50,10 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
   const visible = (stepId: string) => !guiding || Setup.isStepVisible(state, leagueName, stepId);
   const revealedThrough = StateLogic.RevealLogic.revealedThrough(state);
   const catchingUp = revealedThrough !== null;
+  const startEp = StateLogic.startEpisode(state);
+  // Episodes before the start count as already watched, so a catching-up league that has revealed
+  // only those hasn't really begun yet.
+  const revealedPastStart = catchingUp && (revealedThrough ?? 0) > startEp - 1;
 
   // The catalog, not state-logic's SHOWS. Shared query with useShowTerms, so the Show picker and
   // every terminology label in the app come from one fetch. In mock mode there's no real session,
@@ -106,6 +110,25 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
       async () => {
         await api.updateLeagueSettings(leagueId!, "showId", slug || null);
         return api.updateLeagueSettings(leagueId!, "wikiSeason", null);
+      }
+    );
+  }
+
+  // The episode the league starts playing at. A catching-up league has, by definition, watched the
+  // episodes before it -- so its reveal pointer moves up to just before the start too (the route
+  // applies those episodes' results when it does).
+  async function changeStart(value: string) {
+    const n = Math.max(1, Math.floor(Number(value)) || 1);
+    if (n === startEp) return;
+    const revealTo = catchingUp && (revealedThrough ?? 0) < n - 1 ? n - 1 : null;
+    await mutate(
+      (s) => {
+        StateLogic.updateSettings(s, "startEpisode", n);
+        if (revealTo !== null) StateLogic.updateSettings(s, "revealedThroughEpisode", revealTo);
+      },
+      async () => {
+        const state = await api.updateLeagueSettings(leagueId!, "startEpisode", n);
+        return revealTo !== null ? api.updateLeagueSettings(leagueId!, "revealedThroughEpisode", revealTo) : state;
       }
     );
   }
@@ -266,12 +289,31 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
             Results:
             <Select
               value={catchingUp ? "catchup" : "live"}
-              disabled={!canManage || revealedThrough !== null && revealedThrough > 0}
-              onChange={(e) => updateSetting("revealedThroughEpisode", e.target.value === "catchup" ? 0 : null)}
+              disabled={!canManage || revealedPastStart}
+              onChange={(e) => updateSetting("revealedThroughEpisode", e.target.value === "catchup" ? startEp - 1 : null)}
             >
               <option value="live">Live — as the wiki has them</option>
-              <option value="catchup">Catch up — start at episode 1, reveal one at a time</option>
+              <option value="catchup">Catch up — reveal one episode at a time</option>
             </Select>
+          </label>
+        )}
+
+        {/* A league formed mid-season: episodes before this are ones everyone has watched -- shown,
+            but not scored, and no picks or lineups for them. Locked once the league has started
+            playing, like the other basics. */}
+        {visible("pace") && state.settings.wikiSeason != null && (
+          <label className="flex items-center gap-1.5 text-sm">
+            Starts at episode:
+            <Input
+              key={startEp}
+              type="number"
+              min={1}
+              className="w-16"
+              defaultValue={startEp}
+              disabled={!canManage || seasonUnderway || revealedPastStart}
+              onBlur={(e) => changeStart(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            />
           </label>
         )}
 
@@ -311,10 +353,12 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
       {visible("pace") && state.settings.wikiSeason != null && (
         <p className="mt-2 text-xs text-muted-foreground">
           {catchingUp
-            ? revealedThrough === 0
-              ? `Catching up: this league starts at the beginning of the season whatever the wiki already knows. Reveal episodes one at a time from the Episodes tab.`
+            ? !revealedPastStart
+              ? `Catching up: this league plays from episode ${startEp} whatever the wiki already knows. Reveal episodes one at a time from the Episodes tab.`
               : `Catching up: revealed through episode ${revealedThrough}. Locked now that the season has started — reveal the rest from the Episodes tab.`
             : `Live: results are offered for review as soon as the connector reads them. Switch to catch up if your league is starting a season that has already aired episodes.`}
+          {startEp > 1 &&
+            ` Starts at episode ${startEp}: episodes 1–${startEp - 1} are ones you've already watched — shown, but nothing in them scores, and ${terms.castaways} already out can't be drafted or picked.`}
         </p>
       )}
 

@@ -21,6 +21,8 @@ export function playerEventRows(state: LeagueState, playerId: string): PlayerEve
   const rows: PlayerEventRow[] = [];
   const events = StateLogic.formatOf(state).events;
   [...state.episodes]
+    // Before the league's start episode nothing scores -- same rule the scoring strategy applies.
+    .filter((ep) => StateLogic.inPlay(state, ep.number))
     .sort((a, b) => a.number - b.number)
     .forEach((ep) => {
       const lineup = (ep.lineups && ep.lineups[playerId]) || [];
