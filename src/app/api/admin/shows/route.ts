@@ -18,7 +18,21 @@ export const GET = apiRoute(async (req) => {
                   'id', ss.id, 'seasonNumber', ss.season_number, 'name', ss.name,
                   'wikiPageTitle', ss.wiki_page_title, 'wikiUrl', ss.wiki_url,
                   'status', ss.status, 'castSize', ss.cast_size,
-                  'premiereDate', ss.premiere_date, 'finaleDate', ss.finale_date
+                  'premiereDate', ss.premiere_date, 'finaleDate', ss.finale_date,
+                  -- Where the season is in its pipeline (cast -> episodes), so the admin row can show
+                  -- state and the next step instead of a row of equal-looking buttons.
+                  'castStaged', (SELECT count(*)::int FROM season_cast sc WHERE sc.season_id = ss.id),
+                  'castApprovedAt', ss.cast_approved_at,
+                  'wikiEpisodesThrough', (
+                    SELECT max((e->>'number')::int)
+                      FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e
+                     WHERE we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
+                  ),
+                  'researchedEpisodes', COALESCE((
+                    SELECT json_agg(er.episode_number ORDER BY er.episode_number)
+                      FROM episode_research er
+                     WHERE er.show_id = s.id AND er.season_number = ss.season_number
+                  ), '[]'::json)
                 ) ORDER BY ss.season_number DESC
               ) FILTER (WHERE ss.id IS NOT NULL),
               '[]'

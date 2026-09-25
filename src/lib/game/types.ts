@@ -205,6 +205,16 @@ export interface ShowSeason {
   castSize: number | null;
   premiereDate: string | null;
   finaleDate: string | null;
+  // Admin-only pipeline state (GET /api/admin/shows) -- where the season is in cast -> episodes, so
+  // the season row can show progress and the next step rather than a row of equal-looking buttons.
+  /** Rows staged in season_cast by the last cast pull (0 = never pulled). */
+  castStaged?: number;
+  /** When an admin last approved the staged cast; null if never, or if a re-pull changed it since. */
+  castApprovedAt?: string | null;
+  /** Highest episode number in the cached wiki extraction; null if episodes were never pulled. */
+  wikiEpisodesThrough?: number | null;
+  /** Episode numbers that have a stored research row. */
+  researchedEpisodes?: number[];
 }
 
 // Admin view of a show: everything, including archived ones and how many leagues reference it.

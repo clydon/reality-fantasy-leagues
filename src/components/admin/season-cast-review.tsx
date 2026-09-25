@@ -17,7 +17,16 @@ import { plural } from "@/lib/use-show-terms";
 // The table shows exactly what a league will get: the photo, the name, and the starting tribe. Those
 // three are what the connector extracts and all that leagues receive, so reviewing anything less
 // would be reviewing a summary rather than the thing itself.
-export function SeasonCastReview({ seasonId, seasonLabel }: { seasonId: string; seasonLabel: string }) {
+export function SeasonCastReview({
+  seasonId,
+  seasonLabel,
+  onChanged,
+}: {
+  seasonId: string;
+  seasonLabel: string;
+  /** Called after an approve or edit lands, so the season row's step status can refresh. */
+  onChanged?: () => void;
+}) {
   const { data, refetch, isLoading } = useQuery({
     queryKey: ["season-cast", seasonId],
     queryFn: () => api.adminSeasonCast(seasonId),
@@ -34,6 +43,7 @@ export function SeasonCastReview({ seasonId, seasonLabel }: { seasonId: string; 
       const message = await fn();
       if (message) setNote(message);
       await refetch();
+      onChanged?.();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "That didn't work.");
     } finally {
@@ -54,7 +64,7 @@ export function SeasonCastReview({ seasonId, seasonLabel }: { seasonId: string; 
   if (!cast.length) {
     return (
       <p className="mt-2 text-xs italic text-muted-foreground">
-        No cast staged yet — use <b>Pull cast</b> above and it lands here for review.
+        No cast staged yet — pull it from the wiki and it lands here for review.
       </p>
     );
   }

@@ -27,8 +27,11 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   if (!cast.length) throw new HttpError(400, "There's no staged cast to approve — pull the cast for this season first.");
 
   const { rows: approved } = await pool.query(
-    "UPDATE show_seasons SET cast_approved_at=now(), cast_approved_by=$2, updated_at=now() WHERE id=$1 RETURNING cast_approved_at",
-    [id, user.id]
+    // cast_size follows the approved cast, so the catalog's number (shown in League Settings'
+    // season picker) is the real one rather than something typed in by hand before anyone had
+    // read the cast.
+    "UPDATE show_seasons SET cast_approved_at=now(), cast_approved_by=$2, cast_size=$3, updated_at=now() WHERE id=$1 RETURNING cast_approved_at",
+    [id, user.id, cast.length]
   );
 
   // Applied AFTER the approval is recorded: if a league write fails, the cast is still approved and

@@ -96,18 +96,39 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<RoutePa
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
 
   const { rows } = await pool.query(
-    `SELECT ss.season_number, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id=$1`,
+    `SELECT ss.season_number, ss.show_id, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id=$1`,
     [id]
   );
   if (!rows.length) throw new HttpError(404, "Season not found");
+  const { season_number: season, show_id: showId, slug } = rows[0];
 
-  // A league pointing at this season keeps working for everything except the wiki connector, which
-  // falls back to its own title guess -- so this warns rather than refuses, unlike deleting a show.
+  // A league pointing at this season keeps its own state (cast, episodes, scores) -- that's league
+  // data, not catalog data -- so this warns rather than refuses, unlike deleting a show.
   const { rows: usage } = await pool.query(
     `SELECT count(*)::int AS n FROM leagues
-      WHERE state->'settings'->>'showId' = $1 AND (state->'settings'->>'wikiSeason')::int = $2`,
-    [rows[0].slug, rows[0].season_number]
+      WHERE state->'settings'->>'showId' = $1 AND state->'settings'->>'wikiSeason' = $2`,
+    [slug, String(season)]
   );
-  await pool.query("DELETE FROM show_seasons WHERE id=$1", [id]);
+
+  // Deleting a season means starting it over, so everything the connectors derived FOR it goes too.
+  // Those tables are keyed by (show, season number) rather than by this row's id, so the season_cast
+  // cascade alone would leave them behind -- and a re-added season would then silently inherit a
+  // stale cached extraction, old research, and pending review items for results nobody asked for
+  // again. Pending/decided items go with their source rows (wiki_proposal_items and
+  // episode_research_items cascade from wiki_extractions and episode_research).
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM wiki_extractions WHERE show_id=$1 AND season_number=$2", [showId, season]);
+    await client.query("DELETE FROM episode_research WHERE show_id=$1 AND season_number=$2", [showId, season]);
+    await client.query("DELETE FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2", [showId, season]);
+    await client.query("DELETE FROM show_seasons WHERE id=$1", [id]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
   return NextResponse.json({ ok: true, leaguesAffected: usage[0].n });
 });

@@ -1246,6 +1246,22 @@ live mode. Then the whole loop in a browser: picking catch-up in League Settings
 
 ### Running it on demand (Admin → Shows & Seasons)
 
+Each season is laid out as the two-step pipeline the work actually is: **1. Cast** (pull from the
+wiki → review → approve) and **2. Episodes** (pull results from the wiki each week, and optionally run
+web research for an episode). Each step shows where it stands — not pulled / N pulled awaiting review
+/ N approved; wiki results through episode N; which episodes are researched — and offers the next
+action as its primary button. Step 2 is locked until the cast is approved, since results are matched
+to people by name and nothing can match before approval (the old "no castaways yet" trap). The
+research box defaults to the next un-researched episode. Set-once things — show terminology, the wiki
+endpoint, archiving, a season's status/name/URL, deleting — sit behind each row's **Settings** link.
+
+**Deleting a season starts it over:** besides the catalog row and its staged cast, it clears the
+season's cached wiki extractions, research, embeddings, and every review item those produced (all
+keyed by show + season number, so the old cascade alone left them behind for a re-added season to
+silently inherit). Leagues on the season keep their own cast, episodes and scores.
+
+#### Details
+
 Every season row in the admin catalog has **Pull cast** and **Pull episodes** buttons
 (`POST /api/admin/seasons/:id/sync` → `runForSeason` in `db/wiki-sync.js`), so a super-admin can run
 the connector for one season without waiting for the nightly job or reaching for a shell.

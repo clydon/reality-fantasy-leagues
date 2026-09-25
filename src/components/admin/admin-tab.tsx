@@ -71,7 +71,6 @@ export function AdminTab() {
     await createUser(username);
   }
 
-  const selectedLeague = leagues.find((l) => l.id === selectedLeagueId);
   const editingUser = users.find((u) => u.id === editingUserId) ?? null;
   const sortedUsers = sortUsers(users, sortBy, sortDir);
   const userPageCount = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
@@ -186,24 +185,83 @@ export function AdminTab() {
           <div className="text-sm italic text-muted-foreground">No leagues yet.</div>
         ) : (
           <div className="flex flex-col gap-2">
-            {pagedLeagues.map((l) => (
-              <div key={l.id} className="rounded-md border border-border p-2.5">
-                <div className="mb-1.5 text-sm font-semibold">{l.name}</div>
-                <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-                  code: <b>{l.join_code}</b>
-                  <Button variant="secondary" size="sm" onClick={() => toggleLeague(l.id)}>
-                    {selectedLeagueId === l.id ? "Hide Memberships" : "View Memberships"}
-                  </Button>
+            {pagedLeagues.map((l) => {
+              const open = selectedLeagueId === l.id;
+              return (
+                <div key={l.id} className="rounded-md border border-border">
+                  {/* One compact line per league; its members open right underneath it rather than at
+                      the bottom of the page, where they used to land far from the league clicked. */}
+                  <div className="flex flex-wrap items-center gap-2 p-2.5">
+                    <span className="text-sm font-semibold">{l.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      code <b>{l.join_code}</b>
+                    </span>
+                    <span className="ml-auto flex gap-1.5">
+                      <Button variant="secondary" size="sm" onClick={() => toggleLeague(l.id)}>
+                        {open ? "Hide members" : "Members"}
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => deleteLeague(l.id, l.name)}>
+                        Delete
+                      </Button>
+                    </span>
+                  </div>
+                  {open && membershipData && (
+                    <div className="border-t border-border p-2.5">
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        Each player can be linked to one account; give the commissioner&rsquo;s link the
+                        &ldquo;commissioner&rdquo; role.
+                      </p>
+                      <div className="flex flex-col gap-2">
+                        {membershipData.players.map((p) => {
+                          const m = membershipData.memberships.find((mm) => mm.player_id === p.id);
+                          const linking = linkingPlayerId === p.id;
+                          return (
+                            <div key={p.id}>
+                              <div className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2 text-sm">
+                                <span className="flex-1">
+                                  {p.name}
+                                  {p.disabled && <span className="text-muted-foreground"> (disabled)</span>}
+                                </span>
+                                {m ? (
+                                  <>
+                                    <span className="rounded bg-secondary px-1.5 py-0.5 text-xs">{m.role}</span>
+                                    <span className="text-xs text-muted-foreground">{m.username}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">Not linked</span>
+                                )}
+                                {!linking && (
+                                  <>
+                                    {!p.disabled && (
+                                      <Button variant="secondary" size="sm" onClick={() => setLinkingPlayerId(p.id)}>
+                                        {m ? "Change" : "Link account"}
+                                      </Button>
+                                    )}
+                                    {m && (
+                                      <Button variant="destructive" size="sm" onClick={() => unlinkMembership(m.id)}>
+                                        Unlink
+                                      </Button>
+                                    )}
+                                    {!p.disabled && (
+                                      <Button variant="destructive" size="sm" onClick={() => deletePlayer(p.id, p.name)}>
+                                        Delete player
+                                      </Button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              {linking && (
+                                <LinkMembershipForm player={p} existing={m} users={users} onCancel={() => setLinkingPlayerId(null)} />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => deleteLeague(l.id, l.name)}
-                >
-                  Delete League
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         <Pager page={clampedLeaguePage} setPage={setLeaguePage} pageCount={leaguePageCount} />
@@ -211,67 +269,6 @@ export function AdminTab() {
 
       {editingUser && <UserEditModal user={editingUser} isSelf={editingUser.id === myUserId} onClose={() => setEditingUserId(null)} />}
 
-      {selectedLeagueId && membershipData && (
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
-            Players &amp; Accounts — {selectedLeague?.name}
-          </h3>
-          <p className="mb-3 text-sm text-muted-foreground">
-            Each player can be linked to one user account. The commissioner is a normal drafting player too — just
-            give their link the &ldquo;commissioner&rdquo; role.
-          </p>
-          <div className="flex flex-col gap-2">
-            {membershipData.players.map((p) => {
-              const m = membershipData.memberships.find((mm) => mm.player_id === p.id);
-              const linking = linkingPlayerId === p.id;
-              return (
-                <div key={p.id}>
-                  <div className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2.5 text-sm">
-                    <span className="flex-1">
-                      {p.name}
-                      {p.disabled && <span className="text-muted-foreground"> (disabled)</span>}
-                    </span>
-                    {m ? (
-                      <>
-                        <span className="rounded bg-secondary px-1.5 py-0.5 text-xs">{m.role}</span>
-                        <span className="text-xs text-muted-foreground">{m.username}</span>
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Not linked to an account</span>
-                    )}
-                    {!linking && (
-                      <>
-                        {!p.disabled && (
-                          <Button variant="secondary" size="sm" onClick={() => setLinkingPlayerId(p.id)}>
-                            {m ? "Change" : "Link Account"}
-                          </Button>
-                        )}
-                        {m && (
-                          <Button variant="destructive" size="sm" onClick={() => unlinkMembership(m.id)}>
-                            Unlink
-                          </Button>
-                        )}
-                        {!p.disabled && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => deletePlayer(p.id, p.name)}
-                          >
-                            Delete Player
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                  {linking && (
-                    <LinkMembershipForm player={p} existing={m} users={users} onCancel={() => setLinkingPlayerId(null)} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </>
   );
 }
