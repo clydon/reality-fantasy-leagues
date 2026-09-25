@@ -1397,6 +1397,24 @@ class BetLogic {
     const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
     if(bet) bet.predictions = bet.predictions.filter(p=>p.id!==predId);
   }
+  // Which episode a new side bet belongs to when someone proposes one from the Overview: the one
+  // about to be played. A league catching up bets on the next episode it hasn't revealed yet; a live
+  // league bets on its latest episode. Returns a NUMBER, not an episode, because in a brand-new league
+  // there may be no episode at all yet -- see addToUpcoming.
+  static upcomingEpisodeNumber(state){
+    const next = RevealLogic.nextEpisode(state);
+    if(next !== null) return next;
+    const nums = state.episodes.map(e=>e.number);
+    return nums.length ? Math.max(...nums) : 1;
+  }
+  // Proposing a bet from the Overview. Creates the target episode first if it doesn't exist -- a new
+  // league has no episodes until the first one is opened or revealed, and a bet proposed before then
+  // used to have nothing to attach to and failed with a bare "Request failed".
+  static addToUpcoming(state, label, points, createdByPlayerId){
+    const number = BetLogic.upcomingEpisodeNumber(state);
+    const ep = EpisodeLogic.ensureEpisodeNumber(state, number, false);
+    return BetLogic.add(state, ep.id, label, points, createdByPlayerId);
+  }
   static setPredictionCorrect(state, epId, betId, predId, value){
     const ep = state.episodes.find(e=>e.id===epId);
     const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
@@ -1795,7 +1813,7 @@ return {
   renumberPlacements: EpisodeLogic.renumberPlacements, addElimination: EpisodeLogic.addElimination, removeElimination: EpisodeLogic.removeElimination,
   addExiled: EpisodeLogic.addExiled, removeExiled: EpisodeLogic.removeExiled,
   ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,
-  addBet: BetLogic.add, updateBet: BetLogic.update, removeBet: BetLogic.remove,
+  addBet: BetLogic.add, addBetToUpcoming: BetLogic.addToUpcoming, updateBet: BetLogic.update, removeBet: BetLogic.remove,
   addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,
   getOrCreateFinalePred: FinaleLogic.getOrCreatePrediction, setFinalePick: FinaleLogic.setPick, setFinaleWinnerPick: FinaleLogic.setWinnerPick,
   setActualTop3: FinaleLogic.setActualTop3, setActualWinner: FinaleLogic.setActualWinner,

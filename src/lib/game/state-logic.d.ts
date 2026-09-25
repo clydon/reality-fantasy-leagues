@@ -184,6 +184,7 @@ declare const StateLogic: {
   };
   updateSettings(state: LeagueState, field: string, value: unknown): void;
   addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet;
+  addBetToUpcoming(state: LeagueState, label: string, points: number, createdByPlayerId: string | null): Bet;
   removeBet(state: LeagueState, epId: string, betId: string): void;
   addBetPrediction(state: LeagueState, epId: string, betId: string, playerId: string, guess: string): void;
   setBetPredictionCorrect(state: LeagueState, epId: string, betId: string, predId: string, value: boolean | null): void;

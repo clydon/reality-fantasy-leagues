@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { getActiveBets, getUpcomingEpisode } from "@/lib/game/selectors";
+import { getActiveBets } from "@/lib/game/selectors";
 import { useLeagueStore, useCanGuess, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
@@ -33,12 +33,13 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
   async function submit() {
     const trimmed = label.trim();
     if (!trimmed) return;
-    const ep = getUpcomingEpisode(state);
     setFormOpen(false);
     setLabel("");
+    // "upcoming" rather than an episode id: a brand-new league may have no episodes yet, so the
+    // server works out the episode about to be played and creates it if needed.
     await mutate(
-      (s) => StateLogic.addBet(s, ep.id, trimmed, points, myPlayerId),
-      () => api.proposeBet(leagueId!, ep.id, trimmed, points)
+      (s) => StateLogic.addBetToUpcoming(s, trimmed, points, myPlayerId),
+      () => api.proposeBet(leagueId!, "upcoming", trimmed, points)
     );
   }
 

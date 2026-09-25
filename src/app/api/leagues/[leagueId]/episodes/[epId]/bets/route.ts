@@ -14,8 +14,15 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   if (!label || !label.trim()) throw new HttpError(400, "label required");
   if (typeof points !== "number") throw new HttpError(400, "points required");
 
+  // epId "upcoming" = whatever episode is about to be played (the Overview's "propose a bet"), created
+  // if the league doesn't have it yet -- a new league has no episodes, and a bet proposed then used to
+  // have nothing to attach to. See BetLogic.addToUpcoming.
   const state = await withLeagueLock(leagueId, (s) => {
-    StateLogic.addBet(s, epId, label, points, membership.playerId);
+    const bet =
+      epId === "upcoming"
+        ? StateLogic.addBetToUpcoming(s, label, points, membership.playerId)
+        : StateLogic.addBet(s, epId, label, points, membership.playerId);
+    if (!bet) throw new HttpError(404, "Episode not found");
   });
   notifyNewBet(leagueId, label.trim(), user.id);
   return NextResponse.json(state);
