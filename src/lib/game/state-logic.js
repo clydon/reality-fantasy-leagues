@@ -1370,13 +1370,18 @@ class EpisodeLogic {
     return !!ep && ((ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0
       || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0);
   }
-  // Whether the season is underway for THIS league -- the League Settings lock on league type and
-  // ownership. It used to be "any episode exists", which was fine while episodes only appeared once
-  // someone logged one. Now the upcoming episode always exists (ensureNextEpisode), so an empty one
-  // mustn't count: only a draft, a played episode, or picks already made do.
+  // Whether THIS league has started playing -- the League Settings lock on show, league type and
+  // ownership, which exists so a switch can't orphan what the league has done in its current setup:
+  // a draft, Pick'em picks, Active Roster lineups.
+  //
+  // Episode results deliberately DON'T count. They arrive from the season's admin decisions the
+  // moment a live league picks a season that has already aired, and they mean the same thing under
+  // every league type -- counting them locked League Type before a new league had even chosen one.
+  // (Changing the show or season takes back the old season's applied results; see the settings route.)
   static seasonUnderway(state){
     if(DraftLogic.isStarted(state)) return true;
-    return state.episodes.some(ep => EpisodeLogic.hasResults(ep) || (ep.picks||[]).length > 0);
+    return state.episodes.some(ep =>
+      (ep.picks||[]).length > 0 || Object.values(ep.lineups||{}).some(ids => (ids||[]).length > 0));
   }
   // Live mode's half of ensureNextEpisode: the latest episode is the upcoming one until it has
   // results, then the next one is created. Stops once a winner is crowned (the format's winner exit

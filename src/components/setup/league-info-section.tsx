@@ -37,11 +37,8 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
   const [name, setName] = useState(leagueName ?? "");
 
   const leagueType = StateLogic.getLeagueType(state);
-  // Locks once EITHER the draft has started (classic-draft's own signal) OR any episode exists
-  // (a league-type-agnostic "season is underway" signal, needed now that a second league type --
-  // pickem -- exists whose isDraftStarted() is permanently false: without this, a pickem league
-  // with weeks of logged picks could still switch to classic-draft and silently orphan them).
-  // An EMPTY episode doesn't count: the upcoming one always exists now (ensureNextEpisode).
+  // Locks once the league has started playing -- the draft, or picks or lineups made -- so a switch
+  // can't orphan them. Results arriving from the season don't count; see seasonUnderway.
   const seasonUnderway = StateLogic.seasonUnderway(state);
 
   const Setup = StateLogic.SetupLogic;
@@ -303,6 +300,13 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
       ) : null}
 
       {visible("type") && <p className="mt-2 text-xs text-muted-foreground">{leagueType.description}</p>}
+      {/* Say why, rather than leaving a greyed-out picker to be puzzled over. */}
+      {canManage && seasonUnderway && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Show, league type and ownership are locked because this league has started playing (the draft has begun, or
+          picks or lineups have been made).
+        </p>
+      )}
 
       {visible("pace") && state.settings.wikiSeason != null && (
         <p className="mt-2 text-xs text-muted-foreground">

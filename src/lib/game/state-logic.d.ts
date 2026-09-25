@@ -211,7 +211,10 @@ declare const StateLogic: {
   ensureEpisodeNumber(state: LeagueState, number: number, postMerge: boolean, created?: number[]): Episode;
   /** The always-an-episode-to-play-next rule; true if it changed anything. See EpisodeLogic. */
   ensureNextEpisode(state: LeagueState): boolean;
-  /** Draft started, or any episode with results or picks -- the League Settings lock. */
+  /**
+   * The league has started playing (draft begun, Pick'em picks or Active Roster lineups made) -- the
+   * League Settings lock on show, type and ownership. Episode results from the season don't count.
+   */
   seasonUnderway(state: LeagueState): boolean;
   episodeHasResults(ep: Episode): boolean;
   nextPlacementOrder(state: LeagueState): number;
