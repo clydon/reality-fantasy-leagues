@@ -250,7 +250,28 @@ declare const StateLogic: {
   addScoringEvent(state: LeagueState, epId: string, type: string, castawayId: string): ScoringEvent | null;
   removeScoringEvent(state: LeagueState, epId: string, eventId: string): void;
   pickEmPickFor(state: LeagueState, epId: string, playerId: string): PickEmPick | null;
-  previousPickEmPickFor(state: LeagueState, epId: string, playerId: string): PickEmPick | null;
+  /**
+   * Who a player may pick for an episode under Pick'em's rules (no one twice until everyone still in
+   * the game has been picked once; never the same person back to back). `blocked` says why the rest
+   * can't be picked, and which episode they were picked in.
+   */
+  pickEmEligibility(
+    state: LeagueState,
+    epId: string,
+    playerId: string
+  ): { available: string[]; blocked: Record<string, { episode: number; reason: "cycle" | "backToBack" }> };
+  /** A player's Pick'em season with streaks: a row per episode that happened, plus any pending pick. */
+  pickEmHistory(
+    state: LeagueState,
+    playerId: string
+  ): {
+    rows: { episode: number; postMerge: boolean; castawayId: string | null; correct: boolean | null; points: number; streak: number }[];
+    total: number;
+    longestStreak: number;
+    currentStreak: number;
+  };
+  /** The episode picks are being made for (the next to reveal when catching up, else the latest). */
+  pickEmUpcomingEpisode(state: LeagueState): Episode | null;
   setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string): void;
   removePickEmPick(state: LeagueState, epId: string, playerId: string): void;
 };

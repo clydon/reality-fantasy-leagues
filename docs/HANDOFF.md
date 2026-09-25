@@ -37,14 +37,15 @@ and pushed.
 - Still open: the "Survivor Fantasy Engine" branding. The user will decide it later.
 - **Side bets are answered by episode research** (`db/episode-research.js`: `openBetsFor`,
   `betAnswersFrom`, `storedBetAnswer`):
-  - Each research run takes every open bet (no guess graded yet) on that episode from all leagues on
-    the season, including catching-up ones, deduplicated by wording and capped at 30. It answers them in
-    the same request.
+  - Each research run takes every open bet (no guess graded yet) on that episode from the season's
+    LIVE leagues, deduplicated by wording and capped at 30. It answers them in the same request.
+  - Catching-up leagues are left out on purpose, since answering them would mean paying to re-run
+    research whenever one of them bets. The user decided their commissioners grade by hand.
   - The answers are stored in `payload.betAnswers`: the answer, which guesses are right, evidence and
     sources.
   - The bet's "Suggest an answer" shows the stored answer, a ✓/✗ per guess and "Apply to guesses". It
-    falls back to semantic search for a bet made after its episode was researched, and says to
-    force-re-run the research.
+    falls back to the free semantic search for a bet research wasn't asked, and says it's graded by
+    hand.
   - A real run of Survivor 47 ep1 ($0.43 for the whole research run) got all four test bets right:
     gender judged from pronouns, "guy" as a synonym, "no idol was played", and which tribe went to
     Tribal.

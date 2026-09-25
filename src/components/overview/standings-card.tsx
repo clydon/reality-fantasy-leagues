@@ -7,6 +7,8 @@ import { DashCard, DashLink } from "./dash-card";
 // under the hood). Nothing here re-implements scoring; it's the same shared logic.
 export function StandingsCard({ state }: { state: LeagueState }) {
   const scores = StateLogic.computeScores(state);
+  // Pick'em ranks by longest streak (total points break ties), so that's the number shown.
+  const pickem = StateLogic.getLeagueType(state).hasWeeklyPicks;
 
   return (
     <DashCard title="Standings" wide>
@@ -18,7 +20,13 @@ export function StandingsCard({ state }: { state: LeagueState }) {
             <span className="w-4 font-mono text-muted-foreground">{i + 1}</span>
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: r.color }} />
             <span>{r.name}</span>
-            <span className="ml-auto font-mono font-bold">{r.total}</span>
+            {pickem ? (
+              <span className="ml-auto text-right font-mono">
+                <b>{r.longestStreak ?? 0}</b> <span className="text-xs text-muted-foreground">streak · {r.total} pts</span>
+              </span>
+            ) : (
+              <span className="ml-auto font-mono font-bold">{r.total}</span>
+            )}
           </div>
         ))
       )}

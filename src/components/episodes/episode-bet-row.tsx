@@ -308,8 +308,8 @@ function SuggestedAnswerBlock({
       )}
       {suggestion && suggestion.source === "search" && suggestion.askedAfterResearch && (
         <p className="mt-1 text-[0.65rem] text-muted-foreground">
-          This bet was made after the episode was researched, so the research wasn&rsquo;t asked it. Re-running the
-          episode&rsquo;s research (Admin → the season → Research, forced) will settle it.
+          The episode&rsquo;s research wasn&rsquo;t asked this bet (it was made after the research ran, or this league is
+          catching up), so it&rsquo;s graded by hand. The note above is only the closest match in the research.
         </p>
       )}
       {suggestion && suggestion.status === "ok" && suggestion.source === "research" && (

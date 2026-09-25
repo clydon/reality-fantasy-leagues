@@ -694,6 +694,9 @@ export interface ScoreRow {
   total: number;
   roster: Castaway[];
   formerRoster: Castaway[];
+  /** Pick'em only: the longest run of correct picks (what players are ranked by), and the run now. */
+  longestStreak?: number;
+  currentStreak?: number;
 }
 
 export interface DraftTurn {

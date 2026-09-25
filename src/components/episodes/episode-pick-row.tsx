@@ -26,9 +26,12 @@ export function EpisodePicksSection({ ep, state }: { ep: Episode; state: LeagueS
   const [pickerPlayerId, setPickerPlayerId] = useState("");
 
   const activePlayerId = canManage ? pickerPlayerId : myPlayerId || "";
-  const activeCast = state.castaways.filter((c) => c.status === "active");
-  const excludedId = activePlayerId ? StateLogic.previousPickEmPickFor(state, ep.id, activePlayerId)?.castawayId : undefined;
-  const eligibleForPicker = activeCast.filter((c) => c.id !== excludedId);
+  // Who the chosen player may pick here, under the cycle and no-back-to-back rules (PickEmLogic).
+  const eligibility = activePlayerId ? StateLogic.pickEmEligibility(state, ep.id, activePlayerId) : null;
+  const eligibleForPicker = eligibility
+    ? eligibility.available.map((id) => StateLogic.getCastaway(state, id)).filter((c): c is NonNullable<typeof c> => !!c)
+    : [];
+  const blockedCount = eligibility ? Object.keys(eligibility.blocked).length : 0;
 
   async function setPick(castawayId: string) {
     const playerId = activePlayerId;
@@ -113,9 +116,10 @@ export function EpisodePicksSection({ ep, state }: { ep: Episode; state: LeagueS
           ))}
         </Select>
       </div>
-      {excludedId && (
+      {blockedCount > 0 && (
         <p className="mt-1 text-[0.7rem] text-muted-foreground">
-          {StateLogic.getCastaway(state, excludedId)?.name} is excluded — same as last episode&rsquo;s pick.
+          {blockedCount} {blockedCount === 1 ? terms.castaway : terms.castaways} not offered — already picked this cycle, or
+          picked last time.
         </p>
       )}
     </div>

@@ -244,33 +244,20 @@ class EliminationOrderScoringStrategy {
 // ScoreRow shape for a second league type; PickEmLeaderboardRow (frontend) presents it with its
 // own pick'em-appropriate label instead of "Boot Order". `roster`/`formerRoster` stay empty:
 // pickem has no roster at all (see PickEmLogic below).
+//
+// Streaks: a correct pick extends a player's streak; a wrong pick -- or NO pick for an episode that
+// happened -- ends it. Players are ranked by their LONGEST streak, with total points (every correct
+// pick, all streaks combined) breaking ties. The per-episode walk is PickEmLogic.history, shared with
+// the Scoreboard's pick history so the two can't disagree.
 class PickEmScoringStrategy {
   static compute(state){
     const results = {};
-    state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
-    const pointsPerCorrect = typeof state.settings.pickemCorrectPoints === 'number' ? state.settings.pickemCorrectPoints : 1;
-    state.episodes.forEach(ep=>{
-      // An episode with zero elimination events logged hasn't happened yet as far as this app's
-      // data model is concerned -- same heuristic EpisodeLogic.ensureUpcoming already uses to
-      // decide which episode is "upcoming" (events.length===0). Without this gate, a pick
-      // submitted for a future episode would score as "correct" the instant it's submitted
-      // (nothing in ep.events yet to contradict it), before that episode has even aired.
-      if(ep.events.length===0) return;
-      (ep.picks||[]).forEach(pk=>{
-        const r = results[pk.playerId];
-        if(!r) return;
-        // Correct = the picked castaway does NOT appear among this episode's elimination events
-        // (i.e. they survived that tribal). No stored `correct` flag -- always derived live from
-        // ep.events, same reasoning EliminationOrderScoringStrategy sums `locked` live from
-        // castaway.status rather than caching a point value: a stored flag would need explicit
-        // invalidation everywhere addElimination/removeElimination can touch this episode's
-        // events, and this sidesteps that whole bug class.
-        const survived = !ep.events.some(ev=>ev.castawayId===pk.castawayId);
-        if(survived) r.locked += pointsPerCorrect;
-      });
+    state.players.forEach(p=> {
+      const h = PickEmLogic.history(state, p.id);
+      results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:h.total, bonus:0, finale:0, total:h.total,
+        longestStreak:h.longestStreak, currentStreak:h.currentStreak, roster:[], formerRoster:[]};
     });
-    Object.values(results).forEach(r=> r.total = r.locked);
-    return Object.values(results).sort((a,b)=>b.total-a.total);
+    return Object.values(results).sort((a,b)=> b.longestStreak - a.longestStreak || b.total - a.total);
   }
 }
 // Thin dispatcher -- see the "League types" comment near the top of this file. Delegates to
@@ -813,28 +800,89 @@ class ActiveRosterEventScoringStrategy {
 // No stored "correct" -- see PickEmScoringStrategy's compute() for why.
 class PickEmLogic {
   static findEpisode(state, epId){ return state.episodes.find(e=>e.id===epId); }
-  // The episode immediately before this one BY NUMBER, not by array position -- episodes can be
-  // added/removed out of order (EpisodeLogic.remove renumbers placements, not episode numbers).
-  static previousEpisode(state, ep){
-    return state.episodes.find(e=>e.number === ep.number - 1) || null;
-  }
   static pickFor(state, epId, playerId){
     const ep = PickEmLogic.findEpisode(state, epId);
     return ep ? (ep.picks||[]).find(pk=>pk.playerId===playerId) || null : null;
   }
-  // For the frontend to know which castaway to exclude from the picker (the no-repeat rule) --
-  // keeps that business logic here rather than reimplemented in a component.
-  static previousPickFor(state, epId, playerId){
-    const ep = PickEmLogic.findEpisode(state, epId);
-    if(!ep) return null;
-    const prevEp = PickEmLogic.previousEpisode(state, ep);
-    return prevEp ? (prevEp.picks||[]).find(pk=>pk.playerId===playerId) || null : null;
+  // The episode picks are being made for: the next one to reveal when catching up, otherwise the
+  // latest. Same target Overview's side bets use.
+  static upcomingEpisode(state){
+    return state.episodes.find(e => e.number === BetLogic.upcomingEpisodeNumber(state)) || null;
   }
+  // An episode has "happened" for scoring once its eliminations are logged -- a pick for a future
+  // episode would otherwise count as correct the moment it's made (nothing yet contradicts it).
+  static decided(ep){ return !!ep && (ep.events||[]).length > 0; }
+
+  // Who a player may pick for an episode, under both rules:
+  //
+  //   the cycle rule   -- no one twice until you've picked everyone still in the game once. Replayed
+  //                       over the player's picks before this episode, in order: a cycle ends when it
+  //                       covers everyone remaining, and the next pick starts a new one. "Remaining" is
+  //                       who's still in the game NOW, so an eliminated person never holds a cycle open.
+  //   no back-to-back  -- never the same person as your previous pick, even across a new cycle.
+  //
+  // Returns {available, blocked}: `blocked` maps each remaining person who can't be picked to the
+  // episode they were picked in and why. If the rules would leave nobody (only your last pick is
+  // left in the game), that person is allowed rather than making the episode unplayable.
+  static eligibility(state, epId, playerId){
+    const ep = PickEmLogic.findEpisode(state, epId);
+    const remaining = state.castaways.filter(c => c.status === 'active').map(c => c.id);
+    const blocked = {};
+    if(!ep) return { available: remaining, blocked };
+    const prior = [...state.episodes]
+      .filter(e => e.number < ep.number)
+      .sort((a,b) => a.number - b.number)
+      .map(e => ({ number: e.number, pick: (e.picks||[]).find(pk => pk.playerId === playerId) }))
+      .filter(x => x.pick);
+    const covers = (cycle) => remaining.every(id => cycle.has(id));
+    let cycle = new Map(); // castawayId -> episode number picked in, this cycle
+    prior.forEach(x => {
+      if(covers(cycle)) cycle = new Map();
+      cycle.set(x.pick.castawayId, x.number);
+    });
+    if(covers(cycle)) cycle = new Map();
+    const last = prior.length ? prior[prior.length - 1] : null;
+    remaining.forEach(id => {
+      if(cycle.has(id)) blocked[id] = { episode: cycle.get(id), reason: 'cycle' };
+    });
+    if(last && remaining.includes(last.pick.castawayId)){
+      blocked[last.pick.castawayId] = { episode: last.number, reason: 'backToBack' };
+    }
+    let available = remaining.filter(id => !blocked[id]);
+    if(!available.length && last && remaining.includes(last.pick.castawayId)){
+      available = [last.pick.castawayId];
+      delete blocked[last.pick.castawayId];
+    }
+    return { available, blocked };
+  }
+
+  // A player's season, episode by episode, with their streaks. A row per episode that has happened
+  // (picked or not -- a missed one breaks the streak) plus any pick still waiting on its episode.
+  static history(state, playerId){
+    const perCorrect = typeof state.settings.pickemCorrectPoints === 'number' ? state.settings.pickemCorrectPoints : 1;
+    const rows = [];
+    let current = 0, longest = 0, total = 0;
+    [...state.episodes].sort((a,b) => a.number - b.number).forEach(ep => {
+      const pick = (ep.picks||[]).find(pk => pk.playerId === playerId) || null;
+      if(!PickEmLogic.decided(ep)){
+        if(pick) rows.push({ episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick.castawayId, correct: null, points: 0, streak: current });
+        return;
+      }
+      // Correct = the picked person isn't among this episode's eliminations. Derived live from
+      // ep.events rather than stored, so logging or undoing an elimination can't leave it stale.
+      const correct = !!pick && !ep.events.some(ev => ev.castawayId === pick.castawayId);
+      if(correct){ current++; total += perCorrect; longest = Math.max(longest, current); }
+      else current = 0;
+      rows.push({ episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick ? pick.castawayId : null, correct, points: correct ? perCorrect : 0, streak: current });
+    });
+    return { rows, total, longestStreak: longest, currentStreak: current };
+  }
+
   // Silently no-ops on an invalid request (unknown episode/castaway/player, an already-eliminated
-  // castaway, or a repeat of the immediately-previous episode's pick) rather than throwing --
-  // matches this file's existing convention (see e.g. SnakeDraftStrategy.pick on an
-  // already-owned castaway). The frontend is expected to not offer the invalid options in the
-  // first place; this is the backstop, not the primary validation surface.
+  // castaway, or one the cycle / back-to-back rules exclude -- see eligibility) rather than throwing,
+  // matching this file's existing convention (see e.g. SnakeDraftStrategy.pick on an already-owned
+  // castaway). The frontend is expected to not offer the invalid options in the first place; this is
+  // the backstop, not the primary validation surface.
   // No lock once an episode's eliminations are logged -- a pick can still be changed after the
   // outcome is known, same trust model the rest of this app already uses for bet predictions
   // (also editable at any time, no lock tied to an episode airing). The plan doesn't ask for one
@@ -845,9 +893,7 @@ class PickEmLogic {
     const c = Core.getCastaway(state, castawayId);
     const player = Core.getPlayer(state, playerId);
     if(!ep || !c || !player || c.status!=='active') return;
-    const prevEp = PickEmLogic.previousEpisode(state, ep);
-    const prevPick = prevEp ? (prevEp.picks||[]).find(pk=>pk.playerId===playerId) : null;
-    if(prevPick && prevPick.castawayId===castawayId) return;
+    if(!PickEmLogic.eligibility(state, epId, playerId).available.includes(castawayId)) return;
     ep.picks = ep.picks || [];
     const existing = ep.picks.find(pk=>pk.playerId===playerId);
     if(existing) existing.castawayId = castawayId;
@@ -888,7 +934,7 @@ const LEAGUE_TYPES = {
   'pickem': {
     id: 'pickem',
     name: "Pick'em",
-    description: 'No draft, no roster -- every episode, each player picks one castaway they think survives. A correct pick scores points; picking the same castaway two episodes running is not allowed.',
+    description: 'No draft, no roster -- every episode, each player picks one castaway they think survives. No repeats until you\'ve picked everyone still in the game, and never the same one twice in a row. Ranked by longest streak of correct picks, then total correct.',
     draftStrategy: NoDraftStrategy,
     scoringStrategy: PickEmScoringStrategy,
     supportsReplenish: false,
@@ -1981,7 +2027,8 @@ return {
   activeRosterLineupFor: ActiveRosterLogic.lineupFor, setActiveRosterLineup: ActiveRosterLogic.setLineup,
   lockActiveRosterLineups: ActiveRosterLogic.lockLineups, unlockActiveRosterLineups: ActiveRosterLogic.unlockLineups,
   addScoringEvent: ActiveRosterLogic.addEvent, removeScoringEvent: ActiveRosterLogic.removeEvent,
-  pickEmPickFor: PickEmLogic.pickFor, previousPickEmPickFor: PickEmLogic.previousPickFor,
+  pickEmPickFor: PickEmLogic.pickFor, pickEmEligibility: PickEmLogic.eligibility, pickEmHistory: PickEmLogic.history,
+  pickEmUpcomingEpisode: PickEmLogic.upcomingEpisode,
   setPickEmPick: PickEmLogic.setPick, removePickEmPick: PickEmLogic.removePick,
 
   // ---- domain classes: reference these directly in new code instead of the flat aliases above ----

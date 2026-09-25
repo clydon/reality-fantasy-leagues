@@ -8,6 +8,7 @@ import { StandingsCard } from "./standings-card";
 import { SideBetsSection } from "./side-bets-section";
 import { BoardGrid } from "./board-grid";
 import { NotificationsBanner } from "./notifications-banner";
+import { PickEmPickGrid } from "./pickem-pick-grid";
 
 // Direct port of renderOverview() (public/app.js): Notifications banner, Side Bets section, the
 // dash-grid of three cards, and the post-draft Board grid, in the same order as the original.
@@ -35,6 +36,7 @@ export function OverviewDashboard() {
           . Later episodes stay hidden until the commissioner reveals them.
         </p>
       )}
+      {StateLogic.getLeagueType(state).hasWeeklyPicks && <PickEmPickGrid state={state} />}
       <NotificationsBanner />
       <SideBetsSection state={state} />
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">

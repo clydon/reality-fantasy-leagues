@@ -1044,10 +1044,13 @@ async function resolveResearchContext(pool, leagueId, episodeNumber) {
 // Research also settles the leagues' side bets for the episode it researches, in the same request
 // (see betLines) -- so a bet costs a few output tokens, not a call of its own.
 //
-// Which bets: every league playing this season (catching-up ones included -- their bet is on the same
-// real episode), only bets nobody has graded yet (a commissioner who already decided one doesn't need
-// asking), deduplicated by wording so the same question from two leagues is asked once, with both
-// leagues' guesses. Capped so a busy season can't balloon the prompt.
+// Which bets: every league playing this season LIVE, only bets nobody has graded yet (a commissioner
+// who already decided one doesn't need asking), deduplicated by wording so the same question from two
+// leagues is asked once, with both leagues' guesses. Capped so a busy season can't balloon the prompt.
+//
+// Catching-up leagues are left out on purpose: their bets are made long after the episode aired and
+// was researched, so answering them would mean re-running research whenever one of them bets -- an
+// unpredictable spend. Their commissioners grade by hand.
 const MAX_BETS = 30;
 
 // How a bet's wording is matched to its answer later (the suggested-answer route): case, spacing and
@@ -1063,6 +1066,7 @@ async function openBetsFor(pool, showSlug, season, episodeNumber) {
   );
   const byKey = new Map();
   for (const { state } of rows) {
+    if (StateLogic.RevealLogic.isCatchingUp(state)) continue;
     const ep = ((state && state.episodes) || []).find((e) => e.number === episodeNumber);
     for (const bet of (ep && ep.bets) || []) {
       const graded = (bet.predictions || []).some((p) => p.correct === true || p.correct === false);

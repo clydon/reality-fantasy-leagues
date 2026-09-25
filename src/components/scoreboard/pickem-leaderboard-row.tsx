@@ -10,10 +10,10 @@ import { cn } from "cn";
 // gets its own presentation of the same ScoreRow shape (r.locked/r.total are pickem's core score,
 // see PickEmScoringStrategy's comment on why it reuses that field) rather than forcing pickem's
 // numbers through classic-draft's labels.
+// Ranked by longest streak, with total points (every correct pick) breaking ties -- so the big number
+// is the streak, and total points sit beside it.
 export function PickEmLeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; state: LeagueState }) {
   const rows = playerPickRows(state, r.playerId);
-  const correctCount = rows.filter((row) => row.correct === true).length;
-  const decidedCount = rows.filter((row) => row.correct !== null).length;
 
   return (
     <div className="mb-3 rounded-lg border border-border bg-card shadow-sm">
@@ -23,10 +23,13 @@ export function PickEmLeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: nu
         <div className="flex-1">
           <div className="font-bold">{r.name}</div>
           <div className="text-xs text-muted-foreground">
-            {correctCount}/{decidedCount} picks correct
+            Total points: {r.total} · Current streak: {r.currentStreak ?? 0}
           </div>
         </div>
-        <div className="font-mono text-xl font-bold">{r.total}</div>
+        <div className="text-right">
+          <div className="font-mono text-xl font-bold">{r.longestStreak ?? 0}</div>
+          <div className="text-[0.6rem] uppercase tracking-wide text-muted-foreground">longest streak</div>
+        </div>
       </div>
 
       <details className="border-t border-border px-3.5 py-2">
@@ -39,15 +42,21 @@ export function PickEmLeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: nu
                 Ep {row.episode}
                 {row.postMerge ? " 🔀" : ""}
               </span>
-              <span className="flex-1">{row.castawayName}</span>
+              <span className={cn("flex-1", !row.castawayName && "italic text-muted-foreground")}>
+                {row.castawayName ?? "No pick"}
+              </span>
               {row.correct === true ? (
                 <span className="rounded bg-good/15 px-1.5 py-0.5 text-xs font-semibold text-good">Correct</span>
               ) : row.correct === false ? (
-                <span className="rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-semibold text-destructive">Incorrect</span>
+                <span className="rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-semibold text-destructive">
+                  {row.castawayName ? "Incorrect" : "Streak broken"}
+                </span>
               ) : (
                 <span className="rounded bg-secondary px-1.5 py-0.5 text-xs">Pending</span>
               )}
-              <span className="font-mono text-xs">+{row.points}</span>
+              <span className="font-mono text-xs text-muted-foreground" title="Streak after this episode">
+                streak {row.streak}
+              </span>
             </div>
           ))}
         </div>
