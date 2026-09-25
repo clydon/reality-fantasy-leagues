@@ -71,6 +71,28 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
     );
   }
 
+  // A research-settled suggestion's verdict on one guess: right, wrong, or null when there's no
+  // research answer to judge it by (no suggestion yet, or only a search result).
+  function suggestedVerdict(guess: string): boolean | null {
+    if (!suggestion || suggestion.source !== "research" || suggestion.status !== "ok") return null;
+    const wanted = guess.trim().toLowerCase();
+    return (suggestion.correctGuesses || []).some((g) => g.trim().toLowerCase() === wanted);
+  }
+  const ungraded = (bet.predictions || []).filter((p) => p.correct === null || p.correct === undefined);
+
+  // Grades every still-ungraded guess the way the research suggests. Guesses already graded by hand
+  // are left alone -- the commissioner's call wins.
+  async function applySuggestion() {
+    for (const pred of ungraded) {
+      const verdict = suggestedVerdict(pred.guess);
+      if (verdict === null) continue;
+      await mutate(
+        (s) => StateLogic.setBetPredictionCorrect(s, ep.id, bet.id, pred.id, verdict),
+        () => api.setBetPredictionCorrect(leagueId!, ep.id, bet.id, pred.id, verdict)
+      );
+    }
+  }
+
   async function removeGuess(predId: string) {
     await mutate(
       (s) => StateLogic.removeBetPrediction(s, ep.id, bet.id, predId),
@@ -142,18 +164,41 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
         </div>
       )}
 
-      {canManage && <SuggestedAnswerBlock suggestion={suggestion} loading={suggestionLoading} error={suggestionError} onFetch={fetchSuggestion} />}
+      {canManage && (
+        <SuggestedAnswerBlock
+          suggestion={suggestion}
+          loading={suggestionLoading}
+          error={suggestionError}
+          onFetch={fetchSuggestion}
+          onApply={applySuggestion}
+          canApply={ungraded.length > 0}
+        />
+      )}
 
       <div className="mt-2 flex flex-col gap-1.5">
         {(bet.predictions || []).map((pred) => {
           const pp = StateLogic.getPlayer(state, pred.playerId);
+          const verdict = suggestedVerdict(pred.guess);
           return (
             <div key={pred.id} className="flex items-center gap-2 text-xs">
               <Badge className="text-white" style={{ background: pp?.color || "#4a5245" }}>
                 {pp?.name || "?"}
               </Badge>
-              <span className="flex-1">guessed: &ldquo;{pred.guess}&rdquo;</span>
+              <span className="flex-1">
+                guessed: &ldquo;{pred.guess}&rdquo;
+                {verdict !== null && (
+                  <span
+                    className={verdict ? "ml-1.5 font-semibold text-good" : "ml-1.5 text-muted-foreground"}
+                    title="What the episode's research suggests -- check it before grading"
+                  >
+                    {verdict ? "✓ suggested" : "✗ suggested"}
+                  </span>
+                )}
+              </span>
               <Select
+                // Keyed on the grade so it redraws when a grade changes from elsewhere (Apply), since
+                // it's an uncontrolled select.
+                key={`${pred.id}-${pred.correct}`}
                 size="sm"
                 disabled={!canManage}
                 defaultValue={pred.correct === true ? "true" : pred.correct === false ? "false" : ""}
@@ -210,21 +255,25 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
   );
 }
 
-// The semantic-search grading aid itself: a button that fetches db/embeddings.js's suggestAnswer for
-// this bet's own free-text question, then shows the result. Deliberately never shows a guessed
-// answer without also showing what backs it and how sure it is -- an unlabeled suggestion next to a
-// grading dropdown is exactly the kind of thing that gets rubber-stamped without being checked, which
-// defeats the point of it being a SUGGESTION.
+// The grading aid itself: a button that fetches the bet's suggested answer (the suggested-answer
+// route: the episode research's own answer to this bet, else the closest research note), then shows
+// it. Deliberately never shows an answer without also showing what backs it and how sure it is -- an
+// unlabeled suggestion next to a grading dropdown is exactly the kind of thing that gets
+// rubber-stamped without being checked, which defeats the point of it being a SUGGESTION.
 function SuggestedAnswerBlock({
   suggestion,
   loading,
   error,
   onFetch,
+  onApply,
+  canApply,
 }: {
   suggestion: SuggestedBetAnswer | null;
   loading: boolean;
   error: string | null;
   onFetch: () => void;
+  onApply: () => void;
+  canApply: boolean;
 }) {
   if (!suggestion && !loading && !error) {
     return (
@@ -251,9 +300,49 @@ function SuggestedAnswerBlock({
         </span>
       )}
       {suggestion && suggestion.status === "unconfident" && (
-        <span className="italic text-muted-foreground">Can&rsquo;t determine an answer confidently from research.</span>
+        <span className="italic text-muted-foreground">
+          {suggestion.source === "research"
+            ? "The episode’s research couldn’t settle this one from its sources."
+            : "Can’t determine an answer confidently from research."}
+        </span>
       )}
-      {suggestion && suggestion.status === "ok" && (
+      {suggestion && suggestion.source === "search" && suggestion.askedAfterResearch && (
+        <p className="mt-1 text-[0.65rem] text-muted-foreground">
+          This bet was made after the episode was researched, so the research wasn&rsquo;t asked it. Re-running the
+          episode&rsquo;s research (Admin → the season → Research, forced) will settle it.
+        </p>
+      )}
+      {suggestion && suggestion.status === "ok" && suggestion.source === "research" && (
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge
+              variant={suggestion.confidence === "high" ? "default" : "secondary"}
+              className="h-4 shrink-0 text-[0.6rem]"
+            >
+              {suggestion.confidence} confidence
+            </Badge>
+            <span>
+              Research says: <b>{suggestion.answer}</b>
+            </span>
+            {canApply && (
+              <Button size="xs" variant="secondary" className="ml-auto" onClick={onApply} title="Grades the guesses not yet graded, as suggested">
+                Apply to guesses
+              </Button>
+            )}
+          </div>
+          {suggestion.evidence && <span className="text-muted-foreground">{suggestion.evidence}</span>}
+          {(suggestion.sources || []).length > 0 && (
+            <span className="text-muted-foreground">
+              {(suggestion.sources || []).map((url, i) => (
+                <a key={url} href={url} target="_blank" rel="noreferrer" className="mr-1 underline underline-offset-2" title={url}>
+                  [{i + 1}]
+                </a>
+              ))}
+            </span>
+          )}
+        </div>
+      )}
+      {suggestion && suggestion.status === "ok" && suggestion.source !== "research" && (
         <div className="flex flex-wrap items-start gap-1.5">
           <Badge
             variant={suggestion.confidence === "high" ? "default" : "secondary"}

@@ -982,6 +982,19 @@ function ResearchResult({
               <b>Asked, nothing found:</b> {quiet.map((c) => c.name).join(", ")}
             </p>
           )}
+          {(payload.betAnswers || []).length > 0 && (
+            <div className="mt-1">
+              <b>Side bets settled</b> (shown to commissioners when they grade):
+              <ul className="ml-4 list-disc">
+                {(payload.betAnswers || []).map((b) => (
+                  <li key={b.question}>
+                    {b.question} — <b>{b.answer ?? "couldn’t tell"}</b>
+                    {b.answer && <span className="text-muted-foreground"> ({b.confidence})</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <p className="mt-1 text-muted-foreground">
             <code className="font-mono">
               {provenance.provider}/{provenance.model}

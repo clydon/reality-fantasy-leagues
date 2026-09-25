@@ -62,9 +62,35 @@ export interface Bet {
 export interface SuggestedBetAnswer {
   status: "no-research" | "unconfident" | "ok";
   answer: string | null;
-  confidence: "high" | "medium" | null;
+  confidence: "high" | "medium" | "low" | null;
   castawayName: string | null;
   similarity: number | null;
+  /**
+   * Where it came from. "research": the episode's research settled this bet directly (BetAnswer) --
+   * with which guesses are right. "search": the closest research note, found by semantic search, for
+   * a bet the research wasn't asked about.
+   */
+  source?: "research" | "search";
+  /** research only: the guesses the research judged right (exact guess text). */
+  correctGuesses?: string[];
+  evidence?: string | null;
+  sources?: string[];
+  /** search only: true when the bet was made after its episode was researched -- re-run to settle it. */
+  askedAfterResearch?: boolean;
+}
+
+/**
+ * A side bet settled by episode research (db/episode-research.js), stored on the research payload
+ * and matched back to leagues' bets by wording.
+ */
+export interface BetAnswer {
+  question: string;
+  guesses: string[];
+  answer: string | null;
+  correctGuesses: string[];
+  evidence: string | null;
+  sources: string[];
+  confidence: "high" | "medium" | "low";
 }
 
 // Active Roster: one point-earning occurrence in an episode. Deliberately NOT stored in
@@ -345,6 +371,8 @@ export interface EpisodeResearch {
   airDate: string | null;
   summary: string;
   castaways: ResearchCastaway[];
+  /** The leagues' open side bets this research settled (absent when it wasn't asked any). */
+  betAnswers?: BetAnswer[];
   /** Episode-level questions, per format (Survivor: tribalCouncilHeld). */
   [question: string]: unknown;
 }

@@ -35,6 +35,19 @@ and pushed.
 - Phase 4 (tidy-up), hand-entry of roles, role badges and team changes mid-season (Phase 5, migration
   0024) are done and merged too.
 - Still open: the "Survivor Fantasy Engine" branding. The user will decide it later.
+- **Side bets are answered by episode research** (`db/episode-research.js`: `openBetsFor`,
+  `betAnswersFrom`, `storedBetAnswer`):
+  - Each research run takes every open bet (no guess graded yet) on that episode from all leagues on
+    the season, including catching-up ones, deduplicated by wording and capped at 30. It answers them in
+    the same request.
+  - The answers are stored in `payload.betAnswers`: the answer, which guesses are right, evidence and
+    sources.
+  - The bet's "Suggest an answer" shows the stored answer, a ✓/✗ per guess and "Apply to guesses". It
+    falls back to semantic search for a bet made after its episode was researched, and says to
+    force-re-run the research.
+  - A real run of Survivor 47 ep1 ($0.43 for the whole research run) got all four test bets right:
+    gender judged from pronouns, "guy" as a synonym, "no idol was played", and which tribe went to
+    Tribal.
 
 The open questions are all resolved:
 

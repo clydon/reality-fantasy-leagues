@@ -5,7 +5,7 @@
 // Only the season-scoped entry point is declared: it's what the admin research route imports. The
 // league-scoped entry point is CLI surface only.
 import type { Pool } from "pg";
-import type { DecisionStageResult, EpisodeResearch, EpisodeResearchProvenance, ResearchAnswer } from "@/lib/game/types";
+import type { BetAnswer, DecisionStageResult, EpisodeResearch, EpisodeResearchProvenance, ResearchAnswer } from "@/lib/game/types";
 
 export interface EpisodeResearchOptions {
   /** Research it again even if this episode already has a row. */
@@ -60,6 +60,15 @@ export function researchSeasonEpisode(
   episodeNumber: number,
   opts?: EpisodeResearchOptions
 ): Promise<EpisodeResearchRun>;
+
+/**
+ * The research answer to one side bet, looked up by its wording. `researched` is false when the
+ * episode has no research at all; `answer` is null when it has research that didn't settle this bet.
+ */
+export function storedBetAnswer(
+  pool: Pool,
+  args: { showId: string; season: number; episodeNumber: number; label: string }
+): Promise<{ researched: boolean; researchedAt?: string; answer: BetAnswer | null }>;
 
 /** Re-stages every episode already researched for a season from the stored answers (no search). */
 export function stageCachedSeasonResearch(pool: Pool, seasonId: string): Promise<{ episodes: number; inserted: number }>;

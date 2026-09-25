@@ -64,7 +64,10 @@ const Answer = z.enum(["yes", "no", "unknown"]);
 // The whole answer for one episode: a few episode-level fields, then one checklist entry per person.
 // The checklist itself is the format's (format.research.checklistSchema); its exit methods are a hard
 // enum for the same reason wiki-sync.js's are -- the value is written onto castaway.exitMethod.
-function researchSchemaFor(format) {
+//
+// `withBets` adds the leagues' open side bets (see openBetsFor). Only then: a run with no bets to
+// answer asks exactly what it always has.
+function researchSchemaFor(format, withBets = false) {
   return z.object({
     episodeTitle: z.string().nullable(),
     airDate: z.string().nullable().describe("As printed on the source, e.g. 'March 5, 2026'."),
@@ -73,8 +76,34 @@ function researchSchemaFor(format) {
     castaways: z
       .array(format.research.checklistSchema(z, Answer))
       .describe("EXACTLY ONE ENTRY PER CASTAWAY in the list you were sent, in that same order, including anyone nothing happened to."),
+    ...(withBets ? { betAnswers: BetAnswers } : {}),
   });
 }
+
+// One answer per side bet the prompt listed. Answered from the same pages as the checklist, so a
+// bet costs a few output tokens on a call that's being made anyway -- no request of its own.
+const BetAnswers = z
+  .array(
+    z.object({
+      bet: z.number().int().describe("The bet's number from the list you were sent."),
+      answer: z
+        .string()
+        .nullable()
+        .describe("The short answer as the question asks for it: 'yes', 'no', a name, a number. Null if your sources don't settle it."),
+      correctGuesses: z
+        .array(z.string())
+        .describe("Which of the listed guesses are right, copied exactly as listed. Empty if none are, or if the answer is null."),
+      evidence: z
+        .string()
+        .nullable()
+        .describe("One short sentence from or about your sources that settles it. Null if the answer is null."),
+      sources: z.array(z.string()).describe("URLs you read that support the answer."),
+      confidence: z
+        .enum(["high", "medium", "low"])
+        .describe("high: a source states it plainly. medium: a source implies it. low: pieced together, or judged from a name alone."),
+    })
+  )
+  .describe("EXACTLY ONE ENTRY PER BET in the list you were sent, in that order.");
 
 // ---------- the prompt ----------
 // The instruction that matters most is the one about not answering from memory. The entire reason to
@@ -86,7 +115,7 @@ function researchSchemaFor(format) {
 // Provider-neutral on purpose: it says "search" and never names a tool, because the three providers
 // expose search as three different mechanisms (a server tool, a grounding flag, a search parameter)
 // and none of them needs to be told what its own search is called.
-function buildPrompt({ showName, season, episodeNumber, castNames, terms, domains = [], format }) {
+function buildPrompt({ showName, season, episodeNumber, castNames, terms, domains = [], format, bets = [] }) {
   const system = [
     `You research reality-TV episodes and answer a fixed checklist about every ${terms.castaway} still in the game.`,
     "",
@@ -117,9 +146,28 @@ function buildPrompt({ showName, season, episodeNumber, castNames, terms, domain
     // Anthropic enforces this list (allowed_domains on its search tool); for the others it's advice.
     ...(domains.length ? ["", `Use these sites: ${domains.join(", ")}.`] : []),
     "Two or three good pages are enough -- don't keep searching once the episode is covered.",
+    ...betLines(bets),
   ].join("\n");
 
   return { system, user };
+}
+
+// The side bets league members made about this episode, for the model to settle from the same
+// sources. The rules above still apply: from pages read, not memory; null when they don't say.
+function betLines(bets) {
+  if (!bets.length) return [];
+  return [
+    "",
+    "Also settle these side bets that league members made about this episode. Answer each from the",
+    "pages you read, not from memory. A bet can ask about something that did NOT happen (\"Will an idol",
+    "be played?\") -- if your sources cover the episode and it didn't happen, the answer is 'no'. For",
+    "questions about a person (\"Was a woman voted out?\"), use how your sources refer to them (their",
+    "pronouns); if you can only go by their name, say so in the evidence and use low confidence. Then",
+    "say which of the listed guesses are right -- a guess that means the same as the answer counts",
+    "(\"guy\" for \"a man\"). Use null for the answer when the sources don't settle it.",
+    "",
+    ...bets.map((b, i) => `Bet ${i + 1}: ${b.label}` + (b.guesses.length ? `\n   Guesses: ${b.guesses.map((g) => JSON.stringify(g)).join(", ")}` : "")),
+  ];
 }
 
 // What the second pass is told when a provider can't search and answer in one call. It gets no
@@ -992,6 +1040,80 @@ async function resolveResearchContext(pool, leagueId, episodeNumber) {
   return { league, ...contextFrom(entry, showSlug, season, episodeNumber, active, castFrom, skipped) };
 }
 
+// ---------- side bets ----------
+// Research also settles the leagues' side bets for the episode it researches, in the same request
+// (see betLines) -- so a bet costs a few output tokens, not a call of its own.
+//
+// Which bets: every league playing this season (catching-up ones included -- their bet is on the same
+// real episode), only bets nobody has graded yet (a commissioner who already decided one doesn't need
+// asking), deduplicated by wording so the same question from two leagues is asked once, with both
+// leagues' guesses. Capped so a busy season can't balloon the prompt.
+const MAX_BETS = 30;
+
+// How a bet's wording is matched to its answer later (the suggested-answer route): case, spacing and
+// trailing punctuation don't make it a different question.
+function betKey(label) {
+  return String(label || "").toLowerCase().replace(/\s+/g, " ").replace(/[\s?.!]+$/, "").trim();
+}
+
+async function openBetsFor(pool, showSlug, season, episodeNumber) {
+  const { rows } = await pool.query(
+    "SELECT state FROM leagues WHERE state->'settings'->>'showId' = $1 AND state->'settings'->>'wikiSeason' = $2",
+    [showSlug, String(season)]
+  );
+  const byKey = new Map();
+  for (const { state } of rows) {
+    const ep = ((state && state.episodes) || []).find((e) => e.number === episodeNumber);
+    for (const bet of (ep && ep.bets) || []) {
+      const graded = (bet.predictions || []).some((p) => p.correct === true || p.correct === false);
+      const key = betKey(bet.label);
+      if (graded || !key) continue;
+      if (!byKey.has(key)) byKey.set(key, { label: String(bet.label).trim(), guesses: [] });
+      const entry = byKey.get(key);
+      for (const p of bet.predictions || []) {
+        const guess = String(p.guess || "").trim();
+        if (guess && !entry.guesses.some((g) => g.toLowerCase() === guess.toLowerCase())) entry.guesses.push(guess);
+      }
+    }
+  }
+  return [...byKey.values()].slice(0, MAX_BETS);
+}
+
+// The model's bet answers, tied back to the bets' own wording (it answers by number) and held to the
+// guesses actually listed -- a "correct guess" nobody made is dropped rather than trusted.
+function betAnswersFrom(parsed, bets) {
+  return (parsed.betAnswers || [])
+    .filter((a) => Number.isInteger(a.bet) && a.bet >= 1 && a.bet <= bets.length)
+    .map((a) => {
+      const bet = bets[a.bet - 1];
+      const listed = (g) => bet.guesses.find((x) => x.toLowerCase() === String(g).trim().toLowerCase());
+      return {
+        question: bet.label,
+        guesses: bet.guesses,
+        answer: a.answer == null || String(a.answer).trim() === "" ? null : String(a.answer).trim(),
+        correctGuesses: a.answer == null ? [] : (a.correctGuesses || []).map(listed).filter(Boolean),
+        evidence: a.evidence || null,
+        sources: a.sources || [],
+        confidence: a.confidence || "low",
+      };
+    });
+}
+
+/**
+ * The research answer to one side bet, looked up by its wording, or null when this episode's research
+ * didn't settle that bet (no research yet, or the bet was made after it ran).
+ */
+async function storedBetAnswer(pool, { showId, season, episodeNumber, label }) {
+  const { rows } = await pool.query(
+    "SELECT payload, researched_at FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3",
+    [showId, season, episodeNumber]
+  );
+  if (!rows.length) return { researched: false, answer: null };
+  const key = betKey(label);
+  const found = ((rows[0].payload && rows[0].payload.betAnswers) || []).find((a) => betKey(a.question) === key) || null;
+  return { researched: true, researchedAt: rows[0].researched_at, answer: found };
+}
+
 // ---------- the cache (db/migrations/0014) ----------
 // Keyed on (show, season, episode) and NOT on anything about the sources, unlike wiki_extractions:
 // there is no revision id for "the internet as it was last Thursday", so the only honest cache rule
@@ -1167,12 +1289,17 @@ async function runFor(pool, ctx, opts) {
     `[research] ${ctx.showName} season ${ctx.season} episode ${episodeNumber}: ` +
       `${ctx.castNames.length} ${ctx.terms.castaways} (from the ${ctx.castFrom}), via ${provider.id}/${model}`
   );
-  const { system, user } = buildPrompt(ctx);
-  const out = await runResearch({ system, user, schema: researchSchemaFor(ctx.format), provider, model, domains: ctx.domains });
+  // The leagues' open side bets on this episode ride along in the same request (see openBetsFor).
+  const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
+  if (bets.length) console.log(`[research] also settling ${bets.length} open side bet(s) from the season's leagues`);
+  const { system, user } = buildPrompt({ ...ctx, bets });
+  const out = await runResearch({ system, user, schema: researchSchemaFor(ctx.format, bets.length > 0), provider, model, domains: ctx.domains });
   console.log(
     `[research] tokens: ${out.usage.input_tokens} in / ${out.usage.output_tokens} out` +
       ` (${out.passes} call${out.passes === 1 ? "" : "s"}), ${out.pagesRead.length} page(s) read`
   );
+  // Stored with the bets' own wording (the model answered by number), for the suggested-answer route.
+  if (bets.length) out.parsed.betAnswers = betAnswersFrom(out.parsed, bets);
 
   const review = validateResearch(out.parsed, ctx.castNames, ctx.terms, ctx.format);
   for (const problem of review.problems) console.log(`[research] ! ${problem}`);
@@ -1207,6 +1334,8 @@ async function runFor(pool, ctx, opts) {
     pagesRead: out.pagesRead,
     usage: out.usage,
     problems: review.problems,
+    // The side bets this run was asked to settle (see openBetsFor).
+    betsAsked: bets.map((b) => b.label),
   };
   const stored = await storeResearch(pool, ctx, out.parsed, provenance, opts);
 
@@ -1290,6 +1419,10 @@ if (require.main === module) {
 module.exports = {
   researchSchemaFor,
   buildPrompt,
+  betKey,
+  openBetsFor,
+  betAnswersFrom,
+  storedBetAnswer,
   validateResearch,
   researchEpisode,
   researchSeasonEpisode,
