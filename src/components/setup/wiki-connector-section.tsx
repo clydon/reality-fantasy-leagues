@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import type { LeagueState, WikiProposal } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
@@ -16,11 +15,9 @@ import { useShowTerms, type ShowTerms } from "@/lib/use-show-terms";
 // Review queue for the wiki connector (db/wiki-sync.js). Commissioner-only, and live-mode only --
 // proposals live in their own table, so there's nothing for mock mode to show, same as Invites.
 //
-// The connector never writes to league state itself; it files a cast proposal here for you to
-// confirm, and per-episode decisions (eliminations/events/exiles) as their own reviewable items on
-// the Episodes tab's "Reveal Outcome" panel (db/migrations/0009) -- that's what moved out of this
-// section. Only the season's cast list stays a whole-payload proposal: it arrives once, with no
-// per-episode axis to review it along, so "accept the whole list" is still the right question.
+// Both the cast and the per-episode results are decided once per season by an admin (db/migrations/
+// 0011 and 0019) and reach the league on their own. What's left here is the season picker and any
+// cast proposal left over from before that change.
 export function WikiConnectorSection({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -38,16 +35,6 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
     queryFn: () => api.listWikiProposals(leagueId!),
     enabled: live && canManage,
   });
-  // Same query key/fn as episodes-tab.tsx's own fetch -- react-query dedupes it, this just reads
-  // the count for the nudge below rather than re-fetching.
-  const { data: itemsData } = useQuery({
-    queryKey: ["wiki-items", leagueId],
-    queryFn: () => api.listWikiItems(leagueId!),
-    enabled: live && canManage,
-  });
-  const pendingItems = (itemsData?.items ?? []).filter((i) => i.status === "pending");
-  const pendingEpisodeCount = new Set(pendingItems.map((i) => i.episode_number)).size;
-
   async function updateSeason(value: number | null) {
     await mutate(
       (s) => StateLogic.updateSettings(s, "wikiSeason", value),
@@ -102,20 +89,9 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
       <p className="mb-3 text-sm text-muted-foreground">
         Your league&rsquo;s cast comes from {showLabel}&rsquo;s wiki, reviewed and approved once by an admin for the
         whole season — it arrives here on its own, and picking a season that already has one brings it with you.
-        Per-episode results (eliminations, scoring events, exiles) are yours to confirm, and show up directly on each
-        episode&rsquo;s card once the cast is in.
+        Episode results (eliminations, scoring events, exiles) are reviewed once for the whole season too, and land on
+        each episode&rsquo;s card automatically — nothing for you to confirm.
       </p>
-      {pendingItems.length > 0 && (
-        <p className="mb-3 rounded-md bg-secondary/50 px-3 py-2 text-sm">
-          <b>{pendingItems.length}</b> pending decision{pendingItems.length === 1 ? "" : "s"} across {pendingEpisodeCount}{" "}
-          episode{pendingEpisodeCount === 1 ? "" : "s"} — review them on the{" "}
-          <Link href="/episodes" className="font-semibold text-primary hover:underline">
-            Episodes
-          </Link>{" "}
-          tab.
-        </p>
-      )}
-
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1.5 text-sm">
           Wiki season number:

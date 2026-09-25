@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AdminShow, ShowSeason, WikiSeasonSyncResult, SeasonResearchResult, ResearchCastaway, ModelUsage } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
 import { plural } from "@/lib/use-show-terms";
@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { ChevronDownIcon } from "@/components/icons";
 import { confirm } from "@/lib/confirm-store";
 import { SeasonCastReview } from "./season-cast-review";
+import { SeasonDecisionsReview } from "./season-decisions-review";
 import { cn } from "cn";
 import { AI_MODELS, costOf, estimate, formatCost } from "@/lib/ai-cost";
 
@@ -21,8 +22,8 @@ import { AI_MODELS, costOf, estimate, formatCost } from "@/lib/ai-cost";
 //
 //   1. Cast      -- pull it from the wiki, review it, approve it. Approving is what puts it into
 //                   leagues, and nothing in step 2 can match a single name until it's done.
-//   2. Episodes  -- each week, pull results from the wiki and (optionally) research the episode.
-//                   Both file items onto each league's episode card for the commissioner to confirm.
+//   2. Episodes  -- each week, pull results from the wiki and (optionally) research the episode, then
+//                   review them here. Accepted results go to every league on the season on their own.
 //
 // Each step shows where it stands (not pulled / staged / approved; results through episode N;
 // researched episodes) and offers the NEXT action as its primary button. Step 2 stays locked until
@@ -134,8 +135,8 @@ export function ShowsSection() {
     <div className="mb-6 rounded-lg border border-border bg-card p-4 shadow-sm">
       <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Shows &amp; Seasons</h3>
       <p className="mb-3 text-sm text-muted-foreground">
-        For each season: <b>1.</b> pull and approve the cast, then <b>2.</b> pull episode results each week. Leagues
-        on the season get everything to confirm on their own episode cards.
+        For each season: <b>1.</b> pull and approve the cast, then <b>2.</b> pull episode results each week and review
+        them. Everything you accept reaches every league on the season automatically.
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         {(
@@ -494,6 +495,9 @@ function SeasonCard({
   // Opens itself when there's a staged cast waiting on approval: that's the one thing to do next,
   // so it shouldn't be hidden behind a button.
   const [reviewing, setReviewing] = useState(staged > 0 && !approved);
+  const pendingDecisions = season.pendingDecisions ?? 0;
+  const [reviewingResults, setReviewingResults] = useState(approved && pendingDecisions > 0);
+  const queryClient = useQueryClient();
 
   // One in-flight action and one result slot per season. A pull can take a couple of minutes and
   // its result belongs next to the season it was run for, not in the section-wide note.
@@ -516,6 +520,7 @@ function SeasonCard({
     try {
       onDone(await fn());
       await refetch();
+      await queryClient.invalidateQueries({ queryKey: ["season-decisions", season.id] });
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : "That didn't work.");
     } finally {
@@ -529,7 +534,10 @@ function SeasonCard({
       setReviewing(true);
     });
   const pullEpisodes = (force = false) =>
-    act("episodes", () => api.adminSyncSeason(season.id, "episodes", force, models.wiki), setPullResult);
+    act("episodes", () => api.adminSyncSeason(season.id, "episodes", force, models.wiki), (r) => {
+      setPullResult(r);
+      setReviewingResults(true);
+    });
   const doResearch = (force = false) => {
     const n = Number(episode);
     if (!Number.isInteger(n) || n < 1) {
@@ -538,6 +546,7 @@ function SeasonCard({
     }
     act("research", () => api.adminResearchEpisode(season.id, n, { force, model: models.research }), (r) => {
       setResearch(r);
+      setReviewingResults(true);
       setEpisode(String(n + 1));
     });
   };
@@ -622,13 +631,15 @@ function SeasonCard({
         status={
           !approved
             ? "Approve the cast first — results are matched to it by name"
-            : wikiThrough
-              ? `Wiki results through episode ${wikiThrough}`
-              : "No results pulled yet"
+            : (wikiThrough ? `Wiki results through episode ${wikiThrough}` : "No results pulled yet") +
+              (pendingDecisions ? ` · ${pendingDecisions} to review` : "")
         }
       >
         {approved && (
           <>
+            <Button variant="secondary" size="xs" title="Free" onClick={() => setReviewingResults((v) => !v)}>
+              {reviewingResults ? "Hide results" : "Review results"}
+            </Button>
             <CostHint title={`Typical cost with ${modelLabel(models.wiki)}. Free when the wiki hasn't changed since the last pull — nothing is sent to the model.`}>
               {estimate("episodes", models.wiki)} · free if unchanged
             </CostHint>
@@ -665,6 +676,8 @@ function SeasonCard({
           </span>
         </div>
       )}
+
+      {approved && reviewingResults && <SeasonDecisionsReview seasonId={season.id} onChanged={() => refetch()} />}
 
       {working && (
         <p className="mt-1.5 italic text-muted-foreground">
@@ -826,21 +839,14 @@ function PullResult({
   onForce: () => void;
   forceCost: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const failed = result.leagues.filter((l) => !l.ok);
+  const d = result.decisions;
   return (
     <div className="ml-6 mt-1.5 rounded border border-dashed border-border bg-secondary/40 p-1.5 text-[0.7rem]">
       <p>
-        {result.cached ? "Wiki unchanged since the last read — nothing new." : "Read fresh from the wiki."}{" "}
+        {result.cached ? "Wiki unchanged since the last read." : "Read fresh from the wiki."}{" "}
         <SpentNote model={result.model} usage={result.usage} cached={result.cached} />{" "}
-        {result.leagues.length === 0
-          ? "No league tracks this season yet; results are cached for when one does."
-          : `Filed to ${result.leagues.length - failed.length} of ${result.leagues.length} league${result.leagues.length === 1 ? "" : "s"} for review on their episode cards.`}
-        {result.leagues.length > 0 && (
-          <button className="ml-1 underline" onClick={() => setOpen((v) => !v)}>
-            {open ? "hide details" : "details"}
-          </button>
-        )}
+        {d && (d.inserted ? `${d.inserted} new result${d.inserted === 1 ? "" : "s"} to review below.` : "Nothing new to review.")}
+        {d?.withdrawn ? ` ${d.withdrawn} withdrawn (no longer on the wiki).` : ""}
         {/* The only way past the revision-id cache: offered only when the cache was hit, the one case
             where pulling again would otherwise do nothing. */}
         {result.cached && (
@@ -854,22 +860,16 @@ function PullResult({
           </span>
         )}
       </p>
-      {failed.map((l) => (
-        <p key={l.id} className="mt-0.5 text-destructive">
-          <b>{l.name}:</b> {l.error}
+      {d?.unmatched?.length ? (
+        <p className="mt-0.5 text-destructive">
+          Couldn&rsquo;t match to the cast, so dropped: {d.unmatched.join(", ")}. Fix the name in the cast, then pull again.
         </p>
-      ))}
-      {open && (
-        <ul className="mt-0.5 flex flex-col gap-0.5">
-          {result.leagues
-            .filter((l) => l.ok)
-            .map((l) => (
-              <li key={l.id}>
-                <b>{l.name}:</b> {l.summary}
-              </li>
-            ))}
-        </ul>
-      )}
+      ) : null}
+      {d?.dropped?.length ? (
+        <p className="mt-0.5 text-muted-foreground">
+          Thrown out as impossible: {d.dropped.map((x) => `${x.name} (ep ${x.episode}: ${x.why})`).join("; ")}.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -896,8 +896,7 @@ function ResearchResult({
   const { payload, provenance, counts, problems } = research;
   const noted = payload.castaways.filter((c) => notesFor(c).length > 0);
   const quiet = payload.castaways.filter((c) => notesFor(c).length === 0);
-  const filed = (research.leagues ?? []).reduce((n, l) => n + (l.filed ?? 0) + (l.updated ?? 0), 0);
-  const held = (research.leagues ?? []).filter((l) => l.held).length;
+  const newItems = research.decisions?.inserted ?? 0;
 
   return (
     <div className="ml-6 mt-1.5 rounded border border-dashed border-border bg-secondary/40 p-1.5 text-[0.7rem]">
@@ -907,8 +906,7 @@ function ResearchResult({
           {payload.episodeTitle ? `: ${payload.episodeTitle}` : ""}
         </b>{" "}
         — {research.cached ? "already researched, reused" : "researched"}. {noted.length} of {counts.castaways} had
-        something notable; {filed} item{filed === 1 ? "" : "s"} filed for review
-        {held ? ` (${held} catching-up league${held === 1 ? "" : "s"} will get them on reveal)` : ""}.{" "}
+        something notable; {newItems ? `${newItems} new result${newItems === 1 ? "" : "s"} to review below` : "nothing new to review"}.{" "}
         <SpentNote model={provenance.model} usage={provenance.usage} cached={research.cached} />
         <button className="ml-1 underline" onClick={() => setOpen((v) => !v)}>
           {open ? "hide details" : "details"}

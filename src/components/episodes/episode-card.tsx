@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Episode, LeagueState, WikiProposalItem, ResearchProposalItem } from "@/lib/game/types";
+import type { Episode, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
@@ -9,7 +9,6 @@ import { api } from "@/lib/api";
 import { EpisodeBetRow } from "./episode-bet-row";
 import { EpisodePicksSection } from "./episode-pick-row";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
-import { WikiOutcomeSection } from "./wiki-outcome-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -21,27 +20,8 @@ import { useShowTerms } from "@/lib/use-show-terms";
 // Port of renderEpisodeCard() (public/app.js). `<details open>`'s per-episode expand/collapse
 // state (the live app's `openEpisodes` global Set) becomes this component's own `open` state --
 // same idea, one instance per card instead of a shared collection keyed by id.
-export function EpisodeCard({
-  ep,
-  state,
-  defaultOpen,
-  wikiItems,
-  researchItems,
-  onWikiItemsChanged,
-}: {
-  ep: Episode;
-  state: LeagueState;
-  defaultOpen: boolean;
-  /** This episode's own pending wiki-connector decisions -- already filtered by episodes-tab.tsx. */
-  wikiItems?: WikiProposalItem[];
-  /** This episode's own pending research-connector decisions -- same filtering, other connector. */
-  researchItems?: ResearchProposalItem[];
-  /** Fired after EITHER connector's item resolves -- one refetch covers both lists. */
-  onWikiItemsChanged?: () => void;
-}) {
+export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: LeagueState; defaultOpen: boolean }) {
   const terms = useShowTerms();
-  // Decided items stay listed (tinted) so a decision can be changed; only undecided ones need a badge.
-  const pendingCount = [...(wikiItems || []), ...(researchItems || [])].filter((i) => i.status === "pending").length;
   const [open, setOpen] = useState(defaultOpen);
   const [editingEp, setEditingEp] = useState(false);
   const [elimCastawayId, setElimCastawayId] = useState("");
@@ -125,7 +105,7 @@ export function EpisodeCard({
             {ep.title ? <span className="font-normal"> &ldquo;{ep.title}&rdquo;</span> : null} — {summary}
           </div>
           {ep.airDate && <div className="mt-0.5 text-xs text-muted-foreground">Aired {ep.airDate}</div>}
-          {(ep.postMerge || (ep.bets || []).length > 0 || pendingCount > 0) && (
+          {(ep.postMerge || (ep.bets || []).length > 0) && (
             <div className="mt-1 flex gap-1.5">
               {ep.postMerge && (
                 <span className="rounded bg-[#5089c4] px-1.5 py-0.5 text-[0.65rem] font-bold text-white">Post-Merge</span>
@@ -136,14 +116,6 @@ export function EpisodeCard({
                   title={`${ep.bets.length} side bet${ep.bets.length === 1 ? "" : "s"} logged`}
                 >
                   Bets
-                </span>
-              )}
-              {pendingCount > 0 && (
-                <span
-                  className="rounded bg-[#c99a3e] px-1.5 py-0.5 text-[0.65rem] font-bold text-white"
-                  title="Pending decisions from the wiki and/or research connector, awaiting review"
-                >
-                  {pendingCount} to reveal
                 </span>
               )}
             </div>
@@ -254,16 +226,6 @@ export function EpisodeCard({
               </div>
             )}
           </div>
-
-          {canManage && (wikiItems || []).length + (researchItems || []).length > 0 && (
-            <WikiOutcomeSection
-              items={wikiItems || []}
-              researchItems={researchItems || []}
-              state={state}
-              ep={ep}
-              onResolved={() => onWikiItemsChanged?.()}
-            />
-          )}
 
           {StateLogic.getLeagueType(state).hasWeeklyPicks && <EpisodePicksSection ep={ep} state={state} />}
 

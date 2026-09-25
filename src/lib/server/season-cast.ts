@@ -62,7 +62,7 @@ export function tribesDue(state: LeagueState, tribesFromEpisode: number | null |
 
 /**
  * Hands a league its held starting tribes if they've just come due -- called inside the league lock
- * by every route that records an episode's results (accepting a connector item, logging an
+ * by every route that records an episode's results (applying accepted season decisions, logging an
  * elimination or scoring event by hand, revealing an episode), since any of them can be the moment a
  * league reaches the held episode. Additive and idempotent: a castaway who already has a tribe keeps
  * it, so calling this on every result write is harmless. Returns the names newly linked.
@@ -160,7 +160,7 @@ export async function approvedCastForLeague(
 /**
  * Pushes a season's approved cast into every league tracking it. One league failing (a lock
  * timeout, a league deleted mid-loop) is reported against that league and never denies the others,
- * same rule the connector's own fan-out follows.
+ * same rule syncSeasonLeagues follows.
  */
 export async function applyApprovedCastToLeagues(
   showSlug: string,

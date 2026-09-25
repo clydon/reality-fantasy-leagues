@@ -215,6 +215,8 @@ export interface ShowSeason {
   wikiEpisodesThrough?: number | null;
   /** Episode numbers that have a stored research row. */
   researchedEpisodes?: number[];
+  /** Episode results awaiting an admin decision (db/migrations/0019). */
+  pendingDecisions?: number;
 }
 
 // Admin view of a show: everything, including archived ones and how many leagues reference it.
@@ -262,6 +264,8 @@ export interface WikiSeasonSyncResult {
   leagues: { id: string; name: string; ok: boolean; summary?: string; error?: string }[];
   /** Cast pulls only: what staging did, for the review panel to report. */
   staged?: { filed: boolean; staged: number; total: number; summary: string } | null;
+  /** Episode pulls only: what was staged as season decisions for review. */
+  decisions?: DecisionStageResult;
   /** The model that read the wiki; null on a cache hit (nothing was called). */
   model?: string | null;
   /** Tokens that read cost; null on a cache hit. */
@@ -361,9 +365,70 @@ export interface SeasonResearchResult {
   provenance: EpisodeResearchProvenance;
   problems: string[];
   counts: { castaways: number; unknowns: number; lowConfidence: number; sourced: number };
-  /** One entry per league tracking this season -- what this run's fan-out staged for each, filtered
-   * by that league's own reveal gate. Empty on a --dry run. */
-  leagues: { id: string; name: string; ok: boolean; held?: boolean; filed?: number; updated?: number; error?: string }[];
+  /** What this run staged as season decisions for review. */
+  decisions: DecisionStageResult;
+}
+
+// ---------- season decisions (db/migrations/0019) ----------
+// Episode results decided once per season by an admin, and applied to every league automatically.
+
+/** What one read (a wiki pull or a research run) staged for review. */
+export interface DecisionStageResult {
+  /** New rows awaiting a decision. */
+  inserted: number;
+  /** Existing rows this read also reported (pending ones refreshed; decided ones left decided). */
+  updated: number;
+  /** Pending rows this source proposed before but no longer does, so removed. */
+  withdrawn: number;
+  total?: number;
+  summary?: string;
+  /** Names the source used that the season's cast doesn't have; those results were dropped. */
+  unmatched?: string[];
+  dropped?: { name: string; episode: number; why: string }[];
+  dry?: boolean;
+}
+
+export type DecisionStatus = "pending" | "accepted" | "rejected";
+
+export interface SeasonDecision {
+  id: string;
+  episode_number: number;
+  post_merge: boolean;
+  kind: "elimination" | "event" | "exiled";
+  castaway_name: string;
+  method: string;
+  event_type: string;
+  confidence: "high" | "medium" | "low";
+  from_wiki: boolean;
+  from_research: boolean;
+  sources: string[];
+  status: DecisionStatus;
+  /** What was actually committed when an admin corrected it before accepting. */
+  applied: { castawayName?: string; method?: string; eventType?: string } | null;
+  decided_at: string | null;
+  /** Display name of whoever decided it. */
+  decided_by_name: string | null;
+  created_at: string;
+  /** How many leagues this accepted decision has been applied to so far. */
+  applied_leagues: number;
+}
+
+/** One league's result from applying the season's accepted decisions. */
+export interface LeagueDecisionSync {
+  leagueId: string;
+  leagueName: string;
+  applied: number;
+  undone: number;
+  /** Accepted decisions that couldn't be applied here (a name this league's cast lacks). */
+  skipped: { name: string; why: string }[];
+  error?: string;
+}
+
+/** GET /api/admin/seasons/:id/decisions */
+export interface SeasonDecisionsResponse {
+  decisions: SeasonDecision[];
+  cast: { name: string; tribeName: string | null; photoUrl: string | null }[];
+  leagueCount: number;
 }
 
 // Commissioner view of a show (GET /api/shows): non-archived only, no admin-only fields.
@@ -455,56 +520,6 @@ export interface WikiProposal {
     castSection?: string;
     sections?: string[];
   };
-  created_at: string;
-}
-
-/**
- * One pending decision from the wiki connector's per-episode fan-out (db/migrations/0009) -- an
- * elimination, a scoring event, or an exile, each accepted/rejected/edited on its own rather than
- * as part of a whole-payload proposal like WikiProposal above. Rendered in the Episode Card's
- * "Reveal Outcome" section, grouped by episode_number.
- */
-export interface WikiProposalItem {
-  id: string;
-  episode_number: number;
-  post_merge: boolean;
-  kind: "elimination" | "event" | "exiled";
-  castaway_name: string;
-  /** Elimination only (an EXIT_METHODS value); '' for other kinds. */
-  method: string;
-  /** Event only (an EVENT_TYPES value); '' for other kinds. */
-  event_type: string;
-  /** Event only, meaningless for the other two kinds (which are always read off a stated column). */
-  confidence: "high" | "low";
-  /** Decided rows stay listed (tinted on the episode card) so a decision can be changed. */
-  status: "pending" | "accepted" | "rejected";
-  /** What was actually committed when the commissioner corrected it before accepting; null otherwise. */
-  applied: { castawayName?: string; method?: string; eventType?: string } | null;
-  created_at: string;
-}
-
-/**
- * One pending decision from the RESEARCH connector's per-episode fan-out
- * (db/migrations/0015_episode_research_items.sql) -- the research counterpart to WikiProposalItem
- * above, rendered alongside it in the same "Reveal Outcome" section grouped by episode_number.
- *
- * Deliberately its own shape, not WikiProposalItem reused: confidence is three-valued here (a real
- * "unknown" the wiki source never has to express), there's no elimination kind (research doesn't
- * propose eliminations -- see db/episode-research.js's fan-out comment), and every item carries the
- * URLs behind it, because a search has no revision id for a reviewer to check against instead.
- */
-export interface ResearchProposalItem {
-  id: string;
-  episode_number: number;
-  kind: "event" | "exiled";
-  castaway_name: string;
-  /** Event only (an ACTIVE_ROSTER_EVENTS id); '' for exiled. */
-  event_type: string;
-  confidence: "high" | "medium" | "low";
-  /** URLs the research actually cited for this claim. Empty only if research support was thin. */
-  sources: string[];
-  status: "pending" | "accepted" | "rejected";
-  applied: { castawayName?: string; eventType?: string } | null;
   created_at: string;
 }
 

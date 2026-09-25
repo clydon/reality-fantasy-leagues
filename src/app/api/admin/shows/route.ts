@@ -28,6 +28,7 @@ export const GET = apiRoute(async (req) => {
                       FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e
                      WHERE we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
                   ),
+                  'pendingDecisions', (SELECT count(*)::int FROM season_decisions d WHERE d.season_id = ss.id AND d.status = 'pending'),
                   'researchedEpisodes', COALESCE((
                     SELECT json_agg(er.episode_number ORDER BY er.episode_number)
                       FROM episode_research er

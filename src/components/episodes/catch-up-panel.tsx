@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 
 // Catch-up mode's control surface (StateLogic.RevealLogic, docs/PLAN-spoiler-free-catch-up.md).
 //
-// A league that formed mid-season plays from the starting line: the connector has read the whole
-// season, but this league only sees what the commissioner has revealed.
+// A league that formed mid-season plays from the starting line: results may be decided for the
+// whole season already, but this league only sees what the commissioner has revealed.
 //
 // One action per episode: REVEAL. The next episode always exists already (the server keeps one
 // ready -- EpisodeLogic.ensureNextEpisode), so bets, picks and lineups go in on its card before
@@ -20,25 +20,18 @@ import { Button } from "@/components/ui/button";
 // What the panel never says is how much MORE the wiki knows. "3 more episodes are ready" is itself
 // the spoiler this feature exists to prevent: it tells a league how far the season has run, and a
 // short remaining count says the finale is close. So it only ever talks about the next episode.
-export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onRevealed: () => void }) {
+export function CatchUpPanel({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mode = useLeagueStore((s) => s.mode);
   const setState = useLeagueStore((s) => s.setState);
   const canManage = useCanManage();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
-  // Kept apart from `note`: names the wiki used that this league's cast doesn't have are neither a
-  // success nor a failure -- the reveal worked, and those particular results were skipped.
-  const [unmatched, setUnmatched] = useState<string[]>([]);
   // Castaways sorted into their starting tribe by this reveal, when the season held the division
   // back until the premiere. Worth saying out loud -- it's a change to the cast the reveal made.
   const [tribed, setTribed] = useState<string[]>([]);
-  // The two ways a castaway can end up with nothing to review: a result the validation refused, and
-  // a castaway the wiki said nothing about. Both used to be invisible -- the first a console line,
-  // the second nothing at all -- which is how someone can be missing from the list entirely without
-  // anything looking wrong.
-  const [dropped, setDropped] = useState<{ name: string; why: string }[]>([]);
-  const [noResultFor, setNoResultFor] = useState<string[]>([]);
+  // Accepted results that name someone this league doesn't have -- the reveal worked, those didn't land.
+  const [skipped, setSkipped] = useState<{ name: string; why: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   if (!StateLogic.RevealLogic.isCatchingUp(state)) return null;
@@ -51,10 +44,8 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
   async function run(fn: () => Promise<void>) {
     setBusy(true);
     setNote(null);
-    setUnmatched([]);
     setTribed([]);
-    setDropped([]);
-    setNoResultFor([]);
+    setSkipped([]);
     setError(null);
     try {
       await fn();
@@ -69,25 +60,19 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
     run(async () => {
       const res = await api.revealNextEpisode(leagueId!);
       setState(res.state);
-      // `note` from the server is always a reason nothing landed (the wiki hasn't been read that far
-      // yet, no cast to match against). It used to render in the same green as success, which is how
-      // a validation failure ended up looking like a result.
-      setNote(
-        res.note
-          ? { text: res.note, ok: false }
-          : {
-              text:
-                res.written > 0
-                  ? `Episode ${res.revealedThroughEpisode} revealed — ${res.written} result${res.written === 1 ? " is" : "s are"} on that episode's card, waiting for you to confirm.`
-                  : `Episode ${res.revealedThroughEpisode} revealed — the wiki had no results for it.`,
-              ok: true,
-            }
-      );
-      setUnmatched(res.unmatched);
+      const n = res.revealedThroughEpisode;
+      setNote({
+        text:
+          res.applied > 0
+            ? `Episode ${n} revealed — ${res.applied} result${res.applied === 1 ? "" : "s"} applied.` +
+              (res.awaitingReview ? ` ${res.awaitingReview} more still being reviewed; they'll appear on their own.` : "")
+            : res.awaitingReview
+              ? `Episode ${n} revealed — its results are still being reviewed and will appear on their own once they are.`
+              : `Episode ${n} revealed — no results have been recorded for it yet; they'll appear on their own once they are.`,
+        ok: true,
+      });
       setTribed(res.tribed);
-      setDropped(res.dropped);
-      setNoResultFor(res.noResultFor);
-      onRevealed();
+      setSkipped(res.skipped);
     });
 
   return (
@@ -114,7 +99,7 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
       )}
       {canAct && (
         <p className="mt-2 text-xs text-muted-foreground">
-          Revealing makes that episode&rsquo;s results reviewable — nothing is scored until you confirm each one.
+          Revealing applies that episode&rsquo;s results, as reviewed once for the whole season.
         </p>
       )}
       {note && (
@@ -126,33 +111,10 @@ export function CatchUpPanel({ state, onRevealed }: { state: LeagueState; onReve
           now sorted into their tribes.
         </p>
       )}
-      {dropped.length > 0 && (
-        <div className="mt-1 text-xs text-muted-foreground">
-          <b>{dropped.length}</b> result{dropped.length === 1 ? " was" : "s were"} thrown out as impossible, so{" "}
-          {dropped.length === 1 ? "that castaway has" : "those castaways have"} nothing to review:
-          <ul className="mt-0.5 list-inside list-disc">
-            {dropped.map((d) => (
-              <li key={`${d.name}-${d.why}`}>
-                <b>{d.name}</b> — {d.why}
-              </li>
-            ))}
-          </ul>
-          Add anything real by hand on the episode card below.
-        </div>
-      )}
-      {noResultFor.length > 0 && (
+      {skipped.length > 0 && (
         <p className="mt-1 text-xs text-muted-foreground">
-          The wiki reported nothing this episode for <b>{noResultFor.length}</b>{" "}
-          {noResultFor.length === 1 ? "castaway" : "castaways"}: {noResultFor.join(", ")}. That&rsquo;s normal for
-          anyone who went to Tribal and took votes — but if one of them had a notable episode, the extraction missed it
-          and it needs adding by hand.
-        </p>
-      )}
-      {unmatched.length > 0 && (
-        <p className="mt-1 text-xs text-muted-foreground">
-          <b>{unmatched.length}</b> result{unmatched.length === 1 ? "" : "s"} named someone this league doesn&rsquo;t
-          have and {unmatched.length === 1 ? "was" : "were"} skipped: {unmatched.join(", ")}. Add or rename them in
-          League Settings and reveal again, or log those results by hand.
+          <b>{skipped.length}</b> result{skipped.length === 1 ? "" : "s"} couldn&rsquo;t be applied:{" "}
+          {skipped.map((x) => `${x.name} (${x.why})`).join(", ")}. Fix the name in League Settings, or log it by hand.
         </p>
       )}
       {error && <p className="mt-2 text-sm font-semibold text-destructive">{error}</p>}

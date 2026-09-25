@@ -7,14 +7,11 @@ import { runForSeason, WIKI_MODELS } from "@db/wiki-sync.js";
 // On-demand wiki pull for one catalog season -- what the "Pull cast" / "Pull episodes" buttons on
 // each season row in Admin > Shows & Seasons call. Super-admin only, like the rest of the catalog.
 //
-// Scoped to a SEASON rather than a league because that's the unit the expensive half of the work
-// already has (db/wiki-sync.js reads a season once and shares the extraction between every league
-// playing it), and because the row an admin is looking at here IS a season. Every league tracking
-// it gets the fan-out; the response reports each one separately.
+// Scoped to a SEASON because that's the unit the work has: the wiki is read once for everyone
+// playing it, and the row an admin is looking at here IS a season.
 //
-// Nothing is applied to any league by this. Same contract as the nightly job: a cast pull files a
-// proposal for the commissioner to confirm in League Settings, an episodes pull files per-decision
-// items on the Episodes tab.
+// Nothing is applied to any league by this. Same contract as the nightly job: a cast pull stages the
+// cast for approval, an episodes pull stages season decisions for review (db/migrations/0019).
 //
 // The connector reads the wiki and then calls Claude, so this is a slow route by nature -- a cast
 // pull is a few seconds, a full season of episodes can be a couple of minutes. maxDuration is set to

@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, WikiProposalItem, ResearchProposalItem, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync } from "@/lib/game/types";
 
 export class ApiError extends Error {
   status: number;
@@ -353,58 +353,24 @@ export const api = {
   rejectWikiProposal: (leagueId: string, id: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "DELETE" }),
 
-  // Catch-up mode (StateLogic.RevealLogic): raise this league's reveal pointer by one episode and
-  // file that episode's connector decisions from the season's cached extraction. `filed` is the
-  // fan-out's own summary, `note` the reason nothing was filed (nothing cached yet, no cast yet).
+  // Catch-up mode (StateLogic.RevealLogic): raise this league's reveal pointer by one episode, which
+  // applies that episode's admin-accepted results (db/migrations/0019).
   revealNextEpisode: (leagueId: string) =>
     localFetch<{
       state: LeagueState;
       revealedThroughEpisode: number;
-      filed: string | null;
-      /** Pending decisions written for the newly revealed episode. */
-      written: number;
-      /** Names in the wiki's results that this league's cast doesn't have; those were skipped. */
-      unmatched: string[];
-      /** Results the validation refused, with the reason — each one is a castaway you won't see. */
-      dropped: { name: string; why: string }[];
-      /** Still-active castaways the wiki reported nothing about for this episode. */
-      noResultFor: string[];
+      /** Accepted results applied to this league by the reveal. */
+      applied: number;
+      /** Accepted results that couldn't be applied here (a name this league's cast lacks). */
+      skipped: { name: string; why: string }[];
+      /** Results for this episode the admin hasn't decided yet; they land on their own once decided. */
+      awaitingReview: number;
       /** Castaways sorted into their starting tribe by this reveal, if the season held them back. */
       tribed: string[];
-      note: string | null;
     }>(
       `/api/leagues/${leagueId}/reveal-next`,
       { method: "POST" }
     ),
-
-  // Per-item review (0009's wiki_proposal_items) -- the per-episode "Reveal Outcome" panel on the
-  // Episode Card. One elimination/event/exile at a time, instead of a whole proposal payload.
-  listWikiItems: (leagueId: string) => localFetch<{ items: WikiProposalItem[] }>(`/api/leagues/${leagueId}/wiki-items`),
-  // Body fields are corrections -- omit one to accept it exactly as extracted. `applied` is null
-  // unless something was actually corrected (see the route's own comment on why that distinction
-  // is kept rather than always echoing back what was committed).
-  acceptWikiItem: (
-    leagueId: string,
-    id: string,
-    edits?: { castawayName?: string; method?: string; eventType?: string }
-  ) =>
-    localFetch<{ state: LeagueState; applied: { castawayName: string; method?: string; eventType?: string } | null }>(
-      `/api/leagues/${leagueId}/wiki-items/${id}/accept`,
-      { method: "POST", body: JSON.stringify(edits || {}) }
-    ),
-  rejectWikiItem: (leagueId: string, id: string) =>
-    localFetch<{ ok: true; state: LeagueState }>(`/api/leagues/${leagueId}/wiki-items/${id}/reject`, { method: "POST" }),
-
-  // Per-item review for the RESEARCH connector (0015's episode_research_items) -- the research
-  // counterpart to the three calls above, same shapes, rendered in the same panel.
-  listResearchItems: (leagueId: string) => localFetch<{ items: ResearchProposalItem[] }>(`/api/leagues/${leagueId}/research-items`),
-  acceptResearchItem: (leagueId: string, id: string, edits?: { castawayName?: string; eventType?: string }) =>
-    localFetch<{ state: LeagueState; applied: { castawayName: string; eventType?: string } | null }>(
-      `/api/leagues/${leagueId}/research-items/${id}/accept`,
-      { method: "POST", body: JSON.stringify(edits || {}) }
-    ),
-  rejectResearchItem: (leagueId: string, id: string) =>
-    localFetch<{ ok: true; state: LeagueState }>(`/api/leagues/${leagueId}/research-items/${id}/reject`, { method: "POST" }),
 
   // Show/season catalog. The plain /api/shows read is commissioner-facing (the Show and Season
   // pickers in League Settings); everything under /api/admin/* is super-admin catalog management.
@@ -490,6 +456,25 @@ export const api = {
    * paid, so the UI asks for one episode at a time; `force` re-researches an episode that already
    * has a cached answer.
    */
+  // Season decisions (db/migrations/0019): every episode result for a season, decided once by an
+  // admin. Deciding syncs every league on the season, and the response says what each one got.
+  adminListDecisions: (seasonId: string) => localFetch<SeasonDecisionsResponse>(`/api/admin/seasons/${seasonId}/decisions`),
+  adminDecide: (
+    seasonId: string,
+    decisionId: string,
+    action: "accept" | "reject",
+    edits?: { castawayName?: string; method?: string; eventType?: string }
+  ) =>
+    localFetch<{ ok: true; leagues: LeagueDecisionSync[] }>(`/api/admin/seasons/${seasonId}/decisions/${decisionId}`, {
+      method: "POST",
+      body: JSON.stringify({ action, ...(edits || {}) }),
+    }),
+  adminAcceptEpisode: (seasonId: string, episode: number) =>
+    localFetch<{ ok: true; accepted: number; leagues: LeagueDecisionSync[] }>(
+      `/api/admin/seasons/${seasonId}/decisions/accept-episode`,
+      { method: "POST", body: JSON.stringify({ episode }) }
+    ),
+
   adminResearchEpisode: (id: string, episode: number, opts: { force?: boolean; provider?: string; model?: string } = {}) =>
     localFetch<SeasonResearchResult>(`/api/admin/seasons/${id}/research`, {
       method: "POST",

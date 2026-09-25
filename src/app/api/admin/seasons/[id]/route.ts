@@ -114,8 +114,8 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<RoutePa
   // Those tables are keyed by (show, season number) rather than by this row's id, so the season_cast
   // cascade alone would leave them behind -- and a re-added season would then silently inherit a
   // stale cached extraction, old research, and pending review items for results nobody asked for
-  // again. Pending/decided items go with their source rows (wiki_proposal_items and
-  // episode_research_items cascade from wiki_extractions and episode_research).
+  // again. Season decisions go with the season row (season_decisions cascades from show_seasons);
+  // results already applied to leagues stay in those leagues.
   const client = await pool.connect();
   try {
     await client.query("BEGIN");

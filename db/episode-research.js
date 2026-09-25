@@ -45,6 +45,7 @@
 require("dotenv").config({ path: ".env.local", quiet: true });
 const { Pool } = require("pg");
 const Anthropic = require("@anthropic-ai/sdk");
+const decisions = require("./season-decisions.js");
 const { zodOutputFormat } = require("@anthropic-ai/sdk/helpers/zod");
 const { z } = require("zod");
 const { termsFor } = require("./wiki-sync.js");
@@ -1099,14 +1100,11 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
   return { id: rows[0].id, payload, provenance, cached: false };
 }
 
-// ---------- fan-out: turning answered checklists into per-league review items ----------
+// ---------- staging: turning answered checklists into season decisions ----------
 //
-// Mirrors db/wiki-sync.js's fanOutEpisodes / fanOutCachedEpisodes as closely as the two connectors'
-// different trust levels allow: same reveal gate, same "decided rows are permanent, only pending
-// ones move" upsert (RETURNING xmax=0 to tell inserted from updated), same deferred name resolution
-// (a name is resolved to a castaway at ACCEPT time, not here -- see 0015's comment on why). What's
-// different is the shape of what gets filed, because episode_research_items is its own table -- see
-// 0015 for why that's a table, not a widened wiki_proposal_items.
+// Research stages into the same season_decisions table as the wiki connector (db/migrations/0019),
+// for an admin to decide once for every league. A fact both sources report lands on one row, marked
+// as coming from both.
 
 // One "yes" answer -> one item CANDIDATE. Only 'yes' ever produces one: 'no' is a fact worth
 // recording but not a scoring event, and 'unknown' must never silently become one -- collapsing that
@@ -1151,110 +1149,80 @@ function candidatesFor(payload) {
   return [...byKey.values()];
 }
 
-// One league's fan-out. No name resolution and no league-state write here -- both wait for accept,
-// same reasoning as the wiki connector's items (0015's comment on deferred resolution).
-async function stageResearchItemsForLeague(pool, league, researchId, episodeNumber, payload, opts = {}) {
-  const state = league.state || {};
-  const gate = StateLogic.RevealLogic.revealedThrough(state);
-  if (gate !== null && episodeNumber > gate) {
-    // Held, not dropped: fanOutCachedResearch re-checks this league the moment it reveals far
-    // enough, the same way fanOutCachedEpisodes does for the wiki connector.
-    return { id: league.id, name: league.name, ok: true, held: true, filed: 0, updated: 0 };
-  }
-
-  const candidates = candidatesFor(payload);
-  if (!candidates.length) return { id: league.id, name: league.name, ok: true, held: false, filed: 0, updated: 0 };
-  if (opts.dry) return { id: league.id, name: league.name, ok: true, held: false, filed: candidates.length, updated: 0, dry: true };
-
-  let filed = 0;
-  let updated = 0;
-  for (const item of candidates) {
-    const { rows } = await pool.query(
-      `INSERT INTO episode_research_items
-         (league_id, research_id, episode_number, kind, castaway_name, event_type, confidence, sources)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       ON CONFLICT (league_id, episode_number, castaway_name, kind, event_type)
-       DO UPDATE SET research_id = EXCLUDED.research_id,
-                     confidence = EXCLUDED.confidence,
-                     sources = EXCLUDED.sources,
-                     created_at = now()
-       WHERE episode_research_items.status = 'pending'
-       RETURNING (xmax = 0) AS inserted`,
-      [league.id, researchId, episodeNumber, item.kind, item.castawayName, item.eventType, item.confidence, item.sources]
-    );
-    if (rows.length && rows[0].inserted) filed++;
-    else if (rows.length) updated++;
-  }
-  return { id: league.id, name: league.name, ok: true, held: false, filed, updated };
-}
-
-// Every league tracking this season, one query -- same shape as runForSeason's own lookup in
-// db/wiki-sync.js, compared as text for the same reason: wikiSeason is a JSON number, so a single
-// non-numeric value in one league's settings must not error out the rest.
-async function leaguesOnSeason(pool, showSlug, season) {
-  const { rows } = await pool.query(
-    `SELECT id, name, state FROM leagues
-      WHERE state->'settings'->>'showId' = $1
-        AND state->'settings'->>'wikiSeason' = $2
-      ORDER BY name`,
-    [showSlug, String(season)]
-  );
-  return rows;
-}
-
 /**
- * Reads one episode's cached research and re-stages it for a single league -- the research
- * connector's analogue of fanOutCachedEpisodes. What a reveal runs after raising a catching-up
- * league's pointer: the items a research run already produced but this league was gated from seeing
- * become visible the moment it reveals far enough, without paying for the search again. Resolves to
- * null when nothing has been researched for that episode yet, which is not an error.
+ * Stages one research run's "yes" answers as pending season decisions. Names are the season cast's
+ * own (research is asked about exactly those names), mapped through the same forgiving match anyway
+ * in case the model reworded one. Post-merge isn't something research asks about, so it's borrowed
+ * from whatever the wiki already staged for that episode.
  */
-async function fanOutCachedResearch(pool, league, episodeNumber) {
-  const settings = (league.state && league.state.settings) || {};
-  const showSlug = settings.showId;
-  const season = settings.wikiSeason;
-  if (!showSlug || !season) return null;
-  const { rows } = await pool.query(
-    `SELECT er.id, er.payload FROM episode_research er
-       JOIN shows s ON s.id = er.show_id
-      WHERE s.slug = $1 AND er.season_number = $2 AND er.episode_number = $3`,
-    [showSlug, Number(season), episodeNumber]
+async function stageResearchDecisions(pool, run, opts = {}) {
+  const seasonId = run.seasonId || (await decisions.seasonIdFor(pool, run.showId, run.season));
+  if (!seasonId) throw new Error(`${run.showSlug} season ${run.season} isn't in the catalog.`);
+  const castState = await decisions.seasonCastState(pool, seasonId);
+  const { rows: merge } = await pool.query(
+    "SELECT bool_or(post_merge) AS post_merge FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND from_wiki",
+    [seasonId, run.episodeNumber]
   );
-  if (!rows.length) return null;
-  return stageResearchItemsForLeague(pool, league, rows[0].id, episodeNumber, rows[0].payload);
+  const postMerge = !!(merge[0] && merge[0].post_merge);
+  const items = candidatesFor(run.payload).map((c) => ({
+    episode: run.episodeNumber,
+    postMerge,
+    kind: c.kind,
+    name: decisions.canonicalName(castState, c.castawayName),
+    method: "",
+    eventType: c.eventType,
+    confidence: c.confidence,
+    sources: c.sources,
+  }));
+  if (opts.dry || !run.id) return { inserted: 0, updated: 0, withdrawn: 0, total: items.length, dry: true };
+  const r = await decisions.stageDecisions(pool, seasonId, items, "research", run.id, { episode: run.episodeNumber });
+  return { ...r, total: items.length };
+}
+
+/** Re-stages every episode already researched for a season, from the stored answers -- no search,
+ * no model call. The research counterpart of wiki-sync's stageCachedSeasonEpisodes. */
+async function stageCachedSeasonResearch(pool, seasonId) {
+  const { rows } = await pool.query(
+    `SELECT er.id, er.episode_number, er.payload, s.id AS show_id, s.slug, ss.season_number
+       FROM show_seasons ss
+       JOIN shows s ON s.id = ss.show_id
+       JOIN episode_research er ON er.show_id = s.id AND er.season_number = ss.season_number
+      WHERE ss.id = $1
+      ORDER BY er.episode_number`,
+    [seasonId]
+  );
+  let inserted = 0;
+  for (const r of rows) {
+    const out = await stageResearchDecisions(pool, {
+      id: r.id,
+      seasonId,
+      showId: r.show_id,
+      showSlug: r.slug,
+      season: r.season_number,
+      episodeNumber: r.episode_number,
+      payload: r.payload,
+    });
+    inserted += out.inserted;
+  }
+  return { episodes: rows.length, inserted };
 }
 
 // ---------- the run ----------
-/** Admin > Shows & Seasons: research one episode of one catalogued season. Fans the answered
- * checklist out to every league tracking the season, gated by each league's reveal pointer -- the
- * same shape as a wiki episodes pull, so a commissioner reviews research items on the same episode
- * card as everything else. */
+/** Admin > Shows & Seasons: research one episode of one catalogued season, and stage the answered
+ * checklist as season decisions for the admin to review alongside the wiki's -- the same table and
+ * the same review, so nothing reaches a league until an admin accepts it. */
 async function researchSeasonEpisode(pool, showSlug, season, episodeNumber, opts = {}) {
   requireEpisodeNumber(episodeNumber);
   const result = await runFor(pool, await resolveSeasonResearchContext(pool, showSlug, season, episodeNumber), opts);
-  if (opts.dry) return { ...result, leagues: [] };
-  const leagues = await leaguesOnSeason(pool, showSlug, season);
-  const fanOut = [];
-  for (const league of leagues) {
-    try {
-      fanOut.push(await stageResearchItemsForLeague(pool, league, result.id, episodeNumber, result.payload, opts));
-    } catch (e) {
-      // One league's failure (a corrupt settings blob) must not deny the others a result they'd
-      // have got fine -- same rule wiki-sync.js's runForSeason follows.
-      fanOut.push({ id: league.id, name: league.name, ok: false, error: e instanceof Error ? e.message : String(e) });
-    }
-  }
-  return { ...result, leagues: fanOut };
+  return { ...result, decisions: await stageResearchDecisions(pool, result, opts) };
 }
 
-/** The CLI's way in: a league id, which is what a developer has to hand. Stages items to that one
- * league only -- there's no season-wide fan-out to do when the caller already named a single league. */
+/** The CLI's way in: a league id, which is what a developer has to hand -- it names the season. The
+ * answers are staged for the whole season, like the admin path. */
 async function researchEpisode(pool, leagueId, episodeNumber, opts = {}) {
   requireEpisodeNumber(episodeNumber);
   const result = await runFor(pool, await resolveResearchContext(pool, leagueId, episodeNumber), opts);
-  if (opts.dry) return { ...result, leagues: [] };
-  const staged = await stageResearchItemsForLeague(pool, result.league, result.id, episodeNumber, result.payload, opts);
-  return { ...result, leagues: [staged] };
+  return { ...result, decisions: await stageResearchDecisions(pool, result, opts) };
 }
 
 function requireEpisodeNumber(episodeNumber) {
@@ -1271,9 +1239,8 @@ async function runFor(pool, ctx, opts) {
   const cached = await cachedResearch(pool, ctx.showId, ctx.season, episodeNumber, opts);
   if (cached) {
     const review = validateResearch(cached.payload, ctx.castNames, ctx.terms);
-    // `id` matters even on a cache hit: fan-out below needs a research_id to file items against,
-    // and re-fanning-out a cached episode (a league catching up just revealed it, or an item got
-    // rejected and the season re-checked) must not require paying for the search again.
+    // `id` matters even on a cache hit: staging needs a research_id to file decisions against, and
+    // re-staging a cached episode must not require paying for the search again.
     return { ...ctx, ...review, payload: cached.payload, provenance: cached.provenance, cached: true, id: cached.id };
   }
 
@@ -1425,8 +1392,8 @@ module.exports = {
   resolveSeasonResearchContext,
   itemsFromChecklist,
   candidatesFor,
-  stageResearchItemsForLeague,
-  fanOutCachedResearch,
+  stageResearchDecisions,
+  stageCachedSeasonResearch,
   runResearch,
   providerFor,
   jsonSchemaFor,

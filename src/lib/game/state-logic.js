@@ -1531,12 +1531,9 @@ class FinaleLogic {
 // season extraction instead, which means one model call still serves a caught-up league and a
 // spoiler-free one at the same time. See docs/PLAN-spoiler-free-catch-up.md.
 //
-// Enforced in three places, because each covers a case the others can't:
-//   1. the connector's fan-out (wiki-sync.js) -- never WRITES an item past the gate, so a
-//      commissioner is never pushed a notification about an episode they haven't revealed;
-//   2. GET /wiki-items -- never SERVES one, which also covers items filed before the league
-//      switched into catch-up mode;
-//   3. the reveal route -- the only thing that moves the pointer, and only ever forward.
+// Enforced where results reach a league: src/lib/server/season-decisions.ts applies a season's
+// accepted decisions only up to this pointer, and the reveal route -- the only thing that moves it,
+// and only ever forward -- applies the newly revealed episode's.
 class RevealLogic {
   // The pointer, or null for live mode. Anything stored that isn't a non-negative integer reads as
   // live, matching how an older league with no such setting at all behaves.

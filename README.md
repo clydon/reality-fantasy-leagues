@@ -1685,6 +1685,35 @@ it. **Not verified:** real research output flowing through this pipeline end-to-
 real search to run first (see above), and only then is it worth judging whether these default point
 values feel right.
 
+## Episode results are decided once per season (`season_decisions`, db/migrations/0019)
+
+**This supersedes the per-league review described in the wiki connector and episode research
+sections above** (`wiki_proposal_items`, `episode_research_items`, the Episode Card's "Reveal
+Outcome" panel). Those tables are kept as history and are no longer written.
+
+"Did X find an idol in episode 3" has one answer whichever league asks, so results are now reviewed
+once, by an admin, the way the cast already was (0011):
+
+- **Staging.** A wiki episodes pull (`stageSeasonEpisodes`) and a research run
+  (`stageResearchDecisions`) both write pending rows to `season_decisions` via
+  `db/season-decisions.js`. Names are mapped to the season cast's spelling, so a fact both sources
+  report is one row flagged `from_wiki` + `from_research` (with the higher confidence). A re-read only
+  moves pending rows; a pending row the source no longer reports is withdrawn.
+- **Review.** Admin → Shows & Seasons → season → *Review results*: per episode, grouped by tribe then
+  player (the boot first), with Accept / Edit / Reject per row and *Accept all pending* per episode.
+  Decided rows stay listed and tinted with live buttons, and show who decided, when, what was
+  corrected, and how many leagues have them — the season's permanent record.
+- **Applying.** `src/lib/server/season-decisions.ts` → `syncLeagueDecisions` makes a league match its
+  season's accepted decisions, gated by the league's reveal pointer. It's declarative and backed by a
+  per-league ledger (`league_applied_decisions`), so it's idempotent and reversible: rejecting or
+  correcting an accepted row undoes/replaces it in every league. It runs after every admin decision
+  (all leagues), on reveal (that league), on picking a season or changing catch-up mode, and on cast
+  approval. A result a league already had (entered by hand) is recorded as pre-existing and never
+  removed by an undo. Placements are re-derived from episode order, so accepting episodes out of
+  order still ranks boots correctly.
+- **Commissioners** no longer review anything: results land on episode cards on their own, and a
+  catching-up league gets an episode's results when it reveals it.
+
 ## Semantic search over research (`db/embeddings.js`, `episode_text_chunks`, db/migrations/0016)
 
 A **second** consumer of `episode_research`, alongside the exact-match scoring mapper above, for a

@@ -3,6 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { seasonCastRows, applyApprovedCastToLeagues } from "@/lib/server/season-cast";
+import { syncSeasonLeagues } from "@/lib/server/season-decisions";
 
 // Approve a season's cast: mark it reviewed, then push it into every league already tracking the
 // season. A league that picks the season later gets it from the settings route instead -- see
@@ -46,6 +47,10 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
     cast,
     rows[0].tribes_from_episode ?? null
   );
+
+  // Any results already accepted for the season can land now that the leagues have people to match
+  // them to (a re-approval after fixing a name is the usual way this matters).
+  await syncSeasonLeagues(id, null);
 
   return NextResponse.json({ approvedAt: approved[0].cast_approved_at, castSize: cast.length, applied });
 });

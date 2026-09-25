@@ -17,12 +17,10 @@ import { researchSeasonEpisode, RESEARCH_MODELS } from "@db/episode-research.js"
 //               nothing but "we already asked", and not reproducible -- so every answer carries its
 //               own sources and confidence for a human to check.
 //
-// Writes one row to `episode_research`, then fans its "yes" answers out to every league tracking the
-// season as PENDING episode_research_items -- same shape and same commissioner review as a wiki
-// episodes pull, gated by each league's own reveal pointer. Nothing is ever APPLIED here: a
-// commissioner still accepts, corrects or rejects each item on their own Episodes tab, exactly like
-// a wiki-sourced decision. See db/migrations/0015_episode_research_items.sql for the item shape and
-// db/episode-research.js's fan-out section for the checklist-to-event-type mapping.
+// Writes one row to `episode_research`, then stages its "yes" answers as pending season decisions
+// (db/migrations/0019) -- the same list a wiki episodes pull feeds, reviewed once by an admin for
+// every league. Nothing is APPLIED here. See db/episode-research.js's staging section for the
+// checklist-to-event-type mapping.
 //
 // Slow by nature -- a live web search plus a long structured answer is tens of seconds, and a
 // provider that can't search and answer in one call takes two round trips -- so this sets the
@@ -63,7 +61,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
       provenance: run.provenance,
       problems: run.problems,
       counts: run.counts,
-      leagues: run.leagues,
+      decisions: run.decisions,
     });
   } catch (e) {
     // The researcher's errors are written for the person who clicked ("Google Search grounding has
