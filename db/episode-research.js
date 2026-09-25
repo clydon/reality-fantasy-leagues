@@ -211,6 +211,22 @@ const STRUCTURE_SYSTEM =
 
 class CombinationUnsupported extends Error {}
 
+// Some sites block Anthropic's crawler, and a search restricted to one of them is refused outright
+// ("The following domains are not accessible to our user agent: ['ew.com']"). Not worth failing a
+// run over: runResearch drops the named sites and asks again.
+class DomainsBlocked extends Error {
+  constructor(domains, message) {
+    super(message);
+    this.domains = domains;
+  }
+}
+function blockedDomainsIn(err) {
+  const m = /domains are not accessible[^[]*\[([^\]]*)\]/i.exec((err && err.message) || "");
+  if (!m) return null;
+  const list = m[1].split(",").map((d) => d.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
+  return list.length ? list : null;
+}
+
 function providerFor(name) {
   const id = (name || process.env.RESEARCH_PROVIDER || "anthropic").toLowerCase();
   const provider = PROVIDERS[id];
@@ -396,6 +412,8 @@ const anthropicProvider = {
         queries: anthropicQueries(response),
       };
     } catch (err) {
+      const blocked = blockedDomainsIn(err);
+      if (blocked) throw new DomainsBlocked(blocked, err.message);
       const rejected =
         err instanceof Anthropic.BadRequestError && /output_config|format|tool/i.test(err.message || "");
       if (rejected) throw new CombinationUnsupported(err.message);
@@ -415,6 +433,8 @@ const anthropicProvider = {
         queries: anthropicQueries(response),
       };
     } catch (err) {
+      const blocked = blockedDomainsIn(err);
+      if (blocked) throw new DomainsBlocked(blocked, err.message);
       throw anthropicError(err);
     }
   },
@@ -787,7 +807,25 @@ function requireCredentials(provider) {
 // model that read the pages is the one filling in the checklist. Where that combination is refused
 // we search, then structure the notes -- a second call, and a small loss of fidelity, but never a
 // failed run.
-async function runResearch({ system, user, schema, provider, model, domains }) {
+async function runResearch(req) {
+  let domains = req.domains || [];
+  const blocked = [];
+  // Twice is enough: the refusal lists every blocked site at once.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const out = await researchOnce({ ...req, domains });
+      return { ...out, domains, blockedDomains: blocked };
+    } catch (err) {
+      if (!(err instanceof DomainsBlocked) || attempt >= 2) throw err;
+      blocked.push(...err.domains);
+      domains = domains.filter((d) => !err.domains.includes(d));
+      console.log(`[research] ${err.domains.join(", ")} block the search crawler -- retrying without them`);
+      if (!domains.length) throw new Error(`Every research site blocks Anthropic's search (${blocked.join(", ")}). Edit the show's research sites in Settings.`);
+    }
+  }
+}
+
+async function researchOnce({ system, user, schema, provider, model, domains }) {
   requireCredentials(provider);
 
   if (provider.combined) {
@@ -927,7 +965,8 @@ function domainsFor(entry) {
   } catch {
     /* a malformed URL just means no wiki domain in the default list */
   }
-  return [wikiHost, "ew.com", "tvline.com", "parade.com"].filter(Boolean);
+  // Not ew.com: it blocks Anthropic's crawler.
+  return [wikiHost, "tvline.com", "parade.com"].filter(Boolean);
 }
 
 // Only ask about people still in the game at this episode. Asking about the whole cast every week
@@ -1275,7 +1314,9 @@ async function runFor(pool, ctx, opts) {
     castAsked: ctx.castNames,
     // Already out before this episode, so not asked about (see stillInGame).
     castSkipped: ctx.skippedCast || [],
-    domains: ctx.domains,
+    domains: out.domains,
+    // Sites that refused the crawler this run -- worth removing from the show's list in Settings.
+    domainsBlocked: out.blockedDomains,
     queries: out.queries || [],
     pagesRead: out.pagesRead,
     usage: out.usage,

@@ -345,6 +345,8 @@ export interface EpisodeResearchProvenance {
   castSkipped?: string[];
   /** The sites search was limited to. */
   domains?: string[];
+  /** Sites that refused Anthropic's search crawler this run, so were dropped. */
+  domainsBlocked?: string[];
   problems?: string[];
 }
 

@@ -427,7 +427,7 @@ function ShowSettings({ show, busy, run }: { show: AdminShow; busy: boolean; run
         <Input
           size="sm"
           className="min-w-[200px] flex-1"
-          placeholder="default — the wiki plus ew.com, tvline.com, parade.com"
+          placeholder="default — the wiki plus tvline.com, parade.com"
           defaultValue={(show.research_domains ?? []).join(", ")}
           disabled={busy}
           onBlur={(e) => {
@@ -921,6 +921,13 @@ function ResearchResult({
           <CostHint>{forceCost}</CostHint>
         </span>
       </p>
+      {provenance.domainsBlocked?.length ? (
+        <p className="mt-0.5 text-muted-foreground">
+          {provenance.domainsBlocked.join(", ")} block{provenance.domainsBlocked.length === 1 ? "s" : ""} Anthropic&rsquo;s
+          search, so {provenance.domainsBlocked.length === 1 ? "it was" : "they were"} skipped — remove from the show&rsquo;s
+          research sites in Settings.
+        </p>
+      ) : null}
       {problems.length > 0 && (
         <ul className="mt-0.5 text-destructive">
           {problems.map((p) => (
