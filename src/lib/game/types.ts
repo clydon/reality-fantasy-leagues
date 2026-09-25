@@ -227,6 +227,8 @@ export interface AdminShow {
   wiki_api_url: string | null;
   /** Override for which wikitext section holds the cast. Null = wiki-sync infers it. */
   cast_section_heading: string | null;
+  /** Sites episode research may search; null = defaults (the show's wiki + general recap sites). */
+  research_domains: string[] | null;
   archived: boolean;
   created_at: string;
   league_count: number;
@@ -260,6 +262,19 @@ export interface WikiSeasonSyncResult {
   leagues: { id: string; name: string; ok: boolean; summary?: string; error?: string }[];
   /** Cast pulls only: what staging did, for the review panel to report. */
   staged?: { filed: boolean; staged: number; total: number; summary: string } | null;
+  /** The model that read the wiki; null on a cache hit (nothing was called). */
+  model?: string | null;
+  /** Tokens that read cost; null on a cache hit. */
+  usage?: ModelUsage | null;
+}
+
+/** Token counts as the Anthropic API reports them, plus web searches for research. */
+export interface ModelUsage {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  web_search_requests?: number;
 }
 
 // ---------- episode research (db/episode-research.js, db/migrations/0014) ----------
@@ -325,7 +340,11 @@ export interface EpisodeResearchProvenance {
   queries: string[];
   /** Every page the search actually fetched, read off the response -- not what the model claims. */
   pagesRead: string[];
-  usage?: { input_tokens: number; output_tokens: number };
+  usage?: ModelUsage;
+  /** Already out before this episode, so not asked about. */
+  castSkipped?: string[];
+  /** The sites search was limited to. */
+  domains?: string[];
   problems?: string[];
 }
 

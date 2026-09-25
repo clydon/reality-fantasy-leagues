@@ -17,7 +17,12 @@ export interface WikiSyncOptions {
    * explicitly requested pull leaves it off -- asking for it is the reason to see it.
    */
   batch?: boolean;
+  /** Which Claude model reads the wiki (one of WIKI_MODELS). Defaults to WIKI_MODEL, then Opus. */
+  model?: string;
 }
+
+/** The models the admin UI may pick for a wiki read, cheapest first. */
+export const WIKI_MODELS: string[];
 
 /** What one league's fan-out did, as the CLI logs it and the admin UI shows it. */
 export interface FanOutResult {

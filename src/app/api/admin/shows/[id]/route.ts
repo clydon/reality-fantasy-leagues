@@ -14,8 +14,27 @@ const EDITABLE: Record<string, string> = {
   wikiApiUrl: "wiki_api_url",
   // Nullable on purpose -- clearing it means "go back to inferring the heading from castawayTerm".
   castSectionHeading: "cast_section_heading",
+  // Sites episode research may search (db/migrations/0017). Accepts a comma/space/newline-separated
+  // string or an array; empty clears it back to the defaults.
+  researchDomains: "research_domains",
   archived: "archived",
 };
+
+// "https://www.EW.com/tv/..." -> "ew.com". Hostnames only: that's what the search tools filter on.
+function parseDomains(value: unknown): string[] | null {
+  const raw = Array.isArray(value) ? value.map(String) : String(value ?? "").split(/[\s,]+/);
+  const out: string[] = [];
+  for (const piece of raw) {
+    const host = piece
+      .trim()
+      .toLowerCase()
+      .replace(/^[a-z]+:\/\//, "")
+      .replace(/^www\./, "")
+      .split("/")[0];
+    if (host && host.includes(".") && !out.includes(host)) out.push(host);
+  }
+  return out.length ? out : null;
+}
 
 export const PATCH = apiRoute(async (req, { params }: { params: Promise<RouteParams> }) => {
   const { id } = await params;
@@ -29,6 +48,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     if (!(key in body)) continue;
     let value = body[key];
     if (key === "archived") value = !!value;
+    else if (key === "researchDomains") value = parseDomains(value);
     else if (typeof value === "string") value = value.trim() || null;
     // Terminology has a sensible default rather than being nullable -- an empty term would render as
     // a blank word in the UI.

@@ -430,6 +430,7 @@ export const api = {
       tribeTerm: string;
       wikiApiUrl: string;
       castSectionHeading: string;
+      researchDomains: string;
       archived: boolean;
     }>
   ) =>
@@ -478,10 +479,10 @@ export const api = {
     localFetch<{ ok: true; leaguesAffected: number }>(`/api/admin/seasons/${id}`, { method: "DELETE" }),
   // On-demand wiki pull for one season. Slow by nature (it reads the wiki, then runs an LLM
   // extraction) -- callers show a pending state rather than assuming this returns quickly.
-  adminSyncSeason: (id: string, kind: "cast" | "episodes", force = false) =>
+  adminSyncSeason: (id: string, kind: "cast" | "episodes", force = false, model?: string) =>
     localFetch<WikiSeasonSyncResult>(`/api/admin/seasons/${id}/sync`, {
       method: "POST",
-      body: JSON.stringify({ kind, force }),
+      body: JSON.stringify({ kind, force, model }),
     }),
 
   /**
@@ -489,7 +490,7 @@ export const api = {
    * paid, so the UI asks for one episode at a time; `force` re-researches an episode that already
    * has a cached answer.
    */
-  adminResearchEpisode: (id: string, episode: number, opts: { force?: boolean; provider?: string } = {}) =>
+  adminResearchEpisode: (id: string, episode: number, opts: { force?: boolean; provider?: string; model?: string } = {}) =>
     localFetch<SeasonResearchResult>(`/api/admin/seasons/${id}/research`, {
       method: "POST",
       body: JSON.stringify({ episode, ...opts }),

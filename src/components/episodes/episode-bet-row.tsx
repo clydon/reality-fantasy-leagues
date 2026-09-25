@@ -229,9 +229,10 @@ function SuggestedAnswerBlock({
   if (!suggestion && !loading && !error) {
     return (
       <div className="mt-2">
-        <Button variant="secondary" size="xs" onClick={onFetch}>
+        <Button variant="secondary" size="xs" onClick={onFetch} title="Free — searches research that's already been paid for">
           Suggest an answer from research
         </Button>
+        <span className="ml-1.5 text-[0.6rem] text-muted-foreground">free</span>
       </div>
     );
   }

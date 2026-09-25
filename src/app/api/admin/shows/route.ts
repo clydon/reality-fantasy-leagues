@@ -9,7 +9,7 @@ import { pool, HttpError } from "@/lib/server/db";
 export const GET = apiRoute(async (req) => {
   await requireSuperAdmin(req);
   const { rows } = await pool.query(
-    `SELECT s.id, s.slug, s.name, s.castaway_term, s.tribe_term, s.wiki_api_url, s.cast_section_heading,
+    `SELECT s.id, s.slug, s.name, s.castaway_term, s.tribe_term, s.wiki_api_url, s.cast_section_heading, s.research_domains,
             s.archived, s.created_at,
             (SELECT count(*)::int FROM leagues l WHERE l.state->'settings'->>'showId' = s.slug) AS league_count,
             COALESCE(

@@ -149,9 +149,9 @@ const EpisodeResearchSchema = z.object({
 // Provider-neutral on purpose: it says "search" and never names a tool, because the three providers
 // expose search as three different mechanisms (a server tool, a grounding flag, a search parameter)
 // and none of them needs to be told what its own search is called.
-function buildPrompt({ showName, season, episodeNumber, castNames, terms }) {
+function buildPrompt({ showName, season, episodeNumber, castNames, terms, domains = [] }) {
   const system = [
-    `You research reality-TV episodes and answer a fixed checklist about every ${terms.castaway} in the cast.`,
+    `You research reality-TV episodes and answer a fixed checklist about every ${terms.castaway} still in the game.`,
     "",
     "RULES, in order of importance:",
     "1. SEARCH. Do not answer from memory. Every 'yes' and every number must come from a page you",
@@ -178,6 +178,9 @@ function buildPrompt({ showName, season, episodeNumber, castNames, terms }) {
     "",
     "Search for the episode recap, the episode's wiki page, and any reporting on idols or advantages",
     "found or played in it. Then answer the checklist for every person above.",
+    // Anthropic enforces this list (allowed_domains on its search tool); for the others it's advice.
+    ...(domains.length ? ["", `Use these sites: ${domains.join(", ")}.`] : []),
+    "Two or three good pages are enough -- don't keep searching once the episode is covered.",
   ].join("\n");
 
   return { system, user };
@@ -342,10 +345,33 @@ function strictSchema(node) {
 }
 
 // ---- Anthropic ----
-// The documented search tool for this model generation. Its dynamic filtering runs code execution
-// internally, which is why code_execution must NOT also be declared -- two execution environments
-// confuse the model.
-const SEARCH_TOOL = { type: "web_search_20260209", name: "web_search", max_uses: 12 };
+// The models an admin may pick for research (Admin > Shows & Seasons). Cheapest first.
+const RESEARCH_MODELS = ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-5"];
+
+// Five searches, not twelve: with the search restricted to trusted sites (below), a handful of
+// queries finds the recap and the wiki page, and every search both costs a fee and pours its results
+// into the context as input tokens -- the biggest share of a research call's cost.
+const MAX_SEARCHES = 5;
+
+// The search tool depends on the model generation: web_search_20260209 (dynamic filtering) is for
+// Opus/Sonnet 4.6 and later; Haiku 4.5 only has the basic variant. The dynamic variant runs code
+// execution internally, which is why code_execution must NOT also be declared.
+function searchToolFor(model, domains) {
+  const type = model === "claude-haiku-4-5" ? "web_search_20250305" : "web_search_20260209";
+  const tool = { type, name: "web_search", max_uses: MAX_SEARCHES };
+  // Trusted sites only (shows.research_domains). Fewer, better pages -- and cheaper ones.
+  if (domains && domains.length) tool.allowed_domains = domains;
+  return tool;
+}
+const SEARCH_TOOL = searchToolFor("claude-opus-5", null); // kept for callers that inspect the default
+
+// Haiku 4.5 predates adaptive thinking and the effort setting; sending either is a 400. The others
+// run at medium effort -- effort is the main lever on thinking (output) tokens, and a checklist
+// against fetched pages doesn't need the default "high".
+function anthropicModelParams(model) {
+  if (model === "claude-haiku-4-5") return { thinking: null, effort: null };
+  return { thinking: { type: "adaptive" }, effort: "medium" };
+}
 
 const anthropicProvider = {
   id: "anthropic",
@@ -354,14 +380,13 @@ const anthropicProvider = {
     if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) return null;
     return "Set ANTHROPIC_API_KEY in .env.local (or run `ant auth login`).";
   },
-  async combined({ system, user, schema, model }) {
+  async combined({ system, user, schema, model, domains }) {
     const client = anthropicClient();
     try {
       const response = await client.messages
         .stream({
-          ...anthropicBase(model, system, user),
-          tools: [SEARCH_TOOL],
-          output_config: { format: zodOutputFormat(schema) },
+          ...anthropicBase(model, system, user, zodOutputFormat(schema)),
+          tools: [searchToolFor(model, domains)],
         })
         .finalMessage();
       return {
@@ -377,11 +402,11 @@ const anthropicProvider = {
       throw anthropicError(err);
     }
   },
-  async search({ system, user, model }) {
+  async search({ system, user, model, domains }) {
     const client = anthropicClient();
     try {
       const response = await client.messages
-        .stream({ ...anthropicBase(model, system, user), tools: [SEARCH_TOOL] })
+        .stream({ ...anthropicBase(model, system, user, null), tools: [searchToolFor(model, domains)] })
         .finalMessage();
       return {
         text: response.content.filter((b) => b.type === "text").map((b) => b.text).join("\n"),
@@ -397,10 +422,7 @@ const anthropicProvider = {
     const client = anthropicClient();
     try {
       const response = await client.messages
-        .stream({
-          ...anthropicBase(model, STRUCTURE_SYSTEM, notes),
-          output_config: { format: zodOutputFormat(schema) },
-        })
+        .stream(anthropicBase(model, STRUCTURE_SYSTEM, notes, zodOutputFormat(schema)))
         .finalMessage();
       return { parsed: anthropicParsed(response), usage: anthropicUsage(response) };
     } catch (err) {
@@ -414,13 +436,19 @@ function anthropicClient() {
   return new Anthropic(workspaceId ? { defaultHeaders: { "anthropic-workspace-id": workspaceId } } : {});
 }
 
-function anthropicBase(model, system, user) {
+function anthropicBase(model, system, user, format) {
+  const { thinking, effort } = anthropicModelParams(model);
+  const output_config = { ...(format ? { format } : {}), ...(effort ? { effort } : {}) };
   return {
     model,
     max_tokens: 32000,
-    thinking: { type: "adaptive" },
+    ...(thinking ? { thinking } : {}),
+    // Caches the stable prefix (tools + instructions). Small saving on a one-off; it's what a
+    // "Research again" minutes later benefits from.
+    cache_control: { type: "ephemeral" },
     system,
     messages: [{ role: "user", content: user }],
+    ...(Object.keys(output_config).length ? { output_config } : {}),
   };
 }
 
@@ -437,7 +465,14 @@ function anthropicParsed(response) {
 
 function anthropicUsage(response) {
   const u = response.usage || {};
-  return { input_tokens: u.input_tokens || 0, output_tokens: u.output_tokens || 0 };
+  return {
+    input_tokens: u.input_tokens || 0,
+    output_tokens: u.output_tokens || 0,
+    // Billed separately from tokens ($10 per 1,000) -- carried so the admin panel can show a real cost.
+    web_search_requests: (u.server_tool_use && u.server_tool_use.web_search_requests) || 0,
+    cache_read_input_tokens: u.cache_read_input_tokens || 0,
+    cache_creation_input_tokens: u.cache_creation_input_tokens || 0,
+  };
 }
 
 function anthropicPages(response) {
@@ -752,12 +787,12 @@ function requireCredentials(provider) {
 // model that read the pages is the one filling in the checklist. Where that combination is refused
 // we search, then structure the notes -- a second call, and a small loss of fidelity, but never a
 // failed run.
-async function runResearch({ system, user, schema, provider, model }) {
+async function runResearch({ system, user, schema, provider, model, domains }) {
   requireCredentials(provider);
 
   if (provider.combined) {
     try {
-      const out = await provider.combined({ system, user, schema, model });
+      const out = await provider.combined({ system, user, schema, model, domains });
       return { ...out, passes: 1 };
     } catch (err) {
       if (!(err instanceof CombinationUnsupported)) throw err;
@@ -765,7 +800,7 @@ async function runResearch({ system, user, schema, provider, model }) {
     }
   }
 
-  const searched = await provider.search({ system, user, model });
+  const searched = await provider.search({ system, user, model, domains });
   if (!searched.text.trim()) throw new Error(`${provider.id} searched but wrote nothing to structure.`);
   const structured = await provider.structure({ notes: searched.text, schema, model });
   return {
@@ -778,10 +813,9 @@ async function runResearch({ system, user, schema, provider, model }) {
 }
 
 function sumUsage(a, b) {
-  return {
-    input_tokens: (a.input_tokens || 0) + (b.input_tokens || 0),
-    output_tokens: (a.output_tokens || 0) + (b.output_tokens || 0),
-  };
+  const out = {};
+  for (const k of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) out[k] = ((a || {})[k] || 0) + ((b || {})[k] || 0);
+  return out;
 }
 
 // ---------- validation ----------
@@ -859,6 +893,7 @@ function validateResearch(parsed, castNames, terms) {
 async function catalogEntry(pool, showSlug, season, label) {
   const { rows } = await pool.query(
     `SELECT s.id AS show_id, s.name AS show_name, s.castaway_term, s.tribe_term,
+            s.research_domains, s.wiki_api_url,
             ss.id AS season_id, ss.name AS season_name
        FROM shows s LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number = $2
       WHERE s.slug = $1`,
@@ -882,11 +917,55 @@ async function stagedCastNames(pool, seasonId) {
   return rows.map((c) => c.name);
 }
 
-// Everyone in the cast gets asked about, including people already voted out. Cheaper than it looks
-// -- the checklist is one line per person and the search is shared -- and it is the only way the
-// answer can say "this person was already gone", which is itself a check on the research being real.
-function contextFrom(entry, showSlug, season, episodeNumber, castNames, castFrom) {
+// The sites research may search: the show's own list (shows.research_domains, editable in its
+// Settings), or by default its wiki plus a few general TV recap sites.
+function domainsFor(entry) {
+  if (entry.research_domains && entry.research_domains.length) return entry.research_domains;
+  let wikiHost = null;
+  try {
+    wikiHost = entry.wiki_api_url ? new URL(entry.wiki_api_url).hostname.replace(/^www\./, "") : null;
+  } catch {
+    /* a malformed URL just means no wiki domain in the default list */
+  }
+  return [wikiHost, "ew.com", "tvline.com", "parade.com"].filter(Boolean);
+}
+
+// Only ask about people still in the game at this episode. Asking about the whole cast every week
+// spends output tokens (the checklist is one entry per person) on people who can't have done
+// anything. Who's gone is taken from what this season already knows -- eliminations in the cached
+// wiki extraction, and "left the game" in earlier episodes' research -- matched by name the same
+// forgiving way everything else here matches names.
+async function stillInGame(pool, showId, season, episodeNumber, castNames) {
+  const gone = new Set();
+  const { rows: ext } = await pool.query(
+    "SELECT payload FROM wiki_extractions WHERE show_id=$1 AND season_number=$2 AND kind='episodes'",
+    [showId, season]
+  );
+  for (const ep of (ext[0] && ext[0].payload && ext[0].payload.episodes) || []) {
+    if (ep.number < episodeNumber) for (const el of ep.eliminations || []) gone.add(el.name);
+  }
+  const { rows: prior } = await pool.query(
+    "SELECT payload FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number < $3",
+    [showId, season, episodeNumber]
+  );
+  for (const r of prior) for (const c of (r.payload && r.payload.castaways) || []) if (c.leftTheGame === "yes") gone.add(c.name);
+
+  const roster = { castaways: castNames.map((name, i) => ({ id: String(i), name })) };
+  const goneIdx = new Set();
+  for (const name of gone) {
+    const { castaway } = StateLogic.Core.findCastawayByName(roster, name);
+    if (castaway) goneIdx.add(castaway.id);
+  }
   return {
+    active: castNames.filter((_, i) => !goneIdx.has(String(i))),
+    skipped: castNames.filter((_, i) => goneIdx.has(String(i))),
+  };
+}
+
+function contextFrom(entry, showSlug, season, episodeNumber, castNames, castFrom, skippedCast = []) {
+  return {
+    domains: domainsFor(entry),
+    skippedCast,
     showId: entry.show_id,
     showSlug,
     showName: entry.show_name,
@@ -911,7 +990,8 @@ async function resolveSeasonResearchContext(pool, showSlug, season, episodeNumbe
         "the checklist is one question per person, so it needs the list of people."
     );
   }
-  return contextFrom(entry, showSlug, season, episodeNumber, castNames, "season");
+  const { active, skipped } = await stillInGame(pool, entry.show_id, season, episodeNumber, castNames);
+  return contextFrom(entry, showSlug, season, episodeNumber, active, "season", skipped);
 }
 
 async function resolveResearchContext(pool, leagueId, episodeNumber) {
@@ -941,7 +1021,8 @@ async function resolveResearchContext(pool, leagueId, episodeNumber) {
         "cast in Admin > Shows & Seasons first, or enter the cast in the league."
     );
   }
-  return { league, ...contextFrom(entry, showSlug, season, episodeNumber, castNames, castFrom) };
+  const { active, skipped } = await stillInGame(pool, entry.show_id, season, episodeNumber, castNames);
+  return { league, ...contextFrom(entry, showSlug, season, episodeNumber, active, castFrom, skipped) };
 }
 
 // ---------- the cache (db/migrations/0014) ----------
@@ -1164,7 +1245,7 @@ async function runFor(pool, ctx, opts) {
       `${ctx.castNames.length} ${ctx.terms.castaways} (from the ${ctx.castFrom}), via ${provider.id}/${model}`
   );
   const { system, user } = buildPrompt(ctx);
-  const out = await runResearch({ system, user, schema: EpisodeResearchSchema, provider, model });
+  const out = await runResearch({ system, user, schema: EpisodeResearchSchema, provider, model, domains: ctx.domains });
   console.log(
     `[research] tokens: ${out.usage.input_tokens} in / ${out.usage.output_tokens} out` +
       ` (${out.passes} call${out.passes === 1 ? "" : "s"}), ${out.pagesRead.length} page(s) read`
@@ -1192,6 +1273,9 @@ async function runFor(pool, ctx, opts) {
     episodeNumber,
     castFrom: ctx.castFrom,
     castAsked: ctx.castNames,
+    // Already out before this episode, so not asked about (see stillInGame).
+    castSkipped: ctx.skippedCast || [],
+    domains: ctx.domains,
     queries: out.queries || [],
     pagesRead: out.pagesRead,
     usage: out.usage,
@@ -1272,7 +1356,7 @@ if (require.main === module) {
       "usage: node db/episode-research.js <leagueId> <episode> [--dry] [--force]\n" +
         `                                  [--provider=${Object.keys(PROVIDERS).join("|")}] [--model=...]\n` +
         "\n" +
-        "Asks a web-searching model a fixed checklist about every castaway in the season's cast.\n" +
+        "Asks a web-searching model a fixed checklist about every castaway still in the game.\n" +
         "--dry researches and prints without writing, which is how to judge a provider before trusting it."
     );
     process.exitCode = 1;
@@ -1314,5 +1398,7 @@ module.exports = {
   PROVIDERS,
   EXIT_METHODS,
   SEARCH_TOOL,
+  RESEARCH_MODELS,
+  MAX_SEARCHES,
   STRUCTURE_SYSTEM,
 };

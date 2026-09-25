@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
-import { researchSeasonEpisode } from "@db/episode-research.js";
+import { researchSeasonEpisode, RESEARCH_MODELS } from "@db/episode-research.js";
 
 // On-demand episode research for one catalog season -- what the "Research ep N" button on each
 // season row in Admin > Shows & Seasons calls. Super-admin only, like the rest of the catalog.
@@ -34,7 +34,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   await requireSuperAdmin(req);
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
 
-  const body = (await req.json().catch(() => ({}))) as { episode?: unknown; force?: boolean; provider?: string };
+  const body = (await req.json().catch(() => ({}))) as { episode?: unknown; force?: boolean; provider?: string; model?: string };
   const episode = Number(body.episode);
   if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode must be a positive whole number");
 
@@ -49,7 +49,10 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
       force: body.force === true,
       // Whitelisted rather than passed through: this value picks which external API the server calls
       // with its own credentials, so it isn't something a request body gets to name freely.
-      provider: PROVIDERS.includes(String(body.provider)) ? String(body.provider) : undefined,
+      // A model choice (the admin UI's selector) is always a Claude model, so it implies Anthropic.
+      ...(RESEARCH_MODELS.includes(String(body.model))
+        ? { provider: "anthropic", model: String(body.model) }
+        : { provider: PROVIDERS.includes(String(body.provider)) ? String(body.provider) : undefined }),
     });
     return NextResponse.json({
       showSlug: run.showSlug,

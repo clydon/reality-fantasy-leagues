@@ -76,7 +76,18 @@ const { sendPush } = require("../src/lib/server/push-core.js");
 const WIKI_API = "https://survivor.fandom.com/api.php";
 // Per the claude-api skill's default. Extraction input here is one table (~1-2K tokens) and output
 // is ~1K, so a run costs on the order of a cent -- model choice is not the cost lever at this size.
-const MODEL = "claude-opus-5";
+const MODEL = process.env.WIKI_MODEL || "claude-opus-5";
+
+// The models an admin may pick for wiki extraction (Admin > Shows & Seasons). Cheapest first.
+// Haiku 4.5 predates adaptive thinking and the effort setting -- sending either is a 400 -- so the
+// request is shaped per model rather than assuming every Claude model takes the same parameters.
+const WIKI_MODELS = ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-5"];
+function modelParams(model) {
+  if (model === "claude-haiku-4-5") return {};
+  // Medium, not the default high: table reading is structured work against a strict schema plus a
+  // validation pass, and effort is the main lever on output (thinking) tokens.
+  return { thinking: { type: "adaptive" }, output_config_extra: { effort: "medium" } };
+}
 
 // ---------- the schema Claude must produce ----------
 // Enforced by the API via structured outputs, so a response that doesn't fit this shape doesn't come
@@ -445,7 +456,7 @@ async function expandTranscludedTables(sectionText, apiUrl) {
 // table using a word that appears nowhere in it.
 // One place that talks to the API, so both extractors share the credential handling and -- more to
 // the point -- the typed error translation, which is the part worth not duplicating.
-async function callModel({ system, user, schema, schemaName, maxTokens }) {
+async function callModel({ system, user, schema, schemaName, maxTokens, model = MODEL }) {
   if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
     throw new Error(
       "No Anthropic credentials found. Set ANTHROPIC_API_KEY in .env.local (or run `ant auth login`) for a " +
@@ -467,13 +478,17 @@ async function callModel({ system, user, schema, schemaName, maxTokens }) {
     // output scales with episodes x people. Streaming also removes the request-timeout risk on the
     // long runs generally, and `finalMessage()` still carries `parsed_output` for a parseable
     // output_config, so structured outputs work exactly as before.
+    const { thinking, output_config_extra } = modelParams(model);
     const stream = client.messages.stream({
-      model: MODEL,
+      model,
       max_tokens: maxTokens || 16000,
-      thinking: { type: "adaptive" },
+      ...(thinking ? { thinking } : {}),
+      // Caches the stable prefix (instructions + schema). Saves little on a one-off pull; it's the
+      // re-pull of the same season minutes later that it pays for.
+      cache_control: { type: "ephemeral" },
       system,
       messages: [{ role: "user", content: user }],
-      output_config: { format: zodOutputFormat(schema) },
+      output_config: { format: zodOutputFormat(schema), ...(output_config_extra || {}) },
     });
     const response = await stream.finalMessage();
     // Truncation shows up as a stop_reason, not as a parse failure, and a half-extracted season would
@@ -487,7 +502,7 @@ async function callModel({ system, user, schema, schemaName, maxTokens }) {
     if (!response.parsed_output) {
       throw new Error(`Claude returned a response that did not match the ${schemaName} schema.`);
     }
-    return { parsed: response.parsed_output, usage: response.usage };
+    return { parsed: response.parsed_output, usage: { ...response.usage, model } };
   } catch (err) {
     // Typed, most-specific-first, so a transient rate limit reads differently from a bad key.
     if (err instanceof Anthropic.AuthenticationError) throw new Error("Anthropic rejected the credentials (check ANTHROPIC_API_KEY).");
@@ -518,8 +533,9 @@ async function callModel({ system, user, schema, schemaName, maxTokens }) {
 // the prompt asks about Contestants and Factions for a Traitors season rather than Castaways and
 // Tribes. The wikitext is the authority either way; this only stops the prompt from describing a
 // table using a word that appears nowhere in it.
-async function extractCast(sectionWikitext, terms) {
+async function extractCast(sectionWikitext, terms, model) {
   const { parsed, usage } = await callModel({
+    model: model || MODEL,
     schema: CastSchema,
     schemaName: "cast",
     system:
@@ -543,8 +559,9 @@ async function extractCast(sectionWikitext, terms) {
 // are only in the guide. max_tokens is higher than cast's because the output scales with
 // episodes x people -- a full post-merge season runs to roughly a hundred events, most of them
 // zero-votes-safes.
-async function extractEpisodes(wikitext, terms) {
+async function extractEpisodes(wikitext, terms, model) {
   const { parsed, usage } = await callModel({
+    model: model || MODEL,
     schema: EpisodesSchema,
     schemaName: "episodes",
     maxTokens: 32000,
@@ -870,8 +887,16 @@ async function extractCastForSeason(pool, ctx, opts) {
     `[wiki-sync] "${section.title}" section: ${expanded.text.length} chars (rev ${page.revisionId})` +
       (section.matched.toLowerCase() === section.title.toLowerCase() ? "" : ` [matched "${section.matched}"]`)
   );
-  const { cast, usage } = await extractCast(expanded.text, terms);
+  const { cast, usage } = await extractCast(expanded.text, terms, opts.model);
   logUsage(usage);
+  // What this read actually cost to make, for the admin panel's cost line.
+  provenance.model = usage.model;
+  provenance.usage = {
+    input_tokens: usage.input_tokens,
+    output_tokens: usage.output_tokens,
+    cache_read_input_tokens: usage.cache_read_input_tokens || 0,
+    cache_creation_input_tokens: usage.cache_creation_input_tokens || 0,
+  };
 
   // Resolved here rather than per-league: a File: name maps to the same URL for everyone, so this
   // is one more wiki read that only has to happen once per season. validateCast still sees the raw
@@ -1003,8 +1028,16 @@ async function extractEpisodesForSeason(pool, ctx, opts) {
     `[wiki-sync] sections: ${[guide && guide.title, votes && votes.title].filter(Boolean).join(" + ")} ` +
       `-> ${combined.length} chars across ${readPages.length + 1} page(s)`
   );
-  const { episodes, usage } = await extractEpisodes(combined, terms);
+  const { episodes, usage } = await extractEpisodes(combined, terms, opts.model);
   logUsage(usage);
+  // What this read actually cost to make, for the admin panel's cost line.
+  provenance.model = usage.model;
+  provenance.usage = {
+    input_tokens: usage.input_tokens,
+    output_tokens: usage.output_tokens,
+    cache_read_input_tokens: usage.cache_read_input_tokens || 0,
+    cache_creation_input_tokens: usage.cache_creation_input_tokens || 0,
+  };
   return storeExtraction(pool, showId, season, "episodes", episodes, provenance, opts);
 }
 
@@ -1196,7 +1229,7 @@ function baseProvenance(showSlug, season, page, apiUrl, extraPages, extra) {
     // identifies what was read.
     showSlug,
     seasonNumber: season,
-    model: MODEL,
+    model: MODEL, // overwritten with the model actually used, once known (see extract*ForSeason)
     extractedAt: new Date().toISOString(),
     pages: [{ title: page.title, revisionId: page.revisionId, apiUrl }, ...(extraPages || [])],
     ...(extra || {}),
@@ -1411,6 +1444,9 @@ async function runForSeason(pool, showSlug, season, kind, opts = {}) {
   const provenance = {
     cached: !!extraction.cached,
     pages: (extraction.provenance.pages || []).map((p) => ({ title: p.title, revisionId: p.revisionId })),
+    // Null on a cache hit: nothing was spent this time.
+    model: extraction.cached ? null : extraction.provenance.model || null,
+    usage: extraction.cached ? null : extraction.provenance.usage || null,
   };
 
   // The cast doesn't fan out. It's staged once for the season and reviewed by an admin (see
@@ -1542,6 +1578,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  WIKI_MODELS,
   runAll,
   runForLeague,
   runForSeason,

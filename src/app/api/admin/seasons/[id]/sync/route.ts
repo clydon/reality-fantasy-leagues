@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
-import { runForSeason } from "@db/wiki-sync.js";
+import { runForSeason, WIKI_MODELS } from "@db/wiki-sync.js";
 
 // On-demand wiki pull for one catalog season -- what the "Pull cast" / "Pull episodes" buttons on
 // each season row in Admin > Shows & Seasons call. Super-admin only, like the rest of the catalog.
@@ -28,7 +28,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   await requireSuperAdmin(req);
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
 
-  const body = (await req.json().catch(() => ({}))) as { kind?: string; force?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { kind?: string; force?: boolean; model?: string };
   const kind = String(body.kind);
   if (kind !== "cast" && kind !== "episodes") throw new HttpError(400, 'kind must be "cast" or "episodes"');
 
@@ -42,7 +42,11 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
     // force: the connector skips the model entirely when every page's revision id matches the cached
     // extraction. That's the right default, but it makes "pull again" look like it did nothing after
     // a bad extraction, so the button offers the override.
-    const result = await runForSeason(pool, rows[0].slug, rows[0].season_number, kind, { force: body.force === true });
+    const result = await runForSeason(pool, rows[0].slug, rows[0].season_number, kind, {
+      force: body.force === true,
+      // Whitelisted: it picks what the server spends its own API credit on.
+      model: WIKI_MODELS.includes(String(body.model)) ? String(body.model) : undefined,
+    });
     return NextResponse.json(result);
   } catch (e) {
     // The connector's own errors are written for a human to act on ("No cast section found on X;

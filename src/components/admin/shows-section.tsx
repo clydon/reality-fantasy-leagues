@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { AdminShow, ShowSeason, WikiSeasonSyncResult, SeasonResearchResult, ResearchCastaway } from "@/lib/game/types";
+import type { AdminShow, ShowSeason, WikiSeasonSyncResult, SeasonResearchResult, ResearchCastaway, ModelUsage } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
 import { plural } from "@/lib/use-show-terms";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { ChevronDownIcon } from "@/components/icons";
 import { confirm } from "@/lib/confirm-store";
 import { SeasonCastReview } from "./season-cast-review";
 import { cn } from "cn";
+import { AI_MODELS, costOf, estimate, formatCost } from "@/lib/ai-cost";
 
 // Super-admin management of the show/season catalog, and the place a season's content comes from.
 //
@@ -30,6 +31,52 @@ import { cn } from "cn";
 //
 // Everything set once and rarely touched again -- show terminology, the wiki endpoint, archiving,
 // a season's status, deleting -- lives behind a Settings toggle rather than on every row.
+//
+// The two paid actions (reading the wiki, web research) each take a model from the picker at the
+// top, and every button that spends money says roughly how much next to it; the ones that don't
+// (reviewing, approving, settings, a pull when the wiki hasn't changed) say nothing or say "free".
+
+type Models = { wiki: string; research: string };
+const DEFAULT_MODELS: Models = { wiki: "claude-haiku-4-5", research: "claude-haiku-4-5" };
+const MODELS_KEY = "rfl.admin.aiModels";
+
+// Remembered per browser -- it's one admin's cost preference, not league state. Loaded after mount
+// so the server render and the first client render agree.
+function useAiModels(): [Models, (m: Models) => void] {
+  const [models, setModels] = useState<Models>(DEFAULT_MODELS);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(MODELS_KEY) || "null");
+      const known = (id: unknown) => AI_MODELS.some((m) => m.id === id);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time load from browser storage
+      if (saved && known(saved.wiki) && known(saved.research)) setModels(saved);
+    } catch {
+      /* no storage: defaults are fine */
+    }
+  }, []);
+  function save(m: Models) {
+    setModels(m);
+    try {
+      localStorage.setItem(MODELS_KEY, JSON.stringify(m));
+    } catch {
+      /* not persisted this time */
+    }
+  }
+  return [models, save];
+}
+
+/** The small grey price next to a button. */
+function CostHint({ children, title }: { children: ReactNode; title?: string }) {
+  return (
+    <span className="text-[0.6rem] tabular-nums text-muted-foreground" title={title}>
+      {children}
+    </span>
+  );
+}
+
+function modelLabel(id: string | null | undefined) {
+  return AI_MODELS.find((m) => m.id === id)?.label ?? id ?? "";
+}
 export function ShowsSection() {
   const { data, refetch, isLoading } = useQuery({
     queryKey: ["admin-shows"],
@@ -47,6 +94,7 @@ export function ShowsSection() {
   const [showName, setShowName] = useState("");
   const [castawayTerm, setCastawayTerm] = useState("");
   const [tribeTerm, setTribeTerm] = useState("");
+  const [models, setModels] = useAiModels();
 
   async function run(fn: () => Promise<unknown>, successNote?: string) {
     setBusy(true);
@@ -89,6 +137,28 @@ export function ShowsSection() {
         For each season: <b>1.</b> pull and approve the cast, then <b>2.</b> pull episode results each week. Leagues
         on the season get everything to confirm on their own episode cards.
       </p>
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        {(
+          [
+            ["wiki", "Wiki reading"],
+            ["research", "Research"],
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key} className="flex items-center gap-1">
+            {label}
+            <Select size="sm" value={models[key]} onChange={(e) => setModels({ ...models, [key]: e.target.value })}>
+              {AI_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label} (${m.input}/${m.output})
+                </option>
+              ))}
+            </Select>
+          </label>
+        ))}
+        <span className="text-[0.65rem]" title="Per million tokens, input/output. Research also pays $0.01 per web search.">
+          Prices by each button are typical per click. Reviewing, approving and settings are free.
+        </span>
+      </div>
 
       {isLoading ? (
         <p className="text-sm italic text-muted-foreground">Loading…</p>
@@ -105,6 +175,7 @@ export function ShowsSection() {
                 busy={busy}
                 run={run}
                 refetch={refetch}
+                models={models}
               />
             );
           })}
@@ -174,6 +245,7 @@ function ShowRow({
   busy,
   run,
   refetch,
+  models,
 }: {
   show: AdminShow;
   expanded: boolean;
@@ -181,6 +253,7 @@ function ShowRow({
   busy: boolean;
   run: Run;
   refetch: () => unknown;
+  models: Models;
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addingSeason, setAddingSeason] = useState(false);
@@ -227,7 +300,7 @@ function ShowRow({
             <p className="text-xs italic text-muted-foreground">No seasons yet — add one to start pulling its cast.</p>
           )}
           {show.seasons.map((s) => (
-            <SeasonCard key={s.id} season={s} busy={busy} run={run} refetch={refetch} />
+            <SeasonCard key={s.id} season={s} busy={busy} run={run} refetch={refetch} models={models} />
           ))}
 
           {addingSeason || show.seasons.length === 0 ? (
@@ -347,6 +420,22 @@ function ShowSettings({ show, busy, run }: { show: AdminShow; busy: boolean; run
           />
         </label>
       </div>
+      <label className="flex flex-wrap items-center gap-1">
+        <span title="Web research only searches these sites. Fewer, trusted sites means better answers and fewer tokens.">
+          Research sites
+        </span>
+        <Input
+          size="sm"
+          className="min-w-[200px] flex-1"
+          placeholder="default — the wiki plus ew.com, tvline.com, parade.com"
+          defaultValue={(show.research_domains ?? []).join(", ")}
+          disabled={busy}
+          onBlur={(e) => {
+            const v = e.target.value.trim();
+            if (v !== (show.research_domains ?? []).join(", ")) run(() => api.adminUpdateShow(show.id, { researchDomains: v }));
+          }}
+        />
+      </label>
       <div className="flex flex-wrap gap-1.5">
         <Button
           variant="secondary"
@@ -381,7 +470,19 @@ function ShowSettings({ show, busy, run }: { show: AdminShow; busy: boolean; run
 
 // One season, as the two-step pipeline it is. See the file header for the order and why step 2 is
 // locked until the cast is approved.
-function SeasonCard({ season, busy, run, refetch }: { season: ShowSeason; busy: boolean; run: Run; refetch: () => unknown }) {
+function SeasonCard({
+  season,
+  busy,
+  run,
+  refetch,
+  models,
+}: {
+  season: ShowSeason;
+  busy: boolean;
+  run: Run;
+  refetch: () => unknown;
+  models: Models;
+}) {
   const label = season.name || `Season ${season.seasonNumber}`;
   const staged = season.castStaged ?? 0;
   const approved = !!season.castApprovedAt;
@@ -423,19 +524,19 @@ function SeasonCard({ season, busy, run, refetch }: { season: ShowSeason; busy: 
   }
 
   const pullCast = (force = false) =>
-    act("cast", () => api.adminSyncSeason(season.id, "cast", force), (r) => {
+    act("cast", () => api.adminSyncSeason(season.id, "cast", force, models.wiki), (r) => {
       setPullResult(r);
       setReviewing(true);
     });
   const pullEpisodes = (force = false) =>
-    act("episodes", () => api.adminSyncSeason(season.id, "episodes", force), setPullResult);
+    act("episodes", () => api.adminSyncSeason(season.id, "episodes", force, models.wiki), setPullResult);
   const doResearch = (force = false) => {
     const n = Number(episode);
     if (!Number.isInteger(n) || n < 1) {
       setActionError("Give it an episode number first.");
       return;
     }
-    act("research", () => api.adminResearchEpisode(season.id, n, { force }), (r) => {
+    act("research", () => api.adminResearchEpisode(season.id, n, { force, model: models.research }), (r) => {
       setResearch(r);
       setEpisode(String(n + 1));
     });
@@ -482,22 +583,26 @@ function SeasonCard({ season, busy, run, refetch }: { season: ShowSeason; busy: 
         }
       >
         {staged === 0 ? (
-          <Button size="xs" disabled={locked || !hasWiki} onClick={() => pullCast()}>
-            {working === "cast" ? "Pulling…" : "Pull cast from wiki"}
-          </Button>
+          <>
+            <CostHint title={`Typical cost with ${modelLabel(models.wiki)}`}>{estimate("cast", models.wiki)}</CostHint>
+            <Button size="xs" disabled={locked || !hasWiki} onClick={() => pullCast()}>
+              {working === "cast" ? "Pulling…" : "Pull cast from wiki"}
+            </Button>
+          </>
         ) : (
           <>
-            <Button variant="secondary" size="xs" onClick={() => setReviewing((r) => !r)}>
+            <Button variant="secondary" size="xs" title="Free" onClick={() => setReviewing((r) => !r)}>
               {reviewing ? "Hide cast" : "Review cast"}
             </Button>
             <button
               className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
               disabled={locked || !hasWiki}
-              title="Read the cast from the wiki again (e.g. after the page was corrected)"
+              title={`Read the cast from the wiki again (e.g. after the page was corrected) — ${estimate("cast", models.wiki)} with ${modelLabel(models.wiki)}`}
               onClick={() => pullCast(true)}
             >
               {working === "cast" ? "Pulling…" : "Re-pull"}
             </button>
+            <CostHint>{estimate("cast", models.wiki)}</CostHint>
           </>
         )}
       </Step>
@@ -523,9 +628,14 @@ function SeasonCard({ season, busy, run, refetch }: { season: ShowSeason; busy: 
         }
       >
         {approved && (
-          <Button size="xs" disabled={locked || !hasWiki} onClick={() => pullEpisodes()}>
-            {working === "episodes" ? "Pulling…" : "Pull results from wiki"}
-          </Button>
+          <>
+            <CostHint title={`Typical cost with ${modelLabel(models.wiki)}. Free when the wiki hasn't changed since the last pull — nothing is sent to the model.`}>
+              {estimate("episodes", models.wiki)} · free if unchanged
+            </CostHint>
+            <Button size="xs" disabled={locked || !hasWiki} onClick={() => pullEpisodes()}>
+              {working === "episodes" ? "Pulling…" : "Pull results from wiki"}
+            </Button>
+          </>
         )}
       </Step>
       {approved && (
@@ -547,6 +657,11 @@ function SeasonCard({ season, busy, run, refetch }: { season: ShowSeason; busy: 
             <Button variant="secondary" size="xs" disabled={locked} onClick={() => doResearch()}>
               {working === "research" ? "Researching…" : "Research"}
             </Button>
+            <CostHint
+              title={`Typical cost with ${modelLabel(models.research)}: up to 5 web searches ($0.01 each) plus the pages they read. Free for an episode already researched.`}
+            >
+              {estimate("research", models.research)}
+            </CostHint>
           </span>
         </div>
       )}
@@ -560,12 +675,16 @@ function SeasonCard({ season, busy, run, refetch }: { season: ShowSeason; busy: 
       )}
       {actionError && <p className="mt-1.5 font-semibold text-destructive">{actionError}</p>}
       {pullResult && pullResult.kind === "episodes" && (
-        <PullResult result={pullResult} busy={locked} onForce={() => pullEpisodes(true)} />
+        <PullResult result={pullResult} busy={locked} onForce={() => pullEpisodes(true)} forceCost={estimate("episodes", models.wiki)} />
       )}
       {pullResult && pullResult.kind === "cast" && pullResult.staged && (
-        <p className="ml-6 mt-1 text-muted-foreground">{pullResult.staged.summary}</p>
+        <p className="ml-6 mt-1 text-muted-foreground">
+          {pullResult.staged.summary} <SpentNote model={pullResult.model} usage={pullResult.usage} cached={pullResult.cached} />
+        </p>
       )}
-      {research && <ResearchResult research={research} busy={locked} onForce={() => doResearch(true)} />}
+      {research && (
+        <ResearchResult research={research} busy={locked} onForce={() => doResearch(true)} forceCost={estimate("research", models.research)} />
+      )}
     </div>
   );
 }
@@ -682,13 +801,38 @@ function SeasonSettings({ season, busy, run }: { season: ShowSeason; busy: boole
 
 // What an episodes pull did: one line of outcome, the per-league breakdown behind a toggle, and any
 // league that failed always visible -- a failure is the one part nobody should have to click to see.
-function PullResult({ result, busy, onForce }: { result: WikiSeasonSyncResult; busy: boolean; onForce: () => void }) {
+// What a finished call actually cost, from the usage the API reported -- next to each result.
+function SpentNote({ model, usage, cached }: { model?: string | null; usage?: ModelUsage | null; cached: boolean }) {
+  if (cached) return <CostHint title="Nothing was sent to the model">· free (nothing new to read)</CostHint>;
+  const usd = costOf(model, usage);
+  if (usd == null) return null;
+  const tokens = usage ? `${usage.input_tokens} in / ${usage.output_tokens} out` : "";
+  const searches = usage?.web_search_requests ? `, ${usage.web_search_requests} searches` : "";
+  return (
+    <CostHint title={`${modelLabel(model)}: ${tokens} tokens${searches}`}>
+      · cost {formatCost(usd)} ({modelLabel(model)})
+    </CostHint>
+  );
+}
+
+function PullResult({
+  result,
+  busy,
+  onForce,
+  forceCost,
+}: {
+  result: WikiSeasonSyncResult;
+  busy: boolean;
+  onForce: () => void;
+  forceCost: string;
+}) {
   const [open, setOpen] = useState(false);
   const failed = result.leagues.filter((l) => !l.ok);
   return (
     <div className="ml-6 mt-1.5 rounded border border-dashed border-border bg-secondary/40 p-1.5 text-[0.7rem]">
       <p>
         {result.cached ? "Wiki unchanged since the last read — nothing new." : "Read fresh from the wiki."}{" "}
+        <SpentNote model={result.model} usage={result.usage} cached={result.cached} />{" "}
         {result.leagues.length === 0
           ? "No league tracks this season yet; results are cached for when one does."
           : `Filed to ${result.leagues.length - failed.length} of ${result.leagues.length} league${result.leagues.length === 1 ? "" : "s"} for review on their episode cards.`}
@@ -703,6 +847,11 @@ function PullResult({ result, busy, onForce }: { result: WikiSeasonSyncResult; b
           <Button variant="secondary" size="xs" className="ml-1.5" disabled={busy} onClick={onForce}>
             Extract again anyway
           </Button>
+        )}
+        {result.cached && (
+          <span className="ml-1">
+            <CostHint>{forceCost}</CostHint>
+          </span>
         )}
       </p>
       {failed.map((l) => (
@@ -732,7 +881,17 @@ function PullResult({ result, busy, onForce }: { result: WikiSeasonSyncResult; b
 // When opened it lists EVERY castaway, including the ones nothing was found for -- a quiet row means
 // "asked, nothing found", and telling that apart from "never asked" is the whole point of the
 // checklist (the bug this app hit twice: a castaway who took votes and survived silently vanished).
-function ResearchResult({ research, busy, onForce }: { research: SeasonResearchResult; busy: boolean; onForce: () => void }) {
+function ResearchResult({
+  research,
+  busy,
+  onForce,
+  forceCost,
+}: {
+  research: SeasonResearchResult;
+  busy: boolean;
+  onForce: () => void;
+  forceCost: string;
+}) {
   const [open, setOpen] = useState(false);
   const { payload, provenance, counts, problems } = research;
   const noted = payload.castaways.filter((c) => notesFor(c).length > 0);
@@ -749,7 +908,8 @@ function ResearchResult({ research, busy, onForce }: { research: SeasonResearchR
         </b>{" "}
         — {research.cached ? "already researched, reused" : "researched"}. {noted.length} of {counts.castaways} had
         something notable; {filed} item{filed === 1 ? "" : "s"} filed for review
-        {held ? ` (${held} catching-up league${held === 1 ? "" : "s"} will get them on reveal)` : ""}.
+        {held ? ` (${held} catching-up league${held === 1 ? "" : "s"} will get them on reveal)` : ""}.{" "}
+        <SpentNote model={provenance.model} usage={provenance.usage} cached={research.cached} />
         <button className="ml-1 underline" onClick={() => setOpen((v) => !v)}>
           {open ? "hide details" : "details"}
         </button>
@@ -757,6 +917,9 @@ function ResearchResult({ research, busy, onForce }: { research: SeasonResearchR
         <Button variant="secondary" size="xs" className="ml-1.5" disabled={busy} onClick={onForce}>
           Research again
         </Button>
+        <span className="ml-1">
+          <CostHint>{forceCost}</CostHint>
+        </span>
       </p>
       {problems.length > 0 && (
         <ul className="mt-0.5 text-destructive">
@@ -793,6 +956,11 @@ function ResearchResult({ research, busy, onForce }: { research: SeasonResearchR
               </li>
             ))}
           </ul>
+          {provenance.castSkipped?.length ? (
+            <p className="mt-1 text-muted-foreground">
+              <b>Not asked (already out):</b> {provenance.castSkipped.join(", ")}
+            </p>
+          ) : null}
           {quiet.length > 0 && (
             <p className="mt-1 text-muted-foreground">
               <b>Asked, nothing found:</b> {quiet.map((c) => c.name).join(", ")}
@@ -806,6 +974,15 @@ function ResearchResult({ research, busy, onForce }: { research: SeasonResearchR
             <span title={provenance.pagesRead.join("\n")} className="underline decoration-dotted">
               {provenance.pagesRead.length} pages read
             </span>
+            {provenance.domains?.length ? (
+              <>
+                {" "}
+                ·{" "}
+                <span title={provenance.domains.join("\n")} className="underline decoration-dotted">
+                  {provenance.domains.length} trusted sites
+                </span>
+              </>
+            ) : null}
           </p>
         </>
       )}

@@ -19,6 +19,9 @@ export interface EpisodeResearchOptions {
   model?: string;
 }
 
+/** The Claude models the admin UI may pick for research, cheapest first. */
+export const RESEARCH_MODELS: string[];
+
 /** One league's fan-out result -- the research connector's analogue of wiki-sync's FanOutResult. */
 export interface ResearchFanOutResult {
   id: string;
@@ -64,7 +67,7 @@ export interface EpisodeResearchRun {
 
 /**
  * Research one episode of one catalogued season: asks a web-searching model a fixed checklist about
- * every castaway in the season's staged cast, validates coverage, and caches the answers in
+ * every castaway in the season's staged cast still in the game, validates coverage, and caches the answers in
  * `episode_research`. Throws if the season has no staged cast (there would be nobody to ask about),
  * if the provider has no credentials, or if the answer comes back missing people.
  */
