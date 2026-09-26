@@ -70,6 +70,14 @@ function buildPlayers(data: DemoSeasonData): Player[] {
   return data.players.map((p) => ({ id: pid(p.key), name: p.name, color: p.color }));
 }
 
+// "You" for the demo -- the store gives this player a real membership (see chooseDemoSeason) so the
+// demo plays from inside the league (your roster/picks highlighted, able to set lineups and make
+// picks) rather than pure commissioner god-mode. Always the season's first listed player; there's no
+// real basis to prefer any other fictional player over another.
+export function demoSelfPlayerId(data: DemoSeasonData): string {
+  return pid(data.players[0].key);
+}
+
 function buildTribes(data: DemoSeasonData): Tribe[] {
   return (data.groups || []).map((g) => ({ id: tid(g.key), name: g.name, color: g.color }));
 }

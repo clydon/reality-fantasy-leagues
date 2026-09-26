@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { LeagueState, Membership } from "@/lib/game/types";
 import { buildMockSeasonState } from "@/lib/game/mock-state";
-import { buildDemoState, type DemoSeasonData, type DemoLeagueTypeId } from "@/lib/game/demo-season-builder";
+import { buildDemoState, demoSelfPlayerId, type DemoSeasonData, type DemoLeagueTypeId } from "@/lib/game/demo-season-builder";
 import { api, type MeResponse } from "@/lib/api";
 
 export type LeagueSummary = MeResponse["leagues"][number];
@@ -162,13 +162,18 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   // Chosen from the Demo Season picker (demo-season-picker.tsx) -- defaults to viewing the whole,
   // finished season (the last episode) rather than episode 1, since "browse a completed season" is
   // the actual use case; scrubbing backward from there is the exception, not the starting point.
+  //
+  // Sets a real membership (commissioner + a playerId, demoSelfPlayerId) unlike the plain generic
+  // mock season's membership:null -- the demo plays from inside the league (your roster/picks
+  // highlighted, able to set lineups and make picks) rather than pure commissioner god-mode. See
+  // useCanGuess's comment for the other half of what that unlocks.
   chooseDemoSeason: (data, leagueTypeId) =>
     set({
       mode: "mock",
       state: buildDemoState(data, leagueTypeId, data.episodeCount),
       leagueId: null,
       leagueName: null,
-      membership: null,
+      membership: { role: "commissioner", playerId: demoSelfPlayerId(data) },
       playerAccounts: [],
       flash: null,
       demoPreview: true,
@@ -253,8 +258,14 @@ export function useCanManage(): boolean {
   return useLeagueStore((s) => s.mode === "mock" || s.membership?.role === "commissioner");
 }
 
+// Was `mode !== 'mock' && ...` -- the plain generic mock season has no personal player identity to
+// guess with (membership stays null there, same as the live app's own demo mode), but a Demo Season
+// picker season DOES have one (chooseDemoSeason sets membership.playerId to demoSelfPlayerId), and
+// should be able to make picks/lineups/bet guesses from inside the league same as a real member. The
+// membership.playerId check alone already excludes the plain generic season, so dropping the mode
+// gate only changes behavior for a chosen demo season.
 export function useCanGuess(): boolean {
-  return useLeagueStore((s) => s.mode !== "mock" && !!s.membership?.playerId);
+  return useLeagueStore((s) => !!s.membership?.playerId);
 }
 
 export function useMyPlayerId(): string | null {
