@@ -13,6 +13,7 @@ import { logOut } from "@/lib/auth-client";
 import { cn } from "cn";
 import { midseasonBadge } from "@/lib/game/selectors";
 import { useLeagueTypeBadges } from "@/components/league-switcher";
+import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
 import { Badge } from "@/components/ui/badge";
 import {
   OverviewIcon,
@@ -56,10 +57,10 @@ export function MobileNav() {
   const isSuperAdmin = useIsSuperAdmin();
   const isAuthenticated = useIsAuthenticated();
   const enterMockMode = useLeagueStore((s) => s.useMock);
-  const previewDemo = useLeagueStore((s) => s.previewDemo);
   const setEntered = useLeagueStore((s) => s.setEntered);
   const isPreviewingDemo = useIsPreviewingDemo();
   const openReportModal = useReportModalStore((s) => s.openModal);
+  const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
   const notifications = useNotificationsStore((s) => s.notifications);
@@ -113,10 +114,10 @@ export function MobileNav() {
 
   function go(href: string) {
     setSheetOpen(false);
-    // The Demo Season slot has no route of its own -- entering the demo is a store change, and the
-    // page you're on re-renders against it (same as the sidebar's row).
+    // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same
+    // as the sidebar's row).
     if (!href) {
-      previewDemo();
+      openDemoPicker();
       return;
     }
     router.push(href);
@@ -283,6 +284,9 @@ export function MobileNav() {
         {hasSeason && demoted && <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />}
         {hasSeason && <MoreRow icon={GearIcon} label="League Settings" onClick={() => go("/setup")} />}
         {!hasSeason && <MoreRow icon={OverviewIcon} label="My Leagues" onClick={() => go("/dashboard")} />}
+        {/* Reachable even with a real season loaded now, not just when leagueless -- picking one
+            replaces the view with demo data the same way Sidebar's "Switch to demo data" does. */}
+        <MoreRow icon={EpisodesIcon} label="Demo Season" onClick={() => go("")} />
         {isSuperAdmin && (
           <>
             <div className="my-1.5 h-px bg-border" />

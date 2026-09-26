@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { LeagueState, Membership } from "@/lib/game/types";
 import { buildMockSeasonState } from "@/lib/game/mock-state";
+import { buildDemoState, type DemoSeasonData } from "@/lib/game/demo-season-builder";
 import { api, type MeResponse } from "@/lib/api";
 
 export type LeagueSummary = MeResponse["leagues"][number];
@@ -71,6 +72,14 @@ interface LeagueStore {
   // original `!userId` check is false here by design. See auth-gate.tsx's handleExitDemo.
   demoPreview: boolean;
   previewDemo: () => void;
+  // The Demo Season picker (demo-season-picker.tsx): once a season's data has been fetched, it's
+  // cached here so scrubbing the episode cursor rebuilds `state` from it instantly, with no refetch.
+  // `demoEpisodeCursor` is the "as of episode N" view; null (no season chosen yet) means the plain
+  // generic mock season (buildMockSeasonState) that mode:'mock' has always defaulted to.
+  demoSeasonData: DemoSeasonData | null;
+  demoEpisodeCursor: number | null;
+  chooseDemoSeason: (data: DemoSeasonData) => void;
+  setDemoEpisodeCursor: (n: number) => void;
   loadLive: (
     leagueId: string,
     state: LeagueState,
@@ -114,6 +123,8 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   playerAccounts: [],
   leagues: [],
   demoPreview: false,
+  demoSeasonData: null,
+  demoEpisodeCursor: null,
   useMock: () =>
     set({
       mode: "mock",
@@ -128,6 +139,8 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       leagues: [],
       flash: null,
       demoPreview: false,
+      demoSeasonData: null,
+      demoEpisodeCursor: null,
     }),
   previewDemo: () =>
     set({
@@ -139,9 +152,45 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       playerAccounts: [],
       flash: null,
       demoPreview: true,
+      demoSeasonData: null,
+      demoEpisodeCursor: null,
     }),
+  // Chosen from the Demo Season picker (demo-season-picker.tsx) -- defaults to viewing the whole,
+  // finished season (the last episode) rather than episode 1, since "browse a completed season" is
+  // the actual use case; scrubbing backward from there is the exception, not the starting point.
+  chooseDemoSeason: (data) =>
+    set({
+      mode: "mock",
+      state: buildDemoState(data, data.episodeCount),
+      leagueId: null,
+      leagueName: null,
+      membership: null,
+      playerAccounts: [],
+      flash: null,
+      demoPreview: true,
+      demoSeasonData: data,
+      demoEpisodeCursor: data.episodeCount,
+    }),
+  setDemoEpisodeCursor: (n) => {
+    const data = get().demoSeasonData;
+    if (!data) return;
+    const cursor = Math.max(1, Math.min(n, data.episodeCount));
+    set({ state: buildDemoState(data, cursor), demoEpisodeCursor: cursor });
+  },
   loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts) =>
-    set({ mode: "live", leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts, demoPreview: false }),
+    set({
+      mode: "live",
+      leagueId,
+      state,
+      leagueName,
+      membership,
+      userId,
+      isSuperAdmin,
+      playerAccounts,
+      demoPreview: false,
+      demoSeasonData: null,
+      demoEpisodeCursor: null,
+    }),
   setIdentity: (userId, isSuperAdmin, impersonating) => set({ userId, isSuperAdmin, impersonating }),
   setLeagues: (leagues) => set({ leagues }),
   renameLeagueLocally: (leagueId, name) =>
@@ -156,14 +205,33 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
     set({ loadingLeague: true });
     try {
       const { league, state, membership, playerAccounts } = await api.leagueState(leagueId);
-      set({ mode: "live", leagueId: league.id, state, leagueName: league.name, membership, playerAccounts, demoPreview: false });
+      set({
+        mode: "live",
+        leagueId: league.id,
+        state,
+        leagueName: league.name,
+        membership,
+        playerAccounts,
+        demoPreview: false,
+        demoSeasonData: null,
+        demoEpisodeCursor: null,
+      });
     } finally {
       set({ loadingLeague: false });
     }
   },
   setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason } }),
   clearLeague: () =>
-    set({ mode: "mock", state: buildMockSeasonState(), leagueId: null, leagueName: null, membership: null, playerAccounts: [] }),
+    set({
+      mode: "mock",
+      state: buildMockSeasonState(),
+      leagueId: null,
+      leagueName: null,
+      membership: null,
+      playerAccounts: [],
+      demoSeasonData: null,
+      demoEpisodeCursor: null,
+    }),
   flash: null,
   setFlash: (flash) => set({ flash }),
   // Mock-mode mutators (StateLogic.*) mutate `state` in place, same as the live app; spreading it

@@ -6,11 +6,13 @@ import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { signInWithIdentifier } from "@/lib/auth-client";
 import { useLeagueStore, useIsPreviewingDemo, useIsAuthenticated } from "@/lib/store";
+import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
 import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 import { ReportModal } from "@/components/report-modal";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { DemoSeasonPicker } from "@/components/demo-season-picker";
 import { InstallHint } from "@/components/install-hint";
 import { Dashboard } from "@/components/dashboard/dashboard";
 import { useLeaguePoll } from "@/lib/use-league-poll";
@@ -52,6 +54,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const entered = useLeagueStore((s) => s.entered);
   const setEntered = useLeagueStore((s) => s.setEntered);
   const isPreviewingDemo = useIsPreviewingDemo();
+  const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
   const [status, setStatus] = useState<Status>("checking");
   const [error, setError] = useState<string | null>(null);
   const [signedInUsername, setSignedInUsername] = useState<string | null>(null);
@@ -109,6 +112,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   function handleSkip() {
     enterMockMode();
     setEntered(true);
+    // "Take a Tour" now opens straight into the season picker rather than silently landing on
+    // the one hardcoded generic season -- see demo-season-picker.tsx.
+    openDemoPicker();
   }
 
   // Port of exitDemoMode() (public/app.js). Two distinct cases share this one banner/button:
@@ -209,6 +215,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       )}
       <MobileNav />
       <ReportModal />
+      <DemoSeasonPicker />
       <ConfirmDialog />
       {/* Phones only -- desktop browsers have their own install affordance (an icon in the address
           bar) that doesn't need this app repeating it. See install-hint.tsx's own comment on why

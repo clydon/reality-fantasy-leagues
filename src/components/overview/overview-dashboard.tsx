@@ -10,6 +10,7 @@ import { BoardGrid } from "./board-grid";
 import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
 import { ActiveRosterLineupGrid } from "./active-roster-lineup-grid";
+import { DemoEpisodeScrubber } from "@/components/demo-episode-scrubber";
 
 // Direct port of renderOverview() (public/app.js): Notifications banner, Side Bets section, the
 // dash-grid of three cards, and the post-draft Board grid, in the same order as the original.
@@ -23,6 +24,7 @@ export function OverviewDashboard() {
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Overview</h2>
+      <DemoEpisodeScrubber />
       {/* Catch-up mode (StateLogic.RevealLogic): say so here, or the standings look inexplicably
           early to anyone who knows how far the real season has run. Deliberately says nothing about
           how much is left -- see catch-up-panel.tsx. */}

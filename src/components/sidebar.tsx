@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
+import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
 import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
@@ -44,7 +45,7 @@ export function Sidebar() {
   const mode = useLeagueStore((s) => s.mode);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const enterMockMode = useLeagueStore((s) => s.useMock);
-  const previewDemo = useLeagueStore((s) => s.previewDemo);
+  const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
   const setEntered = useLeagueStore((s) => s.setEntered);
   const openReportModal = useReportModalStore((s) => s.openModal);
   const state = useLeagueStore((s) => s.state);
@@ -116,7 +117,7 @@ export function Sidebar() {
                 reach it from neither. */}
             <button
               className="flex items-center gap-2.5 rounded-[7px] px-3 py-2.5 text-left text-[0.9rem] font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-              onClick={previewDemo}
+              onClick={openDemoPicker}
             >
               <span className="h-1.5 w-1.5 flex-none rounded-full bg-current opacity-35" />
               Demo Season
@@ -151,15 +152,21 @@ export function Sidebar() {
           hasSeason && (
             <p className="text-[0.8rem] text-muted-foreground">
               Viewing demo data.{" "}
+              <button className="font-semibold text-primary hover:underline" onClick={openDemoPicker}>
+                Switch season
+              </button>
               {!isAuthenticated && (
-                <button className="font-semibold text-primary hover:underline" onClick={exitDemo}>
-                  Sign in
-                </button>
+                <>
+                  {" · "}
+                  <button className="font-semibold text-primary hover:underline" onClick={exitDemo}>
+                    Sign in
+                  </button>
+                </>
               )}
             </p>
           )
         ) : (
-          <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={previewDemo}>
+          <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={openDemoPicker}>
             Switch to demo data
           </button>
         )}

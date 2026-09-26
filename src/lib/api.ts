@@ -1,4 +1,5 @@
 import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync } from "@/lib/game/types";
+import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 
 export class ApiError extends Error {
   status: number;
@@ -393,6 +394,14 @@ export const api = {
   // Show/season catalog. The plain /api/shows read is commissioner-facing (the Show and Season
   // pickers in League Settings); everything under /api/admin/* is super-admin catalog management.
   listShows: () => localFetch<{ shows: CatalogShow[] }>("/api/shows"),
+
+  // Demo Season picker catalog (db/migrations/0025_demo_seasons.sql) -- public, no auth, so a
+  // logged-out visitor can try a real season before they have an account.
+  listDemoSeasons: () =>
+    localFetch<{ seasons: { id: string; showId: string; leagueTypeId: string; name: string; episodeCount: number }[] }>(
+      "/api/demo-seasons"
+    ),
+  getDemoSeason: (id: string) => localFetch<{ season: DemoSeasonData }>(`/api/demo-seasons/${id}`),
 
   adminListShows: () => localFetch<{ shows: AdminShow[] }>("/api/admin/shows"),
   adminCreateShow: (body: {
