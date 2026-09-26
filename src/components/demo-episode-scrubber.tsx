@@ -17,7 +17,15 @@ export function DemoEpisodeScrubber() {
   if (!data || cursor === null) return null;
 
   return (
-    <div className="mb-4 flex items-center justify-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+    <div className="mb-4 flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+      <button
+        className="rounded-md border border-border px-2 py-1 font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={cursor <= 1}
+        onClick={() => setCursor(1)}
+        title="Jump to episode 1"
+      >
+        ⏮
+      </button>
       <button
         className="rounded-md border border-border px-2.5 py-1 font-semibold disabled:cursor-not-allowed disabled:opacity-40"
         disabled={cursor <= 1}
@@ -34,6 +42,14 @@ export function DemoEpisodeScrubber() {
         onClick={() => setCursor(cursor + 1)}
       >
         Next →
+      </button>
+      <button
+        className="rounded-md border border-border px-2 py-1 font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={cursor >= data.episodeCount}
+        onClick={() => setCursor(data.episodeCount)}
+        title="Jump to the last episode"
+      >
+        ⏭
       </button>
     </div>
   );

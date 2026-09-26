@@ -2,6 +2,14 @@ import type { Bet, Castaway, Episode, LeagueState, Player, Tribe } from "./types
 
 export type DemoLeagueTypeId = "classic-draft" | "active-roster" | "pickem";
 
+// Shared display label for a demo league type -- used by both the picker (choosing one) and the
+// "Previewing demo data" banner (saying which one is currently loaded).
+export const DEMO_LEAGUE_TYPE_LABELS: Record<DemoLeagueTypeId, string> = {
+  "classic-draft": "Classic Draft",
+  "active-roster": "Active Roster",
+  pickem: "Eliminator Pool",
+};
+
 // Turns one researched demo season (db/migrations/0026_demo_seasons_generic.sql, fetched via
 // /api/demo-seasons/:id) into a real LeagueState, for whichever league type the Demo Season picker's
 // second step chose and at whichever episode the viewer has scrubbed to. Unlike mock-state.ts's
