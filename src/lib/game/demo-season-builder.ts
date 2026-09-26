@@ -82,14 +82,18 @@ function buildTribes(data: DemoSeasonData): Tribe[] {
   return (data.groups || []).map((g) => ({ id: tid(g.key), name: g.name, color: g.color }));
 }
 
-// A uniform-size draft split, in the season's own cast order, so SnakeDraftStrategy's "complete"
-// arithmetic (players.length * rosterSize) always lines up exactly -- there's no real basis for
-// which fictional player would have drafted whom, so this just needs to be a valid, even split. Any
-// remainder (a cast size that doesn't divide evenly by player count) stays undrafted, same as a real
-// league's free agents.
-function computeRoster(data: DemoSeasonData): { rosterSize: number; ownership: { playerKey: string; castawayKeys: string[] }[] } {
+// Fixed roster sizes rather than derived from cast size: Classic Draft is a 3-pick roster, Active
+// Roster a 5-pick one (3 active + 2 bench) -- same shape a real league of that type would default
+// to, regardless of how big the real cast happens to be. A cast size that doesn't divide evenly by
+// player count leaves a remainder undrafted, same as a real league's free agents.
+const ROSTER_SIZE: Record<"classic-draft" | "active-roster", number> = { "classic-draft": 3, "active-roster": 5 };
+
+function computeRoster(
+  data: DemoSeasonData,
+  leagueTypeId: "classic-draft" | "active-roster"
+): { rosterSize: number; ownership: { playerKey: string; castawayKeys: string[] }[] } {
   const playerCount = data.players.length;
-  const rosterSize = Math.floor(data.castaways.length / playerCount);
+  const rosterSize = Math.min(ROSTER_SIZE[leagueTypeId], Math.floor(data.castaways.length / playerCount));
   const draftable = data.castaways.slice(0, rosterSize * playerCount);
   const ownership = data.players.map((p, i) => ({
     playerKey: p.key,
@@ -173,12 +177,15 @@ function buildEpisodesBase(data: DemoSeasonData, players: Player[], throughEpiso
 }
 
 function baseSettings(data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId, rosterSize: number) {
+  const isClassic = leagueTypeId === "classic-draft";
   return {
-    teamSize: leagueTypeId === "classic-draft" ? rosterSize || 1 : 3,
+    teamSize: isClassic ? rosterSize || 1 : 3,
     bonusEnabled: true,
     replenishOrderBy: "mostPoints" as const,
-    replenishEnabled: false,
-    tradeEnabled: false,
+    // Only Classic Draft demos run with Replenish/Swap on -- Active Roster's own demo shows off the
+    // "field a lineup" mechanic instead, and Eliminator Pool has no roster for either to apply to.
+    replenishEnabled: isClassic,
+    tradeEnabled: isClassic,
     revealedThroughEpisode: null,
     startEpisode: 1,
     defaultBetPoints: 2,
@@ -193,8 +200,8 @@ function baseSettings(data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId, rost
     setupComplete: true,
     ownershipMode: "exclusive" as const,
     wikiSeason: null,
-    activeSlots: leagueTypeId === "active-roster" ? rosterSize || 1 : 3,
-    benchSlots: 0,
+    activeSlots: 3,
+    benchSlots: leagueTypeId === "active-roster" ? 2 : 0,
     eventPoints: {},
     pickemCorrectPoints: 1,
   };
@@ -225,7 +232,7 @@ function ownerMap(ownership: { playerKey: string; castawayKeys: string[] }[]): M
 function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "active-roster", throughEpisode: number): LeagueState {
   const players = buildPlayers(data);
   const tribes = buildTribes(data);
-  const { rosterSize, ownership } = computeRoster(data);
+  const { rosterSize, ownership } = computeRoster(data, leagueTypeId);
   const castaways = buildCastaways(data, ownerMap(ownership), true, throughEpisode);
   const episodes = buildEpisodesBase(data, players, throughEpisode);
   if (leagueTypeId === "active-roster") {

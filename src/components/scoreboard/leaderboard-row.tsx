@@ -3,7 +3,7 @@
 import type { LeagueState, ScoreRow } from "@/lib/game/types";
 import { playerBetRows } from "@/lib/game/bet-rows";
 import { cn } from "cn";
-import { RoleBadge } from "@/components/role-badge";
+import { CastawayStatCard } from "@/components/castaway-stat-card";
 
 // Port of one iteration of renderScoreboard()'s .map() (public/app.js): the leaderboard row plus
 // its two <details> disclosures (Roster detail, Bonus bets). Both use the native <details>
@@ -13,7 +13,6 @@ import { RoleBadge } from "@/components/role-badge";
 export function LeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; state: LeagueState }) {
   const bonusEnabled = state.settings.bonusEnabled;
   const bets = bonusEnabled ? playerBetRows(state, r.playerId) : [];
-  const hasAcquiredNonDraft = r.roster.some((c) => c.acquiredVia && c.acquiredVia !== "draft");
 
   return (
     <div className="mb-3 rounded-lg border border-border bg-card shadow-sm">
@@ -32,39 +31,22 @@ export function LeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; 
 
       <details className="border-t border-border px-3.5 py-2">
         <summary className="cursor-pointer text-xs text-muted-foreground">Roster detail</summary>
-        <div className="mt-2 flex flex-col gap-1">
+        <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2.5">
           {r.roster.length === 0 && r.formerRoster.length === 0 && (
             <div className="text-xs italic text-muted-foreground">No roster</div>
           )}
           {r.roster.map((c) => (
-            <div key={c.id} className="flex items-center justify-between text-sm">
-              <span>
-                {c.name}
-                <RoleBadge state={state} castawayId={c.id} />
-                {c.acquiredVia && c.acquiredVia !== "draft" && (
-                  <span title={`Acquired via ${c.acquiredVia}, not an original pick`}> *</span>
-                )}
-              </span>
-              <span className="text-muted-foreground">{c.status === "eliminated" ? c.exitMethod || "Eliminated" : "Active"}</span>
-              <span className="font-mono">{c.status === "eliminated" ? c.placementOrder : "—"}</span>
-            </div>
+            <CastawayStatCard key={c.id} state={state} castaway={c} showOwner={false} showPoints={false} expanded />
           ))}
           {r.formerRoster.map((c) => (
-            <div key={c.id} className="flex items-center justify-between text-sm text-muted-foreground opacity-70">
-              <span>{c.name}</span>
-              <span>
-                {c.exitMethod || "Eliminated"} ({c.departedVia === "trade" ? "swapped away" : "replenished away"})
-              </span>
-              <span className="font-mono">—</span>
+            <div key={c.id} className="opacity-60" title={c.departedVia === "trade" ? "Swapped away" : "Replenished away"}>
+              <CastawayStatCard state={state} castaway={c} showOwner={false} showPoints={false} expanded />
             </div>
           ))}
         </div>
-        {hasAcquiredNonDraft && (
-          <p className="mt-1.5 text-[0.7rem] text-muted-foreground">* acquired via replenish or swap, not an original draft pick.</p>
-        )}
         {r.formerRoster.length > 0 && (
-          <p className="mt-1 text-[0.7rem] text-muted-foreground">
-            Grayed rows: once on this roster, since replenished or swapped away — kept for history, no longer counts toward the score.
+          <p className="mt-1.5 text-[0.7rem] text-muted-foreground">
+            Faded cards: once on this roster, since replenished or swapped away — kept for history, no longer counts toward the score.
           </p>
         )}
       </details>

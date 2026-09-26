@@ -135,6 +135,14 @@ export function InfoIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+export function XMarkIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" {...props}>
+      <line x1="5" y1="5" x2="19" y2="19" />
+      <line x1="19" y1="5" x2="5" y2="19" />
+    </svg>
+  );
+}
 export function UserIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...common} {...props}>

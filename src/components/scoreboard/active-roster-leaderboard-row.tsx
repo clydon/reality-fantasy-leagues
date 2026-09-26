@@ -60,11 +60,11 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
         <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2.5">
           {r.roster.length === 0 && <div className="text-xs italic text-muted-foreground">No roster</div>}
           {r.roster.map((c) => (
-            <CastawayStatCard key={c.id} state={state} castaway={c} showOwner={false} expanded />
+            <CastawayStatCard key={c.id} state={state} castaway={c} showOwner={false} showPlacementBadge={false} expanded />
           ))}
           {r.formerRoster.map((c) => (
             <div key={c.id} className="opacity-60">
-              <CastawayStatCard state={state} castaway={c} showOwner={false} expanded />
+              <CastawayStatCard state={state} castaway={c} showOwner={false} showPlacementBadge={false} expanded />
             </div>
           ))}
         </div>

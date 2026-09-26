@@ -80,6 +80,11 @@ interface LeagueStore {
   demoLeagueTypeId: DemoLeagueTypeId | null;
   demoEpisodeCursor: number | null;
   chooseDemoSeason: (data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId) => void;
+  // Switching show or game type from the demo bar's own dropdowns (demo-bar.tsx), once a season is
+  // already loaded -- unlike chooseDemoSeason (the picker's first entry, always jumps to the last
+  // episode and navigates to Overview), this keeps whatever page and episode cursor you're on,
+  // clamped to the new season's own episode count if it has fewer.
+  switchDemoSeason: (data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId) => void;
   setDemoEpisodeCursor: (n: number) => void;
   loadLive: (
     leagueId: string,
@@ -181,6 +186,16 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       demoLeagueTypeId: leagueTypeId,
       demoEpisodeCursor: data.episodeCount,
     }),
+  switchDemoSeason: (data, leagueTypeId) => {
+    const cursor = Math.min(get().demoEpisodeCursor ?? data.episodeCount, data.episodeCount);
+    set({
+      state: buildDemoState(data, leagueTypeId, cursor),
+      membership: { role: "commissioner", playerId: demoSelfPlayerId(data) },
+      demoSeasonData: data,
+      demoLeagueTypeId: leagueTypeId,
+      demoEpisodeCursor: cursor,
+    });
+  },
   setDemoEpisodeCursor: (n) => {
     const { demoSeasonData: data, demoLeagueTypeId: leagueTypeId } = get();
     if (!data || !leagueTypeId) return;

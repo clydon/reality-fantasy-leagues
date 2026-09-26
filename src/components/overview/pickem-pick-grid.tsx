@@ -6,6 +6,7 @@ import { useLeagueStore, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { XMarkIcon } from "@/components/icons";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
 
@@ -41,7 +42,7 @@ export function PickEmPickGrid({ state }: { state: LeagueState }) {
   }
 
   return (
-    <div className="mb-5 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div id="pickem-grid" className="mb-5 rounded-lg border border-border bg-card p-4 shadow-sm">
       <div className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
           {ep ? `Your pick for episode ${ep.number}` : "Your pick"}
@@ -88,21 +89,23 @@ export function PickEmPickGrid({ state }: { state: LeagueState }) {
                 (used || out) && !mine && "opacity-45 grayscale"
               )}
             >
-              <CastawayAvatar
-                castaway={c}
-                className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold"
-              />
+              <div className="relative h-11 w-11">
+                <CastawayAvatar
+                  castaway={c}
+                  className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold"
+                />
+                {out && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-black/10" aria-hidden>
+                    <XMarkIcon className="h-7 w-7 text-destructive drop-shadow-[0_1px_2px_rgba(0,0,0,.4)]" />
+                  </div>
+                )}
+              </div>
               <span className="text-xs font-medium leading-tight">{c.name}</span>
               {mine && <span className="rounded bg-primary px-1.5 py-px text-[0.6rem] font-bold text-primary-foreground">Your pick</span>}
               {used && !out && !mine && (
                 <span className="rounded bg-muted-foreground px-1.5 py-px text-[0.6rem] font-bold text-white">
                   Ep. {used.episode}
                   {used.reason === "backToBack" ? " · last" : ""}
-                </span>
-              )}
-              {out && (
-                <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[2.75rem] font-black text-destructive" aria-hidden>
-                  ✕
                 </span>
               )}
             </button>

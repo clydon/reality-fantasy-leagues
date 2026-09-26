@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { signInWithIdentifier } from "@/lib/auth-client";
 import { useLeagueStore, useIsPreviewingDemo, useIsAuthenticated } from "@/lib/store";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
-import { DEMO_LEAGUE_TYPE_LABELS } from "@/lib/game/demo-season-builder";
+import { DemoBar } from "@/components/demo-bar";
 import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
@@ -46,8 +46,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const impersonating = useLeagueStore((s) => s.impersonating);
   const leagues = useLeagueStore((s) => s.leagues);
   const demoPreview = useLeagueStore((s) => s.demoPreview);
-  const demoSeasonData = useLeagueStore((s) => s.demoSeasonData);
-  const demoLeagueTypeId = useLeagueStore((s) => s.demoLeagueTypeId);
   const loadingLeague = useLeagueStore((s) => s.loadingLeague);
   const flash = useLeagueStore((s) => s.flash);
   const setFlash = useLeagueStore((s) => s.setFlash);
@@ -207,18 +205,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
       {impersonationBanner}
       {/* Port of the live app's persistent "🎬 Exit Demo" button (public/index.html's
           #exitDemoBtn) -- always visible while previewing without an account, not tucked away as
-          a footer link only, so there's an obvious way back to the login screen. */}
-      {isPreviewingDemo && (
-        <div className="sticky top-0 z-[1000] flex items-center justify-center gap-2 bg-primary px-3 py-2.5 text-center text-[0.85rem] text-primary-foreground">
-          🎬 Previewing demo data
-          {demoSeasonData && demoLeagueTypeId
-            ? ` — ${demoSeasonData.showName} ${DEMO_LEAGUE_TYPE_LABELS[demoLeagueTypeId]}`
-            : " — nothing here is saved."}
-          <Button variant="secondary" size="sm" onClick={handleExitDemo}>
-            Exit Tour
-          </Button>
-        </div>
-      )}
+          a footer link only, so there's an obvious way back to the login screen. Now also carries
+          the show/game-type switcher and the episode scrubber -- see demo-bar.tsx. */}
+      {isPreviewingDemo && <DemoBar onExit={handleExitDemo} />}
       <MobileNav />
       <ReportModal />
       <DemoSeasonPicker />

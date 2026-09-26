@@ -71,6 +71,7 @@ export function BoardGrid({ state }: { state: LeagueState }) {
                           owners={owners}
                           formerOwner={formerOwner ?? undefined}
                           showPoints={activeRoster}
+                          showPlacementBadge={!activeRoster}
                           expanded={activeRoster && expandedId === c.id}
                           onToggleExpand={activeRoster ? () => setExpandedId((id) => (id === c.id ? null : c.id)) : undefined}
                         />

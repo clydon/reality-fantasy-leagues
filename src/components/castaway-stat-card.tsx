@@ -5,6 +5,7 @@ import { castawayEventStats } from "@/lib/game/active-roster-rows";
 import { medalFor, MEDAL_EMOJI } from "@/lib/game/selectors";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { RoleBadge } from "@/components/role-badge";
+import { XMarkIcon } from "@/components/icons";
 import { cn } from "cn";
 
 // Active Roster's own castaway card: photo, name, elimination medal/placement, owner tag -- the same
@@ -23,6 +24,7 @@ export function CastawayStatCard({
   formerOwner = null,
   showOwner = true,
   showPoints = true,
+  showPlacementBadge = true,
   expanded,
   onToggleExpand,
 }: {
@@ -36,12 +38,16 @@ export function CastawayStatCard({
   showOwner?: boolean;
   /** Whether there's a points badge / stat breakdown to show at all -- off outside Active Roster leagues. */
   showPoints?: boolean;
+  /** Boot-order badge/medal in the corner -- meaningful for Classic Draft (elimination order IS the
+      score), not for Active Roster or Eliminator Pool, which don't score on placement at all. The
+      elimination X itself still always shows; only the numbered badge/medal is conditional. */
+  showPlacementBadge?: boolean;
   expanded: boolean;
   /** Present = the card is clickable and toggles `expanded`; absent = always shown as given (Scoreboard's always-open cards). */
   onToggleExpand?: () => void;
 }) {
   const owner = owners[0] ?? null;
-  const medal = c.status === "eliminated" ? medalFor(state, c.placementOrder) : null;
+  const medal = c.status === "eliminated" && showPlacementBadge ? medalFor(state, c.placementOrder) : null;
   const eliminatedNoMedal = c.status === "eliminated" && !medal;
   const stats = showPoints ? castawayEventStats(state, c.id) : null;
   const clickable = showPoints && !!onToggleExpand;
@@ -60,7 +66,11 @@ export function CastawayStatCard({
       )}
       style={{ borderColor: owner ? owner.color : "var(--border)" }}
     >
+      {/* Boot-order badge/medal, card-corner -- only when showPlacementBadge (Classic Draft, where
+          elimination order IS the score). The X mark below is independent of this and always shows
+          for anyone eliminated, in every league type. */}
       {c.status === "eliminated" &&
+        showPlacementBadge &&
         (medal ? (
           <div
             className="absolute right-[5px] top-[5px] z-10 flex h-[27px] w-[27px] items-center justify-center text-[1.1rem]"
@@ -69,26 +79,22 @@ export function CastawayStatCard({
             {MEDAL_EMOJI[medal]}
           </div>
         ) : (
-          <>
-            <div className="absolute right-[5px] top-[5px] z-10 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-destructive font-mono text-[0.66rem] font-bold text-white shadow-[0_1px_3px_rgba(0,0,0,.25)]">
-              {c.placementOrder}
-            </div>
-            {/* z-10 -- without it this painted behind the avatar below (a later, position:relative
-                sibling with no z-index of its own still paints on top of an earlier position:absolute
-                one in DOM/tree order), which buried the X entirely under the photo. */}
-            <div
-              className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[2.5rem] font-black text-destructive opacity-85"
-              aria-hidden
-            >
-              ✕
-            </div>
-          </>
+          <div className="absolute right-[5px] top-[5px] z-10 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-destructive font-mono text-[0.66rem] font-bold text-white shadow-[0_1px_3px_rgba(0,0,0,.25)]">
+            {c.placementOrder}
+          </div>
         ))}
       <div className="relative mx-auto mb-2 h-16 w-16">
         <CastawayAvatar
           castaway={c}
           className="flex h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-secondary font-mono text-[1.05rem] font-bold text-muted-foreground"
         />
+        {/* Scoped to the avatar box itself (not the whole card) so it stays centered on the photo
+            regardless of whether the card is expanded, and never spills past the thumbnail. */}
+        {c.status === "eliminated" && !medal && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[14px] bg-black/10" aria-hidden>
+            <XMarkIcon className="h-9 w-9 text-destructive drop-shadow-[0_1px_2px_rgba(0,0,0,.4)]" />
+          </div>
+        )}
         {/* Total points this castaway has scored, all season -- their own record, not any one
             owner's cut of it (benched episodes still count here; see castawayEventStats). */}
         {stats && (
