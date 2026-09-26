@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { LeagueState, WikiProposal } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { useLeagueStore, useCanManage } from "@/lib/store";
+import { useLeagueStore, useIsSuperAdmin } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api, ApiError } from "@/lib/api";
 import { useState } from "react";
@@ -12,18 +12,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShowTerms, type ShowTerms } from "@/lib/use-show-terms";
 
-// Review queue for the wiki connector (db/wiki-sync.js). Commissioner-only, and live-mode only --
+// Review queue for the wiki connector (db/wiki-sync.js). Admin-only now, and live-mode only --
 // proposals live in their own table, so there's nothing for mock mode to show, same as Invites.
 //
 // Both the cast and the per-episode results are decided once per season by an admin (db/migrations/
 // 0011 and 0019) and reach the league on their own. What's left here is the season picker and any
-// cast proposal left over from before that change.
+// cast proposal left over from before that change -- internal machinery the commissioner never
+// needs to see or touch.
 export function WikiConnectorSection({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mode = useLeagueStore((s) => s.mode);
   const setState = useLeagueStore((s) => s.setState);
-  const canManage = useCanManage();
+  const isSuperAdmin = useIsSuperAdmin();
   const mutate = useMutate();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +34,7 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
   const { data, refetch } = useQuery({
     queryKey: ["wiki-proposals", leagueId],
     queryFn: () => api.listWikiProposals(leagueId!),
-    enabled: live && canManage,
+    enabled: live && isSuperAdmin,
   });
   async function updateSeason(value: number | null) {
     await mutate(
@@ -72,7 +73,7 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
     }
   }
 
-  if (!canManage) return null;
+  if (!isSuperAdmin) return null;
 
   const season = state.settings.wikiSeason;
   const showLabel = terms.showName ?? state.settings.showId ?? "the show";
