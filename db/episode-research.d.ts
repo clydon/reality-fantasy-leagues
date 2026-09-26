@@ -70,14 +70,18 @@ export function buildPasteImportPrompt(
   pool: Pool,
   showSlug: string,
   season: number,
-  episodeNumber: number
+  episodeNumber: number,
+  /** structured: ask for the checklist as JSON (schema + a pre-filled skeleton), parsed free of charge. */
+  opts?: { structured?: boolean }
 ): Promise<{ prompt: string; castCount: number; betCount: number }>;
 
 /**
  * The manual counterpart to researchSeasonEpisode: fits whatever free-text notes the admin pastes back
  * to the checklist schema with one cheap, non-search model call, then validates and stages it exactly
  * like a searched run. `opts.model` picks the structuring model (RESEARCH_MODELS); `force`/`provider`
- * don't apply here. Throws if the notes don't cover the cast.
+ * don't apply here. `opts.structured` parses the notes as the checklist's JSON directly -- no model
+ * call, no cost -- and throws (never falls back to the paid call) if they aren't. Throws if the notes
+ * don't cover the cast.
  */
 export function researchFromPaste(
   pool: Pool,
@@ -85,7 +89,7 @@ export function researchFromPaste(
   season: number,
   episodeNumber: number,
   notes: string,
-  opts?: { model?: string; dry?: boolean }
+  opts?: { model?: string; dry?: boolean; structured?: boolean }
 ): Promise<EpisodeResearchRun>;
 
 /**

@@ -388,7 +388,8 @@ export interface EpisodeResearch {
  */
 export interface EpisodeResearchProvenance {
   provider: string;
-  model: string;
+  /** Null only for a JSON paste, which no model touched. */
+  model: string | null;
   /** 1 when the provider searched and answered in one call, 2 when it had to structure separately. */
   passes: number;
   researchedAt: string;
@@ -412,6 +413,8 @@ export interface EpisodeResearchProvenance {
   problems?: string[];
   /** provider:"paste" only -- what the admin actually pasted, since there's no page URL list to check against instead. */
   pastedNotes?: string;
+  /** provider:"paste" only -- "json" was parsed directly (free, model null); "text" went through a structuring call. */
+  pasteMode?: "json" | "text";
 }
 
 /** POST /api/admin/seasons/:id/research -- what one episode's research run reports to the UI. */

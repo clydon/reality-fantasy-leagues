@@ -13,7 +13,9 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: stri
   await requireSuperAdmin(req);
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
 
-  const episode = Number(new URL(req.url).searchParams.get("episode"));
+  const search = new URL(req.url).searchParams;
+  const episode = Number(search.get("episode"));
+  const structured = search.get("structured") === "1";
   if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode must be a positive whole number");
 
   const { rows } = await pool.query(
@@ -23,7 +25,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: stri
   if (!rows.length) throw new HttpError(404, "Season not found");
 
   try {
-    const result = await buildPasteImportPrompt(pool, rows[0].slug, rows[0].season_number, episode);
+    const result = await buildPasteImportPrompt(pool, rows[0].slug, rows[0].season_number, episode, { structured });
     return NextResponse.json(result);
   } catch (e) {
     throw new HttpError(502, e instanceof Error ? e.message : "Couldn't build the prompt");

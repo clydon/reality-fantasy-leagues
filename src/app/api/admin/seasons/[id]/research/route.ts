@@ -40,6 +40,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
     provider?: string;
     model?: string;
     notes?: string;
+    structured?: boolean;
   };
   const episode = Number(body.episode);
   if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode must be a positive whole number");
@@ -58,12 +59,13 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   }
 
   // Pasted notes: the admin already did their own (free) search elsewhere and is handing back the
-  // result. This still costs one small, non-search model call to fit it to the schema, but nothing
-  // like the searched path -- see db/episode-research.js's "manual / paste import" section.
+  // result. Prose costs one small, non-search model call to fit it to the schema; `structured` JSON
+  // is parsed directly and costs nothing -- see db/episode-research.js's "manual / paste import".
   if (typeof body.notes === "string" && body.notes.trim()) {
     try {
       const run = await researchFromPaste(pool, rows[0].slug, rows[0].season_number, episode, body.notes, {
         model: RESEARCH_MODELS.includes(String(body.model)) ? String(body.model) : undefined,
+        structured: body.structured === true,
       });
       return NextResponse.json({
         showSlug: run.showSlug,

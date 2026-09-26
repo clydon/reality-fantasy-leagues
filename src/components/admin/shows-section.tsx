@@ -576,9 +576,9 @@ function SeasonCard({
   // The free path: notes came from the admin's own web-searching chat, not this app's paid search --
   // see api.adminResearchFromPaste and db/episode-research.js's "manual / paste import" section. Same
   // result shape as a searched run, so it reuses `research`/ResearchResult below unchanged.
-  const doPasteResearch = async (n: number, notes: string) => {
+  const doPasteResearch = async (n: number, notes: string, structured: boolean) => {
     setResearchingEpisode(n);
-    await act("research", () => api.adminResearchFromPaste(season.id, n, notes, { model: models.research }), setResearch);
+    await act("research", () => api.adminResearchFromPaste(season.id, n, notes, { model: models.research, structured }), setResearch);
     setResearchingEpisode(null);
   };
 
@@ -712,7 +712,7 @@ function SeasonCard({
           researching={researchingEpisode}
           locked={locked}
           onResearch={(n, force) => doResearch(n, force)}
-          onPasteResearch={(n, notes) => doPasteResearch(n, notes)}
+          onPasteResearch={(n, notes, structured) => doPasteResearch(n, notes, structured)}
           onChanged={() => refetch()}
         />
       )}
@@ -927,7 +927,11 @@ function ResearchResult({
         </b>{" "}
         — {research.cached ? "already researched, reused" : "researched"}. {noted.length} of {counts.castaways} had
         something notable; {newItems ? `${newItems} new result${newItems === 1 ? "" : "s"} to review below` : "nothing new to review"}.{" "}
-        <SpentNote model={provenance.model} usage={provenance.usage} cached={research.cached} />
+        {provenance.pasteMode === "json" ? (
+          <CostHint title="Pasted as JSON and parsed directly — nothing was sent to a model">· free (parsed JSON)</CostHint>
+        ) : (
+          <SpentNote model={provenance.model} usage={provenance.usage} cached={research.cached} />
+        )}
         <button className="ml-1 underline" onClick={() => setOpen((v) => !v)}>
           {open ? "hide details" : "details"}
         </button>
@@ -1006,12 +1010,12 @@ function ResearchResult({
           )}
           <p className="mt-1 text-muted-foreground">
             <code className="font-mono">
-              {provenance.provider}/{provenance.model}
+              {provenance.provider}/{provenance.model ?? "no model"}
             </code>{" "}
             · {counts.sourced} sourced · {counts.lowConfidence} low-confidence · {counts.unknowns} unknown ·{" "}
             {provenance.provider === "paste" ? (
               <span title={provenance.pastedNotes} className="underline decoration-dotted">
-                pasted notes, structured (no search)
+                {provenance.pasteMode === "json" ? "pasted JSON, parsed directly" : "pasted notes, structured (no search)"}
               </span>
             ) : (
               <>

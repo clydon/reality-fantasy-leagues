@@ -56,8 +56,8 @@ export function SeasonEpisodes({
   researching: number | null;
   locked: boolean;
   onResearch: (episode: number, force: boolean) => void;
-  /** The free path -- notes from the admin's own AI chat, structured with one cheap call instead of a search. */
-  onPasteResearch: (episode: number, notes: string) => void;
+  /** Notes from the admin's own AI chat: prose (one cheap structuring call) or `structured` JSON (free). */
+  onPasteResearch: (episode: number, notes: string, structured: boolean) => void;
   onChanged: () => void;
 }) {
   const { data, refetch } = useQuery({
@@ -161,7 +161,7 @@ export function SeasonEpisodes({
             researching={researching === row.n}
             locked={locked}
             onResearch={(force) => onResearch(row.n, force)}
-            onPasteResearch={(notes) => onPasteResearch(row.n, notes)}
+            onPasteResearch={(notes, structured) => onPasteResearch(row.n, notes, structured)}
             onDiscarded={() => {
               refetch();
               onChanged();
@@ -214,7 +214,7 @@ function EpisodeLine({
   researching: boolean;
   locked: boolean;
   onResearch: (force: boolean) => void;
-  onPasteResearch: (notes: string) => void;
+  onPasteResearch: (notes: string, structured: boolean) => void;
   onDiscarded: () => void;
   children?: React.ReactNode;
 }) {
@@ -325,9 +325,9 @@ function EpisodeLine({
           episode={row.n}
           busy={locked || researching}
           model={model}
-          onSubmit={(notes) => {
+          onSubmit={(notes, structured) => {
             setPasting(false);
-            onPasteResearch(notes);
+            onPasteResearch(notes, structured);
           }}
           onCancel={() => setPasting(false)}
         />
@@ -337,10 +337,14 @@ function EpisodeLine({
   );
 }
 
-// The free path's UI: get the prompt (same rules this app would ask itself, worded for a one-box chat
-// tool), copy it out to whatever AI chat the admin already has, paste the answer back. Nothing is sent
-// anywhere until "Structure & stage" -- fetching the prompt costs nothing (no model call, see
-// buildPasteImportPrompt), so it's fetched as soon as this panel opens.
+// The paste path's UI: get the prompt (same rules this app would ask itself, worded for a one-box chat
+// tool), copy it out to whatever AI chat the admin already has, paste the answer back. Fetching the
+// prompt costs nothing (no model call, see buildPasteImportPrompt), so it's fetched on open.
+//
+// Structured (JSON) is the default: the prompt carries the exact schema plus a pre-filled skeleton
+// (this episode's people, this show's answer options, any open side bets), and the answer is parsed
+// directly -- free. Unticked, the chat answers in prose and one small model call structures it, for
+// the chat that won't produce clean JSON.
 function PasteImportPanel({
   seasonId,
   episode,
@@ -353,12 +357,13 @@ function PasteImportPanel({
   episode: number;
   busy: boolean;
   model: string;
-  onSubmit: (notes: string) => void;
+  onSubmit: (notes: string, structured: boolean) => void;
   onCancel: () => void;
 }) {
+  const [structured, setStructured] = useState(true);
   const { data, isLoading, error } = useQuery({
-    queryKey: ["paste-import-prompt", seasonId, episode],
-    queryFn: () => api.adminPasteImportPrompt(seasonId, episode),
+    queryKey: ["paste-import-prompt", seasonId, episode, structured],
+    queryFn: () => api.adminPasteImportPrompt(seasonId, episode, structured),
   });
   const [notes, setNotes] = useState("");
   const [copied, setCopied] = useState(false);
@@ -378,8 +383,17 @@ function PasteImportPanel({
     <div className="mt-1.5 flex flex-col gap-1.5 rounded border border-dashed border-border bg-secondary/40 p-1.5 text-[0.7rem]">
       <p className="text-muted-foreground">
         1. Copy this into any AI chat with web search (ChatGPT, Claude.ai, Gemini — whatever you already have). 2. Paste its
-        answer into the box below. 3. Structure &amp; stage costs one small, search-free model call instead of a paid search.
+        answer into the box below. 3. Stage it.
       </p>
+      <label className="flex items-center gap-1.5" title="Must match what the prompt you copied asked for — switching this rebuilds the prompt">
+        <input type="checkbox" checked={structured} disabled={busy} onChange={(e) => setStructured(e.target.checked)} />
+        <span>
+          <b>Structured (JSON)</b> —{" "}
+          {structured
+            ? "the chat answers in this app's exact format and it's read directly. Free."
+            : "the chat answers in prose and one small model call organizes it. For chats that won't give clean JSON."}
+        </span>
+      </label>
       {isLoading && <p className="italic text-muted-foreground">Building the prompt…</p>}
       {error && <p className="font-semibold text-destructive">{error instanceof ApiError ? error.message : "Couldn't build the prompt."}</p>}
       {data && (
@@ -401,21 +415,25 @@ function PasteImportPanel({
           rows={6}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Paste whatever the other chat wrote back — prose, bullets, anything is fine."
-          className="w-full resize-y rounded border border-border bg-card p-1.5 text-[0.75rem]"
+          placeholder={
+            structured
+              ? "Paste the JSON the other chat wrote back (a code fence or a line of chatter around it is fine)."
+              : "Paste whatever the other chat wrote back — prose, bullets, anything is fine."
+          }
+          className={cn("w-full resize-y rounded border border-border bg-card p-1.5 text-[0.75rem]", structured && "font-mono")}
         />
       </label>
       <div className="flex items-center gap-1.5">
-        <Button size="xs" disabled={busy || !notes.trim()} onClick={() => onSubmit(notes)}>
-          Structure &amp; stage
+        <Button size="xs" disabled={busy || !notes.trim()} onClick={() => onSubmit(notes, structured)}>
+          {structured ? "Stage" : "Structure & stage"}
         </Button>
         <Button variant="secondary" size="xs" disabled={busy} onClick={onCancel}>
           Cancel
         </Button>
-        {/* Not free -- see api.adminResearchFromPaste: one non-search structuring call, but still a
-            real one. Small next to `research`'s estimate (no search fee), not zero. */}
-        <span className="text-[0.6rem] tabular-nums text-muted-foreground" title="No web search — just fitting your pasted text to the checklist">
-          {estimate("pasteResearch", model)}
+        {/* JSON is parsed directly (no model). Prose is one non-search structuring call: small next to
+            `research`'s estimate (no search fee), but a real charge. */}
+        <span className="text-[0.6rem] tabular-nums text-muted-foreground" title={structured ? "Parsed directly — no model call" : "No web search — just fitting your pasted text to the checklist"}>
+          {structured ? "free" : estimate("pasteResearch", model)}
         </span>
       </div>
     </div>

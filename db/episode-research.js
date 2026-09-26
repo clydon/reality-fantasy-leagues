@@ -1343,20 +1343,89 @@ function requireEpisodeNumber(episodeNumber) {
 //                        with no source cited" still flagged exactly the same way), storeResearch,
 //                        stageResearchDecisions. Nothing about the review an admin does afterward
 //                        knows or cares which path produced the checklist.
-function buildPastePrompt(ctx, bets) {
+// Two answer styles. "text" (prose, parsed by one cheap model call) is the forgiving default. "json"
+// asks the outside chat for the checklist's exact shape and is parsed directly -- no model call at
+// all, so it's free -- at the price of a chat occasionally getting the shape wrong, which surfaces as
+// a clear "fix this and paste again" error rather than a silent charge.
+function buildPastePrompt(ctx, bets, { structured = false } = {}) {
   const { system, user } = buildPrompt({ ...ctx, bets });
-  return (
-    system +
-    "\n\n" +
-    user +
-    "\n\n" +
-    [
-      "Answer in plain prose or bullet points, one section per person, in the order given -- not JSON,",
-      "not a table. Say plainly when you don't know something rather than guessing.",
-      "",
-      "Paste your whole answer back into Reality Fantasy Leagues' \"Paste research notes\" box for this episode.",
-    ].join("\n")
-  );
+  const closing = structured
+    ? [
+        "Answer with ONE JSON object and nothing else -- no commentary before or after it. It must match",
+        "this JSON Schema exactly:",
+        "",
+        JSON.stringify(jsonSchemaFor(researchSchemaFor(ctx.format, bets.length > 0), "strict"), null, 1),
+        "",
+        "Start from this skeleton: it already has one entry per person, in the right order, with every",
+        "answer set to its 'don't know' value. Change only what your sources establish, keep every name",
+        "exactly as written, and fill in `sources` with the URLs you actually read.",
+        "",
+        JSON.stringify(pasteSkeleton(ctx, bets), null, 2),
+        "",
+        "Paste the JSON back into Reality Fantasy Leagues' \"Paste research notes\" box with \"Structured (JSON)\" ticked.",
+      ]
+    : [
+        "Answer in plain prose or bullet points, one section per person, in the order given -- not JSON,",
+        "not a table. Say plainly when you don't know something rather than guessing.",
+        "",
+        "Paste your whole answer back into Reality Fantasy Leagues' \"Paste research notes\" box for this episode.",
+      ];
+  return system + "\n\n" + user + "\n\n" + closing.join("\n");
+}
+
+// A filled-in example of the answer, built from the same schema the answer is validated against, so it
+// can't drift from it: every person still in the game, every open bet, every answer at its most
+// non-committal value ("unknown", then "low" confidence, then null). A chat edits a skeleton far more
+// reliably than it writes a schema out from scratch.
+function pasteSkeleton(ctx, bets) {
+  const json = jsonSchemaFor(researchSchemaFor(ctx.format, bets.length > 0), "strict");
+  const out = skeletonValue(json);
+  const entry = json.properties.castaways.items;
+  out.castaways = ctx.castNames.map((name) => ({ ...skeletonValue(entry), name }));
+  if (json.properties.betAnswers) {
+    const betEntry = json.properties.betAnswers.items;
+    out.betAnswers = bets.map((_, i) => ({ ...skeletonValue(betEntry), bet: i + 1 }));
+  }
+  return out;
+}
+
+function skeletonValue(node) {
+  if (!node || typeof node !== "object") return null;
+  const variants = node.anyOf || node.oneOf;
+  const nullable =
+    (Array.isArray(node.type) && node.type.includes("null")) || (variants || []).some((v) => v && v.type === "null");
+  if (variants) {
+    const real = variants.find((v) => v && v.type !== "null");
+    return nullable ? null : skeletonValue(real);
+  }
+  if (Array.isArray(node.enum)) {
+    if (node.enum.includes("unknown")) return "unknown";
+    if (node.enum.includes("low")) return "low";
+    return nullable ? null : node.enum[0];
+  }
+  if (nullable) return null;
+  const type = Array.isArray(node.type) ? node.type[0] : node.type;
+  if (type === "object") {
+    const obj = {};
+    for (const [key, child] of Object.entries(node.properties || {})) obj[key] = skeletonValue(child);
+    return obj;
+  }
+  if (type === "array") return [];
+  if (type === "string") return "";
+  if (type === "number" || type === "integer") return 0;
+  if (type === "boolean") return false;
+  return null;
+}
+
+// Chat UIs wrap JSON in a code fence, or say "Here's the JSON:" first, however firmly told not to.
+// Everything from the first `{` to the last `}` is the object; anything else is chatter.
+function extractJsonObject(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) {
+    throw new Error("Structured (JSON) is ticked, but there's no JSON object in what was pasted.");
+  }
+  return text.slice(start, end + 1);
 }
 
 /**
@@ -1364,11 +1433,15 @@ function buildPastePrompt(ctx, bets) {
  * its context (staged cast, who's still in the game, the season's open side bets). Read-only -- no
  * model call, nothing written; it only assembles text for the admin to copy.
  */
-async function buildPasteImportPrompt(pool, showSlug, season, episodeNumber) {
+async function buildPasteImportPrompt(pool, showSlug, season, episodeNumber, opts = {}) {
   requireEpisodeNumber(episodeNumber);
   const ctx = await resolveSeasonResearchContext(pool, showSlug, season, episodeNumber);
   const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
-  return { prompt: buildPastePrompt(ctx, bets), castCount: ctx.castNames.length, betCount: bets.length };
+  return {
+    prompt: buildPastePrompt(ctx, bets, { structured: !!opts.structured }),
+    castCount: ctx.castNames.length,
+    betCount: bets.length,
+  };
 }
 
 /**
@@ -1390,14 +1463,29 @@ async function researchFromPaste(pool, showSlug, season, episodeNumber, notes, o
   const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
   const schema = researchSchemaFor(ctx.format, bets.length > 0);
 
-  // structure() is Anthropic-only regardless of RESEARCH_PROVIDER/--provider -- those pick who
-  // SEARCHES, and this path does its own searching outside the app entirely.
-  requireCredentials(PROVIDERS.anthropic);
-  console.log(
-    `[research] ${ctx.showName} season ${ctx.season} episode ${episodeNumber}: structuring ${trimmed.length} ` +
-      `pasted char(s) for ${ctx.castNames.length} ${ctx.terms.castaways} (no search, model ${model})`
-  );
-  const { parsed, usage } = await PROVIDERS.anthropic.structure({ notes: trimmed, schema, model });
+  let parsed;
+  let usage;
+  if (opts.structured) {
+    // Parsed directly: no model, no credentials, no cost. validateLeniently (via parseJsonAnswer) still
+    // repairs an out-of-list value to its catch-all and reports it, same as a model-structured answer.
+    // Deliberately NOT a fallback to the paid call when the JSON is bad -- a tick box that says "free"
+    // shouldn't quietly spend money; the admin gets the error and pastes again.
+    console.log(
+      `[research] ${ctx.showName} season ${ctx.season} episode ${episodeNumber}: parsing ${trimmed.length} ` +
+        `pasted char(s) of JSON for ${ctx.castNames.length} ${ctx.terms.castaways} (no model call)`
+    );
+    parsed = parseJsonAnswer(extractJsonObject(trimmed), schema, "The pasted JSON");
+    usage = { input_tokens: 0, output_tokens: 0 };
+  } else {
+    // structure() is Anthropic-only regardless of RESEARCH_PROVIDER/--provider -- those pick who
+    // SEARCHES, and this path does its own searching outside the app entirely.
+    requireCredentials(PROVIDERS.anthropic);
+    console.log(
+      `[research] ${ctx.showName} season ${ctx.season} episode ${episodeNumber}: structuring ${trimmed.length} ` +
+        `pasted char(s) for ${ctx.castNames.length} ${ctx.terms.castaways} (no search, model ${model})`
+    );
+    ({ parsed, usage } = await PROVIDERS.anthropic.structure({ notes: trimmed, schema, model }));
+  }
   if (bets.length) parsed.betAnswers = betAnswersFrom(parsed, bets);
 
   const review = validateResearch(parsed, ctx.castNames, ctx.terms, ctx.format);
@@ -1412,8 +1500,10 @@ async function researchFromPaste(pool, showSlug, season, episodeNumber, notes, o
 
   const provenance = {
     provider: "paste",
-    model,
-    passes: 1,
+    // No model touched a JSON paste; naming one would make the UI price a call that never happened.
+    model: opts.structured ? null : model,
+    pasteMode: opts.structured ? "json" : "text",
+    passes: opts.structured ? 0 : 1,
     researchedAt: new Date().toISOString(),
     showSlug: ctx.showSlug,
     seasonNumber: ctx.season,
@@ -1607,6 +1697,8 @@ module.exports = {
   researchEpisode,
   researchSeasonEpisode,
   buildPastePrompt,
+  pasteSkeleton,
+  extractJsonObject,
   buildPasteImportPrompt,
   researchFromPaste,
   printResearch,
