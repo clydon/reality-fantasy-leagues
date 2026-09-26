@@ -162,14 +162,11 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
       {open && (
         <div className="border-t border-border p-4">
           <div className="mb-2 flex flex-wrap items-center gap-3">
-            {format.hasMerge && (
+            {/* Commissioner-only: a disabled checkbox a regular member can't act on isn't worth
+                showing -- the header badge above already says Post-Merge read-only for everyone. */}
+            {format.hasMerge && canManage && (
               <label className="flex items-center gap-1.5 text-sm">
-                <input
-                  type="checkbox"
-                  defaultChecked={ep.postMerge}
-                  disabled={!canManage}
-                  onChange={(e) => updateField("postMerge", e.target.checked)}
-                />
+                <input type="checkbox" defaultChecked={ep.postMerge} onChange={(e) => updateField("postMerge", e.target.checked)} />
                 Post-merge
               </label>
             )}

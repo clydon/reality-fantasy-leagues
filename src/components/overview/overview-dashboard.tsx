@@ -40,13 +40,9 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
       return <SeasonStatusCard state={state} />;
     case "board":
       // Only ever in the ordered section list when isOverviewSectionEligible already confirmed
-      // draftComplete, so no need to re-check it here.
-      return (
-        <div id="board">
-          <h3 className="mb-3 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Board</h3>
-          <BoardGrid state={state} />
-        </div>
-      );
+      // draftComplete, so no need to re-check it here. BoardGrid owns its own card shell/heading
+      // now (previously the one Overview section without one).
+      return <BoardGrid state={state} />;
   }
 }
 

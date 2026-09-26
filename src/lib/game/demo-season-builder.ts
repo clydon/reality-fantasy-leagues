@@ -1,4 +1,4 @@
-import type { Bet, Castaway, Episode, LeagueState, Player, Tribe } from "./types";
+import type { Bet, Castaway, Episode, LeagueState, MidSeasonLogEntry, Player, Tribe } from "./types";
 import { formatFor } from "@/lib/game/formats/index.js";
 
 export type DemoLeagueTypeId = "classic-draft" | "active-roster" | "pickem";
@@ -126,14 +126,34 @@ function computeRoster(
   return { rosterSize, ownership };
 }
 
-function buildCastaways(data: DemoSeasonData, ownerOf: Map<string, string[]>, hasRoster: boolean, throughEpisode: number): Castaway[] {
+// One simulated mid-season move (see simulateMidSeasonMoves below): a player dropped `droppedKey`
+// (formerOwnerId/departedVia on that castaway) and picked up `addedKey` from the free agent pool
+// (acquiredVia on that one, replacing the "draft" every other roster spot gets).
+interface DemoMove {
+  type: "replenish" | "trade";
+  playerKey: string;
+  addedKey: string;
+  droppedKey: string;
+  at: string;
+}
+
+function buildCastaways(
+  data: DemoSeasonData,
+  ownerOf: Map<string, string[]>,
+  hasRoster: boolean,
+  throughEpisode: number,
+  moves: DemoMove[] = []
+): Castaway[] {
   const mergeEp = mergeEpisodeFor(data);
+  const droppedBy = new Map(moves.map((m) => [m.droppedKey, m]));
+  const acquiredVia = new Map(moves.map((m) => [m.addedKey, m.type]));
   return data.castaways.map((c) => {
     const revealed = c.exitEpisode <= throughEpisode;
     // Merged once the season has reached the merge AND this castaway was still in the game going
     // into it (exitEpisode >= mergeEp) -- someone already out before the merge never merged at all,
     // same as a real season.
     const merged = mergeEp !== null && throughEpisode >= mergeEp && c.exitEpisode >= mergeEp;
+    const drop = droppedBy.get(c.key);
     return {
       id: cid(c.key),
       name: c.name,
@@ -144,11 +164,65 @@ function buildCastaways(data: DemoSeasonData, ownerOf: Map<string, string[]>, ha
       placementOrder: revealed ? c.placement : undefined,
       exitMethod: revealed ? c.exitMethod : undefined,
       exitEpisodeId: revealed ? epId(c.exitEpisode) : undefined,
-      acquiredVia: hasRoster ? "draft" : null,
-      formerOwnerId: null,
-      departedVia: null,
+      acquiredVia: hasRoster ? acquiredVia.get(c.key) ?? "draft" : null,
+      formerOwnerId: drop ? pid(drop.playerKey) : null,
+      departedVia: drop ? drop.type : null,
+      // Only meaningful for a replenish drop (see ReplenishLogic.start's own filter on it) -- true
+      // here because this move already "happened," same reasoning YourTeamCard's pending-replenish
+      // count needs: an already-backfilled loss shouldn't also show up as still owed one.
+      replenishClaimed: drop?.type === "replenish",
     };
   });
+}
+
+// A working example of Replenish and Swap in action, not just the toggle turned on -- an actual past
+// transaction to look at in Roster detail's former-roster row and the Mid-Season tab's history.
+// There's no real-season basis for which specific players would make which specific roster moves
+// (this is league management, not a researched fact about the season), so -- same category as the
+// synthetic bets/events elsewhere in this file -- this deterministically picks one plausible
+// replenish (a player backfilling their earliest loss with the best remaining free agent) and one
+// plausible trade (a different player swapping out their own earliest-eliminated pick for a
+// different free agent), mutating `ownership` in place to reflect the result.
+function simulateMidSeasonMoves(data: DemoSeasonData, ownership: { playerKey: string; castawayKeys: string[] }[]): DemoMove[] {
+  if (ownership.length < 2) return [];
+  const ownedKeys = new Set(ownership.flatMap((o) => o.castawayKeys));
+  const freeAgents = [...data.castaways].filter((c) => !ownedKeys.has(c.key)).sort((a, b) => b.exitEpisode - a.exitEpisode);
+  if (freeAgents.length < 2) return [];
+  const moves: DemoMove[] = [];
+
+  const replenishOwner = ownership[1];
+  const replenishDrop = data.castaways
+    .filter((c) => replenishOwner.castawayKeys.includes(c.key))
+    .sort((a, b) => a.exitEpisode - b.exitEpisode)[0];
+  const replenishAdd = freeAgents[0];
+  if (replenishDrop) {
+    replenishOwner.castawayKeys = replenishOwner.castawayKeys.filter((k) => k !== replenishDrop.key).concat(replenishAdd.key);
+    moves.push({
+      type: "replenish",
+      playerKey: replenishOwner.playerKey,
+      addedKey: replenishAdd.key,
+      droppedKey: replenishDrop.key,
+      at: "2026-03-02T18:00:00.000Z",
+    });
+  }
+
+  const tradeOwner = ownership[0];
+  const tradeDrop = data.castaways
+    .filter((c) => tradeOwner.castawayKeys.includes(c.key))
+    .sort((a, b) => a.exitEpisode - b.exitEpisode)[0];
+  const tradeAdd = freeAgents.find((c) => c.key !== replenishAdd.key);
+  if (tradeDrop && tradeAdd) {
+    tradeOwner.castawayKeys = tradeOwner.castawayKeys.filter((k) => k !== tradeDrop.key).concat(tradeAdd.key);
+    moves.push({
+      type: "trade",
+      playerKey: tradeOwner.playerKey,
+      addedKey: tradeAdd.key,
+      droppedKey: tradeDrop.key,
+      at: "2026-03-16T18:00:00.000Z",
+    });
+  }
+
+  return moves;
 }
 
 // One flavor question per show, cycling, so a fuller season doesn't repeat the same bet every time.
@@ -237,11 +311,13 @@ function baseSettings(data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId, rost
   };
 }
 
-function emptyMidSeasonAndDraft(draftOrder: string[], draftPicksMade: number) {
+function emptyMidSeasonAndDraft(draftOrder: string[], draftPicksMade: number, log: MidSeasonLogEntry[] = []) {
   return {
     finalePredictions: [],
     finaleActual: { top3: [], winner: null },
-    midSeason: { replenish: null, trade: null, log: [] },
+    // `replenish`/`trade` (the IN-PROGRESS-round state) stay null -- simulateMidSeasonMoves already
+    // resolved its moves, there's no live turn to show. `log` is the completed history of them.
+    midSeason: { replenish: null, trade: null, log },
     draftOrder,
     draftPicksMade,
     draftForceStarted: true,
@@ -302,7 +378,11 @@ function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "
   const players = buildPlayers(data);
   const tribes = buildTribes(data, throughEpisode);
   const { rosterSize, ownership } = computeRoster(data, leagueTypeId);
-  const castaways = buildCastaways(data, ownerMap(ownership), true, throughEpisode);
+  // Only Classic Draft demos run with Replenish/Swap turned on (see baseSettings) -- no point
+  // simulating a move nothing in the league can act on. Mutates `ownership` in place, so
+  // buildCastaways below already sees the post-move rosters.
+  const moves = leagueTypeId === "classic-draft" ? simulateMidSeasonMoves(data, ownership) : [];
+  const castaways = buildCastaways(data, ownerMap(ownership), true, throughEpisode, moves);
   const episodes = buildEpisodesBase(data, players, throughEpisode);
   if (leagueTypeId === "active-roster") {
     // Every drafted castaway is always in the active lineup (activeSlots covers the whole roster) --
@@ -313,12 +393,20 @@ function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "
     }
     addSyntheticScoringEvents(data, ownership, episodes);
   }
+  const log: MidSeasonLogEntry[] = moves.map((m, i) => ({
+    id: `demo_tx_${i}`,
+    type: m.type,
+    playerId: pid(m.playerKey),
+    addedCastawayId: cid(m.addedKey),
+    droppedCastawayId: cid(m.droppedKey),
+    at: m.at,
+  }));
   return {
     players,
     tribes,
     castaways,
     episodes,
-    ...emptyMidSeasonAndDraft(players.map((p) => p.id), players.length * rosterSize),
+    ...emptyMidSeasonAndDraft(players.map((p) => p.id), players.length * rosterSize, log),
     settings: baseSettings(data, leagueTypeId, rosterSize),
   };
 }

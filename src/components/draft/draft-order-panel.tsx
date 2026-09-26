@@ -28,8 +28,8 @@ export function DraftOrderPanel({ state }: { state: LeagueState }) {
       <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Draft Order</h3>
       <p className="mb-3 text-sm text-muted-foreground">
         {canManage
-          ? "Use the ↑↓ buttons to set who picks 1st, 2nd, 3rd, etc. Picks then snake back and forth automatically (1-2-3, 3-2-1, 1-2-3, ...)."
-          : "Your commissioner sets the draft order."}
+          ? "Use the ↑↓ buttons to set draft order. Picks then snake back and forth automatically (1-2-3, 3-2-1, 1-2-3, ...)."
+          : "Commissioner sets the draft order."}
       </p>
       <div className="flex flex-col gap-1.5">
         {state.draftOrder.map((pid, i) => {
