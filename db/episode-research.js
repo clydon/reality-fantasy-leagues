@@ -1217,6 +1217,10 @@ function itemsFromChecklist(entry, format) {
   // `method` is only for a role (the role value); an event's identity is its eventType.
   const add = (kind, eventType, method = "") =>
     items.push({ castawayName: entry.name, kind, eventType, method, confidence: entry.confidence, sources: entry.sources || [] });
+  // Leaving the game is the one result every format shares. It used to come only from the wiki's
+  // tables (research was an add-on), so research -- and a paste, which is research -- never staged
+  // an elimination: the person who went home was simply missing from review.
+  if (entry.leftTheGame === "yes" && entry.exitMethod) add("elimination", "", entry.exitMethod);
   format.research.items(entry, add);
   return items;
 }
@@ -1233,7 +1237,11 @@ function candidatesFor(payload, format) {
       if (!byKey.has(key)) byKey.set(key, item);
     }
   }
-  return [...byKey.values()];
+  // Staging order is placement order for a multi-exit episode (created_at is the tiebreak), and the
+  // checklist runs in cast order -- so the winner goes last, as a finale's placements require.
+  const winner = format.winnerExitMethod;
+  const isWin = (i) => i.kind === "elimination" && i.method === winner;
+  return [...byKey.values()].sort((a, b) => Number(isWin(a)) - Number(isWin(b)));
 }
 
 /**
