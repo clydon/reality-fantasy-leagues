@@ -38,9 +38,6 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
   const mutate = useMutate();
 
   const activeCast = state.castaways.filter((c) => c.status === "active");
-  const summary = ep.events.length
-    ? ep.events.map((ev) => StateLogic.getCastaway(state, ev.castawayId)?.name || "?").join(", ")
-    : "no eliminations logged";
 
   async function updateField(field: "number" | "postMerge", value: number | boolean) {
     await mutate(
@@ -125,11 +122,11 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
     <div className="mb-3 rounded-lg border border-border bg-card shadow-sm">
       <button className="flex w-full items-start justify-between gap-2 p-4 text-left" onClick={() => setOpen((o) => !o)}>
         <div>
+          {/* The episode's name, not who left: the header shouldn't spoil the result before it's
+              opened. Episodes without a title (added by hand) just show their number. */}
           <div className="text-sm font-semibold">
             Episode {ep.number}
-            {/* Title and air date only exist on episodes the wiki connector created (see the Episode
-                type) -- rendered when present rather than leaving them as data nothing surfaces. */}
-            {ep.title ? <span className="font-normal"> &ldquo;{ep.title}&rdquo;</span> : null} — {summary}
+            {ep.title ? <> — {ep.title}</> : null}
           </div>
           {ep.airDate && <div className="mt-0.5 text-xs text-muted-foreground">Aired {ep.airDate}</div>}
           {((format.hasMerge && ep.postMerge) || (ep.bets || []).length > 0 || !inPlay) && (
@@ -161,6 +158,9 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
 
       {open && (
         <div className="border-t border-border p-4">
+          {/* The commissioner's controls row, and the divider that separates it from the results --
+              neither exists for a member, who'd otherwise get an empty row and a stray line. */}
+          {canManage && (
           <div className="mb-2 flex flex-wrap items-center gap-3">
             {/* Commissioner-only: a disabled checkbox a regular member can't act on isn't worth
                 showing -- the header badge above already says Post-Merge read-only for everyone. */}
@@ -180,6 +180,7 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
               </button>
             )}
           </div>
+          )}
           {editingEp && canManage && (
             <div className="mb-2 flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-1.5 text-sm">
@@ -197,7 +198,7 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
             </div>
           )}
 
-          <div className="mb-4 border-t border-border pt-3">
+          <div className={cn("mb-4", canManage && "border-t border-border pt-3")}>
             <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Eliminations</h4>
             {ep.events.length === 0 ? (
               <div className="text-sm italic text-muted-foreground">None logged yet.</div>

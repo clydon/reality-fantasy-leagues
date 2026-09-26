@@ -27,6 +27,7 @@ import {
   AlertIcon,
   LogoutIcon,
   ChatIcon,
+  ResearchIcon,
   ChevronDownIcon,
   GearIcon,
   UserIcon,
@@ -89,9 +90,13 @@ export function MobileNav() {
   const draftUrgent = !!(turn && !turn.isComplete && myPlayerId && turn.playerId === myPlayerId) || notifications.some((n) => n.tab === "/draft");
   const midBadge = midseasonBadge(state, myPlayerId);
   const midSeasonSlot = hasMidSeason ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon } : null;
+  // Active Roster puts Research where Chat would go; chat stays one tap away on the top bar's icon.
+  const hasActiveRoster = StateLogic.getLeagueType(state).hasActiveRoster;
   const fourth =
     !hasRoster || (draftComplete && !midSeasonSlot)
-      ? { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
+      ? hasActiveRoster
+        ? { href: "/research", label: "Research", icon: ResearchIcon, urgent: null }
+        : { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
       : draftComplete
         ? { ...midSeasonSlot!, urgent: midBadge?.urgent ?? null }
         : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
@@ -282,6 +287,9 @@ export function MobileNav() {
       >
         <div className="mx-auto mb-2.5 mt-1.5 h-1 w-9 rounded-full bg-border" />
         {hasSeason && demoted && <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />}
+        {hasSeason && hasActiveRoster && fourth.href !== "/research" && (
+          <MoreRow icon={ResearchIcon} label="Research" onClick={() => go("/research")} />
+        )}
         {hasSeason && <MoreRow icon={GearIcon} label="League Settings" onClick={() => go("/setup")} />}
         {!hasSeason && <MoreRow icon={OverviewIcon} label="My Leagues" onClick={() => go("/dashboard")} />}
         {isSuperAdmin && (

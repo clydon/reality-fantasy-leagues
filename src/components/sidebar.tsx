@@ -25,6 +25,7 @@ const TABS = [
   { href: "/episodes", label: "Episodes" },
   { href: "/mid-season", label: "Mid-Season" },
   { href: "/scoreboard", label: "Scoreboard" },
+  { href: "/research", label: "Research" },
   { href: "/chat", label: "Chat" },
   { href: "/setup", label: "League Settings" },
 ];
@@ -62,9 +63,12 @@ export function Sidebar() {
   // link goes away instead, on the same "don't offer what the route would refuse" rule those two
   // helpers exist for.
   const hasMidSeason = StateLogic.replenishAvailable(state) || StateLogic.tradeAvailable(state);
+  const hasActiveRoster = StateLogic.getLeagueType(state).hasActiveRoster;
   const tabs = TABS.filter(
     (t) =>
-      !((t.href === "/draft" || t.href === "/mid-season") && !hasRoster) && !(t.href === "/mid-season" && !hasMidSeason)
+      !((t.href === "/draft" || t.href === "/mid-season") && !hasRoster) &&
+      !(t.href === "/mid-season" && !hasMidSeason) &&
+      !(t.href === "/research" && !hasActiveRoster)
   );
 
   // Port of exitDemoMode() -- see auth-gate.tsx's handleExitDemo for why this always means "show

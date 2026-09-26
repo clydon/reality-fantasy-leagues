@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ChatMessage } from "@/lib/game/types";
+import type { ChatMessage, ChatRead } from "@/lib/game/types";
 import { useLeagueStore } from "@/lib/store";
 import { api } from "@/lib/api";
 
@@ -24,6 +24,10 @@ const MOCK_SEED: ChatMessage[] = [
 
 interface ChatStore {
   messages: ChatMessage[];
+  /** Every member's read position, from the server (demo: everyone else has read the seed). */
+  reads: ChatRead[];
+  /** The newest message time already reported to the server, so markSeen doesn't re-post it. */
+  reportedReadAt: string | null;
   loading: boolean;
   loaded: boolean;
   unreadCount: number;
@@ -42,22 +46,31 @@ interface ChatStore {
 
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: [],
+  reads: [],
+  reportedReadAt: null,
   loading: false,
   loaded: false,
   unreadCount: 0,
   lastSeenAt: null,
 
   async load() {
-    const { mode, leagueId } = useLeagueStore.getState();
+    const { mode, leagueId, state } = useLeagueStore.getState();
     if (mode === "mock") {
-      set({ messages: MOCK_SEED, loaded: true });
+      // Demo: the other players have read the seeded conversation, so it shows "Read by all";
+      // anything the visitor sends afterwards stays unread, which is honest -- nobody's there.
+      const seededAt = MOCK_SEED[MOCK_SEED.length - 1].created_at;
+      set({
+        messages: MOCK_SEED,
+        reads: state.players.map((p) => ({ userId: p.id, playerId: p.id, lastReadAt: seededAt })),
+        loaded: true,
+      });
       return true;
     }
     if (!leagueId) return true;
     set({ loading: true });
     try {
-      const { messages } = await api.getChat(leagueId);
-      set({ messages, loaded: true });
+      const { messages, reads } = await api.getChat(leagueId);
+      set({ messages, reads: reads ?? [], loaded: true });
       get().markSeen();
       return true;
     } finally {
@@ -79,9 +92,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   markSeen() {
-    const { messages } = get();
+    const { messages, reportedReadAt } = get();
     const last = messages[messages.length - 1];
     set({ unreadCount: 0, lastSeenAt: last ? last.created_at : new Date().toISOString() });
+    // Tell the server (for everyone else's "Read by"), once per new message rather than every poll.
+    const { mode, leagueId } = useLeagueStore.getState();
+    if (mode === "live" && leagueId && last && last.created_at !== reportedReadAt) {
+      set({ reportedReadAt: last.created_at });
+      api.markChatRead(leagueId, last.created_at).catch(() => set({ reportedReadAt }));
+    }
   },
 
   async send(text) {

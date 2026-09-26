@@ -113,7 +113,10 @@ declare const StateLogic: {
     pointsFor(state: LeagueState, type: string): number;
     activeSlots(state: LeagueState): number;
     benchSlots(state: LeagueState): number;
+    /** This episode's lineup, or (if never set for it) the most recent earlier one, still-owned and capped. */
     lineupFor(state: LeagueState, epId: string, playerId: string): string[];
+    /** True when lineupFor is carrying an earlier episode's lineup rather than one set for this episode. */
+    lineupIsCarried(state: LeagueState, epId: string, playerId: string): boolean;
     isLineupLocked(state: LeagueState, epId: string): boolean;
     validateLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): string | null;
     setLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;

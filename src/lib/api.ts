@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync } from "@/lib/game/types";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 
 export class ApiError extends Error {
@@ -248,7 +248,9 @@ export const api = {
 
   // Chat lives in its own Postgres tables (chat_messages/chat_reactions), not the JSONB league
   // state, so these return their own shapes rather than a LeagueState.
-  getChat: (leagueId: string) => localFetch<{ messages: ChatMessage[] }>(`/api/leagues/${leagueId}/chat`),
+  getChat: (leagueId: string) => localFetch<{ messages: ChatMessage[]; reads: ChatRead[] }>(`/api/leagues/${leagueId}/chat`),
+  markChatRead: (leagueId: string, at: string) =>
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/chat/read`, { method: "POST", body: JSON.stringify({ at }) }),
   sendChatMessage: (leagueId: string, text: string) =>
     localFetch<{ message: ChatMessage }>(`/api/leagues/${leagueId}/chat`, {
       method: "POST",

@@ -57,6 +57,8 @@ export interface DemoSeasonData {
   showName: string;
   seasonName: string;
   episodeCount: number;
+  /** Real episode titles, index 0 = episode 1 (0030). Missing entries just show the number. */
+  episodeTitles?: string[];
   groups?: DemoGroup[];
   players: DemoPlayer[];
   castaways: DemoCastaway[];
@@ -283,6 +285,7 @@ function buildEpisodesBase(data: DemoSeasonData, players: Player[], throughEpiso
     episodes.push({
       id: epId(n),
       number: n,
+      ...(data.episodeTitles?.[n - 1] ? { title: data.episodeTitles[n - 1] } : {}),
       postMerge: mergeEp !== null && n >= mergeEp,
       events,
       exiled: [],

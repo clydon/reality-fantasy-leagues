@@ -557,10 +557,26 @@ class ActiveRosterLogic {
   // episode airs (you commit your lineup without knowing the outcome), while eliminations are
   // entered after, so a derived lock would leave a window in which someone could rewrite their
   // lineup already knowing what happened.
+  // A player who never set a lineup for this episode fields their most recent earlier one -- only
+  // what they still own, capped at the active slots. Resolved at READ time, so it holds however the
+  // episodes came to exist (carryForwardLineups only copies at creation, and misses an episode created
+  // before the previous lineup was set). Once set for an episode, even to empty, that's what counts.
   static lineupFor(state, epId, playerId){
     const ep = state.episodes.find(e => e.id === epId);
-    if(!ep || !ep.lineups) return [];
-    return ep.lineups[playerId] || [];
+    if(!ep) return [];
+    if(ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId)) return ep.lineups[playerId] || [];
+    const earlier = state.episodes
+      .filter(e => e.number < ep.number && e.lineups && Object.prototype.hasOwnProperty.call(e.lineups, playerId))
+      .sort((a,b) => b.number - a.number)[0];
+    if(!earlier) return [];
+    return (earlier.lineups[playerId] || [])
+      .filter(cid => { const c = Core.getCastaway(state, cid); return c && ownerListOf(c).includes(playerId); })
+      .slice(0, ActiveRosterLogic.activeSlots(state) || undefined);
+  }
+  /** True when this episode's lineup was carried over from an earlier one rather than set for it. */
+  static lineupIsCarried(state, epId, playerId){
+    const ep = state.episodes.find(e => e.id === epId);
+    return !!ep && !(ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId));
   }
   static isLineupLocked(state, epId){
     const ep = state.episodes.find(e => e.id === epId);
@@ -783,7 +799,7 @@ class ActiveRosterEventScoringStrategy {
       if(!inPlay(state, ep.number)) return; // before this league started (settings.startEpisode)
       ActiveRosterLogic.episodeEvents(state, ep).forEach(ev=>{
         state.players.forEach(p=>{
-          const lineup = (ep.lineups && ep.lineups[p.id]) || [];
+          const lineup = ActiveRosterLogic.lineupFor(state, ep.id, p.id);
           if(lineup.includes(ev.castawayId)){
             results[p.id].locked += ActiveRosterLogic.pointsFor(state, ev.type);
           }

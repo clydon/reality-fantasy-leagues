@@ -689,6 +689,13 @@ export interface ChatReaction {
   userIds: string[];
 }
 
+/** How far one league member has read chat (null = never opened it). */
+export interface ChatRead {
+  userId: string;
+  playerId: string;
+  lastReadAt: string | null;
+}
+
 export interface ChatMessage {
   id: string;
   user_id: string | null;

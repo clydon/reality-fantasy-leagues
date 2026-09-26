@@ -17,8 +17,24 @@ export function ChatTab() {
   const state = useLeagueStore((s) => s.state);
   const mode = useLeagueStore((s) => s.mode);
   const leagueId = useLeagueStore((s) => s.leagueId);
-  const { messages, loaded, load, markSeen, send } = useChatStore();
+  const { messages, reads, loaded, load, markSeen, send } = useChatStore();
   const [draft, setDraft] = useState("");
+  const userId = useLeagueStore((s) => s.userId);
+  const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
+
+  // "Read by" for the newest message: everyone else in the league (not its author, not you) whose
+  // read position has reached it. All of them -> "Read by all"; none -> nothing shown.
+  const last = messages[messages.length - 1];
+  let readLabel: string | null = null;
+  if (last) {
+    const others = reads.filter(
+      (r) => r.userId !== last.user_id && r.userId !== userId && r.playerId !== myPlayerId && r.playerId !== last.user_id
+    );
+    const readers = others.filter((r) => r.lastReadAt && new Date(r.lastReadAt) >= new Date(last.created_at));
+    const nameOf = (r: (typeof reads)[number]) => state.players.find((p) => p.id === r.playerId)?.name ?? "someone";
+    if (others.length > 0 && readers.length === others.length) readLabel = "Read by all";
+    else if (readers.length > 0) readLabel = `Read by ${readers.map(nameOf).join(", ")}`;
+  }
 
   useEffect(() => {
     if (mode === "mock" && !loaded) load();
@@ -61,6 +77,7 @@ export function ChatTab() {
         ) : (
           messages.map((m) => <ChatMessageRow key={m.id} m={m} state={state} />)
         )}
+        {readLabel && <div className="mt-1 text-right text-[0.7rem] text-muted-foreground">{readLabel}</div>}
       </div>
       <div className="mt-3 flex gap-2">
         <Input

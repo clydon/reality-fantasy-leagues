@@ -33,6 +33,15 @@ export function TrophyIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+export function ResearchIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...common} {...props}>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M20 20l-4.8-4.8" />
+      <path d="M7.5 12.5v-2M10.5 12.5v-4M13.5 12.5v-3" />
+    </svg>
+  );
+}
 export function ShuffleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...common} {...props}>

@@ -15,7 +15,15 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
      FROM chat_messages WHERE league_id=$1 ORDER BY created_at ASC LIMIT 300`,
     [leagueId]
   );
-  return NextResponse.json({ messages: await withReactions(rows) });
+  // Every member and how far they've read (null = never opened chat), for "Read by" labels.
+  const { rows: reads } = await pool.query(
+    `SELECT m.user_id AS "userId", m.player_id AS "playerId", r.last_read_at AS "lastReadAt"
+       FROM league_memberships m
+       LEFT JOIN chat_reads r ON r.league_id = m.league_id AND r.user_id = m.user_id
+      WHERE m.league_id=$1`,
+    [leagueId]
+  );
+  return NextResponse.json({ messages: await withReactions(rows), reads });
 });
 
 // Pushes everyone else in the league (one notification per league, kept up to date).
