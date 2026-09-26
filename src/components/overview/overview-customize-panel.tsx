@@ -4,19 +4,30 @@ import { useState } from "react";
 import type { LeagueState } from "@/lib/game/types";
 import { useIsSuperAdmin } from "@/lib/store";
 import { useOverviewLayout } from "@/lib/use-overview-layout";
-import { OVERVIEW_SECTION_LABELS, isOverviewSectionEligible } from "@/lib/overview-layout";
+import { OVERVIEW_SECTION_LABELS, isOverviewSectionEligible, type OverviewLeagueTypeId } from "@/lib/overview-layout";
+import { DEMO_LEAGUE_TYPE_LABELS } from "@/lib/game/demo-season-builder";
 import { Button } from "@/components/ui/button";
 import { cn } from "cn";
 
 // Super-admin-only editor for Overview's APP-WIDE layout -- see use-overview-layout.ts's comment:
-// every edit here applies to every user's Overview, real leagues and demo mode alike, not just this
-// browser. Collapsed by default behind a small toggle so it doesn't take up space for the one person
-// who ever sees it; everyone else never renders this at all (useIsSuperAdmin gates the whole
-// component, not just the panel body).
-export function OverviewCustomizePanel({ state, draftComplete }: { state: LeagueState; draftComplete: boolean }) {
+// every edit here applies to every user's Overview OF THIS LEAGUE TYPE, real leagues and demo mode
+// alike, not just this browser -- Classic Draft, Active Roster and Eliminator Pool each get their
+// own saved layout, since they don't share the same eligible sections (see overview-layout.ts's
+// OVERVIEW_LEAGUE_TYPE_IDS comment). Collapsed by default behind a small toggle so it doesn't take
+// up space for the one person who ever sees it; everyone else never renders this at all
+// (useIsSuperAdmin gates the whole component, not just the panel body).
+export function OverviewCustomizePanel({
+  state,
+  leagueTypeId,
+  draftComplete,
+}: {
+  state: LeagueState;
+  leagueTypeId: OverviewLeagueTypeId;
+  draftComplete: boolean;
+}) {
   const isSuperAdmin = useIsSuperAdmin();
   const [open, setOpen] = useState(false);
-  const { order, hidden, moveUp, moveDown, toggleHidden, reset } = useOverviewLayout();
+  const { order, hidden, moveUp, moveDown, toggleHidden, reset } = useOverviewLayout(leagueTypeId);
 
   if (!isSuperAdmin) return null;
 
@@ -25,14 +36,15 @@ export function OverviewCustomizePanel({ state, draftComplete }: { state: League
   return (
     <div className="mb-4 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-2.5 text-sm">
       <button className="flex w-full items-center justify-between font-semibold text-primary" onClick={() => setOpen((o) => !o)}>
-        🛠 Customize Overview (admin only)
+        🛠 Customize Overview — {DEMO_LEAGUE_TYPE_LABELS[leagueTypeId]} (admin only)
         <span className="text-xs text-muted-foreground">{open ? "Hide" : "Show"}</span>
       </button>
       {open && (
         <div className="mt-2.5 flex flex-col gap-1.5">
           <p className="text-xs text-muted-foreground">
-            Reorder or hide sections to try out a layout. This changes Overview for <b>everyone</b>, in every league
-            and in demo mode.
+            Reorder or hide sections to try out a layout for <b>{DEMO_LEAGUE_TYPE_LABELS[leagueTypeId]}</b> leagues.
+            This changes Overview for everyone playing this league type, in every league and in demo mode. The other
+            two league types keep their own layouts.
           </p>
           {eligible.map((id, i) => (
             <div key={id} className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">

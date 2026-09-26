@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useIsSuperAdmin } from "@/lib/store";
-import { DEFAULT_OVERVIEW_ORDER, type OverviewSectionId } from "./overview-layout";
+import { DEFAULT_OVERVIEW_ORDER, type OverviewLeagueTypeId, type OverviewSectionId } from "./overview-layout";
 
 export interface OverviewLayoutValue {
   order: OverviewSectionId[];
@@ -21,17 +21,21 @@ function swap(order: OverviewSectionId[], id: OverviewSectionId, dir: -1 | 1): O
   return next;
 }
 
-// App-wide Overview layout: a super admin's reorder/hide choices, applied to every user's Overview
-// (real leagues and demo mode alike) -- server state via react-query (db/migrations/
-// 0027_app_settings.sql), not a per-browser preference. Every component that renders Overview reads
-// through this same hook/queryKey, so an edit from the customize panel is visible immediately
-// everywhere it's open, not just after a refetch.
+// App-wide Overview layout, ONE PER LEAGUE TYPE (see overview-layout.ts's OVERVIEW_LEAGUE_TYPE_IDS
+// comment for why one shared layout doesn't fit all three): a super admin's reorder/hide choices,
+// applied to every user's Overview of THIS league type, real leagues and demo mode alike -- server
+// state via react-query (db/migrations/0027_app_settings.sql), not a per-browser preference.
+//
+// Every component that renders Overview calls this with the CURRENT league's type and reads through
+// the same underlying query (one fetch covers all 3 types), so an edit from the customize panel is
+// visible immediately everywhere it's open, not just after a refetch -- including if the demo bar's
+// game-type dropdown switches to the type just edited.
 //
 // The three mutator functions silently no-op for anyone who isn't a super admin (mirroring the
 // server's own requireSuperAdmin check) -- there's no UI that calls them otherwise, since
 // overview-customize-panel.tsx itself is admin-only, but a stale client shouldn't be able to fire a
 // PATCH that's just going to 403 anyway.
-export function useOverviewLayout() {
+export function useOverviewLayout(leagueTypeId: OverviewLeagueTypeId) {
   const queryClient = useQueryClient();
   const isSuperAdmin = useIsSuperAdmin();
   const { data, isLoading } = useQuery({
@@ -39,12 +43,14 @@ export function useOverviewLayout() {
     queryFn: () => api.getOverviewLayout(),
     staleTime: 60_000,
   });
-  const value: OverviewLayoutValue = (data?.layout as OverviewLayoutValue | null) ?? DEFAULT_VALUE;
+  const value: OverviewLayoutValue = (data?.layouts?.[leagueTypeId] as OverviewLayoutValue | undefined) ?? DEFAULT_VALUE;
 
   async function save(next: OverviewLayoutValue) {
-    queryClient.setQueryData(["overview-layout"], { layout: next });
+    queryClient.setQueryData(["overview-layout"], (prev: { layouts?: Record<string, OverviewLayoutValue> } | undefined) => ({
+      layouts: { ...prev?.layouts, [leagueTypeId]: next },
+    }));
     try {
-      await api.updateOverviewLayout(next.order, next.hidden);
+      await api.updateOverviewLayout(leagueTypeId, next.order, next.hidden);
     } catch (e) {
       // Roll the optimistic write back to whatever the server actually has.
       queryClient.invalidateQueries({ queryKey: ["overview-layout"] });

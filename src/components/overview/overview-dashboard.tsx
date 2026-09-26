@@ -15,7 +15,7 @@ import { PickEmPickGrid } from "./pickem-pick-grid";
 import { ActiveRosterLineupGrid } from "./active-roster-lineup-grid";
 import { OverviewCustomizePanel } from "./overview-customize-panel";
 import { useOverviewLayout } from "@/lib/use-overview-layout";
-import { isOverviewSectionEligible, type OverviewSectionId } from "@/lib/overview-layout";
+import { isOverviewSectionEligible, toOverviewLeagueTypeId, type OverviewSectionId } from "@/lib/overview-layout";
 import type { LeagueState } from "@/lib/game/types";
 
 function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
@@ -57,7 +57,8 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
 // component -- it just reads the resulting list.
 export function OverviewDashboard() {
   const state = useLeagueStore((s) => s.state);
-  const { order, hidden } = useOverviewLayout();
+  const leagueTypeId = toOverviewLeagueTypeId(StateLogic.getLeagueType(state).id);
+  const { order, hidden } = useOverviewLayout(leagueTypeId);
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
 
@@ -66,7 +67,7 @@ export function OverviewDashboard() {
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Overview</h2>
-      <OverviewCustomizePanel state={state} draftComplete={draftComplete} />
+      <OverviewCustomizePanel state={state} leagueTypeId={leagueTypeId} draftComplete={draftComplete} />
       {/* Catch-up mode (StateLogic.RevealLogic): say so here, or the standings look inexplicably
           early to anyone who knows how far the real season has run. Deliberately says nothing about
           how much is left -- see catch-up-panel.tsx. */}

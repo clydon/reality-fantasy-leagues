@@ -31,6 +31,22 @@ export const OVERVIEW_SECTION_LABELS: Record<OverviewSectionId, string> = {
   board: "Board",
 };
 
+// The 3 real (and demo) league types -- same ids as state-logic.js's LEAGUE_TYPES and
+// demo-season-builder.ts's DemoLeagueTypeId. A super admin's Overview layout is stored ONE PER
+// TYPE (see use-overview-layout.ts): Eliminator Pool has no roster at all, Active Roster wants
+// Last Week/Set Lineup, Classic Draft wants neither -- a single shared layout couldn't fit all
+// three without either hiding sections that don't apply everywhere, or an admin's Active-Roster
+// tuning quietly reordering Classic Draft leagues too.
+export const OVERVIEW_LEAGUE_TYPE_IDS = ["classic-draft", "active-roster", "pickem"] as const;
+export type OverviewLeagueTypeId = (typeof OVERVIEW_LEAGUE_TYPE_IDS)[number];
+
+// StateLogic.getLeagueType(state).id is a plain string (the registry is open-ended in principle),
+// but every id that registry has ever actually held is one of the 3 above -- this narrows for
+// useOverviewLayout's sake, falling back to classic-draft only if that were ever to change.
+export function toOverviewLeagueTypeId(id: string): OverviewLeagueTypeId {
+  return (OVERVIEW_LEAGUE_TYPE_IDS as readonly string[]).includes(id) ? (id as OverviewLeagueTypeId) : "classic-draft";
+}
+
 export const DEFAULT_OVERVIEW_ORDER: OverviewSectionId[] = [
   "notifications",
   "sideBets",
