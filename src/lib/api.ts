@@ -453,7 +453,12 @@ export const api = {
       body: JSON.stringify(body),
     }),
   adminUpdateSeason: (id: string, changes: Record<string, unknown>) =>
-    localFetch<{ season: ShowSeason; leaguesOnOldNumber: number }>(`/api/admin/seasons/${id}`, {
+    localFetch<{
+      season: ShowSeason;
+      leaguesOnOldNumber: number;
+      /** Set when episodeCount was saved: what was cleared from past that episode. */
+      pruned: { pendingResults: number; researchedEpisodes: number; wikiReadTrimmed: boolean; decidedResultsKept: number } | null;
+    }>(`/api/admin/seasons/${id}`, {
       method: "PATCH",
       body: JSON.stringify(changes),
     }),

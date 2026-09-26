@@ -1009,7 +1009,22 @@ async function stageSeasonEpisodes(pool, ctx, extraction, opts = {}) {
     );
   }
 
-  const checked = validateEpisodes(extraction.payload, castState, ctx.terms, ctx.format);
+  // A read can claim episodes the season never had (a misread results table once produced 60 for a
+  // 19-episode season). With the season's real length known (0029), anything past it is dropped here,
+  // before validation, and said so -- never staged for review.
+  const { rows: countRows } = await pool.query("SELECT episode_count FROM show_seasons WHERE id=$1", [seasonId]);
+  const episodeCount = countRows.length ? countRows[0].episode_count : null;
+  let payload = extraction.payload;
+  if (episodeCount && (payload.episodes || []).some((e) => e && e.number > episodeCount)) {
+    const beyond = payload.episodes.filter((e) => e && e.number > episodeCount).length;
+    console.log(`[wiki-sync]   note: dropped ${beyond} episode(s) past this season's ${episodeCount}`);
+    payload = { ...payload, episodes: payload.episodes.filter((e) => !(e && e.number > episodeCount)) };
+  }
+
+  const checked = validateEpisodes(payload, castState, ctx.terms, ctx.format);
+  if (payload !== extraction.payload) {
+    checked.problems.unshift(`the wiki read listed episodes past this season's ${episodeCount} -- those were ignored`);
+  }
   checked.problems.forEach((p) => console.log(`[wiki-sync]   note: ${p}`));
   if (checked.fatal.length) {
     throw new Error(`failed validation, nothing staged:\n    - ${checked.fatal.join("\n    - ")}`);

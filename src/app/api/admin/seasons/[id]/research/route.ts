@@ -3,7 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { researchSeasonEpisode, researchFromPaste, RESEARCH_MODELS } from "@db/episode-research.js";
-import { episodeAirsAt } from "@db/auto-research.js";
+import { episodeAirsAt, episodeCountOf } from "@db/auto-research.js";
 import { formatInTz } from "@/lib/game/air-schedule.js";
 
 // On-demand episode research for one catalog season -- what the "Research ep N" button on each
@@ -50,6 +50,11 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
     [id]
   );
   if (!rows.length) throw new HttpError(404, "Season not found");
+
+  const episodeCount = await episodeCountOf(pool, id);
+  if (episodeCount && episode > episodeCount) {
+    throw new HttpError(400, `This season has ${episodeCount} episodes — there's no episode ${episode}.`);
+  }
 
   // Nothing to find about an episode that hasn't aired -- and a search (or a pasted answer) would
   // happily describe the previous week's episode instead. Only refused when the air time is known.

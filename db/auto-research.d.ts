@@ -3,3 +3,6 @@ import type { Pool } from "pg";
 
 /** When episode n of a season airs, or null when the season has no premiere date or wiki air dates. */
 export function episodeAirsAt(pool: Pool, seasonId: string, n: number): Promise<Date | null>;
+
+/** The season's known episode count, or null when none is set. */
+export function episodeCountOf(pool: Pool, seasonId: string): Promise<number | null>;

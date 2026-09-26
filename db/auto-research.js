@@ -24,7 +24,7 @@ async function loadSeasons(pool, where = "ss.auto_research", params = []) {
     `SELECT ss.id, ss.season_number, s.slug, s.id AS show_id,
             to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date, to_char(ss.air_time, 'HH24:MI') AS air_time, ss.air_tz,
             ss.auto_research, ss.research_weekday, to_char(ss.research_time, 'HH24:MI') AS research_time,
-            ss.research_model, ss.auto_research_since,
+            ss.research_model, ss.auto_research_since, ss.episode_count,
             (SELECT json_object_agg(e->>'number', e->>'airDate')
                FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e
               WHERE we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
@@ -55,13 +55,21 @@ async function episodeAirsAt(pool, seasonId, n) {
   return Air.episodeAirTime(season.schedule, n, season.wikiAirDates);
 }
 
+/** The season's known episode count (0029), or null when nobody has set one. */
+async function episodeCountOf(pool, seasonId) {
+  const { rows } = await pool.query("SELECT episode_count FROM show_seasons WHERE id=$1", [seasonId]);
+  return rows.length ? rows[0].episode_count : null;
+}
+
 /** Episodes of one season that are due for scheduled research at `now`. */
 async function dueEpisodes(pool, season, now) {
   if (!season.auto_research || season.research_weekday == null || !season.research_time) return [];
   const since = season.auto_research_since ? new Date(season.auto_research_since) : now;
   const researched = new Set(season.researched.map(Number));
   const due = [];
-  for (let n = 1; n <= 60; n++) {
+  // Weekly from the premiere runs past the finale forever; the season's real length stops it (0029).
+  const last = season.episode_count || 60;
+  for (let n = 1; n <= last; n++) {
     const air = Air.episodeAirTime(season.schedule, n, season.wikiAirDates);
     if (!air || air > now) break;
     if (researched.has(n)) continue;
@@ -129,4 +137,4 @@ if (require.main === module) {
     .finally(() => pool.end());
 }
 
-module.exports = { loadSeasons, dueEpisodes, runDue, episodeAirsAt, RETRY_AFTER_MS, MAX_ATTEMPTS };
+module.exports = { loadSeasons, dueEpisodes, runDue, episodeAirsAt, episodeCountOf, RETRY_AFTER_MS, MAX_ATTEMPTS };

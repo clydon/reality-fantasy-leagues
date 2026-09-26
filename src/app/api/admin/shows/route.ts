@@ -18,7 +18,7 @@ export const GET = apiRoute(async (req) => {
                 json_build_object(
                   'id', ss.id, 'seasonNumber', ss.season_number, 'name', ss.name,
                   'wikiPageTitle', ss.wiki_page_title, 'wikiUrl', ss.wiki_url,
-                  'status', ss.status, 'castSize', ss.cast_size,
+                  'status', ss.status, 'castSize', ss.cast_size, 'episodeCount', ss.episode_count,
                   'premiereDate', ss.premiere_date, 'finaleDate', ss.finale_date,
                   -- Where the season is in its pipeline (cast -> episodes), so the admin row can show
                   -- state and the next step instead of a row of equal-looking buttons.

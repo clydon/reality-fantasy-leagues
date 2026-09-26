@@ -51,6 +51,15 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     const n = Number(body.castSize);
     push("cast_size", Number.isInteger(n) && n > 0 ? n : null);
   }
+  let episodeCount: number | null | undefined;
+  if ("episodeCount" in body) {
+    const raw = body.episodeCount;
+    episodeCount = raw === null || raw === "" ? null : Number(raw);
+    if (episodeCount !== null && !(Number.isInteger(episodeCount) && episodeCount > 0 && episodeCount <= 200)) {
+      throw new HttpError(400, "episodeCount must be a positive whole number");
+    }
+    push("episode_count", episodeCount);
+  }
   if ("premiereDate" in body) push("premiere_date", body.premiereDate || null);
   if ("finaleDate" in body) push("finale_date", body.finaleDate || null);
   // Air schedule + auto-research (0020).
@@ -108,9 +117,62 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
 
   const { rows } = await pool.query(
     `UPDATE show_seasons SET ${sets.join(", ")}, updated_at=now() WHERE id=$1
-     RETURNING id, season_number, name, wiki_page_title, wiki_url, status, cast_size`,
+     RETURNING id, season_number, name, wiki_page_title, wiki_url, status, cast_size, episode_count`,
     values
   );
+
+  // Setting the count clears out what exists past it -- phantom episodes from a misread wiki pull or
+  // from counting weeks past the finale. Only the undecided/derived data goes: pending review items,
+  // research, its search index, auto-research attempts, and those episodes in the cached wiki read (so
+  // a re-pull can't restage them). An accepted or rejected decision is history and stays; it's counted
+  // so the admin knows to look.
+  let pruned = null;
+  if (typeof episodeCount === "number") {
+    const { show_id: showId, season_number: seasonNumber } = existing[0];
+    const season = "seasonNumber" in body ? Number(body.seasonNumber) : seasonNumber;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const pending = await client.query(
+        "DELETE FROM season_decisions WHERE season_id=$1 AND episode_number>$2 AND status='pending'",
+        [id, episodeCount]
+      );
+      const research = await client.query(
+        "DELETE FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number>$3",
+        [showId, season, episodeCount]
+      );
+      await client.query(
+        "DELETE FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2 AND episode_number>$3",
+        [showId, season, episodeCount]
+      );
+      await client.query("DELETE FROM auto_research_attempts WHERE season_id=$1 AND episode_number>$2", [id, episodeCount]);
+      const wiki = await client.query(
+        `UPDATE wiki_extractions
+            SET payload = jsonb_set(payload, '{episodes}', COALESCE(
+              (SELECT jsonb_agg(e) FROM jsonb_array_elements(payload->'episodes') e WHERE (e->>'number')::int <= $3),
+              '[]'::jsonb))
+          WHERE show_id=$1 AND season_number=$2 AND kind='episodes'
+            AND EXISTS (SELECT 1 FROM jsonb_array_elements(payload->'episodes') e WHERE (e->>'number')::int > $3)`,
+        [showId, season, episodeCount]
+      );
+      const decided = await client.query(
+        "SELECT count(*)::int AS n FROM season_decisions WHERE season_id=$1 AND episode_number>$2",
+        [id, episodeCount]
+      );
+      await client.query("COMMIT");
+      pruned = {
+        pendingResults: pending.rowCount ?? 0,
+        researchedEpisodes: research.rowCount ?? 0,
+        wikiReadTrimmed: (wiki.rowCount ?? 0) > 0,
+        decidedResultsKept: decided.rows[0].n,
+      };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
 
   // Only worth reporting when the number actually moved.
   let leaguesOnOldNumber = 0;
@@ -123,7 +185,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     );
     leaguesOnOldNumber = usage[0].n;
   }
-  return NextResponse.json({ season: rows[0], leaguesOnOldNumber });
+  return NextResponse.json({ season: rows[0], leaguesOnOldNumber, pruned });
 });
 
 export const DELETE = apiRoute(async (req, { params }: { params: Promise<RouteParams> }) => {

@@ -89,13 +89,22 @@ export function SeasonEpisodes({
     else byEpisode.set(d.episode_number, [d]);
   }
 
-  // Every episode that has aired or has data, plus the next one to air -- but only one upcoming
-  // episode: if the latest with data hasn't aired yet (researched too early), it IS the next one.
+  // Which episodes to list. The season's episode count (when set) is the hard cap on everything below:
+  // counting weekly from the premiere runs past the finale forever, and a misread wiki pull can claim
+  // episodes that never existed -- both used to produce dozens of phantom rows for a finished season.
+  //
+  //   completed -- every episode up to the count, all aired. Without a count, just the ones with data
+  //                (no weekly extrapolation: a season that ended years ago would "have" 60).
+  //   airing    -- aired so far (from the schedule) or with data, plus the next one to air.
+  //   upcoming  -- nothing has aired; the first episode, if its air date is known.
+  const count = season.episodeCount ?? null;
+  const cap = (n: number) => (count ? Math.min(n, count) : n);
+  const completed = season.status === "completed";
   const airsAtOf = (n: number) => (hasSchedule ? Air.episodeAirTime(schedule, n, wikiAirDates) : null);
-  const withData = Math.max(0, season.wikiEpisodesThrough ?? 0, ...researched, ...byEpisode.keys());
+  const withData = cap(Math.max(0, season.wikiEpisodesThrough ?? 0, ...researched, ...byEpisode.keys()));
   let lastAired = 0;
-  if (hasSchedule) {
-    for (let n = 1; n <= 60; n++) {
+  if (hasSchedule && !completed) {
+    for (let n = 1; n <= (count ?? 60); n++) {
       const t = airsAtOf(n);
       if (!t || t > now) break;
       lastAired = n;
@@ -104,7 +113,7 @@ export function SeasonEpisodes({
   const known = Math.max(withData, lastAired);
   const knownAirsAt = airsAtOf(known);
   const knownIsUpcoming = !!knownAirsAt && knownAirsAt > now;
-  const last = season.status === "completed" || knownIsUpcoming ? known : known + 1;
+  const last = completed ? (count ?? withData) : cap(knownIsUpcoming ? known : known + 1);
   const rows: EpisodeRow[] = [];
   for (let n = last; n >= 1; n--) {
     const airsAt = airsAtOf(n);
@@ -112,7 +121,7 @@ export function SeasonEpisodes({
     rows.push({
       n,
       airsAt,
-      aired: airsAt ? airsAt <= now : hasData,
+      aired: completed || (airsAt ? airsAt <= now : hasData),
       researched: researched.has(n),
       decisions: byEpisode.get(n) ?? [],
     });
@@ -456,6 +465,7 @@ function PasteImportPanel({
 function AutoResearchControls({ season, hasSchedule, onSaved }: { season: ShowSeason; hasSchedule: boolean; onSaved: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const showPaid = useShowPaidAi();
   const tz = season.airTz || "America/New_York";
   const tzLabel = TIME_ZONES.find(([id]) => id === tz)?.[1] ?? tz;
@@ -463,8 +473,23 @@ function AutoResearchControls({ season, hasSchedule, onSaved }: { season: ShowSe
   async function save(changes: Record<string, unknown>) {
     setBusy(true);
     setError(null);
+    setNote(null);
     try {
-      await api.adminUpdateSeason(season.id, changes);
+      const res = await api.adminUpdateSeason(season.id, changes);
+      const p = res.pruned;
+      if (p) {
+        const parts = [
+          p.pendingResults && `${p.pendingResults} pending result${p.pendingResults === 1 ? "" : "s"}`,
+          p.researchedEpisodes && `research for ${p.researchedEpisodes} episode${p.researchedEpisodes === 1 ? "" : "s"}`,
+          p.wikiReadTrimmed && "the extra episodes in the cached wiki read",
+        ].filter(Boolean);
+        setNote(
+          (parts.length ? `Cleared past episode ${changes.episodeCount}: ${parts.join(", ")}.` : "Nothing past that episode to clear.") +
+            (p.decidedResultsKept
+              ? ` ${p.decidedResultsKept} already accepted/rejected result${p.decidedResultsKept === 1 ? " is" : "s are"} past it and ${p.decidedResultsKept === 1 ? "was" : "were"} kept — review them.`
+              : "")
+        );
+      }
       onSaved();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't save that.");
@@ -500,7 +525,8 @@ function AutoResearchControls({ season, hasSchedule, onSaved }: { season: ShowSe
           </div>
         )}
         <AirScheduleLine season={season} hasSchedule={hasSchedule} busy={busy} save={save} />
-        {error && <p className="font-semibold text-destructive">{error}</p>}
+        {note && <p className="text-good">{note}</p>}
+      {error && <p className="font-semibold text-destructive">{error}</p>}
       </div>
     );
   }
@@ -565,6 +591,7 @@ function AutoResearchControls({ season, hasSchedule, onSaved }: { season: ShowSe
         </p>
       )}
       <AirScheduleLine season={season} hasSchedule={hasSchedule} busy={busy} save={save} />
+      {note && <p className="text-good">{note}</p>}
       {error && <p className="font-semibold text-destructive">{error}</p>}
     </div>
   );
@@ -583,9 +610,31 @@ function AirScheduleLine({
   busy: boolean;
   save: (changes: Record<string, unknown>) => void;
 }) {
+  const completed = season.status === "completed";
+  const needsCount = !season.episodeCount && completed;
+  // The premiere date only matters while a season airs (which episodes are out yet, when
+  // auto-research runs). A finished season needs its episode count instead.
+  const needsSchedule = !hasSchedule && !completed;
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className={cn("font-semibold", !hasSchedule && "text-destructive")}>Airs</span>
+      <span className={cn("font-semibold", needsCount && "text-destructive")}>Episodes</span>
+      <Input
+        type="number"
+        min={1}
+        size="sm"
+        className="w-[64px]"
+        placeholder="?"
+        defaultValue={season.episodeCount ?? ""}
+        disabled={busy}
+        title="How many episodes this season has. Caps the list below; anything saved past it is cleared."
+        onBlur={(e) => {
+          const v = e.target.value.trim();
+          if (v === String(season.episodeCount ?? "")) return;
+          save({ episodeCount: v ? Number(v) : null });
+        }}
+      />
+      <span className="text-muted-foreground">·</span>
+      <span className={cn("font-semibold", needsSchedule && "text-destructive")}>Airs</span>
       <span className="text-muted-foreground">weekly from</span>
       <Input
         type="date"
@@ -611,7 +660,10 @@ function AirScheduleLine({
           </option>
         ))}
       </Select>
-      {!hasSchedule && (
+      {needsCount && (
+        <span className="text-[0.65rem] text-destructive">Set how many episodes this season has — the list only shows episodes with data until you do.</span>
+      )}
+      {needsSchedule && (
         <span className="text-[0.65rem] text-destructive">Set the premiere date so the list knows which episodes have aired.</span>
       )}
     </div>

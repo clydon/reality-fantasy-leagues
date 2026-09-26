@@ -251,6 +251,8 @@ export interface ShowSeason {
   status: "upcoming" | "airing" | "completed";
   /** Starting contestant count. Lets the shared-ownership nudge do real arithmetic pre-cast. */
   castSize: number | null;
+  /** How many episodes the season has, when known (0029). Caps the episode list and everything that counts episodes. */
+  episodeCount?: number | null;
   premiereDate: string | null;
   finaleDate: string | null;
   // Admin-only pipeline state (GET /api/admin/shows) -- where the season is in cast -> episodes, so
