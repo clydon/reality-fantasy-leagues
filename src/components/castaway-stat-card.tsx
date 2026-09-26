@@ -63,18 +63,21 @@ export function CastawayStatCard({
       {c.status === "eliminated" &&
         (medal ? (
           <div
-            className="absolute right-[5px] top-[5px] flex h-[27px] w-[27px] items-center justify-center text-[1.1rem]"
+            className="absolute right-[5px] top-[5px] z-10 flex h-[27px] w-[27px] items-center justify-center text-[1.1rem]"
             title={medal}
           >
             {MEDAL_EMOJI[medal]}
           </div>
         ) : (
           <>
-            <div className="absolute right-[5px] top-[5px] flex h-[22px] w-[22px] items-center justify-center rounded-full bg-destructive font-mono text-[0.66rem] font-bold text-white shadow-[0_1px_3px_rgba(0,0,0,.25)]">
+            <div className="absolute right-[5px] top-[5px] z-10 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-destructive font-mono text-[0.66rem] font-bold text-white shadow-[0_1px_3px_rgba(0,0,0,.25)]">
               {c.placementOrder}
             </div>
+            {/* z-10 -- without it this painted behind the avatar below (a later, position:relative
+                sibling with no z-index of its own still paints on top of an earlier position:absolute
+                one in DOM/tree order), which buried the X entirely under the photo. */}
             <div
-              className="pointer-events-none absolute inset-0 flex items-center justify-center text-[2.5rem] font-black text-destructive opacity-85"
+              className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[2.5rem] font-black text-destructive opacity-85"
               aria-hidden
             >
               ✕

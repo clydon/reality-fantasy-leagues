@@ -395,12 +395,10 @@ export const api = {
   // pickers in League Settings); everything under /api/admin/* is super-admin catalog management.
   listShows: () => localFetch<{ shows: CatalogShow[] }>("/api/shows"),
 
-  // Demo Season picker catalog (db/migrations/0025_demo_seasons.sql) -- public, no auth, so a
+  // Demo Season picker catalog (db/migrations/0026_demo_seasons_generic.sql) -- public, no auth, so a
   // logged-out visitor can try a real season before they have an account.
   listDemoSeasons: () =>
-    localFetch<{ seasons: { id: string; showId: string; leagueTypeId: string; name: string; episodeCount: number }[] }>(
-      "/api/demo-seasons"
-    ),
+    localFetch<{ seasons: { id: string; showId: string; name: string; episodeCount: number }[] }>("/api/demo-seasons"),
   getDemoSeason: (id: string) => localFetch<{ season: DemoSeasonData }>(`/api/demo-seasons/${id}`),
 
   adminListShows: () => localFetch<{ shows: AdminShow[] }>("/api/admin/shows"),

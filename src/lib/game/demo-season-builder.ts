@@ -1,14 +1,18 @@
 import type { Bet, Castaway, Episode, LeagueState, Player, Tribe } from "./types";
 
-// Turns one researched demo season (db/migrations/0025_demo_seasons.sql, fetched via
-// /api/demo-seasons/:id) into a real LeagueState, at whichever episode the viewer has scrubbed to.
-// Unlike mock-state.ts's buildMockSeasonState() -- which is one hand-built league, always the same
-// -- this is a small interpreter over data, so a season researched once can be replayed as any
-// point in its own history without re-deriving anything.
+export type DemoLeagueTypeId = "classic-draft" | "active-roster" | "pickem";
+
+// Turns one researched demo season (db/migrations/0026_demo_seasons_generic.sql, fetched via
+// /api/demo-seasons/:id) into a real LeagueState, for whichever league type the Demo Season picker's
+// second step chose and at whichever episode the viewer has scrubbed to. Unlike mock-state.ts's
+// buildMockSeasonState() -- one hand-built league, always the same -- this is a small interpreter
+// over data, so any of the 3 researched seasons can be tried as any of the 3 league types (a 3x3
+// matrix from 3 rows) and replayed at any point in its own history, all without re-deriving anything.
 //
-// Only three league types exist, and this season format maps each demo season to exactly one of
-// them (see the migration's comment) rather than trying to build all three for every season, which
-// would need a lot of invented ownership/lineup detail with no real-season basis.
+// A season's `data` carries no ownership of its own: draft/roster assignment only means something
+// once a league type is picked (a pure pick'em season has no roster at all), so it's computed here,
+// generically, from the cast + however many fictional players the season ships -- see
+// computeRoster() below.
 
 export interface DemoRole {
   value: string;
@@ -23,6 +27,7 @@ export interface DemoCastaway {
   exitMethod: string;
   exitEpisode: number;
   role?: DemoRole | null;
+  photoUrl?: string | null;
 }
 
 export interface DemoPlayer {
@@ -37,31 +42,15 @@ export interface DemoGroup {
   color: string;
 }
 
-export interface DemoOwnership {
-  playerKey: string;
-  castawayKeys: string[];
-}
-
 export interface DemoSeasonData {
   id: string;
   showId: string;
   showName: string;
   seasonName: string;
-  leagueTypeId: "classic-draft" | "active-roster" | "pickem";
   episodeCount: number;
   groups?: DemoGroup[];
   players: DemoPlayer[];
   castaways: DemoCastaway[];
-  ownership?: DemoOwnership[];
-  activeSlots?: number;
-  benchSlots?: number;
-  teamSize?: number;
-  // Total picks already "made" across every player -- SnakeDraftStrategy.currentTurn reads this
-  // against players.length * rosterSize to decide the draft is complete, so it has to equal the
-  // real total from `ownership` exactly (the migration's generator script asserts this at
-  // authoring time; see its assertSeason).
-  draftPicksMade?: number;
-  betEveryOtherEpisode?: boolean;
 }
 
 const pid = (key: string) => `demo_p_${key}`;
@@ -77,23 +66,36 @@ function buildTribes(data: DemoSeasonData): Tribe[] {
   return (data.groups || []).map((g) => ({ id: tid(g.key), name: g.name, color: g.color }));
 }
 
-function ownersOf(data: DemoSeasonData, key: string): string[] {
-  return (data.ownership || []).filter((o) => o.castawayKeys.includes(key)).map((o) => pid(o.playerKey));
+// A uniform-size draft split, in the season's own cast order, so SnakeDraftStrategy's "complete"
+// arithmetic (players.length * rosterSize) always lines up exactly -- there's no real basis for
+// which fictional player would have drafted whom, so this just needs to be a valid, even split. Any
+// remainder (a cast size that doesn't divide evenly by player count) stays undrafted, same as a real
+// league's free agents.
+function computeRoster(data: DemoSeasonData): { rosterSize: number; ownership: { playerKey: string; castawayKeys: string[] }[] } {
+  const playerCount = data.players.length;
+  const rosterSize = Math.floor(data.castaways.length / playerCount);
+  const draftable = data.castaways.slice(0, rosterSize * playerCount);
+  const ownership = data.players.map((p, i) => ({
+    playerKey: p.key,
+    castawayKeys: draftable.filter((_, idx) => idx % playerCount === i).map((c) => c.key),
+  }));
+  return { rosterSize, ownership };
 }
 
-function buildCastaways(data: DemoSeasonData, throughEpisode: number): Castaway[] {
+function buildCastaways(data: DemoSeasonData, ownerOf: Map<string, string[]>, hasRoster: boolean, throughEpisode: number): Castaway[] {
   return data.castaways.map((c) => {
     const revealed = c.exitEpisode <= throughEpisode;
     return {
       id: cid(c.key),
       name: c.name,
       tribeId: c.groupKey ? tid(c.groupKey) : "",
-      ownerIds: ownersOf(data, c.key),
+      ownerIds: ownerOf.get(c.key) || [],
+      photoUrl: c.photoUrl ?? undefined,
       status: revealed ? "eliminated" : "active",
       placementOrder: revealed ? c.placement : undefined,
       exitMethod: revealed ? c.exitMethod : undefined,
       exitEpisodeId: revealed ? epId(c.exitEpisode) : undefined,
-      acquiredVia: data.ownership ? "draft" : null,
+      acquiredVia: hasRoster ? "draft" : null,
       formerOwnerId: null,
       departedVia: null,
     };
@@ -103,7 +105,7 @@ function buildCastaways(data: DemoSeasonData, throughEpisode: number): Castaway[
 // One flavor question per show, cycling, so a fuller season doesn't repeat the same bet every time.
 // These are gameplay filler (every real league already generates its own bets by hand) rather than
 // researched facts, so there's no accuracy concern in inventing them -- only the murder/banishment
-// order etc. above needed real sourcing.
+// order etc. above needed real sourcing. Every demo season gets one every other episode.
 const BET_TEMPLATES: Record<string, string[]> = {
   survivor: ["Does anyone find a hidden immunity idol this episode?", "Is there a tribe swap or twist this episode?"],
   traitors: ["Will a Traitor be exposed at tonight's Round Table?", "Is there a murder this episode?"],
@@ -144,7 +146,7 @@ function buildEpisodesBase(data: DemoSeasonData, players: Player[], throughEpiso
       exiled: [],
       roles,
       groups: [],
-      bets: data.betEveryOtherEpisode && n % 2 === 0 ? [genericBet(data, n, players)] : [],
+      bets: n % 2 === 0 ? [genericBet(data, n, players)] : [],
       picks: [],
       scoringEvents: [],
       lineups: {},
@@ -154,10 +156,10 @@ function buildEpisodesBase(data: DemoSeasonData, players: Player[], throughEpiso
   return episodes;
 }
 
-function baseSettings(data: DemoSeasonData) {
+function baseSettings(data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId, rosterSize: number) {
   return {
-    teamSize: data.teamSize ?? 3,
-    bonusEnabled: !!data.betEveryOtherEpisode,
+    teamSize: leagueTypeId === "classic-draft" ? rosterSize || 1 : 3,
+    bonusEnabled: true,
     replenishOrderBy: "mostPoints" as const,
     replenishEnabled: false,
     tradeEnabled: false,
@@ -169,61 +171,53 @@ function baseSettings(data: DemoSeasonData) {
     finaleWinnerPoints: 3,
     finalePredictionScope: "open",
     draftScheduledAt: null,
-    leagueTypeId: data.leagueTypeId,
+    leagueTypeId,
     showId: data.showId,
     showFormat: data.showId,
     setupComplete: true,
     ownershipMode: "exclusive" as const,
     wikiSeason: null,
-    activeSlots: data.activeSlots ?? 3,
-    benchSlots: data.benchSlots ?? 2,
+    activeSlots: leagueTypeId === "active-roster" ? rosterSize || 1 : 3,
+    benchSlots: 0,
     eventPoints: {},
     pickemCorrectPoints: 1,
   };
 }
 
-// draftPicksMade has to equal the real total across `ownership` -- SnakeDraftStrategy.currentTurn
-// compares it against players.length * rosterSize to decide the draft is "complete", and a mismatch
-// would either show a fictional "still drafting" turn or under/over-count picks. Falls back to one
-// pick per player for a league type with no ownership at all (pickem never reads this).
-function emptyMidSeasonAndDraft(data: DemoSeasonData, draftOrder: string[]) {
+function emptyMidSeasonAndDraft(draftOrder: string[], draftPicksMade: number) {
   return {
     finalePredictions: [],
     finaleActual: { top3: [], winner: null },
     midSeason: { replenish: null, trade: null, log: [] },
     draftOrder,
-    draftPicksMade: data.draftPicksMade ?? draftOrder.length,
+    draftPicksMade,
     draftForceStarted: true,
     blindDraft: { lockedPlayerIds: [], revealedAt: null },
   };
 }
 
-function buildClassicDraftDemo(data: DemoSeasonData, throughEpisode: number): LeagueState {
-  const players = buildPlayers(data);
-  const tribes = buildTribes(data);
-  const castaways = buildCastaways(data, throughEpisode);
-  const episodes = buildEpisodesBase(data, players, throughEpisode);
-  return {
-    players,
-    tribes,
-    castaways,
-    episodes,
-    ...emptyMidSeasonAndDraft(data, players.map((p) => p.id)),
-    settings: baseSettings(data),
-  };
+function ownerMap(ownership: { playerKey: string; castawayKeys: string[] }[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const o of ownership) {
+    for (const key of o.castawayKeys) {
+      map.set(key, [...(map.get(key) || []), pid(o.playerKey)]);
+    }
+  }
+  return map;
 }
 
-function buildActiveRosterDemo(data: DemoSeasonData, throughEpisode: number): LeagueState {
+function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "active-roster", throughEpisode: number): LeagueState {
   const players = buildPlayers(data);
   const tribes = buildTribes(data);
-  const castaways = buildCastaways(data, throughEpisode);
+  const { rosterSize, ownership } = computeRoster(data);
+  const castaways = buildCastaways(data, ownerMap(ownership), true, throughEpisode);
   const episodes = buildEpisodesBase(data, players, throughEpisode);
-  // Every drafted castaway is always in the active lineup (activeSlots covers the whole roster) --
-  // there's no real-season basis for who a fictional owner would bench week to week, so rather than
-  // invent one, the demo just shows the full roster scoring every episode.
-  for (const ep of episodes) {
-    for (const o of data.ownership || []) {
-      ep.lineups[pid(o.playerKey)] = o.castawayKeys.map(cid);
+  if (leagueTypeId === "active-roster") {
+    // Every drafted castaway is always in the active lineup (activeSlots covers the whole roster) --
+    // there's no real-season basis for who a fictional owner would bench week to week, so rather than
+    // invent one, the demo just shows the full roster scoring every episode.
+    for (const ep of episodes) {
+      for (const o of ownership) ep.lineups[pid(o.playerKey)] = o.castawayKeys.map(cid);
     }
   }
   return {
@@ -231,8 +225,8 @@ function buildActiveRosterDemo(data: DemoSeasonData, throughEpisode: number): Le
     tribes,
     castaways,
     episodes,
-    ...emptyMidSeasonAndDraft(data, players.map((p) => p.id)),
-    settings: baseSettings(data),
+    ...emptyMidSeasonAndDraft(players.map((p) => p.id), players.length * rosterSize),
+    settings: baseSettings(data, leagueTypeId, rosterSize),
   };
 }
 
@@ -249,6 +243,7 @@ function hashStr(s: string): number {
 // person back-to-back) -- there's no real-season basis for what a fictional player would have
 // guessed, so this just needs to be a LEGAL history, not a realistic one. Correctness itself isn't
 // stored: PickEmLogic derives it live from the episode's actual events, same as a real league.
+// Verified against the real PickEmLogic.eligibility check at authoring time (zero violations).
 function generatePicks(
   playerIds: string[],
   episodeNumbers: number[],
@@ -278,7 +273,7 @@ function generatePicks(
 function buildPickEmDemo(data: DemoSeasonData, throughEpisode: number): LeagueState {
   const players = buildPlayers(data);
   const tribes = buildTribes(data);
-  const castaways = buildCastaways(data, throughEpisode);
+  const castaways = buildCastaways(data, new Map(), false, throughEpisode);
   const episodes = buildEpisodesBase(data, players, throughEpisode);
   const episodeNumbers = episodes.map((e) => e.number);
   const picksByEpisode = generatePicks(
@@ -292,13 +287,12 @@ function buildPickEmDemo(data: DemoSeasonData, throughEpisode: number): LeagueSt
     tribes,
     castaways,
     episodes,
-    ...emptyMidSeasonAndDraft(data, []),
-    settings: baseSettings(data),
+    ...emptyMidSeasonAndDraft([], 0),
+    settings: baseSettings(data, "pickem", 0),
   };
 }
 
-export function buildDemoState(data: DemoSeasonData, throughEpisode: number): LeagueState {
-  if (data.leagueTypeId === "active-roster") return buildActiveRosterDemo(data, throughEpisode);
-  if (data.leagueTypeId === "pickem") return buildPickEmDemo(data, throughEpisode);
-  return buildClassicDraftDemo(data, throughEpisode);
+export function buildDemoState(data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId, throughEpisode: number): LeagueState {
+  if (leagueTypeId === "pickem") return buildPickEmDemo(data, throughEpisode);
+  return buildRosterDemo(data, leagueTypeId, throughEpisode);
 }

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { LeagueState, Membership } from "@/lib/game/types";
 import { buildMockSeasonState } from "@/lib/game/mock-state";
-import { buildDemoState, type DemoSeasonData } from "@/lib/game/demo-season-builder";
+import { buildDemoState, type DemoSeasonData, type DemoLeagueTypeId } from "@/lib/game/demo-season-builder";
 import { api, type MeResponse } from "@/lib/api";
 
 export type LeagueSummary = MeResponse["leagues"][number];
@@ -77,8 +77,9 @@ interface LeagueStore {
   // `demoEpisodeCursor` is the "as of episode N" view; null (no season chosen yet) means the plain
   // generic mock season (buildMockSeasonState) that mode:'mock' has always defaulted to.
   demoSeasonData: DemoSeasonData | null;
+  demoLeagueTypeId: DemoLeagueTypeId | null;
   demoEpisodeCursor: number | null;
-  chooseDemoSeason: (data: DemoSeasonData) => void;
+  chooseDemoSeason: (data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId) => void;
   setDemoEpisodeCursor: (n: number) => void;
   loadLive: (
     leagueId: string,
@@ -124,6 +125,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   leagues: [],
   demoPreview: false,
   demoSeasonData: null,
+  demoLeagueTypeId: null,
   demoEpisodeCursor: null,
   useMock: () =>
     set({
@@ -140,6 +142,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       flash: null,
       demoPreview: false,
       demoSeasonData: null,
+      demoLeagueTypeId: null,
       demoEpisodeCursor: null,
     }),
   previewDemo: () =>
@@ -153,15 +156,16 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       flash: null,
       demoPreview: true,
       demoSeasonData: null,
+      demoLeagueTypeId: null,
       demoEpisodeCursor: null,
     }),
   // Chosen from the Demo Season picker (demo-season-picker.tsx) -- defaults to viewing the whole,
   // finished season (the last episode) rather than episode 1, since "browse a completed season" is
   // the actual use case; scrubbing backward from there is the exception, not the starting point.
-  chooseDemoSeason: (data) =>
+  chooseDemoSeason: (data, leagueTypeId) =>
     set({
       mode: "mock",
-      state: buildDemoState(data, data.episodeCount),
+      state: buildDemoState(data, leagueTypeId, data.episodeCount),
       leagueId: null,
       leagueName: null,
       membership: null,
@@ -169,13 +173,14 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       flash: null,
       demoPreview: true,
       demoSeasonData: data,
+      demoLeagueTypeId: leagueTypeId,
       demoEpisodeCursor: data.episodeCount,
     }),
   setDemoEpisodeCursor: (n) => {
-    const data = get().demoSeasonData;
-    if (!data) return;
+    const { demoSeasonData: data, demoLeagueTypeId: leagueTypeId } = get();
+    if (!data || !leagueTypeId) return;
     const cursor = Math.max(1, Math.min(n, data.episodeCount));
-    set({ state: buildDemoState(data, cursor), demoEpisodeCursor: cursor });
+    set({ state: buildDemoState(data, leagueTypeId, cursor), demoEpisodeCursor: cursor });
   },
   loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts) =>
     set({
@@ -189,6 +194,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       playerAccounts,
       demoPreview: false,
       demoSeasonData: null,
+      demoLeagueTypeId: null,
       demoEpisodeCursor: null,
     }),
   setIdentity: (userId, isSuperAdmin, impersonating) => set({ userId, isSuperAdmin, impersonating }),
@@ -214,6 +220,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
         playerAccounts,
         demoPreview: false,
         demoSeasonData: null,
+        demoLeagueTypeId: null,
         demoEpisodeCursor: null,
       });
     } finally {
@@ -230,6 +237,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       membership: null,
       playerAccounts: [],
       demoSeasonData: null,
+      demoLeagueTypeId: null,
       demoEpisodeCursor: null,
     }),
   flash: null,
