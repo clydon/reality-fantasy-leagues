@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { EpisodeDecisions } from "./season-decisions-review";
 import { formatFor } from "@/lib/game/formats/index.js";
 import { confirm } from "@/lib/confirm-store";
+import { useShowPaidAi } from "@/lib/paid-ai-store";
 import { cn } from "cn";
 
 // A season's episodes as a list -- aired ones with what to do about them, the next upcoming one with
@@ -219,6 +220,7 @@ function EpisodeLine({
   children?: React.ReactNode;
 }) {
   const [pasting, setPasting] = useState(false);
+  const showPaid = useShowPaidAi();
   const tz = season.airTz || "America/New_York";
   const pending = row.decisions.filter((d) => d.status === "pending").length;
   const [discarding, setDiscarding] = useState(false);
@@ -287,7 +289,7 @@ function EpisodeLine({
               {open ? "Hide results" : pending > 0 ? `Review ${pending} result${pending === 1 ? "" : "s"}` : `Results ✓ (${row.decisions.length})`}
             </Button>
           )}
-          {(row.aired || !row.airsAt) && !row.researched && (
+          {showPaid && (row.aired || !row.airsAt) && !row.researched && (
             <>
               <Button variant="secondary" size="xs" disabled={locked} onClick={() => onResearch(false)}>
                 {researching ? "Researching…" : "Research"}
@@ -297,7 +299,7 @@ function EpisodeLine({
               </span>
             </>
           )}
-          {row.researched && (row.aired || !row.airsAt) && (
+          {showPaid && row.researched && (row.aired || !row.airsAt) && (
             <button
               className="text-[0.65rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
               disabled={locked}
@@ -314,7 +316,7 @@ function EpisodeLine({
               title="Research it yourself in any AI chat with web search (free), then paste the answer back — one cheap call fits it to the checklist instead of a paid search"
               onClick={() => setPasting((v) => !v)}
             >
-              {pasting ? "Cancel paste" : "Paste notes instead"}
+              {pasting ? "Cancel paste" : showPaid ? "Paste notes instead" : "Paste research"}
             </button>
           )}
         </span>
@@ -360,7 +362,10 @@ function PasteImportPanel({
   onSubmit: (notes: string, structured: boolean) => void;
   onCancel: () => void;
 }) {
-  const [structured, setStructured] = useState(true);
+  const showPaid = useShowPaidAi();
+  const [structuredChoice, setStructured] = useState(true);
+  // Prose mode is the paid one (a structuring call), so with paid actions hidden it's JSON or nothing.
+  const structured = structuredChoice || !showPaid;
   const { data, isLoading, error } = useQuery({
     queryKey: ["paste-import-prompt", seasonId, episode, structured],
     queryFn: () => api.adminPasteImportPrompt(seasonId, episode, structured),
@@ -385,15 +390,21 @@ function PasteImportPanel({
         1. Copy this into any AI chat with web search (ChatGPT, Claude.ai, Gemini — whatever you already have). 2. Paste its
         answer into the box below. 3. Stage it.
       </p>
-      <label className="flex items-center gap-1.5" title="Must match what the prompt you copied asked for — switching this rebuilds the prompt">
-        <input type="checkbox" checked={structured} disabled={busy} onChange={(e) => setStructured(e.target.checked)} />
-        <span>
-          <b>Structured (JSON)</b> —{" "}
-          {structured
-            ? "the chat answers in this app's exact format and it's read directly. Free."
-            : "the chat answers in prose and one small model call organizes it. For chats that won't give clean JSON."}
-        </span>
-      </label>
+      {showPaid ? (
+        <label className="flex items-center gap-1.5" title="Must match what the prompt you copied asked for — switching this rebuilds the prompt">
+          <input type="checkbox" checked={structured} disabled={busy} onChange={(e) => setStructured(e.target.checked)} />
+          <span>
+            <b>Structured (JSON)</b> —{" "}
+            {structured
+              ? "the chat answers in this app's exact format and it's read directly. Free."
+              : "the chat answers in prose and one small model call organizes it. For chats that won't give clean JSON."}
+          </span>
+        </label>
+      ) : (
+        <p className="text-muted-foreground">
+          The chat answers in this app&rsquo;s exact format (JSON) and it&rsquo;s read directly — free.
+        </p>
+      )}
       {isLoading && <p className="italic text-muted-foreground">Building the prompt…</p>}
       {error && <p className="font-semibold text-destructive">{error instanceof ApiError ? error.message : "Couldn't build the prompt."}</p>}
       {data && (
@@ -445,6 +456,7 @@ function PasteImportPanel({
 function AutoResearchControls({ season, hasSchedule, onSaved }: { season: ShowSeason; hasSchedule: boolean; onSaved: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const showPaid = useShowPaidAi();
   const tz = season.airTz || "America/New_York";
   const tzLabel = TIME_ZONES.find(([id]) => id === tz)?.[1] ?? tz;
 
@@ -470,6 +482,27 @@ function AutoResearchControls({ season, hasSchedule, onSaved }: { season: ShowSe
       researchTime: season.researchTime ?? "12:00",
       researchModel: season.researchModel ?? AI_MODELS[0].id,
     });
+  }
+
+  // Auto-research spends on a schedule, not a click, so hiding paid actions can't just hide it: one
+  // that's already on keeps charging. Hidden when off (so it can't be switched on by accident); when
+  // on, replaced by a warning with the one free thing to do about it.
+  if (!showPaid) {
+    return (
+      <div className="flex flex-col gap-1 rounded-md bg-secondary/40 px-2 py-1.5">
+        {season.autoResearch && (
+          <div className="flex flex-wrap items-center gap-1.5 text-destructive">
+            <span className="font-semibold">Auto-research is on</span>
+            <span>— it runs paid web research after every episode airs.</span>
+            <Button variant="destructive" size="xs" disabled={busy} onClick={() => save({ autoResearch: false })}>
+              Switch off
+            </Button>
+          </div>
+        )}
+        <AirScheduleLine season={season} hasSchedule={hasSchedule} busy={busy} save={save} />
+        {error && <p className="font-semibold text-destructive">{error}</p>}
+      </div>
+    );
   }
 
   return (

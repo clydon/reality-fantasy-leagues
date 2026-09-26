@@ -16,6 +16,7 @@ import { SeasonEpisodes } from "./season-episodes";
 import { cn } from "cn";
 import { AI_MODELS, costOf, estimate, formatCost } from "@/lib/ai-cost";
 import { DEFAULT_FORMAT, formatFor, formatOptions } from "@/lib/game/formats/index.js";
+import { useShowPaidAi } from "@/lib/paid-ai-store";
 
 // Super-admin management of the show/season catalog, and the place a season's content comes from.
 //
@@ -98,6 +99,7 @@ export function ShowsSection() {
   const [tribeTerm, setTribeTerm] = useState("");
   const [format, setFormat] = useState(DEFAULT_FORMAT);
   const [models, setModels] = useAiModels();
+  const showPaid = useShowPaidAi();
 
   async function run(fn: () => Promise<unknown>, successNote?: string) {
     setBusy(true);
@@ -142,10 +144,11 @@ export function ShowsSection() {
         them. Everything you accept reaches every league on the season automatically.
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        {/* Wiki reading stays even with paid actions hidden: the cast pull (exempt) uses it. */}
         {(
           [
             ["wiki", "Wiki reading"],
-            ["research", "Research"],
+            ...(showPaid ? ([["research", "Research"]] as const) : []),
           ] as const
         ).map(([key, label]) => (
           <label key={key} className="flex items-center gap-1">
@@ -583,6 +586,7 @@ function SeasonCard({
   };
 
   const locked = busy || working !== null;
+  const showPaid = useShowPaidAi();
 
   return (
     <div className="rounded-md border border-border bg-card px-2.5 py-2 text-xs">
@@ -669,7 +673,7 @@ function SeasonCard({
                 : "No results pulled yet"
         }
       >
-        {approved && (
+        {approved && showPaid && (
           <>
             <CostHint title={`Typical cost with ${modelLabel(models.wiki)}. Free when the wiki hasn't changed since the last pull — nothing is sent to the model.`}>
               {estimate("episodes", models.wiki)} · free if unchanged
@@ -858,6 +862,7 @@ function PullResult({
   forceCost: string;
 }) {
   const d = result.decisions;
+  const showPaid = useShowPaidAi();
   return (
     <div className="ml-6 mt-1.5 rounded border border-dashed border-border bg-secondary/40 p-1.5 text-[0.7rem]">
       <p>
@@ -867,12 +872,12 @@ function PullResult({
         {d?.withdrawn ? ` ${d.withdrawn} withdrawn (no longer on the wiki).` : ""}
         {/* The only way past the revision-id cache: offered only when the cache was hit, the one case
             where pulling again would otherwise do nothing. */}
-        {result.cached && (
+        {result.cached && showPaid && (
           <Button variant="secondary" size="xs" className="ml-1.5" disabled={busy} onClick={onForce}>
             Extract again anyway
           </Button>
         )}
-        {result.cached && (
+        {result.cached && showPaid && (
           <span className="ml-1">
             <CostHint>{forceCost}</CostHint>
           </span>
@@ -911,6 +916,7 @@ function ResearchResult({
   forceCost: string;
 }) {
   const [open, setOpen] = useState(false);
+  const showPaid = useShowPaidAi();
   const { payload, provenance, counts, problems } = research;
   // The answers are the checklist of the format they were asked under.
   const notesFor = (c: ResearchCastaway) => formatFor(provenance.format).research.notes(c);
@@ -935,13 +941,18 @@ function ResearchResult({
         <button className="ml-1 underline" onClick={() => setOpen((v) => !v)}>
           {open ? "hide details" : "details"}
         </button>
-        {/* Always offered: with no revision id to cache on, a re-run genuinely reads different pages. */}
-        <Button variant="secondary" size="xs" className="ml-1.5" disabled={busy} onClick={onForce}>
-          Research again
-        </Button>
-        <span className="ml-1">
-          <CostHint>{forceCost}</CostHint>
-        </span>
+        {/* Offered whenever paid actions are: with no revision id to cache on, a re-run genuinely
+            reads different pages. */}
+        {showPaid && (
+          <>
+            <Button variant="secondary" size="xs" className="ml-1.5" disabled={busy} onClick={onForce}>
+              Research again
+            </Button>
+            <span className="ml-1">
+              <CostHint>{forceCost}</CostHint>
+            </span>
+          </>
+        )}
       </p>
       {provenance.domainsBlocked?.length ? (
         <p className="mt-0.5 text-muted-foreground">

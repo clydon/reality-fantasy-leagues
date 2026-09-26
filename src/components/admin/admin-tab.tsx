@@ -6,6 +6,7 @@ import { useAdminStore } from "@/lib/admin-store";
 import { LinkMembershipForm } from "./link-membership-form";
 import { UserEditModal } from "./user-edit-modal";
 import { ShowsSection } from "./shows-section";
+import { useLoadPaidAiPref, usePaidAiStore } from "@/lib/paid-ai-store";
 import type { AdminUser } from "@/lib/game/types";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,9 @@ export function AdminTab() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const PAGE_SIZE = 20;
+  useLoadPaidAiPref();
+  const showPaid = usePaidAiStore((s) => s.showPaid);
+  const setShowPaid = usePaidAiStore((s) => s.setShowPaid);
 
   // Reloads every time this tab mounts -- including navigating back to it -- not just the first
   // time. `loaded` lives in the store, which outlives the component, so gating on `!loaded` used to
@@ -98,6 +102,23 @@ export function AdminTab() {
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Admin</h2>
+
+      <label
+        className={cn(
+          "mb-4 flex items-start gap-2 rounded-lg border p-3 text-sm",
+          showPaid ? "border-amber-500/50 bg-amber-500/10" : "border-border bg-card"
+        )}
+      >
+        <input type="checkbox" className="mt-0.5" checked={showPaid} onChange={(e) => setShowPaid(e.target.checked)} />
+        <span>
+          <b>Show paid AI actions</b>
+          <span className="block text-xs text-muted-foreground">
+            {showPaid
+              ? "On — buttons that spend money on AI calls (wiki episode pulls, web research, prose paste, auto-research) are showing."
+              : "Off — every button that spends money on an AI call is hidden, except pulling a cast. Free actions (reviewing, JSON paste, settings) still work. Remembered in this browser."}
+          </span>
+        </span>
+      </label>
 
       {/* Catalog config rather than per-account admin, and what a fresh install needs set up first,
           so it sits above the users/leagues tables. */}
