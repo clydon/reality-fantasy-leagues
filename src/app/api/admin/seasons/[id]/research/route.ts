@@ -128,8 +128,12 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ id: s
   const { id } = await params;
   await requireSuperAdmin(req);
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
-  const episode = Number(new URL(req.url).searchParams.get("episode"));
+  const search = new URL(req.url).searchParams;
+  const episode = Number(search.get("episode"));
   if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode must be a positive whole number");
+  // scope=all: clear the episode entirely -- also its undecided wiki results and its entry in the
+  // cached wiki read (so a re-pull reads it fresh instead of restaging the bad version).
+  const all = search.get("scope") === "all";
 
   const { rows } = await pool.query("SELECT show_id, season_number FROM show_seasons WHERE id=$1", [id]);
   if (!rows.length) throw new HttpError(404, "Season not found");
@@ -139,10 +143,23 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ id: s
   try {
     await client.query("BEGIN");
     const { rowCount: removed } = await client.query(
-      `DELETE FROM season_decisions
-        WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND from_research AND NOT from_wiki`,
+      all
+        ? `DELETE FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND status='pending'`
+        : `DELETE FROM season_decisions
+            WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND from_research AND NOT from_wiki`,
       [id, episode]
     );
+    if (all) {
+      await client.query(
+        `UPDATE wiki_extractions
+            SET payload = jsonb_set(payload, '{episodes}', COALESCE(
+              (SELECT jsonb_agg(e) FROM jsonb_array_elements(payload->'episodes') e WHERE (e->>'number')::int <> $3),
+              '[]'::jsonb))
+          WHERE show_id=$1 AND season_number=$2 AND kind='episodes'`,
+        [showId, season, episode]
+      );
+      await client.query("DELETE FROM auto_research_attempts WHERE season_id=$1 AND episode_number=$2", [id, episode]);
+    }
     await client.query(
       `UPDATE season_decisions SET from_research=false, research_id=NULL, sources='{}'
         WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND from_research`,
@@ -159,7 +176,11 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ id: s
       episode,
     ]);
     await client.query("COMMIT");
-    return NextResponse.json({ ok: true, removedResults: removed ?? 0 });
+    const { rows: decided } = await client.query(
+      "SELECT count(*)::int AS n FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND status<>'pending'",
+      [id, episode]
+    );
+    return NextResponse.json({ ok: true, removedResults: removed ?? 0, decidedKept: decided[0].n });
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;

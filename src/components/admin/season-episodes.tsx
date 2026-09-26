@@ -250,6 +250,32 @@ function EpisodeLine({
     }
   }
   const model = season.researchModel || AI_MODELS[0].id;
+  const hasData = row.researched || row.decisions.length > 0 || row.n <= (season.wikiEpisodesThrough ?? 0);
+  const [clearNote, setClearNote] = useState<string | null>(null);
+  // Wipes the episode so it can be redone: research, undecided results from either source, and its
+  // entry in the cached wiki read. Accepted/rejected results were already sent to leagues, so they're
+  // kept -- change those in the review list instead.
+  async function clearEpisode() {
+    if (
+      !(await confirm(
+        `Clear all of episode ${row.n}'s data? Removes its research, its ${pending} undecided result${pending === 1 ? "" : "s"}, and its part of the cached wiki read, so you can research, paste or pull it again. Accepted or rejected results are kept.`,
+        { danger: true, confirmLabel: "Clear episode" }
+      ))
+    )
+      return;
+    setDiscarding(true);
+    try {
+      const res = await api.adminDiscardResearch(season.id, row.n, "all");
+      setClearNote(
+        res.decidedKept
+          ? `Cleared. ${res.decidedKept} decided result${res.decidedKept === 1 ? " was" : "s were"} kept — open Results to change ${res.decidedKept === 1 ? "it" : "them"}.`
+          : "Cleared."
+      );
+      onDiscarded();
+    } finally {
+      setDiscarding(false);
+    }
+  }
 
   // When auto-research will pick this episode up -- only for one it hasn't researched yet, and only
   // for slots after auto-research was switched on (older episodes are the manual button's).
@@ -328,6 +354,17 @@ function EpisodeLine({
               {pasting ? "Cancel paste" : showPaid ? "Paste notes instead" : "Paste research"}
             </button>
           )}
+          {hasData && (
+            <button
+              className="text-[0.65rem] text-destructive underline-offset-2 hover:underline disabled:opacity-50"
+              disabled={locked || discarding}
+              title="Remove this episode's research, undecided results and cached wiki data so it can be redone"
+              onClick={clearEpisode}
+            >
+              {discarding ? "Clearing…" : "Clear data"}
+            </button>
+          )}
+          {clearNote && <span className="text-[0.65rem] text-muted-foreground">{clearNote}</span>}
         </span>
       </div>
       {pasting && (

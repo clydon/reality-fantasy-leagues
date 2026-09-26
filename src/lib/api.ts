@@ -514,8 +514,10 @@ export const api = {
       body: JSON.stringify({ action, ...(edits || {}) }),
     }),
   // Throw away one episode's research and the undecided results it staged (e.g. run before it aired).
-  adminDiscardResearch: (seasonId: string, episode: number) =>
-    localFetch<{ ok: true; removedResults: number }>(`/api/admin/seasons/${seasonId}/research?episode=${episode}`, {
+  // scope "all" clears the whole episode: its undecided wiki results and cached wiki read too.
+  adminDiscardResearch: (seasonId: string, episode: number, scope: "research" | "all" = "research") =>
+    localFetch<{ ok: true; removedResults: number; decidedKept: number }>(
+      `/api/admin/seasons/${seasonId}/research?episode=${episode}${scope === "all" ? "&scope=all" : ""}`, {
       method: "DELETE",
     }),
   adminAcceptEpisode: (seasonId: string, episode: number) =>
