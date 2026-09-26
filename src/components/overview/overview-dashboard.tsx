@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useLeagueStore, useIsSuperAdmin } from "@/lib/store";
+import { useLeagueStore } from "@/lib/store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { LatestEpisodeCard } from "./latest-episode-card";
 import { SeasonStatusCard } from "./season-status-card";
@@ -14,8 +14,8 @@ import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
 import { ActiveRosterLineupGrid } from "./active-roster-lineup-grid";
 import { OverviewCustomizePanel } from "./overview-customize-panel";
-import { useOverviewLayoutStore } from "@/lib/overview-layout-store";
-import { DEFAULT_OVERVIEW_ORDER, isOverviewSectionEligible, type OverviewSectionId } from "@/lib/overview-layout";
+import { useOverviewLayout } from "@/lib/use-overview-layout";
+import { isOverviewSectionEligible, type OverviewSectionId } from "@/lib/overview-layout";
 import type { LeagueState } from "@/lib/game/types";
 
 function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
@@ -52,26 +52,20 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
 
 // Direct port of renderOverview() (public/app.js): Notifications banner, Side Bets section, the
 // dash-grid of cards, and the post-draft Board grid -- now driven by an ordered, hide-able section
-// list (src/lib/overview-layout.ts) rather than a fixed sequence, so a super admin can reorder/hide
-// them to try out layouts (see overview-customize-panel.tsx) without a code change per attempt.
-// Everyone else always gets DEFAULT_OVERVIEW_ORDER with nothing hidden -- a super admin's saved
-// choices are a personal, client-side preference (localStorage), not something that changes what any
-// other user, real or demo, ever sees.
+// list (src/lib/overview-layout.ts) rather than a fixed sequence. The order/hidden set itself is an
+// APP-WIDE setting (useOverviewLayout, db/migrations/0027_app_settings.sql): a super admin's edits
+// in overview-customize-panel.tsx apply to every user's Overview, in every league and in demo mode
+// alike, not just their own browser -- see that hook's comment.
 //
 // Notifications is populated by use-league-poll.ts (mounted once in AuthGate), not by this
 // component -- it just reads the resulting list.
 export function OverviewDashboard() {
   const state = useLeagueStore((s) => s.state);
-  const isSuperAdmin = useIsSuperAdmin();
-  const { order, hidden } = useOverviewLayoutStore();
+  const { order, hidden } = useOverviewLayout();
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
 
-  const effectiveOrder = isSuperAdmin ? order : DEFAULT_OVERVIEW_ORDER;
-  const effectiveHidden = isSuperAdmin ? hidden : {};
-  const sections = effectiveOrder.filter(
-    (id) => isOverviewSectionEligible(id, state, draftComplete) && !effectiveHidden[id]
-  );
+  const sections = order.filter((id) => isOverviewSectionEligible(id, state, draftComplete) && !hidden[id]);
 
   return (
     <>

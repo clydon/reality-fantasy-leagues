@@ -3,19 +3,20 @@
 import { useState } from "react";
 import type { LeagueState } from "@/lib/game/types";
 import { useIsSuperAdmin } from "@/lib/store";
-import { useOverviewLayoutStore } from "@/lib/overview-layout-store";
+import { useOverviewLayout } from "@/lib/use-overview-layout";
 import { OVERVIEW_SECTION_LABELS, isOverviewSectionEligible } from "@/lib/overview-layout";
 import { Button } from "@/components/ui/button";
 import { cn } from "cn";
 
-// Super-admin-only trial control for Overview's layout -- see overview-layout-store.ts's comment on
-// scope (personal, client-side, works in demo mode too). Collapsed by default behind a small toggle
-// so it doesn't take up space for the one person who ever sees it; everyone else never renders this
-// at all (useIsSuperAdmin gates the whole component, not just the panel body).
+// Super-admin-only editor for Overview's APP-WIDE layout -- see use-overview-layout.ts's comment:
+// every edit here applies to every user's Overview, real leagues and demo mode alike, not just this
+// browser. Collapsed by default behind a small toggle so it doesn't take up space for the one person
+// who ever sees it; everyone else never renders this at all (useIsSuperAdmin gates the whole
+// component, not just the panel body).
 export function OverviewCustomizePanel({ state, draftComplete }: { state: LeagueState; draftComplete: boolean }) {
   const isSuperAdmin = useIsSuperAdmin();
   const [open, setOpen] = useState(false);
-  const { order, hidden, moveUp, moveDown, toggleHidden, reset } = useOverviewLayoutStore();
+  const { order, hidden, moveUp, moveDown, toggleHidden, reset } = useOverviewLayout();
 
   if (!isSuperAdmin) return null;
 
@@ -30,7 +31,8 @@ export function OverviewCustomizePanel({ state, draftComplete }: { state: League
       {open && (
         <div className="mt-2.5 flex flex-col gap-1.5">
           <p className="text-xs text-muted-foreground">
-            Reorder or hide sections to try out a layout. Only you see this — nobody else&rsquo;s Overview changes.
+            Reorder or hide sections to try out a layout. This changes Overview for <b>everyone</b>, in every league
+            and in demo mode.
           </p>
           {eligible.map((id, i) => (
             <div key={id} className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5">

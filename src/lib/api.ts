@@ -401,6 +401,16 @@ export const api = {
     localFetch<{ seasons: { id: string; showId: string; name: string; episodeCount: number }[] }>("/api/demo-seasons"),
   getDemoSeason: (id: string) => localFetch<{ season: DemoSeasonData }>(`/api/demo-seasons/${id}`),
 
+  // App-wide Overview layout (db/migrations/0027_app_settings.sql) -- GET is public (every viewer,
+  // including a demo visitor, renders from it); PATCH is super-admin only.
+  getOverviewLayout: () =>
+    localFetch<{ layout: { order: string[]; hidden: Record<string, boolean> } | null }>("/api/app-settings/overview-layout"),
+  updateOverviewLayout: (order: string[], hidden: Record<string, boolean>) =>
+    localFetch<{ layout: { order: string[]; hidden: Record<string, boolean> } }>("/api/app-settings/overview-layout", {
+      method: "PATCH",
+      body: JSON.stringify({ order, hidden }),
+    }),
+
   adminListShows: () => localFetch<{ shows: AdminShow[] }>("/api/admin/shows"),
   adminCreateShow: (body: {
     name: string;
