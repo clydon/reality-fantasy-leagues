@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { AdminUser } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
+import { realEmail } from "@/lib/no-email";
 import { useAdminStore } from "@/lib/admin-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,12 +22,13 @@ const SECTION_TITLE = "mb-2 text-[0.7rem] font-bold uppercase tracking-wide text
 export function UserEditModal({ user, isSelf, onClose }: { user: AdminUser; isSelf: boolean; onClose: () => void }) {
   const { updateUser, resetPassword, deleteUser, lastTempPassword } = useAdminStore();
   const [username, setUsername] = useState(user.username ?? "");
-  const [email, setEmail] = useState(user.email);
+  const shownEmail = realEmail(user.email) ?? "";
+  const [email, setEmail] = useState(shownEmail);
   const [leagues, setLeagues] = useState<UserLeague[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const label = user.username || user.email;
+  const label = user.username || shownEmail || "this user";
 
   async function reloadLeagues() {
     const r = await api.adminUserLeagues(user.id);
@@ -51,7 +53,7 @@ export function UserEditModal({ user, isSelf, onClose }: { user: AdminUser; isSe
     try {
       const changes: { username?: string; email?: string } = {};
       if (username.trim() && username.trim() !== (user.username ?? "")) changes.username = username.trim();
-      if (email.trim() && email.trim() !== user.email) changes.email = email.trim();
+      if (email.trim() && email.trim() !== shownEmail) changes.email = email.trim();
       if (Object.keys(changes).length === 0) return;
       await updateUser(user.id, changes);
       setSaved(true);
@@ -87,7 +89,7 @@ export function UserEditModal({ user, isSelf, onClose }: { user: AdminUser; isSe
     if (await deleteUser(user.id, label)) onClose();
   }
 
-  const dirty = username.trim() !== (user.username ?? "") || email.trim() !== user.email;
+  const dirty = username.trim() !== (user.username ?? "") || email.trim() !== shownEmail;
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-5" onClick={(e) => e.target === e.currentTarget && onClose()}>

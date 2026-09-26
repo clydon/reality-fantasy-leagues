@@ -11,6 +11,7 @@ import { PasswordSection } from "./password-section";
 import { NotificationsSection } from "./notifications-section";
 import { InstallHint } from "@/components/install-hint";
 import { LogOutButton } from "@/components/log-out-button";
+import { placeholderEmail } from "@/lib/no-email";
 
 // This app's own, and now only, account system (Better Auth, src/lib/auth.ts -- see
 // CLAUDE.md/README for the history of it becoming the one real login for everything, not a
@@ -58,9 +59,22 @@ export function AccountPanel() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    const u = username.trim();
+    const em = email.trim();
+    // Either is enough; both is fine. Sign-in later takes whichever they gave.
+    if (!u && !em) {
+      setError("Enter a username, an email, or both.");
+      return;
+    }
     setLoading(true);
     try {
-      const result = await signUp.email({ name, username: username.trim(), email, password });
+      const result = await signUp.email({
+        // Display name defaults to the username, or the email's first part, and can be changed later.
+        name: name.trim() || u || em.split("@")[0],
+        ...(u ? { username: u } : {}),
+        email: em || placeholderEmail(u),
+        password,
+      });
       if (result.error) {
         setError(result.error.message || "Something went wrong.");
         return;
@@ -93,33 +107,31 @@ export function AccountPanel() {
       <div className="mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
         <h3 className="mb-2.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Create your account</h3>
         <form onSubmit={submit} className="flex flex-col gap-2">
-          <Input
-            className="w-full"
-            placeholder="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="name"
-            required
-          />
-          {/* Asked for here rather than left null: this app is username-first everywhere it shows a
-              person (players, chat, the league switcher), and the login screen accepts a username.
-              An account created without one could only ever sign in by email. */}
+          <p className="text-xs text-muted-foreground">
+            Use a username, an email, or both — you&rsquo;ll log in with either. Without an email, a forgotten
+            password can&rsquo;t be reset by email.
+          </p>
           <Input
             className="w-full"
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
-            required
           />
           <Input
             className="w-full"
-            placeholder="Email"
+            placeholder="Email (optional)"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
-            required
+          />
+          <Input
+            className="w-full"
+            placeholder="Display name (optional)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="name"
           />
           <Input
             className="w-full"

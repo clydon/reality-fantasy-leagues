@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { username, admin } from "better-auth/plugins";
 import { Pool } from "pg";
+import { isPlaceholderEmail } from "@/lib/no-email";
 
 // This app's OWN, and now ONLY, account system -- the real identity behind everything in this
 // repo (leagues, players, admin), not a parallel system nobody's league memberships are attached
@@ -26,6 +27,8 @@ export const auth = betterAuth({
     // turn this on once a real transactional-email provider is wired in.
     requireEmailVerification: false,
     async sendResetPassword({ user, url }) {
+      // A username-only account has no real address to send to (see no-email.ts).
+      if (isPlaceholderEmail(user.email)) return;
       await sendAuthEmail({
         to: user.email,
         subject: "Reset your password",

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSession, updateUser } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { realEmail } from "@/lib/no-email";
 
 // Display name + username, both editable via Better Auth's /update-user (the username plugin
 // hooks into that same endpoint for its own uniqueness/format check -- see
@@ -26,7 +27,8 @@ export function ProfileSection() {
     setError(null);
     setSaved(false);
     try {
-      const result = await updateUser({ name: name.trim(), username: username.trim() });
+      // An email-only account may have no username; only send one when there is one to save.
+      const result = await updateUser({ name: name.trim(), ...(username.trim() ? { username: username.trim() } : {}) });
       if (result.error) setError(result.error.message || "Couldn't save those changes.");
       else {
         setSaved(true);
@@ -53,10 +55,17 @@ export function ProfileSection() {
       <label className="mb-2 block text-xs font-semibold text-muted-foreground">Username</label>
       <Input className="mb-3 w-full" value={username} onChange={(e) => setUsername(e.target.value)} />
       <label className="mb-2 block text-xs font-semibold text-muted-foreground">Email</label>
-      <p className="mb-3 rounded-md border border-dashed border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">{user.email}</p>
+      <p className="mb-3 rounded-md border border-dashed border-border bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
+        {realEmail(user.email) ?? "No email on this account — you log in with your username."}
+      </p>
       {error && <p className="mb-2 text-sm font-semibold text-destructive">{error}</p>}
       {saved && <p className="mb-2 text-sm font-semibold text-good">Saved.</p>}
-      <Button disabled={!dirty || saving || !name.trim() || !username.trim()} onClick={save}>
+      {/* A username can be added to an email-only account, but not cleared from a username-only one:
+          it would leave no way to log in. */}
+      <Button
+        disabled={!dirty || saving || !name.trim() || (!username.trim() && (!!user.username || !realEmail(user.email)))}
+        onClick={save}
+      >
         {saving ? "Saving…" : "Save changes"}
       </Button>
     </div>

@@ -7,6 +7,7 @@ import { LinkMembershipForm } from "./link-membership-form";
 import { UserEditModal } from "./user-edit-modal";
 import { ShowsSection } from "./shows-section";
 import { useLoadPaidAiPref, usePaidAiStore } from "@/lib/paid-ai-store";
+import { realEmail } from "@/lib/no-email";
 import type { AdminUser } from "@/lib/game/types";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -168,13 +169,15 @@ export function AdminTab() {
                     {u.username || <span className="font-normal italic text-muted-foreground">none</span>}
                     {u.isSuperAdmin && <span className="ml-1 text-xs font-normal text-muted-foreground">(super-admin)</span>}
                   </td>
-                  <td className="max-w-[200px] truncate px-2 py-2 text-xs text-muted-foreground">{u.email}</td>
+                  <td className="max-w-[200px] truncate px-2 py-2 text-xs text-muted-foreground">
+                    {realEmail(u.email) ?? <span className="italic">no email</span>}
+                  </td>
                   <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{formatDate(u.createdAt)}</td>
                   <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{u.lastLoginAt ? formatDate(u.lastLoginAt) : "Never"}</td>
                   <td className="px-2 py-2">
                     <div className="flex justify-end gap-1.5">
                       {u.id !== myUserId && (
-                        <Button variant="secondary" size="sm" onClick={() => impersonateUser(u.id, u.username || u.email)}>
+                        <Button variant="secondary" size="sm" onClick={() => impersonateUser(u.id, u.username || realEmail(u.email) || "this user")}>
                           Impersonate
                         </Button>
                       )}

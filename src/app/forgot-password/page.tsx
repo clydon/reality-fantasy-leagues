@@ -35,7 +35,10 @@ export default function ForgotPasswordPage() {
           </p>
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-2">
-            <p className="mb-1 text-sm text-muted-foreground">Enter your account email and we&rsquo;ll send a reset link.</p>
+            <p className="mb-1 text-sm text-muted-foreground">
+              Enter your account email and we&rsquo;ll send a reset link. Signed up with only a username? Ask the site
+              admin for a temporary password instead.
+            </p>
             <Input
               placeholder="Email"
               type="email"
