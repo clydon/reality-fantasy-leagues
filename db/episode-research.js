@@ -1320,6 +1320,134 @@ function requireEpisodeNumber(episodeNumber) {
   }
 }
 
+// ---------- manual / paste import ----------
+// A second way in, for an admin who'd rather spend a normal chat-with-search session of their own
+// (a ChatGPT/Claude/Gemini web tab, no API key, no per-search fee) than pay this file's own
+// search-and-structure call. Two pieces:
+//
+//   buildPastePrompt  -- the exact same system+user instructions runFor sends itself (same rules,
+//                        same cast list, same "cite it or it didn't happen"), joined into one
+//                        paste-able message, since a consumer chat UI is one box, not a system/user
+//                        pair. Whatever comes back -- prose, bullets, even a stray table -- is fine
+//                        input to the next piece, on purpose: making an outside chat match a strict
+//                        JSON schema is the one thing that's genuinely unreliable across providers.
+//
+//   researchFromPaste -- takes whatever the admin pastes back as free-text "notes" and fits it to the
+//                        schema with ONE cheap, non-search call: literally the same structure() an
+//                        Anthropic two-pass fallback already uses when a search provider can't answer
+//                        in a schema directly (STRUCTURE_SYSTEM: "use only what the notes contain; do
+//                        not add facts, do not fill gaps from your own knowledge"). No search tool, no
+//                        search fee -- a haiku-tier structuring call instead of an opus-tier
+//                        search-and-answer one. From there it's the identical pipeline a real search
+//                        run goes through: validateResearch (coverage, self-contradictions, "a claim
+//                        with no source cited" still flagged exactly the same way), storeResearch,
+//                        stageResearchDecisions. Nothing about the review an admin does afterward
+//                        knows or cares which path produced the checklist.
+function buildPastePrompt(ctx, bets) {
+  const { system, user } = buildPrompt({ ...ctx, bets });
+  return (
+    system +
+    "\n\n" +
+    user +
+    "\n\n" +
+    [
+      "Answer in plain prose or bullet points, one section per person, in the order given -- not JSON,",
+      "not a table. Say plainly when you don't know something rather than guessing.",
+      "",
+      "Paste your whole answer back into Reality Fantasy Leagues' \"Paste research notes\" box for this episode.",
+    ].join("\n")
+  );
+}
+
+/**
+ * Season-scoped: builds the paste prompt for one episode, the same way researchSeasonEpisode resolves
+ * its context (staged cast, who's still in the game, the season's open side bets). Read-only -- no
+ * model call, nothing written; it only assembles text for the admin to copy.
+ */
+async function buildPasteImportPrompt(pool, showSlug, season, episodeNumber) {
+  requireEpisodeNumber(episodeNumber);
+  const ctx = await resolveSeasonResearchContext(pool, showSlug, season, episodeNumber);
+  const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
+  return { prompt: buildPastePrompt(ctx, bets), castCount: ctx.castNames.length, betCount: bets.length };
+}
+
+/**
+ * The manual counterpart to researchSeasonEpisode: an admin pastes back whatever their own
+ * web-searching chat produced for buildPastePrompt's prompt, and it's fit to the schema by one cheap,
+ * non-search call instead of a real search-and-answer call. Staged into the exact same
+ * episode_research row and season_decisions review a real research run produces -- a pasted episode
+ * and a searched one are interchangeable from here on, including which one a later re-run overwrites.
+ */
+async function researchFromPaste(pool, showSlug, season, episodeNumber, notes, opts = {}) {
+  requireEpisodeNumber(episodeNumber);
+  const trimmed = (notes || "").trim();
+  if (!trimmed) throw new Error("Paste the notes your own research produced -- nothing was pasted.");
+
+  const ctx = await resolveSeasonResearchContext(pool, showSlug, season, episodeNumber);
+  // Structuring, not searching -- the cheapest model is plenty for "reorganise this text", and this
+  // path exists specifically to avoid paying for a bigger one.
+  const model = opts.model && RESEARCH_MODELS.includes(opts.model) ? opts.model : "claude-haiku-4-5";
+  const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
+  const schema = researchSchemaFor(ctx.format, bets.length > 0);
+
+  // structure() is Anthropic-only regardless of RESEARCH_PROVIDER/--provider -- those pick who
+  // SEARCHES, and this path does its own searching outside the app entirely.
+  requireCredentials(PROVIDERS.anthropic);
+  console.log(
+    `[research] ${ctx.showName} season ${ctx.season} episode ${episodeNumber}: structuring ${trimmed.length} ` +
+      `pasted char(s) for ${ctx.castNames.length} ${ctx.terms.castaways} (no search, model ${model})`
+  );
+  const { parsed, usage } = await PROVIDERS.anthropic.structure({ notes: trimmed, schema, model });
+  if (bets.length) parsed.betAnswers = betAnswersFrom(parsed, bets);
+
+  const review = validateResearch(parsed, ctx.castNames, ctx.terms, ctx.format);
+  review.problems.unshift(...(parsed.repairs || []));
+  for (const problem of review.problems) console.log(`[research] ! ${problem}`);
+  if (review.fatal.length) {
+    throw new Error(
+      `The pasted notes don't cover the cast, so nothing was saved:\n  ${review.fatal.join("\n  ")}\n` +
+        "Check the notes name everyone on the list, using the names this league uses."
+    );
+  }
+
+  const provenance = {
+    provider: "paste",
+    model,
+    passes: 1,
+    researchedAt: new Date().toISOString(),
+    showSlug: ctx.showSlug,
+    seasonNumber: ctx.season,
+    episodeNumber,
+    format: ctx.format.id,
+    castFrom: ctx.castFrom,
+    castAsked: ctx.castNames,
+    castSkipped: ctx.skippedCast || [],
+    domains: [],
+    domainsBlocked: [],
+    queries: [],
+    pagesRead: [],
+    usage,
+    problems: review.problems,
+    betsAsked: bets.map((b) => b.label),
+    // What was actually pasted, so a reviewer can see what the structuring pass was given -- there's
+    // no revision id or page URL list to point at instead, the way a search run has.
+    pastedNotes: trimmed.length > 20000 ? trimmed.slice(0, 20000) + "… (truncated)" : trimmed,
+  };
+  const stored = await storeResearch(pool, ctx, parsed, provenance, opts);
+
+  if (!opts.dry && stored.id) {
+    try {
+      const { stored: chunkCount } = await embeddings.storeChunksForEpisode(pool, ctx, parsed);
+      console.log(`[research] embedded ${chunkCount} chunk(s) for semantic search`);
+    } catch (e) {
+      console.log(`[research] ! could not embed for semantic search (side-bet suggestions won't see this episode): ${e.message}`);
+    }
+  }
+
+  const result = { ...ctx, ...review, payload: parsed, provenance, cached: false, id: stored.id };
+  return { ...result, decisions: await stageResearchDecisions(pool, result, opts) };
+}
+
 async function runFor(pool, ctx, opts) {
   const episodeNumber = ctx.episodeNumber;
   const provider = providerFor(opts.provider);
@@ -1478,6 +1606,9 @@ module.exports = {
   validateResearch,
   researchEpisode,
   researchSeasonEpisode,
+  buildPastePrompt,
+  buildPasteImportPrompt,
+  researchFromPaste,
   printResearch,
   resolveResearchContext,
   resolveSeasonResearchContext,

@@ -48,6 +48,7 @@ export function SeasonEpisodes({
   researching,
   locked,
   onResearch,
+  onPasteResearch,
   onChanged,
 }: {
   season: ShowSeason;
@@ -55,6 +56,8 @@ export function SeasonEpisodes({
   researching: number | null;
   locked: boolean;
   onResearch: (episode: number, force: boolean) => void;
+  /** The free path -- notes from the admin's own AI chat, structured with one cheap call instead of a search. */
+  onPasteResearch: (episode: number, notes: string) => void;
   onChanged: () => void;
 }) {
   const { data, refetch } = useQuery({
@@ -158,6 +161,7 @@ export function SeasonEpisodes({
             researching={researching === row.n}
             locked={locked}
             onResearch={(force) => onResearch(row.n, force)}
+            onPasteResearch={(notes) => onPasteResearch(row.n, notes)}
             onDiscarded={() => {
               refetch();
               onChanged();
@@ -197,6 +201,7 @@ function EpisodeLine({
   researching,
   locked,
   onResearch,
+  onPasteResearch,
   onDiscarded,
   children,
 }: {
@@ -209,9 +214,11 @@ function EpisodeLine({
   researching: boolean;
   locked: boolean;
   onResearch: (force: boolean) => void;
+  onPasteResearch: (notes: string) => void;
   onDiscarded: () => void;
   children?: React.ReactNode;
 }) {
+  const [pasting, setPasting] = useState(false);
   const tz = season.airTz || "America/New_York";
   const pending = row.decisions.filter((d) => d.status === "pending").length;
   const [discarding, setDiscarding] = useState(false);
@@ -300,9 +307,109 @@ function EpisodeLine({
               {researching ? "Researching…" : "Research again"}
             </button>
           )}
+          {(row.aired || !row.airsAt) && (
+            <button
+              className="text-[0.65rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-50"
+              disabled={locked}
+              title="Research it yourself in any AI chat with web search (free), then paste the answer back — one cheap call fits it to the checklist instead of a paid search"
+              onClick={() => setPasting((v) => !v)}
+            >
+              {pasting ? "Cancel paste" : "Paste notes instead"}
+            </button>
+          )}
         </span>
       </div>
+      {pasting && (
+        <PasteImportPanel
+          seasonId={season.id}
+          episode={row.n}
+          busy={locked || researching}
+          onSubmit={(notes) => {
+            setPasting(false);
+            onPasteResearch(notes);
+          }}
+          onCancel={() => setPasting(false)}
+        />
+      )}
       {children && <div className="mt-1.5">{children}</div>}
+    </div>
+  );
+}
+
+// The free path's UI: get the prompt (same rules this app would ask itself, worded for a one-box chat
+// tool), copy it out to whatever AI chat the admin already has, paste the answer back. Nothing is sent
+// anywhere until "Structure & stage" -- fetching the prompt costs nothing (no model call, see
+// buildPasteImportPrompt), so it's fetched as soon as this panel opens.
+function PasteImportPanel({
+  seasonId,
+  episode,
+  busy,
+  onSubmit,
+  onCancel,
+}: {
+  seasonId: string;
+  episode: number;
+  busy: boolean;
+  onSubmit: (notes: string) => void;
+  onCancel: () => void;
+}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["paste-import-prompt", seasonId, episode],
+    queryFn: () => api.adminPasteImportPrompt(seasonId, episode),
+  });
+  const [notes, setNotes] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  async function copyPrompt() {
+    if (!data?.prompt) return;
+    try {
+      await navigator.clipboard.writeText(data.prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* clipboard blocked (permissions, non-HTTPS) -- the prompt's still selectable in the box below */
+    }
+  }
+
+  return (
+    <div className="mt-1.5 flex flex-col gap-1.5 rounded border border-dashed border-border bg-secondary/40 p-1.5 text-[0.7rem]">
+      <p className="text-muted-foreground">
+        1. Copy this into any AI chat with web search (ChatGPT, Claude.ai, Gemini — whatever you already have). 2. Paste its
+        answer into the box below. 3. Structure &amp; stage costs one small, search-free model call instead of a paid search.
+      </p>
+      {isLoading && <p className="italic text-muted-foreground">Building the prompt…</p>}
+      {error && <p className="font-semibold text-destructive">{error instanceof ApiError ? error.message : "Couldn't build the prompt."}</p>}
+      {data && (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5">
+            <Button variant="secondary" size="xs" onClick={copyPrompt}>
+              {copied ? "Copied!" : "Copy prompt"}
+            </Button>
+            <span className="text-muted-foreground">
+              {data.castCount} people{data.betCount ? `, ${data.betCount} open side bet${data.betCount === 1 ? "" : "s"}` : ""}
+            </span>
+          </div>
+          <textarea readOnly rows={3} value={data.prompt} className="w-full resize-y rounded border border-border bg-card p-1.5 font-mono text-[0.65rem] text-muted-foreground" />
+        </div>
+      )}
+      <label className="flex flex-col gap-1">
+        <span className="font-semibold">Paste the answer here</span>
+        <textarea
+          rows={6}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Paste whatever the other chat wrote back — prose, bullets, anything is fine."
+          className="w-full resize-y rounded border border-border bg-card p-1.5 text-[0.75rem]"
+        />
+      </label>
+      <div className="flex gap-1.5">
+        <Button size="xs" disabled={busy || !notes.trim()} onClick={() => onSubmit(notes)}>
+          Structure &amp; stage
+        </Button>
+        <Button variant="secondary" size="xs" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 }

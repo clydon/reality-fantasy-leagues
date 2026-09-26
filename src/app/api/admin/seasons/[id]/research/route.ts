@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
-import { researchSeasonEpisode, RESEARCH_MODELS } from "@db/episode-research.js";
+import { researchSeasonEpisode, researchFromPaste, RESEARCH_MODELS } from "@db/episode-research.js";
 import { episodeAirsAt } from "@db/auto-research.js";
 import { formatInTz } from "@/lib/game/air-schedule.js";
 
@@ -34,7 +34,13 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   await requireSuperAdmin(req);
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
 
-  const body = (await req.json().catch(() => ({}))) as { episode?: unknown; force?: boolean; provider?: string; model?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    episode?: unknown;
+    force?: boolean;
+    provider?: string;
+    model?: string;
+    notes?: string;
+  };
   const episode = Number(body.episode);
   if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode must be a positive whole number");
 
@@ -44,11 +50,35 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   );
   if (!rows.length) throw new HttpError(404, "Season not found");
 
-  // Nothing to find about an episode that hasn't aired -- and a search would happily return the
-  // previous week's recap. Only refused when the air time is actually known.
+  // Nothing to find about an episode that hasn't aired -- and a search (or a pasted answer) would
+  // happily describe the previous week's episode instead. Only refused when the air time is known.
   const airsAt = await episodeAirsAt(pool, id, episode);
   if (airsAt && airsAt.getTime() > Date.now()) {
     throw new HttpError(400, `Episode ${episode} hasn't aired yet — it airs ${formatInTz(airsAt, rows[0].air_tz)}.`);
+  }
+
+  // Pasted notes: the admin already did their own (free) search elsewhere and is handing back the
+  // result. This still costs one small, non-search model call to fit it to the schema, but nothing
+  // like the searched path -- see db/episode-research.js's "manual / paste import" section.
+  if (typeof body.notes === "string" && body.notes.trim()) {
+    try {
+      const run = await researchFromPaste(pool, rows[0].slug, rows[0].season_number, episode, body.notes, {
+        model: RESEARCH_MODELS.includes(String(body.model)) ? String(body.model) : undefined,
+      });
+      return NextResponse.json({
+        showSlug: run.showSlug,
+        season: run.season,
+        episode: run.episodeNumber,
+        cached: run.cached,
+        payload: run.payload,
+        provenance: run.provenance,
+        problems: run.problems,
+        counts: run.counts,
+        decisions: run.decisions,
+      });
+    } catch (e) {
+      throw new HttpError(502, e instanceof Error ? e.message : "Structuring the pasted notes failed");
+    }
   }
 
   try {

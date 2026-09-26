@@ -62,6 +62,33 @@ export function researchSeasonEpisode(
 ): Promise<EpisodeResearchRun>;
 
 /**
+ * Read-only: assembles the same system+user instructions researchSeasonEpisode sends itself, joined
+ * into one paste-able message, for an admin to run in their own web-searching AI chat instead of
+ * paying for this app's search call. No model call, nothing written.
+ */
+export function buildPasteImportPrompt(
+  pool: Pool,
+  showSlug: string,
+  season: number,
+  episodeNumber: number
+): Promise<{ prompt: string; castCount: number; betCount: number }>;
+
+/**
+ * The manual counterpart to researchSeasonEpisode: fits whatever free-text notes the admin pastes back
+ * to the checklist schema with one cheap, non-search model call, then validates and stages it exactly
+ * like a searched run. `opts.model` picks the structuring model (RESEARCH_MODELS); `force`/`provider`
+ * don't apply here. Throws if the notes don't cover the cast.
+ */
+export function researchFromPaste(
+  pool: Pool,
+  showSlug: string,
+  season: number,
+  episodeNumber: number,
+  notes: string,
+  opts?: { model?: string; dry?: boolean }
+): Promise<EpisodeResearchRun>;
+
+/**
  * The research answer to one side bet, looked up by its wording. `researched` is false when the
  * episode has no research at all; `answer` is null when it has research that didn't settle this bet.
  */

@@ -573,6 +573,14 @@ function SeasonCard({
     await act("research", () => api.adminResearchEpisode(season.id, n, { force, model: models.research }), setResearch);
     setResearchingEpisode(null);
   };
+  // The free path: notes came from the admin's own web-searching chat, not this app's paid search --
+  // see api.adminResearchFromPaste and db/episode-research.js's "manual / paste import" section. Same
+  // result shape as a searched run, so it reuses `research`/ResearchResult below unchanged.
+  const doPasteResearch = async (n: number, notes: string) => {
+    setResearchingEpisode(n);
+    await act("research", () => api.adminResearchFromPaste(season.id, n, notes, { model: models.research }), setResearch);
+    setResearchingEpisode(null);
+  };
 
   const locked = busy || working !== null;
 
@@ -704,6 +712,7 @@ function SeasonCard({
           researching={researchingEpisode}
           locked={locked}
           onResearch={(n, force) => doResearch(n, force)}
+          onPasteResearch={(n, notes) => doPasteResearch(n, notes)}
           onChanged={() => refetch()}
         />
       )}
@@ -1000,18 +1009,26 @@ function ResearchResult({
               {provenance.provider}/{provenance.model}
             </code>{" "}
             · {counts.sourced} sourced · {counts.lowConfidence} low-confidence · {counts.unknowns} unknown ·{" "}
-            <span title={provenance.pagesRead.join("\n")} className="underline decoration-dotted">
-              {provenance.pagesRead.length} pages read
-            </span>
-            {provenance.domains?.length ? (
+            {provenance.provider === "paste" ? (
+              <span title={provenance.pastedNotes} className="underline decoration-dotted">
+                pasted notes, structured (no search)
+              </span>
+            ) : (
               <>
-                {" "}
-                ·{" "}
-                <span title={provenance.domains.join("\n")} className="underline decoration-dotted">
-                  {provenance.domains.length} trusted sites
+                <span title={provenance.pagesRead.join("\n")} className="underline decoration-dotted">
+                  {provenance.pagesRead.length} pages read
                 </span>
+                {provenance.domains?.length ? (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span title={provenance.domains.join("\n")} className="underline decoration-dotted">
+                      {provenance.domains.length} trusted sites
+                    </span>
+                  </>
+                ) : null}
               </>
-            ) : null}
+            )}
           </p>
         </>
       )}

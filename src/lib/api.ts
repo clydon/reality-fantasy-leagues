@@ -524,6 +524,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ episode, ...opts }),
     }),
+  // The paste-import path: no search, no API key of the admin's own -- they get the prompt below from
+  // their own web-searching chat and paste the answer back, which costs one cheap structuring call
+  // instead of a search-and-answer one. See db/episode-research.js's "manual / paste import" section.
+  adminPasteImportPrompt: (id: string, episode: number) =>
+    localFetch<{ prompt: string; castCount: number; betCount: number }>(
+      `/api/admin/seasons/${id}/research/prompt?episode=${episode}`
+    ),
+  adminResearchFromPaste: (id: string, episode: number, notes: string, opts: { model?: string } = {}) =>
+    localFetch<SeasonResearchResult>(`/api/admin/seasons/${id}/research`, {
+      method: "POST",
+      body: JSON.stringify({ episode, notes, ...opts }),
+    }),
 
   // Web Push (src/lib/push-client.ts calls these; src/lib/server/push-core.js sends).
   registerPushSubscription: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>

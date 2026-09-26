@@ -410,6 +410,8 @@ export interface EpisodeResearchProvenance {
   /** Sites that refused Anthropic's search crawler this run, so were dropped. */
   domainsBlocked?: string[];
   problems?: string[];
+  /** provider:"paste" only -- what the admin actually pasted, since there's no page URL list to check against instead. */
+  pastedNotes?: string;
 }
 
 /** POST /api/admin/seasons/:id/research -- what one episode's research run reports to the UI. */
