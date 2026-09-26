@@ -324,6 +324,7 @@ function EpisodeLine({
           seasonId={season.id}
           episode={row.n}
           busy={locked || researching}
+          model={model}
           onSubmit={(notes) => {
             setPasting(false);
             onPasteResearch(notes);
@@ -344,12 +345,14 @@ function PasteImportPanel({
   seasonId,
   episode,
   busy,
+  model,
   onSubmit,
   onCancel,
 }: {
   seasonId: string;
   episode: number;
   busy: boolean;
+  model: string;
   onSubmit: (notes: string) => void;
   onCancel: () => void;
 }) {
@@ -402,13 +405,18 @@ function PasteImportPanel({
           className="w-full resize-y rounded border border-border bg-card p-1.5 text-[0.75rem]"
         />
       </label>
-      <div className="flex gap-1.5">
+      <div className="flex items-center gap-1.5">
         <Button size="xs" disabled={busy || !notes.trim()} onClick={() => onSubmit(notes)}>
           Structure &amp; stage
         </Button>
         <Button variant="secondary" size="xs" disabled={busy} onClick={onCancel}>
           Cancel
         </Button>
+        {/* Not free -- see api.adminResearchFromPaste: one non-search structuring call, but still a
+            real one. Small next to `research`'s estimate (no search fee), not zero. */}
+        <span className="text-[0.6rem] tabular-nums text-muted-foreground" title="No web search — just fitting your pasted text to the checklist">
+          {estimate("pasteResearch", model)}
+        </span>
       </div>
     </div>
   );
