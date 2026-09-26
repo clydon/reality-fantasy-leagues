@@ -25,6 +25,7 @@ export function CastawayStatCard({
   showOwner = true,
   showPoints = true,
   showPlacementBadge = true,
+  dimAllEliminated = false,
   expanded,
   onToggleExpand,
 }: {
@@ -42,13 +43,18 @@ export function CastawayStatCard({
       score), not for Active Roster or Eliminator Pool, which don't score on placement at all. The
       elimination X itself still always shows; only the numbered badge/medal is conditional. */
   showPlacementBadge?: boolean;
+  /** Grey out the whole card for ANY eliminated castaway, medal or not -- for a "my roster" context
+      (My Team, Roster detail) where "still on my team but out of the game" is what matters, not
+      whether they placed well. Off by default: the Board still wants a medal winner to read as a
+      highlight, not a loss. */
+  dimAllEliminated?: boolean;
   expanded: boolean;
   /** Present = the card is clickable and toggles `expanded`; absent = always shown as given (Scoreboard's always-open cards). */
   onToggleExpand?: () => void;
 }) {
   const owner = owners[0] ?? null;
   const medal = c.status === "eliminated" && showPlacementBadge ? medalFor(state, c.placementOrder) : null;
-  const eliminatedNoMedal = c.status === "eliminated" && !medal;
+  const dimmed = c.status === "eliminated" && (dimAllEliminated || !medal);
   const stats = showPoints ? castawayEventStats(state, c.id) : null;
   const clickable = showPoints && !!onToggleExpand;
 
@@ -62,7 +68,7 @@ export function CastawayStatCard({
       className={cn(
         "relative rounded-[10px] border-2 bg-card p-[12px_10px_10px] text-center shadow-sm transition-[transform,box-shadow]",
         clickable && "cursor-pointer hover:-translate-y-0.5 hover:shadow-md",
-        eliminatedNoMedal && "opacity-[.55] saturate-[.75] hover:opacity-80"
+        dimmed && "opacity-[.55] saturate-[.75] hover:opacity-80"
       )}
       style={{ borderColor: owner ? owner.color : "var(--border)" }}
     >

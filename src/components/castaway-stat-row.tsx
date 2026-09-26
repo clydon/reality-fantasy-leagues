@@ -5,6 +5,7 @@ import { castawayEventStats } from "@/lib/game/active-roster-rows";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { RoleBadge } from "@/components/role-badge";
 import { XMarkIcon } from "@/components/icons";
+import { cn } from "cn";
 
 // Active Roster's "Your Team" row: photo on the left, stat breakdown already open to its right --
 // unlike CastawayStatCard (a vertical card, breakdown below the photo, collapsed until tapped), this
@@ -15,14 +16,16 @@ import { XMarkIcon } from "@/components/icons";
 export function CastawayStatRow({ state, castaway: c }: { state: LeagueState; castaway: Castaway }) {
   const stats = castawayEventStats(state, c.id);
 
+  const out = c.status === "eliminated";
+
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-2.5">
+    <div className={cn("flex items-center gap-3 rounded-lg border border-border bg-card p-2.5", out && "opacity-[.55] saturate-[.75]")}>
       <div className="relative h-14 w-14 shrink-0">
         <CastawayAvatar
           castaway={c}
           className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-border bg-secondary font-mono text-[0.95rem] font-bold text-muted-foreground"
         />
-        {c.status === "eliminated" && (
+        {out && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-[12px] bg-black/10" aria-hidden>
             <XMarkIcon className="h-8 w-8 text-destructive drop-shadow-[0_1px_2px_rgba(0,0,0,.4)]" />
           </div>

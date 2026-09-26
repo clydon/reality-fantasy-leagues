@@ -6,6 +6,7 @@ import { useLeagueStore, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { XMarkIcon } from "@/components/icons";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
 
@@ -79,24 +80,23 @@ export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
                 "relative flex flex-col items-center gap-1.5 rounded-lg border-2 bg-card p-2 text-center transition-colors",
                 active ? "border-primary bg-primary/5" : "border-border",
                 canTap && "cursor-pointer hover:border-primary",
-                out && !active && "opacity-45 grayscale"
+                out && "opacity-[.55] saturate-[.75]"
               )}
             >
-              <CastawayAvatar
-                castaway={c}
-                className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold"
-              />
+              <div className="relative h-11 w-11">
+                <CastawayAvatar
+                  castaway={c}
+                  className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold"
+                />
+                {out && (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-black/10" aria-hidden>
+                    <XMarkIcon className="h-7 w-7 text-destructive drop-shadow-[0_1px_2px_rgba(0,0,0,.4)]" />
+                  </div>
+                )}
+              </div>
               <span className="text-xs font-medium leading-tight">{c.name}</span>
               {active && (
                 <span className="rounded bg-primary px-1.5 py-px text-[0.6rem] font-bold text-primary-foreground">Active</span>
-              )}
-              {out && (
-                <span
-                  className="pointer-events-none absolute inset-0 flex items-center justify-center text-[2.75rem] font-black text-destructive"
-                  aria-hidden
-                >
-                  ✕
-                </span>
               )}
             </button>
           );

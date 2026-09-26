@@ -24,6 +24,8 @@ export function DemoBar({ onExit }: { onExit: () => void }) {
   const demoEpisodeCursor = useLeagueStore((s) => s.demoEpisodeCursor);
   const switchDemoSeason = useLeagueStore((s) => s.switchDemoSeason);
   const setDemoEpisodeCursor = useLeagueStore((s) => s.setDemoEpisodeCursor);
+  const demoCommissionerView = useLeagueStore((s) => s.demoCommissionerView);
+  const setDemoCommissionerView = useLeagueStore((s) => s.setDemoCommissionerView);
   // Shares the picker's own cache (same queryKey) -- whichever of the two components mounts first
   // fetches it, and the other reads the cache instantly.
   const { data: catalog } = useQuery({
@@ -109,6 +111,17 @@ export function DemoBar({ onExit }: { onExit: () => void }) {
               </button>
             </span>
           )}
+          {/* See useCanManage's comment: unchecking this shows what a regular member (not the
+              commissioner) actually experiences -- picks/lineups still work (that's tied to your
+              player identity, not this), but League Settings edits, bet grading, etc. go away. */}
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={demoCommissionerView}
+              onChange={(e) => setDemoCommissionerView(e.target.checked)}
+            />
+            Commissioner view
+          </label>
         </>
       ) : null}
       <Button variant="secondary" size="sm" onClick={onExit}>

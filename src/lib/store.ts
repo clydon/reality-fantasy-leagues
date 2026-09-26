@@ -86,6 +86,13 @@ interface LeagueStore {
   // clamped to the new season's own episode count if it has fewer.
   switchDemoSeason: (data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId) => void;
   setDemoEpisodeCursor: (n: number) => void;
+  // Demo bar's "Commissioner view" checkbox: whether the demo shows full commissioner powers (the
+  // default -- mock mode has always meant "full powers, no real member restrictions") or a regular
+  // member's own view, so a super admin can see what a non-commissioner player actually experiences.
+  // Only meaningful once a demo season is chosen -- see useCanManage's comment for where this is
+  // actually read. Always resets to true on a fresh chooseDemoSeason.
+  demoCommissionerView: boolean;
+  setDemoCommissionerView: (value: boolean) => void;
   loadLive: (
     leagueId: string,
     state: LeagueState,
@@ -132,6 +139,8 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   demoSeasonData: null,
   demoLeagueTypeId: null,
   demoEpisodeCursor: null,
+  demoCommissionerView: true,
+  setDemoCommissionerView: (value) => set({ demoCommissionerView: value }),
   useMock: () =>
     set({
       mode: "mock",
@@ -149,6 +158,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       demoSeasonData: null,
       demoLeagueTypeId: null,
       demoEpisodeCursor: null,
+      demoCommissionerView: true,
     }),
   previewDemo: () =>
     set({
@@ -163,6 +173,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       demoSeasonData: null,
       demoLeagueTypeId: null,
       demoEpisodeCursor: null,
+      demoCommissionerView: true,
     }),
   // Chosen from the Demo Season picker (demo-season-picker.tsx) -- defaults to viewing the whole,
   // finished season (the last episode) rather than episode 1, since "browse a completed season" is
@@ -185,6 +196,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       demoSeasonData: data,
       demoLeagueTypeId: leagueTypeId,
       demoEpisodeCursor: data.episodeCount,
+      demoCommissionerView: true,
     }),
   switchDemoSeason: (data, leagueTypeId) => {
     const cursor = Math.min(get().demoEpisodeCursor ?? data.episodeCount, data.episodeCount);
@@ -216,6 +228,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       demoSeasonData: null,
       demoLeagueTypeId: null,
       demoEpisodeCursor: null,
+      demoCommissionerView: true,
     }),
   setIdentity: (userId, isSuperAdmin, impersonating) => set({ userId, isSuperAdmin, impersonating }),
   setLeagues: (leagues) => set({ leagues }),
@@ -242,6 +255,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
         demoSeasonData: null,
         demoLeagueTypeId: null,
         demoEpisodeCursor: null,
+        demoCommissionerView: true,
       });
     } finally {
       set({ loadingLeague: false });
@@ -259,6 +273,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       demoSeasonData: null,
       demoLeagueTypeId: null,
       demoEpisodeCursor: null,
+      demoCommissionerView: true,
     }),
   flash: null,
   setFlash: (flash) => set({ flash }),
@@ -269,8 +284,18 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
 
 // Proper selector hooks (not getState() snapshots) so components re-render when mode/membership
 // change on their own, not only incidentally alongside a `state` update.
+//
+// Mock mode has always meant "full commissioner powers" outright (matching the live app's own demo
+// mode) -- EXCEPT once a real Demo Season is loaded (demoSeasonData set) and the demo bar's
+// "Commissioner view" checkbox has been switched off, which exists so a super admin previewing a
+// demo can see what a regular member actually experiences. The plain generic mock season (no chosen
+// demo, demoSeasonData null) keeps the old unconditional-true behavior; there's no toggle for it.
 export function useCanManage(): boolean {
-  return useLeagueStore((s) => s.mode === "mock" || s.membership?.role === "commissioner");
+  return useLeagueStore((s) => {
+    if (s.mode !== "mock") return s.membership?.role === "commissioner";
+    if (s.demoSeasonData) return s.demoCommissionerView;
+    return true;
+  });
 }
 
 // Was `mode !== 'mock' && ...` -- the plain generic mock season has no personal player identity to

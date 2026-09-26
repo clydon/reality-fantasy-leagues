@@ -60,7 +60,7 @@ export function YourTeamCard({ state }: { state: LeagueState }) {
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2.5">
           {roster.map((c) => (
-            <CastawayStatCard key={c.id} state={state} castaway={c} showOwner={false} showPoints={false} expanded />
+            <CastawayStatCard key={c.id} state={state} castaway={c} showOwner={false} showPoints={false} dimAllEliminated expanded />
           ))}
         </div>
       )}

@@ -79,8 +79,31 @@ export function demoSelfPlayerId(data: DemoSeasonData): string {
   return pid(data.players[0].key);
 }
 
-function buildTribes(data: DemoSeasonData): Tribe[] {
-  return (data.groups || []).map((g) => ({ id: tid(g.key), name: g.name, color: g.color }));
+const MERGED_TRIBE_KEY = "__merged";
+
+// Real seasons with starting tribes eventually merge them into one -- a demo that keeps everyone in
+// their day-1 tribe forever doesn't show that off, or let the Board's tribe grouping be tested
+// against it. There's no real-season basis for the EXACT merge episode (that would need the same
+// kind of research this file elsewhere flags the accuracy limits of), so this is a plausible,
+// disclosed-as-synthetic point partway through the season -- only for a season that HAS starting
+// tribes to merge (data.groups), same "gameplay filler, not researched fact" category as the
+// invented bets/picks/events elsewhere in this file.
+function mergeEpisodeFor(data: DemoSeasonData): number | null {
+  if (!data.groups || data.groups.length === 0) return null;
+  return Math.max(2, Math.round(data.episodeCount * 0.45));
+}
+
+// Tribes as of a given point in the season: starting tribes, plus a merged tribe once the season has
+// reached mergeEpisodeFor -- mirroring what GroupLogic.tribeNamed does for a real league's merge
+// (creates one new tribe everyone still in the game moves into), just computed directly instead of
+// through a per-castaway ep.groups history.
+function buildTribes(data: DemoSeasonData, throughEpisode: number): Tribe[] {
+  const base = (data.groups || []).map((g) => ({ id: tid(g.key), name: g.name, color: g.color }));
+  const mergeEp = mergeEpisodeFor(data);
+  if (mergeEp !== null && throughEpisode >= mergeEp) {
+    base.push({ id: tid(MERGED_TRIBE_KEY), name: "Merged Tribe", color: "#b0563f" });
+  }
+  return base;
 }
 
 // Fixed roster sizes rather than derived from cast size: Classic Draft is a 3-pick roster, Active
@@ -104,12 +127,17 @@ function computeRoster(
 }
 
 function buildCastaways(data: DemoSeasonData, ownerOf: Map<string, string[]>, hasRoster: boolean, throughEpisode: number): Castaway[] {
+  const mergeEp = mergeEpisodeFor(data);
   return data.castaways.map((c) => {
     const revealed = c.exitEpisode <= throughEpisode;
+    // Merged once the season has reached the merge AND this castaway was still in the game going
+    // into it (exitEpisode >= mergeEp) -- someone already out before the merge never merged at all,
+    // same as a real season.
+    const merged = mergeEp !== null && throughEpisode >= mergeEp && c.exitEpisode >= mergeEp;
     return {
       id: cid(c.key),
       name: c.name,
-      tribeId: c.groupKey ? tid(c.groupKey) : "",
+      tribeId: merged ? tid(MERGED_TRIBE_KEY) : c.groupKey ? tid(c.groupKey) : "",
       ownerIds: ownerOf.get(c.key) || [],
       photoUrl: c.photoUrl ?? undefined,
       status: revealed ? "eliminated" : "active",
@@ -151,6 +179,7 @@ function genericBet(data: DemoSeasonData, epNum: number, players: Player[]): Bet
 
 function buildEpisodesBase(data: DemoSeasonData, players: Player[], throughEpisode: number): Episode[] {
   const lastEp = Math.min(throughEpisode, data.episodeCount);
+  const mergeEp = mergeEpisodeFor(data);
   const episodes: Episode[] = [];
   for (let n = 1; n <= lastEp; n++) {
     const events = data.castaways
@@ -162,7 +191,7 @@ function buildEpisodesBase(data: DemoSeasonData, players: Player[], throughEpiso
     episodes.push({
       id: epId(n),
       number: n,
-      postMerge: false,
+      postMerge: mergeEp !== null && n >= mergeEp,
       events,
       exiled: [],
       roles,
@@ -271,7 +300,7 @@ function addSyntheticScoringEvents(data: DemoSeasonData, ownership: { playerKey:
 
 function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "active-roster", throughEpisode: number): LeagueState {
   const players = buildPlayers(data);
-  const tribes = buildTribes(data);
+  const tribes = buildTribes(data, throughEpisode);
   const { rosterSize, ownership } = computeRoster(data, leagueTypeId);
   const castaways = buildCastaways(data, ownerMap(ownership), true, throughEpisode);
   const episodes = buildEpisodesBase(data, players, throughEpisode);
@@ -328,7 +357,7 @@ function generatePicks(
 
 function buildPickEmDemo(data: DemoSeasonData, throughEpisode: number): LeagueState {
   const players = buildPlayers(data);
-  const tribes = buildTribes(data);
+  const tribes = buildTribes(data, throughEpisode);
   const castaways = buildCastaways(data, new Map(), false, throughEpisode);
   const episodes = buildEpisodesBase(data, players, throughEpisode);
   const episodeNumbers = episodes.map((e) => e.number);
