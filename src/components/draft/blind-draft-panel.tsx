@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { sortByTribe } from "@/lib/game/sort-by-tribe";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
@@ -47,7 +48,9 @@ export function BlindDraftPanel({ state }: { state: LeagueState }) {
   const revealed = StateLogic.BlindDraftLogic.isRevealed(state);
   const eligible = StateLogic.BlindDraftLogic.eligiblePlayers(state);
   const waitingOn = StateLogic.BlindDraftLogic.waitingOn(state);
-  const activeCast = state.castaways.filter((c) => c.status === "active");
+  // Grouped by faction once tribes are set, alphabetical otherwise -- same rule the Free Agents
+  // panel uses (sort-by-tribe.ts), so a turn-based and blind draft look consistent.
+  const activeCast = sortByTribe(state.castaways.filter((c) => c.status === "active"), state);
   const iHaveLocked = !!actingPlayerId && StateLogic.BlindDraftLogic.hasLocked(state, actingPlayerId);
 
   // Your own submission survives a page refresh -- it isn't in league state (that's the whole point),

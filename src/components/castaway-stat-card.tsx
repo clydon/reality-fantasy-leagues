@@ -1,0 +1,133 @@
+"use client";
+
+import type { LeagueState, Castaway, Player } from "@/lib/game/types";
+import { castawayEventStats } from "@/lib/game/active-roster-rows";
+import { medalFor, MEDAL_EMOJI } from "@/lib/game/selectors";
+import { CastawayAvatar } from "@/components/castaway-avatar";
+import { RoleBadge } from "@/components/role-badge";
+import { cn } from "cn";
+
+// Active Roster's own castaway card: photo, name, elimination medal/placement, owner tag -- the same
+// visuals board-grid.tsx always drew -- plus a points badge overlapping the photo's bottom-right
+// corner and an expandable breakdown of what actually earned those points, one line per event
+// category the castaway has scored, in the same order as Active Roster Settings' own list.
+//
+// Shared between two places that both want "a castaway's card with its stats": the Overview board
+// (one card per castaway league-wide, click to expand) and the Scoreboard's per-player Roster detail
+// (already inside a <details> a player opened, so its cards are simply always expanded -- no second
+// click to get to the same information).
+export function CastawayStatCard({
+  state,
+  castaway: c,
+  owners = [],
+  formerOwner = null,
+  showOwner = true,
+  showPoints = true,
+  expanded,
+  onToggleExpand,
+}: {
+  state: LeagueState;
+  castaway: Castaway;
+  /** Current owner(s) -- first one colours the border; shared-ownership leagues can have several. */
+  owners?: Player[];
+  /** Who last owned them, if nobody does now (dropped via replenish/swap). */
+  formerOwner?: Player | null;
+  /** Hide the owner/former-owner name tag -- for a context (a player's own roster list) where it's redundant. */
+  showOwner?: boolean;
+  /** Whether there's a points badge / stat breakdown to show at all -- off outside Active Roster leagues. */
+  showPoints?: boolean;
+  expanded: boolean;
+  /** Present = the card is clickable and toggles `expanded`; absent = always shown as given (Scoreboard's always-open cards). */
+  onToggleExpand?: () => void;
+}) {
+  const owner = owners[0] ?? null;
+  const medal = c.status === "eliminated" ? medalFor(state, c.placementOrder) : null;
+  const eliminatedNoMedal = c.status === "eliminated" && !medal;
+  const stats = showPoints ? castawayEventStats(state, c.id) : null;
+  const clickable = showPoints && !!onToggleExpand;
+
+  return (
+    <div
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      aria-expanded={clickable ? expanded : undefined}
+      onClick={onToggleExpand}
+      onKeyDown={(e) => clickable && e.key === "Enter" && onToggleExpand?.()}
+      className={cn(
+        "relative rounded-[10px] border-2 bg-card p-[12px_10px_10px] text-center shadow-sm transition-[transform,box-shadow]",
+        clickable && "cursor-pointer hover:-translate-y-0.5 hover:shadow-md",
+        eliminatedNoMedal && "opacity-[.55] saturate-[.75] hover:opacity-80"
+      )}
+      style={{ borderColor: owner ? owner.color : "var(--border)" }}
+    >
+      {c.status === "eliminated" &&
+        (medal ? (
+          <div
+            className="absolute right-[5px] top-[5px] flex h-[27px] w-[27px] items-center justify-center text-[1.1rem]"
+            title={medal}
+          >
+            {MEDAL_EMOJI[medal]}
+          </div>
+        ) : (
+          <>
+            <div className="absolute right-[5px] top-[5px] flex h-[22px] w-[22px] items-center justify-center rounded-full bg-destructive font-mono text-[0.66rem] font-bold text-white shadow-[0_1px_3px_rgba(0,0,0,.25)]">
+              {c.placementOrder}
+            </div>
+            <div
+              className="pointer-events-none absolute inset-0 flex items-center justify-center text-[2.5rem] font-black text-destructive opacity-85"
+              aria-hidden
+            >
+              ✕
+            </div>
+          </>
+        ))}
+      <div className="relative mx-auto mb-2 h-16 w-16">
+        <CastawayAvatar
+          castaway={c}
+          className="flex h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-secondary font-mono text-[1.05rem] font-bold text-muted-foreground"
+        />
+        {/* Total points this castaway has scored, all season -- their own record, not any one
+            owner's cut of it (benched episodes still count here; see castawayEventStats). */}
+        {stats && (
+          <div
+            className="absolute -bottom-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-card bg-primary px-1 font-mono text-[0.65rem] font-bold leading-none text-primary-foreground"
+            title={`${stats.total} point${stats.total === 1 ? "" : "s"} scored`}
+          >
+            {stats.total}
+          </div>
+        )}
+      </div>
+      <div className="text-[0.84rem] font-semibold text-foreground">
+        {c.name}
+        <RoleBadge state={state} castawayId={c.id} />
+      </div>
+      {showOwner && owners.length > 0 && (
+        <div className="mt-[3px] text-[0.7rem] font-semibold text-muted-foreground">{owners.map((o) => o.name).join(", ")}</div>
+      )}
+      {showOwner && formerOwner && (
+        <div
+          className="mt-[3px] text-[0.7rem] font-semibold text-muted-foreground line-through"
+          title={c.departedVia === "trade" ? "Swapped away" : "Replenished away"}
+        >
+          {formerOwner.name}
+        </div>
+      )}
+      {stats && expanded && (
+        <div className="mt-2 flex flex-col gap-1 border-t border-border pt-2 text-left">
+          {stats.byType.length === 0 ? (
+            <span className="text-[0.7rem] italic text-muted-foreground">Nothing scored yet.</span>
+          ) : (
+            stats.byType.map((s) => (
+              <div key={s.type} className="flex items-center justify-between gap-2 text-[0.7rem]">
+                <span className="flex-1 text-muted-foreground">{s.label}</span>
+                <span className="shrink-0 font-mono font-semibold">
+                  ×{s.count} <span className="text-muted-foreground">({s.count * s.points} pts)</span>
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

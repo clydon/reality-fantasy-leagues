@@ -96,17 +96,22 @@ export function LeagueSwitcher() {
             >
               <span className="flex w-full items-center gap-1.5">
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold">{l.name}</span>
-                {l.role === "commissioner" && (
-                  <CrownIcon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                {showNames[l.id] && (
+                  <span className="shrink-0 text-xs text-muted-foreground">{showNames[l.id]}</span>
                 )}
               </span>
-              {(showNames[l.id] || types[l.id]) && (
+              {(types[l.id] || l.role === "commissioner") && (
                 <span className="flex items-center gap-1">
-                  {showNames[l.id] && <span className="text-xs text-muted-foreground">{showNames[l.id]}</span>}
                   {types[l.id] && (
                     <Badge variant="secondary" className="text-[0.65rem]">
                       {types[l.id]}
                     </Badge>
+                  )}
+                  {l.role === "commissioner" && (
+                    <span className="flex items-center gap-0.5 text-xs text-amber-600">
+                      <CrownIcon className="h-3 w-3 shrink-0" />
+                      Commissioner
+                    </span>
                   )}
                 </span>
               )}

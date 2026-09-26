@@ -47,7 +47,7 @@ export function OverviewDashboard() {
         <StandingsCard state={state} />
       </div>
       {draftComplete && (
-        <div className="mt-6">
+        <div id="board" className="mt-6">
           <h3 className="mb-3 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Board</h3>
           <BoardGrid state={state} />
         </div>

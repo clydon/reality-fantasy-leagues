@@ -9,6 +9,40 @@ export interface PlayerEventRow {
   points: number;
 }
 
+export interface CastawayEventStat {
+  type: string;
+  label: string;
+  /** How many times this castaway has scored this event type, all season. */
+  count: number;
+  /** Points per occurrence, at the league's current settings. */
+  points: number;
+}
+
+// A castaway's OWN scoring record -- every event attributed to them, all season, regardless of
+// whether their owner actually had them active that episode (unlike playerEventRows below, which is
+// an owner's EARNED points and excludes benched episodes). This is what the board grid's points badge
+// and expanded stat breakdown show: the castaway's own performance, not any one player's cut of it.
+export function castawayEventStats(state: LeagueState, castawayId: string): { total: number; byType: CastawayEventStat[] } {
+  const events = StateLogic.formatOf(state).events;
+  const counts: Record<string, number> = {};
+  let total = 0;
+  [...state.episodes]
+    .filter((ep) => StateLogic.inPlay(state, ep.number))
+    .forEach((ep) => {
+      StateLogic.ActiveRosterLogic.episodeEvents(state, ep).forEach((sev) => {
+        if (sev.castawayId !== castawayId) return;
+        counts[sev.type] = (counts[sev.type] || 0) + 1;
+        total += StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
+      });
+    });
+  // Same order as the Active Roster Settings list (the format's own catalog order), filtered to only
+  // what this castaway has actually done -- a long list of zeroes isn't "each category they've scored".
+  const byType = events
+    .filter((e) => counts[e.id] > 0)
+    .map((e) => ({ type: e.id, label: e.label, count: counts[e.id], points: StateLogic.ActiveRosterLogic.pointsFor(state, e.id) }));
+  return { total, byType };
+}
+
 // A player's full scoring-event history, oldest first, with the points each one actually paid them.
 // Same shape and purpose as bet-rows.ts's playerBetRows: a Scoreboard disclosure, derived on read
 // rather than stored.

@@ -30,7 +30,7 @@ export function StandingsCard({ state }: { state: LeagueState }) {
           </div>
         ))
       )}
-      <DashLink>View full scoreboard →</DashLink>
+      <DashLink href="/scoreboard">View full scoreboard →</DashLink>
     </DashCard>
   );
 }

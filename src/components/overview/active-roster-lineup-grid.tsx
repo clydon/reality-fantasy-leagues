@@ -59,7 +59,7 @@ export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
           ? "There's no episode to field a lineup for yet."
           : locked
             ? "Lineups are locked for this episode."
-            : `Tap up to ${activeSlots} ${terms.castaways} to field them this episode — only active ones score. Tap again to bench.`}
+            : `Tap up to ${activeSlots} ${terms.castaways} to field them this episode — only active ones score.`}
       </p>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-2.5">
         {roster.map((c) => {

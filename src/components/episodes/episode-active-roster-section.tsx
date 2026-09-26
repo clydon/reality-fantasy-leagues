@@ -76,11 +76,6 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
           </Button>
         )}
       </div>
-      <p className="mb-2 text-xs text-muted-foreground">
-        Only these {terms.castaways} earn points for this episode. Benched ones score nothing.
-        {!locked && " Locking freezes them so later changes can't affect this episode's score."}
-      </p>
-
       <div className="mb-3 flex flex-col gap-1.5">
         {state.players.map((p) => {
           const lineup = StateLogic.activeRosterLineupFor(state, ep.id, p.id);

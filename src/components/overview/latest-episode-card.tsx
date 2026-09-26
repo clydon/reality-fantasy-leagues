@@ -26,7 +26,7 @@ export function LatestEpisodeCard({ state }: { state: LeagueState }) {
       ) : (
         <p className="text-sm text-muted-foreground">No episodes logged yet.</p>
       )}
-      <DashLink>{latestEp ? "Log this week" : "Add first episode"} →</DashLink>
+      {latestEp && <DashLink href="/episodes">Log this week →</DashLink>}
     </DashCard>
   );
 }

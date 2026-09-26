@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "cn";
 
@@ -32,12 +33,11 @@ export function DashBig({ children }: { children: ReactNode }) {
   return <div className="font-mono text-3xl font-bold leading-none">{children}</div>;
 }
 
-// Matches .dash-link -- inert for now since this POC is single-tab (no real navigation exists
-// yet to wire it to); kept visually identical so tab-to-tab porting later is a drop-in.
-export function DashLink({ children }: { children: ReactNode }) {
+// Matches .dash-link -- a real navigation link now that the app has real routes.
+export function DashLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <span className="mt-2.5 inline-block cursor-default text-[0.8rem] font-semibold text-primary">
+    <Link href={href} className="mt-2.5 inline-block text-[0.8rem] font-semibold text-primary hover:underline">
       {children}
-    </span>
+    </Link>
   );
 }

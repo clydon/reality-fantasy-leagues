@@ -162,16 +162,14 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
       {open && (
         <div className="border-t border-border p-4">
           <div className="mb-2 flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-1.5 text-sm">
-              Episode #:
-              <Input
-                type="number"
-                className="w-16 text-sm"
-                defaultValue={ep.number}
-                disabled={!canManage}
-                onBlur={(e) => updateField("number", parseInt(e.target.value) || 1)}
-              />
-            </label>
+            <Input
+              type="number"
+              aria-label="Episode number"
+              className="w-16 text-sm"
+              defaultValue={ep.number}
+              disabled={!canManage}
+              onBlur={(e) => updateField("number", parseInt(e.target.value) || 1)}
+            />
             {format.hasMerge && (
               <label className="flex items-center gap-1.5 text-sm">
                 <input
@@ -282,11 +280,7 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
             {canManage && (
               <div className="mt-3 border-t border-border pt-3">
                 <h4 className="mb-1 text-xs font-bold">Add Eliminated Player</h4>
-                <p className="mb-2 text-xs text-muted-foreground">
-                  If more than one person left this episode, add them one at a time in the order it happened (for the
-                  finale, from last place to the winner). This will be elimination{" "}
-                  <b>#{StateLogic.nextPlacementOrder(state)}</b>.
-                </p>
+                <p className="mb-2 text-xs text-muted-foreground">In order of elimination, if multiple.</p>
                 <div className="flex flex-wrap gap-1.5">
                   <Select value={elimCastawayId} onChange={(e) => setElimCastawayId(e.target.value)}>
                     <option value="">— Select {terms.castaway} —</option>

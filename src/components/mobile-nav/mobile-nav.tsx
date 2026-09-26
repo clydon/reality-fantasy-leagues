@@ -185,13 +185,19 @@ export function MobileNav() {
                       {leagueShowNames[l.id] && (
                         <span className="shrink-0 text-xs text-muted-foreground">{leagueShowNames[l.id]}</span>
                       )}
-                      {leagueTypes[l.id] && (
-                        <Badge variant="secondary" className="shrink-0 text-[0.65rem]">
-                          {leagueTypes[l.id]}
-                        </Badge>
-                      )}
                     </span>
-                    <span className="text-xs text-muted-foreground">{l.role}</span>
+                    {(leagueTypes[l.id] || l.role === "commissioner") && (
+                      <span className="flex items-center gap-1">
+                        {leagueTypes[l.id] && (
+                          <Badge variant="secondary" className="shrink-0 text-[0.65rem]">
+                            {leagueTypes[l.id]}
+                          </Badge>
+                        )}
+                        {l.role === "commissioner" && (
+                          <span className="text-xs text-amber-600">Commissioner</span>
+                        )}
+                      </span>
+                    )}
                   </button>
                 ))}
                 <button

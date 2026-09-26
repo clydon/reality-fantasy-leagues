@@ -27,14 +27,14 @@ export function SeasonStatusCard({ state }: { state: LeagueState }) {
         <p className="mt-1.5 text-sm">
           Episode {latestEp.number}: {(latestEp.picks || []).length}/{state.players.length} players have picked.
         </p>
-        <DashLink>Go to Episodes →</DashLink>
+        <DashLink href="/episodes">Go to Episodes →</DashLink>
       </>
     ) : (
-      <DashLink>Add an episode to start picking →</DashLink>
+      <DashLink href="/episodes">Add an episode to start picking →</DashLink>
     );
   } else if (!draftStarted) {
     // TODO(post-POC): port formatScheduledTime + draftScheduledAt display once Draft is ported.
-    statusBody = <DashLink>Go to draft →</DashLink>;
+    statusBody = <DashLink href="/draft">Go to draft →</DashLink>;
   } else if (!draftComplete && state.settings.ownershipMode === "shared") {
     // A blind draft in progress has no turn to report -- everyone submits simultaneously, so
     // currentTurn is null until the reveal. Without this branch the turn-based case below would
@@ -46,7 +46,7 @@ export function SeasonStatusCard({ state }: { state: LeagueState }) {
         <p className="mt-1.5 text-sm">
           Blind draft: <b>{locked}</b> of <b>{locked + waiting}</b> locked in.
         </p>
-        <DashLink>{waiting === 0 ? "Revealing →" : "Go to draft →"}</DashLink>
+        <DashLink href="/draft">{waiting === 0 ? "Revealing →" : "Go to draft →"}</DashLink>
       </>
     );
   } else if (!draftComplete) {
@@ -56,25 +56,25 @@ export function SeasonStatusCard({ state }: { state: LeagueState }) {
         <p className="mt-1.5 text-sm">
           <b>{player?.name || "?"}&rsquo;s</b> turn to draft (pick {turn?.personalPickNumber}).
         </p>
-        <DashLink>Go to draft →</DashLink>
+        <DashLink href="/draft">Go to draft →</DashLink>
       </>
     );
   } else if (replenishActive) {
     statusBody = (
       <>
         <p className="mt-1.5 text-sm">Replenish round in progress.</p>
-        <DashLink>Resume replenish →</DashLink>
+        <DashLink href="/mid-season">Resume replenish →</DashLink>
       </>
     );
   } else if (tradeActive) {
     statusBody = (
       <>
         <p className="mt-1.5 text-sm">Swap round in progress.</p>
-        <DashLink>Resume swap →</DashLink>
+        <DashLink href="/mid-season">Resume swap →</DashLink>
       </>
     );
   } else {
-    statusBody = <DashLink>View board ↓</DashLink>;
+    statusBody = <DashLink href="#board">View board ↓</DashLink>;
   }
 
   return (

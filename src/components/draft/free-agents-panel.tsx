@@ -2,6 +2,7 @@
 
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
+import { sortByTribe } from "@/lib/game/sort-by-tribe";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { RoleBadge } from "@/components/role-badge";
 import { useShowTerms } from "@/lib/use-show-terms";
@@ -21,7 +22,7 @@ export function FreeAgentsPanel({ state }: { state: LeagueState }) {
   const myPlayerId = useMyPlayerId();
   const mutate = useMutate();
 
-  const fa = StateLogic.freeAgents(state);
+  const fa = sortByTribe(StateLogic.freeAgents(state), state);
   const draftStarted = StateLogic.isDraftStarted(state);
   const turn = StateLogic.currentDraftTurn(state);
   const canPick = draftStarted && !!turn && !turn.isComplete && (canManage || turn.playerId === myPlayerId);

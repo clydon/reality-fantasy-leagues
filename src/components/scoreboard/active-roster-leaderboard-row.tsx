@@ -5,7 +5,7 @@ import { playerEventRows } from "@/lib/game/active-roster-rows";
 import { playerBetRows } from "@/lib/game/bet-rows";
 import { cn } from "cn";
 import { useShowTerms } from "@/lib/use-show-terms";
-import { RoleBadge } from "@/components/role-badge";
+import { CastawayStatCard } from "@/components/castaway-stat-card";
 
 // Active Roster's leaderboard row. Separate from LeaderboardRow because that one's breakdown is
 // "Boot Order" plus a roster list with elimination placements -- which is exactly what this league
@@ -57,26 +57,14 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
 
       <details className="border-t border-border px-3.5 py-2">
         <summary className="cursor-pointer text-xs text-muted-foreground">Roster detail</summary>
-        <div className="mt-2 flex flex-col gap-1">
+        <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2.5">
           {r.roster.length === 0 && <div className="text-xs italic text-muted-foreground">No roster</div>}
           {r.roster.map((c) => (
-            <div key={c.id} className="flex items-center justify-between text-sm">
-              <span>
-                {c.name}
-                <RoleBadge state={state} castawayId={c.id} />
-                {c.acquiredVia && c.acquiredVia !== "draft" && (
-                  <span title={`Acquired via ${c.acquiredVia}, not an original pick`}> *</span>
-                )}
-              </span>
-              <span className="text-muted-foreground">{c.status === "eliminated" ? c.exitMethod || "Eliminated" : "Active"}</span>
-            </div>
+            <CastawayStatCard key={c.id} state={state} castaway={c} showOwner={false} expanded />
           ))}
           {r.formerRoster.map((c) => (
-            <div key={c.id} className="flex items-center justify-between text-sm text-muted-foreground opacity-70">
-              <span>{c.name}</span>
-              <span>
-                {c.exitMethod || "Eliminated"} ({c.departedVia === "trade" ? "swapped away" : "replenished away"})
-              </span>
+            <div key={c.id} className="opacity-60">
+              <CastawayStatCard state={state} castaway={c} showOwner={false} expanded />
             </div>
           ))}
         </div>
