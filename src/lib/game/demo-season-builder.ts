@@ -1,4 +1,5 @@
 import type { Bet, Castaway, Episode, LeagueState, Player, Tribe } from "./types";
+import { formatFor } from "@/lib/game/formats/index.js";
 
 export type DemoLeagueTypeId = "classic-draft" | "active-roster" | "pickem";
 
@@ -229,6 +230,45 @@ function ownerMap(ownership: { playerKey: string; castawayKeys: string[] }[]): M
   return map;
 }
 
+// Deterministic (not random) so the same season+cursor always replays identically -- a simple
+// rotating hash rather than Math.random, which would reshuffle events on every rebuild.
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+// Active Roster's whole point is the per-episode event catalog (the format's non-implied types --
+// Traitors' shieldWon/survivedRoundTable/votedOutTraitor, Survivor's individualImmunity/idolFound/
+// etc, Challenge's dailyWin/eliminationWin/captain), and a demo with none of them logged has nothing
+// to show off or test against: the League Scoring settings list stays all zeroes, and there's no
+// "Last Week" to look at. There's no real-season basis for exactly who won what (that's the same
+// research-reliability problem flagged when this season was first built), so this generates
+// plausible, gameplay-filler events instead -- same category as the invented side bets and pickem
+// picks elsewhere in this file, openly synthetic rather than presented as researched fact. One
+// eligible castaway per non-implied type per episode, only sometimes (not every type fires every
+// episode -- a real season doesn't either), preferring an owned/drafted castaway so the points
+// actually surface somewhere a viewer would look (Your Team, League Scoring).
+function addSyntheticScoringEvents(data: DemoSeasonData, ownership: { playerKey: string; castawayKeys: string[] }[], episodes: Episode[]) {
+  const explicitTypes = formatFor(data.showId).events.filter((e) => !e.implied);
+  if (explicitTypes.length === 0) return;
+  const ownedKeys = new Set(ownership.flatMap((o) => o.castawayKeys));
+  for (const ep of episodes) {
+    // Still in the game AFTER this episode -- never credits an event to someone this same episode
+    // just eliminated, which would read as a contradiction (e.g. "survived the vote" then voted out).
+    const eligible = data.castaways.filter((c) => c.exitEpisode > ep.number);
+    if (eligible.length === 0) continue;
+    const pool = eligible.some((c) => ownedKeys.has(c.key)) ? eligible.filter((c) => ownedKeys.has(c.key)) : eligible;
+    for (const type of explicitTypes) {
+      // Roughly 1 in 3 episodes -- enough to populate stats without every category firing every
+      // single episode, which would look mechanical rather than like a real season's variance.
+      if (hashStr(`${ep.number}:${type.id}`) % 3 !== 0) continue;
+      const idx = hashStr(`${ep.number}:${type.id}:pick`) % pool.length;
+      ep.scoringEvents.push({ id: `demo_sev_${ep.number}_${type.id}`, type: type.id, castawayId: cid(pool[idx].key) });
+    }
+  }
+}
+
 function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "active-roster", throughEpisode: number): LeagueState {
   const players = buildPlayers(data);
   const tribes = buildTribes(data);
@@ -242,6 +282,7 @@ function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "
     for (const ep of episodes) {
       for (const o of ownership) ep.lineups[pid(o.playerKey)] = o.castawayKeys.map(cid);
     }
+    addSyntheticScoringEvents(data, ownership, episodes);
   }
   return {
     players,
@@ -251,14 +292,6 @@ function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "
     ...emptyMidSeasonAndDraft(players.map((p) => p.id), players.length * rosterSize),
     settings: baseSettings(data, leagueTypeId, rosterSize),
   };
-}
-
-// Deterministic (not random) so the same season+cursor always replays identically -- a simple
-// rotating hash rather than Math.random, which would reshuffle picks on every rebuild.
-function hashStr(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
 }
 
 // Assigns each fictional player a valid weekly pick for every episode, honoring both PickEmLogic
