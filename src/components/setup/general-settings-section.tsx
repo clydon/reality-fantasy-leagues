@@ -7,6 +7,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { InfoHint } from "@/components/info-hint";
 
 // Port of renderSetup()'s General Settings panel: teamSize (roster cap, consumed by
 // DraftLogic.currentTurn's totalPicksNeeded) and replenishOrderBy (mid-season pick-order
@@ -69,6 +70,7 @@ export function GeneralSettingsSection({ state }: { state: LeagueState }) {
               onChange={(e) => update("replenishEnabled", e.target.checked)}
             />
             Enable Replenish
+            <InfoHint text="When a player's roster spot is eliminated, they draft a replacement from the remaining free agents." />
           </label>
         )}
         {leagueType.supportsTrade && (
@@ -80,6 +82,7 @@ export function GeneralSettingsSection({ state }: { state: LeagueState }) {
               onChange={(e) => update("tradeEnabled", e.target.checked)}
             />
             Enable Swap
+            <InfoHint text="Players can trade a castaway on their roster for one on another player's roster." />
           </label>
         )}
         {StateLogic.replenishAvailable(state) && (

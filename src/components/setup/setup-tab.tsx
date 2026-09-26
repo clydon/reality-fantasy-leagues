@@ -2,7 +2,6 @@
 
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
-import { useShowTerms } from "@/lib/use-show-terms";
 import { LeagueInfoSection } from "./league-info-section";
 import { PlayersSection } from "./players-section";
 import { InvitesSection } from "./invites-section";
@@ -32,7 +31,6 @@ import { LeaveLeagueSection } from "./leave-league-section";
 export function SetupTab() {
   const state = useLeagueStore((s) => s.state);
   const canManage = useCanManage();
-  const terms = useShowTerms();
 
   const guiding = !StateLogic.SetupLogic.isComplete(state);
 
@@ -48,15 +46,10 @@ export function SetupTab() {
       <InvitesSection />
       <LeagueInfoSection state={state} />
 
-      {/* While guiding, LeagueInfoSection owns the whole screen: it renders the checklist, reveals
-          one question at a time, and carries the button that ends the gate. Showing Players or
-          Castaways alongside it is exactly the "everything at once" the guide exists to avoid. */}
-      {guiding ? (
-        <p className="mb-4 text-sm text-muted-foreground">
-          The rest of League Settings — players, {terms.castaways}, scoring and the wiki connector —
-          unlocks once the basics above are set.
-        </p>
-      ) : (
+      {/* While guiding, LeagueInfoSection owns the whole screen: it renders its own warning line,
+          reveals one question at a time, and carries the button that ends the gate. Showing Players
+          or Castaways alongside it is exactly the "everything at once" the guide exists to avoid. */}
+      {!guiding && (
         <>
           {/* Scoring-related sections come right after League Info -- the settings people actually
               tune during a season, ahead of roster/cast management they touch once at draft time. */}

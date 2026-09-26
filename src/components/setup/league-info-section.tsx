@@ -10,6 +10,7 @@ import { useShowCatalog, useShowTerms } from "@/lib/use-show-terms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { InfoHint } from "@/components/info-hint";
 
 // Port of renderSetup()'s League Name + Draft Schedule panels, plus the League Type / Show / Season
 // pickers (not in the live app at all).
@@ -43,7 +44,6 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
 
   const Setup = StateLogic.SetupLogic;
   const guiding = !Setup.isComplete(state);
-  const steps = Setup.steps(state, leagueName);
   const basicsAnswered = Setup.basicsAnswered(state, leagueName);
   // While guiding, a step's control appears only once everything before it is answered. Afterwards
   // every control is simply visible, as it always was.
@@ -148,37 +148,13 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
         {guiding ? "Set up your league" : "League Info"}
       </h3>
 
-      {/* The checklist is the guide's whole affordance: it says how many questions there are, which
-          are answered, what each answer currently is, and -- by which one is highlighted -- what to
-          do next. `defaulted` steps get their value labelled as a default rather than a tick, because
-          league type and ownership arrive pre-filled and a tick would claim someone chose them. */}
+      {/* One question at a time (via `visible()` below, driven by SetupLogic.isStepVisible) still
+          needs some indication the league isn't playable yet -- a plain warning line rather than a
+          checklist that had to be read closely to understand. */}
       {guiding && (
-        <ol className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-          {steps.map((s, i) => {
-            const isNext = !s.done && steps.slice(0, i).every((p) => p.done);
-            const reached = steps.slice(0, i).every((p) => p.done);
-            return (
-              <li
-                key={s.id}
-                className={
-                  isNext
-                    ? "font-semibold text-primary"
-                    : reached
-                    ? "text-muted-foreground"
-                    : "text-muted-foreground/50"
-                }
-              >
-                {s.done && !s.defaulted ? "✓" : `${i + 1}.`} {s.label}
-                {reached && s.value && (
-                  <span className="ml-1 opacity-70">
-                    ({s.value}
-                    {s.defaulted ? ", default" : ""})
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ol>
+        <p className="mb-3 text-xs font-semibold text-primary">
+          Finish the fields below before you can start your league.
+        </p>
       )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -320,13 +296,16 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
         {visible("ownership") && leagueType.hasRoster && (
           <label className="flex items-center gap-1.5 text-sm">
             Ownership:
+            <InfoHint
+              text={`Exclusive: a snake draft, one turn at a time — each ${terms.castaway} belongs to a single player. Shared: everyone picks privately (a blind draft) and the same ${terms.castaway} can end up on more than one team.`}
+            />
             <Select
               value={state.settings.ownershipMode}
               disabled={ownershipLocked}
               onChange={(e) => updateSetting("ownershipMode", e.target.value)}
             >
-              <option value="exclusive">Exclusive — snake draft, one owner each</option>
-              <option value="shared">Shared — blind draft, {terms.castaways} can be shared</option>
+              <option value="exclusive">Exclusive</option>
+              <option value="shared">Shared</option>
             </Select>
           </label>
         )}
@@ -411,9 +390,8 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
 
       {visible("ownership") && leagueType.hasRoster && state.settings.ownershipMode === "shared" && (
         <p className="mt-1 text-xs text-muted-foreground">
-          Shared ownership runs a blind draft: everyone submits their whole set of picks privately and nothing
-          reveals until every player has locked in. Because nobody is ever taken off the board, Replenish and Swap
-          don&rsquo;t apply — there are no free agents to draw from.
+          Everyone picks privately, then all picks are revealed together once everyone has locked in. Nobody is ever
+          removed from the board, so there&rsquo;s no Replenish or Swap in this mode.
         </p>
       )}
 
