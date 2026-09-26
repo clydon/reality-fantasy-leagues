@@ -43,6 +43,7 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
   const benchSlots = state.settings.benchSlots;
 
   return (
+    <>
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
       <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Active Roster Settings</h3>
       <div className="mb-3 flex flex-wrap items-center gap-4">
@@ -71,14 +72,16 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
           episode.
         </span>
       </div>
+    </div>
 
-      <h4 className="mb-1.5 text-xs font-bold">Points per event</h4>
-      <p className="mb-2 text-xs text-muted-foreground">
-        Only your active {terms.castaways} earn these. Set a category to <b>0</b> to switch it off.
+    <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
+      <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">League Scoring</h3>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Points per event. Only your active {terms.castaways} earn these. Set a category to <b>0</b> to switch it off.
       </p>
-      <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
         {StateLogic.formatOf(state).events.map((ev) => (
-          <label key={ev.id} className="flex items-center justify-between gap-2 text-sm">
+          <label key={ev.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
             <span>
               {ev.label}
               {ev.implied && (
@@ -98,5 +101,6 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
         ))}
       </div>
     </div>
+    </>
   );
 }

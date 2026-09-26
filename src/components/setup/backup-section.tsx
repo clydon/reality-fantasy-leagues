@@ -59,7 +59,11 @@ export function BackupSection({ state }: { state: LeagueState }) {
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Backup</h3>
+      <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Backup</h3>
+      <p className="mb-2 text-xs text-muted-foreground">
+        Download this league&rsquo;s entire state as a JSON file, or restore it from one — a manual safety net
+        independent of the database, useful before a risky change or to keep your own copy.
+      </p>
       <div className="flex flex-wrap gap-2">
         <Button variant="secondary" onClick={handleExport}>
           Export JSON

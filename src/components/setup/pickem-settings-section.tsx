@@ -28,7 +28,7 @@ export function PickEmSettingsSection({ state }: { state: LeagueState }) {
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Pick&rsquo;em Settings</h3>
+      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Eliminator Pool Settings</h3>
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-1.5 text-sm">
           Points per correct pick:

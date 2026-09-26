@@ -162,14 +162,6 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
       {open && (
         <div className="border-t border-border p-4">
           <div className="mb-2 flex flex-wrap items-center gap-3">
-            <Input
-              type="number"
-              aria-label="Episode number"
-              className="w-16 text-sm"
-              defaultValue={ep.number}
-              disabled={!canManage}
-              onBlur={(e) => updateField("number", parseInt(e.target.value) || 1)}
-            />
             {format.hasMerge && (
               <label className="flex items-center gap-1.5 text-sm">
                 <input
@@ -192,7 +184,16 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
             )}
           </div>
           {editingEp && canManage && (
-            <div className="mb-2">
+            <div className="mb-2 flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-1.5 text-sm">
+                Episode #:
+                <Input
+                  type="number"
+                  className="w-16 text-sm"
+                  defaultValue={ep.number}
+                  onBlur={(e) => updateField("number", parseInt(e.target.value) || 1)}
+                />
+              </label>
               <Button variant="destructive" size="sm" onClick={handleDeleteEpisode}>
                 Delete Episode
               </Button>

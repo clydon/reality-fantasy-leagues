@@ -45,6 +45,7 @@ export function SetupTab() {
         </p>
       )}
 
+      <InvitesSection />
       <LeagueInfoSection state={state} />
 
       {/* While guiding, LeagueInfoSection owns the whole screen: it renders the checklist, reveals
@@ -57,15 +58,16 @@ export function SetupTab() {
         </p>
       ) : (
         <>
-          <PlayersSection state={state} />
-          <InvitesSection />
-          <TribesSection state={state} />
-          <CastawaysSection state={state} />
+          {/* Scoring-related sections come right after League Info -- the settings people actually
+              tune during a season, ahead of roster/cast management they touch once at draft time. */}
           <GeneralSettingsSection state={state} />
           <SideBetSettingsSection state={state} />
           <FinaleSettingsSection state={state} />
           <PickEmSettingsSection state={state} />
           <ActiveRosterSettingsSection state={state} />
+          <PlayersSection state={state} />
+          <TribesSection state={state} />
+          <CastawaysSection state={state} />
           <WikiConnectorSection state={state} />
           <BackupSection state={state} />
         </>
