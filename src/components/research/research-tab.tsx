@@ -255,20 +255,20 @@ function buildRows(state: LeagueState, window: Window): { rows: Row[]; episodeNu
       for (const sev of StateLogic.ActiveRosterLogic.episodeEvents(state, ep)) {
         if (sev.castawayId !== c.id) continue;
         const pts = StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
-        perEpisode[i].points += pts;
+        perEpisode[i].points = StateLogic.roundPoints(perEpisode[i].points + pts);
         counts[sev.type] = (counts[sev.type] || 0) + 1;
       }
     });
     if (lastEp) {
       for (const sev of StateLogic.ActiveRosterLogic.episodeEvents(state, lastEp)) {
-        if (sev.castawayId === c.id) lastPoints += StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
+        if (sev.castawayId === c.id) lastPoints = StateLogic.roundPoints(lastPoints + StateLogic.ActiveRosterLogic.pointsFor(state, sev.type));
       }
     }
-    const points = perEpisode.reduce((s, e) => s + e.points, 0);
+    const points = StateLogic.roundPoints(perEpisode.reduce((s, e) => s + e.points, 0));
     const played = perEpisode.filter((e) => e.played).length;
     const byType = defs
       .filter((d) => counts[d.id] > 0)
-      .map((d) => ({ label: d.label, count: counts[d.id], points: counts[d.id] * StateLogic.ActiveRosterLogic.pointsFor(state, d.id) }));
+      .map((d) => ({ label: d.label, count: counts[d.id], points: StateLogic.roundPoints(counts[d.id] * StateLogic.ActiveRosterLogic.pointsFor(state, d.id)) }));
     return { c, points, played, avg: played ? points / played : 0, lastPoints, perEpisode, byType };
   });
   return { rows, episodeNumbers: inWindow.map((ep) => ep.number) };

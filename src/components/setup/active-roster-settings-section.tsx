@@ -6,6 +6,7 @@ import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useShowTerms } from "@/lib/use-show-terms";
 
 // Active Roster's own settings section, gated on the league type's hasActiveRoster flag exactly the
@@ -35,6 +36,14 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
   async function updateEventPoints(type: string, points: number) {
     const next = { ...state.settings.eventPoints, [type]: points };
     await update("eventPoints", next);
+  }
+
+  const recommended = StateLogic.defaultEventPoints(state);
+  const usingRecommended = Object.keys(recommended).every(
+    (id) => StateLogic.ActiveRosterLogic.pointsFor(state, id) === recommended[id]
+  );
+  async function applyRecommended() {
+    await update("eventPoints", { ...state.settings.eventPoints, ...recommended });
   }
 
   if (!StateLogic.getLeagueType(state).hasActiveRoster) return null;
@@ -75,9 +84,21 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
     </div>
 
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">League Scoring</h3>
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">League Scoring</h3>
+        {canManage && !usingRecommended && (
+          <Button variant="secondary" size="xs" className="ml-auto" onClick={applyRecommended}>
+            Use recommended values
+          </Button>
+        )}
+      </div>
       <p className="mb-3 text-xs text-muted-foreground">
-        Points per event. Only your active {terms.castaways} earn these. Set a category to <b>0</b> to switch it off.
+        Points per event — decimals are fine (e.g. 0.5). Only your active {terms.castaways} earn these. Set a category
+        to <b>0</b> to switch it off. Recommended values are balanced for{" "}
+        <b>{state.settings.ownershipMode === "shared" ? "shared" : "exclusive"}</b> ownership
+        {state.settings.ownershipMode === "shared"
+          ? "."
+          : ": winner-heavy categories count for less, so owning the winner outright doesn't decide the league."}
       </p>
       <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
         {StateLogic.formatOf(state).events.map((ev) => (
@@ -91,11 +112,19 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
               )}
             </span>
             <Input
+              // Keyed on the value so "Use recommended values" (a whole-map write) refreshes every box.
+              key={`${ev.id}:${StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)}`}
               type="number"
-              className="w-16"
+              step="0.5"
+              inputMode="decimal"
+              className="w-20"
               disabled={!canManage}
               defaultValue={StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)}
-              onBlur={(e) => updateEventPoints(ev.id, parseInt(e.target.value) || 0)}
+              onBlur={(e) => {
+                const n = parseFloat(e.target.value);
+                const next = Number.isFinite(n) ? StateLogic.roundPoints(n) : 0;
+                if (next !== StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)) updateEventPoints(ev.id, next);
+              }}
             />
           </label>
         ))}

@@ -28,8 +28,8 @@ const events = [
   { id: 'survivedRoundTable', label: 'Received banishment votes but survived', defaultPoints: 1 },
   { id: 'votedOutTraitor', label: 'Voted for a Traitor who was banished', defaultPoints: 2 },
   { id: 'recruited', label: 'Recruited as a Traitor', defaultPoints: 3, implied: true },
-  { id: 'finalist', label: 'Reached the end as a Finalist', defaultPoints: 5, implied: true },
-  { id: 'seasonWinner', label: 'Won the season', defaultPoints: 10, implied: true },
+  { id: 'finalist', label: 'Reached the end as a Finalist', defaultPoints: { exclusive: 3, shared: 5 }, implied: true },
+  { id: 'seasonWinner', label: 'Won the season', defaultPoints: { exclusive: 5, shared: 10 }, implied: true },
   { id: 'murdered', label: 'Murdered', defaultPoints: 0, implied: true },
   { id: 'banishedAsTraitor', label: 'Banished as a Traitor (caught)', defaultPoints: 0, implied: true },
 ];

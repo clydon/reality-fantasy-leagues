@@ -46,7 +46,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
   for (const sev of episodeEvents) {
     const entry = byCastaway.get(sev.castawayId) ?? { events: [], points: 0 };
     entry.events.push(sev);
-    entry.points += StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
+    entry.points = StateLogic.roundPoints(entry.points + StateLogic.ActiveRosterLogic.pointsFor(state, sev.type));
     byCastaway.set(sev.castawayId, entry);
   }
   const pointsOf = (cid: string) => byCastaway.get(cid)?.points ?? 0;
@@ -56,7 +56,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
       player: p,
       carried: ids.length > 0 && StateLogic.ActiveRosterLogic.lineupIsCarried(state, ep.id, p.id),
       ids: [...ids].sort((a, b) => pointsOf(b) - pointsOf(a)),
-      total: ids.reduce((sum, cid) => sum + pointsOf(cid), 0),
+      total: StateLogic.roundPoints(ids.reduce((sum, cid) => sum + pointsOf(cid), 0)),
     };
   });
   const fielded = new Set(lineups.flatMap((l) => l.ids));

@@ -8,7 +8,7 @@ const StateLogic = require("../src/lib/game/state-logic.js");
 // in every episode, so a player's score is just "how many of their fielded castaways, per episode".
 function makeState() {
   const state = StateLogic.migrateLeagueState({
-    settings: { leagueTypeId: "active-roster", activeSlots: 2, benchSlots: 1, format: "survivor", startEpisode: 1 },
+    settings: { leagueTypeId: "active-roster", activeSlots: 2, benchSlots: 1, showFormat: "survivor", startEpisode: 1 },
     players: [
       { id: "p1", name: "Ann", color: "#111" },
       { id: "p2", name: "Bo", color: "#222" },

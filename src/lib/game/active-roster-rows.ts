@@ -32,7 +32,7 @@ export function castawayEventStats(state: LeagueState, castawayId: string): { to
       StateLogic.ActiveRosterLogic.episodeEvents(state, ep).forEach((sev) => {
         if (sev.castawayId !== castawayId) return;
         counts[sev.type] = (counts[sev.type] || 0) + 1;
-        total += StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
+        total = StateLogic.roundPoints(total + StateLogic.ActiveRosterLogic.pointsFor(state, sev.type));
       });
     });
   // Same order as the Active Roster Settings list (the format's own catalog order), filtered to only

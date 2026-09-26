@@ -33,7 +33,7 @@ export function LastWeekCard({ state }: { state: LeagueState }) {
 
   const lineup = new Set(StateLogic.activeRosterLineupFor(state, lastEp.id, myPlayerId));
   const myEvents = StateLogic.ActiveRosterLogic.episodeEvents(state, lastEp).filter((ev) => lineup.has(ev.castawayId));
-  const total = myEvents.reduce((sum, ev) => sum + StateLogic.ActiveRosterLogic.pointsFor(state, ev.type), 0);
+  const total = StateLogic.roundPoints(myEvents.reduce((sum, ev) => sum + StateLogic.ActiveRosterLogic.pointsFor(state, ev.type), 0));
   const events = StateLogic.formatOf(state).events;
 
   return (

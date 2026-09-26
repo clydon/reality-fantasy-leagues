@@ -145,6 +145,10 @@ declare const StateLogic: {
   currentDraftTurn(state: LeagueState): DraftTurn | null;
   isDraftStarted(state: LeagueState): boolean;
   defaultState(): LeagueState;
+  /** The format's recommended point value per event, for the league's (or the given) ownership mode. */
+  defaultEventPoints(state: LeagueState, mode?: "exclusive" | "shared"): Record<string, number>;
+  /** Rounds a points value to hundredths (decimal point values sum with float noise). */
+  roundPoints(n: number): number;
   migrateLeagueState(raw: unknown): LeagueState;
   freeAgents(state: LeagueState): Castaway[];
   activeOwnedCount(state: LeagueState, playerId: string): number;

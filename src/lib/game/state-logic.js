@@ -525,11 +525,26 @@ class BlindDraftStrategy {
 //
 // The event catalog is the league's format's (formatOf(state).events -- see formats/survivor.js for
 // Survivor's); these are the catalog defaults for a league that hasn't customised a type.
-function defaultEventPoints(state){
+// A format may give one default for every league, or one per ownership mode ({exclusive, shared}):
+// in an exclusive league one team owns the eventual winner outright, so categories that pile up on
+// long-lasting, challenge-winning players are worth less there than when that player is shared.
+function defaultPointsFor(def, mode){
+  const d = def && def.defaultPoints;
+  if(d && typeof d === 'object') return mode === 'shared' ? d.shared : d.exclusive;
+  return typeof d === 'number' ? d : 0;
+}
+function ownershipModeOf(state){
+  return state && state.settings && state.settings.ownershipMode === 'shared' ? 'shared' : 'exclusive';
+}
+function defaultEventPoints(state, mode){
+  const m = mode || ownershipModeOf(state);
   const out = {};
-  formatOf(state).events.forEach(e => { out[e.id] = e.defaultPoints; });
+  formatOf(state).events.forEach(e => { out[e.id] = defaultPointsFor(e, m); });
   return out;
 }
+// Points are decimals now (0.5 steps and the like); sums of them pick up float noise, so every total
+// is rounded to hundredths where it's made.
+function roundPoints(n){ return Math.round((Number(n) || 0) * 100) / 100; }
 
 class ActiveRosterLogic {
   // Points for one event type: the league's own value if set, else the catalog default. A type
@@ -537,9 +552,9 @@ class ActiveRosterLogic {
   // this tests for a number rather than using `||`.
   static pointsFor(state, type){
     const configured = state.settings && state.settings.eventPoints ? state.settings.eventPoints[type] : undefined;
-    if(typeof configured === 'number') return configured;
+    if(typeof configured === 'number' && Number.isFinite(configured)) return configured;
     const def = formatOf(state).events.find(e => e.id === type);
-    return def ? def.defaultPoints : 0;
+    return defaultPointsFor(def, ownershipModeOf(state));
   }
   static activeSlots(state){ return (state.settings && state.settings.activeSlots) || 0; }
   static benchSlots(state){ return (state.settings && state.settings.benchSlots) || 0; }
@@ -801,7 +816,7 @@ class ActiveRosterEventScoringStrategy {
         state.players.forEach(p=>{
           const lineup = ActiveRosterLogic.lineupFor(state, ep.id, p.id);
           if(lineup.includes(ev.castawayId)){
-            results[p.id].locked += ActiveRosterLogic.pointsFor(state, ev.type);
+            results[p.id].locked = roundPoints(results[p.id].locked + ActiveRosterLogic.pointsFor(state, ev.type));
           }
         });
       });
@@ -826,7 +841,7 @@ class ActiveRosterEventScoringStrategy {
         if(fp.winner && fp.winner===state.finaleActual.winner) results[fp.playerId].finale += (state.settings.finaleWinnerPoints||0);
       });
     }
-    Object.values(results).forEach(r=> r.total = r.locked + (state.settings.bonusEnabled? r.bonus:0) + r.finale);
+    Object.values(results).forEach(r=> r.total = roundPoints(r.locked + (state.settings.bonusEnabled? r.bonus:0) + r.finale));
     return Object.values(results).sort((a,b)=>b.total-a.total);
   }
 }
@@ -1271,6 +1286,23 @@ class RosterLogic {
     // revealedThroughEpisode decides what a league is allowed to SEE, so a junk value must not
     // quietly become a number that lets more through than the commissioner picked. See RevealLogic.
     if(field === 'revealedThroughEpisode') value = RevealLogic.normalize(value);
+    // Switching ownership moves every point value still at the OLD mode's default to the new mode's
+    // default; anything a commissioner set by hand stays exactly as they set it.
+    if(field === 'ownershipMode' && value !== state.settings.ownershipMode && state.settings.eventPoints){
+      const before = defaultEventPoints(state, ownershipModeOf(state));
+      const after = defaultEventPoints(state, value === 'shared' ? 'shared' : 'exclusive');
+      const pts = { ...state.settings.eventPoints };
+      Object.keys(after).forEach(id => { if(pts[id] === undefined || pts[id] === before[id]) pts[id] = after[id]; });
+      state.settings.eventPoints = pts;
+    }
+    if(field === 'eventPoints' && value && typeof value === 'object'){
+      const clean = {};
+      Object.keys(value).forEach(id => {
+        const n = Number(value[id]);
+        clean[id] = Number.isFinite(n) ? roundPoints(n) : 0;
+      });
+      value = clean;
+    }
     if(field === 'startEpisode'){
       const n = Math.floor(Number(value));
       value = Number.isFinite(n) && n >= 1 ? n : 1;
@@ -2054,6 +2086,7 @@ return {
   // alias to a class static -- see the class definitions above for the real implementation. ----
   uid: Core.uid, getPlayer: Core.getPlayer, getCastaway: Core.getCastaway, getTribe: Core.getTribe,
   defaultState: Migrations.defaultState, migrateLeagueState: Migrations.migrateLeagueState,
+  defaultEventPoints, roundPoints,
   freeAgents: RosterLogic.freeAgents, activeOwnedCount: RosterLogic.activeOwnedCount, totalCastCount: RosterLogic.totalCastCount,
   nextPlacementOrder: EpisodeLogic.nextPlacementOrder,
   syncDraftOrder: DraftLogic.syncOrder, currentDraftTurn: DraftLogic.currentTurn, isDraftStarted: DraftLogic.isStarted, forceStartDraft: DraftLogic.forceStart,

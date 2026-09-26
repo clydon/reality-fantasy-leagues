@@ -17,20 +17,29 @@ const exitMethods = ['Voted Out','Medically Evacuated','Quit','Lost Fire-Making'
 // point inputs). Adding a type here automatically gives it a settings input and makes it selectable
 // in the event-entry UI; `eventPoints` falls back to the catalog default for any type a league
 // hasn't customised, so adding one never needs a migration.
+// Point values, balanced as a set. The aims:
+//   * Rare, decisive moments (an immunity win, an idol that actually cancels votes) are worth the most;
+//     things that happen to most of a tribe every week (tribe immunity, voting with the majority) the
+//     least, so they add texture without deciding the league.
+//   * {exclusive, shared}: in an exclusive league one team owns the eventual winner outright, and the
+//     winner is usually the one piling up late-game immunity wins, challenge finishes and a safe vote
+//     at every Tribal. Those categories are lower in exclusive leagues so owning the Sole Survivor is an
+//     edge rather than the whole race. Strategic one-offs (idols, surviving votes) are the same in both:
+//     they're spread across the cast rather than concentrated on the winner.
+// Every value is a default: a league's own settings override it, and 0 switches a category off.
 const events = [
-  { id: 'individualImmunity', label: 'Individual immunity win', defaultPoints: 5 },
-  { id: 'tribeImmunity', label: 'Tribe/team immunity win', defaultPoints: 2 },
-  { id: 'rewardWin', label: 'Reward win', defaultPoints: 2 },
-  { id: 'idolFound', label: 'Idol/advantage found', defaultPoints: 3 },
-  { id: 'idolPlayed', label: 'Idol/advantage played', defaultPoints: 2 },
-  { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: 1 },
-  // The next three exist because db/episode-research.js (a web search, not a wiki table) can answer
-  // questions the wiki connector structurally can't -- see docs/RESEARCH-extractable-stats.md tier D.
-  // Defaults are deliberately conservative (low or zero): these are new, unfamiliar categories and a
-  // commissioner should decide on purpose whether "survived a vote" or "sat out" should earn points,
-  // rather than inherit a value chosen for them. Changing any of these is a settings edit, not code.
-  { id: 'survivedVotes', label: 'Received votes at Tribal but survived', defaultPoints: 1 },
-  { id: 'advantageTargeted', label: 'Had an advantage used against them', defaultPoints: 1 },
+  { id: 'individualImmunity', label: 'Individual immunity win', defaultPoints: { exclusive: 3, shared: 4 } },
+  { id: 'challengeRunnerUp', label: 'Individual challenge: 2nd place', defaultPoints: { exclusive: 1.5, shared: 2 } },
+  { id: 'challengeThird', label: 'Individual challenge: 3rd place', defaultPoints: 1 },
+  { id: 'tribeImmunity', label: 'Tribe/team immunity win', defaultPoints: 1 },
+  { id: 'rewardWin', label: 'Reward win', defaultPoints: { exclusive: 1, shared: 1.5 } },
+  { id: 'idolFound', label: 'Idol/advantage found', defaultPoints: 2 },
+  { id: 'idolPlayed', label: 'Idol/advantage played', defaultPoints: 1 },
+  { id: 'votesNegated', label: 'Played an idol/advantage that cancelled votes', defaultPoints: 2 },
+  { id: 'votedWithMajority', label: 'Voted with the majority (voted for who went home)', defaultPoints: { exclusive: 0.5, shared: 1 } },
+  { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: { exclusive: 0.5, shared: 1 } },
+  { id: 'survivedVotes', label: 'Received votes at Tribal but survived', defaultPoints: 1.5 },
+  { id: 'advantageTargeted', label: 'Had an advantage used against them', defaultPoints: 0.5 },
   { id: 'satOut', label: 'Sat out a challenge', defaultPoints: 0 }
 ];
 
@@ -232,6 +241,15 @@ function checklistSchema(z, Answer) {
     wonTribeImmunity: Answer.describe("Were they on the tribe/team that won immunity?"),
     wonIndividualReward: Answer,
     wonTribeReward: Answer.describe("Were they on the tribe/team that won reward?"),
+    individualChallengeFinish: z
+      .number()
+      .int()
+      .nullable()
+      .describe(
+        "Their best finishing place in THIS episode's INDIVIDUAL challenge(s) -- 1 if they won, 2 for " +
+          "runner-up, 3 for third -- only when a source states the order. Null for tribe/team " +
+          "challenges, if they finished below third, or if the order isn't reported."
+      ),
     satOutOfChallenge: Answer.describe("Did they sit out of a challenge this episode?"),
 
     // --- advantages ---
@@ -274,7 +292,8 @@ function episodeFields(z, Answer) {
 // The line of the research prompt that says what to look for.
 const researchSearchHint = [
   "Search for the episode recap, the episode's wiki page, and any reporting on idols or advantages",
-  "found or played in it. Then answer the checklist for every person above.",
+  "found or played in it, who voted for whom, and the finishing order of any individual challenge.",
+  "Then answer the checklist for every person above.",
 ];
 
 // Answers that contradict each other in ways only Survivor's checklist can. Each is cheap to check
@@ -290,7 +309,21 @@ function researchEntryProblems(entry) {
   if (entry.foundAdvantage === "yes" && !entry.advantageFoundName) {
     problems.push(`${entry.name}: found an advantage but didn't say what`);
   }
+  if (entry.individualChallengeFinish === 1 && entry.wonIndividualImmunity !== "yes" && entry.wonIndividualReward !== "yes") {
+    problems.push(`${entry.name}: finished 1st in an individual challenge but isn't marked as winning it`);
+  }
+  if (typeof entry.votesNullified === "number" && entry.votesNullified > 0 && entry.playedAdvantage !== "yes") {
+    problems.push(`${entry.name}: votes cancelled by an advantage they aren't marked as playing`);
+  }
   return problems;
+}
+
+// Who went home at Tribal this episode, by name, from everyone's answers -- what "voted with the
+// majority" is measured against. Only a vote-out counts: nobody voted for a quit or a medevac.
+function votedOutNames(payload) {
+  return ((payload && payload.castaways) || [])
+    .filter((c) => c.leftTheGame === "yes" && c.exitMethod === "Voted Out")
+    .map((c) => c.name);
 }
 
 // Positive claims that need a source behind them.
@@ -299,8 +332,21 @@ const researchClaims = ["leftTheGame", "wonIndividualImmunity", "wonIndividualRe
 // One castaway's "yes" answers -> the results they imply. rewardWin covers both individual and tribe
 // reward with the SAME event type, matching the wiki connector's own catalog, so winning both in one
 // episode still earns exactly one item.
-function researchItems(entry, add) {
+// `ctx.same(a, b)` compares two names by who they are (the same forgiving match everything else uses),
+// since votedFor may be written "Nicole" where the checklist says "Nicole Mazullo".
+function researchItems(entry, add, ctx = {}) {
+  const same = ctx.same || ((a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase());
   if (entry.wonIndividualImmunity === "yes") add("event", "individualImmunity");
+  // Only individual challenges: in tribe-vs-tribe, a place is a tribe's, and winning is scored already.
+  if (entry.individualChallengeFinish === 2) add("event", "challengeRunnerUp");
+  if (entry.individualChallengeFinish === 3) add("event", "challengeThird");
+  if (entry.playedAdvantage === "yes" && typeof entry.votesNullified === "number" && entry.votesNullified > 0) {
+    add("event", "votesNegated");
+  }
+  // Voted for someone who went home this episode, and didn't go home themselves.
+  if (entry.votedFor && entry.leftTheGame !== "yes" && votedOutNames(ctx.payload).some((n) => same(n, entry.votedFor))) {
+    add("event", "votedWithMajority");
+  }
   if (entry.wonTribeImmunity === "yes") add("event", "tribeImmunity");
   if (entry.wonIndividualReward === "yes" || entry.wonTribeReward === "yes") add("event", "rewardWin");
   if (entry.foundAdvantage === "yes") add("event", "idolFound");
@@ -328,6 +374,9 @@ function researchNotes(c) {
   if (c.wonTribeImmunity === "yes") notes.push("tribe immunity");
   if (c.wonIndividualReward === "yes") notes.push("individual reward");
   if (c.wonTribeReward === "yes") notes.push("tribe reward");
+  if (c.individualChallengeFinish === 2 || c.individualChallengeFinish === 3) {
+    notes.push(`${c.individualChallengeFinish === 2 ? "2nd" : "3rd"} in an individual challenge`);
+  }
   if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
   if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
   if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
@@ -348,6 +397,9 @@ function researchSentences(c) {
   if (c.wonTribeImmunity === "yes") notes.push("was on the tribe that won immunity");
   if (c.wonIndividualReward === "yes") notes.push("won individual reward");
   if (c.wonTribeReward === "yes") notes.push("was on the tribe that won reward");
+  if (c.individualChallengeFinish === 2 || c.individualChallengeFinish === 3) {
+    notes.push(`finished ${c.individualChallengeFinish === 2 ? "2nd" : "3rd"} in an individual challenge`);
+  }
   if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
   if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
   if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);

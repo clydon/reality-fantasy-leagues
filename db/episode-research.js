@@ -1212,7 +1212,16 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
 // recording but not a scoring event, and 'unknown' must never silently become one -- collapsing that
 // distinction is exactly the failure the three-valued schema exists to prevent (see the top of this
 // file). Which answers imply which results is the format's (format.research.items).
-function itemsFromChecklist(entry, format) {
+// `payload` is the whole episode's answers: some results depend on other people's (who went home
+// decides who "voted with the majority"). Names are compared by who they resolve to among the
+// checklist's own people, so "Nicole" matches "Nicole Mazullo".
+function itemsFromChecklist(entry, format, payload) {
+  const roster = { castaways: ((payload && payload.castaways) || []).map((c, i) => ({ id: String(i), name: c.name })) };
+  const who = (name) => {
+    const { castaway } = StateLogic.Core.findCastawayByName(roster, name);
+    return castaway ? castaway.id : String(name || "").trim().toLowerCase();
+  };
+  const ctx = { payload, same: (a, b) => who(a) === who(b) };
   const items = [];
   // `method` is only for a role (the role value); an event's identity is its eventType.
   const add = (kind, eventType, method = "") =>
@@ -1221,7 +1230,7 @@ function itemsFromChecklist(entry, format) {
   // tables (research was an add-on), so research -- and a paste, which is research -- never staged
   // an elimination: the person who went home was simply missing from review.
   if (entry.leftTheGame === "yes" && entry.exitMethod) add("elimination", "", entry.exitMethod);
-  format.research.items(entry, add);
+  format.research.items(entry, add, ctx);
   return items;
 }
 
@@ -1232,7 +1241,7 @@ function itemsFromChecklist(entry, format) {
 function candidatesFor(payload, format) {
   const byKey = new Map();
   for (const entry of payload.castaways || []) {
-    for (const item of itemsFromChecklist(entry, format)) {
+    for (const item of itemsFromChecklist(entry, format, payload)) {
       const key = `${item.castawayName.toLowerCase()}|${item.kind}|${item.eventType}`;
       if (!byKey.has(key)) byKey.set(key, item);
     }
