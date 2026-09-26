@@ -234,12 +234,16 @@ function checklistSchema(z, Answer) {
     votedFor: z
       .string()
       .nullable()
-      .describe("The full name of the person they voted for, if reported. Null if unknown or they did not vote."),
+      .describe(
+        "Who they voted for at Tribal this episode, written exactly as that person's name appears in the " +
+          "list you were sent. If there was a revote, their vote in the FINAL round. Null if unknown, no " +
+          "Tribal, or they didn't vote."
+      ),
 
     // --- challenges ---
-    wonIndividualImmunity: Answer,
+    wonIndividualImmunity: Answer.describe("Did they win INDIVIDUAL immunity (not as part of a tribe)?"),
     wonTribeImmunity: Answer.describe("Were they on the tribe/team that won immunity?"),
-    wonIndividualReward: Answer,
+    wonIndividualReward: Answer.describe("Did they win an INDIVIDUAL reward challenge (not as part of a tribe)?"),
     wonTribeReward: Answer.describe("Were they on the tribe/team that won reward?"),
     individualChallengeFinish: z
       .number()
@@ -259,12 +263,15 @@ function checklistSchema(z, Answer) {
       .nullable()
       .describe("What they found, in the show's own words ('hidden immunity idol', 'Beware Advantage', 'Shot in the Dark'). Null if nothing."),
     playedAdvantage: Answer.describe("Did they PLAY an idol or advantage this episode (their own or on someone else)?"),
-    advantagePlayedName: z.string().nullable(),
+    advantagePlayedName: z.string().nullable().describe("What they played, in the show's own words. Null if nothing."),
     votesNullified: z
       .number()
       .int()
       .nullable()
-      .describe("If an idol they played nullified votes, how many. Null otherwise."),
+      .describe(
+        "If they PLAYED an idol or advantage (on themselves or someone else), how many votes it cancelled -- " +
+          "0 if it cancelled none. Null if they played nothing or it isn't reported."
+      ),
     advantageUsedAgainstThem: Answer.describe("Was an advantage used against them (a vote stolen, blocked, nullified)?"),
 
     // --- twists ---

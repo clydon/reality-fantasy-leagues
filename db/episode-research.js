@@ -1385,9 +1385,28 @@ function buildPastePrompt(ctx, bets, { structured = false } = {}) {
         "Answer in plain prose or bullet points, one section per person, in the order given -- not JSON,",
         "not a table. Say plainly when you don't know something rather than guessing.",
         "",
+        "Start with the episode's title, air date and a two- or three-sentence summary. Then, for EACH",
+        "person, cover every one of these (say \"no\" or \"not reported\" rather than skipping one):",
+        ...proseChecklist(ctx.format),
+        "",
         "Paste your whole answer back into Reality Fantasy Leagues' \"Paste research notes\" box for this episode.",
       ];
   return system + "\n\n" + user + "\n\n" + closing.join("\n");
+}
+
+// The per-person checklist as plain questions, for the prose prompt. Read off the same schema the
+// answer is structured into, so a question added to a show's checklist is asked here too -- a
+// structuring pass can't score what the chat never mentioned.
+function proseChecklist(format) {
+  const person = jsonSchemaFor(researchSchemaFor(format, false), "strict").properties.castaways.items.properties;
+  return Object.entries(person)
+    .filter(([key]) => !["name", "sources", "confidence"].includes(key))
+    .map(([key, node]) => {
+      const readable = key.replace(/([A-Z])/g, " $1").toLowerCase();
+      const text = node.description ? node.description.replace(/\bNull\b/g, "None") : readable.charAt(0).toUpperCase() + readable.slice(1) + "?";
+      return `  - ${text}`;
+    })
+    .concat(["  - The URLs you read for this person."]);
 }
 
 // A filled-in example of the answer, built from the same schema the answer is validated against, so it

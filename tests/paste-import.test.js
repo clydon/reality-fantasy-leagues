@@ -61,8 +61,15 @@ for (const format of FORMATS) {
     for (const name of CAST) assert.ok(prompt.includes(name), `prompt is missing ${name}`);
     for (const bet of BETS) assert.ok(prompt.includes(bet.label), `prompt is missing bet "${bet.label}"`);
     for (const field of Object.keys(entryFields(format))) assert.ok(prompt.includes(`"${field}"`), `prompt is missing field ${field}`);
-    // The prose prompt must not ask for JSON.
-    assert.ok(!R.buildPastePrompt(ctxFor(format), [], { structured: false }).includes("JSON Schema"));
+    // The prose prompt must not ask for JSON, but must still ask every checklist question -- the
+    // structuring pass can only score what the chat was asked about.
+    const prose = R.buildPastePrompt(ctxFor(format), [], { structured: false });
+    assert.ok(!prose.includes("JSON Schema"));
+    const person = jsonSchema(format, []).properties.castaways.items.properties;
+    for (const [field, node] of Object.entries(person)) {
+      if (["name", "sources", "confidence"].includes(field) || !node.description) continue;
+      assert.ok(prose.includes(node.description.replace(/\bNull\b/g, "None")), `prose prompt doesn't ask about ${field}`);
+    }
   });
 
   test(`${format.id}: the untouched skeleton round-trips cleanly, with bets and without`, () => {
