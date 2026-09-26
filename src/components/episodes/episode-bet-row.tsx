@@ -11,15 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 
-// Port of the per-bet block inside renderEpisodeCard() (public/app.js) -- the fuller editor
-// version of a bet (editable label/points, remove-a-guess, add-a-guess-on-anyone's-behalf for the
-// commissioner), distinct from Overview's read-mostly BetCard which is guess-only.
+// The commissioner-editing half of a bet, inside EpisodeCard -- grade guesses, correct the label or
+// points, remove a guess or the whole bet. PROPOSING a bet and GUESSING on it happen on Overview only
+// (bet-card.tsx): this component never creates a bet or a guess, only edits what's already there.
 export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state: LeagueState }) {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(bet.label);
   const [points, setPoints] = useState(bet.points);
-  const [guessPlayerId, setGuessPlayerId] = useState("");
-  const [guessText, setGuessText] = useState("");
 
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
@@ -98,17 +96,6 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
       (s) => StateLogic.removeBetPrediction(s, ep.id, bet.id, predId),
       () => api.removeBetPrediction(leagueId!, ep.id, bet.id, predId)
     );
-  }
-
-  async function addGuess() {
-    const playerId = canManage ? guessPlayerId : myPlayerId;
-    const guess = guessText.trim();
-    if (!playerId || !guess) return;
-    await mutate(
-      (s) => StateLogic.addBetPrediction(s, ep.id, bet.id, playerId, guess),
-      () => api.addBetPrediction(leagueId!, ep.id, bet.id, playerId, guess)
-    );
-    setGuessText("");
   }
 
   return (
@@ -221,35 +208,12 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
             </div>
           );
         })}
+        {(bet.predictions || []).length === 0 && (
+          <p className="text-xs italic text-muted-foreground">No guesses yet -- players guess from Overview.</p>
+        )}
         {(bet.predictions || []).length === 1 && (
           <p className="text-xs italic text-muted-foreground">Needs 1 more guess to be eligible to pay out.</p>
         )}
-      </div>
-
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {canManage ? (
-          <Select size="sm" value={guessPlayerId} onChange={(e) => setGuessPlayerId(e.target.value)}>
-            <option value="">— player —</option>
-            {state.players.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <span className="self-center text-xs text-muted-foreground">Your guess:</span>
-        )}
-        <Input
-          size="sm"
-          className="min-w-[140px] flex-1"
-          placeholder="Your guess (free text)"
-          value={guessText}
-          onChange={(e) => setGuessText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addGuess()}
-        />
-        <Button size="xs" onClick={addGuess}>
-          Add Guess
-        </Button>
       </div>
     </div>
   );

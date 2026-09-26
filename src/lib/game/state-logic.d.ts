@@ -279,6 +279,12 @@ declare const StateLogic: {
   };
   /** The episode picks are being made for (the next to reveal when catching up, else the latest). */
   pickEmUpcomingEpisode(state: LeagueState): Episode | null;
+  /**
+   * The episode "this week's choice" is for -- shared by Eliminator Pool's pick, Active Roster's
+   * lineup grid, and Overview's side bets (the next to reveal when catching up, else the latest, never
+   * before the league's start episode).
+   */
+  currentEpisode(state: LeagueState): Episode | null;
   setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string): void;
   removePickEmPick(state: LeagueState, epId: string, playerId: string): void;
 };

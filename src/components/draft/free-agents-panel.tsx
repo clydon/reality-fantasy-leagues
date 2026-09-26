@@ -73,7 +73,7 @@ export function FreeAgentsPanel({ state }: { state: LeagueState }) {
             >
               <CastawayAvatar
                 castaway={c}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold"
+                className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold"
               />
               <div className="text-xs font-medium leading-tight">
                 {c.name}

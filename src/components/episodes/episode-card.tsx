@@ -7,7 +7,6 @@ import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { EpisodeBetRow } from "./episode-bet-row";
-import { EpisodePicksSection } from "./episode-pick-row";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,8 +32,6 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
   const [roleValue, setRoleValue] = useState(format.roles?.values[0] ?? "");
   const [moveCastawayId, setMoveCastawayId] = useState("");
   const [moveGroup, setMoveGroup] = useState("");
-  const [newBetLabel, setNewBetLabel] = useState("");
-  const [newBetPoints, setNewBetPoints] = useState(state.settings.defaultBetPoints);
 
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
@@ -121,16 +118,6 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
     await mutate(
       (s) => StateLogic.removeGroupChange(s, ep.id, castawayId),
       () => api.removeGroupChange(leagueId!, ep.id, castawayId)
-    );
-  }
-
-  async function handleAddBet() {
-    const trimmed = newBetLabel.trim();
-    if (!trimmed) return;
-    setNewBetLabel("");
-    await mutate(
-      (s) => StateLogic.addBet(s, ep.id, trimmed, newBetPoints, null),
-      () => api.proposeBet(leagueId!, ep.id, trimmed, newBetPoints)
     );
   }
 
@@ -386,39 +373,19 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
             )}
           </div>
 
-          {/* Before the league's start episode there's nothing to pick or field -- it's history. */}
-          {inPlay && StateLogic.getLeagueType(state).hasWeeklyPicks && <EpisodePicksSection ep={ep} state={state} />}
-
+          {/* Before the league's start episode there's nothing to field -- it's history. Eliminator
+              Pool picks are made on Overview only (see pickem-pick-grid.tsx), never here. */}
           {inPlay && StateLogic.getLeagueType(state).hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
 
-          {state.settings.bonusEnabled && (
+          {/* Side bets are proposed and guessed on Overview (bet-card.tsx) -- this is commissioner
+              editing only (grading, correcting, removing), and only shown when there's something to
+              edit. */}
+          {state.settings.bonusEnabled && (ep.bets || []).length > 0 && (
             <div className="border-t border-border pt-3">
               <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Side Bets</h4>
-              {(ep.bets || []).length === 0 ? (
-                <div className="mb-2 text-sm italic text-muted-foreground">No bets logged for this episode.</div>
-              ) : (
-                (ep.bets || []).map((bet) => <EpisodeBetRow key={bet.id} ep={ep} bet={bet} state={state} />)
-              )}
-              <div className="flex flex-wrap gap-1.5">
-                <Input
-                  className="min-w-[180px] flex-1 text-sm"
-                  placeholder="New bet, e.g. 'Who wins reward?'"
-                  value={newBetLabel}
-                  onChange={(e) => setNewBetLabel(e.target.value)}
-                />
-                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  pts if correct:
-                  <Input
-                    type="number"
-                    className="w-14 text-xs"
-                    value={newBetPoints}
-                    onChange={(e) => setNewBetPoints(parseInt(e.target.value) || 0)}
-                  />
-                </label>
-                <Button size="sm" onClick={handleAddBet}>
-                  Add Bet
-                </Button>
-              </div>
+              {(ep.bets || []).map((bet) => (
+                <EpisodeBetRow key={bet.id} ep={ep} bet={bet} state={state} />
+              ))}
             </div>
           )}
         </div>

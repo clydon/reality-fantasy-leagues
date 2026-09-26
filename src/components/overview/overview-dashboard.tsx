@@ -9,6 +9,7 @@ import { SideBetsSection } from "./side-bets-section";
 import { BoardGrid } from "./board-grid";
 import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
+import { ActiveRosterLineupGrid } from "./active-roster-lineup-grid";
 
 // Direct port of renderOverview() (public/app.js): Notifications banner, Side Bets section, the
 // dash-grid of three cards, and the post-draft Board grid, in the same order as the original.
@@ -37,6 +38,7 @@ export function OverviewDashboard() {
         </p>
       )}
       {StateLogic.getLeagueType(state).hasWeeklyPicks && <PickEmPickGrid state={state} />}
+      {StateLogic.getLeagueType(state).hasActiveRoster && <ActiveRosterLineupGrid state={state} />}
       <NotificationsBanner />
       <SideBetsSection state={state} />
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">

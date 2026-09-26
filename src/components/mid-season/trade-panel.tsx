@@ -124,7 +124,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
                   >
                     <CastawayAvatar
                       castaway={c}
-                      className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold"
                     />
                     <div className="text-xs font-medium leading-tight">{c.name}</div>
                     <div className="rounded bg-primary px-2 py-0.5 text-[0.65rem] font-bold text-primary-foreground">Drop</div>
@@ -151,7 +151,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
                   >
                     <CastawayAvatar
                       castaway={c}
-                      className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold"
                     />
                     <div className="text-xs font-medium leading-tight">{c.name}</div>
                     <div className="rounded bg-primary px-2 py-0.5 text-[0.65rem] font-bold text-primary-foreground">Add</div>

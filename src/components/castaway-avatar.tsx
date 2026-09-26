@@ -11,9 +11,10 @@ import { cn } from "cn";
 // -- one component here instead, since this repo had that initials block copied into six places and
 // every one of them needed the photo treatment.
 //
-// The caller passes the container classes, so each site keeps its own size and shape (64px rounded
-// square on the Board grid, 44px circles in the draft/mid-season pickers, 20px in Draft Results)
-// and its own initials styling for the fallback. This only swaps what goes inside.
+// The caller passes the container classes, so each site keeps its own size (64px on the Board grid,
+// 44px in the draft/mid-season pickers, 20px in Draft Results) and its own initials styling for the
+// fallback -- but always a rounded square (rounded-lg or similar), never a circle, so a cast photo
+// reads the same everywhere in the app. This only swaps what goes inside.
 //
 // A plain <img> rather than next/image, deliberately: the Photo URL field in League Settings accepts
 // an arbitrary external URL, and next/image rejects remote hosts that aren't whitelisted in

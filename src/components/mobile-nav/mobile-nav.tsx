@@ -63,7 +63,7 @@ export function MobileNav() {
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
   const notifications = useNotificationsStore((s) => s.notifications);
-  const { types: leagueTypes, resolve: resolveLeagueTypes } = useLeagueTypeBadges(leagues);
+  const { types: leagueTypes, showNames: leagueShowNames, resolve: resolveLeagueTypes } = useLeagueTypeBadges(leagues);
 
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
@@ -131,6 +131,8 @@ export function MobileNav() {
     setLeagueMenuOpen(false);
     if (id === leagueId) return;
     await switchLeague(id);
+    // Always land on Overview after switching -- see league-switcher.tsx's own note.
+    router.push("/");
   }
 
   function handleLogout() {
@@ -180,6 +182,9 @@ export function MobileNav() {
                   >
                     <span className="flex w-full items-center gap-1.5">
                       <span className="min-w-0 flex-1 truncate text-sm font-semibold">{l.name}</span>
+                      {leagueShowNames[l.id] && (
+                        <span className="shrink-0 text-xs text-muted-foreground">{leagueShowNames[l.id]}</span>
+                      )}
                       {leagueTypes[l.id] && (
                         <Badge variant="secondary" className="shrink-0 text-[0.65rem]">
                           {leagueTypes[l.id]}

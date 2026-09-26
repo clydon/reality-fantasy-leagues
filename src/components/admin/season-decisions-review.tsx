@@ -203,10 +203,10 @@ function DecisionRow({
         {member ? (
           <CastawayAvatar
             castaway={{ name: member.name, photoUrl: member.photoUrl ?? undefined }}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-secondary text-[0.6rem] font-bold"
           />
         ) : (
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-destructive text-[0.6rem] font-bold text-white">?</span>
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-destructive text-[0.6rem] font-bold text-white">?</span>
         )}
         <span className="text-sm font-medium">{nameOf(d)}</span>
         {!member && <span className="font-semibold text-destructive">not in the cast</span>}

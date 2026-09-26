@@ -56,7 +56,7 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
                     <span className="flex items-center gap-1.5">
                       <CastawayAvatar
                         castaway={c}
-                        className="flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold"
+                        className="flex h-5 w-5 items-center justify-center rounded-lg bg-secondary text-[0.6rem] font-bold"
                       />
                       {c.name}
                       <RoleBadge state={state} castawayId={c.id} />{" "}

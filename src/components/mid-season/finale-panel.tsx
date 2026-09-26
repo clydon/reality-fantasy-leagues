@@ -56,7 +56,7 @@ function CastPickGrid({
                 {max > 1 ? idx + 1 : "✓"}
               </span>
             )}
-            <CastawayAvatar castaway={c} className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold" />
+            <CastawayAvatar castaway={c} className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-[0.6rem] font-bold" />
             <div className="w-full truncate text-[0.65rem] font-medium leading-tight">{c.name}</div>
           </div>
         );

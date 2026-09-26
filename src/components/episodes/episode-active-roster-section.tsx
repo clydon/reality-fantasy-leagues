@@ -3,33 +3,31 @@
 import { useState } from "react";
 import type { Episode, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
+import { useLeagueStore, useCanManage } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { cn } from "cn";
 import { useShowTerms } from "@/lib/use-show-terms";
 
-// Active Roster's per-episode UI inside EpisodeCard: each player's active lineup for THIS episode,
-// the commissioner's lineup lock, and the scoring-event log.
+// Active Roster's per-episode UI inside EpisodeCard: each player's active lineup for THIS episode
+// (read-only -- see overview/active-roster-lineup-grid.tsx for where lineups are actually SET, tap by
+// tap, the same self-service pattern as Eliminator Pool's pick), the commissioner's lineup lock, and
+// the scoring-event log.
 //
-// Lineups are per-episode by design (see ActiveRosterLogic): this component only ever reads and
-// writes `ep.lineups`, so there's no way for it to touch a different episode's lineup and change what
-// that episode already scored.
+// Lineups are per-episode by design (see ActiveRosterLogic): this component only ever reads
+// `ep.lineups`, so there's no way for it to touch a different episode's lineup and change what that
+// episode already scored.
 //
-// Doesn't use useMutate: lineup/lock/event calls have real validation messages worth showing inline
-// rather than useMutate's generic alert(), and Active Roster isn't reachable in mock mode (the demo
-// league is classic-draft), so a mock branch would be dead code.
+// Doesn't use useMutate: lock/event calls have real validation messages worth showing inline rather
+// than useMutate's generic alert(), and Active Roster isn't reachable in mock mode (the demo league is
+// classic-draft), so a mock branch would be dead code.
 export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const setState = useLeagueStore((s) => s.setState);
   const canManage = useCanManage();
-  const myPlayerId = useMyPlayerId();
 
-  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
-  const [draftLineup, setDraftLineup] = useState<string[]>([]);
   const events = StateLogic.formatOf(state).events;
   // Implied events come from exits and roles on their own, so only the rest can be logged by hand.
   const loggable = events.filter((e) => !e.implied);
@@ -54,27 +52,6 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
     } finally {
       setBusy(false);
     }
-  }
-
-  function startEditing(playerId: string) {
-    setEditingPlayerId(playerId);
-    setDraftLineup(StateLogic.activeRosterLineupFor(state, ep.id, playerId));
-    setError(null);
-  }
-
-  function toggle(castawayId: string) {
-    setDraftLineup((cur) =>
-      cur.includes(castawayId)
-        ? cur.filter((id) => id !== castawayId)
-        : cur.length >= activeSlots
-        ? cur
-        : [...cur, castawayId]
-    );
-  }
-
-  async function saveLineup(playerId: string) {
-    const ok = await run(() => api.setActiveRosterLineup(leagueId!, ep.id, playerId, draftLineup));
-    if (ok) setEditingPlayerId(null);
   }
 
   return (
@@ -107,64 +84,21 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
       <div className="mb-3 flex flex-col gap-1.5">
         {state.players.map((p) => {
           const lineup = StateLogic.activeRosterLineupFor(state, ep.id, p.id);
-          const owned = state.castaways.filter((c) => c.ownerIds.includes(p.id));
-          const canEdit = !locked && (canManage || p.id === myPlayerId);
-          const isEditing = editingPlayerId === p.id;
           return (
-            <div key={p.id} className="rounded-md border border-border p-2">
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <Badge className="text-white" style={{ background: p.color }}>
-                  {p.name}
-                </Badge>
-                <span className="flex-1">
-                  {lineup.length === 0 ? (
-                    <span className="italic text-muted-foreground">no lineup set</span>
-                  ) : (
-                    lineup.map((id) => StateLogic.getCastaway(state, id)?.name || "?").join(", ")
-                  )}
-                </span>
-                <span className="text-muted-foreground">
-                  {lineup.length}/{activeSlots}
-                </span>
-                {canEdit && (
-                  <Button variant="secondary" size="xs" onClick={() => (isEditing ? setEditingPlayerId(null) : startEditing(p.id))}>
-                    {isEditing ? "Cancel" : "Edit"}
-                  </Button>
+            <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2 text-xs">
+              <Badge className="text-white" style={{ background: p.color }}>
+                {p.name}
+              </Badge>
+              <span className="flex-1">
+                {lineup.length === 0 ? (
+                  <span className="italic text-muted-foreground">no lineup set</span>
+                ) : (
+                  lineup.map((id) => StateLogic.getCastaway(state, id)?.name || "?").join(", ")
                 )}
-              </div>
-
-              {isEditing && (
-                <div className="mt-2 rounded-md border border-dashed border-border bg-secondary/40 p-2">
-                  <p className="mb-1.5 text-xs text-muted-foreground">
-                    Pick up to {activeSlots} of {p.name}&rsquo;s {owned.length} {terms.castaways} ({draftLineup.length} selected):
-                  </p>
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {owned.map((c) => {
-                      const on = draftLineup.includes(c.id);
-                      return (
-                        <label
-                          key={c.id}
-                          className={cn(
-                            "flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs",
-                            on ? "border-primary bg-primary/10" : "border-border",
-                            c.status === "eliminated" && "opacity-60"
-                          )}
-                        >
-                          <input type="checkbox" checked={on} onChange={() => toggle(c.id)} />
-                          {c.name}
-                          {c.status === "eliminated" && <span className="text-muted-foreground">(out)</span>}
-                        </label>
-                      );
-                    })}
-                    {owned.length === 0 && (
-                      <span className="text-xs italic text-muted-foreground">No {terms.castaways} drafted yet.</span>
-                    )}
-                  </div>
-                  <Button size="xs" disabled={busy} onClick={() => saveLineup(p.id)}>
-                    Save lineup
-                  </Button>
-                </div>
-              )}
+              </span>
+              <span className="text-muted-foreground">
+                {lineup.length}/{activeSlots}
+              </span>
             </div>
           );
         })}

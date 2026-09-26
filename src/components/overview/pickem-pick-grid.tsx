@@ -90,7 +90,7 @@ export function PickEmPickGrid({ state }: { state: LeagueState }) {
             >
               <CastawayAvatar
                 castaway={c}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-xs font-bold"
+                className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold"
               />
               <span className="text-xs font-medium leading-tight">{c.name}</span>
               {mine && <span className="rounded bg-primary px-1.5 py-px text-[0.6rem] font-bold text-primary-foreground">Your pick</span>}

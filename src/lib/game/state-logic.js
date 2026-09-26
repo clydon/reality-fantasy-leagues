@@ -82,6 +82,15 @@ function startEpisode(state){
 }
 function inPlay(state, episodeNumber){ return episodeNumber >= startEpisode(state); }
 
+// The episode "this week's choice" is being made for -- Eliminator Pool's pick, Active Roster's
+// lineup, Overview's side bets: the next one to reveal when catching up, otherwise the latest, but
+// never before the league's own start episode (a league set to start later picks/fields for that
+// one first). One shared definition so all three agree on which episode is "now".
+function currentEpisode(state){
+  const number = Math.max(BetLogic.upcomingEpisodeNumber(state), startEpisode(state));
+  return state.episodes.find(e => e.number === number) || null;
+}
+
 // Reads a castaway object's owner list, tolerating a castaway that predates the field. Kept
 // module-private: the filter predicates below already hold the castaway object, so going through
 // Core.ownersOf (which looks it up by id) would be pointless indirection -- see the ownership
@@ -816,13 +825,9 @@ class PickEmLogic {
     const ep = PickEmLogic.findEpisode(state, epId);
     return ep ? (ep.picks||[]).find(pk=>pk.playerId===playerId) || null : null;
   }
-  // The episode picks are being made for: the next one to reveal when catching up, otherwise the
-  // latest. Same target Overview's side bets use.
-  static upcomingEpisode(state){
-    // Never before the league's first episode: a league set to start at a later one picks for that.
-    const number = Math.max(BetLogic.upcomingEpisodeNumber(state), startEpisode(state));
-    return state.episodes.find(e => e.number === number) || null;
-  }
+  // The episode picks are being made for. See the module-level currentEpisode() -- shared with
+  // Active Roster's lineup grid and Overview's side bets.
+  static upcomingEpisode(state){ return currentEpisode(state); }
   // An episode has "happened" for scoring once its eliminations are logged -- a pick for a future
   // episode would otherwise count as correct the moment it's made (nothing yet contradicts it).
   static decided(ep){ return !!ep && (ep.events||[]).length > 0; }
@@ -948,7 +953,7 @@ const LEAGUE_TYPES = {
   },
   'pickem': {
     id: 'pickem',
-    name: "Pick'em",
+    name: "Eliminator Pool",
     description: 'No draft, no roster -- every episode, each player picks one castaway they think survives. No repeats until you\'ve picked everyone still in the game, and never the same one twice in a row. Ranked by longest streak of correct picks, then total correct.',
     draftStrategy: NoDraftStrategy,
     scoringStrategy: PickEmScoringStrategy,
@@ -2055,7 +2060,7 @@ return {
   lockActiveRosterLineups: ActiveRosterLogic.lockLineups, unlockActiveRosterLineups: ActiveRosterLogic.unlockLineups,
   addScoringEvent: ActiveRosterLogic.addEvent, removeScoringEvent: ActiveRosterLogic.removeEvent,
   pickEmPickFor: PickEmLogic.pickFor, pickEmEligibility: PickEmLogic.eligibility, pickEmHistory: PickEmLogic.history,
-  pickEmUpcomingEpisode: PickEmLogic.upcomingEpisode,
+  pickEmUpcomingEpisode: PickEmLogic.upcomingEpisode, currentEpisode,
   setPickEmPick: PickEmLogic.setPick, removePickEmPick: PickEmLogic.removePick,
 
   // ---- domain classes: reference these directly in new code instead of the flat aliases above ----

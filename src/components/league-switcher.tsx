@@ -4,19 +4,22 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLeagueStore, type LeagueSummary } from "@/lib/store";
 import { api } from "@/lib/api";
+import { useShowCatalog } from "@/lib/use-show-terms";
 import StateLogic from "@/lib/game/state-logic.js";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDownIcon, CrownIcon } from "@/components/icons";
 import { cn } from "cn";
 
 // /api/auth/me doesn't return each league's settings (just id/name/join_code/role), so the
-// league-type badge shown per row is resolved lazily on first open, not from the initial fetch --
-// fine at friend-group scale (a handful of leagues per user), not built to scale further than
-// that. Shared by both the desktop switcher below and MobileNav's own top-bar dropdown, which
-// needs the same lazy-fetch-and-cache logic but its own layout (see CLAUDE.md: mobile chrome
-// stays a separate component from desktop, not duplicated logic).
+// league-type badge AND show name shown per row are resolved lazily on first open, not from the
+// initial fetch -- fine at friend-group scale (a handful of leagues per user), not built to scale
+// further than that. Shared by both the desktop switcher below and MobileNav's own top-bar
+// dropdown, which needs the same lazy-fetch-and-cache logic but its own layout (see CLAUDE.md:
+// mobile chrome stays a separate component from desktop, not duplicated logic).
 export function useLeagueTypeBadges(leagues: LeagueSummary[]) {
   const [types, setTypes] = useState<Record<string, string>>({});
+  const [showNames, setShowNames] = useState<Record<string, string | null>>({});
+  const { data: catalog } = useShowCatalog();
   async function resolve() {
     const missing = leagues.filter((l) => !(l.id in types));
     if (missing.length === 0) return;
@@ -24,15 +27,17 @@ export function useLeagueTypeBadges(leagues: LeagueSummary[]) {
       missing.map(async (l) => {
         try {
           const { state } = await api.leagueState(l.id);
-          return [l.id, StateLogic.getLeagueType(state).name] as const;
+          const show = catalog?.shows.find((s) => s.slug === state.settings.showId);
+          return [l.id, StateLogic.getLeagueType(state).name, show?.name ?? null] as const;
         } catch {
-          return [l.id, "?"] as const;
+          return [l.id, "?", null] as const;
         }
       })
     );
-    setTypes((prev) => ({ ...prev, ...Object.fromEntries(results) }));
+    setTypes((prev) => ({ ...prev, ...Object.fromEntries(results.map(([id, type]) => [id, type])) }));
+    setShowNames((prev) => ({ ...prev, ...Object.fromEntries(results.map(([id, , show]) => [id, show])) }));
   }
-  return { types, resolve };
+  return { types, showNames, resolve };
 }
 
 // New in this POC -- the live app's "My Leagues" dashboard lets you switch leagues by going back
@@ -47,7 +52,7 @@ export function LeagueSwitcher() {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const switchLeague = useLeagueStore((s) => s.switchLeague);
-  const { types, resolve } = useLeagueTypeBadges(leagues);
+  const { types, showNames, resolve } = useLeagueTypeBadges(leagues);
   const currentLeague = leagues.find((l) => l.id === leagueId);
 
   function handleOpen() {
@@ -59,6 +64,9 @@ export function LeagueSwitcher() {
     setOpen(false);
     if (id === leagueId) return;
     await switchLeague(id);
+    // Always land on Overview after switching -- whatever tab you were on may not exist, or mean
+    // something different, in the new league (e.g. Mid-Season isn't shown for every league type).
+    router.push("/");
   }
 
   if (leagues.length === 0) return null;
@@ -92,10 +100,15 @@ export function LeagueSwitcher() {
                   <CrownIcon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
                 )}
               </span>
-              {types[l.id] && (
-                <Badge variant="secondary" className="text-[0.65rem]">
-                  {types[l.id]}
-                </Badge>
+              {(showNames[l.id] || types[l.id]) && (
+                <span className="flex items-center gap-1">
+                  {showNames[l.id] && <span className="text-xs text-muted-foreground">{showNames[l.id]}</span>}
+                  {types[l.id] && (
+                    <Badge variant="secondary" className="text-[0.65rem]">
+                      {types[l.id]}
+                    </Badge>
+                  )}
+                </span>
               )}
             </button>
           ))}

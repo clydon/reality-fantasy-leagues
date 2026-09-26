@@ -184,10 +184,10 @@ function CastRow({ member, busy, held, onRemove }: { member: SeasonCastMember; b
             where a broken image would otherwise be mistaken for a broken import. */}
         {member.photoUrl && !broken ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={member.photoUrl} alt="" className="h-8 w-8 rounded-full object-cover" onError={() => setBroken(true)} />
+          <img src={member.photoUrl} alt="" className="h-8 w-8 rounded-lg object-cover" onError={() => setBroken(true)} />
         ) : (
           <span
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-[0.6rem] font-bold text-muted-foreground"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-[0.6rem] font-bold text-muted-foreground"
             title={member.photoUrl && broken ? "That photo URL didn't load" : "No photo on the wiki row"}
           >
             {member.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join("")}

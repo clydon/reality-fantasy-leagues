@@ -5,7 +5,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { formatDateTime } from "@/lib/game/selectors";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 
-const AVATAR = "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-[0.65rem] font-bold";
+const AVATAR = "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-[0.65rem] font-bold";
 
 // Visual record of completed replenish assignments / trade swaps, most recent first -- who did
 // what, with the castaways' own photos rather than a text log. Shared by ReplenishPanel and

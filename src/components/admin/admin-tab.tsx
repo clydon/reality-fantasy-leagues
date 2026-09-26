@@ -27,7 +27,6 @@ export function AdminTab() {
     leagues,
     selectedLeagueId,
     membershipData,
-    loaded,
     lastTempPassword,
     load,
     toggleLeague,
@@ -48,9 +47,13 @@ export function AdminTab() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const PAGE_SIZE = 20;
 
+  // Reloads every time this tab mounts -- including navigating back to it -- not just the first
+  // time. `loaded` lives in the store, which outlives the component, so gating on `!loaded` used to
+  // mean every visit after the first showed whatever was fetched then, however stale (a league
+  // deleted, a user's role changed, a temp password issued from another tab).
   useEffect(() => {
-    if (isSuperAdmin && !loaded) load();
-  }, [isSuperAdmin, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (isSuperAdmin) load();
+  }, [isSuperAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isSuperAdmin) {
     return (
