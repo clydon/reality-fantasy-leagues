@@ -623,9 +623,16 @@ function validateEpisodes(extracted, state, terms, format) {
     for (const el of ep.eliminations || []) {
       const c = resolve(el && el.name, `episode ${n} elimination`);
       if (!c) continue;
-      // The same person leaving twice is nonsense, and it would corrupt placement order.
+      // The same person leaving twice is nonsense, and it would corrupt placement order -- almost
+      // always the sign of a misread rowspan attributing one real elimination to two episode
+      // numbers, rather than two genuine exits. NOT fatal to the whole run, on the same reasoning as
+      // an unresolved name above: this episode's other, cleanly-read eliminations are still real and
+      // still worth filing. The second (later) sighting is the one dropped, since the earlier episode
+      // number is more likely the correct one in a misread rowspan.
       if (eliminated.has(c.id)) {
-        fatal.push(`${c.name} is eliminated more than once (episode ${n})`);
+        const msg = `${c.name} is eliminated more than once (episode ${n}) -- kept the earlier one, dropped this one`;
+        problems.push(msg); elimProblems.push(msg);
+        dropped.push({ name: c.name, episode: n, why: "already recorded as eliminated in an earlier episode -- likely a misread rowspan" });
         continue;
       }
       eliminated.add(c.id);
