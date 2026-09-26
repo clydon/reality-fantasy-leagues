@@ -64,12 +64,10 @@ export function YourTeamCard({ state }: { state: LeagueState }) {
           ))}
         </div>
       )}
-      {pendingReplenish.length > 0 && (
+      {pendingReplenish.length > 0 && StateLogic.replenishAvailable(state) && (
         <>
           <p className="mt-2.5 text-xs text-muted-foreground">
-            {pendingReplenish.length} of your {pendingReplenish.length === 1 ? terms.castaway : terms.castaways}{" "}
-            {pendingReplenish.length === 1 ? "has" : "have"} been eliminated and{" "}
-            {pendingReplenish.length === 1 ? "is" : "are"} still awaiting Replenish.
+            The commissioner may schedule a Replenish to replace eliminated {terms.castaways}.
           </p>
           <DashLink href="/mid-season">Go to Mid-Season →</DashLink>
         </>

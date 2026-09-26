@@ -39,15 +39,17 @@ export function LeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; 
             <CastawayStatCard key={c.id} state={state} castaway={c} showOwner={false} showPoints={false} expanded />
           ))}
           {r.formerRoster.map((c) => (
-            <div key={c.id} className="opacity-60" title={c.departedVia === "trade" ? "Swapped away" : "Replenished away"}>
+            // The dim treatment here is "no longer on this roster" (they might not even be
+            // eliminated -- a trade drop doesn't have to be); CastawayStatCard's own eliminated-based
+            // dimming is a separate, narrower thing. The movement symbol next to their name (⇄/↓/↑,
+            // see castaway-stat-card.tsx) already explains why they're not current, so no title here.
+            <div key={c.id} className="opacity-60">
               <CastawayStatCard state={state} castaway={c} showOwner={false} showPoints={false} expanded />
             </div>
           ))}
         </div>
-        {r.formerRoster.length > 0 && (
-          <p className="mt-1.5 text-[0.7rem] text-muted-foreground">
-            Faded cards: once on this roster, since replenished or swapped away — kept for history, no longer counts toward the score.
-          </p>
+        {(r.formerRoster.length > 0 || r.roster.some((c) => c.acquiredVia && c.acquiredVia !== "draft")) && (
+          <p className="mt-1.5 text-[0.7rem] text-muted-foreground">⇄ traded away · ↓ eliminated, replenished away · ↑ added via Replenish/Swap</p>
         )}
       </details>
 

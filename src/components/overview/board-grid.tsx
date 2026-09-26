@@ -11,10 +11,13 @@ import { CastawayStatCard } from "@/components/castaway-stat-card";
 //
 // Tribe grouping always reads the castaway's CURRENT tribeId (GroupLogic keeps it live as the season
 // progresses -- a merge, a swap, a new pairing all update it), so once a league records a merge, this
-// board reflects it on its own. Groups are ordered by how many ACTIVE (non-eliminated) members they
-// currently hold, most first: post-merge, the merged tribe holds everyone still playing while the
-// original tribes hold none, so this naturally puts the merged tribe on top without needing to know
-// which tribe is "the merge" by name.
+// board reflects it on its own. Groups are ordered by TOTAL member count, most first: the merged
+// tribe inherits everyone who survived to the merge from every original tribe, so it ends up the
+// biggest one almost always -- this puts it on top without needing to know which tribe is "the
+// merge" by name. (An earlier version sorted by CURRENT active members instead, which looked right
+// mid-season but broke at the season's end: by the last episode nobody is "active" any more --
+// even the winner's own status is "eliminated" once the season's done -- so every tribe tied at
+// zero and the sort fell back to catalog order.)
 //
 // Within a group: still in the game first, then eliminated ordered by boot order descending (most
 // recently eliminated first, working back toward the first boot) -- sort only, no visual
@@ -30,8 +33,7 @@ export function BoardGrid({ state }: { state: LeagueState }) {
   const populated = groups
     .map((g) => ({ g, members: state.castaways.filter((c) => (c.tribeId || null) === g.id) }))
     .filter((x) => x.members.length > 0);
-  const activeCount = (members: Castaway[]) => members.filter((c) => c.status === "active").length;
-  const ordered = [...populated].sort((a, b) => activeCount(b.members) - activeCount(a.members));
+  const ordered = [...populated].sort((a, b) => b.members.length - a.members.length);
 
   return (
     <div id="board" className="rounded-lg border border-border bg-card p-4 shadow-sm">

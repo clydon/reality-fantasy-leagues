@@ -132,6 +132,10 @@ declare const StateLogic: {
   /** Records that someone changed tribe/team this episode (null/"" = no group now). See GroupLogic. */
   addGroupChange(state: LeagueState, epId: string, castawayId: string, groupName: string | null): boolean;
   removeGroupChange(state: LeagueState, epId: string, castawayId: string): void;
+  GroupLogic: {
+    /** Every recorded tribe/team change for one castaway, in episode order. */
+    changesFor(state: LeagueState, castawayId: string): { castawayId: string; tribeId: string | null }[];
+  };
   getPlayer(state: LeagueState, id: string): Player | undefined;
   getCastaway(state: LeagueState, id: string): Castaway | undefined;
   computeScores(state: LeagueState): ScoreRow[];

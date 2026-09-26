@@ -111,6 +111,7 @@ function buildTribes(data: DemoSeasonData, throughEpisode: number): Tribe[] {
 // to, regardless of how big the real cast happens to be. A cast size that doesn't divide evenly by
 // player count leaves a remainder undrafted, same as a real league's free agents.
 const ROSTER_SIZE: Record<"classic-draft" | "active-roster", number> = { "classic-draft": 3, "active-roster": 5 };
+const ACTIVE_ROSTER_ACTIVE_SLOTS = 3;
 
 function computeRoster(
   data: DemoSeasonData,
@@ -134,7 +135,10 @@ interface DemoMove {
   playerKey: string;
   addedKey: string;
   droppedKey: string;
-  at: string;
+  // The episode the move is tied to -- same idea as state-logic.js's lastCompletedEpisode: the
+  // episode that just aired, whose results created the opening (an elimination, for a replenish) or
+  // window (a voluntary upgrade, for a trade), not some future episode number.
+  episode: number;
 }
 
 function buildCastaways(
@@ -158,6 +162,9 @@ function buildCastaways(
       id: cid(c.key),
       name: c.name,
       tribeId: merged ? tid(MERGED_TRIBE_KEY) : c.groupKey ? tid(c.groupKey) : "",
+      // Set only once they've actually moved (merged), matching GroupLogic.add's own convention --
+      // see castaway-stat-card.tsx's previousTribes, which reads this to show where they started.
+      startTribeId: merged ? (c.groupKey ? tid(c.groupKey) : null) : undefined,
       ownerIds: ownerOf.get(c.key) || [],
       photoUrl: c.photoUrl ?? undefined,
       status: revealed ? "eliminated" : "active",
@@ -202,7 +209,8 @@ function simulateMidSeasonMoves(data: DemoSeasonData, ownership: { playerKey: st
       playerKey: replenishOwner.playerKey,
       addedKey: replenishAdd.key,
       droppedKey: replenishDrop.key,
-      at: "2026-03-02T18:00:00.000Z",
+      // The elimination that opened the slot IS the trigger, so the same episode.
+      episode: replenishDrop.exitEpisode,
     });
   }
 
@@ -218,7 +226,8 @@ function simulateMidSeasonMoves(data: DemoSeasonData, ownership: { playerKey: st
       playerKey: tradeOwner.playerKey,
       addedKey: tradeAdd.key,
       droppedKey: tradeDrop.key,
-      at: "2026-03-16T18:00:00.000Z",
+      // Not elimination-triggered -- a deliberate early-season swap window, a third of the way in.
+      episode: Math.max(1, Math.round(data.episodeCount * 0.3)),
     });
   }
 
@@ -262,6 +271,15 @@ function buildEpisodesBase(data: DemoSeasonData, players: Player[], throughEpiso
     const roles = data.castaways
       .filter((c) => c.role && c.role.sinceEpisode === n)
       .map((c) => ({ castawayId: cid(c.key), role: c.role!.value }));
+    // The merge itself is recorded as a real group change (not just a tribeId overwrite) so
+    // GroupLogic.changesFor -- and castaway-stat-card.tsx's previousTribes, which reads it -- see a
+    // genuine history to show, the same way a real commissioner recording it by hand would produce.
+    const groups =
+      n === mergeEp
+        ? data.castaways
+            .filter((c) => c.exitEpisode >= mergeEp!)
+            .map((c) => ({ castawayId: cid(c.key), tribeId: tid(MERGED_TRIBE_KEY) }))
+        : [];
     episodes.push({
       id: epId(n),
       number: n,
@@ -269,7 +287,7 @@ function buildEpisodesBase(data: DemoSeasonData, players: Player[], throughEpiso
       events,
       exiled: [],
       roles,
-      groups: [],
+      groups,
       bets: n % 2 === 0 ? [genericBet(data, n, players)] : [],
       picks: [],
       scoringEvents: [],
@@ -304,7 +322,7 @@ function baseSettings(data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId, rost
     setupComplete: true,
     ownershipMode: "exclusive" as const,
     wikiSeason: null,
-    activeSlots: 3,
+    activeSlots: ACTIVE_ROSTER_ACTIVE_SLOTS,
     benchSlots: leagueTypeId === "active-roster" ? 2 : 0,
     eventPoints: {},
     pickemCorrectPoints: 1,
@@ -374,6 +392,26 @@ function addSyntheticScoringEvents(data: DemoSeasonData, ownership: { playerKey:
   }
 }
 
+// Active Roster's whole point is managing WHO'S active each week -- fielding the entire roster every
+// episode (more than activeSlots allows) isn't just unrealistic, it's invalid against the league's
+// own settings (ACTIVE_ROSTER_ACTIVE_SLOTS of a 5-castaway roster). This picks a different, valid
+// subset each week -- only from castaways still in the game going into that episode, ranked by a
+// deterministic per-(episode,player,castaway) hash so the subset actually rotates instead of always
+// benching the same two -- so the demo shows off (and can be tested against) the "who do I field this
+// week" decision the league type is built around, not a roster that's permanently maxed out.
+function buildWeeklyLineups(data: DemoSeasonData, ownership: { playerKey: string; castawayKeys: string[] }[], episodes: Episode[]) {
+  const byKey = new Map(data.castaways.map((c) => [c.key, c]));
+  for (const ep of episodes) {
+    for (const o of ownership) {
+      const eligible = o.castawayKeys.map((k) => byKey.get(k)!).filter((c) => c.exitEpisode >= ep.number);
+      const ranked = [...eligible].sort(
+        (a, b) => hashStr(`${ep.number}:${o.playerKey}:${a.key}`) - hashStr(`${ep.number}:${o.playerKey}:${b.key}`)
+      );
+      ep.lineups[pid(o.playerKey)] = ranked.slice(0, Math.min(ACTIVE_ROSTER_ACTIVE_SLOTS, eligible.length)).map((c) => cid(c.key));
+    }
+  }
+}
+
 function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "active-roster", throughEpisode: number): LeagueState {
   const players = buildPlayers(data);
   const tribes = buildTribes(data, throughEpisode);
@@ -385,12 +423,7 @@ function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "
   const castaways = buildCastaways(data, ownerMap(ownership), true, throughEpisode, moves);
   const episodes = buildEpisodesBase(data, players, throughEpisode);
   if (leagueTypeId === "active-roster") {
-    // Every drafted castaway is always in the active lineup (activeSlots covers the whole roster) --
-    // there's no real-season basis for who a fictional owner would bench week to week, so rather than
-    // invent one, the demo just shows the full roster scoring every episode.
-    for (const ep of episodes) {
-      for (const o of ownership) ep.lineups[pid(o.playerKey)] = o.castawayKeys.map(cid);
-    }
+    buildWeeklyLineups(data, ownership, episodes);
     addSyntheticScoringEvents(data, ownership, episodes);
   }
   const log: MidSeasonLogEntry[] = moves.map((m, i) => ({
@@ -399,7 +432,10 @@ function buildRosterDemo(data: DemoSeasonData, leagueTypeId: "classic-draft" | "
     playerId: pid(m.playerKey),
     addedCastawayId: cid(m.addedKey),
     droppedCastawayId: cid(m.droppedKey),
-    at: m.at,
+    // No real timestamp to give (this never "happened" at a wall-clock moment) -- `episode` is what
+    // the UI actually shows now, `at` just needs to be a valid, order-preserving ISO string.
+    at: new Date(2026, 0, 1 + m.episode).toISOString(),
+    episode: m.episode,
   }));
   return {
     players,

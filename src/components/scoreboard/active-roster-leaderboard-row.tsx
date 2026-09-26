@@ -72,6 +72,9 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
           Being on the roster isn&rsquo;t enough — only {terms.castaways} in that episode&rsquo;s active lineup earned
           points.
         </p>
+        {(r.formerRoster.length > 0 || r.roster.some((c) => c.acquiredVia && c.acquiredVia !== "draft")) && (
+          <p className="mt-1 text-[0.7rem] text-muted-foreground">⇄ traded away · ↓ eliminated, replenished away · ↑ added via Replenish/Swap</p>
+        )}
       </details>
 
       {bonusEnabled && (

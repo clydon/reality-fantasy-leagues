@@ -1,12 +1,46 @@
 "use client";
 
-import type { LeagueState, Castaway, Player } from "@/lib/game/types";
+import type { LeagueState, Castaway, Player, Tribe } from "@/lib/game/types";
+import StateLogic from "@/lib/game/state-logic.js";
 import { castawayEventStats } from "@/lib/game/active-roster-rows";
 import { medalFor, MEDAL_EMOJI } from "@/lib/game/selectors";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { RoleBadge } from "@/components/role-badge";
 import { XMarkIcon } from "@/components/icons";
 import { cn } from "cn";
+
+// ⇄ a trade drop, ↓ a replenish drop (an elimination), ↑ anyone added via either -- next to a name
+// in a roster list, so a glance at "who's on this roster" also shows how they got there or left.
+function movementSymbol(c: Castaway): { symbol: string; title: string } | null {
+  if (c.departedVia === "trade") return { symbol: "⇄", title: "Traded away" };
+  if (c.departedVia === "replenish") return { symbol: "↓", title: "Eliminated, replenished away" };
+  if (c.acquiredVia === "trade") return { symbol: "↑", title: "Added via Swap" };
+  if (c.acquiredVia === "replenish") return { symbol: "↑", title: "Added via Replenish" };
+  return null;
+}
+
+// Up to 2 tribes this castaway was in BEFORE their current one -- original first, most recent
+// previous second -- for the small badge(s) at the photo's bottom-left (see the render below).
+// Nothing (empty array) if they've never moved, or moved but the league never actually recorded a
+// startTribeId (predates GroupLogic, or was never through it).
+function previousTribes(state: LeagueState, c: Castaway): Tribe[] {
+  if (!c.startTribeId) return [];
+  const changes = StateLogic.GroupLogic.changesFor(state, c.id)
+    .map((g) => g.tribeId)
+    .filter((id): id is string => !!id);
+  const history = [c.startTribeId, ...changes]; // ends at the current tribe, once there's been a change
+  const beforeCurrent = history.slice(0, -1);
+  const seen = new Set<string>();
+  const distinct: string[] = [];
+  for (const id of beforeCurrent) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      distinct.push(id);
+    }
+  }
+  const picked = distinct.length <= 2 ? distinct : [distinct[0], distinct[distinct.length - 1]];
+  return picked.map((id) => state.tribes.find((t) => t.id === id)).filter((t): t is Tribe => !!t);
+}
 
 // Active Roster's own castaway card: photo, name, elimination medal/placement, owner tag -- the same
 // visuals board-grid.tsx always drew -- plus a points badge overlapping the photo's bottom-right
@@ -57,6 +91,8 @@ export function CastawayStatCard({
   const dimmed = c.status === "eliminated" && (dimAllEliminated || !medal);
   const stats = showPoints ? castawayEventStats(state, c.id) : null;
   const clickable = showPoints && !!onToggleExpand;
+  const movement = movementSymbol(c);
+  const priorTribes = previousTribes(state, c);
 
   return (
     <div
@@ -111,9 +147,30 @@ export function CastawayStatCard({
             {stats.total}
           </div>
         )}
+        {/* Where they started (and, if they've moved more than once, their most recent tribe before
+            this one) -- no text, just the tribe's own color, so it reads as "traces of history"
+            rather than competing with the points badge on the opposite corner. Two half-overlapping
+            circles when there are two: original on the left, more recent on top/right. */}
+        {priorTribes.length > 0 && (
+          <div className="absolute -bottom-1 -left-1 flex">
+            {priorTribes.map((t, i) => (
+              <div
+                key={t.id}
+                className="h-3.5 w-3.5 rounded-full border-2 border-card"
+                style={{ background: t.color, marginLeft: i === 0 ? 0 : -6, zIndex: i }}
+                title={i === 0 ? `Started in ${t.name}` : `Previously in ${t.name}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
       <div className="text-[0.84rem] font-semibold text-foreground">
         {c.name}
+        {movement && (
+          <span className="ml-1 text-muted-foreground" title={movement.title}>
+            {movement.symbol}
+          </span>
+        )}
         <RoleBadge state={state} castawayId={c.id} />
       </div>
       {showOwner && owners.length > 0 && (

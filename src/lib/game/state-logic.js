@@ -82,6 +82,17 @@ function startEpisode(state){
 }
 function inPlay(state, episodeNumber){ return episodeNumber >= startEpisode(state); }
 
+// The most recent in-play episode that has actually aired/been logged (EpisodeLogic.hasResults) --
+// what a Replenish or Swap made "now" is really tied to: the episode whose results just created the
+// opening (an elimination) or window (an active-roster upgrade), not some future episode number that
+// may not even exist yet. Null before anything has happened. Used to stamp MidSeasonLogEntry.episode
+// (ReplenishLogic.assign / TradeLogic.swap) so the transaction history can show "Episode N" instead
+// of a bare timestamp.
+function lastCompletedEpisode(state){
+  const played = [...state.episodes].filter(e => inPlay(state, e.number) && EpisodeLogic.hasResults(e)).sort((a,b) => b.number - a.number);
+  return played.length ? played[0].number : null;
+}
+
 // The episode "this week's choice" is being made for -- Eliminator Pool's pick, Active Roster's
 // lineup, Overview's side bets: the next one to reveal when catching up, otherwise the latest, but
 // never before the league's own start episode (a league set to start later picks/fields for that
@@ -1328,7 +1339,7 @@ class ReplenishLogic {
     (state.midSeason.log = state.midSeason.log || []).push({
       id: Core.uid('tx'), type:'replenish', playerId: turn.playerId,
       addedCastawayId: castawayId, droppedCastawayId: lostCastaway ? lostCastaway.id : null,
-      at: new Date().toISOString()
+      at: new Date().toISOString(), episode: lastCompletedEpisode(state)
     });
     r.index++;
   }
@@ -1358,7 +1369,7 @@ class TradeLogic {
     (state.midSeason.log = state.midSeason.log || []).push({
       id: Core.uid('tx'), type:'trade', playerId: turn.playerId,
       addedCastawayId: addId, droppedCastawayId: dropId,
-      at: new Date().toISOString()
+      at: new Date().toISOString(), episode: lastCompletedEpisode(state)
     });
     t.index++;
   }

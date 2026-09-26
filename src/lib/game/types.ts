@@ -601,6 +601,10 @@ export interface MidSeasonLogEntry {
   addedCastawayId: string;
   droppedCastawayId: string | null;
   at: string;
+  /** The most recent episode with results as of the transaction (state-logic.js's
+   * lastCompletedEpisode) -- what the move is really tied to, not a raw timestamp. Null/absent on
+   * entries from before this existed, or if nothing had aired yet. */
+  episode?: number | null;
 }
 
 export interface LeagueState {

@@ -31,6 +31,8 @@ export function DraftBoard() {
   }
 
   const shared = state.settings.ownershipMode === "shared";
+  const turn = StateLogic.currentDraftTurn(state);
+  const draftComplete = !!(turn && turn.isComplete);
 
   return (
     <>
@@ -49,7 +51,9 @@ export function DraftBoard() {
           <DraftOrderPanel state={state} />
           <DraftStatusPanel state={state} />
           <DraftResultsPanel state={state} />
-          <FreeAgentsPanel state={state} />
+          {/* Nothing left to pick once the draft's done -- an empty-looking "Free Agents (0)" panel
+              (or a full one nobody can act on any more) was just clutter below the results. */}
+          {!draftComplete && <FreeAgentsPanel state={state} />}
         </>
       )}
     </>
