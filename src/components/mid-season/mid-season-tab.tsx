@@ -28,7 +28,7 @@ export function MidSeasonTab() {
   if (!leagueType.hasRoster) {
     return (
       <>
-        <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Mid-Season Tools</h2>
+        <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Mid-Season Tools</h2>
         <p className="text-sm text-muted-foreground">This league type has no roster, so there&rsquo;s nothing to replenish or swap.</p>
       </>
     );
@@ -36,7 +36,7 @@ export function MidSeasonTab() {
 
   return (
     <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Mid-Season Tools</h2>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Mid-Season Tools</h2>
 
       {/* Hidden when neither mechanic is available -- either the league type can't support them
           (shared ownership has no free agents) or the commissioner hasn't enabled them. */}

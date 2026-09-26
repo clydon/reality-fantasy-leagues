@@ -24,7 +24,7 @@ export function DraftBoard() {
   if (!StateLogic.getLeagueType(state).hasRoster) {
     return (
       <>
-        <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Draft</h2>
+        <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Draft</h2>
         <p className="text-sm text-muted-foreground">This league type has no draft or roster. Picks are made from the Episodes tab.</p>
       </>
     );
@@ -36,7 +36,7 @@ export function DraftBoard() {
 
   return (
     <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Draft</h2>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Draft</h2>
       {shared ? (
         <>
           <DraftStatusPanel state={state} />

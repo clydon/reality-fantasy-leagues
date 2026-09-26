@@ -17,7 +17,7 @@ export function EpisodesTab() {
 
   return (
     <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Episodes</h2>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Episodes</h2>
       {/* Above the episode list: in a catch-up league this is where the next episode gets revealed.
           Renders nothing for a league that isn't catching up. */}
       <CatchUpPanel state={state} />

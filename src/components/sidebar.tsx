@@ -29,14 +29,6 @@ const TABS = [
   { href: "/setup", label: "League Settings" },
 ];
 
-// Admin and Reports are account-level, not league-level -- they say nothing about the league
-// you're looking at, and they're only there for one person. They live in the footer group with
-// the other account-level rows rather than mixed into the league tabs above.
-const ADMIN_TABS = [
-  { href: "/admin", label: "Admin" },
-  { href: "/reports", label: "Reports" },
-];
-
 export function Sidebar() {
   const pathname = usePathname();
   const isSuperAdmin = useIsSuperAdmin();
@@ -128,11 +120,15 @@ export function Sidebar() {
 
       <div className="mt-auto flex flex-col gap-1.5 border-t border-border px-2.5 pb-1 pt-3">
         {isSuperAdmin && (
-          <div className="mb-1 flex flex-col gap-0.5">
-            {ADMIN_TABS.map((tab) => (
-              <NavLink key={tab.href} href={tab.href} label={tab.label} active={pathname === tab.href} dense />
-            ))}
-          </div>
+          <>
+            <Link href="/admin" className="block text-[0.8rem] font-semibold text-primary hover:underline">
+              Admin
+            </Link>
+            <Link href="/reports" className="block text-[0.8rem] font-semibold text-primary hover:underline">
+              Reports
+            </Link>
+            <div className="my-1 h-px bg-border" />
+          </>
         )}
         {/* Report an Issue posts as the real signed-in SurvivorDraft user (server-side
             requireAuth) -- gated on real authentication (isAuthenticated/userId), not `mode`,
@@ -149,21 +145,11 @@ export function Sidebar() {
           </>
         )}
         {mode === "mock" ? (
-          hasSeason && (
-            <p className="text-[0.8rem] text-muted-foreground">
-              Viewing demo data.{" "}
-              <button className="font-semibold text-primary hover:underline" onClick={openDemoPicker}>
-                Switch season
-              </button>
-              {!isAuthenticated && (
-                <>
-                  {" · "}
-                  <button className="font-semibold text-primary hover:underline" onClick={exitDemo}>
-                    Sign in
-                  </button>
-                </>
-              )}
-            </p>
+          hasSeason &&
+          !isAuthenticated && (
+            <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={exitDemo}>
+              Sign in
+            </button>
           )
         ) : (
           <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={openDemoPicker}>
@@ -187,20 +173,17 @@ function NavLink({
   label,
   active,
   badge,
-  dense,
 }: {
   href: string;
   label: string;
   active: boolean;
   badge?: { label: string; urgent: boolean } | null;
-  dense?: boolean;
 }) {
   return (
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-2.5 rounded-[7px] font-semibold text-muted-foreground transition-colors",
-        dense ? "px-1 py-1.5 text-[0.8rem]" : "px-3 py-2.5 text-[0.9rem]",
+        "flex items-center gap-2.5 rounded-[7px] px-3 py-2.5 text-[0.9rem] font-semibold text-muted-foreground transition-colors",
         active ? "bg-[#fbeee8] text-primary" : "hover:bg-secondary hover:text-foreground"
       )}
     >

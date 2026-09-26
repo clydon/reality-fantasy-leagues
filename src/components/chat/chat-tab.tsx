@@ -54,7 +54,7 @@ export function ChatTab() {
   // column's padding with its own bounded height, a simplification not a redesign.
   return (
     <div className="flex h-[70vh] flex-col">
-      <h2 className="mb-3 text-2xl font-bold tracking-tight">Chat</h2>
+      <h2 className="mb-3 text-2xl font-bold tracking-tight max-nav:hidden">Chat</h2>
       <div className="flex-1 overflow-y-auto rounded-lg border border-border bg-card p-3">
         {messages.length === 0 ? (
           <div className="text-sm italic text-muted-foreground">No messages yet — say hello!</div>

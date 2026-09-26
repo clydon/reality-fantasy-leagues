@@ -58,7 +58,7 @@ export function AdminTab() {
   if (!isSuperAdmin) {
     return (
       <>
-        <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Admin</h2>
+        <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Admin</h2>
         <p className="text-sm text-muted-foreground">
           Admin is only available when signed in as a real super-admin account — same as the live app, which never
           shows this nav link to anyone else, demo mode included.
@@ -97,7 +97,7 @@ export function AdminTab() {
 
   return (
     <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Admin</h2>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Admin</h2>
 
       {/* Catalog config rather than per-account admin, and what a fresh install needs set up first,
           so it sits above the users/leagues tables. */}

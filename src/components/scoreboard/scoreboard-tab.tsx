@@ -29,7 +29,7 @@ export function ScoreboardTab() {
 
   return (
     <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Scoreboard</h2>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Scoreboard</h2>
       {scores.map((r, i) => (
         <Row key={r.playerId} r={r} rank={i + 1} state={state} />
       ))}

@@ -66,7 +66,7 @@ export function OverviewDashboard() {
 
   return (
     <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Overview</h2>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Overview</h2>
       <OverviewCustomizePanel state={state} leagueTypeId={leagueTypeId} draftComplete={draftComplete} />
       {/* Catch-up mode (StateLogic.RevealLogic): say so here, or the standings look inexplicably
           early to anyone who knows how far the real season has run. Deliberately says nothing about

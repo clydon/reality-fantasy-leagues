@@ -36,7 +36,7 @@ export function SetupTab() {
 
   return (
     <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">League Settings</h2>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">League Settings</h2>
       {!canManage && (
         <p className="mb-4 text-sm text-muted-foreground">
           Viewable by everyone — only your commissioner (or an admin) can make changes here.

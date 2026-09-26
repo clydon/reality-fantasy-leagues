@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Castaway, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayStatCard } from "@/components/castaway-stat-card";
+
+const HIDE_ELIMINATED_KEY = "board-hide-eliminated";
 
 // Direct port of renderBoardGrid() (public/app.js) -- grouped by tribe, one card per castaway, in a
 // bordered card shell matching every other Overview section (this was the one section that didn't
@@ -27,7 +29,30 @@ import { CastawayStatCard } from "@/components/castaway-stat-card";
 // what scored those points (CastawayStatCard); every other league type keeps plain cards.
 export function BoardGrid({ state }: { state: LeagueState }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Per-browser preference, not app-wide like the Customize Overview panel -- everyone's own call on
+  // whether they want to scroll past people who are already out. Defaults to showing everyone
+  // (false) so nothing hides before this reads localStorage on mount.
+  const [hideEliminated, setHideEliminated] = useState(false);
   const activeRoster = StateLogic.getLeagueType(state).hasActiveRoster;
+
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHideEliminated(localStorage.getItem(HIDE_ELIMINATED_KEY) === "1");
+    } catch {
+      // localStorage unavailable (private window, blocked) -- just keep showing everyone.
+    }
+  }, []);
+
+  function toggleHideEliminated() {
+    const next = !hideEliminated;
+    setHideEliminated(next);
+    try {
+      localStorage.setItem(HIDE_ELIMINATED_KEY, next ? "1" : "0");
+    } catch {
+      // Best-effort only -- worst case the toggle resets next visit.
+    }
+  }
 
   const groups = [{ id: null as string | null, name: "Unassigned", color: "#4a5245" }, ...state.tribes];
   const populated = groups
@@ -37,10 +62,18 @@ export function BoardGrid({ state }: { state: LeagueState }) {
 
   return (
     <div id="board" className="rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-3 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Board</h3>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Board</h3>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input type="checkbox" checked={hideEliminated} onChange={toggleHideEliminated} />
+          Hide eliminated
+        </label>
+      </div>
       <div className="flex flex-col gap-6">
         {ordered.map(({ g, members }) => {
-          const sorted = sortActiveFirstThenBootOrder(members);
+          const visible = hideEliminated ? members.filter((c) => c.status !== "eliminated") : members;
+          if (visible.length === 0) return null;
+          const sorted = sortActiveFirstThenBootOrder(visible);
           return (
             <div key={g.id ?? "unassigned"}>
               {/* A show with no groups at all (The Traitors) puts everyone here -- no heading needed. */}

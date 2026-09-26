@@ -41,7 +41,7 @@ export function AccountPanel() {
   if (session?.user) {
     return (
       <>
-        <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Account settings</h2>
+        <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Account settings</h2>
         <div className="mx-auto max-w-[420px]">
           <ProfileSection />
           <PasswordSection />

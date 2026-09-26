@@ -284,9 +284,6 @@ export function MobileNav() {
         {hasSeason && demoted && <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />}
         {hasSeason && <MoreRow icon={GearIcon} label="League Settings" onClick={() => go("/setup")} />}
         {!hasSeason && <MoreRow icon={OverviewIcon} label="My Leagues" onClick={() => go("/dashboard")} />}
-        {/* Reachable even with a real season loaded now, not just when leagueless -- picking one
-            replaces the view with demo data the same way Sidebar's "Switch to demo data" does. */}
-        <MoreRow icon={EpisodesIcon} label="Demo Season" onClick={() => go("")} />
         {isSuperAdmin && (
           <>
             <div className="my-1.5 h-px bg-border" />
@@ -314,6 +311,10 @@ export function MobileNav() {
             <div className="my-1.5 h-px bg-border" />
           </>
         )}
+        {/* Reachable even with a real season loaded now, not just when leagueless -- picking one
+            replaces the view with demo data the same way Sidebar's "Switch to demo data" does. */}
+        <MoreRow icon={EpisodesIcon} label="Demo Season" onClick={() => go("")} />
+        <div className="my-1.5 h-px bg-border" />
         <MoreRow
           icon={LogoutIcon}
           label={isAuthenticated ? "Log out" : "Sign in"}

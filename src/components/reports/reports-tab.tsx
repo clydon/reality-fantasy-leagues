@@ -22,7 +22,7 @@ export function ReportsTab() {
   if (!isSuperAdmin) {
     return (
       <>
-        <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Bug &amp; Feature Reports</h2>
+        <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Bug &amp; Feature Reports</h2>
         <p className="text-sm text-muted-foreground">
           Reports is only available when signed in as a real super-admin account — same as the live app, which never
           shows this nav link to anyone else, demo mode included.
@@ -33,7 +33,7 @@ export function ReportsTab() {
 
   return (
     <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Bug &amp; Feature Reports</h2>
+      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Bug &amp; Feature Reports</h2>
       {reports.length === 0 ? (
         <div className="text-sm italic text-muted-foreground">No reports yet.</div>
       ) : (
