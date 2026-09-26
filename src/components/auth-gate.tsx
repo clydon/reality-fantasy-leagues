@@ -14,6 +14,7 @@ import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 import { ReportModal } from "@/components/report-modal";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DemoSeasonPicker } from "@/components/demo-season-picker";
+import { BootOverlay } from "@/components/boot-overlay";
 import { InstallHint } from "@/components/install-hint";
 import { Dashboard } from "@/components/dashboard/dashboard";
 import { useLeaguePoll } from "@/lib/use-league-poll";
@@ -158,7 +159,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // whatever is in `state` until it resolves is the demo season. Rendering the shell over that is
   // what flashed a grid of demo cast members after creating a league.
   if (status === "checking" || loadingLeague) {
-    return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+    return <BootOverlay />;
   }
 
   // Signing up is how you get a session, so /account has to render before there is one -- but only

@@ -151,3 +151,28 @@
     @apply font-sans;
   }
 }
+
+/* Port of SurvivorDraft's boot overlay (public/styles.css) -- a pulsing app icon + three bouncing
+   dots, for AuthGate's own initial-load/league-switch screen (boot-overlay.tsx) instead of the bare
+   "Loading…" text it had. Plain keyframes rather than Tailwind's animate-* utilities since those
+   don't cover a staggered per-dot delay without three near-duplicate arbitrary-value classes. */
+@keyframes boot-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.045); opacity: 1; }
+}
+@keyframes boot-dot {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-4px); }
+}
+.boot-overlay-logo {
+  animation: boot-pulse 1.8s ease-in-out infinite;
+}
+.boot-overlay-dot {
+  animation: boot-dot 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .boot-overlay-logo,
+  .boot-overlay-dot {
+    animation: none;
+  }
+}
