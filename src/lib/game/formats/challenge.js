@@ -19,9 +19,11 @@ const events = [
   { id: 'captain', label: 'Served as team captain / leader', defaultPoints: { exclusive: 0.5, shared: 1 } },
   { id: 'finalist', label: 'Reached and completed the Final', defaultPoints: { exclusive: 3, shared: 5 }, implied: true },
   { id: 'seasonWinner', label: 'Won the season', defaultPoints: { exclusive: 5, shared: 10 }, implied: true },
-  { id: 'eliminated', label: 'Eliminated', defaultPoints: 0, implied: true },
-  { id: 'disqualified', label: 'Disqualified', defaultPoints: 0, implied: true },
-  { id: 'quit', label: 'Quit', defaultPoints: 0, implied: true },
+  // Leaving costs points, so benching someone headed into an elimination is a real decision. Quitting
+  // and being disqualified are their own doing; a medical removal isn't, so it stays 0.
+  { id: 'eliminated', label: 'Eliminated', defaultPoints: -3, implied: true },
+  { id: 'disqualified', label: 'Disqualified', defaultPoints: -5, implied: true },
+  { id: 'quit', label: 'Quit', defaultPoints: -5, implied: true },
   { id: 'medicallyRemoved', label: 'Medically removed', defaultPoints: 0, implied: true },
 ];
 

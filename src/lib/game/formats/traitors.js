@@ -30,8 +30,12 @@ const events = [
   { id: 'recruited', label: 'Recruited as a Traitor', defaultPoints: 3, implied: true },
   { id: 'finalist', label: 'Reached the end as a Finalist', defaultPoints: { exclusive: 3, shared: 5 }, implied: true },
   { id: 'seasonWinner', label: 'Won the season', defaultPoints: { exclusive: 5, shared: 10 }, implied: true },
+  // Murdered stays 0: it usually means the Traitors saw you as a threat, and nobody can see it coming
+  // to bench you. Being banished either way, or walking out, costs points.
   { id: 'murdered', label: 'Murdered', defaultPoints: 0, implied: true },
-  { id: 'banishedAsTraitor', label: 'Banished as a Traitor (caught)', defaultPoints: 0, implied: true },
+  { id: 'banishedAsFaithful', label: 'Banished as a Faithful', defaultPoints: -3, implied: true },
+  { id: 'banishedAsTraitor', label: 'Banished as a Traitor (caught)', defaultPoints: -3, implied: true },
+  { id: 'leftGame', label: 'Left the game', defaultPoints: -5, implied: true },
 ];
 
 // Events that follow from what an episode already records. `ctx.roleOf(castawayId, n)` is the role
@@ -42,9 +46,11 @@ function impliedEvents(ep, ctx) {
     if (el.method === 'Murdered') out.push({ type: 'murdered', castawayId: el.castawayId });
     if (el.method === 'Finalist') out.push({ type: 'finalist', castawayId: el.castawayId });
     if (el.method === 'Winner') out.push({ type: 'seasonWinner', castawayId: el.castawayId });
-    if (el.method === 'Banished' && ctx.roleOf(el.castawayId, ep.number) === 'Traitor') {
-      out.push({ type: 'banishedAsTraitor', castawayId: el.castawayId });
+    if (el.method === 'Banished') {
+      const traitor = ctx.roleOf(el.castawayId, ep.number) === 'Traitor';
+      out.push({ type: traitor ? 'banishedAsTraitor' : 'banishedAsFaithful', castawayId: el.castawayId });
     }
+    if (el.method === 'Left the game') out.push({ type: 'leftGame', castawayId: el.castawayId });
   }
   for (const r of ep.roles || []) {
     if (r.role === RECRUITED) out.push({ type: 'recruited', castawayId: r.castawayId });

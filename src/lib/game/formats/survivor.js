@@ -39,9 +39,39 @@ const events = [
   { id: 'votedWithMajority', label: 'Voted with the majority (voted for who went home)', defaultPoints: { exclusive: 0.5, shared: 1 } },
   { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: { exclusive: 0.5, shared: 1 } },
   { id: 'survivedVotes', label: 'Received votes at Tribal but survived', defaultPoints: 1.5 },
-  { id: 'advantageTargeted', label: 'Had an advantage used against them', defaultPoints: 0.5 },
-  { id: 'satOut', label: 'Sat out a challenge', defaultPoints: 0 }
+  // Bad news, so negative: a stolen or blocked vote hurts, and sitting out usually marks a weak challenger.
+  { id: 'advantageTargeted', label: 'Had an advantage used against them', defaultPoints: -0.5 },
+  { id: 'satOut', label: 'Sat out a challenge', defaultPoints: -0.5 },
+  // Tracked (the mirror of voting with the majority) but worth nothing by default -- a league can
+  // choose to punish being on the wrong side of a vote.
+  { id: 'votedAgainstMajority', label: 'Voted against the majority', defaultPoints: 0 },
+  // How they left, scored automatically from the elimination itself (impliedEvents) -- the most
+  // reliable data there is, and in Active Roster only a fielded castaway's exit counts, which is the
+  // point: read the game and bench whoever's going home. A medevac isn't their doing and can't be
+  // seen coming, and losing fire-making still means reaching the final four, so both are 0.
+  { id: 'votedOut', label: 'Voted out', defaultPoints: -3, implied: true },
+  { id: 'quit', label: 'Quit', defaultPoints: -5, implied: true },
+  { id: 'medevac', label: 'Medically evacuated', defaultPoints: 0, implied: true },
+  { id: 'lostFireMaking', label: 'Lost fire-making', defaultPoints: 0, implied: true },
+  { id: 'finalist', label: 'Reached Final Tribal (lost the jury vote)', defaultPoints: { exclusive: 3, shared: 5 }, implied: true },
+  { id: 'soleSurvivor', label: 'Sole Survivor', defaultPoints: { exclusive: 5, shared: 10 }, implied: true }
 ];
+
+const EXIT_EVENTS = {
+  'Voted Out': 'votedOut',
+  'Quit': 'quit',
+  'Medically Evacuated': 'medevac',
+  'Lost Fire-Making': 'lostFireMaking',
+  'Lost Final Tribal (Jury Vote)': 'finalist',
+  'Sole Survivor': 'soleSurvivor',
+};
+
+// Scored from how someone left, so a corrected exit re-scores on its own and nothing is double-counted.
+function impliedEvents(ep) {
+  return (ep.events || [])
+    .filter((el) => EXIT_EVENTS[el.method])
+    .map((el) => ({ type: EXIT_EVENTS[el.method], castawayId: el.castawayId }));
+}
 
 // ---------- wiki (db/wiki-sync.js) ----------
 
@@ -351,8 +381,11 @@ function researchItems(entry, add, ctx = {}) {
     add("event", "votesNegated");
   }
   // Voted for someone who went home this episode, and didn't go home themselves.
-  if (entry.votedFor && entry.leftTheGame !== "yes" && votedOutNames(ctx.payload).some((n) => same(n, entry.votedFor))) {
-    add("event", "votedWithMajority");
+  // ...or for someone who didn't, at a Tribal where someone did (so a revote or tie isn't guessed at).
+  if (entry.votedFor && entry.leftTheGame !== "yes") {
+    const out = votedOutNames(ctx.payload);
+    if (out.some((n) => same(n, entry.votedFor))) add("event", "votedWithMajority");
+    else if (out.length) add("event", "votedAgainstMajority");
   }
   if (entry.wonTribeImmunity === "yes") add("event", "tribeImmunity");
   if (entry.wonIndividualReward === "yes" || entry.wonTribeReward === "yes") add("event", "rewardWin");
@@ -424,6 +457,7 @@ module.exports = {
   // created, and the winner isn't a "loss" for replenish.
   winnerExitMethod: 'Sole Survivor',
   events,
+  impliedEvents,
   // The season has a merge, so episodes carry a post-merge flag and the UI offers it.
   hasMerge: true,
   // Players are in tribes, which can change (swaps, the merge) -- see GroupLogic.

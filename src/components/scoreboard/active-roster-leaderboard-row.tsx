@@ -48,7 +48,7 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
                 <span className="flex-1">
                   {row.castawayName} — <span className="text-muted-foreground">{row.label}</span>
                 </span>
-                <span className="font-mono text-xs">+{row.points}</span>
+                <span className="font-mono text-xs">{row.points >= 0 ? `+${row.points}` : row.points}</span>
               </div>
             ))
           )}

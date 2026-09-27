@@ -112,3 +112,48 @@ test("decimal points are kept, and totals don't pick up float noise", () => {
   StateLogic.updateSettings(s, "eventPoints", { ...s.settings.eventPoints, zeroVotesSafe: "lots" });
   assert.equal(s.settings.eventPoints.zeroVotesSafe, 0);
 });
+
+// ---- how someone leaves (implied from the elimination, scored only if they were fielded) ----
+function exitLeague(showFormat, method, { roles = [] } = {}) {
+  return StateLogic.migrateLeagueState({
+    settings: { leagueTypeId: "active-roster", showFormat, ownershipMode: "shared", activeSlots: 2, startEpisode: 1 },
+    players: [{ id: "p1", name: "Ann", color: "#111" }],
+    castaways: ["a", "b"].map((id) => ({ id, name: id, ownerIds: ["p1"], status: "active" })),
+    episodes: [{ id: "ep1", number: 1, events: [{ castawayId: "a", method }], roles, lineups: { p1: ["a"] }, scoringEvents: [] }],
+  });
+}
+const total = (s) => StateLogic.computeScores(s)[0].total;
+
+test("Survivor scores how someone leaves: voted out and quitting cost, a medevac doesn't, the end pays", () => {
+  assert.equal(total(exitLeague("survivor", "Voted Out")), -3);
+  assert.equal(total(exitLeague("survivor", "Quit")), -5);
+  assert.equal(total(exitLeague("survivor", "Medically Evacuated")), 0);
+  assert.equal(total(exitLeague("survivor", "Lost Fire-Making")), 0);
+  assert.equal(total(exitLeague("survivor", "Lost Final Tribal (Jury Vote)")), 5);
+  assert.equal(total(exitLeague("survivor", "Sole Survivor")), 10);
+});
+
+test("benching someone the week they go home avoids the penalty", () => {
+  const s = exitLeague("survivor", "Voted Out");
+  s.episodes[0].lineups.p1 = ["b"];
+  assert.equal(total(s), 0);
+});
+
+test("The Challenge and Traitors exits", () => {
+  assert.equal(total(exitLeague("challenge", "Eliminated")), -3);
+  assert.equal(total(exitLeague("challenge", "Disqualified")), -5);
+  assert.equal(total(exitLeague("challenge", "Medically removed")), 0);
+  assert.equal(total(exitLeague("traitors", "Banished")), -3, "a Faithful banished");
+  assert.equal(total(exitLeague("traitors", "Banished", { roles: [{ castawayId: "a", role: "Traitor" }] })), -3, "a Traitor caught");
+  assert.equal(total(exitLeague("traitors", "Left the game")), -5);
+  assert.equal(total(exitLeague("traitors", "Murdered")), 0);
+});
+
+test("voting against the majority is tracked but worth 0; sitting out and being targeted cost 0.5", () => {
+  const items = staged(tribal());
+  assert.ok(eventsOf(items, "Annie Davis").includes("votedAgainstMajority"));
+  const s = league("shared");
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(s, "votedAgainstMajority"), 0);
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(s, "satOut"), -0.5);
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(s, "advantageTargeted"), -0.5);
+});

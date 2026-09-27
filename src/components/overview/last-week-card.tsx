@@ -54,7 +54,7 @@ export function LastWeekCard({ state }: { state: LeagueState }) {
                 <span className="flex-1">
                   {c?.name ?? "?"} — <span className="text-muted-foreground">{def?.label ?? ev.type}</span>
                 </span>
-                <span className="font-mono text-xs">+{StateLogic.ActiveRosterLogic.pointsFor(state, ev.type)}</span>
+                <span className="font-mono text-xs">{signed(StateLogic.ActiveRosterLogic.pointsFor(state, ev.type))}</span>
               </div>
             );
           })}
@@ -65,4 +65,9 @@ export function LastWeekCard({ state }: { state: LeagueState }) {
       </p>
     </DashCard>
   );
+}
+
+// "+2" / "-3" / "0" for a points value that can be negative.
+function signed(n: number) {
+  return n > 0 ? `+${n}` : String(n);
 }
