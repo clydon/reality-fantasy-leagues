@@ -12,7 +12,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { logOut } from "@/lib/auth-client";
 import { cn } from "cn";
 import { midseasonBadge } from "@/lib/game/selectors";
-import { useLeagueTypeBadges } from "@/components/league-switcher";
+import { useLeagueTypeBadges, sortLeaguesByType } from "@/components/league-switcher";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
 import { Badge } from "@/components/ui/badge";
 import { ThemePicker } from "@/components/theme-picker";
@@ -182,7 +182,7 @@ export function MobileNav() {
             </button>
             {leagueMenuOpen && (
               <div className="absolute left-0 top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
-                {leagues.map((l) => (
+                {sortLeaguesByType(leagues, leagueTypes).map((l) => (
                   <button
                     key={l.id}
                     className={cn(

@@ -16,6 +16,17 @@ import { cn } from "cn";
 // further than that. Shared by both the desktop switcher below and MobileNav's own top-bar
 // dropdown, which needs the same lazy-fetch-and-cache logic but its own layout (see CLAUDE.md:
 // mobile chrome stays a separate component from desktop, not duplicated logic).
+// Dropdown order: Active Roster, then Classic Draft, then Eliminator Pool, then anything not yet
+// known; alphabetical within each. `types` is the league-type name per league (useLeagueTypeBadges).
+const TYPE_ORDER = ["active-roster", "classic-draft", "pickem"].map((id) => StateLogic.LEAGUE_TYPES[id]?.name);
+export function sortLeaguesByType<T extends { id: string; name: string }>(leagues: T[], types: Record<string, string>): T[] {
+  const rank = (l: T) => {
+    const i = TYPE_ORDER.indexOf(types[l.id]);
+    return i === -1 ? TYPE_ORDER.length : i;
+  };
+  return [...leagues].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+}
+
 export function useLeagueTypeBadges(leagues: LeagueSummary[]) {
   const [types, setTypes] = useState<Record<string, string>>({});
   const [showNames, setShowNames] = useState<Record<string, string | null>>({});
@@ -85,7 +96,7 @@ export function LeagueSwitcher() {
       </button>
       {open && (
         <div className="absolute left-2.5 right-2.5 top-full z-20 mt-1 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
-          {leagues.map((l) => (
+          {sortLeaguesByType(leagues, types).map((l) => (
             <button
               key={l.id}
               className={cn(
