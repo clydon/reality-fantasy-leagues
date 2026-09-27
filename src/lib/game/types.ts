@@ -162,7 +162,12 @@ export interface FinalePrediction {
 export interface LeagueSettings {
   teamSize: number;
   bonusEnabled: boolean;
-  replenishOrderBy: "mostPoints" | "leastPoints";
+  /** Mid-season priority: "rolling" reverse-draft waiver list (default), or standings each round. */
+  replenishOrderBy: "rolling" | "mostPoints" | "leastPoints";
+  /** Active Roster: a roster down to this many castaways still in the game may replenish (default activeSlots - 1). */
+  replenishAt?: number | null;
+  /** Active Roster: a swap window opens after every Nth episode (default 3). */
+  swapEvery?: number | null;
   // Optional mid-season mechanics, both default false. Gated together with the league type's own
   // capability -- see replenishAvailable/tradeAvailable in state-logic.js.
   replenishEnabled: boolean;
@@ -625,6 +630,10 @@ export interface LeagueState {
     replenish: { sequence: unknown[]; index: number } | null;
     trade: TradeState | null;
     log: MidSeasonLogEntry[];
+    /** The rolling priority list (player ids, first = first dibs). Absent until a move is made. */
+    priority?: string[];
+    /** Active Roster: the episode whose swap window was last used. */
+    lastSwapAfterEpisode?: number;
   };
   draftOrder: string[];
   draftPicksMade: number;

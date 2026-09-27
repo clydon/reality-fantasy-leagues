@@ -18,7 +18,18 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
   const canManage = useCanManage();
   const mutate = useMutate();
   const r = state.midSeason.replenish;
-  const orderLabel = state.settings.replenishOrderBy === "leastPoints" ? "lowest points first" : "highest points first";
+  const orderLabel =
+    state.settings.replenishOrderBy === "leastPoints"
+      ? "fewest points first"
+      : state.settings.replenishOrderBy === "mostPoints"
+        ? "most points first"
+        : "reverse draft order, rolling";
+  const activeRoster = StateLogic.getLeagueType(state).hasActiveRoster;
+  const shared = state.settings.ownershipMode === "shared";
+  // Active Roster: who's owed picks right now, from the "down to X" threshold.
+  const owed = activeRoster
+    ? state.players.map((p) => ({ p, need: StateLogic.replenishNeed(state, p.id) })).filter((x) => x.need > 0)
+    : [];
   const log = (state.midSeason.log ?? []).filter((e) => e.type === "replenish");
 
   async function handleStart() {
@@ -56,9 +67,26 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
     return (
       <>
         <p className="mb-2 text-sm text-muted-foreground">
-          Re-draft to replace eliminated players and refill your roster. Order: <b>{orderLabel}</b>{" "}
-          <span className="text-muted-foreground">(League Settings)</span>.
+          {activeRoster ? (
+            <>
+              A roster down to <b>{StateLogic.MidSeasonLogic.replenishAt(state)}</b> still in the game adds players back up to{" "}
+              {StateLogic.MidSeasonLogic.replenishAt(state) + 1}
+              {shared ? " — from anyone still in the game who isn't already theirs" : " from the free agents"}. Order: <b>{orderLabel}</b>.
+            </>
+          ) : (
+            <>
+              Re-draft to replace eliminated players and refill your roster. Order: <b>{orderLabel}</b>{" "}
+              <span className="text-muted-foreground">(League Settings)</span>.
+            </>
+          )}
         </p>
+        {activeRoster && (
+          <p className="mb-2 text-sm">
+            {owed.length === 0
+              ? "Nobody's roster is down that far right now."
+              : `Owed now: ${owed.map((x) => `${x.p.name} (${x.need})`).join(", ")}`}
+          </p>
+        )}
         <Button onClick={handleStart}>Start Replenish</Button>
         <TransactionHistory state={state} entries={log} />
       </>
@@ -81,7 +109,7 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
   }
 
   const player = StateLogic.getPlayer(state, turn.playerId ?? "");
-  const fa = StateLogic.freeAgents(state);
+  const fa = StateLogic.availableFor(state, turn.playerId ?? "");
 
   return (
     <>
@@ -93,9 +121,9 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
           Overall pick #{turn.overallPickNumber} <span>({turn.scoreAtStart} pts at the time)</span>
         </p>
       </div>
-      {!canManage && <p className="mb-2 text-sm text-muted-foreground">Waiting for your commissioner to assign a Free Agent.</p>}
+      {!canManage && <p className="mb-2 text-sm text-muted-foreground">Waiting for your commissioner to assign a pick.</p>}
       {fa.length === 0 ? (
-        <div className="text-sm italic text-muted-foreground">No free agents remaining.</div>
+        <div className="text-sm italic text-muted-foreground">Nobody left to add.</div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-3">
           {fa.map((c) => (

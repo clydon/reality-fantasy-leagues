@@ -96,8 +96,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const last = messages[messages.length - 1];
     set({ unreadCount: 0, lastSeenAt: last ? last.created_at : new Date().toISOString() });
     // Tell the server (for everyone else's "Read by"), once per new message rather than every poll.
-    const { mode, leagueId } = useLeagueStore.getState();
-    if (mode === "live" && leagueId && last && last.created_at !== reportedReadAt) {
+    const { mode, leagueId, impersonating } = useLeagueStore.getState();
+    // Impersonating: the server ignores it anyway, but don't even ask.
+    if (mode === "live" && leagueId && last && !impersonating && last.created_at !== reportedReadAt) {
       set({ reportedReadAt: last.created_at });
       api.markChatRead(leagueId, last.created_at).catch(() => set({ reportedReadAt }));
     }

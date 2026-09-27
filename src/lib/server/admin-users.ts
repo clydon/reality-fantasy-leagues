@@ -21,7 +21,7 @@ export function toAdminUser(
 // for an admin table.)
 export async function lastLoginByUserId(userIds?: string[]): Promise<Map<string, string>> {
   const { rows } = userIds
-    ? await pool.query(`SELECT "userId", MAX("createdAt") AS last_login_at FROM session WHERE "userId" = ANY($1) GROUP BY "userId"`, [userIds])
-    : await pool.query(`SELECT "userId", MAX("createdAt") AS last_login_at FROM session GROUP BY "userId"`);
+    ? await pool.query(`SELECT "userId", MAX("createdAt") AS last_login_at FROM session WHERE "userId" = ANY($1) AND "impersonatedBy" IS NULL GROUP BY "userId"`, [userIds])
+    : await pool.query(`SELECT "userId", MAX("createdAt") AS last_login_at FROM session WHERE "impersonatedBy" IS NULL GROUP BY "userId"`);
   return new Map(rows.map((r) => [r.userId as string, new Date(r.last_login_at).toISOString()]));
 }

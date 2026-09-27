@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
-import { requireLeagueRole } from "@/lib/server/auth-helpers";
+import { requireLeagueRole, requireSession, isImpersonating } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
 
 // Records that the caller has read chat up to `at` (the newest message they've seen). Only ever moves
@@ -8,6 +8,9 @@ import { pool } from "@/lib/server/db";
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
   const { user } = await requireLeagueRole(req, leagueId, "member");
+  // An admin viewing as this person mustn't mark their chat read for them (or for everyone else's
+  // "Read by").
+  if (isImpersonating(await requireSession(req))) return NextResponse.json({ ok: true, skipped: "impersonating" });
   const { at } = (await req.json().catch(() => ({}))) as { at?: string };
   const parsed = at ? new Date(at) : new Date();
   const when = Number.isNaN(parsed.getTime()) ? new Date() : parsed;

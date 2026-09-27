@@ -239,7 +239,21 @@ declare const StateLogic: {
   currentReplenishTurn(state: LeagueState): ReplenishTurn | null;
   replenishAssign(state: LeagueState, castawayId: string): void;
   cancelReplenish(state: LeagueState): void;
-  startTrade(state: LeagueState): void;
+  /** False when Active Roster has no swap window open. */
+  startTrade(state: LeagueState): boolean;
+  /** Who this player may add in a replenish or swap: free agents (exclusive) or anyone still in the game not already theirs (shared). */
+  availableFor(state: LeagueState, playerId: string): Castaway[];
+  /** Active Roster swap schedule: whether a window is open now, and when the next one is. */
+  swapWindow(state: LeagueState): { due: boolean; afterEpisode: number | null; nextAfterEpisode: number };
+  /** Active Roster: how many replenish picks this player is owed right now. */
+  replenishNeed(state: LeagueState, playerId: string): number;
+  MidSeasonLogic: {
+    replenishAt(state: LeagueState): number;
+    swapEvery(state: LeagueState): number;
+    inGameCount(state: LeagueState, playerId: string): number;
+    priorityList(state: LeagueState): string[];
+    order(state: LeagueState, playerIds: string[]): string[];
+  };
   tradeSwap(state: LeagueState, dropId: string, addId: string): void;
   tradeSkip(state: LeagueState): void;
   cancelTrade(state: LeagueState): void;

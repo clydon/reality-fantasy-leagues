@@ -1053,13 +1053,16 @@ const SHOWS = {
 // render and every DraftLogic dispatch. Keyed by league type id so Active Roster gets the same
 // treatment as Classic Draft without either needing to know about the other.
 const SHARED_OWNERSHIP_VARIANTS = {};
+// EXCEPT Active Roster, where shared replenish/swap now has a defined meaning: add anyone still in
+// the game who isn't already yours (MidSeasonLogic.availableFor). Classic Draft's shared mode keeps
+// them off -- its replenish replaces a loss 1-for-1 from a free-agent pool, which shared mode lacks.
 Object.values(LEAGUE_TYPES).forEach(lt => {
   if(!lt.hasRoster) return;
   SHARED_OWNERSHIP_VARIANTS[lt.id] = {
     ...lt,
     draftStrategy: BlindDraftStrategy,
-    supportsReplenish: false,
-    supportsTrade: false
+    supportsReplenish: !!lt.hasActiveRoster,
+    supportsTrade: !!lt.hasActiveRoster
   };
 });
 // Resolves the active league type, applying the ownership-mode override above. Returns the registry
@@ -1308,9 +1311,126 @@ class RosterLogic {
       value = Number.isFinite(n) && n >= 1 ? n : 1;
     }
     state.settings[field]=value;
+    // Active Roster defaults to shared ownership: nobody gets shut out of a castaway they wanted, and
+    // lineups (not exclusivity) are where the skill is. Only while the league is still in guided
+    // setup -- an established league never has its ownership changed under it -- and the commissioner
+    // can still pick exclusive in the next setup step.
+    if(field === 'leagueTypeId' && value === 'active-roster' && !SetupLogic.isComplete(state) && state.settings.ownershipMode !== 'shared'){
+      RosterLogic.updateSettings(state, 'ownershipMode', 'shared');
+    }
     // A start episode that isn't on the schedule yet is created, so picks and lineups have somewhere
     // to go before it airs.
     if(field === 'startEpisode') EpisodeLogic.ensureEpisodeNumber(state, value, false);
+  }
+}
+
+// ---------- MidSeasonLogic: who may add whom, and in what order ----------
+// Shared by Replenish and Swap.
+//
+// WHO IS AVAILABLE. Exclusive ownership: anyone still in the game that nobody owns (a free agent).
+// Shared ownership has no free agents -- nobody is ever taken off the board -- so there it's anyone
+// still in the game who isn't already on THIS player's roster. Same moves, one rule per mode.
+//
+// PRIORITY (settings.replenishOrderBy), for who goes first in a round:
+//   'rolling'     -- the default. Starts in reverse draft order; whoever actually makes a move goes to
+//                    the back, and the list carries over from round to round (a rolling waiver list:
+//                    being patient keeps you near the front).
+//   'leastPoints' -- standings, fewest points first, recomputed every round (a catch-up reset).
+//   'mostPoints'  -- standings, most points first (the old default; rewards a strong draft).
+// Order only decides anything when two players want the same castaway, which happens in exclusive
+// leagues. In a shared league everyone can add the same person, so it just orders the queue.
+class MidSeasonLogic {
+  static isShared(state){ return !!(state.settings && state.settings.ownershipMode === 'shared'); }
+  static availableFor(state, playerId){
+    return state.castaways.filter(c => c.status === 'active' && (MidSeasonLogic.isShared(state)
+      ? !ownerListOf(c).includes(playerId)
+      : ownerListOf(c).length === 0));
+  }
+  static isAvailableFor(state, castawayId, playerId){
+    return MidSeasonLogic.availableFor(state, playerId).some(c => c.id === castawayId);
+  }
+  // Reverse draft order: last pick in the draft gets first dibs. A shared (blind) draft has no pick
+  // order, so the player list stands in for it.
+  static reverseDraftOrder(state){
+    const active = state.players.filter(p => !p.disabled && p.active !== false).map(p => p.id);
+    const drafted = (state.draftOrder || []).filter(id => active.includes(id));
+    const base = drafted.length ? [...drafted, ...active.filter(id => !drafted.includes(id))] : active;
+    return [...base].reverse();
+  }
+  static priorityList(state){
+    const active = state.players.filter(p => !p.disabled && p.active !== false).map(p => p.id);
+    const saved = ((state.midSeason && state.midSeason.priority) || []).filter(id => active.includes(id));
+    const fresh = MidSeasonLogic.reverseDraftOrder(state).filter(id => !saved.includes(id));
+    return [...saved, ...fresh];
+  }
+  // Orders a set of player ids by the league's priority rule.
+  static order(state, playerIds){
+    const mode = state.settings.replenishOrderBy || 'rolling';
+    if(mode === 'rolling'){
+      const list = MidSeasonLogic.priorityList(state);
+      return [...playerIds].sort((a,b) => list.indexOf(a) - list.indexOf(b));
+    }
+    const scores = ScoringLogic.compute(state);
+    const scoreOf = id => (scores.find(s => s.playerId === id) || { total: 0 }).total;
+    const dir = mode === 'leastPoints' ? 1 : -1;
+    const tiebreak = MidSeasonLogic.reverseDraftOrder(state);
+    return [...playerIds].sort((a,b) => dir * (scoreOf(a) - scoreOf(b)) || tiebreak.indexOf(a) - tiebreak.indexOf(b));
+  }
+  // After a real move (not a skip) on a rolling list, that player goes to the back.
+  static usedPriority(state, playerId){
+    if((state.settings.replenishOrderBy || 'rolling') !== 'rolling') return;
+    const list = MidSeasonLogic.priorityList(state).filter(id => id !== playerId);
+    list.push(playerId);
+    state.midSeason.priority = list;
+  }
+
+  // ---- Active Roster's replenish threshold ----
+  // settings.replenishAt: a roster down to this many castaways still in the game may replenish back
+  // up to one more than it (default: one fewer than the active slots, i.e. the moment you can no
+  // longer field a full lineup -- replenish keeps everyone playing, it doesn't rebuild a bench).
+  static replenishAt(state){
+    const n = state.settings && state.settings.replenishAt;
+    const slots = ActiveRosterLogic.activeSlots(state);
+    if(Number.isInteger(n) && n >= 0) return Math.min(n, Math.max(0, rosterSize(state) - 1));
+    return Math.max(0, slots - 1);
+  }
+  static inGameCount(state, playerId){
+    return state.castaways.filter(c => c.status === 'active' && ownerListOf(c).includes(playerId)).length;
+  }
+  /** How many replenish picks this player is owed right now (Active Roster). */
+  // Once nobody is left in the game (the season is over) there's nothing to replenish or swap for.
+  static seasonOver(state){ return !state.castaways.some(c => c.status === 'active'); }
+  static replenishNeed(state, playerId){
+    if(MidSeasonLogic.seasonOver(state)) return 0;
+    const inGame = MidSeasonLogic.inGameCount(state, playerId);
+    const at = MidSeasonLogic.replenishAt(state);
+    return inGame <= at ? (at + 1) - inGame : 0;
+  }
+
+  // ---- Active Roster's swap schedule ----
+  // settings.swapEvery: a swap window opens after every Nth episode the league plays (default 3).
+  // Weekly is too often: it turns the league into chasing whoever won immunity last week, and makes
+  // the draft matter less. Every three episodes is four or five windows in a normal season -- enough
+  // to fix a bad pick or react to the merge.
+  static swapEvery(state){
+    const n = Number(state.settings && state.settings.swapEvery);
+    return Number.isInteger(n) && n >= 1 ? n : 3;
+  }
+  /** { due, afterEpisode, nextAfterEpisode } -- whether a swap window is open now, and the next one. */
+  static swapWindow(state){
+    const every = MidSeasonLogic.swapEvery(state);
+    const start = startEpisode(state);
+    const last = lastCompletedEpisode(state);
+    const done = (state.midSeason && state.midSeason.lastSwapAfterEpisode) || 0;
+    const windowAt = k => start - 1 + k * every;
+    let latest = null;
+    if(last !== null){
+      const k = Math.floor((last - start + 1) / every);
+      if(k >= 1) latest = windowAt(k);
+    }
+    const due = latest !== null && latest > done && !MidSeasonLogic.seasonOver(state);
+    const nextAfterEpisode = due ? latest : windowAt((latest === null ? 0 : Math.floor((latest - start + 1) / every)) + 1);
+    return { due, afterEpisode: due ? latest : null, nextAfterEpisode };
   }
 }
 
@@ -1320,16 +1440,21 @@ class ReplenishLogic {
     const scores = ScoringLogic.compute(state);
     const scoreOf = playerId => (scores.find(s=>s.playerId===playerId)||{total:0}).total;
     const winnerMethod = formatOf(state).winnerExitMethod;
+    const activeRoster = getLeagueType(state).hasActiveRoster;
     const counts = state.players.map(p=>{
       const losses = state.castaways.filter(c=> ownerListOf(c).includes(p.id) && c.status==='eliminated' && !c.replenishClaimed && c.exitMethod!==winnerMethod);
-      return {playerId:p.id, losses, score: scoreOf(p.id)};
-    }).filter(x=>x.losses.length>0);
+      if(!activeRoster) return {playerId:p.id, losses, picks: losses.length, score: scoreOf(p.id)};
+      // Active Roster: only a roster down to the threshold is owed picks, and only enough to get back
+      // above it. Each pick releases one of their eliminated castaways (oldest first) when they have
+      // one, so a roster never grows past its size.
+      const picks = MidSeasonLogic.replenishNeed(state, p.id);
+      const oldestFirst = [...losses].sort((a,b) => (a.placementOrder||0) - (b.placementOrder||0));
+      return {playerId:p.id, losses: oldestFirst.slice(0, picks), picks, score: scoreOf(p.id)};
+    }).filter(x=>x.picks>0);
     if(counts.length===0) return false;
-    // Who needs a player = anyone with unclaimed losses. Order among them is by current total
-    // score, direction set in League Settings (most points first rewards strong drafts; least
-    // points first is a catch-up mechanic).
-    const dir = state.settings.replenishOrderBy === 'leastPoints' ? 1 : -1;
-    counts.sort((a,b)=> dir * (a.score - b.score));
+    // Order among them: the league's priority rule (see MidSeasonLogic).
+    const ranked = MidSeasonLogic.order(state, counts.map(x=>x.playerId));
+    counts.sort((a,b)=> ranked.indexOf(a.playerId) - ranked.indexOf(b.playerId));
     // Build one pick PER TURN in snake order across players -- not everyone's whole allotment
     // consecutively -- so someone owed 2+ picks can't claim the top 2 free agents before anyone
     // else gets a turn. Direction reverses each round exactly like the original draft, same reason:
@@ -1337,13 +1462,14 @@ class ReplenishLogic {
     const order = counts.map(x=>x.playerId);
     const lossIdsByPlayer = {};
     const scoreByPlayer = {};
-    counts.forEach(x=>{ lossIdsByPlayer[x.playerId] = x.losses.map(c=>c.id); scoreByPlayer[x.playerId] = x.score; });
-    const maxPicks = Math.max(...counts.map(x=>x.losses.length));
+    const picksByPlayer = {};
+    counts.forEach(x=>{ lossIdsByPlayer[x.playerId] = x.losses.map(c=>c.id); scoreByPlayer[x.playerId] = x.score; picksByPlayer[x.playerId] = x.picks; });
+    const maxPicks = Math.max(...counts.map(x=>x.picks));
     const sequence = [];
     for(let round=0; round<maxPicks; round++){
       const roundOrder = round % 2 === 0 ? order : [...order].reverse();
       roundOrder.forEach(playerId=>{
-        if(lossIdsByPlayer[playerId].length > round) sequence.push({playerId, scoreAtStart: scoreByPlayer[playerId]});
+        if(picksByPlayer[playerId] > round) sequence.push({playerId, scoreAtStart: scoreByPlayer[playerId]});
       });
     }
     // lossIdsByPlayer entries are only marked replenishClaimed as each pick is actually assigned
@@ -1365,23 +1491,27 @@ class ReplenishLogic {
     const r = state.midSeason.replenish;
     if(!r || r.index>=r.sequence.length) return;
     const c = Core.getCastaway(state, castawayId);
-    if(!c || ownerListOf(c).length) return;
     const turn = r.sequence[r.index];
-    Core.setOwner(state, castawayId, turn.playerId);
+    if(!c || !MidSeasonLogic.isAvailableFor(state, castawayId, turn.playerId)) return;
+    const shared = MidSeasonLogic.isShared(state);
+    if(shared) Core.addOwner(state, castawayId, turn.playerId);
+    else Core.setOwner(state, castawayId, turn.playerId);
     c.acquiredVia = 'replenish';
-    const lossIds = r.lossIdsByPlayer[turn.playerId];
+    const lossIds = r.lossIdsByPlayer[turn.playerId] || [];
     const lossId = lossIds.pop();
     const lostCastaway = lossId ? Core.getCastaway(state, lossId) : null;
     if(lostCastaway){
       lostCastaway.replenishClaimed = true;
       // The replenish pick replaces this slot, so its points no longer count for this player —
       // but formerOwnerId/departedVia keep the history so the Scoreboard can still show it.
-      // formerOwnerId stays a single id (history display only, not scoring) -- in exclusive mode
-      // there is exactly one owner to record here.
-      lostCastaway.formerOwnerId = ownerListOf(lostCastaway)[0] || null;
+      // formerOwnerId stays a single id (history display only, not scoring).
+      lostCastaway.formerOwnerId = turn.playerId;
       lostCastaway.departedVia = 'replenish';
-      Core.setOwner(state, lostCastaway.id, null);
+      // Shared: only this player lets go; anyone else who owns them keeps them.
+      if(shared) Core.removeOwner(state, lostCastaway.id, turn.playerId);
+      else Core.setOwner(state, lostCastaway.id, null);
     }
+    MidSeasonLogic.usedPriority(state, turn.playerId);
     // `|| []`: league rows are read from Postgres without migrateLeagueState, so a league that
     // predates the log (and 0008's backfill) has no array to push onto yet.
     (state.midSeason.log = state.midSeason.log || []).push({
@@ -1396,24 +1526,36 @@ class ReplenishLogic {
 
 // ---------- TradeLogic ----------
 class TradeLogic {
+  // Active Roster runs swaps on a schedule (MidSeasonLogic.swapWindow): a round can only start while
+  // a window is open, and starting it closes that window. Returns false when there's no window.
   static start(state){
-    const order = [...state.players].reverse().map(p=>p.id);
+    const activeRoster = getLeagueType(state).hasActiveRoster;
+    if(activeRoster){
+      const w = MidSeasonLogic.swapWindow(state);
+      if(!w.due) return false;
+      state.midSeason.lastSwapAfterEpisode = w.afterEpisode;
+    }
+    const active = state.players.filter(p => !p.disabled && p.active !== false).map(p => p.id);
+    const order = MidSeasonLogic.order(state, active);
     state.midSeason.trade = { queue: order.map(id=>({playerId:id})), index:0 };
+    return true;
   }
   static swap(state, dropId, addId){
     const t = state.midSeason.trade;
     if(!t || t.index>=t.queue.length) return;
     const turn = t.queue[t.index];
     const drop = Core.getCastaway(state, dropId), add = Core.getCastaway(state, addId);
-    if(drop && Core.isOwnedBy(state, dropId, turn.playerId) && drop.status==='active'){
-      drop.formerOwnerId = turn.playerId;
-      drop.departedVia = 'trade';
-      Core.removeOwner(state, dropId, turn.playerId);
-    }
-    if(add && ownerListOf(add).length===0 && add.status==='active'){
-      Core.setOwner(state, addId, turn.playerId);
-      add.acquiredVia = 'trade';
-    }
+    // Both halves or neither: a swap that could only drop (or only add) isn't the swap asked for.
+    const canDrop = drop && Core.isOwnedBy(state, dropId, turn.playerId) && drop.status==='active';
+    const canAdd = add && MidSeasonLogic.isAvailableFor(state, addId, turn.playerId);
+    if(!canDrop || !canAdd) return;
+    drop.formerOwnerId = turn.playerId;
+    drop.departedVia = 'trade';
+    Core.removeOwner(state, dropId, turn.playerId);
+    if(MidSeasonLogic.isShared(state)) Core.addOwner(state, addId, turn.playerId);
+    else Core.setOwner(state, addId, turn.playerId);
+    add.acquiredVia = 'trade';
+    MidSeasonLogic.usedPriority(state, turn.playerId);
     (state.midSeason.log = state.midSeason.log || []).push({
       id: Core.uid('tx'), type:'trade', playerId: turn.playerId,
       addedCastawayId: addId, droppedCastawayId: dropId,
@@ -1947,7 +2089,7 @@ class Migrations {
       settings: {
         teamSize: 3,
         bonusEnabled: true,
-        replenishOrderBy: 'mostPoints',
+        replenishOrderBy: 'rolling',
         defaultBetPoints: 1,
         finaleTop3Points: 1,
         finaleWinnerPoints: 3,
@@ -2102,6 +2244,7 @@ return {
   reorderDraft: DraftLogic.reorder, moveDraftOrder: DraftLogic.move, draftToCurrentTurn: DraftLogic.pick, undraft: DraftLogic.undo,
   startReplenish: ReplenishLogic.start, currentReplenishTurn: ReplenishLogic.currentTurn, replenishAssign: ReplenishLogic.assign, cancelReplenish: ReplenishLogic.cancel,
   startTrade: TradeLogic.start, tradeSwap: TradeLogic.swap, tradeSkip: TradeLogic.skip, cancelTrade: TradeLogic.cancel,
+  MidSeasonLogic, availableFor: MidSeasonLogic.availableFor, swapWindow: MidSeasonLogic.swapWindow, replenishNeed: MidSeasonLogic.replenishNeed,
   addEpisode: EpisodeLogic.add, removeEpisode: EpisodeLogic.remove, updateEpisode: EpisodeLogic.update,
   renumberPlacements: EpisodeLogic.renumberPlacements, addElimination: EpisodeLogic.addElimination, removeElimination: EpisodeLogic.removeElimination,
   addExiled: EpisodeLogic.addExiled, removeExiled: EpisodeLogic.removeExiled,

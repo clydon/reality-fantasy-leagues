@@ -14,7 +14,10 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     // Opt-in and off by default, and unavailable in shared ownership -- same reasoning as
     // replenish/start's own guard.
     if (!StateLogic.tradeAvailable(s)) throw new HttpError(400, "Swap isn't enabled for this league");
-    StateLogic.startTrade(s);
+    if (!StateLogic.startTrade(s)) {
+      const w = StateLogic.swapWindow(s);
+      throw new HttpError(400, `No swap window is open — the next one opens after episode ${w.nextAfterEpisode}.`);
+    }
   });
   notifyMidSeasonTurn(leagueId, state, user.id);
   return NextResponse.json(state);

@@ -506,5 +506,180 @@ function buildPickEmDemo(data: DemoSeasonData, throughEpisode: number): LeagueSt
 
 export function buildDemoState(data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId, throughEpisode: number): LeagueState {
   if (leagueTypeId === "pickem") return buildPickEmDemo(data, throughEpisode);
+  if (leagueTypeId === "active-roster") return buildActiveRosterDemo(data, throughEpisode);
   return buildRosterDemo(data, leagueTypeId, throughEpisode);
+}
+
+// ---------- Active Roster: a simulated season under the league's defaults ----------
+// Shared ownership, 3 active + 2 bench, replenish when down to 2 still in the game, a swap window
+// every 3 episodes, rolling reverse-draft priority. The season is REPLAYED episode by episode rather
+// than handed a final set of rosters, so moving the demo's episode cursor shows each roster as it
+// stood then -- and the moves in the history are ones a sensible player would actually have made at
+// that moment, knowing only what had aired. How the fictional players think:
+//   * Draft (blind, shared): everyone ranks the cast by a common sense of who's good plus their own
+//     taste, and takes their top five -- so rosters overlap, the way a real blind draft's do.
+//   * Everyone manages to one of three styles, so the league doesn't move in lockstep (in a shared
+//     league, identical thinking means identical rosters and tied scores all season):
+//       chaser   -- fields and adds whoever has scored most; swaps for a small edge (3+ points).
+//       loyalist -- trusts their own draft board; fields favourites, adds by their own taste, and
+//                   only swaps for a big edge (8+).
+//       balanced -- weighs points and their own opinion about equally; swaps for 5+.
+//   * Replenish: right after an episode, anyone down to 2 adds back to 3, releasing their
+//     longest-gone castaway.
+//   * Swap windows: drop your weakest still in the game only for a clear enough upgrade; otherwise
+//     sit tight and keep your place near the front of the rolling list.
+const AR_REPLENISH_AT = ACTIVE_ROSTER_ACTIVE_SLOTS - 1;
+const AR_SWAP_EVERY = 3;
+type Style = { name: "chaser" | "loyalist" | "balanced"; pointsWeight: number; tasteWeight: number; swapMargin: number };
+const STYLES: Style[] = [
+  { name: "chaser", pointsWeight: 1, tasteWeight: 0.02, swapMargin: 3 },
+  { name: "loyalist", pointsWeight: 0.15, tasteWeight: 0.3, swapMargin: 8 },
+  { name: "balanced", pointsWeight: 0.6, tasteWeight: 0.12, swapMargin: 5 },
+];
+
+function sharedDefaultPoints(showId: string): Map<string, number> {
+  return new Map(
+    formatFor(showId).events.map((e) => {
+      const d = e.defaultPoints as number | { exclusive: number; shared: number };
+      return [e.id, typeof d === "object" ? d.shared : d];
+    })
+  );
+}
+
+function buildActiveRosterDemo(data: DemoSeasonData, throughEpisode: number): LeagueState {
+  const players = buildPlayers(data);
+  const tribes = buildTribes(data, throughEpisode);
+  const lastEp = Math.min(throughEpisode, data.episodeCount);
+  const rosterSize = ACTIVE_ROSTER_ACTIVE_SLOTS + 2;
+  const byKey = new Map(data.castaways.map((c) => [c.key, c]));
+
+  // Blind draft: common value + personal taste, top five each.
+  const value = (key: string) => hashStr(`value:${key}`) % 100;
+  const taste = (playerKey: string, key: string) => value(key) + (hashStr(`${playerKey}:${key}`) % 80);
+  const styleOf = new Map(data.players.map((p, i) => [p.key, STYLES[i % STYLES.length]]));
+  const rosters = new Map<string, string[]>(
+    data.players.map((p) => [
+      p.key,
+      [...data.castaways]
+        .sort((a, b) => taste(p.key, b.key) - taste(p.key, a.key))
+        .slice(0, rosterSize)
+        .map((c) => c.key),
+    ])
+  );
+
+  // The whole season's events, independent of anyone's roster, so replays at any cursor agree.
+  const episodes = buildEpisodesBase(data, players, data.episodeCount);
+  const initialOwnership = data.players.map((p) => ({ playerKey: p.key, castawayKeys: [...rosters.get(p.key)!] }));
+  addSyntheticScoringEvents(data, initialOwnership, episodes);
+  const points = sharedDefaultPoints(data.showId);
+  const pointsThrough = (key: string, ep: number) =>
+    episodes
+      .filter((e) => e.number <= ep)
+      .reduce((sum, e) => sum + e.scoringEvents.filter((s) => s.castawayId === cid(key)).reduce((t, s) => t + (points.get(s.type) ?? 0), 0), 0);
+  const inGameAfter = (key: string, ep: number) => byKey.get(key)!.exitEpisode > ep;
+  // How much a player wants a castaway, knowing what had aired through episode `ep`.
+  const want = (playerKey: string, key: string, ep: number) => {
+    const s = styleOf.get(playerKey)!;
+    return s.pointsWeight * pointsThrough(key, ep) + s.tasteWeight * taste(playerKey, key);
+  };
+
+  // Rolling priority: reverse draft order (blind draft: the player list), movers go to the back.
+  let priority = [...data.players].reverse().map((p) => p.key);
+  const bump = (playerKey: string) => (priority = [...priority.filter((k) => k !== playerKey), playerKey]);
+  const moves: DemoMove[] = [];
+  let lastSwapAfterEpisode = 0;
+
+  for (let e = 1; e <= lastEp; e++) {
+    const ep = episodes[e - 1];
+    // Lineups for this episode, from what was known going in.
+    for (const p of data.players) {
+      const eligible = rosters.get(p.key)!.filter((k) => byKey.get(k)!.exitEpisode >= e);
+      const ranked = [...eligible].sort((a, b) => want(p.key, b, e - 1) - want(p.key, a, e - 1));
+      ep.lineups[pid(p.key)] = ranked.slice(0, ACTIVE_ROSTER_ACTIVE_SLOTS).map(cid);
+    }
+    if (e >= data.episodeCount) {
+      // Nothing to replenish or swap for after the finale; a window that falls here has passed.
+      if (e % AR_SWAP_EVERY === 0) lastSwapAfterEpisode = e;
+      continue;
+    }
+    // The cursor's episode is "this week" (its lineups are still open), so what gets decided after it
+    // hasn't happened yet: any replenish it triggers is owed, and its swap window is open to use.
+    if (e >= lastEp) continue;
+
+    // Replenish right after the episode's results.
+    for (const playerKey of [...priority]) {
+      const roster = rosters.get(playerKey)!;
+      const inGame = roster.filter((k) => inGameAfter(k, e));
+      let need = inGame.length <= AR_REPLENISH_AT ? AR_REPLENISH_AT + 1 - inGame.length : 0;
+      let moved = false;
+      while (need-- > 0) {
+        const add = data.castaways
+          .filter((c) => inGameAfter(c.key, e) && !roster.includes(c.key))
+          .sort((a, b) => want(playerKey, b.key, e) - want(playerKey, a.key, e))[0];
+        if (!add) break;
+        const drop = roster
+          .filter((k) => !inGameAfter(k, e))
+          .sort((a, b) => byKey.get(a)!.exitEpisode - byKey.get(b)!.exitEpisode)[0];
+        const next = roster.filter((k) => k !== drop).concat(add.key);
+        rosters.set(playerKey, next);
+        roster.splice(0, roster.length, ...next);
+        moves.push({ type: "replenish", playerKey, addedKey: add.key, droppedKey: drop ?? add.key, episode: e });
+        moved = true;
+      }
+      if (moved) bump(playerKey);
+    }
+
+    // Scheduled swap window.
+    if (e % AR_SWAP_EVERY === 0) {
+      lastSwapAfterEpisode = e;
+      for (const playerKey of [...priority]) {
+        const roster = rosters.get(playerKey)!;
+        const worst = roster
+          .filter((k) => inGameAfter(k, e))
+          .sort((a, b) => want(playerKey, a, e) - want(playerKey, b, e))[0];
+        const best = data.castaways
+          .filter((c) => inGameAfter(c.key, e) && !roster.includes(c.key))
+          .sort((a, b) => want(playerKey, b.key, e) - want(playerKey, a.key, e))[0];
+        // The edge is judged on points actually scored, the thing a swap is for; style decides how big
+        // an edge is worth giving up a castaway you picked.
+        if (!worst || !best || pointsThrough(best.key, e) - pointsThrough(worst, e) < styleOf.get(playerKey)!.swapMargin) continue;
+        rosters.set(playerKey, roster.filter((k) => k !== worst).concat(best.key));
+        moves.push({ type: "trade", playerKey, addedKey: best.key, droppedKey: worst, episode: e });
+        bump(playerKey);
+      }
+    }
+  }
+
+  const ownership = data.players.map((p) => ({ playerKey: p.key, castawayKeys: rosters.get(p.key)! }));
+  const castaways = buildCastaways(data, ownerMap(ownership), true, throughEpisode, moves.filter((m) => m.droppedKey !== m.addedKey));
+  // Built for the whole season (so every replay agrees on the events), shown up to the cursor, with
+  // the cursor's own episode still open for lineups like a real "this week".
+  const shownEpisodes = episodes.slice(0, lastEp).map((ep) => ({ ...ep, lineupsLocked: ep.number < lastEp }));
+  const log: MidSeasonLogEntry[] = moves.map((m, i) => ({
+    id: `demo_tx_${i}`,
+    type: m.type,
+    playerId: pid(m.playerKey),
+    addedCastawayId: cid(m.addedKey),
+    droppedCastawayId: m.droppedKey === m.addedKey ? null : cid(m.droppedKey),
+    at: new Date(2026, 0, 1 + m.episode, 0, i).toISOString(),
+    episode: m.episode,
+  }));
+  return {
+    players,
+    tribes,
+    castaways,
+    episodes: shownEpisodes,
+    ...emptyMidSeasonAndDraft(players.map((p) => p.id), players.length * rosterSize, log),
+    midSeason: { replenish: null, trade: null, log, priority: priority.map(pid), lastSwapAfterEpisode },
+    blindDraft: { lockedPlayerIds: players.map((p) => p.id), revealedAt: new Date(2026, 0, 1).toISOString() },
+    settings: {
+      ...baseSettings(data, "active-roster", rosterSize),
+      ownershipMode: "shared" as const,
+      replenishEnabled: true,
+      tradeEnabled: true,
+      replenishOrderBy: "rolling" as const,
+      replenishAt: AR_REPLENISH_AT,
+      swapEvery: AR_SWAP_EVERY,
+    },
+  };
 }

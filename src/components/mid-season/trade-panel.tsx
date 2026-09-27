@@ -23,6 +23,8 @@ export function TradePanel({ state }: { state: LeagueState }) {
   const mutate = useMutate();
   const t = state.midSeason.trade;
   const log = (state.midSeason.log ?? []).filter((e) => e.type === "trade");
+  const activeRoster = StateLogic.getLeagueType(state).hasActiveRoster;
+  const window = activeRoster ? StateLogic.swapWindow(state) : null;
 
   async function handleStart() {
     await mutate(
@@ -57,13 +59,24 @@ export function TradePanel({ state }: { state: LeagueState }) {
   if (!t) {
     return canManage ? (
       <>
-        <p className="mb-2 text-sm text-muted-foreground">One optional swap each, reverse draft order.</p>
-        <Button onClick={handleStart}>Start Swap Round</Button>
+        <p className="mb-2 text-sm text-muted-foreground">
+          One optional swap each, in priority order.
+          {window &&
+            (window.due
+              ? ` The swap window after episode ${window.afterEpisode} is open.`
+              : ` Next swap window: after episode ${window.nextAfterEpisode} (every ${StateLogic.MidSeasonLogic.swapEvery(state)} episodes).`)}
+        </p>
+        <Button onClick={handleStart} disabled={!!window && !window.due}>
+          Start Swap Round
+        </Button>
         <TransactionHistory state={state} entries={log} />
       </>
     ) : (
       <>
-        <p className="text-sm text-muted-foreground">Commissioner-run.</p>
+        <p className="text-sm text-muted-foreground">
+          Commissioner-run.
+          {window && !window.due && ` Next swap window: after episode ${window.nextAfterEpisode}.`}
+        </p>
         <TransactionHistory state={state} entries={log} />
       </>
     );
@@ -86,7 +99,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
   const turn = t.queue[t.index];
   const player = StateLogic.getPlayer(state, turn.playerId);
   const owned = state.castaways.filter((c) => c.ownerIds.includes(turn.playerId) && c.status === "active");
-  const fa = StateLogic.freeAgents(state);
+  const fa = StateLogic.availableFor(state, turn.playerId);
   const effectiveDropId = dropId && owned.some((c) => c.id === dropId) ? dropId : null;
   const dropCastaway = effectiveDropId ? StateLogic.getCastaway(state, effectiveDropId) : null;
 
@@ -100,7 +113,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
           {!canManage
             ? "Commissioner-run."
             : dropCastaway
-            ? <>Dropping <b>{dropCastaway.name}</b> — pick a Free Agent to add below.</>
+            ? <>Dropping <b>{dropCastaway.name}</b> — pick who to add below.</>
             : `Click one of this player's ${terms.castaways} below to drop them, or skip this turn.`}
         </p>
       </div>
@@ -135,9 +148,11 @@ export function TradePanel({ state }: { state: LeagueState }) {
           </div>
         ) : (
           <div className="mb-3">
-            <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Free Agents ({fa.length})</h4>
+            <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+              {state.settings.ownershipMode === "shared" ? "Available" : "Free Agents"} ({fa.length})
+            </h4>
             {fa.length === 0 ? (
-              <div className="text-sm italic text-muted-foreground">No free agents remaining.</div>
+              <div className="text-sm italic text-muted-foreground">Nobody left to add.</div>
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-3">
                 {fa.map((c) => (

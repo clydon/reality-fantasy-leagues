@@ -44,8 +44,17 @@ export function MidSeasonTab() {
         <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
           <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Replenish &amp; Swap</h3>
           <p className="text-sm text-muted-foreground">
-            Change who owns which {terms.castaway} after eliminations. Usually run Replenish first,{" "}
-            {StateLogic.formatOf(state).hasMerge ? "right after the merge" : "about halfway through the season"}, then Swap.
+            {leagueType.hasActiveRoster ? (
+              <>
+                Replenish keeps every roster able to field a full lineup after eliminations; Swap runs on a schedule so
+                everyone gets the same chances to change a {terms.castaway}.
+              </>
+            ) : (
+              <>
+                Change who owns which {terms.castaway} after eliminations. Usually run Replenish first,{" "}
+                {StateLogic.formatOf(state).hasMerge ? "right after the merge" : "about halfway through the season"}, then Swap.
+              </>
+            )}
           </p>
         </div>
       )}

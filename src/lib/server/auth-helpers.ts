@@ -33,6 +33,11 @@ export async function requireSession(req: Request): Promise<Session> {
   return session;
 }
 
+/** True when a super-admin is acting as this user: look, but leave nothing marked read or dismissed. */
+export function isImpersonating(session: Session): boolean {
+  return !!(session.session as { impersonatedBy?: unknown }).impersonatedBy;
+}
+
 export async function requireAuth(req: Request): Promise<SessionUser> {
   return (await requireSession(req)).user;
 }
