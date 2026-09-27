@@ -1357,7 +1357,16 @@ async function runAll(pool, opts) {
   console.log(`[wiki-sync] ${leagues.length} league(s) across ${groups.size} season(s)`);
 
   let failures = 0;
+  // Required here, not at the top: auto-research.js pulls in air-schedule.js, which the per-season
+  // admin path doesn't need.
+  const { seasonIsLive } = require("./auto-research.js");
   for (const { showSlug, season, leagues: members } of groups.values()) {
+    // Only seasons still airing: a finished (or not-airing) season has nothing new, and re-reading it
+    // is a wasted model call whenever its wiki page gets an unrelated edit. Manual pulls still work.
+    if (!(await seasonIsLive(pool, showSlug, Number(season)))) {
+      console.log(`\n[wiki-sync] skipping ${showSlug} season ${season}: not airing, or past its finale`);
+      continue;
+    }
     console.log(`\n[wiki-sync] === ${showSlug} season ${season} (${members.length} league(s)) ===`);
     let ctx;
     try {

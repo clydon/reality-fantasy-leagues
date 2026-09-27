@@ -24,7 +24,8 @@ async function loadSeasons(pool, where = "ss.auto_research", params = []) {
     `SELECT ss.id, ss.season_number, s.slug, s.id AS show_id,
             to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date, to_char(ss.air_time, 'HH24:MI') AS air_time, ss.air_tz,
             ss.auto_research, ss.research_weekday, to_char(ss.research_time, 'HH24:MI') AS research_time,
-            ss.research_model, ss.auto_research_since, ss.episode_count,
+            ss.research_model, ss.auto_research_since, ss.episode_count, ss.status,
+            to_char(ss.finale_date, 'YYYY-MM-DD') AS finale_date,
             (SELECT json_object_agg(e->>'number', e->>'airDate')
                FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e
               WHERE we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
@@ -46,6 +47,28 @@ async function loadSeasons(pool, where = "ss.auto_research", params = []) {
     },
     wikiAirDates: r.wiki_air_dates || {},
   }));
+}
+
+// A few days after the finale, so its results still get picked up once the wiki has them.
+const FINALE_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a season is still worth pulling automatically: set to "airing", and not past its finale
+ * (the finale date if set, else the last episode's air time when the episode count and schedule are
+ * known) by more than the grace period. The admin's manual buttons ignore this.
+ */
+function isSeasonLive(season, now = new Date()) {
+  if (season.status !== "airing") return false;
+  let end = null;
+  if (season.finale_date) end = new Date(`${season.finale_date}T23:59:59Z`);
+  else if (season.episode_count) end = Air.episodeAirTime(season.schedule, season.episode_count, season.wikiAirDates);
+  return !end || now.getTime() <= end.getTime() + FINALE_GRACE_MS;
+}
+
+/** The live check for one season by show slug and number (the nightly wiki sync groups by those). */
+async function seasonIsLive(pool, showSlug, seasonNumber, now) {
+  const [season] = await loadSeasons(pool, "s.slug = $1 AND ss.season_number = $2", [showSlug, seasonNumber]);
+  return !!season && isSeasonLive(season, now);
 }
 
 /** When episode n of a season airs (null when unknown) -- the research route's "has it aired?" check. */
@@ -95,6 +118,10 @@ async function runDue(pool, opts = {}) {
   const seasons = await loadSeasons(pool);
   let ran = 0;
   for (const season of seasons) {
+    if (!isSeasonLive(season, now)) {
+      console.log(`[auto-research] skipping ${season.slug} season ${season.season_number}: not airing (status ${season.status}) or past its finale`);
+      continue;
+    }
     const due = await dueEpisodes(pool, season, now);
     for (const n of due) {
       const label = `${season.slug} season ${season.season_number} episode ${n}`;
@@ -137,4 +164,4 @@ if (require.main === module) {
     .finally(() => pool.end());
 }
 
-module.exports = { loadSeasons, dueEpisodes, runDue, episodeAirsAt, episodeCountOf, RETRY_AFTER_MS, MAX_ATTEMPTS };
+module.exports = { loadSeasons, dueEpisodes, runDue, episodeAirsAt, episodeCountOf, isSeasonLive, seasonIsLive, RETRY_AFTER_MS, MAX_ATTEMPTS };
