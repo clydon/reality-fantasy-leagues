@@ -8,6 +8,7 @@ import { UserEditModal } from "./user-edit-modal";
 import { ShowsSection } from "./shows-section";
 import { useLoadPaidAiPref, usePaidAiStore } from "@/lib/paid-ai-store";
 import { realEmail } from "@/lib/no-email";
+import { formatDateTime } from "@/lib/game/selectors";
 import type { AdminUser } from "@/lib/game/types";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
@@ -173,7 +174,7 @@ export function AdminTab() {
                     {realEmail(u.email) ?? <span className="italic">no email</span>}
                   </td>
                   <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{formatDate(u.createdAt)}</td>
-                  <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{u.lastLoginAt ? formatDate(u.lastLoginAt) : "Never"}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "Never"}</td>
                   <td className="px-2 py-2">
                     <div className="flex justify-end gap-1.5">
                       {u.id !== myUserId && (
@@ -306,7 +307,7 @@ const USER_COLUMNS: { key: SortKey; label: string }[] = [
   { key: "username", label: "Username" },
   { key: "email", label: "Email" },
   { key: "createdAt", label: "Created" },
-  { key: "lastLoginAt", label: "Last login" },
+  { key: "lastLoginAt", label: "Last active" },
 ];
 
 // Nulls (no username / never signed in) always sort last, whichever direction.

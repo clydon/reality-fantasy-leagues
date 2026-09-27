@@ -15,13 +15,22 @@ export function toAdminUser(
   };
 }
 
-// Better Auth writes a new session row on every sign-in, so the newest session's createdAt is
-// the last login -- no extra column to maintain. (Sessions deleted on sign-out/expiry cleanup
-// take their timestamps with them, so this is "most recent surviving session", close enough
-// for an admin table.)
+// When each account last used the app: the later of its last authenticated request
+// (user_last_seen, stamped by requireSession -- see auth-helpers.ts) and its last real sign-in
+// (newest session row, which also covers anyone not seen since that table existed). Impersonation
+// never counts toward either.
 export async function lastLoginByUserId(userIds?: string[]): Promise<Map<string, string>> {
-  const { rows } = userIds
-    ? await pool.query(`SELECT "userId", MAX("createdAt") AS last_login_at FROM session WHERE "userId" = ANY($1) AND "impersonatedBy" IS NULL GROUP BY "userId"`, [userIds])
-    : await pool.query(`SELECT "userId", MAX("createdAt") AS last_login_at FROM session WHERE "impersonatedBy" IS NULL GROUP BY "userId"`);
-  return new Map(rows.map((r) => [r.userId as string, new Date(r.last_login_at).toISOString()]));
+  const filter = userIds ? `WHERE u.id = ANY($1)` : "";
+  const { rows } = await pool.query(
+    `SELECT u.id AS "userId",
+            GREATEST(
+              (SELECT last_seen_at FROM user_last_seen ls WHERE ls.user_id = u.id),
+              (SELECT MAX(s."createdAt") FROM session s WHERE s."userId" = u.id AND s."impersonatedBy" IS NULL)
+            ) AS last_login_at
+       FROM "user" u ${filter}`,
+    userIds ? [userIds] : []
+  );
+  return new Map(
+    rows.filter((r) => r.last_login_at).map((r) => [r.userId as string, new Date(r.last_login_at).toISOString()])
+  );
 }

@@ -30,7 +30,29 @@ function isSuperAdminUser(user: SessionUser): boolean {
 export async function requireSession(req: Request): Promise<Session> {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) throw new HttpError(401, "Not logged in");
+  touchLastSeen(session);
   return session;
+}
+
+// "Last active" for the admin Users table (db/migrations/0032): stamped on any authenticated request,
+// skipped while an admin impersonates, and at most once a minute per user (checked in memory first,
+// then in the UPDATE itself) so busy pages don't write on every poll. Fire-and-forget: a failed
+// stamp must never fail the request.
+const lastTouched = new Map<string, number>();
+function touchLastSeen(session: Session) {
+  if (isImpersonating(session)) return;
+  const userId = session.user.id;
+  const now = Date.now();
+  if (now - (lastTouched.get(userId) ?? 0) < 60_000) return;
+  lastTouched.set(userId, now);
+  pool
+    .query(
+      `INSERT INTO user_last_seen (user_id, last_seen_at) VALUES ($1, now())
+       ON CONFLICT (user_id) DO UPDATE SET last_seen_at = now()
+       WHERE user_last_seen.last_seen_at < now() - interval '1 minute'`,
+      [userId]
+    )
+    .catch(() => {});
 }
 
 /** True when a super-admin is acting as this user: look, but leave nothing marked read or dismissed. */
