@@ -24,7 +24,7 @@ export const OVERVIEW_SECTION_LABELS: Record<OverviewSectionId, string> = {
   pickGrid: "Weekly Pick (Eliminator Pool)",
   lineupGrid: "Set Lineup (Active Roster)",
   standings: "Standings",
-  yourTeam: "Your Team",
+  yourTeam: "Your Team (Your Stats in Active Roster)",
   lastWeek: "Last Week (Active Roster)",
   latestEpisode: "Latest Episode",
   seasonStatus: "Season Status",

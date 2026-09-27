@@ -9,6 +9,8 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { CastawayStatCard } from "@/components/castaway-stat-card";
 import { CastawayStatRow } from "@/components/castaway-stat-row";
 import { DashCard, DashLink } from "./dash-card";
+import { ChevronDownIcon } from "@/components/icons";
+import { cn } from "cn";
 
 // Second card on Overview, right after Standings -- "what do I personally have in this league,
 // right now." Shape depends on the league type, same way the rest of Overview already branches:
@@ -81,6 +83,13 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
   // Full season: points they scored for you (only while in your lineup), or everything they scored
   // while on your roster, benched weeks included.
   const [scoredForYou, setScoredForYou] = useState(true);
+  // Whose stats: yours by default, and back to yours whenever the page is opened again (plain state,
+  // never saved).
+  const [viewId, setViewId] = useState(myPlayerId);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const viewing = StateLogic.getPlayer(state, viewId);
+  const mine = viewId === myPlayerId;
+  const others = state.players.filter((p) => !p.disabled);
 
   const lastEp = [...state.episodes]
     .filter((ep) => StateLogic.inPlay(state, ep.number) && StateLogic.episodeHasResults(ep))
@@ -89,14 +98,14 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
   const rows =
     view === "week"
       ? lastEp
-        ? StateLogic.activeRosterLineupFor(state, lastEp.id, myPlayerId)
+        ? StateLogic.activeRosterLineupFor(state, lastEp.id, viewId)
             .map((id) => StateLogic.getCastaway(state, id))
             .filter((c): c is NonNullable<typeof c> => !!c)
             .map((c) => ({ c, stats: castawayEpisodeStats(state, lastEp.id, c.id) }))
         : []
-      : castawaysEverOwned(state, myPlayerId).map((c) => ({
+      : castawaysEverOwned(state, viewId).map((c) => ({
           c,
-          stats: scoredForYou ? castawayEarnedStats(state, myPlayerId, c.id) : castawayRosterStats(state, myPlayerId, c.id),
+          stats: scoredForYou ? castawayEarnedStats(state, viewId, c.id) : castawayRosterStats(state, viewId, c.id),
         }));
   rows.sort((a, b) => b.stats.total - a.stats.total || a.c.name.localeCompare(b.c.name));
   const total = StateLogic.roundPoints(rows.reduce((sum, r) => sum + r.stats.total, 0));
@@ -106,7 +115,7 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
   const bench =
     view === "week" && lastEp
       ? state.castaways
-          .filter((c) => c.ownerIds.includes(myPlayerId) && !fieldedIds.has(c.id))
+          .filter((c) => c.ownerIds.includes(viewId) && !fieldedIds.has(c.id))
           .filter((c) => {
             const outEp = c.exitEpisodeId ? state.episodes.find((e) => e.id === c.exitEpisodeId) : null;
             return !outEp || outEp.number >= lastEp.number;
@@ -117,7 +126,38 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
 
   return (
     <DashCard
-      title="Your Team"
+      title={
+        <div className="relative">
+          <button
+            className="flex items-center gap-1 uppercase tracking-wide hover:text-foreground"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-expanded={menuOpen}
+          >
+            {mine ? "Your Stats" : `${viewing?.name ?? "?"}'s Stats`}
+            <ChevronDownIcon className={cn("h-3.5 w-3.5 transition-transform", menuOpen && "rotate-180")} />
+          </button>
+          {menuOpen && (
+            <div className="absolute left-0 top-full z-20 mt-1 w-[min(80vw,240px)] rounded-lg border border-border bg-card p-1.5 normal-case tracking-normal shadow-md">
+              {others.map((p) => (
+                <button
+                  key={p.id}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm font-semibold text-foreground hover:bg-secondary",
+                    p.id === viewId && "bg-secondary"
+                  )}
+                  onClick={() => {
+                    setViewId(p.id);
+                    setMenuOpen(false);
+                  }}
+                >
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: p.color }} />
+                  <span className="flex-1 truncate">{p.id === myPlayerId ? `You (${p.name})` : p.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      }
       wide
       aside={
         <span className="text-sm">
@@ -152,7 +192,7 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
         {view === "season" && (
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input type="checkbox" checked={scoredForYou} onChange={(e) => setScoredForYou(e.target.checked)} />
-            Scored for you only
+            {mine ? "Scored for you only" : "Scored for them only"}
           </label>
         )}
       </div>
@@ -161,7 +201,7 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
           {view === "week" && !lastEp
             ? "No episodes played yet."
             : view === "week"
-              ? "You didn't field anyone last episode."
+              ? mine ? "You didn't field anyone last episode." : `${viewing?.name ?? "They"} didn't field anyone last episode.`
               : `You haven't drafted any ${terms.castaways} yet.`}
         </p>
       ) : (

@@ -13,7 +13,7 @@ export function DashCard({
   aside,
   children,
 }: {
-  title: string;
+  title: ReactNode;
   wide?: boolean;
   /** Shown at the right end of the title line. */
   aside?: ReactNode;
