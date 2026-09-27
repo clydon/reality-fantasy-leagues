@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { LeagueState } from "@/lib/game/types";
-import { castawayEarnedStats, castawayEpisodeStats, castawaysEverOwned } from "@/lib/game/active-roster-rows";
+import { castawayEarnedStats, castawayEpisodeStats, castawayRosterStats, castawaysEverOwned } from "@/lib/game/active-roster-rows";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useMyPlayerId } from "@/lib/store";
 import { useShowTerms } from "@/lib/use-show-terms";
@@ -78,6 +78,9 @@ export function YourTeamCard({ state }: { state: LeagueState }) {
 function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerId: string }) {
   const terms = useShowTerms();
   const [view, setView] = useState<"week" | "season">("week");
+  // Full season: points they scored for you (only while in your lineup), or everything they scored
+  // while on your roster, benched weeks included.
+  const [scoredForYou, setScoredForYou] = useState(true);
 
   const lastEp = [...state.episodes]
     .filter((ep) => StateLogic.inPlay(state, ep.number) && StateLogic.episodeHasResults(ep))
@@ -91,7 +94,10 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
             .filter((c): c is NonNullable<typeof c> => !!c)
             .map((c) => ({ c, stats: castawayEpisodeStats(state, lastEp.id, c.id) }))
         : []
-      : castawaysEverOwned(state, myPlayerId).map((c) => ({ c, stats: castawayEarnedStats(state, myPlayerId, c.id) }));
+      : castawaysEverOwned(state, myPlayerId).map((c) => ({
+          c,
+          stats: scoredForYou ? castawayEarnedStats(state, myPlayerId, c.id) : castawayRosterStats(state, myPlayerId, c.id),
+        }));
   rows.sort((a, b) => b.stats.total - a.stats.total || a.c.name.localeCompare(b.c.name));
   const total = StateLogic.roundPoints(rows.reduce((sum, r) => sum + r.stats.total, 0));
   // Last week's bench: everyone on your roster you didn't field, and what they'd have scored. Not in
@@ -110,7 +116,19 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
       : [];
 
   return (
-    <DashCard title="Your Team" wide>
+    <DashCard
+      title="Your Team"
+      wide
+      aside={
+        <span className="text-sm">
+          <b className="font-mono text-lg">{total}</b>
+          <span className="text-muted-foreground">
+            {" "}
+            pts{view === "week" ? (lastEp ? ` · Episode ${lastEp.number}` : "") : scoredForYou ? " this season" : " incl. bench"}
+          </span>
+        </span>
+      }
+    >
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <div className="flex overflow-hidden rounded-md border border-border">
           {(
@@ -131,13 +149,12 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
             </button>
           ))}
         </div>
-        <span className="ml-auto text-sm">
-          <b className="font-mono text-lg">{total}</b>
-          <span className="text-muted-foreground">
-            {" "}
-            pts{view === "week" ? (lastEp ? ` · Episode ${lastEp.number}` : "") : " this season"}
-          </span>
-        </span>
+        {view === "season" && (
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input type="checkbox" checked={scoredForYou} onChange={(e) => setScoredForYou(e.target.checked)} />
+            Scored for you only
+          </label>
+        )}
       </div>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -175,11 +192,13 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
           </div>
         </>
       )}
-      <p className="mt-2 text-[0.7rem] text-muted-foreground">
-        {view === "week"
-          ? `Your active lineup that episode — only fielded ${terms.castaways} score.`
-          : `Everyone you've had this season, by the points they earned you while in your lineup.`}
-      </p>
+      {view === "season" && (
+        <p className="mt-2 text-[0.7rem] text-muted-foreground">
+          {scoredForYou
+            ? "Everyone you've had this season, by the points they earned you while in your lineup."
+            : "Everyone you've had this season, by everything they scored while on your roster — benched weeks included."}
+        </p>
+      )}
       <DashLink href="/research">Go to Research →</DashLink>
     </DashCard>
   );

@@ -10,18 +10,22 @@ import { cn } from "cn";
 export function DashCard({
   title,
   wide,
+  aside,
   children,
 }: {
   title: string;
   wide?: boolean;
+  /** Shown at the right end of the title line. */
+  aside?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <Card className={cn("border border-border shadow-sm rounded-lg", wide && "sm:col-span-2")}>
-      <CardHeader>
+      <CardHeader className={cn(aside && "flex flex-row items-baseline justify-between gap-2")}>
         <CardTitle className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
           {title}
         </CardTitle>
+        {aside}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>

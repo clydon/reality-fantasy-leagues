@@ -42,6 +42,8 @@ export function ResearchTab() {
   const terms = useShowTerms();
   const [window, setWindow] = useState<Window>("season");
   const [includeOwned, setIncludeOwned] = useState(false);
+  // One player's team only ("" = everyone). Overrides "Include owned" -- a team is all owned.
+  const [team, setTeam] = useState("");
   const [hideOut, setHideOut] = useState(true);
   const [sort, setSort] = useState<Sort>("points");
   const [open, setOpen] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function ResearchTab() {
   }
 
   const shown = rows
-    .filter((r) => includeOwned || r.c.ownerIds.length === 0 || r.c.ownerIds.includes(myPlayerId ?? ""))
+    .filter((r) => (team ? r.c.ownerIds.includes(team) : includeOwned || r.c.ownerIds.length === 0 || r.c.ownerIds.includes(myPlayerId ?? "")))
     .filter((r) => !hideOut || r.c.status !== "eliminated")
     .sort((a, b) => {
       const key = (r: Row) => (sort === "avg" ? r.avg : sort === "last" ? r.lastPoints : r.points);
@@ -115,6 +117,16 @@ export function ResearchTab() {
               </button>
             ))}
           </div>
+          <Select size="sm" value={team} onChange={(e) => setTeam(e.target.value)} title="Show one player's team">
+            <option value="">All teams</option>
+            {state.players
+              .filter((p) => !p.disabled)
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.id === myPlayerId ? `Your team (${p.name})` : `${p.name}'s team`}
+                </option>
+              ))}
+          </Select>
           <Select size="sm" value={sort} onChange={(e) => setSort(e.target.value as Sort)} title="Sort by">
             <option value="points">Most points</option>
             <option value="avg">Best per episode</option>
@@ -122,8 +134,8 @@ export function ResearchTab() {
           </Select>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={includeOwned} onChange={(e) => setIncludeOwned(e.target.checked)} />
+          <label className={cn("flex items-center gap-1.5", team && "opacity-50")}>
+            <input type="checkbox" checked={includeOwned || !!team} disabled={!!team} onChange={(e) => setIncludeOwned(e.target.checked)} />
             Include owned {terms.castaways}
           </label>
           <label className="flex items-center gap-1.5">
@@ -136,7 +148,7 @@ export function ResearchTab() {
 
       {shown.length === 0 ? (
         <p className="text-sm italic text-muted-foreground">
-          {includeOwned ? `No ${terms.castaways} match.` : `Every ${terms.castaway} is owned — tick "Include owned" to see them.`}
+          {includeOwned || team ? `No ${terms.castaways} match.` : `Every ${terms.castaway} is owned — tick "Include owned" to see them.`}
         </p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">

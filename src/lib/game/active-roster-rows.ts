@@ -110,3 +110,28 @@ export function castawaysEverOwned(state: LeagueState, playerId: string) {
   const fielded = new Set(state.episodes.flatMap((ep) => StateLogic.activeRosterLineupFor(state, ep.id, playerId)));
   return state.castaways.filter((c) => c.ownerIds.includes(playerId) || c.formerOwnerId === playerId || fielded.has(c.id));
 }
+
+/**
+ * Everything one castaway scored while on a player's roster, fielded or benched. Roster history isn't
+ * stored per episode, so "on the roster" is: fielded that episode, or owned by them now (a released
+ * castaway only counts for the weeks they were fielded).
+ */
+export function castawayRosterStats(state: LeagueState, playerId: string, castawayId: string) {
+  const c = StateLogic.getCastaway(state, castawayId);
+  const ownedNow = !!c && c.ownerIds.includes(playerId);
+  // Picked up mid-season: only from the episode after the pickup.
+  const pickedUpAfter = Math.max(
+    0,
+    ...(state.midSeason.log ?? [])
+      .filter((m) => m.playerId === playerId && m.addedCastawayId === castawayId)
+      .map((m) => m.episode ?? 0)
+  );
+  const evs = state.episodes
+    .filter((ep) => StateLogic.inPlay(state, ep.number))
+    .filter(
+      (ep) =>
+        (ownedNow && ep.number > pickedUpAfter) || StateLogic.activeRosterLineupFor(state, ep.id, playerId).includes(castawayId)
+    )
+    .flatMap((ep) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((s) => s.castawayId === castawayId));
+  return statsFrom(state, evs);
+}
