@@ -3,6 +3,7 @@ import type { LeagueState, Membership } from "@/lib/game/types";
 import { buildMockSeasonState } from "@/lib/game/mock-state";
 import { buildDemoState, demoSelfPlayerId, type DemoSeasonData, type DemoLeagueTypeId } from "@/lib/game/demo-season-builder";
 import { api, type MeResponse } from "@/lib/api";
+import { rememberLeague } from "@/lib/last-league";
 
 export type LeagueSummary = MeResponse["leagues"][number];
 
@@ -214,7 +215,8 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
     const cursor = Math.max(1, Math.min(n, data.episodeCount));
     set({ state: buildDemoState(data, leagueTypeId, cursor), demoEpisodeCursor: cursor });
   },
-  loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts) =>
+  loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts) => {
+    rememberLeague(userId, leagueId);
     set({
       mode: "live",
       leagueId,
@@ -229,7 +231,8 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       demoLeagueTypeId: null,
       demoEpisodeCursor: null,
       demoCommissionerView: true,
-    }),
+    });
+  },
   setIdentity: (userId, isSuperAdmin, impersonating) => set({ userId, isSuperAdmin, impersonating }),
   setLeagues: (leagues) => set({ leagues }),
   renameLeagueLocally: (leagueId, name) =>
@@ -244,6 +247,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
     set({ loadingLeague: true });
     try {
       const { league, state, membership, playerAccounts } = await api.leagueState(leagueId);
+      rememberLeague(get().userId, league.id);
       set({
         mode: "live",
         leagueId: league.id,
