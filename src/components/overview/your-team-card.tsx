@@ -94,6 +94,20 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
       : castawaysEverOwned(state, myPlayerId).map((c) => ({ c, stats: castawayEarnedStats(state, myPlayerId, c.id) }));
   rows.sort((a, b) => b.stats.total - a.stats.total || a.c.name.localeCompare(b.c.name));
   const total = StateLogic.roundPoints(rows.reduce((sum, r) => sum + r.stats.total, 0));
+  // Last week's bench: everyone on your roster you didn't field, and what they'd have scored. Not in
+  // the total -- benched points were never yours. Anyone already out before that episode isn't shown.
+  const fieldedIds = new Set(rows.map((r) => r.c.id));
+  const bench =
+    view === "week" && lastEp
+      ? state.castaways
+          .filter((c) => c.ownerIds.includes(myPlayerId) && !fieldedIds.has(c.id))
+          .filter((c) => {
+            const outEp = c.exitEpisodeId ? state.episodes.find((e) => e.id === c.exitEpisodeId) : null;
+            return !outEp || outEp.number >= lastEp.number;
+          })
+          .map((c) => ({ c, stats: castawayEpisodeStats(state, lastEp.id, c.id) }))
+          .sort((a, b) => b.stats.total - a.stats.total || a.c.name.localeCompare(b.c.name))
+      : [];
 
   return (
     <DashCard title="Your Team" wide>
@@ -146,6 +160,20 @@ function ActiveRosterTeam({ state, myPlayerId }: { state: LeagueState; myPlayerI
             />
           ))}
         </div>
+      )}
+      {bench.length > 0 && (
+        <>
+          <div className="my-2.5 flex items-center gap-2">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Bench — not scored</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+          <div className="flex flex-col gap-2 opacity-80">
+            {bench.map(({ c, stats }) => (
+              <CastawayStatRow key={c.id} state={state} castaway={c} stats={stats} fade={false} emptyText="Didn't score this episode." />
+            ))}
+          </div>
+        </>
       )}
       <p className="mt-2 text-[0.7rem] text-muted-foreground">
         {view === "week"
