@@ -20,6 +20,7 @@ const NOTIFICATION_TYPES = [
   { id: "betResult", label: "Bet results", description: "When your guess on a bet is graded." },
   { id: "chat", label: "League chat", description: "When someone posts in your league's chat." },
   { id: "invite", label: "League invites", description: "When you're invited to join a league." },
+  { id: "memberJoined", label: "New league members", description: "When someone joins a league you're in." },
   { id: "wikiReview", label: "Results ready to review", description: "Commissioners: when new episode results arrive from the wiki." },
 ];
 const TYPE_IDS = new Set(NOTIFICATION_TYPES.map((t) => t.id));

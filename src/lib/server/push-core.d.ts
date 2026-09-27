@@ -9,6 +9,7 @@ export type NotificationType =
   | "betResult"
   | "chat"
   | "invite"
+  | "memberJoined"
   | "wikiReview";
 
 export interface NotificationTypeDef {

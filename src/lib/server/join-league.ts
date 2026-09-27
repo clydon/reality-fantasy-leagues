@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
+import { notifyMemberJoined } from "./push-events";
 
 export interface JoinLeagueResult {
   league: { id: string; name: string };
@@ -50,6 +51,9 @@ export async function joinLeague(
     ]);
     if (afterJoin) await afterJoin(client);
     await client.query("COMMIT");
+    // After the commit, per notifyAfter's rule. Named as the league shows them (their player).
+    const joinedAs = state.players.find((p) => p.id === playerId)?.name || (user as { username?: string | null }).username || user.name;
+    notifyMemberJoined(league.id, user.id, joinedAs, !!disabledOwn);
     return { league: { id: league.id, name: league.name }, reclaimed: !!disabledOwn };
   } catch (e) {
     await client.query("ROLLBACK");

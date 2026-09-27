@@ -138,6 +138,23 @@ export function notifyChat(leagueId: string, authorUserId: string, authorName: s
   }));
 }
 
+/** Someone joined (or came back to) a league: everyone already in it, not the person joining. */
+export function notifyMemberJoined(leagueId: string, joinerUserId: string, joinerName: string, returning: boolean) {
+  notifyAfter("memberJoined", async () => {
+    const userIds = await leagueMemberUserIds(leagueId, joinerUserId);
+    if (!userIds.length) return null;
+    return {
+      userIds,
+      message: {
+        title: returning ? "Welcome back" : "New league member",
+        body: `${joinerName} ${returning ? "rejoined" : "joined"} ${await leagueName(leagueId)}.`,
+        url: link("/setup", leagueId),
+        tag: `joined-${leagueId}`,
+      },
+    };
+  });
+}
+
 /** Invited to a league: reaches the invitee only if the identifier matches an existing account. */
 export function notifyInvite(leagueId: string, identifier: string, inviterName: string) {
   notifyAfter("invite", async () => {

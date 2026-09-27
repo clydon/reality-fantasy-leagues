@@ -53,6 +53,7 @@ export function useLeaguePoll() {
   // blind-draft signature actually changes (someone locked in, or the reveal fired), which is a
   // discrete, rare thing, not the every-15s full overwrite the narrow patch exists to avoid.
   const lastBlindSig = useRef<string | null>(null);
+  const knownPlayers = useRef<{ leagueId: string; ids: Set<string> } | null>(null);
 
   useEffect(() => {
     if (!data) return;
@@ -89,6 +90,17 @@ export function useLeaguePoll() {
       dismissByTab("/draft");
     }
     setWasMyTurn(isMyTurnNow);
+
+    // Someone joined (or came back): a player seat that's active now but wasn't at the last poll.
+    // The first poll for a league only records who's there, so nobody already in it is announced.
+    const activeIds = fresh.players.filter((p) => !p.disabled).map((p) => p.id);
+    const known = knownPlayers.current;
+    if (known && known.leagueId === leagueId) {
+      for (const p of fresh.players) {
+        if (!p.disabled && !known.ids.has(p.id) && p.id !== myPlayerId) push(`${p.name} joined the league`, "/setup");
+      }
+    }
+    knownPlayers.current = { leagueId: leagueId ?? "", ids: new Set(activeIds) };
 
     // Only the midSeason slice is synced, not the whole state -- see setMidSeason's comment.
     setMidSeason(fresh.midSeason);
