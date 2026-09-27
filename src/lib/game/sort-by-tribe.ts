@@ -13,3 +13,17 @@ export function sortByTribe(cast: Castaway[], state: LeagueState): Castaway[] {
     return ta !== tb ? ta - tb : a.name.localeCompare(b.name);
   });
 }
+
+/** The same order, split into tribe groups (current tribes, so a revealed swap/merge shows). */
+export function groupByTribe(cast: Castaway[], state: LeagueState): { tribe: LeagueState["tribes"][number] | null; members: Castaway[] }[] {
+  const sorted = sortByTribe(cast, state);
+  if (state.tribes.length === 0) return [{ tribe: null, members: sorted }];
+  const groups: { tribe: LeagueState["tribes"][number] | null; members: Castaway[] }[] = [];
+  for (const c of sorted) {
+    const tribe = state.tribes.find((t) => t.id === c.tribeId) ?? null;
+    const last = groups[groups.length - 1];
+    if (last && last.tribe?.id === tribe?.id) last.members.push(c);
+    else groups.push({ tribe, members: [c] });
+  }
+  return groups;
+}

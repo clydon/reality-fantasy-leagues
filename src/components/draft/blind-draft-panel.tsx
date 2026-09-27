@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayAvatar } from "@/components/castaway-avatar";
-import { sortByTribe } from "@/lib/game/sort-by-tribe";
+import { sortByTribe, groupByTribe } from "@/lib/game/sort-by-tribe";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
@@ -190,8 +190,19 @@ export function BlindDraftPanel({ state }: { state: LeagueState }) {
                   "Choose which player you're submitting for."
                 )}
               </p>
-              <div className="mb-3 grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-3">
-                {activeCast.map((c) => {
+              <div className="mb-3 flex flex-col gap-4">
+                {groupByTribe(activeCast, state).map(({ tribe, members }) => (
+                  <div key={tribe?.id ?? "none"}>
+                    {tribe && (
+                      <h4
+                        className="mb-2 inline-block rounded-md px-2.5 py-1 text-[0.72rem] uppercase tracking-[1px] text-white"
+                        style={{ background: tribe.color }}
+                      >
+                        {tribe.name}
+                      </h4>
+                    )}
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-3">
+                {members.map((c) => {
                   const isSelected = selected.includes(c.id);
                   const selectable = !!actingPlayerId && (isSelected || selected.length < teamSize);
                   return (
@@ -221,6 +232,9 @@ export function BlindDraftPanel({ state }: { state: LeagueState }) {
                     </div>
                   );
                 })}
+              </div>
+                  </div>
+                ))}
               </div>
               <Button disabled={busy || !actingPlayerId || selected.length !== teamSize} onClick={lockIn}>
                 Lock In {selected.length}/{teamSize}

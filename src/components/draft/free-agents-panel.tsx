@@ -2,7 +2,7 @@
 
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { sortByTribe } from "@/lib/game/sort-by-tribe";
+import { sortByTribe, groupByTribe } from "@/lib/game/sort-by-tribe";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { RoleBadge } from "@/components/role-badge";
 import { useShowTerms } from "@/lib/use-show-terms";
@@ -59,8 +59,19 @@ export function FreeAgentsPanel({ state }: { state: LeagueState }) {
       {fa.length === 0 ? (
         <div className="text-sm italic text-muted-foreground">No free agents remaining.</div>
       ) : (
+        <div className="flex flex-col gap-4">
+          {groupByTribe(fa, state).map(({ tribe, members }) => (
+            <div key={tribe?.id ?? "none"}>
+              {tribe && (
+                <h4
+                  className="mb-2 inline-block rounded-md px-2.5 py-1 text-[0.72rem] uppercase tracking-[1px] text-white"
+                  style={{ background: tribe.color }}
+                >
+                  {tribe.name}
+                </h4>
+              )}
         <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-3">
-          {fa.map((c) => (
+          {members.map((c) => (
             <div
               key={c.id}
               role={canPick ? "button" : undefined}
@@ -83,6 +94,9 @@ export function FreeAgentsPanel({ state }: { state: LeagueState }) {
               {canPick && (
                 <div className="rounded bg-primary px-2 py-0.5 text-[0.65rem] font-bold text-primary-foreground">Draft</div>
               )}
+            </div>
+          ))}
+        </div>
             </div>
           ))}
         </div>
