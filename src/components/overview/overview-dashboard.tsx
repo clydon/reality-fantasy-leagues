@@ -46,6 +46,27 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
   }
 }
 
+// Standings and Latest Episode are both small, so when they're next to each other in the order they
+// share a row, half each -- unless the latest episode has more than one person out, whose cards then
+// need the full width.
+function groupSections(sections: OverviewSectionId[], state: LeagueState): OverviewSectionId[][] {
+  const latest = [...state.episodes].filter((ep) => ep.events.length > 0).sort((a, b) => b.number - a.number)[0];
+  const latestFitsHalf = !latest || latest.events.length <= 1;
+  const pair = new Set<OverviewSectionId>(["standings", "latestEpisode"]);
+  const groups: OverviewSectionId[][] = [];
+  for (let i = 0; i < sections.length; i++) {
+    const a = sections[i];
+    const b = sections[i + 1];
+    if (latestFitsHalf && b && a !== b && pair.has(a) && pair.has(b)) {
+      groups.push([a, b]);
+      i++;
+    } else {
+      groups.push([a]);
+    }
+  }
+  return groups;
+}
+
 // Direct port of renderOverview() (public/app.js): Notifications banner, Side Bets section, the
 // dash-grid of cards, and the post-draft Board grid -- now driven by an ordered, hide-able section
 // list (src/lib/overview-layout.ts) rather than a fixed sequence. The order/hidden set itself is an
@@ -83,9 +104,19 @@ export function OverviewDashboard() {
         </p>
       )}
       <div className="flex flex-col gap-3.5">
-        {sections.map((id) => (
-          <div key={id}>{renderSection(id, state)}</div>
-        ))}
+        {groupSections(sections, state).map((group) =>
+          group.length === 2 ? (
+            <div key={group.join("+")} className="grid grid-cols-2 gap-3.5 [&>*]:min-w-0">
+              {group.map((id) => (
+                <div key={id} className="[&>*]:h-full">
+                  {renderSection(id, state)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div key={group[0]}>{renderSection(group[0], state)}</div>
+          )
+        )}
       </div>
     </>
   );
