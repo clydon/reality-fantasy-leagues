@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthGate } from "@/components/auth-gate";
 import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme-script";
 
 // Matches the live app's typography exactly (public/styles.css --font-body / --font-mono),
 // so ported components need zero font-related visual tweaking.
@@ -54,7 +55,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}
+      // The inline script below adds `dark` before React hydrates; the DOM's class list wins.
+      suppressHydrationWarning
     >
+      <head>
+        {/* Applies the saved theme (src/lib/theme.ts) before the first paint, so choosing dark
+            doesn't flash light on every load. Per Next's "preventing flash before hydration" guide. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-background">
         <ServiceWorkerRegistrar />
         <QueryProvider>

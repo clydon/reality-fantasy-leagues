@@ -236,7 +236,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             </div>
           )}
           {flash && (
-            <div className="mb-4 flex items-start gap-2 rounded-md border border-primary/30 bg-[#fbeee8] px-3 py-2 text-sm">
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-primary/30 bg-accent px-3 py-2 text-sm">
               <span className="flex-1">{flash}</span>
               <button className="text-xs font-semibold text-muted-foreground hover:text-foreground" onClick={() => setFlash(null)}>
                 Dismiss

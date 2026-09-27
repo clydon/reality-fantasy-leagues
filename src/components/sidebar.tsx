@@ -12,6 +12,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { midseasonBadge } from "@/lib/game/selectors";
 import { logOut } from "@/lib/auth-client";
 import { LeagueSwitcher } from "@/components/league-switcher";
+import { ThemePicker } from "@/components/theme-picker";
 import { cn } from "cn";
 
 // Port of the live app's real desktop sidebar chrome -- .sidebar/#tabs/.brand in
@@ -160,6 +161,10 @@ export function Sidebar() {
             Switch to demo data
           </button>
         )}
+        <div className="mt-1 flex items-center gap-2 text-[0.8rem] text-muted-foreground">
+          <span className="shrink-0">Dark mode</span>
+          <ThemePicker className="flex-1" />
+        </div>
         {/* Log out belongs with the rest of the account-level rows, not buried on the Dashboard --
             which was the only place it existed, and only for a user with no league. */}
         {isAuthenticated && (
@@ -188,7 +193,7 @@ function NavLink({
       href={href}
       className={cn(
         "flex items-center gap-2.5 rounded-[7px] px-3 py-2.5 text-[0.9rem] font-semibold text-muted-foreground transition-colors",
-        active ? "bg-[#fbeee8] text-primary" : "hover:bg-secondary hover:text-foreground"
+        active ? "bg-accent text-primary" : "hover:bg-secondary hover:text-foreground"
       )}
     >
       <span className={cn("h-1.5 w-1.5 flex-none rounded-full bg-current", active ? "opacity-100" : "opacity-35")} />

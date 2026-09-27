@@ -15,6 +15,7 @@ import { midseasonBadge } from "@/lib/game/selectors";
 import { useLeagueTypeBadges } from "@/components/league-switcher";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
 import { Badge } from "@/components/ui/badge";
+import { ThemePicker } from "@/components/theme-picker";
 import {
   OverviewIcon,
   EpisodesIcon,
@@ -28,6 +29,7 @@ import {
   LogoutIcon,
   ChatIcon,
   ResearchIcon,
+  MoonIcon,
   ChevronDownIcon,
   GearIcon,
   UserIcon,
@@ -319,6 +321,12 @@ export function MobileNav() {
             <div className="my-1.5 h-px bg-border" />
           </>
         )}
+        {/* Not a MoreRow: it's a setting to change in place, not somewhere to go, so the sheet stays open. */}
+        <div className="flex items-center gap-3 px-3 py-2 text-[0.92rem]">
+          <MoonIcon className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
+          <span className="flex-1">Dark mode</span>
+          <ThemePicker className="w-[172px]" />
+        </div>
         {/* Reachable even with a real season loaded now, not just when leagueless -- picking one
             replaces the view with demo data the same way Sidebar's "Switch to demo data" does. */}
         <MoreRow icon={EpisodesIcon} label="Demo Season" onClick={() => go("")} />

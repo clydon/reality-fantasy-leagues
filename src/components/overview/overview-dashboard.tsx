@@ -72,7 +72,7 @@ export function OverviewDashboard() {
           early to anyone who knows how far the real season has run. Deliberately says nothing about
           how much is left -- see catch-up-panel.tsx. */}
       {StateLogic.RevealLogic.isCatchingUp(state) && (
-        <p className="mb-4 rounded-md border border-primary/30 bg-[#fbeee8] px-3 py-1.5 text-xs">
+        <p className="mb-4 rounded-md border border-primary/30 bg-accent px-3 py-1.5 text-xs">
           Catching up — this league has played through{" "}
           <b>
             {StateLogic.RevealLogic.revealedThrough(state) === 0
