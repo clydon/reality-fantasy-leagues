@@ -94,8 +94,11 @@ export function MobileNav() {
   const midSeasonSlot = hasMidSeason ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon } : null;
   // Active Roster puts Research where Chat would go; chat stays one tap away on the top bar's icon.
   const hasActiveRoster = StateLogic.getLeagueType(state).hasActiveRoster;
+  // After the draft Active Roster keeps Research here even when Mid-Season is on -- scouting is the
+  // weekly job, replenish/swap an occasional one -- so Mid-Season moves to the More sheet instead.
+  const researchSlot = hasActiveRoster && draftComplete;
   const fourth =
-    !hasRoster || (draftComplete && !midSeasonSlot)
+    !hasRoster || (draftComplete && !midSeasonSlot) || researchSlot
       ? hasActiveRoster
         ? { href: "/research", label: "Research", icon: ResearchIcon, urgent: null }
         : { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
@@ -269,7 +272,15 @@ export function MobileNav() {
           className="flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground"
           onClick={() => setSheetOpen(true)}
         >
-          <MoreIcon className="h-[21px] w-[21px]" />
+          <span className="relative inline-flex">
+            <MoreIcon className="h-[21px] w-[21px]" />
+            {/* Mid-Season lives in here for Active Roster, so its "your turn" alert does too. */}
+            {researchSlot && midSeasonSlot && midBadge?.urgent && (
+              <span className="absolute -right-2 -top-1 flex h-[15px] w-[15px] items-center justify-center rounded-full bg-destructive text-[0.62rem] font-bold text-white">
+                !
+              </span>
+            )}
+          </span>
           <span className="text-[0.63rem] font-semibold">More</span>
         </button>
       </nav>
@@ -289,6 +300,13 @@ export function MobileNav() {
       >
         <div className="mx-auto mb-2.5 mt-1.5 h-1 w-9 rounded-full bg-border" />
         {hasSeason && demoted && <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />}
+        {hasSeason && researchSlot && midSeasonSlot && (
+          <MoreRow
+            icon={midSeasonSlot.icon}
+            label={midBadge ? `Mid-Season · ${midBadge.label}` : "Mid-Season"}
+            onClick={() => go(midSeasonSlot.href)}
+          />
+        )}
         {hasSeason && hasActiveRoster && fourth.href !== "/research" && (
           <MoreRow icon={ResearchIcon} label="Research" onClick={() => go("/research")} />
         )}
