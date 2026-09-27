@@ -69,8 +69,10 @@ export function isOverviewSectionEligible(id: OverviewSectionId, state: LeagueSt
     case "pickGrid":
       return leagueType.hasWeeklyPicks;
     case "lineupGrid":
-    case "lastWeek":
       return leagueType.hasActiveRoster;
+    // Folded into Your Team's "Last week" view; kept as an id so saved layouts that list it still load.
+    case "lastWeek":
+      return false;
     case "board":
       return draftComplete;
     default:

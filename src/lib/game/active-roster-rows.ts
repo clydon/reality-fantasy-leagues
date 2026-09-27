@@ -74,3 +74,39 @@ export function playerEventRows(state: LeagueState, playerId: string): PlayerEve
     });
   return rows;
 }
+
+// Same shape as castawayEventStats, over a chosen set of scoring events.
+function statsFrom(state: LeagueState, evs: { type: string }[]): { total: number; byType: CastawayEventStat[] } {
+  const events = StateLogic.formatOf(state).events;
+  const counts: Record<string, number> = {};
+  let total = 0;
+  for (const ev of evs) {
+    counts[ev.type] = (counts[ev.type] || 0) + 1;
+    total = StateLogic.roundPoints(total + StateLogic.ActiveRosterLogic.pointsFor(state, ev.type));
+  }
+  const byType = events
+    .filter((e) => counts[e.id] > 0)
+    .map((e) => ({ type: e.id, label: e.label, count: counts[e.id], points: StateLogic.ActiveRosterLogic.pointsFor(state, e.id) }));
+  return { total, byType };
+}
+
+/** One castaway's events in one episode (exits included). */
+export function castawayEpisodeStats(state: LeagueState, epId: string, castawayId: string) {
+  const ep = state.episodes.find((e) => e.id === epId);
+  return statsFrom(state, ep ? StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((s) => s.castawayId === castawayId) : []);
+}
+
+/** What one castaway earned for one player all season: only episodes they were in that player's lineup. */
+export function castawayEarnedStats(state: LeagueState, playerId: string, castawayId: string) {
+  const evs = state.episodes
+    .filter((ep) => StateLogic.inPlay(state, ep.number))
+    .filter((ep) => StateLogic.activeRosterLineupFor(state, ep.id, playerId).includes(castawayId))
+    .flatMap((ep) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((s) => s.castawayId === castawayId));
+  return statsFrom(state, evs);
+}
+
+/** Everyone a player has had this season: owned now, released since, or ever fielded. */
+export function castawaysEverOwned(state: LeagueState, playerId: string) {
+  const fielded = new Set(state.episodes.flatMap((ep) => StateLogic.activeRosterLineupFor(state, ep.id, playerId)));
+  return state.castaways.filter((c) => c.ownerIds.includes(playerId) || c.formerOwnerId === playerId || fielded.has(c.id));
+}
