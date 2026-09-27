@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLeagueStore, type LeagueSummary } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -37,6 +37,13 @@ export function useLeagueTypeBadges(leagues: LeagueSummary[]) {
     setTypes((prev) => ({ ...prev, ...Object.fromEntries(results.map(([id, type]) => [id, type])) }));
     setShowNames((prev) => ({ ...prev, ...Object.fromEntries(results.map(([id, , show]) => [id, show])) }));
   }
+  // Resolved as soon as there's a list to sort, not on first open -- otherwise the dropdown opens
+  // alphabetical (types still empty) and visibly re-sorts a moment later once the fetch lands.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetches then sets; see comment above
+    resolve();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leagues.length]);
   return { types, showNames, resolve };
 }
 
