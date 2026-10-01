@@ -12,6 +12,7 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
 import { RevealFirst, useHiddenResults } from "@/components/results-in-banner";
 import { formatInTz } from "@/lib/game/air-schedule.js";
+import { scoringGroups } from "@/lib/game/scoring-groups";
 
 // Active Roster: YOUR lineup for the current episode (StateLogic.currentEpisode): an Active row of
 // activeSlots slots (empty ones as dashed outlines), then the rest of your roster by current tribe.
@@ -183,21 +184,12 @@ function LineupCard({
 // in that order, highest points first within each; zero-point events are left out as noise, and a
 // category with nothing left is skipped.
 function ScoringChart({ state }: { state: LeagueState }) {
-  const format = StateLogic.formatOf(state);
-  const row = (id: string) => {
-    const def = format.events.find((e) => e.id === id);
-    return def ? { id, label: def.label, points: StateLogic.ActiveRosterLogic.pointsFor(state, id) } : null;
-  };
-  const listed = new Set(format.eventCategories.flatMap((c) => c.events));
-  const groups = [
-    ...format.eventCategories.map((c) => ({ id: c.id, label: c.label, ids: c.events })),
-    { id: "other", label: "Other", ids: format.events.map((e) => e.id).filter((id) => !listed.has(id)) },
-  ]
+  const groups = scoringGroups(state)
     .map((g) => ({
       ...g,
-      rows: g.ids
-        .map(row)
-        .filter((r): r is NonNullable<typeof r> => !!r && r.points !== 0)
+      rows: g.events
+        .map((e) => ({ id: e.id, label: e.label, points: StateLogic.ActiveRosterLogic.pointsFor(state, e.id) }))
+        .filter((r) => r.points !== 0)
         .sort((a, b) => b.points - a.points),
     }))
     .filter((g) => g.rows.length > 0);

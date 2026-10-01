@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useShowTerms } from "@/lib/use-show-terms";
+import { scoringGroups } from "@/lib/game/scoring-groups";
 
 // Active Roster's own settings section, gated on the league type's hasActiveRoster flag exactly the
 // way FinaleSettingsSection gates on supportsFinalePredictions -- rather than being dumped into
@@ -116,33 +117,42 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
           ? "."
           : ": winner-heavy categories count for less, so owning the winner outright doesn't decide the league."}
       </p>
-      <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
-        {StateLogic.formatOf(state).events.map((ev) => (
-          <label key={ev.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
-            <span>
-              {ev.label}
-              {ev.implied && (
-                <span className="ml-1 text-xs text-muted-foreground" title="Scored automatically from how they left or their role">
-                  (automatic)
-                </span>
-              )}
-            </span>
-            <Input
-              // Keyed on the value so "Use recommended values" (a whole-map write) refreshes every box.
-              key={`${ev.id}:${StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)}`}
-              type="number"
-              step="0.5"
-              inputMode="decimal"
-              className="w-20"
-              disabled={!canManage}
-              defaultValue={StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)}
-              onBlur={(e) => {
-                const n = parseFloat(e.target.value);
-                const next = Number.isFinite(n) ? StateLogic.roundPoints(n) : 0;
-                if (next !== StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)) updateEventPoints(ev.id, next);
-              }}
-            />
-          </label>
+      {/* Grouped like "How starters score" (scoring-groups.ts), each category in its listed order --
+          not by points, which would move a row out from under you as you edit it. */}
+      <div className="flex flex-col gap-4">
+        {scoringGroups(state).map((g) => (
+          <div key={g.id}>
+            <div className="mb-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">{g.label}</div>
+            <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
+              {g.events.map((ev) => (
+                <label key={ev.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
+                  <span>
+                    {ev.label}
+                    {ev.implied && (
+                      <span className="ml-1 text-xs text-muted-foreground" title="Scored automatically from how they left or their role">
+                        (automatic)
+                      </span>
+                    )}
+                  </span>
+                  <Input
+                    // Keyed on the value so "Use recommended values" (a whole-map write) refreshes every box.
+                    key={`${ev.id}:${StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)}`}
+                    type="number"
+                    step="0.5"
+                    inputMode="decimal"
+                    className="w-20"
+                    disabled={!canManage}
+                    defaultValue={StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)}
+                    onBlur={(e) => {
+                      const n = parseFloat(e.target.value);
+                      const next = Number.isFinite(n) ? StateLogic.roundPoints(n) : 0;
+                      if (next !== StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)) updateEventPoints(ev.id, next);
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
     </div>
