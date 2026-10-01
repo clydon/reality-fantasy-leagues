@@ -114,7 +114,25 @@ function StarterRow({
           </span>
         )}
       </div>
-      {ep && hidden && <p className="text-xs italic text-muted-foreground">Starters hidden until the episode airs.</p>}
+      {/* Hidden starters: one grey "?" square per slot they've filled, a dashed one per slot still
+          empty -- who they picked stays private, but the league can see (and nudge them) when a
+          lineup isn't full. No bench: that would give the starters away by omission. */}
+      {ep && hidden && (
+        <div className="flex flex-wrap gap-1.5">
+          {starters.map((c) => (
+            <div
+              key={c.id}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-border bg-muted font-bold text-muted-foreground"
+              title="Hidden until the episode airs"
+            >
+              ?
+            </div>
+          ))}
+          {Array.from({ length: empty }, (_, i) => (
+            <div key={i} className="h-10 w-10 rounded-lg border-2 border-dashed border-border" title="Empty slot" />
+          ))}
+        </div>
+      )}
       {ep && !hidden && (
         // Starters left, bench right; on a narrow screen the bench wraps under, still right-aligned.
         <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
