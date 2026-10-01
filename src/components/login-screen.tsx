@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BrandLogo } from "@/components/brand-logo";
 
 // Port of renderLoginScreen() (public/app.js) -- exact structure: 360px-wide centered column,
 // banner.png, a .panel box (h3 renders as small uppercase muted text via the global h3 rule,
@@ -34,14 +34,7 @@ export function LoginScreen({
 
   return (
     <div className="mx-auto mt-[60px] max-w-[360px] px-4">
-      <Image
-        src="/banner.png"
-        alt="Survivor Fantasy Engine"
-        width={1024}
-        height={360}
-        className="mx-auto mb-2 block h-auto max-w-full"
-        priority
-      />
+      <BrandLogo kind="banner" className="mx-auto mb-2 block h-auto max-w-full" priority />
       <div className="mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
         <h3 className="mb-2.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Log in</h3>
         {error && <p className="mb-2 text-sm text-destructive">{error}</p>}

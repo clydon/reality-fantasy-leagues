@@ -106,46 +106,47 @@
   --sidebar-ring: #a4783a;
 }
 
-/* Dark theme (src/lib/theme.ts): the same brand in low light -- warm near-blacks rather than neutral
-   grey, the terracotta accent lifted slightly so it still reads on a dark surface. */
+/* Dark theme (src/lib/theme.ts): the same brand in low light -- warm charcoals rather than neutral
+   grey, the terracotta accent lifted slightly so it still reads on a dark surface. Lifted a few steps
+   from the original near-blacks (#161512 page, #211f1b cards), which read as too dark. */
 .dark {
   color-scheme: dark;
-  --panel: #211f1b;
-  --panel-2: #2a2823;
-  --panel-menu: #1c1a17;
+  --panel: #2e2b26;
+  --panel-2: #38352f;
+  --panel-menu: #282521;
   --accent-2: #c49a58;
   --good: #58a877;
 
-  --background: #161512;
+  --background: #23211d;
   --foreground: #ece9e2;
-  --card: #211f1b;
+  --card: #2e2b26;
   --card-foreground: #ece9e2;
-  --popover: #25231f;
+  --popover: #33302a;
   --popover-foreground: #ece9e2;
   --primary: #e0764f;
   --primary-foreground: #ffffff;
-  --secondary: #2a2823;
+  --secondary: #38352f;
   --secondary-foreground: #ece9e2;
-  --muted: #2a2823;
-  --muted-foreground: #a6a196;
-  --accent: #3b2922;
+  --muted: #38352f;
+  --muted-foreground: #b3ada1;
+  --accent: #4a3328;
   --accent-foreground: #f0906b;
   --destructive: #e5604e;
-  --border: #37342d;
-  --input: #3d3a33;
+  --border: #48443c;
+  --input: #4d4940;
   --ring: #c49a58;
   --chart-1: #e0764f;
   --chart-2: #56b8aa;
   --chart-3: #b884c0;
   --chart-4: #6aa0d6;
   --chart-5: #d4a94f;
-  --sidebar: #1c1a17;
+  --sidebar: #282521;
   --sidebar-foreground: #ece9e2;
   --sidebar-primary: #e0764f;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2a2823;
+  --sidebar-accent: #38352f;
   --sidebar-accent-foreground: #ece9e2;
-  --sidebar-border: #37342d;
+  --sidebar-border: #48443c;
   --sidebar-ring: #c49a58;
 }
 

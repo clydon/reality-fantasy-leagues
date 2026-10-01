@@ -12,17 +12,29 @@ const webpush = require("web-push");
 
 // Every notification type, in the order the Account settings page lists them. `id` is what's stored
 // in notification_prefs.disabled (db/migrations/0010) -- never rename one without migrating that.
+// `sample` is what Account settings' per-type "Test" button sends -- worded like the real one
+// (push-events.ts / db/reminders.js), with a stand-in league and names.
 const NOTIFICATION_TYPES = [
-  { id: "draftTurn", label: "It's your turn to draft", description: "When the draft starts or reaches your pick." },
-  { id: "midSeasonTurn", label: "Your turn to replenish or swap", description: "When a mid-season round reaches you." },
-  { id: "reminder", label: "Reminders before an episode", description: "A day and two hours before an episode airs, if your lineup, pick or a prediction is still open." },
-  { id: "episodeResults", label: "Episode results", description: "When an elimination is logged for your league." },
-  { id: "newBet", label: "New side bets", description: "When someone proposes a bet you can guess on." },
-  { id: "betResult", label: "Bet results", description: "When your guess on a bet is graded." },
-  { id: "chat", label: "League chat", description: "When someone posts in your league's chat." },
-  { id: "invite", label: "League invites", description: "When you're invited to join a league." },
-  { id: "memberJoined", label: "New league members", description: "When someone joins a league you're in." },
-  { id: "wikiReview", label: "Results ready to review", description: "Commissioners: when new episode results arrive from the wiki." },
+  { id: "draftTurn", label: "It's your turn to draft", description: "When the draft starts or reaches your pick.",
+    sample: { title: "You're on the clock", body: "It's your turn to draft in Sample League." } },
+  { id: "midSeasonTurn", label: "Your turn to replenish or swap", description: "When a mid-season round reaches you.",
+    sample: { title: "You're up for a swap", body: "Let your commissioner know your swap in Sample League." } },
+  { id: "reminder", label: "Reminders before an episode", description: "A day and two hours before an episode airs, if your lineup, pick or a prediction is still open.",
+    sample: { title: "Sample League: episode 9 airs in about 2 hours", body: "Set your episode 9 lineup (1 empty slot)" } },
+  { id: "episodeResults", label: "Episode results", description: "When an elimination is logged for your league.",
+    sample: { title: "Episode 9 results", body: "Results are in · Sample League" } },
+  { id: "newBet", label: "New predictions", description: "When someone proposes a prediction you can guess on.",
+    sample: { title: "New prediction", body: "“Who finds the next idol?” · Sample League" } },
+  { id: "betResult", label: "Prediction results", description: "When your guess on a prediction is graded.",
+    sample: { title: "You got it right (+2)", body: "“Who finds the next idol?” — you guessed Kyle" } },
+  { id: "chat", label: "League chat", description: "When someone posts in your league's chat.",
+    sample: { title: "Sample League", body: "Alex: Did anyone else see that blindside coming?" } },
+  { id: "invite", label: "League invites", description: "When you're invited to join a league.",
+    sample: { title: "League invite", body: "Alex invited you to Sample League." } },
+  { id: "memberJoined", label: "New league members", description: "When someone joins a league you're in.",
+    sample: { title: "New league member", body: "Alex joined Sample League." } },
+  { id: "wikiReview", label: "Results ready to review", description: "Commissioners: when new episode results arrive from the wiki.",
+    sample: { title: "Results ready to review", body: "Episode 9 results for Sample League are waiting for you." } },
 ];
 const TYPE_IDS = new Set(NOTIFICATION_TYPES.map((t) => t.id));
 

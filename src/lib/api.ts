@@ -563,7 +563,9 @@ export const api = {
       "/api/me/notification-prefs",
       { method: "PUT", body: JSON.stringify({ enabled }) }
     ),
-  sendTestPush: () => localFetch<{ sent: number; removed: number }>("/api/me/push-test", { method: "POST" }),
+  // No type: the general "is this working" push. A type: that type's sample, so you can see it.
+  sendTestPush: (type?: string) =>
+    localFetch<{ sent: number; removed: number }>("/api/me/push-test", { method: "POST", body: JSON.stringify(type ? { type } : {}) }),
 
   adminListReports: () => localFetch<{ reports: Report[] }>("/api/admin/reports"),
   adminDeleteReport: (id: string) => localFetch<{ ok: true }>(`/api/admin/reports/${id}`, { method: "DELETE" }),

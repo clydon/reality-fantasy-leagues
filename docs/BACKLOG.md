@@ -24,15 +24,15 @@ Check existing `docs/PLAN-*.md` before designing — e.g. #4 and #22 overlap `PL
 16. ~~DONE~~ Color picker: accept hex input (to sync colors across leagues).
 
 ## Design / copy decisions
-17. Dark palette too dark — lighter pass; add dark-mode logo variant.
-18. Desktop: move dark mode selector to Account Settings (mobile keeps its spot, fix #8).
-19. Wiki Connector section in League Settings confusing for non-commissioners, possibly obsolete — simplify, hide, or cut.
+17. ~~DONE~~ Dark palette too dark — lighter pass; add dark-mode logo variant.
+18. ~~DONE~~ Desktop: move dark mode selector to Account Settings (mobile keeps its spot, fix #8).
+19. ~~DONE~~ Wiki Connector section in League Settings confusing for non-commissioners, possibly obsolete — simplify, hide, or cut.
 
 ## Features (brainstorm first)
 20. ~~DONE~~ End-of-season results card on Overview, winner callout with confetti popping out of the card.
 21. ~~DONE~~ Active Roster episode sub-header: top 3 users that episode with gold/silver/bronze numbered circles + points.
 22. Spoiler protection: pause results/scores, designed so it can't hide results longer than intended.
-23. Account Settings: "test" button per notification toggle.
+23. ~~DONE~~ Account Settings: "test" button per notification toggle.
 24. ~~DONE~~ Redesign "Your lineup for episode X": Active section with dashed-outline empty slots, separator, roster below sorted by current tribe with tribe badge centered above each photo.
 25. ~~DONE~~ New scoring option: "No Final Tribal Council votes" (goat penalty for a finalist in your starting lineup).
 26. ~~DONE~~ Collapsed-by-default condensed scoring chart inside "Your lineup for episode X".

@@ -17,6 +17,8 @@ export interface NotificationTypeDef {
   id: NotificationType;
   label: string;
   description: string;
+  /** What the Account settings "Test" button sends for this type. */
+  sample: { title: string; body: string };
 }
 
 export interface PushMessage {

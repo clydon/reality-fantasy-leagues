@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ProfileSection } from "./profile-section";
 import { PasswordSection } from "./password-section";
 import { NotificationsSection } from "./notifications-section";
+import { ThemePicker } from "@/components/theme-picker";
 import { InstallHint } from "@/components/install-hint";
 import { LogOutButton } from "@/components/log-out-button";
 import { placeholderEmail } from "@/lib/no-email";
@@ -17,7 +18,7 @@ import { placeholderEmail } from "@/lib/no-email";
 // CLAUDE.md/README for the history of it becoming the one real login for everything, not a
 // parallel system). Two views:
 //
-//   signed in  -- Account Settings: profile, password, push notification preferences, the
+//   signed in  -- Account Settings: profile, appearance (light/dark), password, push notification preferences, the
 //                 install-app hint, sign out. Reachable from the sidebar footer / mobile More
 //                 sheet, and rendered inside the app shell, so there's a way back out (see
 //                 auth-gate.tsx: /account only renders bare while there's no session).
@@ -45,6 +46,13 @@ export function AccountPanel() {
         <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Account settings</h2>
         <div className="mx-auto max-w-[420px]">
           <ProfileSection />
+          <div className="mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
+            <h3 className="mb-3 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Appearance</h3>
+            <div className="flex items-center gap-3 text-sm">
+              <span className="flex-1">Theme</span>
+              <ThemePicker className="w-[200px] max-w-[60%]" />
+            </div>
+          </div>
           <PasswordSection />
           <NotificationsSection />
           <InstallHint variant="section" />

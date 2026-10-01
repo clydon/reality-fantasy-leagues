@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 type NotifType = { id: string; label: string; description: string; enabled: boolean };
 
 // Enable-on-this-device + per-type toggles (all on by default, see db/migrations/0010's comment)
-// + a test button. The type catalog and each person's saved prefs both come from the server
+// + a test button, plus a "Test" per type that sends that type's sample message. The type catalog and each person's saved prefs both come from the server
 // (src/app/api/me/notification-prefs/route.ts) -- this component only tracks THIS device's own
 // subscription state locally (isThisDeviceSubscribed), since that's browser state the server
 // can't see directly.
@@ -20,6 +20,9 @@ export function NotificationsSection() {
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+  // Which type's own "Test" is in flight, and what the last one reported (per type, shown on its row).
+  const [testingType, setTestingType] = useState<string | null>(null);
+  const [typeResult, setTypeResult] = useState<{ id: string; text: string } | null>(null);
 
   const needsInstallFirst = isIOS() && !isStandalone();
 
@@ -89,6 +92,20 @@ export function NotificationsSection() {
     }
   }
 
+  async function sendTypeTest(id: string) {
+    setTestingType(id);
+    setTypeResult(null);
+    setError(null);
+    try {
+      const res = await api.sendTestPush(id);
+      setTypeResult({ id, text: res.sent > 0 ? "Sent — check this device." : "No devices reachable." });
+    } catch (e) {
+      setTypeResult({ id, text: e instanceof ApiError ? e.message : "Couldn't send it." });
+    } finally {
+      setTestingType(null);
+    }
+  }
+
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
       <h3 className="mb-3 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Notifications</h3>
@@ -127,19 +144,32 @@ export function NotificationsSection() {
           {types && (
             <div className="mb-3 flex flex-col gap-2 border-t border-border pt-3">
               {types.map((t) => (
-                <label key={t.id} className="flex items-start gap-2.5 text-sm">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5"
-                    checked={t.enabled}
-                    disabled={!deviceEnabled}
-                    onChange={(e) => toggleType(t.id, e.target.checked)}
-                  />
-                  <span>
-                    <span className="font-semibold">{t.label}</span>
-                    <span className="block text-xs text-muted-foreground">{t.description}</span>
-                  </span>
-                </label>
+                <div key={t.id} className="flex items-start gap-2.5 text-sm">
+                  <label className="flex min-w-0 flex-1 items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={t.enabled}
+                      disabled={!deviceEnabled}
+                      onChange={(e) => toggleType(t.id, e.target.checked)}
+                    />
+                    <span className="min-w-0">
+                      <span className="font-semibold">{t.label}</span>
+                      <span className="block text-xs text-muted-foreground">{t.description}</span>
+                      {typeResult?.id === t.id && <span className="block text-xs text-good">{typeResult.text}</span>}
+                    </span>
+                  </label>
+                  {/* Sends this type's sample even when it's switched off -- seeing it is how you decide. */}
+                  {deviceEnabled && (
+                    <button
+                      className="shrink-0 rounded border border-border px-2 py-0.5 text-xs font-semibold text-muted-foreground hover:bg-secondary disabled:opacity-60"
+                      disabled={testingType !== null}
+                      onClick={() => sendTypeTest(t.id)}
+                    >
+                      {testingType === t.id ? "Sending…" : "Test"}
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}

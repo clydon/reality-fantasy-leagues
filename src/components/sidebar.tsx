@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
@@ -14,6 +13,7 @@ import { logOut } from "@/lib/auth-client";
 import { LeagueSwitcher } from "@/components/league-switcher";
 import { ThemePicker } from "@/components/theme-picker";
 import { cn } from "cn";
+import { BrandLogo } from "@/components/brand-logo";
 
 // Port of the live app's real desktop sidebar chrome -- .sidebar/#tabs/.brand in
 // public/styles.css, populated by renderTabs() in public/app.js. Values below (width aside -- widened from the live app's 224px so league names fit --
@@ -96,7 +96,7 @@ export function Sidebar() {
     <aside className="sticky top-0 flex h-screen w-[248px] flex-none flex-col overflow-y-auto overflow-x-hidden border-r border-border bg-panel-menu p-[20px_12px]">
       <div className="flex items-center justify-center px-0 pb-[18px] pt-1">
         <Link href="/" className="min-w-0 flex-1">
-          <Image src="/sidebar-logo.jpg" alt="Survivor Fantasy Engine" width={855} height={301} className="h-auto w-full" priority />
+          <BrandLogo kind="sidebar" className="h-auto w-full" priority />
         </Link>
       </div>
 
@@ -161,10 +161,14 @@ export function Sidebar() {
             Switch to demo data
           </button>
         )}
-        <div className="mt-1 flex items-center gap-2 text-[0.8rem] text-muted-foreground">
-          <span className="shrink-0">Dark mode</span>
-          <ThemePicker className="flex-1" />
-        </div>
+        {/* Signed in, the theme lives in Account settings (Appearance). Touring without an account
+            there's no Account page, so it stays here. */}
+        {!isAuthenticated && (
+          <div className="mt-1 flex items-center gap-2 text-[0.8rem] text-muted-foreground">
+            <span className="shrink-0">Dark mode</span>
+            <ThemePicker className="flex-1" />
+          </div>
+        )}
         {/* Log out belongs with the rest of the account-level rows, not buried on the Dashboard --
             which was the only place it existed, and only for a user with no league. */}
         {isAuthenticated && (

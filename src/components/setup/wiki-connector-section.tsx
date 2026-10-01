@@ -2,30 +2,24 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { LeagueState, WikiProposal } from "@/lib/game/types";
-import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useIsSuperAdmin } from "@/lib/store";
-import { useMutate } from "@/lib/use-mutate";
 import { api, ApiError } from "@/lib/api";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useShowTerms, type ShowTerms } from "@/lib/use-show-terms";
 
-// Review queue for the wiki connector (db/wiki-sync.js). Admin-only now, and live-mode only --
-// proposals live in their own table, so there's nothing for mock mode to show, same as Invites.
-//
-// Both the cast and the per-episode results are decided once per season by an admin (db/migrations/
-// 0011 and 0019) and reach the league on their own. What's left here is the season picker and any
-// cast proposal left over from before that change -- internal machinery the commissioner never
-// needs to see or touch.
+// Leftover wiki-connector cast proposals (db/wiki-sync.js), admin-only and live-mode only. Both the
+// cast and the per-episode results are decided once per season by an admin now (db/migrations/0011
+// and 0019) and reach the league on their own; the season is picked in League Info. All this still
+// does is let an admin apply or clear a cast proposal filed before that change -- and it renders
+// nothing at all when there isn't one.
 export function WikiConnectorSection({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mode = useLeagueStore((s) => s.mode);
   const setState = useLeagueStore((s) => s.setState);
   const isSuperAdmin = useIsSuperAdmin();
-  const mutate = useMutate();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -36,13 +30,6 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
     queryFn: () => api.listWikiProposals(leagueId!),
     enabled: live && isSuperAdmin,
   });
-  async function updateSeason(value: number | null) {
-    await mutate(
-      (s) => StateLogic.updateSettings(s, "wikiSeason", value),
-      () => api.updateLeagueSettings(leagueId!, "wikiSeason", value)
-    );
-  }
-
   async function apply(p: WikiProposal) {
     setBusyId(p.id);
     setError(null);
@@ -75,8 +62,6 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
 
   if (!isSuperAdmin) return null;
 
-  const season = state.settings.wikiSeason;
-  const showLabel = terms.showName ?? state.settings.showId ?? "the show";
   // Cast proposals aren't FILED any more -- the cast is season data an admin approves once
   // (db/migrations/0011) -- but a league that ran the connector before that change can still have
   // one sitting pending, and applying it is still the right thing to do with it. So this list keeps
@@ -84,61 +69,18 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
   // the same "left over from an older shape" reason.
   const proposals = (data?.proposals ?? []).filter((p) => p.kind === "cast");
 
+  // Nothing left over (the normal case): no section at all. It used to show a season-number field
+  // (League Info picks the season now) and command-line instructions (admin tooling, not league
+  // settings), which read as something a league had to set up when nothing was needed.
+  if (!live || proposals.length === 0) return null;
+
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Wiki Connector</h3>
+      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Leftover cast proposal</h3>
       <p className="mb-3 text-sm text-muted-foreground">
-        Your league&rsquo;s cast comes from {showLabel}&rsquo;s wiki, reviewed and approved once by an admin for the
-        whole season — it arrives here on its own, and picking a season that already has one brings it with you.
-        Episode results (eliminations, scoring events, exiles) are reviewed once for the whole season too, and land on
-        each episode&rsquo;s card automatically — nothing for you to confirm.
+        From before the season&rsquo;s cast was approved once for every league. Apply it to bring in anyone missing,
+        or reject it to clear it. Only admins see this.
       </p>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-1.5 text-sm">
-          Wiki season number:
-          <Input
-            type="number"
-            className="w-20"
-            defaultValue={season ?? ""}
-            placeholder="44"
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              const n = v === "" ? null : parseInt(v);
-              if (n !== season) updateSeason(Number.isFinite(n as number) ? n : null);
-            }}
-          />
-        </label>
-        <span className="text-xs text-muted-foreground">
-          {season ? `Tracking ${showLabel} season ${season} on the wiki.` : "Set this before running the connector."}
-        </span>
-      </div>
-
-      {!live ? (
-        <p className="text-sm italic text-muted-foreground">Proposals are a live-league feature — not available in demo mode.</p>
-      ) : (
-        <>
-          <div className="mb-2 rounded-md border border-dashed border-border bg-secondary/40 p-2.5">
-            <p className="text-xs text-muted-foreground">
-              A scheduled job reads every season any league is tracking once and shares the result — nothing to run
-              yourself. To fetch on demand instead, run{" "}
-              <code className="rounded bg-secondary px-1 py-0.5 font-mono text-[0.7rem]">
-                node db/wiki-sync.js cast {leagueId}
-              </code>{" "}
-              for the cast, or{" "}
-              <code className="rounded bg-secondary px-1 py-0.5 font-mono text-[0.7rem]">
-                node db/wiki-sync.js episodes {leagueId}
-              </code>{" "}
-              for per-episode results (add <code className="font-mono">--dry</code> to preview without filing).
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Per-episode results are matched by name against the {terms.castaways} already in your league, so the
-              season&rsquo;s cast has to be approved before they can land.
-            </p>
-          </div>
-
-          {proposals.length === 0 ? (
-            <p className="text-sm italic text-muted-foreground">No proposals waiting.</p>
-          ) : (
             <div className="flex flex-col gap-2">
               {proposals.map((p) => (
                 <div key={p.id} className="rounded-md border border-border p-2.5">
@@ -161,9 +103,6 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
                 </div>
               ))}
             </div>
-          )}
-        </>
-      )}
 
       {note && <p className="mt-2 text-sm font-semibold text-good">{note}</p>}
       {error && <p className="mt-2 text-sm font-semibold text-destructive">{error}</p>}

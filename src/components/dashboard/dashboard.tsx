@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MyInvite } from "@/lib/game/types";
@@ -8,6 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { useLeagueStore, useIsAuthenticated } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BrandLogo } from "@/components/brand-logo";
 
 const PANEL = "mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm";
 const PANEL_TITLE = "mb-2.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground";
@@ -132,14 +132,7 @@ export function Dashboard() {
           whose sidebar already carries the logo -- two of them stacked just pushed the actual
           join/create controls down the page. */}
       {!isAuthenticated && (
-        <Image
-          src="/banner.png"
-          alt="Survivor Fantasy Engine"
-          width={1024}
-          height={360}
-          className="mx-auto mb-2 block h-auto w-full max-w-[360px]"
-          priority
-        />
+        <BrandLogo kind="banner" className="mx-auto mb-2 block h-auto w-full max-w-[360px]" priority />
       )}
 
       {!isAuthenticated ? (
