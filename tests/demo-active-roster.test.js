@@ -33,9 +33,10 @@ test("the demo runs under the Active Roster defaults", () => {
 test("at every cursor: legal rosters and lineups, and no move from the future or outside a window", () => {
   for (let cursor = 1; cursor <= EPISODES; cursor++) {
     const s = at(cursor);
+    // Episode `cursor` has happened; the next one is this week (none after the finale).
     const current = s.episodes[s.episodes.length - 1];
-    assert.equal(current.number, cursor);
-    assert.equal(current.lineupsLocked, false, "the cursor's episode is this week");
+    assert.equal(current.number, cursor < EPISODES ? cursor + 1 : cursor);
+    if (cursor < EPISODES) assert.equal(S.ActiveRosterLogic.isLineupLocked(s, current.id), false, "next week's lineup is open");
     for (const p of s.players) {
       const owned = s.castaways.filter((c) => c.ownerIds.includes(p.id));
       assert.ok(owned.length <= 5, `cursor ${cursor}: ${p.name} owns ${owned.length}`);

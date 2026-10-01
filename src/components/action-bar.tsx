@@ -37,6 +37,10 @@ export function ActionBar() {
   const live = mode === "live" && !!leagueId;
   // Signed in with no league yet still fetches: invites are exactly what that person needs to see.
   const enabled = isAuthenticated && !previewingDemo;
+  // A demo season plays as one of its players, so it gets the bar too -- its own items only, nothing
+  // fetched (there are no other leagues, and no server behind it).
+  const demo = mode === "mock" && !!myPlayerId;
+  const hereId = leagueId ?? "demo";
 
   const { data, refetch } = useQuery({
     queryKey: ["my-actions"],
@@ -50,8 +54,10 @@ export function ActionBar() {
   }, [state, enabled, refetch]);
 
   const here: Item[] =
-    live && myPlayerId ? actionItems(state, myPlayerId).map((it) => ({ ...it, leagueId: leagueId!, leagueName: leagueName ?? "" })) : [];
-  const fetched = data?.items ?? [];
+    (live || demo) && myPlayerId
+      ? actionItems(state, myPlayerId).map((it) => ({ ...it, leagueId: hereId, leagueName: leagueName ?? "Demo season" }))
+      : [];
+  const fetched = enabled ? (data?.items ?? []) : [];
   const items = [
     ...fetched.filter((it) => it.kind === "invite"),
     ...here,
@@ -59,7 +65,7 @@ export function ActionBar() {
   ];
   const i = items.length ? Math.min(index, items.length - 1) : 0;
   const item = items[i];
-  if (!enabled || !item) return null;
+  if ((!enabled && !demo) || !item) return null;
 
   // Accepting lands you in the league, the same way the Dashboard's own invite list does.
   async function answer(it: Item, accept: boolean) {
@@ -85,7 +91,7 @@ export function ActionBar() {
   }
 
   async function open(it: Item) {
-    if (it.leagueId !== leagueId) await switchLeague(it.leagueId);
+    if (it.leagueId !== hereId) await switchLeague(it.leagueId);
     const [path, hash] = it.href.split("#");
     router.push(path || "/");
     // An Overview section: scroll to it once it's rendered (it may be a league switch away).
@@ -140,8 +146,8 @@ export function ActionBar() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-bold">{item.text}</span>
-            <span className={cn("block truncate text-xs", item.leagueId === leagueId ? "opacity-70" : "font-semibold")}>
-              {item.leagueId === leagueId ? item.leagueName : `in ${item.leagueName}`}
+            <span className={cn("block truncate text-xs", item.leagueId === hereId ? "opacity-70" : "font-semibold")}>
+              {item.leagueId === hereId ? item.leagueName : `in ${item.leagueName}`}
             </span>
           </span>
           <span className="shrink-0 text-lg font-bold" aria-hidden>

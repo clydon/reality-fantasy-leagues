@@ -1,5 +1,6 @@
 import type { Bet, Castaway, Episode, LeagueState, MidSeasonLogEntry, Player, Tribe } from "./types";
 import { formatFor } from "@/lib/game/formats/index.js";
+import StateLogic from "@/lib/game/state-logic.js";
 
 export type DemoLeagueTypeId = "classic-draft" | "active-roster" | "pickem";
 
@@ -504,10 +505,20 @@ function buildPickEmDemo(data: DemoSeasonData, throughEpisode: number): LeagueSt
   };
 }
 
+// "As of episode N" means N has happened: its results are in, and -- exactly like a live league the
+// day after it aired -- episode N+1 is this week, open for lineups and picks
+// (StateLogic.ensureNextEpisode, the same rule the server applies). Without it the cursor's own
+// episode doubled as "this week" while already holding its results, and lineups/picks lock once
+// results are in. At the finale nothing follows, as live.
 export function buildDemoState(data: DemoSeasonData, leagueTypeId: DemoLeagueTypeId, throughEpisode: number): LeagueState {
-  if (leagueTypeId === "pickem") return buildPickEmDemo(data, throughEpisode);
-  if (leagueTypeId === "active-roster") return buildActiveRosterDemo(data, throughEpisode);
-  return buildRosterDemo(data, leagueTypeId, throughEpisode);
+  const state =
+    leagueTypeId === "pickem"
+      ? buildPickEmDemo(data, throughEpisode)
+      : leagueTypeId === "active-roster"
+        ? buildActiveRosterDemo(data, throughEpisode)
+        : buildRosterDemo(data, leagueTypeId, throughEpisode);
+  StateLogic.ensureNextEpisode(state);
+  return state;
 }
 
 // ---------- Active Roster: a simulated season under the league's defaults ----------

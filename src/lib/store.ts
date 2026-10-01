@@ -159,7 +159,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   useMock: () =>
     set({
       mode: "mock",
-      state: buildMockSeasonState(),
+      ...mockState(buildMockSeasonState()),
       leagueId: null,
       leagueName: null,
       membership: null,
@@ -178,7 +178,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   previewDemo: () =>
     set({
       mode: "mock",
-      state: buildMockSeasonState(),
+      ...mockState(buildMockSeasonState()),
       leagueId: null,
       leagueName: null,
       membership: null,
@@ -201,7 +201,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   chooseDemoSeason: (data, leagueTypeId) =>
     set({
       mode: "mock",
-      state: buildDemoState(data, leagueTypeId, data.episodeCount),
+      ...mockState(buildDemoState(data, leagueTypeId, data.episodeCount)),
       leagueId: null,
       leagueName: null,
       membership: { role: "commissioner", playerId: demoSelfPlayerId(data) },
@@ -216,7 +216,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   switchDemoSeason: (data, leagueTypeId) => {
     const cursor = Math.min(get().demoEpisodeCursor ?? data.episodeCount, data.episodeCount);
     set({
-      state: buildDemoState(data, leagueTypeId, cursor),
+      ...mockState(buildDemoState(data, leagueTypeId, cursor)),
       membership: { role: "commissioner", playerId: demoSelfPlayerId(data) },
       demoSeasonData: data,
       demoLeagueTypeId: leagueTypeId,
@@ -227,7 +227,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
     const { demoSeasonData: data, demoLeagueTypeId: leagueTypeId } = get();
     if (!data || !leagueTypeId) return;
     const cursor = Math.max(1, Math.min(n, data.episodeCount));
-    set({ state: buildDemoState(data, leagueTypeId, cursor), demoEpisodeCursor: cursor });
+    set({ ...mockState(buildDemoState(data, leagueTypeId, cursor)), demoEpisodeCursor: cursor });
   },
   loadLive: (leagueId, state, leagueName, membership, userId, isSuperAdmin, playerAccounts) => {
     rememberLeague(userId, leagueId);
@@ -296,7 +296,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   clearLeague: () =>
     set({
       mode: "mock",
-      state: buildMockSeasonState(),
+      ...mockState(buildMockSeasonState()),
       leagueId: null,
       leagueName: null,
       membership: null,
@@ -323,6 +323,11 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
     if (mode === "live" && leagueId) api.markResultsSeen(leagueId, n).catch(() => {});
   },
 }));
+
+// Demo/mock data: nothing is held back, so what's shown and the real thing are one object.
+function mockState(state: LeagueState): { state: LeagueState; fullState: LeagueState } {
+  return { state, fullState: state };
+}
 
 // The viewer's copy of a live league: results after their "seen through" mark held back.
 function spoilerView(state: LeagueState, membership: Membership | null): LeagueState {
