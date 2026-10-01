@@ -79,20 +79,40 @@ export function MobileNav() {
     setSheetOpen(false);
   }
 
-  // Swipe down from the drag handle at the top closes the sheet, same gesture as a native one.
+  // Swipe down anywhere on the sheet closes it, like a native one -- as long as the sheet is
+  // scrolled to its top, so a downward swipe inside a scrolled list still just scrolls. The slide
+  // transition is off while dragging (it made the sheet trail the finger) and back on for the
+  // release, so letting go animates. A drag that turns upward hands back to normal scrolling.
   function handleDragStart(e: React.TouchEvent) {
+    const sheet = sheetRef.current;
+    if (!sheet || sheet.scrollTop > 0) {
+      dragStartY.current = null;
+      return;
+    }
     dragStartY.current = e.touches[0].clientY;
+    sheet.style.transition = "none";
   }
   function handleDragMove(e: React.TouchEvent) {
-    if (dragStartY.current == null || !sheetRef.current) return;
+    const sheet = sheetRef.current;
+    if (dragStartY.current == null || !sheet) return;
     const delta = e.touches[0].clientY - dragStartY.current;
-    if (delta > 0) sheetRef.current.style.transform = `translateY(${delta}px)`;
+    if (delta > 0) {
+      sheet.style.transform = `translateY(${delta}px)`;
+    } else {
+      dragStartY.current = null;
+      sheet.style.transform = "";
+      sheet.style.transition = "";
+    }
   }
   function handleDragEnd(e: React.TouchEvent) {
+    const sheet = sheetRef.current;
+    if (sheet) {
+      sheet.style.transition = "";
+      sheet.style.transform = "";
+    }
     if (dragStartY.current == null) return;
     const delta = e.changedTouches[0].clientY - dragStartY.current;
     dragStartY.current = null;
-    if (sheetRef.current) sheetRef.current.style.transform = "";
     if (delta > 70) closeSheet();
   }
   const [leagueMenuOpen, setLeagueMenuOpen] = useState(false);
@@ -172,14 +192,20 @@ export function MobileNav() {
       ];
 
   function go(href: string) {
-    closeSheet();
     // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same
     // as the sidebar's row).
     if (!href) {
+      closeSheet();
       openDemoPicker();
       return;
     }
-    router.push(href);
+    // Not closeSheet(): its history.back() lands AFTER router.push starts and undoes it, so the tap
+    // went nowhere. Replacing the sheet's own history entry with the destination closes the sheet
+    // and navigates in one step -- and Back from there still goes to the page under the sheet.
+    const onSheetEntry = !!window.history.state?.moreSheet;
+    setSheetOpen(false);
+    if (onSheetEntry) router.replace(href);
+    else router.push(href);
   }
 
   function toggleLeagueMenu() {
@@ -195,7 +221,8 @@ export function MobileNav() {
   }
 
   function handleLogout() {
-    closeSheet();
+    // Not closeSheet(): its history.back() could cancel the full page load logOut starts.
+    setSheetOpen(false);
     // Shared with the sidebar and Account settings -- see logOut() in auth-client.ts for why this
     // is a full load to "/" rather than a client-side reset.
     logOut();
@@ -342,8 +369,13 @@ export function MobileNav() {
       />
       <div
         ref={sheetRef}
+        onTouchStart={handleDragStart}
+        onTouchMove={handleDragMove}
+        onTouchEnd={handleDragEnd}
+        // overscroll-contain: a downward pull at the top is the close gesture, not the browser's
+        // pull-to-refresh or a scroll of the page behind.
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[71] max-h-[75vh] overflow-y-auto rounded-t-[18px] bg-card p-2 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] shadow-[0_-8px_24px_rgba(20,18,14,.2)] transition-transform",
+          "fixed inset-x-0 bottom-0 z-[71] max-h-[75vh] overflow-y-auto overscroll-contain rounded-t-[18px] bg-card p-2 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] shadow-[0_-8px_24px_rgba(20,18,14,.2)] transition-transform",
           sheetOpen ? "translate-y-0" : "translate-y-full"
         )}
       >
@@ -352,9 +384,6 @@ export function MobileNav() {
         <div
           className="-mt-1 flex justify-center pb-1.5 pt-2.5"
           style={{ touchAction: "none" }}
-          onTouchStart={handleDragStart}
-          onTouchMove={handleDragMove}
-          onTouchEnd={handleDragEnd}
         >
           <div className="h-1 w-9 rounded-full bg-border" />
         </div>
