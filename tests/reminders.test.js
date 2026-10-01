@@ -71,3 +71,11 @@ test("nothing when the lineup is full, too far out, already aired, or the league
   catchingUp.settings.revealedThroughEpisode = 1;
   assert.equal((await runReminders(fakePool(catchingUp), { now: new Date(EP2_AIRS.getTime() - 3 * HOUR) })).sent, 0);
 });
+
+test("auto-research timing: N hours after it airs takes over from the weekly slot", () => {
+  const aired = Air.zonedToUtc("2026-09-30", "20:00", "America/New_York");
+  const weekly = { airTz: "America/New_York", researchWeekday: 4, researchTime: "12:00" };
+  assert.equal(Air.nextResearchSlot(aired, { ...weekly, researchDelayHours: 12 }).getTime(), aired.getTime() + 12 * HOUR);
+  assert.equal(Air.nextResearchSlot(aired, weekly).getTime(), Air.zonedToUtc("2026-10-01", "12:00", "America/New_York").getTime());
+  assert.equal(Air.nextResearchSlot(aired, { airTz: "America/New_York" }), null);
+});

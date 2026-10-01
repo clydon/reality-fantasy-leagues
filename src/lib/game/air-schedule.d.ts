@@ -5,6 +5,8 @@ export interface AirSeason {
   airTz?: string | null;
   researchWeekday?: number | null;
   researchTime?: string | null;
+  /** Research each episode this many hours after it airs (takes over from weekday/time). */
+  researchDelayHours?: number | null;
 }
 export function zonedToUtc(date: string, time: string, tz: string): Date;
 export function parseAirDate(text: string | null | undefined): string | null;

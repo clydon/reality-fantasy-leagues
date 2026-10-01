@@ -34,6 +34,7 @@ export const GET = apiRoute(async (req) => {
                   'airTime', to_char(ss.air_time, 'HH24:MI'), 'airTz', ss.air_tz,
                   'autoResearch', ss.auto_research, 'researchWeekday', ss.research_weekday,
                   'researchTime', to_char(ss.research_time, 'HH24:MI'), 'researchModel', ss.research_model,
+                  'researchDelayHours', ss.research_delay_hours,
                   'autoResearchSince', ss.auto_research_since,
                   'wikiAirDates', (
                     SELECT json_object_agg(e->>'number', e->>'airDate')

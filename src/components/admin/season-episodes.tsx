@@ -78,6 +78,7 @@ export function SeasonEpisodes({
     airTz: tz,
     researchWeekday: season.researchWeekday,
     researchTime: season.researchTime,
+    researchDelayHours: season.researchDelayHours,
   };
   const hasSchedule = !!season.premiereDate || Object.keys(wikiAirDates).length > 0;
 
@@ -535,13 +536,11 @@ function AutoResearchControls({ season, hasSchedule, onSaved }: { season: ShowSe
     }
   }
 
-  // Sensible first values when switching on: the day after the premiere's weekday, at noon.
+  // Sensible first values when switching on: 12 hours after each episode airs.
   function turnOn() {
-    const premiereDay = season.premiereDate ? new Date(`${season.premiereDate}T12:00:00Z`).getUTCDay() : 3;
     save({
       autoResearch: true,
-      researchWeekday: season.researchWeekday ?? (premiereDay + 1) % 7,
-      researchTime: season.researchTime ?? "12:00",
+      researchDelayHours: season.researchDelayHours ?? 12,
       researchModel: season.researchModel ?? AI_MODELS[0].id,
     });
   }
@@ -583,29 +582,30 @@ function AutoResearchControls({ season, hasSchedule, onSaved }: { season: ShowSe
         </Select>
         {season.autoResearch && (
           <>
-            <span className="text-muted-foreground">every</span>
-            <Select
-              size="sm"
-              value={String(season.researchWeekday ?? "")}
-              disabled={busy}
-              onChange={(e) => save({ researchWeekday: Number(e.target.value) })}
-            >
-              {Air.WEEKDAYS.map((d, i) => (
-                <option key={d} value={i}>
-                  {d}
-                </option>
-              ))}
-            </Select>
-            <span className="text-muted-foreground">at</span>
+            {/* Hours after each episode airs (0035). A season set up on the older weekly weekday/time
+                slot shows that until a delay is saved here. */}
             <Input
-              type="time"
+              type="number"
               size="sm"
-              className="w-[108px]"
-              defaultValue={season.researchTime ?? "12:00"}
+              className="w-16"
+              min={0}
+              max={336}
+              defaultValue={season.researchDelayHours ?? ""}
+              placeholder="12"
               disabled={busy}
-              onBlur={(e) => e.target.value && e.target.value !== season.researchTime && save({ researchTime: e.target.value })}
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                const n = v === "" ? null : Math.max(0, Math.min(336, Math.round(Number(v))));
+                if (n !== null && Number.isFinite(n) && n !== season.researchDelayHours) save({ researchDelayHours: n });
+              }}
             />
-            <span className="text-muted-foreground">{tzLabel} with</span>
+            <span className="text-muted-foreground">
+              hours after each episode airs
+              {season.researchDelayHours == null && season.researchWeekday != null && season.researchTime
+                ? ` (now: weekly, ${Air.WEEKDAYS[season.researchWeekday]} ${season.researchTime} ${tzLabel})`
+                : ""}
+              , with
+            </span>
             <Select
               size="sm"
               value={season.researchModel ?? AI_MODELS[0].id}
@@ -623,8 +623,8 @@ function AutoResearchControls({ season, hasSchedule, onSaved }: { season: ShowSe
       </div>
       {season.autoResearch && (
         <p className="text-[0.65rem] text-muted-foreground">
-          Researches each episode at the first slot after it airs, starting from when this was switched on — older episodes
-          use the Research button. Results still wait for your review.
+          Researches each episode that long after it airs (the wiki&rsquo;s own air dates win where it has them), starting from
+          when this was switched on — older episodes use the Research button. Results still wait for your review.
         </p>
       )}
       <AirScheduleLine season={season} hasSchedule={hasSchedule} busy={busy} save={save} />

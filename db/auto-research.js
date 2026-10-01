@@ -23,7 +23,7 @@ async function loadSeasons(pool, where = "ss.auto_research", params = []) {
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, s.slug, s.id AS show_id,
             to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date, to_char(ss.air_time, 'HH24:MI') AS air_time, ss.air_tz,
-            ss.auto_research, ss.research_weekday, to_char(ss.research_time, 'HH24:MI') AS research_time,
+            ss.auto_research, ss.research_weekday, to_char(ss.research_time, 'HH24:MI') AS research_time, ss.research_delay_hours,
             ss.research_model, ss.auto_research_since, ss.episode_count, ss.status,
             to_char(ss.finale_date, 'YYYY-MM-DD') AS finale_date,
             (SELECT json_object_agg(e->>'number', e->>'airDate')
@@ -44,6 +44,7 @@ async function loadSeasons(pool, where = "ss.auto_research", params = []) {
       airTz: r.air_tz,
       researchWeekday: r.research_weekday,
       researchTime: r.research_time,
+      researchDelayHours: r.research_delay_hours,
     },
     wikiAirDates: r.wiki_air_dates || {},
   }));
@@ -86,7 +87,7 @@ async function episodeCountOf(pool, seasonId) {
 
 /** Episodes of one season that are due for scheduled research at `now`. */
 async function dueEpisodes(pool, season, now) {
-  if (!season.auto_research || season.research_weekday == null || !season.research_time) return [];
+  if (!season.auto_research || (season.research_delay_hours == null && (season.research_weekday == null || !season.research_time))) return [];
   const since = season.auto_research_since ? new Date(season.auto_research_since) : now;
   const researched = new Set(season.researched.map(Number));
   const due = [];

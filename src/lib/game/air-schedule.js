@@ -105,10 +105,12 @@ function episodeAirTime(season, n, wikiAirDates) {
 }
 
 /**
- * The first weekly research slot at or after `after`: weekday (0 = Sunday) at time, in tz. Null
- * when the schedule isn't set.
+ * When auto-research picks up an episode that aired at `after`: researchDelayHours after it (0035),
+ * or, for a season still on the older weekly setting, the first weekday-at-time slot at or after it
+ * (0 = Sunday, in tz). Null when neither is set.
  */
 function nextResearchSlot(after, season) {
+  if (season.researchDelayHours != null) return new Date(after.getTime() + Number(season.researchDelayHours) * 3600 * 1000);
   if (season.researchWeekday == null || !season.researchTime) return null;
   const tz = season.airTz || "America/New_York";
   const time = String(season.researchTime).slice(0, 5);

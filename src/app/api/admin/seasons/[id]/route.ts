@@ -85,6 +85,11 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     push("research_weekday", n);
   }
   if ("researchTime" in body) push("research_time", hhmm(body.researchTime, "researchTime"));
+  if ("researchDelayHours" in body) {
+    const n = body.researchDelayHours === null || body.researchDelayHours === "" ? null : Number(body.researchDelayHours);
+    if (n !== null && !(Number.isInteger(n) && n >= 0 && n <= 336)) throw new HttpError(400, "researchDelayHours must be 0 to 336");
+    push("research_delay_hours", n);
+  }
   if ("researchModel" in body) {
     const m = String(body.researchModel || "");
     if (m && !RESEARCH_MODELS.includes(m)) throw new HttpError(400, "Unknown research model");

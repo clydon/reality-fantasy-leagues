@@ -292,6 +292,8 @@ export interface ShowSeason {
   /** 0 = Sunday. */
   researchWeekday?: number | null;
   researchTime?: string | null;
+  /** Research each episode this many hours after it airs (0035); null = the older weekday/time. */
+  researchDelayHours?: number | null;
   researchModel?: string | null;
   autoResearchSince?: string | null;
   /** The wiki's printed air date per episode number, from the cached extraction. */
