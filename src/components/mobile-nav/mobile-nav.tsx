@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -48,6 +48,52 @@ import {
 // (real-auth-only -- see the note by its row below), and Log out.
 export function MobileNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
+  // True for the one render triggered by the back button itself, so closeSheet knows not to also
+  // call history.back() (that history entry is already the one being popped).
+  const closingViaBack = useRef(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const dragStartY = useRef<number | null>(null);
+
+  // Back button closes the sheet instead of leaving the page: pushes one history entry while open,
+  // and a real back press (popstate) closes it rather than navigating away.
+  useEffect(() => {
+    if (!sheetOpen) return;
+    window.history.pushState({ moreSheet: true }, "");
+    const onPopState = () => {
+      closingViaBack.current = true;
+      setSheetOpen(false);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [sheetOpen]);
+
+  // The only way to close: pops the history entry pushed above unless the close WAS that pop, so
+  // the next real back press doesn't get silently swallowed by a leftover entry.
+  function closeSheet() {
+    if (closingViaBack.current) {
+      closingViaBack.current = false;
+    } else if (window.history.state?.moreSheet) {
+      window.history.back();
+    }
+    setSheetOpen(false);
+  }
+
+  // Swipe down from the drag handle at the top closes the sheet, same gesture as a native one.
+  function handleDragStart(e: React.TouchEvent) {
+    dragStartY.current = e.touches[0].clientY;
+  }
+  function handleDragMove(e: React.TouchEvent) {
+    if (dragStartY.current == null || !sheetRef.current) return;
+    const delta = e.touches[0].clientY - dragStartY.current;
+    if (delta > 0) sheetRef.current.style.transform = `translateY(${delta}px)`;
+  }
+  function handleDragEnd(e: React.TouchEvent) {
+    if (dragStartY.current == null) return;
+    const delta = e.changedTouches[0].clientY - dragStartY.current;
+    dragStartY.current = null;
+    if (sheetRef.current) sheetRef.current.style.transform = "";
+    if (delta > 70) closeSheet();
+  }
   const [leagueMenuOpen, setLeagueMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -123,7 +169,7 @@ export function MobileNav() {
       ];
 
   function go(href: string) {
-    setSheetOpen(false);
+    closeSheet();
     // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same
     // as the sidebar's row).
     if (!href) {
@@ -147,7 +193,7 @@ export function MobileNav() {
   }
 
   function handleLogout() {
-    setSheetOpen(false);
+    closeSheet();
     // Shared with the sidebar and Account settings -- see logOut() in auth-client.ts for why this
     // is a full load to "/" rather than a client-side reset.
     logOut();
@@ -157,7 +203,7 @@ export function MobileNav() {
   // This row only ever shows when !isAuthenticated (see the MoreRow below), so there's no real
   // session to sign out of -- "Sign in" just means "show me the login screen."
   function handleShowLogin() {
-    setSheetOpen(false);
+    closeSheet();
     enterMockMode();
     setEntered(false);
   }
@@ -297,15 +343,26 @@ export function MobileNav() {
           "fixed inset-0 z-[70] bg-black/40 transition-opacity",
           sheetOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         )}
-        onClick={() => setSheetOpen(false)}
+        onClick={closeSheet}
       />
       <div
+        ref={sheetRef}
         className={cn(
           "fixed inset-x-0 bottom-0 z-[71] max-h-[75vh] overflow-y-auto rounded-t-[18px] bg-card p-2 pb-3.5 shadow-[0_-8px_24px_rgba(20,18,14,.2)] transition-transform",
           sheetOpen ? "translate-y-0" : "translate-y-full"
         )}
       >
-        <div className="mx-auto mb-2.5 mt-1.5 h-1 w-9 rounded-full bg-border" />
+        {/* touch-action: none -- lets the drag be read as a close gesture instead of the page trying
+            to scroll underneath it. */}
+        <div
+          className="-mt-1 flex justify-center pb-1.5 pt-2.5"
+          style={{ touchAction: "none" }}
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+        >
+          <div className="h-1 w-9 rounded-full bg-border" />
+        </div>
         {hasSeason && demoted && <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />}
         {hasSeason && researchSlot && midSeasonSlot && (
           <MoreRow
