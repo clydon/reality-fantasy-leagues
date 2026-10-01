@@ -158,9 +158,31 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
           </div>
         );
       })}
-      <p className="mt-1.5 text-[0.7rem] text-muted-foreground">
-        Points earned while in the lineup — a benched {terms.castaway}&rsquo;s points don&rsquo;t count.
-      </p>
+      {/* Legend: the number, the episode strip and the marks, so the list reads on its own. */}
+      <div className="mt-2 border-t border-border pt-2 text-[0.7rem] text-muted-foreground">
+        <p className="mb-1.5">
+          The number is what each {terms.castaway} earned <b>this player</b> — points only count in episodes they started.
+          Tap one for the episode-by-episode events.
+        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="flex items-center gap-1">
+            <span className="h-3 w-1.5 rounded-[2px] bg-primary" /> Started
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-3 w-1.5 rounded-[2px] border border-border" /> Benched
+          </span>
+          <span>Blank: out of the game</span>
+          <span>(last 8 episodes, oldest first)</span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>
+            <span className="text-destructive">✕</span> Eliminated
+          </span>
+          <span>↑ Added by replenish or swap</span>
+          <span>⇄ Swapped away</span>
+          <span>Faded: out of the game or no longer on the roster</span>
+        </div>
+      </div>
     </div>
   );
 }
