@@ -45,6 +45,9 @@ export function ResearchTab() {
   // One player's team only ("" = everyone). Overrides "Include owned" -- a team is all owned.
   const [team, setTeam] = useState("");
   const [hideOut, setHideOut] = useState(false);
+  // Episodes before the league's start episode: scored for nobody, but still how a castaway played.
+  // On by default; off for "only what counts in this league".
+  const [includePreseason, setIncludePreseason] = useState(true);
   const [sort, setSort] = useState<Sort>("points");
   const [open, setOpen] = useState<string | null>(null);
 
@@ -56,6 +59,7 @@ export function ResearchTab() {
         if (WINDOWS.some(([w]) => w === saved.window)) setWindow(saved.window);
         if (typeof saved.includeOwned === "boolean") setIncludeOwned(saved.includeOwned);
         if (typeof saved.hideOut === "boolean") setHideOut(saved.hideOut);
+        if (typeof saved.includePreseason === "boolean") setIncludePreseason(saved.includePreseason);
         if (["points", "avg", "last"].includes(saved.sort)) setSort(saved.sort);
         /* eslint-enable react-hooks/set-state-in-effect */
       }
@@ -65,13 +69,17 @@ export function ResearchTab() {
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ window, includeOwned, hideOut, sort }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ window, includeOwned, hideOut, includePreseason, sort }));
     } catch {
       /* not remembered this time */
     }
-  }, [window, includeOwned, hideOut, sort]);
+  }, [window, includeOwned, hideOut, includePreseason, sort]);
 
-  const { rows, episodeNumbers } = useMemo(() => buildRows(state, window), [state, window]);
+  const startEp = StateLogic.startEpisode(state);
+  const { rows, episodeNumbers } = useMemo(
+    () => buildRows(state, window, includePreseason || startEp <= 1),
+    [state, window, includePreseason, startEp]
+  );
 
   if (!StateLogic.getLeagueType(state).hasActiveRoster) {
     return (
@@ -142,6 +150,13 @@ export function ResearchTab() {
             <input type="checkbox" checked={hideOut} onChange={(e) => setHideOut(e.target.checked)} />
             Hide eliminated
           </label>
+          {/* Only where there's a preseason: a league that started after episode 1. */}
+          {startEp > 1 && (
+            <label className="flex items-center gap-1.5">
+              <input type="checkbox" checked={includePreseason} onChange={(e) => setIncludePreseason(e.target.checked)} />
+              Include {startEp === 2 ? "episode 1" : `episodes 1–${startEp - 1}`} (before the league started)
+            </label>
+          )}
           <span className="ml-auto">Scoring {windowLabel}</span>
         </div>
       </div>
@@ -245,13 +260,14 @@ function Sparkbars({ perEpisode, max }: { perEpisode: Row["perEpisode"]; max: nu
   );
 }
 
-function buildRows(state: LeagueState, window: Window): { rows: Row[]; episodeNumbers: number[] } {
+function buildRows(state: LeagueState, window: Window, includePreseason: boolean): { rows: Row[]; episodeNumbers: number[] } {
   const defs = StateLogic.formatOf(state).events;
   // Episodes that have happened: anything with results recorded and revealed to this league --
   // including ones before the league's start episode. Those don't score for anyone, but they're
   // still how a castaway has played, which is what scouting is for.
   const aired = [...state.episodes]
     .filter((ep) => StateLogic.RevealLogic.isRevealed(state, ep.number))
+    .filter((ep) => includePreseason || StateLogic.inPlay(state, ep.number))
     .filter((ep) => ep.events.length > 0 || StateLogic.ActiveRosterLogic.episodeEvents(state, ep).length > 0)
     .sort((a, b) => a.number - b.number);
   const inWindow = window === "season" ? aired : aired.slice(-Number(window));
