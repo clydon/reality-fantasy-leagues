@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 export type NotificationType =
   | "draftTurn"
   | "midSeasonTurn"
+  | "reminder"
   | "episodeResults"
   | "newBet"
   | "betResult"

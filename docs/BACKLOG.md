@@ -39,6 +39,6 @@ Check existing `docs/PLAN-*.md` before designing — e.g. #4 and #22 overlap `PL
 27. ~~DONE~~ App-wide bold action-needed bar: elimination pick, incomplete lineup, pending prediction, draft turn, mid-season turn. One at a time with `<` / `>`, each links to the right league/page.
 28. ~~DONE~~ (Partly exists: ActiveRosterLogic.lineupFor already carries the last set lineup forward -- verify the eliminated-starter case.) Starters carry over week to week; an eliminated starter leaves an empty slot.
 29. ~~DONE~~ Active Roster Board → "This Week's Starters": row per user (starters, right-aligned bench), then compact tribe-grouped cast view showing who's drafted.
-30. Notifications/invites: global persistent surface, reminders; "You're Invited" on Join/Create is too subtle and invisible if already in a league.
+30. (PARTLY DONE: invites and reminders are in -- action bar + db/reminders.js) Notifications/invites: global persistent surface, reminders; "You're Invited" on Join/Create is too subtle and invisible if already in a league.
 31. Joining mid-season: can activated members draft? Starting-points adjustment? Varies by draft type/ownership/rules?
 32. (BACKBURNER 2026-10-01: too many moving parts, a tour would go stale fast) Onboarding / guided walkthrough (coachmarks highlighting e.g. the lineup section when action is needed) — research libraries/UX patterns.

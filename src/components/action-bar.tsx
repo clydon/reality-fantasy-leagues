@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useLeagueStore, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
-import { actionItems, type ActionItem } from "@/lib/game/action-items";
+import { actionItems, type ActionItem } from "@/lib/game/action-items.js";
 import { cn } from "cn";
 
 type Item = ActionItem & { leagueId: string; leagueName: string };

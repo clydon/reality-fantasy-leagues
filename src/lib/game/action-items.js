@@ -1,33 +1,29 @@
-import type { LeagueState } from "./types";
-import StateLogic from "./state-logic.js";
-import { isBetSettled } from "./selectors";
+// What's waiting on a player in one league -- the app-wide action bar (action-bar.tsx, via
+// /api/me/actions) and the hourly reminder job (db/reminders.js) both read this, so it's plain
+// CommonJS for the same reason state-logic.js and air-schedule.js are: the job requires it under bare
+// node. Types in action-items.d.ts.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
+const StateLogic = require("./state-logic.js");
 
-export type ActionKind = "invite" | "draftTurn" | "blindDraft" | "midSeasonTurn" | "lineup" | "pick" | "prediction";
-
-export interface ActionItem {
-  kind: ActionKind;
-  /** Short, imperative: what to do. The league's name is shown alongside it, not in it. */
-  text: string;
-  /** Where doing it happens, within the league. Hash targets an Overview section. */
-  href: string;
-  /** "invite" only (from /api/me/actions, not actionItems): which invite, and who sent it. */
-  inviteId?: string;
-  invitedBy?: string | null;
+// Settled once every guess on it has been graded (selectors.ts's isBetSettled, repeated here so this
+// file needs nothing that isn't plain JS).
+function isBetSettled(bet) {
+  const preds = bet.predictions || [];
+  return preds.length > 0 && preds.every((p) => p.correct !== null);
 }
 
-// Everything in one league that's waiting on this player right now -- a pure function of league
-// state, so the server can run it across all of a user's leagues (/api/me/actions) and the app-wide
-// action bar can show what's due anywhere, not only in the league that's open. Most urgent first:
-// turns (others are waiting on you) before weekly choices (a deadline, but nobody's blocked).
+// Everything in one league that's waiting on this player right now, as a pure function of league
+// state. Most urgent first: turns (others are waiting on you) before weekly choices (a deadline, but
+// nobody's blocked).
 //
 // Each check mirrors the UI that resolves it, so an item disappears as soon as the thing is done:
 // draft-board/blind-draft-panel, mid-season, active-roster-lineup-grid, pickem-pick-grid,
-// side-bets-section.
-export function actionItems(state: LeagueState, playerId: string): ActionItem[] {
+// side-bets-section. `episode` is the episode number a weekly item is for (reminders key on it).
+function actionItems(state, playerId) {
   const me = state.players.find((p) => p.id === playerId);
   if (!me || me.disabled || me.active === false) return [];
   const type = StateLogic.getLeagueType(state);
-  const items: ActionItem[] = [];
+  const items = [];
 
   // Draft: a snake-draft turn, or a blind draft still open to your picks.
   if (type.hasRoster && StateLogic.isDraftStarted(state)) {
@@ -46,14 +42,11 @@ export function actionItems(state: LeagueState, playerId: string): ActionItem[] 
 
   // Mid-season: your turn in a running replenish or swap round.
   const rep = StateLogic.currentReplenishTurn(state);
-  const trade = state.midSeason?.trade;
+  const repMine = !!(rep && !rep.isComplete && rep.playerId === playerId);
+  const trade = state.midSeason && state.midSeason.trade;
   const tradeTurn = trade && trade.index < trade.queue.length ? trade.queue[trade.index].playerId : null;
-  if ((rep && !rep.isComplete && rep.playerId === playerId) || tradeTurn === playerId) {
-    items.push({
-      kind: "midSeasonTurn",
-      text: rep && !rep.isComplete && rep.playerId === playerId ? "It's your turn to replenish" : "It's your turn to swap",
-      href: "/mid-season",
-    });
+  if (repMine || tradeTurn === playerId) {
+    items.push({ kind: "midSeasonTurn", text: repMine ? "It's your turn to replenish" : "It's your turn to swap", href: "/mid-season" });
   }
 
   // Active Roster: this episode's lineup has open slots you could fill.
@@ -69,6 +62,7 @@ export function actionItems(state: LeagueState, playerId: string): ActionItem[] 
           kind: "lineup",
           text: `Set your episode ${ep.number} lineup (${open} empty slot${open === 1 ? "" : "s"})`,
           href: "/#lineup",
+          episode: ep.number,
         });
       }
     }
@@ -83,19 +77,28 @@ export function actionItems(state: LeagueState, playerId: string): ActionItem[] 
       !StateLogic.pickEmPickFor(state, ep.id, playerId) &&
       StateLogic.pickEmEligibility(state, ep.id, playerId).available.length > 0
     ) {
-      items.push({ kind: "pick", text: `Make your episode ${ep.number} pick`, href: "/#pickem-grid" });
+      items.push({ kind: "pick", text: `Make your episode ${ep.number} pick`, href: "/#pickem-grid", episode: ep.number });
     }
   }
 
   // Predictions: open on an episode that hasn't happened yet, and you haven't guessed.
   if (state.settings.bonusEnabled) {
-    const pending = state.episodes
-      .filter((ep) => !StateLogic.episodeHasResults(ep))
-      .flatMap((ep) => ep.bets || [])
-      .filter((bet) => !isBetSettled(bet) && !(bet.predictions || []).some((p) => p.playerId === playerId));
-    if (pending.length === 1) items.push({ kind: "prediction", text: `Guess "${pending[0].label}"`, href: "/#predictions" });
-    else if (pending.length > 1) items.push({ kind: "prediction", text: `${pending.length} predictions need your guess`, href: "/#predictions" });
+    const open = state.episodes.filter((ep) => !StateLogic.episodeHasResults(ep));
+    const pending = open
+      .flatMap((ep) => (ep.bets || []).map((bet) => ({ ep, bet })))
+      .filter(({ bet }) => !isBetSettled(bet) && !(bet.predictions || []).some((p) => p.playerId === playerId));
+    if (pending.length) {
+      const episode = Math.min(...pending.map(({ ep }) => ep.number));
+      items.push({
+        kind: "prediction",
+        text: pending.length === 1 ? `Guess "${pending[0].bet.label}"` : `${pending.length} predictions need your guess`,
+        href: "/#predictions",
+        episode,
+      });
+    }
   }
 
   return items;
 }
+
+module.exports = { actionItems };

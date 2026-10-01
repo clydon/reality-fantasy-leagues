@@ -1,6 +1,6 @@
 import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync } from "@/lib/game/types";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
-import type { ActionItem } from "@/lib/game/action-items";
+import type { ActionItem } from "@/lib/game/action-items.js";
 
 export class ApiError extends Error {
   status: number;

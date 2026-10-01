@@ -15,6 +15,7 @@ const webpush = require("web-push");
 const NOTIFICATION_TYPES = [
   { id: "draftTurn", label: "It's your turn to draft", description: "When the draft starts or reaches your pick." },
   { id: "midSeasonTurn", label: "Your turn to replenish or swap", description: "When a mid-season round reaches you." },
+  { id: "reminder", label: "Reminders before an episode", description: "A day and two hours before an episode airs, if your lineup, pick or a prediction is still open." },
   { id: "episodeResults", label: "Episode results", description: "When an elimination is logged for your league." },
   { id: "newBet", label: "New side bets", description: "When someone proposes a bet you can guess on." },
   { id: "betResult", label: "Bet results", description: "When your guess on a bet is graded." },

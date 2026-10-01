@@ -1,3 +1,7 @@
+# Scheduled episode research (db/auto-research.js), then episode reminders (db/reminders.js): about a
+# day and two hours before an episode airs, a push to anyone whose lineup, pick or a prediction for it
+# is still open. Reminders need the push keys below; without them the step runs and sends nothing.
+#
 # Scheduled episode research (db/auto-research.js). Each season with auto-research switched on in
 # Admin > Shows & Seasons has its own weekly slot ("Thursdays at noon Eastern"); this job runs hourly
 # and researches whatever episode's slot has come round. Results are staged for admin review, never
@@ -10,6 +14,8 @@
 # Needs these repository secrets (Settings > Secrets and variables > Actions):
 #   AUTH_DATABASE_URL   -- the production database, same as the wiki-sync job.
 #   ANTHROPIC_API_KEY   -- research calls Claude with web search.
+#   NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT -- the same Web Push keys the app
+#                          uses (Vercel env), for the reminders step.
 #   GEMINI_API_KEY      -- optional: only if RESEARCH_PROVIDER is set to gemini. Indexing the answers
 #                          for side-bet suggestions needs no key: it runs a local model (db/embeddings.js),
 #                          fetched on first use below.
@@ -40,3 +46,14 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: node db/auto-research.js
+
+      # Its own step, and run even if research failed: a provider outage shouldn't cost anyone their
+      # lineup reminder.
+      - name: Run reminders.js
+        if: ${{ !cancelled() }}
+        env:
+          AUTH_DATABASE_URL: ${{ secrets.AUTH_DATABASE_URL }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: node db/reminders.js
