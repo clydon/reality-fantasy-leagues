@@ -178,24 +178,45 @@ function LineupCard({
   );
 }
 
-// What each event is worth in this league, collapsed by default -- for deciding who to start. Every
-// category with a value, best first, losses after; zero-point ones are left out as noise.
+// What each event is worth in this league, collapsed by default -- for deciding who to start.
+// Grouped by the show's own categories (format.eventCategories: Challenges, Tribal Council, Endgame...)
+// in that order, highest points first within each; zero-point events are left out as noise, and a
+// category with nothing left is skipped.
 function ScoringChart({ state }: { state: LeagueState }) {
-  const rows = StateLogic.formatOf(state)
-    .events.map((e) => ({ id: e.id, label: e.label, points: StateLogic.ActiveRosterLogic.pointsFor(state, e.id) }))
-    .filter((r) => r.points !== 0)
-    .sort((a, b) => b.points - a.points);
-  if (rows.length === 0) return null;
+  const format = StateLogic.formatOf(state);
+  const row = (id: string) => {
+    const def = format.events.find((e) => e.id === id);
+    return def ? { id, label: def.label, points: StateLogic.ActiveRosterLogic.pointsFor(state, id) } : null;
+  };
+  const listed = new Set(format.eventCategories.flatMap((c) => c.events));
+  const groups = [
+    ...format.eventCategories.map((c) => ({ id: c.id, label: c.label, ids: c.events })),
+    { id: "other", label: "Other", ids: format.events.map((e) => e.id).filter((id) => !listed.has(id)) },
+  ]
+    .map((g) => ({
+      ...g,
+      rows: g.ids
+        .map(row)
+        .filter((r): r is NonNullable<typeof r> => !!r && r.points !== 0)
+        .sort((a, b) => b.points - a.points),
+    }))
+    .filter((g) => g.rows.length > 0);
+  if (groups.length === 0) return null;
   return (
     <details className="mt-4 border-t border-border pt-2">
       <summary className="cursor-pointer text-xs text-muted-foreground">How starters score</summary>
-      <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-0.5 sm:grid-cols-2">
-        {rows.map((r) => (
-          <div key={r.id} className="flex items-baseline justify-between gap-2 border-b border-border/60 py-1 text-xs">
-            <span className="min-w-0 text-muted-foreground">{r.label}</span>
-            <span className={cn("shrink-0 font-mono font-semibold", r.points > 0 ? "text-good" : "text-destructive")}>
-              {r.points > 0 ? `+${r.points}` : r.points}
-            </span>
+      <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+        {groups.map((g) => (
+          <div key={g.id}>
+            <div className="mb-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">{g.label}</div>
+            {g.rows.map((r) => (
+              <div key={r.id} className="flex items-baseline justify-between gap-2 border-b border-border/60 py-1 text-xs">
+                <span className="min-w-0 text-muted-foreground">{r.label}</span>
+                <span className={cn("shrink-0 font-mono font-semibold", r.points > 0 ? "text-good" : "text-destructive")}>
+                  {r.points > 0 ? `+${r.points}` : r.points}
+                </span>
+              </div>
+            ))}
           </div>
         ))}
       </div>

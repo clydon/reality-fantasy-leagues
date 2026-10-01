@@ -473,6 +473,15 @@ module.exports = {
   // created, and the winner isn't a "loss" for replenish.
   winnerExitMethod: 'Sole Survivor',
   events,
+  // Groups for "How starters score" (active-roster-lineup-grid.tsx), in this order. Every event above
+  // belongs to exactly one; anything left out would land in a trailing "Other".
+  eventCategories: [
+    { id: 'challenges', label: 'Challenges', events: ['individualImmunity', 'challengeRunnerUp', 'challengeThird', 'tribeImmunity', 'rewardWin', 'satOut'] },
+    { id: 'tribal', label: 'Tribal Council', events: ['votesNegated', 'survivedVotes', 'votedWithMajority', 'zeroVotesSafe', 'votedAgainstMajority', 'votedOut'] },
+    { id: 'advantages', label: 'Idols & Advantages', events: ['idolFound', 'idolPlayed', 'advantageTargeted'] },
+    { id: 'leaving', label: 'Leaving the game', events: ['medevac', 'quit'] },
+    { id: 'endgame', label: 'Endgame', events: ['soleSurvivor', 'finalist', 'lostFireMaking', 'zeroJuryVotes'] },
+  ],
   impliedEvents,
   // The season has a merge, so episodes carry a post-merge flag and the UI offers it.
   hasMerge: true,

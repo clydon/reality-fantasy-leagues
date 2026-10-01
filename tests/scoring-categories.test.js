@@ -169,3 +169,12 @@ test("a finalist with no jury votes is a goat; one with votes isn't", () => {
   assert.ok(!eventsOf(items, "Annie Davis").includes("zeroJuryVotes"));
   assert.ok(!eventsOf(items, "Jake Latimer").includes("zeroJuryVotes"));
 });
+
+test("every format's scoring events sit in exactly one display category", () => {
+  for (const id of ["survivor", "challenge", "traitors"]) {
+    const f = Formats.formatFor(id);
+    const listed = f.eventCategories.flatMap((c) => c.events);
+    assert.equal(new Set(listed).size, listed.length, `${id}: an event is in two categories`);
+    assert.deepEqual([...listed].sort(), f.events.map((e) => e.id).sort(), id);
+  }
+});

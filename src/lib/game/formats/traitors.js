@@ -321,6 +321,14 @@ module.exports = {
   exitMethods,
   winnerExitMethod: 'Winner',
   events,
+  // Groups for "How starters score" (active-roster-lineup-grid.tsx), in this order.
+  eventCategories: [
+    { id: 'missions', label: 'Missions', events: ['shieldWon'] },
+    { id: 'roundTable', label: 'Round Table', events: ['votedOutTraitor', 'survivedRoundTable', 'banishedAsFaithful', 'banishedAsTraitor'] },
+    { id: 'twists', label: 'Twists', events: ['recruited', 'murdered'] },
+    { id: 'leaving', label: 'Leaving the game', events: ['leftGame'] },
+    { id: 'endgame', label: 'Endgame', events: ['seasonWinner', 'finalist'] },
+  ],
   impliedEvents,
   hasMerge: false,
   hasGroups: false,

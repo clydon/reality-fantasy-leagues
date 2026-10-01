@@ -26,6 +26,8 @@ export interface GameFormat {
   winnerExitMethod: string;
   /** The Active Roster scoring catalog. */
   events: ScoringEventDef[];
+  /** The catalog grouped for display (Challenges, Tribal Council, Endgame...), in display order. */
+  eventCategories: { id: string; label: string; events: string[] }[];
   /** Whether episodes carry a post-merge flag. */
   hasMerge: boolean;
   /** Whether players are in tribes/teams that can change during the season. */

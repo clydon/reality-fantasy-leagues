@@ -272,6 +272,12 @@ module.exports = {
   exitMethods,
   winnerExitMethod: 'Winner',
   events,
+  // Groups for "How starters score" (active-roster-lineup-grid.tsx), in this order.
+  eventCategories: [
+    { id: 'challenges', label: 'Challenges', events: ['dailyWin', 'eliminationWin', 'nominatedSurvived', 'captain'] },
+    { id: 'leaving', label: 'Leaving the game', events: ['eliminated', 'disqualified', 'quit', 'medicallyRemoved'] },
+    { id: 'endgame', label: 'Endgame', events: ['seasonWinner', 'finalist'] },
+  ],
   impliedEvents,
   hasMerge: false,
   // Teams, pairs or individuals, changing as often as every episode -- see GroupLogic.
