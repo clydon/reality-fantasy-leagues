@@ -24,6 +24,7 @@ export function CatchUpPanel({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mode = useLeagueStore((s) => s.mode);
   const setState = useLeagueStore((s) => s.setState);
+  const markResultsSeen = useLeagueStore((s) => s.markResultsSeen);
   const canManage = useCanManage();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null);
@@ -70,6 +71,8 @@ export function CatchUpPanel({ state }: { state: LeagueState }) {
   const reveal = () =>
     run(async () => {
       const res = await api.revealNextEpisode(leagueId!);
+      // Revealing it is seeing it -- don't then hide it behind "Results are in!" too.
+      markResultsSeen(res.revealedThroughEpisode);
       setState(res.state);
       const n = res.revealedThroughEpisode;
       setNote({

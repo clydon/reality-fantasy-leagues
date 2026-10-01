@@ -2,6 +2,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { pool } from "./db";
 import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName } from "./push-targets";
+import { splitBySpoilerProtection } from "./results-seen";
 
 // One function per pushable event, so each route's trigger is a single line and all the "who gets
 // this, and what does it say" decisions live together in one reviewable place.
@@ -69,11 +70,19 @@ export function notifyMidSeasonTurn(leagueId: string, state: LeagueState, actorU
   });
 }
 
-/** Someone was eliminated. Lists everyone out so far this episode, so repeat boots collapse. */
+/**
+ * Someone was eliminated. Spoiler protection (results-seen.ts) splits the audience: anyone who opted
+ * out gets who went home, listing everyone out so far this episode so repeat boots collapse; everyone
+ * else only hears that results are in -- the names wait for them to tap Reveal in the app.
+ */
 export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId: string, actorUserId: string | null) {
+  const ep = state.episodes.find((e) => e.id === epId);
+  if (!ep || !ep.events.length) return;
+  // Looked up inside each after() callback (not here, before the write commits), once, shared by both.
+  let split: ReturnType<typeof splitBySpoilerProtection> | null = null;
+  const audience = () => (split ??= leagueMemberUserIds(leagueId, actorUserId).then(splitBySpoilerProtection));
+  const tag = `episode-${leagueId}-${ep.number}`;
   notifyAfter("episodeResults", async () => {
-    const ep = state.episodes.find((e) => e.id === epId);
-    if (!ep || !ep.events.length) return null;
     const outs = ep.events
       .map((ev) => {
         const c = StateLogic.getCastaway(state, ev.castawayId);
@@ -82,15 +91,14 @@ export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId:
       .filter(Boolean)
       .join(", ");
     return {
-      userIds: await leagueMemberUserIds(leagueId, actorUserId),
-      message: {
-        title: `Episode ${ep.number} results`,
-        body: truncate(`${outs} · ${await leagueName(leagueId)}`),
-        url: link("/episodes", leagueId),
-        tag: `episode-${leagueId}-${ep.number}`,
-      },
+      userIds: (await audience()).immediate,
+      message: { title: `Episode ${ep.number} results`, body: truncate(`${outs} · ${await leagueName(leagueId)}`), url: link("/episodes", leagueId), tag },
     };
   });
+  notifyAfter("episodeResults", async () => ({
+    userIds: (await audience()).protectedIds,
+    message: { title: "Results are in!", body: `Episode ${ep.number} · ${await leagueName(leagueId)} — open the app when you're ready.`, url: link("/", leagueId), tag },
+  }));
 }
 
 /** A side bet was proposed: everyone but the proposer can now guess. */
@@ -113,8 +121,11 @@ export function notifyBetResult(leagueId: string, state: LeagueState, epId: stri
     const bet = ep && (ep.bets || []).find((b) => b.id === betId);
     const pred = bet && bet.predictions.find((p) => p.id === predId);
     if (!bet || !pred) return null;
+    // Right or wrong gives the episode away, so only someone who opted out of spoiler protection
+    // hears it this way; everyone else finds out when they reveal the results.
+    const { immediate } = await splitBySpoilerProtection(await userIdsForPlayers(leagueId, [pred.playerId]));
     return {
-      userIds: await userIdsForPlayers(leagueId, [pred.playerId]),
+      userIds: immediate,
       message: {
         title: correct ? `You got it right (+${bet.points})` : "Missed that one",
         body: truncate(`"${bet.label}" — you guessed ${pred.guess}`),

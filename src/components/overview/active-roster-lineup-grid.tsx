@@ -10,6 +10,7 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { XMarkIcon } from "@/components/icons";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
+import { RevealFirst, useHiddenResults } from "@/components/results-in-banner";
 
 // Active Roster: YOUR lineup for the current episode (StateLogic.currentEpisode): an Active row of
 // activeSlots slots (empty ones as dashed outlines), then the rest of your roster by current tribe.
@@ -25,9 +26,11 @@ export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const myPlayerId = useMyPlayerId();
+  const { hidden: hiddenResults } = useHiddenResults();
   const mutate = useMutate();
 
   if (!myPlayerId) return null;
+  if (hiddenResults.length > 0) return <RevealFirst what="set your next lineup" />;
   const roster = state.castaways.filter((c) => c.ownerIds.includes(myPlayerId));
   if (roster.length === 0) return null;
 

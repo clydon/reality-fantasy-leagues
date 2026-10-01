@@ -39,6 +39,9 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const mutate = useMutate();
+  // Entering a result is seeing it: without this a commissioner's own entry would vanish behind
+  // "Results are in!" the moment it saved.
+  const markResultsSeen = useLeagueStore((s) => s.markResultsSeen);
 
   const activeCast = state.castaways.filter((c) => c.status === "active");
 
@@ -68,6 +71,7 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
       alert(`Select which ${terms.castaway} was eliminated first.`);
       return;
     }
+    markResultsSeen(ep.number);
     await mutate(
       (s) => StateLogic.addElimination(s, ep.id, elimCastawayId, elimMethod),
       () => api.addElimination(leagueId!, ep.id, elimCastawayId, elimMethod)
@@ -90,6 +94,7 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
 
   async function handleAddRole() {
     if (!roleCastawayId || !roleValue) return;
+    markResultsSeen(ep.number);
     await mutate(
       (s) => StateLogic.addRole(s, ep.id, roleCastawayId, roleValue),
       () => api.addRole(leagueId!, ep.id, roleCastawayId, roleValue)
@@ -107,6 +112,7 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
   async function handleAddMove() {
     if (!moveCastawayId) return;
     const group = moveGroup.trim() || null;
+    markResultsSeen(ep.number);
     await mutate(
       (s) => StateLogic.addGroupChange(s, ep.id, moveCastawayId, group),
       () => api.addGroupChange(leagueId!, ep.id, moveCastawayId, group)
@@ -183,7 +189,16 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
         <ChevronDownIcon className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
 
-      {open && (
+      {/* Spoiler protection: this episode's results are in but this viewer hasn't revealed them. */}
+      {open && ep.resultsHidden && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-border p-4 text-sm">
+          <span className="flex-1 text-muted-foreground">Results are in — hidden until you reveal them.</span>
+          <Button size="sm" onClick={() => markResultsSeen(ep.number)}>
+            Reveal results
+          </Button>
+        </div>
+      )}
+      {open && !ep.resultsHidden && (
         <div className="border-t border-border p-4">
           {/* The commissioner's controls row, and the divider that separates it from the results --
               neither exists for a member, who'd otherwise get an empty row and a stray line. */}

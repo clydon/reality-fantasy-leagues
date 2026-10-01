@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ProfileSection } from "./profile-section";
 import { PasswordSection } from "./password-section";
 import { NotificationsSection } from "./notifications-section";
+import { SpoilerSection } from "./spoiler-section";
 import { ThemePicker } from "@/components/theme-picker";
 import { InstallHint } from "@/components/install-hint";
 import { LogOutButton } from "@/components/log-out-button";
@@ -18,7 +19,7 @@ import { placeholderEmail } from "@/lib/no-email";
 // CLAUDE.md/README for the history of it becoming the one real login for everything, not a
 // parallel system). Two views:
 //
-//   signed in  -- Account Settings: profile, appearance (light/dark), password, push notification preferences, the
+//   signed in  -- Account Settings: profile, appearance (light/dark), password, spoiler protection, push notification preferences, the
 //                 install-app hint, sign out. Reachable from the sidebar footer / mobile More
 //                 sheet, and rendered inside the app shell, so there's a way back out (see
 //                 auth-gate.tsx: /account only renders bare while there's no session).
@@ -54,6 +55,7 @@ export function AccountPanel() {
             </div>
           </div>
           <PasswordSection />
+          <SpoilerSection />
           <NotificationsSection />
           <InstallHint variant="section" />
           <div className="rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">

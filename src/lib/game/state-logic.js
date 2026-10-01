@@ -1991,6 +1991,50 @@ class RevealLogic {
   }
 }
 
+// ---------- SpoilerLogic: one viewer's results, held back until they tap Reveal ----------
+// Per PERSON, unlike RevealLogic's per-league catch-up pointer: each member has a "seen through
+// episode N" mark (league_memberships.results_seen_through), and the app displays the league as it
+// stood then -- results of any later episode taken out of a COPY of the state, so standings,
+// scoreboard, board, episode cards and grading all read as though those episodes hadn't been played.
+// Nothing here is written back; the real state is untouched. Not a secret, a courtesy: the full
+// state is still what the client holds.
+class SpoilerLogic {
+  // Episodes whose results this viewer hasn't seen yet, oldest first.
+  static hiddenEpisodes(state, seenThrough){
+    if(seenThrough === null || seenThrough === undefined) return [];
+    return state.episodes.filter(e => e.number > seenThrough && EpisodeLogic.hasResults(e)).sort((a,b) => a.number - b.number);
+  }
+  // The latest episode with results, i.e. what "seen everything" means right now (0 when none).
+  static latestWithResults(state){
+    return state.episodes.filter(e => EpisodeLogic.hasResults(e)).reduce((m, e) => Math.max(m, e.number), 0);
+  }
+  static viewThrough(state, seenThrough){
+    const hidden = SpoilerLogic.hiddenEpisodes(state, seenThrough);
+    if(!hidden.length) return state;
+    const s = JSON.parse(JSON.stringify(state));
+    const ids = new Set(hidden.map(e => e.id));
+    // A merge badge on a hidden episode would say a merge happened: carry the last visible value.
+    const visible = s.episodes.filter(e => !ids.has(e.id) && e.number <= seenThrough).sort((a,b) => b.number - a.number)[0];
+    s.episodes.forEach(ep => {
+      if(!ids.has(ep.id)) return;
+      ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = [];
+      ep.postMerge = visible ? !!visible.postMerge : false;
+      (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
+      ep.resultsHidden = true;
+    });
+    s.castaways.forEach(c => {
+      if(c.exitEpisodeId && ids.has(c.exitEpisodeId)){
+        c.status = 'active'; c.placementOrder = null; c.exitMethod = null; c.exitEpisodeId = null; c.replenishClaimed = false;
+      }
+      GroupLogic.recompute(s, c.id);
+    });
+    // The finale's real answers only exist once the winner is out; hidden, they'd spoil the finale.
+    const winnerMethod = formatOf(s).winnerExitMethod;
+    if(!s.castaways.some(c => c.exitMethod === winnerMethod)) s.finaleActual = { top3: [null, null, null], winner: null };
+    return s;
+  }
+}
+
 class SetupLogic {
   // Ordered, and the order is the point: each step is only offered once its predecessor is answered.
   //
@@ -2304,7 +2348,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, RevealLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, RevealLogic, SpoilerLogic, Migrations,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy
 };
 

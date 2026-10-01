@@ -86,6 +86,13 @@ declare const StateLogic: {
    * commissioner has revealed. See RevealLogic's comment in state-logic.js for why this is a
    * derived gate rather than per-episode snapshots of the wiki payload.
    */
+  /** One viewer's held-back results: the league as of the last episode they've revealed. */
+  SpoilerLogic: {
+    hiddenEpisodes(state: LeagueState, seenThrough: number | null | undefined): Episode[];
+    latestWithResults(state: LeagueState): number;
+    /** A copy with later episodes' results taken out (or `state` itself when nothing is hidden). */
+    viewThrough(state: LeagueState, seenThrough: number | null | undefined): LeagueState;
+  };
   RevealLogic: {
     revealedThrough(state: LeagueState): number | null;
     isCatchingUp(state: LeagueState): boolean;

@@ -27,6 +27,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const setState = useLeagueStore((s) => s.setState);
+  const markResultsSeen = useLeagueStore((s) => s.markResultsSeen);
   const canManage = useCanManage();
 
   const events = StateLogic.formatOf(state).events;
@@ -230,6 +231,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
             size="sm"
             disabled={busy || !eventCastawayId}
             onClick={async () => {
+              markResultsSeen(ep.number); // entering it is seeing it -- see episode-card.tsx
               const ok = await run(() => api.addScoringEvent(leagueId!, ep.id, eventType, eventCastawayId));
               if (ok) setEventCastawayId("");
             }}

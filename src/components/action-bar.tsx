@@ -22,7 +22,8 @@ type Item = ActionItem & { leagueId: string; leagueName: string };
 export function ActionBar() {
   const router = useRouter();
   const mode = useLeagueStore((s) => s.mode);
-  const state = useLeagueStore((s) => s.state);
+  // The real state, not the spoiler-trimmed view: what's due is due whether or not you've looked.
+  const state = useLeagueStore((s) => s.fullState);
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);

@@ -53,6 +53,12 @@ export const api = {
   stopImpersonating: () => localFetch<{ ok: true }>("/api/auth/admin/stop-impersonating", { method: "POST", body: "{}" }),
   leagueState: (leagueId: string) =>
     localFetch<LeagueStateResponse>(`/api/leagues/${leagueId}/state`),
+  // Spoiler protection: this member has now seen results through episode `through`.
+  markResultsSeen: (leagueId: string, through: number) =>
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/results-seen`, { method: "POST", body: JSON.stringify({ through }) }),
+  getMySettings: () => localFetch<{ showResultsImmediately: boolean }>("/api/me/settings"),
+  setMySettings: (showResultsImmediately: boolean) =>
+    localFetch<{ showResultsImmediately: boolean }>("/api/me/settings", { method: "PUT", body: JSON.stringify({ showResultsImmediately }) }),
   createLeague: (name: string) =>
     localFetch<{ league: { id: string; name: string; join_code: string }; state: LeagueState }>("/api/leagues", {
       method: "POST",

@@ -4,6 +4,7 @@ import { buildMockSeasonState } from "@/lib/game/mock-state";
 import { buildDemoState, demoSelfPlayerId, type DemoSeasonData, type DemoLeagueTypeId } from "@/lib/game/demo-season-builder";
 import { api, type MeResponse } from "@/lib/api";
 import { rememberLeague } from "@/lib/last-league";
+import StateLogic from "@/lib/game/state-logic.js";
 
 export type LeagueSummary = MeResponse["leagues"][number];
 
@@ -33,7 +34,15 @@ interface LeagueStore {
   entered: boolean;
   setEntered: (entered: boolean) => void;
   mode: "mock" | "live";
+  // What every screen displays. In a live league this is the viewer's copy, with any results they
+  // haven't revealed yet held back (spoiler protection, StateLogic.SpoilerLogic); `fullState` is the
+  // league as it really is, for the few things that must see past that (the "Results are in!"
+  // banner, the action bar). Identical outside live mode.
   state: LeagueState;
+  fullState: LeagueState;
+  // Spoiler protection: this member has now seen results through episode n -- shows them, and
+  // records it on the server.
+  markResultsSeen: (n: number) => void;
   leagueId: string | null;
   leagueName: string | null;
   membership: Membership | null;
@@ -128,6 +137,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   setEntered: (entered) => set({ entered }),
   mode: "mock",
   state: buildMockSeasonState(),
+  fullState: buildMockSeasonState(),
   leagueId: null,
   leagueName: null,
   membership: null,
@@ -220,7 +230,8 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
     set({
       mode: "live",
       leagueId,
-      state,
+      state: spoilerView(state, membership),
+      fullState: state,
       leagueName,
       membership,
       userId,
@@ -251,7 +262,8 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       set({
         mode: "live",
         leagueId: league.id,
-        state,
+        state: spoilerView(state, membership),
+        fullState: state,
         leagueName: league.name,
         membership,
         playerAccounts,
@@ -265,7 +277,7 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
       set({ loadingLeague: false });
     }
   },
-  setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason } }),
+  setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason }, fullState: { ...get().fullState, midSeason } }),
   clearLeague: () =>
     set({
       mode: "mock",
@@ -283,8 +295,25 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   setFlash: (flash) => set({ flash }),
   // Mock-mode mutators (StateLogic.*) mutate `state` in place, same as the live app; spreading it
   // into a new top-level object is what actually triggers Zustand/React to notice the change.
-  setState: (state) => set({ state: { ...state } }),
+  setState: (state) => {
+    const full = { ...state };
+    set({ fullState: full, state: get().mode === "live" ? spoilerView(full, get().membership) : full });
+  },
+  markResultsSeen: (n) => {
+    const { membership, fullState, leagueId, mode } = get();
+    const seen = membership?.resultsSeenThrough;
+    if (!membership || seen === null || seen === undefined || n <= seen) return;
+    const next = { ...membership, resultsSeenThrough: n };
+    set({ membership: next, state: spoilerView(fullState, next) });
+    if (mode === "live" && leagueId) api.markResultsSeen(leagueId, n).catch(() => {});
+  },
 }));
+
+// The viewer's copy of a live league: results after their "seen through" mark held back.
+function spoilerView(state: LeagueState, membership: Membership | null): LeagueState {
+  const seen = membership?.resultsSeenThrough;
+  return seen === null || seen === undefined ? state : StateLogic.SpoilerLogic.viewThrough(state, seen);
+}
 
 // Proper selector hooks (not getState() snapshots) so components re-render when mode/membership
 // change on their own, not only incidentally alongside a `state` update.

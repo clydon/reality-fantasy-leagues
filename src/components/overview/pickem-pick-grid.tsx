@@ -9,6 +9,7 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { XMarkIcon } from "@/components/icons";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
+import { RevealFirst, useHiddenResults } from "@/components/results-in-banner";
 
 // Pick'em: YOUR pick for the upcoming episode, as a grid of the whole cast. Everyone's picks live on
 // the Episodes tab; this is the one thing each player does every week, so it sits on Overview.
@@ -24,9 +25,11 @@ export function PickEmPickGrid({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const myPlayerId = useMyPlayerId();
+  const { hidden: hiddenResults } = useHiddenResults();
   const mutate = useMutate();
 
   if (!myPlayerId) return null;
+  if (hiddenResults.length > 0) return <RevealFirst what="make your next pick" />;
   const ep = StateLogic.pickEmUpcomingEpisode(state);
   const history = StateLogic.pickEmHistory(state, myPlayerId);
   const closed = !ep || ep.events.length > 0;

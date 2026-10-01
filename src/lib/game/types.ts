@@ -113,6 +113,9 @@ export interface Episode {
   id: string;
   number: number;
   postMerge: boolean;
+  /** Display-only: set on the viewer's copy when this episode's results are held back from them
+   *  (StateLogic.SpoilerLogic.viewThrough). Never stored. */
+  resultsHidden?: boolean;
   /**
    * Both optional and both filled in only by the wiki connector's eliminations import, which gets them
    * for free off the episode guide. Never overwritten once set, and absent on every hand-created
@@ -223,6 +226,9 @@ export interface LeagueSettings {
 export interface Membership {
   role: "member" | "commissioner";
   playerId: string | null;
+  /** Spoiler protection: the last episode whose results this member has revealed. Null = sees
+   *  everything (opted out, or not a member). See StateLogic.SpoilerLogic. */
+  resultsSeenThrough?: number | null;
 }
 
 export interface ReplenishTurn {
