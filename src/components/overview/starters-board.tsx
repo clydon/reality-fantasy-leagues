@@ -39,7 +39,7 @@ export function StartersBoard({ state }: { state: LeagueState }) {
       <p className="mb-3 text-xs text-muted-foreground">
         {!shown
           ? cur
-            ? `Episode ${cur.number}'s starters appear once lineups lock.`
+            ? `Yours are below; everyone else's episode ${cur.number} starters appear once lineups lock.`
             : "No episode to field a lineup for yet."
           : shown === cur
             ? "Lineups are locked."
@@ -80,7 +80,12 @@ function StarterRow({
   upcoming: Episode | null;
   activeSlots: number;
 }) {
-  const lineupIds = shown ? StateLogic.activeRosterLineupFor(state, shown.id, player.id) : [];
+  // Which episode this row shows. Normally the board's; before any episode has been scored there's
+  // none, and then your own row shows your upcoming lineup (it's yours -- nothing to keep from you)
+  // while everyone else's shows only whether they're set. Their bench is hidden too: a bench is just
+  // the starters by omission.
+  const rowEp = shown ?? (isMe ? upcoming : null);
+  const lineupIds = rowEp ? StateLogic.activeRosterLineupFor(state, rowEp.id, player.id) : [];
   const starters = lineupIds.map((id) => StateLogic.getCastaway(state, id)).filter((c): c is Castaway => !!c);
   // The bench is "now": everyone still in the game on the roster who isn't starting in the shown episode.
   const bench = state.castaways.filter(
@@ -88,7 +93,7 @@ function StarterRow({
   );
   const upcomingSet = upcoming ? StateLogic.activeRosterLineupFor(state, upcoming.id, player.id).length : 0;
   const empty = Math.max(0, activeSlots - starters.length);
-  const showPoints = !!shown && shown !== upcoming && StateLogic.ActiveRosterLogic.episodeEvents(state, shown).length > 0;
+  const showPoints = !!rowEp && rowEp !== upcoming && StateLogic.ActiveRosterLogic.episodeEvents(state, rowEp).length > 0;
 
   return (
     <div className="py-2.5 first:pt-0 last:pb-0">
@@ -108,31 +113,34 @@ function StarterRow({
           </span>
         )}
       </div>
-      {/* Starters left, bench right; on a narrow screen the bench wraps under, still right-aligned. */}
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-        <div className="flex flex-wrap gap-1.5">
-          {starters.map((c) => (
-            <Chip
-              key={c.id}
-              castaway={c}
-              ring={player.color}
-              points={showPoints && shown ? castawayEpisodeStats(state, shown.id, c.id).total : undefined}
-            />
-          ))}
-          {shown &&
-            Array.from({ length: empty }, (_, i) => (
+      {!rowEp ? (
+        <p className="text-xs italic text-muted-foreground">Starters hidden until lineups lock.</p>
+      ) : (
+        // Starters left, bench right; on a narrow screen the bench wraps under, still right-aligned.
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {starters.map((c) => (
+              <Chip
+                key={c.id}
+                castaway={c}
+                ring={player.color}
+                points={showPoints ? castawayEpisodeStats(state, rowEp.id, c.id).total : undefined}
+              />
+            ))}
+            {Array.from({ length: empty }, (_, i) => (
               <div key={i} className="h-10 w-10 rounded-lg border-2 border-dashed border-border" title="Empty slot" />
             ))}
-        </div>
-        {bench.length > 0 && (
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-            <span className="mr-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-muted-foreground">Bench</span>
-            {bench.map((c) => (
-              <Chip key={c.id} castaway={c} small />
-            ))}
           </div>
-        )}
-      </div>
+          {bench.length > 0 && (
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+              <span className="mr-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-muted-foreground">Bench</span>
+              {bench.map((c) => (
+                <Chip key={c.id} castaway={c} small />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
