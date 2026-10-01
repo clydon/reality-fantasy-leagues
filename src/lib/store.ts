@@ -122,6 +122,10 @@ interface LeagueStore {
   // from a background poll, not the whole state object, so a poll landing mid-edit elsewhere
   // (e.g. a half-filled Episode form) can't clobber it. See use-league-poll.ts.
   setMidSeason: (midSeason: LeagueState["midSeason"]) => void;
+  // The same kind of narrow patch for Active Roster lineups: each episode's `lineups` (and its lock
+  // and air time) from a fresh poll, so the Board shows other players' starters soon after they set
+  // them -- without the whole-state overwrite the narrow patches exist to avoid.
+  syncLineups: (fresh: LeagueState) => void;
   // Drops the loaded league (back to mode:'mock' with demo state underneath) WITHOUT clearing
   // identity, unlike useMock() -- for leaving your last league, where AuthGate should then show
   // the Dashboard to a still-signed-in user rather than treat them as an anonymous tour.
@@ -278,6 +282,17 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
     }
   },
   setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason }, fullState: { ...get().fullState, midSeason } }),
+  syncLineups: (fresh) => {
+    const byId = new Map(fresh.episodes.map((e) => [e.id, e]));
+    const patch = (st: LeagueState): LeagueState => ({
+      ...st,
+      episodes: st.episodes.map((ep) => {
+        const f = byId.get(ep.id);
+        return f ? { ...ep, lineups: f.lineups, lineupsLocked: f.lineupsLocked, airsAt: f.airsAt } : ep;
+      }),
+    });
+    set({ state: patch(get().state), fullState: patch(get().fullState) });
+  },
   clearLeague: () =>
     set({
       mode: "mock",

@@ -116,6 +116,10 @@ export interface Episode {
   /** Display-only: set on the viewer's copy when this episode's results are held back from them
    *  (StateLogic.SpoilerLogic.viewThrough). Never stored. */
   resultsHidden?: boolean;
+  /** When this episode airs (ISO), from the league's season schedule -- stamped by the server
+   *  (src/lib/server/air-times.ts), absent without a schedule or while catching up. Lineups and
+   *  picks lock at this moment. */
+  airsAt?: string;
   /**
    * Both optional and both filled in only by the wiki connector's eliminations import, which gets them
    * for free off the episode guide. Never overwritten once set, and absent on every hand-created
@@ -215,6 +219,9 @@ export interface LeagueSettings {
   // Active Roster only. rosterSize() derives the draft's per-player total from these for that
   // league type, so together they replace teamSize there rather than sitting alongside it.
   activeSlots: number;
+  /** Active Roster: keep other players' starters off the Board until the episode airs and lineups
+   *  lock (so nobody copies a lineup). Off by default -- starters show the moment they're set. */
+  hideStartersUntilLock?: boolean;
   benchSlots: number;
   /** Points per scoring-event type, keyed by the format's event ids. 0 switches a category off. */
   eventPoints: Record<string, number>;

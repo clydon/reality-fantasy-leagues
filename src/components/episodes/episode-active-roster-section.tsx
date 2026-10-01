@@ -39,7 +39,10 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const locked = !!ep.lineupsLocked;
+  // Locks on its own when the episode airs (ep.airsAt) or its results land; the commissioner's
+  // manual lock is only offered where neither can happen -- a season with no schedule.
+  const locked = StateLogic.ActiveRosterLogic.isLineupLocked(state, ep.id);
+  const manualLock = !ep.airsAt && !StateLogic.episodeHasResults(ep);
   const activeSlots = state.settings.activeSlots;
 
   // This episode's events per castaway, with what each is worth.
@@ -113,7 +116,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
         ) : (
           <Badge variant="secondary">Open</Badge>
         )}
-        {canManage && (
+        {canManage && manualLock && (
           <Button
             variant="secondary"
             size="xs"

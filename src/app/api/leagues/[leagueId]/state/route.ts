@@ -4,6 +4,7 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, HttpError, withLeagueLock } from "@/lib/server/db";
 import StateLogic from "@/lib/game/state-logic.js";
 import { resultsSeenThrough } from "@/lib/server/results-seen";
+import { stampAirTimes } from "@/lib/server/air-times";
 
 // Port of SurvivorDraft's server/routes/leagueState.js GET / -- what AuthGate's loadFirstLeague
 // and the league switcher both fetch on entering a league.
@@ -22,6 +23,8 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   if (StateLogic.ensureNextEpisode(structuredClone(league.state))) {
     league.state = await withLeagueLock(leagueId, () => {});
   }
+
+  await stampAirTimes(pool, league.state);
 
   const accountsRes = await pool.query(
     `SELECT m.player_id, m.role, u.username FROM league_memberships m

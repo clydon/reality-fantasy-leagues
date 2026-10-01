@@ -21,6 +21,7 @@ export function useLeaguePoll() {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const setMidSeason = useLeagueStore((s) => s.setMidSeason);
+  const syncLineups = useLeagueStore((s) => s.syncLineups);
   const setState = useLeagueStore((s) => s.setState);
   const { push, setBetGuessNotifications } = useNotificationsStore();
 
@@ -95,6 +96,8 @@ export function useLeaguePoll() {
 
     // Only the midSeason slice is synced, not the whole state -- see setMidSeason's comment.
     setMidSeason(fresh.midSeason);
+    // Lineups too, so the Board's starters keep up with everyone's picks.
+    syncLineups(fresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 }

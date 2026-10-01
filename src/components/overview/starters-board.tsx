@@ -9,25 +9,30 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { CastawayStatCard } from "@/components/castaway-stat-card";
 import { cn } from "cn";
+import { formatInTz } from "@/lib/game/air-schedule.js";
 
 // Active Roster's Board: who each player is starting, then the whole cast as compact chips grouped
 // by current tribe. Replaces BoardGrid's full cards for this league type -- with starters being the
 // thing that actually scores, "who's fielding whom" is the question the board has to answer first.
 //
-// Other players' starters stay hidden for the upcoming episode until the commissioner locks lineups
-// (or results land), so nobody can copy a lineup before it counts. Until then the rows show the most
-// recent scored episode's starters instead, plus whether each player has set this week's. This is a
-// courtesy, not a secret: every lineup is in the league state the client already holds.
+// Always this week's episode (StateLogic.currentEpisode), live: a player's starters show the moment
+// they set them (the league poll syncs lineups -- use-league-poll.ts), and the lock only stops
+// changes once the episode starts airing (ActiveRosterLogic.isLineupLocked). With no upcoming
+// episode (the season's over), the last scored one, with what each starter scored.
+//
+// The commissioner can switch on settings.hideStartersUntilLock: then, while the episode is still
+// open, other players' rows show only whether they're set -- not their starters, and not their bench
+// either, since a bench is just the starters by omission. A courtesy, not a secret: every lineup is
+// in the league state the client already holds.
 export function StartersBoard({ state }: { state: LeagueState }) {
   const myPlayerId = useMyPlayerId();
-  const cur = StateLogic.currentEpisode(state);
-  const scored = (ep: Episode) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).length > 0 || ep.events.length > 0;
-  const curVisible = !!cur && (StateLogic.ActiveRosterLogic.isLineupLocked(state, cur.id) || scored(cur));
-  const lastScored =
-    [...state.episodes]
-      .filter((ep) => StateLogic.inPlay(state, ep.number) && scored(ep))
-      .sort((a, b) => b.number - a.number)[0] ?? null;
-  const shown = curVisible ? cur : lastScored;
+  const scored = (ep: Episode) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).length > 0;
+  const shown =
+    StateLogic.currentEpisode(state) ??
+    [...state.episodes].filter((ep) => StateLogic.inPlay(state, ep.number) && scored(ep)).sort((a, b) => b.number - a.number)[0] ??
+    null;
+  const open = !!shown && !StateLogic.ActiveRosterLogic.isLineupLocked(state, shown.id);
+  const hideOthers = open && !!state.settings.hideStartersUntilLock;
   const activeSlots = StateLogic.ActiveRosterLogic.activeSlots(state);
   const players = state.players.filter((p) => p.active !== false);
 
@@ -38,14 +43,14 @@ export function StartersBoard({ state }: { state: LeagueState }) {
       </h3>
       <p className="mb-3 text-xs text-muted-foreground">
         {!shown
-          ? cur
-            ? `Yours are below; everyone else's episode ${cur.number} starters appear once lineups lock.`
-            : "No episode to field a lineup for yet."
-          : shown === cur
-            ? "Lineups are locked."
-            : cur
-              ? `Last scored episode. Episode ${cur.number}'s starters appear once lineups lock.`
-              : "Last scored episode."}
+          ? "No episode to field a lineup for yet."
+          : open
+            ? `${hideOthers ? "Everyone else's starters show once it airs" : "Updates as lineups change"}${
+                shown.airsAt ? ` — lineups lock ${formatInTz(new Date(shown.airsAt), localTz())}` : ""
+              }.`
+            : scored(shown)
+              ? "What each starter scored."
+              : `Locked — episode ${shown.number} has started.`}
       </p>
       <div className="flex flex-col divide-y divide-border">
         {players.map((p) => (
@@ -54,8 +59,10 @@ export function StartersBoard({ state }: { state: LeagueState }) {
             state={state}
             player={p}
             isMe={p.id === myPlayerId}
-            shown={shown}
-            upcoming={cur && cur !== shown ? cur : null}
+            ep={shown}
+            open={open}
+            showPoints={!!shown && scored(shown)}
+            hidden={hideOthers && p.id !== myPlayerId}
             activeSlots={activeSlots}
           />
         ))}
@@ -69,31 +76,30 @@ function StarterRow({
   state,
   player,
   isMe,
-  shown,
-  upcoming,
+  ep,
+  open,
+  showPoints,
+  hidden,
   activeSlots,
 }: {
   state: LeagueState;
   player: Player;
   isMe: boolean;
-  shown: Episode | null;
-  upcoming: Episode | null;
+  ep: Episode | null;
+  open: boolean;
+  showPoints: boolean;
+  hidden: boolean;
   activeSlots: number;
 }) {
-  // Which episode this row shows. Normally the board's; before any episode has been scored there's
-  // none, and then your own row shows your upcoming lineup (it's yours -- nothing to keep from you)
-  // while everyone else's shows only whether they're set. Their bench is hidden too: a bench is just
-  // the starters by omission.
-  const rowEp = shown ?? (isMe ? upcoming : null);
-  const lineupIds = rowEp ? StateLogic.activeRosterLineupFor(state, rowEp.id, player.id) : [];
+  const lineupIds = ep ? StateLogic.activeRosterLineupFor(state, ep.id, player.id) : [];
   const starters = lineupIds.map((id) => StateLogic.getCastaway(state, id)).filter((c): c is Castaway => !!c);
-  // The bench is "now": everyone still in the game on the roster who isn't starting in the shown episode.
+  // Everyone still in the game on the roster who isn't starting.
   const bench = state.castaways.filter(
     (c) => c.ownerIds.includes(player.id) && c.status !== "eliminated" && !lineupIds.includes(c.id)
   );
-  const upcomingSet = upcoming ? StateLogic.activeRosterLineupFor(state, upcoming.id, player.id).length : 0;
+  // "Set" means every slot they can fill is filled (late in a season someone may own fewer survivors).
+  const need = Math.min(activeSlots, starters.length + bench.length);
   const empty = Math.max(0, activeSlots - starters.length);
-  const showPoints = !!rowEp && rowEp !== upcoming && StateLogic.ActiveRosterLogic.episodeEvents(state, rowEp).length > 0;
 
   return (
     <div className="py-2.5 first:pt-0 last:pb-0">
@@ -102,20 +108,14 @@ function StarterRow({
         <span className={cn("min-w-0 flex-1 truncate text-sm font-bold", isMe && "underline decoration-2 underline-offset-2")}>
           {player.name}
         </span>
-        {upcoming && (
-          <span
-            className={cn(
-              "shrink-0 text-[0.7rem] font-semibold",
-              upcomingSet >= activeSlots ? "text-good" : "text-amber-600"
-            )}
-          >
-            Ep {upcoming.number}: {upcomingSet >= activeSlots ? "set ✓" : `${upcomingSet}/${activeSlots} set`}
+        {ep && open && (
+          <span className={cn("shrink-0 text-[0.7rem] font-semibold", starters.length >= need ? "text-good" : "text-amber-600")}>
+            {starters.length >= need ? "Set ✓" : `${starters.length}/${activeSlots} set`}
           </span>
         )}
       </div>
-      {!rowEp ? (
-        <p className="text-xs italic text-muted-foreground">Starters hidden until lineups lock.</p>
-      ) : (
+      {ep && hidden && <p className="text-xs italic text-muted-foreground">Starters hidden until the episode airs.</p>}
+      {ep && !hidden && (
         // Starters left, bench right; on a narrow screen the bench wraps under, still right-aligned.
         <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
           <div className="flex flex-wrap gap-1.5">
@@ -124,7 +124,7 @@ function StarterRow({
                 key={c.id}
                 castaway={c}
                 ring={player.color}
-                points={showPoints ? castawayEpisodeStats(state, rowEp.id, c.id).total : undefined}
+                points={showPoints ? castawayEpisodeStats(state, ep.id, c.id).total : undefined}
               />
             ))}
             {Array.from({ length: empty }, (_, i) => (
@@ -254,4 +254,13 @@ function CastByTribe({ state }: { state: LeagueState }) {
       </div>
     </div>
   );
+}
+
+// The viewer's own time zone, for "locked once it airs" -- the schedule itself is in the show's.
+function localTz(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
 }

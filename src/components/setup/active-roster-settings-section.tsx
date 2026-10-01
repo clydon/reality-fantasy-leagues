@@ -81,6 +81,22 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
           episode.
         </span>
       </div>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          disabled={!canManage}
+          checked={!!state.settings.hideStartersUntilLock}
+          onChange={(e) => update("hideStartersUntilLock", e.target.checked)}
+        />
+        <span>
+          Hide other players&rsquo; starters until the episode airs
+          <span className="block text-xs text-muted-foreground">
+            Off: the Board shows everyone&rsquo;s starters as soon as they&rsquo;re set. On: only whether each player is
+            set, until lineups lock when the episode airs — so nobody can copy a lineup.
+          </span>
+        </span>
+      </label>
     </div>
 
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">

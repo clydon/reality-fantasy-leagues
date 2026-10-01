@@ -120,6 +120,8 @@ declare const StateLogic: {
   startEpisode(state: LeagueState): number;
   /** Whether an episode counts for this league -- at or after its start episode. */
   inPlay(state: LeagueState, episodeNumber: number): boolean;
+  /** Whether the episode has started airing (its server-stamped airsAt has passed). */
+  hasAired(ep: Episode | null | undefined, now?: number): boolean;
   ActiveRosterLogic: {
     pointsFor(state: LeagueState, type: string): number;
     activeSlots(state: LeagueState): number;

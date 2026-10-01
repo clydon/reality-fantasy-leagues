@@ -3,6 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireSession } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
 import { actionItems } from "@/lib/game/action-items.js";
+import { stampAirTimes } from "@/lib/server/air-times";
 
 // What's waiting on the signed-in user across EVERY league they're in -- the app-wide action bar's
 // data (action-bar.tsx), so a lineup or a draft turn due in one league shows while another is open.
@@ -37,15 +38,17 @@ export const GET = apiRoute(async (req) => {
     leagueId: r.league_id as string,
     leagueName: r.league_name as string,
   }));
-  // One league's unreadable state costs that league's items, not the whole bar.
-  const leagueItems = rows.flatMap((r) => {
-    if (!r.player_id) return [];
+  // One league's unreadable state costs that league's items, not the whole bar. Air times stamped
+  // first, so a lineup or pick whose episode has started isn't still listed as due.
+  const leagueItems = [];
+  for (const r of rows) {
+    if (!r.player_id) continue;
     try {
-      return actionItems(r.state, r.player_id).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string }));
+      await stampAirTimes(pool, r.state);
+      leagueItems.push(...actionItems(r.state, r.player_id).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })));
     } catch (e) {
       console.error(`[actions] league ${r.id}:`, e);
-      return [];
     }
-  });
+  }
   return NextResponse.json({ items: [...inviteItems, ...leagueItems] });
 });

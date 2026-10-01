@@ -2,6 +2,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { Pool, type PoolClient } from "pg";
 import type { LeagueState } from "@/lib/game/types";
 import { HttpError } from "./http-error";
+import { stampAirTimes } from "./air-times";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
 // matching how SurvivorDraft's server/db.js bundles the same three together.
@@ -33,6 +34,8 @@ export async function withLeagueLock(
     const { rows } = await client.query("SELECT state FROM leagues WHERE id=$1 FOR UPDATE", [leagueId]);
     if (!rows.length) throw new HttpError(404, "League not found");
     const state: LeagueState = rows[0].state;
+    // Air times first: whether a lineup or pick is still open depends on them (air-times.ts).
+    await stampAirTimes(client, state);
     await mutatorFn(state, client);
     // Every write leaves the league with an episode to play next (bets and picks always have
     // somewhere to go; nobody creates episodes by hand). See EpisodeLogic.ensureNextEpisode.

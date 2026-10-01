@@ -52,7 +52,7 @@ function actionItems(state, playerId) {
   // Active Roster: this episode's lineup has open slots you could fill.
   if (type.hasActiveRoster) {
     const ep = StateLogic.currentEpisode(state);
-    if (ep && !ep.lineupsLocked && !StateLogic.episodeHasResults(ep)) {
+    if (ep && !StateLogic.ActiveRosterLogic.isLineupLocked(state, ep.id)) {
       const available = state.castaways.filter((c) => c.ownerIds.includes(playerId) && c.status !== "eliminated");
       const fielded = StateLogic.activeRosterLineupFor(state, ep.id, playerId).filter((id) => available.some((c) => c.id === id));
       const need = Math.min(StateLogic.ActiveRosterLogic.activeSlots(state), available.length);
@@ -74,6 +74,7 @@ function actionItems(state, playerId) {
     if (
       ep &&
       ep.events.length === 0 &&
+      !StateLogic.hasAired(ep) &&
       !StateLogic.pickEmPickFor(state, ep.id, playerId) &&
       StateLogic.pickEmEligibility(state, ep.id, playerId).available.length > 0
     ) {

@@ -82,6 +82,11 @@ function startEpisode(state){
 }
 function inPlay(state, episodeNumber){ return episodeNumber >= startEpisode(state); }
 
+// Whether an episode has started airing: ep.airsAt is stamped by the server from the season's
+// schedule (src/lib/server/air-times.ts) and absent when there's no schedule or the league is
+// catching up -- then nothing is "aired" by the clock, only by its results.
+function hasAired(ep, now){ return !!(ep && ep.airsAt) && (now || Date.now()) >= Date.parse(ep.airsAt); }
+
 // The most recent in-play episode that has actually aired/been logged (EpisodeLogic.hasResults) --
 // what a Replenish or Swap made "now" is really tied to: the episode whose results just created the
 // opening (an elimination) or window (an active-roster upgrade), not some future episode number that
@@ -622,9 +627,12 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     return !!ep && !(ep.lineups && Object.prototype.hasOwnProperty.call(ep.lineups, playerId));
   }
+  // Locked once the episode starts airing (ep.airsAt, stamped by the server from the season's
+  // schedule -- src/lib/server/air-times.ts), once it has results (a league whose season has no
+  // schedule), or when a commissioner locked it by hand (the same fallback, kept for old leagues).
   static isLineupLocked(state, epId){
     const ep = state.episodes.find(e => e.id === epId);
-    return !!(ep && ep.lineupsLocked);
+    return !!ep && (!!ep.lineupsLocked || hasAired(ep) || EpisodeLogic.hasResults(ep));
   }
   // Returns null if the lineup is acceptable, else a human-readable reason. Like blind draft (and
   // unlike most of this file) this reports WHY rather than silently no-opping -- a rejected lineup is
@@ -633,7 +641,7 @@ class ActiveRosterLogic {
     if(!getLeagueType(state).hasActiveRoster) return 'This league type has no active roster';
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return 'No such episode';
-    if(ep.lineupsLocked) return 'Lineups for this episode are locked';
+    if(ActiveRosterLogic.isLineupLocked(state, epId)) return 'This episode has started -- lineups are locked';
     if(!inPlay(state, ep.number)) return 'This league starts at episode ' + startEpisode(state);
     if(!Core.getPlayer(state, playerId)) return 'No such player';
     const ids = Array.isArray(castawayIds) ? castawayIds : [];
@@ -981,6 +989,7 @@ class PickEmLogic {
     const c = Core.getCastaway(state, castawayId);
     const player = Core.getPlayer(state, playerId);
     if(!ep || !c || !player || c.status!=='active' || !inPlay(state, ep.number)) return;
+    if(hasAired(ep) || PickEmLogic.decided(ep)) return; // picks close when the episode starts
     if(!PickEmLogic.eligibility(state, epId, playerId).available.includes(castawayId)) return;
     ep.picks = ep.picks || [];
     const existing = ep.picks.find(pk=>pk.playerId===playerId);
@@ -2298,7 +2307,7 @@ return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
   LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize, originalDraftPicks,
-  formatOf, startEpisode, inPlay,
+  formatOf, startEpisode, inPlay, hasAired,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct

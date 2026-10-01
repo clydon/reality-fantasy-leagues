@@ -11,6 +11,7 @@ import { XMarkIcon } from "@/components/icons";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
 import { RevealFirst, useHiddenResults } from "@/components/results-in-banner";
+import { formatInTz } from "@/lib/game/air-schedule.js";
 
 // Active Roster: YOUR lineup for the current episode (StateLogic.currentEpisode): an Active row of
 // activeSlots slots (empty ones as dashed outlines), then the rest of your roster by current tribe.
@@ -36,7 +37,8 @@ export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
 
   const ep = StateLogic.currentEpisode(state);
   const activeSlots = state.settings.activeSlots;
-  const locked = !ep || !!ep.lineupsLocked;
+  // Open until the episode starts airing (or has results, or a commissioner locked it by hand).
+  const locked = !ep || StateLogic.ActiveRosterLogic.isLineupLocked(state, ep.id);
   const lineup = ep ? StateLogic.activeRosterLineupFor(state, ep.id, myPlayerId) : [];
   const starters = lineup.map((id) => roster.find((c) => c.id === id)).filter((c): c is Castaway => !!c);
   const bench = [
@@ -69,17 +71,19 @@ export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
         {!ep
           ? "There's no episode to field a lineup for yet."
           : locked
-            ? "Lineups are locked for this episode."
-            : `Tap a ${terms.castaway} in your roster to start them, or a starter to bench them — only active ones score.`}
+            ? `Episode ${ep.number} has started — lineups are locked.`
+            : `Tap a ${terms.castaway} in your roster to start them, or a starter to bench them — only active ones score.${
+                ep.airsAt ? ` Locks when it airs, ${formatInTz(new Date(ep.airsAt), localTz())}.` : ""
+              }`}
       </p>
       {/* Active: one slot per active spot, filled in lineup order; an empty one is a dashed outline of
           a card, waiting for someone from the roster below. */}
       <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Active</div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-2.5">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-x-2.5 gap-y-4 pt-2">
         {Array.from({ length: Math.max(activeSlots, lineup.length) }, (_, i) => {
           const c = starters[i];
           return c ? (
-            <LineupCard key={c.id} state={state} castaway={c} active canTap={!locked && !!ep} onTap={() => toggle(c.id)} />
+            <LineupCard key={c.id} state={state} castaway={c} active showTribe canTap={!locked && !!ep} onTap={() => toggle(c.id)} />
           ) : (
             <div
               key={`empty-${i}`}
@@ -197,4 +201,13 @@ function ScoringChart({ state }: { state: LeagueState }) {
       </div>
     </details>
   );
+}
+
+// The viewer's own time zone, for "locks when it airs" -- the schedule itself is in the show's.
+function localTz(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
 }
