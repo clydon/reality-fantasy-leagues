@@ -3,6 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireSession } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
 import StateLogic from "@/lib/game/state-logic.js";
+import type { LeagueState } from "@/lib/game/types";
 
 // Combines Better Auth's own session with this app's league_memberships table -- matches the
 // {user, leagues, impersonating} shape src/lib/api.ts's MeResponse/auth-gate.tsx already expect,
@@ -22,12 +23,20 @@ export const GET = apiRoute(async (req) => {
   // (Active Roster, Classic, Eliminator Pool, then anything else; alphabetical within), so the
   // league dropdowns render sorted on first paint instead of re-sorting once a per-league
   // state fetch lands.
+  // A league whose state can't be read still lists (unsorted, last) -- this route is sign-in itself.
+  const typeOf = (state: LeagueState) => {
+    try {
+      return StateLogic.getLeagueType(state).name as string;
+    } catch {
+      return "?";
+    }
+  };
   const order = ["Active Roster", "Classic", "Eliminator Pool"];
   const rank = (type: string) => (order.indexOf(type) + order.length + 1) % (order.length + 1);
   const leagues = rows
     .map(({ state, ...l }) => ({
       ...l,
-      type: StateLogic.getLeagueType(state).name as string,
+      type: typeOf(state),
       showId: (state.settings?.showId ?? null) as string | null,
     }))
     .sort((a, b) => rank(a.type) - rank(b.type) || a.name.localeCompare(b.name));

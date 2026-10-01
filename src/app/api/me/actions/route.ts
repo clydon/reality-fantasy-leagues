@@ -37,8 +37,15 @@ export const GET = apiRoute(async (req) => {
     leagueId: r.league_id as string,
     leagueName: r.league_name as string,
   }));
-  const leagueItems = rows.flatMap((r) =>
-    r.player_id ? actionItems(r.state, r.player_id).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })) : []
-  );
+  // One league's unreadable state costs that league's items, not the whole bar.
+  const leagueItems = rows.flatMap((r) => {
+    if (!r.player_id) return [];
+    try {
+      return actionItems(r.state, r.player_id).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string }));
+    } catch (e) {
+      console.error(`[actions] league ${r.id}:`, e);
+      return [];
+    }
+  });
   return NextResponse.json({ items: [...inviteItems, ...leagueItems] });
 });

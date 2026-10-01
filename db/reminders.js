@@ -51,48 +51,59 @@ async function runReminders(pool, opts = {}) {
   const { rows: leagues } = await pool.query("SELECT id, name, state FROM leagues");
   let sent = 0;
   for (const league of leagues) {
-    const state = league.state;
-    const settings = state.settings || {};
-    const season = seasons.get(`${settings.showId}|${settings.wikiSeason}`);
-    if (!season || StateLogic.RevealLogic.isCatchingUp(state)) continue;
-    const ep = StateLogic.currentEpisode(state);
-    if (!ep) continue;
-    const airAt = Air.episodeAirTime(season.schedule, ep.number, season.wikiAirDates);
-    const win = airAt && windowFor(airAt, now);
-    if (!win) continue;
-
-    const { rows: members } = await pool.query("SELECT user_id, player_id FROM league_memberships WHERE league_id=$1", [league.id]);
-    for (const m of members) {
-      if (!m.player_id) continue;
-      const due = actionItems(state, m.player_id).filter((it) => REMINDABLE.has(it.kind) && it.episode === ep.number);
-      // Record first, push only what was newly recorded: a rerun can't repeat a reminder.
-      const fresh = [];
-      for (const it of due) {
-        if (opts.dry) {
-          fresh.push(it);
-          continue;
-        }
-        const { rowCount } = await pool.query(
-          `INSERT INTO reminder_log (user_id, league_id, kind, episode_number, reminder_window)
-           VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
-          [m.user_id, league.id, it.kind, ep.number, win.id]
-        );
-        if (rowCount) fresh.push(it);
-      }
-      if (!fresh.length) continue;
-      // One push per person per league, listing everything still open.
-      const message = {
-        title: `${league.name}: episode ${ep.number} airs ${whenText(airAt, now)}`,
-        body: fresh.map((it) => it.text).join(" · "),
-        url: `${fresh[0].href.split("#")[0] || "/"}?league=${encodeURIComponent(league.id)}`,
-        tag: `reminder-${league.id}`,
-      };
-      console.log(`[reminders] ${opts.dry ? "(dry) " : ""}${m.user_id} -- ${message.title}: ${message.body}`);
-      if (!opts.dry) await sendPush(pool, [m.user_id], "reminder", message);
-      sent++;
+    try {
+      sent += await remindLeague(pool, league, seasons, now, opts);
+    } catch (e) {
+      // One league's bad state mustn't cost every other league its reminders.
+      console.error(`[reminders] league ${league.id}:`, e.message);
     }
   }
   return { sent };
+}
+
+async function remindLeague(pool, league, seasons, now, opts) {
+  const state = league.state;
+  const settings = state.settings || {};
+  const season = seasons.get(`${settings.showId}|${settings.wikiSeason}`);
+  if (!season || StateLogic.RevealLogic.isCatchingUp(state)) return 0;
+  const ep = StateLogic.currentEpisode(state);
+  if (!ep) return 0;
+  const airAt = Air.episodeAirTime(season.schedule, ep.number, season.wikiAirDates);
+  const win = airAt && windowFor(airAt, now);
+  if (!win) return 0;
+
+  let sent = 0;
+  const { rows: members } = await pool.query("SELECT user_id, player_id FROM league_memberships WHERE league_id=$1", [league.id]);
+  for (const m of members) {
+    if (!m.player_id) continue;
+    const due = actionItems(state, m.player_id).filter((it) => REMINDABLE.has(it.kind) && it.episode === ep.number);
+    // Record first, push only what was newly recorded: a rerun can't repeat a reminder.
+    const fresh = [];
+    for (const it of due) {
+      if (opts.dry) {
+        fresh.push(it);
+        continue;
+      }
+      const { rowCount } = await pool.query(
+        `INSERT INTO reminder_log (user_id, league_id, kind, episode_number, reminder_window)
+         VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
+        [m.user_id, league.id, it.kind, ep.number, win.id]
+      );
+      if (rowCount) fresh.push(it);
+    }
+    if (!fresh.length) continue;
+    // One push per person per league, listing everything still open.
+    const message = {
+      title: `${league.name}: episode ${ep.number} airs ${whenText(airAt, now)}`,
+      body: fresh.map((it) => it.text).join(" · "),
+      url: `${fresh[0].href.split("#")[0] || "/"}?league=${encodeURIComponent(league.id)}`,
+      tag: `reminder-${league.id}`,
+    };
+    console.log(`[reminders] ${opts.dry ? "(dry) " : ""}${m.user_id} -- ${message.title}: ${message.body}`);
+    if (!opts.dry) await sendPush(pool, [m.user_id], "reminder", message);
+    sent++;
+  }
+  return sent;
 }
 
 module.exports = { runReminders, windowFor };
