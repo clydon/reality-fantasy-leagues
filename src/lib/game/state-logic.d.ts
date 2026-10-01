@@ -89,9 +89,11 @@ declare const StateLogic: {
   RevealLogic: {
     revealedThrough(state: LeagueState): number | null;
     isCatchingUp(state: LeagueState): boolean;
+    /** True once revealed results have crowned a winner -- nothing left to reveal. */
+    isComplete(state: LeagueState): boolean;
     nextEpisode(state: LeagueState): number | null;
     isRevealed(state: LeagueState, episodeNumber: number): boolean;
-    /** Advances the pointer by one and returns it; null (and a no-op) in live mode. */
+    /** Advances the pointer by one and returns it; null (and a no-op) in live mode or once complete. */
     revealNext(state: LeagueState): number | null;
     normalize(value: unknown): number | null;
   };
@@ -103,6 +105,8 @@ declare const StateLogic: {
   finalePredictionsAvailable(state: LeagueState): boolean;
   /** Castaways per player in the draft. Derived from activeSlots+benchSlots for Active Roster. */
   rosterSize(state: LeagueState): number;
+  /** Castaways the player originally drafted, unaffected by later replenish/trade moves. */
+  originalDraftPicks(state: LeagueState, playerId: string): Castaway[];
   /** The league's show format (exit methods, scoring events, merge, winner). See formats/index.js. */
   formatOf(state: LeagueState): GameFormat;
   /** The episode this league starts playing at (settings.startEpisode, default 1). */

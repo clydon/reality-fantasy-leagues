@@ -10,6 +10,8 @@ import { YourTeamCard } from "./your-team-card";
 import { LastWeekCard } from "./last-week-card";
 import { SideBetsSection } from "./side-bets-section";
 import { BoardGrid } from "./board-grid";
+import { StartersBoard } from "./starters-board";
+import { SeasonResultsCard } from "./season-results-card";
 import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
 import { ActiveRosterLineupGrid } from "./active-roster-lineup-grid";
@@ -42,7 +44,8 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
       // Only ever in the ordered section list when isOverviewSectionEligible already confirmed
       // draftComplete, so no need to re-check it here. BoardGrid owns its own card shell/heading
       // now (previously the one Overview section without one).
-      return <BoardGrid state={state} />;
+      // Active Roster gets "who's starting whom" first, then a compact cast (starters-board.tsx).
+      return StateLogic.getLeagueType(state).hasActiveRoster ? <StartersBoard state={state} /> : <BoardGrid state={state} />;
   }
 }
 
@@ -89,10 +92,12 @@ export function OverviewDashboard() {
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Overview</h2>
       <OverviewCustomizePanel state={state} leagueTypeId={leagueTypeId} draftComplete={draftComplete} />
+      {/* Season over: the results announcement leads the page (renders nothing until then). */}
+      <SeasonResultsCard state={state} />
       {/* Catch-up mode (StateLogic.RevealLogic): say so here, or the standings look inexplicably
           early to anyone who knows how far the real season has run. Deliberately says nothing about
           how much is left -- see catch-up-panel.tsx. */}
-      {StateLogic.RevealLogic.isCatchingUp(state) && (
+      {StateLogic.RevealLogic.isCatchingUp(state) && !StateLogic.RevealLogic.isComplete(state) && (
         <p className="mb-4 rounded-md border border-primary/30 bg-accent px-3 py-1.5 text-xs">
           Catching up — this league has played through{" "}
           <b>

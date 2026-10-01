@@ -98,7 +98,7 @@ export function notifyNewBet(leagueId: string, label: string, actorUserId: strin
   notifyAfter("newBet", async () => ({
     userIds: await leagueMemberUserIds(leagueId, actorUserId),
     message: {
-      title: "New side bet",
+      title: "New prediction",
       body: truncate(`"${label}" · ${await leagueName(leagueId)}`),
       url: link("/", leagueId),
       tag: `bet-${leagueId}`,

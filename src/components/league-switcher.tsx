@@ -1,50 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLeagueStore, type LeagueSummary } from "@/lib/store";
-import { api } from "@/lib/api";
 import { useShowCatalog } from "@/lib/use-show-terms";
-import StateLogic from "@/lib/game/state-logic.js";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDownIcon, CrownIcon } from "@/components/icons";
 import { cn } from "cn";
+import { useClickOutside } from "@/lib/use-click-outside";
 
-// /api/auth/me doesn't return each league's settings (just id/name/join_code/role), so the
-// league-type badge AND show name shown per row are resolved lazily on first open, not from the
-// initial fetch -- fine at friend-group scale (a handful of leagues per user), not built to scale
-// further than that. Shared by both the desktop switcher below and MobileNav's own top-bar
-// dropdown, which needs the same lazy-fetch-and-cache logic but its own layout (see CLAUDE.md:
-// mobile chrome stays a separate component from desktop, not duplicated logic).
+// Type badge and show name per row, both derived from /api/me's own league list (which also
+// arrives already sorted) -- no per-league fetch, so nothing re-sorts or pops in after open.
+// Shared by the desktop switcher below and MobileNav's own top-bar dropdown.
 export function useLeagueTypeBadges(leagues: LeagueSummary[]) {
-  const [types, setTypes] = useState<Record<string, string>>({});
-  const [showNames, setShowNames] = useState<Record<string, string | null>>({});
   const { data: catalog } = useShowCatalog();
-  async function resolve() {
-    const missing = leagues.filter((l) => !(l.id in types));
-    if (missing.length === 0) return;
-    const results = await Promise.all(
-      missing.map(async (l) => {
-        try {
-          const { state } = await api.leagueState(l.id);
-          const show = catalog?.shows.find((s) => s.slug === state.settings.showId);
-          return [l.id, StateLogic.getLeagueType(state).name, show?.name ?? null] as const;
-        } catch {
-          return [l.id, "?", null] as const;
-        }
-      })
-    );
-    setTypes((prev) => ({ ...prev, ...Object.fromEntries(results.map(([id, type]) => [id, type])) }));
-    setShowNames((prev) => ({ ...prev, ...Object.fromEntries(results.map(([id, , show]) => [id, show])) }));
-  }
-  // Resolved as soon as there's a list to sort, not on first open -- otherwise the dropdown opens
-  // alphabetical (types still empty) and visibly re-sorts a moment later once the fetch lands.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetches then sets; see comment above
-    resolve();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leagues.length]);
-  return { types, showNames, resolve };
+  const types = Object.fromEntries(leagues.map((l) => [l.id, l.type]));
+  const showNames = Object.fromEntries(
+    leagues.map((l) => [l.id, catalog?.shows.find((s) => s.slug === l.showId)?.name ?? null])
+  );
+  return { types, showNames };
 }
 
 // New in this POC -- the live app's "My Leagues" dashboard lets you switch leagues by going back
@@ -59,12 +33,13 @@ export function LeagueSwitcher() {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const switchLeague = useLeagueStore((s) => s.switchLeague);
-  const { types, showNames, resolve } = useLeagueTypeBadges(leagues);
+  const { types, showNames } = useLeagueTypeBadges(leagues);
   const currentLeague = leagues.find((l) => l.id === leagueId);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useClickOutside(rootRef, open, () => setOpen(false));
 
   function handleOpen() {
     setOpen((o) => !o);
-    resolve();
   }
 
   async function handleSelect(id: string) {
@@ -79,7 +54,7 @@ export function LeagueSwitcher() {
   if (leagues.length === 0) return null;
 
   return (
-    <div className="relative px-2.5 pb-3.5 pt-0.5">
+    <div ref={rootRef} className="relative px-2.5 pb-3.5 pt-0.5">
       <button
         className="flex w-full items-center gap-1.5 text-left text-[0.95rem] font-bold text-foreground"
         onClick={handleOpen}
@@ -92,14 +67,7 @@ export function LeagueSwitcher() {
       </button>
       {open && (
         <div className="absolute left-2.5 right-2.5 top-full z-20 mt-1 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
-          {[...leagues]
-            // Active Roster, Classic Draft, Eliminator Pool, then not-yet-known; alphabetical within.
-            .sort((a, b) => {
-              const order = ["Active Roster", "Classic", "Eliminator Pool"];
-              const rank = (id: string) => (order.indexOf(types[id]) + order.length + 1) % (order.length + 1);
-              return rank(a.id) - rank(b.id) || a.name.localeCompare(b.name);
-            })
-            .map((l) => (
+          {leagues.map((l) => (
             <button
               key={l.id}
               className={cn(
@@ -111,11 +79,11 @@ export function LeagueSwitcher() {
               <span className="flex w-full items-center gap-1.5">
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold">{l.name}</span>
                 {showNames[l.id] && (
-                  <span className="shrink-0 text-xs text-muted-foreground">{showNames[l.id]}</span>
+                  <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">{showNames[l.id]}</span>
                 )}
               </span>
               {(types[l.id] || l.role === "commissioner") && (
-                <span className="flex items-center gap-1">
+                <span className="flex flex-wrap items-center gap-1">
                   {types[l.id] && (
                     <Badge variant="secondary" className="text-[0.65rem]">
                       {types[l.id]}

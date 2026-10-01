@@ -47,7 +47,7 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
-          Side Bets{" "}
+          Predictions{" "}
           {needsCount > 0 && (
             <Badge className="ml-1 normal-case">
               {needsCount} need{needsCount === 1 ? "s" : ""} you
@@ -94,7 +94,7 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
             onClick={() => setFormOpen(true)}
           >
             <div className="text-xl">+</div>
-            <div className="text-sm font-semibold">Propose a Bet</div>
+            <div className="text-sm font-semibold">Propose a Prediction</div>
             <div className="text-xs">Anyone can add one, any time</div>
           </button>
         )}

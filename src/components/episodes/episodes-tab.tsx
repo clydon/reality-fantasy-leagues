@@ -13,7 +13,6 @@ export function EpisodesTab() {
   const state = useLeagueStore((s) => s.state);
 
   const sorted = [...state.episodes].sort((a, b) => b.number - a.number);
-  const latestNumber = sorted[0]?.number;
 
   return (
     <>
@@ -25,12 +24,8 @@ export function EpisodesTab() {
         <div className="text-sm italic text-muted-foreground">No episodes logged yet.</div>
       ) : (
         sorted.map((ep) => (
-          <EpisodeCard
-            key={ep.id}
-            ep={ep}
-            state={state}
-            defaultOpen={ep.number === latestNumber}
-          />
+          // All collapsed to start: the list stays scannable, and an open card can spoil a result.
+          <EpisodeCard key={ep.id} ep={ep} state={state} />
         ))
       )}
     </>

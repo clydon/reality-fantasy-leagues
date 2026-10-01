@@ -157,3 +157,15 @@ test("voting against the majority is tracked but worth 0; sitting out and being 
   assert.equal(StateLogic.ActiveRosterLogic.pointsFor(s, "satOut"), -0.5);
   assert.equal(StateLogic.ActiveRosterLogic.pointsFor(s, "advantageTargeted"), -0.5);
 });
+
+test("a finalist with no jury votes is a goat; one with votes isn't", () => {
+  const s = R.pasteSkeleton(ctx, []);
+  const set = (name, fields) => Object.assign(s.castaways.find((c) => c.name === name), { sources: ["x"], confidence: "high" }, fields);
+  set("Alex Moore", { leftTheGame: "yes", exitMethod: "Lost Final Tribal (Jury Vote)", juryVotesReceived: 0 });
+  set("Annie Davis", { leftTheGame: "yes", exitMethod: "Lost Final Tribal (Jury Vote)", juryVotesReceived: 2 });
+  set("Jake Latimer", { leftTheGame: "yes", exitMethod: "Sole Survivor", juryVotesReceived: 6 });
+  const items = staged(s);
+  assert.ok(eventsOf(items, "Alex Moore").includes("zeroJuryVotes"));
+  assert.ok(!eventsOf(items, "Annie Davis").includes("zeroJuryVotes"));
+  assert.ok(!eventsOf(items, "Jake Latimer").includes("zeroJuryVotes"));
+});

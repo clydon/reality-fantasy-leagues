@@ -12,7 +12,7 @@ import { isBetSettled } from "@/lib/game/selectors";
 
 // Port of pollForNotifications() (public/app.js): every 15s while a real league is loaded,
 // re-fetch its state and diff against what changed to decide what's actually worth surfacing --
-// "a bet now needs your guess," "it just became your turn to draft" -- rather than a full-state
+// "a prediction now needs your guess," "it just became your turn to draft" -- rather than a full-state
 // overwrite that would just re-render everything on a timer. TanStack Query supplies the polling
 // mechanics (refetchInterval, automatic pause when the tab is hidden via refetchIntervalInBackground:
 // false, request dedup); the actual diffing logic below is a direct port either way -- no library

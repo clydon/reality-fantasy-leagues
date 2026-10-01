@@ -37,6 +37,17 @@ export function CatchUpPanel({ state }: { state: LeagueState }) {
   if (!StateLogic.RevealLogic.isCatchingUp(state)) return null;
 
   const revealed = StateLogic.RevealLogic.revealedThrough(state) as number;
+  // Winner revealed: the season is over for this league, so there's no "next episode" to offer.
+  if (StateLogic.RevealLogic.isComplete(state)) {
+    return (
+      <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
+        <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Season complete</h3>
+        <p className="text-sm text-muted-foreground">
+          This league has caught up through the finale — every episode&rsquo;s results are revealed.
+        </p>
+      </div>
+    );
+  }
   const next = StateLogic.RevealLogic.nextEpisode(state) as number;
   const live = mode === "live" && !!leagueId;
   const canAct = canManage && live;
@@ -87,7 +98,7 @@ export function CatchUpPanel({ state }: { state: LeagueState }) {
             hidden until you reveal them.
           </>
         )}{" "}
-        Episode {next} is <b className="text-foreground">up next</b> — bets and picks go on its card now; reveal what
+        Episode {next} is <b className="text-foreground">up next</b> — predictions and picks go on its card now; reveal what
         happened once everyone&rsquo;s in.
       </p>
       {canAct && (

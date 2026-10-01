@@ -1008,7 +1008,7 @@ function ResearchResult({
           )}
           {(payload.betAnswers || []).length > 0 && (
             <div className="mt-1">
-              <b>Side bets settled</b> (shown to commissioners when they grade):
+              <b>Predictions settled</b> (shown to commissioners when they grade):
               <ul className="ml-4 list-disc">
                 {(payload.betAnswers || []).map((b) => (
                   <li key={b.question}>

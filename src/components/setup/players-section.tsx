@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { confirm } from "@/lib/confirm-store";
+import { ColorInput } from "@/components/ui/color-input";
 
 // Port of renderSetup()'s Players panel: color/name edit, remove, and activating a player who
 // joined after the draft concluded (RosterLogic.addPlayer marks them inactive in that case --
@@ -76,13 +77,7 @@ export function PlayersSection({ state }: { state: LeagueState }) {
           return (
             <div key={p.id} className="rounded-md border border-border p-2.5">
               <div className="mb-1.5 flex flex-wrap items-center gap-2 text-sm">
-                <input
-                  type="color"
-                  className="h-7 w-7 shrink-0 rounded border border-border p-0"
-                  value={p.color}
-                  disabled={!canManage}
-                  onChange={(e) => update(p.id, "color", e.target.value)}
-                />
+                <ColorInput value={p.color} disabled={!canManage} onChange={(hex) => update(p.id, "color", hex)} />
                 <Input
                   size="sm"
                   className="min-w-0 flex-1"

@@ -41,10 +41,10 @@ export function ResearchTab() {
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const terms = useShowTerms();
   const [window, setWindow] = useState<Window>("season");
-  const [includeOwned, setIncludeOwned] = useState(false);
+  const [includeOwned, setIncludeOwned] = useState(true);
   // One player's team only ("" = everyone). Overrides "Include owned" -- a team is all owned.
   const [team, setTeam] = useState("");
-  const [hideOut, setHideOut] = useState(true);
+  const [hideOut, setHideOut] = useState(false);
   const [sort, setSort] = useState<Sort>("points");
   const [open, setOpen] = useState<string | null>(null);
 
@@ -247,9 +247,11 @@ function Sparkbars({ perEpisode, max }: { perEpisode: Row["perEpisode"]; max: nu
 
 function buildRows(state: LeagueState, window: Window): { rows: Row[]; episodeNumbers: number[] } {
   const defs = StateLogic.formatOf(state).events;
-  // Episodes that have happened: anything with results recorded, in play for this league.
+  // Episodes that have happened: anything with results recorded and revealed to this league --
+  // including ones before the league's start episode. Those don't score for anyone, but they're
+  // still how a castaway has played, which is what scouting is for.
   const aired = [...state.episodes]
-    .filter((ep) => StateLogic.inPlay(state, ep.number))
+    .filter((ep) => StateLogic.RevealLogic.isRevealed(state, ep.number))
     .filter((ep) => ep.events.length > 0 || StateLogic.ActiveRosterLogic.episodeEvents(state, ep).length > 0)
     .sort((a, b) => a.number - b.number);
   const inWindow = window === "season" ? aired : aired.slice(-Number(window));

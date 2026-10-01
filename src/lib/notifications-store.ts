@@ -47,7 +47,7 @@ export const useNotificationsStore = create<NotificationsStore>((set, get) => ({
         counter++;
         additions.push({
           id: "n" + counter,
-          text: `New side bet needs your guess: "${betLabelOf(betId)}"`,
+          text: `New prediction needs your guess: "${betLabelOf(betId)}"`,
           ts: Date.now(),
           tab: "/",
           kind: "bet-guess",

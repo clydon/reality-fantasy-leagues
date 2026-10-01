@@ -8,6 +8,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { EpisodeBetRow } from "./episode-bet-row";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
+import { episodePlayerPoints } from "@/lib/game/active-roster-rows";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -16,15 +17,17 @@ import { confirm } from "@/lib/confirm-store";
 import { cn } from "cn";
 import { useShowTerms } from "@/lib/use-show-terms";
 
+const PODIUM_COLORS = ["#c9a227", "#9aa3ab", "#b0703c"]; // gold, silver, bronze
+
 // Port of renderEpisodeCard() (public/app.js). `<details open>`'s per-episode expand/collapse
 // state (the live app's `openEpisodes` global Set) becomes this component's own `open` state --
 // same idea, one instance per card instead of a shared collection keyed by id.
-export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: LeagueState; defaultOpen: boolean }) {
+export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) {
   const terms = useShowTerms();
   const format = StateLogic.formatOf(state);
   // False for an episode before the league's start episode (settings.startEpisode): watched, not scored.
   const inPlay = StateLogic.inPlay(state, ep.number);
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState(false);
   const [editingEp, setEditingEp] = useState(false);
   const [elimCastawayId, setElimCastawayId] = useState("");
   const [elimMethod, setElimMethod] = useState(format.exitMethods[0]);
@@ -118,6 +121,14 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
     );
   }
 
+  // Active Roster: the episode's top three players, visible on the collapsed card. Players' points,
+  // not who left, so it doesn't give away the episode's result the way an exit would.
+  const podium = StateLogic.getLeagueType(state).hasActiveRoster
+    ? episodePlayerPoints(state, ep.id)
+        .filter((r) => r.points > 0)
+        .slice(0, 3)
+    : [];
+
   return (
     <div className="mb-3 rounded-lg border border-border bg-card shadow-sm">
       <button className="flex w-full items-start justify-between gap-2 p-4 text-left" onClick={() => setOpen((o) => !o)}>
@@ -129,6 +140,22 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
             {ep.title ? <> — {ep.title}</> : null}
           </div>
           {ep.airDate && <div className="mt-0.5 text-xs text-muted-foreground">Aired {ep.airDate}</div>}
+          {podium.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {podium.map(({ player, points }, i) => (
+                <span key={player.id} className="flex items-center gap-1">
+                  <span
+                    className="flex h-4 w-4 items-center justify-center rounded-full font-mono text-[0.6rem] font-bold text-white"
+                    style={{ background: PODIUM_COLORS[i] }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="font-semibold">{player.name}</span>
+                  <span className="font-mono text-muted-foreground">{points}</span>
+                </span>
+              ))}
+            </div>
+          )}
           {((format.hasMerge && ep.postMerge) || (ep.bets || []).length > 0 || !inPlay) && (
             <div className="mt-1 flex gap-1.5">
               {!inPlay && (
@@ -145,9 +172,9 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
               {(ep.bets || []).length > 0 && (
                 <span
                   className="rounded bg-secondary px-1.5 py-0.5 text-[0.65rem] font-bold"
-                  title={`${ep.bets.length} side bet${ep.bets.length === 1 ? "" : "s"} logged`}
+                  title={`${ep.bets.length} prediction${ep.bets.length === 1 ? "" : "s"} logged`}
                 >
-                  Bets
+                  Predictions
                 </span>
               )}
             </div>
@@ -162,14 +189,8 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
               neither exists for a member, who'd otherwise get an empty row and a stray line. */}
           {canManage && (
           <div className="mb-2 flex flex-wrap items-center gap-3">
-            {/* Commissioner-only: a disabled checkbox a regular member can't act on isn't worth
-                showing -- the header badge above already says Post-Merge read-only for everyone. */}
-            {format.hasMerge && canManage && (
-              <label className="flex items-center gap-1.5 text-sm">
-                <input type="checkbox" defaultChecked={ep.postMerge} onChange={(e) => updateField("postMerge", e.target.checked)} />
-                Post-merge
-              </label>
-            )}
+            {/* No Post-merge checkbox: the episode import sets postMerge from the season's own data, and
+                the header badge shows it to everyone. */}
             {canManage && (
               <button
                 className={cn("rounded border border-border px-2 py-0.5 text-xs", editingEp && "bg-secondary")}
@@ -375,7 +396,7 @@ export function EpisodeCard({ ep, state, defaultOpen }: { ep: Episode; state: Le
               edit. */}
           {state.settings.bonusEnabled && (ep.bets || []).length > 0 && (
             <div className="border-t border-border pt-3">
-              <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Side Bets</h4>
+              <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Predictions</h4>
               {(ep.bets || []).map((bet) => (
                 <EpisodeBetRow key={bet.id} ep={ep} bet={bet} state={state} />
               ))}

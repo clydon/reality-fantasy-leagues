@@ -16,7 +16,7 @@ import { ThemePicker } from "@/components/theme-picker";
 import { cn } from "cn";
 
 // Port of the live app's real desktop sidebar chrome -- .sidebar/#tabs/.brand in
-// public/styles.css, populated by renderTabs() in public/app.js. Values below (224px width,
+// public/styles.css, populated by renderTabs() in public/app.js. Values below (width aside -- widened from the live app's 224px so league names fit --
 // 20px/12px padding, 9px/12px button padding, the #fbeee8 active tint, etc.) are copied from
 // that CSS, not approximated. Mobile chrome is a separate component (mobile-nav/mobile-nav.tsx),
 // shown/hidden via the max-nav breakpoint rather than duplicated here.
@@ -93,7 +93,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[224px] flex-none flex-col overflow-y-auto border-r border-border bg-panel-menu p-[20px_12px]">
+    <aside className="sticky top-0 flex h-screen w-[248px] flex-none flex-col overflow-y-auto overflow-x-hidden border-r border-border bg-panel-menu p-[20px_12px]">
       <div className="flex items-center justify-center px-0 pb-[18px] pt-1">
         <Link href="/" className="min-w-0 flex-1">
           <Image src="/sidebar-logo.jpg" alt="Survivor Fantasy Engine" width={855} height={301} className="h-auto w-full" priority />

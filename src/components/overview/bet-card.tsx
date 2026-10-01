@@ -53,7 +53,7 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
 
   async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!(await confirm("Remove this bet? This cannot be undone.", { danger: true, confirmLabel: "Remove" }))) return;
+    if (!(await confirm("Remove this prediction? This cannot be undone.", { danger: true, confirmLabel: "Remove" }))) return;
     setRevealed(false);
     mutate(
       (s) => StateLogic.removeBet(s, ep.id, bet.id),
@@ -80,7 +80,7 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
       {canDelete && (
         <button
           className={cn("absolute right-1.5 top-1.5 text-xs opacity-0 transition-opacity", revealed && "opacity-100")}
-          title="Delete bet"
+          title="Delete prediction"
           onClick={handleDelete}
         >
           🗑

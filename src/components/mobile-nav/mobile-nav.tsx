@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useClickOutside } from "@/lib/use-click-outside";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
@@ -95,6 +96,8 @@ export function MobileNav() {
     if (delta > 70) closeSheet();
   }
   const [leagueMenuOpen, setLeagueMenuOpen] = useState(false);
+  const leagueMenuRef = useRef<HTMLDivElement>(null);
+  useClickOutside(leagueMenuRef, leagueMenuOpen, () => setLeagueMenuOpen(false));
   const pathname = usePathname();
   const router = useRouter();
   const state = useLeagueStore((s) => s.state);
@@ -113,7 +116,7 @@ export function MobileNav() {
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
   const notifications = useNotificationsStore((s) => s.notifications);
-  const { types: leagueTypes, showNames: leagueShowNames, resolve: resolveLeagueTypes } = useLeagueTypeBadges(leagues);
+  const { types: leagueTypes, showNames: leagueShowNames } = useLeagueTypeBadges(leagues);
 
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
@@ -181,7 +184,6 @@ export function MobileNav() {
 
   function toggleLeagueMenu() {
     setLeagueMenuOpen((o) => !o);
-    resolveLeagueTypes();
   }
 
   async function handleSelectLeague(id: string) {
@@ -217,7 +219,7 @@ export function MobileNav() {
           </Link>
           {/* visibility, not display -- demo mode has nothing to switch between, but the button
               still reserves its layout space, exactly like the live app's leagueBtn.style.visibility. */}
-          <div className={cn("relative min-w-0 flex-1", mode === "mock" && "invisible")}>
+          <div ref={leagueMenuRef} className={cn("relative min-w-0 flex-1", mode === "mock" && "invisible")}>
             <button
               className="flex w-full min-w-0 items-center gap-1 py-0.5 text-foreground"
               onClick={toggleLeagueMenu}
@@ -228,14 +230,7 @@ export function MobileNav() {
             </button>
             {leagueMenuOpen && (
               <div className="absolute left-0 top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
-                {[...leagues]
-            // Active Roster, Classic Draft, Eliminator Pool, then not-yet-known; alphabetical within.
-            .sort((a, b) => {
-              const order = ["Active Roster", "Classic", "Eliminator Pool"];
-              const rank = (id: string) => (order.indexOf(leagueTypes[id]) + order.length + 1) % (order.length + 1);
-              return rank(a.id) - rank(b.id) || a.name.localeCompare(b.name);
-            })
-            .map((l) => (
+                {leagues.map((l) => (
                   <button
                     key={l.id}
                     className={cn(
@@ -348,7 +343,7 @@ export function MobileNav() {
       <div
         ref={sheetRef}
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[71] max-h-[75vh] overflow-y-auto rounded-t-[18px] bg-card p-2 pb-3.5 shadow-[0_-8px_24px_rgba(20,18,14,.2)] transition-transform",
+          "fixed inset-x-0 bottom-0 z-[71] max-h-[75vh] overflow-y-auto rounded-t-[18px] bg-card p-2 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] shadow-[0_-8px_24px_rgba(20,18,14,.2)] transition-transform",
           sheetOpen ? "translate-y-0" : "translate-y-full"
         )}
       >
@@ -406,8 +401,8 @@ export function MobileNav() {
         {/* Not a MoreRow: it's a setting to change in place, not somewhere to go, so the sheet stays open. */}
         <div className="flex items-center gap-3 px-3 py-2 text-[0.92rem]">
           <MoonIcon className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
-          <span className="flex-1">Dark mode</span>
-          <ThemePicker className="w-[172px]" />
+          <span className="min-w-0 flex-1 truncate">Dark mode</span>
+          <ThemePicker className="w-[172px] max-w-[55%] shrink-0" />
         </div>
         {/* Reachable even with a real season loaded now, not just when leagueless -- picking one
             replaces the view with demo data the same way Sidebar's "Switch to demo data" does. */}

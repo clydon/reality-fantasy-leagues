@@ -54,6 +54,10 @@ const events = [
   { id: 'medevac', label: 'Medically evacuated', defaultPoints: 0, implied: true },
   { id: 'lostFireMaking', label: 'Lost fire-making', defaultPoints: 0, implied: true },
   { id: 'finalist', label: 'Reached Final Tribal (lost the jury vote)', defaultPoints: { exclusive: 3, shared: 5 }, implied: true },
+  // The "goat": dragged to the end and given nothing by the jury. Cancels the finalist bonus by
+  // default, so fielding one at the finale is worth nothing rather than a reward. Not implied --
+  // the exit says they lost, not by how much -- so it comes from research (juryVotesReceived).
+  { id: 'zeroJuryVotes', label: 'Finalist with no jury votes (goat)', defaultPoints: { exclusive: -3, shared: -5 } },
   { id: 'soleSurvivor', label: 'Sole Survivor', defaultPoints: { exclusive: 5, shared: 10 }, implied: true }
 ];
 
@@ -270,6 +274,15 @@ function checklistSchema(z, Answer) {
           "Tribal, or they didn't vote."
       ),
 
+    juryVotesReceived: z
+      .number()
+      .int()
+      .nullable()
+      .describe(
+        "Only for a finalist at Final Tribal Council this episode: how many jury votes they received to win. " +
+          "0 if they got none. Null if they weren't a finalist this episode or it isn't reported."
+      ),
+
     // --- challenges ---
     wonIndividualImmunity: Answer.describe("Did they win INDIVIDUAL immunity (not as part of a tribe)?"),
     wonTribeImmunity: Answer.describe("Were they on the tribe/team that won immunity?"),
@@ -397,6 +410,7 @@ function researchItems(entry, add, ctx = {}) {
   if (typeof entry.votesReceived === "number" && entry.votesReceived > 0 && entry.leftTheGame !== "yes") {
     add("event", "survivedVotes");
   }
+  if (entry.exitMethod === "Lost Final Tribal (Jury Vote)" && entry.juryVotesReceived === 0) add("event", "zeroJuryVotes");
   if (entry.advantageUsedAgainstThem === "yes") add("event", "advantageTargeted");
   if (entry.satOutOfChallenge === "yes") add("event", "satOut");
   // Exile is a fact, not a scoring event -- same as everywhere else exile appears in this app
@@ -421,6 +435,7 @@ function researchNotes(c) {
   if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
   if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
   if (typeof c.votesNullified === "number" && c.votesNullified > 0) notes.push(`nullified ${c.votesNullified} vote${c.votesNullified === 1 ? "" : "s"}`);
+  if (typeof c.juryVotesReceived === "number") notes.push(`${c.juryVotesReceived} jury vote${c.juryVotesReceived === 1 ? "" : "s"}`);
   if (c.advantageUsedAgainstThem === "yes") notes.push("advantage used against them");
   if (c.exiled === "yes") notes.push("exiled");
   if (c.notableTwist) notes.push(c.notableTwist);
@@ -443,6 +458,7 @@ function researchSentences(c) {
   if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
   if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
   if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
+  if (typeof c.juryVotesReceived === "number") notes.push(`received ${c.juryVotesReceived} jury vote(s) at Final Tribal`);
   if (c.advantageUsedAgainstThem === "yes") notes.push("had an advantage used against them");
   if (c.exiled === "yes") notes.push("was exiled");
   if (c.notableTwist) notes.push(c.notableTwist);

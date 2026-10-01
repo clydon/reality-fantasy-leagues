@@ -460,7 +460,7 @@ function PasteImportPanel({
               {copied ? "Copied!" : "Copy prompt"}
             </Button>
             <span className="text-muted-foreground">
-              {data.castCount} people{data.betCount ? `, ${data.betCount} open side bet${data.betCount === 1 ? "" : "s"}` : ""}
+              {data.castCount} people{data.betCount ? `, ${data.betCount} open prediction${data.betCount === 1 ? "" : "s"}` : ""}
             </span>
           </div>
           <textarea readOnly rows={3} value={data.prompt} className="w-full resize-y rounded border border-border bg-card p-1.5 font-mono text-[0.65rem] text-muted-foreground" />

@@ -7,7 +7,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 
-// Port of renderSetup()'s Side Bet Settings panel. bonusEnabled is a master on/off for the whole
+// Port of renderSetup()'s Prediction Settings panel. bonusEnabled is a master on/off for the whole
 // Side Bets system (both scoring and visibility -- see ScoringLogic.compute/EliminationOrder-
 // ScoringStrategy.compute's `if(state.settings.bonusEnabled)` gate).
 export function SideBetSettingsSection({ state }: { state: LeagueState }) {
@@ -24,7 +24,7 @@ export function SideBetSettingsSection({ state }: { state: LeagueState }) {
 
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Side Bet Settings</h3>
+      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Prediction Settings</h3>
       <div className="flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-1.5 text-sm">
           <input
@@ -33,7 +33,7 @@ export function SideBetSettingsSection({ state }: { state: LeagueState }) {
             defaultChecked={state.settings.bonusEnabled}
             onChange={(e) => update("bonusEnabled", e.target.checked)}
           />
-          Enable Side Bets
+          Enable Predictions
         </label>
         <label className="flex items-center gap-1.5 text-sm">
           Default points if correct:

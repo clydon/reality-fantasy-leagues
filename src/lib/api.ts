@@ -29,7 +29,8 @@ async function localFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface MeResponse {
   user: { id: string; username: string; isSuperAdmin: boolean };
-  leagues: { id: string; name: string; join_code: string; role: string }[];
+  // Already sorted for display by the server -- see /api/me.
+  leagues: { id: string; name: string; join_code: string; role: string; type: string; showId: string | null }[];
   impersonating: boolean;
 }
 

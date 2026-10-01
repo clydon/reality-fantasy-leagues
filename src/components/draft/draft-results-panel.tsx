@@ -10,7 +10,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { Button } from "@/components/ui/button";
 
 // Port of renderDraft()'s "Draft Results" panel -- who each player originally drafted, unaffected
-// by later Replenish/Swap (see the live app's own note: current rosters live on Scoreboard).
+// by later Replenish/Swap (see StateLogic.originalDraftPicks; current rosters live on Scoreboard).
 export function DraftResultsPanel({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
@@ -27,14 +27,17 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
     );
   }
 
+  // Same order as the Draft Order panel above; anyone not in it (joined after the draft, not yet
+  // activated) goes last.
+  const pos = (id: string) => (state.draftOrder.indexOf(id) + state.players.length + 1) % (state.players.length + 1);
+  const playersInDraftOrder = [...state.players].sort((a, b) => pos(a.id) - pos(b.id));
+
   return (
     <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
       <h3 className="mb-3 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Draft Results</h3>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {state.players.map((p) => {
-          const picks = state.castaways.filter(
-            (c) => c.acquiredVia === "draft" && (c.ownerIds.includes(p.id) || c.formerOwnerId === p.id)
-          );
+        {playersInDraftOrder.map((p) => {
+          const picks = StateLogic.originalDraftPicks(state, p.id);
           return (
             <div key={p.id} className="rounded-md border-2 bg-secondary/40 p-2.5" style={{ borderColor: p.color }}>
               <div className="mb-1 text-sm font-bold" style={{ color: p.color }}>

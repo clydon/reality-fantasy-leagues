@@ -108,6 +108,24 @@ function currentEpisode(state){
 // comment in Core for which call sites are expected to use the helpers instead.
 function ownerListOf(c){ return (c && c.ownerIds) || []; }
 
+// The castaways a player originally drafted, whatever happened to them since. Derived rather than
+// stored: every acquisition that ISN'T the draft (replenish, trade) is written to midSeason.log with
+// the castaway it added and the one it dropped, so a player's first logged move for a castaway says
+// how they came to hold it -- a drop first means they already had it, i.e. drafted it; an add first
+// means they didn't. Castaways a player still holds with nothing logged were drafted too (draft,
+// blind-draft reveal and activatePlayer are the only unlogged ways to gain one). The old
+// acquiredVia/formerOwnerId pair can't answer this: both are overwritten by the next move.
+function originalDraftPicks(state, playerId){
+  const first = {};
+  ((state.midSeason && state.midSeason.log) || []).forEach(tx => {
+    if(tx.playerId !== playerId) return;
+    if(tx.droppedCastawayId && !(tx.droppedCastawayId in first)) first[tx.droppedCastawayId] = 'drop';
+    if(tx.addedCastawayId && !(tx.addedCastawayId in first)) first[tx.addedCastawayId] = 'add';
+  });
+  return (state.castaways||[]).filter(c =>
+    first[c.id] ? first[c.id] === 'drop' : ownerListOf(c).includes(playerId));
+}
+
 // ---------- Core: id generation + basic entity lookups, used by every other class ----------
 // Names as compared, never as displayed: accents folded ('Thiên' -> 'thien'), punctuation and
 // quotes turned into separators ('Kimberly "Kilby" K.' -> 'kimberly kilby k'), case dropped,
@@ -573,7 +591,7 @@ class ActiveRosterLogic {
   // entered after, so a derived lock would leave a window in which someone could rewrite their
   // lineup already knowing what happened.
   // A player who never set a lineup for this episode fields their most recent earlier one -- only
-  // what they still own, capped at the active slots. Resolved at READ time, so it holds however the
+  // what they still own and is still in the game (carriesInto), capped at the active slots. Resolved at READ time, so it holds however the
   // episodes came to exist (carryForwardLineups only copies at creation, and misses an episode created
   // before the previous lineup was set). Once set for an episode, even to empty, that's what counts.
   static lineupFor(state, epId, playerId){
@@ -585,8 +603,19 @@ class ActiveRosterLogic {
       .sort((a,b) => b.number - a.number)[0];
     if(!earlier) return [];
     return (earlier.lineups[playerId] || [])
-      .filter(cid => { const c = Core.getCastaway(state, cid); return c && ownerListOf(c).includes(playerId); })
+      .filter(cid => ActiveRosterLogic.carriesInto(state, cid, playerId, ep.number))
       .slice(0, ActiveRosterLogic.activeSlots(state) || undefined);
+  }
+  // Whether a starter from an earlier lineup carries into episode `number`: still owned, and not
+  // eliminated before it. An eliminated starter leaves their slot EMPTY rather than sitting in it
+  // scoring nothing -- the player sees a gap to fill. (Someone voted out IN episode `number` itself
+  // still carries: they played it. validateLineup allows them for the same reason.)
+  static carriesInto(state, castawayId, playerId, number){
+    const c = Core.getCastaway(state, castawayId);
+    if(!c || !ownerListOf(c).includes(playerId)) return false;
+    if(c.status !== 'eliminated') return true;
+    const exit = state.episodes.find(e => e.id === c.exitEpisodeId);
+    return !!exit && exit.number >= number;
   }
   /** True when this episode's lineup was carried over from an earlier one rather than set for it. */
   static lineupIsCarried(state, epId, playerId){
@@ -655,10 +684,7 @@ class ActiveRosterLogic {
     let filled = 0;
     Object.keys(prev.lineups).forEach(playerId => {
       if(ep.lineups[playerId]) return;
-      const stillOwned = (prev.lineups[playerId] || []).filter(cid => {
-        const c = Core.getCastaway(state, cid);
-        return c && ownerListOf(c).includes(playerId);
-      });
+      const stillOwned = (prev.lineups[playerId] || []).filter(cid => ActiveRosterLogic.carriesInto(state, cid, playerId, ep.number));
       ep.lineups[playerId] = stillOwned;
       filled++;
     });
@@ -1928,6 +1954,13 @@ class RevealLogic {
     return Number.isInteger(v) && v >= 0 ? v : null;
   }
   static isCatchingUp(state){ return RevealLogic.revealedThrough(state) !== null; }
+  // True once the revealed results have crowned a winner (results only land in state when their
+  // episode is revealed, so a winner here is one the league has seen). Nothing is left to reveal
+  // then -- without this the panel kept offering "episode N+1" past the finale.
+  static isComplete(state){
+    const winnerMethod = formatOf(state).winnerExitMethod;
+    return (state.castaways||[]).some(c => c.exitMethod === winnerMethod);
+  }
   // The episode a reveal would show next, or null in live mode (nothing to reveal -- it's already
   // all visible).
   static nextEpisode(state){
@@ -1944,7 +1977,7 @@ class RevealLogic {
   // design: once the room knows, it knows, and the decisions may already be applied.
   static revealNext(state){
     const r = RevealLogic.revealedThrough(state);
-    if(r === null) return null;
+    if(r === null || RevealLogic.isComplete(state)) return null;
     state.settings.revealedThroughEpisode = r + 1;
     return r + 1;
   }
@@ -2042,7 +2075,7 @@ function migrateEpisodeToBets(ep, oldCategories, castaways, tribes){
       };
       ep.bets.push({
         id: Core.uid('bet'),
-        label: catDef ? catDef.label : 'Side Bet',
+        label: catDef ? catDef.label : 'Prediction',
         points: catDef ? catDef.points : 1,
         predictions: byCategory[catId].map(p=>({
           id: Core.uid('pred'),
@@ -2220,7 +2253,7 @@ class Migrations {
 return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
-  LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize,
+  LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize, originalDraftPicks,
   formatOf, startEpisode, inPlay,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site

@@ -28,6 +28,9 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     if (!StateLogic.RevealLogic.isCatchingUp(s)) {
       throw new HttpError(400, "This league isn't catching up — results arrive as soon as they're decided.");
     }
+    if (StateLogic.RevealLogic.isComplete(s)) {
+      throw new HttpError(400, "The season is over — there's nothing left to reveal.");
+    }
     revealed = StateLogic.RevealLogic.revealNext(s);
 
     // The starting tribes are themselves something an episode reveals, so the season can hold them

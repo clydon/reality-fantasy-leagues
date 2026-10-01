@@ -134,7 +134,7 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
         {canToggleEdit && (
           <button
             className="text-xs"
-            title={canManage ? "Edit / remove" : "Remove your bet"}
+            title={canManage ? "Edit / remove" : "Remove your prediction"}
             onClick={() => setEditing((e) => !e)}
           >
             ✏️
@@ -146,7 +146,7 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
         <div className="mt-1.5 flex items-center gap-2">
           {!canManage && <span className="text-xs text-muted-foreground">You can remove this until 2 people have guessed.</span>}
           <Button variant="destructive" size="sm" onClick={remove}>
-            Remove Bet
+            Remove Prediction
           </Button>
         </div>
       )}
@@ -272,7 +272,7 @@ function SuggestedAnswerBlock({
       )}
       {suggestion && suggestion.source === "search" && suggestion.askedAfterResearch && (
         <p className="mt-1 text-[0.65rem] text-muted-foreground">
-          The episode&rsquo;s research wasn&rsquo;t asked this bet (it was made after the research ran, or this league is
+          The episode&rsquo;s research wasn&rsquo;t asked this prediction (it was made after the research ran, or this league is
           catching up), so it&rsquo;s graded by hand. The note above is only the closest match in the research.
         </p>
       )}

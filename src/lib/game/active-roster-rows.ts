@@ -135,3 +135,20 @@ export function castawayRosterStats(state: LeagueState, playerId: string, castaw
     .flatMap((ep) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((s) => s.castawayId === castawayId));
   return statsFrom(state, evs);
 }
+
+/** Each player's points for one episode: events by castaways in their lineup for it. Highest first. */
+export function episodePlayerPoints(state: LeagueState, epId: string) {
+  const ep = state.episodes.find((e) => e.id === epId);
+  if (!ep || !StateLogic.inPlay(state, ep.number)) return [];
+  const evs = StateLogic.ActiveRosterLogic.episodeEvents(state, ep);
+  return state.players
+    .filter((p) => p.active !== false)
+    .map((p) => {
+      const lineup = StateLogic.activeRosterLineupFor(state, ep.id, p.id);
+      const points = StateLogic.roundPoints(
+        evs.filter((e) => lineup.includes(e.castawayId)).reduce((t, e) => t + StateLogic.ActiveRosterLogic.pointsFor(state, e.type), 0)
+      );
+      return { player: p, points };
+    })
+    .sort((a, b) => b.points - a.points || a.player.name.localeCompare(b.player.name));
+}

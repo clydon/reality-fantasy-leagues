@@ -34,7 +34,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   const ep = (state.episodes || []).find((e: { id: string }) => e.id === epId);
   if (!ep) throw new HttpError(404, "Episode not found");
   const bet = (ep.bets || []).find((b: { id: string }) => b.id === betId);
-  if (!bet) throw new HttpError(404, "Bet not found");
+  if (!bet) throw new HttpError(404, "Prediction not found");
 
   const settings = state.settings || {};
   const showSlug = settings.showId;

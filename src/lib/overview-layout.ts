@@ -20,7 +20,7 @@ export type OverviewSectionId =
 
 export const OVERVIEW_SECTION_LABELS: Record<OverviewSectionId, string> = {
   notifications: "Notifications",
-  sideBets: "Side Bets",
+  sideBets: "Predictions",
   pickGrid: "Weekly Pick (Eliminator Pool)",
   lineupGrid: "Set Lineup (Active Roster)",
   standings: "Standings",

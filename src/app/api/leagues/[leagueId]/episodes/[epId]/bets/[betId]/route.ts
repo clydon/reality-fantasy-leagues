@@ -32,7 +32,7 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagu
     const isCreatorUnderThreshold =
       bet.createdByPlayerId && bet.createdByPlayerId === membership.playerId && (bet.predictions || []).length < 2;
     if (!isCommissioner && !isCreatorUnderThreshold) {
-      throw new HttpError(403, "Only the commissioner, or the bet's creator before 2 guesses are in, can remove this bet");
+      throw new HttpError(403, "Only the commissioner, or the prediction's creator before 2 guesses are in, can remove this prediction");
     }
     StateLogic.removeBet(s, epId, betId);
   });

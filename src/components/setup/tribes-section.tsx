@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { confirm } from "@/lib/confirm-store";
+import { ColorInput } from "@/components/ui/color-input";
 
 // Port of renderSetup()'s Tribes panel. Removing a tribe un-assigns (not removes) any castaways
 // in it -- RosterLogic.removeTribe sets their tribeId back to null rather than touching the
@@ -56,13 +57,7 @@ export function TribesSection({ state }: { state: LeagueState }) {
         <div className="mb-3 flex flex-col gap-2">
           {state.tribes.map((t) => (
             <div key={t.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2.5 text-sm">
-              <input
-                type="color"
-                className="h-7 w-7 shrink-0 rounded border border-border p-0"
-                value={t.color}
-                disabled={!canManage}
-                onChange={(e) => update(t.id, "color", e.target.value)}
-              />
+              <ColorInput value={t.color} disabled={!canManage} onChange={(hex) => update(t.id, "color", hex)} />
               <Input
                 size="sm"
                 className="min-w-0 flex-1"
@@ -81,12 +76,7 @@ export function TribesSection({ state }: { state: LeagueState }) {
       )}
       {canManage && (
         <div className="flex gap-1.5">
-          <input
-            type="color"
-            className="h-9 w-9 shrink-0 rounded border border-border p-0"
-            value={newColor}
-            onChange={(e) => setNewColor(e.target.value)}
-          />
+          <ColorInput value={newColor} onChange={setNewColor} swatchClassName="h-9 w-9" />
           <Input
             className="min-w-0 flex-1"
             placeholder={`New ${terms.tribe} name`}
