@@ -42,7 +42,7 @@ export function PickEmPickGrid({ state }: { state: LeagueState }) {
   }
 
   return (
-    <div id="pickem-grid" className="mb-5 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div id="pickem-grid" className="mb-5 scroll-mt-20 rounded-lg border border-border bg-card p-4 shadow-sm">
       <div className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
           {ep ? `Your pick for episode ${ep.number}` : "Your pick"}

@@ -18,6 +18,7 @@ import { BootOverlay } from "@/components/boot-overlay";
 import { InstallHint } from "@/components/install-hint";
 import { Dashboard } from "@/components/dashboard/dashboard";
 import { useLeaguePoll } from "@/lib/use-league-poll";
+import { ActionBar } from "@/components/action-bar";
 import { rememberedLeague } from "@/lib/last-league";
 import { Button } from "@/components/ui/button";
 
@@ -240,6 +241,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
               .
             </div>
           )}
+          {/* Anything due in any of your leagues, on every page (renders nothing when there's none). */}
+          <ActionBar />
           {flash && (
             <div className="mb-4 flex items-start gap-2 rounded-md border border-primary/30 bg-accent px-3 py-2 text-sm">
               <span className="flex-1">{flash}</span>

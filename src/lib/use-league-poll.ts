@@ -7,7 +7,6 @@ import { useLeagueStore } from "@/lib/store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import { useChatStore } from "@/lib/chat-store";
 import { api } from "@/lib/api";
-import StateLogic from "@/lib/game/state-logic.js";
 import { isBetSettled } from "@/lib/game/selectors";
 
 // Port of pollForNotifications() (public/app.js): every 15s while a real league is loaded,
@@ -23,7 +22,7 @@ export function useLeaguePoll() {
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const setMidSeason = useLeagueStore((s) => s.setMidSeason);
   const setState = useLeagueStore((s) => s.setState);
-  const { push, dismissByTab, setBetGuessNotifications, setWasMyTurn, notifWasMyTurn } = useNotificationsStore();
+  const { push, setBetGuessNotifications } = useNotificationsStore();
 
   const pathname = usePathname();
   const pollUnreadChat = useChatStore((s) => s.pollUnread);
@@ -80,16 +79,8 @@ export function useLeaguePoll() {
       setBetGuessNotifications(pendingBetIds, (id) => betById.get(id) || "?");
     }
 
-    const turn = StateLogic.currentDraftTurn(fresh);
-    const isMyTurnNow = !!(StateLogic.isDraftStarted(fresh) && turn && !turn.isComplete && myPlayerId && turn.playerId === myPlayerId);
-    if (isMyTurnNow && !notifWasMyTurn) {
-      push("It's your turn to draft!", "/draft");
-    } else if (!isMyTurnNow && notifWasMyTurn) {
-      // Turn moved on (someone picked on your behalf, or you picked elsewhere) without you ever
-      // visiting Draft -- the notification is stale now, drop it naturally.
-      dismissByTab("/draft");
-    }
-    setWasMyTurn(isMyTurnNow);
+    // "It's your turn to draft" isn't pushed here any more: the app-wide action bar (action-bar.tsx)
+    // shows it, for every league, until the pick is made.
 
     // Someone joined (or came back): a player seat that's active now but wasn't at the last poll.
     // The first poll for a league only records who's there, so nobody already in it is announced.

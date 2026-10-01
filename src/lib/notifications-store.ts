@@ -3,16 +3,13 @@ import type { Notif } from "@/lib/game/types";
 
 // Port of the live app's `notifications` array + pushNotification()/dismissNotifications()
 // (public/app.js) -- capped at 20, newest first. The actual polling/diffing that decides *when*
-// to push or dismiss lives in use-league-poll.ts; this store is just the resulting list + the
-// transition-tracking flag (notifWasMyTurn) that poll needs to detect "it just became your turn"
-// versus "it's still your turn from last time" versus "it stopped being your turn."
+// to push or dismiss lives in use-league-poll.ts; this store is just the resulting list. (Turns and
+// other things waiting on you are the app-wide action bar's job now -- see action-bar.tsx.)
 interface NotificationsStore {
   notifications: Notif[];
-  notifWasMyTurn: boolean;
   push: (text: string, tab: string, meta?: { kind?: "bet-guess"; betId?: string }) => void;
   dismissByTab: (tab: string) => void;
   setBetGuessNotifications: (pendingBetIds: Set<string>, betLabelOf: (id: string) => string) => void;
-  setWasMyTurn: (v: boolean) => void;
   clear: () => void;
 }
 
@@ -20,8 +17,6 @@ let counter = 0;
 
 export const useNotificationsStore = create<NotificationsStore>((set, get) => ({
   notifications: [],
-  notifWasMyTurn: false,
-
   push: (text, tab, meta) => {
     counter++;
     const notif: Notif = { id: "n" + counter, text, ts: Date.now(), tab, ...meta };
@@ -60,6 +55,5 @@ export const useNotificationsStore = create<NotificationsStore>((set, get) => ({
     }
   },
 
-  setWasMyTurn: (v) => set({ notifWasMyTurn: v }),
-  clear: () => set({ notifications: [], notifWasMyTurn: false }),
+  clear: () => set({ notifications: [] }),
 }));
