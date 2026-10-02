@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { confirm } from "@/lib/confirm-store";
 import { plural } from "@/lib/use-show-terms";
+import { useShowSpoilers } from "@/lib/paid-ai-store";
 
 // Reviewing and approving one season's cast (db/migrations/0011). This is the step that used to be
 // every commissioner's job -- "Apply" on a per-league cast proposal -- and it's here because a cast
@@ -174,6 +175,7 @@ export function SeasonCastReview({
 }
 
 function CastRow({ member, busy, held, onRemove }: { member: SeasonCastMember; busy: boolean; held: boolean; onRemove: () => void }) {
+  const showSpoilers = useShowSpoilers();
   const [broken, setBroken] = useState(false);
   return (
     <tr className="border-b border-border last:border-0">
@@ -196,7 +198,12 @@ function CastRow({ member, busy, held, onRemove }: { member: SeasonCastMember; b
       </td>
       <td className="px-2 py-1 font-semibold">{member.name}</td>
       <td className="px-2 py-1 text-muted-foreground">
-        {member.tribeName ? (
+        {member.tribeName && !showSpoilers ? (
+          // The starting tribe is the premiere's own reveal -- hidden with spoilers off.
+          <span className="italic" title='Hidden — turn on "Show episode results" to see it'>
+            hidden
+          </span>
+        ) : member.tribeName ? (
           <>
             {member.tribeName}
             {held && <span className="ml-1.5 text-[0.65rem] italic opacity-70">held</span>}

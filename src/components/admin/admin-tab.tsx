@@ -52,6 +52,8 @@ export function AdminTab() {
   useLoadPaidAiPref();
   const showPaid = usePaidAiStore((s) => s.showPaid);
   const setShowPaid = usePaidAiStore((s) => s.setShowPaid);
+  const showSpoilers = usePaidAiStore((s) => s.showSpoilers);
+  const setShowSpoilers = usePaidAiStore((s) => s.setShowSpoilers);
 
   // Reloads every time this tab mounts -- including navigating back to it -- not just the first
   // time. `loaded` lives in the store, which outlives the component, so gating on `!loaded` used to
@@ -118,6 +120,18 @@ export function AdminTab() {
             {showPaid
               ? "On — buttons that spend money on AI calls (wiki episode pulls, web research, prose paste, auto-research) are showing."
               : "Off — every button that spends money on an AI call is hidden, except pulling a cast. Free actions (reviewing, JSON paste, settings) still work. Remembered in this browser."}
+          </span>
+        </span>
+      </label>
+
+      <label className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-card p-3 text-sm">
+        <input type="checkbox" className="mt-0.5" checked={showSpoilers} onChange={(e) => setShowSpoilers(e.target.checked)} />
+        <span>
+          <b>Show episode results (spoilers)</b>
+          <span className="block text-xs text-muted-foreground">
+            {showSpoilers
+              ? "On — research and review show who went home, events, tribe and team changes."
+              : "Off — research, review and accept by the count, without seeing who went home, what happened, or tribe and team changes; each episode can still be opened on its own. For an admin who's playing and behind. Remembered in this browser."}
           </span>
         </span>
       </label>

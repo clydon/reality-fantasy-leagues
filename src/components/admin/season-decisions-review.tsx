@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { ConfidenceDot, StatusNote, decidedButtonClass, rowTint } from "@/components/review-bits";
 import { cn } from "cn";
+import { useShowSpoilers } from "@/lib/paid-ai-store";
 
 // One episode's results, decided once here for every league playing the season (db/migrations/0019).
 // Embedded under each episode in season-episodes.tsx.
@@ -67,6 +68,9 @@ export function EpisodeDecisions({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const showSpoilers = useShowSpoilers();
+  // Opened for this episode only, with the Admin-wide "Show episode results" switch off.
+  const [revealed, setRevealed] = useState(false);
   const pending = decisions.filter((d) => d.status === "pending").length;
 
   async function acceptAll() {
@@ -109,6 +113,36 @@ export function EpisodeDecisions({
     ([a], [b]) => (a === null ? 999 : tribes.indexOf(a)) - (b === null ? 999 : tribes.indexOf(b))
   );
   const showHeaders = ordered.some(([t]) => t);
+
+  // Spoiler-free: the episode's results by the count -- eliminations, events, roles and tribe/team
+  // changes alike -- with Accept all, and nothing that says who or what until asked for.
+  if (!showSpoilers && !revealed) {
+    const accepted = decisions.filter((d) => d.status === "accepted").length;
+    const rejected = decisions.filter((d) => d.status === "rejected").length;
+    return (
+      <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-2">
+        <p className="text-[0.7rem] text-muted-foreground">
+          {decisions.length} result{decisions.length === 1 ? "" : "s"}
+          {[pending && `${pending} pending`, accepted && `${accepted} accepted`, rejected && `${rejected} rejected`]
+            .filter(Boolean)
+            .map((t) => ` · ${t}`)
+            .join("")}{" "}
+          — hidden while spoilers are off.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {pending > 0 && (
+            <Button size="xs" disabled={busy} onClick={acceptAll}>
+              {busy ? "Accepting…" : `Accept all ${pending} pending`}
+            </Button>
+          )}
+          <Button size="xs" variant="secondary" onClick={() => setRevealed(true)}>
+            Show this episode&rsquo;s results
+          </Button>
+        </div>
+        {error && <p className="font-semibold text-destructive">{error}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-2">

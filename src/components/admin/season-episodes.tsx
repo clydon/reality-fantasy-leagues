@@ -12,7 +12,7 @@ import { Select } from "@/components/ui/select";
 import { EpisodeDecisions } from "./season-decisions-review";
 import { formatFor } from "@/lib/game/formats/index.js";
 import { confirm } from "@/lib/confirm-store";
-import { useShowPaidAi } from "@/lib/paid-ai-store";
+import { useShowPaidAi, useShowSpoilers } from "@/lib/paid-ai-store";
 import { cn } from "cn";
 
 // A season's episodes as a list -- aired ones with what to do about them, the next upcoming one with
@@ -67,6 +67,7 @@ export function SeasonEpisodes({
   });
   const [open, setOpen] = useState<number | null>(null);
   const [lastSync, setLastSync] = useState<{ text: string; problems: string[] } | null>(null);
+  const showSpoilers = useShowSpoilers();
   const now = new Date();
 
   const tz = season.airTz || "America/New_York";
@@ -131,9 +132,13 @@ export function SeasonEpisodes({
   function reportSync(leagues: LeagueDecisionSync[]) {
     const applied = leagues.reduce((n, l) => n + l.applied, 0);
     const undone = leagues.reduce((n, l) => n + l.undone, 0);
+    const skipped = leagues.flatMap((l) => l.skipped.map((s) => `${l.leagueName}: ${s.name} — ${s.why}`));
     const problems = [
       ...leagues.filter((l) => l.error).map((l) => `${l.leagueName}: ${l.error}`),
-      ...leagues.flatMap((l) => l.skipped.map((s) => `${l.leagueName}: ${s.name} — ${s.why}`)),
+      // Who couldn't be applied names a castaway -- a count only with spoilers off.
+      ...(showSpoilers || !skipped.length
+        ? skipped
+        : [`${skipped.length} result${skipped.length === 1 ? "" : "s"} couldn't be applied — turn on "Show episode results" to see which.`]),
     ];
     const parts = [applied && `${applied} applied`, undone && `${undone} undone`].filter(Boolean);
     setLastSync({

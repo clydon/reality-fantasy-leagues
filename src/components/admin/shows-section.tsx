@@ -16,7 +16,7 @@ import { SeasonEpisodes } from "./season-episodes";
 import { cn } from "cn";
 import { AI_MODELS, costOf, estimate, formatCost } from "@/lib/ai-cost";
 import { DEFAULT_FORMAT, formatFor, formatOptions } from "@/lib/game/formats/index.js";
-import { useShowPaidAi } from "@/lib/paid-ai-store";
+import { useShowPaidAi, useShowSpoilers } from "@/lib/paid-ai-store";
 
 // Super-admin management of the show/season catalog, and the place a season's content comes from.
 //
@@ -863,6 +863,7 @@ function PullResult({
 }) {
   const d = result.decisions;
   const showPaid = useShowPaidAi();
+  const showSpoilers = useShowSpoilers();
   return (
     <div className="ml-6 mt-1.5 rounded border border-dashed border-border bg-secondary/40 p-1.5 text-[0.7rem]">
       <p>
@@ -883,12 +884,18 @@ function PullResult({
           </span>
         )}
       </p>
+      {/* Who was dropped, and why, can name an outcome -- counts only with spoilers off. */}
       {d?.unmatched?.length ? (
         <p className="mt-0.5 text-destructive">
-          Couldn&rsquo;t match to the cast, so dropped: {d.unmatched.join(", ")}. Fix the name in the cast, then pull again.
+          {showSpoilers
+            ? <>Couldn&rsquo;t match to the cast, so dropped: {d.unmatched.join(", ")}. Fix the name in the cast, then pull again.</>
+            : <>{d.unmatched.length} result{d.unmatched.length === 1 ? "" : "s"} couldn&rsquo;t be matched to the cast — turn on &ldquo;Show episode results&rdquo; to see which.</>}
         </p>
       ) : null}
-      {d?.dropped?.length ? (
+      {d?.dropped?.length && !showSpoilers ? (
+        <p className="mt-0.5 text-muted-foreground">{d.dropped.length} thrown out as impossible.</p>
+      ) : null}
+      {d?.dropped?.length && showSpoilers ? (
         <p className="mt-0.5 text-muted-foreground">
           Thrown out as impossible: {d.dropped.map((x) => `${x.name} (ep ${x.episode}: ${x.why})`).join("; ")}.
         </p>
@@ -917,6 +924,7 @@ function ResearchResult({
 }) {
   const [open, setOpen] = useState(false);
   const showPaid = useShowPaidAi();
+  const showSpoilers = useShowSpoilers();
   const { payload, provenance, counts, problems } = research;
   // The answers are the checklist of the format they were asked under.
   const notesFor = (c: ResearchCastaway) => formatFor(provenance.format).research.notes(c);
@@ -938,9 +946,12 @@ function ResearchResult({
         ) : (
           <SpentNote model={provenance.model} usage={provenance.usage} cached={research.cached} />
         )}
-        <button className="ml-1 underline" onClick={() => setOpen((v) => !v)}>
-          {open ? "hide details" : "details"}
-        </button>
+        {/* The details are the episode's events, by name: off-limits with spoilers off. */}
+        {showSpoilers && (
+          <button className="ml-1 underline" onClick={() => setOpen((v) => !v)}>
+            {open ? "hide details" : "details"}
+          </button>
+        )}
         {/* Offered whenever paid actions are: with no revision id to cache on, a re-run genuinely
             reads different pages. */}
         {showPaid && (
@@ -961,14 +972,19 @@ function ResearchResult({
           research sites in Settings.
         </p>
       ) : null}
-      {problems.length > 0 && (
+      {problems.length > 0 && !showSpoilers && (
+        <p className="mt-0.5 text-destructive">
+          ! {problems.length} answer{problems.length === 1 ? "" : "s"} to double-check — turn on &ldquo;Show episode results&rdquo; to see them.
+        </p>
+      )}
+      {problems.length > 0 && showSpoilers && (
         <ul className="mt-0.5 text-destructive">
           {problems.map((p) => (
             <li key={p}>! {p}</li>
           ))}
         </ul>
       )}
-      {open && (
+      {open && showSpoilers && (
         <>
           <p className="mt-1">{payload.summary}</p>
           <ul className="mt-1 flex flex-col gap-0.5">
