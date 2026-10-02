@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayAvatar } from "@/components/castaway-avatar";
@@ -73,6 +73,13 @@ export function SeasonResultsCard({ state }: { state: LeagueState }) {
 // ~36 pieces fanned out across the top of the card. Spread is deterministic (no Math.random in
 // render), varied enough by index to read as a burst. Hidden under prefers-reduced-motion.
 function Confetti() {
+  // Gone once it's played: the pieces end up well outside the card, and left in place (invisible but
+  // still laid out) they widened the page, which on Android pushed the fixed tab bar off-screen.
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setDone(true), 2400);
+    return () => clearTimeout(t);
+  }, []);
   const pieces = Array.from({ length: 36 }, (_, i) => {
     const angle = -Math.PI / 2 + ((i * 137.5) % 180 - 90) * (Math.PI / 180) * 0.95; // fan above the card
     const dist = 70 + ((i * 53) % 90);
@@ -90,6 +97,7 @@ function Confetti() {
       } as CSSProperties,
     };
   });
+  if (done) return null;
   return (
     <div className="pointer-events-none absolute left-1/2 top-10 z-10 h-0 w-0" aria-hidden>
       {pieces.map((p) => (

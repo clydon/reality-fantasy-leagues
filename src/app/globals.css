@@ -156,6 +156,10 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Nothing may make the page wider than the screen (the season card's confetti did, which on
+       Android pushed the fixed tab bar off-screen). clip, not hidden: it doesn't create a scroll
+       container, so sticky headers keep working. */
+    overflow-x: clip;
   }
   html {
     @apply font-sans;
