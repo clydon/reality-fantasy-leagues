@@ -15,6 +15,7 @@ export type OverviewSectionId =
   | "yourTeam"
   | "lastWeek"
   | "latestEpisode"
+  | "yourLine"
   | "seasonStatus"
   | "board";
 
@@ -27,6 +28,7 @@ export const OVERVIEW_SECTION_LABELS: Record<OverviewSectionId, string> = {
   yourTeam: "Your Team (Your Stats in Active Roster)",
   lastWeek: "Last Week (Active Roster)",
   latestEpisode: "Latest Episode",
+  yourLine: "Your Episode Line (Active Roster)",
   seasonStatus: "Season Status",
   board: "Board",
 };
@@ -56,9 +58,25 @@ export const DEFAULT_OVERVIEW_ORDER: OverviewSectionId[] = [
   "yourTeam",
   "lastWeek",
   "latestEpisode",
+  "yourLine",
   "seasonStatus",
   "board",
 ];
+
+/**
+ * A saved order, plus any section added to the app since it was saved -- otherwise a new section
+ * would never show for a league type whose layout an admin had already customized. Each one goes
+ * right after the section it follows by default (or first, if none of those are there).
+ */
+export function withNewSections(saved: OverviewSectionId[]): OverviewSectionId[] {
+  const order = [...saved];
+  DEFAULT_OVERVIEW_ORDER.forEach((id, i) => {
+    if (order.includes(id)) return;
+    const before = DEFAULT_OVERVIEW_ORDER.slice(0, i).reverse().find((prev) => order.includes(prev));
+    order.splice(before ? order.indexOf(before) + 1 : 0, 0, id);
+  });
+  return order;
+}
 
 // Whether a section applies at all to this league right now -- independent of the admin's own
 // hidden/order choices. A section the league doesn't have (Weekly Pick for a Classic Draft league)
@@ -70,6 +88,9 @@ export function isOverviewSectionEligible(id: OverviewSectionId, state: LeagueSt
       return leagueType.hasWeeklyPicks;
     case "lineupGrid":
       return leagueType.hasActiveRoster;
+    // The commissioner writes these from the Active Roster Scoreboard.
+    case "yourLine":
+      return leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks;
     // Folded into Your Team's "Last week" view; kept as an id so saved layouts that list it still load.
     case "lastWeek":
       return false;

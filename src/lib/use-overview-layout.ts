@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useIsSuperAdmin } from "@/lib/store";
-import { DEFAULT_OVERVIEW_ORDER, type OverviewLeagueTypeId, type OverviewSectionId } from "./overview-layout";
+import { DEFAULT_OVERVIEW_ORDER, withNewSections, type OverviewLeagueTypeId, type OverviewSectionId } from "./overview-layout";
 
 export interface OverviewLayoutValue {
   order: OverviewSectionId[];
@@ -43,7 +43,8 @@ export function useOverviewLayout(leagueTypeId: OverviewLeagueTypeId) {
     queryFn: () => api.getOverviewLayout(),
     staleTime: 60_000,
   });
-  const value: OverviewLayoutValue = (data?.layouts?.[leagueTypeId] as OverviewLayoutValue | undefined) ?? DEFAULT_VALUE;
+  const saved = data?.layouts?.[leagueTypeId] as OverviewLayoutValue | undefined;
+  const value: OverviewLayoutValue = saved ? { ...saved, order: withNewSections(saved.order) } : DEFAULT_VALUE;
 
   async function save(next: OverviewLayoutValue) {
     queryClient.setQueryData(["overview-layout"], (prev: { layouts?: Record<string, OverviewLayoutValue> } | undefined) => ({

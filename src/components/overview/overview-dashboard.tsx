@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useLeagueStore } from "@/lib/store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { LatestEpisodeCard } from "./latest-episode-card";
+import { YourLineCard } from "./your-line-card";
 import { SeasonStatusCard } from "./season-status-card";
 import { StandingsCard } from "./standings-card";
 import { YourTeamCard } from "./your-team-card";
@@ -38,6 +39,8 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
       return <LastWeekCard state={state} />;
     case "latestEpisode":
       return <LatestEpisodeCard state={state} />;
+    case "yourLine":
+      return <YourLineCard state={state} />;
     case "seasonStatus":
       return <SeasonStatusCard state={state} />;
     case "board":
