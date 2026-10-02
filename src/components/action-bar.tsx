@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useLeagueStore, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { actionItems, type ActionItem } from "@/lib/game/action-items.js";
 import { cn } from "cn";
+import { dismissNotificationsNudge, shouldNudgeNotifications } from "@/lib/notify-nudge";
 
 type Item = ActionItem & { leagueId: string; leagueName: string };
 
@@ -21,6 +22,7 @@ type Item = ActionItem & { leagueId: string; leagueName: string };
 // re-fetched every 30s and whenever the open league's state changes.
 export function ActionBar() {
   const router = useRouter();
+  const pathname = usePathname();
   const mode = useLeagueStore((s) => s.mode);
   // The real state, not the spoiler-trimmed view: what's due is due whether or not you've looked.
   const state = useLeagueStore((s) => s.fullState);
@@ -34,6 +36,9 @@ export function ActionBar() {
   const previewingDemo = useIsPreviewingDemo();
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
+  // "Turn on notifications", last in the list, for a device that could get push but doesn't
+  // (notify-nudge.ts decides, including the snooze after a dismissal).
+  const [nudge, setNudge] = useState(false);
   const live = mode === "live" && !!leagueId;
   // Signed in with no league yet still fetches: invites are exactly what that person needs to see.
   const enabled = isAuthenticated && !previewingDemo;
@@ -52,6 +57,10 @@ export function ActionBar() {
   useEffect(() => {
     if (enabled) refetch();
   }, [state, enabled, refetch]);
+  // Re-checked on every page change, so turning notifications on in Account settings clears it.
+  useEffect(() => {
+    if (enabled) shouldNudgeNotifications().then(setNudge);
+  }, [enabled, pathname]);
 
   const here: Item[] =
     (live || demo) && myPlayerId
@@ -62,6 +71,9 @@ export function ActionBar() {
     ...fetched.filter((it) => it.kind === "invite"),
     ...here,
     ...fetched.filter((it) => it.kind !== "invite" && it.leagueId !== leagueId),
+    ...(enabled && nudge
+      ? [{ kind: "notifications" as const, text: "Turn on notifications", href: "/account", leagueId: "", leagueName: "Get reminders before each episode" }]
+      : []),
   ];
   const i = items.length ? Math.min(index, items.length - 1) : 0;
   const item = items[i];
@@ -91,6 +103,10 @@ export function ActionBar() {
   }
 
   async function open(it: Item) {
+    if (it.kind === "notifications") {
+      router.push("/account");
+      return;
+    }
     if (it.leagueId !== hereId) await switchLeague(it.leagueId);
     const [path, hash] = it.href.split("#");
     router.push(path || "/");
@@ -142,17 +158,33 @@ export function ActionBar() {
       ) : (
         <button className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left hover:bg-amber-100/60 dark:hover:bg-amber-900/40" onClick={() => open(item)}>
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold text-white" aria-hidden>
-            !
+            {item.kind === "notifications" ? "🔔" : "!"}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-bold">{item.text}</span>
-            <span className={cn("block truncate text-xs", item.leagueId === hereId ? "opacity-70" : "font-semibold")}>
-              {item.leagueId === hereId ? item.leagueName : `in ${item.leagueName}`}
+            <span
+              className={cn("block truncate text-xs", item.kind === "notifications" || item.leagueId === hereId ? "opacity-70" : "font-semibold")}
+            >
+              {item.kind === "notifications" || item.leagueId === hereId ? item.leagueName : `in ${item.leagueName}`}
             </span>
           </span>
           <span className="shrink-0 text-lg font-bold" aria-hidden>
             ›
           </span>
+        </button>
+      )}
+      {/* The nudge is the one item you can wave away (snoozed -- see notify-nudge.ts). */}
+      {item.kind === "notifications" && (
+        <button
+          className="shrink-0 border-l border-amber-500/40 px-3 text-base font-bold hover:bg-amber-100/60 dark:hover:bg-amber-900/40"
+          aria-label="Not now"
+          title="Not now"
+          onClick={() => {
+            dismissNotificationsNudge();
+            setNudge(false);
+          }}
+        >
+          ✕
         </button>
       )}
       {items.length > 1 && (
