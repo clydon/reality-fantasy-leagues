@@ -89,7 +89,7 @@ export function PickEmPickGrid({ state }: { state: LeagueState }) {
                 "relative flex flex-col items-center gap-1.5 rounded-lg border-2 bg-card p-2 text-center transition-colors",
                 mine ? "border-primary bg-primary/5" : "border-border",
                 canPick && "cursor-pointer hover:border-primary",
-                (used || out) && !mine && "opacity-45 grayscale"
+                (used || out) && !mine && "opacity-45"
               )}
             >
               <div className="relative h-11 w-11">

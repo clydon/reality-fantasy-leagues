@@ -104,7 +104,7 @@ export function CastawayStatCard({
       className={cn(
         "relative rounded-[10px] border-2 bg-card p-[12px_10px_10px] text-center shadow-sm transition-[transform,box-shadow]",
         clickable && "cursor-pointer hover:-translate-y-0.5 hover:shadow-md",
-        dimmed && "opacity-[.55] saturate-[.75] hover:opacity-80"
+        dimmed && "opacity-[.55] hover:opacity-80"
       )}
       style={{ borderColor: owner ? owner.color : "var(--border)" }}
     >

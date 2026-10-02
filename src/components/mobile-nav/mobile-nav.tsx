@@ -313,8 +313,11 @@ export function MobileNav() {
         </div>
       </header>
 
+      {/* translateZ(0): its own compositing layer. Android Chrome sometimes skipped painting this
+          fixed bar until a scroll or an animation forced a repaint -- seen on the season-complete
+          Overview, where every castaway photo is faded. */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-[55] hidden flex-row border-t border-border bg-panel-menu p-[6px_2px] max-nav:flex"
+        className="fixed inset-x-0 bottom-0 z-[55] hidden flex-row border-t border-border bg-panel-menu p-[6px_2px] [transform:translateZ(0)] max-nav:flex"
         style={{ paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))" }}
       >
         {tabs.map((tab) => {

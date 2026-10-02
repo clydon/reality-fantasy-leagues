@@ -35,7 +35,7 @@ export function CastawayStatRow({
   const out = eliminated && fade;
 
   return (
-    <div className={cn("flex items-center gap-3 rounded-lg border border-border bg-card p-2.5", out && "opacity-[.55] saturate-[.75]")}>
+    <div className={cn("flex items-center gap-3 rounded-lg border border-border bg-card p-2.5", out && "opacity-[.55]")}>
       <div className="relative h-14 w-14 shrink-0">
         <CastawayAvatar
           castaway={c}

@@ -154,7 +154,7 @@ function LineupCard({
         "relative flex min-h-[104px] flex-col items-center gap-1.5 rounded-lg border-2 bg-card p-2 text-center transition-colors",
         active ? "border-primary bg-primary/5" : "border-border",
         canTap && "cursor-pointer hover:border-primary",
-        out && "opacity-[.55] saturate-[.75]"
+        out && "opacity-[.55]"
       )}
     >
       {/* Current tribe, centred on the card's top edge above the photo. */}

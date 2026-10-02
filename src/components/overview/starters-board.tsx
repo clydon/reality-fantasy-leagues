@@ -167,7 +167,7 @@ function Chip({ castaway: c, ring, points, small }: { castaway: Castaway; ring?:
   return (
     <div className="relative shrink-0" title={c.name}>
       <div
-        className={cn("overflow-hidden rounded-lg border-2", small ? "h-7 w-7 opacity-80" : "h-10 w-10", c.status === "eliminated" && "grayscale")}
+        className={cn("overflow-hidden rounded-lg border-2", small ? "h-7 w-7 opacity-80" : "h-10 w-10", c.status === "eliminated" && "opacity-50")}
         style={{ borderColor: ring ?? "var(--border)" }}
       >
         <CastawayAvatar
@@ -237,7 +237,7 @@ function CastByTribe({ state }: { state: LeagueState }) {
                       aria-expanded={openId === c.id}
                     >
                       <div
-                        className={cn("h-9 w-9 overflow-hidden rounded-md border-2", c.status === "eliminated" && "grayscale")}
+                        className="h-9 w-9 overflow-hidden rounded-md border-2"
                         style={{ borderColor: owners[0]?.color ?? "var(--border)" }}
                       >
                         <CastawayAvatar
