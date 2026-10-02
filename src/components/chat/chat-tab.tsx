@@ -129,10 +129,13 @@ function useFitToVisible(ref: React.RefObject<HTMLDivElement | null>): number | 
       if (!el) return;
       const visibleBottom = (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight);
       const keyboardOpen = !!vv && window.innerHeight - vv.height > 120;
-      const tabBar = document.querySelector<HTMLElement>("[data-mobile-tabbar]");
-      const tabBarHeight = !keyboardOpen && tabBar && tabBar.offsetParent !== null ? tabBar.getBoundingClientRect().height : 0;
+      // Shown = has a size (it's display:none on desktop). Not offsetParent: that's always null for a
+      // fixed element, which read as "no tab bar" and let the chat run underneath it.
+      const tabBarRect = document.querySelector<HTMLElement>("[data-mobile-tabbar]")?.getBoundingClientRect();
+      const tabBarShown = !!tabBarRect && tabBarRect.height > 0;
+      const tabBarHeight = tabBarShown && !keyboardOpen ? tabBarRect.height : 0;
       // Desktop: leave the page's own bottom breathing room.
-      const gap = tabBar && tabBar.offsetParent !== null ? 0 : 24;
+      const gap = tabBarShown ? 0 : 24;
       setHeight(Math.max(220, Math.floor(visibleBottom - tabBarHeight - gap - el.getBoundingClientRect().top)));
     }
     fit();
