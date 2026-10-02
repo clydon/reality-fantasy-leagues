@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
 const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
-const { episodeTeamBullets, latestScoredEpisode, buildSummaryPrompt, weekInRace } = jiti("../src/lib/game/episode-team-summary.ts");
+const { episodeTeamBullets, latestScoredEpisode, buildLeaguePrompt, parseLeagueReply, weekInRace } = jiti("../src/lib/game/episode-team-summary.ts");
 const { episodePlayerPoints } = jiti("../src/lib/game/active-roster-rows.ts");
 const S = require("../src/lib/game/state-logic.js");
 
@@ -71,18 +71,41 @@ test("an unknown player or episode gets no bullets", () => {
   assert.deepEqual(episodeTeamBullets(state, "ep_missing", state.players[0].id), []);
 });
 
-test("the prompt carries the episode notes when there are some, and just the numbers when not", () => {
-  const bullets = [
-    { kind: "perfect", icon: "", text: "Perfect lineup: you started your best possible team" },
-    { kind: "best", icon: "", text: "Started Kim (won immunity)", points: 3 },
-  ];
-  const withNotes = buildSummaryPrompt(bullets, "Ep 3: a blindside at Tribal.", 3);
-  assert.match(withNotes, /WHAT HAPPENED IN THE EPISODE:\nEp 3: a blindside at Tribal\./);
-  assert.match(withNotes, /- Perfect lineup: you started your best possible team\n- Started Kim \(won immunity\) \(\+3\)/);
+test("one prompt covers every team: lineups, benches, the race, and the episode story when there is one", () => {
+  const ep = latestScoredEpisode(state);
+  const withNotes = buildLeaguePrompt(state, ep.id, "Ep 6: a blindside at Tribal.");
+  assert.match(withNotes, /WHAT HAPPENED IN THE EPISODE:\nEp 6: a blindside at Tribal\./);
+  for (const p of state.players) {
+    assert.ok(withNotes.includes(`TEAM: ${p.name}`), `${p.name}'s block`);
+    assert.ok(withNotes.includes(`${p.name}: <line>`), `${p.name} in the reply format`);
+  }
+  assert.match(withNotes, /- Started: .*\[started by \d of 3 teams\]/);
+  assert.match(withNotes, /- Bench: /);
+  assert.match(withNotes, /league average/);
   assert.match(withNotes, /20 words or fewer/);
-  const without = buildSummaryPrompt(bullets, null, 3);
-  assert.ok(!without.includes("WHAT HAPPENED"));
-  assert.match(without, /THIS TEAM'S EPISODE:/);
+  assert.ok(!buildLeaguePrompt(state, ep.id, null).includes("WHAT HAPPENED"));
+});
+
+test("a pasted reply is split onto teams, forgiving of the extras chats add", () => {
+  const teams = [
+    { id: "a", name: "Sam" },
+    { id: "b", name: "Sam B" },
+    { id: "c", name: "Alex" },
+  ];
+  const reply = [
+    "Here you go:",
+    "- **Sam:** Rode Toka's immunity win all the way.",
+    "2. Sam B — \"Benched Ana the night she went home.\"",
+    "alex: Started three people who did nothing.",
+    "",
+  ].join("\r\n");
+  const { lines, unmatched } = parseLeagueReply(reply, teams);
+  assert.deepEqual(lines, {
+    a: "Rode Toka's immunity win all the way.",
+    b: "Benched Ana the night she went home.",
+    c: "Started three people who did nothing.",
+  });
+  assert.deepEqual(unmatched, ["Here you go:"]);
 });
 
 test("the race arrow: everyone measured against 1st, the leader against 2nd, mirrored when the lead changes", () => {

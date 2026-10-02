@@ -1,11 +1,13 @@
 import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync } from "@/lib/game/types";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 import type { ActionItem } from "@/lib/game/action-items.js";
-import type { TeamSummaryBullet } from "@/lib/game/episode-team-summary";
 
 export interface EpisodeTeamSummary {
+  /** Every team's saved "why it mattered" line, by player id. */
   notes: Record<string, string>;
-  mine: { bullets: TeamSummaryBullet[]; prompt: string; hasEpisodeSummary: boolean; why: string | null } | null;
+  /** Commissioner only: the one prompt that writes every team's line. Null for everyone else. */
+  prompt: string | null;
+  hasEpisodeSummary: boolean;
 }
 
 export class ApiError extends Error {
@@ -130,14 +132,14 @@ export const api = {
   suggestBetAnswer: (leagueId: string, epId: string, betId: string) =>
     localFetch<SuggestedBetAnswer>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/suggested-answer`),
 
-  // Scoreboard episode summary: everyone's saved "why it mattered" line, plus the caller's own bullets
-  // and copyable prompt. Saving only ever writes the caller's own line (the route takes it from the session).
+  // Scoreboard "why it mattered" lines: everyone's saved line, plus (commissioner only) the one prompt
+  // that writes them all. Saving is commissioner-only: { playerId: text }, empty text clears a line.
   episodeTeamSummary: (leagueId: string, epId: string) =>
     localFetch<EpisodeTeamSummary>(`/api/leagues/${leagueId}/episodes/${epId}/team-summary`),
-  saveEpisodeTeamSummary: (leagueId: string, epId: string, why: string) =>
-    localFetch<{ ok: true; why: string | null }>(`/api/leagues/${leagueId}/episodes/${epId}/team-summary`, {
+  saveEpisodeTeamLines: (leagueId: string, epId: string, lines: Record<string, string>) =>
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/episodes/${epId}/team-summary`, {
       method: "PUT",
-      body: JSON.stringify({ why }),
+      body: JSON.stringify({ lines }),
     }),
 
   // Pick'em only.

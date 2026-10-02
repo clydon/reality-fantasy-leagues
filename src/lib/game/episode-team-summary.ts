@@ -2,6 +2,7 @@ import type { Castaway, LeagueState } from "./types";
 import StateLogic from "./state-logic.js";
 import { episodePlayerPoints, rosterAtEpisode, castawayEpisodeStats } from "./active-roster-rows";
 import { playerBetRows } from "./bet-rows";
+import { tribeAtEpisode } from "./episode-recap";
 
 // A call is only worth a line when at least this much rode on it -- below it, a bullet is noise.
 const NOTABLE = 1;
@@ -155,24 +156,105 @@ function inGameFor(state: LeagueState, c: Castaway, number: number) {
   return !!exit && exit.number >= number;
 }
 
+/** A team's whole episode, in words an AI can work from: the race, then every starter and bench player. */
+function teamEpisodeBlock(state: LeagueState, epId: string, playerId: string, startedBy: Map<string, number>, teams: number) {
+  const ep = state.episodes.find((e) => e.id === epId)!;
+  const player = state.players.find((p) => p.id === playerId)!;
+  const field = episodePlayerPoints(state, epId);
+  const mine = field.find((f) => f.player.id === playerId)?.points ?? 0;
+  const average = Math.round((field.reduce((t, f) => t + f.points, 0) / field.length) * 10) / 10;
+  const race = weekInRace(state, epId, playerId);
+  const raceText = !race
+    ? ""
+    : race.tookLead
+      ? ` · took 1st place, gaining ${race.gained} on the old leader`
+      : race.leading
+        ? ` · in 1st; lead over 2nd ${race.gained > 0 ? `grew by ${race.gained}` : race.gained < 0 ? `shrank by ${-race.gained}` : "held"}`
+        : ` · ${race.gained > 0 ? `closed ${race.gained} on 1st` : race.gained < 0 ? `fell ${-race.gained} further behind 1st` : "kept pace with 1st"}`;
+
+  const startedIds = new Set(StateLogic.activeRosterLineupFor(state, epId, playerId));
+  const describe = (c: Castaway) => {
+    const stats = castawayEpisodeStats(state, epId, c.id);
+    const tribe = state.tribes.find((t) => t.id === tribeAtEpisode(state, c, ep.number))?.name;
+    const did = stats.byType.map((t) => (t.count > 1 ? `${t.label} x${t.count}` : t.label)).join(", ") || "nothing scored";
+    const n = startedBy.get(c.id) ?? 0;
+    return `${c.name}${tribe ? ` (${tribe})` : ""} ${fmt(stats.total)}: ${did.toLowerCase()} [started by ${n} of ${teams} teams]`;
+  };
+  const roster = rosterAtEpisode(state, playerId, epId);
+  const started = roster.filter((c) => startedIds.has(c.id));
+  const benched = roster.filter((c) => !startedIds.has(c.id));
+  const calls = episodeTeamBullets(state, epId, playerId).map((b) => b.text);
+  return [
+    `TEAM: ${player.name}`,
+    `- This episode: ${fmt(mine)} pts (league average ${average})${raceText}`,
+    `- Started: ${started.map(describe).join("; ") || "nobody"}`,
+    `- Bench: ${benched.map(describe).join("; ") || "nobody"}`,
+    ...(calls.length ? [`- Notable: ${calls.join("; ")}`] : []),
+  ].join("\n");
+}
+
 /**
- * The prompt a player copies into any AI chat for their "why it mattered" line. Grounded in the
- * episode's own research summary (already written and stored by the weekly research run) when there
- * is one, so the sentence can say WHY -- not just restate the numbers.
+ * The one prompt a commissioner copies into any AI chat to write every team's "why it mattered" line
+ * for an episode at once: every team's lineup, bench and race, grounded in the episode's own research
+ * summary (already stored by the weekly research run) when there is one -- that's what lets a line
+ * give a reason, not just restate points. The reply comes back as "Team: sentence" lines, read by
+ * parseLeagueReply.
  */
-export function buildSummaryPrompt(bullets: TeamSummaryBullet[], episodeSummaryText: string | null, episodeNumber: number) {
+export function buildLeaguePrompt(state: LeagueState, epId: string, episodeSummaryText: string | null) {
+  const ep = state.episodes.find((e) => e.id === epId);
+  const field = episodePlayerPoints(state, epId);
+  if (!ep || field.length === 0) return "";
+  const startedBy = new Map<string, number>();
+  for (const f of field) for (const id of StateLogic.activeRosterLineupFor(state, epId, f.player.id)) startedBy.set(id, (startedBy.get(id) ?? 0) + 1);
+
   const lines = [
-    `Write ONE sentence (20 words or fewer) on why this fantasy team's week went the way it did, in episode ${episodeNumber}.`,
+    `This is a fantasy league for a reality TV show. Each team starts a few castaways every episode and scores points for what they do. Write ONE line per team about episode ${ep.number}: why that team's week went the way it did.`,
     "",
     "Rules:",
-    "- Plain, everyday words, as if explaining it out loud to a friend who has never seen the show.",
-    '- No jargon, no made-up compound words (not "idol-less boot", say "voted out without an idol").',
-    "- Do not name or mention any other fantasy team or player in the league.",
-    "- Return only the sentence: no quotes, no preamble.",
+    "- 20 words or fewer per line. Plain, everyday words, as if telling a friend who has never seen the show.",
+    '- No jargon or made-up compound words (not "idol-less boot", say "voted out without an idol").',
+    "- Say which one or two castaways decided the week and what they actually did in the episode. Use the episode story below, not just the points.",
+    "- Like a sports commentator, with no subject needed: the team's name is shown right above the line.",
+    '- Never name another team or league member. Comparisons are fine without names ("the only team to start her", "most of the league").',
+    "",
+    `Good: "Rode Toka's immunity win, then benched Ana the night Savu blindsided her."`,
+    'Bad: "A strong start, but not enough impact elsewhere." (vague, says nothing about the episode)',
+    "",
+    "Reply with exactly one line per team, in this format and nothing else:",
+    ...field.map((f) => `${f.player.name}: <line>`),
   ];
   if (episodeSummaryText) lines.push("", "WHAT HAPPENED IN THE EPISODE:", episodeSummaryText);
-  lines.push("", "THIS TEAM'S EPISODE:", ...bullets.map((b) => `- ${b.text}${b.points !== undefined ? ` (${fmt(b.points)})` : ""}`));
+  lines.push("", "THE TEAMS:");
+  for (const f of field) lines.push("", teamEpisodeBlock(state, epId, f.player.id, startedBy, field.length));
   return lines.join("\n");
+}
+
+/**
+ * Reads an AI chat's reply to buildLeaguePrompt back into one line per team. Forgiving of what chats
+ * add -- bullets, bold, quotes, a dash instead of a colon -- and of team-name case; a line it can't
+ * place on a team comes back in `unmatched` for the commissioner to see.
+ */
+export function parseLeagueReply(reply: string, teams: { id: string; name: string }[]) {
+  const lines: Record<string, string> = {};
+  const unmatched: string[] = [];
+  // Longest names first, so "Sam" doesn't claim a line meant for "Sam B".
+  const byLength = [...teams].sort((a, b) => b.name.length - a.name.length);
+  for (const raw of reply.split(/\r?\n/)) {
+    const line = raw.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").replace(/\*\*/g, "").trim();
+    if (!line) continue;
+    const team = byLength.find((t) => line.toLowerCase().startsWith(t.name.toLowerCase()) && /^\s*[:\-–—]/.test(line.slice(t.name.length)));
+    if (!team) {
+      unmatched.push(line);
+      continue;
+    }
+    const text = line
+      .slice(team.name.length)
+      .replace(/^\s*[:\-–—]\s*/, "")
+      .replace(/^["“”']+|["“”']+$/g, "")
+      .trim();
+    if (text) lines[team.id] = text;
+  }
+  return { lines, unmatched };
 }
 
 function fmt(n: number) {
