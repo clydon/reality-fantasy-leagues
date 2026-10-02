@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
 const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
-const { episodeTeamBullets, latestScoredEpisode, buildSummaryPrompt } = jiti("../src/lib/game/episode-team-summary.ts");
+const { episodeTeamBullets, latestScoredEpisode, buildSummaryPrompt, weekInRace } = jiti("../src/lib/game/episode-team-summary.ts");
 const { episodePlayerPoints } = jiti("../src/lib/game/active-roster-rows.ts");
 const S = require("../src/lib/game/state-logic.js");
 
@@ -28,7 +28,7 @@ test("summarizes the latest scored episode, never a later one", () => {
   assert.ok(S.ActiveRosterLogic.episodeEvents(state, ep).length > 0);
 });
 
-test("every team gets its calls and a net line, never naming another team", () => {
+test("every team's calls are well-formed and never name another team", () => {
   const ep = latestScoredEpisode(state);
   const field = episodePlayerPoints(state, ep.id);
   for (const { player } of field) {
@@ -41,16 +41,27 @@ test("every team gets its calls and a net line, never naming another team", () =
     if (costly) assert.ok(costly.points < 0);
     const saved = bullets.find((b) => b.kind === "benchSaved");
     if (saved) assert.ok(saved.points < 0 && saved.text.startsWith("Good call benching "));
-    assert.equal(bullets.at(-1).kind, "net");
-    assert.match(bullets.at(-1).text, /league average/);
+    // Only notable calls: every line with points has at least a point riding on it.
+    for (const b of bullets) if (b.points !== undefined) assert.ok(Math.abs(b.points) >= 1, b.text);
   }
 });
 
-test("the net line tracks the race: the leader against 2nd, everyone else against 1st", () => {
-  const ep = latestScoredEpisode(state);
-  for (const p of state.players) {
-    const net = episodeTeamBullets(state, ep.id, p.id).at(-1).text;
-    assert.match(net, /(ahead of 2nd|lead over 2nd|held your lead|on 1st place|behind 1st|pace with 1st)/, net);
+test("a perfect lineup is exactly when no other starters from the roster would have scored more", () => {
+  const { rosterAtEpisode, castawayEpisodeStats } = jiti("../src/lib/game/active-roster-rows.ts");
+  for (let cursor = 1; cursor <= EPISODES; cursor++) {
+    const s = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data, "active-roster", cursor))));
+    const ep = latestScoredEpisode(s);
+    if (!ep) continue;
+    for (const p of s.players) {
+      const pts = (c) => castawayEpisodeStats(s, ep.id, c.id).total;
+      const roster = rosterAtEpisode(s, p.id, ep.id);
+      const startedIds = new Set(S.activeRosterLineupFor(s, ep.id, p.id));
+      const started = roster.filter((c) => startedIds.has(c.id)).reduce((t, c) => t + pts(c), 0);
+      const best = roster.map(pts).sort((a, b) => b - a).slice(0, s.settings.activeSlots).reduce((t, n) => t + n, 0);
+      const choice = roster.length > startedIds.size && roster.some((c) => pts(c) !== 0);
+      const perfect = episodeTeamBullets(s, ep.id, p.id).some((b) => b.kind === "perfect");
+      assert.equal(perfect, choice && started >= best - 1e-9, `ep ${ep.number}, ${p.name}`);
+    }
   }
 });
 
@@ -62,14 +73,38 @@ test("an unknown player or episode gets no bullets", () => {
 
 test("the prompt carries the episode notes when there are some, and just the numbers when not", () => {
   const bullets = [
-    { kind: "net", icon: "", text: "+1.5 vs. league average · gained 2 on 1st place" },
+    { kind: "perfect", icon: "", text: "Perfect lineup: you started your best possible team" },
     { kind: "best", icon: "", text: "Started Kim (won immunity)", points: 3 },
   ];
   const withNotes = buildSummaryPrompt(bullets, "Ep 3: a blindside at Tribal.", 3);
   assert.match(withNotes, /WHAT HAPPENED IN THE EPISODE:\nEp 3: a blindside at Tribal\./);
-  assert.match(withNotes, /- \+1\.5 vs\. league average · gained 2 on 1st place\n- Started Kim \(won immunity\) \(\+3\)/);
+  assert.match(withNotes, /- Perfect lineup: you started your best possible team\n- Started Kim \(won immunity\) \(\+3\)/);
   assert.match(withNotes, /20 words or fewer/);
   const without = buildSummaryPrompt(bullets, null, 3);
   assert.ok(!without.includes("WHAT HAPPENED"));
   assert.match(without, /THIS TEAM'S EPISODE:/);
+});
+
+test("the race arrow: everyone measured against 1st, the leader against 2nd, mirrored when the lead changes", () => {
+  let tookLeadSeen = 0;
+  for (let cursor = 2; cursor <= EPISODES; cursor++) {
+    const s = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data, "active-roster", cursor))));
+    const ep = latestScoredEpisode(s);
+    const race = Object.fromEntries(s.players.map((p) => [p.id, weekInRace(s, ep.id, p.id)]));
+    const leaders = s.players.filter((p) => race[p.id].leading);
+    assert.ok(leaders.length >= 1, `ep ${ep.number}: someone leads`);
+    for (const p of s.players) if (race[p.id].tookLead) {
+      tookLeadSeen++;
+      assert.equal(leaders.length, 1, "a lead taken is a sole lead");
+      assert.ok(race[p.id].gained > 0, "you only take the lead by gaining");
+    }
+    // A sole leader's number and 2nd place's are mirror images: the same gap, seen from each side.
+    if (leaders.length === 1) {
+      const lead = race[leaders[0].id];
+      const others = s.players.filter((p) => p.id !== leaders[0].id).map((p) => race[p.id].gained);
+      assert.ok(others.some((g) => Math.abs(g + lead.gained) < 1e-9), `ep ${ep.number}: ${lead.gained} vs ${others}`);
+    }
+  }
+  assert.equal(weekInRace(state, latestScoredEpisode(state).id, "nobody"), null);
+  console.log(`  (lead changes seen across the demo season: ${tookLeadSeen})`);
 });

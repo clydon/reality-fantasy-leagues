@@ -9,7 +9,7 @@ import { cn } from "cn";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useMyPlayerId } from "@/lib/store";
-import { episodeTeamBullets, latestScoredEpisode } from "@/lib/game/episode-team-summary";
+import { episodeTeamBullets, latestScoredEpisode, weekInRace } from "@/lib/game/episode-team-summary";
 import { Button } from "@/components/ui/button";
 import { useTeamSummary } from "./use-team-summary";
 import { EpisodeSummaryModal } from "./episode-summary-modal";
@@ -21,6 +21,7 @@ import { EpisodeSummaryModal } from "./episode-summary-modal";
 export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; state: LeagueState }) {
   const bonusEnabled = state.settings.bonusEnabled;
   const bets = bonusEnabled ? playerBetRows(state, r.playerId) : [];
+  const latest = latestScoredEpisode(state);
 
   return (
     <div className="mb-3 rounded-lg border border-border bg-card shadow-sm">
@@ -34,7 +35,10 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
             {bonusEnabled ? ` · Predictions: ${r.bonus}` : ""} · Finale: {r.finale}
           </div>
         </div>
-        <div className="font-mono text-xl font-bold">{r.total}</div>
+        <div className="text-right">
+          <div className="font-mono text-xl font-bold">{r.total}</div>
+          {latest && <WeekTrend race={weekInRace(state, latest.id, r.playerId)} ep={latest.number} />}
+        </div>
       </div>
 
       <EpisodeSummary state={state} playerId={r.playerId} />
@@ -60,6 +64,28 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
           </div>
         )}
       </details>
+    </div>
+  );
+}
+
+// Under the total, small and quiet: how the latest episode moved this team in the race for 1st --
+// ▲ gained on the leader (or, for the leader, pulled away from 2nd), ▼ lost ground.
+function WeekTrend({ race, ep }: { race: ReturnType<typeof weekInRace>; ep: number }) {
+  if (!race) return null;
+  const { gained, leading, tookLead } = race;
+  const n = Math.abs(gained);
+  const title = tookLead
+    ? `Ep ${ep}: took 1st, gaining ${n} on the old leader`
+    : leading
+      ? gained > 0 ? `Ep ${ep}: lead over 2nd grew by ${n}` : gained < 0 ? `Ep ${ep}: lead over 2nd shrank by ${n}` : `Ep ${ep}: lead over 2nd held`
+      : gained > 0 ? `Ep ${ep}: closed ${n} on 1st` : gained < 0 ? `Ep ${ep}: fell ${n} further behind 1st` : `Ep ${ep}: kept pace with 1st`;
+  return (
+    <div className="flex items-baseline justify-end gap-1 text-[0.65rem] leading-tight" title={title}>
+      {tookLead && <span className="text-muted-foreground">new 1st</span>}
+      <span className={cn("font-mono opacity-80", gained > 0 ? "text-good" : gained < 0 ? "text-destructive" : "text-muted-foreground")}>
+        {gained > 0 ? "▲" : gained < 0 ? "▼" : "–"}
+        {n > 0 ? ` ${n}` : ""}
+      </span>
     </div>
   );
 }
@@ -95,7 +121,7 @@ function EpisodeSummary({ state, playerId }: { state: LeagueState; playerId: str
             <span className="w-4 shrink-0 text-center" aria-hidden>
               {b.icon}
             </span>
-            <span className={cn("min-w-0 flex-1", b.kind === "net" && "font-semibold text-foreground")}>{b.text}</span>
+            <span className={cn("min-w-0 flex-1", b.kind === "perfect" && "font-semibold text-foreground")}>{b.text}</span>
             {b.points !== undefined && (
               <span className={cn("shrink-0 font-mono", b.points < 0 ? "text-destructive" : "text-good")}>{fmt(b.points)}</span>
             )}
@@ -297,6 +323,11 @@ export function ScoreboardLegend() {
         </span>
       </div>
       <p className="mt-1">Bars are the last 8 episodes, oldest first.</p>
+      <p className="mt-1">
+        Under each total: how the latest episode moved that team in the race for 1st —{" "}
+        <span className="text-good">▲</span> points gained on the leader (for the leader: on 2nd),{" "}
+        <span className="text-destructive">▼</span> points lost. &ldquo;new 1st&rdquo; marks a team that just took the lead.
+      </p>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
         <span>
           <span className="text-destructive">✕</span> Eliminated

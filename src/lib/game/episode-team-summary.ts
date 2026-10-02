@@ -8,11 +8,11 @@ const NOTABLE = 1;
 
 /** One line of a team's episode summary on the Scoreboard. */
 export interface TeamSummaryBullet {
-  kind: "best" | "costly" | "benchSaved" | "benchMissed" | "net";
+  kind: "perfect" | "best" | "costly" | "benchSaved";
   icon: string;
   /** Plain words, no numbers that `points` already carries. */
   text: string;
-  /** The points this line is about, shown on the right; absent for the net line. */
+  /** The points this line is about, shown on the right; absent for the perfect-lineup line. */
   points?: number;
 }
 
@@ -29,10 +29,50 @@ export function latestScoredEpisode(state: LeagueState) {
 }
 
 /**
- * A team's episode as the calls its owner made: the best and costliest castaways they started, a
- * benching that saved them points (or cost them some), and how the week moved them against the
- * league -- against the average and against 1st place (or 2nd, for the leader), never against a team
- * by name. Pure arithmetic over what the Scoreboard breakdown already shows: no AI, nothing stored.
+ * How one episode moved a team in the race for 1st: how much it gained (or lost) on the leader --
+ * or, for the leader, on 2nd -- with "1st" and "2nd" as the standings stood AFTER the episode. So
+ * when the lead changes hands the two teams' numbers mirror each other (the new leader +5 on the old
+ * one, the old one -5 on the new). `tookLead`: sole 1st now and not before, and not just because
+ * this was the first episode that scored. Points are scoring events plus that episode's graded
+ * predictions, the same ones the Scoreboard total adds up. Null for a one-team league or a player
+ * not in it.
+ */
+export function weekInRace(state: LeagueState, epId: string, playerId: string): { gained: number; leading: boolean; tookLead: boolean } | null {
+  const ep = state.episodes.find((e) => e.id === epId);
+  const players = episodePlayerPoints(state, epId).map((f) => f.player.id);
+  if (!ep || players.length < 2 || !players.includes(playerId)) return null;
+
+  // Through this episode only, so an older one reads as it was then and nothing later leaks in.
+  const scored = state.episodes.filter((e) => StateLogic.inPlay(state, e.number) && e.number <= ep.number);
+  const weekOf = (pid: string, number: number) => {
+    const e = scored.find((x) => x.number === number);
+    const events = e ? (episodePlayerPoints(state, e.id).find((f) => f.player.id === pid)?.points ?? 0) : 0;
+    const bets = state.settings.bonusEnabled ? playerBetRows(state, pid).filter((b) => b.episode === number).reduce((t, b) => t + b.points, 0) : 0;
+    return events + bets;
+  };
+  const totals = (upTo: number) =>
+    players
+      .map((pid) => ({ pid, total: StateLogic.roundPoints(scored.filter((e) => e.number <= upTo).reduce((t, e) => t + weekOf(pid, e.number), 0)) }))
+      .sort((a, b) => b.total - a.total);
+
+  const after = totals(ep.number);
+  const top = after[0].total;
+  const leading = after.find((s) => s.pid === playerId)!.total === top;
+  // The leader (or one of those level at the top) is measured against the best of the rest.
+  const ref = leading ? after.find((s) => s.pid !== playerId)! : after[0];
+  const gained = StateLogic.roundPoints(weekOf(playerId, ep.number) - weekOf(ref.pid, ep.number));
+
+  const before = totals(ep.number - 1);
+  const soleLeader = (list: typeof after) => list[0].pid === playerId && list[0].total > list[1].total;
+  const anyoneScoredBefore = before.some((s) => s.total !== 0);
+  return { gained, leading, tookLead: soleLeader(after) && !soleLeader(before) && anyoneScoredBefore };
+}
+
+/**
+ * A team's episode as the calls its owner made: a perfect lineup, a standout start, a costly one, a
+ * benching that saved them points. Only what's worth saying -- a quiet week gets no lines at all.
+ * Compared against the league's castaways, never against another team by name. Pure arithmetic over
+ * what the Scoreboard breakdown already shows: no AI, nothing stored.
  */
 export function episodeTeamBullets(state: LeagueState, epId: string, playerId: string): TeamSummaryBullet[] {
   const ep = state.episodes.find((e) => e.id === epId);
@@ -41,7 +81,6 @@ export function episodeTeamBullets(state: LeagueState, epId: string, playerId: s
   const mine = field.find((f) => f.player.id === playerId);
   if (!mine) return [];
 
-  // No "you scored N" line: the Net line already says how the week went against the league.
   const bullets: TeamSummaryBullet[] = [];
 
   // Everyone still playing this episode, with what they scored in it: the yardstick for "how good
@@ -54,6 +93,18 @@ export function episodeTeamBullets(state: LeagueState, epId: string, playerId: s
   const benched = roster.filter((r) => !startedIds.has(r.c.id));
   const byTotal = <T extends { stats: { total: number } }>(list: T[], dir: 1 | -1) =>
     [...list].sort((a, b) => dir * (b.stats.total - a.stats.total))[0];
+
+  // Perfect lineup: no other choice of starters from this roster would have scored more. Only when
+  // there was a real choice (someone on the bench) and something scored, or an empty bench on a
+  // quiet week would earn it for nothing.
+  const slots = StateLogic.ActiveRosterLogic.activeSlots(state) || roster.length;
+  const bestPossible = StateLogic.roundPoints(
+    [...roster].sort((a, b) => b.stats.total - a.stats.total).slice(0, slots).reduce((t, r) => t + r.stats.total, 0)
+  );
+  const startedPoints = StateLogic.roundPoints(started.reduce((t, r) => t + r.stats.total, 0));
+  if (benched.length > 0 && roster.some((r) => r.stats.total !== 0) && startedPoints >= bestPossible) {
+    bullets.push({ kind: "perfect", icon: "🎯", text: "Perfect lineup: you started your best possible team" });
+  }
 
   // Best start: only when it stood out -- top quarter of everyone playing (top 3 at least), with
   // anyone level counted in, so "8th-best of 18" or a 9-way tie from a tribe win doesn't make a line.
@@ -70,7 +121,7 @@ export function episodeTeamBullets(state: LeagueState, epId: string, playerId: s
     }
   }
 
-  // Left on the bench: only when starting them over your weakest starter would have gained points.
+  // A benched castaway who'd have beaten your weakest starter -- only said alongside a costly start.
   const topBench = byTotal(benched, 1);
   const weakest = byTotal(started, -1);
   const gain = topBench && topBench.stats.total > 0 ? StateLogic.roundPoints(topBench.stats.total - (weakest?.stats.total ?? 0)) : 0;
@@ -80,9 +131,6 @@ export function episodeTeamBullets(state: LeagueState, epId: string, playerId: s
     // A better option sat on the bench: the call that cost the most, said once, here.
     const alt = missed ? ` while ${missed.c.name} scored ${fmt(missed.stats.total)} on your bench` : "";
     bullets.push({ kind: "costly", icon: "💀", text: `Started ${costly.c.name}${why(costly.stats, -1)}${alt}`, points: costly.stats.total });
-  } else if (missed) {
-    const instead = weakest ? `, ${gain} more than ${weakest.c.name}, who you started` : "";
-    bullets.push({ kind: "benchMissed", icon: "🪑", text: `${missed.c.name} scored on your bench${why(missed.stats, 1)}${instead}`, points: missed.stats.total });
   }
 
   const saved = byTotal(benched, -1);
@@ -90,47 +138,9 @@ export function episodeTeamBullets(state: LeagueState, epId: string, playerId: s
     bullets.push({ kind: "benchSaved", icon: "🛡️", text: `Good call benching ${saved.c.name}${why(saved.stats, -1)}`, points: saved.stats.total });
   }
 
-  bullets.push({ kind: "net", ...netLine(state, ep.number, playerId, field) });
   return bullets;
 }
 
-/** "+0.8 vs. league average · gained 2 on 1st place" -- the week against the field, then the race. */
-function netLine(state: LeagueState, number: number, playerId: string, field: ReturnType<typeof episodePlayerPoints>) {
-  const average = field.reduce((t, f) => t + f.points, 0) / field.length;
-  const mine = field.find((f) => f.player.id === playerId)!;
-  const vsAverage = Math.round((mine.points - average) * 10) / 10;
-  const parts = [vsAverage === 0 ? "Right on the league average" : `${fmt(vsAverage)} vs. league average`];
-
-  // The race as it stood after this episode (events plus graded predictions through it), and how
-  // much this one week moved the gap. Through `number` only, so an older episode reads as it was
-  // then, and the server never folds in a later episode the viewer hasn't seen.
-  const players = field.map((f) => f.player.id);
-  const through = (pid: string, upTo: number, from = 1) => totalThrough(state, pid, upTo, from);
-  const standings = players.map((pid) => ({ pid, total: through(pid, number) })).sort((a, b) => b.total - a.total);
-  if (standings.length > 1) {
-    const leading = standings[0].total === through(playerId, number);
-    const ref = leading ? standings.find((s) => s.pid !== playerId)! : standings[0];
-    const moved = StateLogic.roundPoints(through(playerId, number, number) - through(ref.pid, number, number));
-    if (leading) parts.push(moved > 0 ? `pulled ${moved} further ahead of 2nd` : moved < 0 ? `lead over 2nd shrank by ${-moved}` : "held your lead");
-    else parts.push(moved > 0 ? `gained ${moved} on 1st place` : moved < 0 ? `fell ${-moved} further behind 1st` : "kept pace with 1st");
-  }
-  return { icon: vsAverage > 0 ? "📈" : vsAverage < 0 ? "📉" : "➖", text: parts.join(" · ") };
-}
-
-/** A player's scoring-event points plus graded prediction points, over episodes from..upTo. */
-function totalThrough(state: LeagueState, playerId: string, upTo: number, from = 1) {
-  let total = 0;
-  for (const ep of state.episodes) {
-    if (ep.number < from || ep.number > upTo) continue;
-    total += episodePlayerPoints(state, ep.id).find((f) => f.player.id === playerId)?.points ?? 0;
-  }
-  if (state.settings.bonusEnabled) {
-    total += playerBetRows(state, playerId)
-      .filter((b) => b.episode >= from && b.episode <= upTo)
-      .reduce((t, b) => t + b.points, 0);
-  }
-  return StateLogic.roundPoints(total);
-}
 
 /** " (Voted out)": the event behind a castaway's score, the biggest one in the direction that counted. */
 function why(stats: ReturnType<typeof castawayEpisodeStats>, dir: 1 | -1) {
