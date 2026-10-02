@@ -14,6 +14,18 @@ export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: WhatsNewRelease[] = [
   {
+    id: "2026-10-02c",
+    date: "2026-10-02",
+    items: [
+      { icon: "🎬", title: "Episodes now open with a recap", detail: "Who won reward and immunity, and who went home, at a glance." },
+      {
+        icon: "🪑",
+        title: "See what your bench would have scored",
+        detail: "Each episode shows everyone's starters and their points, plus the bench players who would have scored.",
+      },
+    ],
+  },
+  {
     id: "2026-10-02b",
     date: "2026-10-02",
     items: [
