@@ -137,29 +137,10 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
                   </span>
                 )}
               </span>
-              {/* Last 8 scored episodes as a tiny chart (legend: ScoreboardLegend): each bar is as tall as
-                  what they scored that episode (red below zero) -- solid when started, hollow when benched
-                  (what starting them would have been worth) -- and an episode after they left is a dot,
-                  so every row keeps the same width. */}
-              <span className="hidden h-4 shrink-0 items-end gap-[2px] min-[380px]:flex" aria-hidden>
+              {/* Last 8 scored episodes as a tiny chart (EpisodeBar; legend: ScoreboardLegend). */}
+              <span className="hidden h-6 shrink-0 gap-[2px] min-[380px]:flex" aria-hidden>
                 {l.perEpisode.slice(-8).map((e) => (
-                  <span
-                    key={e.n}
-                    title={`Ep ${e.n}: ${
-                      e.out ? "out" : `${e.fielded ? "" : "benched, would have scored "}${e.scored > 0 ? "+" : ""}${e.scored}`
-                    }`}
-                    className={cn(
-                      "w-1.5 rounded-[2px]",
-                      e.out
-                        ? "h-1 rounded-full bg-border"
-                        : e.fielded
-                          ? e.scored < 0
-                            ? "bg-destructive"
-                            : "bg-primary"
-                          : cn("border", e.scored < 0 ? "border-destructive/70" : "border-primary/60")
-                    )}
-                    style={e.out ? undefined : { height: `${Math.max(20, (Math.abs(e.scored) / maxAbs) * 100)}%` }}
-                  />
+                  <EpisodeBar key={e.n} e={e} maxAbs={maxAbs} />
                 ))}
               </span>
               <span className="w-9 shrink-0 text-right font-mono text-sm font-bold">{l.earned}</span>
@@ -186,6 +167,34 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
   );
 }
 
+// One episode in a castaway's strip, drawn around a centre line so it doesn't rest on colour alone:
+// points gained rise above it (green), points lost hang below it (red), height = how many. Solid when
+// started; an outline when benched (what starting them would have been worth). A plain tick on the
+// line for a 0, a dot for an episode after they'd left.
+function EpisodeBar({ e, maxAbs }: { e: { n: number; out: boolean; fielded: boolean; scored: number }; maxAbs: number }) {
+  const title = `Ep ${e.n}: ${e.out ? "out" : `${e.fielded ? "" : "benched, would have scored "}${e.scored > 0 ? "+" : ""}${e.scored}`}`;
+  if (e.out) {
+    return (
+      <span className="flex w-1.5 items-center justify-center" title={title}>
+        <span className="h-1 w-1 rounded-full bg-border" />
+      </span>
+    );
+  }
+  const pct = `${Math.max(18, (Math.abs(e.scored) / maxAbs) * 100)}%`;
+  const bar = (up: boolean) =>
+    cn(
+      "w-full",
+      up ? "rounded-t-[2px]" : "rounded-b-[2px]",
+      e.fielded ? (up ? "bg-good" : "bg-destructive") : cn("border", up ? "border-b-0 border-good" : "border-t-0 border-destructive")
+    );
+  return (
+    <span className="flex w-1.5 flex-col" title={title}>
+      <span className="flex h-1/2 items-end border-b border-border">{e.scored > 0 && <span className={bar(true)} style={{ height: pct }} />}</span>
+      <span className="flex h-1/2 items-start">{e.scored < 0 && <span className={bar(false)} style={{ height: pct }} />}</span>
+    </span>
+  );
+}
+
 // Once per Scoreboard, above the list (not repeated in every card): how to read a Breakdown.
 export function ScoreboardLegend() {
   const terms = useShowTerms();
@@ -196,19 +205,25 @@ export function ScoreboardLegend() {
         Each number is what that {terms.castaway} earned <b className="text-foreground">that player</b> — points only count in
         episodes they started. Tap a {terms.castaway} for the episode-by-episode events.
       </p>
-      <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1.5">
-        <span className="flex items-end gap-1">
-          <span className="h-3 w-1.5 rounded-[2px] bg-primary" />
-          <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" /> Started (taller = more points)
-        </span>
-        <span className="flex items-end gap-1">
-          <span className="h-2 w-1.5 rounded-[2px] bg-destructive" /> Lost points
-        </span>
-        <span className="flex items-end gap-1">
-          <span className="h-3 w-1.5 rounded-[2px] border border-primary/60" /> Benched (what they would have scored)
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className="flex items-center gap-1">
+          <span className="flex h-6 gap-[2px]">
+            <EpisodeBar e={{ n: 0, out: false, fielded: true, scored: 3 }} maxAbs={3} />
+            <EpisodeBar e={{ n: 0, out: false, fielded: true, scored: -2 }} maxAbs={3} />
+          </span>
+          Started: up = points gained, down = points lost (taller = more)
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-1 w-1.5 rounded-full bg-border" /> Out of the game
+          <span className="flex h-6">
+            <EpisodeBar e={{ n: 0, out: false, fielded: false, scored: 3 }} maxAbs={3} />
+          </span>
+          Outline: benched — what they would have scored
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="flex h-6">
+            <EpisodeBar e={{ n: 0, out: true, fielded: false, scored: 0 }} maxAbs={3} />
+          </span>
+          Out of the game
         </span>
       </div>
       <p className="mt-1">Bars are the last 8 episodes, oldest first.</p>
