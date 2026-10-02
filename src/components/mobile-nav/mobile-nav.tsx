@@ -249,7 +249,7 @@ export function MobileNav() {
               still reserves its layout space, exactly like the live app's leagueBtn.style.visibility. */}
           <div ref={leagueMenuRef} className={cn("relative min-w-0 flex-1", mode === "mock" && "invisible")}>
             <button
-              className="flex w-full min-w-0 items-center gap-1 py-0.5 text-foreground"
+              className="flex w-full min-w-0 items-center justify-center gap-1 py-0.5 text-foreground"
               onClick={toggleLeagueMenu}
               disabled={leagues.length === 0}
             >
@@ -257,7 +257,7 @@ export function MobileNav() {
               <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
             </button>
             {leagueMenuOpen && (
-              <div className="absolute left-0 top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
+              <div className="absolute left-1/2 top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] -translate-x-1/2 overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
                 {leagues.map((l) => (
                   <button
                     key={l.id}

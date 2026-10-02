@@ -199,33 +199,34 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
 }
 
 /**
- * The open league's name in the top bar, sliding along with a swipe: the current name moves off as
- * the next one comes in from that side, in step with the finger. Dots under it show where you are
- * in the linked group (admins, while the swipe is admin-only).
+ * The open league's name in the top bar, rolling with a swipe like a slot machine: towards the next
+ * league the name rolls up and the next one comes up from below (the previous: downward), each moved
+ * by exactly its own height so the two never overlap mid-change. Centred, with dots under it showing
+ * where you are in the linked group (admins, while the swipe is admin-only).
  */
 export function SwipeTitle({ name, className }: { name: string; className?: string }) {
   const { progress, targetName, dragging } = useSwipeProgress();
   const { ids, index } = useLinkedOrder();
   const p = Math.max(-1, Math.min(1, progress));
-  const transition = dragging ? "none" : `transform ${SETTLE_MS}ms ease-out, opacity ${SETTLE_MS}ms ease-out`;
+  const t = Math.abs(p);
+  // Next league (p < 0): roll up. Previous (p > 0): roll down.
+  const dir = p < 0 ? -1 : 1;
+  const transition = dragging ? "none" : `transform ${SETTLE_MS}ms ease-out`;
   return (
-    <span className="relative flex min-w-0 flex-col">
-      <span className="relative block min-w-0 overflow-hidden">
-        <span
-          className={className}
-          style={{ display: "block", transform: `translateX(${p * 60}%)`, opacity: 1 - Math.abs(p), transition }}
-        >
+    <span className="flex min-w-0 flex-col items-center">
+      <span className="relative block min-w-0 max-w-full overflow-hidden">
+        <span className={className} style={{ display: "block", textAlign: "center", transform: `translateY(${dir * t * 100}%)`, transition }}>
           {name}
         </span>
-        {targetName && p !== 0 && (
+        {targetName && t > 0 && (
           <span
             className={className}
             style={{
               position: "absolute",
               inset: 0,
               display: "block",
-              transform: `translateX(${(p < 0 ? 1 + p : p - 1) * 60}%)`,
-              opacity: Math.abs(p),
+              textAlign: "center",
+              transform: `translateY(${-dir * (1 - t) * 100}%)`,
               transition,
             }}
           >
