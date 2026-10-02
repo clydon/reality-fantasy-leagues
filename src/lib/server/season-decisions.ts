@@ -23,6 +23,8 @@ interface DecisionRow {
   castaway_name: string;
   method: string;
   event_type: string;
+  /** A finalist elimination's jury votes received (0036), when research found them. */
+  jury_votes: number | null;
   applied: { castawayName?: string; method?: string; eventType?: string } | null;
   decided_at: Date;
 }
@@ -60,10 +62,15 @@ function applyDecision(state: LeagueState, d: DecisionRow): { detail?: LedgerDet
   if (d.kind === "elimination") {
     const method = d.applied?.method || d.method;
     if (castaway.status === "eliminated") {
-      if ((ep.events || []).some((e) => e.castawayId === castaway.id)) return { detail: { ...base, preexisting: true } };
+      if ((ep.events || []).some((e) => e.castawayId === castaway.id)) {
+        // Already there (entered by hand, say): still take a jury count it doesn't have yet.
+        const ev = ep.events.find((e) => e.castawayId === castaway.id);
+        if (ev && ev.juryVotes == null && d.jury_votes != null) StateLogic.setJuryVotes(state, ep.id, castaway.id, d.jury_votes);
+        return { detail: { ...base, preexisting: true } };
+      }
       return { skip: "already eliminated in a different episode in this league" };
     }
-    StateLogic.addElimination(state, ep.id, castaway.id, method);
+    StateLogic.addElimination(state, ep.id, castaway.id, method, d.jury_votes);
     return { detail: base };
   }
   if (d.kind === "event") {
@@ -141,7 +148,7 @@ export async function syncLeagueDecisions(
   const gate = StateLogic.RevealLogic.revealedThrough(state);
   const { rows: accepted } = seasonId
     ? await client.query<DecisionRow>(
-        `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, applied, decided_at
+        `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, jury_votes, applied, decided_at
            FROM season_decisions
           WHERE season_id=$1 AND status='accepted' AND ($2::int IS NULL OR episode_number <= $2)
           ORDER BY episode_number ASC, (kind = 'elimination') DESC, created_at ASC`,

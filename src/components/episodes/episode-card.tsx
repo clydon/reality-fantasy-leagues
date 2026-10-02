@@ -31,6 +31,9 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
   const [editingEp, setEditingEp] = useState(false);
   const [elimCastawayId, setElimCastawayId] = useState("");
   const [elimMethod, setElimMethod] = useState(format.exitMethods[0]);
+  const [elimJury, setElimJury] = useState("");
+  // Survivor scores each jury vote a finalist gets (formats/survivor.js), so a finalist's exit asks.
+  const isFinalistExit = (m: string) => format.id === "survivor" && (m === "Lost Final Tribal (Jury Vote)" || m === format.winnerExitMethod);
   const [roleCastawayId, setRoleCastawayId] = useState("");
   const [roleValue, setRoleValue] = useState(format.roles?.values[0] ?? "");
   const [moveCastawayId, setMoveCastawayId] = useState("");
@@ -71,11 +74,14 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
       alert(`Select which ${terms.castaway} was eliminated first.`);
       return;
     }
+    const n = parseInt(elimJury, 10);
+    const juryVotes = isFinalistExit(elimMethod) && Number.isInteger(n) && n >= 0 ? n : null;
     markResultsSeen(ep.number);
     await mutate(
-      (s) => StateLogic.addElimination(s, ep.id, elimCastawayId, elimMethod),
-      () => api.addElimination(leagueId!, ep.id, elimCastawayId, elimMethod)
+      (s) => StateLogic.addElimination(s, ep.id, elimCastawayId, elimMethod, juryVotes),
+      () => api.addElimination(leagueId!, ep.id, elimCastawayId, elimMethod, juryVotes)
     );
+    setElimJury("");
     setElimCastawayId("");
   }
 
@@ -259,7 +265,10 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
                           {owner.name[0]}
                         </span>
                       )}
-                      <span className="text-muted-foreground">{ev.method}</span>
+                      <span className="text-muted-foreground">
+                        {ev.method}
+                        {typeof ev.juryVotes === "number" && ` · ${ev.juryVotes} jury vote${ev.juryVotes === 1 ? "" : "s"}`}
+                      </span>
                       {editingEp && canManage && (
                         <Button variant="destructive" size="sm" className="ml-auto" onClick={() => handleRemoveElimination(ev.castawayId)}>
                           Undo
@@ -330,6 +339,16 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
                       <option key={m}>{m}</option>
                     ))}
                   </Select>
+                  {isFinalistExit(elimMethod) && (
+                    <Input
+                      type="number"
+                      min={0}
+                      className="w-28"
+                      placeholder="Jury votes"
+                      value={elimJury}
+                      onChange={(e) => setElimJury(e.target.value)}
+                    />
+                  )}
                   <Button onClick={handleAddElimination}>+ Add Eliminated Player</Button>
                 </div>
               </div>

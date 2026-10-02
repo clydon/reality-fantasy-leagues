@@ -231,7 +231,10 @@ declare const StateLogic: {
   addEpisode(state: LeagueState): Episode;
   removeEpisode(state: LeagueState, epId: string): void;
   updateEpisode(state: LeagueState, epId: string, field: string, value: unknown): void;
-  addElimination(state: LeagueState, epId: string, castawayId: string, method: string): void;
+  /** `juryVotes`: a finalist's jury votes received, when known. */
+  addElimination(state: LeagueState, epId: string, castawayId: string, method: string, juryVotes?: number | null): void;
+  /** Sets (or clears with null) a recorded elimination's jury votes; false if there's no such elimination. */
+  setJuryVotes(state: LeagueState, epId: string, castawayId: string, juryVotes: number | null): boolean;
   removeElimination(state: LeagueState, epId: string, castawayId: string): void;
   addExiled(state: LeagueState, epId: string, castawayId: string): void;
   removeExiled(state: LeagueState, epId: string, castawayId: string): void;

@@ -33,7 +33,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: stri
   }
 
   const { rows: decisions } = await pool.query(
-    `SELECT d.id, d.episode_number, d.post_merge, d.kind, d.castaway_name, d.method, d.event_type, d.confidence,
+    `SELECT d.id, d.episode_number, d.post_merge, d.kind, d.castaway_name, d.method, d.event_type, d.jury_votes, d.confidence,
             d.from_wiki, d.from_research, d.sources, d.status, d.applied, d.decided_at, d.created_at,
             u.name AS decided_by_name,
             (SELECT count(*)::int FROM league_applied_decisions a WHERE a.decision_id = d.id) AS applied_leagues

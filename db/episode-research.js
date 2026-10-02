@@ -1229,7 +1229,12 @@ function itemsFromChecklist(entry, format, payload) {
   // Leaving the game is the one result every format shares. It used to come only from the wiki's
   // tables (research was an add-on), so research -- and a paste, which is research -- never staged
   // an elimination: the person who went home was simply missing from review.
-  if (entry.leftTheGame === "yes" && entry.exitMethod) add("elimination", "", entry.exitMethod);
+  if (entry.leftTheGame === "yes" && entry.exitMethod) {
+    add("elimination", "", entry.exitMethod);
+    // A finalist's jury votes ride on their elimination (Survivor scores each one; see
+    // formats/survivor.js impliedEvents). Absent for anyone else, and from formats that don't ask.
+    if (Number.isInteger(entry.juryVotesReceived)) items[items.length - 1].juryVotes = entry.juryVotesReceived;
+  }
   format.research.items(entry, add, ctx);
   return items;
 }
@@ -1275,6 +1280,7 @@ async function stageResearchDecisions(pool, run, opts = {}) {
     name: decisions.canonicalName(castState, c.castawayName),
     method: c.method || "",
     eventType: c.eventType,
+    juryVotes: Number.isInteger(c.juryVotes) ? c.juryVotes : null,
     confidence: c.confidence,
     sources: c.sources,
   }));

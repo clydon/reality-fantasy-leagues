@@ -129,8 +129,27 @@ test("Survivor scores how someone leaves: voted out and quitting cost, a medevac
   assert.equal(total(exitLeague("survivor", "Quit")), -5);
   assert.equal(total(exitLeague("survivor", "Medically Evacuated")), 0);
   assert.equal(total(exitLeague("survivor", "Lost Fire-Making")), 0);
-  assert.equal(total(exitLeague("survivor", "Lost Final Tribal (Jury Vote)")), 5);
-  assert.equal(total(exitLeague("survivor", "Sole Survivor")), 10);
+  // Final Tribal with the jury count not yet known: just the finalist base (shared: 3), and the
+  // winner the base plus the bonus (3 + 3).
+  assert.equal(total(exitLeague("survivor", "Lost Final Tribal (Jury Vote)")), 3);
+  assert.equal(total(exitLeague("survivor", "Sole Survivor")), 6);
+});
+
+test("Final Tribal scores the jury: base + a point per vote, winner's bonus on top, a goat nets 0", () => {
+  const at = (method, juryVotes) => {
+    const s = exitLeague("survivor", method);
+    s.episodes[0].events[0].juryVotes = juryVotes;
+    return total(s);
+  };
+  // A 7-2-0 vote under shared defaults: 13 / 5 / 0.
+  assert.equal(at("Sole Survivor", 7), 13);
+  assert.equal(at("Lost Final Tribal (Jury Vote)", 2), 5);
+  assert.equal(at("Lost Final Tribal (Jury Vote)", 0), 0);
+  // Each vote is its own event, with its own id.
+  const s = exitLeague("survivor", "Sole Survivor");
+  s.episodes[0].events[0].juryVotes = 3;
+  const ids = StateLogic.ActiveRosterLogic.episodeEvents(s, s.episodes[0]).map((e) => e.id);
+  assert.equal(new Set(ids).size, ids.length);
 });
 
 test("benching someone the week they go home avoids the penalty", () => {
@@ -158,16 +177,18 @@ test("voting against the majority is tracked but worth 0; sitting out and being 
   assert.equal(StateLogic.ActiveRosterLogic.pointsFor(s, "advantageTargeted"), -0.5);
 });
 
-test("a finalist with no jury votes is a goat; one with votes isn't", () => {
+test("research carries each finalist's jury votes on their elimination", () => {
   const s = R.pasteSkeleton(ctx, []);
   const set = (name, fields) => Object.assign(s.castaways.find((c) => c.name === name), { sources: ["x"], confidence: "high" }, fields);
   set("Alex Moore", { leftTheGame: "yes", exitMethod: "Lost Final Tribal (Jury Vote)", juryVotesReceived: 0 });
   set("Annie Davis", { leftTheGame: "yes", exitMethod: "Lost Final Tribal (Jury Vote)", juryVotesReceived: 2 });
   set("Jake Latimer", { leftTheGame: "yes", exitMethod: "Sole Survivor", juryVotesReceived: 6 });
-  const items = staged(s);
-  assert.ok(eventsOf(items, "Alex Moore").includes("zeroJuryVotes"));
-  assert.ok(!eventsOf(items, "Annie Davis").includes("zeroJuryVotes"));
-  assert.ok(!eventsOf(items, "Jake Latimer").includes("zeroJuryVotes"));
+  // The count rides on each finalist's elimination; goat / jury-vote points follow from it.
+  const jury = (name) => staged(s).find((i) => i.castawayName === name && i.kind === "elimination").juryVotes;
+  assert.equal(jury("Alex Moore"), 0);
+  assert.equal(jury("Annie Davis"), 2);
+  assert.equal(jury("Jake Latimer"), 6);
+  assert.ok(!staged(s).some((i) => i.eventType === "zeroJuryVotes"), "no separate goat event any more");
 });
 
 test("every format's scoring events sit in exactly one display category", () => {

@@ -127,7 +127,8 @@ export interface Episode {
    */
   title?: string | null;
   airDate?: string | null;
-  events: { castawayId: string; method: string }[];
+  /** Eliminations. `juryVotes`: a finalist's jury votes received, when known (Survivor scores each). */
+  events: { castawayId: string; method: string; juryVotes?: number }[];
   /**
    * Who an Exile Island-style twist sent away from their tribe this episode. Still in the game --
    * this is a RECORD, not a mechanic: nothing in ScoringLogic or ActiveRosterLogic reads it, and it
@@ -487,6 +488,8 @@ export interface SeasonDecision {
    */
   method: string;
   event_type: string;
+  /** A finalist elimination's jury votes received (0036), when research found them. */
+  jury_votes?: number | null;
   confidence: "high" | "medium" | "low";
   from_wiki: boolean;
   from_research: boolean;

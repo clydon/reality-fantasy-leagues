@@ -28,7 +28,10 @@ function nameOf(d: SeasonDecision) {
 }
 
 function labelFor(d: SeasonDecision, format: GameFormat): string {
-  if (d.kind === "elimination") return d.applied?.method || d.method;
+  if (d.kind === "elimination") {
+    const method = d.applied?.method || d.method;
+    return typeof d.jury_votes === "number" ? `${method} · ${d.jury_votes} jury vote${d.jury_votes === 1 ? "" : "s"}` : method;
+  }
   if (d.kind === "exiled") return "Exile Island";
   if (d.kind === "role") return `Became ${d.applied?.method || d.method}`;
   if (d.kind === "group") {

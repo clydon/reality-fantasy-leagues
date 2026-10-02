@@ -178,10 +178,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ field, value }),
     }),
-  addElimination: (leagueId: string, epId: string, castawayId: string, method: string) =>
+  // `juryVotes`: a finalist's jury votes received (Survivor scores each), when known.
+  addElimination: (leagueId: string, epId: string, castawayId: string, method: string, juryVotes?: number | null) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/eliminations`, {
       method: "POST",
-      body: JSON.stringify({ castawayId, method }),
+      body: JSON.stringify({ castawayId, method, juryVotes: juryVotes ?? null }),
     }),
   removeElimination: (leagueId: string, epId: string, castawayId: string) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/episodes/${epId}/eliminations/${castawayId}`, {

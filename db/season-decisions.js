@@ -73,8 +73,8 @@ async function stageDecisions(pool, seasonId, items, source, refId, scope = {}) 
         // the source listed it.
         `INSERT INTO season_decisions
            (season_id, episode_number, post_merge, kind, castaway_name, method, event_type, confidence,
-            from_wiki, from_research, extraction_id, research_id, sources, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, clock_timestamp())
+            from_wiki, from_research, extraction_id, research_id, sources, jury_votes, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$15, clock_timestamp())
          ON CONFLICT (season_id, episode_number, kind, castaway_name, event_type)
          DO UPDATE SET
            from_wiki     = season_decisions.from_wiki OR EXCLUDED.from_wiki,
@@ -83,6 +83,9 @@ async function stageDecisions(pool, seasonId, items, source, refId, scope = {}) 
            research_id   = COALESCE(EXCLUDED.research_id, season_decisions.research_id),
            sources       = CASE WHEN EXCLUDED.from_research THEN EXCLUDED.sources ELSE season_decisions.sources END,
            method        = CASE WHEN season_decisions.status = 'pending' THEN EXCLUDED.method ELSE season_decisions.method END,
+           -- A finalist's jury count (0036): kept once known, updated while still pending.
+           jury_votes    = CASE WHEN season_decisions.status = 'pending' THEN COALESCE(EXCLUDED.jury_votes, season_decisions.jury_votes)
+                                ELSE season_decisions.jury_votes END,
            -- Only the wiki knows merge status; research leaves whatever is there.
            post_merge    = CASE WHEN season_decisions.status = 'pending' AND EXCLUDED.from_wiki THEN EXCLUDED.post_merge ELSE season_decisions.post_merge END,
            confidence    = CASE WHEN season_decisions.status = 'pending'
@@ -104,6 +107,7 @@ async function stageDecisions(pool, seasonId, items, source, refId, scope = {}) 
           fromWiki ? null : refId || null,
           it.sources || [],
           CONFIDENCE_RANK[it.confidence] || 3,
+          Number.isInteger(it.juryVotes) ? it.juryVotes : null,
         ]
       );
       ids.push(rows[0].id);

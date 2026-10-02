@@ -53,12 +53,16 @@ const events = [
   { id: 'quit', label: 'Quit', defaultPoints: -5, implied: true },
   { id: 'medevac', label: 'Medically evacuated', defaultPoints: 0, implied: true },
   { id: 'lostFireMaking', label: 'Lost fire-making', defaultPoints: 0, implied: true },
-  { id: 'finalist', label: 'Reached Final Tribal (lost the jury vote)', defaultPoints: { exclusive: 3, shared: 5 }, implied: true },
-  // The "goat": dragged to the end and given nothing by the jury. Cancels the finalist bonus by
-  // default, so fielding one at the finale is worth nothing rather than a reward. Not implied --
-  // the exit says they lost, not by how much -- so it comes from research (juryVotesReceived).
-  { id: 'zeroJuryVotes', label: 'Finalist with no jury votes (goat)', defaultPoints: { exclusive: -3, shared: -5 } },
-  { id: 'soleSurvivor', label: 'Sole Survivor', defaultPoints: { exclusive: 5, shared: 10 }, implied: true }
+  // The finale, scored so how someone did at Final Tribal shows: every finalist (the winner too)
+  // gets the base, then a point per jury vote, then the winner a bonus on top. A 7-2-0 vote is
+  // 13 / 5 / 0 under shared defaults. The jury count rides on the elimination (ep.events[].juryVotes,
+  // from research's juryVotesReceived), so all of these follow from it alone.
+  { id: 'finalist', label: 'Reached Final Tribal Council', defaultPoints: { exclusive: 2, shared: 3 }, implied: true },
+  { id: 'juryVote', label: 'Each jury vote received', defaultPoints: { exclusive: 0.5, shared: 1 }, implied: true },
+  // The "goat": dragged to the end and given nothing by the jury. Cancels the finalist base by
+  // default, so fielding one at the finale is worth nothing rather than a reward.
+  { id: 'zeroJuryVotes', label: 'Finalist with no jury votes (goat)', defaultPoints: { exclusive: -2, shared: -3 }, implied: true },
+  { id: 'soleSurvivor', label: 'Sole Survivor (bonus)', defaultPoints: { exclusive: 1, shared: 3 }, implied: true }
 ];
 
 const EXIT_EVENTS = {
@@ -71,10 +75,23 @@ const EXIT_EVENTS = {
 };
 
 // Scored from how someone left, so a corrected exit re-scores on its own and nothing is double-counted.
+// A finalist -- winner or not -- also gets `finalist`, one `juryVote` per vote received, and
+// `zeroJuryVotes` when that's none; the count only scores once it's known (el.juryVotes).
 function impliedEvents(ep) {
-  return (ep.events || [])
-    .filter((el) => EXIT_EVENTS[el.method])
-    .map((el) => ({ type: EXIT_EVENTS[el.method], castawayId: el.castawayId }));
+  const out = [];
+  for (const el of ep.events || []) {
+    const type = EXIT_EVENTS[el.method];
+    if (!type) continue;
+    const finalist = el.method === 'Lost Final Tribal (Jury Vote)' || el.method === 'Sole Survivor';
+    if (type !== 'finalist') out.push({ type, castawayId: el.castawayId });
+    if (!finalist) continue;
+    out.push({ type: 'finalist', castawayId: el.castawayId });
+    if (Number.isInteger(el.juryVotes)) {
+      for (let i = 0; i < el.juryVotes; i++) out.push({ type: 'juryVote', castawayId: el.castawayId });
+      if (el.juryVotes === 0) out.push({ type: 'zeroJuryVotes', castawayId: el.castawayId });
+    }
+  }
+  return out;
 }
 
 // ---------- wiki (db/wiki-sync.js) ----------
@@ -410,7 +427,6 @@ function researchItems(entry, add, ctx = {}) {
   if (typeof entry.votesReceived === "number" && entry.votesReceived > 0 && entry.leftTheGame !== "yes") {
     add("event", "survivedVotes");
   }
-  if (entry.exitMethod === "Lost Final Tribal (Jury Vote)" && entry.juryVotesReceived === 0) add("event", "zeroJuryVotes");
   if (entry.advantageUsedAgainstThem === "yes") add("event", "advantageTargeted");
   if (entry.satOutOfChallenge === "yes") add("event", "satOut");
   // Exile is a fact, not a scoring event -- same as everywhere else exile appears in this app
@@ -480,7 +496,7 @@ module.exports = {
     { id: 'tribal', label: 'Tribal Council', events: ['votesNegated', 'survivedVotes', 'votedWithMajority', 'zeroVotesSafe', 'votedAgainstMajority', 'votedOut'] },
     { id: 'advantages', label: 'Idols & Advantages', events: ['idolFound', 'idolPlayed', 'advantageTargeted'] },
     { id: 'leaving', label: 'Leaving the game', events: ['medevac', 'quit'] },
-    { id: 'endgame', label: 'Endgame', events: ['soleSurvivor', 'finalist', 'lostFireMaking', 'zeroJuryVotes'] },
+    { id: 'endgame', label: 'Endgame', events: ['finalist', 'juryVote', 'soleSurvivor', 'lostFireMaking', 'zeroJuryVotes'] },
   ],
   impliedEvents,
   // The season has a merge, so episodes carry a post-merge flag and the UI offers it.

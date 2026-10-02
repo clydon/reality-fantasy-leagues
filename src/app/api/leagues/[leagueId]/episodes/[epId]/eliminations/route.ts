@@ -12,11 +12,16 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   const { leagueId, epId } = await params;
   const { user, membership } = await requireLeagueRole(req, leagueId, "member");
   if (membership.role !== "commissioner") throw new HttpError(403, "Commissioner only");
-  const { castawayId, method } = (await req.json().catch(() => ({}))) as { castawayId?: string; method?: string };
+  const { castawayId, method, juryVotes } = (await req.json().catch(() => ({}))) as {
+    castawayId?: string;
+    method?: string;
+    juryVotes?: number | null;
+  };
   if (!castawayId || !method) throw new HttpError(400, "castawayId and method required");
+  if (juryVotes != null && !(Number.isInteger(juryVotes) && juryVotes >= 0)) throw new HttpError(400, "juryVotes must be a whole number");
 
   const state = await withLeagueLock(leagueId, async (s, client) => {
-    StateLogic.addElimination(s, epId, castawayId, method);
+    StateLogic.addElimination(s, epId, castawayId, method, juryVotes ?? null);
     // Logging a result can be the moment a live league reaches the episode the tribes were held for.
     await applyHeldTribesIfDue(client, s);
   });

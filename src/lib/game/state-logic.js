@@ -732,8 +732,14 @@ class ActiveRosterLogic {
     const recorded = ep.scoringEvents || [];
     const format = formatOf(state);
     if(!format.impliedEvents) return recorded;
+    // An implied event can repeat (one per jury vote), so ids get a counter from the second on.
+    const seen = {};
     const implied = format.impliedEvents(ep, { roleOf: (cid, n) => RoleLogic.roleOf(state, cid, n) })
-      .map(ev => ({ id: 'implied_' + ev.type + '_' + ev.castawayId, type: ev.type, castawayId: ev.castawayId, implied: true }));
+      .map(ev => {
+        const key = ev.type + '_' + ev.castawayId;
+        const n = seen[key] = (seen[key] || 0) + 1;
+        return { id: 'implied_' + key + (n > 1 ? '_' + n : ''), type: ev.type, castawayId: ev.castawayId, implied: true };
+      });
     return [...recorded, ...implied];
   }
 }
@@ -1789,13 +1795,27 @@ class EpisodeLogic {
     const used = state.castaways.filter(c=>typeof c.placementOrder==='number').map(c=>c.placementOrder);
     return (used.length ? Math.max(...used) : 0) + 1;
   }
-  static addElimination(state, epId, castawayId, method){
+  // `juryVotes`: for a finalist (lost Final Tribal, or won it), the jury votes they received --
+  // Survivor scores each one (format.impliedEvents). Omitted when unknown or not a finalist.
+  static addElimination(state, epId, castawayId, method, juryVotes){
     const ep = state.episodes.find(e=>e.id===epId);
     const c = Core.getCastaway(state, castawayId);
     if(!ep || !c || c.status==='eliminated') return;
     const order = EpisodeLogic.nextPlacementOrder(state);
     c.status='eliminated'; c.placementOrder=order; c.exitMethod=method; c.exitEpisodeId=epId;
-    ep.events.push({castawayId, method});
+    const ev = {castawayId, method};
+    if(Number.isInteger(juryVotes) && juryVotes >= 0) ev.juryVotes = juryVotes;
+    ep.events.push(ev);
+  }
+  // Sets (or clears, with null) a recorded elimination's jury votes -- research can know them after
+  // the elimination itself was applied.
+  static setJuryVotes(state, epId, castawayId, juryVotes){
+    const ep = state.episodes.find(e=>e.id===epId);
+    const ev = ep && (ep.events||[]).find(e => e.castawayId === castawayId);
+    if(!ev) return false;
+    if(Number.isInteger(juryVotes) && juryVotes >= 0) ev.juryVotes = juryVotes;
+    else delete ev.juryVotes;
+    return true;
   }
   static removeElimination(state, epId, castawayId){
     const ep = state.episodes.find(e=>e.id===epId);
@@ -2333,6 +2353,7 @@ return {
   MidSeasonLogic, availableFor: MidSeasonLogic.availableFor, swapWindow: MidSeasonLogic.swapWindow, replenishNeed: MidSeasonLogic.replenishNeed,
   addEpisode: EpisodeLogic.add, removeEpisode: EpisodeLogic.remove, updateEpisode: EpisodeLogic.update,
   renumberPlacements: EpisodeLogic.renumberPlacements, addElimination: EpisodeLogic.addElimination, removeElimination: EpisodeLogic.removeElimination,
+  setJuryVotes: EpisodeLogic.setJuryVotes,
   addExiled: EpisodeLogic.addExiled, removeExiled: EpisodeLogic.removeExiled,
   RoleLogic, roleOf: RoleLogic.roleOf, addRole: RoleLogic.add, removeRole: RoleLogic.remove,
   GroupLogic, addGroupChange: GroupLogic.add, removeGroupChange: GroupLogic.remove,
