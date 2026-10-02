@@ -6,8 +6,8 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { castawayEarnedStats, castawaysEverOwned } from "@/lib/game/active-roster-rows";
 import { playerBetRows } from "@/lib/game/bet-rows";
 import { cn } from "cn";
-import { useShowTerms } from "@/lib/use-show-terms";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Active Roster's leaderboard row. Separate from LeaderboardRow because that one's breakdown is
 // "Boot Order" plus a roster list with elimination placements -- which is exactly what this league
@@ -39,12 +39,15 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
           <div className="mt-2.5 border-t border-border pt-2">
             <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Predictions</div>
             {bets.map((b, i) => (
-              <div key={i} className="flex items-center gap-2 py-0.5 text-xs">
+              <div key={i} className="flex items-start gap-2 py-1 text-xs">
                 <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold">Ep {b.episode}</span>
-                <span className="min-w-0 flex-1 truncate">
-                  {b.label} — <span className="text-muted-foreground">&ldquo;{b.guess}&rdquo;</span>
+                <span className="min-w-0 flex-1">
+                  {b.label} <span className="text-muted-foreground">&mdash; guessed &ldquo;{b.guess}&rdquo;</span>
                 </span>
-                <span className="shrink-0 font-mono font-bold">+{b.points}</span>
+                {/* Right (with points), wrong, or not graded yet. */}
+                <span className={cn("shrink-0 font-mono font-bold", b.correct === true ? "text-good" : "text-muted-foreground")}>
+                  {b.correct === true ? `✓ +${b.points}` : b.correct === false ? "✗" : "…"}
+                </span>
               </div>
             ))}
           </div>
@@ -60,7 +63,6 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
 // didn't fit narrow columns and showed whole-season points that didn't reconcile with the total.
 // Tap a line for the episode-by-episode events behind its number.
 function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: string }) {
-  const terms = useShowTerms();
   const [open, setOpen] = useState<string | null>(null);
   const defs = StateLogic.formatOf(state).events;
   // Episodes that have scored for this league, oldest first -- the strip's columns.
@@ -86,6 +88,8 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
     .sort((a, b) => Number(b.current) - Number(a.current) || b.earned - a.earned || a.c.name.localeCompare(b.c.name));
 
   if (lines.length === 0) return <div className="mt-2 text-xs italic text-muted-foreground">No roster</div>;
+  // The strip's scale: this player's biggest single-episode swing, either way.
+  const maxAbs = Math.max(1, ...lines.flatMap((l) => l.perEpisode.filter((e) => e.fielded).map((e) => Math.abs(e.points))));
   const firstFormer = lines.findIndex((l) => !l.current);
 
   return (
@@ -129,12 +133,25 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
                   </span>
                 )}
               </span>
-              {/* Last 8 scored episodes: filled = in the lineup, hollow = benched, blank = out of the game. */}
-              <span className="hidden shrink-0 items-end gap-[2px] min-[380px]:flex" aria-hidden>
+              {/* Last 8 scored episodes as a tiny chart (legend: ScoreboardLegend): a started episode's bar
+                  is as tall as its points (red below zero), benched is a short hollow bar, and an
+                  episode after they left is a dot -- so every row keeps the same width. */}
+              <span className="hidden h-4 shrink-0 items-end gap-[2px] min-[380px]:flex" aria-hidden>
                 {l.perEpisode.slice(-8).map((e) => (
                   <span
                     key={e.n}
-                    className={cn("h-3 w-1.5 rounded-[2px]", e.out ? "" : e.fielded ? "bg-primary" : "border border-border")}
+                    title={`Ep ${e.n}: ${e.out ? "out" : e.fielded ? `${e.points > 0 ? "+" : ""}${e.points}` : "benched"}`}
+                    className={cn(
+                      "w-1.5 rounded-[2px]",
+                      e.out
+                        ? "h-1 rounded-full bg-border"
+                        : !e.fielded
+                          ? "h-1.5 border border-border"
+                          : e.points < 0
+                            ? "bg-destructive"
+                            : "bg-primary"
+                    )}
+                    style={e.fielded && !e.out ? { height: `${Math.max(20, (Math.abs(e.points) / maxAbs) * 100)}%` } : undefined}
                   />
                 ))}
               </span>
@@ -158,31 +175,44 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
           </div>
         );
       })}
-      {/* Legend: the number, the episode strip and the marks, so the list reads on its own. */}
-      <div className="mt-2 border-t border-border pt-2 text-[0.7rem] text-muted-foreground">
-        <p className="mb-1.5">
-          The number is what each {terms.castaway} earned <b>this player</b> — points only count in episodes they started.
-          Tap one for the episode-by-episode events.
-        </p>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="flex items-center gap-1">
-            <span className="h-3 w-1.5 rounded-[2px] bg-primary" /> Started
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="h-3 w-1.5 rounded-[2px] border border-border" /> Benched
-          </span>
-          <span>Blank: out of the game</span>
-          <span>(last 8 episodes, oldest first)</span>
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span>
-            <span className="text-destructive">✕</span> Eliminated
-          </span>
-          <span>↑ Added by replenish or swap</span>
-          <span>⇄ Swapped away</span>
-          <span>Faded: out of the game or no longer on the roster</span>
-        </div>
-      </div>
     </div>
+  );
+}
+
+// Once per Scoreboard, above the list (not repeated in every card): how to read a Breakdown.
+export function ScoreboardLegend() {
+  const terms = useShowTerms();
+  return (
+    <details className="mb-3 rounded-lg border border-border bg-card px-3.5 py-2 text-xs text-muted-foreground shadow-sm">
+      <summary className="cursor-pointer">How to read the breakdown</summary>
+      <p className="mt-2">
+        Each number is what that {terms.castaway} earned <b className="text-foreground">that player</b> — points only count in
+        episodes they started. Tap a {terms.castaway} for the episode-by-episode events.
+      </p>
+      <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1.5">
+        <span className="flex items-end gap-1">
+          <span className="h-3 w-1.5 rounded-[2px] bg-primary" />
+          <span className="h-1.5 w-1.5 rounded-[2px] bg-primary" /> Started (taller = more points)
+        </span>
+        <span className="flex items-end gap-1">
+          <span className="h-2 w-1.5 rounded-[2px] bg-destructive" /> Lost points
+        </span>
+        <span className="flex items-end gap-1">
+          <span className="h-1.5 w-1.5 rounded-[2px] border border-border" /> Benched
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="h-1 w-1.5 rounded-full bg-border" /> Out of the game
+        </span>
+      </div>
+      <p className="mt-1">Bars are the last 8 episodes, oldest first.</p>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+        <span>
+          <span className="text-destructive">✕</span> Eliminated
+        </span>
+        <span>↑ Added by replenish or swap</span>
+        <span>⇄ Swapped away</span>
+        <span>Faded: out of the game, or no longer on the roster</span>
+      </div>
+    </details>
   );
 }

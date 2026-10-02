@@ -4,7 +4,7 @@ import { useLeagueStore } from "@/lib/store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { LeaderboardRow } from "./leaderboard-row";
 import { PickEmLeaderboardRow } from "./pickem-leaderboard-row";
-import { ActiveRosterLeaderboardRow } from "./active-roster-leaderboard-row";
+import { ActiveRosterLeaderboardRow, ScoreboardLegend } from "./active-roster-leaderboard-row";
 import { useShowTerms } from "@/lib/use-show-terms";
 
 // Direct port of renderScoreboard() (public/app.js). Pure read -- no mutations, no canManage()
@@ -30,6 +30,7 @@ export function ScoreboardTab() {
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Scoreboard</h2>
+      {leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks && <ScoreboardLegend />}
       {scores.map((r, i) => (
         <Row key={r.playerId} r={r} rank={i + 1} state={state} />
       ))}
