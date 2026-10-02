@@ -38,8 +38,11 @@ const events = [
   { id: 'idolFound', label: 'Idol/advantage found', defaultPoints: 2 },
   { id: 'idolPlayed', label: 'Idol/advantage played', defaultPoints: 1 },
   // Tracked at 0 on purpose: whether research can tell this reliably (it lives in recaps, not tables)
-  // is being checked against the episodes before it's worth anything.
-  { id: 'learnedOfAdvantage', label: "Learned about someone else's idol/advantage", defaultPoints: 0 },
+  // is being checked against the episodes before it's worth anything. Private knowledge only (alone,
+  // or within an alliance or small group -- not an idol everyone saw played at Tribal), and once per
+  // advantage, or it becomes one of the most frequent events in the game. See
+  // docs/RESEARCH-scoring-values.md.
+  { id: 'learnedOfAdvantage', label: "Privately learned of someone else's idol/advantage (once per advantage)", defaultPoints: 0 },
   { id: 'votesNegated', label: 'Played an idol/advantage that cancelled votes', defaultPoints: 2 },
   // Picked to go on a journey: a shot at an advantage, often at a risk (a lost vote), so it's worth
   // something but less than actually finding one (1 vs 2) -- and finding one there scores idolFound too.
@@ -357,7 +360,10 @@ function checklistSchema(z, Answer) {
     // --- twists ---
     learnedOfAdvantage: Answer.describe(
       "Did they find out, this episode, that ANOTHER player has a hidden immunity idol or advantage -- told by them or " +
-        "someone else, saw it, or worked it out on screen? Only what the episode shows or a recap states, not speculation."
+        "someone else, saw it, or worked it out on screen? Only what the episode shows or a recap states, not speculation. " +
+        "It must be PRIVATE knowledge: learned alone or within an alliance or small group, not something the whole tribe " +
+        "or everyone at Tribal learned at once (e.g. an idol played at Tribal Council is not this). And only the FIRST " +
+        "time they learn about that particular idol or advantage -- 'no' if they already knew about it from an earlier episode."
     ),
     wentOnJourney: Answer.describe(
       "Were they sent on a JOURNEY this episode -- taken away from camp (often by boat) to a separate location, " +
@@ -486,7 +492,7 @@ function researchNotes(c) {
   if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
   if (c.chosenForReward === "yes") notes.push("chosen to join a reward");
   if (c.wonFireMaking === "yes") notes.push("won fire-making");
-  if (c.learnedOfAdvantage === "yes") notes.push("learned of someone's idol/advantage");
+  if (c.learnedOfAdvantage === "yes") notes.push("privately learned of someone's idol/advantage");
   if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
   if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
   if (typeof c.votesNullified === "number" && c.votesNullified > 0) notes.push(`nullified ${c.votesNullified} vote${c.votesNullified === 1 ? "" : "s"}`);
@@ -514,7 +520,7 @@ function researchSentences(c) {
   if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
   if (c.chosenForReward === "yes") notes.push("chosen to join a reward");
   if (c.wonFireMaking === "yes") notes.push("won fire-making");
-  if (c.learnedOfAdvantage === "yes") notes.push("learned of someone's idol/advantage");
+  if (c.learnedOfAdvantage === "yes") notes.push("privately learned of someone's idol/advantage");
   if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
   if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
   if (typeof c.juryVotesReceived === "number") notes.push(`received ${c.juryVotesReceived} jury vote(s) at Final Tribal`);
