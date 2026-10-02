@@ -199,6 +199,16 @@ export async function syncLeagueDecisions(
     }
   }
 
+  // A jury count can arrive after its elimination was already applied (research filled it in on the
+  // accepted decision) -- re-applying isn't triggered for that, so top the league's record up here.
+  for (const d of accepted) {
+    if (d.kind !== "elimination" || d.jury_votes == null || !current.has(d.id)) continue;
+    const ep = state.episodes.find((e) => e.number === d.episode_number);
+    const { castaway } = StateLogic.Core.findCastawayByName(state, d.applied?.castawayName || d.castaway_name);
+    const ev = ep && castaway ? (ep.events || []).find((e) => e.castawayId === castaway.id) : null;
+    if (ep && castaway && ev && ev.juryVotes !== d.jury_votes) StateLogic.setJuryVotes(state, ep.id, castaway.id, d.jury_votes);
+  }
+
   if (eliminationsChanged) orderPlacementsByEpisode(state);
   // Results landing can be the moment a live league reaches the episode the tribes were held for.
   if (result.applied) await applyHeldTribesIfDue(client, state);

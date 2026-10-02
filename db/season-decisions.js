@@ -83,9 +83,11 @@ async function stageDecisions(pool, seasonId, items, source, refId, scope = {}) 
            research_id   = COALESCE(EXCLUDED.research_id, season_decisions.research_id),
            sources       = CASE WHEN EXCLUDED.from_research THEN EXCLUDED.sources ELSE season_decisions.sources END,
            method        = CASE WHEN season_decisions.status = 'pending' THEN EXCLUDED.method ELSE season_decisions.method END,
-           -- A finalist's jury count (0036): kept once known, updated while still pending.
+           -- A finalist's jury count (0036): updated while pending; on a decision already made, only
+           -- filled in when it had none (the wiki's elimination was accepted before research knew the
+           -- count) -- syncLeagueDecisions then tops up the leagues' elimination with it.
            jury_votes    = CASE WHEN season_decisions.status = 'pending' THEN COALESCE(EXCLUDED.jury_votes, season_decisions.jury_votes)
-                                ELSE season_decisions.jury_votes END,
+                                ELSE COALESCE(season_decisions.jury_votes, EXCLUDED.jury_votes) END,
            -- Only the wiki knows merge status; research leaves whatever is there.
            post_merge    = CASE WHEN season_decisions.status = 'pending' AND EXCLUDED.from_wiki THEN EXCLUDED.post_merge ELSE season_decisions.post_merge END,
            confidence    = CASE WHEN season_decisions.status = 'pending'
