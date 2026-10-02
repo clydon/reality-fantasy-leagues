@@ -24,10 +24,12 @@ export const useIsPeek = () => useContext(PeekContext);
 
 // Shared with the top bar: how far the swipe has gone (-1 = fully to the next league, 1 = fully to
 // the previous), and the league it's heading to.
+// `dragging` = the title follows the finger with no animation; it's also how it rests. Only letting go
+// of a swipe turns animation on, to settle.
 export const useSwipeProgress = create<{ progress: number; targetName: string | null; dragging: boolean }>(() => ({
   progress: 0,
   targetName: null,
-  dragging: false,
+  dragging: true,
 }));
 
 const EDGE = 28; // px from either side left to the phone's back gesture
@@ -202,10 +204,10 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
       }
       setTrack(0, false);
       setPeek(null);
-      // Snap the title back to rest with no animation (dragging = no transition): the new name is
-      // already in place, and animating the reset replayed the end of the roll. Re-enabled next frame.
+      // Snap the title back to rest with its animation OFF (the new name is already in place). It
+      // stays off at rest and only comes on when a swipe is let go -- turning it back on a frame
+      // later still animated this reset (the browser hadn't applied it yet), replaying the roll.
       useSwipeProgress.setState({ progress: 0, targetName: null, dragging: true });
-      requestAnimationFrame(() => useSwipeProgress.setState({ dragging: false }));
     }, SETTLE_MS);
   }
 
