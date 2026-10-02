@@ -28,6 +28,9 @@ export interface GameFormat {
   events: ScoringEventDef[];
   /** The catalog grouped for display (Challenges, Tribal Council, Endgame...), in display order. */
   eventCategories: { id: string; label: string; events: string[] }[];
+  /** An episode's headline wins for its Recap (Reward, Immunity...), in display order. `tribeEvents`
+   *  are won as a tribe/team, so their winners always show as their group rather than one by one. */
+  recap: { label: string; events: string[]; tribeEvents?: string[] }[];
   /** Whether episodes carry a post-merge flag. */
   hasMerge: boolean;
   /** Whether players are in tribes/teams that can change during the season. */

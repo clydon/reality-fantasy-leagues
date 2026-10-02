@@ -200,6 +200,17 @@ test("every format's scoring events sit in exactly one display category", () => 
   }
 });
 
+test("every format's recap wins are real scoring events", () => {
+  for (const id of ["survivor", "challenge", "traitors"]) {
+    const f = Formats.formatFor(id);
+    const known = new Set(f.events.map((e) => e.id));
+    for (const r of f.recap) {
+      for (const ev of r.events) assert.ok(known.has(ev), `${id}: recap "${r.label}" lists unknown event ${ev}`);
+      for (const ev of r.tribeEvents ?? []) assert.ok(r.events.includes(ev), `${id}: tribe event ${ev} isn't in recap "${r.label}"`);
+    }
+  }
+});
+
 test("fire-making, being picked for a reward, and learning of an advantage come from research", () => {
   const s = R.pasteSkeleton(ctx, []);
   const set = (name, fields) => Object.assign(s.castaways.find((c) => c.name === name), { sources: ["x"], confidence: "high" }, fields);

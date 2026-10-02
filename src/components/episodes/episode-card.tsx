@@ -8,6 +8,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { EpisodeBetRow } from "./episode-bet-row";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
+import { EpisodeRecap } from "./episode-recap";
 import { episodePlayerPoints } from "@/lib/game/active-roster-rows";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -241,44 +242,8 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
           )}
 
           <div className={cn("mb-4", canManage && "border-t border-border pt-3")}>
-            <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Eliminations</h4>
-            {ep.events.length === 0 ? (
-              <div className="text-sm italic text-muted-foreground">None logged yet.</div>
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                {ep.events.map((ev) => {
-                  const c = StateLogic.getCastaway(state, ev.castawayId);
-                  // Exclusive-ownership leagues have at most one owner per castaway.
-                  const owner = c?.ownerIds[0] ? StateLogic.getPlayer(state, c.ownerIds[0]) : null;
-                  return (
-                    <div key={ev.castawayId} className="flex items-center gap-2 text-sm">
-                      <span className="rounded bg-destructive px-1.5 py-0.5 text-xs font-bold text-white">
-                        #{c?.placementOrder ?? "?"}
-                      </span>
-                      <span>{c?.name ?? "?"}</span>
-                      {owner && (
-                        <span
-                          className="flex h-4 w-4 items-center justify-center rounded-full text-[0.6rem] font-bold text-white"
-                          style={{ background: owner.color }}
-                          title={owner.name}
-                        >
-                          {owner.name[0]}
-                        </span>
-                      )}
-                      <span className="text-muted-foreground">
-                        {ev.method}
-                        {typeof ev.juryVotes === "number" && ` · ${ev.juryVotes} jury vote${ev.juryVotes === 1 ? "" : "s"}`}
-                      </span>
-                      {editingEp && canManage && (
-                        <Button variant="destructive" size="sm" className="ml-auto" onClick={() => handleRemoveElimination(ev.castawayId)}>
-                          Undo
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Recap</h4>
+            <EpisodeRecap ep={ep} state={state} onUndoExit={editingEp && canManage ? handleRemoveElimination : undefined} />
             {/* Secret roles taken on this episode (The Traitors). Only here once the league has this
                 episode's results, so a league catching up doesn't see them early. */}
             {(ep.roles || []).length > 0 && (
@@ -425,15 +390,16 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
               Pool picks are made on Overview only (see pickem-pick-grid.tsx), never here. */}
           {inPlay && StateLogic.getLeagueType(state).hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
 
-          {/* Side bets are proposed and guessed on Overview (bet-card.tsx) -- this is commissioner
-              editing only (grading, correcting, removing), and only shown when there's something to
-              edit. */}
+          {/* Side bets are proposed and guessed on Overview (bet-card.tsx) -- here it's how they went,
+              plus the commissioner's grading and editing behind each bet's ✏️. */}
           {state.settings.bonusEnabled && (ep.bets || []).length > 0 && (
             <div className="border-t border-border pt-3">
               <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Predictions</h4>
-              {(ep.bets || []).map((bet) => (
-                <EpisodeBetRow key={bet.id} ep={ep} bet={bet} state={state} />
-              ))}
+              <div className="divide-y divide-border rounded-md border border-border">
+                {(ep.bets || []).map((bet) => (
+                  <EpisodeBetRow key={bet.id} ep={ep} bet={bet} state={state} />
+                ))}
+              </div>
             </div>
           )}
         </div>

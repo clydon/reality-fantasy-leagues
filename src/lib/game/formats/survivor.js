@@ -549,6 +549,13 @@ module.exports = {
     { id: 'leaving', label: 'Leaving the game', events: ['medevac', 'quit'] },
     { id: 'endgame', label: 'Endgame', events: ['finalist', 'juryVote', 'soleSurvivor', 'wonFireMaking', 'lostFireMaking', 'zeroJuryVotes'] },
   ],
+  // An episode's headline wins, at the top of its Recap (episode-recap.tsx). Both are won as a tribe
+  // before the merge (anyone brought along by a twist is chosenForReward, not a winner), so a tribe
+  // shows as its tribe even when only some of it was logged; after the merge they're individual.
+  recap: [
+    { label: 'Reward', events: ['rewardWin'], tribeEvents: ['rewardWin'] },
+    { label: 'Immunity', events: ['tribeImmunity', 'individualImmunity'], tribeEvents: ['tribeImmunity'] },
+  ],
   impliedEvents,
   // The season has a merge, so episodes carry a post-merge flag and the UI offers it.
   hasMerge: true,

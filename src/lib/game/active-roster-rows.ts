@@ -136,6 +136,31 @@ export function castawayRosterStats(state: LeagueState, playerId: string, castaw
   return statsFrom(state, evs);
 }
 
+/**
+ * Who was on a player's roster for one episode, started or benched. Roster history isn't stored per
+ * episode, so it's rebuilt from the mid-season log: picked up after episode N means on the roster
+ * from N+1, dropped after episode N means on it through N. Anyone they started that episode counts
+ * regardless, and nobody who was already out of the game does.
+ */
+export function rosterAtEpisode(state: LeagueState, playerId: string, epId: string) {
+  const ep = state.episodes.find((e) => e.id === epId);
+  if (!ep) return [];
+  const started = new Set(StateLogic.activeRosterLineupFor(state, ep.id, playerId));
+  const moves = (state.midSeason.log ?? []).filter((m) => m.playerId === playerId);
+  return castawaysEverOwned(state, playerId).filter((c) => {
+    if (started.has(c.id)) return true;
+    if (c.status === "eliminated") {
+      const exit = state.episodes.find((e) => e.id === c.exitEpisodeId);
+      if (!exit || exit.number < ep.number) return false;
+    }
+    const addedAfter = Math.max(0, ...moves.filter((m) => m.addedCastawayId === c.id).map((m) => m.episode ?? 0));
+    if (ep.number <= addedAfter) return false;
+    const drops = moves.filter((m) => m.droppedCastawayId === c.id && (m.episode ?? 0) >= addedAfter).map((m) => m.episode ?? 0);
+    if (drops.length > 0) return ep.number <= Math.min(...drops);
+    return c.ownerIds.includes(playerId);
+  });
+}
+
 /** Each player's points for one episode: events by castaways in their lineup for it. Highest first. */
 export function episodePlayerPoints(state: LeagueState, epId: string) {
   const ep = state.episodes.find((e) => e.id === epId);

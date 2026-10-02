@@ -278,6 +278,11 @@ module.exports = {
     { id: 'leaving', label: 'Leaving the game', events: ['eliminated', 'disqualified', 'quit', 'medicallyRemoved'] },
     { id: 'endgame', label: 'Endgame', events: ['seasonWinner', 'finalist'] },
   ],
+  // An episode's headline wins, at the top of its Recap (episode-recap.tsx).
+  recap: [
+    { label: 'Daily challenge', events: ['dailyWin'] },
+    { label: 'Won the elimination', events: ['eliminationWin'] },
+  ],
   impliedEvents,
   hasMerge: false,
   // Teams, pairs or individuals, changing as often as every episode -- see GroupLogic.

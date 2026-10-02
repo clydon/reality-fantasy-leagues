@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { PointsPicker } from "@/components/ui/points-picker";
+import { cn } from "cn";
 
-// The commissioner-editing half of a bet, inside EpisodeCard -- grade guesses, correct the label or
-// points, remove a guess or the whole bet. PROPOSING a bet and GUESSING on it happen on Overview only
+// One bet inside EpisodeCard: everyone's guess on a line each, with how it went. Behind ✏️, the
+// commissioner-editing half -- grade guesses, correct the label or points, remove a guess or the
+// whole bet. PROPOSING a bet and GUESSING on it happen on Overview only
 // (bet-card.tsx): this component never creates a bet or a guess, only edits what's already there.
 export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state: LeagueState }) {
   const [editing, setEditing] = useState(false);
@@ -99,11 +101,15 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
     );
   }
 
+  const guesses = bet.predictions || [];
+  // Pays out only once at least two people have guessed.
+  const paysOut = guesses.length >= 2;
+
   return (
-    <div className="mb-2.5 rounded-lg border border-border bg-card p-3">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="px-3 py-2.5">
+      <div className="flex items-start gap-2">
         {editing && canManage ? (
-          <>
+          <div className="flex flex-1 flex-wrap items-center gap-2">
             <Input
               className="min-w-[140px] flex-1 text-sm"
               value={label}
@@ -117,24 +123,25 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
                 saveField("points", n);
               }}
             />
-          </>
+          </div>
         ) : (
-          <>
-            <span className="flex-1 text-sm font-semibold">{bet.label}</span>
-            <span className="rounded bg-secondary px-1.5 py-0.5 text-xs" title="points if correct">
-              +{bet.points}
-            </span>
-          </>
+          <span className="min-w-0 flex-1 text-sm font-semibold" title={creator ? `Proposed by ${creator.name}` : undefined}>
+            {bet.label}
+          </span>
         )}
-        {creator && (
-          <Badge className="text-white" style={{ background: creator.color }} title={`Proposed by ${creator.name}`}>
-            {creator.name}
-          </Badge>
+        <span className="shrink-0 font-mono text-xs text-muted-foreground" title="points if correct">
+          +{bet.points}
+        </span>
+        {/* The commissioner's nudge that guesses are waiting to be graded -- opens the grading tools. */}
+        {canManage && !editing && ungraded.length > 0 && (
+          <button className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[0.65rem] font-semibold" onClick={() => setEditing(true)}>
+            Grade {ungraded.length}
+          </button>
         )}
         {canToggleEdit && (
           <button
-            className="text-xs"
-            title={canManage ? "Edit / remove" : "Remove your prediction"}
+            className="shrink-0 text-xs"
+            title={canManage ? "Grade / edit" : "Remove your prediction"}
             onClick={() => setEditing((e) => !e)}
           >
             ✏️
@@ -142,79 +149,83 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
         )}
       </div>
 
-      {editing && canToggleEdit && (
-        <div className="mt-1.5 flex items-center gap-2">
-          {!canManage && <span className="text-xs text-muted-foreground">You can remove this until 2 people have guessed.</span>}
-          <Button variant="destructive" size="sm" onClick={remove}>
-            Remove Prediction
-          </Button>
-        </div>
-      )}
-
-      {canManage && (
-        <SuggestedAnswerBlock
-          suggestion={suggestion}
-          loading={suggestionLoading}
-          error={suggestionError}
-          onFetch={fetchSuggestion}
-          onApply={applySuggestion}
-          canApply={ungraded.length > 0}
-        />
-      )}
-
-      <div className="mt-2 flex flex-col gap-1.5">
-        {(bet.predictions || []).map((pred) => {
+      {/* Everyone's guess on one line each: who, what, and how it went. */}
+      <div className="mt-1 flex flex-col gap-0.5">
+        {guesses.map((pred) => {
           const pp = StateLogic.getPlayer(state, pred.playerId);
           const verdict = suggestedVerdict(pred.guess);
           return (
             <div key={pred.id} className="flex items-center gap-2 text-xs">
-              <Badge className="text-white" style={{ background: pp?.color || "#4a5245" }}>
-                {pp?.name || "?"}
-              </Badge>
-              <span className="flex-1">
-                guessed: &ldquo;{pred.guess}&rdquo;
-                {verdict !== null && (
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: pp?.color || "#4a5245" }} />
+              <span className="shrink-0 font-semibold">{pp?.name || "?"}</span>
+              <span className="min-w-0 flex-1 truncate text-muted-foreground" title={pred.guess}>
+                {pred.guess}
+                {editing && verdict !== null && (
                   <span
-                    className={verdict ? "ml-1.5 font-semibold text-good" : "ml-1.5 text-muted-foreground"}
+                    className={verdict ? "ml-1.5 font-semibold text-good" : "ml-1.5"}
                     title="What the episode's research suggests -- check it before grading"
                   >
                     {verdict ? "✓ suggested" : "✗ suggested"}
                   </span>
                 )}
               </span>
-              <Select
-                // Keyed on the grade so it redraws when a grade changes from elsewhere (Apply), since
-                // it's an uncontrolled select.
-                key={`${pred.id}-${pred.correct}`}
-                size="sm"
-                disabled={!canManage}
-                defaultValue={pred.correct === true ? "true" : pred.correct === false ? "false" : ""}
-                onChange={(e) => grade(pred.id, e.target.value)}
-              >
-                <option value="">—</option>
-                <option value="true">Correct</option>
-                <option value="false">Incorrect</option>
-              </Select>
-              {pred.correct === true && (bet.predictions || []).length >= 2 && (
-                <Badge variant="secondary" className="bg-good/15 text-good">
-                  +{bet.points} pts
-                </Badge>
-              )}
-              {editing && canManage && (
-                <button title="Remove guess" onClick={() => removeGuess(pred.id)}>
-                  ✕
-                </button>
+              {editing && canManage ? (
+                <>
+                  <Select
+                    // Keyed on the grade so it redraws when a grade changes from elsewhere (Apply), since
+                    // it's an uncontrolled select.
+                    key={`${pred.id}-${pred.correct}`}
+                    size="sm"
+                    defaultValue={pred.correct === true ? "true" : pred.correct === false ? "false" : ""}
+                    onChange={(e) => grade(pred.id, e.target.value)}
+                  >
+                    <option value="">—</option>
+                    <option value="true">Correct</option>
+                    <option value="false">Incorrect</option>
+                  </Select>
+                  <button title="Remove guess" onClick={() => removeGuess(pred.id)}>
+                    ✕
+                  </button>
+                </>
+              ) : (
+                <span
+                  className={cn(
+                    "shrink-0 font-mono font-bold",
+                    pred.correct === true ? "text-good" : pred.correct === false ? "text-destructive" : "text-muted-foreground"
+                  )}
+                  title={pred.correct == null ? "Not graded yet" : undefined}
+                >
+                  {pred.correct === true ? (paysOut ? `✓ +${bet.points}` : "✓") : pred.correct === false ? "✗" : "…"}
+                </span>
               )}
             </div>
           );
         })}
-        {(bet.predictions || []).length === 0 && (
-          <p className="text-xs italic text-muted-foreground">No guesses yet -- players guess from Overview.</p>
-        )}
-        {(bet.predictions || []).length === 1 && (
-          <p className="text-xs italic text-muted-foreground">Needs 1 more guess to be eligible to pay out.</p>
-        )}
+        {guesses.length === 0 && <p className="text-xs italic text-muted-foreground">No guesses.</p>}
+        {guesses.length === 1 && <p className="text-[0.7rem] text-muted-foreground">Only one guess, so it doesn&rsquo;t pay out.</p>}
       </div>
+
+      {editing && canToggleEdit && (
+        <div className="mt-2 flex flex-col gap-2 border-t border-dashed border-border pt-2">
+          {canManage && (
+            <SuggestedAnswerBlock
+              suggestion={suggestion}
+              loading={suggestionLoading}
+              error={suggestionError}
+              onFetch={fetchSuggestion}
+              onApply={applySuggestion}
+              canApply={ungraded.length > 0}
+            />
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {!canManage && <span className="text-xs text-muted-foreground">You can remove this until 2 people have guessed.</span>}
+            {creator && <span className="text-xs text-muted-foreground">Proposed by {creator.name}</span>}
+            <Button variant="destructive" size="sm" className="ml-auto" onClick={remove}>
+              Remove Prediction
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

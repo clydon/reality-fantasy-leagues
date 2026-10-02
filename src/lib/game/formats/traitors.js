@@ -329,6 +329,8 @@ module.exports = {
     { id: 'leaving', label: 'Leaving the game', events: ['leftGame'] },
     { id: 'endgame', label: 'Endgame', events: ['seasonWinner', 'finalist'] },
   ],
+  // An episode's headline wins, at the top of its Recap (episode-recap.tsx).
+  recap: [{ label: 'Shield', events: ['shieldWon'] }],
   impliedEvents,
   hasMerge: false,
   hasGroups: false,

@@ -10,11 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { rosterAtEpisode } from "@/lib/game/active-roster-rows";
+import { cn } from "cn";
 
-// Active Roster's per-episode UI inside EpisodeCard: each player's active lineup for THIS episode
-// (read-only -- see overview/active-roster-lineup-grid.tsx for where lineups are actually SET, tap by
-// tap, the same self-service pattern as Eliminator Pool's pick), the commissioner's lineup lock, and
-// the scoring-event log.
+type Scored = { events: ReturnType<typeof StateLogic.ActiveRosterLogic.episodeEvents>; points: number };
+
+// Active Roster's per-episode UI inside EpisodeCard: each player's episode laid out like the
+// Scoreboard's breakdown -- who they started and what each earned them, then their bench players who
+// scored (what starting them would have been worth) -- plus the commissioner's lineup lock and the
+// scoring-event log. Read-only for lineups: see overview/active-roster-lineup-grid.tsx for where
+// they're actually SET, tap by tap, the same self-service pattern as Eliminator Pool's pick.
 //
 // Lineups are per-episode by design (see ActiveRosterLogic): this component only ever reads
 // `ep.lineups`, so there's no way for it to touch a different episode's lineup and change what that
@@ -38,6 +43,9 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
   const [eventCastawayId, setEventCastawayId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The castaway line whose events are showing, keyed per player, so the same castaway can be open
+  // under one player and not another (shared ownership).
+  const [openLine, setOpenLine] = useState<string | null>(null);
 
   // Locks on its own when the episode airs (ep.airsAt) or its results land; the commissioner's
   // manual lock is only offered where neither can happen -- a season with no schedule.
@@ -46,7 +54,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
   const activeSlots = state.settings.activeSlots;
 
   // This episode's events per castaway, with what each is worth.
-  const byCastaway = new Map<string, { events: typeof episodeEvents; points: number }>();
+  const byCastaway = new Map<string, Scored>();
   for (const sev of episodeEvents) {
     const entry = byCastaway.get(sev.castawayId) ?? { events: [], points: 0 };
     entry.events.push(sev);
@@ -54,42 +62,29 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
     byCastaway.set(sev.castawayId, entry);
   }
   const pointsOf = (cid: string) => byCastaway.get(cid)?.points ?? 0;
-  const lineups = state.players.map((p) => {
-    const ids = StateLogic.activeRosterLineupFor(state, ep.id, p.id);
-    return {
-      player: p,
-      carried: ids.length > 0 && StateLogic.ActiveRosterLogic.lineupIsCarried(state, ep.id, p.id),
-      ids: [...ids].sort((a, b) => pointsOf(b) - pointsOf(a)),
-      total: StateLogic.roundPoints(ids.reduce((sum, cid) => sum + pointsOf(cid), 0)),
-    };
-  });
-  const fielded = new Set(lineups.flatMap((l) => l.ids));
-  // Everyone who scored this episode without being in anyone's lineup -- the points left on benches.
-  const unfielded = [...byCastaway.entries()]
-    .filter(([cid]) => !fielded.has(cid))
-    .sort((a, b) => b[1].points - a[1].points);
-
-  const eventChips = (evs: typeof episodeEvents) =>
-    evs.map((sev) => {
-      const def = events.find((e) => e.id === sev.type);
-      const pts = StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
-      return (
-        <span key={sev.id} className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-[0.7rem]">
-          {def?.label || sev.type}
-          <span className="font-mono font-bold">{pts >= 0 ? `+${pts}` : pts}</span>
-          {!sev.implied && canManage && (
-            <button
-              className="text-muted-foreground hover:text-destructive"
-              title="Remove event"
-              disabled={busy}
-              onClick={() => run(() => api.removeScoringEvent(leagueId!, ep.id, sev.id))}
-            >
-              ✕
-            </button>
-          )}
-        </span>
-      );
-    });
+  const byPoints = (a: string, b: string) => pointsOf(b) - pointsOf(a);
+  // Highest-scoring player first, like the Scoreboard. The bench is anyone else on their roster that
+  // episode who scored, either way.
+  const lineups = state.players
+    .map((p) => {
+      const ids = StateLogic.activeRosterLineupFor(state, ep.id, p.id);
+      const started = new Set(ids);
+      return {
+        player: p,
+        carried: ids.length > 0 && StateLogic.ActiveRosterLogic.lineupIsCarried(state, ep.id, p.id),
+        ids: [...ids].sort(byPoints),
+        bench: rosterAtEpisode(state, p.id, ep.id)
+          .map((c) => c.id)
+          .filter((cid) => !started.has(cid) && pointsOf(cid) !== 0)
+          .sort(byPoints),
+        total: StateLogic.roundPoints(ids.reduce((sum, cid) => sum + pointsOf(cid), 0)),
+      };
+    })
+    .filter((l) => l.player.active !== false || l.ids.length > 0)
+    .sort((a, b) => b.total - a.total || a.player.name.localeCompare(b.player.name));
+  const shown = new Set(lineups.flatMap((l) => [...l.ids, ...l.bench]));
+  // Everyone who scored without being on a roster above -- free agents, mostly.
+  const others = [...byCastaway.keys()].filter((cid) => !shown.has(cid)).sort(byPoints);
 
   async function run(fn: () => Promise<LeagueState>) {
     setBusy(true);
@@ -104,6 +99,70 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
       setBusy(false);
     }
   }
+
+  // One castaway's line: photo, name, points; tap it for the events behind the number (and, for the
+  // commissioner, to remove one). `benched` fades it -- its number is what they would have scored.
+  const line = (cid: string, key: string, benched = false) => {
+    const c = StateLogic.getCastaway(state, cid);
+    const scored = byCastaway.get(cid);
+    const isOpen = openLine === key;
+    const total = scored?.points ?? 0;
+    return (
+      <div key={key}>
+        <button
+          className={cn("flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-secondary", benched && "opacity-60")}
+          aria-expanded={isOpen}
+          onClick={() => setOpenLine(isOpen ? null : key)}
+        >
+          {c && (
+            <CastawayAvatar
+              castaway={c}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-secondary text-[0.6rem] font-bold"
+            />
+          )}
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+            {c?.name ?? "?"}
+            {ep.events.some((ev) => ev.castawayId === cid) && (
+              <span className="ml-1 text-destructive" title="Left the game this episode">
+                ✕
+              </span>
+            )}
+          </span>
+          <span
+            className={cn("w-10 shrink-0 text-right font-mono text-sm font-bold", total < 0 && "text-destructive")}
+            title={benched ? "What they would have scored, started" : undefined}
+          >
+            {fmt(total)}
+          </span>
+        </button>
+        {isOpen && scored && (
+          <div className="mb-1.5 ml-10 mr-1 flex flex-col gap-0.5 text-xs">
+            {scored.events.map((sev) => {
+              const pts = StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
+              return (
+                <div key={sev.id} className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 text-muted-foreground">{events.find((e) => e.id === sev.type)?.label || sev.type}</span>
+                  <span className="flex shrink-0 items-baseline gap-1.5">
+                    <span className={cn("font-mono", pts < 0 && "text-destructive")}>{fmt(pts)}</span>
+                    {!sev.implied && canManage && (
+                      <button
+                        className="text-muted-foreground hover:text-destructive"
+                        title="Remove event"
+                        disabled={busy}
+                        onClick={() => run(() => api.removeScoringEvent(leagueId!, ep.id, sev.id))}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="border-t border-border pt-3">
@@ -127,90 +186,67 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
           </Button>
         )}
       </div>
+      {episodeEvents.length === 0 && <p className="mb-2 text-sm italic text-muted-foreground">No scoring logged for this episode yet.</p>}
       <div className="mb-3 flex flex-col gap-2">
-        {lineups.map(({ player: p, ids, total, carried }) => (
-          <div key={p.id} className="rounded-md border border-border">
-            <div className="flex flex-wrap items-center gap-2 border-b border-border px-2 py-1.5 text-xs">
-              <Badge className="text-white" style={{ background: p.color }}>
-                {p.name}
-              </Badge>
+        {lineups.map(({ player: p, ids, bench, total, carried }) => {
+          const scorers = ids.filter((cid) => pointsOf(cid) !== 0);
+          // Starters who scored nothing share one line, so the list is just what moved the total.
+          const blanks = ids.filter((cid) => pointsOf(cid) === 0);
+          const missed = StateLogic.roundPoints(bench.reduce((sum, cid) => sum + Math.max(0, pointsOf(cid)), 0));
+          return (
+            <div key={p.id} className="rounded-md border border-border px-2 py-1.5">
+              <div className="flex items-center gap-2 px-1 py-0.5">
+                <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p.color }} />
+                <span className="min-w-0 flex-1 truncate font-bold">{p.name}</span>
+                {ids.length < activeSlots && (
+                  <span className="text-xs text-muted-foreground" title="Starting slots filled">
+                    {ids.length}/{activeSlots}
+                  </span>
+                )}
+                <span className="w-10 shrink-0 text-right font-mono text-base font-bold">{total}</span>
+              </div>
               {carried && (
-                <span className="text-muted-foreground" title="No lineup was set for this episode, so the last one chosen is used">
-                  last lineup reused
-                </span>
+                <div className="px-1 text-[0.7rem] text-muted-foreground" title="No lineup was set for this episode, so the last one chosen is used">
+                  Last lineup reused
+                </div>
               )}
-              <span className="ml-auto text-muted-foreground">
-                {ids.length}/{activeSlots}
-              </span>
-              <span className="font-mono text-sm font-bold">{total}</span>
-            </div>
-            {ids.length === 0 ? (
-              <div className="px-2 py-1.5 text-xs italic text-muted-foreground">no lineup set</div>
-            ) : (
-              ids.map((cid) => {
-                const c = StateLogic.getCastaway(state, cid);
-                const scored = byCastaway.get(cid);
-                return (
-                  <div key={cid} className="flex items-center gap-2 border-t border-border px-2 py-1.5 first:border-t-0">
-                    {c && (
-                      <CastawayAvatar
-                        castaway={c}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[0.65rem] font-bold"
-                      />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm">{c?.name ?? "?"}</div>
-                      {scored && <div className="mt-0.5 flex flex-wrap gap-1">{eventChips(scored.events)}</div>}
+              {ids.length === 0 ? (
+                <div className="px-1 py-1 text-xs italic text-muted-foreground">No lineup set</div>
+              ) : (
+                <>
+                  {scorers.map((cid) => line(cid, `${p.id}:${cid}`))}
+                  {blanks.length > 0 && (
+                    <div className="flex items-baseline gap-2 px-1 py-1 text-xs text-muted-foreground">
+                      <span className="min-w-0 flex-1">
+                        {scorers.length > 0 ? "Also started: " : "Started: "}
+                        {blanks.map((cid) => StateLogic.getCastaway(state, cid)?.name ?? "?").join(", ")}
+                      </span>
+                      <span className="w-10 shrink-0 text-right font-mono">0</span>
                     </div>
-                    <span className="shrink-0 font-mono text-sm font-bold">{scored ? scored.points : 0}</span>
+                  )}
+                </>
+              )}
+              {bench.length > 0 && (
+                <div className="mt-1 border-t border-dashed border-border pt-1">
+                  <div className="flex items-baseline justify-between gap-2 px-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
+                    <span>Bench</span>
+                    {missed > 0 && <span className="font-mono normal-case tracking-normal">+{missed} left on the bench</span>}
                   </div>
-                );
-              })
-            )}
-          </div>
-        ))}
+                  {bench.map((cid) => line(cid, `${p.id}:bench:${cid}`, true))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      <h4 className="mb-1.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
-        Events not in a lineup
-      </h4>
-      {unfielded.length === 0 ? (
-        <div className="mb-2 text-sm italic text-muted-foreground">
-          {episodeEvents.length === 0 ? "No events logged for this episode." : `Every ${terms.castaway} who scored was in a lineup.`}
-        </div>
-      ) : (
-        <div className="mb-2 flex flex-col gap-1.5">
-          {unfielded.map(([cid, scored]) => {
-            const c = StateLogic.getCastaway(state, cid);
-            const owners = (c?.ownerIds ?? []).map((id) => StateLogic.getPlayer(state, id)).filter((o): o is NonNullable<typeof o> => !!o);
-            return (
-              <div key={cid} className="flex items-center gap-2">
-                {c && (
-                  <CastawayAvatar
-                    castaway={c}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[0.65rem] font-bold opacity-80"
-                  />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5 text-sm">
-                    <span className="truncate">{c?.name ?? "?"}</span>
-                    {owners.length > 0 ? (
-                      owners.map((o) => (
-                        <Badge key={o.id} variant="outline" className="h-4 text-[0.6rem]" style={{ borderColor: o.color, color: o.color }} title={`Benched by ${o.name}`}>
-                          {o.name} bench
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-[0.65rem] text-muted-foreground">free agent</span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap gap-1">{eventChips(scored.events)}</div>
-                </div>
-                <span className="shrink-0 font-mono text-sm font-bold text-muted-foreground">{scored.points}</span>
-              </div>
-            );
-          })}
-        </div>
+      {others.length > 0 && (
+        <details className="mb-3 rounded-md border border-border px-2 py-1.5">
+          <summary className="cursor-pointer px-1 text-xs text-muted-foreground">
+            Scored, not on anyone&rsquo;s roster ({others.length})
+          </summary>
+          <div className="mt-1">{others.map((cid) => line(cid, `other:${cid}`, true))}</div>
+        </details>
       )}
 
       {canManage && (
@@ -247,4 +283,9 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
       {error && <p className="mt-2 text-sm font-semibold text-destructive">{error}</p>}
     </div>
   );
+}
+
+// "+2", "-0.5", "0".
+function fmt(n: number) {
+  return n > 0 ? `+${n}` : String(n);
 }

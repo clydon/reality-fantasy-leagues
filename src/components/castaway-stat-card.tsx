@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { LeagueState, Castaway, Player, Tribe } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { castawayEventStats } from "@/lib/game/active-roster-rows";
@@ -62,6 +63,7 @@ export function CastawayStatCard({
   dimAllEliminated = false,
   expanded,
   onToggleExpand,
+  children,
 }: {
   state: LeagueState;
   castaway: Castaway;
@@ -85,6 +87,8 @@ export function CastawayStatCard({
   expanded: boolean;
   /** Present = the card is clickable and toggles `expanded`; absent = always shown as given (Scoreboard's always-open cards). */
   onToggleExpand?: () => void;
+  /** Extra lines under the name -- an Episode Recap's exit method, say. */
+  children?: ReactNode;
 }) {
   const owner = owners[0] ?? null;
   const medal = c.status === "eliminated" && showPlacementBadge ? medalFor(state, c.placementOrder) : null;
@@ -184,6 +188,7 @@ export function CastawayStatCard({
           {formerOwner.name}
         </div>
       )}
+      {children}
       {stats && expanded && (
         <div className="mt-2 flex flex-col gap-1 border-t border-border pt-2 text-left">
           {stats.byType.length === 0 ? (
