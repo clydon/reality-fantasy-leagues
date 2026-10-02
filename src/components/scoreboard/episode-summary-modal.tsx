@@ -76,7 +76,7 @@ export function EpisodeLinesModal({
         </button>
         <h3 className="mb-2 text-base font-bold">Episode {epNumber}: why it mattered</h3>
         <p className="mb-2.5 text-xs text-muted-foreground">
-          1. Copy this into any AI chat (ChatGPT, Claude.ai, Gemini — whatever you have). 2. Paste its reply below; it fills in each
+          1. Copy this into an AI chat that can search the web (ChatGPT, Claude.ai, Gemini). 2. Paste its reply below; it fills in each
           team. 3. Check the lines and save. Everyone sees them on the Scoreboard.
         </p>
         {isLoading && <p className="text-xs italic text-muted-foreground">Building the prompt…</p>}
@@ -87,9 +87,9 @@ export function EpisodeLinesModal({
               <Button variant="secondary" size="xs" onClick={copyPrompt}>
                 {copied ? "Copied!" : "Copy prompt"}
               </Button>
-              {!data.hasEpisodeSummary && (
-                <span className="text-[0.7rem] text-muted-foreground">No episode research yet, so the AI only has the points to go on.</span>
-              )}
+              <span className="text-[0.7rem] text-muted-foreground">
+                {data.hasSource ? "Use a chat that can search the web: it reads the episode's recap." : "No trusted sites set for this show: the AI will look for a recap on its own."}
+              </span>
             </div>
             <textarea
               readOnly

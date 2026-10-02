@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
-import { getEpisodeSummaryText } from "@db/embeddings.js";
-import { buildLeaguePrompt } from "@/lib/game/episode-team-summary";
+import { buildLeaguePrompt, type EpisodeSource } from "@/lib/game/episode-team-summary";
 import type { LeagueState } from "@/lib/game/types";
 
 const MAX_WHY = 400;
@@ -20,8 +19,8 @@ async function loadEpisode(leagueId: string, epId: string) {
 
 // The Scoreboard's "why it mattered" lines for one episode: every team's saved line, for everyone;
 // and, for the commissioner (who writes them), the one prompt to copy into an AI chat for all of
-// them at once. No model call here -- the episode's research summary is already stored
-// (db/embeddings.js), and the AI step is the commissioner's own chat. Read-only, so no league lock.
+// them at once. No model call here -- the AI step, recap reading included, is the commissioner's own
+// chat. Read-only, so no league lock.
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string }> }) => {
   const { leagueId, epId } = await params;
   const { membership } = await requireLeagueRole(req, leagueId, "member");
@@ -32,17 +31,26 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
     [leagueId, ep.number]
   );
   const notes: Record<string, string> = Object.fromEntries(noteRows.map((r) => [r.player_id, r.why_text]));
-  if (membership.role !== "commissioner") return NextResponse.json({ notes, prompt: null, hasEpisodeSummary: false });
+  if (membership.role !== "commissioner") return NextResponse.json({ notes, prompt: null, hasSource: false });
 
+  // Where the AI should read this episode's recap: the show's own trusted research sites, the same ones
+  // the research step reads.
   const settings = state.settings || {};
-  let summaryText: string | null = null;
-  if (settings.showId && settings.wikiSeason) {
-    const { rows: showRows } = await pool.query("SELECT id FROM shows WHERE slug=$1", [settings.showId]);
+  let source: EpisodeSource | null = null;
+  if (settings.showId) {
+    const seasonNumber = settings.wikiSeason ? Number(settings.wikiSeason) : null;
+    const { rows: showRows } = await pool.query(
+      `SELECT s.name, s.research_domains, ss.name AS season_name
+         FROM shows s LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number = $2
+        WHERE s.slug = $1`,
+      [settings.showId, seasonNumber]
+    );
     if (showRows.length) {
-      summaryText = await getEpisodeSummaryText(pool, { showId: showRows[0].id, season: Number(settings.wikiSeason), episodeNumber: ep.number });
+      const r = showRows[0];
+      source = { showName: r.name, seasonNumber, seasonName: r.season_name ?? null, domains: r.research_domains ?? [] };
     }
   }
-  return NextResponse.json({ notes, prompt: buildLeaguePrompt(state, epId, summaryText), hasEpisodeSummary: !!summaryText });
+  return NextResponse.json({ notes, prompt: buildLeaguePrompt(state, epId, source), hasSource: !!source?.domains.length });
 });
 
 // Saves any teams' lines -- commissioner only, like the rest of running the league. Body:

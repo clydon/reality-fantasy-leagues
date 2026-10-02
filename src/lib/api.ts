@@ -7,7 +7,8 @@ export interface EpisodeTeamSummary {
   notes: Record<string, string>;
   /** Commissioner only: the one prompt that writes every team's line. Null for everyone else. */
   prompt: string | null;
-  hasEpisodeSummary: boolean;
+  /** Whether the prompt could name the show's trusted sites to read the episode recap from. */
+  hasSource: boolean;
 }
 
 export class ApiError extends Error {

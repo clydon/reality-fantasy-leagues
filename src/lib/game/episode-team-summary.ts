@@ -206,14 +206,25 @@ function teamEpisodeBlock(state: LeagueState, epId: string, playerId: string, st
   ].join("\n");
 }
 
+/** Which episode to look up, and where: what the prompt needs to send the AI to the right recap. */
+export interface EpisodeSource {
+  showName: string;
+  seasonNumber: number | null;
+  seasonName: string | null;
+  /** The show's trusted research sites (shows.research_domains), best first. */
+  domains: string[];
+}
+
 /**
  * The one prompt a commissioner copies into any AI chat to write every team's "why it mattered" line
- * for an episode at once: every team's lineup, bench and race, grounded in the episode's own research
- * summary (already stored by the weekly research run) when there is one -- that's what lets a line
- * give a reason, not just restate points. The reply comes back as "Team: sentence" lines, read by
- * parseLeagueReply.
+ * for an episode at once: every team's lineup, bench and race. The story comes from the chat itself:
+ * it's told to read a recap of exactly this episode from the show's trusted sites -- a full recap has
+ * far more of the moments that make a line (who tried to vote for themselves, who got hurt) than the
+ * research step's two-sentence summary -- and, in so many words, to use nothing from a later episode,
+ * since every saved line is shown to the whole league. The reply comes back as "Team: sentence"
+ * lines, read by parseLeagueReply.
  */
-export function buildLeaguePrompt(state: LeagueState, epId: string, episodeSummaryText: string | null) {
+export function buildLeaguePrompt(state: LeagueState, epId: string, source: EpisodeSource | null) {
   const ep = state.episodes.find((e) => e.id === epId);
   const field = episodePlayerPoints(state, epId);
   if (!ep || field.length === 0) return "";
@@ -240,7 +251,7 @@ export function buildLeaguePrompt(state: LeagueState, epId: string, episodeSumma
     "- 20 words or fewer per line. Plain, everyday words, as if telling a friend who has never seen the show.",
     '- No jargon or made-up compound words (not "idol-less boot", say "voted out without an idol").',
     "- Lead with what set this team apart: a castaway few others started, a bench call that paid off or backfired, points left on the bench. Not something every team had.",
-    "- If one of this team's castaways had a moment in the episode story (a blindside, an injury, a strange vote), use it. The story beats the points labels.",
+    "- If one of this team's castaways had a moment in the episode's recap (a blindside, an injury, a strange vote), use it. The story beats the points labels.",
     "- Like a sports commentator, with no subject needed: the team's name is shown right above the line.",
     "- No two lines may start the same way.",
     '- Never name another team or league member. Comparisons are fine without names ("the only team to start her", "most of the league").',
@@ -253,7 +264,29 @@ export function buildLeaguePrompt(state: LeagueState, epId: string, episodeSumma
     "Reply with exactly one line per team, in this format and nothing else:",
     ...field.map((f) => `${f.player.name}: <line>`),
   ];
-  if (episodeSummaryText) lines.push("", "WHAT HAPPENED IN THE EPISODE:", episodeSummaryText);
+  if (source) {
+    // The season's own name only when it says more than "Survivor 51" ("New Blood" does).
+    const named = source.seasonName && source.seasonName !== `${source.showName} ${source.seasonNumber}` ? source.seasonName : null;
+    const season = [source.seasonNumber ? `season ${source.seasonNumber}` : null, named ? `(${named})` : null]
+      .filter(Boolean)
+      .join(" ");
+    const which = [
+      `${source.showName}${season ? `, ${season}` : ""}, episode ${ep.number}`,
+      ep.title ? `"${ep.title}"` : null,
+      ep.airDate ? `aired ${ep.airDate}` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    lines.push(
+      "",
+      "FIRST, LOOK UP THE EPISODE:",
+      `Read a recap of ${which}.`,
+      ...(source.domains.length ? [`Use these sites, best first: ${source.domains.join(", ")}.`] : []),
+      `- Use ONLY what happened in episode ${ep.number} and before. Nothing from episode ${ep.number + 1} or later: no later boots, twists or results, even if a page mentions them. These lines are shown to the whole league.`,
+      "- Read a recap of this one episode, not a page covering the whole season (like a castaway's wiki page): those give away what happens later.",
+      "- If you can't look things up, write the lines from the team details below alone."
+    );
+  }
   if (shared.length) lines.push("", `WHAT EVERY TEAM HAD (so it doesn't explain one team's week): ${shared.join("; ")}.`);
   lines.push("", "THE TEAMS:");
   for (const f of field) lines.push("", teamEpisodeBlock(state, epId, f.player.id, startedBy, field.length));

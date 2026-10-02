@@ -1,8 +1,8 @@
 // Types for the part of embeddings.js the Next app calls -- same arrangement as episode-research.d.ts
 // and wiki-sync.d.ts: the implementation stays plain CommonJS, TypeScript sees it through this file.
 //
-// Only suggestAnswer and getEpisodeSummaryText are declared, because only those are imported from
-// TypeScript (the suggested-answer and team-summary routes). Everything else (storeChunksForEpisode, searchChunks, chunksFromResearch)
+// Only suggestAnswer is declared, because only suggestAnswer is imported from TypeScript (the
+// suggested-answer route). Everything else (storeChunksForEpisode, searchChunks, chunksFromResearch)
 // is called from db/episode-research.js and test scripts, both plain CommonJS already.
 import type { Pool } from "pg";
 
@@ -36,9 +36,3 @@ export function suggestAnswer(
   pool: Pool,
   args: { showId: string; season: number; episodeNumber: number; question: string }
 ): Promise<SuggestedAnswer>;
-
-/** The episode's stored research summary text, verbatim (exact lookup, no embedding call); null if none. */
-export function getEpisodeSummaryText(
-  pool: Pool,
-  args: { showId: string; season: number; episodeNumber: number }
-): Promise<string | null>;

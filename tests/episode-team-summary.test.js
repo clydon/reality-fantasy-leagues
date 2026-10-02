@@ -71,10 +71,18 @@ test("an unknown player or episode gets no bullets", () => {
   assert.deepEqual(episodeTeamBullets(state, "ep_missing", state.players[0].id), []);
 });
 
-test("one prompt covers every team: lineups, benches, the race, and the episode story when there is one", () => {
+test("one prompt covers every team: lineups, benches, the race, and where to read this episode's recap", () => {
   const ep = latestScoredEpisode(state);
-  const withNotes = buildLeaguePrompt(state, ep.id, "Ep 6: a blindside at Tribal.");
-  assert.match(withNotes, /WHAT HAPPENED IN THE EPISODE:\nEp 6: a blindside at Tribal\./);
+  const source = { showName: "Traitors", seasonNumber: 5, seasonName: "New Blood", domains: ["survivor.fandom.com", "ew.com"] };
+  const withNotes = buildLeaguePrompt(state, ep.id, source);
+  assert.match(withNotes, new RegExp(`Read a recap of Traitors, season 5 \\(New Blood\\), episode ${ep.number}`));
+  assert.match(withNotes, /Use these sites, best first: survivor\.fandom\.com, ew\.com\./);
+  // Kept to this episode: the lines are shown to the whole league.
+  assert.match(withNotes, new RegExp(`Use ONLY what happened in episode ${ep.number} and before\\. Nothing from episode ${ep.number + 1} or later`));
+  assert.match(withNotes, /not a page covering the whole season/);
+  // A season name that only repeats the show and number is left out.
+  const plain = buildLeaguePrompt(state, ep.id, { ...source, showName: "Survivor", seasonNumber: 51, seasonName: "Survivor 51" });
+  assert.match(plain, new RegExp(`Read a recap of Survivor, season 51, episode ${ep.number}`));
   for (const p of state.players) {
     assert.ok(withNotes.includes(`TEAM: ${p.name}`), `${p.name}'s block`);
     assert.ok(withNotes.includes(`${p.name}: <line>`), `${p.name} in the reply format`);
@@ -84,7 +92,7 @@ test("one prompt covers every team: lineups, benches, the race, and the episode 
   assert.match(withNotes, /league average/);
   assert.match(withNotes, /20 words or fewer/);
   assert.match(withNotes, /No two lines may start the same way/);
-  assert.ok(!buildLeaguePrompt(state, ep.id, null).includes("WHAT HAPPENED"));
+  assert.ok(!buildLeaguePrompt(state, ep.id, null).includes("LOOK UP THE EPISODE"));
 });
 
 test("the prompt says what each bench cost, and what every team had in common", () => {
