@@ -14,6 +14,7 @@ import { LeagueSwitcher } from "@/components/league-switcher";
 import { ThemePicker } from "@/components/theme-picker";
 import { cn } from "cn";
 import { BrandLogo } from "@/components/brand-logo";
+import { useWhatsNewPreview } from "@/components/whats-new-modal";
 
 // Port of the live app's real desktop sidebar chrome -- .sidebar/#tabs/.brand in
 // public/styles.css, populated by renderTabs() in public/app.js. Values below (width aside -- widened from the live app's 224px so league names fit --
@@ -32,6 +33,7 @@ const TABS = [
 ];
 
 export function Sidebar() {
+  const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
   const pathname = usePathname();
   const isSuperAdmin = useIsSuperAdmin();
   const isAuthenticated = useIsAuthenticated();
@@ -168,6 +170,11 @@ export function Sidebar() {
             <span className="shrink-0">Dark mode</span>
             <ThemePicker className="flex-1" />
           </div>
+        )}
+        {isAuthenticated && (
+          <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={showWhatsNew}>
+            What&rsquo;s new
+          </button>
         )}
         {/* Log out belongs with the rest of the account-level rows, not buried on the Dashboard --
             which was the only place it existed, and only for a user with no league. */}

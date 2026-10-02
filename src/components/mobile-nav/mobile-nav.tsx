@@ -34,7 +34,9 @@ import {
   ChevronDownIcon,
   GearIcon,
   UserIcon,
+  SparklesIcon,
 } from "@/components/icons";
+import { useWhatsNewPreview } from "@/components/whats-new-modal";
 import { SwipeTitle } from "@/components/league-swipe";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
@@ -50,6 +52,7 @@ import { SwipeTitle } from "@/components/league-swipe";
 // (real-auth-only -- see the note by its row below), and Log out.
 export function MobileNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
   // True for the one render triggered by the back button itself, so closeSheet knows not to also
   // call history.back() (that history entry is already the one being popped).
   const closingViaBack = useRef(false);
@@ -443,6 +446,17 @@ export function MobileNav() {
         {/* Reachable even with a real season loaded now, not just when leagueless -- picking one
             replaces the view with demo data the same way Sidebar's "Switch to demo data" does. */}
         <MoreRow icon={EpisodesIcon} label="Demo Season" onClick={() => go("")} />
+        {/* Every What's New release, any time -- not just the once it popped up. */}
+        {isAuthenticated && (
+          <MoreRow
+            icon={SparklesIcon}
+            label="What's new"
+            onClick={() => {
+              closeSheet();
+              showWhatsNew();
+            }}
+          />
+        )}
         <div className="my-1.5 h-px bg-border" />
         <MoreRow
           icon={LogoutIcon}
