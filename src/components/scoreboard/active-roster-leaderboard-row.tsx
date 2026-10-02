@@ -74,13 +74,17 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
       const exit = c.exitEpisodeId ? state.episodes.find((e) => e.id === c.exitEpisodeId)?.number : undefined;
       const perEpisode = aired.map((ep) => {
         const fielded = StateLogic.activeRosterLineupFor(state, ep.id, playerId).includes(c.id);
-        const evs = fielded ? StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((e) => e.castawayId === c.id) : [];
+        // What they scored that episode, started or not: the bar shows it either way (a benched week
+        // is what starting them would have been worth); `points` only counts it when started.
+        const evs = StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((e) => e.castawayId === c.id);
+        const scored = StateLogic.roundPoints(evs.reduce((t, e) => t + StateLogic.ActiveRosterLogic.pointsFor(state, e.type), 0));
         return {
           n: ep.number,
           fielded,
           out: exit !== undefined && ep.number > exit,
-          points: StateLogic.roundPoints(evs.reduce((t, e) => t + StateLogic.ActiveRosterLogic.pointsFor(state, e.type), 0)),
-          labels: evs.map((e) => defs.find((d) => d.id === e.type)?.label ?? e.type),
+          scored,
+          points: fielded ? scored : 0,
+          labels: fielded ? evs.map((e) => defs.find((d) => d.id === e.type)?.label ?? e.type) : [],
         };
       });
       return { c, current: c.ownerIds.includes(playerId), earned: castawayEarnedStats(state, playerId, c.id).total, perEpisode };
@@ -89,7 +93,7 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
 
   if (lines.length === 0) return <div className="mt-2 text-xs italic text-muted-foreground">No roster</div>;
   // The strip's scale: this player's biggest single-episode swing, either way.
-  const maxAbs = Math.max(1, ...lines.flatMap((l) => l.perEpisode.filter((e) => e.fielded).map((e) => Math.abs(e.points))));
+  const maxAbs = Math.max(1, ...lines.flatMap((l) => l.perEpisode.filter((e) => !e.out).map((e) => Math.abs(e.scored))));
   const firstFormer = lines.findIndex((l) => !l.current);
 
   return (
@@ -133,25 +137,28 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
                   </span>
                 )}
               </span>
-              {/* Last 8 scored episodes as a tiny chart (legend: ScoreboardLegend): a started episode's bar
-                  is as tall as its points (red below zero), benched is a short hollow bar, and an
-                  episode after they left is a dot -- so every row keeps the same width. */}
+              {/* Last 8 scored episodes as a tiny chart (legend: ScoreboardLegend): each bar is as tall as
+                  what they scored that episode (red below zero) -- solid when started, hollow when benched
+                  (what starting them would have been worth) -- and an episode after they left is a dot,
+                  so every row keeps the same width. */}
               <span className="hidden h-4 shrink-0 items-end gap-[2px] min-[380px]:flex" aria-hidden>
                 {l.perEpisode.slice(-8).map((e) => (
                   <span
                     key={e.n}
-                    title={`Ep ${e.n}: ${e.out ? "out" : e.fielded ? `${e.points > 0 ? "+" : ""}${e.points}` : "benched"}`}
+                    title={`Ep ${e.n}: ${
+                      e.out ? "out" : `${e.fielded ? "" : "benched, would have scored "}${e.scored > 0 ? "+" : ""}${e.scored}`
+                    }`}
                     className={cn(
                       "w-1.5 rounded-[2px]",
                       e.out
                         ? "h-1 rounded-full bg-border"
-                        : !e.fielded
-                          ? "h-1.5 border border-border"
-                          : e.points < 0
+                        : e.fielded
+                          ? e.scored < 0
                             ? "bg-destructive"
                             : "bg-primary"
+                          : cn("border", e.scored < 0 ? "border-destructive/70" : "border-primary/60")
                     )}
-                    style={e.fielded && !e.out ? { height: `${Math.max(20, (Math.abs(e.points) / maxAbs) * 100)}%` } : undefined}
+                    style={e.out ? undefined : { height: `${Math.max(20, (Math.abs(e.scored) / maxAbs) * 100)}%` }}
                   />
                 ))}
               </span>
@@ -198,7 +205,7 @@ export function ScoreboardLegend() {
           <span className="h-2 w-1.5 rounded-[2px] bg-destructive" /> Lost points
         </span>
         <span className="flex items-end gap-1">
-          <span className="h-1.5 w-1.5 rounded-[2px] border border-border" /> Benched
+          <span className="h-3 w-1.5 rounded-[2px] border border-primary/60" /> Benched (what they would have scored)
         </span>
         <span className="flex items-center gap-1">
           <span className="h-1 w-1.5 rounded-full bg-border" /> Out of the game
