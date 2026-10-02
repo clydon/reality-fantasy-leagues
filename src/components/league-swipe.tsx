@@ -16,7 +16,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 //
 // Admin-only for now (testing on the live site). Never from a screen edge (the phone's own back
 // gesture), never from inside something that scrolls sideways, and only once the drag is clearly
-// horizontal. Not on Chat: linked leagues share one, so there's nothing to swipe to.
+// horizontal. Only on pages about one league (LEAGUE_PAGES) -- not Chat, which linked leagues share.
 
 /** True inside a peeked neighbour: display-only (no confetti, nothing tappable). */
 export const PeekContext = createContext(false);
@@ -37,6 +37,9 @@ const DEAD_ZONE = 18;
 // Space between the current page and the neighbour sliding in, so their cards don't touch.
 const GAP = 32;
 const SETTLE_MS = 220;
+// Pages that show one league: the only ones a swipe means anything on. Not Chat (linked leagues share
+// it), and not Account, Admin or Reports, which look the same whichever league is open.
+const LEAGUE_PAGES = new Set(["/", "/episodes", "/scoreboard", "/research", "/draft", "/mid-season", "/setup"]);
 
 /** The open league's linked group, in the league dropdown's order, and where the open one sits. */
 export function useLinkedOrder(): { ids: string[]; index: number } {
@@ -83,7 +86,7 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
   const mode = useLeagueStore((s) => s.mode);
   const switchToLoaded = useLeagueStore((s) => s.switchToLoaded);
   const { ids, index } = useLinkedOrder();
-  const enabled = isAdmin && mode === "live" && pathname !== "/chat" && ids.length > 1;
+  const enabled = isAdmin && mode === "live" && LEAGUE_PAGES.has(pathname) && ids.length > 1;
   const prev = useNeighbour(enabled ? ids[index - 1] : undefined);
   const next = useNeighbour(enabled ? ids[index + 1] : undefined);
 
