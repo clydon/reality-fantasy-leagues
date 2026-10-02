@@ -90,7 +90,10 @@ test("one prompt covers every team: lineups, benches, the race, and where to rea
   assert.match(withNotes, /- Started: .*\[started by \d of 3 teams\]/);
   assert.match(withNotes, /- Bench: /);
   assert.match(withNotes, /league average/);
-  assert.match(withNotes, /20 words or fewer/);
+  assert.match(withNotes, /30 words or fewer/);
+  assert.match(withNotes, /Don't round up/);
+  // Examples use made-up people, so nothing from the real season gets copied into an answer.
+  for (const c of state.castaways) assert.ok(!withNotes.split("Reply with exactly")[0].includes(c.name), c.name);
   assert.match(withNotes, /No two lines may start the same way/);
   assert.ok(!buildLeaguePrompt(state, ep.id, null).includes("LOOK UP THE EPISODE"));
 });
