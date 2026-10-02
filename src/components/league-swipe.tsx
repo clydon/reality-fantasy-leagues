@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import { LeagueStoreContext, makePeekStore, useIsSuperAdmin, useLeagueStore } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -47,15 +47,25 @@ export function useLinkedOrder(): { ids: string[]; index: number } {
   const mode = useLeagueStore((s) => s.mode);
   const leagues = useLeagueStore((s) => s.leagues);
   const isAdmin = useIsSuperAdmin();
-  const { data } = useQuery({
-    queryKey: ["league-link", leagueId],
-    queryFn: () => api.getLeagueLinks(leagueId!),
+  const queryClient = useQueryClient();
+  const { data: group } = useQuery({
+    queryKey: ["league-group", leagueId],
+    queryFn: async () => {
+      const r = await api.getLeagueLinks(leagueId!);
+      return r.linked.length ? [leagueId!, ...r.linked.map((l) => l.id)] : [];
+    },
     enabled: isAdmin && mode === "live" && !!leagueId,
     staleTime: 60_000,
   });
-  if (!leagueId || !data || data.linked.length === 0) return { ids: [], index: -1 };
-  const inGroup = new Set([leagueId, ...data.linked.map((l) => l.id)]);
-  const ids = leagues.map((l) => l.id).filter((id) => inGroup.has(id));
+  // Linked leagues share one group, so it's already known for the others: seeded for each, the dots
+  // are there the moment a swipe lands instead of blinking out until that league's own fetch returns.
+  useEffect(() => {
+    for (const id of group ?? []) {
+      if (id !== leagueId && !queryClient.getQueryData(["league-group", id])) queryClient.setQueryData(["league-group", id], group);
+    }
+  }, [group, leagueId, queryClient]);
+  if (!leagueId || !group || group.length < 2) return { ids: [], index: -1 };
+  const ids = leagues.map((l) => l.id).filter((id) => group.includes(id));
   return { ids, index: ids.indexOf(leagueId) };
 }
 

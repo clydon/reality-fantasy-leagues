@@ -37,6 +37,7 @@ export function LinkedLeaguesSection() {
       await fn();
       await refetch();
       queryClient.invalidateQueries({ queryKey: ["chat-active-poll"] });
+      queryClient.removeQueries({ queryKey: ["league-group"] }); // the swipe's group and dots
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "That didn't work.");
     } finally {
