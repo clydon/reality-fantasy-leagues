@@ -136,7 +136,17 @@ function useFitToVisible(ref: React.RefObject<HTMLDivElement | null>): number | 
       const tabBarHeight = tabBarShown && !keyboardOpen ? tabBarRect.height : 0;
       // Desktop: leave the page's own bottom breathing room.
       const gap = tabBarShown ? 0 : 24;
-      setHeight(Math.max(220, Math.floor(visibleBottom - tabBarHeight - gap - el.getBoundingClientRect().top)));
+      if (keyboardOpen) {
+        // The phone may scroll the page to keep the box in view while typing: fit to what's showing.
+        setHeight(Math.max(220, Math.floor(visibleBottom - tabBarHeight - gap - el.getBoundingClientRect().top)));
+        return;
+      }
+      // Otherwise the page itself should never scroll: size from the box's place on the PAGE (not where
+      // it happens to sit on screen) so everything fits exactly, and undo any drift -- something
+      // appearing above (the action bar) could leave the page scrolled, tucking it under the top bar.
+      const pageTop = el.getBoundingClientRect().top + window.scrollY;
+      setHeight(Math.max(220, Math.floor((vv?.height ?? window.innerHeight) - tabBarHeight - gap - pageTop)));
+      if (window.scrollY > 0) window.scrollTo(0, 0);
     }
     fit();
     vv?.addEventListener("resize", fit);
