@@ -184,11 +184,24 @@ function teamEpisodeBlock(state: LeagueState, epId: string, playerId: string, st
   const started = roster.filter((c) => startedIds.has(c.id));
   const benched = roster.filter((c) => !startedIds.has(c.id));
   const calls = episodeTeamBullets(state, epId, playerId).map((b) => b.text);
+  // What a better set of starters from the same roster would have scored: the bench's cost, said
+  // outright -- left for the AI to work out, it's the call it most often misses.
+  const pts = (c: Castaway) => castawayEpisodeStats(state, epId, c.id).total;
+  const slots = StateLogic.ActiveRosterLogic.activeSlots(state) || roster.length;
+  const bestPossible = StateLogic.roundPoints(roster.map(pts).sort((a, b) => b - a).slice(0, slots).reduce((t, n) => t + n, 0));
+  const leftOnBench = StateLogic.roundPoints(bestPossible - started.reduce((t, c) => t + pts(c), 0));
+  const benchLine =
+    benched.length === 0
+      ? []
+      : leftOnBench > 0
+        ? [`- Best possible lineup from this roster: ${fmt(bestPossible)}, so ${leftOnBench} points were left on the bench`]
+        : ["- Started the best possible lineup from this roster"];
   return [
     `TEAM: ${player.name}`,
     `- This episode: ${fmt(mine)} pts (league average ${average})${raceText}`,
     `- Started: ${started.map(describe).join("; ") || "nobody"}`,
     `- Bench: ${benched.map(describe).join("; ") || "nobody"}`,
+    ...benchLine,
     ...(calls.length ? [`- Notable: ${calls.join("; ")}`] : []),
   ].join("\n");
 }
@@ -207,23 +220,41 @@ export function buildLeaguePrompt(state: LeagueState, epId: string, episodeSumma
   const startedBy = new Map<string, number>();
   for (const f of field) for (const id of StateLogic.activeRosterLineupFor(state, epId, f.player.id)) startedBy.set(id, (startedBy.get(id) ?? 0) + 1);
 
+  // What every team had in common -- a castaway they all started, a tribe they all started someone
+  // from. True of everyone, so it can't be why one team's week differed from another's; named so the
+  // AI stops opening every line with it ("Rode Toka's sweep...").
+  const lineups = field.map((f) => StateLogic.activeRosterLineupFor(state, epId, f.player.id));
+  const everyone = [...startedBy].filter(([, n]) => n === field.length).map(([id]) => StateLogic.getCastaway(state, id)?.name).filter(Boolean);
+  const tribesOf = (ids: string[]) =>
+    new Set(ids.map((id) => StateLogic.getCastaway(state, id)).flatMap((c) => (c ? [tribeAtEpisode(state, c, ep.number)] : [])));
+  const sharedTribes = state.tribes.filter((t) => lineups.every((ids) => tribesOf(ids).has(t.id))).map((t) => t.name);
+  const shared = [
+    ...(everyone.length ? [`every team started ${everyone.join(" and ")}`] : []),
+    ...(sharedTribes.length ? [`every team started someone from ${sharedTribes.join(" and ")}`] : []),
+  ];
+
   const lines = [
-    `This is a fantasy league for a reality TV show. Each team starts a few castaways every episode and scores points for what they do. Write ONE line per team about episode ${ep.number}: why that team's week went the way it did.`,
+    `This is a fantasy league for a reality TV show. Each team starts a few castaways every episode and scores points for what they do. Write ONE line per team about episode ${ep.number}: why that team's week went differently from the others'.`,
     "",
     "Rules:",
     "- 20 words or fewer per line. Plain, everyday words, as if telling a friend who has never seen the show.",
     '- No jargon or made-up compound words (not "idol-less boot", say "voted out without an idol").',
-    "- Say which one or two castaways decided the week and what they actually did in the episode. Use the episode story below, not just the points.",
+    "- Lead with what set this team apart: a castaway few others started, a bench call that paid off or backfired, points left on the bench. Not something every team had.",
+    "- If one of this team's castaways had a moment in the episode story (a blindside, an injury, a strange vote), use it. The story beats the points labels.",
     "- Like a sports commentator, with no subject needed: the team's name is shown right above the line.",
+    "- No two lines may start the same way.",
     '- Never name another team or league member. Comparisons are fine without names ("the only team to start her", "most of the league").',
     "",
-    `Good: "Rode Toka's immunity win, then benched Ana the night Savu blindsided her."`,
+    'Good: "Benched Ana the night her tribe blindsided her, dodging a six-point hit."',
+    'Good: "Two immunity winners sat on the bench while two quiet starters scored, six points gone."',
     'Bad: "A strong start, but not enough impact elsewhere." (vague, says nothing about the episode)',
+    'Bad: "Rode the tribe\'s big wins." (every team had that, so it explains nothing)',
     "",
     "Reply with exactly one line per team, in this format and nothing else:",
     ...field.map((f) => `${f.player.name}: <line>`),
   ];
   if (episodeSummaryText) lines.push("", "WHAT HAPPENED IN THE EPISODE:", episodeSummaryText);
+  if (shared.length) lines.push("", `WHAT EVERY TEAM HAD (so it doesn't explain one team's week): ${shared.join("; ")}.`);
   lines.push("", "THE TEAMS:");
   for (const f of field) lines.push("", teamEpisodeBlock(state, epId, f.player.id, startedBy, field.length));
   return lines.join("\n");
@@ -255,6 +286,7 @@ export function parseLeagueReply(reply: string, teams: { id: string; name: strin
     s
       .replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")
       .replace(/\s*(?:[-*•]|\d+[.)])\s*$/, "") // the next line's bullet or number, left at this one's end
+      .replace(/(?:\s*\\)+\s*$/, "") // a Markdown line break (a trailing "\") from a copied chat reply
       .trim()
       .replace(/^["“”']+|["“”']+$/g, "")
       .trim();

@@ -83,7 +83,34 @@ test("one prompt covers every team: lineups, benches, the race, and the episode 
   assert.match(withNotes, /- Bench: /);
   assert.match(withNotes, /league average/);
   assert.match(withNotes, /20 words or fewer/);
+  assert.match(withNotes, /No two lines may start the same way/);
   assert.ok(!buildLeaguePrompt(state, ep.id, null).includes("WHAT HAPPENED"));
+});
+
+test("the prompt says what each bench cost, and what every team had in common", () => {
+  const { rosterAtEpisode, castawayEpisodeStats } = jiti("../src/lib/game/active-roster-rows.ts");
+  for (let cursor = 1; cursor <= EPISODES; cursor++) {
+    const s = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data, "active-roster", cursor))));
+    const ep = latestScoredEpisode(s);
+    if (!ep) continue;
+    const prompt = buildLeaguePrompt(s, ep.id, null);
+    const lineups = s.players.map((p) => S.activeRosterLineupFor(s, ep.id, p.id));
+    for (const c of s.castaways) {
+      const all = lineups.every((ids) => ids.includes(c.id));
+      if (all) assert.ok(prompt.includes(`every team started ${c.name}`) || prompt.includes(` and ${c.name}`), `ep ${ep.number}: ${c.name} shared`);
+    }
+    for (const p of s.players) {
+      const pts = (c) => castawayEpisodeStats(s, ep.id, c.id).total;
+      const roster = rosterAtEpisode(s, p.id, ep.id);
+      const startedIds = new Set(S.activeRosterLineupFor(s, ep.id, p.id));
+      if (roster.length === startedIds.size) continue;
+      const best = S.roundPoints(roster.map(pts).sort((a, b) => b - a).slice(0, s.settings.activeSlots).reduce((t, n) => t + n, 0));
+      const left = S.roundPoints(best - roster.filter((c) => startedIds.has(c.id)).reduce((t, c) => t + pts(c), 0));
+      const block = prompt.slice(prompt.indexOf(`TEAM: ${p.name}`)).split("\n\n")[0];
+      if (left > 0) assert.ok(block.includes(`so ${left} points were left on the bench`), block);
+      else assert.ok(block.includes("Started the best possible lineup"), block);
+    }
+  }
 });
 
 test("a pasted reply is split onto teams, forgiving of the extras chats add", () => {
@@ -161,4 +188,19 @@ test("the race arrow: everyone measured against 1st, the leader against 2nd, mir
   }
   assert.equal(weekInRace(state, latestScoredEpisode(state).id, "nobody"), null);
   console.log(`  (lead changes seen across the demo season: ${tookLeadSeen})`);
+});
+
+test("a copied chat reply with Markdown line breaks (a trailing backslash) reads cleanly", () => {
+  const teams = [
+    { id: "c", name: "conor" },
+    { id: "j", name: "riley" },
+    { id: "a", name: "jordan" },
+  ];
+  const reply =
+    "conor: Rode Toka's two challenge wins.\\\n riley: Benched Ana before she was voted out.\\\n jordan: Left Patt on the bench.";
+  assert.deepEqual(parseLeagueReply(reply, teams).lines, {
+    c: "Rode Toka's two challenge wins.",
+    j: "Benched Ana before she was voted out.",
+    a: "Left Patt on the bench.",
+  });
 });
