@@ -19,6 +19,7 @@ import { InstallHint } from "@/components/install-hint";
 import { Dashboard } from "@/components/dashboard/dashboard";
 import { useLeaguePoll } from "@/lib/use-league-poll";
 import { ActionBar } from "@/components/action-bar";
+import { WhatsNewModal } from "@/components/whats-new-modal";
 import { rememberedLeague } from "@/lib/last-league";
 import { Button } from "@/components/ui/button";
 import { ResultsInBanner } from "@/components/results-in-banner";
@@ -220,6 +221,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <ReportModal />
       <DemoSeasonPicker />
       <ConfirmDialog />
+      <WhatsNewModal />
       {/* Phones only -- desktop browsers have their own install affordance (an icon in the address
           bar) that doesn't need this app repeating it. See install-hint.tsx's own comment on why
           the dismissal is remembered in localStorage rather than shown every visit. */}

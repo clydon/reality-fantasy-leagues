@@ -25,7 +25,7 @@ export function SpoilerSection() {
     setProtectedOn(on);
     setError(null);
     try {
-      await api.setMySettings(!on);
+      await api.setMySettings({ showResultsImmediately: !on });
       // Reload the open league so its view picks the change up straight away.
       if (mode === "live" && leagueId) await switchLeague(leagueId);
     } catch {

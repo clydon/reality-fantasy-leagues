@@ -35,6 +35,12 @@ export interface MeResponse {
   impersonating: boolean;
 }
 
+export interface MySettings {
+  showResultsImmediately: boolean;
+  whatsNewSeen: string | null;
+  accountCreatedAt: string | null;
+}
+
 export interface LeagueStateResponse {
   league: { id: string; name: string };
   membership: Membership;
@@ -56,9 +62,10 @@ export const api = {
   // Spoiler protection: this member has now seen results through episode `through`.
   markResultsSeen: (leagueId: string, through: number) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/results-seen`, { method: "POST", body: JSON.stringify({ through }) }),
-  getMySettings: () => localFetch<{ showResultsImmediately: boolean }>("/api/me/settings"),
-  setMySettings: (showResultsImmediately: boolean) =>
-    localFetch<{ showResultsImmediately: boolean }>("/api/me/settings", { method: "PUT", body: JSON.stringify({ showResultsImmediately }) }),
+  getMySettings: () => localFetch<MySettings>("/api/me/settings"),
+  // Only the fields sent change.
+  setMySettings: (changes: { showResultsImmediately?: boolean; whatsNewSeen?: string }) =>
+    localFetch<MySettings>("/api/me/settings", { method: "PUT", body: JSON.stringify(changes) }),
   createLeague: (name: string) =>
     localFetch<{ league: { id: string; name: string; join_code: string }; state: LeagueState }>("/api/leagues", {
       method: "POST",
