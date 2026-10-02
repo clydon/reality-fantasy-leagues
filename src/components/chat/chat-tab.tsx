@@ -142,10 +142,19 @@ function useFitToVisible(ref: React.RefObject<HTMLDivElement | null>): number | 
     vv?.addEventListener("resize", fit);
     vv?.addEventListener("scroll", fit);
     window.addEventListener("resize", fit);
+    // Anything appearing above the chat after it's laid out moves its top down -- the action bar
+    // (fetched a moment later), "Results are in!", a flash message, the install hint, the top bar
+    // gaining its league dots -- and the box would then run under the tab bar. Re-fit whenever the
+    // page's layout changes size, whatever caused it.
+    const ro = new ResizeObserver(() => fit());
+    ro.observe(document.body);
+    const header = document.querySelector("header");
+    if (header) ro.observe(header);
     return () => {
       vv?.removeEventListener("resize", fit);
       vv?.removeEventListener("scroll", fit);
       window.removeEventListener("resize", fit);
+      ro.disconnect();
     };
   }, [ref]);
   return height;

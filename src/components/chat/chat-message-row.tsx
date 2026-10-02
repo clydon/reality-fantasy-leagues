@@ -82,13 +82,16 @@ export function ChatMessageRow({ m, state }: { m: ChatMessage; state: LeagueStat
 
   if (m.type === "reveal") {
     return (
-      <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground">
-        <span className="h-px flex-1 bg-border" />
+      // One short centred line -- "👀 conor revealed episode 9 · 10:42 PM" (the full date on hover) --
+      // that wraps as a whole if a name is long, rather than squeezing the name against a long date.
+      <div className="my-1.5 px-4 text-center text-xs text-muted-foreground">
         <span className="font-semibold">👀 {m.text}</span>
-        <span>{formatDateTime(m.created_at)}</span>
-        <span className="h-px flex-1 bg-border" />
+        <span title={formatDateTime(m.created_at)}>
+          {" · "}
+          {new Date(m.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+        </span>
         {canDelete && (
-          <button title="Remove" onClick={handleDelete}>
+          <button className="ml-2 align-middle" title="Remove" onClick={handleDelete}>
             ✕
           </button>
         )}
