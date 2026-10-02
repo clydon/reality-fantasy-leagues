@@ -288,6 +288,17 @@ function validateLeniently(raw, schema, label) {
       if (repairs.length) result.data.repairs = repairs;
       return result.data;
     }
+    // One name where the checklist asks for a list of them ("votedFor": "Rob" for ["Rob"]) is the
+    // same answer, so it's wrapped rather than failing the run.
+    const lists = result.error.issues.filter((i) => i.code === "invalid_type" && i.expected === "array");
+    const wrappable = lists.filter((i) => typeof valueAt(raw, i.path) === "string");
+    for (const issue of wrappable) {
+      const parent = valueAt(raw, issue.path.slice(0, -1));
+      const field = issue.path[issue.path.length - 1];
+      repairs.push(`${whoAt(raw, issue.path)}${field} "${parent[field]}" was one name, not a list -- read as a list of one`);
+      parent[field] = [parent[field]];
+    }
+    if (wrappable.length) continue;
     const fixable = result.error.issues.filter((i) => i.code === "invalid_value" && Array.isArray(i.values));
     if (!fixable.length) {
       const first = result.error.issues[0];
@@ -298,16 +309,17 @@ function validateLeniently(raw, schema, label) {
       if (!fallback) {
         throw new Error(`${label}: the answer didn't match the checklist schema at ${issue.path.join(".")}: ${issue.message}`);
       }
-      let parent = raw;
-      for (const key of issue.path.slice(0, -1)) parent = parent[key];
+      const parent = valueAt(raw, issue.path.slice(0, -1));
       const field = issue.path[issue.path.length - 1];
-      const who = issue.path[0] === "castaways" && raw.castaways[issue.path[1]] ? `${raw.castaways[issue.path[1]].name}: ` : "";
-      repairs.push(`${who}${field} "${parent[field]}" isn't one of this show's options -- recorded as "${fallback}"`);
+      repairs.push(`${whoAt(raw, issue.path)}${field} "${parent[field]}" isn't one of this show's options -- recorded as "${fallback}"`);
       parent[field] = fallback;
     }
   }
   throw new Error(`${label}: the answer didn't match the checklist schema.`);
 }
+
+const valueAt = (raw, path) => path.reduce((node, key) => (node == null ? node : node[key]), raw);
+const whoAt = (raw, path) => (path[0] === "castaways" && raw.castaways[path[1]] ? `${raw.castaways[path[1]].name}: ` : "");
 
 // The SDK's zodOutputFormat, with its all-or-nothing parse swapped for validateLeniently. Same JSON
 // schema sent to the API, so the model is still held to the lists; this only decides what happens

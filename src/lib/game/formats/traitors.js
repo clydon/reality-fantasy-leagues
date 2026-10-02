@@ -23,10 +23,32 @@ const RECRUITED = 'Recruited Traitor';
 
 // Defaults are commissioner-editable, and deliberately 0 for the two that are bad news for whoever
 // owns the person -- whether being murdered or caught should cost points is a league's call.
+//
+// The events marked "values pending" came out of docs/RESEARCH-traitors-events.md (which ones recaps
+// report reliably) and are tracked at 0 until the scoring-values pass sets them, the same way
+// Survivor's learnedOfAdvantage was.
 const events = [
   { id: 'shieldWon', label: 'Won a shield or immunity', defaultPoints: 2 },
   { id: 'survivedRoundTable', label: 'Received banishment votes but survived', defaultPoints: 1 },
-  { id: 'votedOutTraitor', label: 'Voted for a Traitor who was banished', defaultPoints: 2 },
+  // A Faithful's catch. A Traitor voting out one of their own is turnedOnTraitor instead, so the same
+  // vote doesn't score the same for a sleuth and a backstabber.
+  { id: 'votedOutTraitor', label: 'Voted for a Traitor who was banished (as a Faithful)', defaultPoints: 2 },
+  // --- values pending ---
+  { id: 'wonPower', label: 'Won a mission power (Dagger, Seer...)', defaultPoints: 0 },
+  { id: 'missionStandout', label: 'Credited with carrying a mission', defaultPoints: 0 },
+  { id: 'missionBlunder', label: 'Blamed for a mission failure or lost money', defaultPoints: 0 },
+  { id: 'gaveShield', label: 'Gave their shield to someone else', defaultPoints: 0 },
+  { id: 'shieldSavedThem', label: 'Chosen for murder but saved by a shield', defaultPoints: 0 },
+  { id: 'onMurderShortlist', label: 'On the murder shortlist and survived the night', defaultPoints: 0 },
+  { id: 'consideredForMurder', label: 'Considered for murder by the Traitors and survived', defaultPoints: 0 },
+  { id: 'declinedRecruitment', label: "Turned down the Traitors' offer", defaultPoints: 0 },
+  { id: 'accusedAtRoundTable', label: 'Accused at the Round Table and survived it', defaultPoints: 0 },
+  { id: 'ledCaseAgainstTraitor', label: 'Led the case against a Traitor who was banished', defaultPoints: 0 },
+  { id: 'turnedOnTraitor', label: 'As a Traitor, voted out a fellow Traitor', defaultPoints: 0 },
+  { id: 'votedOutFaithful', label: 'Voted for a Faithful who was banished', defaultPoints: 0 },
+  { id: 'zeroVotes', label: 'At the Round Table, zero votes against', defaultPoints: 0 },
+  { id: 'wonAsTraitor', label: 'Won the season as a Traitor (bonus)', defaultPoints: 0, implied: true },
+  // --- end values pending ---
   { id: 'recruited', label: 'Recruited as a Traitor', defaultPoints: 3, implied: true },
   { id: 'finalist', label: 'Reached the end as a Finalist', defaultPoints: { exclusive: 3, shared: 5 }, implied: true },
   { id: 'seasonWinner', label: 'Won the season', defaultPoints: { exclusive: 5, shared: 10 }, implied: true },
@@ -45,7 +67,10 @@ function impliedEvents(ep, ctx) {
   for (const el of ep.events || []) {
     if (el.method === 'Murdered') out.push({ type: 'murdered', castawayId: el.castawayId });
     if (el.method === 'Finalist') out.push({ type: 'finalist', castawayId: el.castawayId });
-    if (el.method === 'Winner') out.push({ type: 'seasonWinner', castawayId: el.castawayId });
+    if (el.method === 'Winner') {
+      out.push({ type: 'seasonWinner', castawayId: el.castawayId });
+      if (ctx.roleOf(el.castawayId, ep.number) === 'Traitor') out.push({ type: 'wonAsTraitor', castawayId: el.castawayId });
+    }
     if (el.method === 'Banished') {
       const traitor = ctx.roleOf(el.castawayId, ep.number) === 'Traitor';
       out.push({ type: traitor ? 'banishedAsTraitor' : 'banishedAsFaithful', castawayId: el.castawayId });
@@ -178,6 +203,17 @@ function episodesPrompt(terms) {
   };
 }
 
+// Who voted for the banished person, by what the voter and the banished person were:
+// a Faithful catching a Traitor, a Traitor turning on their own, or anyone sending a Faithful home.
+// Shared by the wiki read and research so both score a vote the same way.
+function banishmentVoteEvent(voterIsTraitor, banishedIsTraitor) {
+  if (banishedIsTraitor === false) return 'votedOutFaithful';
+  if (banishedIsTraitor !== true) return null;
+  if (voterIsTraitor === true) return 'turnedOnTraitor';
+  if (voterIsTraitor === false) return 'votedOutTraitor';
+  return null;
+}
+
 // Round Table outcomes, derived from the extracted votes rather than asked for, so they're only as
 // wrong as the vote read itself. `same(a, b)` compares two names by who they resolve to.
 function derivedEvents(ep, extracted, same) {
@@ -186,22 +222,33 @@ function derivedEvents(ep, extracted, same) {
     ...(extracted.originalTraitors || []).map((t) => t.name),
     ...(extracted.episodes || []).filter((e) => e.number <= ep.number).flatMap((e) => (e.recruited || []).map((r) => r.name)),
   ];
+  const isTraitor = (name) => traitors.some((t) => same(t, name));
   const leftThisEpisode = (ep.eliminations || []).map((el) => el.name);
+  const left = (name) => leftThisEpisode.some((n) => same(n, name));
   const survived = [];
+  const voters = [];
+  const targeted = [];
   for (const rt of ep.roundTables || []) {
     for (const v of rt.votes || []) {
+      if (v.voter && !voters.some((n) => same(n, v.voter))) voters.push(v.voter);
       const target = v.votedFor;
+      if (target) targeted.push(target);
       if (!target || (rt.banished && same(target, rt.banished))) continue;
-      if (leftThisEpisode.some((n) => same(n, target)) || survived.some((n) => same(n, target))) continue;
+      if (left(target) || survived.some((n) => same(n, target))) continue;
       survived.push(target);
     }
-    if (rt.banished && traitors.some((t) => same(t, rt.banished))) {
+    if (rt.banished) {
       for (const v of rt.votes || []) {
-        if (v.votedFor && same(v.votedFor, rt.banished)) out.push({ type: 'votedOutTraitor', name: v.voter, confidence: 'low' });
+        if (!v.votedFor || !same(v.votedFor, rt.banished)) continue;
+        const type = banishmentVoteEvent(isTraitor(v.voter), isTraitor(rt.banished));
+        if (type) out.push({ type, name: v.voter, confidence: 'low' });
       }
     }
   }
   for (const name of survived) out.push({ type: 'survivedRoundTable', name, confidence: 'low' });
+  for (const name of voters) {
+    if (!left(name) && !targeted.some((t) => same(t, name))) out.push({ type: 'zeroVotes', name, confidence: 'low' });
+  }
   return out;
 }
 
@@ -214,8 +261,17 @@ function wikiRoles(extracted) {
 }
 
 // ---------- research (db/episode-research.js) ----------
+// The main source for this show: trusted recap sites, read through the research call or the copy-paste
+// prompt. docs/RESEARCH-traitors-events.md has which facts recaps report reliably and why. As with the
+// wiki, the checklist asks for what the recaps SAY (who voted for whom, who accused whom, who's a
+// Traitor), and the Round Table outcomes are worked out in code (researchItems), not asked for.
 
 function checklistSchema(z, Answer) {
+  const names = (what) =>
+    z
+      .array(z.string())
+      .nullable()
+      .describe(`${what} Each written exactly as that person's name appears in the list you were sent. Null if unknown.`);
   return z.object({
     name: z.string().describe("The contestant's full name, exactly as given in the list you were sent."),
 
@@ -223,19 +279,66 @@ function checklistSchema(z, Answer) {
     leftTheGame: Answer.describe("Did this person leave the game permanently in THIS episode (murdered, banished, left, or the finale)?"),
     exitMethod: z.enum(exitMethods).nullable().describe("How they left, if they left. Null if they did not leave."),
 
+    // --- roles ---
+    isTraitor: Answer.describe(
+      "Was this person a Traitor at this episode's Round Table (or, with no Round Table, by the end of the episode)? " +
+        "Recaps tell the audience who the Traitors are, including anyone recruited. 'no' for a Faithful."
+    ),
+    becameTraitor: Answer.describe(
+      "Did they START playing as a Traitor in THIS episode by being chosen by the host, or by entering the game as " +
+        "a Traitor? Not someone recruited by the other Traitors (that's recruitedAsTraitor), and 'no' for someone " +
+        "who was already a Traitor before this episode."
+    ),
+    recruitedAsTraitor: Answer.describe("Did they become a Traitor this episode by accepting a recruitment offer or an ultimatum?"),
+    declinedRecruitment: Answer.describe("Did they turn DOWN a recruitment offer from the Traitors this episode and stay a Faithful?"),
+
     // --- the Round Table ---
     attendedRoundTable: Answer.describe("Did they attend a Round Table this episode?"),
     votesReceived: z
       .number()
       .int()
       .nullable()
-      .describe("How many banishment votes were cast against them this episode. 0 if they attended and got none. Null if unknown or no Round Table."),
-    votedFor: z.string().nullable().describe("The full name of the person they voted to banish, if reported. Null if unknown or they did not vote."),
-    votedForBanishedTraitor: Answer.describe("Did they vote for the person banished this episode, AND was that person revealed as a Traitor?"),
+      .describe(
+        "How many banishment votes were cast against them this episode. 0 if they attended and got none. Only " +
+          "when a source gives the count or every vote; null if it only gives the winning margin, or no Round Table."
+      ),
+    votedFor: names(
+      "Everyone they voted to banish this episode, one per banishment vote in order (a finale can have several: " +
+        "the Round Table, then each Banish Again). If there was a revote, their vote in the FINAL round. Empty if " +
+        "they didn't vote. Only votes a source attributes to them."
+    ),
+    accusedBy: names(
+      "Who made a case against them AT the Round Table this episode: named them as a suspect and argued for it. " +
+        "Not castle gossip away from the table, and not just a vote cast without saying why. Empty if nobody did."
+    ),
 
-    // --- safety and roles ---
-    wonShield: Answer.describe("Did they win or hold a shield (protection from murder) or immunity from banishment this episode?"),
-    recruitedAsTraitor: Answer.describe("Did they become a Traitor this episode (recruited or given an ultimatum and accepted)?"),
+    // --- missions ---
+    wonShield: Answer.describe(
+      "Did they hold a shield, immunity or an antidote protecting them from murder this episode -- won in the " +
+        "mission, given to them by another player, or passed to them in a chain of safety?"
+    ),
+    gaveShield: Answer.describe("Did they give a shield they had won or controlled to SOMEONE ELSE this episode?"),
+    wonPower: Answer.describe("Did they win a special power in a mission this episode (the Dagger, the Seer, or a new one)?"),
+    powerName: z.string().nullable().describe("The power they won, in the show's own words. Null if none."),
+    missionStandout: Answer.describe(
+      "Does a source credit them with carrying this episode's mission (the key player behind its success)? Only " +
+        "what a recap says, not your judgement."
+    ),
+    missionBlunder: Answer.describe(
+      "Does a source blame them for a mission failure or lost money this episode (eliminated first, quit early, " +
+        "a wrong answer that cost the pot)? Only what a recap says, not your judgement."
+    ),
+
+    // --- murder ---
+    onMurderShortlist: Answer.describe(
+      "Were they on a formal murder shortlist or at-risk pool the show named this episode (the Traitors' " +
+        "shortlist, the coffins, the cage, the people left unprotected)? Not just anyone without a shield."
+    ),
+    consideredForMurder: Answer.describe(
+      "Was this person, a Faithful, reported as one of the options the Traitors discussed murdering this episode, " +
+        "apart from any formal shortlist? Only when a recap names them."
+    ),
+    shieldSavedThem: Answer.describe("Did the Traitors choose to murder them this episode, only for a shield to block it?"),
 
     notableTwist: z
       .string()
@@ -257,47 +360,129 @@ function episodeFields(z, Answer) {
 }
 
 const researchSearchHint = [
-  "Search for the episode recap, the episode's wiki page, and any reporting on who was murdered, who",
-  "was banished and how people voted at the Round Table, shields, and any recruitment. Then answer the",
-  "checklist for every person above.",
+  "Search for this episode's recaps. Look for: who was murdered and banished, and whether they were",
+  "Traitors; who voted for whom and who made the case against whom at the Round Table; the mission,",
+  "who held shields, and who the recaps credit or blame for it; any murder shortlist and who the",
+  "Traitors considered murdering; and any recruitment. Then answer the checklist for every person above.",
+  "",
+  "An event belongs to the episode where its outcome is REVEALED. A vote that ends on a cliffhanger",
+  "belongs to the episode that shows who was banished; a recruitment offered at the end of one episode",
+  "and accepted in the next belongs to the next; a shortlist whose murder is revealed next episode",
+  "belongs to the next.",
 ];
+
+// A list answer as a list. A research run from before votedFor took several names stored it as one.
+const listOf = (v) => (Array.isArray(v) ? v : v ? [v] : []).filter(Boolean);
+
+// What research says someone was, from any answer that settles it: true, false or null (unknown).
+function traitorAnswer(entry) {
+  if (entry.isTraitor === "yes" || entry.recruitedAsTraitor === "yes" || entry.becameTraitor === "yes") return true;
+  if (entry.isTraitor === "no") return false;
+  return null;
+}
 
 function researchEntryProblems(entry) {
   const problems = [];
+  const n = entry.name;
   if (entry.attendedRoundTable === "no" && Number.isInteger(entry.votesReceived) && entry.votesReceived > 0) {
-    problems.push(`${entry.name}: ${entry.votesReceived} votes against someone who didn't attend the Round Table`);
+    problems.push(`${n}: ${entry.votesReceived} votes against someone who didn't attend the Round Table`);
+  }
+  if (entry.attendedRoundTable === "no" && listOf(entry.votedFor).length) {
+    problems.push(`${n}: a vote from someone who didn't attend the Round Table`);
   }
   if (entry.wonShield === "yes" && entry.exitMethod === "Murdered") {
-    problems.push(`${entry.name}: murdered despite holding a shield`);
+    problems.push(`${n}: murdered despite holding a shield`);
   }
-  if (entry.votedForBanishedTraitor === "yes" && !entry.votedFor) {
-    problems.push(`${entry.name}: voted out a Traitor but no vote given`);
+  if (entry.shieldSavedThem === "yes" && entry.wonShield !== "yes") {
+    problems.push(`${n}: saved by a shield they aren't marked as holding`);
+  }
+  if (entry.isTraitor === "yes") {
+    for (const k of ["onMurderShortlist", "consideredForMurder", "shieldSavedThem"]) {
+      if (entry[k] === "yes") problems.push(`${n}: ${k} for a Traitor (not scored)`);
+    }
+  }
+  if (entry.becameTraitor === "yes" && entry.recruitedAsTraitor === "yes") {
+    problems.push(`${n}: both chosen as a Traitor and recruited -- it's one or the other`);
+  }
+  if (entry.declinedRecruitment === "yes" && entry.recruitedAsTraitor === "yes") {
+    problems.push(`${n}: both turned down and accepted recruitment`);
+  }
+  if (entry.missionStandout === "yes" && entry.missionBlunder === "yes") {
+    problems.push(`${n}: both carried and blamed for the mission`);
+  }
+  if (entry.wonPower === "yes" && !entry.powerName) {
+    problems.push(`${n}: won a power but didn't say which`);
   }
   return problems;
 }
 
-const researchClaims = ["leftTheGame", "wonShield", "recruitedAsTraitor", "votedForBanishedTraitor"];
+const researchClaims = [
+  "leftTheGame", "wonShield", "becameTraitor", "recruitedAsTraitor", "declinedRecruitment", "gaveShield", "wonPower",
+  "missionStandout", "missionBlunder", "onMurderShortlist", "consideredForMurder", "shieldSavedThem",
+];
 
-// Exits aren't staged from research (the wiki's Contestants table is the source for those), so
-// neither are the events they imply.
-function researchItems(entry, add) {
-  if (entry.wonShield === "yes") add("event", "shieldWon");
-  if (typeof entry.votesReceived === "number" && entry.votesReceived > 0 && entry.leftTheGame !== "yes") {
-    add("event", "survivedRoundTable");
-  }
-  if (entry.votedForBanishedTraitor === "yes") add("event", "votedOutTraitor");
+// Exits aren't staged from here (episode-research.js stages the elimination itself), so neither are
+// the events they imply. The Round Table outcomes need everyone's answers: `ctx.payload` is the whole
+// episode, and `ctx.same(a, b)` compares names by who they resolve to.
+function researchItems(entry, add, ctx) {
+  const traitor = traitorAnswer(entry);
+  const stayed = entry.leftTheGame !== "yes";
+  const everyone = (ctx && ctx.payload && ctx.payload.castaways) || [];
+  const same = (ctx && ctx.same) || ((a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase());
+
+  if (entry.becameTraitor === "yes" && entry.recruitedAsTraitor !== "yes") add("role", "", ORIGINAL);
   if (entry.recruitedAsTraitor === "yes") add("role", "", RECRUITED);
+  if (entry.declinedRecruitment === "yes") add("event", "declinedRecruitment");
+
+  if (entry.wonShield === "yes") add("event", "shieldWon");
+  if (entry.gaveShield === "yes") add("event", "gaveShield");
+  if (entry.wonPower === "yes") add("event", "wonPower");
+  if (entry.missionStandout === "yes") add("event", "missionStandout");
+  if (entry.missionBlunder === "yes") add("event", "missionBlunder");
+
+  // Danger from the Traitors only means something for a Faithful who lived through the night.
+  if (traitor !== true && stayed) {
+    if (entry.shieldSavedThem === "yes") add("event", "shieldSavedThem");
+    if (entry.onMurderShortlist === "yes") add("event", "onMurderShortlist");
+    else if (entry.consideredForMurder === "yes") add("event", "consideredForMurder");
+  }
+
+  if (typeof entry.votesReceived === "number" && entry.votesReceived > 0 && stayed) add("event", "survivedRoundTable");
+  if (entry.attendedRoundTable === "yes" && entry.votesReceived === 0 && stayed) add("event", "zeroVotes");
+  if (listOf(entry.accusedBy).length && stayed) add("event", "accusedAtRoundTable");
+
+  const banished = everyone.filter((c) => c.leftTheGame === "yes" && c.exitMethod === "Banished");
+  for (const target of listOf(entry.votedFor)) {
+    const b = banished.find((c) => same(c.name, target));
+    const type = b && banishmentVoteEvent(traitor, traitorAnswer(b));
+    if (type) add("event", type);
+  }
+  if (banished.some((b) => traitorAnswer(b) === true && listOf(b.accusedBy).some((a) => same(a, entry.name)))) {
+    add("event", "ledCaseAgainstTraitor");
+  }
 }
 
 // One person's answers as short phrases for a reviewer, listing only what happened.
 function researchNotes(c) {
   const notes = [];
+  const votes = listOf(c.votedFor);
+  const accusers = listOf(c.accusedBy);
   if (c.leftTheGame === "yes") notes.push(`OUT — ${c.exitMethod || "method unknown"}`);
-  if (typeof c.votesReceived === "number" && c.votesReceived > 0) notes.push(`${c.votesReceived} vote${c.votesReceived === 1 ? "" : "s"} against`);
-  if (c.votedFor) notes.push(`voted ${c.votedFor}`);
-  if (c.votedForBanishedTraitor === "yes") notes.push("voted out a Traitor");
-  if (c.wonShield === "yes") notes.push("shield / immunity");
+  if (c.isTraitor === "yes") notes.push("Traitor");
+  if (c.becameTraitor === "yes") notes.push("chosen as a Traitor");
   if (c.recruitedAsTraitor === "yes") notes.push("became a Traitor");
+  if (c.declinedRecruitment === "yes") notes.push("turned down recruitment");
+  if (typeof c.votesReceived === "number" && c.votesReceived > 0) notes.push(`${c.votesReceived} vote${c.votesReceived === 1 ? "" : "s"} against`);
+  if (votes.length) notes.push(`voted ${votes.join(", then ")}`);
+  if (accusers.length) notes.push(`accused by ${accusers.join(", ")}`);
+  if (c.wonShield === "yes") notes.push("shield / immunity");
+  if (c.gaveShield === "yes") notes.push("gave a shield away");
+  if (c.wonPower === "yes") notes.push(`won ${c.powerName || "a power"}`);
+  if (c.missionStandout === "yes") notes.push("carried the mission");
+  if (c.missionBlunder === "yes") notes.push("blamed for the mission");
+  if (c.onMurderShortlist === "yes") notes.push("on the murder shortlist");
+  if (c.consideredForMurder === "yes") notes.push("considered for murder");
+  if (c.shieldSavedThem === "yes") notes.push("shield blocked a murder");
   if (c.notableTwist) notes.push(c.notableTwist);
   return notes;
 }
@@ -305,12 +490,23 @@ function researchNotes(c) {
 // The same, as sentences, for semantic search (db/embeddings.js).
 function researchSentences(c) {
   const notes = [];
+  const votes = listOf(c.votedFor);
+  const accusers = listOf(c.accusedBy);
   if (c.leftTheGame === "yes") notes.push(`left the game (${c.exitMethod || "method unknown"})`);
-  if (typeof c.votesReceived === "number" && c.votesReceived > 0) notes.push(`received ${c.votesReceived} vote(s) at the Round Table`);
-  if (c.votedFor) notes.push(`voted for ${c.votedFor}`);
-  if (c.votedForBanishedTraitor === "yes") notes.push("voted for a Traitor who was banished");
-  if (c.wonShield === "yes") notes.push("won a shield or immunity");
+  if (c.becameTraitor === "yes") notes.push("was chosen as a Traitor");
   if (c.recruitedAsTraitor === "yes") notes.push("became a Traitor");
+  if (c.declinedRecruitment === "yes") notes.push("turned down the Traitors' recruitment offer");
+  if (typeof c.votesReceived === "number" && c.votesReceived > 0) notes.push(`received ${c.votesReceived} vote(s) at the Round Table`);
+  if (votes.length) notes.push(`voted for ${votes.join(", then ")}`);
+  if (accusers.length) notes.push(`was accused at the Round Table by ${accusers.join(", ")}`);
+  if (c.wonShield === "yes") notes.push("won a shield or immunity");
+  if (c.gaveShield === "yes") notes.push("gave their shield to someone else");
+  if (c.wonPower === "yes") notes.push(`won ${c.powerName || "a mission power"}`);
+  if (c.missionStandout === "yes") notes.push("carried the mission");
+  if (c.missionBlunder === "yes") notes.push("was blamed for a mission failure");
+  if (c.onMurderShortlist === "yes") notes.push("was on the murder shortlist");
+  if (c.consideredForMurder === "yes") notes.push("was considered for murder by the Traitors");
+  if (c.shieldSavedThem === "yes") notes.push("was saved from murder by a shield");
   if (c.notableTwist) notes.push(c.notableTwist);
   return notes;
 }
@@ -323,11 +519,15 @@ module.exports = {
   events,
   // Groups for "How starters score" (active-roster-lineup-grid.tsx), in this order.
   eventCategories: [
-    { id: 'missions', label: 'Missions', events: ['shieldWon'] },
-    { id: 'roundTable', label: 'Round Table', events: ['votedOutTraitor', 'survivedRoundTable', 'banishedAsFaithful', 'banishedAsTraitor'] },
-    { id: 'twists', label: 'Twists', events: ['recruited', 'murdered'] },
+    { id: 'missions', label: 'Missions', events: ['shieldWon', 'wonPower', 'missionStandout', 'gaveShield', 'missionBlunder'] },
+    { id: 'turret', label: 'Murder & the Turret', events: ['shieldSavedThem', 'onMurderShortlist', 'consideredForMurder', 'recruited', 'declinedRecruitment', 'murdered'] },
+    {
+      id: 'roundTable',
+      label: 'Round Table',
+      events: ['votedOutTraitor', 'turnedOnTraitor', 'ledCaseAgainstTraitor', 'accusedAtRoundTable', 'survivedRoundTable', 'zeroVotes', 'votedOutFaithful', 'banishedAsFaithful', 'banishedAsTraitor'],
+    },
     { id: 'leaving', label: 'Leaving the game', events: ['leftGame'] },
-    { id: 'endgame', label: 'Endgame', events: ['seasonWinner', 'finalist'] },
+    { id: 'endgame', label: 'Endgame', events: ['seasonWinner', 'wonAsTraitor', 'finalist'] },
   ],
   // An episode's headline wins, at the top of its Recap (episode-recap.tsx).
   recap: [{ label: 'Shield', events: ['shieldWon'] }],

@@ -84,9 +84,9 @@ function isMerged(state) {
 // later with none of these ids still works, on form alone. Add its ids here to sharpen it.
 const SIGNALS = {
   // In the firing line and lived: the likeliest to go next.
-  danger: new Set(["survivedVotes", "survivedRoundTable", "nominatedSurvived"]),
+  danger: new Set(["survivedVotes", "survivedRoundTable", "nominatedSurvived", "accusedAtRoundTable", "onMurderShortlist", "consideredForMurder"]),
   // Safely with the numbers.
-  safe: new Set(["zeroVotesSafe", "votedWithMajority", "votedOutTraitor"]),
+  safe: new Set(["zeroVotesSafe", "votedWithMajority", "votedOutTraitor", "zeroVotes"]),
   // Wins that make someone a target once they can't win their way out (after a merge).
   threat: new Set(["individualImmunity", "dailyWin", "eliminationWin"]),
   // Protection carried into the next vote, and what uses it up.
