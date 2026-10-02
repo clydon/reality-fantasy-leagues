@@ -8,16 +8,17 @@
 export const WHATS_NEW = {
   id: "2026-10-01",
   date: "2026-10-01",
+  // A one-line title each; `detail` only where it earns a tap (shown behind a chevron), and short.
   items: [
-    { title: "What needs you, at a glance", detail: "A bar at the top lists anything waiting on you in any league — lineup, pick, prediction, draft turn or invite. Tap to go there." },
-    { title: "No more spoilers", detail: "New results stay hidden until you tap “Results are in!”. Turn it off in Account settings." },
-    { title: "Episode reminders", detail: "A heads-up a day and 2 hours before an episode airs if your lineup, pick or a prediction is still open." },
-    { title: "Lineups lock at air time", detail: "Change your lineup any time until the episode starts. Starters carry over each week." },
-    { title: "New lineup screen", detail: "Empty slots are easy to spot, your roster is grouped by tribe, and “How starters score” shows what each event is worth." },
-    { title: "See everyone's starters", detail: "The Board on Overview shows who each player is starting this week." },
-    { title: "Clearer scoreboard", detail: "See what each castaway earned you, week by week — including what your benched players would have scored." },
-    { title: "Scoring updates", detail: "Every jury vote at Final Tribal now scores, plus winning fire-making and being picked for a reward." },
-    { title: "“Bets” are now “Predictions”", detail: "Same thing, better name." },
-    { title: "Easier on the eyes", detail: "A lighter dark mode, and a season-results card when it's all over." },
-  ],
+    { title: "A bar now shows what needs you", detail: "Lineups, picks, predictions, draft turns and invites — from any league. Tap to go there." },
+    { title: "Results stay hidden until you're ready", detail: "Tap “Results are in!” to see them. Turn this off in Account settings." },
+    { title: "Reminders before each episode", detail: "If your lineup, pick or a prediction is still open." },
+    { title: "Lineups lock when the episode airs", detail: "Your starters carry over week to week." },
+    { title: "Redesigned lineup screen", detail: "Empty slots, your roster by tribe, and how starters score." },
+    { title: "See everyone's starters", detail: "On the Overview board." },
+    { title: "Clearer scoreboard", detail: "What each castaway earned you, week by week." },
+    { title: "New scoring: jury votes, fire-making, reward picks" },
+    { title: "“Bets” are now “Predictions”" },
+    { title: "Lighter dark mode" },
+  ] as { title: string; detail?: string }[],
 };
