@@ -22,8 +22,10 @@ export function LeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; 
         <div className="flex-1">
           <div className="font-bold">{r.name}</div>
           <div className="text-xs text-muted-foreground">
-            Elimination order: {r.locked}
-            {bonusEnabled ? ` · Predictions: ${r.bonus}` : ""} · Finale: {r.finale}
+            {/* Finale only once it has actually paid out -- before then it's a 0 all season. */}
+            Elimination order {r.locked}
+            {bonusEnabled ? ` · Predictions ${r.bonus}` : ""}
+            {r.finale !== 0 ? ` · Finale ${r.finale}` : ""}
           </div>
         </div>
         <div className="font-mono text-xl font-bold">{r.total}</div>
