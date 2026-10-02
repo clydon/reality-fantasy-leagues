@@ -7,6 +7,15 @@ import { WHATS_NEW } from "@/lib/whats-new";
 import { Button } from "@/components/ui/button";
 import { ChevronDownIcon } from "@/components/icons";
 import { cn } from "cn";
+import { create } from "zustand";
+
+// Admin's "Preview What's New": opens the popup on demand. A preview's dismissal isn't recorded --
+// it isn't the player seeing it for real -- so it can be opened as often as wanted.
+export const useWhatsNewPreview = create<{ open: boolean; show: () => void; hide: () => void }>((set) => ({
+  open: false,
+  show: () => set({ open: true }),
+  hide: () => set({ open: false }),
+}));
 
 // The one-time "What's New" popup (content: src/lib/whats-new.ts). Signed-in players only, once per
 // release per account: dismissing records the release id on their account. An account created after
@@ -17,6 +26,8 @@ export function WhatsNewModal() {
   const previewingDemo = useIsPreviewingDemo();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const preview = useWhatsNewPreview((s) => s.open);
+  const hidePreview = useWhatsNewPreview((s) => s.hide);
 
   useEffect(() => {
     if (!isAuthenticated || previewingDemo) return;
@@ -37,9 +48,13 @@ export function WhatsNewModal() {
     };
   }, [isAuthenticated, previewingDemo]);
 
-  if (!open) return null;
+  if (!open && !preview) return null;
 
   function dismiss() {
+    if (preview) {
+      hidePreview();
+      return;
+    }
     setOpen(false);
     api.setMySettings({ whatsNewSeen: WHATS_NEW.id }).catch(() => {});
   }

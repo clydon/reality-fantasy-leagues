@@ -13,6 +13,7 @@ import type { AdminUser } from "@/lib/game/types";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useWhatsNewPreview } from "@/components/whats-new-modal";
 
 // Direct port of renderAdmin() (public/app.js). Unlike every other tab, Admin has NO mock-mode
 // equivalent -- the live app never shows its nav link to non-super-admins at all, demo mode
@@ -54,6 +55,7 @@ export function AdminTab() {
   const setShowPaid = usePaidAiStore((s) => s.setShowPaid);
   const showSpoilers = usePaidAiStore((s) => s.showSpoilers);
   const setShowSpoilers = usePaidAiStore((s) => s.setShowSpoilers);
+  const showWhatsNew = useWhatsNewPreview((s) => s.show);
 
   // Reloads every time this tab mounts -- including navigating back to it -- not just the first
   // time. `loaded` lives in the store, which outlives the component, so gating on `!loaded` used to
@@ -135,6 +137,18 @@ export function AdminTab() {
           </span>
         </span>
       </label>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3 text-sm">
+        <span className="flex-1">
+          <b>What&rsquo;s New</b>
+          <span className="block text-xs text-muted-foreground">
+            The one-time popup players see after an update (src/lib/whats-new.ts). Previewing doesn&rsquo;t mark it seen.
+          </span>
+        </span>
+        <Button size="sm" variant="secondary" onClick={showWhatsNew}>
+          Preview What&rsquo;s New
+        </Button>
+      </div>
 
       {/* Catalog config rather than per-account admin, and what a fresh install needs set up first,
           so it sits above the users/leagues tables. */}
