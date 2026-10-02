@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLeagueStore } from "@/lib/store";
 import { useChatStore } from "@/lib/chat-store";
@@ -56,22 +56,45 @@ export function ChatTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Opens at the newest message and keeps up with new ones -- unless you've scrolled up to read
+  // back, then it stays put. Also re-pinned when the box resizes (the keyboard opening).
+  const boxRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const atBottom = useRef(true);
+  const height = useFitToVisible(boxRef);
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (el && atBottom.current) el.scrollTop = el.scrollHeight;
+  }, [messages.length, height]);
+
   async function handleSend() {
     const text = draft.trim();
     if (!text) return;
     setDraft("");
+    atBottom.current = true; // your own message: always show it
     await send(text);
     markSeen();
   }
 
-  // Note: the live app's Chat gets a special fixed-height, flush layout (.app-shell.chat-mode in
-  // public/styles.css, overriding main's normal padding) so the compose box stays pinned at the
-  // viewport bottom. Not replicated exactly here -- this just fits inside the normal content
-  // column's padding with its own bounded height, a simplification not a redesign.
   return (
-    <div className="flex h-[70vh] flex-col">
+    // Sized to the space actually visible (useFitToVisible): down to the tab bar, or to just above the
+    // keyboard while typing. The negative margin cancels main's bottom padding on mobile -- that
+    // padding is there to clear the tab bar, which this already does -- so there's no gap to scroll.
+    // (Desktop: main's 90px bottom padding less the 24px the fit leaves -- the page ends with the box.)
+    <div
+      ref={boxRef}
+      className="-mb-[66px] flex h-[70vh] flex-col max-nav:-mb-[calc(84px+env(safe-area-inset-bottom,0px))]"
+      style={height ? { height } : undefined}
+    >
       <h2 className="mb-3 text-2xl font-bold tracking-tight max-nav:hidden">Chat</h2>
-      <div className="flex-1 overflow-y-auto rounded-lg border border-border bg-card p-3">
+      <div
+        ref={listRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
+        className="flex-1 overflow-y-auto overscroll-contain rounded-lg border border-border bg-card p-3"
+      >
         {messages.length === 0 ? (
           <div className="text-sm italic text-muted-foreground">No messages yet — say hello!</div>
         ) : (
@@ -79,7 +102,7 @@ export function ChatTab() {
         )}
         {readLabel && <div className="mt-1 text-right text-[0.7rem] text-muted-foreground">{readLabel}</div>}
       </div>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-2 flex gap-2 pb-2">
         <Input
           className="min-w-0 flex-1"
           placeholder="Message your league..."
@@ -91,4 +114,36 @@ export function ChatTab() {
       </div>
     </div>
   );
+}
+
+// The height that fills what's actually on screen below the box's top: to the top of the mobile tab
+// bar, or -- with the keyboard open, when the tab bar is behind it -- to just above the keyboard,
+// so the message box is never covered. Reads the visual viewport (what's visible once a keyboard
+// takes part of the screen), on iPhone and Android alike. Null until measured (the CSS height stands).
+function useFitToVisible(ref: React.RefObject<HTMLDivElement | null>): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const vv = window.visualViewport;
+    function fit() {
+      const el = ref.current;
+      if (!el) return;
+      const visibleBottom = (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight);
+      const keyboardOpen = !!vv && window.innerHeight - vv.height > 120;
+      const tabBar = document.querySelector<HTMLElement>("[data-mobile-tabbar]");
+      const tabBarHeight = !keyboardOpen && tabBar && tabBar.offsetParent !== null ? tabBar.getBoundingClientRect().height : 0;
+      // Desktop: leave the page's own bottom breathing room.
+      const gap = tabBar && tabBar.offsetParent !== null ? 0 : 24;
+      setHeight(Math.max(220, Math.floor(visibleBottom - tabBarHeight - gap - el.getBoundingClientRect().top)));
+    }
+    fit();
+    vv?.addEventListener("resize", fit);
+    vv?.addEventListener("scroll", fit);
+    window.addEventListener("resize", fit);
+    return () => {
+      vv?.removeEventListener("resize", fit);
+      vv?.removeEventListener("scroll", fit);
+      window.removeEventListener("resize", fit);
+    };
+  }, [ref]);
+  return height;
 }
