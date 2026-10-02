@@ -133,16 +133,19 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
     el.style.transform = x ? `translateX(${x}px)` : "";
   }
 
-  function onTouchStart(e: React.TouchEvent) {
+  function onTouchStart(e: TouchEvent) {
     drag.current = null;
     if (!enabled) return;
     const t = e.touches[0];
     if (t.clientX < EDGE || t.clientX > window.innerWidth - EDGE) return;
-    if (inSideScroller(e.target, wrapRef.current)) return;
+    // Anywhere in the page area (main): the content's own box can be shorter than the screen (a
+    // collapsed Episodes list), and a swipe starting below it or in the side padding is still a swipe.
+    const main = (e.target as HTMLElement | null)?.closest?.("main") ?? null;
+    if (!main || inSideScroller(e.target, main)) return;
     drag.current = { x: t.clientX, y: t.clientY, t: Date.now(), axis: null, dx: 0, dir: null };
   }
 
-  function onTouchMove(e: React.TouchEvent) {
+  function onTouchMove(e: TouchEvent) {
     const d = drag.current;
     if (!d) return;
     const t = e.touches[0];
@@ -206,15 +209,34 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
     }, SETTLE_MS);
   }
 
+  // Listened for on the whole document (filtered to the page area in onTouchStart), always calling
+  // this render's handlers.
+  const handlers = useRef<{ onTouchStart: (e: TouchEvent) => void; onTouchMove: (e: TouchEvent) => void; onTouchEnd: () => void } | null>(null);
+  useEffect(() => {
+    handlers.current = { onTouchStart, onTouchMove, onTouchEnd };
+  });
+  useEffect(() => {
+    if (!enabled) return;
+    const start = (e: TouchEvent) => handlers.current?.onTouchStart(e);
+    const move = (e: TouchEvent) => handlers.current?.onTouchMove(e);
+    const end = () => handlers.current?.onTouchEnd();
+    document.addEventListener("touchstart", start, { passive: true });
+    document.addEventListener("touchmove", move, { passive: true });
+    document.addEventListener("touchend", end);
+    document.addEventListener("touchcancel", end);
+    return () => {
+      document.removeEventListener("touchstart", start);
+      document.removeEventListener("touchmove", move);
+      document.removeEventListener("touchend", end);
+      document.removeEventListener("touchcancel", end);
+    };
+  }, [enabled]);
+
   return (
     <div
       ref={wrapRef}
       className="relative overflow-x-clip"
       style={enabled ? { touchAction: "pan-y" } : undefined}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      onTouchCancel={onTouchEnd}
     >
       <div ref={trackRef} className="relative">
         {children}
@@ -263,8 +285,10 @@ export function SwipeTitle({ name, className }: { name: string; className?: stri
   const dir = p < 0 ? -1 : 1;
   const transition = dragging ? "none" : `transform ${SETTLE_MS}ms ease-out`;
   return (
-    <span className="flex min-w-0 flex-col items-center">
-      <span className="relative block min-w-0 max-w-full overflow-hidden">
+    // A fixed-width box (the space it's given), not one sized to the name: sized to the name, it
+    // resized as a longer or shorter one landed, and the centred text jumped sideways at the end.
+    <span className="flex min-w-0 flex-1 flex-col items-center">
+      <span className="relative block w-full min-w-0 overflow-hidden">
         <span className={className} style={{ display: "block", textAlign: "center", transform: `translateY(${dir * t * 100}%)`, transition }}>
           {name}
         </span>

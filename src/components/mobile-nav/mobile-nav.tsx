@@ -253,6 +253,8 @@ export function MobileNav() {
               onClick={toggleLeagueMenu}
               disabled={leagues.length === 0}
             >
+              {/* Balances the arrow on the right, so the name is centred in the bar. */}
+              <span className="w-4 shrink-0" aria-hidden />
               <SwipeTitle name={mode === "mock" ? "Demo Mode" : (leagueName ?? "")} className="truncate text-[0.95rem] font-bold" />
               <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
             </button>
