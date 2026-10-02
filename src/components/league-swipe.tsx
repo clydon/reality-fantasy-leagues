@@ -31,6 +31,11 @@ export const useSwipeProgress = create<{ progress: number; targetName: string | 
 }));
 
 const EDGE = 28; // px from either side left to the phone's back gesture
+// A sideways drag only starts moving the page once it's gone this far: a small accidental drift
+// does nothing, a continued one is a swipe -- and it then follows from there, without a jump.
+const DEAD_ZONE = 24;
+// Space between the current page and the neighbour sliding in, so their cards don't touch.
+const GAP = 32;
 const SETTLE_MS = 220;
 
 /** The open league's linked group, in the league dropdown's order, and where the open one sits. */
@@ -127,17 +132,19 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
       }
     }
     if (d.axis !== "x") return;
-    // Only towards the neighbour you started for; a little give the other way.
-    d.dx = d.dir === "next" ? Math.min(dx, 12) : Math.max(dx, -12);
+    // Past the dead zone only, measured from its edge; towards the neighbour you started for, with a
+    // little give the other way.
+    const past = Math.sign(dx) * Math.max(0, Math.abs(dx) - DEAD_ZONE);
+    d.dx = d.dir === "next" ? Math.min(past, 12) : Math.max(past, -12);
     setTrack(d.dx, false);
-    useSwipeProgress.setState({ progress: d.dx / window.innerWidth });
+    useSwipeProgress.setState({ progress: d.dx / (window.innerWidth + GAP) });
   }
 
   function onTouchEnd() {
     const d = drag.current;
     drag.current = null;
     if (!d || d.axis !== "x" || !d.dir) return;
-    const width = window.innerWidth;
+    const width = window.innerWidth + GAP;
     const flick = Math.abs(d.dx) > 40 && Math.abs(d.dx) / Math.max(1, Date.now() - d.t) > 0.5;
     const res = d.dir === "next" ? next : prev;
     const commit = !!res && (Math.abs(d.dx) > width * 0.3 || flick);
@@ -178,7 +185,7 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
         {peek && peekStore && (
           <div
             className="pointer-events-none absolute w-full"
-            style={{ top: peek.top, left: peek.dir === "next" ? "100%" : "-100%" }}
+            style={{ top: peek.top, left: peek.dir === "next" ? `calc(100% + ${GAP}px)` : `calc(-100% - ${GAP}px)` }}
             aria-hidden
           >
             <PeekContext.Provider value={true}>
