@@ -128,7 +128,7 @@ test("Survivor scores how someone leaves: voted out and quitting cost, a medevac
   assert.equal(total(exitLeague("survivor", "Voted Out")), -3);
   assert.equal(total(exitLeague("survivor", "Quit")), -5);
   assert.equal(total(exitLeague("survivor", "Medically Evacuated")), 0);
-  assert.equal(total(exitLeague("survivor", "Lost Fire-Making")), 0);
+  assert.equal(total(exitLeague("survivor", "Lost Fire-Making")), -1, "less than being voted out, but a loss");
   // Final Tribal with the jury count not yet known: just the finalist base (shared: 3), and the
   // winner the base plus the bonus (3 + 3).
   assert.equal(total(exitLeague("survivor", "Lost Final Tribal (Jury Vote)")), 3);
@@ -198,4 +198,21 @@ test("every format's scoring events sit in exactly one display category", () => 
     assert.equal(new Set(listed).size, listed.length, `${id}: an event is in two categories`);
     assert.deepEqual([...listed].sort(), f.events.map((e) => e.id).sort(), id);
   }
+});
+
+test("fire-making, being picked for a reward, and learning of an advantage come from research", () => {
+  const s = R.pasteSkeleton(ctx, []);
+  const set = (name, fields) => Object.assign(s.castaways.find((c) => c.name === name), { sources: ["x"], confidence: "high" }, fields);
+  set("Alex Moore", { wonFireMaking: "yes" });
+  set("Annie Davis", { chosenForReward: "yes", learnedOfAdvantage: "yes" });
+  // Winning the reward and being "chosen" for it is just the win.
+  set("Jake Latimer", { chosenForReward: "yes", wonIndividualReward: "yes" });
+  const items = staged(s);
+  assert.ok(eventsOf(items, "Alex Moore").includes("wonFireMaking"));
+  assert.deepEqual(eventsOf(items, "Annie Davis"), ["chosenForReward", "learnedOfAdvantage"]);
+  assert.ok(!eventsOf(items, "Jake Latimer").includes("chosenForReward"));
+  const league = StateLogic.migrateLeagueState({ settings: { leagueTypeId: "active-roster", showFormat: "survivor", ownershipMode: "shared" } });
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "wonFireMaking"), 2);
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "chosenForReward"), 0.5);
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "learnedOfAdvantage"), 0, "tracked, not scored, until it proves reliable");
 });

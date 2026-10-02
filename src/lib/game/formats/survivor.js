@@ -33,8 +33,13 @@ const events = [
   { id: 'challengeThird', label: 'Individual challenge: 3rd place', defaultPoints: 1 },
   { id: 'tribeImmunity', label: 'Tribe/team immunity win', defaultPoints: 1 },
   { id: 'rewardWin', label: 'Reward win', defaultPoints: { exclusive: 1, shared: 1.5 } },
+  // Picked by a reward winner to go along: a read on who the winner trusts or needs.
+  { id: 'chosenForReward', label: 'Chosen to join a reward (without winning it)', defaultPoints: 0.5 },
   { id: 'idolFound', label: 'Idol/advantage found', defaultPoints: 2 },
   { id: 'idolPlayed', label: 'Idol/advantage played', defaultPoints: 1 },
+  // Tracked at 0 on purpose: whether research can tell this reliably (it lives in recaps, not tables)
+  // is being checked against the episodes before it's worth anything.
+  { id: 'learnedOfAdvantage', label: "Learned about someone else's idol/advantage", defaultPoints: 0 },
   { id: 'votesNegated', label: 'Played an idol/advantage that cancelled votes', defaultPoints: 2 },
   { id: 'votedWithMajority', label: 'Voted with the majority (voted for who went home)', defaultPoints: { exclusive: 0.5, shared: 1 } },
   { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: { exclusive: 0.5, shared: 1 } },
@@ -52,7 +57,10 @@ const events = [
   { id: 'votedOut', label: 'Voted out', defaultPoints: -3, implied: true },
   { id: 'quit', label: 'Quit', defaultPoints: -5, implied: true },
   { id: 'medevac', label: 'Medically evacuated', defaultPoints: 0, implied: true },
-  { id: 'lostFireMaking', label: 'Lost fire-making', defaultPoints: 0, implied: true },
+  // Fire-making: winning is a big moment but not an immunity run (2 vs 3); losing it costs less than
+  // being voted out (-1 vs -3) -- reaching the final four is something -- but it's still a loss.
+  { id: 'wonFireMaking', label: 'Won fire-making', defaultPoints: 2 },
+  { id: 'lostFireMaking', label: 'Lost fire-making', defaultPoints: -1, implied: true },
   // The finale, scored so how someone did at Final Tribal shows: every finalist (the winner too)
   // gets the base, then a point per jury vote, then the winner a bonus on top. A 7-2-0 vote is
   // 13 / 5 / 0 under shared defaults. The jury count rides on the elimination (ep.events[].juryVotes,
@@ -315,6 +323,10 @@ function checklistSchema(z, Answer) {
           "challenges, if they finished below third, or if the order isn't reported."
       ),
     satOutOfChallenge: Answer.describe("Did they sit out of a challenge this episode?"),
+    chosenForReward: Answer.describe(
+      "Did a reward WINNER choose them to come along on the reward, without them winning it themselves? 'no' if they won it."
+    ),
+    wonFireMaking: Answer.describe("Did they WIN a fire-making challenge this episode (the final-four fire-making duel)?"),
 
     // --- advantages ---
     foundAdvantage: Answer.describe("Did they FIND a hidden immunity idol or any advantage this episode?"),
@@ -335,6 +347,10 @@ function checklistSchema(z, Answer) {
     advantageUsedAgainstThem: Answer.describe("Was an advantage used against them (a vote stolen, blocked, nullified)?"),
 
     // --- twists ---
+    learnedOfAdvantage: Answer.describe(
+      "Did they find out, this episode, that ANOTHER player has a hidden immunity idol or advantage -- told by them or " +
+        "someone else, saw it, or worked it out on screen? Only what the episode shows or a recap states, not speculation."
+    ),
     exiled: Answer.describe("Were they sent away from their tribe by an Exile Island-style twist while staying in the game?"),
     notableTwist: z
       .string()
@@ -394,7 +410,10 @@ function votedOutNames(payload) {
 }
 
 // Positive claims that need a source behind them.
-const researchClaims = ["leftTheGame", "wonIndividualImmunity", "wonIndividualReward", "foundAdvantage", "playedAdvantage", "satOutOfChallenge"];
+const researchClaims = [
+  "leftTheGame", "wonIndividualImmunity", "wonIndividualReward", "foundAdvantage", "playedAdvantage", "satOutOfChallenge",
+  "chosenForReward", "wonFireMaking", "learnedOfAdvantage",
+];
 
 // One castaway's "yes" answers -> the results they imply. rewardWin covers both individual and tribe
 // reward with the SAME event type, matching the wiki connector's own catalog, so winning both in one
@@ -429,6 +448,9 @@ function researchItems(entry, add, ctx = {}) {
   }
   if (entry.advantageUsedAgainstThem === "yes") add("event", "advantageTargeted");
   if (entry.satOutOfChallenge === "yes") add("event", "satOut");
+  if (entry.chosenForReward === "yes" && entry.wonIndividualReward !== "yes" && entry.wonTribeReward !== "yes") add("event", "chosenForReward");
+  if (entry.wonFireMaking === "yes") add("event", "wonFireMaking");
+  if (entry.learnedOfAdvantage === "yes") add("event", "learnedOfAdvantage");
   // Exile is a fact, not a scoring event -- same as everywhere else exile appears in this app
   // (EpisodeLogic.addExiled). eventType stays '' to satisfy episode_research_items_shape.
   if (entry.exiled === "yes") add("exiled", "");
@@ -448,6 +470,9 @@ function researchNotes(c) {
     notes.push(`${c.individualChallengeFinish === 2 ? "2nd" : "3rd"} in an individual challenge`);
   }
   if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
+  if (c.chosenForReward === "yes") notes.push("chosen to join a reward");
+  if (c.wonFireMaking === "yes") notes.push("won fire-making");
+  if (c.learnedOfAdvantage === "yes") notes.push("learned of someone's idol/advantage");
   if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
   if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
   if (typeof c.votesNullified === "number" && c.votesNullified > 0) notes.push(`nullified ${c.votesNullified} vote${c.votesNullified === 1 ? "" : "s"}`);
@@ -472,6 +497,9 @@ function researchSentences(c) {
     notes.push(`finished ${c.individualChallengeFinish === 2 ? "2nd" : "3rd"} in an individual challenge`);
   }
   if (c.satOutOfChallenge === "yes") notes.push("sat out a challenge");
+  if (c.chosenForReward === "yes") notes.push("chosen to join a reward");
+  if (c.wonFireMaking === "yes") notes.push("won fire-making");
+  if (c.learnedOfAdvantage === "yes") notes.push("learned of someone's idol/advantage");
   if (c.foundAdvantage === "yes") notes.push(`found ${c.advantageFoundName || "an advantage"}`);
   if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
   if (typeof c.juryVotesReceived === "number") notes.push(`received ${c.juryVotesReceived} jury vote(s) at Final Tribal`);
@@ -492,11 +520,11 @@ module.exports = {
   // Groups for "How starters score" (active-roster-lineup-grid.tsx), in this order. Every event above
   // belongs to exactly one; anything left out would land in a trailing "Other".
   eventCategories: [
-    { id: 'challenges', label: 'Challenges', events: ['individualImmunity', 'challengeRunnerUp', 'challengeThird', 'tribeImmunity', 'rewardWin', 'satOut'] },
+    { id: 'challenges', label: 'Challenges', events: ['individualImmunity', 'challengeRunnerUp', 'challengeThird', 'tribeImmunity', 'rewardWin', 'chosenForReward', 'satOut'] },
     { id: 'tribal', label: 'Tribal Council', events: ['votesNegated', 'survivedVotes', 'votedWithMajority', 'zeroVotesSafe', 'votedAgainstMajority', 'votedOut'] },
-    { id: 'advantages', label: 'Idols & Advantages', events: ['idolFound', 'idolPlayed', 'advantageTargeted'] },
+    { id: 'advantages', label: 'Idols & Advantages', events: ['idolFound', 'idolPlayed', 'learnedOfAdvantage', 'advantageTargeted'] },
     { id: 'leaving', label: 'Leaving the game', events: ['medevac', 'quit'] },
-    { id: 'endgame', label: 'Endgame', events: ['finalist', 'juryVote', 'soleSurvivor', 'lostFireMaking', 'zeroJuryVotes'] },
+    { id: 'endgame', label: 'Endgame', events: ['finalist', 'juryVote', 'soleSurvivor', 'wonFireMaking', 'lostFireMaking', 'zeroJuryVotes'] },
   ],
   impliedEvents,
   // The season has a merge, so episodes carry a post-merge flag and the UI offers it.
