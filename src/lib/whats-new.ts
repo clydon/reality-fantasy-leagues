@@ -10,7 +10,7 @@ export const WHATS_NEW = {
   date: "2026-10-01",
   // A one-line title each; `detail` only where it earns a tap (shown behind a chevron), and short.
   items: [
-    { title: "Never miss a pick", detail: "A bar at the top shows anything waiting on you, in any league. Tap it to go there." },
+    { title: "A helpful guide to what's next", detail: "A bar at the top shows what you still need to do, in any league. Tap it to go there." },
     { title: "No Spoilers! - Results stay hidden until you're ready", detail: "Tap “Results are in!” to see them. Turn this off in Account settings." },
     { title: "Push notification reminders before each episode", detail: "If your lineup, pick or a prediction is still open. Turn on notifications in Account settings." },
     { title: "Redesigned lineup screen", detail: "Spot empty slots, see your roster by tribe and how starters score — and everyone's starters on Overview." },
