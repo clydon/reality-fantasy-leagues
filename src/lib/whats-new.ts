@@ -15,9 +15,9 @@ export const RELEASES: WhatsNewRelease[] = [
     id: "2026-10-01b",
     date: "2026-10-01",
     items: [
-      { icon: "🔗", title: "Linked leagues share one chat", detail: "Same friends, several leagues? Your commissioner can link them into one conversation." },
+      { icon: "💬", title: "Your leagues now share one chat" },
       { icon: "👀", title: "See who's caught up", detail: "Chat shows when someone reveals an episode, so you know what's safe to talk about." },
-      { icon: "⚡", title: "One reveal for all", detail: "In linked leagues, revealing an episode in one reveals it in all of them." },
+      { icon: "⚡", title: "Reveal once, see it in every league" },
       { icon: "🎯", title: "Predictions are worth 1 to 3 points" },
     ],
   },
