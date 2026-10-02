@@ -216,3 +216,14 @@ test("fire-making, being picked for a reward, and learning of an advantage come 
   assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "chosenForReward"), 0.5);
   assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "learnedOfAdvantage"), 0, "tracked, not scored, until it proves reliable");
 });
+
+test("a prediction is worth 1 to 3 points, however it's proposed or edited", () => {
+  const s = StateLogic.migrateLeagueState({ settings: { leagueTypeId: "classic-draft" }, episodes: [{ id: "e1", number: 1, events: [], bets: [] }] });
+  const big = StateLogic.addBet(s, "e1", "Who finds an idol?", 10, null);
+  assert.equal(big.points, 3);
+  assert.equal(StateLogic.addBet(s, "e1", "Tribe swap?", 0, null).points, 1);
+  StateLogic.updateBet(s, "e1", big.id, "points", 2);
+  assert.equal(big.points, 2);
+  StateLogic.updateBet(s, "e1", big.id, "predictions", []);
+  assert.ok(Array.isArray(big.predictions) && big.id, "only label and points can be edited");
+});

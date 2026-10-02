@@ -11,13 +11,14 @@ import { BetCard } from "./bet-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PointsPicker } from "@/components/ui/points-picker";
 
 // Direct port of renderBonusBetsSection() (public/app.js). overviewNewBetOpen was a single
 // global flag there; here it's this component's own state, same as BetCard's revealedBetCardId.
 export function SideBetsSection({ state }: { state: LeagueState }) {
   const [formOpen, setFormOpen] = useState(false);
   const [label, setLabel] = useState("");
-  const [points, setPoints] = useState(state.settings.defaultBetPoints);
+  const [points, setPoints] = useState(Math.min(StateLogic.MAX_BET_POINTS, Math.max(1, state.settings.defaultBetPoints || 1)));
   const leagueId = useLeagueStore((s) => s.leagueId);
   const myPlayerId = useMyPlayerId();
   const canGuessBets = useCanGuess();
@@ -71,13 +72,7 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
             />
             <label className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               Points if correct:
-              <Input
-                type="number"
-                size="sm"
-                className="w-16"
-                value={points}
-                onChange={(e) => setPoints(parseInt(e.target.value) || 0)}
-              />
+              <PointsPicker value={points} onChange={setPoints} />
             </label>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" size="xs" onClick={() => setFormOpen(false)}>

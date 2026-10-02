@@ -1347,6 +1347,7 @@ class RosterLogic {
       });
       value = clean;
     }
+    if(field === 'defaultBetPoints') value = clampBetPoints(value);
     if(field === 'startEpisode'){
       const n = Math.floor(Number(value));
       value = Number.isFinite(n) && n >= 1 ? n : 1;
@@ -1852,19 +1853,31 @@ class EpisodeLogic {
 }
 
 // ---------- BetLogic: side bets + predictions ----------
+// A prediction is worth 1 to MAX_BET_POINTS (whole points). Predictions are near coin flips, so the
+// spread they add to the standings grows with their value: at about one a week, 3 points each puts
+// predictions at roughly a quarter of what decides a Classic league -- a real side game, not the
+// decider -- while an uncapped 10-pointer would put a quarter of the league on a single question.
+const MAX_BET_POINTS = 3;
+function clampBetPoints(v){
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(MAX_BET_POINTS, Math.max(1, n)) : 1;
+}
 class BetLogic {
   static add(state, epId, label, points, createdByPlayerId){
     const ep = state.episodes.find(e=>e.id===epId);
     if(!ep || !label) return;
     ep.bets = ep.bets || [];
-    const bet = { id: Core.uid('bet'), label, points, predictions: [], createdByPlayerId: createdByPlayerId || null };
+    const bet = { id: Core.uid('bet'), label, points: clampBetPoints(points), predictions: [], createdByPlayerId: createdByPlayerId || null };
     ep.bets.push(bet);
     return bet;
   }
+  // Only a prediction's wording and value are editable -- never its id or the guesses on it.
   static update(state, epId, betId, field, value){
     const ep = state.episodes.find(e=>e.id===epId);
     const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
-    if(bet) bet[field]=value;
+    if(!bet) return;
+    if(field === 'points') bet.points = clampBetPoints(value);
+    else if(field === 'label' && typeof value === 'string' && value.trim()) bet.label = value.trim();
   }
   static remove(state, epId, betId){
     const ep = state.episodes.find(e=>e.id===epId);
@@ -2360,6 +2373,7 @@ return {
   ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,
   ensureNextEpisode: EpisodeLogic.ensureNextEpisode, seasonUnderway: EpisodeLogic.seasonUnderway, episodeHasResults: EpisodeLogic.hasResults,
   addBet: BetLogic.add, addBetToUpcoming: BetLogic.addToUpcoming, updateBet: BetLogic.update, removeBet: BetLogic.remove,
+  MAX_BET_POINTS,
   addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,
   getOrCreateFinalePred: FinaleLogic.getOrCreatePrediction, setFinalePick: FinaleLogic.setPick, setFinaleWinnerPick: FinaleLogic.setWinnerPick,
   setActualTop3: FinaleLogic.setActualTop3, setActualWinner: FinaleLogic.setActualWinner,

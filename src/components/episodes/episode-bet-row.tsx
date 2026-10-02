@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { PointsPicker } from "@/components/ui/points-picker";
 
 // The commissioner-editing half of a bet, inside EpisodeCard -- grade guesses, correct the label or
 // points, remove a guess or the whole bet. PROPOSING a bet and GUESSING on it happen on Overview only
@@ -109,13 +110,12 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
               onChange={(e) => setLabel(e.target.value)}
               onBlur={() => label !== bet.label && saveField("label", label)}
             />
-            <Input
-              type="number"
-              title="pts if correct"
-              className="w-16 text-sm"
+            <PointsPicker
               value={points}
-              onChange={(e) => setPoints(parseInt(e.target.value) || 0)}
-              onBlur={() => points !== bet.points && saveField("points", points)}
+              onChange={(n) => {
+                setPoints(n);
+                saveField("points", n);
+              }}
             />
           </>
         ) : (

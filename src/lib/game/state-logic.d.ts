@@ -112,6 +112,8 @@ declare const StateLogic: {
   finalePredictionsAvailable(state: LeagueState): boolean;
   /** Castaways per player in the draft. Derived from activeSlots+benchSlots for Active Roster. */
   rosterSize(state: LeagueState): number;
+  /** The most a prediction can be worth (1 to this, whole points). */
+  MAX_BET_POINTS: number;
   /** Castaways the player originally drafted, unaffected by later replenish/trade moves. */
   originalDraftPicks(state: LeagueState, playerId: string): Castaway[];
   /** The league's show format (exit methods, scoring events, merge, winner). See formats/index.js. */
