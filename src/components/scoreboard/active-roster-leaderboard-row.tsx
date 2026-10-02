@@ -28,10 +28,15 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
         <div className="h-3 w-3 shrink-0 rounded-full" style={{ background: r.color }} />
         <div className="min-w-0 flex-1">
           <div className="truncate font-bold">{r.name}</div>
-          <div className="text-xs text-muted-foreground">
-            Events: {r.locked}
-            {bonusEnabled ? ` · Predictions: ${r.bonus}` : ""} · Finale: {r.finale}
-          </div>
+          {/* Where the total came from, in players' words -- only once it isn't all lineup points
+              (then it would just repeat the total). Finale only once it has actually paid out. */}
+          {((bonusEnabled && r.bonus !== 0) || r.finale !== 0) && (
+            <div className="text-xs text-muted-foreground">
+              Lineup {r.locked}
+              {bonusEnabled && r.bonus !== 0 ? ` · Predictions ${r.bonus}` : ""}
+              {r.finale !== 0 ? ` · Finale ${r.finale}` : ""}
+            </div>
+          )}
         </div>
         <div className="text-right">
           <div className="font-mono text-xl font-bold">{r.total}</div>
