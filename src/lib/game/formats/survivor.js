@@ -42,7 +42,7 @@ const events = [
   // or within an alliance or small group -- not an idol everyone saw played at Tribal), and once per
   // advantage, or it becomes one of the most frequent events in the game. See
   // docs/RESEARCH-scoring-values.md.
-  { id: 'learnedOfAdvantage', label: "Privately learned of someone else's idol/advantage (once per advantage)", defaultPoints: 0 },
+  { id: 'learnedOfAdvantage', label: 'Learned of an idol/advantage (privately)', defaultPoints: 0 },
   { id: 'votesNegated', label: 'Played an idol/advantage that cancelled votes', defaultPoints: 2 },
   // Picked to go on a journey: a shot at an advantage, often at a risk (a lost vote), so it's worth
   // something but less than actually finding one (1 vs 2) -- and finding one there scores idolFound too.

@@ -43,7 +43,7 @@ In the order the settings page lists them. **Bold** = changed from current.
 | **Idols & Advantages** | | | |
 | Idol/advantage found | 3 | **2** | 4 |
 | Idol/advantage played | 2 | **1** | 2 |
-| Learned about someone else's idol/advantage | 0.5 | 0.5 | 1 |
+| Learned of an idol/advantage (privately) | 0.5 | 0.5 | 1 |
 | Had an advantage used against them | -0.5 | -0.5 | -1 |
 | **Journeys & Exile** | | | |
 | Went on a journey | 1 | **0.5** | 1 |
@@ -62,7 +62,7 @@ In the order the settings page lists them. **Bold** = changed from current.
 Why each change was made is in section 4. Two values were deliberately left alone despite open
 questions:
 
-- **Learned about someone else's idol/advantage (0.5):** couldn't be tested (not in the dataset), and
+- **Learned of an idol/advantage, privately (0.5):** couldn't be tested (not in the dataset), and
   research still can't detect it reliably — it lives in recap prose, not tables. 0 is the cautious
   choice until that's checked. **If it can be detected reliably, 0.5 is the right value** — see
   "Learned about someone else's idol" in section 4 for why, and for the two counting rules it needs.
@@ -277,7 +277,7 @@ drop "(goat)".
   2. **Private knowledge only** — learned alone, or within an alliance or small group. When an idol is
      played at Tribal everyone learns about it, so that must not count.
   Both rules are now in the research question (`learnedOfAdvantage` in `checklistSchema`) and the
-  scoring label ("Privately learned of someone else's idol/advantage (once per advantage)"). Research
+  scoring label ("Learned of an idol/advantage (privately)"; once per advantage is in the research question only). Research
   answers one episode at a time, so "once per advantage" relies on the model knowing what came before;
   there is no code-level de-duplication by advantage.
   Without those rules it would be one of the most frequent events in the game and quietly become a
