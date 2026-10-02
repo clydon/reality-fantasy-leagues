@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronDownIcon } from "@/components/icons";
 import { cn } from "cn";
 import { create } from "zustand";
+import { useMoreSheetRequest } from "@/lib/more-sheet";
 
 // Opening the popup on demand:
 //   "preview" -- Admin's "Preview What's New": the newest release; closing it isn't recorded (it isn't
@@ -43,6 +44,8 @@ export function WhatsNewModal() {
   const [showOlder, setShowOlder] = useState(false);
   const mode = useWhatsNewPreview((s) => s.mode);
   const hide = useWhatsNewPreview((s) => s.hide);
+  const showAll = useWhatsNewPreview((s) => s.showAll);
+  const openMoreSheet = useMoreSheetRequest((s) => s.open);
 
   useEffect(() => {
     if (!isAuthenticated || previewingDemo) return;
@@ -76,6 +79,16 @@ export function WhatsNewModal() {
     if (wasMode !== "preview" && isAuthenticated) api.setMySettings({ whatsNewSeen: LATEST_RELEASE_ID }).catch(() => {});
   }
 
+  // A "Show me" link: what's new lives in the More menu on a phone (open it, so they see where); on
+  // desktop there's no More menu, so straight to the full list.
+  function follow(link: NonNullable<WhatsNewItem["link"]>) {
+    if (link.to !== "whatsNewMenu") return;
+    const tabBar = document.querySelector("[data-mobile-tabbar]")?.getBoundingClientRect();
+    dismiss();
+    if (tabBar && tabBar.height > 0) openMoreSheet();
+    else showAll();
+  }
+
   // The "all" view: releases by date, the last week's in full, older ones folded away.
   // A week back from the NEWEST release, not from today: the latest batch always shows in full, even
   // after a quiet month.
@@ -103,6 +116,11 @@ export function WhatsNewModal() {
               />
             </button>
             {expanded === it.title && <p className="pb-2.5 pl-[2.875rem] pr-3 text-sm text-muted-foreground">{it.detail}</p>}
+            {it.link && (
+              <button className="-mt-1 pb-2.5 pl-[2.875rem] text-sm font-semibold text-primary" onClick={() => follow(it.link!)}>
+                {it.link.label} &rsaquo;
+              </button>
+            )}
           </li>
         ) : (
           <li key={it.title} className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-semibold">

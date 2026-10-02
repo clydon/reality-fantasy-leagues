@@ -37,6 +37,7 @@ import {
   SparklesIcon,
 } from "@/components/icons";
 import { useWhatsNewPreview } from "@/components/whats-new-modal";
+import { useMoreSheetRequest } from "@/lib/more-sheet";
 import { SwipeTitle } from "@/components/league-swipe";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
@@ -53,6 +54,12 @@ import { SwipeTitle } from "@/components/league-swipe";
 export function MobileNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
+  // Opened from elsewhere too (the What's New "Show me" link).
+  const moreRequests = useMoreSheetRequest((s) => s.requests);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- an outside request to open the sheet
+    if (moreRequests > 0) setSheetOpen(true);
+  }, [moreRequests]);
   // True for the one render triggered by the back button itself, so closeSheet knows not to also
   // call history.back() (that history entry is already the one being popped).
   const closingViaBack = useRef(false);

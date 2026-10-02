@@ -7,10 +7,24 @@
 // To announce the next batch: add a release at the TOP with a new `id`. Written for players, not
 // admins: a one-line title each, `detail` only where it earns a tap (shown behind a chevron) and
 // short, most useful first, only what's worth interrupting someone for.
-export type WhatsNewItem = { icon: string; title: string; detail?: string };
+// `link`: a "Show me" under the item that takes you to it. "whatsNewMenu" = where What's New lives
+// (the More menu on a phone; the full list on desktop, which has no More menu).
+export type WhatsNewItem = { icon: string; title: string; detail?: string; link?: { label: string; to: "whatsNewMenu" } };
 export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] };
 
 export const RELEASES: WhatsNewRelease[] = [
+  {
+    id: "2026-10-02b",
+    date: "2026-10-02",
+    items: [
+      {
+        icon: "🗂️",
+        title: "Catch up on every update, any time",
+        detail: "It's in the More menu, under What's new.",
+        link: { label: "Show me", to: "whatsNewMenu" },
+      },
+    ],
+  },
   {
     id: "2026-10-02",
     date: "2026-10-02",
