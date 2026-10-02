@@ -1,6 +1,12 @@
 import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync } from "@/lib/game/types";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 import type { ActionItem } from "@/lib/game/action-items.js";
+import type { TeamSummaryBullet } from "@/lib/game/episode-team-summary";
+
+export interface EpisodeTeamSummary {
+  notes: Record<string, string>;
+  mine: { bullets: TeamSummaryBullet[]; prompt: string; hasEpisodeSummary: boolean; why: string | null } | null;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -123,6 +129,16 @@ export const api = {
   // on why this isn't joined into every episode-card render.
   suggestBetAnswer: (leagueId: string, epId: string, betId: string) =>
     localFetch<SuggestedBetAnswer>(`/api/leagues/${leagueId}/episodes/${epId}/bets/${betId}/suggested-answer`),
+
+  // Scoreboard episode summary: everyone's saved "why it mattered" line, plus the caller's own bullets
+  // and copyable prompt. Saving only ever writes the caller's own line (the route takes it from the session).
+  episodeTeamSummary: (leagueId: string, epId: string) =>
+    localFetch<EpisodeTeamSummary>(`/api/leagues/${leagueId}/episodes/${epId}/team-summary`),
+  saveEpisodeTeamSummary: (leagueId: string, epId: string, why: string) =>
+    localFetch<{ ok: true; why: string | null }>(`/api/leagues/${leagueId}/episodes/${epId}/team-summary`, {
+      method: "PUT",
+      body: JSON.stringify({ why }),
+    }),
 
   // Pick'em only.
   setPickEmPick: (leagueId: string, epId: string, playerId: string, castawayId: string) =>

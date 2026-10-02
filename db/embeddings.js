@@ -219,12 +219,25 @@ async function suggestAnswer(pool, { showId, season, episodeNumber, question }) 
   return { status: "ok", answer: top.text, confidence: top.confidence, castawayName: top.castawayName, similarity: top.similarity };
 }
 
+/**
+ * The episode's stored research summary ("Title: what happened"), verbatim -- an exact lookup, no
+ * embedding call. Null when the episode hasn't been researched (or indexed) yet.
+ */
+async function getEpisodeSummaryText(pool, { showId, season, episodeNumber }) {
+  const { rows } = await pool.query(
+    "SELECT text FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND chunk_type='summary' LIMIT 1",
+    [showId, season, episodeNumber]
+  );
+  return rows.length ? rows[0].text : null;
+}
+
 module.exports = {
   embedTexts,
   chunksFromResearch,
   storeChunksForEpisode,
   searchChunks,
   suggestAnswer,
+  getEpisodeSummaryText,
   confidenceFor,
   CONFIDENCE_THRESHOLDS,
   EMBED_MODEL,

@@ -8,6 +8,11 @@ import { playerBetRows } from "@/lib/game/bet-rows";
 import { cn } from "cn";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { useShowTerms } from "@/lib/use-show-terms";
+import { useLeagueStore, useMyPlayerId } from "@/lib/store";
+import { episodeTeamBullets, latestScoredEpisode } from "@/lib/game/episode-team-summary";
+import { Button } from "@/components/ui/button";
+import { useTeamSummary } from "./use-team-summary";
+import { EpisodeSummaryModal } from "./episode-summary-modal";
 
 // Active Roster's leaderboard row. Separate from LeaderboardRow because that one's breakdown is
 // "Boot Order" plus a roster list with elimination placements -- which is exactly what this league
@@ -32,6 +37,8 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
         <div className="font-mono text-xl font-bold">{r.total}</div>
       </div>
 
+      <EpisodeSummary state={state} playerId={r.playerId} />
+
       <details className="border-t border-border px-3.5 py-2">
         <summary className="cursor-pointer text-xs text-muted-foreground">Breakdown</summary>
         <RosterBreakdown state={state} playerId={r.playerId} />
@@ -53,6 +60,50 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
           </div>
         )}
       </details>
+    </div>
+  );
+}
+
+// The latest scored episode for this team, in a few bullets compared against the league (never a
+// named team), plus the team's own "why it mattered" line if they've added one. The bullets are
+// computed right here from state -- no fetch -- so they show even in demo mode; only the saved lines
+// and the owner's edit flow need the server.
+function EpisodeSummary({ state, playerId }: { state: LeagueState; playerId: string }) {
+  const ep = latestScoredEpisode(state);
+  const leagueId = useLeagueStore((s) => (s.mode === "live" ? s.leagueId : null));
+  const isMine = useMyPlayerId() === playerId;
+  const { data } = useTeamSummary(leagueId, ep?.id ?? null);
+  const [editing, setEditing] = useState(false);
+  if (!ep) return null;
+  const bullets = episodeTeamBullets(state, ep.id, playerId);
+  if (bullets.length === 0) return null;
+  const why = data?.notes[playerId];
+
+  return (
+    <div className="border-t border-border px-3.5 py-2 text-xs text-muted-foreground">
+      <div className="mb-0.5 flex items-center justify-between gap-2">
+        <span className="text-[0.65rem] font-bold uppercase tracking-wide">Episode {ep.number}</span>
+        {isMine && leagueId && (
+          <Button variant="secondary" size="xs" onClick={() => setEditing(true)}>
+            {why ? "Edit" : "Add why it mattered"}
+          </Button>
+        )}
+      </div>
+      <ul className="flex flex-col gap-0.5">
+        {bullets.map((b) => (
+          <li key={b.kind} className="flex items-baseline gap-1.5">
+            <span className="w-4 shrink-0 text-center" aria-hidden>
+              {b.icon}
+            </span>
+            <span className={cn("min-w-0 flex-1", b.kind === "net" && "font-semibold text-foreground")}>{b.text}</span>
+            {b.points !== undefined && (
+              <span className={cn("shrink-0 font-mono", b.points < 0 ? "text-destructive" : "text-good")}>{fmt(b.points)}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {why && <p className="mt-1 italic text-foreground">&ldquo;{why}&rdquo;</p>}
+      {editing && leagueId && <EpisodeSummaryModal leagueId={leagueId} epId={ep.id} epNumber={ep.number} onClose={() => setEditing(false)} />}
     </div>
   );
 }
