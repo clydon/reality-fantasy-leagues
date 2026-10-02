@@ -84,7 +84,14 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
           out: exit !== undefined && ep.number > exit,
           scored,
           points: fielded ? scored : 0,
-          labels: fielded ? evs.map((e) => defs.find((d) => d.id === e.type)?.label ?? e.type) : [],
+          // Each scoring event on its own, with what it was worth (only when started -- it's what counted).
+          items: fielded
+            ? evs.map((e) => ({
+                id: e.id,
+                label: defs.find((d) => d.id === e.type)?.label ?? e.type,
+                points: StateLogic.ActiveRosterLogic.pointsFor(state, e.type),
+              }))
+            : [],
         };
       });
       return { c, current: c.ownerIds.includes(playerId), earned: castawayEarnedStats(state, playerId, c.id).total, perEpisode };
@@ -150,11 +157,23 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
                 {fielded.length === 0 ? (
                   <span className="italic text-muted-foreground">Never in the lineup.</span>
                 ) : (
+                  // Per episode: a header with its total, then each scoring event on its own line.
                   fielded.map((e) => (
-                    <div key={e.n} className="flex items-baseline gap-2">
-                      <span className="w-9 shrink-0 font-mono text-[0.65rem] font-semibold text-muted-foreground">Ep {e.n}</span>
-                      <span className="min-w-0 flex-1 text-muted-foreground">{e.labels.length ? e.labels.join(", ") : "—"}</span>
-                      <span className="shrink-0 font-mono">{e.points > 0 ? `+${e.points}` : e.points}</span>
+                    <div key={e.n} className="mb-1">
+                      <div className="flex items-baseline justify-between gap-2 font-semibold">
+                        <span className="font-mono text-[0.65rem] text-muted-foreground">Ep {e.n}</span>
+                        <span className="font-mono">{fmt(e.points)}</span>
+                      </div>
+                      {e.items.length === 0 ? (
+                        <div className="pl-3 text-muted-foreground">Started — nothing scored</div>
+                      ) : (
+                        e.items.map((it) => (
+                          <div key={it.id} className="flex items-baseline justify-between gap-2 pl-3">
+                            <span className="min-w-0 text-muted-foreground">{it.label}</span>
+                            <span className={cn("shrink-0 font-mono", it.points < 0 && "text-destructive")}>{fmt(it.points)}</span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   ))
                 )}
@@ -237,4 +256,9 @@ export function ScoreboardLegend() {
       </div>
     </details>
   );
+}
+
+// "+2", "-0.5", "0".
+function fmt(n: number) {
+  return n > 0 ? `+${n}` : String(n);
 }
