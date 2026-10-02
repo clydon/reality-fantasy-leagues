@@ -18,6 +18,7 @@ export function InvitesSection() {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const userId = useLeagueStore((s) => s.userId);
   const isCommissioner = useLeagueStore((s) => s.membership?.role === "commissioner");
+  const players = useLeagueStore((s) => s.state.players);
   const [invites, setInvites] = useState<LeagueInvite[]>([]);
   const [identifier, setIdentifier] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,9 @@ export function InvitesSection() {
   }, [mode, leagueId]);
 
   if (mode !== "live" || !leagueId) return null;
+
+  // A hand-over invite (sent from Players) names the seat it offers.
+  const seatName = (inv: LeagueInvite) => (inv.player_id ? players.find((p) => p.id === inv.player_id)?.name : null);
 
   async function handleSend() {
     const trimmed = identifier.trim();
@@ -90,6 +94,7 @@ export function InvitesSection() {
             return (
               <div key={inv.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
                 <span className="min-w-0 flex-1 truncate font-semibold">{inv.identifier}</span>
+                {seatName(inv) && <span className="text-xs text-muted-foreground">to take over {seatName(inv)}</span>}
                 <span className="text-xs text-muted-foreground">from {inv.invited_by_username ?? "unknown"}</span>
                 <span
                   className={

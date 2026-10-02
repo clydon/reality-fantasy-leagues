@@ -149,6 +149,24 @@ Grouped by area, with the file to start from.
 - Admin has "Preview What's New", which isn't recorded as seen.
 - Shipped releases: `2026-10-01`, `2026-10-01b`, `2026-10-02`, `2026-10-02b`.
 
+### Computer players (`src/lib/game/bot-logic.js`, `src/lib/server/bots.ts`, migration 0042)
+- League Settings → Players: "Computer player" beside the new-player name, and on any seat with no
+  account. A computer seat has a level (Casual / Solid / Sharp, `player.botLevel`, default Solid).
+- Bots play every league type and show: snake draft turns, blind-draft lock-ins, Active Roster
+  lineups, Eliminator Pool picks, replenish/swap turns, finale picks (once, after the merge or with
+  ≤10 left). Not predictions (free text).
+- They rate castaways from what the league already has: the show's own scoring events (recency
+  weighted), danger/safe signals by event id (`SIGNALS`, covers Survivor/Traitors/Challenge), tribe
+  numbers (Survivor only), unplayed idols, a known Traitor. Deterministic: a fixed per-bot "taste"
+  breaks ties, so running twice does nothing the second time.
+- They act inside `withLeagueLock` after every write, and `GET /state` runs them when one has a move
+  waiting that no write prompted (e.g. a scheduled draft start). A bot overrides manual changes to its
+  own seat; untick "Computer player" to play it by hand.
+- **Hand over…** (any seat with no account): an invite with `league_invites.player_id`. Accepting
+  takes that seat (renamed to their username, automation off) instead of adding a new player
+  (`joinLeague`'s `seatPlayerId`). If the seat is gone or taken by then, they join as a new player.
+- Tests: `tests/bots.test.js`.
+
 ### Admin
 - **Auto-research timing** is "N hours after each episode airs" (default 12, migration 0035,
   `research_delay_hours`). Seasons on the old weekday/time slot keep it until a delay is set.
@@ -180,8 +198,10 @@ Grouped by area, with the file to start from.
 | 0038 | `user_settings.whats_new_seen` |
 | 0039 | predictions above 3 points capped to 3 |
 | 0040 | `league_groups`, `leagues.group_id`, chat type `reveal` |
+| 0041 | `episode_team_notes` |
+| 0042 | `league_invites.player_id` (an invite that hands over a seat) |
 
-The next free number is **0041**. Production applies migrations on deploy (`npm run build` runs
+The next free number is **0043**. Production applies migrations on deploy (`npm run build` runs
 `db/migrate.js`).
 
 ## Local dev database: partly broken (user decision pending)

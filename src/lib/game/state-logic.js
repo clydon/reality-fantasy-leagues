@@ -1175,8 +1175,11 @@ class RosterLogic {
   // the new player starts inactive (no roster, excluded from draftOrder/scoring) until the
   // commissioner manually activates them via activatePlayer(). Joining before/during the draft
   // is unaffected -- they just fold into the normal snake order as always.
-  static addPlayer(state, name){
+  // opts.automated: a computer player (src/lib/game/bot-logic.js), which makes its own moves until a
+  // person takes the seat over.
+  static addPlayer(state, name, opts){
     const newPlayer = { id:Core.uid('p'), name, color: PALETTE[state.players.length % PALETTE.length], disabled:false, active:true };
+    if(opts && opts.automated) newPlayer.automated = true;
     const turn = DraftLogic.currentTurn(state); // reflects players/draftOrder BEFORE this one is added
     state.players.push(newPlayer);
     if(turn && turn.isComplete){

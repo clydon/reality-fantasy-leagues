@@ -12,6 +12,15 @@ export interface JoinLeagueResult {
   reclaimed: boolean;
 }
 
+// A seat an invite can hand over: still there, not disabled, and nobody's account on it yet. If it
+// isn't any more (removed, or someone else took it), the invite still lets them in, as a new player.
+async function takeableSeat(client: PoolClient, leagueId: string, state: LeagueState, playerId: string) {
+  const seat = state.players.find((p) => p.id === playerId && !p.disabled);
+  if (!seat) return null;
+  const linked = await client.query("SELECT 1 FROM league_memberships WHERE league_id=$1 AND player_id=$2", [leagueId, playerId]);
+  return linked.rows.length ? null : seat;
+}
+
 // The one "add this user to this league" path, shared by join-by-code (POST /api/leagues/join)
 // and accept-invite (POST /api/invites/[id]/accept). Runs as a single transaction with the
 // league row locked (same idea as withLeagueLock) so the state write and the membership insert
@@ -21,7 +30,8 @@ export interface JoinLeagueResult {
 export async function joinLeague(
   leagueId: string,
   user: SessionUser,
-  afterJoin?: (client: PoolClient) => Promise<void>
+  afterJoin?: (client: PoolClient) => Promise<void>,
+  seatPlayerId?: string | null
 ): Promise<JoinLeagueResult> {
   const client = await pool.connect();
   try {
@@ -35,8 +45,15 @@ export async function joinLeague(
 
     const state: LeagueState = league.state;
     const disabledOwn = state.players.find((p) => p.disabled && p.disabledFromUserId === user.id);
+    const seat = seatPlayerId ? await takeableSeat(client, league.id, state, seatPlayerId) : null;
     let playerId: string;
-    if (disabledOwn) {
+    if (seat) {
+      // Taking over a seat (an invite that hands one over): they become that player, team, points and
+      // history included, under their own name. A computer player stops playing it.
+      seat.name = (user as { username?: string | null }).username || user.name;
+      delete seat.automated;
+      playerId = seat.id;
+    } else if (disabledOwn) {
       StateLogic.reclaimPlayer(state, disabledOwn.id);
       playerId = disabledOwn.id;
     } else {

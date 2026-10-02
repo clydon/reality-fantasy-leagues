@@ -98,10 +98,11 @@ export const api = {
 
   // League invites live in their own table (league_invites), not the JSONB league state -- same
   // as chat, so these return their own shapes and have no mock-mode branch.
-  sendInvite: (leagueId: string, identifier: string) =>
+  // playerId: hand over that seat (a computer player, say) rather than adding a new one.
+  sendInvite: (leagueId: string, identifier: string, playerId?: string) =>
     localFetch<{ invite: LeagueInvite }>(`/api/leagues/${leagueId}/invites`, {
       method: "POST",
-      body: JSON.stringify({ identifier }),
+      body: JSON.stringify({ identifier, playerId }),
     }),
   listLeagueInvites: (leagueId: string) => localFetch<{ invites: LeagueInvite[] }>(`/api/leagues/${leagueId}/invites`),
   revokeInvite: (leagueId: string, inviteId: string) =>
@@ -360,8 +361,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ field, value }),
     }),
-  addPlayer: (leagueId: string, name: string) =>
-    localFetch<LeagueState>(`/api/leagues/${leagueId}/players`, { method: "POST", body: JSON.stringify({ name }) }),
+  addPlayer: (leagueId: string, name: string, automated = false) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/players`, { method: "POST", body: JSON.stringify({ name, automated }) }),
   updatePlayer: (leagueId: string, id: string, field: string, value: unknown) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}`, {
       method: "PATCH",

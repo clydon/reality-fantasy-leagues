@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
+import Bots from "@/lib/game/bot-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
-import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { pool, withLeagueLock, HttpError } from "@/lib/server/db";
 import { dropBlindPicksForPlayer } from "@/lib/server/blind-draft";
 
 // Port of SurvivorDraft's server/routes/roster.js PATCH/DELETE /players/:id -- commissioner-only.
@@ -11,6 +12,15 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
   await requireLeagueRole(req, leagueId, "commissioner");
   const { field, value } = (await req.json().catch(() => ({}))) as { field?: string; value?: unknown };
   if (!field) throw new HttpError(400, "field required");
+  if (field === "automated") {
+    if (typeof value !== "boolean") throw new HttpError(400, "automated must be true or false");
+    // A person's seat is theirs to play: only a seat with no account behind it can be a computer player.
+    const linked = await pool.query("SELECT 1 FROM league_memberships WHERE league_id=$1 AND player_id=$2", [leagueId, id]);
+    if (value && linked.rows.length) throw new HttpError(409, "That seat belongs to someone's account");
+  }
+  if (field === "botLevel" && !(typeof value === "string" && Object.hasOwn(Bots.LEVELS, value))) {
+    throw new HttpError(400, "Unknown level");
+  }
 
   const state = await withLeagueLock(leagueId, (s) => {
     StateLogic.updatePlayer(s, id, field, value);

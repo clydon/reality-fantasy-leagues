@@ -12,6 +12,10 @@ export interface Player {
   // Set by disablePlayer so the same account can reclaim the seat on rejoin (reclaimPlayer).
   formerName?: string;
   disabledFromUserId?: string;
+  /** A computer player (bot-logic.js): makes its own moves. Never set on a seat linked to an account. */
+  automated?: boolean;
+  /** How sharp a computer player plays (bot-logic.js's LEVELS); absent means "solid". */
+  botLevel?: "casual" | "solid" | "sharp";
 }
 
 export interface Tribe {
@@ -771,6 +775,8 @@ export interface LeagueInvite {
   invited_by_username: string | null;
   created_at: string;
   responded_at: string | null;
+  /** Set when the invite hands over a particular seat (a computer player, say) rather than adding one. */
+  player_id: string | null;
 }
 
 // A pending invite addressed to the signed-in user, as the Dashboard shows it (GET /api/me/invites).
@@ -780,4 +786,6 @@ export interface MyInvite {
   league_name: string;
   invited_by_username: string | null;
   created_at: string;
+  /** The seat they'd take over, when the invite hands one over (league_invites.player_id). */
+  seat_name: string | null;
 }

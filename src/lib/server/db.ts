@@ -3,6 +3,7 @@ import { Pool, type PoolClient } from "pg";
 import type { LeagueState } from "@/lib/game/types";
 import { HttpError } from "./http-error";
 import { stampAirTimes } from "./air-times";
+import { runBots } from "./bots";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
 // matching how SurvivorDraft's server/db.js bundles the same three together.
@@ -40,6 +41,8 @@ export async function withLeagueLock(
     // Every write leaves the league with an episode to play next (bets and picks always have
     // somewhere to go; nobody creates episodes by hand). See EpisodeLogic.ensureNextEpisode.
     StateLogic.ensureNextEpisode(state);
+    // Then any computer player's move this opened up (a turn, a new episode's lineup). See bots.ts.
+    await runBots(client, leagueId, state);
     await client.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), leagueId]);
     await client.query("COMMIT");
     return state;

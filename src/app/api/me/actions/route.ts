@@ -14,7 +14,8 @@ export const GET = apiRoute(async (req) => {
   // Pending invites first: unanswered, they're the easiest thing in the app to never notice (the
   // Dashboard's panel is only seen by someone who goes looking). Same match as /api/me/invites.
   const { rows: invites } = await pool.query(
-    `SELECT li.id, li.league_id, l.name AS league_name, inv.username AS invited_by
+    `SELECT li.id, li.league_id, l.name AS league_name, inv.username AS invited_by,
+            (SELECT p->>'name' FROM jsonb_array_elements(l.state->'players') p WHERE p->>'id' = li.player_id) AS seat_name
      FROM league_invites li
      JOIN leagues l ON l.id = li.league_id
      JOIN "user" u ON u.id = $1
@@ -31,7 +32,7 @@ export const GET = apiRoute(async (req) => {
   );
   const inviteItems = invites.map((r) => ({
     kind: "invite" as const,
-    text: `You're invited to join ${r.league_name}`,
+    text: r.seat_name ? `You're invited to take over ${r.seat_name}'s team` : `You're invited to join ${r.league_name}`,
     href: "/",
     inviteId: r.id as string,
     invitedBy: (r.invited_by as string | null) ?? null,

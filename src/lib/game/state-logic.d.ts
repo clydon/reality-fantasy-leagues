@@ -168,7 +168,7 @@ declare const StateLogic: {
   freeAgents(state: LeagueState): Castaway[];
   activeOwnedCount(state: LeagueState, playerId: string): number;
   totalCastCount(state: LeagueState): number;
-  addPlayer(state: LeagueState, name: string): Player;
+  addPlayer(state: LeagueState, name: string, opts?: { automated?: boolean }): Player;
   updatePlayer(state: LeagueState, id: string, field: string, value: unknown): void;
   removePlayer(state: LeagueState, id: string): void;
   disablePlayer(state: LeagueState, playerId: string, disabledFromUserId?: string): Player | null;

@@ -165,7 +165,9 @@ export function Dashboard() {
                   <div key={inv.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold">{inv.league_name}</div>
-                      <div className="text-xs text-muted-foreground">Invited by {inv.invited_by_username ?? "a league member"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {inv.seat_name ? `To take over ${inv.seat_name}'s team · ` : ""}Invited by {inv.invited_by_username ?? "a league member"}
+                      </div>
                     </div>
                     <Button size="sm" disabled={!!busy} onClick={() => handleAccept(inv)}>
                       {busy === `accept-${inv.id}` ? "Joining…" : "Accept"}
