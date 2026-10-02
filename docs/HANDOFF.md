@@ -19,15 +19,19 @@ their phone against production and reports back, often with screenshots or scree
   installed): crop the region that matters and diff consecutive frames to find the moment
   something changes.
 
-## Traitors scoring catalog (2026-10-02, not yet committed when written)
+## Traitors scoring (2026-10-02, branch `traitors-scoring-catalog`)
 
-`docs/RESEARCH-traitors-events.md` decided which Traitors events trusted recaps report reliably,
-and `src/lib/game/formats/traitors.js` now has them: 14 new events in 5 categories (Missions,
-Murder & the Turret, Round Table, Leaving, Endgame), **all at 0 points** pending a scoring-values
-pass like `docs/RESEARCH-scoring-values.md`. Traitors is read mostly from **recaps** via the
-copy-paste prompt, not the wiki. The checklist asks primitives (`isTraitor`, `votedFor` as a list,
-`accusedBy`) and code derives the Round Table outcomes. **Next:** set the point values, and add the
-trusted recap sites (Gold Derby, Today.com, Peacock, A.V. Club) to the show's research domains.
+- **Catalog:** `docs/RESEARCH-traitors-events.md` decided which Traitors events trusted recaps report
+  reliably. `src/lib/game/formats/traitors.js` has them: 14 new events in 5 categories (Missions,
+  Murder & the Turret, Round Table, Leaving, Endgame). Traitors is read mostly from **recaps** via
+  the copy-paste prompt, not the wiki. The checklist asks primitives (`isTraitor`, `votedFor` as a
+  list, `accusedBy`) and code derives the Round Table outcomes.
+- **Values:** `docs/RESEARCH-traitors-scoring-values.md`, from 20 finished English-language seasons
+  of fandom voting grids (scripts in `docs/research-scripts/traitors/`). Applied as the code
+  defaults. Main changes: shields 2 → 1, a Traitor mirror of "voted out a Traitor" so Traitors are
+  worth fielding, and a Traitor-win bonus. Settings inputs now step in 0.25.
+- **Next:** add the trusted recap sites (Gold Derby, Today.com, Peacock, A.V. Club) to the show's
+  research domains. Open: whether to score "voted out a Faithful" at 0.5.
 
 ## What shipped on 2026-10-01/02 (~60 commits, `fd15b0b..HEAD`)
 

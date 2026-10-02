@@ -138,7 +138,7 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
                     // Keyed on the value so "Use recommended values" (a whole-map write) refreshes every box.
                     key={`${ev.id}:${StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)}`}
                     type="number"
-                    step="0.5"
+                    step="0.25"
                     inputMode="decimal"
                     className="w-20"
                     disabled={!canManage}

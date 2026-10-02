@@ -1,8 +1,8 @@
 # Research: which Traitors events can be determined reliably
 
 **Status:** Decided and implemented, 2026-10-02 (`src/lib/game/formats/traitors.js`; tests in
-`tests/traitors-events.test.js`). Every new event is tracked at **0 points** until the scoring-values
-pass. Scoring values are deliberately out of scope; this decides the **catalog and its categories**, the
+`tests/traitors-events.test.js`). Point values were set afterwards from 20 seasons of data:
+`docs/RESEARCH-traitors-scoring-values.md`. Scoring values are deliberately out of scope; this decides the **catalog and its categories**, the
 way `docs/RESEARCH-extractable-stats.md` did for Survivor before `docs/RESEARCH-scoring-values.md`
 set the numbers.
 
@@ -203,7 +203,7 @@ wiki *schema* is unchanged: shortlists, `rno`, Dagger and Seer come from researc
 `validateLeniently` (db/episode-research.js) now wraps a lone name pasted where a list is expected,
 and reports the repair rather than failing the whole paste.
 
-**Not done:** any wiki-schema additions; per-league point values (the next pass).
+**Not done:** any wiki-schema additions. Point values: `docs/RESEARCH-traitors-scoring-values.md`.
 **Existing data:** research cached before this change has no `isTraitor`/`accusedBy`, so re-run it
 (Force) to get the new events. Wiki reads re-stage from cache with the new vote split; a Traitor
 previously staged `votedOutTraitor` will now be `turnedOnTraitor`.
