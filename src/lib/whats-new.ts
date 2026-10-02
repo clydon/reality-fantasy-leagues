@@ -10,11 +10,11 @@ export const WHATS_NEW = {
   date: "2026-10-01",
   // A one-line title each; `detail` only where it earns a tap (shown behind a chevron), and short.
   items: [
-    { title: "A helpful guide to what's next", detail: "A bar at the top shows what you still need to do, in any league. Tap it to go there." },
-    { title: "No Spoilers! - Results stay hidden until you're ready", detail: "Tap “Results are in!” to see them. Turn this off in Account settings." },
-    { title: "Push notification reminders before each episode", detail: "If your lineup, pick or a prediction is still open. Turn on notifications in Account settings." },
-    { title: "Redesigned lineup screen", detail: "Spot empty slots, see your roster by tribe and how starters score — and everyone's starters on Overview." },
-    { title: "Redesigned scoreboard", detail: "What each castaway earned you, week by week." },
-    { title: "New scoring: jury votes, fire-making, reward picks" },
-  ] as { title: string; detail?: string }[],
+    { icon: "🧭", title: "A helpful guide to what's next", detail: "A bar at the top shows what you still need to do, in any league. Tap it to go there." },
+    { icon: "🙈", title: "No Spoilers! - Results stay hidden until you're ready", detail: "Tap “Results are in!” when you've watched. Rather see them right away? You can change this in Account settings." },
+    { icon: "🔔", title: "Push notification reminders before each episode", detail: "If your lineup, pick or a prediction is still open. Turn on notifications in Account settings." },
+    { icon: "📋", title: "Redesigned lineup screen", detail: "Spot empty slots, see your roster by tribe and how starters score — and everyone's starters on Overview." },
+    { icon: "📊", title: "Redesigned scoreboard", detail: "What each castaway earned you, week by week." },
+    { icon: "🔥", title: "New scoring: jury votes, fire-making, reward picks" },
+  ] as { icon: string; title: string; detail?: string }[],
 };

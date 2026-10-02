@@ -61,36 +61,50 @@ export function WhatsNewModal() {
 
   return (
     <div className="fixed inset-0 z-[1900] flex items-center justify-center bg-black/50 p-4" onClick={(e) => e.target === e.currentTarget && dismiss()}>
-      <div role="dialog" aria-labelledby="whats-new-title" className="flex max-h-[85vh] w-full max-w-[440px] flex-col rounded-lg bg-card shadow-md">
-        <h3 id="whats-new-title" className="border-b border-border px-5 pb-3 pt-4 text-lg font-bold">
-          What&rsquo;s new
-        </h3>
+      <div
+        role="dialog"
+        aria-labelledby="whats-new-title"
+        className="whats-new-pop flex max-h-[85vh] w-full max-w-[440px] flex-col overflow-hidden rounded-xl bg-card shadow-xl"
+      >
+        {/* A splash of the brand colour up top: new features should feel like news. */}
+        <div className="bg-gradient-to-br from-primary to-[#e8a25a] px-5 pb-4 pt-5 text-white">
+          <h3 id="whats-new-title" className="flex items-center gap-2 text-xl font-bold">
+            <span aria-hidden>✨</span> What&rsquo;s new
+          </h3>
+          <p className="mt-0.5 text-sm text-white/85">Fresh in this update</p>
+        </div>
         {/* One line each; a chevron opens the short detail where there is one. */}
         <ul className="flex flex-col divide-y divide-border overflow-y-auto px-2 py-1">
           {WHATS_NEW.items.map((it) =>
             it.detail ? (
               <li key={it.title}>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-semibold"
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold"
                   aria-expanded={expanded === it.title}
                   onClick={() => setExpanded(expanded === it.title ? null : it.title)}
                 >
+                  <span className="w-6 shrink-0 text-center text-lg" aria-hidden>
+                    {it.icon}
+                  </span>
                   <span className="min-w-0 flex-1">{it.title}</span>
                   <ChevronDownIcon
                     className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", expanded === it.title && "rotate-180")}
                   />
                 </button>
-                {expanded === it.title && <p className="px-3 pb-2.5 text-sm text-muted-foreground">{it.detail}</p>}
+                {expanded === it.title && <p className="pb-2.5 pl-[2.875rem] pr-3 text-sm text-muted-foreground">{it.detail}</p>}
               </li>
             ) : (
-              <li key={it.title} className="px-3 py-2.5 text-sm font-semibold">
+              <li key={it.title} className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-semibold">
+                <span className="w-6 shrink-0 text-center text-lg" aria-hidden>
+                  {it.icon}
+                </span>
                 {it.title}
               </li>
             )
           )}
         </ul>
         <div className="flex justify-end border-t border-border px-5 py-3">
-          <Button onClick={dismiss}>Got it</Button>
+          <Button onClick={dismiss}>Let&rsquo;s go!</Button>
         </div>
       </div>
     </div>
