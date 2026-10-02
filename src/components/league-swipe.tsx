@@ -103,9 +103,21 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; t: number; axis: "x" | "y" | null; dx: number; dir: "prev" | "next" | null } | null>(null);
+  // Which neighbour is showing, and from how far down the page (so it lines up with what's on screen).
   const [peek, setPeek] = useState<{ dir: "prev" | "next"; top: number } | null>(null);
-  const neighbour = peek ? (peek.dir === "prev" ? prev : next) : undefined;
-  const peekStore = useMemo(() => (neighbour ? makePeekStore(neighbour) : null), [neighbour]);
+  const prevStore = useMemo(() => (prev ? makePeekStore(prev) : null), [prev]);
+  const nextStore = useMemo(() => (next ? makePeekStore(next) : null), [next]);
+  // Both neighbours' pages are drawn AHEAD, hidden, a moment after a page opens -- not when a drag
+  // starts. Drawing a heavy page (Episodes, Scoreboard) mid-gesture froze the phone long enough for it
+  // to drop the swipe; ready in advance, a swipe only has to show it.
+  const [warm, setWarm] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset per page, then warmed after a beat
+    setWarm(false);
+    if (!enabled) return;
+    const t = window.setTimeout(() => setWarm(true), 400);
+    return () => window.clearTimeout(t);
+  }, [enabled, pathname]);
 
   // How far the page moves to land on a neighbour: the page area's own width (narrower than the
   // screen -- main has side padding) plus the gap. The screen width overshot by that padding, and the
@@ -147,6 +159,7 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
           return;
         }
         const wrapTop = (wrapRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY;
+        setWarm(true);
         setPeek({ dir: d.dir, top: Math.max(0, window.scrollY - wrapTop) });
         useSwipeProgress.setState({ targetName: res.league.name, dragging: true });
       }
@@ -205,17 +218,31 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
     >
       <div ref={trackRef} className="relative">
         {children}
-        {peek && peekStore && (
-          <div
-            className="pointer-events-none absolute w-full"
-            style={{ top: peek.top, left: peek.dir === "next" ? `calc(100% + ${GAP}px)` : `calc(-100% - ${GAP}px)` }}
-            aria-hidden
-          >
-            <PeekContext.Provider value={true}>
-              <LeagueStoreContext.Provider value={peekStore}>{children}</LeagueStoreContext.Provider>
-            </PeekContext.Provider>
-          </div>
-        )}
+        {warm &&
+          ([
+            ["prev", prevStore],
+            ["next", nextStore],
+          ] as const).map(([dir, store]) =>
+            store ? (
+              // One screen of it, clipped -- enough to peek at, and a hidden neighbour never makes the
+              // page taller than its own content.
+              <div
+                key={dir}
+                className="pointer-events-none absolute w-full overflow-hidden"
+                style={{
+                  top: peek?.dir === dir ? peek.top : 0,
+                  height: "100dvh",
+                  left: dir === "next" ? `calc(100% + ${GAP}px)` : `calc(-100% - ${GAP}px)`,
+                  visibility: peek?.dir === dir ? "visible" : "hidden",
+                }}
+                aria-hidden
+              >
+                <PeekContext.Provider value={true}>
+                  <LeagueStoreContext.Provider value={store}>{children}</LeagueStoreContext.Provider>
+                </PeekContext.Provider>
+              </div>
+            ) : null
+          )}
       </div>
     </div>
   );
