@@ -1,44 +1,129 @@
 # Backlog
 
-User feedback triage (2026-10-01). Companions worth doing together: #2+#11, #7+#15, #8+#18, #24+#26+#28.
-Check existing `docs/PLAN-*.md` before designing — e.g. #4 and #22 overlap `PLAN-spoiler-free-catch-up.md`.
+What's open, newest thinking first. **Decided against** and **done** are kept below so a later
+session doesn't re-propose them. Context for everything here is in `docs/HANDOFF.md`.
 
-## Bugs
-1. ~~DONE~~ My Leagues dropdown still flashes unsorted — sort at fetch time (add a sort param if needed), not after render.
-2. ~~DONE~~ Desktop sidebar: league name + type/commissioner row overflow, horizontal scroll.
-3. ~~DONE~~ Clicking outside the expanded My Leagues menu doesn't close it.
-4. ~~DONE~~ Catch-up league (S49 Active Roster, 13 episodes) offers "reveal episode 14" after Sole Survivor is decided — season is over.
-5. ~~DONE~~ Draft: order is set, but the user section below isn't sorted to match.
-6. ~~DONE~~ Active Roster → Draft shows fewer players than drafted — always show original picks.
-7. ~~DONE~~ Research: episodes before league start aren't tracked (episode 1 stats missing).
-8. ~~DONE~~ Dark mode selector cut off on mobile.
-9. ~~DONE~~ Active Roster → Scoreboard → Roster detail: cluttered everywhere, text escapes cards on desktop (demo season). Rethink, mobile first.
-10. Members joining a started league just appear in standings — no defined path after "activate" (see #31).
+Last updated 2026-10-02.
 
-## Quick tweaks
-11. ~~DONE~~ Widen the sidebar slightly (with #2).
-12. ~~DONE~~ Remove the post-merge checkbox — episode data retrieval determines it.
-13. ~~DONE~~ Episodes page: all episodes collapsed by default.
-14. ~~DONE~~ Rename "bets" → "predictions" everywhere.
-15. ~~DONE~~ Research: "Hide eliminated" off by default; "Include own castaways" on by default.
-16. ~~DONE~~ Color picker: accept hex input (to sync colors across leagues).
+## Open: needs design or a decision first
 
-## Design / copy decisions
-17. ~~DONE~~ Dark palette too dark — lighter pass; add dark-mode logo variant.
-18. ~~DONE~~ Desktop: move dark mode selector to Account Settings (mobile keeps its spot, fix #8).
-19. ~~DONE~~ Wiki Connector section in League Settings confusing for non-commissioners, possibly obsolete — simplify, hide, or cut.
+1. **Members joining a started league** (from feedback #10/#31). Today they just appear in
+   standings, and after a commissioner "activates" them there's no defined path.
+   - Can an activated member draft? Should there be a starting-points adjustment?
+   - Should it vary by league type or ownership (Classic draft / Active Roster / Eliminator Pool;
+     shared vs exclusive)?
+   - Possibly a commissioner-set starting score.
+   - Brainstorm before building. It's also an onboarding problem: a late joiner should always have a
+     clear next step in the action bar.
+2. **"How this league works" cards.** A dismissible card per league type on Overview (rules, what
+   scores, when lineups lock), reachable again from a "?". Proposed as the answer to "people don't
+   know what to do" without a guided tour.
+3. **"You're all set" confirmation.** The user's idea: a green bar saying "you're all set" that
+   disappears after 5 seconds, shown when nothing is due. They asked to test the app first before
+   deciding. Pairs with #2.
+4. **Combined leaderboard across linked leagues.** One standings view across the three linked
+   leagues (a "decathlon"). Offered, not decided.
+5. **Email reminders as a fallback** for players without push. Reuse `db/reminders.js` and the app's
+   existing Resend email; same once-per-episode rule. Only worth it if reminders prove valuable.
+6. **"Learned about someone's idol/advantage" points.** It's tracked at 0 now. After a few
+   researched episodes, compare research's answers with the episodes in Admin's review. Then 0.5 if
+   reliable, 0.25 if mixed, or keep at 0. Avoid ≥1 unless very accurate.
+7. **Local dev DB repair** (see HANDOFF): re-apply 0017–0024 (minus 0016/0023, which need
+   pgvector), then 0033–0040. Needs the user's go-ahead.
 
-## Features (brainstorm first)
-20. ~~DONE~~ End-of-season results card on Overview, winner callout with confetti popping out of the card.
-21. ~~DONE~~ Active Roster episode sub-header: top 3 users that episode with gold/silver/bronze numbered circles + points.
-22. ~~DONE~~ Spoiler protection: pause results/scores, designed so it can't hide results longer than intended.
-23. ~~DONE~~ Account Settings: "test" button per notification toggle.
-24. ~~DONE~~ Redesign "Your lineup for episode X": Active section with dashed-outline empty slots, separator, roster below sorted by current tribe with tribe badge centered above each photo.
-25. ~~DONE~~ New scoring option: "No Final Tribal Council votes" (goat penalty for a finalist in your starting lineup).
-26. ~~DONE~~ Collapsed-by-default condensed scoring chart inside "Your lineup for episode X".
-27. ~~DONE~~ App-wide bold action-needed bar: elimination pick, incomplete lineup, pending prediction, draft turn, mid-season turn. One at a time with `<` / `>`, each links to the right league/page.
-28. ~~DONE~~ (Partly exists: ActiveRosterLogic.lineupFor already carries the last set lineup forward -- verify the eliminated-starter case.) Starters carry over week to week; an eliminated starter leaves an empty slot.
-29. ~~DONE~~ Active Roster Board → "This Week's Starters": row per user (starters, right-aligned bench), then compact tribe-grouped cast view showing who's drafted.
-30. (PARTLY DONE: invites and reminders are in -- action bar + db/reminders.js) Notifications/invites: global persistent surface, reminders; "You're Invited" on Join/Create is too subtle and invisible if already in a league.
-31. Joining mid-season: can activated members draft? Starting-points adjustment? Varies by draft type/ownership/rules?
-32. (BACKBURNER 2026-10-01: too many moving parts, a tour would go stale fast) Onboarding / guided walkthrough (coachmarks highlighting e.g. the lineup section when action is needed) — research libraries/UX patterns.
+## Open: small or polish
+
+8. **League swipe tuning.** Everything is a constant at the top of `league-swipe.tsx`: DEAD_ZONE
+   18px, GAP 32px, EDGE 28px, settle at 30% of the width or a flick. Watch for jank on older phones,
+   since both neighbours' pages are pre-rendered. The fallback idea was a lighter peek (name + first
+   card).
+9. **Notification test copy** in `push-core.js` `sample` messages: review the wording when there's a
+   moment.
+10. **Predictions lock?** A player asked whether predictions should close when the episode starts.
+    The user decided to keep them open for now ("a bit of nuance in what should be allowed").
+    Revisit if it causes disputes.
+
+## Decided against (don't re-propose without new information)
+
+- **A guided onboarding tour / coachmarks:** backburnered. Too many moving parts; it would go stale
+  fast.
+- **A notification bell/inbox:** the action bar already lists everything actionable, and a bell
+  would mostly repeat it. Revisit only if people ask for "what did I miss" history.
+- **"Survived the episode" points:** skipped. It's a baseline everyone earns, so not much signal.
+- **"Made the merge" / "made the jury" points:** skipped.
+- **"Vote cancelled by an idol" (−0.5), "Shot in the Dark played and safe" (+1) and "played an idol
+  for someone else" (+1):** offered, not chosen.
+- **"Each vote against you":** clashes with the existing "+1 survived votes".
+- **Confessional counts, "big moves", blindsides:** not on the wiki, so research would guess.
+- **Chat in spoiler protection:** someone reading chat is choosing to risk spoilers.
+- **Tags on chat messages saying which league they're about:** one conversation, no tags.
+
+## Done (2026-10-01/02)
+
+From the original feedback triage, all done:
+
+- **Bugs:**
+  - league dropdown flash
+  - sidebar overflow
+  - click-outside closing the league menu
+  - catch-up "reveal episode 14" after the finale
+  - draft order sorting
+  - missing original draft picks
+  - Research missing pre-league episodes
+  - mobile theme picker cut off
+  - Scoreboard roster detail
+- **Tweaks:**
+  - wider sidebar
+  - no post-merge checkbox
+  - episodes collapsed by default
+  - bets → predictions
+  - Research defaults
+  - hex colour input
+- **Design:**
+  - lighter dark mode and dark logo
+  - theme picker in Account
+  - Wiki Connector trimmed
+- **Features:**
+  - season results card with confetti
+  - top-3 players per episode
+  - spoiler protection
+  - notification tests
+  - lineup redesign and scoring chart
+  - goat penalty
+  - action bar
+  - starters carry over
+  - Overview Board as this week's starters
+  - invites in the bar
+  - episode reminders
+
+Since then:
+
+- **Scoring:**
+  - endgame jury votes
+  - fire-making +2/−1
+  - chosen for a reward
+  - the advantage-knowledge category, tracked at 0
+  - predictions capped at 1–3
+  - scoring categories in the chart and League Settings
+- **Locks:** lineups and picks lock at air time.
+- **Starters board:** live starters, with an optional "hide until it airs" (grey "?" squares).
+- **Scoreboard:** bars as a centre-line chart (gains up/losses down, benched outlines), per-event
+  breakdown lines, one legend per page.
+- **Linked leagues:** shared chat, one reveal for all, reveal lines in chat, automated chat lines
+  retired.
+- **League swipe** with a live peek and a rolling title.
+- **What's New:**
+  - one-time popup with stacking releases
+  - Admin preview
+  - the More/sidebar link with "See older releases"
+  - "Show me" links
+- **Admin:**
+  - spoiler-free review and research
+  - auto-research "N hours after air"
+- **Notifications nudge** in the action bar.
+- **Chat:** fills the screen and stays above the keyboard; correct unread badge.
+- **Mobile fixes:**
+  - More-sheet links
+  - swipe-down to close
+  - tab bar painting on the season-complete page
+- **Demo seasons:** fixed for all of the above.
