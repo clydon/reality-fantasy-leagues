@@ -46,8 +46,8 @@ export function ResearchTab() {
   const [team, setTeam] = useState("");
   const [hideOut, setHideOut] = useState(false);
   // Episodes before the league's start episode: scored for nobody, but still how a castaway played.
-  // On by default; off for "only what counts in this league".
-  const [includePreseason, setIncludePreseason] = useState(true);
+  // Off by default -- only what counts in this league -- and not remembered: each visit starts there.
+  const [includePreseason, setIncludePreseason] = useState(false);
   const [sort, setSort] = useState<Sort>("points");
   const [open, setOpen] = useState<string | null>(null);
 
@@ -59,7 +59,6 @@ export function ResearchTab() {
         if (WINDOWS.some(([w]) => w === saved.window)) setWindow(saved.window);
         if (typeof saved.includeOwned === "boolean") setIncludeOwned(saved.includeOwned);
         if (typeof saved.hideOut === "boolean") setHideOut(saved.hideOut);
-        if (typeof saved.includePreseason === "boolean") setIncludePreseason(saved.includePreseason);
         if (["points", "avg", "last"].includes(saved.sort)) setSort(saved.sort);
         /* eslint-enable react-hooks/set-state-in-effect */
       }
@@ -69,11 +68,11 @@ export function ResearchTab() {
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ window, includeOwned, hideOut, includePreseason, sort }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ window, includeOwned, hideOut, sort }));
     } catch {
       /* not remembered this time */
     }
-  }, [window, includeOwned, hideOut, includePreseason, sort]);
+  }, [window, includeOwned, hideOut, sort]);
 
   const startEp = StateLogic.startEpisode(state);
   const { rows, episodeNumbers } = useMemo(
