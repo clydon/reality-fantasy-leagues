@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
-import { withLeagueLock, HttpError, insertSystemMessage } from "@/lib/server/db";
+import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { notifyBetResult } from "@/lib/server/push-events";
 
 type RouteParams = { leagueId: string; epId: string; betId: string; predId: string };
@@ -37,17 +37,8 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     StateLogic.setBetPredictionCorrect(s, epId, betId, predId, value ?? null);
   });
 
-  if (value === true || value === false) {
-    const ep = state.episodes.find((e) => e.id === epId);
-    const bet = ep && (ep.bets || []).find((b) => b.id === betId);
-    const pred = bet && bet.predictions.find((p) => p.id === predId);
-    const player = pred ? StateLogic.getPlayer(state, pred.playerId) : null;
-    if (bet && player) {
-      const verb = value ? "correctly guessed" : "incorrectly guessed";
-      insertSystemMessage(leagueId, `${player.name} ${verb} on "${bet.label}"`).catch(() => {});
-    }
-    notifyBetResult(leagueId, state, epId, betId, predId, value);
-  }
+  // No chat line for a graded guess any more (migration 0040) -- the push and the card say it.
+  if (value === true || value === false) notifyBetResult(leagueId, state, epId, betId, predId, value);
 
   return NextResponse.json(state);
 });

@@ -31,7 +31,7 @@ export function ChatTab() {
       (r) => r.userId !== last.user_id && r.userId !== userId && r.playerId !== myPlayerId && r.playerId !== last.user_id
     );
     const readers = others.filter((r) => r.lastReadAt && new Date(r.lastReadAt) >= new Date(last.created_at));
-    const nameOf = (r: (typeof reads)[number]) => state.players.find((p) => p.id === r.playerId)?.name ?? "someone";
+    const nameOf = (r: (typeof reads)[number]) => state.players.find((p) => p.id === r.playerId)?.name ?? r.name ?? "someone";
     if (others.length > 0 && readers.length === others.length) readLabel = "Read by all";
     else if (readers.length > 0) readLabel = `Read by ${readers.map(nameOf).join(", ")}`;
   }

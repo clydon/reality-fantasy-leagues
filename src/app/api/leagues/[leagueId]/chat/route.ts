@@ -4,24 +4,40 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { withReactions } from "@/lib/server/chat";
 import { notifyChat } from "@/lib/server/push-events";
+import { groupLeagueIds } from "@/lib/server/league-groups";
 
-// Port of SurvivorDraft's server/routes/chat.js GET/POST /.
+// Port of SurvivorDraft's server/routes/chat.js GET/POST /. A linked league's chat is its whole
+// group's (league-groups.ts): every linked league's messages, read together -- one conversation.
+// The old automated result lines ('system') aren't shown any more; 'reveal' lines are ("conor
+// revealed episode 9", the results-seen route).
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
   await requireLeagueRole(req, leagueId, "member");
+  const ids = await groupLeagueIds(leagueId);
 
+  // The newest 300, oldest first.
   const { rows } = await pool.query(
-    `SELECT id, user_id, author_name, type, text, created_at, edited_at
-     FROM chat_messages WHERE league_id=$1 ORDER BY created_at ASC LIMIT 300`,
-    [leagueId]
+    `SELECT * FROM (
+       SELECT id, user_id, author_name, type, text, created_at, edited_at
+         FROM chat_messages WHERE league_id = ANY($1::uuid[]) AND type <> 'system'
+        ORDER BY created_at DESC LIMIT 300) recent
+     ORDER BY created_at ASC`,
+    [ids]
   );
-  // Every member and how far they've read (null = never opened chat), for "Read by" labels.
+  // Everyone in the conversation and how far they've read (null = never opened it), for "Read by":
+  // one row per person across the group, with their name for anyone who isn't a player in the
+  // league being viewed.
   const { rows: reads } = await pool.query(
-    `SELECT m.user_id AS "userId", m.player_id AS "playerId", r.last_read_at AS "lastReadAt"
+    `SELECT m.user_id AS "userId",
+            (array_agg(m.player_id) FILTER (WHERE m.league_id = $2))[1] AS "playerId",
+            max(r.last_read_at) AS "lastReadAt",
+            COALESCE(max(u.username), max(u.name)) AS "name"
        FROM league_memberships m
+       JOIN "user" u ON u.id = m.user_id
        LEFT JOIN chat_reads r ON r.league_id = m.league_id AND r.user_id = m.user_id
-      WHERE m.league_id=$1`,
-    [leagueId]
+      WHERE m.league_id = ANY($1::uuid[])
+      GROUP BY m.user_id`,
+    [ids, leagueId]
   );
   return NextResponse.json({ messages: await withReactions(rows), reads });
 });

@@ -59,6 +59,15 @@ export const api = {
   stopImpersonating: () => localFetch<{ ok: true }>("/api/auth/admin/stop-impersonating", { method: "POST", body: "{}" }),
   leagueState: (leagueId: string) =>
     localFetch<LeagueStateResponse>(`/api/leagues/${leagueId}/state`),
+  // Linked leagues (league-groups.ts): one shared chat and reveal for the same friends' leagues.
+  getLeagueLinks: (leagueId: string) =>
+    localFetch<{
+      linked: { id: string; name: string }[];
+      candidates: { id: string; name: string; problem: string | null; joiningUs: string[]; joiningThem: string[] }[];
+    }>(`/api/leagues/${leagueId}/link`),
+  linkLeague: (leagueId: string, otherLeagueId: string) =>
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "POST", body: JSON.stringify({ otherLeagueId }) }),
+  unlinkLeague: (leagueId: string) => localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "DELETE" }),
   // Spoiler protection: this member has now seen results through episode `through`.
   markResultsSeen: (leagueId: string, through: number) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/results-seen`, { method: "POST", body: JSON.stringify({ through }) }),

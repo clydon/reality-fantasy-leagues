@@ -719,15 +719,19 @@ export interface ChatReaction {
 /** How far one league member has read chat (null = never opened it). */
 export interface ChatRead {
   userId: string;
-  playerId: string;
+  /** Their player in the league being viewed; null when they're only in a linked league. */
+  playerId: string | null;
   lastReadAt: string | null;
+  /** Their account name, for anyone who isn't a player in the league being viewed. */
+  name?: string | null;
 }
 
 export interface ChatMessage {
   id: string;
   user_id: string | null;
   author_name: string;
-  type: "message" | "system";
+  /** "system": the retired automated result lines (no longer shown). "reveal": "conor revealed episode 9". */
+  type: "message" | "system" | "reveal";
   text: string;
   created_at: string;
   edited_at: string | null;

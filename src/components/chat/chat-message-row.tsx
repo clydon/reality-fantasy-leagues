@@ -26,8 +26,9 @@ export function ChatMessageRow({ m, state }: { m: ChatMessage; state: LeagueStat
   const { edit, remove, react } = useChatStore();
 
   const isOwn = mode === "mock" ? m.user_id === DEMO_VISITOR_ID : !!userId && m.user_id === userId;
-  const canEdit = m.type !== "system" && (isOwn || canManage);
-  const canDelete = m.type !== "system" && (isOwn || canManage);
+  // A reveal line ("conor revealed episode 9") can't be edited; a commissioner can still remove one.
+  const canEdit = m.type === "message" && (isOwn || canManage);
+  const canDelete = m.type === "message" ? isOwn || canManage : canManage;
   const mine = mode === "mock" ? DEMO_VISITOR_ID : userId;
 
   async function handleDelete() {
@@ -78,6 +79,22 @@ export function ChatMessageRow({ m, state }: { m: ChatMessage; state: LeagueStat
       </div>
     </div>
   );
+
+  if (m.type === "reveal") {
+    return (
+      <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        <span className="font-semibold">👀 {m.text}</span>
+        <span>{formatDateTime(m.created_at)}</span>
+        <span className="h-px flex-1 bg-border" />
+        {canDelete && (
+          <button title="Remove" onClick={handleDelete}>
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
 
   if (m.type === "system") {
     return (

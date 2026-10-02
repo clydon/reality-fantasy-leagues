@@ -3,6 +3,7 @@ import type { LeagueState } from "@/lib/game/types";
 import { pool } from "./db";
 import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName } from "./push-targets";
 import { splitBySpoilerProtection } from "./results-seen";
+import { groupMemberUserIds } from "./league-groups";
 
 // One function per pushable event, so each route's trigger is a single line and all the "who gets
 // this, and what does it say" decisions live together in one reviewable place.
@@ -139,7 +140,8 @@ export function notifyBetResult(leagueId: string, state: LeagueState, epId: stri
 /** New chat message: everyone but the author. One notification per league, kept up to date. */
 export function notifyChat(leagueId: string, authorUserId: string, authorName: string, text: string) {
   notifyAfter("chat", async () => ({
-    userIds: await leagueMemberUserIds(leagueId, authorUserId),
+    // Everyone in the conversation: a linked league's chat is its whole group's (league-groups.ts).
+    userIds: await groupMemberUserIds(leagueId, authorUserId),
     message: {
       title: await leagueName(leagueId),
       body: truncate(`${authorName}: ${text}`),

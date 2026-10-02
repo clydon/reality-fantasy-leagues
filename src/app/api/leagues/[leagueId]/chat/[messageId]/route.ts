@@ -3,19 +3,20 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { withReactions } from "@/lib/server/chat";
+import { groupLeagueIds } from "@/lib/server/league-groups";
 
 type RouteParams = { leagueId: string; messageId: string };
 
 // Port of SurvivorDraft's server/routes/chat.js PATCH/DELETE /:messageId -- the message's own
-// author can edit/delete it; commissioner/super-admin can act on anyone's. System messages can't
-// be touched at all.
+// author can edit/delete it; commissioner/super-admin can act on anyone's. A reveal line can't be
+// edited, and only a commissioner can remove one. Works across a linked league's whole group chat.
 export const PATCH = apiRoute(async (req, { params }: { params: Promise<RouteParams> }) => {
   const { leagueId, messageId } = await params;
   const { user, membership } = await requireLeagueRole(req, leagueId, "member");
 
-  const existing = await pool.query("SELECT user_id, type FROM chat_messages WHERE id=$1 AND league_id=$2", [messageId, leagueId]);
+  const existing = await pool.query("SELECT user_id, type FROM chat_messages WHERE id=$1 AND league_id = ANY($2::uuid[])", [messageId, await groupLeagueIds(leagueId)]);
   if (!existing.rows.length) throw new HttpError(404, "Message not found");
-  if (existing.rows[0].type === "system") throw new HttpError(400, "System messages cannot be edited");
+  if (existing.rows[0].type !== "message") throw new HttpError(400, "Only messages can be edited");
   const isOwner = existing.rows[0].user_id === user.id;
   if (!isOwner && membership.role !== "commissioner") throw new HttpError(403, "You can only edit your own messages");
 
@@ -34,9 +35,9 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<RoutePa
   const { leagueId, messageId } = await params;
   const { user, membership } = await requireLeagueRole(req, leagueId, "member");
 
-  const existing = await pool.query("SELECT user_id, type FROM chat_messages WHERE id=$1 AND league_id=$2", [messageId, leagueId]);
+  const existing = await pool.query("SELECT user_id, type FROM chat_messages WHERE id=$1 AND league_id = ANY($2::uuid[])", [messageId, await groupLeagueIds(leagueId)]);
   if (!existing.rows.length) throw new HttpError(404, "Message not found");
-  if (existing.rows[0].type === "system") throw new HttpError(400, "System messages cannot be deleted");
+  if (existing.rows[0].type !== "message" && membership.role !== "commissioner") throw new HttpError(400, "Only messages can be deleted");
   const isOwner = existing.rows[0].user_id === user.id;
   if (!isOwner && membership.role !== "commissioner") throw new HttpError(403, "You can only delete your own messages");
 

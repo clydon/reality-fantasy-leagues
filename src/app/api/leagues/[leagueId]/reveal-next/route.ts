@@ -5,6 +5,7 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, withLeagueLock, HttpError } from "@/lib/server/db";
 import { approvedCastForLeague, tribesDue } from "@/lib/server/season-cast";
 import { syncLeagueDecisions } from "@/lib/server/season-decisions";
+import { groupLeagueIds } from "@/lib/server/league-groups";
 
 // Catch-up mode's one moving part: reveal the next episode (StateLogic.RevealLogic).
 //
@@ -15,16 +16,19 @@ import { syncLeagueDecisions } from "@/lib/server/season-decisions";
 //
 // One-way, like the pointer itself: there's no un-reveal route, because by the time anyone wants
 // one the room has already seen the episode (and may have scored it).
-export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
-  const { leagueId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
-
+// The reveal for one league, in one lock. `expectFrom` (linked leagues): only if that league was at
+// the same episode as the one revealing.
+async function revealNextIn(leagueId: string, expectFrom?: number) {
   let revealed: number | null = null;
   let tribed: string[] = [];
   let applied = 0;
   let skipped: { name: string; why: string }[] = [];
   let seasonId: string | null = null;
   const state = await withLeagueLock(leagueId, async (s, client) => {
+    // A linked league only follows when it was at the same episode: it reveals in step, never jumps.
+    if (expectFrom !== undefined && StateLogic.RevealLogic.revealedThrough(s) !== expectFrom) {
+      throw new HttpError(409, "Not in step with the league that revealed");
+    }
     if (!StateLogic.RevealLogic.isCatchingUp(s)) {
       throw new HttpError(400, "This league isn't catching up — results arrive as soon as they're decided.");
     }
@@ -58,6 +62,23 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     );
     seasonId = rows.length ? rows[0].id : null;
   });
+
+  return { state, revealed: revealed as number | null, tribed, applied, skipped, seasonId: seasonId as string | null };
+}
+
+export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
+  const { leagueId } = await params;
+  await requireLeagueRole(req, leagueId, "commissioner");
+
+  const { state, revealed, tribed, applied, skipped, seasonId } = await revealNextIn(leagueId);
+
+  // Linked leagues (league-groups.ts) reveal together: each one that was at the same episode
+  // reveals this one too. One that isn't in step (or isn't catching up) is left as it is.
+  if (revealed !== null) {
+    for (const id of await groupLeagueIds(leagueId)) {
+      if (id !== leagueId) await revealNextIn(id, revealed - 1).catch(() => {});
+    }
+  }
 
   // Results still awaiting the admin's review for this episode: they'll land on their own once
   // decided (an admin decision syncs every league on the season), and the panel should say so rather

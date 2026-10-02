@@ -52,10 +52,3 @@ export async function withLeagueLock(
 }
 
 // A subtle, non-editable feed entry (episode eliminations, resolved bets) attributed to no user.
-// Direct port of SurvivorDraft's server/db.js insertSystemMessage.
-export async function insertSystemMessage(leagueId: string, text: string) {
-  await pool.query(
-    `INSERT INTO chat_messages (league_id, user_id, author_name, type, text) VALUES ($1, NULL, 'System', 'system', $2)`,
-    [leagueId, text]
-  );
-}

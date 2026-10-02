@@ -18,7 +18,7 @@ export function isUuid(id: string): boolean {
   return UUID_RE.test(id);
 }
 
-function isSuperAdminUser(user: SessionUser): boolean {
+export function isSuperAdminUser(user: SessionUser): boolean {
   return (user as { role?: string | null }).role === "admin";
 }
 

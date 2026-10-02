@@ -15,6 +15,7 @@ import { ActiveRosterSettingsSection } from "./active-roster-settings-section";
 import { WikiConnectorSection } from "./wiki-connector-section";
 import { BackupSection } from "./backup-section";
 import { LeaveLeagueSection } from "./leave-league-section";
+import { LinkedLeaguesSection } from "./linked-leagues-section";
 
 // Port of renderSetup() (public/app.js) -- same section order and the same "viewable by everyone,
 // only the commissioner can edit" model: every field below disables itself via useCanManage()
@@ -62,6 +63,7 @@ export function SetupTab() {
           <TribesSection state={state} />
           <CastawaysSection state={state} />
           <WikiConnectorSection state={state} />
+          <LinkedLeaguesSection />
           <BackupSection state={state} />
         </>
       )}
