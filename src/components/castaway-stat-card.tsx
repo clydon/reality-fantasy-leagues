@@ -63,6 +63,8 @@ export function CastawayStatCard({
   dimAllEliminated = false,
   expanded,
   onToggleExpand,
+  compact = false,
+  className,
   children,
 }: {
   state: LeagueState;
@@ -87,6 +89,10 @@ export function CastawayStatCard({
   expanded: boolean;
   /** Present = the card is clickable and toggles `expanded`; absent = always shown as given (Scoreboard's always-open cards). */
   onToggleExpand?: () => void;
+  /** A smaller card (48px photo, tighter text) -- for an Episode Recap, where several sit on one phone line. */
+  compact?: boolean;
+  /** Extra classes on the card itself (a fixed width in a row, say). */
+  className?: string;
   /** Extra lines under the name -- an Episode Recap's exit method, say. */
   children?: ReactNode;
 }) {
@@ -106,9 +112,11 @@ export function CastawayStatCard({
       onClick={onToggleExpand}
       onKeyDown={(e) => clickable && e.key === "Enter" && onToggleExpand?.()}
       className={cn(
-        "relative rounded-[10px] border-2 bg-card p-[12px_10px_10px] text-center shadow-sm transition-[transform,box-shadow]",
+        "relative rounded-[10px] border-2 bg-card text-center shadow-sm transition-[transform,box-shadow]",
+        compact ? "p-[8px_5px_6px]" : "p-[12px_10px_10px]",
         clickable && "cursor-pointer hover:-translate-y-0.5 hover:shadow-md",
-        dimmed && "opacity-[.55] hover:opacity-80"
+        dimmed && "opacity-[.55] hover:opacity-80",
+        className
       )}
       style={{ borderColor: owner ? owner.color : "var(--border)" }}
     >
@@ -129,16 +137,22 @@ export function CastawayStatCard({
             {c.placementOrder}
           </div>
         ))}
-      <div className="relative mx-auto mb-2 h-16 w-16">
+      <div className={cn("relative mx-auto", compact ? "mb-1.5 h-12 w-12" : "mb-2 h-16 w-16")}>
         <CastawayAvatar
           castaway={c}
-          className="flex h-16 w-16 items-center justify-center rounded-[14px] border border-border bg-secondary font-mono text-[1.05rem] font-bold text-muted-foreground"
+          className={cn(
+            "flex items-center justify-center border border-border bg-secondary font-mono font-bold text-muted-foreground",
+            compact ? "h-12 w-12 rounded-[11px] text-[0.85rem]" : "h-16 w-16 rounded-[14px] text-[1.05rem]"
+          )}
         />
         {/* Scoped to the avatar box itself (not the whole card) so it stays centered on the photo
             regardless of whether the card is expanded, and never spills past the thumbnail. */}
         {c.status === "eliminated" && !medal && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[14px] bg-black/10" aria-hidden>
-            <XMarkIcon className="h-9 w-9 text-destructive drop-shadow-[0_1px_2px_rgba(0,0,0,.4)]" />
+          <div
+            className={cn("pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/10", compact ? "rounded-[11px]" : "rounded-[14px]")}
+            aria-hidden
+          >
+            <XMarkIcon className={cn("text-destructive drop-shadow-[0_1px_2px_rgba(0,0,0,.4)]", compact ? "h-7 w-7" : "h-9 w-9")} />
           </div>
         )}
         {/* Total points this castaway has scored, all season -- their own record, not any one
@@ -168,7 +182,7 @@ export function CastawayStatCard({
           </div>
         )}
       </div>
-      <div className="text-[0.84rem] font-semibold text-foreground">
+      <div className={cn("font-semibold text-foreground", compact ? "text-[0.72rem] leading-tight" : "text-[0.84rem]")}>
         {c.name}
         {movement && (
           <span className="ml-1 text-muted-foreground" title={movement.title}>
@@ -178,7 +192,9 @@ export function CastawayStatCard({
         <RoleBadge state={state} castawayId={c.id} />
       </div>
       {showOwner && owners.length > 0 && (
-        <div className="mt-[3px] text-[0.7rem] font-semibold text-muted-foreground">{owners.map((o) => o.name).join(", ")}</div>
+        <div className={cn("mt-[3px] font-semibold text-muted-foreground", compact ? "text-[0.62rem] leading-tight" : "text-[0.7rem]")}>
+          {owners.map((o) => o.name).join(", ")}
+        </div>
       )}
       {showOwner && formerOwner && (
         <div
