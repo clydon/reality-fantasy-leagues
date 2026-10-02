@@ -94,6 +94,8 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const mode = useLeagueStore((s) => s.mode);
   const switchToLoaded = useLeagueStore((s) => s.switchToLoaded);
+  const seenThrough = useLeagueStore((s) => s.membership?.resultsSeenThrough ?? null);
+  const queryClient = useQueryClient();
   const { ids, index } = useLinkedOrder();
   const enabled = mode === "live" && LEAGUE_PAGES.has(pathname) && ids.length > 1;
   const prev = useNeighbour(enabled ? ids[index - 1] : undefined);
@@ -109,6 +111,18 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
   // Both neighbours' pages are drawn AHEAD, hidden, a moment after a page opens -- not when a drag
   // starts. Drawing a heavy page (Episodes, Scoreboard) mid-gesture froze the phone long enough for it
   // to drop the swipe; ready in advance, a swipe only has to show it.
+  // A reveal here is a reveal in every linked league (the server marks them all), so the neighbours
+  // fetched ahead learn it at once -- otherwise a peek, or the league a swipe lands on, still offered
+  // "Results are in!" for what you'd just revealed.
+  useEffect(() => {
+    if (seenThrough === null) return;
+    queryClient.setQueriesData<Awaited<ReturnType<typeof api.leagueState>>>({ queryKey: ["league-peek"] }, (old) => {
+      const was = old?.membership.resultsSeenThrough;
+      if (!old || was === null || was === undefined || was >= seenThrough) return old;
+      return { ...old, membership: { ...old.membership, resultsSeenThrough: seenThrough } };
+    });
+  }, [seenThrough, queryClient]);
+
   const [warm, setWarm] = useState(false);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset per page, then warmed after a beat
@@ -189,6 +203,12 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
     window.setTimeout(() => {
       if (commit && res) {
         switchToLoaded(res);
+        // Landed on what was fetched ahead (instant); now quietly swap in a fresh copy, so anything
+        // that changed since -- a reveal, someone's lineup, new results -- catches up.
+        api.leagueState(res.league.id).then((fresh) => {
+          if (useLeagueStore.getState().leagueId === fresh.league.id) switchToLoaded(fresh);
+          queryClient.setQueryData(["league-peek", fresh.league.id], fresh);
+        }).catch(() => {});
         window.scrollTo(0, 0);
         // The same page if the other league has it; otherwise Overview.
         const type = StateLogic.getLeagueType(res.state);
