@@ -11,9 +11,9 @@ import { api } from "@/lib/api";
 // Polling: ChatTab itself polls every 5s while mounted (matches the live app's loadChatMessages
 // interval); the unread badge shown elsewhere is updated by the same 15s poll that drives
 // Notifications (use-league-poll.ts), exactly like pollForNotifications()'s own chat-unread check
-// in public/app.js. lastSeenAt is in-memory only here, not localStorage-persisted per user+league
-// like the original's chatSeenStorageKey() -- a real port would want that; this POC doesn't carry
-// it across page reloads. See README.
+// in public/app.js. "Read up to" comes from the server's own record (chat_reads, the same one
+// "Read by" uses), so the count is right after a reload and on another device; lastSeenAt only adds
+// what's been read in this session, and only for the league it was read in.
 export const DEMO_VISITOR_ID = "demo_visitor";
 
 const MOCK_SEED: ChatMessage[] = [
@@ -32,6 +32,8 @@ interface ChatStore {
   loaded: boolean;
   unreadCount: number;
   lastSeenAt: string | null;
+  /** Which league lastSeenAt belongs to -- it says nothing about any other league's chat. */
+  lastSeenLeagueId: string | null;
   // Both return a real value (not implicit undefined) since they double as TanStack Query
   // queryFns (ChatTab's poll, and the background chat-unread poll respectively) -- a queryFn may
   // not resolve to undefined. Callers that just want the side effect can ignore the return.
@@ -52,6 +54,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   loaded: false,
   unreadCount: 0,
   lastSeenAt: null,
+  lastSeenLeagueId: null,
 
   async load() {
     const { mode, leagueId, state } = useLeagueStore.getState();
@@ -84,9 +87,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     // lives in this store's own state (unreadCount), same pattern as load() below.
     const { mode, leagueId, userId } = useLeagueStore.getState();
     if (mode !== "live" || !leagueId) return null;
-    const { messages } = await api.getChat(leagueId);
-    const lastSeenAt = get().lastSeenAt;
-    const unread = messages.filter((m) => m.user_id !== userId && (!lastSeenAt || new Date(m.created_at) > new Date(lastSeenAt))).length;
+    const { messages, reads } = await api.getChat(leagueId);
+    // The later of what the server has on record and what was read here this session (same league only).
+    const serverRead = reads.find((r) => r.userId === userId)?.lastReadAt ?? null;
+    const local = get().lastSeenLeagueId === leagueId ? get().lastSeenAt : null;
+    const readTo = [serverRead, local].filter((t): t is string => !!t).map((t) => new Date(t).getTime());
+    const since = readTo.length ? Math.max(...readTo) : null;
+    const unread = messages.filter((m) => m.user_id !== userId && (since === null || new Date(m.created_at).getTime() > since)).length;
     set({ unreadCount: unread });
     return unread;
   },
@@ -94,7 +101,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   markSeen() {
     const { messages, reportedReadAt } = get();
     const last = messages[messages.length - 1];
-    set({ unreadCount: 0, lastSeenAt: last ? last.created_at : new Date().toISOString() });
+    set({
+      unreadCount: 0,
+      lastSeenAt: last ? last.created_at : new Date().toISOString(),
+      lastSeenLeagueId: useLeagueStore.getState().leagueId,
+    });
     // Tell the server (for everyone else's "Read by"), once per new message rather than every poll.
     const { mode, leagueId, impersonating } = useLeagueStore.getState();
     // Impersonating: the server ignores it anyway, but don't even ask.
