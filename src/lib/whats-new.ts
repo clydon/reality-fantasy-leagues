@@ -8,11 +8,34 @@
 // admins: a one-line title each, `detail` only where it earns a tap (shown behind a chevron) and
 // short, most useful first, only what's worth interrupting someone for.
 // `link`: a "Show me" under the item that takes you to it. "whatsNewMenu" = where What's New lives
-// (the More menu on a phone; the full list on desktop, which has no More menu).
-export type WhatsNewItem = { icon: string; title: string; detail?: string; link?: { label: string; to: "whatsNewMenu" } };
+// (the More menu on a phone; the full list on desktop, which has no More menu). Anything else is a
+// page path ("/scoreboard").
+//
+// When a new item makes an older one wrong (the feature it announced is gone or works the opposite
+// way now), delete the OLD ITEM -- never its release. A player's "last seen" is a release id, and
+// one that no longer exists reads as "never seen anything", re-showing every release. A release
+// left with no items is fine.
+export type WhatsNewItem = { icon: string; title: string; detail?: string; link?: { label: string; to: "whatsNewMenu" | "/scoreboard" } };
 export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] };
 
 export const RELEASES: WhatsNewRelease[] = [
+  {
+    id: "2026-10-02d",
+    date: "2026-10-02",
+    items: [
+      {
+        icon: "🎯",
+        title: "Your best calls, on the Scoreboard",
+        detail: "Your scoreboard card calls out a standout start, a costly one and a smart benching, and gives you a Perfect lineup when you start your best possible team.",
+        link: { label: "Show me", to: "/scoreboard" },
+      },
+      {
+        icon: "📈",
+        title: "See who's catching up",
+        detail: "The small ▲ or ▼ under each total is how much the last episode gained or lost that team on 1st place.",
+      },
+    ],
+  },
   {
     id: "2026-10-02c",
     date: "2026-10-02",

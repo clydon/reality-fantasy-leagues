@@ -9,6 +9,7 @@ import { ChevronDownIcon } from "@/components/icons";
 import { cn } from "cn";
 import { create } from "zustand";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
+import { useRouter } from "next/navigation";
 
 // Opening the popup on demand:
 //   "preview" -- Admin's "Preview What's New": the newest release; closing it isn't recorded (it isn't
@@ -46,6 +47,7 @@ export function WhatsNewModal() {
   const hide = useWhatsNewPreview((s) => s.hide);
   const showAll = useWhatsNewPreview((s) => s.showAll);
   const openMoreSheet = useMoreSheetRequest((s) => s.open);
+  const router = useRouter();
 
   useEffect(() => {
     if (!isAuthenticated || previewingDemo) return;
@@ -79,10 +81,14 @@ export function WhatsNewModal() {
     if (wasMode !== "preview" && isAuthenticated) api.setMySettings({ whatsNewSeen: LATEST_RELEASE_ID }).catch(() => {});
   }
 
-  // A "Show me" link: what's new lives in the More menu on a phone (open it, so they see where); on
-  // desktop there's no More menu, so straight to the full list.
+  // A "Show me" link: a page goes straight there. What's new itself lives in the More menu on a phone
+  // (open it, so they see where); on desktop there's no More menu, so straight to the full list.
   function follow(link: NonNullable<WhatsNewItem["link"]>) {
-    if (link.to !== "whatsNewMenu") return;
+    if (link.to !== "whatsNewMenu") {
+      dismiss();
+      router.push(link.to);
+      return;
+    }
     const tabBar = document.querySelector("[data-mobile-tabbar]")?.getBoundingClientRect();
     dismiss();
     if (tabBar && tabBar.height > 0) openMoreSheet();
@@ -182,7 +188,15 @@ export function WhatsNewModal() {
             list(mode === "preview" ? RELEASES[0].items : (unseen ?? []))
           )}
         </div>
-        <div className="flex justify-end border-t border-border px-5 py-3">
+        <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-3">
+          {/* Where every update lives, for a popup that only showed the new ones. */}
+          {mode !== "all" ? (
+            <button className="text-sm text-muted-foreground underline-offset-2 hover:underline" onClick={() => follow({ label: "", to: "whatsNewMenu" })}>
+              See all updates
+            </button>
+          ) : (
+            <span />
+          )}
           <Button onClick={dismiss}>{mode === "all" ? "Close" : "Let’s go!"}</Button>
         </div>
       </div>
