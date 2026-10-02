@@ -41,6 +41,12 @@ const events = [
   // is being checked against the episodes before it's worth anything.
   { id: 'learnedOfAdvantage', label: "Learned about someone else's idol/advantage", defaultPoints: 0 },
   { id: 'votesNegated', label: 'Played an idol/advantage that cancelled votes', defaultPoints: 2 },
+  // Picked to go on a journey: a shot at an advantage, often at a risk (a lost vote), so it's worth
+  // something but less than actually finding one (1 vs 2) -- and finding one there scores idolFound too.
+  { id: 'wentOnJourney', label: 'Went on a journey', defaultPoints: 1 },
+  // Scored from the episode's exile record (impliedEvents), but 0 by default: whether exile helps or
+  // hurts is a live question this season (see EpisodeLogic.addExiled). A league can set it either way.
+  { id: 'wentToExile', label: 'Sent to Exile', defaultPoints: 0, implied: true },
   { id: 'votedWithMajority', label: 'Voted with the majority (voted for who went home)', defaultPoints: { exclusive: 0.5, shared: 1 } },
   { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: { exclusive: 0.5, shared: 1 } },
   { id: 'survivedVotes', label: 'Received votes at Tribal but survived', defaultPoints: 1.5 },
@@ -84,9 +90,11 @@ const EXIT_EVENTS = {
 
 // Scored from how someone left, so a corrected exit re-scores on its own and nothing is double-counted.
 // A finalist -- winner or not -- also gets `finalist`, one `juryVote` per vote received, and
-// `zeroJuryVotes` when that's none; the count only scores once it's known (el.juryVotes).
+// `zeroJuryVotes` when that's none; the count only scores once it's known (el.juryVotes). Being sent
+// to Exile follows from ep.exiled the same way, so removing the exile record removes the event.
 function impliedEvents(ep) {
   const out = [];
+  for (const x of ep.exiled || []) out.push({ type: 'wentToExile', castawayId: x.castawayId });
   for (const el of ep.events || []) {
     const type = EXIT_EVENTS[el.method];
     if (!type) continue;
@@ -351,6 +359,10 @@ function checklistSchema(z, Answer) {
       "Did they find out, this episode, that ANOTHER player has a hidden immunity idol or advantage -- told by them or " +
         "someone else, saw it, or worked it out on screen? Only what the episode shows or a recap states, not speculation."
     ),
+    wentOnJourney: Answer.describe(
+      "Were they sent on a JOURNEY this episode -- taken away from camp (often by boat) to a separate location, " +
+        "usually with a chance at an advantage or a risk to their vote?"
+    ),
     exiled: Answer.describe("Were they sent away from their tribe by an Exile Island-style twist while staying in the game?"),
     notableTwist: z
       .string()
@@ -412,7 +424,7 @@ function votedOutNames(payload) {
 // Positive claims that need a source behind them.
 const researchClaims = [
   "leftTheGame", "wonIndividualImmunity", "wonIndividualReward", "foundAdvantage", "playedAdvantage", "satOutOfChallenge",
-  "chosenForReward", "wonFireMaking", "learnedOfAdvantage",
+  "chosenForReward", "wonFireMaking", "learnedOfAdvantage", "wentOnJourney",
 ];
 
 // One castaway's "yes" answers -> the results they imply. rewardWin covers both individual and tribe
@@ -451,8 +463,10 @@ function researchItems(entry, add, ctx = {}) {
   if (entry.chosenForReward === "yes" && entry.wonIndividualReward !== "yes" && entry.wonTribeReward !== "yes") add("event", "chosenForReward");
   if (entry.wonFireMaking === "yes") add("event", "wonFireMaking");
   if (entry.learnedOfAdvantage === "yes") add("event", "learnedOfAdvantage");
-  // Exile is a fact, not a scoring event -- same as everywhere else exile appears in this app
-  // (EpisodeLogic.addExiled). eventType stays '' to satisfy episode_research_items_shape.
+  if (entry.wentOnJourney === "yes") add("event", "wentOnJourney");
+  // Exile is recorded as a fact (EpisodeLogic.addExiled), and wentToExile scores from that fact
+  // (impliedEvents) rather than as an event of its own. eventType stays '' to satisfy
+  // episode_research_items_shape.
   if (entry.exiled === "yes") add("exiled", "");
 }
 
@@ -478,6 +492,7 @@ function researchNotes(c) {
   if (typeof c.votesNullified === "number" && c.votesNullified > 0) notes.push(`nullified ${c.votesNullified} vote${c.votesNullified === 1 ? "" : "s"}`);
   if (typeof c.juryVotesReceived === "number") notes.push(`${c.juryVotesReceived} jury vote${c.juryVotesReceived === 1 ? "" : "s"}`);
   if (c.advantageUsedAgainstThem === "yes") notes.push("advantage used against them");
+  if (c.wentOnJourney === "yes") notes.push("went on a journey");
   if (c.exiled === "yes") notes.push("exiled");
   if (c.notableTwist) notes.push(c.notableTwist);
   return notes;
@@ -504,6 +519,7 @@ function researchSentences(c) {
   if (c.playedAdvantage === "yes") notes.push(`played ${c.advantagePlayedName || "an advantage"}`);
   if (typeof c.juryVotesReceived === "number") notes.push(`received ${c.juryVotesReceived} jury vote(s) at Final Tribal`);
   if (c.advantageUsedAgainstThem === "yes") notes.push("had an advantage used against them");
+  if (c.wentOnJourney === "yes") notes.push("went on a journey");
   if (c.exiled === "yes") notes.push("was exiled");
   if (c.notableTwist) notes.push(c.notableTwist);
   return notes;
@@ -523,6 +539,7 @@ module.exports = {
     { id: 'challenges', label: 'Challenges', events: ['individualImmunity', 'challengeRunnerUp', 'challengeThird', 'tribeImmunity', 'rewardWin', 'chosenForReward', 'satOut'] },
     { id: 'tribal', label: 'Tribal Council', events: ['votesNegated', 'survivedVotes', 'votedWithMajority', 'zeroVotesSafe', 'votedAgainstMajority', 'votedOut'] },
     { id: 'advantages', label: 'Idols & Advantages', events: ['idolFound', 'idolPlayed', 'learnedOfAdvantage', 'advantageTargeted'] },
+    { id: 'twists', label: 'Journeys & Exile', events: ['wentOnJourney', 'wentToExile'] },
     { id: 'leaving', label: 'Leaving the game', events: ['medevac', 'quit'] },
     { id: 'endgame', label: 'Endgame', events: ['finalist', 'juryVote', 'soleSurvivor', 'wonFireMaking', 'lostFireMaking', 'zeroJuryVotes'] },
   ],

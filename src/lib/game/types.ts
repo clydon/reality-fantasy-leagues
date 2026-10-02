@@ -131,8 +131,9 @@ export interface Episode {
   events: { castawayId: string; method: string; juryVotes?: number }[];
   /**
    * Who an Exile Island-style twist sent away from their tribe this episode. Still in the game --
-   * this is a RECORD, not a mechanic: nothing in ScoringLogic or ActiveRosterLogic reads it, and it
-   * changes no owner, tribe or placement. See EpisodeLogic.addExiled for why it's kept inert.
+   * this is a RECORD, not a mechanic: it changes no owner, tribe or placement. The only thing that
+   * reads it is the format's impliedEvents (Survivor's `wentToExile`, worth 0 by default). See
+   * EpisodeLogic.addExiled.
    * Always present (EpisodeLogic.create initializes it, migrateLeagueState backfills old saves).
    */
   exiled: { castawayId: string; at: string }[];

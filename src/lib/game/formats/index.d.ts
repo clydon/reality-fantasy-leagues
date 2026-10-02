@@ -5,7 +5,7 @@ export interface ScoringEventDef {
   id: string;
   label: string;
   defaultPoints: number;
-  /** Follows from an exit or a role (impliedEvents), so it's never added or reviewed on its own. */
+  /** Follows from an exit, a role or an exile (impliedEvents), so it's never added or reviewed on its own. */
   implied?: boolean;
 }
 

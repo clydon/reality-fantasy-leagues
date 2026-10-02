@@ -1827,16 +1827,16 @@ class EpisodeLogic {
     EpisodeLogic.renumberPlacements(state);
   }
   // Exile Island and its equivalents: sent away from their tribe for an episode, still very much in
-  // the game. DELIBERATELY INERT -- this records the fact and nothing else. No owner change, no
-  // tribe change, no placement, no points: nothing in ScoringLogic or ActiveRosterLogic reads
-  // ep.exiled.
+  // the game. This records the fact and nothing else: no owner change, no tribe change, no
+  // placement. The one thing that reads ep.exiled is the format's impliedEvents (Survivor's
+  // wentToExile), which a league scores at whatever it chooses -- 0 by default.
   //
-  // Why record something that does nothing: what exile is WORTH is a live question (the twist is new
-  // this season and its effect on the game isn't settled), and the wiki connector -- an extraction
-  // tool -- is the wrong place to invent an answer. Capturing it now means that when there IS a
-  // rule for it, the history is already sitting in state instead of needing every past episode
-  // re-read. It's also the honest reason a castaway can show up in an episode's wiki data without
-  // being eliminated, which is exactly the confusion that produced the season 51 misread.
+  // Why 0 by default: what exile is WORTH is a live question (the twist is new this season and its
+  // effect on the game isn't settled), and the wiki connector -- an extraction tool -- is the wrong
+  // place to invent an answer. Recording it as a fact means that when a league does settle on a
+  // value, the history is already sitting in state instead of needing every past episode re-read.
+  // It's also the honest reason a castaway can show up in an episode's wiki data without being
+  // eliminated, which is exactly the confusion that produced the season 51 misread.
   static addExiled(state, epId, castawayId){
     const ep = state.episodes.find(e=>e.id===epId);
     const c = Core.getCastaway(state, castawayId);
@@ -2325,7 +2325,7 @@ class Migrations {
       if(!ep.scoringEvents) ep.scoringEvents = [];
       if(!ep.lineups) ep.lineups = {};
       if(typeof ep.lineupsLocked !== 'boolean') ep.lineupsLocked = false;
-      // Exile Island records (see addExiled). Nothing scores off these, so an old episode simply
+      // Exile Island records (see addExiled). An old save without them had nobody exiled, so
       // starting empty is correct -- there's no history to reconstruct.
       if(!ep.exiled) ep.exiled = [];
       if(!ep.roles) ep.roles = [];

@@ -217,6 +217,29 @@ test("fire-making, being picked for a reward, and learning of an advantage come 
   assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "learnedOfAdvantage"), 0, "tracked, not scored, until it proves reliable");
 });
 
+test("a journey comes from research and is worth less than finding an idol", () => {
+  const s = R.pasteSkeleton(ctx, []);
+  Object.assign(s.castaways.find((c) => c.name === "Alex Moore"), { sources: ["x"], confidence: "high", wentOnJourney: "yes" });
+  assert.deepEqual(eventsOf(staged(s), "Alex Moore"), ["wentOnJourney"]);
+  for (const mode of ["exclusive", "shared"]) {
+    const pts = (id) => StateLogic.ActiveRosterLogic.pointsFor(league(mode), id);
+    assert.ok(pts("wentOnJourney") > 0 && pts("wentOnJourney") < pts("idolFound"), mode);
+  }
+});
+
+test("being sent to Exile scores from the exile record, at 0 by default", () => {
+  const s = exitLeague("survivor", "Voted Out");
+  s.episodes[0].events = [];
+  StateLogic.addExiled(s, "ep1", "a");
+  const types = StateLogic.ActiveRosterLogic.episodeEvents(s, s.episodes[0]).map((e) => e.type);
+  assert.deepEqual(types, ["wentToExile"]);
+  assert.equal(total(s), 0);
+  StateLogic.updateSettings(s, "eventPoints", { ...s.settings.eventPoints, wentToExile: -1 });
+  assert.equal(total(s), -1, "a league can decide exile hurts");
+  StateLogic.removeExiled(s, "ep1", "a");
+  assert.equal(total(s), 0, "correcting the record takes the points with it");
+});
+
 test("a prediction is worth 1 to 3 points, however it's proposed or edited", () => {
   const s = StateLogic.migrateLeagueState({ settings: { leagueTypeId: "classic-draft" }, episodes: [{ id: "e1", number: 1, events: [], bets: [] }] });
   const big = StateLogic.addBet(s, "e1", "Who finds an idol?", 10, null);

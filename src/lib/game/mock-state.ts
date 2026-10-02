@@ -73,7 +73,7 @@ export function buildMockSeasonState(): LeagueState {
         castawayId: byName(k),
         method: raw.find((r) => r.k === k)!.method,
       })),
-      // Recorded, never scored -- see EpisodeLogic.addExiled.
+      // Recorded as a fact; scores only through wentToExile (0 by default) -- see EpisodeLogic.addExiled.
       exiled: (exiledKeys || []).map((k) => ({ castawayId: byName(k), at: "2026-04-09T03:00:00.000Z" })),
       bets: bets || [],
       picks: [], // this demo league is classic-draft; pickem's weekly picks never apply here.

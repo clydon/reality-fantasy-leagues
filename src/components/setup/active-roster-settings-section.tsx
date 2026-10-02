@@ -129,7 +129,7 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
                   <span>
                     {ev.label}
                     {ev.implied && (
-                      <span className="ml-1 text-xs text-muted-foreground" title="Scored automatically from how they left or their role">
+                      <span className="ml-1 text-xs text-muted-foreground" title="Scored automatically from how they left, their role, or being sent to Exile">
                         (automatic)
                       </span>
                     )}
