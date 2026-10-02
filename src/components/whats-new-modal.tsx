@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
-import { WHATS_NEW } from "@/lib/whats-new";
+import { LATEST_RELEASE_ID, RELEASES, unseenItems, type WhatsNewItem } from "@/lib/whats-new";
 import { Button } from "@/components/ui/button";
 import { ChevronDownIcon } from "@/components/icons";
 import { cn } from "cn";
@@ -24,7 +24,8 @@ export const useWhatsNewPreview = create<{ open: boolean; show: () => void; hide
 export function WhatsNewModal() {
   const isAuthenticated = useIsAuthenticated();
   const previewingDemo = useIsPreviewingDemo();
-  const [open, setOpen] = useState(false);
+  // What this player hasn't seen yet (every release since the one they last dismissed); null = closed.
+  const [unseen, setUnseen] = useState<WhatsNewItem[] | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const preview = useWhatsNewPreview((s) => s.open);
   const hidePreview = useWhatsNewPreview((s) => s.hide);
@@ -35,12 +36,14 @@ export function WhatsNewModal() {
     api
       .getMySettings()
       .then((s) => {
-        if (cancelled || s.whatsNewSeen === WHATS_NEW.id) return;
-        if (s.accountCreatedAt && s.accountCreatedAt.slice(0, 10) >= WHATS_NEW.date) {
-          api.setMySettings({ whatsNewSeen: WHATS_NEW.id }).catch(() => {});
+        if (cancelled || s.whatsNewSeen === LATEST_RELEASE_ID) return;
+        const items = unseenItems(s.whatsNewSeen, s.accountCreatedAt);
+        // Nothing they'd call new (their account is newer than all of it): just mark it seen.
+        if (items.length === 0) {
+          api.setMySettings({ whatsNewSeen: LATEST_RELEASE_ID }).catch(() => {});
           return;
         }
-        setOpen(true);
+        setUnseen(items);
       })
       .catch(() => {});
     return () => {
@@ -48,15 +51,17 @@ export function WhatsNewModal() {
     };
   }, [isAuthenticated, previewingDemo]);
 
-  if (!open && !preview) return null;
+  // A preview shows the newest release -- what everyone's about to be told.
+  const items = preview ? RELEASES[0].items : unseen;
+  if (!items) return null;
 
   function dismiss() {
     if (preview) {
       hidePreview();
       return;
     }
-    setOpen(false);
-    api.setMySettings({ whatsNewSeen: WHATS_NEW.id }).catch(() => {});
+    setUnseen(null);
+    api.setMySettings({ whatsNewSeen: LATEST_RELEASE_ID }).catch(() => {});
   }
 
   return (
@@ -75,7 +80,7 @@ export function WhatsNewModal() {
         </div>
         {/* One line each; a chevron opens the short detail where there is one. */}
         <ul className="flex flex-col divide-y divide-border overflow-y-auto px-2 py-1">
-          {WHATS_NEW.items.map((it) =>
+          {items.map((it) =>
             it.detail ? (
               <li key={it.title}>
                 <button
