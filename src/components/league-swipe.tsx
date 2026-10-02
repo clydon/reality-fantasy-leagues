@@ -166,7 +166,10 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
       }
       setTrack(0, false);
       setPeek(null);
-      useSwipeProgress.setState({ progress: 0, targetName: null });
+      // Snap the title back to rest with no animation (dragging = no transition): the new name is
+      // already in place, and animating the reset replayed the end of the roll. Re-enabled next frame.
+      useSwipeProgress.setState({ progress: 0, targetName: null, dragging: true });
+      requestAnimationFrame(() => useSwipeProgress.setState({ dragging: false }));
     }, SETTLE_MS);
   }
 
