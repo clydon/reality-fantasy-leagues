@@ -110,10 +110,9 @@ function EpisodeSummary({ state, playerId }: { state: LeagueState; playerId: str
             <span className="w-4 shrink-0 text-center" aria-hidden>
               {b.icon}
             </span>
+            {/* No points figure beside a line: "Good call benching Ana" next to a red -6 read as six
+                points this team lost, when it's six it didn't. */}
             <span className={cn("min-w-0 flex-1", b.kind === "perfect" && "font-semibold text-foreground")}>{b.text}</span>
-            {b.points !== undefined && (
-              <span className={cn("shrink-0 font-mono", b.points < 0 ? "text-destructive" : "text-good")}>{fmt(b.points)}</span>
-            )}
           </li>
         ))}
       </ul>

@@ -11,9 +11,9 @@ const NOTABLE = 1;
 export interface TeamSummaryBullet {
   kind: "perfect" | "best" | "costly" | "benchSaved";
   icon: string;
-  /** Plain words, no numbers that `points` already carries. */
+  /** Plain words. Shown on its own: the card doesn't put a points figure beside it. */
   text: string;
-  /** The points this line is about, shown on the right; absent for the perfect-lineup line. */
+  /** The points this line is about -- for deciding what's notable, not shown; absent for the perfect-lineup line. */
   points?: number;
 }
 
