@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CastawayAvatar } from "@/components/castaway-avatar";
+import { useIsPeek } from "@/components/league-swipe";
 
 const PODIUM_COLORS = ["#c9a227", "#9aa3ab", "#b0703c"]; // gold, silver, bronze
 const CONFETTI_COLORS = ["#c9a227", "#e4572e", "#4f9d69", "#3d7cc9", "#a45ec9", "#f2b134"];
@@ -14,6 +15,7 @@ const CONFETTI_COLORS = ["#c9a227", "#e4572e", "#4f9d69", "#3d7cc9", "#a45ec9", 
 // champion up top with confetti bursting out of the card, then the rest of the podium.
 export function SeasonResultsCard({ state }: { state: LeagueState }) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const peek = useIsPeek();
   if (!StateLogic.RevealLogic.isComplete(state)) return null;
   const scores = StateLogic.computeScores(state);
   if (scores.length === 0) return null;
@@ -28,7 +30,8 @@ export function SeasonResultsCard({ state }: { state: LeagueState }) {
 
   return (
     <div ref={cardRef} className="relative mb-4 rounded-lg border-2 bg-card p-4 text-center shadow-sm" style={{ borderColor: PODIUM_COLORS[0] }}>
-      <Confetti anchor={cardRef} />
+      {/* Not in a peeked neighbour (league swipe): it's display-only, and the burst is for when you land. */}
+      {!peek && <Confetti anchor={cardRef} />}
       <div className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Season complete</div>
       <div className="mt-2 text-3xl" aria-hidden>
         🏆

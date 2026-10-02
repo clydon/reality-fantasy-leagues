@@ -35,6 +35,7 @@ import {
   GearIcon,
   UserIcon,
 } from "@/components/icons";
+import { SwipeTitle } from "@/components/league-swipe";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
 // / <nav class="mobile-bottombar"> / <div class="mobile-more-sheet">, populated by
@@ -252,7 +253,7 @@ export function MobileNav() {
               onClick={toggleLeagueMenu}
               disabled={leagues.length === 0}
             >
-              <span className="truncate text-[0.95rem] font-bold">{mode === "mock" ? "Demo Mode" : leagueName}</span>
+              <SwipeTitle name={mode === "mock" ? "Demo Mode" : (leagueName ?? "")} className="truncate text-[0.95rem] font-bold" />
               <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
             </button>
             {leagueMenuOpen && (

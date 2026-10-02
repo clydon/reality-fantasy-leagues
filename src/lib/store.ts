@@ -1,4 +1,5 @@
-import { create } from "zustand";
+import { createStore, useStore, type StoreApi } from "zustand";
+import { createContext, useContext } from "react";
 import type { LeagueState, Membership } from "@/lib/game/types";
 import { buildMockSeasonState } from "@/lib/game/mock-state";
 import { buildDemoState, demoSelfPlayerId, type DemoSeasonData, type DemoLeagueTypeId } from "@/lib/game/demo-season-builder";
@@ -75,6 +76,9 @@ interface LeagueStore {
   // Loads a different one of `leagues` as the active league, same request sequence
   // loadFirstLeague() already does for the initial load.
   switchLeague: (leagueId: string) => Promise<void>;
+  // Switch to a league already fetched (the league swipe has its neighbours ready): no fetch, no
+  // loading screen, so finishing a swipe is instant.
+  switchToLoaded: (res: Awaited<ReturnType<typeof api.leagueState>>) => void;
   useMock: () => void;
   // True only while an already-signed-in user is previewing demo data via "Switch to demo data"
   // (Sidebar) -- unlike useMock(), does NOT clear userId/leagues/etc, so there's still a real
@@ -136,7 +140,7 @@ interface LeagueStore {
   setFlash: (flash: string | null) => void;
 }
 
-export const useLeagueStore = create<LeagueStore>((set, get) => ({
+const leagueStore = createStore<LeagueStore>()((set, get) => ({
   entered: false,
   setEntered: (entered) => set({ entered }),
   mode: "mock",
@@ -258,6 +262,18 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
   removeLeagueLocally: (leagueId) => set((s) => ({ leagues: s.leagues.filter((l) => l.id !== leagueId) })),
   loadingLeague: false,
   setLoadingLeague: (loadingLeague) => set({ loadingLeague }),
+  switchToLoaded: ({ league, state, membership, playerAccounts }) => {
+    rememberLeague(get().userId, league.id);
+    set({
+      mode: "live",
+      leagueId: league.id,
+      state: spoilerView(state, membership),
+      fullState: state,
+      leagueName: league.name,
+      membership,
+      playerAccounts,
+    });
+  },
   switchLeague: async (leagueId) => {
     set({ loadingLeague: true });
     try {
@@ -327,6 +343,37 @@ export const useLeagueStore = create<LeagueStore>((set, get) => ({
 // Demo/mock data: nothing is held back, so what's shown and the real thing are one object.
 function mockState(state: LeagueState): { state: LeagueState; fullState: LeagueState } {
   return { state, fullState: state };
+}
+
+// The one league store, read through useLeagueStore -- which first checks for a LeagueStoreContext
+// above it. That's how the league swipe (league-swipe.tsx) draws a NEIGHBOURING league's page while
+// you drag: the same page components, handed a peek store holding that league instead. With no
+// provider (everywhere else), it's the one global store, exactly as before. getState/setState/
+// subscribe stay on the hook for code outside React, and always mean the global store.
+export const LeagueStoreContext = createContext<StoreApi<LeagueStore> | null>(null);
+
+function useLeagueStoreHook<T>(selector: (s: LeagueStore) => T): T {
+  return useStore(useContext(LeagueStoreContext) ?? leagueStore, selector);
+}
+
+export const useLeagueStore = Object.assign(useLeagueStoreHook, {
+  getState: leagueStore.getState,
+  setState: leagueStore.setState,
+  subscribe: leagueStore.subscribe,
+  getInitialState: leagueStore.getInitialState,
+});
+
+/** A read-only stand-in store showing another league -- what the league swipe peeks at. */
+export function makePeekStore(res: Awaited<ReturnType<typeof api.leagueState>>): StoreApi<LeagueStore> {
+  return createStore<LeagueStore>()(() => ({
+    ...leagueStore.getState(),
+    leagueId: res.league.id,
+    leagueName: res.league.name,
+    state: spoilerView(res.state, res.membership),
+    fullState: res.state,
+    membership: res.membership,
+    playerAccounts: res.playerAccounts,
+  }));
 }
 
 // The viewer's copy of a live league: results after their "seen through" mark held back.

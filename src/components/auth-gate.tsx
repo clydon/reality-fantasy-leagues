@@ -23,6 +23,7 @@ import { WhatsNewModal } from "@/components/whats-new-modal";
 import { rememberedLeague } from "@/lib/last-league";
 import { Button } from "@/components/ui/button";
 import { ResultsInBanner } from "@/components/results-in-banner";
+import { LeagueSwipe } from "@/components/league-swipe";
 
 type Status = "checking" | "idle" | "loading";
 
@@ -255,7 +256,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
               </button>
             </div>
           )}
-          {showsDashboard ? <Dashboard /> : children}
+          {/* Linked leagues swipe left/right (admin-only while it's tested) -- see league-swipe.tsx. */}
+          {showsDashboard ? <Dashboard /> : <LeagueSwipe>{children}</LeagueSwipe>}
         </main>
       </div>
     </>
