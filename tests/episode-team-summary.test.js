@@ -108,6 +108,37 @@ test("a pasted reply is split onto teams, forgiving of the extras chats add", ()
   assert.deepEqual(unmatched, ["Here you go:"]);
 });
 
+test("a reply with every team run together on one line still splits onto teams", () => {
+  const teams = [
+    { id: "a", name: "Sam" },
+    { id: "b", name: "Sam B" },
+    { id: "c", name: "Alex" },
+  ];
+  const { lines, unmatched } = parseLeagueReply(
+    "Sam: Rode Toka's immunity win. Sam B: Benched Ana the night she went home. **Alex:** Started three people who did nothing.",
+    teams
+  );
+  assert.deepEqual(lines, {
+    a: "Rode Toka's immunity win.",
+    b: "Benched Ana the night she went home.",
+    c: "Started three people who did nothing.",
+  });
+  assert.deepEqual(unmatched, []);
+});
+
+test("a name mid-sentence isn't a new team, and a sign-off after the last line isn't part of it", () => {
+  const teams = [
+    { id: "a", name: "Rob" },
+    { id: "b", name: "Alex" },
+  ];
+  const { lines, unmatched } = parseLeagueReply(
+    "Alex: Started Rob - the castaway - who went home.\nRob: Robbed by a blindside.\n\nHope these help!",
+    teams
+  );
+  assert.deepEqual(lines, { b: "Started Rob - the castaway - who went home.", a: "Robbed by a blindside." });
+  assert.deepEqual(unmatched, ["Hope these help!"]);
+});
+
 test("the race arrow: everyone measured against 1st, the leader against 2nd, mirrored when the lead changes", () => {
   let tookLeadSeen = 0;
   for (let cursor = 2; cursor <= EPISODES; cursor++) {

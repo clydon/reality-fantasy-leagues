@@ -231,29 +231,45 @@ export function buildLeaguePrompt(state: LeagueState, epId: string, episodeSumma
 
 /**
  * Reads an AI chat's reply to buildLeaguePrompt back into one line per team. Forgiving of what chats
- * add -- bullets, bold, quotes, a dash instead of a colon -- and of team-name case; a line it can't
- * place on a team comes back in `unmatched` for the commissioner to see.
+ * add -- bullets, bold, numbering, quotes, a dash instead of a colon -- of team-name case, and of
+ * every team run together on one line ("Sam: ... Alex: ..."): a team's line runs from "Name:" to the
+ * next team's. Anything it can't place on a team (a "Here you go:", a sign-off after the last line)
+ * comes back in `unmatched` for the commissioner to see.
  */
 export function parseLeagueReply(reply: string, teams: { id: string; name: string }[]) {
   const lines: Record<string, string> = {};
   const unmatched: string[] = [];
+  if (teams.length === 0) return { lines, unmatched };
+  const text = reply.replace(/\*\*|__/g, "").replace(/\r\n?/g, "\n");
   // Longest names first, so "Sam" doesn't claim a line meant for "Sam B".
-  const byLength = [...teams].sort((a, b) => b.name.length - a.name.length);
-  for (const raw of reply.split(/\r?\n/)) {
-    const line = raw.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").replace(/\*\*/g, "").trim();
-    if (!line) continue;
-    const team = byLength.find((t) => line.toLowerCase().startsWith(t.name.toLowerCase()) && /^\s*[:\-–—]/.test(line.slice(t.name.length)));
-    if (!team) {
-      unmatched.push(line);
-      continue;
-    }
-    const text = line
-      .slice(team.name.length)
-      .replace(/^\s*[:\-–—]\s*/, "")
+  const names = [...teams]
+    .sort((a, b) => b.name.length - a.name.length)
+    .map((t) => t.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  // "Name:" anywhere, as a whole word. A dash instead of the colon only at the start of a line --
+  // mid-sentence, "... voted out - Rob ..." is a castaway, not a team called Rob.
+  const marker = new RegExp(`(?<![\\p{L}\\p{N}])(${names})\\s*:|^[ \\t]*(?:[-*•]|\\d+[.)])?[ \\t]*(${names})[ \\t]*[-–—]`, "gimu");
+  const found = [...text.matchAll(marker)];
+
+  const clean = (s: string) =>
+    s
+      .replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")
+      .replace(/\s*(?:[-*•]|\d+[.)])\s*$/, "") // the next line's bullet or number, left at this one's end
+      .trim()
       .replace(/^["“”']+|["“”']+$/g, "")
       .trim();
-    if (text) lines[team.id] = text;
-  }
+  const lead = clean(text.slice(0, found[0]?.index ?? text.length));
+  if (lead) unmatched.push(...lead.split("\n").map(clean).filter(Boolean));
+
+  found.forEach((m, i) => {
+    const name = (m[1] ?? m[2]).toLowerCase();
+    const team = teams.find((t) => t.name.toLowerCase() === name)!;
+    const body = text.slice(m.index! + m[0].length, found[i + 1]?.index ?? text.length);
+    // A team's line is its first paragraph; anything below it before the next team isn't theirs.
+    const [first, ...rest] = body.split(/\n\s*\n|\n/).map(clean).filter(Boolean);
+    if (first) lines[team.id] = first;
+    unmatched.push(...rest);
+  });
   return { lines, unmatched };
 }
 
