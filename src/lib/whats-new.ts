@@ -12,6 +12,11 @@ export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: WhatsNewRelease[] = [
   {
+    id: "2026-10-02",
+    date: "2026-10-02",
+    items: [{ icon: "👆", title: "Swipe between your leagues", detail: "Swipe left or right to flip to the same page in your other leagues." }],
+  },
+  {
     id: "2026-10-01b",
     date: "2026-10-01",
     items: [

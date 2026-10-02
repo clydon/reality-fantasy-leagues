@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
-import { LeagueStoreContext, makePeekStore, useIsSuperAdmin, useLeagueStore } from "@/lib/store";
+import { LeagueStoreContext, makePeekStore, useLeagueStore } from "@/lib/store";
 import { api } from "@/lib/api";
 import StateLogic from "@/lib/game/state-logic.js";
 
@@ -14,9 +14,8 @@ import StateLogic from "@/lib/game/state-logic.js";
 // league name in the top bar slides with it (SwipeTitle). Past about a third of the screen, or a
 // quick flick, it settles there and that league becomes the open one; otherwise it springs back.
 //
-// Admin-only for now (testing on the live site). Never from a screen edge (the phone's own back
-// gesture), never from inside something that scrolls sideways, and only once the drag is clearly
-// horizontal. Only on pages about one league (LEAGUE_PAGES) -- not Chat, which linked leagues share.
+// Never from a screen edge (the phone's own back gesture), never from inside something that scrolls
+// sideways, and only once the drag is clearly horizontal. Only on pages about one league (LEAGUE_PAGES) -- not Chat, which linked leagues share.
 
 /** True inside a peeked neighbour: display-only (no confetti, nothing tappable). */
 export const PeekContext = createContext(false);
@@ -48,7 +47,6 @@ export function useLinkedOrder(): { ids: string[]; index: number } {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mode = useLeagueStore((s) => s.mode);
   const leagues = useLeagueStore((s) => s.leagues);
-  const isAdmin = useIsSuperAdmin();
   const queryClient = useQueryClient();
   const { data: group } = useQuery({
     queryKey: ["league-group", leagueId],
@@ -56,7 +54,7 @@ export function useLinkedOrder(): { ids: string[]; index: number } {
       const r = await api.getLeagueLinks(leagueId!);
       return r.linked.length ? [leagueId!, ...r.linked.map((l) => l.id)] : [];
     },
-    enabled: isAdmin && mode === "live" && !!leagueId,
+    enabled: mode === "live" && !!leagueId,
     staleTime: 60_000,
   });
   // Linked leagues share one group, so it's already known for the others: seeded for each, the dots
@@ -94,11 +92,10 @@ function inSideScroller(target: EventTarget | null, stop: HTMLElement | null): b
 export function LeagueSwipe({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const isAdmin = useIsSuperAdmin();
   const mode = useLeagueStore((s) => s.mode);
   const switchToLoaded = useLeagueStore((s) => s.switchToLoaded);
   const { ids, index } = useLinkedOrder();
-  const enabled = isAdmin && mode === "live" && LEAGUE_PAGES.has(pathname) && ids.length > 1;
+  const enabled = mode === "live" && LEAGUE_PAGES.has(pathname) && ids.length > 1;
   const prev = useNeighbour(enabled ? ids[index - 1] : undefined);
   const next = useNeighbour(enabled ? ids[index + 1] : undefined);
 
@@ -276,7 +273,7 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
  * The open league's name in the top bar, rolling with a swipe like a slot machine: towards the next
  * league the name rolls up and the next one comes up from below (the previous: downward), each moved
  * by exactly its own height so the two never overlap mid-change. Centred, with dots under it showing
- * where you are in the linked group (admins, while the swipe is admin-only).
+ * where you are in the linked group.
  */
 export function SwipeTitle({ name, className }: { name: string; className?: string }) {
   const { progress, targetName, dragging } = useSwipeProgress();

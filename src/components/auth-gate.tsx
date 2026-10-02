@@ -256,7 +256,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               </button>
             </div>
           )}
-          {/* Linked leagues swipe left/right (admin-only while it's tested) -- see league-swipe.tsx. */}
+          {/* Linked leagues swipe left/right -- see league-swipe.tsx. */}
           {showsDashboard ? <Dashboard /> : <LeagueSwipe>{children}</LeagueSwipe>}
         </main>
       </div>
