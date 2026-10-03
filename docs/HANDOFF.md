@@ -19,7 +19,7 @@ their phone against production and reports back, often with screenshots or scree
   installed): crop the region that matters and diff consecutive frames to find the moment
   something changes.
 
-## Traitors scoring (2026-10-02, branch `traitors-scoring-catalog`)
+## Traitors scoring (2026-10-02, on `master`)
 
 - **Catalog:** `docs/RESEARCH-traitors-events.md` decided which Traitors events trusted recaps report
   reliably. `src/lib/game/formats/traitors.js` has them: 14 new events in 5 categories (Missions,
