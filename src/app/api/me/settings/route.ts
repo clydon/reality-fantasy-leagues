@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
-import { requireAuth } from "@/lib/server/auth-helpers";
+import { requireAuth, requireSession, isImpersonating } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 
 // Account-level preferences that aren't notification types (user_settings: 0034, 0038).
@@ -27,9 +27,13 @@ export const GET = apiRoute(async (req) => {
 });
 
 // Body: any of { showResultsImmediately: boolean, whatsNewSeen: string } -- only what's sent changes.
+// An admin viewing as someone can open What's New, but closing it doesn't mark it seen for them
+// (0048 repaired the accounts where it already had).
 export const PUT = apiRoute(async (req) => {
-  const user = await requireAuth(req);
+  const session = await requireSession(req);
+  const user = session.user;
   const body = (await req.json().catch(() => ({}))) as { showResultsImmediately?: unknown; whatsNewSeen?: unknown };
+  if (isImpersonating(session)) delete body.whatsNewSeen;
   if ("showResultsImmediately" in body && typeof body.showResultsImmediately !== "boolean") {
     throw new HttpError(400, "showResultsImmediately must be true or false");
   }

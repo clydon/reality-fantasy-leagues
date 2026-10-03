@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
+import { useIsAuthenticated, useIsPreviewingDemo, useLeagueStore } from "@/lib/store";
 import { LATEST_RELEASE_ID, RELEASES, unseenItems, type WhatsNewItem } from "@/lib/whats-new";
 import { Button } from "@/components/ui/button";
 import { ChevronDownIcon } from "@/components/icons";
@@ -39,6 +39,8 @@ const RECENT_DAYS = 7;
 export function WhatsNewModal() {
   const isAuthenticated = useIsAuthenticated();
   const previewingDemo = useIsPreviewingDemo();
+  // An admin viewing as someone doesn't get their popup (and the server won't mark it seen anyway).
+  const impersonating = useLeagueStore((s) => s.impersonating);
   // What this player hasn't seen yet (every release since the one they last dismissed); null = closed.
   const [unseen, setUnseen] = useState<WhatsNewItem[] | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export function WhatsNewModal() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAuthenticated || previewingDemo) return;
+    if (!isAuthenticated || previewingDemo || impersonating) return;
     let cancelled = false;
     api
       .getMySettings()
@@ -68,7 +70,7 @@ export function WhatsNewModal() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, previewingDemo]);
+  }, [isAuthenticated, previewingDemo, impersonating]);
 
   if (!mode && !unseen) return null;
 
