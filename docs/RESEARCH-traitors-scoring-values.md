@@ -44,6 +44,8 @@ decides the league instead of the manager.
 | | Banished as a Faithful / as a Traitor | −3 / −3 | −3 / −3 |
 | **Leaving / Endgame** | Left the game | −5 | −5 |
 | | Finalist (runner-up) | 3 / 5 | 3 / 5 |
+| | Finalist who lost to a Traitor (fooled to the end) | — | −3 (on top) |
+| | Banished in the finale (instead of −3) | — | −1 |
 | | Won the season | 5 / 10 | 5 / 10 |
 | | Won as a Traitor (bonus on top) | — | 2 / 3 |
 
@@ -153,14 +155,15 @@ And the signal that matters most, since a league knows everyone's role:
 
 ### 3.4 Old vs new values, on the same 20 seasons
 
-"New" is the final set, with the vote split by role (§4).
+"New" is the final set: the vote split by role and the finale fixes (§3.6, §4). "Before the finale"
+excludes the winners' and finalists' last episode.
 
 | | Old | New |
 |---|---|---|
-| Points per episode, Faithful (before the finale) | +0.52 | +0.65 |
-| Points per episode, **Traitor** | **+0.10** | **+0.71** |
+| Points per episode, Faithful (before the finale) | +0.52 | +0.67 |
+| Points per episode, **Traitor** | **+0.10** | **+0.78** |
 | Season total, original Traitor (median) | −0.5 | +4.2 |
-| Points per episode vs how far players go | +0.50 | **+0.67** |
+| Points per episode vs how far players go | +0.50 | **+0.70** |
 | Week-to-week predictability (points so far → above-median week) | 0.56 | 0.61 |
 | Winners ranked top 3 in their season on pre-finale points | 22 of 35 | 30 of 35 |
 | Share of + points from shields | 24% | 9% |
@@ -169,7 +172,7 @@ Under the old values a Traitor was close to a wasted lineup slot until the final
 the main weekly event (catching a Traitor), shields go mostly to Faithfuls, and their one big risk
 (banishment) costs the same. The new values fix that mainly through the Traitor mirror, zero
 votes and the Traitor's vote against a Faithful, not by softening the banishment. Traitors now score
-a little more per week than Faithfuls (+0.71 vs +0.65), which fits: they're banished more than twice
+a little more per week than Faithfuls (+0.78 vs +0.67), which fits: they're banished more than twice
 as often, so fielding one is a bet.
 
 ### 3.5 Variants tried
@@ -191,6 +194,28 @@ finale; link to going far; winners ranked top 3 on pre-finale points):
 | Banished as a Traitor −2 | +0.65 / +0.64 | +0.65 | 29 | not needed; the late-season risk *is* the decision |
 | **Voted out a Faithful 0.5** | +0.83 / +0.71 | **+0.69** | **30** | best on the numbers; see §4 |
 | (old values) | +0.52 / +0.10 | +0.50 | 22 | |
+
+### 3.6 The finale
+
+Three finale fixes were tested on whole-season totals (finale included), against how each person
+actually finished (winners, then finalists who didn't win, then by exit order):
+
+| Fix | Season total vs result | Finale week for the person affected | Verdict |
+|---|---|---|---|
+| (before) | +0.899 | banished −2.3, fooled finalist +6.3, sole winner +14.8 | |
+| Banished in the finale −1 instead of −3 | **+0.914** | banished −0.3 | **adopted**: measurably better |
+| Fooled to the end −3 | +0.899 | fooled finalist +3.3 | **adopted** (see below) |
+| Sole winner +3 | +0.899 | sole winner +17.8 | **dropped**: a winner already tops their season's total in all 20 seasons |
+
+- **Finale banishment.** 2.4 per season (the last Round Table and the Fire of Truth). Reaching the
+  final handful is an achievement, and the −3 was making these people's best week their worst.
+- **Fooled to the end.** In all 20 seasons, **every finalist who didn't win was a Faithful beaten by
+  a Traitor**: when the Faithfuls win, everyone left shares the pot. So the finalist points (+5
+  shared) were in practice points for being fooled. 12 cases, including US4's Maura. It doesn't
+  change any ranking, but it stops rewarding the outcome the game counts as a loss. Netting +2 still
+  credits reaching the end.
+- **Sole winner.** Half the seasons had a shared win (2–4 winners), but the winner already outscores
+  everyone either way, so a bonus would only widen a gap that's already decisive.
 
 ---
 

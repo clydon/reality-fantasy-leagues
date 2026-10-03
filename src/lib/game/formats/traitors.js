@@ -70,6 +70,13 @@ const events = [
   // --- Leaving and the end ---
   { id: 'leftGame', label: 'Left the game', defaultPoints: -5, implied: true },
   { id: 'finalist', label: 'Reached the end as a Finalist', defaultPoints: { exclusive: 3, shared: 5 }, implied: true },
+  // A Faithful who reached the end only to lose the pot to a Traitor. In 20 seasons that's every
+  // finalist who didn't win (when the Faithfuls win, everyone left shares it), so without this the
+  // finalist points were, in practice, points for being fooled. Nets a fooled finalist +2 (shared).
+  { id: 'fooledToTheEnd', label: 'Finalist who lost to a Traitor (fooled to the end)', defaultPoints: -3, implied: true },
+  // Banished in the finale (the last Round Table or the Fire of Truth) instead of the usual -3:
+  // reaching the final handful is an achievement, the same reasoning as Survivor's lost fire-making.
+  { id: 'banishedInFinale', label: 'Banished in the finale', defaultPoints: -1, implied: true },
   { id: 'seasonWinner', label: 'Won the season', defaultPoints: { exclusive: 5, shared: 10 }, implied: true },
   // On top of the win: Traitors won 12 of the 20 seasons studied, but rarely without a fight, and
   // usually alone. Smaller in an exclusive league, where one team owns the winner outright.
@@ -80,16 +87,24 @@ const events = [
 // someone held as of episode n.
 function impliedEvents(ep, ctx) {
   const out = [];
-  for (const el of ep.events || []) {
+  const exits = ep.events || [];
+  const role = (el) => ctx.roleOf(el.castawayId, ep.number);
+  // The finale is the episode that crowns someone.
+  const winners = exits.filter((el) => el.method === 'Winner');
+  const traitorWon = winners.some((el) => role(el) === 'Traitor');
+  for (const el of exits) {
     if (el.method === 'Murdered') out.push({ type: 'murdered', castawayId: el.castawayId });
-    if (el.method === 'Finalist') out.push({ type: 'finalist', castawayId: el.castawayId });
+    if (el.method === 'Finalist') {
+      out.push({ type: 'finalist', castawayId: el.castawayId });
+      if (traitorWon && role(el) !== 'Traitor') out.push({ type: 'fooledToTheEnd', castawayId: el.castawayId });
+    }
     if (el.method === 'Winner') {
       out.push({ type: 'seasonWinner', castawayId: el.castawayId });
-      if (ctx.roleOf(el.castawayId, ep.number) === 'Traitor') out.push({ type: 'wonAsTraitor', castawayId: el.castawayId });
+      if (role(el) === 'Traitor') out.push({ type: 'wonAsTraitor', castawayId: el.castawayId });
     }
     if (el.method === 'Banished') {
-      const traitor = ctx.roleOf(el.castawayId, ep.number) === 'Traitor';
-      out.push({ type: traitor ? 'banishedAsTraitor' : 'banishedAsFaithful', castawayId: el.castawayId });
+      const type = winners.length ? 'banishedInFinale' : role(el) === 'Traitor' ? 'banishedAsTraitor' : 'banishedAsFaithful';
+      out.push({ type, castawayId: el.castawayId });
     }
     if (el.method === 'Left the game') out.push({ type: 'leftGame', castawayId: el.castawayId });
   }
@@ -561,7 +576,7 @@ module.exports = {
       ],
     },
     { id: 'leaving', label: 'Leaving the game', events: ['leftGame'] },
-    { id: 'endgame', label: 'Endgame', events: ['seasonWinner', 'wonAsTraitor', 'finalist'] },
+    { id: 'endgame', label: 'Endgame', events: ['seasonWinner', 'wonAsTraitor', 'finalist', 'fooledToTheEnd', 'banishedInFinale'] },
   ],
   // An episode's headline wins, at the top of its Recap (episode-recap.tsx).
   recap: [{ label: 'Shield', events: ['shieldWon'] }],

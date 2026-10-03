@@ -7,6 +7,9 @@ SEASONS = sorted({r["season"] for r in rows})
 # AU2 marks its winners as Finalist (no win cell).
 for r in rows:
     if r["season"] == "AU2" and r["exit"] == "finalist": r["exit"] = "winner"
+# The finale is the episode with the winner(s); and which seasons a Traitor won.
+FINALE = {r["season"]: r["epIndex"] for r in rows if r["exit"] == "winner"}
+TRAITOR_WON = {r["season"] for r in rows if r["exit"] == "winner" and r["traitor"]}
 
 
 def events(r):
@@ -25,9 +28,12 @@ def events(r):
     if r["dagger"] or r["seer"]: ev.append("wonPower")
     x = r["exit"]
     if x == "murdered": ev.append("murdered")
-    if x == "banished": ev.append("banishedAsTraitor" if t else "banishedAsFaithful")
+    if x == "banished":
+        if r["epIndex"] == FINALE.get(r["season"]): ev.append("banishedInFinale")
+        else: ev.append("banishedAsTraitor" if t else "banishedAsFaithful")
     if x == "left": ev.append("leftGame")
     if x in ("finalist", "winner"): ev.append("finalist")
+    if x == "finalist" and not t and r["season"] in TRAITOR_WON: ev.append("fooledToTheEnd")
     if x == "winner":
         ev.append("seasonWinner")
         if t: ev.append("wonAsTraitor")

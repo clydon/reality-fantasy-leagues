@@ -163,3 +163,29 @@ test("winning as a Traitor adds a bonus on top of the win", () => {
   assert.deepEqual(types(league([{ castawayId: "a", role: "Traitor" }])), ["seasonWinner", "wonAsTraitor"]);
   assert.deepEqual(types(league([])), ["seasonWinner"]);
 });
+
+test("the finale: a banishment costs less, and a Faithful who lost to a Traitor was fooled", () => {
+  const finale = (exits, roles = []) => StateLogic.migrateLeagueState({
+    settings: { leagueTypeId: "active-roster", showFormat: "traitors", ownershipMode: "shared", activeSlots: 3, startEpisode: 1 },
+    players: [{ id: "p1", name: "Ann", color: "#111" }],
+    castaways: ["rob", "maura", "eric"].map((id) => ({ id, name: id, ownerIds: ["p1"], status: "active" })),
+    episodes: [{ id: "ep1", number: 1, events: exits, roles, lineups: { p1: ["rob", "maura", "eric"] }, scoringEvents: [] }],
+  });
+  const types = (s, id) => StateLogic.ActiveRosterLogic.episodeEvents(s, s.episodes[0]).filter((e) => e.castawayId === id).map((e) => e.type).sort();
+  // US4: Rob (Traitor) wins, Maura (Faithful) is the fooled finalist, Eric (Traitor) banished at the Fire.
+  const traitorsWin = finale(
+    [{ castawayId: "eric", method: "Banished" }, { castawayId: "maura", method: "Finalist" }, { castawayId: "rob", method: "Winner" }],
+    [{ castawayId: "rob", role: "Traitor" }, { castawayId: "eric", role: "Traitor" }]
+  );
+  assert.deepEqual(types(traitorsWin, "maura"), ["finalist", "fooledToTheEnd"]);
+  assert.deepEqual(types(traitorsWin, "eric"), ["banishedInFinale"], "not the usual banishment");
+  assert.deepEqual(types(traitorsWin, "rob"), ["seasonWinner", "wonAsTraitor"]);
+  // A Faithful win: a finalist (if any) wasn't fooled, and a banishment before the finale is the usual -3.
+  const faithfulWin = finale([{ castawayId: "maura", method: "Finalist" }, { castawayId: "rob", method: "Winner" }]);
+  assert.deepEqual(types(faithfulWin, "maura"), ["finalist"]);
+  const midSeason = finale([{ castawayId: "eric", method: "Banished" }]);
+  assert.deepEqual(types(midSeason, "eric"), ["banishedAsFaithful"]);
+  const pts = (id) => StateLogic.ActiveRosterLogic.pointsFor(traitorsWin, id);
+  assert.equal(pts("banishedInFinale"), -1);
+  assert.equal(pts("finalist") + pts("fooledToTheEnd"), 2, "a fooled finalist nets 2 in a shared league");
+});
