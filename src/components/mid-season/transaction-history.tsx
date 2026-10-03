@@ -36,14 +36,14 @@ export function TransactionHistory({ state, entries }: { state: LeagueState; ent
                     {/* Faded -- a replenish drop is always an elimination, so this reads the same
                         visual language as an eliminated card everywhere else in the app. A trade
                         drop wasn't eliminated (just dropped voluntarily), so it stays full-color. */}
-                    <CastawayAvatar
+                    <CastawayAvatar expandable
                       castaway={dropped}
                       className={cn(AVATAR, entry.type === "replenish" && "opacity-[.55] saturate-[.75]")}
                     />
                     <span className="text-xs text-muted-foreground">{entry.type === "trade" ? "⇄" : "→"}</span>
                   </>
                 )}
-                {added && <CastawayAvatar castaway={added} className={AVATAR} />}
+                {added && <CastawayAvatar expandable castaway={added} className={AVATAR} />}
                 {typeof entry.episode === "number" ? (
                   <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold">
                     Ep {entry.episode}

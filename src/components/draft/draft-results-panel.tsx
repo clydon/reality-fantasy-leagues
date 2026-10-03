@@ -49,7 +49,7 @@ export function DraftResultsPanel({ state }: { state: LeagueState }) {
                 picks.map((c) => (
                   <div key={c.id} className="my-1 flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5">
-                      <CastawayAvatar
+                      <CastawayAvatar expandable
                         castaway={c}
                         className="flex h-5 w-5 items-center justify-center rounded-lg bg-secondary text-[0.6rem] font-bold"
                       />

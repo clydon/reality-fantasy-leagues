@@ -238,7 +238,7 @@ function DecisionRow({
     <div className={cn("rounded-md px-2 py-1.5", rowTint(d.status))}>
       <div className="flex flex-wrap items-center gap-1.5">
         {member ? (
-          <CastawayAvatar
+          <CastawayAvatar expandable
             castaway={{ name: member.name, photoUrl: member.photoUrl ?? undefined }}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-secondary text-[0.6rem] font-bold"
           />

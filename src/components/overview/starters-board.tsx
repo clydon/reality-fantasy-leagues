@@ -172,7 +172,7 @@ function Chip({ state, castaway: c, ring, points, small }: { state: LeagueState;
         className={cn("overflow-hidden rounded-lg border-2", small ? "h-7 w-7 opacity-80" : "h-10 w-10", isKnockedOut(state, c) && "opacity-50")}
         style={{ borderColor: ring ?? "var(--border)" }}
       >
-        <CastawayAvatar
+        <CastawayAvatar expandable
           castaway={c}
           className={cn(
             "flex h-full w-full items-center justify-center bg-secondary font-mono font-bold text-muted-foreground",

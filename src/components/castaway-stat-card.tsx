@@ -138,7 +138,7 @@ export function CastawayStatCard({
           </div>
         ))}
       <div className={cn("relative mx-auto", compact ? "mb-1.5 h-12 w-12" : "mb-2 h-16 w-16")}>
-        <CastawayAvatar
+        <CastawayAvatar expandable
           castaway={c}
           className={cn(
             "flex items-center justify-center border border-border bg-secondary font-mono font-bold text-muted-foreground",

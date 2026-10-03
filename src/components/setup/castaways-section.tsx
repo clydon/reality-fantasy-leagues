@@ -79,7 +79,7 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
                 .filter((n): n is string => !!n);
               return (
                 <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2.5 text-sm">
-                  <CastawayAvatar
+                  <CastawayAvatar expandable
                     castaway={c}
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary text-[0.6rem] font-bold text-muted-foreground"
                   />

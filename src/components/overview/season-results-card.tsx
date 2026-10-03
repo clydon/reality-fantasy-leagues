@@ -65,7 +65,7 @@ export function SeasonResultsCard({ state }: { state: LeagueState }) {
       )}
       {showWinner && (
         <div className="mt-3 flex items-center justify-center gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
-          <CastawayAvatar castaway={showWinner} className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary text-[0.55rem] font-bold" />
+          <CastawayAvatar expandable castaway={showWinner} className="flex h-6 w-6 items-center justify-center rounded-md bg-secondary text-[0.55rem] font-bold" />
           <span>
             <b className="text-foreground">{showWinner.name}</b> won the season
           </span>

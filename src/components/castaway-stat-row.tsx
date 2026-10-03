@@ -38,7 +38,7 @@ export function CastawayStatRow({
   return (
     <div className={cn("flex items-center gap-3 rounded-lg border border-border bg-card p-2.5", out && "opacity-[.55]")}>
       <div className="relative h-14 w-14 shrink-0">
-        <CastawayAvatar
+        <CastawayAvatar expandable
           castaway={c}
           className="flex h-14 w-14 items-center justify-center rounded-[12px] border border-border bg-secondary font-mono text-[0.95rem] font-bold text-muted-foreground"
         />
