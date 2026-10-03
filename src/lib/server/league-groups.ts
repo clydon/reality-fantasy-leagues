@@ -42,3 +42,20 @@ export function linkProblem(a: LeagueState, b: LeagueState): string | null {
   }
   return null;
 }
+
+/**
+ * The open league's group in its commissioner-set order (0046's group_position; unpositioned leagues
+ * after, by name) with the group's favorite -- just this league and no favorite when it isn't linked.
+ */
+export async function groupOrder(leagueId: string): Promise<{ ids: string[]; favoriteId: string | null }> {
+  const { rows } = await pool.query(
+    `SELECT l2.id, g.favorite_league_id FROM leagues l1
+       JOIN leagues l2 ON l2.group_id = l1.group_id
+       JOIN league_groups g ON g.id = l1.group_id
+      WHERE l1.id = $1
+      ORDER BY l2.group_position NULLS LAST, l2.name, l2.id`,
+    [leagueId]
+  );
+  if (!rows.length) return { ids: [leagueId], favoriteId: null };
+  return { ids: rows.map((r) => r.id as string), favoriteId: (rows[0].favorite_league_id as string | null) ?? null };
+}

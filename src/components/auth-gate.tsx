@@ -20,7 +20,7 @@ import { Dashboard } from "@/components/dashboard/dashboard";
 import { useLeaguePoll } from "@/lib/use-league-poll";
 import { ActionBar } from "@/components/action-bar";
 import { WhatsNewModal } from "@/components/whats-new-modal";
-import { rememberedLeague } from "@/lib/last-league";
+import { rememberedLeague, reloadedLeague } from "@/lib/last-league";
 import { Button } from "@/components/ui/button";
 import { ResultsInBanner } from "@/components/results-in-banner";
 import { LeagueSwipe } from "@/components/league-swipe";
@@ -82,12 +82,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
       // A push notification link carries ?league=<id> (see push-events.ts), so tapping "your turn to
       // draft" opens THAT league rather than whichever one happens to be first. Honoured only if
       // it's one of the user's own leagues; otherwise fall back to the first as before.
-      // Otherwise the league last open in this browser, so a reload (pull-to-refresh) stays put.
+      // Otherwise a reload (pull-to-refresh) stays put; and opening the app goes back to the league
+      // last open in this browser -- or, when that one's linked, to its group's favorite (0046).
       const wanted = new URLSearchParams(window.location.search).get("league");
-      const target =
-        me.leagues.find((l) => l.id === wanted) ??
-        me.leagues.find((l) => l.id === rememberedLeague(me.user.id)) ??
-        me.leagues[0];
+      const byId = (id: string | null) => me.leagues.find((l) => l.id === id);
+      const last = byId(rememberedLeague(me.user.id)) ?? me.leagues[0];
+      const target = byId(wanted) ?? byId(reloadedLeague(me.user.id)) ?? byId(last.landOn) ?? last;
       const { league, state, membership, playerAccounts } = await api.leagueState(target.id);
       loadLive(league.id, state, league.name, membership, me.user.id, me.user.isSuperAdmin, playerAccounts);
     }

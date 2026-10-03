@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole, isSuperAdminUser } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
-import { groupLeagueIds, linkProblem } from "@/lib/server/league-groups";
+import { groupOrder, linkProblem } from "@/lib/server/league-groups";
 import type { LeagueState } from "@/lib/game/types";
 
 // Linked leagues (db/migrations/0040, league-groups.ts): League Settings' "Linked leagues".
-//   GET    -- this league's group, and the caller's other leagues it could join, each with why not
-//             (if it can't) and who would newly share the chat (the warning before linking).
+//   GET    -- this league's group (in its order, with its favorite -- 0046), and the caller's other
+//             leagues it could join, each with why not (if it can't) and who would newly share the
+//             chat (the warning before linking).
 //   POST   -- { otherLeagueId }: link the two. The caller must be a commissioner of both (or a site
 //             admin); the other league must be unlinked, or already in this league's group.
+//   PUT    -- { order?: string[], favoriteId?: string | null }: the group's order (every league in it,
+//             once) and the league the app opens on for its members. A commissioner of this league.
 //   DELETE -- take this league out of its group (its chat goes back to just its own messages).
 
 type Row = { id: string; name: string; state: LeagueState; group_id: string | null };
@@ -31,9 +34,10 @@ async function membersOf(ids: string[]): Promise<Map<string, string>> {
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
   const { user } = await requireLeagueRole(req, leagueId, "member");
-  const groupIds = await groupLeagueIds(leagueId);
+  const { ids: groupIds, favoriteId } = await groupOrder(leagueId);
   const group = await leagueRows(groupIds);
   const self = group.find((l) => l.id === leagueId)!;
+  const ordered = groupIds.map((id) => group.find((l) => l.id === id)!).filter(Boolean);
 
   // Candidates: the caller's other leagues where they're commissioner, not already in this group.
   const { rows: mine } = await pool.query(
@@ -55,7 +59,10 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
     });
   }
   return NextResponse.json({
-    linked: group.filter((l) => l.id !== leagueId).map((l) => ({ id: l.id, name: l.name })),
+    linked: ordered.filter((l) => l.id !== leagueId).map((l) => ({ id: l.id, name: l.name })),
+    // The whole group, this league included, in order (empty when it isn't linked).
+    order: ordered.length > 1 ? ordered.map((l) => ({ id: l.id, name: l.name })) : [],
+    favoriteId,
     candidates: out.sort((a, b) => Number(!!a.problem) - Number(!!b.problem) || a.name.localeCompare(b.name)),
   });
 });
@@ -83,19 +90,56 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   if (!groupId) {
     const { rows } = await pool.query("INSERT INTO league_groups (created_by) VALUES ($1) RETURNING id", [user.id]);
     groupId = rows[0].id as string;
-    await pool.query("UPDATE leagues SET group_id = $1 WHERE id = $2", [groupId, leagueId]);
+    await pool.query("UPDATE leagues SET group_id = $1, group_position = 0 WHERE id = $2", [groupId, leagueId]);
   }
-  await pool.query("UPDATE leagues SET group_id = $1 WHERE id = $2", [groupId, otherLeagueId]);
+  // Joins at the end of the group's order.
+  await pool.query(
+    `UPDATE leagues SET group_id = $1,
+            group_position = (SELECT COALESCE(max(group_position), -1) + 1 FROM leagues WHERE group_id = $1)
+      WHERE id = $2`,
+    [groupId, otherLeagueId]
+  );
+  return NextResponse.json({ ok: true });
+});
+
+export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
+  const { leagueId } = await params;
+  await requireLeagueRole(req, leagueId, "commissioner");
+  const body = (await req.json().catch(() => ({}))) as { order?: unknown; favoriteId?: unknown };
+  const { rows } = await pool.query("SELECT group_id FROM leagues WHERE id = $1", [leagueId]);
+  const groupId = rows[0]?.group_id as string | null;
+  if (!groupId) throw new HttpError(400, "This league isn't linked to any others.");
+  const { ids } = await groupOrder(leagueId);
+
+  if (body.order !== undefined) {
+    const order = body.order;
+    if (!Array.isArray(order) || order.length !== ids.length || new Set(order).size !== ids.length || !order.every((id) => ids.includes(id))) {
+      throw new HttpError(400, "order must list every linked league once");
+    }
+    await pool.query(
+      `UPDATE leagues l SET group_position = o.pos - 1
+         FROM unnest($1::uuid[]) WITH ORDINALITY AS o(id, pos)
+        WHERE l.id = o.id AND l.group_id = $2`,
+      [order, groupId]
+    );
+  }
+  if (body.favoriteId !== undefined) {
+    const fav = body.favoriteId;
+    if (fav !== null && (typeof fav !== "string" || !ids.includes(fav))) throw new HttpError(400, "favoriteId must be a linked league");
+    await pool.query("UPDATE league_groups SET favorite_league_id = $1 WHERE id = $2", [fav, groupId]);
+  }
   return NextResponse.json({ ok: true });
 });
 
 export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
   await requireLeagueRole(req, leagueId, "commissioner");
-  await pool.query("UPDATE leagues SET group_id = NULL WHERE id = $1", [leagueId]);
+  // A group whose favorite leaves has no favorite.
+  await pool.query("UPDATE league_groups SET favorite_league_id = NULL WHERE favorite_league_id = $1", [leagueId]);
+  await pool.query("UPDATE leagues SET group_id = NULL, group_position = NULL WHERE id = $1", [leagueId]);
   // A group left with one league isn't a link any more.
   await pool.query(
-    `UPDATE leagues SET group_id = NULL WHERE group_id IN (SELECT group_id FROM leagues WHERE group_id IS NOT NULL GROUP BY group_id HAVING count(*) = 1)`
+    `UPDATE leagues SET group_id = NULL, group_position = NULL WHERE group_id IN (SELECT group_id FROM leagues WHERE group_id IS NOT NULL GROUP BY group_id HAVING count(*) = 1)`
   );
   await pool.query("DELETE FROM league_groups g WHERE NOT EXISTS (SELECT 1 FROM leagues l WHERE l.group_id = g.id)");
   return NextResponse.json({ ok: true });

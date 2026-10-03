@@ -40,7 +40,8 @@ async function localFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export interface MeResponse {
   user: { id: string; username: string; isSuperAdmin: boolean };
   // Already sorted for display by the server -- see /api/me.
-  leagues: { id: string; name: string; join_code: string; role: string; type: string; showId: string | null }[];
+  // landOn: the league the app opens on in this one's place -- its linked group's favorite, or null.
+  leagues: { id: string; name: string; join_code: string; role: string; type: string; showId: string | null; landOn: string | null }[];
   impersonating: boolean;
 }
 
@@ -72,10 +73,15 @@ export const api = {
   getLeagueLinks: (leagueId: string) =>
     localFetch<{
       linked: { id: string; name: string }[];
+      order: { id: string; name: string }[];
+      favoriteId: string | null;
       candidates: { id: string; name: string; problem: string | null; joiningUs: string[]; joiningThem: string[] }[];
     }>(`/api/leagues/${leagueId}/link`),
   linkLeague: (leagueId: string, otherLeagueId: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "POST", body: JSON.stringify({ otherLeagueId }) }),
+  // A commissioner's group order (every linked league once) and/or the league its members open on.
+  setLeagueGroup: (leagueId: string, changes: { order?: string[]; favoriteId?: string | null }) =>
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "PUT", body: JSON.stringify(changes) }),
   unlinkLeague: (leagueId: string) => localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "DELETE" }),
   // Spoiler protection: this member has now seen results through episode `through`.
   markResultsSeen: (leagueId: string, through: number) =>

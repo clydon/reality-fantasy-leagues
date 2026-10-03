@@ -42,7 +42,8 @@ const SETTLE_MS = 220;
 // it), and not Account, Admin or Reports, which look the same whichever league is open.
 const LEAGUE_PAGES = new Set(["/", "/episodes", "/scoreboard", "/research", "/draft", "/mid-season", "/setup"]);
 
-/** The open league's linked group, in the league dropdown's order, and where the open one sits. */
+/** The open league's linked group, in the order its commissioner set (the league dropdown's too), and
+ *  where the open one sits. Only the leagues you're in -- linked leagues needn't share every member. */
 export function useLinkedOrder(): { ids: string[]; index: number } {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mode = useLeagueStore((s) => s.mode);
@@ -52,7 +53,7 @@ export function useLinkedOrder(): { ids: string[]; index: number } {
     queryKey: ["league-group", leagueId],
     queryFn: async () => {
       const r = await api.getLeagueLinks(leagueId!);
-      return r.linked.length ? [leagueId!, ...r.linked.map((l) => l.id)] : [];
+      return r.order.map((l) => l.id);
     },
     enabled: mode === "live" && !!leagueId,
     staleTime: 60_000,
@@ -65,7 +66,7 @@ export function useLinkedOrder(): { ids: string[]; index: number } {
     }
   }, [group, leagueId, queryClient]);
   if (!leagueId || !group || group.length < 2) return { ids: [], index: -1 };
-  const ids = leagues.map((l) => l.id).filter((id) => group.includes(id));
+  const ids = group.filter((id) => leagues.some((l) => l.id === id));
   return { ids, index: ids.indexOf(leagueId) };
 }
 
