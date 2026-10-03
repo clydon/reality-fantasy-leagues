@@ -162,9 +162,9 @@ test("The Challenge and Traitors exits", () => {
   assert.equal(total(exitLeague("challenge", "Eliminated")), -3);
   assert.equal(total(exitLeague("challenge", "Disqualified")), -5);
   assert.equal(total(exitLeague("challenge", "Medically removed")), 0);
-  assert.equal(total(exitLeague("traitors", "Banished")), -3, "a Faithful banished");
-  assert.equal(total(exitLeague("traitors", "Banished", { roles: [{ castawayId: "a", role: "Traitor" }] })), -3, "a Traitor caught");
-  assert.equal(total(exitLeague("traitors", "Left the game")), -5);
+  assert.equal(total(exitLeague("traitors", "Banished")), -6, "a Faithful banished");
+  assert.equal(total(exitLeague("traitors", "Banished", { roles: [{ castawayId: "a", role: "Traitor" }] })), -6, "a Traitor caught");
+  assert.equal(total(exitLeague("traitors", "Left the game")), -10);
   assert.equal(total(exitLeague("traitors", "Murdered")), 0);
 });
 

@@ -28,10 +28,13 @@ their phone against production and reports back, often with screenshots or scree
   list, `accusedBy`) and code derives the Round Table outcomes.
 - **Values:** `docs/RESEARCH-traitors-scoring-values.md`, from 20 finished English-language seasons
   of fandom voting grids (scripts in `docs/research-scripts/traitors/`). Applied as the code
-  defaults. Main changes: shields 2 → 1, a Traitor mirror of "voted out a Traitor" so Traitors are
-  worth fielding, and a Traitor-win bonus. Settings inputs now step in 0.25.
+  defaults, **on a ×2 scale** (smallest step 0.5). Votes and case leads score by both the voter's
+  and the banished person's role. Finale banishments cost less, and a Faithful fooled to the end
+  loses points. Exclusive leagues pay less for the win and the Traitor-vote events (owning the
+  winner decided 80% of mock leagues, now 70%). Settings inputs now step in 0.25.
 - **Next:** add the trusted recap sites (Gold Derby, Today.com, Peacock, A.V. Club) to the show's
-  research domains. Open: whether to score "voted out a Faithful" at 0.5.
+  research domains (done as migration 0043). Switch the Traitors show's Rules to "The Traitors" in
+  Admin if it's still on Survivor rules (it was locally).
 
 ## What shipped on 2026-10-01/02 (~60 commits, `fd15b0b..HEAD`)
 

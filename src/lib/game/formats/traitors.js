@@ -28,25 +28,29 @@ const RECRUITED = 'Recruited Traitor';
 //   * A Traitor's season should be worth about what a Faithful's is. Traitors can't catch Traitors and
 //     are never murdered, so without turnedOnTraitor and zeroVotes they scored a fifth of a Faithful.
 //   * Shields are mostly luck (past shields don't predict the next) and some missions hand out a dozen,
-//     so they're worth 1.
+//     so they're worth 2, half a Traitor catch.
+//   * In an exclusive league one team owns the eventual winner outright, and owning them already
+//     decides most leagues (they last longest and pile up the Traitor vote events), so the win and
+//     those events are lower there: in mock drafts the owner's chance falls from 80% to 70%.
+// Everything is on a x2 scale so the smallest step is 0.5 -- doubling changes no standings.
 // Every value is a default: a league's own settings override it, and 0 switches a category off.
 // Murdered stays 0: it usually means the Traitors saw you as a threat, and nobody can see it coming
 // to bench you. Being banished either way, or walking out, costs points.
 const events = [
   // --- Missions ---
-  { id: 'shieldWon', label: 'Won a shield or immunity', defaultPoints: 1 },
-  { id: 'wonPower', label: 'Won a mission power (Dagger, Seer...)', defaultPoints: 2 },
-  { id: 'missionStandout', label: 'Credited with carrying a mission', defaultPoints: 1 },
+  { id: 'shieldWon', label: 'Won a shield or immunity', defaultPoints: 2 },
+  { id: 'wonPower', label: 'Won a mission power (Dagger, Seer...)', defaultPoints: 4 },
+  { id: 'missionStandout', label: 'Credited with carrying a mission', defaultPoints: 2 },
   // Tracked, not scored: a shield given away is generosity or a Traitor's tell, and the data can't say which.
   { id: 'gaveShield', label: 'Gave their shield to someone else', defaultPoints: 0 },
-  { id: 'missionBlunder', label: 'Blamed for a mission failure or lost money', defaultPoints: -0.5 },
+  { id: 'missionBlunder', label: 'Blamed for a mission failure or lost money', defaultPoints: -1 },
   // --- Murder & the Turret ---
-  { id: 'shieldSavedThem', label: 'Chosen for murder but saved by a shield', defaultPoints: 2 },
-  { id: 'onMurderShortlist', label: 'On the murder shortlist and survived the night', defaultPoints: 0.5 },
+  { id: 'shieldSavedThem', label: 'Chosen for murder but saved by a shield', defaultPoints: 4 },
+  { id: 'onMurderShortlist', label: 'On the murder shortlist and survived the night', defaultPoints: 1 },
   // Lower than a formal shortlist: recaps report the turret's options most weeks, so it's frequent.
-  { id: 'consideredForMurder', label: 'Considered for murder by the Traitors and survived', defaultPoints: 0.25 },
-  { id: 'declinedRecruitment', label: "Turned down the Traitors' offer", defaultPoints: 1 },
-  { id: 'recruited', label: 'Recruited as a Traitor', defaultPoints: 2, implied: true },
+  { id: 'consideredForMurder', label: 'Considered for murder by the Traitors and survived', defaultPoints: 0.5 },
+  { id: 'declinedRecruitment', label: "Turned down the Traitors' offer", defaultPoints: 2 },
+  { id: 'recruited', label: 'Recruited as a Traitor', defaultPoints: 4, implied: true },
   { id: 'murdered', label: 'Murdered', defaultPoints: 0, implied: true },
   // --- Round Table ---
   // Every banishment vote and every case that led to one scores by what the voter (or leader) and the
@@ -54,33 +58,33 @@ const events = [
   // Voting out a Faithful is good Traitor play, but for a Faithful it's 0, not a penalty: the average
   // Faithful casts 2 such votes a season, and penalising them made every measure worse. LEADING that
   // case is one person's deliberate push, so misleading the table does cost a little.
-  { id: 'votedOutTraitor', label: 'As a Faithful, voted for a Traitor who was banished', defaultPoints: 2 },
-  { id: 'turnedOnTraitor', label: 'As a Traitor, voted out a fellow Traitor', defaultPoints: 2 },
-  { id: 'traitorVotedOutFaithful', label: 'As a Traitor, voted for a Faithful who was banished', defaultPoints: 0.5 },
+  { id: 'votedOutTraitor', label: 'As a Faithful, voted for a Traitor who was banished', defaultPoints: 4 },
+  { id: 'turnedOnTraitor', label: 'As a Traitor, voted out a fellow Traitor', defaultPoints: { exclusive: 3, shared: 4 } },
+  { id: 'traitorVotedOutFaithful', label: 'As a Traitor, voted for a Faithful who was banished', defaultPoints: { exclusive: 0.5, shared: 1 } },
   { id: 'votedOutFaithful', label: 'As a Faithful, voted for a Faithful who was banished', defaultPoints: 0 },
-  { id: 'ledCaseAgainstTraitor', label: 'As a Faithful, led the case that banished a Traitor', defaultPoints: 1 },
-  { id: 'ledCaseAgainstPartner', label: 'As a Traitor, led the case that banished a fellow Traitor', defaultPoints: 1 },
-  { id: 'framedFaithful', label: 'As a Traitor, led the case that banished a Faithful', defaultPoints: 1 },
-  { id: 'ledCaseAgainstFaithful', label: 'As a Faithful, led the case that banished a Faithful', defaultPoints: -0.5 },
-  { id: 'accusedAtRoundTable', label: 'Accused at the Round Table and survived it', defaultPoints: 0.5 },
-  { id: 'survivedRoundTable', label: 'Received banishment votes but survived', defaultPoints: 0.5 },
-  { id: 'zeroVotes', label: 'At the Round Table, zero votes against', defaultPoints: 0.5 },
-  { id: 'banishedAsFaithful', label: 'Banished as a Faithful', defaultPoints: -3, implied: true },
-  { id: 'banishedAsTraitor', label: 'Banished as a Traitor (caught)', defaultPoints: -3, implied: true },
+  { id: 'ledCaseAgainstTraitor', label: 'As a Faithful, led the case that banished a Traitor', defaultPoints: 2 },
+  { id: 'ledCaseAgainstPartner', label: 'As a Traitor, led the case that banished a fellow Traitor', defaultPoints: 2 },
+  { id: 'framedFaithful', label: 'As a Traitor, led the case that banished a Faithful', defaultPoints: 2 },
+  { id: 'ledCaseAgainstFaithful', label: 'As a Faithful, led the case that banished a Faithful', defaultPoints: -1 },
+  { id: 'accusedAtRoundTable', label: 'Accused at the Round Table and survived it', defaultPoints: 1 },
+  { id: 'survivedRoundTable', label: 'Received banishment votes but survived', defaultPoints: 1 },
+  { id: 'zeroVotes', label: 'At the Round Table, zero votes against', defaultPoints: 1 },
+  { id: 'banishedAsFaithful', label: 'Banished as a Faithful', defaultPoints: -6, implied: true },
+  { id: 'banishedAsTraitor', label: 'Banished as a Traitor (caught)', defaultPoints: -6, implied: true },
   // --- Leaving and the end ---
-  { id: 'leftGame', label: 'Left the game', defaultPoints: -5, implied: true },
-  { id: 'finalist', label: 'Reached the end as a Finalist', defaultPoints: { exclusive: 3, shared: 5 }, implied: true },
+  { id: 'leftGame', label: 'Left the game', defaultPoints: -10, implied: true },
+  { id: 'finalist', label: 'Reached the end as a Finalist', defaultPoints: { exclusive: 4, shared: 10 }, implied: true },
   // A Faithful who reached the end only to lose the pot to a Traitor. In 20 seasons that's every
   // finalist who didn't win (when the Faithfuls win, everyone left shares it), so without this the
-  // finalist points were, in practice, points for being fooled. Nets a fooled finalist +2 (shared).
-  { id: 'fooledToTheEnd', label: 'Finalist who lost to a Traitor (fooled to the end)', defaultPoints: -3, implied: true },
-  // Banished in the finale (the last Round Table or the Fire of Truth) instead of the usual -3:
+  // finalist points were, in practice, points for being fooled. Nets a fooled finalist +4 shared, +2 exclusive.
+  { id: 'fooledToTheEnd', label: 'Finalist who lost to a Traitor (fooled to the end)', defaultPoints: { exclusive: -2, shared: -6 }, implied: true },
+  // Banished in the finale (the last Round Table or the Fire of Truth) instead of the usual -6:
   // reaching the final handful is an achievement, the same reasoning as Survivor's lost fire-making.
-  { id: 'banishedInFinale', label: 'Banished in the finale', defaultPoints: -1, implied: true },
-  { id: 'seasonWinner', label: 'Won the season', defaultPoints: { exclusive: 5, shared: 10 }, implied: true },
+  { id: 'banishedInFinale', label: 'Banished in the finale', defaultPoints: -2, implied: true },
+  { id: 'seasonWinner', label: 'Won the season', defaultPoints: { exclusive: 6, shared: 20 }, implied: true },
   // On top of the win: Traitors won 12 of the 20 seasons studied, but rarely without a fight, and
   // usually alone. Smaller in an exclusive league, where one team owns the winner outright.
-  { id: 'wonAsTraitor', label: 'Won the season as a Traitor (bonus)', defaultPoints: { exclusive: 2, shared: 3 }, implied: true },
+  { id: 'wonAsTraitor', label: 'Won the season as a Traitor (bonus)', defaultPoints: { exclusive: 2, shared: 6 }, implied: true },
 ];
 
 // Events that follow from what an episode already records. `ctx.roleOf(castawayId, n)` is the role

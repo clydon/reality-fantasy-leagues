@@ -17,42 +17,50 @@ decides the league instead of the manager.
 
 ## 1. The values
 
-| Category | Event | Was | Now |
-|---|---|---|---|
-| **Missions** | Won a shield or immunity | 2 | **1** |
-| | Won a mission power (Dagger, Seer…) | — | 2 |
-| | Credited with carrying a mission | — | 1 |
-| | Gave their shield to someone else | — | 0 (tracked) |
-| | Blamed for a mission failure or lost money | — | −0.5 |
-| **Murder & the Turret** | Chosen for murder but saved by a shield | — | 2 |
-| | On the murder shortlist and survived the night | — | 0.5 |
-| | Considered for murder by the Traitors and survived | — | 0.25 |
-| | Turned down the Traitors' offer | — | 1 |
-| | Recruited as a Traitor | 3 | **2** |
-| | Murdered | 0 | 0 |
-| **Round Table** | As a Faithful, voted out a Traitor | 2 | 2 |
-| | As a Traitor, voted out a fellow Traitor | — | 2 |
-| | As a Traitor, voted out a Faithful | — | 0.5 |
-| | As a Faithful, voted out a Faithful | — | 0 (tracked) |
-| | As a Faithful, led the case that banished a Traitor | — | 1 |
-| | As a Traitor, led the case that banished a fellow Traitor | — | 1 |
-| | As a Traitor, led the case that banished a Faithful | — | 1 |
-| | As a Faithful, led the case that banished a Faithful | — | −0.5 |
-| | Accused at the Round Table and survived it | — | 0.5 |
-| | Received banishment votes but survived | 1 | **0.5** |
-| | Zero votes against | — | 0.5 |
-| | Banished as a Faithful / as a Traitor | −3 / −3 | −3 / −3 |
-| **Leaving / Endgame** | Left the game | −5 | −5 |
-| | Finalist (runner-up) | 3 / 5 | 3 / 5 |
-| | Finalist who lost to a Traitor (fooled to the end) | — | −3 (on top) |
-| | Banished in the finale (instead of −3) | — | −1 |
-| | Won the season | 5 / 10 | 5 / 10 |
-| | Won as a Traitor (bonus on top) | — | 2 / 3 |
+**Scale:** the code uses these values at **×2** of the scale the research was done on, so the smallest
+step is 0.5 (no 0.25s). Doubling every value changes no standings or gaps; it only makes the numbers
+whole. Everywhere after this table (findings, variants, reasoning) quotes the **original scale**, so
+halve the numbers below to compare. "Was" is the original defaults, also on the original scale.
 
-`a / b` = exclusive / shared ownership. The settings inputs now step in 0.25s
-(`active-roster-settings-section.tsx`).
+| Category | Event | Was | **Shared** | **Exclusive** |
+|---|---|---|---|---|
+| **Missions** | Won a shield or immunity | 2 | 2 | 2 |
+| | Won a mission power (Dagger, Seer…) | — | 4 | 4 |
+| | Credited with carrying a mission | — | 2 | 2 |
+| | Gave their shield to someone else | — | 0 (tracked) | 0 |
+| | Blamed for a mission failure or lost money | — | −1 | −1 |
+| **Murder & the Turret** | Chosen for murder but saved by a shield | — | 4 | 4 |
+| | On the murder shortlist and survived the night | — | 1 | 1 |
+| | Considered for murder by the Traitors and survived | — | 0.5 | 0.5 |
+| | Turned down the Traitors' offer | — | 2 | 2 |
+| | Recruited as a Traitor | 3 | 4 | 4 |
+| | Murdered | 0 | 0 | 0 |
+| **Round Table** | As a Faithful, voted out a Traitor | 2 | 4 | 4 |
+| | As a Traitor, voted out a fellow Traitor | — | 4 | **3** |
+| | As a Traitor, voted out a Faithful | — | 1 | **0.5** |
+| | As a Faithful, voted out a Faithful | — | 0 (tracked) | 0 |
+| | As a Faithful, led the case that banished a Traitor | — | 2 | 2 |
+| | As a Traitor, led the case that banished a fellow Traitor | — | 2 | 2 |
+| | As a Traitor, led the case that banished a Faithful | — | 2 | 2 |
+| | As a Faithful, led the case that banished a Faithful | — | −1 | −1 |
+| | Accused at the Round Table and survived it | — | 1 | 1 |
+| | Received banishment votes but survived | 1 | 1 | 1 |
+| | Zero votes against | — | 1 | 1 |
+| | Banished as a Faithful / as a Traitor | −3 / −3 | −6 / −6 | −6 / −6 |
+| **Leaving / Endgame** | Left the game | −5 | −10 | −10 |
+| | Banished in the finale (instead of the usual) | — | −2 | −2 |
+| | Finalist (runner-up) | 5 / 3 | 10 | **4** |
+| | Finalist who lost to a Traitor (fooled to the end, on top) | — | −6 | **−2** |
+| | Won the season | 10 / 5 | 20 | **6** |
+| | Won as a Traitor (bonus on top) | — | 6 | **2** |
 
----
+"Was" shows shared / exclusive where they differed. The settings inputs step in 0.25s
+(`active-roster-settings-section.tsx`), so any value a league picks still fits.
+
+**Predictions:** a prediction is worth 1–3 points (`MAX_BET_POINTS`) and adds to Active Roster totals
+when bonuses are on. At ×2, predictions count for about half as much against Traitors events as they
+would have. A starter averages about 1.4 points a week at this scale, so a prediction still matters.
+The cap was left alone.
 
 ## 2. Data and method
 
@@ -220,9 +228,56 @@ actually finished (winners, then finalists who didn't win, then by exit order):
 - **Sole winner.** Half the seasons had a shared win (2–4 winners), but the winner already outscores
   everyone either way, so a bonus would only widen a gap that's already decisive.
 
+### 3.7 Shared vs exclusive ownership
+
+In an exclusive league one team owns each person outright, so whatever the eventual winner piles up
+goes to one team. That's the case for separate values.
+
+**Concentration.** The share of each event earned by eventual winners, against their 12.8% share of
+person-episodes:
+
+| Event | Winners' share | × their share |
+|---|---|---|
+| Finalist (non-winner) | 75% | 5.8× |
+| As a Traitor, voted out a Faithful | 34% | 2.6× |
+| As a Traitor, voted out a fellow Traitor | 31% | 2.4× |
+| As a Faithful, voted out a Traitor | 20% | 1.6× |
+| Shield, zero votes, survived votes, voted out a Faithful | 13–15% | 1.0–1.2× |
+
+**Mock exclusive leagues.** 4 teams of 4 random picks, 2,000 drafts per season, every player counted
+all season. Counting only drafts where exactly one team owns a winner, how often that team wins the
+league (no edge = 25%):
+
+| Values (original scale) | Owner wins | Faithful / Traitor per episode | Link to going far |
+|---|---|---|---|
+| Shared values in an exclusive league | 90% | | |
+| Exclusive as first built (win 5, finalist 3, Traitor bonus 2) | 80% | +0.69 / +0.84 | +0.71 |
+| No win points at all | 60% | | |
+| Win 3 / finalist 2 / bonus 1 | 74% | +0.69 / +0.84 | +0.71 |
+| **…and Traitor votes lowered (partner 1.5, vs a Faithful 0.25)** | **70%** | **+0.69 / +0.65** | **+0.70** |
+| …and all four vote outcomes ×0.75 instead | 75% | +0.60 / +0.76 | +0.71 |
+| …and zero votes 0.25 instead | 76% | +0.54 / +0.69 | +0.68 |
+
+(Per-episode figures here exclude every finale episode.)
+
+- **Owning the winner decides most exclusive leagues whatever the values.** Even with no points for
+  winning it's 60%: the winner plays the most episodes and collects all season.
+- **The adopted exclusive set cuts it from 80% to 70%.** It lowers the win and the two
+  Traitor-vote events, the most concentrated weekly events, and leaves Faithfuls and Traitors close
+  to even.
+- **Lowering every vote event, or zero votes, didn't help.** It cost the link to good play without
+  reducing the edge as much.
+- **Fooled to the end is smaller in exclusive leagues** (−1 original scale, −2 in code), to match the
+  smaller finalist points: otherwise a fooled finalist would net less than being banished in the
+  finale.
+- **Caveats.** Real drafts aren't random: spotting the winner is partly skill, which should pay
+  something. Real lineups also bench people, so the true edge is probably smaller than these.
+
 ---
 
 ## 4. Reasoning per value
+
+(Original scale, ×1. The code uses ×2: see §1.)
 
 - **Voted out a Traitor 2, Traitor mirror 2.** The strongest good-play signal on each side,
   predictable from history (0.59), and about 30% + 6% of all positive points. Equal by default; the
@@ -293,7 +348,8 @@ The scripts are in `docs/research-scripts/traitors/` (Python 3, standard library
    identical neighbouring sub-columns into one Round Table. Takes banishments from the Banishment
    row. Run the scripts from this folder: `python dataset.py && python simulate.py`.
 4. `analyze.py`: frequencies, links and predictability. `simulate.py`: scores the seasons under
-   value sets and compares them.
+   value sets and compares them (original scale, shared values). `ownership.py`: the mock exclusive
+   leagues in §3.7.
 
 ## Sources
 

@@ -71,7 +71,7 @@ test("every vote and case outcome is a scoring event, in the Round Table categor
     assert.ok(roundTable.includes(id), id);
   }
   const league = StateLogic.migrateLeagueState({ settings: { leagueTypeId: "active-roster", showFormat: "traitors", ownershipMode: "shared" } });
-  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "ledCaseAgainstFaithful"), -0.5, "misleading the table costs");
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "ledCaseAgainstFaithful"), -1, "misleading the table costs");
   assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "votedOutFaithful"), 0, "a Faithful's wrong vote doesn't");
 });
 
@@ -180,12 +180,28 @@ test("the finale: a banishment costs less, and a Faithful who lost to a Traitor 
   assert.deepEqual(types(traitorsWin, "maura"), ["finalist", "fooledToTheEnd"]);
   assert.deepEqual(types(traitorsWin, "eric"), ["banishedInFinale"], "not the usual banishment");
   assert.deepEqual(types(traitorsWin, "rob"), ["seasonWinner", "wonAsTraitor"]);
-  // A Faithful win: a finalist (if any) wasn't fooled, and a banishment before the finale is the usual -3.
+  // A Faithful win: a finalist (if any) wasn't fooled, and a banishment before the finale is the usual -6.
   const faithfulWin = finale([{ castawayId: "maura", method: "Finalist" }, { castawayId: "rob", method: "Winner" }]);
   assert.deepEqual(types(faithfulWin, "maura"), ["finalist"]);
   const midSeason = finale([{ castawayId: "eric", method: "Banished" }]);
   assert.deepEqual(types(midSeason, "eric"), ["banishedAsFaithful"]);
   const pts = (id) => StateLogic.ActiveRosterLogic.pointsFor(traitorsWin, id);
-  assert.equal(pts("banishedInFinale"), -1);
-  assert.equal(pts("finalist") + pts("fooledToTheEnd"), 2, "a fooled finalist nets 2 in a shared league");
+  assert.equal(pts("banishedInFinale"), -2);
+  assert.equal(pts("finalist") + pts("fooledToTheEnd"), 4, "a fooled finalist nets 4 in a shared league");
+});
+
+test("exclusive leagues pay less for the win and the Traitor votes, and nothing is below 0.5", () => {
+  const league = (mode) => StateLogic.migrateLeagueState({ settings: { leagueTypeId: "active-roster", showFormat: "traitors", ownershipMode: mode } });
+  const pts = (mode, id) => StateLogic.ActiveRosterLogic.pointsFor(league(mode), id);
+  for (const id of ["seasonWinner", "finalist", "wonAsTraitor", "turnedOnTraitor", "traitorVotedOutFaithful"]) {
+    assert.ok(pts("exclusive", id) < pts("shared", id), id);
+  }
+  assert.ok(pts("exclusive", "fooledToTheEnd") > pts("shared", "fooledToTheEnd"), "a smaller penalty to match the smaller finalist points");
+  assert.ok(pts("exclusive", "finalist") + pts("exclusive", "fooledToTheEnd") > 0, "reaching the end still nets something");
+  for (const mode of ["exclusive", "shared"]) {
+    for (const e of traitors.events) {
+      const v = Math.abs(pts(mode, e.id));
+      assert.ok(v === 0 || v >= 0.5, `${mode} ${e.id} = ${v}`);
+    }
+  }
 });
