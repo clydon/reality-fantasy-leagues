@@ -9,6 +9,7 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { cn } from "cn";
+import { isKnockedOut } from "@/lib/game/selectors";
 
 // Active Roster's scouting page: every castaway ranked by the points they've actually scored, over a
 // chosen window of recent episodes -- who's worth fielding, who's worth picking up. A castaway's OWN
@@ -169,7 +170,7 @@ export function ResearchTab() {
           {shown.map((r, i) => {
             const owners = r.c.ownerIds.map((id) => StateLogic.getPlayer(state, id)).filter((p): p is NonNullable<typeof p> => !!p);
             const tribe = r.c.tribeId ? StateLogic.Core.getTribe(state, r.c.tribeId) : null;
-            const out = r.c.status === "eliminated";
+            const out = isKnockedOut(state, r.c);
             const isOpen = open === r.c.id;
             return (
               <div key={r.c.id} className="border-t border-border first:border-t-0">

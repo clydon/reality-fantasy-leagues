@@ -11,6 +11,7 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore } from "@/lib/store";
 import { episodeTeamBullets, latestScoredEpisode, weekInRace } from "@/lib/game/episode-team-summary";
 import { useTeamSummary } from "./use-team-summary";
+import { isKnockedOut } from "@/lib/game/selectors";
 
 // Active Roster's leaderboard row. Separate from LeaderboardRow because that one's breakdown is
 // "Boot Order" plus a roster list with elimination placements -- which is exactly what this league
@@ -186,7 +187,7 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
             <button
               className={cn(
                 "flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-secondary",
-                (!l.current || l.c.status === "eliminated") && "opacity-60"
+                (!l.current || isKnockedOut(state, l.c)) && "opacity-60"
               )}
               aria-expanded={open === l.c.id}
               onClick={() => setOpen(open === l.c.id ? null : l.c.id)}
@@ -197,7 +198,7 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
               />
               <span className="min-w-0 flex-1 truncate text-sm font-semibold">
                 {l.c.name}
-                {l.c.status === "eliminated" && (
+                {isKnockedOut(state, l.c) && (
                   <span className="ml-1 text-destructive" title="Eliminated">
                     ✕
                   </span>

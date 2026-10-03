@@ -13,6 +13,7 @@ import { cn } from "cn";
 import { RevealFirst, useHiddenResults } from "@/components/results-in-banner";
 import { formatInTz } from "@/lib/game/air-schedule.js";
 import { scoringGroups } from "@/lib/game/scoring-groups";
+import { isKnockedOut } from "@/lib/game/selectors";
 
 // Active Roster: YOUR lineup for the current episode (StateLogic.currentEpisode): an Active row of
 // activeSlots slots (empty ones as dashed outlines), then the rest of your roster by current tribe.
@@ -142,7 +143,7 @@ function LineupCard({
   showTribe?: boolean;
   onTap: () => void;
 }) {
-  const out = c.status === "eliminated";
+  const out = isKnockedOut(state, c);
   const tribe = showTribe && c.tribeId ? state.tribes.find((t) => t.id === c.tribeId) : null;
   return (
     <button

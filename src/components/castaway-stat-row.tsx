@@ -7,6 +7,7 @@ import { RoleBadge } from "@/components/role-badge";
 import { XMarkIcon } from "@/components/icons";
 import { cn } from "cn";
 import StateLogic from "@/lib/game/state-logic.js";
+import { isKnockedOut } from "@/lib/game/selectors";
 
 // Active Roster's "Your Team" row: photo on the left, stat breakdown already open to its right --
 // unlike CastawayStatCard (a vertical card, breakdown below the photo, collapsed until tapped), this
@@ -31,7 +32,7 @@ export function CastawayStatRow({
 }) {
   const stats = given ?? castawayEventStats(state, c.id);
 
-  const eliminated = c.status === "eliminated";
+  const eliminated = isKnockedOut(state, c);
   const out = eliminated && fade;
 
   return (

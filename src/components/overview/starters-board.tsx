@@ -10,6 +10,7 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { CastawayStatCard } from "@/components/castaway-stat-card";
 import { cn } from "cn";
 import { formatInTz } from "@/lib/game/air-schedule.js";
+import { isKnockedOut } from "@/lib/game/selectors";
 
 // Active Roster's Board: who each player is starting, then the whole cast as compact chips grouped
 // by current tribe. Replaces BoardGrid's full cards for this league type -- with starters being the
@@ -139,6 +140,7 @@ function StarterRow({
           <div className="flex flex-wrap gap-1.5">
             {starters.map((c) => (
               <Chip
+                state={state}
                 key={c.id}
                 castaway={c}
                 ring={player.color}
@@ -153,7 +155,7 @@ function StarterRow({
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
               <span className="mr-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-muted-foreground">Bench</span>
               {bench.map((c) => (
-                <Chip key={c.id} castaway={c} small />
+                <Chip state={state} key={c.id} castaway={c} small />
               ))}
             </div>
           )}
@@ -163,11 +165,11 @@ function StarterRow({
   );
 }
 
-function Chip({ castaway: c, ring, points, small }: { castaway: Castaway; ring?: string; points?: number; small?: boolean }) {
+function Chip({ state, castaway: c, ring, points, small }: { state: LeagueState; castaway: Castaway; ring?: string; points?: number; small?: boolean }) {
   return (
     <div className="relative shrink-0" title={c.name}>
       <div
-        className={cn("overflow-hidden rounded-lg border-2", small ? "h-7 w-7 opacity-80" : "h-10 w-10", c.status === "eliminated" && "opacity-50")}
+        className={cn("overflow-hidden rounded-lg border-2", small ? "h-7 w-7 opacity-80" : "h-10 w-10", isKnockedOut(state, c) && "opacity-50")}
         style={{ borderColor: ring ?? "var(--border)" }}
       >
         <CastawayAvatar
@@ -230,7 +232,7 @@ function CastByTribe({ state }: { state: LeagueState }) {
                       key={c.id}
                       className={cn(
                         "flex w-11 flex-col items-center gap-0.5 rounded-md p-0.5 hover:bg-secondary",
-                        c.status === "eliminated" && "opacity-45",
+                        isKnockedOut(state, c) && "opacity-45",
                         openId === c.id && "bg-secondary"
                       )}
                       onClick={() => setOpenId(openId === c.id ? null : c.id)}

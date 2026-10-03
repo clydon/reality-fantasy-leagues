@@ -537,7 +537,11 @@ module.exports = {
   exitMethods,
   // The exit method that crowns the winner. Seeing it ends the season: no further episodes are
   // created, and the winner isn't a "loss" for replenish.
+  // What a new show on these rules calls its people and groups, until an admin says otherwise.
+  terms: { castaway: 'Castaway', tribe: 'Tribe' },
   winnerExitMethod: 'Sole Survivor',
+  // Exits that mean reaching the end, not being knocked out: shown as finishers, never dimmed as out.
+  endgameExitMethods: ['Lost Final Tribal (Jury Vote)', 'Sole Survivor'],
   events,
   // Groups for "How starters score" (active-roster-lineup-grid.tsx), in this order. Every event above
   // belongs to exactly one; anything left out would land in a trailing "Other".

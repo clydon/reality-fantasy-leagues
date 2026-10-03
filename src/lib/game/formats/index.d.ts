@@ -23,7 +23,11 @@ export interface GameFormat {
   name: string;
   exitMethods: string[];
   /** The exit method that crowns the winner and ends the season. */
+  /** A new show's default terms for its people and groups (Castaway / Tribe, Challenger / Team…). */
+  terms: { castaway: string; tribe: string };
   winnerExitMethod: string;
+  /** Exits that mean reaching the end (finalist, winner) rather than being knocked out. */
+  endgameExitMethods: string[];
   /** The Active Roster scoring catalog. */
   events: ScoringEventDef[];
   /** The catalog grouped for display (Challenges, Tribal Council, Endgame...), in display order. */

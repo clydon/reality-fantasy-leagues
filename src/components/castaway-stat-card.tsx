@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { LeagueState, Castaway, Player, Tribe } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { castawayEventStats } from "@/lib/game/active-roster-rows";
-import { medalFor, MEDAL_EMOJI } from "@/lib/game/selectors";
+import { medalFor, MEDAL_EMOJI, isKnockedOut } from "@/lib/game/selectors";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { RoleBadge } from "@/components/role-badge";
 import { XMarkIcon } from "@/components/icons";
@@ -98,7 +98,7 @@ export function CastawayStatCard({
 }) {
   const owner = owners[0] ?? null;
   const medal = c.status === "eliminated" && showPlacementBadge ? medalFor(state, c.placementOrder) : null;
-  const dimmed = c.status === "eliminated" && (dimAllEliminated || !medal);
+  const dimmed = isKnockedOut(state, c) && (dimAllEliminated || !medal);
   const stats = showPoints ? castawayEventStats(state, c.id) : null;
   const clickable = showPoints && !!onToggleExpand;
   const movement = movementSymbol(c);
@@ -147,7 +147,7 @@ export function CastawayStatCard({
         />
         {/* Scoped to the avatar box itself (not the whole card) so it stays centered on the photo
             regardless of whether the card is expanded, and never spills past the thumbnail. */}
-        {c.status === "eliminated" && !medal && (
+        {isKnockedOut(state, c) && !medal && (
           <div
             className={cn("pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/10", compact ? "rounded-[11px]" : "rounded-[14px]")}
             aria-hidden

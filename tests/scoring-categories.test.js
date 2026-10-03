@@ -261,3 +261,12 @@ test("a prediction is worth 1 to 3 points, however it's proposed or edited", () 
   StateLogic.updateBet(s, "e1", big.id, "predictions", []);
   assert.ok(Array.isArray(big.predictions) && big.id, "only label and points can be edited");
 });
+
+test("every format names its finishers and its default terms", () => {
+  for (const id of ["survivor", "challenge", "traitors"]) {
+    const f = Formats.formatFor(id);
+    assert.ok(f.endgameExitMethods.includes(f.winnerExitMethod), `${id}: the winner is a finisher`);
+    for (const m of f.endgameExitMethods) assert.ok(f.exitMethods.includes(m), `${id}: ${m} is an exit method`);
+    assert.ok(f.terms.castaway && f.terms.tribe, `${id}: default terms`);
+  }
+});

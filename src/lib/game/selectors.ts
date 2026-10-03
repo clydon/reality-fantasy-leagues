@@ -1,4 +1,4 @@
-import type { Bet, Episode, LeagueState } from "./types";
+import type { Bet, Castaway, Episode, LeagueState } from "./types";
 import StateLogic from "./state-logic.js";
 
 // Small pure helpers ported from public/app.js. These are view-layer derivations, not part of
@@ -100,4 +100,10 @@ export function medalFor(state: LeagueState, placementOrder: number | undefined)
   if (total >= 2 && placementOrder === total - 1) return "silver";
   if (total >= 3 && placementOrder === total - 2) return "bronze";
   return null;
+}
+
+/** Knocked out of the game: eliminated, but not by reaching the end. A finalist or winner has an exit
+ *  too (it's how placement is recorded), but showing them faded as "out" reads as a loss. */
+export function isKnockedOut(state: LeagueState, c: Castaway): boolean {
+  return c.status === "eliminated" && !StateLogic.formatOf(state).endgameExitMethods.includes(c.exitMethod ?? "");
 }

@@ -564,7 +564,11 @@ module.exports = {
   id: 'traitors',
   name: 'The Traitors',
   exitMethods,
+  // What a new show on these rules calls its people and groups, until an admin says otherwise.
+  terms: { castaway: 'Contestant', tribe: 'Team' },
   winnerExitMethod: 'Winner',
+  // Exits that mean reaching the end, not being knocked out: shown as finishers, never dimmed as out.
+  endgameExitMethods: ['Finalist', 'Winner'],
   events,
   // Groups for "How starters score" (active-roster-lineup-grid.tsx), in this order.
   eventCategories: [
