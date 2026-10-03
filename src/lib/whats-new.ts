@@ -20,6 +20,29 @@ export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: WhatsNewRelease[] = [
   {
+    id: "2026-10-02e",
+    date: "2026-10-02",
+    items: [
+      {
+        icon: "🗞️",
+        title: "What your week meant, in a line",
+        detail: "After each episode, every team on the Scoreboard gets a short line on what set its week apart. Yours shows on Overview too.",
+        link: { label: "Show me", to: "/scoreboard" },
+      },
+      { icon: "🔍", title: "Tap a photo for a closer look", detail: "Not sure who's who? Tap a cast member's photo to see it full size." },
+      {
+        icon: "🤖",
+        title: "Computer players",
+        detail: "Commissioners can add bots to a league, from Casual to Sharp. They draft, set lineups and make picks on their own.",
+      },
+      {
+        icon: "🗡️",
+        title: "New Traitors scoring",
+        detail: "Points for the Round Table (catching a Traitor, leading the case, a Traitor sacrificing a partner), murder shortlists and mission moments. Winning is worth 6, so one finale can't decide your league.",
+      },
+    ],
+  },
+  {
     id: "2026-10-02d",
     date: "2026-10-02",
     items: [
