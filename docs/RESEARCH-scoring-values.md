@@ -354,6 +354,9 @@ worth less than (or equal to) successful plays, and correct votes are scored.
 - [ ] Re-run this analysis when survivoR adds season 51 (the Exile Island season) to see whether
       exile and journeys should be worth anything.
 - [ ] Superlatives as end-of-season awards or prediction questions (feature idea, not scoring).
+- [ ] Test the exclusive vs shared split with mock exclusive leagues: does owning the Sole Survivor
+      decide the league, and do the lower exclusive values fix it? Traitors did this
+      (`docs/RESEARCH-traitors-scoring-values.md` §3.7); see BACKLOG.
 
 ## 9. Re-running this
 

@@ -28,7 +28,13 @@ Last updated 2026-10-02.
 6. **"Learned about someone's idol/advantage" points.** It's tracked at 0 now. After a few
    researched episodes, compare research's answers with the episodes in Admin's review. Then 0.5 if
    reliable, 0.25 if mixed, or keep at 0. Avoid ≥1 unless very accurate.
-7. **Local dev DB repair** (see HANDOFF): re-apply 0017–0024 (minus 0016/0023, which need
+7. **Test Survivor's shared vs exclusive values.** Traitors' split was tested with mock exclusive
+   leagues (`docs/RESEARCH-traitors-scoring-values.md` §3.7: owning the winner decided 80% of
+   leagues, 70% after the split). Survivor's split was reasoned, never tested. Not a quick retrofit:
+   the Survivor study ran on the survivoR spreadsheet with scripts that weren't kept, so it needs that
+   event mapping rebuilt first (`docs/RESEARCH-scoring-values.md` §2 and §9 describe it). The
+   Traitors `ownership.py` shows the mock-draft method to copy.
+8. **Local dev DB repair** (see HANDOFF): re-apply 0017–0024 (minus 0016/0023, which need
    pgvector), then 0033–0040. Needs the user's go-ahead.
 
 ## Open: small or polish
