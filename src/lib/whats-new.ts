@@ -20,6 +20,17 @@ export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: WhatsNewRelease[] = [
   {
+    id: "2026-10-03",
+    date: "2026-10-03",
+    items: [
+      {
+        icon: "📂",
+        title: "Linked leagues sit together in your league list",
+        detail: "Leagues that share a chat are grouped under one name. Tap the group to see its leagues.",
+      },
+    ],
+  },
+  {
     id: "2026-10-02e",
     date: "2026-10-02",
     items: [
