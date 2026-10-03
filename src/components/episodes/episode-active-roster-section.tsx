@@ -168,13 +168,7 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
     <div className="border-t border-border pt-3">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h4 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Lineups</h4>
-        {locked ? (
-          <Badge variant="secondary" className="bg-good/15 text-good">
-            Locked
-          </Badge>
-        ) : (
-          <Badge variant="secondary">Open</Badge>
-        )}
+        {!locked && <Badge variant="secondary">Open</Badge>}
         {canManage && manualLock && (
           <Button
             variant="secondary"

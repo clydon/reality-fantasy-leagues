@@ -388,12 +388,10 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
 
           {/* Before the league's start episode there's nothing to field -- it's history. Eliminator
               Pool picks are made on Overview only (see pickem-pick-grid.tsx), never here. */}
-          {inPlay && StateLogic.getLeagueType(state).hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
-
           {/* Side bets are proposed and guessed on Overview (bet-card.tsx) -- here it's how they went,
               plus the commissioner's grading and editing behind each bet's ✏️. */}
           {state.settings.bonusEnabled && (ep.bets || []).length > 0 && (
-            <div className="border-t border-border pt-3">
+            <div className="mb-3 border-t border-border pt-3">
               <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Predictions</h4>
               <div className="divide-y divide-border rounded-md border border-border">
                 {(ep.bets || []).map((bet) => (
@@ -402,6 +400,8 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
               </div>
             </div>
           )}
+
+          {inPlay && StateLogic.getLeagueType(state).hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
         </div>
       )}
     </div>

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { PointsPicker } from "@/components/ui/points-picker";
 import { cn } from "cn";
+import { ChevronDownIcon } from "@/components/icons";
 
 // One bet inside EpisodeCard: everyone's guess on a line each, with how it went. Behind ✏️, the
 // commissioner-editing half -- grade guesses, correct the label or points, remove a guess or the
@@ -19,6 +20,7 @@ import { cn } from "cn";
 // (bet-card.tsx): this component never creates a bet or a guess, only edits what's already there.
 export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state: LeagueState }) {
   const [editing, setEditing] = useState(false);
+  const [showMisses, setShowMisses] = useState(false);
   const [label, setLabel] = useState(bet.label);
   const [points, setPoints] = useState(bet.points);
 
@@ -104,6 +106,12 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
   const guesses = bet.predictions || [];
   // Pays out only once at least two people have guessed.
   const paysOut = guesses.length >= 2;
+  // Once it's graded, just the winners and their answers; everyone else's behind a chevron. Ungraded,
+  // or while the commissioner grades, every guess shows.
+  const graded = guesses.some((p) => p.correct === true || p.correct === false);
+  const collapsible = graded && !editing;
+  const misses = collapsible ? guesses.filter((p) => p.correct !== true) : [];
+  const shown = collapsible && !showMisses ? guesses.filter((p) => p.correct === true) : guesses;
 
   return (
     <div className="px-3 py-2.5">
@@ -151,7 +159,7 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
 
       {/* Everyone's guess on one line each: who, what, and how it went. */}
       <div className="mt-1 flex flex-col gap-0.5">
-        {guesses.map((pred) => {
+        {shown.map((pred) => {
           const pp = StateLogic.getPlayer(state, pred.playerId);
           const verdict = suggestedVerdict(pred.guess);
           return (
@@ -201,6 +209,19 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
             </div>
           );
         })}
+        {collapsible && !guesses.some((p) => p.correct === true) && !showMisses && (
+          <p className="text-xs italic text-muted-foreground">Nobody got it.</p>
+        )}
+        {misses.length > 0 && (
+          <button
+            className="mt-0.5 flex items-center gap-1 self-start text-[0.7rem] text-muted-foreground"
+            onClick={() => setShowMisses((v) => !v)}
+            aria-expanded={showMisses}
+          >
+            <ChevronDownIcon className={cn("h-3.5 w-3.5 transition-transform", showMisses && "rotate-180")} />
+            {showMisses ? "Hide" : "Show"} {misses.length} other guess{misses.length === 1 ? "" : "es"}
+          </button>
+        )}
         {guesses.length === 0 && <p className="text-xs italic text-muted-foreground">No guesses.</p>}
         {guesses.length === 1 && <p className="text-[0.7rem] text-muted-foreground">Only one guess, so it doesn&rsquo;t pay out.</p>}
       </div>
