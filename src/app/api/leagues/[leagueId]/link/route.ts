@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole, isSuperAdminUser } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
-import { groupOrder, linkProblem } from "@/lib/server/league-groups";
+import { groupDisplayName, groupOrder, linkProblem } from "@/lib/server/league-groups";
 import type { LeagueState } from "@/lib/game/types";
 
 // Linked leagues (db/migrations/0040, league-groups.ts): League Settings' "Linked leagues".
@@ -11,8 +11,9 @@ import type { LeagueState } from "@/lib/game/types";
 //             chat (the warning before linking).
 //   POST   -- { otherLeagueId }: link the two. The caller must be a commissioner of both (or a site
 //             admin); the other league must be unlinked, or already in this league's group.
-//   PUT    -- { order?: string[], favoriteId?: string | null }: the group's order (every league in it,
-//             once) and the league the app opens on for its members. A commissioner of this league.
+//   PUT    -- { order?: string[], favoriteId?: string | null, name?: string | null }: the group's order
+//             (every league in it, once), the league the app opens on for its members, and its name
+//             (0047; null or blank goes back to show + season). A commissioner of this league.
 //   DELETE -- take this league out of its group (its chat goes back to just its own messages).
 
 type Row = { id: string; name: string; state: LeagueState; group_id: string | null };
@@ -46,6 +47,13 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   );
   const candidates = await leagueRows(mine.map((r) => r.league_id));
   const inGroup = await membersOf(groupIds);
+  const { rows: named } = await pool.query(
+    `SELECT g.name, s.name AS show_name FROM leagues l
+       LEFT JOIN league_groups g ON g.id = l.group_id
+       LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
+      WHERE l.id = $1`,
+    [leagueId]
+  );
   const out = [];
   for (const c of candidates) {
     const theirs = await membersOf([c.id]);
@@ -63,6 +71,8 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
     // The whole group, this league included, in order (empty when it isn't linked).
     order: ordered.length > 1 ? ordered.map((l) => ({ id: l.id, name: l.name })) : [],
     favoriteId,
+    name: (named[0]?.name as string | null) ?? null,
+    defaultName: groupDisplayName(null, named[0]?.show_name ?? null, self.state.settings?.wikiSeason ?? null),
     candidates: out.sort((a, b) => Number(!!a.problem) - Number(!!b.problem) || a.name.localeCompare(b.name)),
   });
 });
@@ -105,7 +115,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
 export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
   await requireLeagueRole(req, leagueId, "commissioner");
-  const body = (await req.json().catch(() => ({}))) as { order?: unknown; favoriteId?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { order?: unknown; favoriteId?: unknown; name?: unknown };
   const { rows } = await pool.query("SELECT group_id FROM leagues WHERE id = $1", [leagueId]);
   const groupId = rows[0]?.group_id as string | null;
   if (!groupId) throw new HttpError(400, "This league isn't linked to any others.");
@@ -127,6 +137,12 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
     const fav = body.favoriteId;
     if (fav !== null && (typeof fav !== "string" || !ids.includes(fav))) throw new HttpError(400, "favoriteId must be a linked league");
     await pool.query("UPDATE league_groups SET favorite_league_id = $1 WHERE id = $2", [fav, groupId]);
+  }
+  if (body.name !== undefined) {
+    if (body.name !== null && typeof body.name !== "string") throw new HttpError(400, "name must be text");
+    const name = body.name?.trim() || null;
+    if (name && name.length > 60) throw new HttpError(400, "Keep the name to 60 characters.");
+    await pool.query("UPDATE league_groups SET name = $1 WHERE id = $2", [name, groupId]);
   }
   return NextResponse.json({ ok: true });
 });

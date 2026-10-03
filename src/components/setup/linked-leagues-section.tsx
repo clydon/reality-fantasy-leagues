@@ -6,6 +6,7 @@ import { useLeagueStore, useCanManage } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { confirm } from "@/lib/confirm-store";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Candidate = Awaited<ReturnType<typeof api.getLeagueLinks>>["candidates"][number];
 
@@ -14,7 +15,8 @@ type Candidate = Awaited<ReturnType<typeof api.getLeagueLinks>>["candidates"][nu
 // Everyone sees what this league is linked with; a commissioner of every league involved links and
 // unlinks. Linking says first who'd newly share the conversation, so it's a choice, not a surprise.
 // A commissioner also sets the group's order (the swipe and the league list follow it) and which
-// league the app opens on for everyone in it (0046).
+// league the app opens on for everyone in it (0046), and its name (0047) -- what the league dropdowns
+// call the group; unnamed, it's the show and season.
 export function LinkedLeaguesSection() {
   const mode = useLeagueStore((s) => s.mode);
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -23,6 +25,8 @@ export function LinkedLeaguesSection() {
   const setLeagues = useLeagueStore((s) => s.setLeagues);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The name being typed, or null while it's untouched (the field then shows the saved one).
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
   const live = mode === "live" && !!leagueId;
   const { data, refetch } = useQuery({
     queryKey: ["league-link", leagueId],
@@ -65,6 +69,14 @@ export function LinkedLeaguesSection() {
     await run(() => api.setLeagueGroup(leagueId!, { order: ids }));
   }
 
+  async function saveName() {
+    if (nameDraft === null) return;
+    const name = nameDraft.trim() || null;
+    if (name === (data!.name ?? null)) return setNameDraft(null);
+    await run(() => api.setLeagueGroup(leagueId!, { name }));
+    setNameDraft(null);
+  }
+
   async function unlink() {
     if (!(await confirm("This league's chat goes back to just its own messages, and its reveals stop following the others.", { title: "Unlink this league?", confirmLabel: "Unlink", danger: true }))) return;
     await run(() => api.unlinkLeague(leagueId!));
@@ -85,6 +97,31 @@ export function LinkedLeaguesSection() {
               </Button>
             )}
           </div>
+          {canManage ? (
+            <div className="mb-3">
+              <label className="mb-1 block text-xs font-semibold text-muted-foreground" htmlFor="group-name">
+                Group name — how the league list shows these leagues
+              </label>
+              <div className="flex gap-1.5">
+                <Input
+                  id="group-name"
+                  className="min-w-0 flex-1"
+                  maxLength={60}
+                  placeholder={data.defaultName}
+                  value={nameDraft ?? data.name ?? ""}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveName()}
+                />
+                <Button size="sm" disabled={busy || nameDraft === null} onClick={saveName}>
+                  Save
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="mb-2 text-sm">
+              Listed as <b>{data.name ?? data.defaultName}</b>.
+            </p>
+          )}
           <p className="mb-1.5 text-xs text-muted-foreground">
             {canManage
               ? "Set the order you swipe through them in, and star the league the app opens on."

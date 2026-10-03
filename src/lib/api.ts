@@ -41,7 +41,18 @@ export interface MeResponse {
   user: { id: string; username: string; isSuperAdmin: boolean };
   // Already sorted for display by the server -- see /api/me.
   // landOn: the league the app opens on in this one's place -- its linked group's favorite, or null.
-  leagues: { id: string; name: string; join_code: string; role: string; type: string; showId: string | null; landOn: string | null }[];
+  // group: its linked group and that group's name (already defaulted to show + season), or null.
+  // A group's leagues come back next to each other, in the group's order.
+  leagues: {
+    id: string;
+    name: string;
+    join_code: string;
+    role: string;
+    type: string;
+    showId: string | null;
+    landOn: string | null;
+    group: { id: string; name: string } | null;
+  }[];
   impersonating: boolean;
 }
 
@@ -75,12 +86,16 @@ export const api = {
       linked: { id: string; name: string }[];
       order: { id: string; name: string }[];
       favoriteId: string | null;
+      // The group's own name (null when unset) and what it's called without one (show + season).
+      name: string | null;
+      defaultName: string;
       candidates: { id: string; name: string; problem: string | null; joiningUs: string[]; joiningThem: string[] }[];
     }>(`/api/leagues/${leagueId}/link`),
   linkLeague: (leagueId: string, otherLeagueId: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "POST", body: JSON.stringify({ otherLeagueId }) }),
-  // A commissioner's group order (every linked league once) and/or the league its members open on.
-  setLeagueGroup: (leagueId: string, changes: { order?: string[]; favoriteId?: string | null }) =>
+  // A commissioner's group order (every linked league once), the league its members open on, and/or
+  // its name (null: back to show + season).
+  setLeagueGroup: (leagueId: string, changes: { order?: string[]; favoriteId?: string | null; name?: string | null }) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "PUT", body: JSON.stringify(changes) }),
   unlinkLeague: (leagueId: string) => localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "DELETE" }),
   // Spoiler protection: this member has now seen results through episode `through`.

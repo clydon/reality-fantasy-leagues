@@ -2,24 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useLeagueStore, type LeagueSummary } from "@/lib/store";
-import { useShowCatalog } from "@/lib/use-show-terms";
-import { Badge } from "@/components/ui/badge";
+import { useLeagueStore } from "@/lib/store";
+import { LeagueMenu } from "@/components/league-menu";
 import { ChevronDownIcon, CrownIcon } from "@/components/icons";
 import { cn } from "cn";
 import { useClickOutside } from "@/lib/use-click-outside";
-
-// Type badge and show name per row, both derived from /api/me's own league list (which also
-// arrives already sorted) -- no per-league fetch, so nothing re-sorts or pops in after open.
-// Shared by the desktop switcher below and MobileNav's own top-bar dropdown.
-export function useLeagueTypeBadges(leagues: LeagueSummary[]) {
-  const { data: catalog } = useShowCatalog();
-  const types = Object.fromEntries(leagues.map((l) => [l.id, l.type]));
-  const showNames = Object.fromEntries(
-    leagues.map((l) => [l.id, catalog?.shows.find((s) => s.slug === l.showId)?.name ?? null])
-  );
-  return { types, showNames };
-}
 
 // New in this POC -- the live app's "My Leagues" dashboard lets you switch leagues by going back
 // to a full separate screen (renderDashboard()); this is the inline equivalent for a single-league
@@ -40,7 +27,6 @@ export function LeagueSwitcher({ open: openProp, onOpenChange }: { open?: boolea
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const switchLeague = useLeagueStore((s) => s.switchLeague);
-  const { types, showNames } = useLeagueTypeBadges(leagues);
   const currentLeague = leagues.find((l) => l.id === leagueId);
   const rootRef = useRef<HTMLDivElement>(null);
   useClickOutside(rootRef, open, () => setOpen(false));
@@ -62,6 +48,10 @@ export function LeagueSwitcher({ open: openProp, onOpenChange }: { open?: boolea
 
   return (
     <div ref={rootRef} className="relative px-2.5 pb-3.5 pt-0.5">
+      {/* Its linked group's name (0047), small, above the league's own. */}
+      {currentLeague?.group && (
+        <div className="truncate text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">{currentLeague.group.name}</div>
+      )}
       <button
         className="flex w-full items-center gap-1.5 text-left text-[0.95rem] font-bold text-foreground"
         onClick={handleOpen}
@@ -74,47 +64,15 @@ export function LeagueSwitcher({ open: openProp, onOpenChange }: { open?: boolea
       </button>
       {open && (
         <div className="absolute left-2.5 right-2.5 top-full z-20 mt-1 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
-          {leagues.map((l) => (
-            <button
-              key={l.id}
-              className={cn(
-                "flex w-full flex-col items-start gap-0.5 rounded-md px-2.5 py-1.5 text-left hover:bg-secondary",
-                l.id === leagueId && "bg-secondary"
-              )}
-              onClick={() => handleSelect(l.id)}
-            >
-              <span className="flex w-full items-center gap-1.5">
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{l.name}</span>
-                {showNames[l.id] && (
-                  <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">{showNames[l.id]}</span>
-                )}
-              </span>
-              {(types[l.id] || l.role === "commissioner") && (
-                <span className="flex flex-wrap items-center gap-1">
-                  {types[l.id] && (
-                    <Badge variant="secondary" className="text-[0.65rem]">
-                      {types[l.id]}
-                    </Badge>
-                  )}
-                  {l.role === "commissioner" && (
-                    <span className="flex items-center gap-0.5 text-xs text-amber-600">
-                      <CrownIcon className="h-3 w-3 shrink-0" />
-                      Commissioner
-                    </span>
-                  )}
-                </span>
-              )}
-            </button>
-          ))}
-          <button
-            className="mt-1 flex w-full items-center rounded-md border-t border-border px-2.5 pb-1 pt-2 text-left text-sm font-semibold text-primary hover:bg-secondary"
-            onClick={() => {
+          <LeagueMenu
+            leagues={leagues}
+            leagueId={leagueId}
+            onSelect={handleSelect}
+            onJoinOrCreate={() => {
               setOpen(false);
               router.push("/dashboard");
             }}
-          >
-            + Join or create a league
-          </button>
+          />
         </div>
       )}
     </div>

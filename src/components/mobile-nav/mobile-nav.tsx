@@ -13,9 +13,8 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { logOut } from "@/lib/auth-client";
 import { cn } from "cn";
 import { midseasonBadge } from "@/lib/game/selectors";
-import { useLeagueTypeBadges } from "@/components/league-switcher";
+import { LeagueMenu } from "@/components/league-menu";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
-import { Badge } from "@/components/ui/badge";
 import { ThemePicker } from "@/components/theme-picker";
 import {
   OverviewIcon,
@@ -46,8 +45,8 @@ import { SwipeTitle } from "@/components/league-swipe";
 // bottom tab bar, replacing the desktop sidebar below the 880px breakpoint (see globals.css's
 // `nav`/`max-nav` custom breakpoint, matching the live app's single @media(max-width:880px) exactly).
 //
-// The top bar's league-name button is a real switcher now (see league-switcher.tsx's
-// useLeagueTypeBadges, shared with the desktop Sidebar version) rather than pure decoration.
+// The top bar's league-name button is a real switcher now (league-menu.tsx's LeagueMenu, shared with
+// the desktop Sidebar version) rather than pure decoration.
 // Rules isn't a tab in this POC at all, so the "More" sheet only lists what's actually real: the
 // demoted 4th-slot tab, League Settings, Admin+Reports (if applicable), a working Report an Issue
 // (real-auth-only -- see the note by its row below), and Log out.
@@ -147,7 +146,6 @@ export function MobileNav() {
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
   const notifications = useNotificationsStore((s) => s.notifications);
-  const { types: leagueTypes, showNames: leagueShowNames } = useLeagueTypeBadges(leagues);
 
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
@@ -284,44 +282,15 @@ export function MobileNav() {
             </button>
             {leagueMenuOpen && (
               <div className="absolute left-1/2 top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] -translate-x-1/2 overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
-                {leagues.map((l) => (
-                  <button
-                    key={l.id}
-                    className={cn(
-                      "flex w-full flex-col items-start gap-0.5 rounded-md px-2.5 py-1.5 text-left hover:bg-secondary",
-                      l.id === leagueId && "bg-secondary"
-                    )}
-                    onClick={() => handleSelectLeague(l.id)}
-                  >
-                    <span className="flex w-full items-center gap-1.5">
-                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{l.name}</span>
-                      {leagueShowNames[l.id] && (
-                        <span className="shrink-0 text-xs text-muted-foreground">{leagueShowNames[l.id]}</span>
-                      )}
-                    </span>
-                    {(leagueTypes[l.id] || l.role === "commissioner") && (
-                      <span className="flex items-center gap-1">
-                        {leagueTypes[l.id] && (
-                          <Badge variant="secondary" className="shrink-0 text-[0.65rem]">
-                            {leagueTypes[l.id]}
-                          </Badge>
-                        )}
-                        {l.role === "commissioner" && (
-                          <span className="text-xs text-amber-600">Commissioner</span>
-                        )}
-                      </span>
-                    )}
-                  </button>
-                ))}
-                <button
-                  className="mt-1 flex w-full items-center rounded-md border-t border-border px-2.5 pb-1 pt-2 text-left text-sm font-semibold text-primary hover:bg-secondary"
-                  onClick={() => {
+                <LeagueMenu
+                  leagues={leagues}
+                  leagueId={leagueId}
+                  onSelect={handleSelectLeague}
+                  onJoinOrCreate={() => {
                     setLeagueMenuOpen(false);
                     router.push("/dashboard");
                   }}
-                >
-                  + Join or create a league
-                </button>
+                />
               </div>
             )}
           </div>

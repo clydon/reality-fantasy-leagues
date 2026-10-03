@@ -59,3 +59,14 @@ export async function groupOrder(leagueId: string): Promise<{ ids: string[]; fav
   if (!rows.length) return { ids: [leagueId], favoriteId: null };
   return { ids: rows.map((r) => r.id as string), favoriteId: (rows[0].favorite_league_id as string | null) ?? null };
 }
+
+/**
+ * What a group is called: its commissioner-set name (0047), or else its show and season
+ * ("Survivor 51") -- every league in a group is on the same one, so that's always there to fall back
+ * on. A show missing from the catalog still gets a name.
+ */
+export function groupDisplayName(name: string | null, showName: string | null, season: number | null): string {
+  if (name?.trim()) return name.trim();
+  if (showName) return season != null ? `${showName} ${season}` : showName;
+  return "Linked leagues";
+}
