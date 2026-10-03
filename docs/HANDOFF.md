@@ -217,8 +217,10 @@ Grouped by area, with the file to start from.
 | 0040 | `league_groups`, `leagues.group_id`, chat type `reveal` |
 | 0041 | `episode_team_notes` |
 | 0042 | `league_invites.player_id` (an invite that hands over a seat) |
+| 0043 | Traitors research domains |
+| 0044 | Survivor 51 photos: wiki 90x90 icons → self-hosted `photos/s51/*.jpg` (480x600) |
 
-The next free number is **0043**. Production applies migrations on deploy (`npm run build` runs
+The next free number is **0045**. Production applies migrations on deploy (`npm run build` runs
 `db/migrate.js`).
 
 ## Local dev database: partly broken (user decision pending)
