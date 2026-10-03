@@ -155,8 +155,10 @@ And the signal that matters most, since a league knows everyone's role:
 
 ### 3.4 Old vs new values, on the same 20 seasons
 
-"New" is the final set: the vote split by role and the finale fixes (§3.6, §4). "Before the finale"
-excludes the winners' and finalists' last episode.
+"New" is the final set: the vote split by role and the finale fixes (§3.6, §4). The per-episode rows
+exclude the winners' and finalists' last episode. The winners row excludes **every** finale
+episode: once finale banishments cost −1, leaving them in let the people banished at the Fire of
+Truth climb above the winners, which says nothing about the season before it.
 
 | | Old | New |
 |---|---|---|
@@ -165,7 +167,7 @@ excludes the winners' and finalists' last episode.
 | Season total, original Traitor (median) | −0.5 | +4.2 |
 | Points per episode vs how far players go | +0.50 | **+0.70** |
 | Week-to-week predictability (points so far → above-median week) | 0.56 | 0.61 |
-| Winners ranked top 3 in their season on pre-finale points | 22 of 35 | 30 of 35 |
+| Winners ranked top 3 in their season, finale excluded | 17 of 35 | 26 of 35 |
 | Share of + points from shields | 24% | 9% |
 
 Under the old values a Traitor was close to a wasted lineup slot until the finale: they can't score
@@ -177,7 +179,8 @@ as often, so fielding one is a bet.
 
 ### 3.5 Variants tried
 
-Starting from the first-pass set (before the vote was split by role), one change at a time (Faithful / Traitor points per episode before the
+Starting from the first-pass set (before the vote was split by role, and counting winners on the
+older pre-finale measure), one change at a time (Faithful / Traitor points per episode before the
 finale; link to going far; winners ranked top 3 on pre-finale points):
 
 | Change | F / T per episode | Link | Winners top 3 | Verdict |
