@@ -81,7 +81,7 @@ test("defaults follow ownership: winner-heavy categories count for less in exclu
   assert.ok(pts(ex, "individualImmunity") < pts(sh, "individualImmunity"));
   assert.ok(pts(ex, "votedWithMajority") < pts(sh, "votedWithMajority"));
   assert.equal(pts(ex, "idolFound"), pts(sh, "idolFound"), "strategic one-offs are the same either way");
-  for (const format of ["challenge", "traitors"]) {
+  for (const format of ["challenge"]) {
     assert.ok(pts(league("exclusive", format), "seasonWinner") < pts(league("shared", format), "seasonWinner"), format);
   }
 });

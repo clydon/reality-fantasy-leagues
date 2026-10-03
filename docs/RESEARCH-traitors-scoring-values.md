@@ -49,10 +49,10 @@ halve the numbers below to compare. "Was" is the original defaults, also on the 
 | | Banished as a Faithful / as a Traitor | −3 / −3 | −6 / −6 | −6 / −6 |
 | **Leaving / Endgame** | Left the game | −5 | −10 | −10 |
 | | Banished in the finale (instead of the usual) | — | −2 | −2 |
-| | Finalist (runner-up) | 5 / 3 | 10 | **4** |
-| | Finalist who lost to a Traitor (fooled to the end, on top) | — | −6 | **−2** |
-| | Won the season | 10 / 5 | 20 | **6** |
-| | Won as a Traitor (bonus on top) | — | 6 | **2** |
+| | Finalist (runner-up) | 5 / 3 | **4** | **4** |
+| | Finalist who lost to a Traitor (fooled to the end, on top) | — | −2 | −2 |
+| | Won the season | 10 / 5 | **6** | **6** |
+| | Won as a Traitor (bonus on top) | — | 2 | 2 |
 
 "Was" shows shared / exclusive where they differed. The settings inputs step in 0.25s
 (`active-roster-settings-section.tsx`), so any value a league picks still fits.
@@ -227,6 +227,20 @@ actually finished (winners, then finalists who didn't win, then by exit order):
   credits reaching the end.
 - **Sole winner.** Half the seasons had a shared win (2–4 winners), but the winner already outscores
   everyone either way, so a bonus would only widen a gap that's already decisive.
+
+### 3.6b The win in shared leagues
+
+At first shared leagues kept win 10 / finalist 5 / Traitor bonus 3 (original scale; 20 / 10 / 6 in code). In
+mock shared leagues (4 teams, 5 random picks each, overlapping), the finale changed which team won
+the league in 24% of seasons, and a team owning a winner won 94%. Lowered to the exclusive values:
+
+| Win / finalist / bonus (code) | Finale flips the league winner | Owner of the winner wins |
+|---|---|---|
+| 20 / 10 / 6 | 24% | 94% |
+| 12 / 6 / 4 | 20% | 90% |
+| 8 / 4 / 3 | 17% | 86% |
+| **6 / 4 / 2 (adopted, both modes)** | **15%** | **84%** |
+| 0 / 0 / 0 (control) | 9% | 76% |
 
 ### 3.7 Shared vs exclusive ownership
 

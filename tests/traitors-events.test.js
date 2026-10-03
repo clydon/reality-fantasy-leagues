@@ -187,16 +187,14 @@ test("the finale: a banishment costs less, and a Faithful who lost to a Traitor 
   assert.deepEqual(types(midSeason, "eric"), ["banishedAsFaithful"]);
   const pts = (id) => StateLogic.ActiveRosterLogic.pointsFor(traitorsWin, id);
   assert.equal(pts("banishedInFinale"), -2);
-  assert.equal(pts("finalist") + pts("fooledToTheEnd"), 4, "a fooled finalist nets 4 in a shared league");
+  assert.equal(pts("finalist") + pts("fooledToTheEnd"), 2, "a fooled finalist still nets 2");
 });
 
-test("exclusive leagues pay less for the win and the Traitor votes, and nothing is below 0.5", () => {
+test("exclusive leagues pay less for the Traitor votes, the win is small everywhere, and nothing is below 0.5", () => {
   const league = (mode) => StateLogic.migrateLeagueState({ settings: { leagueTypeId: "active-roster", showFormat: "traitors", ownershipMode: mode } });
   const pts = (mode, id) => StateLogic.ActiveRosterLogic.pointsFor(league(mode), id);
-  for (const id of ["seasonWinner", "finalist", "wonAsTraitor", "turnedOnTraitor", "traitorVotedOutFaithful"]) {
-    assert.ok(pts("exclusive", id) < pts("shared", id), id);
-  }
-  assert.ok(pts("exclusive", "fooledToTheEnd") > pts("shared", "fooledToTheEnd"), "a smaller penalty to match the smaller finalist points");
+  for (const id of ["turnedOnTraitor", "traitorVotedOutFaithful"]) assert.ok(pts("exclusive", id) < pts("shared", id), id);
+  assert.ok(pts("shared", "seasonWinner") <= 6, "one episode can't swing a league");
   assert.ok(pts("exclusive", "finalist") + pts("exclusive", "fooledToTheEnd") > 0, "reaching the end still nets something");
   for (const mode of ["exclusive", "shared"]) {
     for (const e of traitors.events) {

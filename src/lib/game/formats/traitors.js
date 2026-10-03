@@ -30,8 +30,9 @@ const RECRUITED = 'Recruited Traitor';
 //   * Shields are mostly luck (past shields don't predict the next) and some missions hand out a dozen,
 //     so they're worth 2, half a Traitor catch.
 //   * In an exclusive league one team owns the eventual winner outright, and owning them already
-//     decides most leagues (they last longest and pile up the Traitor vote events), so the win and
-//     those events are lower there: in mock drafts the owner's chance falls from 80% to 70%.
+//     decides most leagues (they last longest and pile up the Traitor vote events), so those events are lower there: in mock drafts the owner's chance falls from 80% to 70%.
+//   * The win itself is kept small in every league (6): at 20 it decided which team won a shared
+//     league in a quarter of mock seasons, on one episode.
 // Everything is on a x2 scale so the smallest step is 0.5 -- doubling changes no standings.
 // Every value is a default: a league's own settings override it, and 0 switches a category off.
 // Murdered stays 0: it usually means the Traitors saw you as a threat, and nobody can see it coming
@@ -73,18 +74,18 @@ const events = [
   { id: 'banishedAsTraitor', label: 'Banished as a Traitor (caught)', defaultPoints: -6, implied: true },
   // --- Leaving and the end ---
   { id: 'leftGame', label: 'Left the game', defaultPoints: -10, implied: true },
-  { id: 'finalist', label: 'Reached the end as a Finalist', defaultPoints: { exclusive: 4, shared: 10 }, implied: true },
+  { id: 'finalist', label: 'Reached the end as a Finalist', defaultPoints: 4, implied: true },
   // A Faithful who reached the end only to lose the pot to a Traitor. In 20 seasons that's every
   // finalist who didn't win (when the Faithfuls win, everyone left shares it), so without this the
-  // finalist points were, in practice, points for being fooled. Nets a fooled finalist +4 shared, +2 exclusive.
-  { id: 'fooledToTheEnd', label: 'Finalist who lost to a Traitor (fooled to the end)', defaultPoints: { exclusive: -2, shared: -6 }, implied: true },
+  // finalist points were, in practice, points for being fooled. Nets a fooled finalist +2.
+  { id: 'fooledToTheEnd', label: 'Finalist who lost to a Traitor (fooled to the end)', defaultPoints: -2, implied: true },
   // Banished in the finale (the last Round Table or the Fire of Truth) instead of the usual -6:
   // reaching the final handful is an achievement, the same reasoning as Survivor's lost fire-making.
   { id: 'banishedInFinale', label: 'Banished in the finale', defaultPoints: -2, implied: true },
-  { id: 'seasonWinner', label: 'Won the season', defaultPoints: { exclusive: 6, shared: 20 }, implied: true },
+  { id: 'seasonWinner', label: 'Won the season', defaultPoints: 6, implied: true },
   // On top of the win: Traitors won 12 of the 20 seasons studied, but rarely without a fight, and
   // usually alone. Smaller in an exclusive league, where one team owns the winner outright.
-  { id: 'wonAsTraitor', label: 'Won the season as a Traitor (bonus)', defaultPoints: { exclusive: 2, shared: 6 }, implied: true },
+  { id: 'wonAsTraitor', label: 'Won the season as a Traitor (bonus)', defaultPoints: 2, implied: true },
 ];
 
 // Events that follow from what an episode already records. `ctx.roleOf(castawayId, n)` is the role
