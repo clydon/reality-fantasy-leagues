@@ -252,9 +252,23 @@ export function MobileNav() {
     <>
       <header className="sticky top-[env(safe-area-inset-top,0px)] z-[55] hidden border-b border-border bg-panel-menu max-nav:block">
         <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-          <Link href="/" className="h-[30px] w-[30px] shrink-0 overflow-hidden rounded-lg shadow-sm">
-            <Image src="/icon.png" alt="" width={30} height={30} className="h-full w-full object-cover" />
-          </Link>
+          {/* The logo opens the league menu, same as tapping the name. Stopping pointerdown keeps the
+              menu's click-outside close from firing first, which would close-then-reopen it. */}
+          {mode !== "mock" && leagues.length > 0 ? (
+            <button
+              type="button"
+              aria-label="Switch league"
+              className="h-[30px] w-[30px] shrink-0 overflow-hidden rounded-lg shadow-sm"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={toggleLeagueMenu}
+            >
+              <Image src="/icon.png" alt="" width={30} height={30} className="h-full w-full object-cover" />
+            </button>
+          ) : (
+            <Link href="/" className="h-[30px] w-[30px] shrink-0 overflow-hidden rounded-lg shadow-sm">
+              <Image src="/icon.png" alt="" width={30} height={30} className="h-full w-full object-cover" />
+            </Link>
+          )}
           {/* visibility, not display -- demo mode has nothing to switch between, but the button
               still reserves its layout space, exactly like the live app's leagueBtn.style.visibility. */}
           <div ref={leagueMenuRef} className={cn("relative min-w-0 flex-1", mode === "mock" && "invisible")}>

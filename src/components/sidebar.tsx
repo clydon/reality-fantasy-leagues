@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
@@ -33,6 +34,7 @@ const TABS = [
 ];
 
 export function Sidebar() {
+  const [switcherOpen, setSwitcherOpen] = useState(false);
   const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
   const pathname = usePathname();
   const isSuperAdmin = useIsSuperAdmin();
@@ -97,12 +99,25 @@ export function Sidebar() {
   return (
     <aside className="sticky top-0 flex h-screen w-[248px] flex-none flex-col overflow-y-auto overflow-x-hidden border-r border-border bg-panel-menu p-[20px_12px]">
       <div className="flex items-center justify-center px-0 pb-[18px] pt-1">
-        <Link href="/" className="min-w-0 flex-1">
-          <BrandLogo kind="sidebar" className="h-auto w-full" priority />
-        </Link>
+        {/* With a league to switch between, the logo opens the switcher below, same as its name. */}
+        {mode === "live" && leagueName ? (
+          <button
+            type="button"
+            aria-label="Switch league"
+            className="min-w-0 flex-1"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setSwitcherOpen((o) => !o)}
+          >
+            <BrandLogo kind="sidebar" className="h-auto w-full" priority />
+          </button>
+        ) : (
+          <Link href="/" className="min-w-0 flex-1">
+            <BrandLogo kind="sidebar" className="h-auto w-full" priority />
+          </Link>
+        )}
       </div>
 
-      {mode === "live" && leagueName && <LeagueSwitcher />}
+      {mode === "live" && leagueName && <LeagueSwitcher open={switcherOpen} onOpenChange={setSwitcherOpen} />}
 
       <nav className="flex flex-col gap-0.5">
         {hasSeason ? (

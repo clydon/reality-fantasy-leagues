@@ -26,9 +26,16 @@ export function useLeagueTypeBadges(leagues: LeagueSummary[]) {
 // app shell, needed now that testing a second league (to try a future league type against) is an
 // actual workflow, not just a hypothetical. `leagues` (GET /api/auth/me) was already being fetched
 // by AuthGate and thrown away after picking [0] -- see store.ts's loadFirstLeague.
-export function LeagueSwitcher() {
+// `open` / `onOpenChange` let the sidebar's logo open it too; without them it manages itself.
+export function LeagueSwitcher({ open: openProp, onOpenChange }: { open?: boolean; onOpenChange?: (open: boolean) => void } = {}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean | ((o: boolean) => boolean)) => {
+    const value = typeof next === "function" ? next(open) : next;
+    setOpenState(value);
+    onOpenChange?.(value);
+  };
   const leagues = useLeagueStore((s) => s.leagues);
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
