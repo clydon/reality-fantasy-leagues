@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FORMATS } from "@/lib/game/formats/index.js";
+import { FORMATS, formatFor } from "@/lib/game/formats/index.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, withLeagueLock, HttpError } from "@/lib/server/db";
@@ -46,6 +46,18 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
   if (!isUuid(id)) throw new HttpError(404, "Show not found");
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
+  // The show as it stands: a cleared term goes back to its rules' default, and changing the rules
+  // carries along any term still on the old rules' default (one an admin typed is left alone).
+  const { rows: current } = await pool.query(`SELECT format, castaway_term, tribe_term FROM shows WHERE id=$1`, [id]);
+  if (!current.length) throw new HttpError(404, "Show not found");
+  const nextFormat = typeof body.format === "string" && body.format in FORMATS ? body.format : current[0].format;
+  if (nextFormat !== current[0].format) {
+    const was = formatFor(current[0].format).terms;
+    const now = formatFor(nextFormat).terms;
+    if (!("castawayTerm" in body) && current[0].castaway_term === was.castaway) body.castawayTerm = now.castaway;
+    if (!("tribeTerm" in body) && current[0].tribe_term === was.tribe) body.tribeTerm = now.tribe;
+  }
+
   const sets: string[] = [];
   const values: unknown[] = [id];
   for (const [key, column] of Object.entries(EDITABLE)) {
@@ -55,9 +67,10 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     else if (key === "researchDomains") value = parseDomains(value);
     else if (typeof value === "string") value = value.trim() || null;
     // Terminology has a sensible default rather than being nullable -- an empty term would render as
-    // a blank word in the UI.
+    // a blank word in the UI. The default is the show's rules' own (Castaway, Challenger…).
     if ((key === "castawayTerm" || key === "tribeTerm") && !value) {
-      value = key === "castawayTerm" ? "Castaway" : "Tribe";
+      const terms = formatFor(nextFormat).terms;
+      value = key === "castawayTerm" ? terms.castaway : terms.tribe;
     }
     if (key === "name" && !value) throw new HttpError(400, "name can't be empty");
     if (key === "format" && !(typeof value === "string" && value in FORMATS)) {

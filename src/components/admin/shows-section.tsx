@@ -204,7 +204,7 @@ export function ShowsSection() {
             <Input
               size="sm"
               className="w-[130px]"
-              placeholder="Castaway"
+              placeholder={formatFor(format).terms.castaway}
               title="What the show calls its people — Houseguest, Contestant…"
               value={castawayTerm}
               onChange={(e) => setCastawayTerm(e.target.value)}
@@ -212,7 +212,7 @@ export function ShowsSection() {
             <Input
               size="sm"
               className="w-[110px]"
-              placeholder="Tribe"
+              placeholder={formatFor(format).terms.tribe}
               title="What the show calls its groups — Team, Faction…"
               value={tribeTerm}
               onChange={(e) => setTribeTerm(e.target.value)}
@@ -235,7 +235,7 @@ export function ShowsSection() {
           </div>
           <p className="mt-1 text-[0.7rem] text-muted-foreground">
             The two terms are what the whole app calls people and groups, and how the connector finds the cast on the
-            wiki. Blank means Castaway / Tribe. The rules decide how people leave, what scores, and what the wiki and
+            wiki. Blank means the rules&apos; own ({formatFor(format).terms.castaway} / {formatFor(format).terms.tribe}). The rules decide how people leave, what scores, and what the wiki and
             research look for.
           </p>
         </div>

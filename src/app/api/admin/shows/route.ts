@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FORMATS, DEFAULT_FORMAT } from "@/lib/game/formats/index.js";
+import { FORMATS, DEFAULT_FORMAT, formatFor } from "@/lib/game/formats/index.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
@@ -100,8 +100,8 @@ export const POST = apiRoute(async (req) => {
       [
         slug,
         name,
-        (body.castawayTerm || "").trim() || "Castaway",
-        (body.tribeTerm || "").trim() || "Tribe",
+        (body.castawayTerm || "").trim() || formatFor(format).terms.castaway,
+        (body.tribeTerm || "").trim() || formatFor(format).terms.tribe,
         (body.wikiApiUrl || "").trim() || null,
         // Null is the normal case: wiki-sync infers the heading from castawayTerm and only needs
         // telling when a wiki calls the section something unguessable.
