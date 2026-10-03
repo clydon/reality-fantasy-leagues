@@ -9,7 +9,7 @@ SEASONS = sorted({r["season"] for r in rows})
 CURRENT = {"shieldWon": 2, "survivedRoundTable": 1, "votedOutTraitor": 2, "recruited": 3, "finalist": 5, "seasonWinner": 10,
            "murdered": 0, "banishedAsFaithful": -3, "banishedAsTraitor": -3, "leftGame": -5}
 # NB: in the app a winner gets seasonWinner only; finalist is the runner-up event. Mirror that.
-PROPOSED = {"shieldWon": 1, "survivedRoundTable": 0.5, "votedOutTraitor": 2, "turnedOnTraitor": 2, "votedOutFaithful": 0,
+PROPOSED = {"shieldWon": 1, "survivedRoundTable": 0.5, "votedOutTraitor": 2, "turnedOnTraitor": 2, "traitorVotedOutFaithful": 0.5, "votedOutFaithful": 0,
             "zeroVotes": 0.5, "onMurderShortlist": 0.5, "recruited": 2, "declinedRecruitment": 1, "wonPower": 2,
             "finalist": 5, "seasonWinner": 10, "wonAsTraitor": 3,
             "murdered": 0, "banishedAsFaithful": -3, "banishedAsTraitor": -3, "leftGame": -5}

@@ -49,17 +49,22 @@ const events = [
   { id: 'recruited', label: 'Recruited as a Traitor', defaultPoints: 2, implied: true },
   { id: 'murdered', label: 'Murdered', defaultPoints: 0, implied: true },
   // --- Round Table ---
-  // A Faithful's catch. A Traitor voting out one of their own is turnedOnTraitor instead, so a league
-  // can value a sleuth and a backstabber differently; by default they're the same.
-  { id: 'votedOutTraitor', label: 'Voted for a Traitor who was banished (as a Faithful)', defaultPoints: 2 },
+  // Every banishment vote and every case that led to one scores by what the voter (or leader) and the
+  // banished person were (banishmentVoteEvent, caseLeadEvent), so each side is credited for its own job.
+  // Voting out a Faithful is good Traitor play, but for a Faithful it's 0, not a penalty: the average
+  // Faithful casts 2 such votes a season, and penalising them made every measure worse. LEADING that
+  // case is one person's deliberate push, so misleading the table does cost a little.
+  { id: 'votedOutTraitor', label: 'As a Faithful, voted for a Traitor who was banished', defaultPoints: 2 },
   { id: 'turnedOnTraitor', label: 'As a Traitor, voted out a fellow Traitor', defaultPoints: 2 },
-  { id: 'ledCaseAgainstTraitor', label: 'Led the case against a Traitor who was banished', defaultPoints: 1 },
+  { id: 'traitorVotedOutFaithful', label: 'As a Traitor, voted for a Faithful who was banished', defaultPoints: 0.5 },
+  { id: 'votedOutFaithful', label: 'As a Faithful, voted for a Faithful who was banished', defaultPoints: 0 },
+  { id: 'ledCaseAgainstTraitor', label: 'As a Faithful, led the case that banished a Traitor', defaultPoints: 1 },
+  { id: 'ledCaseAgainstPartner', label: 'As a Traitor, led the case that banished a fellow Traitor', defaultPoints: 1 },
+  { id: 'framedFaithful', label: 'As a Traitor, led the case that banished a Faithful', defaultPoints: 1 },
+  { id: 'ledCaseAgainstFaithful', label: 'As a Faithful, led the case that banished a Faithful', defaultPoints: -0.5 },
   { id: 'accusedAtRoundTable', label: 'Accused at the Round Table and survived it', defaultPoints: 0.5 },
   { id: 'survivedRoundTable', label: 'Received banishment votes but survived', defaultPoints: 0.5 },
   { id: 'zeroVotes', label: 'At the Round Table, zero votes against', defaultPoints: 0.5 },
-  // Tracked, not scored: for a Faithful it's being on the wrong side, and rewarding it would pay for
-  // banishing their own. A league can set it (0.5 is the value the research tested).
-  { id: 'votedOutFaithful', label: 'Voted for a Faithful who was banished', defaultPoints: 0 },
   { id: 'banishedAsFaithful', label: 'Banished as a Faithful', defaultPoints: -3, implied: true },
   { id: 'banishedAsTraitor', label: 'Banished as a Traitor (caught)', defaultPoints: -3, implied: true },
   // --- Leaving and the end ---
@@ -214,15 +219,27 @@ function episodesPrompt(terms) {
   };
 }
 
-// Who voted for the banished person, by what the voter and the banished person were:
-// a Faithful catching a Traitor, a Traitor turning on their own, or anyone sending a Faithful home.
-// Shared by the wiki read and research so both score a vote the same way.
+// A vote for the banished person, by what the voter and the banished person were. Shared by the wiki
+// read and research so both score a vote the same way. Either role unknown: no event, never a guess.
 function banishmentVoteEvent(voterIsTraitor, banishedIsTraitor) {
-  if (banishedIsTraitor === false) return 'votedOutFaithful';
-  if (banishedIsTraitor !== true) return null;
-  if (voterIsTraitor === true) return 'turnedOnTraitor';
-  if (voterIsTraitor === false) return 'votedOutTraitor';
-  return null;
+  return roleOutcome(voterIsTraitor, banishedIsTraitor, {
+    traitorOnTraitor: 'turnedOnTraitor', faithfulOnTraitor: 'votedOutTraitor',
+    traitorOnFaithful: 'traitorVotedOutFaithful', faithfulOnFaithful: 'votedOutFaithful',
+  });
+}
+
+// The same four outcomes for whoever led the case (research's accusedBy) against the banished person.
+function caseLeadEvent(leaderIsTraitor, banishedIsTraitor) {
+  return roleOutcome(leaderIsTraitor, banishedIsTraitor, {
+    traitorOnTraitor: 'ledCaseAgainstPartner', faithfulOnTraitor: 'ledCaseAgainstTraitor',
+    traitorOnFaithful: 'framedFaithful', faithfulOnFaithful: 'ledCaseAgainstFaithful',
+  });
+}
+
+function roleOutcome(actorIsTraitor, banishedIsTraitor, types) {
+  if (typeof actorIsTraitor !== 'boolean' || typeof banishedIsTraitor !== 'boolean') return null;
+  if (actorIsTraitor) return banishedIsTraitor ? types.traitorOnTraitor : types.traitorOnFaithful;
+  return banishedIsTraitor ? types.faithfulOnTraitor : types.faithfulOnFaithful;
 }
 
 // Round Table outcomes, derived from the extracted votes rather than asked for, so they're only as
@@ -468,8 +485,10 @@ function researchItems(entry, add, ctx) {
     const type = b && banishmentVoteEvent(traitor, traitorAnswer(b));
     if (type) add("event", type);
   }
-  if (banished.some((b) => traitorAnswer(b) === true && listOf(b.accusedBy).some((a) => same(a, entry.name)))) {
-    add("event", "ledCaseAgainstTraitor");
+  for (const b of banished) {
+    if (!listOf(b.accusedBy).some((a) => same(a, entry.name))) continue;
+    const type = caseLeadEvent(traitor, traitorAnswer(b));
+    if (type) add("event", type);
   }
 }
 
@@ -535,7 +554,11 @@ module.exports = {
     {
       id: 'roundTable',
       label: 'Round Table',
-      events: ['votedOutTraitor', 'turnedOnTraitor', 'ledCaseAgainstTraitor', 'accusedAtRoundTable', 'survivedRoundTable', 'zeroVotes', 'votedOutFaithful', 'banishedAsFaithful', 'banishedAsTraitor'],
+      events: [
+        'votedOutTraitor', 'turnedOnTraitor', 'traitorVotedOutFaithful', 'votedOutFaithful',
+        'ledCaseAgainstTraitor', 'ledCaseAgainstPartner', 'framedFaithful', 'ledCaseAgainstFaithful',
+        'accusedAtRoundTable', 'survivedRoundTable', 'zeroVotes', 'banishedAsFaithful', 'banishedAsTraitor',
+      ],
     },
     { id: 'leaving', label: 'Leaving the game', events: ['leftGame'] },
     { id: 'endgame', label: 'Endgame', events: ['seasonWinner', 'wonAsTraitor', 'finalist'] },

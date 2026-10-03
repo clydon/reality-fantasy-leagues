@@ -30,13 +30,17 @@ decides the league instead of the manager.
 | | Turned down the Traitors' offer | — | 1 |
 | | Recruited as a Traitor | 3 | **2** |
 | | Murdered | 0 | 0 |
-| **Round Table** | Voted out a Traitor (as a Faithful) | 2 | 2 |
+| **Round Table** | As a Faithful, voted out a Traitor | 2 | 2 |
 | | As a Traitor, voted out a fellow Traitor | — | 2 |
-| | Led the case against a banished Traitor | — | 1 |
+| | As a Traitor, voted out a Faithful | — | 0.5 |
+| | As a Faithful, voted out a Faithful | — | 0 (tracked) |
+| | As a Faithful, led the case that banished a Traitor | — | 1 |
+| | As a Traitor, led the case that banished a fellow Traitor | — | 1 |
+| | As a Traitor, led the case that banished a Faithful | — | 1 |
+| | As a Faithful, led the case that banished a Faithful | — | −0.5 |
 | | Accused at the Round Table and survived it | — | 0.5 |
 | | Received banishment votes but survived | 1 | **0.5** |
 | | Zero votes against | — | 0.5 |
-| | Voted out a Faithful | — | 0 (tracked) |
 | | Banished as a Faithful / as a Traitor | −3 / −3 | −3 / −3 |
 | **Leaving / Endgame** | Left the game | −5 | −5 |
 | | Finalist (runner-up) | 3 / 5 | 3 / 5 |
@@ -149,24 +153,28 @@ And the signal that matters most, since a league knows everyone's role:
 
 ### 3.4 Old vs new values, on the same 20 seasons
 
+"New" is the final set, with the vote split by role (§4).
+
 | | Old | New |
 |---|---|---|
 | Points per episode, Faithful (before the finale) | +0.52 | +0.65 |
-| Points per episode, **Traitor** | **+0.10** | **+0.50** |
-| Season total, original Traitor (median) | −0.5 | +2.5 |
-| Points per episode vs how far players go | +0.50 | **+0.65** |
-| Week-to-week predictability (points so far → above-median week) | 0.56 | 0.59 |
-| Winners ranked top 3 in their season on pre-finale points | 22 of 35 | 29 of 35 |
-| Share of + points from shields | 24% | 10% |
+| Points per episode, **Traitor** | **+0.10** | **+0.71** |
+| Season total, original Traitor (median) | −0.5 | +4.2 |
+| Points per episode vs how far players go | +0.50 | **+0.67** |
+| Week-to-week predictability (points so far → above-median week) | 0.56 | 0.61 |
+| Winners ranked top 3 in their season on pre-finale points | 22 of 35 | 30 of 35 |
+| Share of + points from shields | 24% | 9% |
 
 Under the old values a Traitor was close to a wasted lineup slot until the finale: they can't score
 the main weekly event (catching a Traitor), shields go mostly to Faithfuls, and their one big risk
-(banishment) costs the same. The new values fix that mainly through the Traitor mirror and zero
-votes, not by softening the banishment.
+(banishment) costs the same. The new values fix that mainly through the Traitor mirror, zero
+votes and the Traitor's vote against a Faithful, not by softening the banishment. Traitors now score
+a little more per week than Faithfuls (+0.71 vs +0.65), which fits: they're banished more than twice
+as often, so fielding one is a bet.
 
 ### 3.5 Variants tried
 
-Starting from the new set, one change at a time (Faithful / Traitor points per episode before the
+Starting from the first-pass set (before the vote was split by role), one change at a time (Faithful / Traitor points per episode before the
 finale; link to going far; winners ranked top 3 on pre-finale points):
 
 | Change | F / T per episode | Link | Winners top 3 | Verdict |
@@ -191,16 +199,25 @@ finale; link to going far; winners ranked top 3 on pre-finale points):
 - **Voted out a Traitor 2, Traitor mirror 2.** The strongest good-play signal on each side,
   predictable from history (0.59), and about 30% + 6% of all positive points. Equal by default; the
   split lets a league value a sleuth and a backstabber differently.
-- **Led the case 1 (not measured).** It sits on top of the vote (3 in total) for whoever drove the
-  most valuable outcome in the game. It's kept below the catch itself because "who led" is a
-  judgement call (moderate confidence in recaps).
+- **Led the case: the same four pairings as the vote (not measured).** A Faithful catching a
+  Traitor +1, a Traitor sacrificing a partner +1, and a Traitor framing a Faithful +1. Each sits on
+  top of the matching vote, for whoever drove the outcome, and below the vote because "who led" is a
+  judgement call. **A Faithful leading the table to banish a Faithful costs −0.5.** Unlike a wrong
+  vote, leading is one person's deliberate push. The data can't back this value, so check it once a
+  season has been read from recaps.
 - **Zero votes 0.5.** The most common event (86 per season), so small, but it tracks good play
   (+0.12 Faithful, +0.35 Traitor), it's readable (0.59), and every variant without it was worse.
   It's the same role Survivor's zero-votes-safe plays.
 - **Survived votes 1 → 0.5, accused 0.5 (not measured).** Surviving votes has no link to going far,
   but "in danger and lived" is a real roster read (0.58), and accusation and votes usually come
   together. 0.5 each keeps the combined moment at the old 1.
-- **Voted out a Faithful 0 (tracked).** It's the best single change on the numbers (+0.69 link, 30 of 35 winners in the top 3),
+- **Voted out a Faithful: split by the voter's role, 0.5 for a Traitor, 0 for a Faithful** (decided
+  after the first pass, at the league owner's prompting). Tested on the 20 seasons, with Faithful /
+  Traitor values: 0 / 0 gives link +0.65 and 29/35 winners in the top 3; **0 / +0.5 gives +0.67 and
+  30/35**, the best tested; 0 / +1 overshoots (Traitors +0.92 a week); −0.25 / +0.5 gives +0.65 and
+  29; −0.5 / +0.5 gives +0.63 and 27. Penalising a Faithful's vote makes every measure worse: the
+  average Faithful casts 2.2 such votes a season (max 8), so it punishes being in the room on a bad
+  week. What follows was the reasoning for the unsplit event: it was the best single change on the numbers (+0.69 link, 30 of 35 winners in the top 3),
   because deep players vote more and Traitors steering the vote is genuinely good play. But for a
   Faithful it pays for being wrong, which reads badly ("+0.5 for banishing your own"). Left at 0 with
   the tested value in the code comment; **a league can switch it on.**
@@ -223,7 +240,7 @@ finale; link to going far; winners ranked top 3 on pre-finale points):
   vs 7.3 for original Traitors and 6.5 for Faithfuls), and their median season total is the highest
   of any group (+9).
 - **Won as a Traitor +2 / +3.** Traitors win most seasons, but usually alone and after surviving
-  the late-season banishment risk (25% per episode). (US4's Rob R. ranks 2nd in his season on
+  the late-season banishment risk (25% per episode). (US4's Rob R. ranks 1st in his season on
   pre-finale points under the new values, against 13th under the old.)
 - **Banished −3 either way; murdered 0; left −5; finalist and winner unchanged.**
 
@@ -231,7 +248,7 @@ finale; link to going far; winners ranked top 3 on pre-finale points):
 
 ## 5. Open decisions
 
-- [ ] Switch on "Voted out a Faithful" at 0.5? (Best on the numbers; reads oddly for Faithfuls.)
+- [x] "Voted out a Faithful": split by role, 0.5 for Traitors, 0 for Faithfuls.
 - [ ] Re-run when US5, US6, CA4 and UK Celebrity 2 finish.
 - [ ] Once a season has been read from recaps, check the not-measured values (accused, led the case,
       considered, standout, blunder) against how often they actually fire.

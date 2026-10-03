@@ -36,11 +36,43 @@ test("research: a vote for a banished Traitor scores by who cast it", () => {
   assert.ok(!eventsOf(items, "Natalie Anderson").some((e) => e.startsWith("votedOut")), "voted for someone who stayed");
 });
 
-test("research: a vote for a banished Faithful is votedOutFaithful, whoever cast it", () => {
+test("research: a vote for a banished Faithful scores for a Traitor, not for a Faithful", () => {
   const s = roundTable();
   Object.assign(s.castaways[1], { isTraitor: "no" });
   const items = staged(s);
-  for (const name of ["Rob Rausch", "Maura Higgins", "Eric Nam"]) assert.ok(eventsOf(items, name).includes("votedOutFaithful"), name);
+  assert.ok(eventsOf(items, "Rob Rausch").includes("traitorVotedOutFaithful"));
+  for (const name of ["Maura Higgins", "Eric Nam"]) assert.ok(eventsOf(items, name).includes("votedOutFaithful"), name);
+});
+
+test("leading the case: every pairing of leader and banished role", () => {
+  const cases = [
+    ["yes", "yes", "ledCaseAgainstPartner"],
+    ["no", "yes", "ledCaseAgainstTraitor"],
+    ["yes", "no", "framedFaithful"],
+    ["no", "no", "ledCaseAgainstFaithful"],
+  ];
+  for (const [leader, banished, expected] of cases) {
+    const s = roundTable();
+    Object.assign(s.castaways[3], { isTraitor: leader });
+    Object.assign(s.castaways[1], { isTraitor: banished });
+    const led = eventsOf(staged(s), "Eric Nam").filter((e) => /^ledCase|^framed/.test(e));
+    assert.deepEqual(led, [expected], `leader Traitor=${leader}, banished Traitor=${banished}`);
+  }
+  // A leader whose role is unknown leads nothing.
+  const s = roundTable();
+  Object.assign(s.castaways[3], { isTraitor: "unknown" });
+  assert.ok(!eventsOf(staged(s), "Eric Nam").some((e) => /^ledCase|^framed/.test(e)));
+});
+
+test("every vote and case outcome is a scoring event, in the Round Table category", () => {
+  const roundTable = traitors.eventCategories.find((c) => c.id === "roundTable").events;
+  for (const id of ["votedOutTraitor", "turnedOnTraitor", "traitorVotedOutFaithful", "votedOutFaithful",
+    "ledCaseAgainstTraitor", "ledCaseAgainstPartner", "framedFaithful", "ledCaseAgainstFaithful"]) {
+    assert.ok(roundTable.includes(id), id);
+  }
+  const league = StateLogic.migrateLeagueState({ settings: { leagueTypeId: "active-roster", showFormat: "traitors", ownershipMode: "shared" } });
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "ledCaseAgainstFaithful"), -0.5, "misleading the table costs");
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(league, "votedOutFaithful"), 0, "a Faithful's wrong vote doesn't");
 });
 
 test("research: no vote event when the banished person's role is unknown", () => {
@@ -114,6 +146,10 @@ test("wiki: vote outcomes split by role, and zero votes for voters nobody named"
     "Rob:survivedRoundTable",
     "Rob:turnedOnTraitor",
   ]);
+  // Banishing a Faithful instead: the Traitor's vote is their job, the Faithful's is just a vote.
+  const faithfulOut = { ...extracted, originalTraitors: [{ name: "Rob" }] };
+  const types = traitors.wiki.derivedEvents(ep, faithfulOut, same).filter((e) => e.type.includes("Faithful")).map((e) => `${e.name}:${e.type}`).sort();
+  assert.deepEqual(types, ["Maura:votedOutFaithful", "Rob:traitorVotedOutFaithful"]);
 });
 
 test("winning as a Traitor adds a bonus on top of the win", () => {

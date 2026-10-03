@@ -16,7 +16,7 @@ def events(r):
     if r["shield"]: ev.append("shieldWon")
     for b in r["banishedVotes"]:
         if b["targetTraitor"]: ev.append("turnedOnTraitor" if t else "votedOutTraitor")
-        else: ev.append("votedOutFaithful")
+        else: ev.append("traitorVotedOutFaithful" if t else "votedOutFaithful")
     if r["received"] > 0 and stayed: ev.append("survivedRoundTable")
     if r["votes"] and r["received"] == 0 and stayed: ev.append("zeroVotes")
     if r["shortlist"] and not t and stayed: ev.append("onMurderShortlist")
