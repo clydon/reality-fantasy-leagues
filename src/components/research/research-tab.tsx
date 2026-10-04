@@ -178,6 +178,7 @@ export function ResearchTab() {
                   <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
                   <CastawayAvatar
                     castaway={r.c}
+                    expandable
                     className={cn(
                       "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold",
                       out && "opacity-40 grayscale"
