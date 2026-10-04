@@ -165,11 +165,30 @@ function StarterRow({
   );
 }
 
-function Chip({ state, castaway: c, ring, points, small }: { state: LeagueState; castaway: Castaway; ring?: string; points?: number; small?: boolean }) {
+// `badge`: a number in the corner -- Active Roster's points (primary), Classic's finishing place
+// (out, the red of BoardGrid's boot-order badge), or a medal emoji on its own.
+export function Chip({
+  state,
+  castaway: c,
+  ring,
+  points,
+  badgeTone = "primary",
+  small,
+  dim = isKnockedOut(state, c),
+}: {
+  state: LeagueState;
+  castaway: Castaway;
+  ring?: string;
+  points?: number | string;
+  badgeTone?: "primary" | "out" | "medal";
+  small?: boolean;
+  /** Faded as out of the game -- by default whenever they are. */
+  dim?: boolean;
+}) {
   return (
     <div className="relative shrink-0" title={c.name}>
       <div
-        className={cn("overflow-hidden rounded-lg border-2", small ? "h-7 w-7 opacity-80" : "h-10 w-10", isKnockedOut(state, c) && "opacity-50")}
+        className={cn("overflow-hidden rounded-lg border-2", small ? "h-7 w-7 opacity-80" : "h-10 w-10", dim && "opacity-50")}
         style={{ borderColor: ring ?? "var(--border)" }}
       >
         <CastawayAvatar expandable
@@ -180,18 +199,27 @@ function Chip({ state, castaway: c, ring, points, small }: { state: LeagueState;
           )}
         />
       </div>
-      {points !== undefined && (
-        <span className="absolute -bottom-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 border-card bg-primary px-0.5 font-mono text-[0.55rem] font-bold leading-none text-primary-foreground">
-          {points}
-        </span>
-      )}
+      {points !== undefined &&
+        (badgeTone === "medal" ? (
+          <span className="absolute -bottom-2 -right-2 text-lg leading-none drop-shadow-sm">{points}</span>
+        ) : (
+          <span
+            className={cn(
+              "absolute -bottom-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 border-card px-0.5 font-mono text-[0.55rem] font-bold leading-none",
+              badgeTone === "out" ? "bg-destructive text-white" : "bg-primary text-primary-foreground"
+            )}
+          >
+            {points}
+          </span>
+        ))}
     </div>
   );
 }
 
 // The whole cast, compact: a small photo per castaway grouped by current tribe (biggest group first,
-// same as BoardGrid), a dot per owner beneath. Tap one for its full stat card.
-function CastByTribe({ state }: { state: LeagueState }) {
+// same as BoardGrid), a dot per owner beneath. Tap one for its full stat card. Classic's TeamsBoard
+// shares it.
+export function CastByTribe({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const [openId, setOpenId] = useState<string | null>(null);
   const groups = [{ id: null as string | null, name: "Unassigned", color: "#4a5245" }, ...state.tribes]

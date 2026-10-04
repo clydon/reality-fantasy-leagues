@@ -12,6 +12,7 @@ import { LastWeekCard } from "./last-week-card";
 import { SideBetsSection } from "./side-bets-section";
 import { BoardGrid } from "./board-grid";
 import { StartersBoard } from "./starters-board";
+import { TeamsBoard } from "./teams-board";
 import { SeasonResultsCard } from "./season-results-card";
 import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
@@ -47,8 +48,13 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
       // Only ever in the ordered section list when isOverviewSectionEligible already confirmed
       // draftComplete, so no need to re-check it here. BoardGrid owns its own card shell/heading
       // now (previously the one Overview section without one).
-      // Active Roster gets "who's starting whom" first, then a compact cast (starters-board.tsx).
-      return StateLogic.getLeagueType(state).hasActiveRoster ? <StartersBoard state={state} /> : <BoardGrid state={state} />;
+      // Active Roster gets "who's starting whom" first, then a compact cast (starters-board.tsx);
+      // Classic the same shape with each team (teams-board.tsx). Rosterless types keep BoardGrid.
+      {
+        const lt = StateLogic.getLeagueType(state);
+        if (lt.hasActiveRoster) return <StartersBoard state={state} />;
+        return lt.hasRoster ? <TeamsBoard state={state} /> : <BoardGrid state={state} />;
+      }
   }
 }
 
