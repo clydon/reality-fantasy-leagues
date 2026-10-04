@@ -16,12 +16,14 @@ export function StandingsCard({ state }: { state: LeagueState }) {
         <p className="text-sm text-muted-foreground">Add players in League Settings to get started.</p>
       ) : (
         scores.map((r, i) => (
-          <div key={r.playerId} className="flex items-center gap-2.5 py-1.5 text-sm">
+          // Wraps rather than squeezes: in a half-width card, Pick'em's "streak · pts" drops to its own
+          // line (right-aligned, kept whole) instead of breaking word by word beside a long name.
+          <div key={r.playerId} className="flex flex-wrap items-center gap-x-2.5 py-1.5 text-sm">
             <span className="w-4 font-mono text-muted-foreground">{i + 1}</span>
             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: r.color }} />
-            <span>{r.name}</span>
+            <span className="min-w-0">{r.name}</span>
             {pickem ? (
-              <span className="ml-auto text-right font-mono">
+              <span className="ml-auto whitespace-nowrap text-right font-mono">
                 <b>{r.longestStreak ?? 0}</b> <span className="text-xs text-muted-foreground">streak · {r.total} pts</span>
               </span>
             ) : (
