@@ -44,8 +44,11 @@ rollout doc splits it: Opus for the prompt and review-screen data model, Sonnet 
   byte-identical with `tests/harness/format-regression.js`, which is now committed: run it before and
   after any format refactor and diff. Details, verification and what phase 3 inherits are under
   phase 2 in `docs/PLAN-ai-generated-show-formats.md`. No UI or scoring change; nothing for players.
-- **Not done yet:** stages 3–6, exactly as `docs/PLAN-rollout-order.md` lists them. Decide first how a
-  proposed format maps checklist answers to events without code (see the plan's phase 2 notes).
+- **Not done yet:** stages 3–6, exactly as `docs/PLAN-rollout-order.md` lists them. Before stage 3, do
+  phase 1 of `docs/PLAN-scoring-rules-as-data.md`: it moves scoring logic to data. That answers how a
+  proposed format scores without code, and it's the model the planned flowchart editor will edit.
+  Ownership is decided: admins own each show's master rules; commissioners can make their own copy
+  for their league but never modify a master.
 
 ## Who uses this
 

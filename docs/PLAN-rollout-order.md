@@ -17,6 +17,11 @@ or whichever Claude session — picks this work up next: what to build first, an
 | **5 — Polish & extend** | Confetti extended to new trigger points, show artwork, season-level deltas, optional Rive flourish | Low-risk, reuses proven patterns, no urgency |
 | **6 — Monetization gating** | Onboarding phase 5 | Blocked on a pricing decision that hasn't been made yet — that's a product conversation, not a coding task, so it's last regardless of engineering readiness |
 
+**Added 2026-10-05:** `docs/PLAN-scoring-rules-as-data.md` (scoring logic as data, editable as a rule
+list or a flowchart). Its phase 1 slots in between stages 2 and 3, since stage 3's proposed formats
+need scoring that isn't code. That phase is Opus work, proven with the regression harness like stage 2.
+Its editor phases (rule list, then flowchart) come after stage 4.
+
 ## Model per stage
 
 - **Stage 0, 1, 4, 5 — Sonnet.** Well-specified, pattern-following work: reusing existing component patterns,
