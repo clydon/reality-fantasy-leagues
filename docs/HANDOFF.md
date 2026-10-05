@@ -4,6 +4,13 @@ Read this first, then `docs/BACKLOG.md` (what's open, and what's been decided ag
 `README.md` for the full history. `CLAUDE.md` / `AGENTS.md` hold the standing project rules.
 `docs/ADDING-A-SHOW-FORMAT.md` is the playbook for adding a show beyond Survivor/Traitors/Challenge.
 
+There's also a player/commissioner/admin-facing **User Manual & Product Guide**
+(https://claude.ai/code/artifact/cf6a3dd3-ecd3-4d80-88ea-d71b925a2042) — a Claude Doc, not a repo
+file, written entirely from the product/UX side (no architecture, no code) and organized around a
+Survivor 51/50 running example. It's not auto-updated when features change; open it with the Docs
+tool if you need that framing (e.g. "what does the app call this to a player," "how is this
+explained to a commissioner") rather than re-deriving it from source each time.
+
 **State as of 2026-10-02:** everything below is on `master` and pushed (live). The user tests on
 their phone against production and reports back, often with screenshots or screen recordings.
 
