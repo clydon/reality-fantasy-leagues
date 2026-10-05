@@ -47,8 +47,9 @@ rollout doc splits it: Opus for the prompt and review-screen data model, Sonnet 
 - **Not done yet:** stages 3–6, exactly as `docs/PLAN-rollout-order.md` lists them. Before stage 3, do
   phase 1 of `docs/PLAN-scoring-rules-as-data.md`: it moves scoring logic to data. That answers how a
   proposed format scores without code, and it's the model the planned flowchart editor will edit.
-  Ownership is decided: admins own each show's master rules; commissioners can make their own copy
-  for their league but never modify a master.
+  Decided: admins own each show's master rules, and commissioners can make their own copy for their
+  league but never modify a master. Copies stay editable mid-season, with changes logged; a lock may
+  come later. Rulesets can be shared with other leagues: backend only for now, no UI.
 
 ## Who uses this
 

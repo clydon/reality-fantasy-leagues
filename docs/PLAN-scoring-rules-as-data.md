@@ -39,6 +39,22 @@ Point values are already data (`events[].defaultPoints`, overridden per league i
   "based on Survivor rules v3; v4 is out" and offer to merge.
 - **One gate for everyone.** A commissioner's ruleset passes the same `formatProblems` checks as an
   admin's. A bad edit only ever affects the league using that copy.
+- **Mid-season edits stay open for now (decided 2026-10-05).** A commissioner can edit their league's
+  copy at any point in the season; every change is logged and shown to players. The app is early, so
+  flexibility wins. A lock may come later: keep it a single nullable field (`locked_at` on the
+  ruleset) checked in one place in the save route, so turning it on later is a small change, not a
+  redesign.
+- **Sharing with other leagues: backend now, UI later (decided 2026-10-05).** Sharing rulesets builds
+  a community feel, so the storage and API support it from the start, with no UI yet:
+  - A ruleset has a `visibility` (`private` by default, or `shared`).
+  - Another league can use a shared ruleset by copying it. The copy's `parent_id` points at it, the
+    same way a copy of a master does, so attribution ("based on Dana's Survivor rules") and "a newer
+    version is out" come for free.
+  - The owner can keep editing a shared ruleset. Leagues using a copy don't change until they choose
+    to pull in the newer version. Nobody but the owner can modify it.
+  - A `review_status` (`unreviewed` / `approved`) is stored but not yet enforced. It's the hook for
+    the catalog-trust question in `docs/PLAN-ai-generated-show-formats.md` once a public browse list
+    exists.
 
 ## The rule model
 
@@ -80,9 +96,21 @@ variables and loops becomes a programming language with a worse editor.
 
 ## Storage and how leagues read it
 
-- **A new `rulesets` table:** `id`, `format`, `parent_id`, `version`, `owner` (admin master or
-  league), `data` (jsonb), `created_by`, `updated_at`. Masters are seeded from the code formats'
-  `data`.
+- **A new `rulesets` table:**
+  - `id`, `format`, `name`, `data` (jsonb), `version`, `created_by`, `created_at`, `updated_at`.
+  - `kind`: `master` (admin-owned) or `league` (commissioner-owned). `league_id` is set only for a
+    league ruleset.
+  - `parent_id` and `parent_version`: what it was copied from. This works whether the parent is a
+    master or another league's shared ruleset.
+  - `visibility` (`private` / `shared`), `review_status` (`unreviewed` / `approved`), `locked_at`
+    (nullable, unused for now).
+  - Masters are seeded from the code formats' `data`.
+- **API rules, enforced server-side:**
+  - Only admins write masters.
+  - Only a league's commissioners write that league's ruleset.
+  - Anyone in a league can read the ruleset it uses.
+  - Any commissioner can read a `shared` ruleset and copy it into their own league.
+  - Copying never moves or changes the source.
 - **League state caches its resolved ruleset** under `settings`, the same pattern `showFormat`
   already uses (set when a show is picked, pushed to every league on the show when an admin changes
   its format). That way the client-side `StateLogic` still scores without a database call.
@@ -101,8 +129,10 @@ variables and loops becomes a programming language with a worse editor.
    - The harness answers "how much fits": count which rules became data and which needed a built-in,
      per format.
    - Opus-level work, like stage 2.
-2. **Storage.** The `rulesets` table and migration. Seed masters from code. Leagues reference and cache
-   a ruleset. An admin save pushes to following leagues. No UI yet beyond what exists.
+2. **Storage and API.** The `rulesets` table and migration, with masters seeded from code. Leagues
+   reference and cache a ruleset, and an admin save pushes to the leagues following that master.
+   Sharing is backend-only: `visibility`, copy-from-shared and `parent_id` lineage, each with tests.
+   There's no UI yet beyond what exists.
 3. **Stage 3 of the rollout** (research → propose → review) proposes rules in this shape. This is
    where the model first meets a show nobody hand-wrote.
 4. **Rule-list editor**, desktop-first:
@@ -126,10 +156,10 @@ variables and loops becomes a programming language with a worse editor.
 - **Merging copies.** A three-way merge (old master → new master vs old master → the copy) is the
   hardest UI here. Phase 4 can start with "here's what changed in the master; apply these rules?"
   and leave a full merge for later.
-- **Mid-season edits.** Should a commissioner's copy lock once the season starts, or stay editable
-  with the change logged? It's a product call; the default proposed here is editable and logged.
-- **Sharing commissioner rulesets.** Publishing a copy for other leagues to use runs into the
-  catalog-trust question in `docs/PLAN-ai-generated-show-formats.md`. Out of scope until that's
-  decided.
+- **Mid-season lock (later).** Edits stay open for now. Revisit once real leagues have used it; the
+  `locked_at` field is the hook.
+- **Sharing UI and trust (later).** The backend is built in phase 2. A browse list of shared rulesets
+  needs a decision on whether `review_status` gates it, the same catalog-trust question as in
+  `docs/PLAN-ai-generated-show-formats.md`.
 - **The wiki read's `derivedEvents`** is left as code in phase 1. It could move to the same model
   later if it fits.
