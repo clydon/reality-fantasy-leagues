@@ -110,16 +110,20 @@ const bigBrother = {
     searchHint: ["Search for this week's recap.", "", "Then answer the checklist."],
     claims: ["leftTheGame", "wonHoh", "wonVeto"],
   },
+  // Scoring as data (formats/rules.js; tests/scoring-rules.test.js covers them in depth).
+  rules: {
+    research: [
+      { when: { answer: "wonHoh", is: "yes" }, award: "wonHoh" },
+      { when: { answer: "wonVeto", is: "yes" }, award: "wonVeto" },
+      { when: { all: [{ answer: "nominated", is: "yes" }, { answer: "leftTheGame", isNot: "yes" }] }, award: "nominatedSurvived" },
+    ],
+    implied: [],
+  },
 };
 const bigBrotherCode = {
   wiki: { episodesSchema: (zz) => zz.object({ episodes: zz.array(zz.object({ number: zz.number() })) }), episodesPrompt: () => ({ system: "s", user: "u" }), rejectEvent: () => null },
   research: {
     entryProblems: () => [],
-    items: (entry, add) => {
-      if (entry.wonHoh === "yes") add("event", "wonHoh");
-      if (entry.wonVeto === "yes") add("event", "wonVeto");
-      if (entry.nominated === "yes" && entry.leftTheGame !== "yes") add("event", "nominatedSurvived");
-    },
     notes: () => [],
     sentences: () => [],
   },

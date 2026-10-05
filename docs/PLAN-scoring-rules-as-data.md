@@ -74,14 +74,19 @@ variables and loops becomes a programming language with a worse editor.
 
 // From a fact the league holds (impliedEvents), not from research answers.
 { "whenExit": "Voted Out", "award": "votedOut" }
-{ "whenExit": "Sole Survivor", "award": "finalist", "awardPer": "juryVotes", "perAward": "juryVote" }
+{ "whenExit": ["Lost Final Tribal (Jury Vote)", "Sole Survivor"], "award": "juryVote", "per": "juryVotes" }
+{ "whenExit": "Winner", "when": { "fact": "role", "is": "Traitor" }, "award": "wonAsTraitor" }
+{ "whenRole": "Recruited Traitor", "award": "recruited" }
 
 // Staging something other than an event (Survivor exile, Traitors roles).
 { "when": { "answer": "exiled", "is": "yes" }, "stage": "exiled" }
 
-// Logic too intricate for boxes: a named function from a fixed, code-side library.
-{ "builtIn": "votedWithMajority" }
+// Logic too intricate for boxes: a named function from a fixed, code-side library, with its own params.
+{ "when": { "answer": "leftTheGame", "isNot": "yes" }, "builtIn": "votedForLeaver", "vote": "votedFor",
+  "exitMethod": "Voted Out", "award": "votedWithMajority", "otherwise": "votedAgainstMajority" }
 ```
+
+(These are the shapes phase 1 built. `src/lib/game/formats/rules.js`'s header is the full reference.)
 
 - **Conditions:** `answer` with `is` / `isNot` / `equals` / `greaterThan` / `present`, combined with
   `all` / `any` / `not`. Each one references a checklist field, so `formatProblems` can check it
@@ -129,6 +134,118 @@ variables and loops becomes a programming language with a worse editor.
    - The harness answers "how much fits": count which rules became data and which needed a built-in,
      per format.
    - Opus-level work, like stage 2.
+
+   **DONE (2026-10-05).** No database, API or UI change, and nothing for players.
+   - **Shape.** A format's data half now carries `rules: { research: [...], implied: [...] }`.
+     `src/lib/game/formats/rules.js` is the evaluator, the validation and the built-in library: plain
+     CommonJS, no dependencies. `defineFormat` builds `research.items` and `impliedEvents` from the
+     rules, still named `researchItems`/`impliedEvents`, so every caller is unchanged. Code can no
+     longer supply either one, and `defineFormat` throws if it tries. A format with no implied rules
+     gets no `impliedEvents`, which is the absence state-logic already checks for.
+     `wiki.derivedEvents` stays code, as planned.
+   - **The language as built**, beyond the sketch above:
+     - **Research conditions** test checklist answers. `is`/`isNot` are exact matches, `equals` is a
+       strict number match, `greaterThan` is only ever true for a number, and `present: true|false`
+       means a non-empty text or list (blanks don't count).
+     - **Implied triggers** are `whenExit` (a method or a list), `whenExiled: true` and `whenRole`.
+     - **Exit facts.** An exit rule's `when` reads three facts: `juryVotes`, `role` (the leaver's
+       role as of the episode) and `finale` (`yes` when the episode crowns a winner). `per: 'juryVotes'`
+       awards once per vote, and only when the count is a known whole number.
+     - **Stages** are `stage: 'exiled'` and `stage: 'role'`, with `role`.
+     - **Built-in rules** take their own params. They can also carry a `when` gate, plus `whenExit` for
+       an implied one.
+   - **Order** is unchanged from the hand-written functions. Results come out in rule order and are
+     not deduplicated in the evaluator (staging still dedupes by person, kind and event). Implied
+     rules go fact by fact: each exit through every exit rule in order. Exits, exiles and roles are
+     taken in the order their first rule appears, which is exile first for Survivor and roles last
+     for Traitors.
+   - **Validation.** `formatProblems` now runs `rulesProblems`, with a reason for each problem:
+     - a checklist question, event, exit method, role or built-in that doesn't exist;
+     - a test that doesn't fit the question's type (`greaterThan` on a yes/no) or a value it can't
+       have (`is: 'maybe'`);
+     - a research rule awarding an `implied` event, or an implied rule awarding one that isn't;
+     - a built-in in the wrong list, or a built-in param missing or of the wrong type;
+     - a misused `per`, `when`, `stage` or trigger;
+     - unknown keys.
+   - **The built-in library (4):**
+     - `votedForLeaver` (Survivor's voted with / against the majority);
+     - `voteByRole` and `caseLeadByRole` (Traitors' Round Table vote and case-lead outcomes, by what
+       both sides were);
+     - `roleWonEpisode` (Traitors' "fooled to the end": a Faithful finalist in a finale a Traitor won).
+
+     None is show-specific. Each takes its fields, exit method, roles and events as params, and
+     "has the role" / "doesn't" are themselves research conditions. Each has a `describe` text for the
+     editor's fixed node.
+   - **How much fits.** 65 of 69 rules (94%) are plain data. `tests/scoring-rules.test.js` pins these
+     numbers.
+
+     | Format | Research rules | Implied rules | Plain data | Built-ins used |
+     |---|---|---|---|---|
+     | Survivor | 18 (17 data + 1) | 9 (all data) | 26 of 27 | `votedForLeaver` |
+     | The Traitors | 16 (14 data + 2) | 10 (9 data + 1) | 23 of 26 | `voteByRole`, `caseLeadByRole`, `roleWonEpisode` |
+     | The Challenge | 4 (all data) | 6 (all data) | 10 of 10 | none |
+     | Generic | 2 (all data) | 4 (all data) | 6 of 6 | none |
+
+     Some things that looked like they'd need code are plain data:
+     - Traitors' "a Faithful who survived the night" gate (`not` any Traitor answer, and stayed);
+     - its finale/Traitor/Faithful split of banishments;
+     - Survivor's whole endgame (finalist, a point per jury vote, the goat, the winner's bonus).
+
+     The built-ins are exactly the cross-person cases the plan predicted.
+   - **Verified** the same way as stage 2.
+     - **Baselines first.** The harness was run twice and was identical; tsc, `eslint src` (the one
+       existing `pickem-pick-grid.tsx` error) and `npm test` (139/139) were captured too.
+     - **Harness gaps closed before the refactor.** V8 block coverage showed the harness never reached
+       several branches: Survivor's `chosenForReward`, Traitors' murder-danger block, unknown-role
+       votes, a Traitor winning (`fooledToTheEnd`, `wonAsTraitor`, `banishedAsTraitor`), and the
+       fallback name match used when no `ctx` is passed. Its fixtures were extended and the baseline
+       re-taken, at 100% block coverage of every `items`/`impliedEvents` and their helpers. Mutation
+       testing later found five more gaps, and the baseline was re-taken from the original code again
+       with fixtures for them:
+       - a cancelled-votes count of exactly 1;
+       - two results from one person, which pins their order;
+       - a Traitor leading the case against a Faithful;
+       - blank names in a list;
+       - role answers that disagree.
+     - **Prototype, in isolation.** Each format's rules ran through `rules.js` against the
+       hand-written functions on about 212,000 cases: a deterministic pairwise sweep of every checklist
+       field's values (including wrong types), plus random entries, payloads, every `ctx` shape and
+       random episodes. There were 0 mismatches, and every catalog event, the exile stage and both role
+       stages were produced.
+     - **Mutation-tested the proof.** 392 single mutations: flipped tests, nudged numbers, `all`↔`any`,
+       dropped `not`/`when`/`per`, wrong events, exit methods and roles, deleted rules, and every
+       adjacent swap. 367 were caught. All 25 survivors are swaps of rules that can never both fire
+       for one person or exit (`equals 0` vs `greaterThan 0`, different exit methods, the three
+       mutually exclusive Banished rules), so their order doesn't matter.
+     - **Migrated, then diffed.** The harness output (39,248 lines) is byte-identical in every
+       behaviour section. Only the "function sources" hashes of the eight rebuilt functions differ
+       (`research.items` and `impliedEvents` for each format), and they now share one source.
+     - **Mutation-tested the harness against the migrated code.** 42 mutations to rule data, the
+       built-ins and the evaluator's own source; all 42 change the output.
+     - **The other gates.** tsc and `eslint src` match the baseline exactly. `npm test` went from
+       139/139 to 148/148 with the new `tests/scoring-rules.test.js`. It covers each test and
+       combinator, order and stages, every built-in, implied facts and order, 47 refused rules
+       each with its reason, the pinned counts, and a hypothetical AI-proposed Love Island format
+       (its own rules, plus `votedForLeaver` with its own params) run end to end through paste, parse,
+       validation, staging and implied events. `tests/checklist-schema.test.js`'s Big Brother format
+       moved its `items` to rules.
+     - **The browser bundle.** The user's `next dev` serves the client chunk with `rules.js` and the
+       rule data, and none of the old helpers. `next build` was not run, because the dev server was up.
+   - **Two deliberate differences**, neither reachable by any caller: Survivor's old `items` threw on a
+     `null` ctx and now treats it like no ctx, and a missing `ctx.roleOf` reads as an unknown role
+     instead of throwing.
+   - **Left for phase 2 and later:**
+     - **Storage.** The rules live in each format's data. Phase 2's masters can be seeded straight from
+       `formatFor(id).data.rules`.
+     - **League copies.** For a league scoring by its own copy, state-logic needs to build
+       `impliedEvents` from the league's cached rules instead of `formatFor`. `impliedEventsFrom(rules,
+       data)` and `researchItemsFrom(rules)` are exported for exactly that.
+     - **Rescoring is immediate.** Implied events are recomputed on every read, so a rule change
+       rescores past episodes at once (as the plan intends). Research rules only apply when research is
+       next staged.
+     - **Still code:** research's `entryProblems`, `notes` and `sentences`. A proposed format (stage 3)
+       still needs a default for its reviewer notes; generating them from the checklist descriptions
+       would be the obvious one.
 2. **Storage and API.** The `rulesets` table and migration, with masters seeded from code. Leagues
    reference and cache a ruleset, and an admin save pushes to the leagues following that master.
    Sharing is backend-only: `visibility`, copy-from-shared and `parent_id` lineage, each with tests.

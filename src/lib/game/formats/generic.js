@@ -21,18 +21,13 @@ const events = [
   { id: 'removed', label: 'Removed', defaultPoints: 0, implied: true },
 ];
 
-const EXIT_EVENTS = {
-  Winner: 'winner',
-  Eliminated: 'eliminated',
-  Quit: 'quit',
-  Removed: 'removed',
-};
-
-function impliedEvents(ep) {
-  return (ep.events || [])
-    .filter((el) => EXIT_EVENTS[el.method])
-    .map((el) => ({ type: EXIT_EVENTS[el.method], castawayId: el.castawayId }));
-}
+// How someone left -> what it scores (rules.js).
+const impliedRules = [
+  { whenExit: 'Winner', award: 'winner' },
+  { whenExit: 'Eliminated', award: 'eliminated' },
+  { whenExit: 'Quit', award: 'quit' },
+  { whenExit: 'Removed', award: 'removed' },
+];
 
 // ---------- wiki (db/wiki-sync.js) ----------
 // No show-specific vocabulary to read a table by, so the connector is only asked for the one thing
@@ -130,10 +125,11 @@ function researchEntryProblems(entry) {
 
 const researchClaims = ['leftTheGame', 'wonChallenge', 'wasAtRiskButSafe'];
 
-function researchItems(entry, add) {
-  if (entry.wonChallenge === 'yes') add('event', 'challengeWin');
-  if (entry.wasAtRiskButSafe === 'yes') add('event', 'safeAtRisk');
-}
+// One person's answers -> the results they imply (rules.js).
+const researchRules = [
+  { when: { answer: 'wonChallenge', is: 'yes' }, award: 'challengeWin' },
+  { when: { answer: 'wasAtRiskButSafe', is: 'yes' }, award: 'safeAtRisk' },
+];
 
 function researchNotes(c) {
   const notes = [];
@@ -185,10 +181,10 @@ const data = {
     searchHint: researchSearchHint,
     claims: researchClaims,
   },
+  rules: { research: researchRules, implied: impliedRules },
 };
 
 module.exports = defineFormat(data, {
-  impliedEvents,
   wiki: {
     episodesSchema,
     episodesPrompt,
@@ -196,7 +192,6 @@ module.exports = defineFormat(data, {
   },
   research: {
     entryProblems: researchEntryProblems,
-    items: researchItems,
     notes: researchNotes,
     sentences: researchSentences,
   },

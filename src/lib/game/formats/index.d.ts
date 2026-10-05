@@ -28,6 +28,28 @@ export interface ChecklistField {
   description?: string;
 }
 
+/** One test in a scoring rule (formats/rules.js): an answer (research) or fact (implied) and one test,
+ *  or those combined. */
+export type RuleCondition =
+  | { all: RuleCondition[] }
+  | { any: RuleCondition[] }
+  | { not: RuleCondition }
+  | { answer?: string; fact?: string; is?: string; isNot?: string; equals?: number; greaterThan?: number; present?: boolean };
+
+/** "When this is true, award this" (formats/rules.js). A built-in rule also carries its own params. */
+export interface ScoringRule {
+  when?: RuleCondition;
+  award?: string;
+  stage?: "exiled" | "role";
+  role?: string;
+  builtIn?: string;
+  whenExit?: string | string[];
+  whenExiled?: true;
+  whenRole?: string;
+  per?: string;
+  [param: string]: unknown;
+}
+
 /** A format's data half (formats/define.js): plain JSON, checked by formatProblems. */
 export interface FormatData {
   id: string;
@@ -54,6 +76,8 @@ export interface FormatData {
     routineEliminations: number;
   };
   research: { checklist: ChecklistField[]; episodeFields: ChecklistField[]; searchHint: string[]; claims: string[] };
+  /** How the format scores: research answers -> results, and events implied by exits, exile and roles. */
+  rules: { research: ScoringRule[]; implied: ScoringRule[] };
 }
 
 export interface GameFormat {

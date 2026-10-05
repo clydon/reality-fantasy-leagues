@@ -30,20 +30,15 @@ const events = [
   { id: 'medicallyRemoved', label: 'Medically removed', defaultPoints: 0, implied: true },
 ];
 
-const EXIT_EVENTS = {
-  Finalist: 'finalist',
-  Winner: 'seasonWinner',
-  Eliminated: 'eliminated',
-  Disqualified: 'disqualified',
-  Quit: 'quit',
-  'Medically removed': 'medicallyRemoved',
-};
-
-function impliedEvents(ep) {
-  return (ep.events || [])
-    .filter((el) => EXIT_EVENTS[el.method])
-    .map((el) => ({ type: EXIT_EVENTS[el.method], castawayId: el.castawayId }));
-}
+// How someone left -> what it scores (rules.js).
+const impliedRules = [
+  { whenExit: 'Finalist', award: 'finalist' },
+  { whenExit: 'Winner', award: 'seasonWinner' },
+  { whenExit: 'Eliminated', award: 'eliminated' },
+  { whenExit: 'Disqualified', award: 'disqualified' },
+  { whenExit: 'Quit', award: 'quit' },
+  { whenExit: 'Medically removed', award: 'medicallyRemoved' },
+];
 
 // ---------- wiki (db/wiki-sync.js) ----------
 
@@ -262,12 +257,13 @@ function researchEntryProblems(entry) {
 
 const researchClaims = ["leftTheGame", "wonDailyChallenge", "wonElimination", "wasCaptain"];
 
-function researchItems(entry, add) {
-  if (entry.wonDailyChallenge === "yes") add("event", "dailyWin");
-  if (entry.wonElimination === "yes") add("event", "eliminationWin");
-  if (entry.wasNominated === "yes" && entry.leftTheGame !== "yes") add("event", "nominatedSurvived");
-  if (entry.wasCaptain === "yes") add("event", "captain");
-}
+// One person's answers -> the results they imply (rules.js).
+const researchRules = [
+  { when: { answer: 'wonDailyChallenge', is: 'yes' }, award: 'dailyWin' },
+  { when: { answer: 'wonElimination', is: 'yes' }, award: 'eliminationWin' },
+  { when: { all: [{ answer: 'wasNominated', is: 'yes' }, { answer: 'leftTheGame', isNot: 'yes' }] }, award: 'nominatedSurvived' },
+  { when: { answer: 'wasCaptain', is: 'yes' }, award: 'captain' },
+];
 
 function researchNotes(c) {
   const notes = [];
@@ -341,10 +337,10 @@ const data = {
     searchHint: researchSearchHint,
     claims: researchClaims,
   },
+  rules: { research: researchRules, implied: impliedRules },
 };
 
 module.exports = defineFormat(data, {
-  impliedEvents,
   wiki: {
     episodesSchema,
     episodesPrompt,
@@ -353,7 +349,6 @@ module.exports = defineFormat(data, {
   },
   research: {
     entryProblems: researchEntryProblems,
-    items: researchItems,
     notes: researchNotes,
     sentences: researchSentences,
   },

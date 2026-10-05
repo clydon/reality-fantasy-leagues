@@ -32,7 +32,7 @@ hardcoded is the *vocabulary* a format carries. Not all of it can honestly move 
 | Checklist fields (what research asks per castaway) | hand-written Zod schema per format | **data**: field name/type/enum/description, with one shared builder that constructs the runtime Zod schema from it. The one real engineering departure in this plan — prototype before committing (see Risks) |
 | Wiki section names (`voteSections`/`guideSections`) | array literal per format file | **data** |
 | Trusted research domains, terminology | already DB fields (`ShowSettings`, `castaway_term`/`tribe_term`) | unchanged |
-| `impliedEvents`, `wiki.derivedEvents` (derived scoring — e.g. Traitors crediting a banishment vote by role) | function per format file | **stays code.** A show that needs this isn't eliminated by this plan, it's caught earlier by the research step and handed to a developer with findings already written up, instead of a blank page |
+| `impliedEvents`, `wiki.derivedEvents` (derived scoring — e.g. Traitors crediting a banishment vote by role) | function per format file | **stays code.** *(Since 2026-10-05, `impliedEvents` is data, as rules plus a few library built-ins: see `docs/PLAN-scoring-rules-as-data.md`. `derivedEvents` is still code.)* A show that needs this isn't eliminated by this plan, it's caught earlier by the research step and handed to a developer with findings already written up, instead of a blank page |
 | Hidden/evolving roles (Traitor/Faithful-style) | schema + code per format | the *mechanic* stays code; *whether a show has one* becomes something the research step detects and flags |
 | Season-to-season rule variance (Challenge-style) | handled ad hoc in the prompt | **data**, phase 5 below: season-scoped deltas on top of a show's base catalog |
 
@@ -119,6 +119,10 @@ hardcoded is the *vocabulary* a format carries. Not all of it can honestly move 
      format needs either a developer or a declarative default, such as a checklist answer field
      carrying `event: '<id>'` for "yes scores this event". That is the next design decision.
      `formatProblems` is exported from `formats/index.js` as the gate for proposed data.
+     *(Update 2026-10-05: answered for scoring. `items` and `impliedEvents` are now data, as rules,
+     by phase 1 of `docs/PLAN-scoring-rules-as-data.md`. A proposed format carries
+     `rules: { research, implied }`, and `formatProblems` checks them. `notes`/`sentences`, the
+     reviewer text, are still code. `wiki.derivedEvents` too, which the table above already says.)*
 3. **Build the research-propose-review flow**, admin-only, targeting a genuinely new format.
 4. **Expose "+ Research new rules with AI" in the normal create-league flow** (see the onboarding
    plan) — this is also where the self-serve catalog-trust question below gets resolved in code.

@@ -1,0 +1,438 @@
+// Scoring rules as data (docs/PLAN-scoring-rules-as-data.md): what turns research answers and recorded
+// facts into scoring events, written as a list of "when this is true, award this" rules rather than a
+// function, so a format's scoring can be stored, reviewed, edited as a list or a flowchart, and one day
+// proposed by a model for a show nobody hand-wrote. A format's data half carries them as
+//
+//   rules: { research: [ ...rules ], implied: [ ...rules ] }
+//
+// and defineFormat (define.js) builds the two functions callers have always called from them:
+// research.items (one person's checklist answers -> staged results) and impliedEvents (an episode's
+// exits, exiles and roles -> events, on every read).
+//
+// RESEARCH RULES -- one person's answers (`answer` is a checklist field's key):
+//
+//   { when: { answer: 'wonIndividualImmunity', is: 'yes' }, award: 'individualImmunity' }
+//   { when: { answer: 'exiled', is: 'yes' }, stage: 'exiled' }               an exile fact, not an event
+//   { when: { answer: 'recruitedAsTraitor', is: 'yes' }, stage: 'role', role: 'Recruited Traitor' }
+//
+// IMPLIED RULES -- facts the league already holds, so a corrected exit re-scores on its own:
+//
+//   { whenExit: 'Voted Out', award: 'votedOut' }                              whenExit: a method or a list
+//   { whenExit: [...finalists], award: 'juryVote', per: 'juryVotes' }        once per jury vote received
+//   { whenExit: 'Winner', when: { fact: 'role', is: 'Traitor' }, award: 'wonAsTraitor' }
+//   { whenExiled: true, award: 'wentToExile' }
+//   { whenRole: 'Recruited Traitor', award: 'recruited' }
+//
+//   An exit rule's `when` reads facts about that exit: `juryVotes` (a whole number), `role` (the
+//   leaver's role as of the episode) and `finale` ('yes' when the episode crowns a winner).
+//
+// CONDITIONS -- a leaf names one answer (or fact) and one test: is / isNot (exact match), equals
+// (a number), greaterThan (a number; only ever true for a number), present (true/false: a non-empty
+// text or list). Leaves combine with { all: [...] }, { any: [...] } and { not: ... }.
+//
+// BUILT-INS -- { builtIn: '<name>', ...params } (with an optional `when` gate, and an exit rule's
+// `whenExit`): the cases that look across people or at roles on both sides of an event, kept as named
+// read-only functions here (BUILT_INS) rather than bent into conditions. A new unusual rule becomes a
+// new built-in, reviewed like code -- never a new language feature.
+//
+// ORDER -- results come out in rule order, one person (or one exit) at a time, exactly as the
+// functions these replaced produced them, and are NOT deduplicated here: the staging code dedupes by
+// (person, kind, event) (db/episode-research.js candidatesFor). Implied rules are applied fact by fact;
+// exits, exiles and roles are taken in the order their first rule appears.
+//
+// rulesProblems says why a set of rules isn't usable, each with a reason, as formatProblems does for
+// the rest of a format. Plain CommonJS with no dependencies, like everything in formats/.
+
+const ANSWERS = ['yes', 'no', 'unknown'];
+const OPS = ['is', 'isNot', 'equals', 'greaterThan', 'present'];
+const COMBINATORS = ['all', 'any', 'not'];
+const TRIGGERS = ['whenExit', 'whenExiled', 'whenRole'];
+const STAGES = ['exiled', 'role'];
+
+// What each test can be applied to. `text` covers string, enum and exitMethod (and role names);
+// `flag` is a yes/no fact.
+const OPS_FOR = {
+  answer: ['is', 'isNot'],
+  string: ['is', 'isNot', 'present'],
+  enum: ['is', 'isNot', 'present'],
+  exitMethod: ['is', 'isNot', 'present'],
+  integer: ['equals', 'greaterThan'],
+  stringList: ['present'],
+  role: ['is', 'isNot'],
+  flag: ['is', 'isNot'],
+};
+
+// Facts an exit rule's conditions can read, with the type each test checks against.
+const EXIT_FACTS = {
+  juryVotes: { type: 'integer', describe: 'jury votes received (a finalist)' },
+  role: { type: 'role', describe: "the leaver's role as of the episode" },
+  finale: { type: 'flag', describe: 'the episode crowns a winner' },
+};
+
+// A list answer as a list: one given as a single string (a research run from before the field took
+// several) counts as one, and blanks don't count.
+const listOf = (v) => (Array.isArray(v) ? v : v ? [v] : []).filter(Boolean);
+// How names compare when the caller doesn't supply its own match.
+const sameName = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+
+function test(cond, read) {
+  if ('all' in cond) return cond.all.every((c) => test(c, read));
+  if ('any' in cond) return cond.any.some((c) => test(c, read));
+  if ('not' in cond) return !test(cond.not, read);
+  const v = read(cond);
+  if ('is' in cond) return v === cond.is;
+  if ('isNot' in cond) return v !== cond.isNot;
+  if ('equals' in cond) return v === cond.equals;
+  if ('greaterThan' in cond) return typeof v === 'number' && v > cond.greaterThan;
+  return (listOf(v).length > 0) === cond.present;
+}
+const answers = (entry) => (leaf) => entry[leaf.answer];
+
+// ---------- the built-in library ----------
+//
+// Each one: where it runs, the params a rule gives it (validated by rulesProblems), a description for
+// the editor (a fixed node that can be switched on or off, but not opened up), and `run`, which returns
+// the event ids to award. Param types: `event`, `exitMethod`, `role`, `condition` (a research
+// condition, tested against whoever the built-in is looking at), and `field` (a checklist key of one
+// of `fieldTypes`).
+
+// true / false / null (unknown) for "has the role", from the rule's isRole and notRole conditions:
+// isRole wins when both hold.
+const sideOf = (rule, entry) => (test(rule.isRole, answers(entry)) ? true : test(rule.notRole, answers(entry)) ? false : null);
+
+// The event for an actor and a target by role; nothing when either side is unknown, never a guess.
+function byRole(rule, actor, target) {
+  if (actor === null || target === null) return null;
+  if (actor) return target ? rule.roleOnRole : rule.roleOnOther;
+  return target ? rule.otherOnRole : rule.otherOnOther;
+}
+
+// Everyone whose answers say they left this episode by `exitMethod`.
+const leavers = (env, exitMethod) => env.everyone.filter((c) => c.leftTheGame === 'yes' && c.exitMethod === exitMethod);
+
+const ROLE_PARAMS = {
+  exitMethod: { type: 'exitMethod' },
+  isRole: { type: 'condition' },
+  notRole: { type: 'condition' },
+  roleOnRole: { type: 'event' },
+  otherOnRole: { type: 'event' },
+  roleOnOther: { type: 'event' },
+  otherOnOther: { type: 'event' },
+};
+
+const BUILT_INS = {
+  votedForLeaver: {
+    context: 'research',
+    params: { vote: { type: 'field', fieldTypes: ['string'] }, exitMethod: { type: 'exitMethod' }, award: { type: 'event' }, otherwise: { type: 'event' } },
+    describe:
+      'Voted for someone who left this episode by {exitMethod}: {award}. Voted for someone else at an ' +
+      'episode where someone did: {otherwise}. Reads everyone\'s answers to find who left.',
+    run(entry, env, rule) {
+      const vote = entry[rule.vote];
+      if (!vote) return [];
+      const out = leavers(env, rule.exitMethod).map((c) => c.name);
+      if (out.some((n) => env.same(n, vote))) return [rule.award];
+      return out.length ? [rule.otherwise] : [];
+    },
+  },
+  voteByRole: {
+    context: 'research',
+    params: { votes: { type: 'field', fieldTypes: ['string', 'stringList'] }, ...ROLE_PARAMS },
+    describe:
+      'Each vote for someone who left this episode by {exitMethod} scores by what the voter and the ' +
+      'person voted for were: has the role (isRole) or not (notRole). Either unknown: nothing.',
+    run(entry, env, rule) {
+      const actor = sideOf(rule, entry);
+      const left = leavers(env, rule.exitMethod);
+      const ids = [];
+      for (const target of listOf(entry[rule.votes])) {
+        const b = left.find((c) => env.same(c.name, target));
+        const type = b && byRole(rule, actor, sideOf(rule, b));
+        if (type) ids.push(type);
+      }
+      return ids;
+    },
+  },
+  caseLeadByRole: {
+    context: 'research',
+    params: { accusations: { type: 'field', fieldTypes: ['string', 'stringList'] }, ...ROLE_PARAMS },
+    describe:
+      'Named in {accusations} by someone who left this episode by {exitMethod} (led the case against ' +
+      'them): scores by what the accuser and the person who left were. Either unknown: nothing.',
+    run(entry, env, rule) {
+      const actor = sideOf(rule, entry);
+      const ids = [];
+      for (const b of leavers(env, rule.exitMethod)) {
+        if (!listOf(b[rule.accusations]).some((a) => env.same(a, entry.name))) continue;
+        const type = byRole(rule, actor, sideOf(rule, b));
+        if (type) ids.push(type);
+      }
+      return ids;
+    },
+  },
+  roleWonEpisode: {
+    context: 'implied',
+    params: { role: { type: 'role' }, award: { type: 'event' } },
+    describe: 'Someone with the role {role} was crowned the winner this episode: {award}.',
+    run(el, ep, env, rule) {
+      return env.exits.some((x) => x.method === env.winnerExitMethod && env.roleOf(x) === rule.role) ? [rule.award] : [];
+    },
+  },
+};
+
+// ---------- building the functions ----------
+
+function triggerOf(rule) {
+  return TRIGGERS.find((t) => t in rule);
+}
+const methodsOf = (rule) => (Array.isArray(rule.whenExit) ? rule.whenExit : [rule.whenExit]);
+
+/** research.items from a format's research rules: (entry, add, ctx) -> calls add, in rule order. */
+function researchItemsFrom(rules) {
+  return function researchItems(entry, add, ctx) {
+    const c = ctx || {};
+    // `ctx.payload` is the whole episode's answers; `ctx.same(a, b)` compares names by who they are.
+    const env = { everyone: (c.payload && c.payload.castaways) || [], same: c.same || sameName };
+    for (const rule of rules) {
+      if (rule.when && !test(rule.when, answers(entry))) continue;
+      if (rule.builtIn) for (const id of BUILT_INS[rule.builtIn].run(entry, env, rule)) add('event', id);
+      // eventType stays '' for an exile, to satisfy episode_research_items_shape; a role's value rides
+      // as the item's method.
+      else if (rule.stage === 'exiled') add('exiled', '');
+      else if (rule.stage === 'role') add('role', '', rule.role);
+      else add('event', rule.award);
+    }
+  };
+}
+
+/** impliedEvents from a format's implied rules: (ep, ctx) -> [{ type, castawayId }]. */
+function impliedEventsFrom(rules, { winnerExitMethod }) {
+  const order = [];
+  for (const r of rules) if (!order.includes(triggerOf(r))) order.push(triggerOf(r));
+  const of = (trigger) => rules.filter((r) => triggerOf(r) === trigger);
+  const byTrigger = { whenExit: of('whenExit'), whenExiled: of('whenExiled'), whenRole: of('whenRole') };
+  return function impliedEvents(ep, ctx) {
+    const out = [];
+    const exits = ep.events || [];
+    // `ctx.roleOf(castawayId, n)` is the role someone held as of episode n.
+    const env = { exits, winnerExitMethod, roleOf: (el) => (ctx && ctx.roleOf ? ctx.roleOf(el.castawayId, ep.number) : undefined) };
+    for (const trigger of order) {
+      if (trigger === 'whenExiled') {
+        for (const x of ep.exiled || []) for (const r of byTrigger.whenExiled) out.push({ type: r.award, castawayId: x.castawayId });
+      } else if (trigger === 'whenRole') {
+        for (const x of ep.roles || []) {
+          for (const r of byTrigger.whenRole) if (x.role === r.whenRole) out.push({ type: r.award, castawayId: x.castawayId });
+        }
+      } else {
+        for (const el of exits) {
+          const facts = (leaf) =>
+            leaf.fact === 'juryVotes' ? el.juryVotes
+              : leaf.fact === 'role' ? env.roleOf(el)
+                : exits.some((x) => x.method === winnerExitMethod) ? 'yes' : 'no';
+          for (const r of byTrigger.whenExit) {
+            if (!methodsOf(r).includes(el.method)) continue;
+            if (r.when && !test(r.when, facts)) continue;
+            const ids = r.builtIn ? BUILT_INS[r.builtIn].run(el, ep, env, r) : [r.award];
+            // `per`: once per unit of a count fact, and only once the count is known.
+            const times = r.per ? (Number.isInteger(el[r.per]) ? el[r.per] : 0) : 1;
+            for (const type of ids) for (let i = 0; i < times; i++) out.push({ type, castawayId: el.castawayId });
+          }
+        }
+      }
+    }
+    return out;
+  };
+}
+
+// ---------- validation ----------
+
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const quote = (v) => JSON.stringify(v);
+
+/**
+ * Why a format's rules aren't usable: [] when they are. `data` is the whole data half, since rules
+ * refer to its checklist, exit methods, events and roles. Every problem names where it is and why.
+ */
+function rulesProblems(rules, data) {
+  if (!isObj(rules)) return ['rules: an object with research and implied lists'];
+  const p = [];
+  for (const k of Object.keys(rules)) if (!['research', 'implied'].includes(k)) p.push(`rules: unknown key "${k}"`);
+  const fields = new Map();
+  const research = data && isObj(data.research) ? data.research : {};
+  for (const f of Array.isArray(research.checklist) ? research.checklist : []) if (f && typeof f.key === 'string') fields.set(f.key, f);
+  const events = new Map();
+  for (const e of Array.isArray(data && data.events) ? data.events : []) if (e && typeof e.id === 'string') events.set(e.id, e);
+  const ctx = {
+    fields,
+    events,
+    exitMethods: Array.isArray(data && data.exitMethods) ? data.exitMethods : [],
+    roles: data && isObj(data.roles) ? data.roles : null,
+  };
+  for (const list of ['research', 'implied']) {
+    if (!Array.isArray(rules[list])) {
+      p.push(`rules.${list}: a list of rules`);
+      continue;
+    }
+    rules[list].forEach((rule, i) => p.push(...ruleProblems(rule, list, ctx).map((m) => `rules.${list}[${i}]: ${m}`)));
+  }
+  return p;
+}
+
+function ruleProblems(rule, list, ctx) {
+  if (!isObj(rule)) return ['not an object'];
+  const p = [];
+  const trigger = triggerOf(rule);
+  if (list === 'research') {
+    if (trigger) p.push(`${trigger} belongs in the implied rules, which read recorded facts rather than answers`);
+  } else {
+    const triggers = TRIGGERS.filter((t) => t in rule);
+    if (triggers.length !== 1) p.push(`needs exactly one of ${TRIGGERS.join(', ')} (what fact it follows from)`);
+  }
+  // Triggers are always "allowed" here: a misplaced one is already reported above, once.
+  const allowed = ['when', ...TRIGGERS];
+  if (rule.builtIn !== undefined) {
+    const b = BUILT_INS[rule.builtIn];
+    allowed.push('builtIn');
+    if (!b) p.push(`builtIn: no built-in called ${quote(rule.builtIn)} (there are: ${Object.keys(BUILT_INS).join(', ')})`);
+    else if (b.context !== list) p.push(`builtIn: ${rule.builtIn} is for the ${b.context} rules`);
+    else {
+      allowed.push(...Object.keys(b.params));
+      for (const [name, spec] of Object.entries(b.params)) p.push(...paramProblems(rule, name, spec, list, ctx));
+      if (list === 'implied' && trigger !== 'whenExit') p.push('builtIn: an implied built-in runs per exit, so it needs whenExit');
+    }
+    if ('stage' in rule) p.push('stage: a built-in only awards events');
+  } else if (list === 'research') {
+    if ('stage' in rule) {
+      allowed.push('stage');
+      if ('award' in rule) p.push('award and stage: one or the other');
+      if (!STAGES.includes(rule.stage)) p.push(`stage: one of ${STAGES.join(', ')}`);
+      if (rule.stage === 'role') {
+        allowed.push('role');
+        if (!ctx.roles) p.push("stage: this format has no roles to stage");
+        else if (!ctx.roles.values.includes(rule.role)) p.push(`role: ${quote(rule.role)} isn't one of the format's role values (${ctx.roles.values.join(', ')})`);
+      }
+    } else {
+      allowed.push('award');
+      p.push(...eventProblems(rule.award, 'award', list, ctx));
+    }
+    if (!('when' in rule)) p.push('when: missing (a research rule must say which answers it follows from)');
+  } else {
+    allowed.push('award');
+    p.push(...eventProblems(rule.award, 'award', list, ctx));
+  }
+  if (list === 'implied') {
+    if (trigger === 'whenExit') {
+      allowed.push('per');
+      const methods = methodsOf(rule);
+      if (!methods.length || !methods.every((m) => typeof m === 'string')) p.push('whenExit: an exit method or a non-empty list of them');
+      for (const m of methods) if (typeof m === 'string' && !ctx.exitMethods.includes(m)) p.push(`whenExit: ${quote(m)} isn't one of the format's exit methods`);
+      if ('per' in rule && !(EXIT_FACTS[rule.per] && EXIT_FACTS[rule.per].type === 'integer')) {
+        p.push(`per: must be a whole-number exit fact (${Object.keys(EXIT_FACTS).filter((k) => EXIT_FACTS[k].type === 'integer').join(', ')})`);
+      }
+    } else if (trigger === 'whenExiled') {
+      if (rule.whenExiled !== true) p.push('whenExiled: true');
+      if ('when' in rule) p.push('when: only an exit rule has facts to test');
+    } else if (trigger === 'whenRole') {
+      if (!ctx.roles) p.push('whenRole: this format has no roles');
+      else if (!ctx.roles.values.includes(rule.whenRole)) p.push(`whenRole: ${quote(rule.whenRole)} isn't one of the format's role values (${ctx.roles.values.join(', ')})`);
+      if ('when' in rule) p.push('when: only an exit rule has facts to test');
+    }
+  }
+  if ('when' in rule) p.push(...conditionProblems(rule.when, list, ctx).map((m) => `when: ${m}`));
+  for (const k of Object.keys(rule)) if (!allowed.includes(k)) p.push(`unknown key "${k}"`);
+  return p;
+}
+
+// An awarded event must exist, and be the right kind: research finds events that are reviewed one by
+// one; an implied rule's events follow from facts and are marked `implied` (so nobody can also add
+// them by hand, and they can't count twice).
+function eventProblems(id, at, list, ctx) {
+  if (typeof id !== 'string') return [`${at}: an event id`];
+  const e = ctx.events.get(id);
+  if (!e) return [`${at}: no event ${quote(id)} in the catalog`];
+  if (list === 'research' && e.implied) return [`${at}: ${id} is implied (it follows from exits, exile or roles), so research can't award it`];
+  if (list === 'implied' && !e.implied) return [`${at}: ${id} isn't marked implied, so it could also be added by hand and count twice`];
+  return [];
+}
+
+function paramProblems(rule, name, spec, list, ctx) {
+  const v = rule[name];
+  if (v === undefined) return [`${name}: missing (${rule.builtIn} needs it)`];
+  if (spec.type === 'event') return eventProblems(v, name, list, ctx);
+  if (spec.type === 'exitMethod') return ctx.exitMethods.includes(v) ? [] : [`${name}: ${quote(v)} isn't one of the format's exit methods`];
+  if (spec.type === 'role') return roleNameProblems(v, name, ctx);
+  if (spec.type === 'condition') return conditionProblems(v, 'research', ctx).map((m) => `${name}: ${m}`);
+  const f = ctx.fields.get(v);
+  if (!f) return [`${name}: no checklist question ${quote(v)}`];
+  if (!spec.fieldTypes.includes(f.type)) return [`${name}: ${v} is ${f.type}; ${rule.builtIn} reads ${spec.fieldTypes.join(' or ')}`];
+  return [];
+}
+
+// A role someone can hold: the format's default (Faithful) or one of its role values.
+function roleNameProblems(v, at, ctx) {
+  if (!ctx.roles) return [`${at}: this format has no roles`];
+  const names = [ctx.roles.default, ...ctx.roles.values];
+  return names.includes(v) ? [] : [`${at}: ${quote(v)} isn't a role in this format (${names.join(', ')})`];
+}
+
+function conditionProblems(cond, list, ctx) {
+  if (!isObj(cond)) return ['a condition must be an object'];
+  const keys = Object.keys(cond);
+  const combinator = COMBINATORS.filter((k) => k in cond);
+  if (combinator.length) {
+    if (keys.length !== 1) return [`${combinator[0]} must be alone in its condition (found ${keys.join(', ')})`];
+    const k = combinator[0];
+    if (k === 'not') return conditionProblems(cond.not, list, ctx).map((m) => `not: ${m}`);
+    if (!Array.isArray(cond[k]) || !cond[k].length) return [`${k}: a non-empty list of conditions`];
+    return cond[k].flatMap((c, i) => conditionProblems(c, list, ctx).map((m) => `${k}[${i}]: ${m}`));
+  }
+  const subject = list === 'research' ? 'answer' : 'fact';
+  const other = list === 'research' ? 'fact' : 'answer';
+  if (other in cond) {
+    return [list === 'research' ? 'fact: only an exit rule reads facts; a research rule reads answers' : 'answer: an implied rule reads recorded facts, not research answers'];
+  }
+  const ops = OPS.filter((k) => k in cond);
+  const p = [];
+  if (!(subject in cond)) p.push(`${subject}: missing (${list === 'research' ? 'which checklist question it reads' : `which fact: ${Object.keys(EXIT_FACTS).join(', ')}`})`);
+  if (ops.length !== 1) p.push(`needs exactly one test: ${OPS.join(', ')}`);
+  for (const k of keys) if (k !== subject && !OPS.includes(k)) p.push(`unknown key "${k}"`);
+  if (p.length) return p;
+  const op = ops[0];
+  const value = cond[op];
+
+  let type;
+  let accepts;
+  const name = cond[subject];
+  if (list === 'research') {
+    const f = ctx.fields.get(name);
+    if (!f) return [`answer: no checklist question ${quote(name)}`];
+    type = f.type;
+    if (type === 'answer') accepts = ANSWERS;
+    else if (type === 'enum') accepts = f.values;
+    else if (type === 'exitMethod') accepts = ctx.exitMethods;
+  } else {
+    const fact = EXIT_FACTS[name];
+    if (!fact) return [`fact: no exit fact ${quote(name)} (there are: ${Object.keys(EXIT_FACTS).join(', ')})`];
+    type = fact.type;
+    if (type === 'flag') accepts = ['yes', 'no'];
+    if (type === 'role') {
+      if (!ctx.roles) return ['fact: this format has no roles'];
+      accepts = [ctx.roles.default, ...ctx.roles.values];
+    }
+  }
+  if (!OPS_FOR[type].includes(op)) return [`${op}: ${quote(name)} is ${type === 'flag' ? 'yes/no' : type}, which takes ${OPS_FOR[type].join(' / ')}`];
+  if (op === 'present') return typeof value === 'boolean' ? [] : ['present: true or false'];
+  if (op === 'equals' || op === 'greaterThan') return Number.isFinite(value) ? [] : [`${op}: a number`];
+  if (typeof value !== 'string') return [`${op}: a text value`];
+  if (accepts && !accepts.includes(value)) return [`${op}: ${quote(value)} isn't a possible value of ${name} (${accepts.join(', ')})`];
+  return [];
+}
+
+/** How a list of rules splits between plain data and built-ins: { data, builtIn, builtIns: [names] }. */
+function ruleCounts(rules) {
+  const list = Array.isArray(rules) ? rules : [];
+  const builtIns = list.filter((r) => r && r.builtIn).map((r) => r.builtIn);
+  return { data: list.length - builtIns.length, builtIn: builtIns.length, builtIns };
+}
+
+module.exports = { BUILT_INS, EXIT_FACTS, researchItemsFrom, impliedEventsFrom, rulesProblems, ruleCounts, listOf };

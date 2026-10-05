@@ -104,15 +104,22 @@ Copy `src/lib/game/formats/survivor.js` as the template. It shows every piece a 
 exit methods, winner, event catalog, merge, the wiki half and the research half. A format is written
 as two halves, put together by `defineFormat` (`formats/define.js`):
 - `data`: plain JSON. Exit methods, the catalog and its categories, wiki section names, the research
-  checklist (a list of fields, see `formats/checklist.js`), claims and the search hint.
-  `formatProblems` checks it on load, so a bad reference (a category naming an event that doesn't
-  exist, a claim that isn't a yes/no question) fails at once with a reason.
-- code: functions. `impliedEvents`, the wiki read's schema/prompt/`rejectEvent`/`derivedEvents`,
-  and research's `entryProblems`/`items`/`notes`/`sentences`.
+  checklist (a list of fields, see `formats/checklist.js`), claims, the search hint, and the scoring
+  rules (`rules: { research, implied }`, see `formats/rules.js`): which answers award which events,
+  and which events follow from an exit, exile or role. `formatProblems` checks it on load, so a bad
+  reference (a category naming an event that doesn't exist, a claim that isn't a yes/no question, a
+  rule testing a checklist question that isn't there) fails at once with a reason.
+- code: functions. The wiki read's schema/prompt/`rejectEvent`/`derivedEvents`, and research's
+  `entryProblems`/`notes`/`sentences`. `research.items` and `impliedEvents` are built from the rules;
+  code can't supply them.
+
+A rule that has to look across people (who went home decides who voted with the majority) or at roles
+on both sides of an event is a named built-in from `formats/rules.js`'s `BUILT_INS`, given its own
+params. If none fits, add a built-in there rather than a new kind of condition.
 
 `traitors.js` shows the optional pieces:
 - `roles`: secret roles, recorded as season decisions.
-- `impliedEvents`: points that follow from an exit or a role, derived rather than stored.
+- `rules.implied`: points that follow from an exit, exile or role, derived rather than stored.
 - `wiki.derivedEvents`: events worked out in code from other extracted data, such as votes.
 - `wiki.roles`: role facts from the read.
 - `wiki.castNote`: a warning added to the cast prompt.
@@ -127,5 +134,5 @@ switching a show over needs no other code. Keep event ids unique to the format r
 Survivor's, unless the event really is the same thing.
 
 Prefer deriving over asking. If a result follows from something already recorded (an exit, a role,
-the vote record), derive it in code instead of asking the model or a reviewer for it separately. Two
-sources for one fact will eventually disagree.
+the vote record), derive it (an implied rule, or a built-in) instead of asking the model or a
+reviewer for it separately. Two sources for one fact will eventually disagree.

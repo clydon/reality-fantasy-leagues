@@ -44,12 +44,25 @@ rollout doc splits it: Opus for the prompt and review-screen data model, Sonnet 
   byte-identical with `tests/harness/format-regression.js`, which is now committed: run it before and
   after any format refactor and diff. Details, verification and what phase 3 inherits are under
   phase 2 in `docs/PLAN-ai-generated-show-formats.md`. No UI or scoring change; nothing for players.
-- **Not done yet:** stages 3–6, exactly as `docs/PLAN-rollout-order.md` lists them. Before stage 3, do
-  phase 1 of `docs/PLAN-scoring-rules-as-data.md`: it moves scoring logic to data. That answers how a
-  proposed format scores without code, and it's the model the planned flowchart editor will edit.
-  Decided: admins own each show's master rules, and commissioners can make their own copy for their
-  league but never modify a master. Copies stay editable mid-season, with changes logged; a lock may
-  come later. Rulesets can be shared with other leagues: backend only for now, no UI.
+- **Scoring rules as data, phase 1 (done 2026-10-05):** phase 1 of `docs/PLAN-scoring-rules-as-data.md`.
+  - Every format's `research.items` and `impliedEvents` are now rules in its data half
+    (`rules: { research, implied }`). `src/lib/game/formats/rules.js` is the evaluator, the validation
+    (run by `formatProblems`) and a 4-function built-in library for the cross-person cases.
+  - 65 of 69 rules are plain data. The four built-ins are Survivor's majority vote, Traitors' vote
+    and case-lead outcomes by role, and "fooled to the end".
+  - It was proven byte-identical with the harness, which gained fixtures for branches it had never
+    reached. The proof was mutation-tested too. The evidence is in the plan.
+  - `tests/scoring-rules.test.js` is new (148 tests now). Nothing outside `formats/` changed; no UI,
+    database or player-facing change.
+- **Not done yet:** stages 3–6, exactly as `docs/PLAN-rollout-order.md` lists them, and phases 2–5 of
+  the scoring plan.
+  - The rollout doc only required scoring phase 1 before stage 3, so stage 3 can start now. Proposed
+    formats can carry `rules`, and `formatProblems` checks them.
+  - The scoring plan lists its phase 2 (the `rulesets` table and API, masters seeded from
+    `formatFor(id).data.rules`) before stage 3. Which comes next is the user's call.
+  - Decided: admins own each show's master rules, and commissioners can make their own copy for their
+    league but never modify a master. Copies stay editable mid-season, with changes logged; a lock may
+    come later. Rulesets can be shared with other leagues: backend only for now, no UI.
 
 ## Who uses this
 
@@ -296,7 +309,7 @@ The next free number is **0045**. Production applies migrations on deploy (`npm 
   the system prompt.
 - **Hold back anything user-facing for approval when asked:** What's New copy, scoring values and
   new categories. The user approves lists by number.
-- **Before pushing:** run `npx tsc --noEmit -p .`, `npx eslint src`, and `npm test` (82 tests).
+- **Before pushing:** run `npx tsc --noEmit -p .`, `npx eslint src`, and `npm test` (148 tests).
   ESLint is not run on `tests/` (they use `require`). If tsc complains about `.next/types`, run
   `rm -rf .next/types .next/dev/types && npx next typegen`.
 - **Python edits on this Windows machine MUST use `encoding='utf-8'`** on both read and write. The

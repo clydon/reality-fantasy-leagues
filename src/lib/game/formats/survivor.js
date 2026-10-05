@@ -3,9 +3,10 @@
 // ask research about. See docs/PLAN-show-formats.md for what a format is.
 //
 // Every format is two halves, put together by defineFormat (define.js): DATA -- exit methods, the
-// scoring catalog, wiki section names, the research checklist (checklist.js) -- that could live in a
-// database row, and CODE -- derived scoring, the wiki read's schema and prompt, research's answer ->
-// result mapping -- that needs a developer. See docs/PLAN-ai-generated-show-formats.md.
+// scoring catalog, wiki section names, the research checklist (checklist.js), the scoring rules
+// (rules.js) -- that could live in a database row, and CODE -- the wiki read's schema and prompt,
+// research's contradiction checks and notes -- that needs a developer. See
+// docs/PLAN-ai-generated-show-formats.md and docs/PLAN-scoring-rules-as-data.md.
 //
 // Plain CommonJS with no dependencies, because the browser bundle (via state-logic.js) and the
 // bare-node connectors both read it. That's also why the schemas are functions that are handed `z`
@@ -89,36 +90,63 @@ const events = [
   { id: 'soleSurvivor', label: 'Sole Survivor (bonus)', defaultPoints: { exclusive: 1, shared: 3 }, implied: true }
 ];
 
-const EXIT_EVENTS = {
-  'Voted Out': 'votedOut',
-  'Quit': 'quit',
-  'Medically Evacuated': 'medevac',
-  'Lost Fire-Making': 'lostFireMaking',
-  'Lost Final Tribal (Jury Vote)': 'finalist',
-  'Sole Survivor': 'soleSurvivor',
-};
+// ---------- scoring rules (rules.js) ----------
+
+const yes = (answer) => ({ answer, is: 'yes' });
+const notYes = (answer) => ({ answer, isNot: 'yes' });
+const FINALISTS = ['Lost Final Tribal (Jury Vote)', 'Sole Survivor'];
+
+// One castaway's answers -> the results they imply. rewardWin covers both individual and tribe reward
+// with the SAME event type, matching the wiki connector's own catalog, so winning both in one episode
+// still earns exactly one item (staging dedupes).
+const researchRules = [
+  { when: yes('wonIndividualImmunity'), award: 'individualImmunity' },
+  // Only individual challenges: in tribe-vs-tribe, a place is a tribe's, and winning is scored already.
+  { when: { answer: 'individualChallengeFinish', equals: 2 }, award: 'challengeRunnerUp' },
+  { when: { answer: 'individualChallengeFinish', equals: 3 }, award: 'challengeThird' },
+  { when: { all: [yes('playedAdvantage'), { answer: 'votesNullified', greaterThan: 0 }] }, award: 'votesNegated' },
+  // Voted for someone who went home this episode, and didn't go home themselves -- or for someone who
+  // didn't, at a Tribal where someone did (so a revote or tie isn't guessed at). Only a vote-out
+  // counts: nobody voted for a quit or a medevac. votedFor may be written "Nicole" where the checklist
+  // says "Nicole Mazullo", so names are compared by who they are.
+  {
+    when: notYes('leftTheGame'),
+    builtIn: 'votedForLeaver', vote: 'votedFor', exitMethod: 'Voted Out', award: 'votedWithMajority', otherwise: 'votedAgainstMajority',
+  },
+  { when: yes('wonTribeImmunity'), award: 'tribeImmunity' },
+  { when: { any: [yes('wonIndividualReward'), yes('wonTribeReward')] }, award: 'rewardWin' },
+  { when: yes('foundAdvantage'), award: 'idolFound' },
+  { when: yes('playedAdvantage'), award: 'idolPlayed' },
+  { when: { all: [yes('attendedTribal'), { answer: 'votesReceived', equals: 0 }] }, award: 'zeroVotesSafe' },
+  // Survived, not eliminated THIS episode: someone voted out with votes against them was voted out,
+  // not "safe despite votes".
+  { when: { all: [{ answer: 'votesReceived', greaterThan: 0 }, notYes('leftTheGame')] }, award: 'survivedVotes' },
+  { when: yes('advantageUsedAgainstThem'), award: 'advantageTargeted' },
+  { when: yes('satOutOfChallenge'), award: 'satOut' },
+  { when: { all: [yes('chosenForReward'), notYes('wonIndividualReward'), notYes('wonTribeReward')] }, award: 'chosenForReward' },
+  { when: yes('wonFireMaking'), award: 'wonFireMaking' },
+  { when: yes('learnedOfAdvantage'), award: 'learnedOfAdvantage' },
+  { when: yes('wentOnJourney'), award: 'wentOnJourney' },
+  // Exile is recorded as a fact (EpisodeLogic.addExiled), and wentToExile scores from that fact
+  // (the implied rules below) rather than as an event of its own.
+  { when: yes('exiled'), stage: 'exiled' },
+];
 
 // Scored from how someone left, so a corrected exit re-scores on its own and nothing is double-counted.
 // A finalist -- winner or not -- also gets `finalist`, one `juryVote` per vote received, and
 // `zeroJuryVotes` when that's none; the count only scores once it's known (el.juryVotes). Being sent
 // to Exile follows from ep.exiled the same way, so removing the exile record removes the event.
-function impliedEvents(ep) {
-  const out = [];
-  for (const x of ep.exiled || []) out.push({ type: 'wentToExile', castawayId: x.castawayId });
-  for (const el of ep.events || []) {
-    const type = EXIT_EVENTS[el.method];
-    if (!type) continue;
-    const finalist = el.method === 'Lost Final Tribal (Jury Vote)' || el.method === 'Sole Survivor';
-    if (type !== 'finalist') out.push({ type, castawayId: el.castawayId });
-    if (!finalist) continue;
-    out.push({ type: 'finalist', castawayId: el.castawayId });
-    if (Number.isInteger(el.juryVotes)) {
-      for (let i = 0; i < el.juryVotes; i++) out.push({ type: 'juryVote', castawayId: el.castawayId });
-      if (el.juryVotes === 0) out.push({ type: 'zeroJuryVotes', castawayId: el.castawayId });
-    }
-  }
-  return out;
-}
+const impliedRules = [
+  { whenExiled: true, award: 'wentToExile' },
+  { whenExit: 'Voted Out', award: 'votedOut' },
+  { whenExit: 'Quit', award: 'quit' },
+  { whenExit: 'Medically Evacuated', award: 'medevac' },
+  { whenExit: 'Lost Fire-Making', award: 'lostFireMaking' },
+  { whenExit: 'Sole Survivor', award: 'soleSurvivor' },
+  { whenExit: FINALISTS, award: 'finalist' },
+  { whenExit: FINALISTS, award: 'juryVote', per: 'juryVotes' },
+  { whenExit: FINALISTS, when: { fact: 'juryVotes', equals: 0 }, award: 'zeroJuryVotes' },
+];
 
 // ---------- wiki (db/wiki-sync.js) ----------
 
@@ -453,62 +481,11 @@ function researchEntryProblems(entry) {
   return problems;
 }
 
-// Who went home at Tribal this episode, by name, from everyone's answers -- what "voted with the
-// majority" is measured against. Only a vote-out counts: nobody voted for a quit or a medevac.
-function votedOutNames(payload) {
-  return ((payload && payload.castaways) || [])
-    .filter((c) => c.leftTheGame === "yes" && c.exitMethod === "Voted Out")
-    .map((c) => c.name);
-}
-
 // Positive claims that need a source behind them.
 const researchClaims = [
   "leftTheGame", "wonIndividualImmunity", "wonIndividualReward", "foundAdvantage", "playedAdvantage", "satOutOfChallenge",
   "chosenForReward", "wonFireMaking", "learnedOfAdvantage", "wentOnJourney",
 ];
-
-// One castaway's "yes" answers -> the results they imply. rewardWin covers both individual and tribe
-// reward with the SAME event type, matching the wiki connector's own catalog, so winning both in one
-// episode still earns exactly one item.
-// `ctx.same(a, b)` compares two names by who they are (the same forgiving match everything else uses),
-// since votedFor may be written "Nicole" where the checklist says "Nicole Mazullo".
-function researchItems(entry, add, ctx = {}) {
-  const same = ctx.same || ((a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase());
-  if (entry.wonIndividualImmunity === "yes") add("event", "individualImmunity");
-  // Only individual challenges: in tribe-vs-tribe, a place is a tribe's, and winning is scored already.
-  if (entry.individualChallengeFinish === 2) add("event", "challengeRunnerUp");
-  if (entry.individualChallengeFinish === 3) add("event", "challengeThird");
-  if (entry.playedAdvantage === "yes" && typeof entry.votesNullified === "number" && entry.votesNullified > 0) {
-    add("event", "votesNegated");
-  }
-  // Voted for someone who went home this episode, and didn't go home themselves.
-  // ...or for someone who didn't, at a Tribal where someone did (so a revote or tie isn't guessed at).
-  if (entry.votedFor && entry.leftTheGame !== "yes") {
-    const out = votedOutNames(ctx.payload);
-    if (out.some((n) => same(n, entry.votedFor))) add("event", "votedWithMajority");
-    else if (out.length) add("event", "votedAgainstMajority");
-  }
-  if (entry.wonTribeImmunity === "yes") add("event", "tribeImmunity");
-  if (entry.wonIndividualReward === "yes" || entry.wonTribeReward === "yes") add("event", "rewardWin");
-  if (entry.foundAdvantage === "yes") add("event", "idolFound");
-  if (entry.playedAdvantage === "yes") add("event", "idolPlayed");
-  if (entry.attendedTribal === "yes" && entry.votesReceived === 0) add("event", "zeroVotesSafe");
-  // Survived, not eliminated THIS episode: someone voted out with votes against them was voted out,
-  // not "safe despite votes", so leftTheGame excludes them from this one.
-  if (typeof entry.votesReceived === "number" && entry.votesReceived > 0 && entry.leftTheGame !== "yes") {
-    add("event", "survivedVotes");
-  }
-  if (entry.advantageUsedAgainstThem === "yes") add("event", "advantageTargeted");
-  if (entry.satOutOfChallenge === "yes") add("event", "satOut");
-  if (entry.chosenForReward === "yes" && entry.wonIndividualReward !== "yes" && entry.wonTribeReward !== "yes") add("event", "chosenForReward");
-  if (entry.wonFireMaking === "yes") add("event", "wonFireMaking");
-  if (entry.learnedOfAdvantage === "yes") add("event", "learnedOfAdvantage");
-  if (entry.wentOnJourney === "yes") add("event", "wentOnJourney");
-  // Exile is recorded as a fact (EpisodeLogic.addExiled), and wentToExile scores from that fact
-  // (impliedEvents) rather than as an event of its own. eventType stays '' to satisfy
-  // episode_research_items_shape.
-  if (entry.exiled === "yes") add("exiled", "");
-}
 
 // One person's answers as short phrases for a reviewer (Admin, the CLI), listing only what happened.
 function researchNotes(c) {
@@ -623,10 +600,10 @@ const data = {
     searchHint: researchSearchHint,
     claims: researchClaims,
   },
+  rules: { research: researchRules, implied: impliedRules },
 };
 
 module.exports = defineFormat(data, {
-  impliedEvents,
   wiki: {
     episodesSchema,
     episodesPrompt,
@@ -634,7 +611,6 @@ module.exports = defineFormat(data, {
   },
   research: {
     entryProblems: researchEntryProblems,
-    items: researchItems,
     notes: researchNotes,
     sentences: researchSentences,
   },

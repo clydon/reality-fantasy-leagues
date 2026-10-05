@@ -1,11 +1,12 @@
 // A format is two halves (docs/PLAN-ai-generated-show-formats.md, "What moves to data, what stays code"):
 //
 //   DATA  plain JSON -- exit methods, the scoring catalog and its display groups, wiki section names,
-//         the research checklist, terms. What a database row could hold, and what a model could one
-//         day propose for a show nobody has modelled yet. formatProblems() says whether it's usable.
-//   CODE  functions -- derived scoring (impliedEvents, the wiki read's derivedEvents), the wiki read's
-//         schema and prompt, research's answer -> result mapping and contradiction checks. What still
-//         needs a developer.
+//         the research checklist, terms, and the scoring rules (rules.js: research answers -> results,
+//         and the events implied by exits, exile and roles). What a database row could hold, and what
+//         a model could one day propose for a show nobody has modelled yet. formatProblems() says
+//         whether it's usable.
+//   CODE  functions -- the wiki read's schema, prompt and derivedEvents, research's contradiction
+//         checks and reviewer notes. What still needs a developer.
 //
 // defineFormat puts the two back together as the one object every caller has always read (formatFor),
 // so nothing outside formats/ knows or cares which half a piece came from. The data stays reachable as
@@ -14,17 +15,19 @@
 // Plain CommonJS, like everything in formats/.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
 const { buildChecklist, buildShape, checklistProblems, fieldProblems } = require('./checklist.js');
+const { researchItemsFrom, impliedEventsFrom, rulesProblems } = require('./rules.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 // What each half may hold, in the order the assembled object lists them.
-const DATA_KEYS = ['id', 'name', 'exitMethods', 'terms', 'winnerExitMethod', 'endgameExitMethods', 'events', 'eventCategories', 'recap', 'hasMerge', 'hasGroups', 'roles', 'wiki', 'research'];
-const CODE_KEYS = ['impliedEvents', 'roles', 'wiki', 'research'];
+const DATA_KEYS = ['id', 'name', 'exitMethods', 'terms', 'winnerExitMethod', 'endgameExitMethods', 'events', 'eventCategories', 'recap', 'hasMerge', 'hasGroups', 'roles', 'wiki', 'research', 'rules'];
+// impliedEvents and research.items are built from data.rules, so code can't supply them.
+const CODE_KEYS = ['roles', 'wiki', 'research'];
 const ORDER = ['id', 'name', 'exitMethods', 'terms', 'winnerExitMethod', 'endgameExitMethods', 'events', 'eventCategories', 'recap', 'impliedEvents', 'hasMerge', 'hasGroups', 'roles', 'wiki', 'research'];
 const WIKI_DATA = ['version', 'voteSections', 'guideSections', 'contextSections', 'missingVotesNote', 'missingGuideNote', 'castNote', 'eventTypes', 'routineEliminations'];
 const WIKI_CODE = ['episodesSchema', 'episodesPrompt', 'rejectEvent', 'derivedEvents', 'roles'];
 const WIKI_ORDER = ['version', 'voteSections', 'guideSections', 'contextSections', 'missingVotesNote', 'missingGuideNote', 'castNote', 'eventTypes', 'episodesSchema', 'episodesPrompt', 'rejectEvent', 'derivedEvents', 'roles', 'routineEliminations'];
 const RESEARCH_DATA = ['checklist', 'episodeFields', 'searchHint', 'claims'];
-const RESEARCH_CODE = ['entryProblems', 'items', 'notes', 'sentences'];
+const RESEARCH_CODE = ['entryProblems', 'notes', 'sentences'];
 const ROLES_DATA = ['default', 'values'];
 const ROLES_CODE = ['roleFor'];
 // Keys research's episode-level answer already has (db/episode-research.js researchSchemaFor).
@@ -38,7 +41,8 @@ const unknownKeys = (obj, allowed, at) => Object.keys(obj || {}).filter((k) => !
 /**
  * Why a format's data half isn't usable: [] when it is. Checks it's plain JSON, that every list refers
  * to things that exist (an event in a category, the winner among the exit methods, a claim among the
- * checklist's answers), and that the checklist has what the research code reads.
+ * checklist's answers, every question, event and exit method a scoring rule names), and that the
+ * checklist has what the research code reads.
  */
 function formatProblems(data) {
   const p = [];
@@ -136,6 +140,8 @@ function formatProblems(data) {
     const answers = (Array.isArray(r.checklist) ? r.checklist : []).filter((f) => f && f.type === 'answer').map((f) => f.key);
     if (!isTextList(r.claims) || !r.claims.every((k) => answers.includes(k))) p.push('research.claims: must all be yes/no/unknown checklist questions');
   }
+  if (!('rules' in data)) p.push('rules: missing (how the format scores: { research: [...], implied: [...] })');
+  else p.push(...rulesProblems(data.rules, data));
   return p;
 }
 
@@ -172,7 +178,6 @@ function defineFormat(data, code) {
   const problems = formatProblems(data);
   if (problems.length) throw new Error(`format ${data && data.id}: ${problems.join('; ')}`);
   for (const k of Object.keys(code)) if (!CODE_KEYS.includes(k)) throw new Error(`format ${data.id}: code can't supply "${k}"`);
-  if (typeof code.impliedEvents !== 'function' && 'impliedEvents' in code) throw new Error(`format ${data.id}: impliedEvents must be a function`);
   checkCode(code.wiki, WIKI_CODE, `format ${data.id} wiki`);
   checkCode(code.research, RESEARCH_CODE, `format ${data.id} research`);
   checkCode(code.roles, ROLES_CODE, `format ${data.id} roles`);
@@ -188,9 +193,12 @@ function defineFormat(data, code) {
     checklistSchema: (z, Answer) => buildChecklist(checklist, z, Answer, data.exitMethods),
     episodeFields: (z, Answer) => buildShape(episodeFields, z, Answer, data.exitMethods),
     ...researchData,
+    // Named researchItems / impliedEvents, like the hand-written functions they replaced.
+    items: researchItemsFrom(data.rules.research),
   };
   const format = ordered(ORDER, data, {
-    impliedEvents: code.impliedEvents,
+    // A format with nothing implied has no impliedEvents at all, which is what state-logic checks for.
+    impliedEvents: data.rules.implied.length ? impliedEventsFrom(data.rules.implied, data) : undefined,
     roles: data.roles && ordered([...ROLES_DATA, ...ROLES_CODE], data.roles, code.roles),
     wiki: ordered(WIKI_ORDER, data.wiki, code.wiki),
     research: ordered(['checklistSchema', 'episodeFields', 'searchHint', 'entryProblems', 'claims', 'items', 'notes', 'sentences'], research, code.research),

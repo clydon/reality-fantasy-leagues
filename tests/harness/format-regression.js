@@ -155,6 +155,15 @@ function scenarios(format) {
     set(t, "Hedy Lamarr", { juryVotesReceived: 0, individualChallengeFinish: 1 });
     set(t, "Claude Shannon", { leftTheGame: "yes", exitMethod: "Sole Survivor", juryVotesReceived: 5, exiled: "yes" });
     list.push(["tribal", t]);
+    // Chosen for a reward: scores only for someone who didn't win it themselves.
+    const r = s();
+    set(r, "Ada Lovelace", { chosenForReward: "yes", wonIndividualReward: "no", wonTribeReward: "no" });
+    set(r, "Grace Hopper", { chosenForReward: "yes", wonTribeReward: "yes" });
+    set(r, "Alan Turing", { chosenForReward: "yes", wonIndividualReward: "yes" });
+    // Two results from one person in the same breath (their order is pinned), and an idol that
+    // cancelled exactly one vote.
+    set(r, "Hedy Lamarr", { wonIndividualImmunity: "yes", individualChallengeFinish: 2, playedAdvantage: "yes", votesNullified: 1 });
+    list.push(["reward", r]);
   }
   if (format.id === "traitors") {
     const t = s();
@@ -166,6 +175,26 @@ function scenarios(format) {
     set(t, "Hedy Lamarr", { isTraitor: "no", recruitedAsTraitor: "yes", becameTraitor: "yes", declinedRecruitment: "yes", onMurderShortlist: "yes" });
     set(t, "Claude Shannon", { leftTheGame: "yes", exitMethod: "Murdered", wonShield: "yes", shieldSavedThem: "yes", wonPower: "yes" });
     list.push(["round table", t]);
+    // Danger from the Traitors (scored only for a Faithful, or someone not known to be a Traitor, who
+    // stayed), and votes and case leads where one side's role is unknown (never scored).
+    const d = s();
+    set(d, "Ada Lovelace", { isTraitor: "no", wonShield: "yes", shieldSavedThem: "yes", onMurderShortlist: "yes", consideredForMurder: "yes" });
+    set(d, "Grace Hopper", { isTraitor: "unknown", onMurderShortlist: "no", consideredForMurder: "yes" });
+    set(d, "Alan Turing", { ...at, isTraitor: "unknown", leftTheGame: "yes", exitMethod: "Banished", votesReceived: 4, accusedBy: ["Katherine Johnson", "Hedy"] });
+    set(d, "Katherine Johnson", { ...at, isTraitor: "no", votedFor: ["Alan Turing"] });
+    set(d, "Hedy Lamarr", { ...at, isTraitor: "yes", votedFor: ["Alan"], consideredForMurder: "yes" });
+    set(d, "Claude Shannon", { isTraitor: "no", becameTraitor: "yes", onMurderShortlist: "yes" });
+    list.push(["murder danger", d]);
+    // Every Traitor-side outcome, and answers that disagree about a role (any "Traitor" answer wins
+    // over isTraitor "no"), on both the voter's and the banished person's side. Blank names in a list
+    // don't count.
+    const b = s();
+    set(b, "Ada Lovelace", { ...at, isTraitor: "yes", votedFor: ["Grace Hopper"] });
+    set(b, "Grace Hopper", { ...at, isTraitor: "no", leftTheGame: "yes", exitMethod: "Banished", votesReceived: 3, accusedBy: ["Ada Lovelace", "Alan Turing"] });
+    set(b, "Alan Turing", { ...at, isTraitor: "no", becameTraitor: "yes", votedFor: ["Grace", ""] });
+    set(b, "Katherine Johnson", { ...at, isTraitor: "no", votedFor: ["Hedy Lamarr"], accusedBy: ["", ""] });
+    set(b, "Hedy Lamarr", { ...at, isTraitor: "no", recruitedAsTraitor: "yes", leftTheGame: "yes", exitMethod: "Banished", accusedBy: ["Katherine Johnson"] });
+    list.push(["roles both ways", b]);
   }
   if (format.id === "challenge") {
     const t = s();
@@ -213,6 +242,30 @@ for (const id of FORMAT_IDS) {
   }
   for (const offset of [0, 1, 2, 3]) section(`${id} :: research run, patterned ${offset}`, researchRun(format, patterned(format, offset), `p${offset}`));
   for (const [label, payload] of scenarios(format)) section(`${id} :: research run, ${label}`, researchRun(format, payload, label));
+}
+
+// research.items called directly, the way the pipeline above never does: with no ctx (or no `same`),
+// so each format's fallback name match is used, and with raw answers the schema would have repaired
+// (a list answer given as one string).
+const DIRECT = [
+  { name: "Ada", leftTheGame: "no", votedFor: " grace hopper", attendedTribal: "yes", votesReceived: 0, isTraitor: "no", accusedBy: "Grace Hopper" },
+  { name: "Grace Hopper", leftTheGame: "yes", exitMethod: "Voted Out", votedFor: "Ada", isTraitor: "yes" },
+  { name: "Alan Turing", leftTheGame: "no", votedFor: "Nobody", wonChallenge: "yes", wonDailyChallenge: "yes", isTraitor: "unknown", wonShield: "yes" },
+];
+const directPayload = { castaways: [{ name: "Grace Hopper ", leftTheGame: "yes", exitMethod: "Voted Out", isTraitor: "yes", accusedBy: "ada" }, { name: "Ada", leftTheGame: "yes", exitMethod: "Banished", accusedBy: ["Alan Turing"] }, { name: "GRACE HOPPER", leftTheGame: "yes", exitMethod: "Banished", isTraitor: "yes", accusedBy: "ada" }] };
+for (const id of FORMAT_IDS) {
+  const format = Formats.formatFor(id);
+  const run = (entry, ...ctx) => {
+    const got = [];
+    format.research.items(entry, (...a) => got.push(a), ...ctx);
+    return got;
+  };
+  section(`${id} :: research items, direct`, DIRECT.map((entry) => ({
+    noCtx: run(entry),
+    payloadOnly: run(entry, { payload: directPayload }),
+    // A ctx that's falsy-free but has neither field.
+    emptyCtx: run(entry, {}),
+  })));
 }
 
 // ---------- the wiki read ----------
@@ -362,6 +415,11 @@ for (const id of FORMAT_IDS) {
     const every = { number: 5, events: format.exitMethods.map((method, i) => ({ castawayId: `c${i}`, method, juryVotes: i % 3 })), exiled: [{ castawayId: "cx" }], roles: format.roles ? format.roles.values.map((role, i) => ({ castawayId: `c${i}`, role })) : [] };
     const noWinner = { ...every, events: every.events.filter((e) => e.method !== format.winnerExitMethod) };
     section(`${id} :: impliedEvents`, { every: format.impliedEvents(every, { roleOf }), noWinner: format.impliedEvents(noWinner, { roleOf }), empty: format.impliedEvents({ number: 1 }, { roleOf }) });
+    // Everyone even-numbered a Traitor: a Traitor wins, a Traitor is banished, a Faithful finalist is
+    // fooled. `roleOf` is checked against the episode number it's asked for, too.
+    const evenTraitors = (cid, n) => (n === 5 && Number(cid.slice(1)) % 2 === 0 ? "Traitor" : "Faithful");
+    const twoWinners = { ...every, events: [...every.events, { castawayId: "c9", method: format.winnerExitMethod, juryVotes: 0 }, { castawayId: "c8", method: format.exitMethods[0] }] };
+    section(`${id} :: impliedEvents, other roles`, { every: format.impliedEvents(every, { roleOf: evenTraitors }), noWinner: format.impliedEvents(noWinner, { roleOf: evenTraitors }), twoWinners: format.impliedEvents(twoWinners, { roleOf: evenTraitors }) });
   }
 }
 

@@ -58,7 +58,8 @@ const events = [
   { id: 'murdered', label: 'Murdered', defaultPoints: 0, implied: true },
   // --- Round Table ---
   // Every banishment vote and every case that led to one scores by what the voter (or leader) and the
-  // banished person were (banishmentVoteEvent, caseLeadEvent), so each side is credited for its own job.
+  // banished person were (the voteByRole and caseLeadByRole rules), so each side is credited for its
+  // own job.
   // Voting out a Faithful is good Traitor play, but for a Faithful it's 0, not a penalty: the average
   // Faithful casts 2 such votes a season, and penalising them made every measure worse. LEADING that
   // case is one person's deliberate push, so misleading the table does cost a little.
@@ -91,36 +92,21 @@ const events = [
   { id: 'wonAsTraitor', label: 'Won the season as a Traitor (bonus)', defaultPoints: 2, implied: true },
 ];
 
-// Events that follow from what an episode already records. `ctx.roleOf(castawayId, n)` is the role
-// someone held as of episode n.
-function impliedEvents(ep, ctx) {
-  const out = [];
-  const exits = ep.events || [];
-  const role = (el) => ctx.roleOf(el.castawayId, ep.number);
-  // The finale is the episode that crowns someone.
-  const winners = exits.filter((el) => el.method === 'Winner');
-  const traitorWon = winners.some((el) => role(el) === 'Traitor');
-  for (const el of exits) {
-    if (el.method === 'Murdered') out.push({ type: 'murdered', castawayId: el.castawayId });
-    if (el.method === 'Finalist') {
-      out.push({ type: 'finalist', castawayId: el.castawayId });
-      if (traitorWon && role(el) !== 'Traitor') out.push({ type: 'fooledToTheEnd', castawayId: el.castawayId });
-    }
-    if (el.method === 'Winner') {
-      out.push({ type: 'seasonWinner', castawayId: el.castawayId });
-      if (role(el) === 'Traitor') out.push({ type: 'wonAsTraitor', castawayId: el.castawayId });
-    }
-    if (el.method === 'Banished') {
-      const type = winners.length ? 'banishedInFinale' : role(el) === 'Traitor' ? 'banishedAsTraitor' : 'banishedAsFaithful';
-      out.push({ type, castawayId: el.castawayId });
-    }
-    if (el.method === 'Left the game') out.push({ type: 'leftGame', castawayId: el.castawayId });
-  }
-  for (const r of ep.roles || []) {
-    if (r.role === RECRUITED) out.push({ type: 'recruited', castawayId: r.castawayId });
-  }
-  return out;
-}
+// Events that follow from what an episode already records (rules.js). An exit's `role` fact is the
+// role the leaver held as of the episode; `finale` is whether the episode crowns someone.
+const impliedRules = [
+  { whenExit: 'Murdered', award: 'murdered' },
+  { whenExit: 'Finalist', award: 'finalist' },
+  // A Faithful finalist in a finale a Traitor won: looks across the finalists, so it's a built-in.
+  { whenExit: 'Finalist', when: { fact: 'role', isNot: ORIGINAL }, builtIn: 'roleWonEpisode', role: ORIGINAL, award: 'fooledToTheEnd' },
+  { whenExit: 'Winner', award: 'seasonWinner' },
+  { whenExit: 'Winner', when: { fact: 'role', is: ORIGINAL }, award: 'wonAsTraitor' },
+  { whenExit: 'Banished', when: { fact: 'finale', is: 'yes' }, award: 'banishedInFinale' },
+  { whenExit: 'Banished', when: { all: [{ fact: 'finale', is: 'no' }, { fact: 'role', is: ORIGINAL }] }, award: 'banishedAsTraitor' },
+  { whenExit: 'Banished', when: { all: [{ fact: 'finale', is: 'no' }, { fact: 'role', isNot: ORIGINAL }] }, award: 'banishedAsFaithful' },
+  { whenExit: 'Left the game', award: 'leftGame' },
+  { whenRole: RECRUITED, award: 'recruited' },
+];
 
 // ---------- wiki (db/wiki-sync.js) ----------
 // A season page carries two tables, both transcluded from per-season templates:
@@ -242,20 +228,13 @@ function episodesPrompt(terms) {
   };
 }
 
-// A vote for the banished person, by what the voter and the banished person were. Shared by the wiki
-// read and research so both score a vote the same way. Either role unknown: no event, never a guess.
+// A vote for the banished person, by what the voter and the banished person were, for the wiki read.
+// Research scores a vote the same way, from its rules (voteByRole, below), with the same four events.
+// Either role unknown: no event, never a guess.
 function banishmentVoteEvent(voterIsTraitor, banishedIsTraitor) {
   return roleOutcome(voterIsTraitor, banishedIsTraitor, {
     traitorOnTraitor: 'turnedOnTraitor', faithfulOnTraitor: 'votedOutTraitor',
     traitorOnFaithful: 'traitorVotedOutFaithful', faithfulOnFaithful: 'votedOutFaithful',
-  });
-}
-
-// The same four outcomes for whoever led the case (research's accusedBy) against the banished person.
-function caseLeadEvent(leaderIsTraitor, banishedIsTraitor) {
-  return roleOutcome(leaderIsTraitor, banishedIsTraitor, {
-    traitorOnTraitor: 'ledCaseAgainstPartner', faithfulOnTraitor: 'ledCaseAgainstTraitor',
-    traitorOnFaithful: 'framedFaithful', faithfulOnFaithful: 'ledCaseAgainstFaithful',
   });
 }
 
@@ -315,7 +294,7 @@ function wikiRoles(extracted) {
 // The main source for this show: trusted recap sites, read through the research call or the copy-paste
 // prompt. docs/RESEARCH-traitors-events.md has which facts recaps report reliably and why. As with the
 // wiki, the checklist asks for what the recaps SAY (who voted for whom, who accused whom, who's a
-// Traitor), and the Round Table outcomes are worked out in code (researchItems), not asked for.
+// Traitor), and the Round Table outcomes are worked out from them (the research rules), not asked for.
 
 const checklist = [
   { key: 'name', type: 'string', description: "The contestant's full name, exactly as given in the list you were sent." },
@@ -471,13 +450,6 @@ const researchSearchHint = [
 // A list answer as a list. A research run from before votedFor took several names stored it as one.
 const listOf = (v) => (Array.isArray(v) ? v : v ? [v] : []).filter(Boolean);
 
-// What research says someone was, from any answer that settles it: true, false or null (unknown).
-function traitorAnswer(entry) {
-  if (entry.isTraitor === "yes" || entry.recruitedAsTraitor === "yes" || entry.becameTraitor === "yes") return true;
-  if (entry.isTraitor === "no") return false;
-  return null;
-}
-
 function researchEntryProblems(entry) {
   const problems = [];
   const n = entry.name;
@@ -518,48 +490,53 @@ const researchClaims = [
   "missionStandout", "missionBlunder", "onMurderShortlist", "consideredForMurder", "shieldSavedThem",
 ];
 
+// ---------- scoring rules (rules.js) ----------
+
+const yes = (answer) => ({ answer, is: 'yes' });
+const notYes = (answer) => ({ answer, isNot: 'yes' });
+// What research says someone was, from any answer that settles it: a Traitor if any answer says so,
+// a Faithful only when isTraitor says no, and otherwise unknown.
+const IS_TRAITOR = { any: [yes('isTraitor'), yes('recruitedAsTraitor'), yes('becameTraitor')] };
+const NOT_TRAITOR = { answer: 'isTraitor', is: 'no' };
+const STAYED = notYes('leftTheGame');
+// Danger from the Traitors only means something for a Faithful (or someone not known to be a Traitor)
+// who lived through the night.
+const SAFE_FAITHFUL = [{ not: IS_TRAITOR }, STAYED];
+// Every banishment vote and every case that led to one scores by what both sides were. Either role
+// unknown: no event, never a guess.
+const BY_ROLE = { exitMethod: 'Banished', isRole: IS_TRAITOR, notRole: NOT_TRAITOR };
+
 // Exits aren't staged from here (episode-research.js stages the elimination itself), so neither are
-// the events they imply. The Round Table outcomes need everyone's answers: `ctx.payload` is the whole
-// episode, and `ctx.same(a, b)` compares names by who they resolve to.
-function researchItems(entry, add, ctx) {
-  const traitor = traitorAnswer(entry);
-  const stayed = entry.leftTheGame !== "yes";
-  const everyone = (ctx && ctx.payload && ctx.payload.castaways) || [];
-  const same = (ctx && ctx.same) || ((a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase());
+// the events they imply. The Round Table outcomes need everyone's answers, so they're built-ins.
+const researchRules = [
+  { when: { all: [yes('becameTraitor'), notYes('recruitedAsTraitor')] }, stage: 'role', role: ORIGINAL },
+  { when: yes('recruitedAsTraitor'), stage: 'role', role: RECRUITED },
+  { when: yes('declinedRecruitment'), award: 'declinedRecruitment' },
 
-  if (entry.becameTraitor === "yes" && entry.recruitedAsTraitor !== "yes") add("role", "", ORIGINAL);
-  if (entry.recruitedAsTraitor === "yes") add("role", "", RECRUITED);
-  if (entry.declinedRecruitment === "yes") add("event", "declinedRecruitment");
+  { when: yes('wonShield'), award: 'shieldWon' },
+  { when: yes('gaveShield'), award: 'gaveShield' },
+  { when: yes('wonPower'), award: 'wonPower' },
+  { when: yes('missionStandout'), award: 'missionStandout' },
+  { when: yes('missionBlunder'), award: 'missionBlunder' },
 
-  if (entry.wonShield === "yes") add("event", "shieldWon");
-  if (entry.gaveShield === "yes") add("event", "gaveShield");
-  if (entry.wonPower === "yes") add("event", "wonPower");
-  if (entry.missionStandout === "yes") add("event", "missionStandout");
-  if (entry.missionBlunder === "yes") add("event", "missionBlunder");
+  { when: { all: [...SAFE_FAITHFUL, yes('shieldSavedThem')] }, award: 'shieldSavedThem' },
+  { when: { all: [...SAFE_FAITHFUL, yes('onMurderShortlist')] }, award: 'onMurderShortlist' },
+  // The weaker signal only when the stronger one isn't there.
+  { when: { all: [...SAFE_FAITHFUL, notYes('onMurderShortlist'), yes('consideredForMurder')] }, award: 'consideredForMurder' },
 
-  // Danger from the Traitors only means something for a Faithful who lived through the night.
-  if (traitor !== true && stayed) {
-    if (entry.shieldSavedThem === "yes") add("event", "shieldSavedThem");
-    if (entry.onMurderShortlist === "yes") add("event", "onMurderShortlist");
-    else if (entry.consideredForMurder === "yes") add("event", "consideredForMurder");
-  }
+  { when: { all: [{ answer: 'votesReceived', greaterThan: 0 }, STAYED] }, award: 'survivedRoundTable' },
+  { when: { all: [yes('attendedRoundTable'), { answer: 'votesReceived', equals: 0 }, STAYED] }, award: 'zeroVotes' },
+  { when: { all: [{ answer: 'accusedBy', present: true }, STAYED] }, award: 'accusedAtRoundTable' },
 
-  if (typeof entry.votesReceived === "number" && entry.votesReceived > 0 && stayed) add("event", "survivedRoundTable");
-  if (entry.attendedRoundTable === "yes" && entry.votesReceived === 0 && stayed) add("event", "zeroVotes");
-  if (listOf(entry.accusedBy).length && stayed) add("event", "accusedAtRoundTable");
-
-  const banished = everyone.filter((c) => c.leftTheGame === "yes" && c.exitMethod === "Banished");
-  for (const target of listOf(entry.votedFor)) {
-    const b = banished.find((c) => same(c.name, target));
-    const type = b && banishmentVoteEvent(traitor, traitorAnswer(b));
-    if (type) add("event", type);
-  }
-  for (const b of banished) {
-    if (!listOf(b.accusedBy).some((a) => same(a, entry.name))) continue;
-    const type = caseLeadEvent(traitor, traitorAnswer(b));
-    if (type) add("event", type);
-  }
-}
+  {
+    builtIn: 'voteByRole', votes: 'votedFor', ...BY_ROLE,
+    roleOnRole: 'turnedOnTraitor', otherOnRole: 'votedOutTraitor', roleOnOther: 'traitorVotedOutFaithful', otherOnOther: 'votedOutFaithful',
+  },
+  {
+    builtIn: 'caseLeadByRole', accusations: 'accusedBy', ...BY_ROLE,
+    roleOnRole: 'ledCaseAgainstPartner', otherOnRole: 'ledCaseAgainstTraitor', roleOnOther: 'framedFaithful', otherOnOther: 'ledCaseAgainstFaithful',
+  },
+];
 
 // One person's answers as short phrases for a reviewer, listing only what happened.
 function researchNotes(c) {
@@ -667,10 +644,10 @@ const data = {
     searchHint: researchSearchHint,
     claims: researchClaims,
   },
+  rules: { research: researchRules, implied: impliedRules },
 };
 
 module.exports = defineFormat(data, {
-  impliedEvents,
   roles: {
     // Which role a recorded value makes someone.
     roleFor: () => 'Traitor',
@@ -684,7 +661,6 @@ module.exports = defineFormat(data, {
   },
   research: {
     entryProblems: researchEntryProblems,
-    items: researchItems,
     notes: researchNotes,
     sentences: researchSentences,
   },
