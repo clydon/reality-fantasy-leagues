@@ -16,6 +16,9 @@
 //               stringList  a list of strings (names, URLs)
 //   nullable    may be null (unknown, or doesn't apply)
 //   description what the model is asked; becomes the JSON schema's description
+//   note        optional: a short phrase for a reviewer when the answer is yes / has a value ("at
+//               risk"). Not part of the schema. A data-only format (custom.js) builds its research
+//               notes from it; the hand-written formats write their own notes and don't use it.
 //
 // Modifiers apply in one fixed order -- type, then nullable, then description -- because that's the
 // order every hand-written checklist used, and the JSON schema zod emits depends on it (a description
@@ -24,7 +27,7 @@
 // Plain CommonJS with no dependencies, like the formats themselves: `z` and `Answer` are handed in.
 
 const TYPES = ['answer', 'string', 'integer', 'enum', 'exitMethod', 'stringList'];
-const FIELD_PROPS = ['key', 'type', 'nullable', 'values', 'description'];
+const FIELD_PROPS = ['key', 'type', 'nullable', 'values', 'description', 'note'];
 
 // Fields the shared research code reads by name on every format (validateResearch, itemsFromChecklist,
 // printResearch), so every checklist must have them, with these types.
@@ -63,6 +66,7 @@ function fieldProblems(fields, { reserved = [] } = {}) {
     if ('description' in f && (typeof f.description !== 'string' || !f.description.trim())) {
       problems.push(`${at}: description must be non-empty text`);
     }
+    if ('note' in f && (typeof f.note !== 'string' || !f.note.trim())) problems.push(`${at}: note must be non-empty text`);
     if (f.type === 'enum') {
       const v = f.values;
       if (!Array.isArray(v) || !v.length || !v.every((x) => typeof x === 'string' && x)) problems.push(`${at}: an enum needs a list of values`);

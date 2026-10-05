@@ -54,12 +54,16 @@ rollout doc splits it: Opus for the prompt and review-screen data model, Sonnet 
     reached. The proof was mutation-tested too. The evidence is in the plan.
   - `tests/scoring-rules.test.js` is new (148 tests now). Nothing outside `formats/` changed; no UI,
     database or player-facing change.
-- **Not done yet:** stages 3–6, exactly as `docs/PLAN-rollout-order.md` lists them, and phases 2–5 of
-  the scoring plan.
-  - The rollout doc only required scoring phase 1 before stage 3, so stage 3 can start now. Proposed
-    formats can carry `rules`, and `formatProblems` checks them.
-  - The scoring plan lists its phase 2 (the `rulesets` table and API, masters seeded from
-    `formatFor(id).data.rules`) before stage 3. Which comes next is the user's call.
+- **Stage 3 (in progress): read `docs/PLAN-stage-3-format-proposals.md`.**
+  - Decided: paste first (paid later), and flagged mechanics don't block approval.
+  - Step 1, the pure core, is done: the proposal prompt, parsing, repair, the review model, data-only
+    formats (`formats/custom.js`) and `formatFor(id, data)`.
+  - Next is step 2 (Opus): the `show_formats` table, `settings.showFormatData`, every `formatFor` call
+    site, and the admin API.
+  - Then step 3: the screens (Sonnet).
+- **Not done yet:** stages 4–6, exactly as `docs/PLAN-rollout-order.md` lists them, and phases 2–5 of
+  the scoring plan. The user chose to start stage 3 before the scoring plan's phase 2 (the `rulesets`
+  table).
   - Decided: admins own each show's master rules, and commissioners can make their own copy for their
     league but never modify a master. Copies stay editable mid-season, with changes logged; a lock may
     come later. Rulesets can be shared with other leagues: backend only for now, no UI.

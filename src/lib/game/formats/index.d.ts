@@ -26,6 +26,8 @@ export interface ChecklistField {
   /** Only for type "enum". */
   values?: string[];
   description?: string;
+  /** A short phrase for a reviewer (data-only formats build their research notes from it). */
+  note?: string;
 }
 
 /** One test in a scoring rule (formats/rules.js): an answer (research) or fact (implied) and one test,
@@ -113,7 +115,10 @@ export interface GameFormat {
 
 export const FORMATS: Record<string, GameFormat>;
 export const DEFAULT_FORMAT: string;
-export function formatFor(id: string | null | undefined): GameFormat;
+/** A built-in id is always the built-in; any other id resolves from `data` (a stored format's data half)
+ *  when it's given for that id, and otherwise falls back to the default. */
+export function formatFor(id: string | null | undefined, data?: FormatData | null): GameFormat;
+export function isBuiltInFormat(id: string | null | undefined): boolean;
 export function formatOptions(): { id: string; name: string }[];
 /** Why a format's data half isn't usable: [] when it is. */
 export function formatProblems(data: unknown): string[];

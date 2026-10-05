@@ -428,6 +428,67 @@ function conditionProblems(cond, list, ctx) {
   return [];
 }
 
+// ---------- rules as sentences ----------
+//
+// For people, not machines: the review screen (docs/PLAN-stage-3-format-proposals.md) and the rule-list
+// editor (PLAN-scoring-rules-as-data.md phase 4) read a rule as one line. `data` supplies event labels;
+// a question reads as its key in words ("wonChallenge" -> "won challenge").
+
+const words = (key) => String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+const FACT_WORDS = { juryVotes: 'jury votes', role: 'their role', finale: "it's the finale" };
+
+function describeCondition(cond, nested = false) {
+  if (!isObj(cond)) return '?';
+  const group = (parts, joiner) => {
+    const text = parts.map((c) => describeCondition(c, true)).join(joiner);
+    return nested && parts.length > 1 ? `(${text})` : text;
+  };
+  if ('all' in cond) return group(cond.all || [], ' and ');
+  if ('any' in cond) return group(cond.any || [], ' or ');
+  if ('not' in cond) return `not ${describeCondition(cond.not, true)}`;
+  if (cond.fact === 'finale' && ('is' in cond || 'isNot' in cond)) {
+    return (cond.is === 'yes' || cond.isNot === 'no') ? "it's the finale" : "it isn't the finale";
+  }
+  const name = cond.answer !== undefined ? words(cond.answer) : FACT_WORDS[cond.fact] || words(cond.fact);
+  if ('is' in cond) return `${name} is ${cond.is}`;
+  if ('isNot' in cond) return `${name} isn't ${cond.isNot}`;
+  if ('equals' in cond) return `${name} is ${cond.equals}`;
+  if ('greaterThan' in cond) return `${name} is more than ${cond.greaterThan}`;
+  if ('present' in cond) return cond.present ? `${name} is given` : `${name} is empty`;
+  return name;
+}
+
+/** One rule as a sentence: "When won challenge is yes → Won a challenge". */
+function describeRule(rule, data) {
+  if (!isObj(rule)) return '?';
+  const label = (id) => {
+    const e = data && Array.isArray(data.events) ? data.events.find((x) => x && x.id === id) : null;
+    return e && e.label ? e.label : String(id);
+  };
+  const methods = 'whenExit' in rule ? methodsOf(rule).join(' or ') : null;
+  const conditions = [];
+  if (methods) conditions.push(`someone leaves by ${methods}`);
+  if ('whenExiled' in rule) conditions.push('someone is exiled');
+  if ('whenRole' in rule) conditions.push(`someone becomes ${rule.whenRole}`);
+  if (rule.when) conditions.push(describeCondition(rule.when));
+  const when = conditions.length ? `When ${conditions.join(', and ')}` : 'Always';
+  if (rule.builtIn) {
+    const b = BUILT_INS[rule.builtIn];
+    if (!b) return `${when}: ${rule.builtIn} (unknown built-in)`;
+    const text = b.describe.replace(/\{(\w+)\}/g, (_, k) => {
+      const spec = b.params[k];
+      if (!spec) return k;
+      if (spec.type === 'event') return label(rule[k]);
+      if (spec.type === 'field') return words(rule[k]);
+      return String(rule[k]);
+    });
+    return `${when}: ${text}`;
+  }
+  if (rule.stage === 'exiled') return `${when} → record that they were exiled`;
+  if (rule.stage === 'role') return `${when} → record their role as ${rule.role}`;
+  return `${when} → ${label(rule.award)}${rule.per === 'juryVotes' ? ', once per jury vote' : ''}`;
+}
+
 /** How a list of rules splits between plain data and built-ins: { data, builtIn, builtIns: [names] }. */
 function ruleCounts(rules) {
   const list = Array.isArray(rules) ? rules : [];
@@ -435,4 +496,4 @@ function ruleCounts(rules) {
   return { data: list.length - builtIns.length, builtIn: builtIns.length, builtIns };
 }
 
-module.exports = { BUILT_INS, EXIT_FACTS, researchItemsFrom, impliedEventsFrom, rulesProblems, ruleCounts, listOf };
+module.exports = { BUILT_INS, EXIT_FACTS, researchItemsFrom, impliedEventsFrom, rulesProblems, ruleCounts, describeRule, describeCondition, listOf };

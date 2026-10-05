@@ -10,6 +10,7 @@ const traitors = require('./traitors.js');
 const challenge = require('./challenge.js');
 const generic = require('./generic.js');
 const { formatProblems } = require('./define.js');
+const { buildDataFormat } = require('./custom.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const FORMATS = { survivor, traitors, challenge, generic };
@@ -19,8 +20,30 @@ const FORMATS = { survivor, traitors, challenge, generic };
 // read straight out of Postgres without migrateLeagueState running on them.
 const DEFAULT_FORMAT = 'survivor';
 
-function formatFor(id) {
-  return FORMATS[id] || FORMATS[DEFAULT_FORMAT];
+// Stored formats (docs/PLAN-stage-3-format-proposals.md) built once per data object: a league's state
+// hands the same cached object in on every read.
+const built = new WeakMap();
+
+function isBuiltInFormat(id) {
+  return Object.prototype.hasOwnProperty.call(FORMATS, id);
+}
+
+/**
+ * The rules for format `id`. A built-in id is always the built-in. Any other id is a stored format, and
+ * resolves from `data` -- its data half, cached alongside the id (a league's settings.showFormatData, a
+ * show's show_formats row) -- when that's given and is for the same id. Otherwise, as ever, the default.
+ */
+function formatFor(id, data) {
+  if (isBuiltInFormat(id)) return FORMATS[id];
+  if (id && data && typeof data === 'object' && data.id === id) {
+    let format = built.get(data);
+    if (!format) {
+      format = buildDataFormat(data);
+      built.set(data, format);
+    }
+    return format;
+  }
+  return FORMATS[DEFAULT_FORMAT];
 }
 
 /** Picker options: [{ id, name }]. */
@@ -28,4 +51,4 @@ function formatOptions() {
   return Object.values(FORMATS).map((f) => ({ id: f.id, name: f.name }));
 }
 
-module.exports = { FORMATS, DEFAULT_FORMAT, formatFor, formatOptions, formatProblems };
+module.exports = { FORMATS, DEFAULT_FORMAT, formatFor, isBuiltInFormat, formatOptions, formatProblems };
