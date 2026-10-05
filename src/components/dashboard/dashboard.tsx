@@ -8,6 +8,7 @@ import { useLeagueStore, useIsAuthenticated } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BrandLogo } from "@/components/brand-logo";
+import { CreateLeagueWizard } from "@/components/dashboard/create-league-wizard";
 
 const PANEL = "mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm";
 const PANEL_TITLE = "mb-2.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground";
@@ -30,7 +31,6 @@ export function Dashboard() {
   const [username, setUsername] = useState<string | null>(null);
   const [invites, setInvites] = useState<MyInvite[]>([]);
   const [joinCode, setJoinCode] = useState("");
-  const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState<string | null>(null); // which action is in flight
   const [error, setError] = useState<string | null>(null);
 
@@ -90,19 +90,6 @@ export function Dashboard() {
     run("join", async () => {
       const { league, reclaimed } = await api.joinLeague(code);
       await enterLeague(league.id, joinedMessage(league.name, reclaimed));
-    });
-  }
-
-  function handleCreate() {
-    const name = newName.trim();
-    if (!name) return;
-    run("create", async () => {
-      const { league } = await api.createLeague(name);
-      await enterLeague(
-        league.id,
-        `Created ${league.name}. Set it up below, then share join code ${league.join_code} or send invites.`,
-        "/setup"
-      );
     });
   }
 
@@ -197,22 +184,7 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div className={PANEL}>
-            <h3 className={PANEL_TITLE}>Create a League</h3>
-            <div className="flex gap-1.5">
-              <Input
-                className="min-w-0 flex-1"
-                placeholder="League name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-              />
-              <Button onClick={handleCreate} disabled={!!busy || !newName.trim()}>
-                {busy === "create" ? "Creating…" : "Create"}
-              </Button>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">You&apos;ll be the commissioner and the first player.</p>
-          </div>
+          <CreateLeagueWizard busy={busy} run={run} enterLeague={enterLeague} />
         </>
       )}
     </div>

@@ -14,6 +14,35 @@ explained to a commissioner") rather than re-deriving it from source each time.
 **State as of 2026-10-02:** everything below is on `master` and pushed (live). The user tests on
 their phone against production and reports back, often with screenshots or screen recordings.
 
+## Rollout plan in progress (2026-10-05) — read `docs/PLAN-rollout-order.md` first
+
+That doc sequences three plans (`docs/PLAN-ai-generated-show-formats.md`,
+`docs/PLAN-new-user-onboarding-flow.md`, `reports/Mobile React animation library picks.md`) into
+stages, with a model recommendation per stage. **Stages 0 and 1 are done** (committed to `master`,
+user browser-checked); **stage 2 is next, and the rollout doc flags it Opus-only** — it's the one
+genuinely risky piece (proving `survivor`/`traitors`/`challenge`'s migration into the new data shape
+is byte-identical via the regression harness `docs/PLAN-show-formats.md` phase 1 already used).
+
+- **Stage 0 (Foundation):** `motion` is installed. House convention is `src/components/motion.tsx`
+  (exports `m`/`AnimatePresence`/`MotionProvider`) + `src/components/motion-features.ts` (a separate
+  module so `LazyMotion`'s dynamic import actually code-splits `domMax` out of the initial bundle —
+  importing it directly in `motion.tsx` would defeat the point). `MotionProvider` wraps the whole app
+  in `src/app/layout.tsx`. Always `import { m } from "@/components/motion"` for animated elements,
+  never `motion` directly (enforced by `LazyMotion strict`).
+  `src/lib/game/formats/generic.js` ships as a real fourth format (registered in `formats/index.js`):
+  minimal exit methods (Eliminated/Quit/Removed/Winner/Other), challenge-win/safe-at-risk scoring, no
+  show-specific wiki vocabulary — usable as a manual-entry fallback with no research pipeline needed.
+- **Stage 1 (onboarding phases 1–2):** `src/components/showcase-strip.tsx` (the pre-signup pitch,
+  wired into `login-screen.tsx`) and `src/components/dashboard/create-league-wizard.tsx` (replaces
+  Dashboard's old single-name-field "Create a League" panel with a 3-step wizard: show → league type
+  → name, using `m`/`AnimatePresence` for the step transitions). Both read today's existing
+  three-format catalog and `StateLogic.LEAGUE_TYPES` only — no AI-pipeline dependency. The wizard's
+  "+ Add it" tile is present but disabled (`title="Coming soon — research your own show's rules"`);
+  wiring it to the real research flow is stage 3, once `docs/PLAN-ai-generated-show-formats.md`'s
+  phase 3 exists.
+- **Not done yet:** stages 2–6, exactly as `docs/PLAN-rollout-order.md` lists them. Re-run `/model` to
+  Opus before starting stage 2 — don't skip the regression-harness verification step.
+
 ## Who uses this
 
 - The user (`conor`) is the **only commissioner** and the site admin. Everyone else is a player, so

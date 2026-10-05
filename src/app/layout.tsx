@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthGate } from "@/components/auth-gate";
+import { MotionProvider } from "@/components/motion";
 import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme-script";
@@ -66,7 +67,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col bg-background">
         <ServiceWorkerRegistrar />
         <QueryProvider>
-          <AuthGate>{children}</AuthGate>
+          <MotionProvider>
+            <AuthGate>{children}</AuthGate>
+          </MotionProvider>
         </QueryProvider>
       </body>
     </html>
