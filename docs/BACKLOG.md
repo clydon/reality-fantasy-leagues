@@ -3,7 +3,7 @@
 What's open, newest thinking first. **Decided against** and **done** are kept below so a later
 session doesn't re-propose them. Context for everything here is in `docs/HANDOFF.md`.
 
-Last updated 2026-10-02.
+Last updated 2026-10-05.
 
 ## Open: needs design or a decision first
 
@@ -51,6 +51,12 @@ Last updated 2026-10-02.
 
 ## Decided against (don't re-propose without new information)
 
+- **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside
+  a friend group, and worse, a live-research advisor working off an airing season risks leaking a
+  real result dressed up as a statistical lean — directly against the spoiler protection
+  (`SpoilerLogic`, the results-in reveal gate, catch-up mode) the rest of the app is built around.
+  Any future "skip the effort" feature for players, not just commissioners, should stay retrospective
+  (season recaps, shareable cards) rather than touching an in-progress decision.
 - **A guided onboarding tour / coachmarks:** backburnered. Too many moving parts; it would go stale
   fast.
 - **A notification bell/inbox:** the action bar already lists everything actionable, and a bell
