@@ -174,6 +174,7 @@ export function Chip({
   points,
   badgeTone = "primary",
   small,
+  large,
   dim = isKnockedOut(state, c),
 }: {
   state: LeagueState;
@@ -182,20 +183,26 @@ export function Chip({
   points?: number | string;
   badgeTone?: "primary" | "out" | "medal";
   small?: boolean;
+  /** Eliminator Pool's board: one pick per row, so it can afford to be bigger than the default. */
+  large?: boolean;
   /** Faded as out of the game -- by default whenever they are. */
   dim?: boolean;
 }) {
   return (
     <div className="relative shrink-0" title={c.name}>
       <div
-        className={cn("overflow-hidden rounded-lg border-2", small ? "h-7 w-7 opacity-80" : "h-10 w-10", dim && "opacity-50")}
+        className={cn(
+          "overflow-hidden rounded-lg border-2",
+          small ? "h-7 w-7 opacity-80" : large ? "h-14 w-14" : "h-10 w-10",
+          dim && "opacity-50"
+        )}
         style={{ borderColor: ring ?? "var(--border)" }}
       >
         <CastawayAvatar expandable
           castaway={c}
           className={cn(
             "flex h-full w-full items-center justify-center bg-secondary font-mono font-bold text-muted-foreground",
-            small ? "text-[0.55rem]" : "text-[0.65rem]"
+            small ? "text-[0.55rem]" : large ? "text-[0.75rem]" : "text-[0.65rem]"
           )}
         />
       </div>

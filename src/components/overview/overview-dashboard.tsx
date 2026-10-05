@@ -49,7 +49,8 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
       // draftComplete, so no need to re-check it here. BoardGrid owns its own card shell/heading
       // now (previously the one Overview section without one).
       // Active Roster gets "who's starting whom" first, then a compact cast (starters-board.tsx);
-      // Classic the same shape with each team (teams-board.tsx). Rosterless types keep BoardGrid.
+      // Classic the same shape with each team (teams-board.tsx). Eliminator Pool's equivalent
+      // status/nudge section lives on the pick grid itself (pickem-pick-grid.tsx), not here.
       {
         const lt = StateLogic.getLeagueType(state);
         if (lt.hasActiveRoster) return <StartersBoard state={state} />;
