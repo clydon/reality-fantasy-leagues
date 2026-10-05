@@ -71,10 +71,54 @@ hardcoded is the *vocabulary* a format carries. Not all of it can honestly move 
    a manual-entry fallback for any show immediately (exit methods + elimination-order scoring only, no
    wiki/research dependency) — also doubles as the honest answer to "this show is too obscure to
    model."
-2. **Migrate `survivor`/`traitors`/`challenge` into the new data shape.** Prove it byte-identical
-   against the regression-harness method `PLAN-show-formats.md` phase 1 already used and trusted
-   (fixed fixtures, before/after diff). Don't trust AI-generated catalogs against an unproven data
-   model — prove the model against known-good formats first.
+2. **Migrate `survivor`/`traitors`/`challenge` into the new data shape. DONE (2026-10-05).** Prove it
+   byte-identical against the regression-harness method `PLAN-show-formats.md` phase 1 already used
+   and trusted (fixed fixtures, before/after diff). Don't trust AI-generated catalogs against an
+   unproven data model — prove the model against known-good formats first.
+   - **Shape:** each format file now builds a `data` object (plain JSON) and hands it plus its
+     functions to `defineFormat(data, code)` (`formats/define.js`). That rebuilds the exact object every
+     caller has always read, with the same keys in the same order, so nothing outside `formats/`
+     changed. The data stays reachable as `format.data`, which is not enumerable. `generic` was moved
+     too, so the registry has one shape.
+   - **Data:** exit methods, winner/endgame, terms, the event catalog (`implied` is the auto/manual
+     flag), `eventCategories`, `recap`, `hasMerge`/`hasGroups`, role names, wiki section names, notes,
+     `castNote`, `version`, `eventTypes`, `routineEliminations`, the research checklist, episode-level
+     fields, `claims` and `searchHint`.
+   - **Code:** `impliedEvents`, `roles.roleFor`, the wiki read's `episodesSchema`/`episodesPrompt`/
+     `rejectEvent`/`derivedEvents`/`roles`, and research's `entryProblems`/`items`/`notes`/`sentences`.
+     The table above didn't place the wiki episodes schema or prompt. They stay code for now: the AI
+     path in phase 3 is research-first, and generic's wiki read already serves any show.
+   - **Checklist as data (the flagged risk):** `formats/checklist.js`. A field is
+     `{ key, type, nullable?, values?, description? }`, and the types are `answer | string | integer |
+     enum | exitMethod | stringList`, the full set the four hand-written checklists use. Modifiers
+     always apply in the order type, then nullable, then description. That is the order every
+     hand-written field used, and zod's JSON output depends on it.
+     `checklistProblems` requires the fields the shared research code reads by name: `name`,
+     `leftTheGame`, `exitMethod` (nullable), `sources` and `confidence` (high/medium/low). It also
+     type-checks `juryVotesReceived` when present.
+   - **Prototype first, in isolation, before any format moved:** each format's hand-written Zod
+     checklist was converted to descriptors automatically, rebuilt, and compared. JSON schema and SDK
+     `output_format` were identical, and `safeParse` agreed on 7,000 random and valid entries per
+     format. Mutations were caught: a dropped `nullable`, one trailing space in a description, two
+     fields swapped, describe-before-nullable. `tests/checklist-schema.test.js` keeps the isolated
+     checks. It also runs a hypothetical AI-proposed Big Brother format end to end: prompt, skeleton,
+     paste, repair, validation, staged results.
+   - **Verified:** `tests/harness/format-regression.js` is the harness, now committed. It covers every
+     registered format: research schemas in all three provider dialects, prompts, paste
+     prompts/skeletons, parse/repair/validation, staged items, notes, `printResearch`, wiki schema,
+     prompt and validation, implied events, default points and Active Roster scores. Its output was
+     about 37K lines, deterministic across runs, and byte-identical before and after. The only
+     differences were the source hashes of `checklistSchema`/`episodeFields`, which are now built from
+     data. A one-character description change (46 lines), a point value (34) and a flipped `nullable`
+     (387) each show up in the diff; a broken core field stops the format loading. `tsc` and
+     `eslint src` match the baseline exactly (one existing, unrelated error in
+     `pickem-pick-grid.tsx`). `npm test` went from 131/131 to 139/139. The dev server compiles and
+     serves the client chunk with the new modules. `next build` was not run, because the user's
+     `next dev` was up.
+   - **Left for phase 3:** `items`/`notes`/`sentences` are still code for every format. A proposed
+     format needs either a developer or a declarative default, such as a checklist answer field
+     carrying `event: '<id>'` for "yes scores this event". That is the next design decision.
+     `formatProblems` is exported from `formats/index.js` as the gate for proposed data.
 3. **Build the research-propose-review flow**, admin-only, targeting a genuinely new format.
 4. **Expose "+ Research new rules with AI" in the normal create-league flow** (see the onboarding
    plan) — this is also where the self-serve catalog-trust question below gets resolved in code.

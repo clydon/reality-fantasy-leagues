@@ -1,5 +1,6 @@
 // The format registry: which game rules a show plays by (docs/PLAN-show-formats.md). The database
-// only says which format a show uses (shows.format); the rules themselves are code, here.
+// only says which format a show uses (shows.format); the rules themselves are here, each format a
+// data half and a code half put together by define.js (docs/PLAN-ai-generated-show-formats.md).
 //
 // Plain CommonJS for the same reason state-logic.js is: the browser bundle, the Next routes and the
 // bare-node connectors in db/ all read it.
@@ -8,6 +9,7 @@ const survivor = require('./survivor.js');
 const traitors = require('./traitors.js');
 const challenge = require('./challenge.js');
 const generic = require('./generic.js');
+const { formatProblems } = require('./define.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const FORMATS = { survivor, traitors, challenge, generic };
@@ -26,4 +28,4 @@ function formatOptions() {
   return Object.values(FORMATS).map((f) => ({ id: f.id, name: f.name }));
 }
 
-module.exports = { FORMATS, DEFAULT_FORMAT, formatFor, formatOptions };
+module.exports = { FORMATS, DEFAULT_FORMAT, formatFor, formatOptions, formatProblems };

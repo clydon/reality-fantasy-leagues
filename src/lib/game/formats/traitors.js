@@ -14,6 +14,9 @@
 //     Murdered) can't leave a stale event behind. Such events are marked `implied` and can't be
 //     added by hand.
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js
+const { defineFormat } = require('./define.js');
+
 const exitMethods = ['Banished', 'Murdered', 'Left the game', 'Finalist', 'Winner', 'Other'];
 
 // Role values a decision can record. Both mean "is a Traitor from this episode on"; the second is
@@ -314,98 +317,144 @@ function wikiRoles(extracted) {
 // wiki, the checklist asks for what the recaps SAY (who voted for whom, who accused whom, who's a
 // Traitor), and the Round Table outcomes are worked out in code (researchItems), not asked for.
 
-function checklistSchema(z, Answer) {
-  const names = (what) =>
-    z
-      .array(z.string())
-      .nullable()
-      .describe(`${what} Each written exactly as that person's name appears in the list you were sent. Null if unknown.`);
-  return z.object({
-    name: z.string().describe("The contestant's full name, exactly as given in the list you were sent."),
+const checklist = [
+  { key: 'name', type: 'string', description: "The contestant's full name, exactly as given in the list you were sent." },
 
-    // --- leaving the game ---
-    leftTheGame: Answer.describe("Did this person leave the game permanently in THIS episode (murdered, banished, left, or the finale)?"),
-    exitMethod: z.enum(exitMethods).nullable().describe("How they left, if they left. Null if they did not leave."),
+  // --- leaving the game ---
+  {
+    key: 'leftTheGame', type: 'answer',
+    description:
+      "Did this person leave the game permanently in THIS episode (murdered, banished, left, or the " +
+      "finale)?",
+  },
+  {
+    key: 'exitMethod', type: 'exitMethod', nullable: true,
+    description: "How they left, if they left. Null if they did not leave.",
+  },
 
-    // --- roles ---
-    isTraitor: Answer.describe(
-      "Was this person a Traitor at this episode's Round Table (or, with no Round Table, by the end of the episode)? " +
-        "Recaps tell the audience who the Traitors are, including anyone recruited. 'no' for a Faithful."
-    ),
-    becameTraitor: Answer.describe(
-      "Did they START playing as a Traitor in THIS episode by being chosen by the host, or by entering the game as " +
-        "a Traitor? Not someone recruited by the other Traitors (that's recruitedAsTraitor), and 'no' for someone " +
-        "who was already a Traitor before this episode."
-    ),
-    recruitedAsTraitor: Answer.describe("Did they become a Traitor this episode by accepting a recruitment offer or an ultimatum?"),
-    declinedRecruitment: Answer.describe("Did they turn DOWN a recruitment offer from the Traitors this episode and stay a Faithful?"),
+  // --- roles ---
+  {
+    key: 'isTraitor', type: 'answer',
+    description:
+      "Was this person a Traitor at this episode's Round Table (or, with no Round Table, by the end of " +
+      "the episode)? Recaps tell the audience who the Traitors are, including anyone recruited. 'no' " +
+      "for a Faithful.",
+  },
+  {
+    key: 'becameTraitor', type: 'answer',
+    description:
+      "Did they START playing as a Traitor in THIS episode by being chosen by the host, or by entering " +
+      "the game as a Traitor? Not someone recruited by the other Traitors (that's recruitedAsTraitor), " +
+      "and 'no' for someone who was already a Traitor before this episode.",
+  },
+  {
+    key: 'recruitedAsTraitor', type: 'answer',
+    description: "Did they become a Traitor this episode by accepting a recruitment offer or an ultimatum?",
+  },
+  {
+    key: 'declinedRecruitment', type: 'answer',
+    description: "Did they turn DOWN a recruitment offer from the Traitors this episode and stay a Faithful?",
+  },
 
-    // --- the Round Table ---
-    attendedRoundTable: Answer.describe("Did they attend a Round Table this episode?"),
-    votesReceived: z
-      .number()
-      .int()
-      .nullable()
-      .describe(
-        "How many banishment votes were cast against them this episode. 0 if they attended and got none. Only " +
-          "when a source gives the count or every vote; null if it only gives the winning margin, or no Round Table."
-      ),
-    votedFor: names(
-      "Everyone they voted to banish this episode, one per banishment vote in order (a finale can have several: " +
-        "the Round Table, then each Banish Again). If there was a revote, their vote in the FINAL round. Empty if " +
-        "they didn't vote. Only votes a source attributes to them."
-    ),
-    accusedBy: names(
-      "Who made a case against them AT the Round Table this episode: named them as a suspect and argued for it. " +
-        "Not castle gossip away from the table, and not just a vote cast without saying why. Empty if nobody did."
-    ),
+  // --- the Round Table ---
+  { key: 'attendedRoundTable', type: 'answer', description: "Did they attend a Round Table this episode?" },
+  {
+    key: 'votesReceived', type: 'integer', nullable: true,
+    description:
+      "How many banishment votes were cast against them this episode. 0 if they attended and got none. " +
+      "Only when a source gives the count or every vote; null if it only gives the winning margin, or " +
+      "no Round Table.",
+  },
+  {
+    key: 'votedFor', type: 'stringList', nullable: true,
+    description:
+      "Everyone they voted to banish this episode, one per banishment vote in order (a finale can have " +
+      "several: the Round Table, then each Banish Again). If there was a revote, their vote in the " +
+      "FINAL round. Empty if they didn't vote. Only votes a source attributes to them. Each written " +
+      "exactly as that person's name appears in the list you were sent. Null if unknown.",
+  },
+  {
+    key: 'accusedBy', type: 'stringList', nullable: true,
+    description:
+      "Who made a case against them AT the Round Table this episode: named them as a suspect and argued " +
+      "for it. Not castle gossip away from the table, and not just a vote cast without saying why. " +
+      "Empty if nobody did. Each written exactly as that person's name appears in the list you were " +
+      "sent. Null if unknown.",
+  },
 
-    // --- missions ---
-    wonShield: Answer.describe(
-      "Did they hold a shield, immunity or an antidote protecting them from murder this episode -- won in the " +
-        "mission, given to them by another player, or passed to them in a chain of safety?"
-    ),
-    gaveShield: Answer.describe("Did they give a shield they had won or controlled to SOMEONE ELSE this episode?"),
-    wonPower: Answer.describe("Did they win a special power in a mission this episode (the Dagger, the Seer, or a new one)?"),
-    powerName: z.string().nullable().describe("The power they won, in the show's own words. Null if none."),
-    missionStandout: Answer.describe(
-      "Does a source credit them with carrying this episode's mission (the key player behind its success)? Only " +
-        "what a recap says, not your judgement."
-    ),
-    missionBlunder: Answer.describe(
-      "Does a source blame them for a mission failure or lost money this episode (eliminated first, quit early, " +
-        "a wrong answer that cost the pot)? Only what a recap says, not your judgement."
-    ),
+  // --- missions ---
+  {
+    key: 'wonShield', type: 'answer',
+    description:
+      "Did they hold a shield, immunity or an antidote protecting them from murder this episode -- won " +
+      "in the mission, given to them by another player, or passed to them in a chain of safety?",
+  },
+  {
+    key: 'gaveShield', type: 'answer',
+    description: "Did they give a shield they had won or controlled to SOMEONE ELSE this episode?",
+  },
+  {
+    key: 'wonPower', type: 'answer',
+    description: "Did they win a special power in a mission this episode (the Dagger, the Seer, or a new one)?",
+  },
+  { key: 'powerName', type: 'string', nullable: true, description: "The power they won, in the show's own words. Null if none." },
+  {
+    key: 'missionStandout', type: 'answer',
+    description:
+      "Does a source credit them with carrying this episode's mission (the key player behind its " +
+      "success)? Only what a recap says, not your judgement.",
+  },
+  {
+    key: 'missionBlunder', type: 'answer',
+    description:
+      "Does a source blame them for a mission failure or lost money this episode (eliminated first, " +
+      "quit early, a wrong answer that cost the pot)? Only what a recap says, not your judgement.",
+  },
 
-    // --- murder ---
-    onMurderShortlist: Answer.describe(
-      "Were they on a formal murder shortlist or at-risk pool the show named this episode (the Traitors' " +
-        "shortlist, the coffins, the cage, the people left unprotected)? Not just anyone without a shield."
-    ),
-    consideredForMurder: Answer.describe(
-      "Was this person, a Faithful, reported as one of the options the Traitors discussed murdering this episode, " +
-        "apart from any formal shortlist? Only when a recap names them."
-    ),
-    shieldSavedThem: Answer.describe("Did the Traitors choose to murder them this episode, only for a shield to block it?"),
+  // --- murder ---
+  {
+    key: 'onMurderShortlist', type: 'answer',
+    description:
+      "Were they on a formal murder shortlist or at-risk pool the show named this episode (the " +
+      "Traitors' shortlist, the coffins, the cage, the people left unprotected)? Not just anyone " +
+      "without a shield.",
+  },
+  {
+    key: 'consideredForMurder', type: 'answer',
+    description:
+      "Was this person, a Faithful, reported as one of the options the Traitors discussed murdering " +
+      "this episode, apart from any formal shortlist? Only when a recap names them.",
+  },
+  {
+    key: 'shieldSavedThem', type: 'answer',
+    description: "Did the Traitors choose to murder them this episode, only for a shield to block it?",
+  },
+  {
+    key: 'notableTwist', type: 'string', nullable: true,
+    description:
+      "Any other notable, checkable thing that happened to this person this episode, in one short " +
+      "phrase. Null if nothing.",
+  },
 
-    notableTwist: z
-      .string()
-      .nullable()
-      .describe("Any other notable, checkable thing that happened to this person this episode, in one short phrase. Null if nothing."),
+  // --- provenance, per person ---
+  {
+    key: 'sources', type: 'stringList',
+    description:
+      "URLs you actually read that support the answers above for THIS person. Empty only if every " +
+      "answer is 'unknown'.",
+  },
+  {
+    key: 'confidence', type: 'enum', values: ['high', 'medium', 'low'],
+    description:
+      "high: a source states it plainly. medium: a source implies it. low: pieced together or a single " +
+      "weak source.",
+  },
+];
 
-    // --- provenance, per person ---
-    sources: z
-      .array(z.string())
-      .describe("URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."),
-    confidence: z
-      .enum(["high", "medium", "low"])
-      .describe("high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."),
-  });
-}
-
-function episodeFields(z, Answer) {
-  return { roundTableHeld: Answer, murderHappened: Answer };
-}
+const episodeFields = [
+  { key: 'roundTableHeld', type: 'answer' },
+  { key: 'murderHappened', type: 'answer' },
+];
 
 const researchSearchHint = [
   "Search for this episode's recaps. Look for: who was murdered and banished, and whether they were",
@@ -561,7 +610,8 @@ function researchSentences(c) {
   return notes;
 }
 
-module.exports = {
+// The data half (see define.js): plain JSON that a database row could hold.
+const data = {
   id: 'traitors',
   name: 'The Traitors',
   exitMethods,
@@ -589,15 +639,12 @@ module.exports = {
   ],
   // An episode's headline wins, at the top of its Recap (episode-recap.tsx).
   recap: [{ label: 'Shield', events: ['shieldWon'] }],
-  impliedEvents,
   hasMerge: false,
   hasGroups: false,
   roles: {
     // What everyone is until a role decision says otherwise.
     default: 'Faithful',
     values: [ORIGINAL, RECRUITED],
-    // Which role a recorded value makes someone.
-    roleFor: () => 'Traitor',
   },
   wiki: {
     voteSections: ["Voting History", "Vote History", "Voting"],
@@ -611,22 +658,34 @@ module.exports = {
       "The Faction column (Traitor / Faithful) is a secret role, NOT a group: never report it as a tribe " +
       "or as anyone's tribeName. This show has no groups unless the table has a separate team column.",
     eventTypes: wikiEventTypes,
+    // A murder and a banishment is an ordinary episode here, so only flag more than that.
+    routineEliminations: 2,
+  },
+  research: {
+    checklist,
+    episodeFields,
+    searchHint: researchSearchHint,
+    claims: researchClaims,
+  },
+};
+
+module.exports = defineFormat(data, {
+  impliedEvents,
+  roles: {
+    // Which role a recorded value makes someone.
+    roleFor: () => 'Traitor',
+  },
+  wiki: {
     episodesSchema,
     episodesPrompt,
     rejectEvent: () => null,
     derivedEvents,
     roles: wikiRoles,
-    // A murder and a banishment is an ordinary episode here, so only flag more than that.
-    routineEliminations: 2,
   },
   research: {
-    checklistSchema,
-    episodeFields,
-    searchHint: researchSearchHint,
     entryProblems: researchEntryProblems,
-    claims: researchClaims,
     items: researchItems,
     notes: researchNotes,
     sentences: researchSentences,
   },
-};
+});

@@ -4,6 +4,9 @@
 // fallback with no wiki/research pipeline needed: an admin can run a whole season off eliminations
 // and challenge wins typed in by hand. See survivor.js for the shape every format has.
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js
+const { defineFormat } = require('./define.js');
+
 const exitMethods = ['Eliminated', 'Quit', 'Removed', 'Winner', 'Other'];
 
 const events = [
@@ -79,33 +82,38 @@ function episodesPrompt() {
 // Only the two things every show this format covers can reliably report: did they leave, and were
 // they at risk but safe.
 
-function checklistSchema(z, Answer) {
-  return z.object({
-    name: z.string().describe("The contestant's full name, exactly as given in the list you were sent."),
+const checklist = [
+  { key: 'name', type: 'string', description: "The contestant's full name, exactly as given in the list you were sent." },
+  { key: 'leftTheGame', type: 'answer', description: "Did this person leave the game permanently in THIS episode?" },
+  {
+    key: 'exitMethod', type: 'exitMethod', nullable: true,
+    description: "How they left, if they left. Null if they did not leave.",
+  },
+  { key: 'wonChallenge', type: 'answer', description: "Did they win this episode's main challenge or competition?" },
+  { key: 'wasAtRiskButSafe', type: 'answer', description: "Were they at risk of elimination this episode but ultimately safe?" },
+  {
+    key: 'notableTwist', type: 'string', nullable: true,
+    description:
+      "Any other notable, checkable thing that happened to this person this episode, in one short " +
+      "phrase. Null if nothing.",
+  },
+  {
+    key: 'sources', type: 'stringList',
+    description:
+      "URLs you actually read that support the answers above for THIS person. Empty only if every " +
+      "answer is \"unknown\".",
+  },
+  {
+    key: 'confidence', type: 'enum', values: ['high', 'medium', 'low'],
+    description:
+      "high: a source states it plainly. medium: a source implies it. low: pieced together or a single " +
+      "weak source.",
+  },
+];
 
-    leftTheGame: Answer.describe('Did this person leave the game permanently in THIS episode?'),
-    exitMethod: z.enum(exitMethods).nullable().describe('How they left, if they left. Null if they did not leave.'),
-
-    wonChallenge: Answer.describe("Did they win this episode's main challenge or competition?"),
-    wasAtRiskButSafe: Answer.describe('Were they at risk of elimination this episode but ultimately safe?'),
-
-    notableTwist: z
-      .string()
-      .nullable()
-      .describe('Any other notable, checkable thing that happened to this person this episode, in one short phrase. Null if nothing.'),
-
-    sources: z
-      .array(z.string())
-      .describe('URLs you actually read that support the answers above for THIS person. Empty only if every answer is "unknown".'),
-    confidence: z
-      .enum(['high', 'medium', 'low'])
-      .describe("high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."),
-  });
-}
-
-function episodeFields(z, Answer) {
-  return { eliminationHeld: Answer };
-}
+const episodeFields = [
+  { key: 'eliminationHeld', type: 'answer' },
+];
 
 const researchSearchHint = [
   'Search for the episode recap and any reporting on who won this episode, who was at risk of',
@@ -145,7 +153,8 @@ function researchSentences(c) {
   return notes;
 }
 
-module.exports = {
+// The data half (see define.js): plain JSON that a database row could hold.
+const data = {
   id: 'generic',
   name: 'Generic',
   exitMethods,
@@ -159,7 +168,6 @@ module.exports = {
     { id: 'endgame', label: 'Endgame', events: ['winner'] },
   ],
   recap: [{ label: 'Challenge win', events: ['challengeWin'] }],
-  impliedEvents,
   hasMerge: false,
   hasGroups: false,
   wiki: {
@@ -169,19 +177,27 @@ module.exports = {
     missingVotesNote: 'no vote/elimination table found -- eliminations will be missing',
     missingGuideNote: 'no episode guide found -- eliminations will be missing',
     eventTypes: wikiEventTypes,
-    episodesSchema,
-    episodesPrompt,
-    rejectEvent: () => null,
     routineEliminations: 1,
   },
   research: {
-    checklistSchema,
+    checklist,
     episodeFields,
     searchHint: researchSearchHint,
-    entryProblems: researchEntryProblems,
     claims: researchClaims,
+  },
+};
+
+module.exports = defineFormat(data, {
+  impliedEvents,
+  wiki: {
+    episodesSchema,
+    episodesPrompt,
+    rejectEvent: () => null,
+  },
+  research: {
+    entryProblems: researchEntryProblems,
     items: researchItems,
     notes: researchNotes,
     sentences: researchSentences,
   },
-};
+});

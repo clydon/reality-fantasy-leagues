@@ -1,11 +1,18 @@
 // The Survivor format: everything about a show that's Survivor's own rather than any reality show's
 // -- how people leave, what's worth scoring, the merge, how its wiki lays out a season, and what to
-// ask research about. See docs/PLAN-show-formats.md for what a format is and why it's code.
+// ask research about. See docs/PLAN-show-formats.md for what a format is.
 //
-// Moved here unchanged from state-logic.js, db/wiki-sync.js and db/episode-research.js, where it used
-// to be hard-coded. Plain CommonJS with no dependencies, because the browser bundle (via
-// state-logic.js) and the bare-node connectors both read it. That's also why the schemas are
-// functions that are handed `z` rather than importing zod themselves.
+// Every format is two halves, put together by defineFormat (define.js): DATA -- exit methods, the
+// scoring catalog, wiki section names, the research checklist (checklist.js) -- that could live in a
+// database row, and CODE -- derived scoring, the wiki read's schema and prompt, research's answer ->
+// result mapping -- that needs a developer. See docs/PLAN-ai-generated-show-formats.md.
+//
+// Plain CommonJS with no dependencies, because the browser bundle (via state-logic.js) and the
+// bare-node connectors both read it. That's also why the schemas are functions that are handed `z`
+// rather than importing zod themselves.
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js
+const { defineFormat } = require('./define.js');
 
 // How someone can leave the game. Written straight onto castaway.exitMethod, which the Episodes UI
 // renders and scoring reads, so the connectors use this as a hard enum rather than free text.
@@ -282,113 +289,140 @@ function rejectWikiEvent({ type, name, episode, eliminated, postMerge }) {
 
 // ---------- research (db/episode-research.js) ----------
 
-// One castaway's checklist. `Answer` is the shared yes/no/unknown enum.
-function checklistSchema(z, Answer) {
-  return z.object({
-    name: z.string().describe("The castaway's full name, exactly as given in the list you were sent."),
+// One castaway's checklist, as data: checklist.js says what a field can be and builds the Zod schema.
+const checklist = [
+  { key: 'name', type: 'string', description: "The castaway's full name, exactly as given in the list you were sent." },
 
-    // --- leaving the game ---
-    leftTheGame: Answer.describe("Did this person leave the game permanently in THIS episode?"),
-    exitMethod: z
-      .enum(exitMethods)
-      .nullable()
-      .describe("How they left, if they left. Null if they did not leave."),
+  // --- leaving the game ---
+  { key: 'leftTheGame', type: 'answer', description: "Did this person leave the game permanently in THIS episode?" },
+  {
+    key: 'exitMethod', type: 'exitMethod', nullable: true,
+    description: "How they left, if they left. Null if they did not leave.",
+  },
 
-    // --- tribal council ---
-    attendedTribal: Answer.describe("Did they attend Tribal Council this episode?"),
-    votesReceived: z
-      .number()
-      .int()
-      .nullable()
-      .describe("How many votes were cast against them at Tribal this episode. 0 if they attended and got none. Null if unknown or no Tribal."),
-    votedFor: z
-      .string()
-      .nullable()
-      .describe(
-        "Who they voted for at Tribal this episode, written exactly as that person's name appears in the " +
-          "list you were sent. If there was a revote, their vote in the FINAL round. Null if unknown, no " +
-          "Tribal, or they didn't vote."
-      ),
+  // --- tribal council ---
+  { key: 'attendedTribal', type: 'answer', description: "Did they attend Tribal Council this episode?" },
+  {
+    key: 'votesReceived', type: 'integer', nullable: true,
+    description:
+      "How many votes were cast against them at Tribal this episode. 0 if they attended and got none. " +
+      "Null if unknown or no Tribal.",
+  },
+  {
+    key: 'votedFor', type: 'string', nullable: true,
+    description:
+      "Who they voted for at Tribal this episode, written exactly as that person's name appears in the " +
+      "list you were sent. If there was a revote, their vote in the FINAL round. Null if unknown, no " +
+      "Tribal, or they didn't vote.",
+  },
+  {
+    key: 'juryVotesReceived', type: 'integer', nullable: true,
+    description:
+      "Only for a finalist at Final Tribal Council this episode: how many jury votes they received to " +
+      "win. 0 if they got none. Null if they weren't a finalist this episode or it isn't reported.",
+  },
 
-    juryVotesReceived: z
-      .number()
-      .int()
-      .nullable()
-      .describe(
-        "Only for a finalist at Final Tribal Council this episode: how many jury votes they received to win. " +
-          "0 if they got none. Null if they weren't a finalist this episode or it isn't reported."
-      ),
+  // --- challenges ---
+  { key: 'wonIndividualImmunity', type: 'answer', description: "Did they win INDIVIDUAL immunity (not as part of a tribe)?" },
+  { key: 'wonTribeImmunity', type: 'answer', description: "Were they on the tribe/team that won immunity?" },
+  {
+    key: 'wonIndividualReward', type: 'answer',
+    description: "Did they win an INDIVIDUAL reward challenge (not as part of a tribe)?",
+  },
+  { key: 'wonTribeReward', type: 'answer', description: "Were they on the tribe/team that won reward?" },
+  {
+    key: 'individualChallengeFinish', type: 'integer', nullable: true,
+    description:
+      "Their best finishing place in THIS episode's INDIVIDUAL challenge(s) -- 1 if they won, 2 for " +
+      "runner-up, 3 for third -- only when a source states the order. Null for tribe/team challenges, " +
+      "if they finished below third, or if the order isn't reported.",
+  },
+  { key: 'satOutOfChallenge', type: 'answer', description: "Did they sit out of a challenge this episode?" },
+  {
+    key: 'chosenForReward', type: 'answer',
+    description:
+      "Did a reward WINNER choose them to come along on the reward, without them winning it themselves? " +
+      "'no' if they won it.",
+  },
+  {
+    key: 'wonFireMaking', type: 'answer',
+    description: "Did they WIN a fire-making challenge this episode (the final-four fire-making duel)?",
+  },
 
-    // --- challenges ---
-    wonIndividualImmunity: Answer.describe("Did they win INDIVIDUAL immunity (not as part of a tribe)?"),
-    wonTribeImmunity: Answer.describe("Were they on the tribe/team that won immunity?"),
-    wonIndividualReward: Answer.describe("Did they win an INDIVIDUAL reward challenge (not as part of a tribe)?"),
-    wonTribeReward: Answer.describe("Were they on the tribe/team that won reward?"),
-    individualChallengeFinish: z
-      .number()
-      .int()
-      .nullable()
-      .describe(
-        "Their best finishing place in THIS episode's INDIVIDUAL challenge(s) -- 1 if they won, 2 for " +
-          "runner-up, 3 for third -- only when a source states the order. Null for tribe/team " +
-          "challenges, if they finished below third, or if the order isn't reported."
-      ),
-    satOutOfChallenge: Answer.describe("Did they sit out of a challenge this episode?"),
-    chosenForReward: Answer.describe(
-      "Did a reward WINNER choose them to come along on the reward, without them winning it themselves? 'no' if they won it."
-    ),
-    wonFireMaking: Answer.describe("Did they WIN a fire-making challenge this episode (the final-four fire-making duel)?"),
+  // --- advantages ---
+  { key: 'foundAdvantage', type: 'answer', description: "Did they FIND a hidden immunity idol or any advantage this episode?" },
+  {
+    key: 'advantageFoundName', type: 'string', nullable: true,
+    description:
+      "What they found, in the show's own words ('hidden immunity idol', 'Beware Advantage', 'Shot in " +
+      "the Dark'). Null if nothing.",
+  },
+  {
+    key: 'playedAdvantage', type: 'answer',
+    description: "Did they PLAY an idol or advantage this episode (their own or on someone else)?",
+  },
+  {
+    key: 'advantagePlayedName', type: 'string', nullable: true,
+    description: "What they played, in the show's own words. Null if nothing.",
+  },
+  {
+    key: 'votesNullified', type: 'integer', nullable: true,
+    description:
+      "If they PLAYED an idol or advantage (on themselves or someone else), how many votes it cancelled " +
+      "-- 0 if it cancelled none. Null if they played nothing or it isn't reported.",
+  },
+  {
+    key: 'advantageUsedAgainstThem', type: 'answer',
+    description: "Was an advantage used against them (a vote stolen, blocked, nullified)?",
+  },
 
-    // --- advantages ---
-    foundAdvantage: Answer.describe("Did they FIND a hidden immunity idol or any advantage this episode?"),
-    advantageFoundName: z
-      .string()
-      .nullable()
-      .describe("What they found, in the show's own words ('hidden immunity idol', 'Beware Advantage', 'Shot in the Dark'). Null if nothing."),
-    playedAdvantage: Answer.describe("Did they PLAY an idol or advantage this episode (their own or on someone else)?"),
-    advantagePlayedName: z.string().nullable().describe("What they played, in the show's own words. Null if nothing."),
-    votesNullified: z
-      .number()
-      .int()
-      .nullable()
-      .describe(
-        "If they PLAYED an idol or advantage (on themselves or someone else), how many votes it cancelled -- " +
-          "0 if it cancelled none. Null if they played nothing or it isn't reported."
-      ),
-    advantageUsedAgainstThem: Answer.describe("Was an advantage used against them (a vote stolen, blocked, nullified)?"),
+  // --- twists ---
+  {
+    key: 'learnedOfAdvantage', type: 'answer',
+    description:
+      "Did they find out, this episode, that ANOTHER player has a hidden immunity idol or advantage -- " +
+      "told by them or someone else, saw it, or worked it out on screen? Only what the episode shows or " +
+      "a recap states, not speculation. It must be PRIVATE knowledge: learned alone or within an " +
+      "alliance or small group, not something the whole tribe or everyone at Tribal learned at once " +
+      "(e.g. an idol played at Tribal Council is not this). And only the FIRST time they learn about " +
+      "that particular idol or advantage -- 'no' if they already knew about it from an earlier episode.",
+  },
+  {
+    key: 'wentOnJourney', type: 'answer',
+    description:
+      "Were they sent on a JOURNEY this episode -- taken away from camp (often by boat) to a separate " +
+      "location, usually with a chance at an advantage or a risk to their vote?",
+  },
+  {
+    key: 'exiled', type: 'answer',
+    description: "Were they sent away from their tribe by an Exile Island-style twist while staying in the game?",
+  },
+  {
+    key: 'notableTwist', type: 'string', nullable: true,
+    description:
+      "Any other notable, checkable thing that happened to this person this episode, in one short " +
+      "phrase. Null if nothing.",
+  },
 
-    // --- twists ---
-    learnedOfAdvantage: Answer.describe(
-      "Did they find out, this episode, that ANOTHER player has a hidden immunity idol or advantage -- told by them or " +
-        "someone else, saw it, or worked it out on screen? Only what the episode shows or a recap states, not speculation. " +
-        "It must be PRIVATE knowledge: learned alone or within an alliance or small group, not something the whole tribe " +
-        "or everyone at Tribal learned at once (e.g. an idol played at Tribal Council is not this). And only the FIRST " +
-        "time they learn about that particular idol or advantage -- 'no' if they already knew about it from an earlier episode."
-    ),
-    wentOnJourney: Answer.describe(
-      "Were they sent on a JOURNEY this episode -- taken away from camp (often by boat) to a separate location, " +
-        "usually with a chance at an advantage or a risk to their vote?"
-    ),
-    exiled: Answer.describe("Were they sent away from their tribe by an Exile Island-style twist while staying in the game?"),
-    notableTwist: z
-      .string()
-      .nullable()
-      .describe("Any other notable, checkable thing that happened to this person this episode, in one short phrase. Null if nothing."),
-
-    // --- provenance, per person ---
-    sources: z
-      .array(z.string())
-      .describe("URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."),
-    confidence: z
-      .enum(["high", "medium", "low"])
-      .describe("high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."),
-  });
-}
+  // --- provenance, per person ---
+  {
+    key: 'sources', type: 'stringList',
+    description:
+      "URLs you actually read that support the answers above for THIS person. Empty only if every " +
+      "answer is 'unknown'.",
+  },
+  {
+    key: 'confidence', type: 'enum', values: ['high', 'medium', 'low'],
+    description:
+      "high: a source states it plainly. medium: a source implies it. low: pieced together or a single " +
+      "weak source.",
+  },
+];
 
 // Episode-level questions, asked alongside the per-person list.
-function episodeFields(z, Answer) {
-  return { tribalCouncilHeld: Answer };
-}
+const episodeFields = [
+  { key: 'tribalCouncilHeld', type: 'answer' },
+];
 
 // The line of the research prompt that says what to look for.
 const researchSearchHint = [
@@ -531,14 +565,15 @@ function researchSentences(c) {
   return notes;
 }
 
-module.exports = {
+// The data half (see define.js): plain JSON that a database row could hold.
+const data = {
   id: 'survivor',
   name: 'Survivor',
   exitMethods,
-  // The exit method that crowns the winner. Seeing it ends the season: no further episodes are
-  // created, and the winner isn't a "loss" for replenish.
   // What a new show on these rules calls its people and groups, until an admin says otherwise.
   terms: { castaway: 'Castaway', tribe: 'Tribe' },
+  // The exit method that crowns the winner. Seeing it ends the season: no further episodes are
+  // created, and the winner isn't a "loss" for replenish.
   winnerExitMethod: 'Sole Survivor',
   // Exits that mean reaching the end, not being knocked out: shown as finishers, never dimmed as out.
   endgameExitMethods: ['Lost Final Tribal (Jury Vote)', 'Sole Survivor'],
@@ -560,7 +595,6 @@ module.exports = {
     { label: 'Reward', events: ['rewardWin'], tribeEvents: ['rewardWin'] },
     { label: 'Immunity', events: ['tribeImmunity', 'individualImmunity'], tribeEvents: ['tribeImmunity'] },
   ],
-  impliedEvents,
   // The season has a merge, so episodes carry a post-merge flag and the UI offers it.
   hasMerge: true,
   // Players are in tribes, which can change (swaps, the merge) -- see GroupLogic.
@@ -579,21 +613,29 @@ module.exports = {
     missingVotesNote: "no voting table found -- idol plays and zero-vote-safes will be missing",
     missingGuideNote: "no episode guide found -- immunity and reward wins will be missing",
     eventTypes: wikiEventTypes,
-    episodesSchema,
-    episodesPrompt,
-    rejectEvent: rejectWikiEvent,
     // More eliminations than this in one episode is flagged for a second look: a double boot is rare
     // and explicit, and it's exactly what a misread rowspan would produce.
     routineEliminations: 1,
   },
   research: {
-    checklistSchema,
+    checklist,
     episodeFields,
     searchHint: researchSearchHint,
-    entryProblems: researchEntryProblems,
     claims: researchClaims,
+  },
+};
+
+module.exports = defineFormat(data, {
+  impliedEvents,
+  wiki: {
+    episodesSchema,
+    episodesPrompt,
+    rejectEvent: rejectWikiEvent,
+  },
+  research: {
+    entryProblems: researchEntryProblems,
     items: researchItems,
     notes: researchNotes,
     sentences: researchSentences,
   },
-};
+});

@@ -8,6 +8,9 @@
 // (one row per episode: daily winners, captains, who went into the elimination and who won) is the
 // cleanest table on the wiki and carries full names in its links.
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js
+const { defineFormat } = require('./define.js');
+
 const exitMethods = ['Eliminated', 'Disqualified', 'Quit', 'Medically removed', 'Finalist', 'Winner', 'Other'];
 
 // Leaving, finishing and winning score through impliedEvents, so they follow the exit if it's ever
@@ -182,41 +185,63 @@ function derivedEvents(ep, extracted, same) {
 
 // ---------- research (db/episode-research.js) ----------
 
-function checklistSchema(z, Answer) {
-  return z.object({
-    name: z.string().describe("The contestant's full name, exactly as given in the list you were sent."),
+const checklist = [
+  { key: 'name', type: 'string', description: "The contestant's full name, exactly as given in the list you were sent." },
 
-    // --- leaving the game ---
-    leftTheGame: Answer.describe("Did this person leave the game permanently in THIS episode (eliminated, disqualified, quit, removed, or the Final)?"),
-    exitMethod: z.enum(exitMethods).nullable().describe("How they left, if they left. Null if they did not leave."),
+  // --- leaving the game ---
+  {
+    key: 'leftTheGame', type: 'answer',
+    description:
+      "Did this person leave the game permanently in THIS episode (eliminated, disqualified, quit, " +
+      "removed, or the Final)?",
+  },
+  {
+    key: 'exitMethod', type: 'exitMethod', nullable: true,
+    description: "How they left, if they left. Null if they did not leave.",
+  },
 
-    // --- the daily challenge ---
-    wonDailyChallenge: Answer.describe("Did they win this episode's daily challenge, alone or on the winning team or pair?"),
-    wasCaptain: Answer.describe("Were they a team captain or leader this episode?"),
+  // --- the daily challenge ---
+  {
+    key: 'wonDailyChallenge', type: 'answer',
+    description: "Did they win this episode's daily challenge, alone or on the winning team or pair?",
+  },
+  { key: 'wasCaptain', type: 'answer', description: "Were they a team captain or leader this episode?" },
 
-    // --- the elimination ---
-    wasNominated: Answer.describe("Were they nominated, voted in or otherwise at risk of going into this episode's elimination?"),
-    competedInElimination: Answer.describe("Did they compete in this episode's elimination (the Arena, the Jungle, ...)?"),
-    wonElimination: Answer.describe("Did they win that elimination?"),
+  // --- the elimination ---
+  {
+    key: 'wasNominated', type: 'answer',
+    description: "Were they nominated, voted in or otherwise at risk of going into this episode's elimination?",
+  },
+  {
+    key: 'competedInElimination', type: 'answer',
+    description: "Did they compete in this episode's elimination (the Arena, the Jungle, ...)?",
+  },
+  { key: 'wonElimination', type: 'answer', description: "Did they win that elimination?" },
+  {
+    key: 'notableTwist', type: 'string', nullable: true,
+    description:
+      "Any other notable, checkable thing that happened to this person this episode, in one short " +
+      "phrase. Null if nothing.",
+  },
 
-    notableTwist: z
-      .string()
-      .nullable()
-      .describe("Any other notable, checkable thing that happened to this person this episode, in one short phrase. Null if nothing."),
+  // --- provenance, per person ---
+  {
+    key: 'sources', type: 'stringList',
+    description:
+      "URLs you actually read that support the answers above for THIS person. Empty only if every " +
+      "answer is 'unknown'.",
+  },
+  {
+    key: 'confidence', type: 'enum', values: ['high', 'medium', 'low'],
+    description:
+      "high: a source states it plainly. medium: a source implies it. low: pieced together or a single " +
+      "weak source.",
+  },
+];
 
-    // --- provenance, per person ---
-    sources: z
-      .array(z.string())
-      .describe("URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."),
-    confidence: z
-      .enum(["high", "medium", "low"])
-      .describe("high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."),
-  });
-}
-
-function episodeFields(z, Answer) {
-  return { eliminationHeld: Answer };
-}
+const episodeFields = [
+  { key: 'eliminationHeld', type: 'answer' },
+];
 
 const researchSearchHint = [
   "Search for the episode recap, the episode's wiki page, and any reporting on who won the daily",
@@ -266,7 +291,8 @@ function researchSentences(c) {
   return notes;
 }
 
-module.exports = {
+// The data half (see define.js): plain JSON that a database row could hold.
+const data = {
   id: 'challenge',
   name: 'The Challenge',
   exitMethods,
@@ -287,7 +313,6 @@ module.exports = {
     { label: 'Daily challenge', events: ['dailyWin'] },
     { label: 'Won the elimination', events: ['eliminationWin'] },
   ],
-  impliedEvents,
   hasMerge: false,
   // Teams, pairs or individuals, changing as often as every episode -- see GroupLogic.
   hasGroups: true,
@@ -307,21 +332,29 @@ module.exports = {
       "if the season starts in named teams (a Team Draft or the Format says so), naming the team, never " +
       "a colour code. If everyone starts as an individual, give no groups.",
     eventTypes: wikiEventTypes,
-    episodesSchema,
-    episodesPrompt,
-    rejectEvent: () => null,
-    derivedEvents,
     // A male and a female elimination in one episode is common; more than that is worth a look.
     routineEliminations: 2,
   },
   research: {
-    checklistSchema,
+    checklist,
     episodeFields,
     searchHint: researchSearchHint,
-    entryProblems: researchEntryProblems,
     claims: researchClaims,
+  },
+};
+
+module.exports = defineFormat(data, {
+  impliedEvents,
+  wiki: {
+    episodesSchema,
+    episodesPrompt,
+    rejectEvent: () => null,
+    derivedEvents,
+  },
+  research: {
+    entryProblems: researchEntryProblems,
     items: researchItems,
     notes: researchNotes,
     sentences: researchSentences,
   },
-};
+});

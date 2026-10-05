@@ -18,7 +18,47 @@ export interface FormatRoles {
   roleFor(value: string): string;
 }
 
+/** One research checklist question (formats/checklist.js). */
+export interface ChecklistField {
+  key: string;
+  type: "answer" | "string" | "integer" | "enum" | "exitMethod" | "stringList";
+  nullable?: boolean;
+  /** Only for type "enum". */
+  values?: string[];
+  description?: string;
+}
+
+/** A format's data half (formats/define.js): plain JSON, checked by formatProblems. */
+export interface FormatData {
+  id: string;
+  name: string;
+  exitMethods: string[];
+  terms: { castaway: string; tribe: string };
+  winnerExitMethod: string;
+  endgameExitMethods: string[];
+  events: { id: string; label: string; defaultPoints: number | { exclusive: number; shared: number }; implied?: boolean }[];
+  eventCategories: { id: string; label: string; events: string[] }[];
+  recap: { label: string; events: string[]; tribeEvents?: string[] }[];
+  hasMerge: boolean;
+  hasGroups: boolean;
+  roles?: { default: string; values: string[] };
+  wiki: {
+    version?: number;
+    voteSections: string[];
+    guideSections: string[];
+    contextSections?: string[];
+    missingVotesNote: string;
+    missingGuideNote: string;
+    castNote?: string;
+    eventTypes: string[];
+    routineEliminations: number;
+  };
+  research: { checklist: ChecklistField[]; episodeFields: ChecklistField[]; searchHint: string[]; claims: string[] };
+}
+
 export interface GameFormat {
+  /** The data half this format was built from (not enumerable). */
+  readonly data: FormatData;
   id: string;
   name: string;
   exitMethods: string[];
@@ -51,3 +91,5 @@ export const FORMATS: Record<string, GameFormat>;
 export const DEFAULT_FORMAT: string;
 export function formatFor(id: string | null | undefined): GameFormat;
 export function formatOptions(): { id: string; name: string }[];
+/** Why a format's data half isn't usable: [] when it is. */
+export function formatProblems(data: unknown): string[];

@@ -18,10 +18,8 @@ their phone against production and reports back, often with screenshots or scree
 
 That doc sequences three plans (`docs/PLAN-ai-generated-show-formats.md`,
 `docs/PLAN-new-user-onboarding-flow.md`, `reports/Mobile React animation library picks.md`) into
-stages, with a model recommendation per stage. **Stages 0 and 1 are done** (committed to `master`,
-user browser-checked); **stage 2 is next, and the rollout doc flags it Opus-only** — it's the one
-genuinely risky piece (proving `survivor`/`traitors`/`challenge`'s migration into the new data shape
-is byte-identical via the regression harness `docs/PLAN-show-formats.md` phase 1 already used).
+stages, with a model recommendation per stage. **Stages 0, 1 and 2 are done.** Stage 3 is next. The
+rollout doc splits it: Opus for the prompt and review-screen data model, Sonnet for the UI.
 
 - **Stage 0 (Foundation):** `motion` is installed. House convention is `src/components/motion.tsx`
   (exports `m`/`AnimatePresence`/`MotionProvider`) + `src/components/motion-features.ts` (a separate
@@ -40,8 +38,14 @@ is byte-identical via the regression harness `docs/PLAN-show-formats.md` phase 1
   "+ Add it" tile is present but disabled (`title="Coming soon — research your own show's rules"`);
   wiring it to the real research flow is stage 3, once `docs/PLAN-ai-generated-show-formats.md`'s
   phase 3 exists.
-- **Not done yet:** stages 2–6, exactly as `docs/PLAN-rollout-order.md` lists them. Re-run `/model` to
-  Opus before starting stage 2 — don't skip the regression-harness verification step.
+- **Stage 2 (formats as data):** every format file now builds a plain-JSON `data` object plus its
+  functions, and `defineFormat` (`src/lib/game/formats/define.js`) assembles the same object callers
+  always read. The research checklist is data too (`formats/checklist.js`). It was proven
+  byte-identical with `tests/harness/format-regression.js`, which is now committed: run it before and
+  after any format refactor and diff. Details, verification and what phase 3 inherits are under
+  phase 2 in `docs/PLAN-ai-generated-show-formats.md`. No UI or scoring change; nothing for players.
+- **Not done yet:** stages 3–6, exactly as `docs/PLAN-rollout-order.md` lists them. Decide first how a
+  proposed format maps checklist answers to events without code (see the plan's phase 2 notes).
 
 ## Who uses this
 

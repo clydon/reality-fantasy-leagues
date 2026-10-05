@@ -174,7 +174,7 @@ These fail on reliability, not on missing from a wiki:
 
 ## 6. What was implemented
 
-**Research checklist** (`traitors.js` → `research.checklistSchema`, which is what the paste prompt asks).
+**Research checklist** (`traitors.js` → `checklist`, built into `research.checklistSchema`, which is what the paste prompt asks).
 It asks for primitives, and code derives the outcomes:
 
 | Field | Type | Asks |

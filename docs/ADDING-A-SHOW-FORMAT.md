@@ -101,14 +101,26 @@ generic technique rather than specific to one show) so the next session doesn't 
 ## 8. Write the format
 
 Copy `src/lib/game/formats/survivor.js` as the template. It shows every piece a format has to supply:
-exit methods, winner, event catalog, merge, the wiki half and the research half. `traitors.js` shows
-the optional pieces:
+exit methods, winner, event catalog, merge, the wiki half and the research half. A format is written
+as two halves, put together by `defineFormat` (`formats/define.js`):
+- `data`: plain JSON. Exit methods, the catalog and its categories, wiki section names, the research
+  checklist (a list of fields, see `formats/checklist.js`), claims and the search hint.
+  `formatProblems` checks it on load, so a bad reference (a category naming an event that doesn't
+  exist, a claim that isn't a yes/no question) fails at once with a reason.
+- code: functions. `impliedEvents`, the wiki read's schema/prompt/`rejectEvent`/`derivedEvents`,
+  and research's `entryProblems`/`items`/`notes`/`sentences`.
+
+`traitors.js` shows the optional pieces:
 - `roles`: secret roles, recorded as season decisions.
 - `impliedEvents`: points that follow from an exit or a role, derived rather than stored.
 - `wiki.derivedEvents`: events worked out in code from other extracted data, such as votes.
 - `wiki.roles`: role facts from the read.
 - `wiki.castNote`: a warning added to the cast prompt.
 - `wiki.routineEliminations`: how many exits in one episode is normal.
+
+When changing an existing format without meaning to change its behaviour (a refactor, a move between
+the halves), run `node tests/harness/format-regression.js` before and after and diff the output. Only
+the "function sources" section at the end may differ, and only for functions you rewrote.
 
 Register the new file in `formats/index.js`. The admin "Rules" picker lists whatever is registered, so
 switching a show over needs no other code. Keep event ids unique to the format rather than reusing
