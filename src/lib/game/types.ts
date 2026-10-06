@@ -232,6 +232,8 @@ export interface LeagueSettings {
    */
   seasonRuleChanges?: SeasonChange[];
   adoptedRuleChanges?: SeasonChange[];
+  /** Changes its commissioner said no to, by version (an admin's later edit is offered again). */
+  declinedRuleChanges?: { id: string; version: number }[];
   /**
    * Guided-setup gate. `false` only on leagues created after guided setup shipped; absent on every
    * league that predates it, and anything other than an explicit `false` counts as complete -- see

@@ -180,3 +180,74 @@ test("a change that no longer fits leaves the league on its base rather than bre
     console.error = errors;
   }
 });
+
+// ---- a commissioner's say (StateLogic.RuleChangeLogic) ----
+
+const Logic = StateLogic.RuleChangeLogic;
+function offeredLeague(offered, extra = {}) {
+  const s = league(undefined);
+  s.settings.seasonRuleChanges = offered;
+  Object.assign(s.settings, extra);
+  return s;
+}
+
+test("an offered change waits on the commissioner, and adopting it sets this league's points", () => {
+  const s = offeredLeague([twist()]);
+  assert.deepEqual(Logic.pending(s).map((c) => c.id), ["chg-1"]);
+  assert.ok(!StateLogic.formatOf(s).events.some((e) => e.id === "sentAway"), "offered isn't scored");
+  const r = Logic.adopt(s, "chg-1", { sentAway: 3 });
+  assert.deepEqual(r.skipped, []);
+  assert.deepEqual(Logic.pending(s), []);
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(s, "sentAway"), 3);
+  assert.equal(StateLogic.ActiveRosterLogic.pointsFor(s, "exiledAfterTwist"), 2, "an event left out keeps the suggestion");
+  assert.equal(StateLogic.computeScores(s)[0].total, 4, "episode 8 gains the adopted implied event");
+  assert.equal(Logic.adopt(s, "nope"), null);
+});
+
+test("declining is per version: an admin's edit is offered again, and adopting it replaces the old one", () => {
+  const s = offeredLeague([twist()]);
+  Logic.decline(s, "chg-1");
+  assert.deepEqual(Logic.pending(s), []);
+  s.settings.seasonRuleChanges = [twist({ version: 2 })];
+  assert.deepEqual(Logic.pending(s).map((c) => c.version), [2]);
+  Logic.adopt(s, "chg-1");
+  assert.deepEqual(Logic.adopted(s).map((c) => c.version), [2]);
+  assert.equal(s.settings.declinedRuleChanges, undefined);
+  s.settings.seasonRuleChanges = [twist({ version: 3 })];
+  assert.deepEqual(Logic.adoptedStatus(s).map((a) => a.status), ["updated"]);
+  s.settings.seasonRuleChanges = [];
+  assert.deepEqual(Logic.adoptedStatus(s).map((a) => a.status), ["withdrawn"]);
+});
+
+test("stopping a change takes back its events' results and points, and nothing else", () => {
+  const s = offeredLeague([twist()]);
+  Logic.adopt(s, "chg-1", { sentAway: 3 });
+  StateLogic.ActiveRosterLogic.addEvent(s, "e8", "sentAway", "a");
+  StateLogic.ActiveRosterLogic.addEvent(s, "e8", "individualImmunity", "a");
+  assert.deepEqual(Logic.remove(s, "chg-1"), ["sentAway", "exiledAfterTwist"]);
+  assert.deepEqual(s.episodes[1].scoringEvents.map((e) => e.type), ["individualImmunity"]);
+  assert.equal(s.settings.eventPoints.sentAway, undefined);
+  assert.equal(s.settings.eventPoints.wentToExile, 1, "the league's own values stay");
+  assert.equal(s.settings.adoptedRuleChanges, undefined);
+  assert.equal(Logic.remove(s, "chg-1"), null);
+});
+
+test("a change that clashes with a league's own copy says what it leaves out", () => {
+  const copy = JSON.parse(JSON.stringify(survivor.data));
+  copy.events.push({ id: "sentAway", label: "Our own", defaultPoints: 5 });
+  copy.eventCategories[0].events.push("sentAway");
+  const s = offeredLeague([twist()], { leagueRulesetData: copy });
+  assert.deepEqual(Logic.fit(s, twist()).map((x) => x.what), ["event sentAway"]);
+});
+
+test("a viewer who hasn't seen the change's episode doesn't see the change -- offered or adopted", () => {
+  const s = offeredLeague([twist()]);
+  Logic.adopt(s, "chg-1");
+  const before = StateLogic.SpoilerLogic.viewThrough(s, 7);
+  assert.equal(before.settings.seasonRuleChanges, undefined);
+  assert.equal(before.settings.adoptedRuleChanges, undefined);
+  assert.equal(s.settings.adoptedRuleChanges.length, 1, "the real state is untouched");
+  const after = StateLogic.SpoilerLogic.viewThrough(s, 8);
+  assert.equal(after.settings.adoptedRuleChanges.length, 1);
+  assert.equal(StateLogic.SpoilerLogic.viewThrough(s, null), s, "opted out of spoiler protection: everything");
+});

@@ -2081,8 +2081,20 @@ class SpoilerLogic {
   }
   static viewThrough(state, seenThrough){
     const hidden = SpoilerLogic.hiddenEpisodes(state, seenThrough);
-    if(!hidden.length) return state;
+    // A season rule change from an episode this viewer hasn't seen would say a twist is coming
+    // (docs/PLAN-season-rule-changes.md, decided 2026-10-06): it's left out of their copy -- offered or
+    // adopted -- until they've seen that episode. Scores can't differ for it: everything a change does
+    // is gated to its effective episode, and those episodes' results are hidden here anyway.
+    const changeHidden = c => Number.isInteger(seenThrough) && c && c.effectiveEpisode > seenThrough;
+    const st = state.settings || {};
+    const hidesChanges = ['seasonRuleChanges', 'adoptedRuleChanges'].some(k => (st[k] || []).some(changeHidden));
+    if(!hidden.length && !hidesChanges) return state;
     const s = JSON.parse(JSON.stringify(state));
+    ['seasonRuleChanges', 'adoptedRuleChanges'].forEach(k => {
+      if(!s.settings[k]) return;
+      s.settings[k] = s.settings[k].filter(c => !changeHidden(c));
+      if(!s.settings[k].length) delete s.settings[k];
+    });
     const ids = new Set(hidden.map(e => e.id));
     // A merge badge on a hidden episode would say a merge happened: carry the last visible value.
     const visible = s.episodes.filter(e => !ids.has(e.id) && e.number <= seenThrough).sort((a,b) => b.number - a.number)[0];
@@ -2103,6 +2115,96 @@ class SpoilerLogic {
     const winnerMethod = formatOf(s).winnerExitMethod;
     if(!s.castaways.some(c => c.exitMethod === winnerMethod)) s.finaleActual = { top3: [null, null, null], winner: null };
     return s;
+  }
+}
+
+// ---------- RuleChangeLogic: a commissioner's say over season rule changes ----------
+// docs/PLAN-season-rule-changes.md. An admin approves a change for a whole season; every league on it
+// is OFFERED it (settings.seasonRuleChanges, server-written), and a league scores only what its
+// commissioner ADOPTS (settings.adoptedRuleChanges, each a frozen snapshot) -- decided 2026-10-06: in a
+// running league, whether a new rule scores, and for how much, is the commissioner's call. Declining is
+// remembered per version (settings.declinedRuleChanges), so an admin's later edit is offered again.
+//
+// Pure: the league route (api/leagues/:id/rule-changes) wraps these with the database side -- applying
+// the season's results again after an adopt, so ones that needed the new events land, and forgetting
+// the ledger entries a remove takes back.
+class RuleChangeLogic {
+  static offered(state){ return (state.settings && state.settings.seasonRuleChanges) || []; }
+  static adopted(state){ return (state.settings && state.settings.adoptedRuleChanges) || []; }
+  static declined(state){ return (state.settings && state.settings.declinedRuleChanges) || []; }
+
+  // Offered changes waiting on the commissioner: not adopted at this version, and not declined at it.
+  static pending(state){
+    const adopted = RuleChangeLogic.adopted(state);
+    const declined = RuleChangeLogic.declined(state);
+    return RuleChangeLogic.offered(state).filter(c =>
+      !adopted.some(a => a.id === c.id && (a.version || 1) >= (c.version || 1)) &&
+      !declined.some(d => d.id === c.id && (d.version || 1) >= (c.version || 1)));
+  }
+  // Each adopted change with where it stands against what's offered now: 'current', 'updated' (the
+  // admin has edited it since; the league still plays the version it adopted) or 'withdrawn'.
+  static adoptedStatus(state){
+    const offered = RuleChangeLogic.offered(state);
+    return RuleChangeLogic.adopted(state).map(a => {
+      const o = offered.find(c => c.id === a.id);
+      return { change: a, status: !o ? 'withdrawn' : (o.version || 1) > (a.version || 1) ? 'updated' : 'current' };
+    });
+  }
+  // What adopting `change` would leave out, against this league's rules without it (its own copy may
+  // already have something the change adds): [{ change, what, why }]. Throws for a malformed change.
+  static fit(state, change){
+    const others = RuleChangeLogic.adopted(state).filter(a => a.id !== change.id);
+    const base = formatOf({ ...state, settings: { ...state.settings, adoptedRuleChanges: [] } });
+    return Formats.applyChanges(base.data, [...others, change]).skipped.filter(s => s.change === change.id);
+  }
+  // The points a new event starts at in this league: the change's suggestion, by ownership mode.
+  static suggestedPoints(state, ev){ return defaultPointsFor(ev, ownershipModeOf(state)); }
+
+  // Adopts the OFFERED change `id` (its current version), replacing any older version this league
+  // adopted, with `points` (eventId -> number) for the events it adds; an event left out keeps the
+  // change's suggestion. Returns { change, skipped } or null when nothing like that is offered.
+  static adopt(state, id, points){
+    const change = RuleChangeLogic.offered(state).find(c => c.id === id);
+    if(!change) return null;
+    const skipped = RuleChangeLogic.fit(state, change);
+    const s = state.settings;
+    s.adoptedRuleChanges = [...RuleChangeLogic.adopted(state).filter(a => a.id !== id), JSON.parse(JSON.stringify(change))];
+    s.declinedRuleChanges = RuleChangeLogic.declined(state).filter(d => d.id !== id);
+    if(!s.declinedRuleChanges.length) delete s.declinedRuleChanges;
+    const added = ((change.delta && change.delta.addEvents) || []).map(e => e.id);
+    const next = { ...(s.eventPoints || {}) };
+    for(const eid of added){
+      const n = points ? Number(points[eid]) : NaN;
+      if(Number.isFinite(n)) next[eid] = roundPoints(n);
+    }
+    s.eventPoints = next;
+    return { change, skipped };
+  }
+  // Not for this league -- at this version. A later edit by the admin is offered again.
+  static decline(state, id){
+    const change = RuleChangeLogic.offered(state).find(c => c.id === id);
+    if(!change) return false;
+    state.settings.declinedRuleChanges = [...RuleChangeLogic.declined(state).filter(d => d.id !== id), { id, version: change.version || 1 }];
+    return true;
+  }
+  // Stops scoring an adopted change: its snapshot goes, and so do the results of the events it added
+  // (recorded ones -- implied ones are derived, and vanish with the rules), and their point values.
+  // Returns the event ids it took back (the route forgets their ledger entries), or null.
+  static remove(state, id){
+    const a = RuleChangeLogic.adopted(state).find(x => x.id === id);
+    if(!a) return null;
+    const added = ((a.delta && a.delta.addEvents) || []).map(e => e.id);
+    const s = state.settings;
+    s.adoptedRuleChanges = RuleChangeLogic.adopted(state).filter(x => x.id !== id);
+    if(!s.adoptedRuleChanges.length) delete s.adoptedRuleChanges;
+    if(s.eventPoints){
+      const next = { ...s.eventPoints };
+      added.forEach(eid => { delete next[eid]; });
+      s.eventPoints = next;
+    }
+    const gone = new Set(added);
+    state.episodes.forEach(ep => { if(ep.scoringEvents) ep.scoringEvents = ep.scoringEvents.filter(ev => !gone.has(ev.type)); });
+    return added;
   }
 }
 
@@ -2397,6 +2499,7 @@ return {
   renumberPlacements: EpisodeLogic.renumberPlacements, addElimination: EpisodeLogic.addElimination, removeElimination: EpisodeLogic.removeElimination,
   setJuryVotes: EpisodeLogic.setJuryVotes,
   addExiled: EpisodeLogic.addExiled, removeExiled: EpisodeLogic.removeExiled,
+  RuleChangeLogic,
   RoleLogic, roleOf: RoleLogic.roleOf, addRole: RoleLogic.add, removeRole: RoleLogic.remove,
   GroupLogic, addGroupChange: GroupLogic.add, removeGroupChange: GroupLogic.remove,
   ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,

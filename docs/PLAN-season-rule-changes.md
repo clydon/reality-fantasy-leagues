@@ -357,6 +357,50 @@ real-league proofs. Phases 3–5 are UI on a settled model.
 - tsc is clean, eslint shows only the known `pickem-pick-grid.tsx` error, `npm test` is 187/187, and
   the harness is unchanged.
 
+### Phase 4: done (2026-10-06)
+
+- **What was built:**
+  - `StateLogic.RuleChangeLogic` (pure): `pending`, `adoptedStatus` (current / updated / withdrawn),
+    `fit` (what a league's own copy would leave out), `suggestedPoints`, `adopt` (with this league's
+    points), `decline` and `remove`.
+    - Declining is remembered per version in the new server-owned `settings.declinedRuleChanges`, so
+      an admin's later edit is offered again.
+    - `remove` takes back the change's snapshot, its events' recorded results and their point values.
+  - Route `POST /api/leagues/[leagueId]/rule-changes` (commissioner) with `{ changeId, action, points }`.
+    - It refreshes the offered list first, so it never adopts an edited or withdrawn version.
+    - Adopting re-runs `syncLeagueDecisions`, so results that were skipped while the league lacked the
+      events land then.
+    - Removing deletes those events' ledger entries, so adopting again brings them back.
+  - `src/components/setup/rule-changes-section.tsx`, "Rule changes this season" in League Settings,
+    right after League Scoring.
+    - The commissioner gets a card per pending change: the summary, each new event with the suggested
+      points filled in and editable, new exits, retirements and anything left out. Buttons: Adopt /
+      Not for this league, or for an update: Use the update / Keep the version we have.
+    - Everyone sees the list of changes scored in this league, with updated/withdrawn notes. The
+      commissioner can "Stop scoring it" (with a confirmation).
+    - It appears only in Active Roster leagues. Other league types score by who leaves, which reaches
+      every league regardless.
+  - **Spoiler gate:** `SpoilerLogic.viewThrough` leaves offered and adopted changes out of the viewer's
+    copy until they've seen the change's effective episode. The plan said "the episode before"; it's
+    the episode itself, because the twist airs in it. Scores can't differ, since everything a change
+    does is gated to that episode.
+- **Proofs:**
+  - `tests/season-changes.test.js` gained 5 tests; `npm test` is 192/192.
+  - The three real local leagues score identically to phase 1's baseline, and the harness is
+    unchanged. tsc is clean; eslint shows only the known error.
+  - Verified in a browser (isolated headless Chromium, local dev server) with a throwaway show, season
+    and league, an approved change from episode 3, an accepted episode 3 result using its new event,
+    and a test commissioner account. All of it was removed afterwards with no orphaned rows.
+    - Seen through 2: the section doesn't appear. Seen through 3: the card shows a suggested 1.5.
+    - Adopting at 2 points: the league holds the change at version 1, points 2, Ada's episode 3 event
+      and its ledger entry. Before adopting, it had neither; the result had been skipped.
+    - The adopted event shows up in League Scoring under its new category.
+    - At 390px: "Stop scoring it" through the confirm dialog clears the event, points and ledger, and
+      the card is offered again. Adopting again brings the event back. No horizontal overflow, no page
+      errors.
+- **Left for later:** no What's New entry. The only person who sees the card is a commissioner, and
+  any player-facing note waits for your approval as usual.
+
 ## Open points (not blocking)
 
 - The paid "check for rule changes" call, once the paste flow has proven the prompt.

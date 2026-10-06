@@ -383,6 +383,9 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ field, value }),
     }),
+  // Season rule changes (docs/PLAN-season-rule-changes.md): a commissioner adopts, declines or removes one.
+  leagueRuleChange: (leagueId: string, changeId: string, action: "adopt" | "decline" | "remove", points?: Record<string, number>) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/rule-changes`, { method: "POST", body: JSON.stringify({ changeId, action, points }) }),
   addPlayer: (leagueId: string, name: string, automated = false) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/players`, { method: "POST", body: JSON.stringify({ name, automated }) }),
   updatePlayer: (leagueId: string, id: string, field: string, value: unknown) =>

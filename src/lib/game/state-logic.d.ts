@@ -2,7 +2,7 @@
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
 import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Episode, ReplenishTurn, PickEmPick, ScoringEvent, EpisodeProposalPayload } from "./types";
-import type { GameFormat } from "./formats/index.js";
+import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
 
 /** One question in guided first-time setup, in the order it should be asked. */
 export interface SetupStep {
@@ -86,6 +86,22 @@ declare const StateLogic: {
    * commissioner has revealed. See RevealLogic's comment in state-logic.js for why this is a
    * derived gate rather than per-episode snapshots of the wiki payload.
    */
+  /** A commissioner's say over season rule changes (docs/PLAN-season-rule-changes.md). */
+  RuleChangeLogic: {
+    offered(state: LeagueState): SeasonChange[];
+    adopted(state: LeagueState): SeasonChange[];
+    declined(state: LeagueState): { id: string; version: number }[];
+    /** Offered changes not adopted or declined at their current version. */
+    pending(state: LeagueState): SeasonChange[];
+    adoptedStatus(state: LeagueState): { change: SeasonChange; status: "current" | "updated" | "withdrawn" }[];
+    /** What adopting it would leave out against this league's rules. */
+    fit(state: LeagueState, change: SeasonChange): SeasonChangeSkip[];
+    suggestedPoints(state: LeagueState, ev: { defaultPoints: number | { exclusive: number; shared: number } }): number;
+    adopt(state: LeagueState, id: string, points?: Record<string, number> | null): { change: SeasonChange; skipped: SeasonChangeSkip[] } | null;
+    decline(state: LeagueState, id: string): boolean;
+    /** The event ids it took back, or null if it wasn't adopted. */
+    remove(state: LeagueState, id: string): string[] | null;
+  };
   /** One viewer's held-back results: the league as of the last episode they've revealed. */
   SpoilerLogic: {
     hiddenEpisodes(state: LeagueState, seenThrough: number | null | undefined): Episode[];

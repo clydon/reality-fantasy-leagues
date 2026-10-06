@@ -13,8 +13,9 @@ import { syncLeagueChanges } from "@db/season-rule-changes.js";
 // leagueRulesetData (db/league-rulesets.js) is the same story, one level up: only the ruleset routes
 // write it, after running it through rulesetProblems.
 // seasonRuleChanges/adoptedRuleChanges (docs/PLAN-season-rule-changes.md): written by the server when a
-// change is approved, and by the adopt/decline route -- never set straight from a settings request.
-const SERVER_OWNED = ["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges"];
+// change is approved, and by the adopt/decline route (declinedRuleChanges too) -- never set straight
+// from a settings request.
+const SERVER_OWNED = ["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges", "declinedRuleChanges"];
 
 // Port of SurvivorDraft's server/routes/roster.js PATCH /settings -- generic field/value setter,
 // no per-field validation server-side (same as the original; the client only ever sends fields
