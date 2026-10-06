@@ -401,6 +401,39 @@ real-league proofs. Phases 3–5 are UI on a settled model.
 - **Left for later:** no What's New entry. The only person who sees the card is a commissioner, and
   any player-facing note waits for your approval as usual.
 
+### Phase 5: done (2026-10-06). The plan is complete.
+
+- **What was built:**
+  - `rulesNote` (a nullable string) is in `db/episode-research.js`'s shared episode-level schema,
+    `researchSchemaFor`, so every format asks it with no format's data touched. It's reserved in
+    `define.js`'s `EPISODE_RESERVED` and `proposal.js`'s `EPISODE_KEYS`, so no format can define its
+    own.
+  - The wording (`RULES_NOTE`) is aimed at avoiding noise. It asks only about a change to *how the
+    game is played* that's new this season. It names what doesn't count: anything the checklist
+    already asks, the show's usual twists, and what happened to one person (that's `notableTwist`'s
+    job, per person). And it says null is the normal answer.
+  - The JSON paste skeleton picks it up from the schema (`rulesNote: null`), and the prose paste
+    prompt asks for a "Rules note:" line. A pasted answer that leaves it out reads as null, the only
+    missing key `validateLeniently` excuses, so an optional flag can't become a new way for a paste to
+    fail.
+  - The admin's research result shows it under the episode summary, behind "Show episode results",
+    the same as the summary. The season's Rules row (phase 3) lists it.
+  - Found while doing this: the Rules row showed research notes and change summaries regardless of
+    "Show episode results". Both now say "details hidden" until it's ticked, the hover tooltip
+    included. Episode numbers and counts stay visible, since they reveal nothing.
+- **Proofs:**
+  - **Expected harness diff:** 784 lines, all in research schemas and paste prompts. To show it's
+    nothing *but* `rulesNote`, a scratch script resolved every `$ref` (zod renumbers its shared
+    `$defs` when a field is added, which is most of the raw diff), removed `rulesNote`, and compared
+    against `HEAD`. All 4 formats × with/without bets × 4 provider dialects came out byte-identical.
+  - `tests/season-check.test.js` gained 3 tests, so `npm test` is 195/195. The three real local leagues
+    still score identically to phase 1's baseline. tsc is clean; eslint shows only the known error.
+  - Browser check: with "Show episode results" off, the Rules row shows "Episode 3: details hidden…".
+    Ticked, it shows the note. Throwaway data and account were removed afterwards.
+- **For you to watch:** whether the wording is quiet enough on real episodes. Research on Survivor 51's
+  coming episodes will start filling `rulesNote`. A note on an ordinary week means the wording needs
+  tightening (it's one constant, `RULES_NOTE`). A real twist with no note means the opposite.
+
 ## Open points (not blocking)
 
 - The paid "check for rule changes" call, once the paste flow has proven the prompt.

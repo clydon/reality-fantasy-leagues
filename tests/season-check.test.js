@@ -108,3 +108,35 @@ test("research stages a change's new event only from its effective episode", () 
   assert.deepEqual(staged(7), []);
   assert.deepEqual(staged(8), ["sentToSecondCamp"]);
 });
+
+// ---- research's own flag (rulesNote) ----
+
+const pasteCtx = (format) => ({ showName: "Show", season: 1, episodeNumber: 8, castNames: ["Ada", "Bob"], terms: { castaway: "castaway", castaways: "castaways" }, format, domains: [] });
+
+test("every format's research asks for a rules note, null in the skeleton, and the prose prompt asks too", () => {
+  for (const format of Object.values(Formats.FORMATS)) {
+    const json = R.jsonSchemaFor(R.researchSchemaFor(format, false), "strict");
+    assert.ok(json.properties.rulesNote, `${format.id} asks it`);
+    assert.match(JSON.stringify(json.properties.rulesNote), /HOW THE GAME IS PLAYED/);
+    assert.equal(R.pasteSkeleton(pasteCtx(format), []).rulesNote, null, `${format.id} skeleton`);
+    assert.match(R.buildPastePrompt(pasteCtx(format), []), /"Rules note:", answering this: Only if this episode introduced/);
+  }
+});
+
+test("a pasted answer that leaves the rules note out reads as nothing new -- and nothing else is excused", () => {
+  const schema = R.researchSchemaFor(survivor, false);
+  const skeleton = R.pasteSkeleton(pasteCtx(survivor), []);
+  const without = { ...skeleton };
+  delete without.rulesNote;
+  assert.equal(R.parseJsonAnswer(JSON.stringify(without), schema, "paste").rulesNote, null);
+  assert.equal(R.parseJsonAnswer(JSON.stringify({ ...skeleton, rulesNote: "A second camp." }), schema, "paste").rulesNote, "A second camp.");
+  const noSummary = { ...skeleton };
+  delete noSummary.summary;
+  assert.throws(() => R.parseJsonAnswer(JSON.stringify(noSummary), schema, "paste"), /at summary/);
+});
+
+test("no format can define its own rulesNote", () => {
+  const data = JSON.parse(JSON.stringify(survivor.data));
+  data.research.episodeFields.push({ key: "rulesNote", type: "string", nullable: true });
+  assert.match(Formats.formatProblems(data).join(), /rulesNote: key is reserved/);
+});

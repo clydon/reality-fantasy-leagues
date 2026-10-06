@@ -494,6 +494,9 @@ export interface EpisodeResearch {
   episodeTitle: string | null;
   airDate: string | null;
   summary: string;
+  /** Research's flag that the show may have changed how it's played (docs/PLAN-season-rule-changes.md):
+   *  one sentence, or null -- which is the normal answer. */
+  rulesNote?: string | null;
   castaways: ResearchCastaway[];
   /** The leagues' open side bets this research settled (absent when it wasn't asked any). */
   betAnswers?: BetAnswer[];

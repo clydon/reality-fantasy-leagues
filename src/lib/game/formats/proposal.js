@@ -29,7 +29,7 @@ const QUESTION_TYPES = ['answer', 'integer', 'string', 'stringList', 'enum'];
 const EXIT_KINDS = ['out', 'finalist', 'winner'];
 const ID = /^[a-z][A-Za-z0-9]*$/;
 // Keys research's episode-level answer already uses (db/episode-research.js researchSchemaFor).
-const EPISODE_KEYS = ['episodeTitle', 'airDate', 'summary', 'castaways', 'betAnswers'];
+const EPISODE_KEYS = ['episodeTitle', 'airDate', 'summary', 'rulesNote', 'castaways', 'betAnswers'];
 // Recap and reference sites episode research already trusts for other shows. A suggested domain on one
 // of these is pre-checked on the review screen; nothing is ever applied without the admin's say.
 const KNOWN_GOOD_DOMAINS = [

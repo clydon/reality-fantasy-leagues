@@ -71,18 +71,36 @@ const Answer = z.enum(["yes", "no", "unknown"]);
 //
 // `withBets` adds the leagues' open side bets (see openBetsFor). Only then: a run with no bets to
 // answer asks exactly what it always has.
+//
+// `rulesNote` is every format's, not any one format's data: research's own flag that the show may have
+// changed how it's played this season (docs/PLAN-season-rule-changes.md). A non-empty one shows on the
+// season's Rules row in Admin as the cue to run "check for rule changes"; nothing else reads it, and it
+// never scores. Its wording is the whole design -- see RULES_NOTE.
 function researchSchemaFor(format, withBets = false) {
   return z.object({
     episodeTitle: z.string().nullable(),
     airDate: z.string().nullable().describe("As printed on the source, e.g. 'March 5, 2026'."),
     summary: z.string().describe("Two or three sentences on what happened this episode, for a human reviewer to orient on."),
     ...format.research.episodeFields(z, Answer),
+    rulesNote: z.string().nullable().describe(RULES_NOTE),
     castaways: z
       .array(format.research.checklistSchema(z, Answer))
       .describe("EXACTLY ONE ENTRY PER CASTAWAY in the list you were sent, in that same order, including anyone nothing happened to."),
     ...(withBets ? { betAnswers: BetAnswers } : {}),
   });
 }
+
+// Worded against noise above all: a note that fires every week ("someone found an idol!") would teach
+// the admin to ignore the Rules row, which is worse than no flag. So it asks only about the GAME's
+// rules changing, names what doesn't count (anything the checklist asks; the show's usual twists;
+// what happened to one person, which belongs in their entry), and says null is the normal answer.
+const RULES_NOTE =
+  "Only if this episode introduced a change to HOW THE GAME IS PLAYED that is new this season: a new " +
+  "twist, a new kind of advantage or power, a new way to leave the game or to be safe, or a rule the show " +
+  "announced works differently from before. If so, one sentence on what it is and how it works, as the " +
+  "episode showed it. Null otherwise -- including for anything the per-person checklist already asks " +
+  "about, for the show's usual twists and advantages, and for what happened to one person (that goes in " +
+  "their entry). Most episodes: null.";
 
 // One answer per side bet the prompt listed. Answered from the same pages as the checklist, so a
 // bet costs a few output tokens on a call that's being made anyway -- no request of its own.
@@ -286,6 +304,10 @@ function parseJsonAnswer(text, schema, label) {
 // `repairs`, which the run reports as a problem for the reviewer. Anything else still fails.
 function validateLeniently(raw, schema, label) {
   const repairs = [];
+  // The rules note (RULES_NOTE) is a flag, not an answer anything scores: a chat that leaves it out
+  // has said "nothing new", which is null. Failing a whole paste over it would make research worse to
+  // protect a field that's null nearly every week. Nothing else missing is excused.
+  if (raw && typeof raw === "object" && !Array.isArray(raw) && !("rulesNote" in raw)) raw.rulesNote = null;
   for (let attempt = 0; attempt < 5; attempt++) {
     const result = schema.safeParse(raw);
     if (result.success) {
@@ -1434,8 +1456,9 @@ function buildPastePrompt(ctx, bets, { structured = false } = {}) {
         "Answer in plain prose or bullet points, one section per person, in the order given -- not JSON,",
         "not a table. Say plainly when you don't know something rather than guessing.",
         "",
-        "Start with the episode's title, air date and a two- or three-sentence summary. Then, for EACH",
-        "person, cover every one of these (say \"no\" or \"not reported\" rather than skipping one):",
+        "Start with the episode's title, air date and a two- or three-sentence summary. Then one line,",
+        `"Rules note:", answering this: ${RULES_NOTE.replace(/\bNull\b/g, "None")}`,
+        "Then, for EACH person, cover every one of these (say \"no\" or \"not reported\" rather than skipping one):",
         ...proseChecklist(ctx.format),
         "",
         "Paste your whole answer back into Reality Fantasy Leagues' \"Paste research notes\" box for this episode.",
@@ -1721,6 +1744,7 @@ function printResearch(result) {
   console.log(payload.summary);
   // The format's episode-level questions (Survivor: tribalCouncilHeld).
   for (const key of Object.keys(format.research.episodeFields(z, Answer))) console.log(`${key}: ${payload[key]}`);
+  if (payload.rulesNote) console.log(`rules note: ${payload.rulesNote}`);
   console.log("");
 
   for (const e of result.entries) {

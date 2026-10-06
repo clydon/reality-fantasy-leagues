@@ -27,14 +27,12 @@ local DB.
 ## Remaining work, not blocked
 
 - **Season rule changes** (was "season-level delta research", `PLAN-ai-generated-show-formats.md`
-  phase 5) — **designed and confirmed 2026-10-06; `docs/PLAN-season-rule-changes.md` is now the
-  source of truth.** Mid-season (or start-of-season) rule/mechanic changes stored as additive,
-  episode-gated changes on a season (`season_rule_changes`), reviewed from a Rules row in SeasonCard
-  that never blocks Episodes. Each running league's commissioner adopts a change and sets its points.
-  Episode research gains a `rulesNote` flag that prompts a re-check. Five phases; **phases 1 (pure
-  core), 2 (storage, season wiring, admin API; migration 0053) 3 (the admin Rules row and
-  review screen in SeasonCard) and 4 (the commissioner adopt card in League Settings) done
-  2026-10-06**; phase 5 (the research flag, `rulesNote`) is next.
+  phase 5) — **done 2026-10-06, all five phases; `docs/PLAN-season-rule-changes.md` has the design and
+  each phase's proofs.** Admin records mid-season rule changes per season (Rules step in SeasonCard,
+  migration 0053); research asks the new questions from the change's episode; each Active Roster
+  league's commissioner adopts a change and sets its points in League Settings. Episode research now
+  asks a `rulesNote` that flags a possible change. Only follow-up: watch whether `rulesNote` stays
+  quiet on ordinary Survivor 51 episodes and tune its wording (`RULES_NOTE`) if not.
 - **Scoring rules as data, phases 3–5** — `PLAN-scoring-rules-as-data.md`. Phase 1 (the rule
   model/evaluator) and phase 2 (storage/API) are done; nothing below has shipped yet:
   - **Phase 3 — already satisfied, confirmed during phase 2's research.** The plan lists this as

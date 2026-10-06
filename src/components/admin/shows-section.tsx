@@ -1060,6 +1060,11 @@ function ResearchResult({
       {open && showSpoilers && (
         <>
           <p className="mt-1">{payload.summary}</p>
+          {payload.rulesNote && (
+            <p className="mt-1">
+              <b>Rules note:</b> {payload.rulesNote} <span className="text-muted-foreground">— see this season&rsquo;s Rules step.</span>
+            </p>
+          )}
           <ul className="mt-1 flex flex-col gap-0.5">
             {noted.map((c) => (
               <li key={c.name} className="flex flex-wrap items-baseline gap-1">

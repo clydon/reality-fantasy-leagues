@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { confirm } from "@/lib/confirm-store";
+import { useShowSpoilers } from "@/lib/paid-ai-store";
 import { cn } from "cn";
 import {
   CategorySelect,
@@ -87,6 +88,10 @@ export function SeasonRules({
   const lastChecked = Math.max(0, ...changes.filter((c) => c.status === "approved" || c.status === "no_change").map((c) => c.checkedThrough ?? 0));
   const aired = data?.airedThrough ?? null;
   const flags = data?.flags ?? [];
+  // A research note or a change's summary describes a twist: like everything else in Admin, it stays
+  // behind "Show episode results" (the episode numbers alone say nothing about what happened).
+  const showSpoilers = useShowSpoilers();
+  const HIDDEN = "details hidden — tick “Show episode results” at the top to read them";
   const upToDate = lastChecked > 0 && (aired == null || lastChecked >= aired) && !flags.length && !drafts.length;
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["season-rule-changes", seasonId] });
@@ -134,7 +139,7 @@ export function SeasonRules({
             <ul className="mt-1 flex flex-col gap-0.5 rounded border border-dashed border-border bg-secondary/40 p-1.5 text-[0.7rem]">
               {flags.map((f) => (
                 <li key={f.episode}>
-                  <b>Episode {f.episode}:</b> {f.note}
+                  <b>Episode {f.episode}:</b> {showSpoilers ? f.note : <span className="text-muted-foreground">{HIDDEN}</span>}
                 </li>
               ))}
             </ul>
@@ -165,8 +170,8 @@ export function SeasonRules({
                       {c.effectiveEpisode && c.status !== "no_change" && <span className="text-muted-foreground">from ep {c.effectiveEpisode}</span>}
                       {c.status === "no_change" && c.checkedThrough && <span className="text-muted-foreground">through ep {c.checkedThrough}</span>}
                       {c.status === "approved" && c.version > 1 && <span className="text-muted-foreground">v{c.version}</span>}
-                      <span className="min-w-0 flex-1 truncate" title={c.summary ?? ""}>
-                        {c.summary || "—"}
+                      <span className="min-w-0 flex-1 truncate" title={showSpoilers ? (c.summary ?? "") : ""}>
+                        {!c.summary ? "—" : showSpoilers ? c.summary : <span className="text-muted-foreground">{HIDDEN}</span>}
                       </span>
                       {(c.status === "draft" || c.status === "approved") && (
                         <button className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={() => setOpenId(openId === c.id ? null : c.id)}>
