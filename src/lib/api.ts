@@ -507,6 +507,29 @@ export const api = {
     ),
   adminDeleteFormat: (id: string) =>
     localFetch<{ ok: true }>(`/api/admin/formats/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // Self-serve twin of the above (docs/PLAN-rollout-order.md stage 4): any signed-in user, but
+  // scoped to formats they created, and -- unlike adminApproveFormat -- never able to switch an
+  // EXISTING show onto a format. Used by the create-league wizard's "+ Add it" tile.
+  formatPrompt: (q: { name: string; wiki?: string; castaway?: string; tribe?: string; seasons?: string }) =>
+    localFetch<{ prompt: string }>(
+      `/api/formats/prompt?${new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]).toString()}`
+    ),
+  createFormat: (answer: string) =>
+    localFetch<{ format: StoredFormat }>("/api/formats", { method: "POST", body: JSON.stringify({ answer }) }),
+  getFormat: (id: string) => localFetch<{ format: StoredFormat }>(`/api/formats/${encodeURIComponent(id)}`),
+  saveFormat: (id: string, proposal: Proposal) =>
+    localFetch<{ format: StoredFormat; leaguesUpdated: number }>(`/api/formats/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ proposal }),
+    }),
+  createShowFromFormat: (id: string, body: { domains?: string[] } = {}) =>
+    localFetch<{ format: StoredFormat; show: { id: string; slug: string; name: string } | null }>(
+      `/api/formats/${encodeURIComponent(id)}/create-show`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
+  deleteFormat: (id: string) => localFetch<{ ok: true }>(`/api/formats/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
   adminCreateShow: (body: {
     name: string;
     castawayTerm?: string;

@@ -333,6 +333,7 @@ export interface StoredFormat {
   version: number;
   proposal: Proposal;
   data: FormatData | null;
+  createdBy: string | null;
   createdAt: string;
   updatedAt: string;
   approvedAt: string | null;

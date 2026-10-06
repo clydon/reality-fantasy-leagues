@@ -12,7 +12,19 @@ import { Textarea } from "@/components/ui/textarea";
 // copy/paste prompt from a show name and a few optional hints, then parse whatever a web-searching
 // chat pastes back into a draft. Same shape as episode research's PasteImportPanel
 // (season-episodes.tsx), just for a whole show's rules instead of one episode.
-export function FormatResearchPanel({ onCreated, onCancel }: { onCreated: (format: StoredFormat) => void; onCancel: () => void }) {
+export function FormatResearchPanel({
+  onCreated,
+  onCancel,
+  promptFn = api.adminFormatPrompt,
+  createFn = api.adminCreateFormat,
+}: {
+  onCreated: (format: StoredFormat) => void;
+  onCancel: () => void;
+  // Self-serve callers (research-show-flow.tsx) pass the non-admin equivalents -- same shapes,
+  // scoped to the signed-in user instead of requiring super-admin.
+  promptFn?: typeof api.adminFormatPrompt;
+  createFn?: typeof api.adminCreateFormat;
+}) {
   const [name, setName] = useState("");
   const [wiki, setWiki] = useState("");
   const [castaway, setCastaway] = useState("");
@@ -26,8 +38,8 @@ export function FormatResearchPanel({ onCreated, onCancel }: { onCreated: (forma
 
   const q = { name: name.trim(), wiki: wiki.trim() || undefined, castaway: castaway.trim() || undefined, tribe: tribe.trim() || undefined, seasons: seasons.trim() || undefined };
   const { data, isLoading, error: promptError } = useQuery({
-    queryKey: ["format-prompt", q],
-    queryFn: () => api.adminFormatPrompt(q),
+    queryKey: ["format-prompt", promptFn === api.adminFormatPrompt ? "admin" : "self", q],
+    queryFn: () => promptFn(q),
     enabled: built && !!q.name,
   });
 
@@ -47,7 +59,7 @@ export function FormatResearchPanel({ onCreated, onCancel }: { onCreated: (forma
     setBusy(true);
     setError(null);
     try {
-      const { format } = await api.adminCreateFormat(answer);
+      const { format } = await createFn(answer);
       onCreated(format);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "That didn't work.");

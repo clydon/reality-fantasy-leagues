@@ -680,10 +680,28 @@ export function FormatReviewScreen({
   format,
   onClose,
   onChanged,
+  saveFn = api.adminSaveFormat,
+  approveFn = (id, body) => api.adminApproveFormat(id, body),
+  allowExisting = true,
+  onShowCreated,
 }: {
   format: StoredFormat;
   onClose: () => void;
   onChanged: () => void;
+  // Self-serve callers (research-show-flow.tsx) pass the non-admin equivalents, scoped to formats
+  // the signed-in user created themselves.
+  saveFn?: (id: string, proposal: Proposal) => Promise<{ format: StoredFormat; leaguesUpdated: number }>;
+  approveFn?: (
+    id: string,
+    body: { createShow?: boolean; showId?: string; domains?: string[] }
+  ) => Promise<{ format: StoredFormat; show: { id: string; slug: string; name: string } | null; leaguesUpdated?: number }>;
+  // false for self-serve: there is no "switch an existing show onto this format" action outside
+  // Admin -- that's the one boundary the whole self-serve feature rests on (see
+  // src/app/api/formats/[id]/create-show/route.ts).
+  allowExisting?: boolean;
+  // Fired after a successful "Approve & create show", so a caller like the create-league wizard can
+  // move on with the new show.
+  onShowCreated?: (show: { id: string; slug: string; name: string }) => void;
 }) {
   const [current, setCurrent] = useState(format);
   const [proposal, setProposal] = useState<Proposal>(format.proposal);
@@ -831,11 +849,11 @@ export function FormatReviewScreen({
     });
   }
 
-  async function run(
-    fn: () => Promise<{ format: StoredFormat } & Record<string, unknown>>,
+  async function run<T extends { format: StoredFormat }>(
+    fn: () => Promise<T>,
     successNote?: string,
     closeOnSuccess = false
-  ) {
+  ): Promise<T | null> {
     setBusy(true);
     setError(null);
     setNote(null);
@@ -867,17 +885,18 @@ export function FormatReviewScreen({
   }
 
   const approved = current.status === "approved";
-  const showsQuery = useQuery({ queryKey: ["admin-shows-picker"], queryFn: () => api.adminListShows(), enabled: pickingShow });
+  const showsQuery = useQuery({ queryKey: ["admin-shows-picker"], queryFn: () => api.adminListShows(), enabled: pickingShow && allowExisting });
   const shows: AdminShow[] = showsQuery.data?.shows ?? [];
   const pickedShow = shows.find((s) => s.id === pickedShowId);
 
   // Approving re-derives from whatever's actually stored on the server, not from this screen's
   // in-browser edits -- so "Approve" has to save first, or it approves the format as it stood before
-  // today's edits. One click does both, in order; if the save fails, nothing is approved.
-  async function saveThenApprove(approveFn: () => Promise<{ format: StoredFormat } & Record<string, unknown>>, successNote: string) {
-    const saved = await run(() => api.adminSaveFormat(current.id, proposal));
-    if (!saved) return;
-    await run(approveFn, successNote, true);
+  // today's edits. One click does both, in order; if the save fails, nothing is approved. Returns the
+  // approve result (so a caller can read `.show`) or null if either step failed.
+  async function saveThenApprove<T extends { format: StoredFormat }>(doApprove: () => Promise<T>, successNote: string) {
+    const saved = await run(() => saveFn(current.id, proposal));
+    if (!saved) return null;
+    return run(doApprove, successNote, true);
   }
 
   async function useForExistingShow() {
@@ -889,7 +908,7 @@ export function FormatReviewScreen({
     );
     if (!ok) return;
     await saveThenApprove(
-      () => api.adminApproveFormat(current.id, { showId: pickedShow.id, domains: [...domainsChecked] }),
+      () => approveFn(current.id, { showId: pickedShow.id, domains: [...domainsChecked] }),
       `${current.name} now powers ${pickedShow.name}.`
     );
     setPickingShow(false);
@@ -1170,7 +1189,7 @@ export function FormatReviewScreen({
           size="xs"
           disabled={busy || (approved && review.problems.length > 0)}
           title={approved && review.problems.length > 0 ? "An approved format has to stay valid -- fix the problems first" : undefined}
-          onClick={() => run(() => api.adminSaveFormat(current.id, proposal), "Saved.", true)}
+          onClick={() => run(() => saveFn(current.id, proposal), "Saved.", true)}
         >
           {approved ? "Save changes" : "Save as draft"}
         </Button>
@@ -1181,18 +1200,21 @@ export function FormatReviewScreen({
               size="xs"
               disabled={busy || review.problems.length > 0}
               title={review.problems.length > 0 ? "Fix every problem first" : undefined}
-              onClick={() =>
-                saveThenApprove(
-                  () => api.adminApproveFormat(current.id, { createShow: true, domains: [...domainsChecked] }),
+              onClick={async () => {
+                const res = await saveThenApprove(
+                  () => approveFn(current.id, { createShow: true, domains: [...domainsChecked] }),
                   "Approved and created the show."
-                )
-              }
+                );
+                if (res?.show) onShowCreated?.(res.show);
+              }}
             >
               Approve &amp; create show
             </Button>
-            <Button variant="secondary" size="xs" disabled={busy || review.problems.length > 0} onClick={() => setPickingShow((v) => !v)}>
-              Use for an existing show
-            </Button>
+            {allowExisting && (
+              <Button variant="secondary" size="xs" disabled={busy || review.problems.length > 0} onClick={() => setPickingShow((v) => !v)}>
+                Use for an existing show
+              </Button>
+            )}
           </>
         )}
       </div>

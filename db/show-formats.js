@@ -59,7 +59,7 @@ async function syncLeagueFormat(db, settings, slug) {
 
 const rowOut = (r) => ({
   id: r.id, name: r.name, status: r.status, version: r.version, proposal: r.proposal, data: r.data,
-  createdAt: r.created_at, updatedAt: r.updated_at, approvedAt: r.approved_at,
+  createdBy: r.created_by, createdAt: r.created_at, updatedAt: r.updated_at, approvedAt: r.approved_at,
 });
 
 async function listFormats(db) {
@@ -149,7 +149,31 @@ async function showSlugsUsing(db, id) {
   return rows.map((r) => r.slug);
 }
 
+/** A free show slug from `base` ("love-island", "love-island-2", ...), unlike the admin create-show
+ * route this never refuses -- a casual self-serve user shouldn't hit a dead-end "rename it" error. */
+async function freeShowSlug(db, base) {
+  for (let n = 1; ; n++) {
+    const slug = n === 1 ? base : `${base}-${n}`;
+    const { rows } = await db.query("SELECT 1 FROM shows WHERE slug=$1", [slug]);
+    if (!rows.length) return slug;
+  }
+}
+
+/** Creates a new show playing by an approved format's data, owned by `userId`. Used by the self-serve
+ * /api/formats/:id/create-show route; the admin route keeps its own inline insert (it also supports
+ * switching an EXISTING show to the format, which this never does). */
+async function createShowForFormat(db, data, { userId, domains } = {}) {
+  const slug = await freeShowSlug(db, data.id.slice(0, 40));
+  const { rows } = await db.query(
+    `INSERT INTO shows (slug, name, castaway_term, tribe_term, format, research_domains, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, slug, name`,
+    [slug, data.name, data.terms.castaway, data.terms.tribe, data.id, domains?.length ? domains : null, userId || null]
+  );
+  return rows[0];
+}
+
 module.exports = {
   formatDataFor, resolveFormat, isPlayableFormat, formatOptions, setLeagueFormat, syncLeagueFormat,
   listFormats, getFormat, createDraft, saveProposal, approveFormat, deleteFormat, showSlugsUsing,
+  createShowForFormat,
 };

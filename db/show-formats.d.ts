@@ -21,3 +21,8 @@ export function saveProposal(db: Db, id: string, proposal: Proposal, userId?: st
 export function approveFormat(db: Db, id: string, userId?: string | null): Promise<(StoredFormat & { refused?: ReviewNote[]; alreadyApproved?: boolean }) | null>;
 export function deleteFormat(db: Db, id: string): Promise<{ notFound?: true; inUse?: string[]; deleted?: true }>;
 export function showSlugsUsing(db: Db, id: string): Promise<string[]>;
+export function createShowForFormat(
+  db: Db,
+  data: FormatData,
+  opts: { userId?: string | null; domains?: string[] }
+): Promise<{ id: string; slug: string; name: string }>;

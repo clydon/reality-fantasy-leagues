@@ -14,12 +14,28 @@ explained to a commissioner") rather than re-deriving it from source each time.
 **State as of 2026-10-02:** everything below is on `master` and pushed (live). The user tests on
 their phone against production and reports back, often with screenshots or screen recordings.
 
-## Rollout plan in progress (2026-10-05) — read `docs/PLAN-rollout-order.md` first
+## What's left — read `docs/ROADMAP.md` first
 
-That doc sequences three plans (`docs/PLAN-ai-generated-show-formats.md`,
+`docs/ROADMAP.md` is the single next-session entry point for remaining work (season-level delta
+research, show artwork, the scoring-rules-as-data phases including the flowchart editor, and two
+small cleanup items found during Stage 4 verification). It supersedes piecing that together from
+`docs/PLAN-rollout-order.md` plus the plans it sequences — read it instead of this section once
+you're past "what shipped" and into "what's next." The plan docs themselves stay in place (several
+are cited by code comments as permanent design rationale, not just task tracking) but
+`docs/ROADMAP.md` is now the one place that tracks what's actually left.
+
+## Rollout plan (2026-10-05, now historical — see `docs/ROADMAP.md` for what's left)
+
+`docs/PLAN-rollout-order.md` sequenced three plans (`docs/PLAN-ai-generated-show-formats.md`,
 `docs/PLAN-new-user-onboarding-flow.md`, `reports/Mobile React animation library picks.md`) into
-stages, with a model recommendation per stage. **Stages 0, 1 and 2 are done.** Stage 3 is next. The
-rollout doc splits it: Opus for the prompt and review-screen data model, Sonnet for the UI.
+stages, with a model recommendation per stage. **Stages 0 through 4 are all done** — Stage 4
+(self-serve "+ Add it" show research, owner-scoped) was browser-verified end to end against the
+local dev server on 2026-10-06: the tile opens the research flow, "Use for an existing show" is
+confirmed absent from that path, approval creates the show and lands the wizard on step 2 with it
+selected, the finished league correctly points at the new show, the show is visible to other users
+immediately, and cross-user `GET`/`PATCH`/`DELETE` on another user's draft format all correctly
+403. Two minor UI issues surfaced during that pass and are tracked in `docs/ROADMAP.md`'s cleanup
+section rather than here.
 
 - **Stage 0 (Foundation):** `motion` is installed. House convention is `src/components/motion.tsx`
   (exports `m`/`AnimatePresence`/`MotionProvider`) + `src/components/motion-features.ts` (a separate
@@ -89,9 +105,12 @@ rollout doc splits it: Opus for the prompt and review-screen data model, Sonnet 
       a second, staler, read-only copy.
   - tsc/eslint clean (only the known pre-existing pickem error); `npm test` 158/158; the format
     regression harness byte-identical throughout.
-- **Not done yet:** stages 4–6, exactly as `docs/PLAN-rollout-order.md` lists them, and phases 2–5 of
-  the scoring plan. The user chose to start stage 3 before the scoring plan's phase 2 (the `rulesets`
-  table).
+- **Stage 4 (done 2026-10-06):** self-serve "+ Add it" show research, owner-scoped. Any signed-in
+  user can research and create a brand-new show (never switch an existing one) via the Create-League
+  wizard; new `/api/formats/*` routes are `requireAuth`-gated but ownership-scoped. Browser-verified
+  end to end — see the rollout-plan section above for what was checked.
+- **Not done yet:** see `docs/ROADMAP.md` — stages 5–6 of the old rollout plan (now folded into that
+  doc) plus phases 2–5 of the scoring plan.
   - Decided: admins own each show's master rules, and commissioners can make their own copy for their
     league but never modify a master. Copies stay editable mid-season, with changes logged; a lock may
     come later. Rulesets can be shared with other leagues: backend only for now, no UI.

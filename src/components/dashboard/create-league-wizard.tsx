@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { m, AnimatePresence } from "@/components/motion";
+import { ResearchShowFlow } from "./research-show-flow";
 
 const PANEL = "mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm";
 const PANEL_TITLE = "mb-2.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground";
@@ -48,6 +49,10 @@ export function CreateLeagueWizard({
   const [showId, setShowId] = useState<string | null>(null);
   const [leagueTypeId, setLeagueTypeId] = useState<string | null>(null);
   const [name, setName] = useState("");
+  // "+ Add it": researching a show not in the catalog yet (docs/PLAN-rollout-order.md stage 4).
+  // Swaps step 1's tile grid for ResearchShowFlow; a successful create-show picks up right where
+  // tapping an existing tile would have, and advances to step 2.
+  const [addingShow, setAddingShow] = useState(false);
 
   // Not gated on store mode: this renders for a leagueless user, whose store mode is "mock" (no
   // league loaded yet) even though they're really signed in -- same reasoning as Dashboard's own
@@ -87,37 +92,53 @@ export function CreateLeagueWizard({
         <AnimatePresence mode="wait" custom={dir}>
           {step === 1 && (
             <m.div key="1" custom={dir} variants={STEP_VARIANTS} initial="enter" animate="center" exit="exit" transition={{ duration: 0.2 }}>
-              <p className="mb-2 text-sm font-semibold">What are you playing?</p>
-              <div className="grid grid-cols-2 gap-2">
-                {shows.map((s) => (
-                  <button
-                    key={s.slug}
-                    className={`flex flex-col items-center gap-1 rounded-md border p-3 text-center hover:border-primary hover:bg-secondary ${
-                      showId === s.slug ? "border-primary bg-secondary" : "border-border"
-                    }`}
-                    onClick={() => {
-                      setShowId(s.slug);
+              {addingShow ? (
+                <>
+                  <p className="mb-2 text-sm font-semibold">Research your show&rsquo;s rules</p>
+                  <ResearchShowFlow
+                    onCreated={(show) => {
+                      setShowId(show.slug);
+                      setAddingShow(false);
                       go(2);
                     }}
-                  >
-                    <span className="text-xl" aria-hidden>
-                      {SHOW_ICON[s.slug] ?? "🎬"}
-                    </span>
-                    <span className="text-sm font-medium">{s.name}</span>
-                  </button>
-                ))}
-                <button
-                  disabled
-                  title="Coming soon — research your own show's rules"
-                  className="flex flex-col items-center gap-1 rounded-md border border-dashed border-border p-3 text-center text-muted-foreground opacity-60"
-                >
-                  <span className="text-xl" aria-hidden>
-                    ➕
-                  </span>
-                  <span className="text-sm font-medium">Add it</span>
-                  <span className="text-[0.65rem]">don&rsquo;t see your show?</span>
-                </button>
-              </div>
+                    onCancel={() => setAddingShow(false)}
+                  />
+                </>
+              ) : (
+                <>
+                  <p className="mb-2 text-sm font-semibold">What are you playing?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {shows.map((s) => (
+                      <button
+                        key={s.slug}
+                        className={`flex flex-col items-center gap-1 rounded-md border p-3 text-center hover:border-primary hover:bg-secondary ${
+                          showId === s.slug ? "border-primary bg-secondary" : "border-border"
+                        }`}
+                        onClick={() => {
+                          setShowId(s.slug);
+                          go(2);
+                        }}
+                      >
+                        <span className="text-xl" aria-hidden>
+                          {SHOW_ICON[s.slug] ?? "🎬"}
+                        </span>
+                        <span className="text-sm font-medium">{s.name}</span>
+                      </button>
+                    ))}
+                    <button
+                      title="Research your own show's rules"
+                      className="flex flex-col items-center gap-1 rounded-md border border-dashed border-border p-3 text-center text-muted-foreground hover:border-primary hover:bg-secondary"
+                      onClick={() => setAddingShow(true)}
+                    >
+                      <span className="text-xl" aria-hidden>
+                        ➕
+                      </span>
+                      <span className="text-sm font-medium">Add it</span>
+                      <span className="text-[0.65rem]">don&rsquo;t see your show?</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </m.div>
           )}
 
