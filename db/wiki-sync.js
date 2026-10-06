@@ -70,6 +70,7 @@ const StateLogic = require("../src/lib/game/state-logic.js");
 // event checks are the format's, not this file's. The cast read is the same for every format.
 const Formats = require("../src/lib/game/formats/index.js");
 const ShowFormats = require("./show-formats.js");
+const SeasonRuleChanges = require("./season-rule-changes.js");
 // Same sender the Next routes use -- plain CommonJS for exactly this reason (see its header).
 const decisions = require("./season-decisions.js");
 
@@ -1197,7 +1198,7 @@ async function resolveSeasonContext(pool, showSlug, season, label) {
   // wiki page title an admin entered, and the show row the API endpoint for that show's wiki --
   // which is the point, since different shows live on different wikis.
   const { rows: catalog } = await pool.query(
-    `SELECT s.id AS show_id, ss.wiki_page_title, ss.name AS season_name,
+    `SELECT s.id AS show_id, ss.id AS season_id, ss.wiki_page_title, ss.name AS season_name,
             s.name AS show_name, s.wiki_api_url, s.castaway_term, s.tribe_term, s.cast_section_heading, s.format
        FROM shows s LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number = $2
       WHERE s.slug = $1`,
@@ -1232,7 +1233,13 @@ async function resolveSeasonContext(pool, showSlug, season, label) {
   }
   console.log(`[wiki-sync] ${showSlug} season ${season} -> ${pageTitle} (${apiUrl})`);
   const page = await fetchWikitext(pageTitle, apiUrl);
-  return { showId: entry.show_id, showSlug, season, entry, page, apiUrl, terms, castawayTerm, tribeTerm, format: await ShowFormats.resolveFormat(pool, entry.format) };
+  // The season's rules: the show's format plus its approved rule changes (docs/PLAN-season-rule-changes.md).
+  // A read covers the whole season, so every approved change is in -- an exit method a change added
+  // is one the read may report.
+  const format = entry.season_id
+    ? await SeasonRuleChanges.seasonFormat(pool, entry.season_id, { formatId: entry.format })
+    : await ShowFormats.resolveFormat(pool, entry.format);
+  return { showId: entry.show_id, showSlug, season, entry, page, apiUrl, terms, castawayTerm, tribeTerm, format };
 }
 
 function leagueSeasonOf(league) {
@@ -1287,8 +1294,9 @@ async function stageCachedSeasonEpisodes(pool, seasonId) {
   );
   if (!rows.length) return null;
   const row = rows[0];
-  // The format the read was made under, which is what its payload's shape follows.
-  const format = await ShowFormats.resolveFormat(pool, row.provenance.format || row.format);
+  // The format the read was made under, which is what its payload's shape follows, with the season's
+  // approved rule changes (as resolveSeasonContext reads it).
+  const format = await SeasonRuleChanges.seasonFormat(pool, seasonId, { formatId: row.provenance.format || row.format });
   const ctx = { showId: row.show_id, showSlug: row.slug, season: row.season_number, terms: termsFor(row).terms, format };
   return stageSeasonEpisodes(pool, ctx, { id: row.id, payload: row.payload, provenance: row.provenance, cached: true });
 }

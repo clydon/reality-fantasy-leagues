@@ -6,6 +6,7 @@ import { researchSeasonEpisode, researchFromPaste, RESEARCH_MODELS } from "@db/e
 import { episodeAirsAt, episodeCountOf } from "@db/auto-research.js";
 import { formatInTz } from "@/lib/game/air-schedule.js";
 import { formatDataFor } from "@db/show-formats.js";
+import { approvedChanges } from "@db/season-rule-changes.js";
 
 // On-demand episode research for one catalog season -- what the "Research ep N" button on each
 // season row in Admin > Shows & Seasons calls. Super-admin only, like the rest of the catalog.
@@ -85,6 +86,8 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
         decisions: run.decisions,
         // A stored format's data, so the reviewer notes can be built (formatFor(provenance.format, formatData)).
         formatData: await formatDataFor(pool, run.provenance && run.provenance.format),
+        // The season's approved rule changes, layered on for the notes (formats/season-changes.js).
+        ruleChanges: await approvedChanges(pool, id),
       });
     } catch (e) {
       throw new HttpError(502, e instanceof Error ? e.message : "Structuring the pasted notes failed");
@@ -113,6 +116,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
       decisions: run.decisions,
       // A stored format's data, so the reviewer notes can be built (formatFor(provenance.format, formatData)).
       formatData: await formatDataFor(pool, run.provenance && run.provenance.format),
+      ruleChanges: await approvedChanges(pool, id),
     });
   } catch (e) {
     // The researcher's errors are written for the person who clicked ("Google Search grounding has

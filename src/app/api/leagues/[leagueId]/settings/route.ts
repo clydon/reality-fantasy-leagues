@@ -6,6 +6,7 @@ import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { approvedCastFor, applyCastToState } from "@/lib/server/season-cast";
 import { syncLeagueDecisions } from "@/lib/server/season-decisions";
 import { syncLeagueFormat } from "@db/show-formats.js";
+import { syncLeagueChanges } from "@db/season-rule-changes.js";
 
 // Set by the server from the league's show (below, and the admin show route), never by a request: a
 // league's rules are its show's, and stored format data is validated on approval, not here.
@@ -26,6 +27,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
   if (SERVER_OWNED.includes(field)) throw new HttpError(400, `${field} follows the league's show; pick a show instead`);
 
   const state = await withLeagueLock(leagueId, async (s, client) => {
+    const seasonBefore = `${s.settings.showId ?? ""}|${s.settings.wikiSeason ?? ""}`;
     StateLogic.updateSettings(s, field, value);
 
     // The show's format rides along with it, cached so the game logic (which can't read the
@@ -39,6 +41,12 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
     // nothing, and a season with no approved cast is simply a no-op.
     if (field === "revealedThroughEpisode") await syncLeagueDecisions(client, leagueId, s);
     if (field === "showId" || field === "wikiSeason") {
+      // The season's approved rule changes (docs/PLAN-season-rule-changes.md), before its decisions
+      // below so results using a change's new events can land. A league arriving on a season starts
+      // with the season's rules as they stand -- every approved change adopted; re-saving the same
+      // season must not undo what its commissioner chose, so that only happens when it really moved.
+      const seasonAfter = `${s.settings.showId ?? ""}|${s.settings.wikiSeason ?? ""}`;
+      await syncLeagueChanges(client, s.settings, { adoptAll: seasonAfter !== seasonBefore });
       const approved = await approvedCastFor(client, s.settings.showId, s.settings.wikiSeason);
       // The starting tribes ride along only if this league may see them yet -- a league catching up
       // from episode 0 gets the people now and the division when it reveals the premiere. See

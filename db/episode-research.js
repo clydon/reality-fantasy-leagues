@@ -55,6 +55,9 @@ const StateLogic = require("../src/lib/game/state-logic.js");
 // coverage rules and the cache are the same for every format.
 const Formats = require("../src/lib/game/formats/index.js");
 const ShowFormats = require("./show-formats.js");
+// A season's approved rule changes (docs/PLAN-season-rule-changes.md): research asks what the season's
+// rules ask by the episode it's researching, not just what the show's format asks.
+const SeasonRuleChanges = require("./season-rule-changes.js");
 const embeddings = require("./embeddings.js");
 
 // ---------- the checklist ----------
@@ -979,6 +982,8 @@ async function catalogEntry(pool, showSlug, season, label) {
   }
   // A show on a stored format (db/show-formats.js) carries its data, for contextFrom's formatFor.
   rows[0].format_data = await ShowFormats.formatDataFor(pool, rows[0].format);
+  // ...and the season's approved rule changes, which contextFrom layers on by episode.
+  rows[0].rule_changes = await SeasonRuleChanges.approvedChanges(pool, rows[0].season_id);
   return rows[0];
 }
 
@@ -1037,7 +1042,22 @@ async function stillInGame(pool, showId, season, episodeNumber, castNames) {
   };
 }
 
+// The season's rules at this episode: the show's format plus every approved change in effect by then
+// (db/season-rule-changes.js). A change that no longer fits the format (the show was switched since) is
+// left out rather than stopping research; the season's Rules row is where that gets noticed.
+function seasonFormatFor(entry, episodeNumber) {
+  const base = Formats.formatFor(entry.format, entry.format_data);
+  const changes = (entry.rule_changes || []).filter((c) => c.effectiveEpisode <= episodeNumber);
+  try {
+    return { format: Formats.withChanges(base, changes), changes };
+  } catch (e) {
+    console.log(`[research] ! season rule changes not applied: ${e.message}`);
+    return { format: base, changes: [] };
+  }
+}
+
 function contextFrom(entry, showSlug, season, episodeNumber, castNames, castFrom, skippedCast = []) {
+  const { format, changes } = seasonFormatFor(entry, episodeNumber);
   return {
     domains: domainsFor(entry),
     skippedCast,
@@ -1051,7 +1071,9 @@ function contextFrom(entry, showSlug, season, episodeNumber, castNames, castFrom
     castNames,
     castFrom,
     terms: termsFor(entry).terms,
-    format: Formats.formatFor(entry.format, entry.format_data),
+    format,
+    // Which season rule changes the checklist included, recorded in provenance.
+    ruleChanges: changes.map((c) => ({ id: c.id, version: c.version })),
   };
 }
 
@@ -1230,13 +1252,15 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
 // `payload` is the whole episode's answers: some results depend on other people's (who went home
 // decides who "voted with the majority"). Names are compared by who they resolve to among the
 // checklist's own people, so "Nicole" matches "Nicole Mazullo".
-function itemsFromChecklist(entry, format, payload) {
+// `episode` is the episode the answers are for: rules a season change added only apply from its
+// effective episode, and with no episode they don't apply at all (formats/rules.js EPISODE GATING).
+function itemsFromChecklist(entry, format, payload, episode) {
   const roster = { castaways: ((payload && payload.castaways) || []).map((c, i) => ({ id: String(i), name: c.name })) };
   const who = (name) => {
     const { castaway } = StateLogic.Core.findCastawayByName(roster, name);
     return castaway ? castaway.id : String(name || "").trim().toLowerCase();
   };
-  const ctx = { payload, same: (a, b) => who(a) === who(b) };
+  const ctx = { payload, same: (a, b) => who(a) === who(b), episode };
   const items = [];
   // `method` is only for a role (the role value); an event's identity is its eventType.
   const add = (kind, eventType, method = "") =>
@@ -1258,10 +1282,10 @@ function itemsFromChecklist(entry, format, payload) {
 // identity the unique index enforces, which is also what collapses two answers that imply the same
 // result (Survivor's individual and tribe reward both mean rewardWin). Computed once because the
 // answers are identical for every league on the season; only the reveal gate below varies per league.
-function candidatesFor(payload, format) {
+function candidatesFor(payload, format, episode) {
   const byKey = new Map();
   for (const entry of payload.castaways || []) {
-    for (const item of itemsFromChecklist(entry, format, payload)) {
+    for (const item of itemsFromChecklist(entry, format, payload, episode)) {
       const key = `${item.castawayName.toLowerCase()}|${item.kind}|${item.eventType}`;
       if (!byKey.has(key)) byKey.set(key, item);
     }
@@ -1288,7 +1312,7 @@ async function stageResearchDecisions(pool, run, opts = {}) {
     [seasonId, run.episodeNumber]
   );
   const postMerge = !!(merge[0] && merge[0].post_merge);
-  const items = candidatesFor(run.payload, run.format).map((c) => ({
+  const items = candidatesFor(run.payload, run.format, run.episodeNumber).map((c) => ({
     episode: run.episodeNumber,
     postMerge,
     kind: c.kind,
@@ -1326,8 +1350,12 @@ async function stageCachedSeasonResearch(pool, seasonId) {
       season: r.season_number,
       episodeNumber: r.episode_number,
       payload: r.payload,
-      // The format the answers were asked under, which is what their shape follows.
-      format: await ShowFormats.resolveFormat(pool, (r.provenance && r.provenance.format) || r.format),
+      // The format the answers were asked under, which is what their shape follows, with the season's
+      // rule changes in effect by that episode.
+      format: await SeasonRuleChanges.seasonFormat(pool, seasonId, {
+        formatId: (r.provenance && r.provenance.format) || r.format,
+        episode: r.episode_number,
+      }),
     });
     inserted += out.inserted;
   }
@@ -1566,6 +1594,7 @@ async function researchFromPaste(pool, showSlug, season, episodeNumber, notes, o
     seasonNumber: ctx.season,
     episodeNumber,
     format: ctx.format.id,
+    ruleChanges: ctx.ruleChanges || [],
     castFrom: ctx.castFrom,
     castAsked: ctx.castNames,
     castSkipped: ctx.skippedCast || [],
@@ -1650,6 +1679,7 @@ async function runFor(pool, ctx, opts) {
     episodeNumber,
     // Whose checklist this answers -- see cachedResearch.
     format: ctx.format.id,
+    ruleChanges: ctx.ruleChanges || [],
     castFrom: ctx.castFrom,
     castAsked: ctx.castNames,
     // Already out before this episode, so not asked about (see stillInGame).

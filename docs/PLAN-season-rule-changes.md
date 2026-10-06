@@ -247,6 +247,67 @@ real-league proofs. Phases 3–5 are UI on a settled model.
     existing id is skipped, and its events join the existing one. The review screen should show that
     rather than let it surprise anyone.
 
+### Phase 2: done (2026-10-06)
+
+- **What was built:**
+  - Migration 0053 `season_rule_changes`.
+  - `formats/season-check.js` (+ `.d.ts`), the season counterpart of `proposal.js`:
+    - `buildCheckPrompt` lists the season's rules as they stand, the changes already approved, and
+      any research flags.
+    - `parseCheck` reads the pasted answer.
+    - `reviewCheck` builds the delta and every problem at its row.
+    - An event names its category by label or id. An existing category is reused, which settles the
+      `twists` point above.
+  - `db/season-rule-changes.js` (+ `.d.ts`): `seasonFormat`, `checkPrompt`, `recordCheck`,
+    `saveChange`, `approveChange`, `withdrawChange`, `deleteChange` and `syncLeagueChanges`.
+  - `src/lib/server/season-rule-changes.ts` (`pushSeasonRuleChanges`).
+  - Admin routes under `/api/admin/seasons/[id]/rule-changes`: list and record, `/prompt`, and
+    `/[changeId]` with GET/PATCH/DELETE, `/approve` and `/withdraw`.
+- **Wiring:**
+  - Research resolves its format by season and episode (`contextFrom`), records `ruleChanges` in
+    provenance, and passes the episode into staging (`candidatesFor(payload, format, episode)`).
+  - Re-staging and the wiki read resolve through `seasonFormat`.
+  - The research and decisions routes return `ruleChanges`, and the admin episode review layers them
+    on for labels and notes.
+  - The settings route syncs a league's changes when its show or season is set, *before* applying
+    the season's decisions. It adopts everything only when the season actually changed, so re-saving
+    the same season can't undo a commissioner's choice.
+- **Decided along the way:**
+  - A "nothing changed" answer is recorded straight away as `no_change`. There's nothing to review,
+    and it's how the season row will know a check was done.
+  - A draft is reviewed against the season's rules *without* itself, so editing an approved change
+    doesn't clash with its own additions.
+  - Anything the merge would skip counts as a blocking problem at the season level, because the base
+    is the master. Only a league's own copy treats skips as normal.
+  - A change can't add a second winner: exit kinds are `out` or `finalist`.
+  - **Eliminations reach every league whether or not it adopted a change.** `addElimination` doesn't
+    validate the method, so a new exit method's elimination still lands, and a league that hasn't
+    adopted the change just doesn't score it. That's the right split: who left is a fact, and how it
+    scores is the league's choice.
+- **Known limits, left as they are:**
+  - A built-in format's hand-written wiki read doesn't learn exit methods a change adds. Research
+    does.
+  - An episode researched *before* a change was approved keeps its cached answers, which don't include
+    the new questions. The admin re-researches it ("Research again"); nothing silently spends money.
+- **Proofs:**
+  - The format-regression harness is byte-identical to phase 1's output.
+  - `tests/season-check.test.js` adds 8 tests, so `npm test` is 187/187. tsc is clean, and eslint
+    shows only the known `pickem-pick-grid.tsx` error.
+  - A rolled-back end-to-end script against the local DB passed 10/10 steps:
+    - no_change recording
+    - draft and approve
+    - the prompt
+    - per-episode season format
+    - research context and provenance
+    - staging the new event as a season decision, including re-staging
+    - league sync, offered vs adopt-on-arrival
+    - edit bumps the version, an invalid edit is refused, an approved change can't be deleted, and
+      withdrawing works
+
+    It's a scratch script, not committed.
+  - All six new routes compile on the dev server and return 401 unauthenticated. They haven't been
+    exercised signed in. Phase 3's screens are what will do that, in the browser.
+
 ## Open points (not blocking)
 
 - The paid "check for rule changes" call, once the paste flow has proven the prompt.

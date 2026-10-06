@@ -6,6 +6,7 @@ import { leagueCountForSeason } from "@/lib/server/season-decisions";
 import { stageCachedSeasonEpisodes } from "@db/wiki-sync.js";
 import { stageCachedSeasonResearch } from "@db/episode-research.js";
 import { formatDataFor } from "@db/show-formats.js";
+import { approvedChanges } from "@db/season-rule-changes.js";
 
 // Every episode decision for one season (db/migrations/0019), decided or not -- the admin's review
 // list and the long-term record of what was decided, by whom and when. Super-admin only.
@@ -56,5 +57,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: stri
     leagueCount: await leagueCountForSeason(id),
     format: season[0].format,
     formatData: await formatDataFor(pool, season[0].format),
+    // The season's approved rule changes, so a change's new events show by their labels.
+    ruleChanges: await approvedChanges(pool, id),
   });
 });

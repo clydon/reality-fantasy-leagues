@@ -15,7 +15,7 @@ import { SeasonCastReview } from "./season-cast-review";
 import { SeasonEpisodes } from "./season-episodes";
 import { cn } from "cn";
 import { AI_MODELS, costOf, estimate, formatCost } from "@/lib/ai-cost";
-import { DEFAULT_FORMAT, formatFor, formatOptions } from "@/lib/game/formats/index.js";
+import { DEFAULT_FORMAT, formatFor, formatOptions, withChanges } from "@/lib/game/formats/index.js";
 import { useShowPaidAi, useShowSpoilers } from "@/lib/paid-ai-store";
 import { FormatsPanel } from "./formats-panel";
 import { FormatRulesView } from "./format-rules-view";
@@ -993,7 +993,7 @@ function ResearchResult({
   const showSpoilers = useShowSpoilers();
   const { payload, provenance, counts, problems } = research;
   // The answers are the checklist of the format they were asked under.
-  const notesFor = (c: ResearchCastaway) => formatFor(provenance.format, research.formatData).research.notes(c);
+  const notesFor = (c: ResearchCastaway) => withChanges(formatFor(provenance.format, research.formatData), research.ruleChanges).research.notes(c);
   const noted = payload.castaways.filter((c) => notesFor(c).length > 0);
   const quiet = payload.castaways.filter((c) => notesFor(c).length === 0);
   const newItems = research.decisions?.inserted ?? 0;

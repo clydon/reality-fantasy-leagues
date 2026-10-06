@@ -329,8 +329,12 @@ Grouped by area, with the file to start from.
 | 0044 | Survivor 51 photos: wiki 90x90 icons → self-hosted `photos/s51/*.jpg` (480x600) |
 | 0045–0048 | predictions moved T9FUMY → B999RR; linked-league order, favorite and name; What's New seen under impersonation |
 | 0049 | `show_formats`: stored formats from research proposals (stage 3). Purely additive |
+| 0050 | `shows.created_by` (self-serve show research, stage 4) |
+| 0051 | `shows.art_url` (show artwork) |
+| 0052 | `league_rulesets`, `leagues.ruleset_id` (scoring rules as data, phase 2) |
+| 0053 | `season_rule_changes` (season rule changes, phase 2; `docs/PLAN-season-rule-changes.md`). Purely additive |
 
-The next free number is **0050**. Production applies migrations on deploy (`npm run build` runs
+The next free number is **0054**. Production applies migrations on deploy (`npm run build` runs
 `db/migrate.js`).
 
 ## Local dev database: healthy (checked 2026-10-05)

@@ -144,6 +144,8 @@ export interface SeasonChange {
   id: string;
   version?: number;
   effectiveEpisode: number;
+  /** What changed, in a sentence or two (the commissioner's adopt card shows it). */
+  summary?: string;
   delta: SeasonChangeDelta;
 }
 /** Something a change adds that the base already has (or that depends on it), left out and why. */

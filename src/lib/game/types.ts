@@ -548,6 +548,8 @@ export interface SeasonResearchResult {
   /** The data half of the stored format the answers were asked under (null for a built-in), so its
    *  reviewer notes can be built: formatFor(provenance.format, formatData). */
   formatData?: FormatData | null;
+  /** The season's approved rule changes, layered on with withChanges (docs/PLAN-season-rule-changes.md). */
+  ruleChanges?: SeasonChange[];
 }
 
 // ---------- season decisions (db/migrations/0019) ----------
@@ -620,6 +622,8 @@ export interface SeasonDecisionsResponse {
   format: string;
   /** A stored format's data half, for formatFor(format, formatData). Null for a built-in. */
   formatData?: FormatData | null;
+  /** The season's approved rule changes, layered on with withChanges (docs/PLAN-season-rule-changes.md). */
+  ruleChanges?: SeasonChange[];
 }
 
 // Commissioner view of a show (GET /api/shows): non-archived only, no admin-only fields.

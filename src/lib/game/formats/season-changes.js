@@ -2,7 +2,7 @@
 // season -- a new twist, a new advantage, a new way to leave -- recorded as a change layered on the
 // season's base rules instead of an edit to the show's format, which every season shares.
 //
-// A change is { id, version, effectiveEpisode, delta }, and a delta only ADDS (decided 2026-10-06):
+// A change is { id, version, effectiveEpisode, summary?, delta }, and a delta only ADDS (decided 2026-10-06):
 //
 //   addCategories   [{ id, label }]                                  new display groups
 //   addEvents       [{ id, label, defaultPoints, implied?, category }]   category: an existing or added one
@@ -50,8 +50,9 @@ const unknownKeys = (obj, allowed, at) => Object.keys(obj).filter((k) => !allowe
 function changeProblems(change) {
   if (!isObj(change)) return ['not an object'];
   const p = [];
-  p.push(...unknownKeys(change, ['id', 'version', 'effectiveEpisode', 'delta'], 'change'));
+  p.push(...unknownKeys(change, ['id', 'version', 'effectiveEpisode', 'summary', 'delta'], 'change'));
   if (!isText(change.id)) p.push('id: missing');
+  if ('summary' in change && typeof change.summary !== 'string') p.push('summary: text');
   if ('version' in change && !(Number.isInteger(change.version) && change.version >= 1)) p.push('version: a whole number from 1');
   if (!(Number.isInteger(change.effectiveEpisode) && change.effectiveEpisode >= 1)) p.push('effectiveEpisode: an episode number from 1');
   return [...p, ...deltaProblems(change.delta)];

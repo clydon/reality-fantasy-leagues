@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EpisodeDecisions } from "./season-decisions-review";
-import { formatFor } from "@/lib/game/formats/index.js";
+import { formatFor, withChanges } from "@/lib/game/formats/index.js";
 import { confirm } from "@/lib/confirm-store";
 import { useShowPaidAi, useShowSpoilers } from "@/lib/paid-ai-store";
 import { cn } from "cn";
@@ -190,7 +190,7 @@ export function SeasonEpisodes({
                 decisions={row.decisions}
                 cast={data.cast}
                 leagueCount={data.leagueCount}
-                format={formatFor(data.format, data.formatData)}
+                format={withChanges(formatFor(data.format, data.formatData), data.ruleChanges)}
                 onSynced={reportSync}
               />
             )}
