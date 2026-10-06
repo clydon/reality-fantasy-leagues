@@ -8,6 +8,11 @@ just task tracking, so they're not going away even once fully implemented).
 
 **Status as of 2026-10-06:** everything through Stage 4 of `PLAN-rollout-order.md` is done, including
 self-serve "+ Add it" show research — browser-verified end to end against the local dev server.
+Show artwork (`PLAN-new-user-onboarding-flow.md` phase 4) is also done: `shows.art_url` (migration
+0051), an Admin Settings field, and the Create-League wizard tile rendering it with the existing
+emoji as fallback. Verified by tsc/eslint/tests, a migration apply, and a rolled-back DB write/read
+smoke test — not full browser click-through, since the local Playwright session was already locked
+by another Chrome instance this session.
 
 ## Remaining work, not blocked
 
@@ -15,8 +20,6 @@ self-serve "+ Add it" show research — browser-verified end to end against the 
   after a mid-season twist (e.g. Survivor 51's Exile Island) and fold the result into SeasonCard's
   existing review pipeline as one more step between cast approval and episode review: "check for rule
   changes." Output is a season-scoped delta on the show's base catalog, not a new format.
-- **Show artwork** — `PLAN-new-user-onboarding-flow.md` phase 4. Replace the icon fallback in the
-  Create-League wizard and elsewhere.
 - **Scoring rules as data, phases 2–5** — `PLAN-scoring-rules-as-data.md`. Phase 1 (the rule
   model/evaluator) is done and proven byte-identical; nothing below has shipped yet:
   - **Phase 2 — storage and API.** New `rulesets` table: masters seeded from code, leagues
