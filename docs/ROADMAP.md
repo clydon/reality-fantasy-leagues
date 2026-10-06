@@ -26,10 +26,12 @@ local DB.
 
 ## Remaining work, not blocked
 
-- **Season-level delta research** — `PLAN-ai-generated-show-formats.md` phase 5. Re-research a show
-  after a mid-season twist (e.g. Survivor 51's Exile Island) and fold the result into SeasonCard's
-  existing review pipeline as one more step between cast approval and episode review: "check for rule
-  changes." Output is a season-scoped delta on the show's base catalog, not a new format.
+- **Season rule changes** (was "season-level delta research", `PLAN-ai-generated-show-formats.md`
+  phase 5) — **designed and confirmed 2026-10-06; `docs/PLAN-season-rule-changes.md` is now the
+  source of truth.** Mid-season (or start-of-season) rule/mechanic changes stored as additive,
+  episode-gated changes on a season (`season_rule_changes`), reviewed from a Rules row in SeasonCard
+  that never blocks Episodes. Each running league's commissioner adopts a change and sets its points.
+  Episode research gains a `rulesNote` flag that prompts a re-check. Five phases; none started yet.
 - **Scoring rules as data, phases 3–5** — `PLAN-scoring-rules-as-data.md`. Phase 1 (the rule
   model/evaluator) and phase 2 (storage/API) are done; nothing below has shipped yet:
   - **Phase 3 — already satisfied, confirmed during phase 2's research.** The plan lists this as

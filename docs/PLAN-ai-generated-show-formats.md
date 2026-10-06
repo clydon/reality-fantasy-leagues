@@ -126,7 +126,8 @@ hardcoded is the *vocabulary* a format carries. Not all of it can honestly move 
 3. **Build the research-propose-review flow**, admin-only, targeting a genuinely new format.
 4. **Expose "+ Research new rules with AI" in the normal create-league flow** (see the onboarding
    plan) — this is also where the self-serve catalog-trust question below gets resolved in code.
-5. **Season-level delta research.**
+5. **Season-level delta research.** *(Designed 2026-10-06: see `docs/PLAN-season-rule-changes.md`, which supersedes
+   pipeline step 3 above -- the check is an anytime row in SeasonCard, not a gate before episodes.)*
 
 ## Risks and open points
 
