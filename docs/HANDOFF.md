@@ -54,7 +54,7 @@ rollout doc splits it: Opus for the prompt and review-screen data model, Sonnet 
     reached. The proof was mutation-tested too. The evidence is in the plan.
   - `tests/scoring-rules.test.js` is new (148 tests now). Nothing outside `formats/` changed; no UI,
     database or player-facing change.
-- **Stage 3 (in progress): read `docs/PLAN-stage-3-format-proposals.md`.**
+- **Stage 3 (done 2026-10-05): read `docs/PLAN-stage-3-format-proposals.md`.**
   - Decided: paste first (paid later), and flagged mechanics don't block approval.
   - Step 1, the pure core, is done: the proposal prompt, parsing, repair, the review model, data-only
     formats (`formats/custom.js`) and `formatFor(id, data)`.
@@ -65,9 +65,30 @@ rollout doc splits it: Opus for the prompt and review-screen data model, Sonnet 
       it;
     - every `formatFor` call site is updated;
     - the admin API is in place: `/api/admin/formats`, `/prompt`, `/[id]` and `/[id]/approve`.
-  - **Next is step 3, the screens (Sonnet).** The plan's step 3 section is the brief. The API methods
-    (`api.adminFormatPrompt` … `adminApproveFormat`) and the `Review` type (`formats/proposal.d.ts`)
-    are ready.
+  - **Step 3, the screens, is done and browser-verified by the user end to end** (twice, including
+    fixing real problems a chat's draft had). `src/components/admin/formats-panel.tsx`,
+    `format-research-panel.tsx`, `format-review-screen.tsx` and `format-rules-view.tsx` (read-only, for
+    a built-in viewed from a show's Settings). Mounted next to "+ Add a show" in `shows-section.tsx`;
+    each show's Settings also got a "view rules" / "view/edit rules" link.
+  - **Real use surfaced work beyond the original plan**, now also done:
+    - **Rule editing.** The plan only called for inline label/points/category edits on events, but a
+      real draft's problems (a bad built-in param, a type mismatch, two rules awarding one event)
+      weren't fixable that way. Each rule row now gets controls scoped to it alone: dropdowns for
+      event/exitMethod/question params (with "+ New event…" inline), a condition editor for `when`/
+      `whenExit`, a "Built-in" switcher, "remove", and raw JSON as the last resort for what dropdowns
+      can't cover. See the plan's step 3 section for the detail.
+    - **`votedForLeavers`**, a new built-in in `formats/rules.js` — `votedForLeaver` only reads one
+      name; a chat's draft needed to award on *any* of several (an extra-vote mechanic, which recurs
+      across shows, Survivor included, not just the one being drafted). Harness-proven byte-identical
+      and covered by a new test.
+    - Approve/"Use for an existing show" now save the browser's edits before approving (approving
+      re-derives from the server, not from in-progress edits — the first version silently approved the
+      pre-edit version). Save/Approve both collapse the review screen on success.
+    - A built-in's rules are viewable (read-only, `FormatRulesView`) from a show's Settings; a stored
+      format's are editable from the exact same screen as "Researched show formats" opens, rather than
+      a second, staler, read-only copy.
+  - tsc/eslint clean (only the known pre-existing pickem error); `npm test` 158/158; the format
+    regression harness byte-identical throughout.
 - **Not done yet:** stages 4–6, exactly as `docs/PLAN-rollout-order.md` lists them, and phases 2–5 of
   the scoring plan. The user chose to start stage 3 before the scoring plan's phase 2 (the `rulesets`
   table).

@@ -86,6 +86,17 @@ test("built-ins look across people", () => {
   assert.deepEqual(events([{ builtIn: "voteByRole", votes: "votedFor", ...both, ...awards }], { mole: "no", chosen: "yes", votedFor: ["Fay"] }, { payload: room }), ["ro"]);
 });
 
+test("votedForLeavers: naming anyone who left, no roles needed (an extra-vote twist)", () => {
+  const votedPlural = [{ builtIn: "votedForLeavers", votes: "votedFor", exitMethod: "Dumped", award: "with", otherwise: "against" }];
+  const payload = { castaways: [{ name: "Ada", leftTheGame: "yes", exitMethod: "Dumped" }, { name: "Grace", leftTheGame: "yes", exitMethod: "Dumped" }] };
+  assert.deepEqual(events(votedPlural, { votedFor: ["Bea", "Ada"] }, { payload }), ["with"], "any one of several names matching a leaver is enough");
+  assert.deepEqual(events(votedPlural, { votedFor: ["Ada", "Grace"] }, { payload }), ["with"], "still one award, not one per match");
+  assert.deepEqual(events(votedPlural, { votedFor: "Ada" }, { payload }), ["with"], "a single string still works, not just a list");
+  assert.deepEqual(events(votedPlural, { votedFor: ["Bea", "Cy"] }, { payload }), ["against"], "named people, none of whom left");
+  assert.deepEqual(events(votedPlural, { votedFor: [] }, { payload }), [], "no votes cast: neither award");
+  assert.deepEqual(events(votedPlural, { votedFor: ["Bea"] }, { payload: { castaways: [] } }), [], "nobody went home: nothing to be against");
+});
+
 test("implied rules follow exits, exiles and roles, fact by fact", () => {
   const rules = [
     { whenExit: "Out", award: "out" },

@@ -17,6 +17,9 @@ import { cn } from "cn";
 import { AI_MODELS, costOf, estimate, formatCost } from "@/lib/ai-cost";
 import { DEFAULT_FORMAT, formatFor, formatOptions } from "@/lib/game/formats/index.js";
 import { useShowPaidAi, useShowSpoilers } from "@/lib/paid-ai-store";
+import { FormatsPanel } from "./formats-panel";
+import { FormatRulesView } from "./format-rules-view";
+import { FormatReviewScreen } from "./format-review-screen";
 
 // Super-admin management of the show/season catalog, and the place a season's content comes from.
 //
@@ -255,6 +258,10 @@ export function ShowsSection() {
         </Button>
       )}
 
+      <div className="mt-2">
+        <FormatsPanel />
+      </div>
+
       {note && <p className="mt-2 text-sm font-semibold text-good">{note}</p>}
       {error && <p className="mt-2 text-sm font-semibold text-destructive">{error}</p>}
     </div>
@@ -386,6 +393,19 @@ function ShowRow({
 // orphaning its leagues), but not something anyone needs to look at week to week.
 function ShowSettings({ show, busy, run, options }: { show: AdminShow; busy: boolean; run: Run; options: FormatOption[] }) {
   const nameOf = (id: string) => options.find((o) => o.id === id)?.name ?? id;
+  // A stored format (made through "Research a new show") is admin-owned data and already has a real
+  // editor -- opening a second, read-only copy of it here would just be a second, STALER place to
+  // look at the same thing. A built-in (Survivor, The Traitors...) is actual code, so read-only here
+  // is the honest ceiling, not a missing feature. (Per-league copies a commissioner can edit without
+  // touching this admin-owned master are a separate, not-yet-built piece -- see
+  // docs/PLAN-scoring-rules-as-data.md's rulesets table.)
+  const isStored = options.find((o) => o.id === show.format)?.stored ?? false;
+  const [viewingRules, setViewingRules] = useState(false);
+  const formatQuery = useQuery({
+    queryKey: ["admin-format", show.format],
+    queryFn: () => api.adminGetFormat(show.format),
+    enabled: viewingRules && isStored,
+  });
   return (
     <div className="mt-2 flex flex-col gap-2 rounded-md bg-secondary/40 p-2 text-xs">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -443,8 +463,25 @@ function ShowSettings({ show, busy, run, options }: { show: AdminShow; busy: boo
               </option>
             ))}
           </Select>
+          <button
+            className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            onClick={() => setViewingRules((v) => !v)}
+          >
+            {viewingRules ? "hide rules" : isStored ? "view/edit rules" : "view rules"}
+          </button>
         </label>
       </div>
+      {viewingRules && isStored ? (
+        formatQuery.isLoading ? (
+          <p className="italic text-muted-foreground">Loading…</p>
+        ) : formatQuery.data ? (
+          <FormatReviewScreen format={formatQuery.data.format} onClose={() => setViewingRules(false)} onChanged={() => formatQuery.refetch()} />
+        ) : (
+          <p className="font-semibold text-destructive">Couldn&rsquo;t load the format.</p>
+        )
+      ) : (
+        viewingRules && <FormatRulesView data={show.format_data ?? formatFor(show.format).data} onClose={() => setViewingRules(false)} />
+      )}
       {/* Both of these are normally worked out automatically -- the endpoint from the first season
           URL, the heading from the term above -- so they're only here for the wiki that doesn't fit. */}
       <div className="flex flex-wrap items-center gap-1.5">

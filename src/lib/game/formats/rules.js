@@ -135,6 +135,24 @@ const BUILT_INS = {
       return out.length ? [rule.otherwise] : [];
     },
   },
+  // Same idea as votedForLeaver, for a mechanic votedForLeaver can't express: naming more than one
+  // person (an extra vote, a vote nullified and redone, two couples voting as one) with no secret
+  // roles involved. Recurring across shows -- Survivor's extra-vote advantages are the same shape --
+  // so it's a built-in, not a one-off fix for a single format.
+  votedForLeavers: {
+    context: 'research',
+    params: { votes: { type: 'field', fieldTypes: ['stringList', 'string'] }, exitMethod: { type: 'exitMethod' }, award: { type: 'event' }, otherwise: { type: 'event' } },
+    describe:
+      'Named anyone who left this episode by {exitMethod} among their votes: {award}. Named only people who stayed, at an ' +
+      'episode where someone did: {otherwise}. Reads everyone\'s answers to find who left.',
+    run(entry, env, rule) {
+      const votes = listOf(entry[rule.votes]);
+      if (!votes.length) return [];
+      const out = leavers(env, rule.exitMethod).map((c) => c.name);
+      if (votes.some((v) => out.some((n) => env.same(n, v)))) return [rule.award];
+      return out.length ? [rule.otherwise] : [];
+    },
+  },
   voteByRole: {
     context: 'research',
     params: { votes: { type: 'field', fieldTypes: ['string', 'stringList'] }, ...ROLE_PARAMS },

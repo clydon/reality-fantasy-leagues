@@ -230,11 +230,76 @@ its id matches, memoised per data object, otherwise as today (the default format
    - "Save as draft" and "Approve & create show", with the animation report's staged reveal for the
      review rows.
 
+   **DONE (2026-10-05), browser-verified by the user end to end.**
+   - **New files:** `src/components/admin/format-research-panel.tsx` (the name/wiki/terms/seasons
+     inputs, `api.adminFormatPrompt`, copy, and the paste box that calls `api.adminCreateFormat`),
+     `src/components/admin/format-review-screen.tsx` (the review screen for one stored format),
+     `src/components/admin/format-rules-view.tsx` (read-only display of a format's events/rules/
+     questions/exits, used for built-ins), and `src/components/admin/formats-panel.tsx` (the "Research
+     a new show" entry, the stored-formats list with Open/Delete). `shows-section.tsx` mounts
+     `<FormatsPanel />` next to "+ Add a show", and each show's Settings got a "view rules" /
+     "view/edit rules" link next to its Rules picker (read-only `FormatRulesView` for a built-in;
+     `FormatReviewScreen` itself, fetched live, for a stored format — same editor either way a stored
+     format is opened, rather than a second, read-only, staler view of the same data).
+   - **The review screen** recomputes `reviewProposal(proposal, { id })` live in the browser on every
+     edit, so problems/warnings/sentences update as you type and "Approve" is disabled while
+     `problems.length` is nonzero. Inline edits: an event's label/points/category (category is a
+     picker over existing categories, not free text, to stop "Vote" and "Votes" silently becoming two
+     groups), and a question's type. Edits are matched back to their row in the proposal by
+     re-deriving the same camelCase id `proposal.js` would (`effectiveEventId`/`effectiveQuestionKey`),
+     since the chat's raw id may have needed repairing.
+   - **Rule editing, added after real use surfaced that inline label/points/category edits weren't
+     enough to fix what a chat actually gets wrong** (a bad built-in param, a type mismatch, two rules
+     awarding the same event): each rule row gets controls scoped to that one rule, not a block of raw
+     JSON —
+     - a dropdown for every param that names something else in the format (an event, with a "+ New
+       event…" option that creates a placeholder on the spot; an exit method; a question);
+     - a condition editor (question / test / value rows) for a `when`, or a flat AND of them — the
+       shape almost every rule actually uses; a checkbox row for `whenExit`;
+     - a "Built-in" dropdown to switch which built-in a rule uses (or to a plain condition rule),
+       carrying over only the params the old and new shapes share by name;
+     - "remove" to drop just that one rule (the event keeps the rest of its rules; dropped to a
+       warning, not a problem) and a last-resort "edit as raw JSON" for what the above doesn't cover
+       (a built-in's `condition`-type params, `any`/`not`/nested conditions).
+     - A problem a rule itself causes (not its row) is attributed back to it (`problemsForAt`), a
+       leftover-problems catch-all guards anything that still isn't shown anywhere, and the bottom
+       "N problems to fix" line lists each one's `at` and message rather than just a count — the first
+       version of all of this only showed a bare count, which made a stale-looking re-appearance of a
+       problem undiagnosable without reading the code.
+   - Categories (Active-Roster-style grouping), tier chips (C styled cautionary), the implied marker,
+     rules-as-sentences, per-row problems/warnings, the questions list, exit methods, a collapsed "Not
+     reliably trackable", flagged-mechanic callouts ("approving doesn't add this"), and domain
+     checkboxes (pre-checked from `preChecked`, never auto-applied) are all there.
+   - "Save as draft" / "Save changes" (label depends on `status`) call `adminSaveFormat`. "Approve &
+     create show" and "Use for an existing show" **save first, then approve** — `adminApproveFormat`
+     re-derives from what's stored on the server, not from the browser's in-progress edits, so
+     approving without saving first would approve the format as it stood before the session's edits.
+     A 409 on either call shows the server's `error` and re-fetches the format. Every successful
+     save/approve collapses the review screen back to the list.
+   - Animation: `m`/`AnimatePresence` from `@/components/motion`, a small staggered fade-in on the
+     event rows only.
+   - **New built-in, found necessary by real use, not anticipated by the plan:** `votedForLeavers`
+     (`formats/rules.js`) — same as `votedForLeaver` but reads a `stringList` field and awards if *any*
+     named person left, no roles needed. A chat's first Love Island draft tried to force a
+     multi-name vote into `votedForLeaver` (which only reads one name), which would have silently
+     dropped votes for more than one person if "fixed" by shrinking the question to `string` --
+     recurring across shows (Survivor's extra-vote advantages are the same shape), so it's a built-in
+     addition, not a one-off. Proven byte-identical against the four shipped formats
+     (`tests/harness/format-regression.js`, none of which use it) and covered by a new test in
+     `tests/scoring-rules.test.js`.
+   - **Verified by the user, live, signed in:** two full passes of generate prompt → paste → review →
+     fix real problems (a built-in param mismatch, a type mismatch, a duplicate award) → save → approve
+     & create a show → edit the approved format → delete the test show and format.
+   - **Gates:** `npx tsc --noEmit -p .` clean; `npx eslint src` only the known pre-existing pickem
+     error; `npm test` 158/158; the format harness byte-identical throughout.
+
 ## Risks
 
 - **A chat writing rules in our language.** That's the point, but it will get some wrong. The row checks
   and `formatProblems` catch every reference error with a reason, and the review screen is where they get
-  fixed. Watch the first few real answers and tighten the prompt.
+  fixed — confirmed by step 3's real drafts, which hit a built-in param mismatch, a type mismatch and a
+  duplicate award, each fixed on the review screen without leaving the app. Watch the first few real
+  answers and tighten the prompt; `votedForLeavers` already came out of doing exactly that.
 - **Resolution misses a call site.** It silently falls back to Survivor's rules. Step 2 greps every
   `formatFor` and adds a test that a stored format resolves in league state and in research.
 - **The default notes are plainer** than the hand-written formats'. That's fine for a reviewer, and a
