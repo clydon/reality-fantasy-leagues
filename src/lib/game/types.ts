@@ -2,6 +2,8 @@
 // state-logic.js itself stays plain, untyped JS (forked from the live app — see the provenance
 // note at its top) so these are a best-effort description of its actual shape, not a source of
 // truth generated from it.
+import type { FormatData } from "./formats/index";
+import type { Proposal, Review, ReviewNote } from "./formats/proposal";
 
 export interface Player {
   id: string;
@@ -211,6 +213,9 @@ export interface LeagueSettings {
    * before formats, which play by the default (Survivor) -- read it through StateLogic.formatOf.
    */
   showFormat?: string | null;
+  /** A stored format's data half (db/show-formats.js), cached by the server beside showFormat. Absent
+   *  for a built-in format. Never set by a request: the settings route refuses it. */
+  showFormatData?: FormatData | null;
   /**
    * Guided-setup gate. `false` only on leagues created after guided setup shipped; absent on every
    * league that predates it, and anything other than an explicit `false` counts as complete -- see
@@ -308,6 +313,46 @@ export interface ShowSeason {
   lastAutoAttempts?: Record<string, { at: string; ok: boolean; message: string | null }> | null;
 }
 
+// ---------- stored show formats (db/migrations/0049, docs/PLAN-stage-3-format-proposals.md) ----------
+
+/** A format a show can be switched to (GET /api/admin/shows `formatOptions`). */
+export interface FormatOption {
+  id: string;
+  name: string;
+  /** An approved stored format rather than a built-in. */
+  stored: boolean;
+  /** What a new show on it calls its people and groups. */
+  terms: { castaway: string; tribe: string };
+}
+
+/** One stored format with its review (GET /api/admin/formats/:id). */
+export interface StoredFormat {
+  id: string;
+  name: string;
+  status: "draft" | "approved";
+  version: number;
+  proposal: Proposal;
+  data: FormatData | null;
+  createdAt: string;
+  updatedAt: string;
+  approvedAt: string | null;
+  review: Review;
+}
+
+/** A row of GET /api/admin/formats. */
+export interface StoredFormatSummary {
+  id: string;
+  name: string;
+  status: "draft" | "approved";
+  version: number;
+  showCount: number;
+  createdAt: string;
+  updatedAt: string;
+  approvedAt: string | null;
+}
+
+export type { Proposal, Review, ReviewNote };
+
 // Admin view of a show: everything, including archived ones and how many leagues reference it.
 export interface AdminShow {
   id: string;
@@ -322,6 +367,8 @@ export interface AdminShow {
   research_domains: string[] | null;
   /** Which game rules the show plays by (formats/index.js). */
   format: string;
+  /** A stored format's data half (db/migrations/0049), for formatFor(format, format_data). Null for a built-in. */
+  format_data?: FormatData | null;
   archived: boolean;
   created_at: string;
   league_count: number;
@@ -458,6 +505,9 @@ export interface SeasonResearchResult {
   counts: { castaways: number; unknowns: number; lowConfidence: number; sourced: number };
   /** What this run staged as season decisions for review. */
   decisions: DecisionStageResult;
+  /** The data half of the stored format the answers were asked under (null for a built-in), so its
+   *  reviewer notes can be built: formatFor(provenance.format, formatData). */
+  formatData?: FormatData | null;
 }
 
 // ---------- season decisions (db/migrations/0019) ----------
@@ -528,6 +578,8 @@ export interface SeasonDecisionsResponse {
   leagueCount: number;
   /** The show's format id (formats/index.js). */
   format: string;
+  /** A stored format's data half, for formatFor(format, formatData). Null for a built-in. */
+  formatData?: FormatData | null;
 }
 
 // Commissioner view of a show (GET /api/shows): non-archived only, no admin-only fields.

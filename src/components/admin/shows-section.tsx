@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AdminShow, ShowSeason, WikiSeasonSyncResult, SeasonResearchResult, ResearchCastaway, ModelUsage } from "@/lib/game/types";
+import type { AdminShow, ShowSeason, WikiSeasonSyncResult, SeasonResearchResult, ResearchCastaway, ModelUsage, FormatOption } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
 import { plural } from "@/lib/use-show-terms";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +69,11 @@ function useAiModels(): [Models, (m: Models) => void] {
 }
 
 /** The small grey price next to a button. */
+// The built-in formats as picker options, before the server's list (which adds stored ones) arrives.
+function builtInOptions(): FormatOption[] {
+  return formatOptions().map((f) => ({ ...f, stored: false, terms: formatFor(f.id).terms }));
+}
+
 function CostHint({ children, title }: { children: ReactNode; title?: string }) {
   return (
     <span className="text-[0.6rem] tabular-nums text-muted-foreground" title={title}>
@@ -99,6 +104,10 @@ export function ShowsSection() {
   const [tribeTerm, setTribeTerm] = useState("");
   const [format, setFormat] = useState(DEFAULT_FORMAT);
   const [models, setModels] = useAiModels();
+  // Every format a show can play by, stored ones included (GET /api/admin/shows); the built-ins until
+  // that's loaded. Labels and default terms come from here, never from resolving an id.
+  const options: FormatOption[] = data?.formatOptions ?? builtInOptions();
+  const chosen = options.find((o) => o.id === format) ?? options[0];
   const showPaid = useShowPaidAi();
 
   async function run(fn: () => Promise<unknown>, successNote?: string) {
@@ -183,6 +192,7 @@ export function ShowsSection() {
                 run={run}
                 refetch={refetch}
                 models={models}
+                options={options}
               />
             );
           })}
@@ -204,7 +214,7 @@ export function ShowsSection() {
             <Input
               size="sm"
               className="w-[130px]"
-              placeholder={formatFor(format).terms.castaway}
+              placeholder={chosen.terms.castaway}
               title="What the show calls its people — Houseguest, Contestant…"
               value={castawayTerm}
               onChange={(e) => setCastawayTerm(e.target.value)}
@@ -212,13 +222,13 @@ export function ShowsSection() {
             <Input
               size="sm"
               className="w-[110px]"
-              placeholder={formatFor(format).terms.tribe}
+              placeholder={chosen.terms.tribe}
               title="What the show calls its groups — Team, Faction…"
               value={tribeTerm}
               onChange={(e) => setTribeTerm(e.target.value)}
             />
             <Select size="sm" value={format} title="Which game rules the show plays by" onChange={(e) => setFormat(e.target.value)}>
-              {formatOptions().map((f) => (
+              {options.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name} rules
                 </option>
@@ -235,7 +245,7 @@ export function ShowsSection() {
           </div>
           <p className="mt-1 text-[0.7rem] text-muted-foreground">
             The two terms are what the whole app calls people and groups, and how the connector finds the cast on the
-            wiki. Blank means the rules&apos; own ({formatFor(format).terms.castaway} / {formatFor(format).terms.tribe}). The rules decide how people leave, what scores, and what the wiki and
+            wiki. Blank means the rules&apos; own ({chosen.terms.castaway} / {chosen.terms.tribe}). The rules decide how people leave, what scores, and what the wiki and
             research look for.
           </p>
         </div>
@@ -261,6 +271,7 @@ function ShowRow({
   run,
   refetch,
   models,
+  options,
 }: {
   show: AdminShow;
   expanded: boolean;
@@ -269,6 +280,7 @@ function ShowRow({
   run: Run;
   refetch: () => unknown;
   models: Models;
+  options: FormatOption[];
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addingSeason, setAddingSeason] = useState(false);
@@ -307,7 +319,7 @@ function ShowRow({
         </button>
       </div>
 
-      {settingsOpen && <ShowSettings show={show} busy={busy} run={run} />}
+      {settingsOpen && <ShowSettings show={show} busy={busy} run={run} options={options} />}
 
       {expanded && (
         <div className="mt-2 flex flex-col gap-2">
@@ -372,7 +384,8 @@ function ShowRow({
 // Set-once show configuration. Editable (terminology is what the whole app says AND what the
 // connector uses to find the cast section -- a mistake shouldn't mean recreating the show and
 // orphaning its leagues), but not something anyone needs to look at week to week.
-function ShowSettings({ show, busy, run }: { show: AdminShow; busy: boolean; run: Run }) {
+function ShowSettings({ show, busy, run, options }: { show: AdminShow; busy: boolean; run: Run; options: FormatOption[] }) {
+  const nameOf = (id: string) => options.find((o) => o.id === id)?.name ?? id;
   return (
     <div className="mt-2 flex flex-col gap-2 rounded-md bg-secondary/40 p-2 text-xs">
       <div className="flex flex-wrap items-center gap-1.5">
@@ -415,16 +428,16 @@ function ShowSettings({ show, busy, run }: { show: AdminShow; busy: boolean; run
               if (
                 show.league_count > 0 &&
                 !(await confirm(
-                  `Switch ${show.name} to ${formatFor(next).name} rules? Its ${show.league_count} league` +
+                  `Switch ${show.name} to ${nameOf(next)} rules? Its ${show.league_count} league` +
                     `${show.league_count === 1 ? "" : "s"} switch too. Results already recorded keep their current wording.`,
                   { confirmLabel: "Switch" }
                 ))
               )
                 return;
-              run(() => api.adminUpdateShow(show.id, { format: next }), `${show.name} now plays by ${formatFor(next).name} rules.`);
+              run(() => api.adminUpdateShow(show.id, { format: next }), `${show.name} now plays by ${nameOf(next)} rules.`);
             }}
           >
-            {formatOptions().map((f) => (
+            {options.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
               </option>
@@ -927,7 +940,7 @@ function ResearchResult({
   const showSpoilers = useShowSpoilers();
   const { payload, provenance, counts, problems } = research;
   // The answers are the checklist of the format they were asked under.
-  const notesFor = (c: ResearchCastaway) => formatFor(provenance.format).research.notes(c);
+  const notesFor = (c: ResearchCastaway) => formatFor(provenance.format, research.formatData).research.notes(c);
   const noted = payload.castaways.filter((c) => notesFor(c).length > 0);
   const quiet = payload.castaways.filter((c) => notesFor(c).length === 0);
   const newItems = research.decisions?.inserted ?? 0;

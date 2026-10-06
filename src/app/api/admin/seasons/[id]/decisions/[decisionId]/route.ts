@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { formatFor } from "@/lib/game/formats/index.js";
+import { resolveFormat } from "@db/show-formats.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
@@ -37,7 +37,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
   if (!rows.length) throw new HttpError(404, "Decision not found");
   const d = rows[0];
   // Corrections are checked against the show's own rules.
-  const format = formatFor(d.format);
+  const format = await resolveFormat(pool, d.format);
 
   let applied: { castawayName: string; method?: string; eventType?: string } | null = null;
   if (body.action === "accept") {

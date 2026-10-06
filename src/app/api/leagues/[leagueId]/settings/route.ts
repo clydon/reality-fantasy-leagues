@@ -5,6 +5,11 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { approvedCastFor, applyCastToState } from "@/lib/server/season-cast";
 import { syncLeagueDecisions } from "@/lib/server/season-decisions";
+import { syncLeagueFormat } from "@db/show-formats.js";
+
+// Set by the server from the league's show (below, and the admin show route), never by a request: a
+// league's rules are its show's, and stored format data is validated on approval, not here.
+const SERVER_OWNED = ["showFormat", "showFormatData"];
 
 // Port of SurvivorDraft's server/routes/roster.js PATCH /settings -- generic field/value setter,
 // no per-field validation server-side (same as the original; the client only ever sends fields
@@ -14,16 +19,14 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
   await requireLeagueRole(req, leagueId, "commissioner");
   const { field, value } = (await req.json().catch(() => ({}))) as { field?: string; value?: unknown };
   if (!field) throw new HttpError(400, "field required");
+  if (SERVER_OWNED.includes(field)) throw new HttpError(400, `${field} follows the league's show; pick a show instead`);
 
   const state = await withLeagueLock(leagueId, async (s, client) => {
     StateLogic.updateSettings(s, field, value);
 
     // The show's format rides along with it, cached so the game logic (which can't read the
     // database) knows the league's rules. Kept in step afterwards by the admin show route.
-    if (field === "showId") {
-      const { rows } = await client.query("SELECT format FROM shows WHERE slug=$1", [s.settings.showId]);
-      s.settings.showFormat = rows.length ? rows[0].format : null;
-    }
+    if (field === "showId") await syncLeagueFormat(client, s.settings, s.settings.showId);
 
     // Picking a show or a season is the other moment a league should receive the season's
     // admin-approved cast (db/migrations/0011) -- approval itself covers the leagues already on the

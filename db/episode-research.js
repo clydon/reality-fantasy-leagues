@@ -54,6 +54,7 @@ const StateLogic = require("../src/lib/game/state-logic.js");
 // flag, and which answers become which results are the format's. The run, the providers, the
 // coverage rules and the cache are the same for every format.
 const Formats = require("../src/lib/game/formats/index.js");
+const ShowFormats = require("./show-formats.js");
 const embeddings = require("./embeddings.js");
 
 // ---------- the checklist ----------
@@ -976,6 +977,8 @@ async function catalogEntry(pool, showSlug, season, label) {
         "Re-add it in Admin > Shows & Seasons, or pick a different show in League Settings."
     );
   }
+  // A show on a stored format (db/show-formats.js) carries its data, for contextFrom's formatFor.
+  rows[0].format_data = await ShowFormats.formatDataFor(pool, rows[0].format);
   return rows[0];
 }
 
@@ -1048,7 +1051,7 @@ function contextFrom(entry, showSlug, season, episodeNumber, castNames, castFrom
     castNames,
     castFrom,
     terms: termsFor(entry).terms,
-    format: Formats.formatFor(entry.format),
+    format: Formats.formatFor(entry.format, entry.format_data),
   };
 }
 
@@ -1324,7 +1327,7 @@ async function stageCachedSeasonResearch(pool, seasonId) {
       episodeNumber: r.episode_number,
       payload: r.payload,
       // The format the answers were asked under, which is what their shape follows.
-      format: Formats.formatFor((r.provenance && r.provenance.format) || r.format),
+      format: await ShowFormats.resolveFormat(pool, (r.provenance && r.provenance.format) || r.format),
     });
     inserted += out.inserted;
   }

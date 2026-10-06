@@ -54,7 +54,8 @@
 // Show formats: a league's game vocabulary -- exit methods, the scoring-event catalog, what ends the
 // season -- comes from its show's format (./formats/, docs/PLAN-show-formats.md) via formatOf(state),
 // never from a constant in here. The format id is cached on the league as settings.showFormat when its
-// show is picked, because this file can't read the database.
+// show is picked (and a stored format's data as settings.showFormatData), because this file can't read
+// the database.
 (function(root, factory){
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
   if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'));
@@ -67,9 +68,12 @@ const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b
 const SEED_CASTAWAYS = ['Aaliyah','Alexis','Ana','Brady','Carter','Cristian','Devin','Eric','Jelly','Jenna','Kilby','Kristin','Lewis','Linnea','Maggie','Mike','Ori','Patt','Rob','Sharonda','Thien An'];
 
 // The rules this league plays by. A league with no showFormat (every league from before formats, and
-// a new one whose show isn't picked yet) gets the registry's default, which is Survivor's.
+// a new one whose show isn't picked yet) gets the registry's default, which is Survivor's. A show on a
+// stored format (one an admin approved from a research proposal, db/show-formats.js) also caches the
+// format's data as settings.showFormatData; a built-in format ignores it.
 function formatOf(state){
-  return Formats.formatFor(state && state.settings ? state.settings.showFormat : null);
+  const s = state && state.settings ? state.settings : {};
+  return Formats.formatFor(s.showFormat || null, s.showFormatData || null);
 }
 
 // The episode this league starts playing at (settings.startEpisode, default 1). A league formed

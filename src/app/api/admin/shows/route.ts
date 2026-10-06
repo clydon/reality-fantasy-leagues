@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { FORMATS, DEFAULT_FORMAT, formatFor } from "@/lib/game/formats/index.js";
+import { DEFAULT_FORMAT } from "@/lib/game/formats/index.js";
+import { formatOptions, isPlayableFormat, resolveFormat } from "@db/show-formats.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
@@ -12,6 +13,9 @@ export const GET = apiRoute(async (req) => {
   const { rows } = await pool.query(
     `SELECT s.id, s.slug, s.name, s.castaway_term, s.tribe_term, s.wiki_api_url, s.cast_section_heading, s.research_domains,
             s.format, s.archived, s.created_at,
+            -- A stored format's data (db/migrations/0049), so the admin screens can resolve its rules
+            -- the way a league does. Null for a built-in.
+            fd.data AS format_data,
             (SELECT count(*)::int FROM leagues l WHERE l.state->'settings'->>'showId' = s.slug) AS league_count,
             COALESCE(
               json_agg(
@@ -60,10 +64,12 @@ export const GET = apiRoute(async (req) => {
             ) AS seasons
        FROM shows s
        LEFT JOIN show_seasons ss ON ss.show_id = s.id
-      GROUP BY s.id
+       LEFT JOIN show_formats fd ON fd.id = s.format AND fd.status = 'approved'
+      GROUP BY s.id, fd.id
       ORDER BY s.archived, s.name`
   );
-  return NextResponse.json({ shows: rows });
+  // Every format a show can be switched to: the built-ins, then approved stored ones.
+  return NextResponse.json({ shows: rows, formatOptions: await formatOptions(pool) });
 });
 
 // Slug is what leagues store in settings.showId, so it's derived once here and never editable
@@ -91,7 +97,8 @@ export const POST = apiRoute(async (req) => {
   const slug = slugify(name);
   if (!slug) throw new HttpError(400, "name must contain at least one letter or number");
   const format = body.format || DEFAULT_FORMAT;
-  if (!(format in FORMATS)) throw new HttpError(400, `"${format}" isn't a show format`);
+  if (!(await isPlayableFormat(pool, format))) throw new HttpError(400, `"${format}" isn't a show format`);
+  const terms = (await resolveFormat(pool, format)).terms;
 
   try {
     const { rows } = await pool.query(
@@ -100,8 +107,8 @@ export const POST = apiRoute(async (req) => {
       [
         slug,
         name,
-        (body.castawayTerm || "").trim() || formatFor(format).terms.castaway,
-        (body.tribeTerm || "").trim() || formatFor(format).terms.tribe,
+        (body.castawayTerm || "").trim() || terms.castaway,
+        (body.tribeTerm || "").trim() || terms.tribe,
         (body.wikiApiUrl || "").trim() || null,
         // Null is the normal case: wiki-sync infers the heading from castawayTerm and only needs
         // telling when a wiki calls the section something unguessable.

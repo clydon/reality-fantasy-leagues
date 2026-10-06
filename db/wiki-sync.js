@@ -69,6 +69,7 @@ const StateLogic = require("../src/lib/game/state-logic.js");
 // The show's game rules (docs/PLAN-show-formats.md): the per-episode schema, prompt, section names and
 // event checks are the format's, not this file's. The cast read is the same for every format.
 const Formats = require("../src/lib/game/formats/index.js");
+const ShowFormats = require("./show-formats.js");
 // Same sender the Next routes use -- plain CommonJS for exactly this reason (see its header).
 const decisions = require("./season-decisions.js");
 
@@ -1231,7 +1232,7 @@ async function resolveSeasonContext(pool, showSlug, season, label) {
   }
   console.log(`[wiki-sync] ${showSlug} season ${season} -> ${pageTitle} (${apiUrl})`);
   const page = await fetchWikitext(pageTitle, apiUrl);
-  return { showId: entry.show_id, showSlug, season, entry, page, apiUrl, terms, castawayTerm, tribeTerm, format: Formats.formatFor(entry.format) };
+  return { showId: entry.show_id, showSlug, season, entry, page, apiUrl, terms, castawayTerm, tribeTerm, format: await ShowFormats.resolveFormat(pool, entry.format) };
 }
 
 function leagueSeasonOf(league) {
@@ -1287,7 +1288,7 @@ async function stageCachedSeasonEpisodes(pool, seasonId) {
   if (!rows.length) return null;
   const row = rows[0];
   // The format the read was made under, which is what its payload's shape follows.
-  const format = Formats.formatFor(row.provenance.format || row.format);
+  const format = await ShowFormats.resolveFormat(pool, row.provenance.format || row.format);
   const ctx = { showId: row.show_id, showSlug: row.slug, season: row.season_number, terms: termsFor(row).terms, format };
   return stageSeasonEpisodes(pool, ctx, { id: row.id, payload: row.payload, provenance: row.provenance, cached: true });
 }

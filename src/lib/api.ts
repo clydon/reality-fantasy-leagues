@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal } from "@/lib/game/types";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 import type { ActionItem } from "@/lib/game/action-items.js";
 
@@ -482,7 +482,31 @@ export const api = {
       { method: "PATCH", body: JSON.stringify({ leagueTypeId, order, hidden }) }
     ),
 
-  adminListShows: () => localFetch<{ shows: AdminShow[] }>("/api/admin/shows"),
+  adminListShows: () => localFetch<{ shows: AdminShow[]; formatOptions: FormatOption[] }>("/api/admin/shows"),
+
+  // Stored show formats (docs/PLAN-stage-3-format-proposals.md): research a new show with any chat,
+  // review the proposal, approve it.
+  adminListFormats: () => localFetch<{ formats: StoredFormatSummary[] }>("/api/admin/formats"),
+  adminFormatPrompt: (q: { name: string; wiki?: string; castaway?: string; tribe?: string; seasons?: string }) =>
+    localFetch<{ prompt: string }>(
+      `/api/admin/formats/prompt?${new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]).toString()}`
+    ),
+  adminCreateFormat: (answer: string) =>
+    localFetch<{ format: StoredFormat }>("/api/admin/formats", { method: "POST", body: JSON.stringify({ answer }) }),
+  adminGetFormat: (id: string) => localFetch<{ format: StoredFormat }>(`/api/admin/formats/${encodeURIComponent(id)}`),
+  adminSaveFormat: (id: string, proposal: Proposal) =>
+    localFetch<{ format: StoredFormat; leaguesUpdated: number }>(`/api/admin/formats/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ proposal }),
+    }),
+  // createShow: a new show playing by it; or showId: switch that show (and its leagues) to it.
+  adminApproveFormat: (id: string, body: { createShow?: boolean; showId?: string; domains?: string[] }) =>
+    localFetch<{ format: StoredFormat; show: { id: string; slug: string; name: string } | null; leaguesUpdated: number }>(
+      `/api/admin/formats/${encodeURIComponent(id)}/approve`,
+      { method: "POST", body: JSON.stringify(body) }
+    ),
+  adminDeleteFormat: (id: string) =>
+    localFetch<{ ok: true }>(`/api/admin/formats/${encodeURIComponent(id)}`, { method: "DELETE" }),
   adminCreateShow: (body: {
     name: string;
     castawayTerm?: string;

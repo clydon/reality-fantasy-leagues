@@ -58,9 +58,16 @@ rollout doc splits it: Opus for the prompt and review-screen data model, Sonnet 
   - Decided: paste first (paid later), and flagged mechanics don't block approval.
   - Step 1, the pure core, is done: the proposal prompt, parsing, repair, the review model, data-only
     formats (`formats/custom.js`) and `formatFor(id, data)`.
-  - Next is step 2 (Opus): the `show_formats` table, `settings.showFormatData`, every `formatFor` call
-    site, and the admin API.
-  - Then step 3: the screens (Sonnet).
+  - Step 2, storage and wiring, is done:
+    - migration 0049 `show_formats`, and `db/show-formats.js` as the one server path from a format id
+      to rules;
+    - leagues cache `settings.showFormatData`, and the settings route refuses requests that try to set
+      it;
+    - every `formatFor` call site is updated;
+    - the admin API is in place: `/api/admin/formats`, `/prompt`, `/[id]` and `/[id]/approve`.
+  - **Next is step 3, the screens (Sonnet).** The plan's step 3 section is the brief. The API methods
+    (`api.adminFormatPrompt` … `adminApproveFormat`) and the `Review` type (`formats/proposal.d.ts`)
+    are ready.
 - **Not done yet:** stages 4–6, exactly as `docs/PLAN-rollout-order.md` lists them, and phases 2–5 of
   the scoring plan. The user chose to start stage 3 before the scoring plan's phase 2 (the `rulesets`
   table).
@@ -280,26 +287,30 @@ Grouped by area, with the file to start from.
 | 0042 | `league_invites.player_id` (an invite that hands over a seat) |
 | 0043 | Traitors research domains |
 | 0044 | Survivor 51 photos: wiki 90x90 icons → self-hosted `photos/s51/*.jpg` (480x600) |
+| 0045–0048 | predictions moved T9FUMY → B999RR; linked-league order, favorite and name; What's New seen under impersonation |
+| 0049 | `show_formats`: stored formats from research proposals (stage 3). Purely additive |
 
-The next free number is **0045**. Production applies migrations on deploy (`npm run build` runs
+The next free number is **0050**. Production applies migrations on deploy (`npm run build` runs
 `db/migrate.js`).
 
-## Local dev database: partly broken (user decision pending)
+## Local dev database: healthy (checked 2026-10-05)
 
-- Migrations **0016, 0017, 0019, 0021** are recorded in `schema_migrations` but were never actually
-  applied locally. The cause: local Postgres has **no pgvector**, which 0016 needs, and they appear
-  to have been marked done by hand.
-- 0020's columns and table were repaired by hand this session. Re-running 0017–0024 (minus
-  0016/0023) was **blocked by the permission system** as a shared-resource change. The user hasn't
-  decided yet; don't do it without asking.
-- 0033–0040 aren't applied locally either. `npm run migrate` would apply them, but it will fail once
-  it reaches anything depending on the missing tables (`season_decisions` for 0036).
-- So the local DB can't be fully exercised. New SQL has been checked by running it inside a
-  transaction and rolling back (see "Working conventions").
+- **Every migration's schema is in place locally**, 0016/0017/0019/0021 included. A script checked every
+  `CREATE TABLE`, `ADD COLUMN`, `CREATE INDEX` and constraint in every migration file against the live
+  schema; it lives in the session scratchpad and isn't committed. pgvector is installed (0.8.7, see
+  project memory). The earlier "recorded but never applied" state was fixed at some point after it
+  was written down.
+- The user authorized re-running migrations locally. Nothing was force-re-run, because several
+  migrations change data (0045 moves predictions between leagues) and running them twice would
+  corrupt it. `npm run migrate` applies only what isn't recorded, which was 0049.
+- A `pg_dump` of the local DB from before 0049 is in that session's scratchpad.
+- **It's local only.** `.env.local` points at the Docker container `survivor-draft-pg` on
+  localhost:5432, and nothing here touches production.
+- The local DB has copies of the three real leagues (WUYXVU, T9FUMY, B999RR), which is useful for
+  regression checks: score them with the old and new code and diff.
 
 ## Things the user still needs to do in production
 
-- Decide on the local DB repair above (local only).
 - Optional: once research has a few episodes of "learned about an advantage" answers, check them in
   Admin's review and set the value (0.5 suggested).
 - Earlier items (from before this session) may still stand: discard Survivor 51 episode 2's early

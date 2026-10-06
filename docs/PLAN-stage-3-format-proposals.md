@@ -174,6 +174,54 @@ its id matches, memoised per data object, otherwise as today (the default format
      only the known pickem error, and `npm test` is 154/154.
 2. **Storage and resolution (Opus):** the migration, `settings.showFormatData`, every call site, and the
    API routes, with tests.
+
+   **DONE (2026-10-05).**
+   - **Storage:** migration `0049_show_formats.sql`. It's purely additive, with checks for the id shape
+     and "approved has data". `db/show-formats.js` is the one server path from a format id to rules
+     (`resolveFormat`, `formatDataFor`, `isPlayableFormat`, `formatOptions` with terms). It also holds
+     the draft/approve/save/delete logic and the league cache (`setLeagueFormat`, `syncLeagueFormat`).
+     `src/lib/server/show-formats.ts` has `pushShowFormat(slug)`, which re-caches every league on a
+     show under its own lock.
+   - **Resolution:**
+     - `StateLogic.formatOf` reads `settings.showFormatData`.
+     - The league settings route caches it with `showId`, and refuses requests that try to set
+       `showFormat` or `showFormatData`. Those were writable before through its generic setter.
+     - The server sites now resolve through `resolveFormat`: research (catalog entry, re-staging), the
+       wiki read (context, re-staging), embeddings, the decision route, and the shows list, create and
+       PATCH routes. A built-in makes no query.
+     - Admin client sites read the server's `formatOptions` (name and terms) and `formatData`: the
+       shows section's pickers, placeholders, switch confirmation and research notes, and the season
+       episodes review.
+     - The demo builder only serves built-in demo shows, so it's unchanged.
+   - **API (super-admin):**
+     - `GET/POST /api/admin/formats`, `GET /api/admin/formats/prompt`, and
+       `GET/PATCH/DELETE /api/admin/formats/[id]`;
+     - `POST /api/admin/formats/[id]/approve`, which takes `{ createShow }` or `{ showId }`, plus the
+       ticked `domains`.
+     - The client methods are `api.adminListFormats` … `api.adminDeleteFormat`, and the types are
+       `StoredFormat`, `StoredFormatSummary` and `FormatOption` in `types.ts`, plus `Review` in
+       `formats/proposal.d.ts`.
+     - **For the screens:** save and approve answer 409 with `{ format, error }` when an approved edit
+       or an approval is refused, but `localFetch` keeps only `error`. So re-fetch the format to show
+       its problems, or better, show `review.problems` live from `reviewProposal` (browser-safe) so
+       the button is disabled before it's ever clicked.
+   - **Verified:**
+     - **Against the local database** (healthy; see HANDOFF), on one client inside a rolled-back
+       transaction: draft from pasted text, free ids (`love-island-uk-2`, `survivor-2` since a
+       built-in id is never taken), approve, picker option with terms, a show + season + cast + league
+       caching the data and scoring by it through JSON, switching back to a built-in dropping the
+       data, the research paste prompt asking the stored checklist, an approved edit refused when
+       invalid and bumping the version when valid, an invalid draft refused approval, delete refused
+       in use, and both table checks.
+     - **The three real leagues** (local copies of WUYXVU, T9FUMY, B999RR) score byte-identically with
+       the previous commit's code and the new code: every episode's events, defaults and scores.
+     - **The format harness** is byte-identical.
+     - **Gates:** tsc clean, `eslint src` only the known pickem error, `npm test` 157/157
+       (`tests/show-formats.test.js` is new).
+     - **The dev server** compiles every new route; each answers 401 when not signed in, and the
+       client chunk carries the new `formatOf`.
+     - **Not exercised:** the HTTP routes signed in. The logic they call is checked against the
+       database above; the routes are thin glue. The first signed-in run is step 3's.
 3. **Screens (Sonnet):** Admin → Shows → "Research a new show":
    - the prompt panel, reusing `PasteImportPanel`'s copy/paste pattern;
    - the review screen: rows grouped like Active Roster Settings, inline edits, tier chips, problems

@@ -190,7 +190,7 @@ export function SeasonEpisodes({
                 decisions={row.decisions}
                 cast={data.cast}
                 leagueCount={data.leagueCount}
-                format={formatFor(data.format)}
+                format={formatFor(data.format, data.formatData)}
                 onSynced={reportSync}
               />
             )}

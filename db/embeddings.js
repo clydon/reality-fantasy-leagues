@@ -33,7 +33,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 // How each show format words its research answers (format.research.sentences).
-const Formats = require("../src/lib/game/formats/index.js");
+const ShowFormats = require("./show-formats.js");
 
 const EMBED_MODEL = "Xenova/bge-small-en-v1.5";
 const DIMENSIONS = 384;
@@ -194,7 +194,7 @@ async function suggestAnswer(pool, { showId, season, episodeNumber, question }) 
   if (!indexed.length) {
     try {
       // Worded by the format the answers were asked under.
-      const format = Formats.formatFor((researched[0].provenance && researched[0].provenance.format) || researched[0].format);
+      const format = await ShowFormats.resolveFormat(pool, (researched[0].provenance && researched[0].provenance.format) || researched[0].format);
       await storeChunksForEpisode(pool, { showId, season, episodeNumber, format }, researched[0].payload);
     } catch (e) {
       throw new Error(`This episode has been researched, but it couldn't be indexed for search: ${e.message}`);

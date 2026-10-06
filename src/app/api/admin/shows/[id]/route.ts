@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { FORMATS, formatFor } from "@/lib/game/formats/index.js";
+import { isPlayableFormat, resolveFormat } from "@db/show-formats.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
-import { pool, withLeagueLock, HttpError } from "@/lib/server/db";
+import { pool, HttpError } from "@/lib/server/db";
+import { pushShowFormat } from "@/lib/server/show-formats";
 
 type RouteParams = { id: string };
 
@@ -18,8 +19,8 @@ const EDITABLE: Record<string, string> = {
   // Sites episode research may search (db/migrations/0017). Accepts a comma/space/newline-separated
   // string or an array; empty clears it back to the defaults.
   researchDomains: "research_domains",
-  // Which game rules the show plays by (db/migrations/0021). Leagues cache it, so a change is pushed
-  // into each of them below.
+  // Which game rules the show plays by (db/migrations/0021): a built-in format, or an approved stored
+  // one (0049). Leagues cache it, so a change is pushed into each of them below.
   format: "format",
   archived: "archived",
 };
@@ -50,10 +51,13 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
   // carries along any term still on the old rules' default (one an admin typed is left alone).
   const { rows: current } = await pool.query(`SELECT format, castaway_term, tribe_term FROM shows WHERE id=$1`, [id]);
   if (!current.length) throw new HttpError(404, "Show not found");
-  const nextFormat = typeof body.format === "string" && body.format in FORMATS ? body.format : current[0].format;
+  const formatOk = await isPlayableFormat(pool, body.format);
+  if ("format" in body && !formatOk) throw new HttpError(400, `"${String(body.format)}" isn't a show format`);
+  const nextFormat = formatOk ? (body.format as string) : current[0].format;
+  const nextTerms = (await resolveFormat(pool, nextFormat)).terms;
   if (nextFormat !== current[0].format) {
-    const was = formatFor(current[0].format).terms;
-    const now = formatFor(nextFormat).terms;
+    const was = (await resolveFormat(pool, current[0].format)).terms;
+    const now = nextTerms;
     if (!("castawayTerm" in body) && current[0].castaway_term === was.castaway) body.castawayTerm = now.castaway;
     if (!("tribeTerm" in body) && current[0].tribe_term === was.tribe) body.tribeTerm = now.tribe;
   }
@@ -69,13 +73,9 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     // Terminology has a sensible default rather than being nullable -- an empty term would render as
     // a blank word in the UI. The default is the show's rules' own (Castaway, Challenger…).
     if ((key === "castawayTerm" || key === "tribeTerm") && !value) {
-      const terms = formatFor(nextFormat).terms;
-      value = key === "castawayTerm" ? terms.castaway : terms.tribe;
+      value = key === "castawayTerm" ? nextTerms.castaway : nextTerms.tribe;
     }
     if (key === "name" && !value) throw new HttpError(400, "name can't be empty");
-    if (key === "format" && !(typeof value === "string" && value in FORMATS)) {
-      throw new HttpError(400, `"${String(value)}" isn't a show format`);
-    }
     values.push(value);
     sets.push(`${column}=$${values.length}`);
   }
@@ -87,20 +87,9 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
   );
   if (!rows.length) throw new HttpError(404, "Show not found");
 
-  // Leagues on this show cache its format (settings.showFormat) so the game logic can read it without
-  // a database. Each is updated under its own lock rather than in one UPDATE, so a league write in
-  // flight can't overwrite the change with the state it read before it.
-  if ("format" in body) {
-    const { rows: leagues } = await pool.query(
-      "SELECT id FROM leagues WHERE state->'settings'->>'showId' = $1",
-      [rows[0].slug]
-    );
-    for (const league of leagues) {
-      await withLeagueLock(league.id, (s) => {
-        s.settings.showFormat = rows[0].format;
-      });
-    }
-  }
+  // Leagues on this show cache its format (settings.showFormat, plus a stored format's data) so the
+  // game logic can read it without a database.
+  if ("format" in body) await pushShowFormat(rows[0].slug);
   return NextResponse.json({ show: rows[0] });
 });
 
