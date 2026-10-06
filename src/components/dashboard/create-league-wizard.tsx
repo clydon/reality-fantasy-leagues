@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,8 @@ export function CreateLeagueWizard({
   // tapping an existing tile would have, and advances to step 2.
   const [addingShow, setAddingShow] = useState(false);
 
+  const queryClient = useQueryClient();
+
   // Not gated on store mode: this renders for a leagueless user, whose store mode is "mock" (no
   // league loaded yet) even though they're really signed in -- same reasoning as Dashboard's own
   // direct api.me()/myInvites() calls above.
@@ -97,6 +99,11 @@ export function CreateLeagueWizard({
                   <p className="mb-2 text-sm font-semibold">Research your show&rsquo;s rules</p>
                   <ResearchShowFlow
                     onCreated={(show) => {
+                      // The shared "shows-catalog" query (here and league-info-section.tsx's /setup
+                      // picker) is 10 minutes stale-while-fresh -- without this, going back to step 1
+                      // shows the pre-creation tile list, and /setup shows the new show as "(not in
+                      // catalog)" even though it's genuinely there.
+                      queryClient.invalidateQueries({ queryKey: ["shows-catalog"] });
                       setShowId(show.slug);
                       setAddingShow(false);
                       go(2);
