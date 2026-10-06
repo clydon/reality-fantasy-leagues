@@ -6,8 +6,8 @@
 //                    effect by the episode (seasonFormat). That's what makes research ask a new
 //                    question and stage a new event type as a season decision.
 //   each LEAGUE   -- is offered every approved change (settings.seasonRuleChanges) and scores only what
-//                    its commissioner adopted (settings.adoptedRuleChanges). leagueChangesFor below is
-//                    what the server caches; src/lib/server/season-rule-changes.ts writes it.
+//                    its commissioner adopted (settings.adoptedRuleChanges). syncLeagueChanges below is
+//                    what fills those in; src/lib/server/season-rule-changes.ts writes it.
 //
 // Plain CommonJS (bare-node connectors and the Next routes both use it). `db` is a pool or a client.
 const Formats = require("../src/lib/game/formats/index.js");
@@ -130,10 +130,11 @@ const rowOut = (r) => ({
   createdBy: r.created_by, createdAt: r.created_at, updatedAt: r.updated_at, approvedAt: r.approved_at,
 });
 
-// The review of a change against the season's rules without it.
-async function reviewOf(db, row, effectiveEpisode) {
+// The review of a change against the season's rules without it -- and those rules, which the review
+// screen re-runs reviewCheck against live as the admin edits (the same review, client-side).
+async function reviewOf(db, row) {
   const base = await seasonFormat(db, row.season_id, { excludeId: row.id });
-  return Check.reviewCheck(row.proposal, base.data, { effectiveEpisode: effectiveEpisode ?? row.effective_episode });
+  return { review: Check.reviewCheck(row.proposal, base.data, { effectiveEpisode: row.effective_episode }), baseData: base.data };
 }
 
 /** Every recorded check for a season, newest first (no reviews: the list only needs the status). */
@@ -142,11 +143,11 @@ async function listChanges(db, seasonId) {
   return rows.map(rowOut);
 }
 
-/** One check, with its review. */
+/** One check, with its review and the season's rules it was reviewed against (`baseData`). */
 async function getChange(db, id) {
   const { rows } = await db.query("SELECT * FROM season_rule_changes WHERE id=$1", [id]);
   if (!rows.length) return null;
-  return { ...rowOut(rows[0]), review: await reviewOf(db, rows[0]) };
+  return { ...rowOut(rows[0]), ...(await reviewOf(db, rows[0])) };
 }
 
 async function baseVersionOf(db, formatId) {
@@ -189,7 +190,7 @@ async function saveChange(db, id, proposal, { effectiveEpisode } = {}, userId) {
   const row = rows[0];
   if (!["draft", "approved"].includes(row.status)) return { ...rowOut(row), refusedStatus: row.status };
   const next = { ...row, proposal, effective_episode: effectiveEpisode ?? row.effective_episode };
-  const review = await reviewOf(db, next);
+  const { review } = await reviewOf(db, next);
   const ep = review.effectiveEpisode;
   if (row.status === "approved") {
     if (!review.approvable) return { ...rowOut(row), review, refused: review.problems };

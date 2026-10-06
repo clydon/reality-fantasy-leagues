@@ -32,8 +32,8 @@ local DB.
   episode-gated changes on a season (`season_rule_changes`), reviewed from a Rules row in SeasonCard
   that never blocks Episodes. Each running league's commissioner adopts a change and sets its points.
   Episode research gains a `rulesNote` flag that prompts a re-check. Five phases; **phases 1 (pure
-  core) and 2 (storage, season wiring, admin API; migration 0053) done 2026-10-06**, phase 3 (the
-  admin Rules row and review screen in SeasonCard) is next.
+  core), 2 (storage, season wiring, admin API; migration 0053) and 3 (the admin Rules row and
+  review screen in SeasonCard) done 2026-10-06**; phase 4 (the commissioner adopt flow) is next.
 - **Scoring rules as data, phases 3–5** — `PLAN-scoring-rules-as-data.md`. Phase 1 (the rule
   model/evaluator) and phase 2 (storage/API) are done; nothing below has shipped yet:
   - **Phase 3 — already satisfied, confirmed during phase 2's research.** The plan lists this as

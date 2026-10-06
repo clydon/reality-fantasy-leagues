@@ -3,6 +3,8 @@
 // note at its top) so these are a best-effort description of its actual shape, not a source of
 // truth generated from it.
 import type { FormatData, SeasonChange } from "./formats/index";
+// Season rule changes as the admin API returns them (db/season-rule-changes.js).
+export type { SeasonRuleChange, SeasonRuleChangeStatus, SeasonRuleChangeWithReview } from "@db/season-rule-changes";
 import type { Proposal, Review, ReviewNote } from "./formats/proposal";
 
 export interface Player {

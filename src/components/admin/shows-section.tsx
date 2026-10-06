@@ -13,6 +13,7 @@ import { ChevronDownIcon } from "@/components/icons";
 import { confirm } from "@/lib/confirm-store";
 import { SeasonCastReview } from "./season-cast-review";
 import { SeasonEpisodes } from "./season-episodes";
+import { SeasonRules } from "./season-rule-check";
 import { cn } from "cn";
 import { AI_MODELS, costOf, estimate, formatCost } from "@/lib/ai-cost";
 import { DEFAULT_FORMAT, formatFor, formatOptions, withChanges } from "@/lib/game/formats/index.js";
@@ -27,12 +28,14 @@ import { FormatReviewScreen } from "./format-review-screen";
 //
 //   1. Cast      -- pull it from the wiki, review it, approve it. Approving is what puts it into
 //                   leagues, and nothing in step 2 can match a single name until it's done.
-//   2. Episodes  -- each week, pull results from the wiki and (optionally) research the episode, then
+//   2. Rules     -- only when a show changes how it's played mid-season: check for rule changes, review
+//                   and approve one (docs/PLAN-season-rule-changes.md). Never blocks step 3.
+//   3. Episodes  -- each week, pull results from the wiki and (optionally) research the episode, then
 //                   review them here. Accepted results go to every league on the season on their own.
 //
 // Each step shows where it stands (not pulled / staged / approved; results through episode N;
-// researched episodes) and offers the NEXT action as its primary button. Step 2 stays locked until
-// the cast is approved, because running it earlier was the single most common way this went wrong:
+// researched episodes) and offers the NEXT action as its primary button. Steps 2 and 3 stay locked
+// until the cast is approved, because running it earlier was the single most common way this went wrong:
 // "no castaways yet" after a correct-looking cast-then-episodes sequence.
 //
 // Everything set once and rarely touched again -- show terminology, the wiki endpoint, archiving,
@@ -578,7 +581,7 @@ function ShowSettings({ show, busy, run, options }: { show: AdminShow; busy: boo
   );
 }
 
-// One season, as the two-step pipeline it is. See the file header for the order and why step 2 is
+// One season, as the pipeline it is. See the file header for the order and why steps 2 and 3 are
 // locked until the cast is approved.
 function SeasonCard({
   season,
@@ -722,10 +725,14 @@ function SeasonCard({
         </div>
       )}
 
-      {/* Step 2 -- episodes. Locked until the cast is approved: results are matched to people by
+      {/* Step 2 -- rules. Only matters when a show changes how it's played partway through; never in
+          the way of episodes below. */}
+      <SeasonRules seasonId={season.id} seasonLabel={label} castApproved={approved} locked={locked} Row={Step} />
+
+      {/* Step 3 -- episodes. Locked until the cast is approved: results are matched to people by
           name, and before approval there are no names in any league to match. */}
       <Step
-        n={2}
+        n={3}
         title="Episodes"
         done={false}
         disabled={!approved}
@@ -798,7 +805,7 @@ function Step({
   disabled,
   children,
 }: {
-  n: number;
+  n: ReactNode;
   title: string;
   status: string;
   done: boolean;

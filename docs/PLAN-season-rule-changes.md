@@ -308,6 +308,55 @@ real-league proofs. Phases 3–5 are UI on a settled model.
   - All six new routes compile on the dev server and return 401 unauthenticated. They haven't been
     exercised signed in. Phase 3's screens are what will do that, in the browser.
 
+### Phase 3: done (2026-10-06)
+
+- **What was built:** `src/components/admin/season-rule-check.tsx`.
+  - `SeasonRules` is SeasonCard's new step 2, "Rules", between Cast and Episodes (now step 3). It's
+    unlocked once the cast is approved and blocks nothing. Its status line reads one of:
+    - "N changes to review below"
+    - "Research on ep N mentioned something new — check the rules"
+    - "1 change in force (from ep 3) · checked through ep 3"
+
+    It gets a ✓ when the latest check covers every aired episode and nothing is waiting. Research
+    flags are listed under it.
+  - The copy/paste check panel works like Stage 3's research panel. A "nothing changed" answer is
+    recorded and reported in a line.
+  - The list shows each recorded check, with review/view-edit, withdraw (through the app's confirm
+    dialog) and delete. Only the latest no-change record is kept on screen.
+  - The review screen (`RuleChangeEditor`) re-runs `reviewCheck` live against `baseData`, which is
+    the season's rules without this change; `getChange` now returns it. It covers:
+    - the effective episode and the summary commissioners will see
+    - new events (label, suggested points, category, remove) with their rules (`RuleLine`, the
+      Stage 3 editor)
+    - other rules, questions (type, remove), exits and retirements (remove)
+    - flagged items, not-trackable items and sources
+
+    Approve saves first, then approves, like Stage 3.
+  - Stage 3's row pieces (`RuleLine`, `Notes`, `TierChip`, `CategorySelect`, `ruleAtPath`, the
+    effective-id helpers) are now exported from `format-review-screen.tsx` and reused rather than
+    copied.
+- **A bug the browser found:** approving returned a 500 even though the change *was* approved,
+  because pushing to one league threw after the approval had already committed.
+  - The trigger was a malformed test league (my fixture), but the flaw was real: one bad league
+    turned a success into an error the admin would retry.
+  - `pushSeasonRuleChanges` now catches failures per league and returns `{ updated, failed }`. The
+    routes return `leaguesFailed`, and the UI adds "Couldn't update X — they catch up on the next
+    change to this season's rules." The sync is idempotent, so that catch-up really happens.
+- **Verified in a browser:** an isolated headless Chromium (the MCP browser was locked again)
+  against the local dev server, using a throwaway show, season, league and super-admin account, all
+  deleted afterwards with no orphaned rows. Covered:
+  - row status, the research flag, and the prompt including that flag
+  - pasting an answer and the review rendering every section
+  - Approve: "in force from episode 3, offered to 1 league", and the row ticking
+  - the league's `seasonRuleChanges` set while `adoptedRuleChanges` stays empty
+  - at 390px wide: the view/edit layout with no horizontal overflow, and withdraw through the
+    confirm dialog
+
+  After a withdraw, episode 3's research flag shows again. That's deliberate: the change that
+  answered it was taken back.
+- tsc is clean, eslint shows only the known `pickem-pick-grid.tsx` error, `npm test` is 187/187, and
+  the harness is unchanged.
+
 ## Open points (not blocking)
 
 - The paid "check for rule changes" call, once the paste flow has proven the prompt.

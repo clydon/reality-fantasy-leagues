@@ -42,8 +42,8 @@ export interface SeasonCheckReview {
   summary: string;
   effectiveEpisode: number | null;
   checkedThrough: number | null;
-  /** The change, built from every usable row. Approval stores it. */
-  delta: SeasonChangeDelta;
+  /** The change, built from every usable row (every key present). Approval stores it. */
+  delta: Required<SeasonChangeDelta> & { addRules: { research: unknown[]; implied: unknown[] } };
   approvable: boolean;
   problems: ReviewNote[];
   warnings: ReviewNote[];

@@ -16,6 +16,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   if (!current || current.seasonId !== id) throw new HttpError(404, "Rule change not found");
   const r = await withdrawChange(pool, changeId);
   if (!r.withdrawn) throw new HttpError(409, "Only an approved change can be withdrawn");
-  const leaguesUpdated = r.pushSeason ? await pushSeasonRuleChanges(r.pushSeason) : 0;
-  return NextResponse.json({ ok: true, leaguesUpdated });
+  const push = r.pushSeason ? await pushSeasonRuleChanges(r.pushSeason) : { updated: 0, failed: [] };
+  return NextResponse.json({ ok: true, leaguesUpdated: push.updated, leaguesFailed: push.failed });
 });

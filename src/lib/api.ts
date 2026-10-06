@@ -1,4 +1,5 @@
-import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal, SeasonRuleChange, SeasonRuleChangeWithReview } from "@/lib/game/types";
+import type { SeasonCheck } from "@/lib/game/formats/season-check";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 import type { ActionItem } from "@/lib/game/action-items.js";
 
@@ -507,6 +508,26 @@ export const api = {
     ),
   adminDeleteFormat: (id: string) =>
     localFetch<{ ok: true }>(`/api/admin/formats/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // Season rule changes (docs/PLAN-season-rule-changes.md): "check for rule changes" on one season.
+  adminRuleChanges: (seasonId: string) =>
+    localFetch<{ changes: SeasonRuleChange[]; flags: { episode: number; note: string }[]; airedThrough: number | null }>(`/api/admin/seasons/${seasonId}/rule-changes`),
+  adminRuleCheckPrompt: (seasonId: string) => localFetch<{ prompt: string }>(`/api/admin/seasons/${seasonId}/rule-changes/prompt`),
+  adminRecordRuleCheck: (seasonId: string, answer: string) =>
+    localFetch<{ change: SeasonRuleChangeWithReview }>(`/api/admin/seasons/${seasonId}/rule-changes`, { method: "POST", body: JSON.stringify({ answer }) }),
+  adminGetRuleChange: (seasonId: string, id: string) =>
+    localFetch<{ change: SeasonRuleChangeWithReview }>(`/api/admin/seasons/${seasonId}/rule-changes/${id}`),
+  adminSaveRuleChange: (seasonId: string, id: string, proposal: SeasonCheck, effectiveEpisode: number | null) =>
+    localFetch<{ change: SeasonRuleChangeWithReview; leaguesUpdated: number; leaguesFailed: { leagueId: string; name: string; error: string }[] }>(`/api/admin/seasons/${seasonId}/rule-changes/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ proposal, effectiveEpisode }),
+    }),
+  adminApproveRuleChange: (seasonId: string, id: string) =>
+    localFetch<{ change: SeasonRuleChangeWithReview; leaguesUpdated: number; leaguesFailed: { leagueId: string; name: string; error: string }[] }>(`/api/admin/seasons/${seasonId}/rule-changes/${id}/approve`, { method: "POST" }),
+  adminWithdrawRuleChange: (seasonId: string, id: string) =>
+    localFetch<{ ok: true; leaguesUpdated: number; leaguesFailed: { leagueId: string; name: string; error: string }[] }>(`/api/admin/seasons/${seasonId}/rule-changes/${id}/withdraw`, { method: "POST" }),
+  adminDeleteRuleChange: (seasonId: string, id: string) =>
+    localFetch<{ ok: true }>(`/api/admin/seasons/${seasonId}/rule-changes/${id}`, { method: "DELETE" }),
 
   // Self-serve twin of the above (docs/PLAN-rollout-order.md stage 4): any signed-in user, but
   // scoped to formats they created, and -- unlike adminApproveFormat -- never able to switch an

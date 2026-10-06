@@ -39,8 +39,8 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
   if (saved.refused) {
     return NextResponse.json({ change: saved, error: "An approved change has to stay valid: fix the problems listed and save again." }, { status: 409 });
   }
-  const leaguesUpdated = saved.pushSeason ? await pushSeasonRuleChanges(saved.pushSeason) : 0;
-  return NextResponse.json({ change: saved, leaguesUpdated });
+  const push = saved.pushSeason ? await pushSeasonRuleChanges(saved.pushSeason) : { updated: 0, failed: [] };
+  return NextResponse.json({ change: saved, leaguesUpdated: push.updated, leaguesFailed: push.failed });
 });
 
 // A draft or a no-change record. An approved change is withdrawn instead (see ./withdraw).

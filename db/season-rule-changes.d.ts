@@ -1,6 +1,6 @@
 // Types for db/season-rule-changes.js (plain CommonJS so the bare-node connectors can use it).
 import type { Pool, PoolClient } from "pg";
-import type { GameFormat, SeasonChange } from "@/lib/game/formats/index";
+import type { FormatData, GameFormat, SeasonChange } from "@/lib/game/formats/index";
 import type { SeasonCheck, SeasonCheckReview } from "@/lib/game/formats/season-check";
 import type { ReviewNote } from "@/lib/game/formats/proposal";
 
@@ -27,7 +27,8 @@ export interface SeasonRuleChange {
   approvedAt: string | null;
 }
 
-export type SeasonRuleChangeWithReview = SeasonRuleChange & { review: SeasonCheckReview };
+/** A change with its review, and the season's rules (without it) it was reviewed against. */
+export type SeasonRuleChangeWithReview = SeasonRuleChange & { review: SeasonCheckReview; baseData: FormatData };
 
 /** The part of a league's settings these read and write. */
 type ChangeSettings = { showId?: string | null; wikiSeason?: string | number | null; seasonRuleChanges?: SeasonChange[]; adoptedRuleChanges?: SeasonChange[] };

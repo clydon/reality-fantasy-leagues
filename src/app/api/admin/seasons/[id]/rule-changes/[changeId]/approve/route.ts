@@ -18,6 +18,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   if (!r) throw new HttpError(404, "Rule change not found");
   if (r.refusedStatus) throw new HttpError(409, `A ${r.refusedStatus.replace("_", " ")} record can't be approved`);
   if (r.refused) return NextResponse.json({ change: r, error: "Fix the problems listed before approving." }, { status: 409 });
-  const leaguesUpdated = r.pushSeason ? await pushSeasonRuleChanges(r.pushSeason) : 0;
-  return NextResponse.json({ change: r, leaguesUpdated });
+  const push = r.pushSeason ? await pushSeasonRuleChanges(r.pushSeason) : { updated: 0, failed: [] };
+  return NextResponse.json({ change: r, leaguesUpdated: push.updated, leaguesFailed: push.failed });
 });

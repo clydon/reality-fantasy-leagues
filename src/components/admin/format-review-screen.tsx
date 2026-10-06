@@ -15,6 +15,9 @@ import { confirm } from "@/lib/confirm-store";
 import { m, AnimatePresence } from "@/components/motion";
 import { cn } from "cn";
 
+// The row pieces (RuleLine, Notes, TierChip, CategorySelect, ...) are exported for the season "check
+// for rule changes" review (season-rule-check.tsx), which edits the same kinds of rows.
+//
 // Step 3's review screen (docs/PLAN-stage-3-format-proposals.md): everything is built from
 // `reviewProposal(proposal, { id })` -- a pure, browser-safe function -- so every edit here changes
 // the PROPOSAL (never the derived data) and the problems/warnings/sentences below update live. The
@@ -23,17 +26,17 @@ import { cn } from "cn";
 // Mirrors proposal.js's own `ID` regex: a row's effective id, for matching an edit back to its row
 // in the proposal even when the chat's raw id needed repairing into camelCase.
 const VALID_ID = /^[a-z][A-Za-z0-9]*$/;
-function effectiveEventId(e: { id?: unknown; label?: unknown }): string {
+export function effectiveEventId(e: { id?: unknown; label?: unknown }): string {
   const raw = typeof e.id === "string" ? e.id.trim() : "";
   return VALID_ID.test(raw) ? raw : camelId(raw || (typeof e.label === "string" ? e.label : "") || "");
 }
-function effectiveQuestionKey(q: { key?: unknown; question?: unknown }): string {
+export function effectiveQuestionKey(q: { key?: unknown; question?: unknown }): string {
   const raw = typeof q.key === "string" ? q.key.trim() : "";
   return VALID_ID.test(raw) ? raw : camelId(raw || (typeof q.question === "string" ? q.question : "") || "");
 }
 
 // Mirrors proposal.js's own list -- not exported from there, so kept in sync by hand.
-const QUESTION_TYPES = ["answer", "integer", "string", "stringList", "enum"];
+export const QUESTION_TYPES = ["answer", "integer", "string", "stringList", "enum"];
 
 const isRuleObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const humanize = (k: string) => k.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
@@ -57,7 +60,7 @@ interface Leaf {
   op: "is" | "isNot" | "equals" | "greaterThan" | "present";
   value: unknown;
 }
-interface ConditionField {
+export interface ConditionField {
   key: string;
   type: string;
   values?: string[];
@@ -372,7 +375,7 @@ function EventSelect({
 // A category picker, not free text: two events spelled "Vote" and "Votes" silently become two
 // categories instead of one, the same failure mode as a mistyped event/question id -- just quieter,
 // since nothing calls it a problem. "+ New category" is still there for a genuinely new group.
-function CategorySelect({ value, categories, onChange }: { value: string; categories: string[]; onChange: (v: string) => void }) {
+export function CategorySelect({ value, categories, onChange }: { value: string; categories: string[]; onChange: (v: string) => void }) {
   const options = categories.includes(value) ? categories : [value, ...categories];
   return (
     <Select
@@ -514,7 +517,7 @@ function RuleFields({
   );
 }
 
-function TierChip({ tier }: { tier: "A" | "B" | "C" | null }) {
+export function TierChip({ tier }: { tier: "A" | "B" | "C" | null }) {
   if (!tier) return null;
   return (
     <Badge
@@ -534,7 +537,7 @@ function TierChip({ tier }: { tier: "A" | "B" | "C" | null }) {
 }
 
 // A problem's/rule's `at` for a rule row: "rules.research[3]" or "rules.implied[1]".
-function ruleAtPath(at: string): { list: "research" | "implied"; index: number } | null {
+export function ruleAtPath(at: string): { list: "research" | "implied"; index: number } | null {
   const m = /^rules\.(research|implied)\[(\d+)\]$/.exec(at);
   if (!m) return null;
   return { list: m[1] as "research" | "implied", index: Number(m[2]) };
@@ -551,7 +554,7 @@ function ruleAtPath(at: string): { list: "research" | "implied"; index: number }
 //  - "edit as raw JSON", nested under the controls, is the last-resort fallback for the one shape
 //    those don't cover (a condition combining "any"/"not", or nesting past a flat AND) -- a few lines
 //    for just THIS rule, not the whole rules block.
-function RuleLine({
+export function RuleLine({
   sentence,
   problems,
   rule,
@@ -658,7 +661,7 @@ function RuleLine({
   );
 }
 
-function Notes({ problems, warnings }: { problems: string[]; warnings: string[] }) {
+export function Notes({ problems, warnings }: { problems: string[]; warnings: string[] }) {
   if (!problems.length && !warnings.length) return null;
   return (
     <ul className="mt-1 flex flex-col gap-0.5 text-[0.7rem]">

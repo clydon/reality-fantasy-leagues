@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
-import { listChanges, recordCheck, researchFlags } from "@db/season-rule-changes.js";
+import { airedThrough, listChanges, recordCheck, researchFlags } from "@db/season-rule-changes.js";
 
 // Season rule changes (docs/PLAN-season-rule-changes.md): the checks recorded for one season, and a new
 // one from a pasted chat answer. Super-admin only, like the rest of a season's pipeline.
@@ -13,7 +13,13 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<RouteParam
   const { id } = await params;
   await requireSuperAdmin(req);
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
-  return NextResponse.json({ changes: await listChanges(pool, id), flags: await researchFlags(pool, id) });
+  return NextResponse.json({
+    changes: await listChanges(pool, id),
+    flags: await researchFlags(pool, id),
+    // The last episode the season has results or research for, so the Rules row can say whether the
+    // latest check covers it.
+    airedThrough: await airedThrough(pool, id),
+  });
 });
 
 // A pasted answer is recorded as a draft to review -- or, when it found nothing new, as a no_change
