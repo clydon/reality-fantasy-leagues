@@ -370,6 +370,8 @@ export interface AdminShow {
   format: string;
   /** A stored format's data half (db/migrations/0049), for formatFor(format, format_data). Null for a built-in. */
   format_data?: FormatData | null;
+  /** Tile image (migration 0051); null falls back to the per-format emoji. */
+  art_url: string | null;
   archived: boolean;
   created_at: string;
   league_count: number;
@@ -589,6 +591,8 @@ export interface CatalogShow {
   name: string;
   castaway_term: string;
   tribe_term: string;
+  /** Tile image (migration 0051); null falls back to the per-format emoji. */
+  art_url: string | null;
   seasons: Pick<ShowSeason, "seasonNumber" | "name" | "status" | "castSize" | "premiereDate" | "finaleDate">[];
 }
 

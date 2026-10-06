@@ -12,7 +12,7 @@ export const GET = apiRoute(async (req) => {
   await requireSuperAdmin(req);
   const { rows } = await pool.query(
     `SELECT s.id, s.slug, s.name, s.castaway_term, s.tribe_term, s.wiki_api_url, s.cast_section_heading, s.research_domains,
-            s.format, s.archived, s.created_at,
+            s.format, s.art_url, s.archived, s.created_at,
             -- A stored format's data (db/migrations/0049), so the admin screens can resolve its rules
             -- the way a league does. Null for a built-in.
             fd.data AS format_data,

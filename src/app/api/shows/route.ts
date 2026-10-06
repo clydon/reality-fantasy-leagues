@@ -14,7 +14,7 @@ export const GET = apiRoute(async (req) => {
   await requireAuth(req);
 
   const { rows } = await pool.query(
-    `SELECT s.slug, s.name, s.castaway_term, s.tribe_term,
+    `SELECT s.slug, s.name, s.castaway_term, s.tribe_term, s.art_url,
             COALESCE(
               json_agg(
                 json_build_object(

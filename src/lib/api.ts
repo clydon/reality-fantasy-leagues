@@ -552,6 +552,7 @@ export const api = {
       castSectionHeading: string;
       researchDomains: string;
       format: string;
+      artUrl: string;
       archived: boolean;
     }>
   ) =>

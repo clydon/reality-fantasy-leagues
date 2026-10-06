@@ -514,6 +514,22 @@ function ShowSettings({ show, busy, run, options }: { show: AdminShow; busy: boo
           />
         </label>
       </div>
+      <label className="flex min-w-[240px] flex-1 items-center gap-1">
+        <span title="Shown as the tile image in the Create-League wizard. Blank falls back to a plain emoji. An external URL, or a path to a file you've dropped in public/show-art/ (same convention as public/photos/ for cast).">
+          Art
+        </span>
+        <Input
+          size="sm"
+          className="min-w-[160px] flex-1"
+          placeholder="blank — emoji fallback"
+          defaultValue={show.art_url ?? ""}
+          disabled={busy}
+          onBlur={(e) => {
+            const v = e.target.value.trim();
+            if (v !== (show.art_url ?? "")) run(() => api.adminUpdateShow(show.id, { artUrl: v }));
+          }}
+        />
+      </label>
       <label className="flex flex-wrap items-center gap-1">
         <span title="Web research only searches these sites. Fewer, trusted sites means better answers and fewer tokens.">
           Research sites

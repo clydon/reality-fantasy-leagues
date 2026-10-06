@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
+import { publicMediaSrc } from "@/lib/game/selectors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { m, AnimatePresence } from "@/components/motion";
@@ -15,6 +16,23 @@ const PANEL_TITLE = "mb-2.5 text-[0.7rem] font-bold uppercase tracking-wide text
 // Known shows get a face; anything else in the catalog (added via Admin, or eventually the AI
 // research flow) falls back to a plain marker rather than a wrong-looking icon.
 const SHOW_ICON: Record<string, string> = { survivor: "🏝️", traitors: "🔪", challenge: "🧗" };
+
+// A show's tile image (admin-set art_url, migration 0051), falling back to SHOW_ICON/🎬 the same way
+// a show with no art is treated today -- and the same way again if the stored URL turns out to be
+// dead (an admin typo, or a self-hosted path that was never actually added to public/show-art/).
+function ShowTileIcon({ show }: { show: { slug: string; art_url?: string | null } }) {
+  const [failed, setFailed] = useState(false);
+  const src = publicMediaSrc(show.art_url);
+  if (src && !failed) {
+    // eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL
+    return <img src={src} alt="" className="h-8 w-8 rounded object-cover" onError={() => setFailed(true)} />;
+  }
+  return (
+    <span className="text-xl" aria-hidden>
+      {SHOW_ICON[show.slug] ?? "🎬"}
+    </span>
+  );
+}
 
 // The three league types, in the order docs/PLAN-new-user-onboarding-flow.md's step 2 mockup shows
 // them -- StateLogic.LEAGUE_TYPES itself is keyed for the draft/scoring-strategy lookup, not display
@@ -126,9 +144,7 @@ export function CreateLeagueWizard({
                           go(2);
                         }}
                       >
-                        <span className="text-xl" aria-hidden>
-                          {SHOW_ICON[s.slug] ?? "🎬"}
-                        </span>
+                        <ShowTileIcon show={s} />
                         <span className="text-sm font-medium">{s.name}</span>
                       </button>
                     ))}

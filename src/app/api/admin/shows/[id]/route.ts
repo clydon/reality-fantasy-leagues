@@ -22,6 +22,9 @@ const EDITABLE: Record<string, string> = {
   // Which game rules the show plays by (db/migrations/0021): a built-in format, or an approved stored
   // one (0049). Leagues cache it, so a change is pushed into each of them below.
   format: "format",
+  // Tile image (migration 0051); same free-text-URL convention as a castaway's Photo URL. Empty
+  // clears it back to the per-format emoji fallback.
+  artUrl: "art_url",
   archived: "archived",
 };
 
