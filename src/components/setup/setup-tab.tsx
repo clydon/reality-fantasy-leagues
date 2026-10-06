@@ -7,6 +7,7 @@ import { PlayersSection } from "./players-section";
 import { InvitesSection } from "./invites-section";
 import { TribesSection } from "./tribes-section";
 import { CastawaysSection } from "./castaways-section";
+import { CastImportSection } from "./cast-import-section";
 import { GeneralSettingsSection } from "./general-settings-section";
 import { SideBetSettingsSection } from "./side-bet-settings-section";
 import { FinaleSettingsSection } from "./finale-settings-section";
@@ -64,6 +65,7 @@ export function SetupTab() {
           <PlayersSection state={state} />
           <TribesSection state={state} />
           <CastawaysSection state={state} />
+          <CastImportSection state={state} />
           <WikiConnectorSection state={state} />
           <LinkedLeaguesSection />
           <BackupSection state={state} />

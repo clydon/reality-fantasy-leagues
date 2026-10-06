@@ -1354,6 +1354,29 @@ class RosterLogic {
     });
     return result;
   }
+  // The secret-role half of a cast import (formats/cast-prompt.js), a sibling of applyCastTribes: for
+  // each castaway matched by name, records their role as a fact at `episode` -- the same
+  // { episode, name, role } fact traitors.js's wikiRoles() produces for an original Traitor, landing in
+  // episode.roles, so the existing reveal-gating governs it with nothing new. Run it AFTER
+  // applyCastImport in the same write: matching by name means anyone that call creates must exist first.
+  //
+  // Additive and safe to re-run: someone who already has a role at that episode keeps it, and a role
+  // that isn't one of the format's values is refused (RoleLogic.add) rather than recorded as written.
+  static applyCastRoles(state, proposal, episode = 1){
+    const result = { recorded: [], unchanged: [], unresolved: [] };
+    const roles = formatOf(state).roles;
+    const sameName = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
+    const rows = (proposal.castaways || []).filter(c => c && c.name && roles && roles.values.includes(c.role));
+    if(!rows.length) return result;
+    const ep = EpisodeLogic.ensureEpisodeNumber(state, episode, false);
+    rows.forEach(c=>{
+      const castaway = state.castaways.find(x=>sameName(x.name, c.name));
+      if(!castaway){ result.unresolved.push(c.name); return; }
+      if(RoleLogic.add(state, ep.id, castaway.id, c.role)) result.recorded.push(castaway.name);
+      else result.unchanged.push(castaway.name);
+    });
+    return result;
+  }
   static updateSettings(state, field, value){
     // Generic setter (the PATCH route passes whatever the UI sends), with one normalized field:
     // revealedThroughEpisode decides what a league is allowed to SEE, so a junk value must not
@@ -2487,7 +2510,7 @@ return {
   disablePlayer: RosterLogic.disablePlayer, reclaimPlayer: RosterLogic.reclaimPlayer, activatePlayer: RosterLogic.activatePlayer,
   addTribe: RosterLogic.addTribe, updateTribe: RosterLogic.updateTribe, removeTribe: RosterLogic.removeTribe,
   addCastaway: RosterLogic.addCastaway, updateCastaway: RosterLogic.updateCastaway, removeCastaway: RosterLogic.removeCastaway,
-  applyCastImport: RosterLogic.applyCastImport, applyCastTribes: RosterLogic.applyCastTribes,
+  applyCastImport: RosterLogic.applyCastImport, applyCastTribes: RosterLogic.applyCastTribes, applyCastRoles: RosterLogic.applyCastRoles,
   applyEliminationsImport: EpisodeLogic.applyEliminationsImport,
   applyScoringEventsImport: EpisodeLogic.applyScoringEventsImport,
   updateSettings: RosterLogic.updateSettings,

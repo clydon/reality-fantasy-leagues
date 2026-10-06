@@ -206,6 +206,15 @@ declare const StateLogic: {
     linked: string[];
     unchanged: string[];
   };
+  /**
+   * Records each matched castaway's starting secret role as a role fact at `episode` (default 1).
+   * Run after applyCastImport. Additive: an existing role at that episode is left alone.
+   */
+  applyCastRoles(
+    state: LeagueState,
+    proposal: { castaways: { name: string; role: string }[] },
+    episode?: number
+  ): { recorded: string[]; unchanged: string[]; unresolved: string[] };
   applyCastImport(
     state: LeagueState,
     proposal: { tribes?: { name: string; color?: string }[]; castaways?: { name: string; tribeName?: string | null; photoUrl?: string | null }[] }

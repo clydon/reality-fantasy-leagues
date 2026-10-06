@@ -423,6 +423,14 @@ export const api = {
     localFetch<LeagueState>(`/api/leagues/${leagueId}/castaways/${id}`, { method: "DELETE" }),
   // Whole-state replace -- the raw parsed JSON of a previously-exported backup, migrated
   // server-side (StateLogic.migrateLeagueState) before being saved.
+  // "Import a cast" (docs/PLAN-cast-import-prompt.md): a pasted, reviewed cast answer. Returns what
+  // was added and which starting roles were recorded alongside the new state.
+  importCast: (leagueId: string, proposal: unknown) =>
+    localFetch<{
+      state: LeagueState;
+      added: { tribes: string[]; castaways: string[]; skipped: string[] };
+      roles: { recorded: string[]; unchanged: string[]; unresolved: string[] };
+    }>(`/api/leagues/${leagueId}/castaways/import`, { method: "POST", body: JSON.stringify({ proposal }) }),
   importLeagueState: (leagueId: string, raw: unknown) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/import`, { method: "POST", body: JSON.stringify(raw) }),
   resetLeague: (leagueId: string) =>
