@@ -63,7 +63,15 @@ function wikiCode(data) {
 function phrases(data, c, sentence) {
   const out = [];
   if (c.leftTheGame === 'yes') out.push(sentence ? `left the game (${c.exitMethod || 'method unknown'})` : `OUT — ${c.exitMethod || 'method unknown'}`);
-  for (const f of data.research.checklist) {
+  out.push(...questionPhrases(data.research.checklist, c));
+  return out;
+}
+
+// The phrases for checklist questions `fields` alone. Also how a built-in format's reviewer notes cover
+// the questions a season rule change added (season-changes.js): its own notes don't know them.
+function questionPhrases(fields, c) {
+  const out = [];
+  for (const f of fields) {
     if (f.key in CORE_FIELDS) continue;
     const v = c[f.key];
     const label = f.note || words(f.key);
@@ -91,7 +99,11 @@ function researchCode(data) {
 /** A runtime format from a data half alone (throws, like defineFormat, if the data isn't usable). */
 function buildDataFormat(data) {
   if (data && data.roles) throw new Error(`format ${data.id}: a data-only format can't have secret roles yet`);
-  return defineFormat(data, { wiki: wikiCode(data), research: researchCode(data) });
+  const format = defineFormat(data, { wiki: wikiCode(data), research: researchCode(data) });
+  // Its code half is built FROM its data, so changed data (a season rule change) rebuilds through here
+  // rather than reusing code that closed over the old data.
+  Object.defineProperty(format, 'dataOnly', { value: true, enumerable: false });
+  return format;
 }
 
-module.exports = { buildDataFormat };
+module.exports = { buildDataFormat, questionPhrases };

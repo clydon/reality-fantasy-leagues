@@ -11,6 +11,7 @@ const challenge = require('./challenge.js');
 const generic = require('./generic.js');
 const { formatProblems } = require('./define.js');
 const { buildDataFormat } = require('./custom.js');
+const { withChanges, applyChanges, changeProblems } = require('./season-changes.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const FORMATS = { survivor, traitors, challenge, generic };
@@ -65,4 +66,8 @@ function formatForRuleset(data) {
   return format;
 }
 
-module.exports = { FORMATS, DEFAULT_FORMAT, formatFor, formatForRuleset, isBuiltInFormat, formatOptions, formatProblems };
+module.exports = {
+  FORMATS, DEFAULT_FORMAT, formatFor, formatForRuleset, isBuiltInFormat, formatOptions, formatProblems,
+  // Season rule changes (season-changes.js, docs/PLAN-season-rule-changes.md).
+  withChanges, applyChanges, changeProblems,
+};

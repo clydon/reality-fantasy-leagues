@@ -2,7 +2,7 @@
 // state-logic.js itself stays plain, untyped JS (forked from the live app — see the provenance
 // note at its top) so these are a best-effort description of its actual shape, not a source of
 // truth generated from it.
-import type { FormatData } from "./formats/index";
+import type { FormatData, SeasonChange } from "./formats/index";
 import type { Proposal, Review, ReviewNote } from "./formats/proposal";
 
 export interface Player {
@@ -222,6 +222,14 @@ export interface LeagueSettings {
    * vast majority, read exactly as before. Never set by a request: only the ruleset routes write it.
    */
   leagueRulesetData?: FormatData | null;
+  /**
+   * Season rule changes (docs/PLAN-season-rule-changes.md). `seasonRuleChanges` is every change an
+   * admin approved for this league's season -- what its commissioner is offered. `adoptedRuleChanges`
+   * is what the commissioner adopted, each frozen at the version adopted; StateLogic.formatOf layers
+   * these on the base above. Both absent until a season has a change. Never set by a request.
+   */
+  seasonRuleChanges?: SeasonChange[];
+  adoptedRuleChanges?: SeasonChange[];
   /**
    * Guided-setup gate. `false` only on leagues created after guided setup shipped; absent on every
    * league that predates it, and anything other than an explicit `false` counts as complete -- see

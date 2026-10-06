@@ -40,6 +40,18 @@
 // (person, kind, event) (db/episode-research.js candidatesFor). Implied rules are applied fact by fact;
 // exits, exiles and roles are taken in the order their first rule appears.
 //
+// EPISODE GATING -- a season's rule changes (season-changes.js, docs/PLAN-season-rule-changes.md) add
+// rules that only apply from the episode the change takes effect, and can retire an event from one:
+//
+//   { when: { answer: 'sentAway', is: 'yes' }, award: 'sentAway', fromEpisode: 8 }
+//   events: [{ id: 'journey', ..., retiredFrom: 8 }]                   nothing awards it from episode 8
+//
+// Both are checked against the episode the answers or facts are for, so a change can never reach back
+// into an episode before it, even when that episode is researched again or re-derived on a read. With
+// no episode to check against, a gated rule doesn't run and a retired event isn't awarded: a missing
+// award shows up in review, a retroactive one silently rescores a league. A format with neither (every
+// format's own rules) behaves exactly as it did.
+//
 // rulesProblems says why a set of rules isn't usable, each with a reason, as formatProblems does for
 // the rest of a format. Plain CommonJS with no dependencies, like everything in formats/.
 
@@ -205,32 +217,54 @@ function triggerOf(rule) {
 }
 const methodsOf = (rule) => (Array.isArray(rule.whenExit) ? rule.whenExit : [rule.whenExit]);
 
+// Whether a rule applies at episode `n` (see EPISODE GATING above).
+const ruleRuns = (rule, n) => !('fromEpisode' in rule) || (Number.isInteger(n) && n >= rule.fromEpisode);
+
+// Whether event `id` can be awarded at episode `n`: everything but what's retired by then. Null when
+// nothing is retired, so a format without retirements does no extra work.
+function awardableAt(data) {
+  const retired = new Map();
+  for (const e of (data && Array.isArray(data.events) ? data.events : [])) if (e && Number.isInteger(e.retiredFrom)) retired.set(e.id, e.retiredFrom);
+  if (!retired.size) return null;
+  return (id, n) => !retired.has(id) || (Number.isInteger(n) && n < retired.get(id));
+}
+
 /** research.items from a format's research rules: (entry, add, ctx) -> calls add, in rule order. */
-function researchItemsFrom(rules) {
+function researchItemsFrom(rules, data) {
+  const awardable = awardableAt(data);
   return function researchItems(entry, add, ctx) {
     const c = ctx || {};
-    // `ctx.payload` is the whole episode's answers; `ctx.same(a, b)` compares names by who they are.
+    // `ctx.payload` is the whole episode's answers; `ctx.same(a, b)` compares names by who they are;
+    // `ctx.episode` is the episode number the answers are for (see EPISODE GATING).
     const env = { everyone: (c.payload && c.payload.castaways) || [], same: c.same || sameName };
+    const n = c.episode;
+    const award = awardable ? (id) => { if (awardable(id, n)) add('event', id); } : (id) => add('event', id);
     for (const rule of rules) {
+      if (!ruleRuns(rule, n)) continue;
       if (rule.when && !test(rule.when, answers(entry))) continue;
-      if (rule.builtIn) for (const id of BUILT_INS[rule.builtIn].run(entry, env, rule)) add('event', id);
+      if (rule.builtIn) for (const id of BUILT_INS[rule.builtIn].run(entry, env, rule)) award(id);
       // eventType stays '' for an exile, to satisfy episode_research_items_shape; a role's value rides
       // as the item's method.
       else if (rule.stage === 'exiled') add('exiled', '');
       else if (rule.stage === 'role') add('role', '', rule.role);
-      else add('event', rule.award);
+      else award(rule.award);
     }
   };
 }
 
 /** impliedEvents from a format's implied rules: (ep, ctx) -> [{ type, castawayId }]. */
-function impliedEventsFrom(rules, { winnerExitMethod }) {
+function impliedEventsFrom(rules, data) {
+  const { winnerExitMethod } = data;
+  const awardable = awardableAt(data);
+  const gated = rules.some((r) => 'fromEpisode' in r);
   const order = [];
   for (const r of rules) if (!order.includes(triggerOf(r))) order.push(triggerOf(r));
-  const of = (trigger) => rules.filter((r) => triggerOf(r) === trigger);
-  const byTrigger = { whenExit: of('whenExit'), whenExiled: of('whenExiled'), whenRole: of('whenRole') };
+  const of = (trigger, n) => rules.filter((r) => triggerOf(r) === trigger && (!gated || ruleRuns(r, n)));
+  const all = { whenExit: of('whenExit'), whenExiled: of('whenExiled'), whenRole: of('whenRole') };
   return function impliedEvents(ep, ctx) {
     const out = [];
+    // Only rules a change added are gated; without any, every episode reads the same lists.
+    const byTrigger = gated ? { whenExit: of('whenExit', ep.number), whenExiled: of('whenExiled', ep.number), whenRole: of('whenRole', ep.number) } : all;
     const exits = ep.events || [];
     // `ctx.roleOf(castawayId, n)` is the role someone held as of episode n.
     const env = { exits, winnerExitMethod, roleOf: (el) => (ctx && ctx.roleOf ? ctx.roleOf(el.castawayId, ep.number) : undefined) };
@@ -258,7 +292,7 @@ function impliedEventsFrom(rules, { winnerExitMethod }) {
         }
       }
     }
-    return out;
+    return awardable ? out.filter((ev) => awardable(ev.type, ep.number)) : out;
   };
 }
 
@@ -307,7 +341,8 @@ function ruleProblems(rule, list, ctx) {
     if (triggers.length !== 1) p.push(`needs exactly one of ${TRIGGERS.join(', ')} (what fact it follows from)`);
   }
   // Triggers are always "allowed" here: a misplaced one is already reported above, once.
-  const allowed = ['when', ...TRIGGERS];
+  const allowed = ['when', 'fromEpisode', ...TRIGGERS];
+  if ('fromEpisode' in rule && !(Number.isInteger(rule.fromEpisode) && rule.fromEpisode >= 1)) p.push('fromEpisode: an episode number from 1');
   if (rule.builtIn !== undefined) {
     const b = BUILT_INS[rule.builtIn];
     allowed.push('builtIn');
@@ -479,6 +514,11 @@ function describeCondition(cond, nested = false) {
 /** One rule as a sentence: "When won challenge is yes → Won a challenge". */
 function describeRule(rule, data) {
   if (!isObj(rule)) return '?';
+  // A season change's rule says when it starts; every other rule reads exactly as before.
+  if ('fromEpisode' in rule) {
+    const { fromEpisode, ...rest } = rule;
+    return `${describeRule(rest, data)} (from episode ${fromEpisode})`;
+  }
   const label = (id) => {
     const e = data && Array.isArray(data.events) ? data.events.find((x) => x && x.id === id) : null;
     return e && e.label ? e.label : String(id);

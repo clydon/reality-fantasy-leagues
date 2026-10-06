@@ -216,6 +216,37 @@ Each added event carries the admin's **suggested** points. Commissioners see the
 Phases 1–2 are where getting it wrong would silently corrupt scoring, so they get the harness and
 real-league proofs. Phases 3–5 are UI on a settled model.
 
+### Phase 1: done (2026-10-06)
+
+- **What was built:**
+  - `formats/season-changes.js` (`changeProblems`, `applyChanges`, `withChanges`), exported from
+    `formats/index.js`.
+  - `fromEpisode` and `retiredFrom` gating in `rules.js`. `describeRule` appends "(from episode N)".
+  - `defineFormat` keeps the code half as a non-enumerable `code`. `buildDataFormat` marks its results
+    `dataOnly`, and `custom.js` exports `questionPhrases`.
+  - `formatOf` layers `settings.adoptedRuleChanges`. If a change no longer fits, it falls back to the
+    base and logs, rather than breaking the league.
+  - `addEvent` refuses a retired event from its retirement episode on.
+  - The settings route treats `seasonRuleChanges`/`adoptedRuleChanges` as server-owned.
+  - `tests/season-changes.test.js`: 12 tests, mutation-checked. Removing either gate fails them.
+- **Proofs:**
+  - The format-regression harness is byte-identical apart from the source hashes of the two generated
+    functions (`impliedEvents`, `research.items`), which changed because their source did, as in
+    phase 2 of the formats plan.
+  - The three real leagues in the local DB produce identical scores and per-episode events before and
+    after.
+  - With a test change adopted from episode 2: episode 1 is identical in all three leagues, and
+    episode 2 gains the new event. The local copies only have 3 episodes, so N=2 was the only
+    informative split.
+  - tsc is clean, eslint shows only the known `pickem-pick-grid.tsx` error, and `npm test` is 179/179.
+- **For phase 2 to respect:**
+  - A gated research rule only runs when `ctx.episode` is passed. It fails closed, so
+    `db/episode-research.js`'s `itemsFromChecklist` must start passing the episode number, or added
+    rules will silently never stage.
+  - Survivor already has a category with id `twists` (Journeys & Exile). An added category with an
+    existing id is skipped, and its events join the existing one. The review screen should show that
+    rather than let it surprise anyone.
+
 ## Open points (not blocking)
 
 - The paid "check for rule changes" call, once the paste flow has proven the prompt.

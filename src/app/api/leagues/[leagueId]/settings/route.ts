@@ -11,7 +11,9 @@ import { syncLeagueFormat } from "@db/show-formats.js";
 // league's rules are its show's, and stored format data is validated on approval, not here.
 // leagueRulesetData (db/league-rulesets.js) is the same story, one level up: only the ruleset routes
 // write it, after running it through rulesetProblems.
-const SERVER_OWNED = ["showFormat", "showFormatData", "leagueRulesetData"];
+// seasonRuleChanges/adoptedRuleChanges (docs/PLAN-season-rule-changes.md): written by the server when a
+// change is approved, and by the adopt/decline route -- never set straight from a settings request.
+const SERVER_OWNED = ["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges"];
 
 // Port of SurvivorDraft's server/routes/roster.js PATCH /settings -- generic field/value setter,
 // no per-field validation server-side (same as the original; the client only ever sends fields

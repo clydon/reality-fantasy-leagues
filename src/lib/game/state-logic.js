@@ -74,10 +74,26 @@ const SEED_CASTAWAYS = ['Aaliyah','Alexis','Ana','Brady','Carter','Cristian','De
 //
 // A league's own ruleset copy (settings.leagueRulesetData, db/league-rulesets.js) wins over all of
 // that when present -- a commissioner's fork, forever ahead of whatever the show's format does next.
+//
+// On top of whichever base that is go the season rule changes this league's commissioner adopted
+// (settings.adoptedRuleChanges, docs/PLAN-season-rule-changes.md): additive, and gated by episode, so
+// nothing before a change's effective episode scores differently. A league with none -- every league
+// until one is adopted -- gets the base itself, untouched.
 function formatOf(state){
   const s = state && state.settings ? state.settings : {};
-  if(s.leagueRulesetData) return Formats.formatForRuleset(s.leagueRulesetData);
-  return Formats.formatFor(s.showFormat || null, s.showFormatData || null);
+  const base = s.leagueRulesetData
+    ? Formats.formatForRuleset(s.leagueRulesetData)
+    : Formats.formatFor(s.showFormat || null, s.showFormatData || null);
+  const adopted = s.adoptedRuleChanges;
+  if(!Array.isArray(adopted) || !adopted.length) return base;
+  try { return Formats.withChanges(base, adopted); }
+  catch(e){
+    // Adopting validates a change against this league's base, so this means the base moved under it
+    // (an edited ruleset copy). Scoring by the base alone beats a league that won't load; the adopt
+    // screen reports the change as not fitting.
+    if(typeof console !== 'undefined') console.error('season rule changes not applied:', e && e.message);
+    return base;
+  }
 }
 
 // The episode this league starts playing at (settings.startEpisode, default 1). A league formed
@@ -719,9 +735,11 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     const c = Core.getCastaway(state, castawayId);
     if(!ep || !c || !type) return null;
-    // Implied events (see episodeEvents) are never recorded: they'd score twice.
+    // Implied events (see episodeEvents) are never recorded: they'd score twice. Nor is one a season
+    // rule change retired, from its retirement on (formats/season-changes.js).
     const def = formatOf(state).events.find(e => e.id === type);
     if(!def || def.implied) return null;
+    if(Number.isInteger(def.retiredFrom) && ep.number >= def.retiredFrom) return null;
     if(!ep.scoringEvents) ep.scoringEvents = [];
     const ev = { id: Core.uid('sev'), type, castawayId };
     ep.scoringEvents.push(ev);

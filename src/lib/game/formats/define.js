@@ -75,13 +75,15 @@ function formatProblems(data) {
   for (const [i, e] of (Array.isArray(data.events) ? data.events : []).entries()) {
     const at = `events[${e && isText(e.id) ? e.id : i}]`;
     if (!e || typeof e !== 'object') { p.push(`${at}: not an object`); continue; }
-    p.push(...unknownKeys(e, ['id', 'label', 'defaultPoints', 'implied'], at));
+    p.push(...unknownKeys(e, ['id', 'label', 'defaultPoints', 'implied', 'retiredFrom'], at));
     if (!isText(e.id) || !/^[a-z][A-Za-z0-9]*$/.test(e.id)) p.push(`${at}: id must be a camelCase identifier`);
     else if (ids.has(e.id)) p.push(`${at}: id used twice`);
     ids.add(e.id);
     if (!isText(e.label)) p.push(`${at}: label missing`);
     if (!isPoints(e.defaultPoints)) p.push(`${at}: defaultPoints must be a number or { exclusive, shared }`);
     if ('implied' in e && typeof e.implied !== 'boolean') p.push(`${at}: implied must be true or false`);
+    // Set by a season rule change (season-changes.js): nothing awards it from this episode on.
+    if ('retiredFrom' in e && !(Number.isInteger(e.retiredFrom) && e.retiredFrom >= 1)) p.push(`${at}: retiredFrom must be an episode number from 1`);
   }
   const eventList = (v) => isTextList(v) && v.every((id) => ids.has(id));
 
@@ -194,7 +196,7 @@ function defineFormat(data, code) {
     episodeFields: (z, Answer) => buildShape(episodeFields, z, Answer, data.exitMethods),
     ...researchData,
     // Named researchItems / impliedEvents, like the hand-written functions they replaced.
-    items: researchItemsFrom(data.rules.research),
+    items: researchItemsFrom(data.rules.research, data),
   };
   const format = ordered(ORDER, data, {
     // A format with nothing implied has no impliedEvents at all, which is what state-logic checks for.
@@ -206,6 +208,9 @@ function defineFormat(data, code) {
   if (!format.roles) delete format.roles;
   if (!format.impliedEvents) delete format.impliedEvents;
   Object.defineProperty(format, 'data', { value: data, enumerable: false });
+  // The code half too, so a season's rule changes (season-changes.js) can rebuild this format from
+  // changed data without losing what only code supplies (a built-in's wiki read, reviewer notes).
+  Object.defineProperty(format, 'code', { value: code, enumerable: false });
   return format;
 }
 

@@ -7,6 +7,8 @@ export interface ScoringEventDef {
   defaultPoints: number;
   /** Follows from an exit, a role or an exile (impliedEvents), so it's never added or reviewed on its own. */
   implied?: boolean;
+  /** Retired by a season rule change: nothing awards it from this episode on. */
+  retiredFrom?: number;
 }
 
 export interface FormatRoles {
@@ -49,6 +51,8 @@ export interface ScoringRule {
   whenExiled?: true;
   whenRole?: string;
   per?: string;
+  /** Set on a rule a season rule change added: it applies from this episode on. */
+  fromEpisode?: number;
   [param: string]: unknown;
 }
 
@@ -60,7 +64,7 @@ export interface FormatData {
   terms: { castaway: string; tribe: string };
   winnerExitMethod: string;
   endgameExitMethods: string[];
-  events: { id: string; label: string; defaultPoints: number | { exclusive: number; shared: number }; implied?: boolean }[];
+  events: { id: string; label: string; defaultPoints: number | { exclusive: number; shared: number }; implied?: boolean; retiredFrom?: number }[];
   eventCategories: { id: string; label: string; events: string[] }[];
   recap: { label: string; events: string[]; tribeEvents?: string[] }[];
   hasMerge: boolean;
@@ -125,3 +129,32 @@ export function isBuiltInFormat(id: string | null | undefined): boolean;
 export function formatOptions(): { id: string; name: string }[];
 /** Why a format's data half isn't usable: [] when it is. */
 export function formatProblems(data: unknown): string[];
+
+/** A season rule change's additions (formats/season-changes.js, docs/PLAN-season-rule-changes.md). */
+export interface SeasonChangeDelta {
+  addCategories?: { id: string; label: string }[];
+  addEvents?: { id: string; label: string; defaultPoints: number | { exclusive: number; shared: number }; implied?: boolean; category: string }[];
+  addQuestions?: ChecklistField[];
+  addExitMethods?: { name: string; endgame?: boolean }[];
+  addRules?: { research?: ScoringRule[]; implied?: ScoringRule[] };
+  retireEvents?: string[];
+}
+/** One season rule change, as a league caches it (settings.seasonRuleChanges / adoptedRuleChanges). */
+export interface SeasonChange {
+  id: string;
+  version?: number;
+  effectiveEpisode: number;
+  delta: SeasonChangeDelta;
+}
+/** Something a change adds that the base already has (or that depends on it), left out and why. */
+export interface SeasonChangeSkip {
+  change: string;
+  what: string;
+  why: string;
+}
+/** `format` with `changes` layered on (the same format when there are none). */
+export function withChanges(format: GameFormat, changes: SeasonChange[] | null | undefined): GameFormat;
+/** A format's data half with `changes` merged in, and what was skipped. Throws on a malformed change. */
+export function applyChanges(data: FormatData, changes: SeasonChange[]): { data: FormatData; skipped: SeasonChangeSkip[] };
+/** Why a change isn't well-formed on its own: [] when it is. */
+export function changeProblems(change: unknown): string[];

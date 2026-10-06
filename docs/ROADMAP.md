@@ -31,7 +31,8 @@ local DB.
   source of truth.** Mid-season (or start-of-season) rule/mechanic changes stored as additive,
   episode-gated changes on a season (`season_rule_changes`), reviewed from a Rules row in SeasonCard
   that never blocks Episodes. Each running league's commissioner adopts a change and sets its points.
-  Episode research gains a `rulesNote` flag that prompts a re-check. Five phases; none started yet.
+  Episode research gains a `rulesNote` flag that prompts a re-check. Five phases; **phase 1 (pure
+  core) done 2026-10-06**, phase 2 (storage + season wiring) is next.
 - **Scoring rules as data, phases 3–5** — `PLAN-scoring-rules-as-data.md`. Phase 1 (the rule
   model/evaluator) and phase 2 (storage/API) are done; nothing below has shipped yet:
   - **Phase 3 — already satisfied, confirmed during phase 2's research.** The plan lists this as
