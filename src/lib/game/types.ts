@@ -217,6 +217,12 @@ export interface LeagueSettings {
    *  for a built-in format. Never set by a request: the settings route refuses it. */
   showFormatData?: FormatData | null;
   /**
+   * A league's own ruleset copy (db/league-rulesets.js), checked first by StateLogic.formatOf, ahead
+   * of showFormat/showFormatData above. Absent for every league using its show's format as-is -- the
+   * vast majority, read exactly as before. Never set by a request: only the ruleset routes write it.
+   */
+  leagueRulesetData?: FormatData | null;
+  /**
    * Guided-setup gate. `false` only on leagues created after guided setup shipped; absent on every
    * league that predates it, and anything other than an explicit `false` counts as complete -- see
    * SetupLogic in state-logic.js.
@@ -353,6 +359,29 @@ export interface StoredFormatSummary {
 }
 
 export type { Proposal, Review, ReviewNote };
+
+/** A commissioner's own copy of a show's rules (db/league-rulesets.js, migration 0052). */
+export interface LeagueRuleset {
+  id: string;
+  leagueId: string;
+  name: string;
+  data: FormatData;
+  version: number;
+  parentKind: "builtin" | "show_format" | "league_ruleset" | "none";
+  parentId: string | null;
+  parentVersion: number | null;
+  visibility: "private" | "shared";
+  reviewStatus: "unreviewed" | "approved";
+  lockedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A row of GET /api/leagues/:leagueId/ruleset/shared. */
+export interface SharedLeagueRuleset extends LeagueRuleset {
+  leagueName: string;
+}
 
 // Admin view of a show: everything, including archived ones and how many leagues reference it.
 export interface AdminShow {

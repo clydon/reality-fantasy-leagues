@@ -71,8 +71,12 @@ const SEED_CASTAWAYS = ['Aaliyah','Alexis','Ana','Brady','Carter','Cristian','De
 // a new one whose show isn't picked yet) gets the registry's default, which is Survivor's. A show on a
 // stored format (one an admin approved from a research proposal, db/show-formats.js) also caches the
 // format's data as settings.showFormatData; a built-in format ignores it.
+//
+// A league's own ruleset copy (settings.leagueRulesetData, db/league-rulesets.js) wins over all of
+// that when present -- a commissioner's fork, forever ahead of whatever the show's format does next.
 function formatOf(state){
   const s = state && state.settings ? state.settings : {};
+  if(s.leagueRulesetData) return Formats.formatForRuleset(s.leagueRulesetData);
   return Formats.formatFor(s.showFormat || null, s.showFormatData || null);
 }
 

@@ -118,6 +118,9 @@ export const DEFAULT_FORMAT: string;
 /** A built-in id is always the built-in; any other id resolves from `data` (a stored format's data half)
  *  when it's given for that id, and otherwise falls back to the default. */
 export function formatFor(id: string | null | undefined, data?: FormatData | null): GameFormat;
+/** A league's own ruleset copy (db/league-rulesets.js): always built from `data`, even when
+ *  `data.id` matches a built-in's id -- unlike formatFor, which would return the built-in instead. */
+export function formatForRuleset(data: FormatData): GameFormat;
 export function isBuiltInFormat(id: string | null | undefined): boolean;
 export function formatOptions(): { id: string; name: string }[];
 /** Why a format's data half isn't usable: [] when it is. */

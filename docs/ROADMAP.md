@@ -14,22 +14,29 @@ emoji as fallback. Verified by tsc/eslint/tests, a migration apply, and a rolled
 smoke test — not full browser click-through, since the local Playwright session was already locked
 by another Chrome instance this session.
 
+Scoring rules as data, phase 2 (storage/API for a commissioner's own per-league ruleset copy) is
+also done: `league_rulesets` (migration 0052), `db/league-rulesets.js`, `src/lib/server/league-rulesets.ts`,
+`formatForRuleset`, and `/api/leagues/[leagueId]/ruleset[/shared]` — see `docs/PLAN-scoring-rules-as-data.md`'s
+"Who owns what" section for the design and the commit for the scoped-down reconciliation with the
+already-shipped `show_formats` table (masters were deliberately NOT unified into a new table — see
+that commit's message for why). No UI yet, as scoped; phase 4 is what will expose it to a
+commissioner. Verified by tsc/eslint/tests (167/167), the format-regression harness (byte-identical
+before/after), and an end-to-end fork/edit/share/delete cycle against a disposable league in the
+local DB.
+
 ## Remaining work, not blocked
 
 - **Season-level delta research** — `PLAN-ai-generated-show-formats.md` phase 5. Re-research a show
   after a mid-season twist (e.g. Survivor 51's Exile Island) and fold the result into SeasonCard's
   existing review pipeline as one more step between cast approval and episode review: "check for rule
   changes." Output is a season-scoped delta on the show's base catalog, not a new format.
-- **Scoring rules as data, phases 2–5** — `PLAN-scoring-rules-as-data.md`. Phase 1 (the rule
-  model/evaluator) is done and proven byte-identical; nothing below has shipped yet:
-  - **Phase 2 — storage and API.** New `rulesets` table: masters seeded from code, leagues
-    reference/cache a ruleset, admin save pushes to leagues following that master, sharing is
-    backend-only (`visibility`, copy-from-shared, `parent_id` lineage) with tests. No new UI beyond
-    what exists.
-  - **Phase 3 — confirm before building.** The plan lists this as "format proposals produce rules in
-    this shape," but stage 3's shipped format-proposal flow already produces `rules: { research,
-    implied }` per `PLAN-stage-3-format-proposals.md`. Check whether this phase's substance is already
-    satisfied before writing anything for it.
+- **Scoring rules as data, phases 3–5** — `PLAN-scoring-rules-as-data.md`. Phase 1 (the rule
+  model/evaluator) and phase 2 (storage/API) are done; nothing below has shipped yet:
+  - **Phase 3 — already satisfied, confirmed during phase 2's research.** The plan lists this as
+    "format proposals produce rules in this shape." Stage 3's shipped format-proposal flow already
+    produces exactly `rules: { research, implied }` (via `show_formats`, not a `rulesets` row — the
+    plan's phase-3 text was written assuming phase 2's table would hold proposals too, before Stage 3
+    shipped against `show_formats` instead). Nothing left to build for phase 3 itself.
   - **Phase 4 — rule-list editor**, desktop-first. Admin edits masters with a version bump on save;
     commissioner gets "Customise this league's rules" (copy) and "Update from master" (merge newer
     version); rows read as sentences ("When *won individual immunity* is *yes* → award *Individual
@@ -53,10 +60,10 @@ by another Chrome instance this session.
 
 ## Model guidance (unchanged from `PLAN-rollout-order.md`)
 
-- Pattern-following UI/wiring work (show artwork, confetti extension, rule-list editor once the data
-  model is settled) → Sonnet.
-- Judgment-heavy design work, or anything where getting it wrong silently corrupts data (the
-  `rulesets` table's phase 2, season-level delta research's prompt/review design) → Opus.
+- Pattern-following UI/wiring work (confetti extension, rule-list editor once the data model is
+  settled) → Sonnet.
+- Judgment-heavy design work, or anything where getting it wrong silently corrupts data
+  (season-level delta research's prompt/review design) → Opus.
 - Haiku earns its keep only on the most repetitive, lowest-stakes edges of a stage — not as a default.
 
 ## Starting a new session on this

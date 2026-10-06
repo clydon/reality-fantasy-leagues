@@ -51,4 +51,18 @@ function formatOptions() {
   return Object.values(FORMATS).map((f) => ({ id: f.id, name: f.name }));
 }
 
-module.exports = { FORMATS, DEFAULT_FORMAT, formatFor, isBuiltInFormat, formatOptions, formatProblems };
+// A league's own ruleset copy (db/league-rulesets.js): its data always wins, even when data.id
+// matches a built-in's id -- a customised copy of Survivor's rules must never resolve back to the
+// hardcoded Survivor object, which is exactly what formatFor's isBuiltInFormat shortcut would do
+// (it checks `id` before ever looking at `data`). So this skips that shortcut entirely.
+const builtForRuleset = new WeakMap();
+function formatForRuleset(data) {
+  let format = builtForRuleset.get(data);
+  if (!format) {
+    format = buildDataFormat(data);
+    builtForRuleset.set(data, format);
+  }
+  return format;
+}
+
+module.exports = { FORMATS, DEFAULT_FORMAT, formatFor, formatForRuleset, isBuiltInFormat, formatOptions, formatProblems };
