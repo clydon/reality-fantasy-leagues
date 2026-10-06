@@ -42,18 +42,6 @@ self-serve "+ Add it" show research — browser-verified end to end against the 
 - **Confetti extended to new trigger points, optional Rive flourish** — the low-risk tail end of the
   old rollout plan's Stage 5, reusing already-proven patterns. No urgency.
 
-## Small cleanup items (found during Stage 4 verification, 2026-10-06)
-
-Not part of any plan doc — surfaced by browser-testing self-serve show research end to end:
-
-- The **Setup page's Show dropdown** (`/setup`) reads from a hardcoded 4-show list instead of the
-  live `/api/shows` catalog, so a self-serve show shows up mislabeled as "(not in catalog)" even
-  though it's genuinely in the catalog. Cosmetic, not a correctness bug — the league itself correctly
-  uses the new show's rules.
-- The **Create-League wizard's step-1 catalog doesn't refetch after creating a new show in the same
-  session** — going "← Back" right after approving shows the old 4-tile list until a full page
-  reload. Low-impact (most users won't go back-then-forward in one sitting) but worth a quick fix.
-
 ## Blocked
 
 - **Monetization gating** — `PLAN-new-user-onboarding-flow.md` phase 5 (multi-league ceiling,

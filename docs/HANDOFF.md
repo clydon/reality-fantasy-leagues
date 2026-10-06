@@ -17,8 +17,8 @@ their phone against production and reports back, often with screenshots or scree
 ## What's left — read `docs/ROADMAP.md` first
 
 `docs/ROADMAP.md` is the single next-session entry point for remaining work (season-level delta
-research, show artwork, the scoring-rules-as-data phases including the flowchart editor, and two
-small cleanup items found during Stage 4 verification). It supersedes piecing that together from
+research, show artwork, the scoring-rules-as-data phases including the flowchart editor). It
+supersedes piecing that together from
 `docs/PLAN-rollout-order.md` plus the plans it sequences — read it instead of this section once
 you're past "what shipped" and into "what's next." The plan docs themselves stay in place (several
 are cited by code comments as permanent design rationale, not just task tracking) but
@@ -34,8 +34,8 @@ local dev server on 2026-10-06: the tile opens the research flow, "Use for an ex
 confirmed absent from that path, approval creates the show and lands the wizard on step 2 with it
 selected, the finished league correctly points at the new show, the show is visible to other users
 immediately, and cross-user `GET`/`PATCH`/`DELETE` on another user's draft format all correctly
-403. Two minor UI issues surfaced during that pass and are tracked in `docs/ROADMAP.md`'s cleanup
-section rather than here.
+403. Two minor UI issues surfaced during that pass (stale "shows-catalog" cache after creating a
+show) were fixed the same session.
 
 - **Stage 0 (Foundation):** `motion` is installed. House convention is `src/components/motion.tsx`
   (exports `m`/`AnimatePresence`/`MotionProvider`) + `src/components/motion-features.ts` (a separate
