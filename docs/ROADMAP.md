@@ -33,10 +33,27 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
 - Show research ("+ Add it", stage 3/4): done.
 - Cast research (`PLAN-cast-import-prompt.md`): **done 2026-10-07**, "Import a cast" in League
   Settings, available to every commissioner.
-- **Episode research for commissioners: next, no plan yet.** The paste flow already exists for
-  admins (`PasteImportPanel` in `season-episodes.tsx`, applied per season). What's needed is a
-  commissioner-facing version for a league whose season no admin is researching. It has to be designed
-  alongside "compiled research" (below), so two leagues on the same season don't each research it.
+
+- **Episode research for commissioners, as a compiled-research cache** (`PLAN-episode-research-
+  compiled-cache.md`): **plan written 2026-10-08, not started.** Full design and rationale are in
+  that doc now — this entry only summarizes it, and the doc is the one to read before building. In
+  short: a read-only cache (`episode_research`/`season_decisions`, already-existing tables, with one
+  real fix — a re-research merges into the stored payload per castaway instead of replacing it
+  outright) that narrows or skips a commissioner's research prompt for an episode already covered by
+  another league's pass; a commissioner's own league applies accepted results directly via
+  `StateLogic.applyEliminationsImport`/`applyScoringEventsImport` (already additive/idempotent)
+  without waiting on an admin's separate season-wide accept. Confidence stays at today's granularity
+  (per castaway per episode, not per question). No confidence decay, cross-league feedback,
+  consensus-flipping, or required reason field — deliberately cut; see "Parked" below for the
+  dispute/inbox feature that's the better home for catching a wrong answer later. Note: this
+  grounding pass found and corrected an error from the 2026-10-07/08 design conversation — there is
+  no existing per-league `season_decisions.applied` override; that field is a single, admin-only
+  correction applied identically to every league. The plan's per-league apply path is genuinely new,
+  not a reuse, and is spelled out there.
+  - **Follow-on, not required day one:** cast import (already shipped) bypasses this entirely,
+    writing straight into the calling league's state with no shared record — so two leagues on the
+    same self-serve season's cast still duplicate that research. Worth retrofitting onto the same
+    model once it exists, but not a blocker for shipping episode research first.
 
 - **Format review gap-filling** (`PLAN-format-review-gap-filling.md`): a written plan, not started.
   Lets an admin add a missing question, event and rule on the format review screen with no raw JSON.
@@ -79,23 +96,42 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
   copy/paste), not mainly a league ceiling. So it needs the automated research path built first, plus a
   pricing decision, which is a product conversation, not a coding task.
 
-## To brainstorm later (design, not scheduled)
+## Parked (decided not to build yet, design kept)
 
-- **Compiled research.** Every bit of research on a show (rules, cast, episodes) plus commissioners'
-  manual decisions gets compiled into shared data sets that other leagues on the same show/season can
-  use, so the same season isn't researched again league by league. Open questions: who owns and
-  curates a compiled set, how conflicting answers from two leagues are reconciled, and how it relates to
-  today's admin season data (season cast and accepted episode decisions are already shared per season).
-- **Admin view of league-by-league research.** Admins can see the research each league has done
-  (pasted answers, decisions, imports), per league. Probably the same design session as compiled
-  research, since it's the raw material that would get compiled.
+- **Player dispute → commissioner/admin inbox.** Explicitly held back 2026-10-08: don't build yet.
+  The admin-routing half only makes sense once there's a shared compiled answer whose *source* can be
+  wrong, not just one league's own oversight — so this is a natural follow-on to the episode-research
+  compiled-cache item above, not something to design or build alongside it. Design notes to carry
+  forward when it's picked up:
+  - A dispute has two different repair targets, and the eventual design should keep them distinct:
+    the commissioner fixes their own league's accepted value (an overlook — only that league changes);
+    the admin fixes the shared compiled answer (a source error — every league that inherits it
+    benefits).
+  - Checked whether this could reuse `src/lib/game/action-items.js` (today's "what's waiting on you"
+    action bar, read by `/api/me/actions`). It doesn't fit: that's a pure function recomputed from
+    current state, single-player, single-league. A dispute needs to persist (it's an event that
+    happened), needs two different viewers with different scopes (one league's commissioner, the admin
+    across every league), and needs an open/resolved lifecycle — structurally closer to how
+    `wiki_proposals`/`season_decisions` already work (`status`, `resolved_by`, `resolved_at`) than to
+    the action bar. It's a third shape, not a reuse of either existing pattern.
+  - No new scoring-correction logic is needed. The commissioner already has full edit routes for every
+    fact type an episode holds (eliminations, scoring events, roles, group moves — see
+    `src/app/api/leagues/[leagueId]/episodes/[epId]/*`). This feature is purely a flag-and-route-to-an-
+    inbox layer on top of editing that already exists, not a new way to correct anything.
+  - Also considered and explicitly rejected for v1 of the *compiled-research* item above (not this
+    one): confidence decay on commissioner override, cross-league disagreement feeding back into the
+    shared store's confidence, and auto-flipping the stored answer on reviewer consensus. All cut as
+    too much machinery for what the dispute-inbox approach solves more simply and more honestly (a
+    real person with real stakes flags it, rather than an algorithm inferring trust from override
+    counts).
 
 ## Model guidance (unchanged from `PLAN-rollout-order.md`)
 
 - Pattern-following UI/wiring work (confetti extension, rule-list editor once the data model is
   settled) → Sonnet.
-- Judgment-heavy design work, or anything where getting it wrong silently corrupts data
-  (season-level delta research's prompt/review design) → Opus.
+- Judgment-heavy design work, or anything where getting it wrong silently corrupts data (the
+  episode-research compiled-cache's merge/confidence model, the eventual dispute-inbox split between
+  commissioner-local and admin-shared fixes) → Opus.
 - Haiku earns its keep only on the most repetitive, lowest-stakes edges of a stage — not as a default.
 
 ## Starting a new session on this
@@ -104,4 +140,6 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
    plan-doc history; scope the first prompt to one bullet above.
 2. For the scoring-rules phases, also point it at `PLAN-scoring-rules-as-data.md` for the full design
    (this doc only summarizes it).
-3. Set the model with `/model` per the guidance above before starting.
+3. The episode-research compiled-cache item has a plan (`PLAN-episode-research-compiled-cache.md`)
+   — read it, not just this doc's summary, before building against it.
+4. Set the model with `/model` per the guidance above before starting.
