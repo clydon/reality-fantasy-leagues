@@ -48,6 +48,11 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
   const markResultsSeen = useLeagueStore((s) => s.markResultsSeen);
 
   const activeCast = state.castaways.filter((c) => c.status === "active");
+  // Spoiler protection, for an episode AFTER one whose results are hidden: its lineups and picks were
+  // set knowing who went home, so a starter missing from them would give the boot away.
+  const hiddenBefore = ep.resultsHidden
+    ? []
+    : state.episodes.filter((e) => e.resultsHidden && e.number < ep.number).map((e) => e.number);
 
   async function updateField(field: "number" | "postMerge", value: number | boolean) {
     await mutate(
@@ -205,7 +210,17 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
           </Button>
         </div>
       )}
-      {open && !ep.resultsHidden && (
+      {open && hiddenBefore.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-border p-4 text-sm">
+          <span className="flex-1 text-muted-foreground">
+            Reveal episode {Math.min(...hiddenBefore)}&apos;s results first.
+          </span>
+          <Button size="sm" onClick={() => markResultsSeen(Math.max(...hiddenBefore))}>
+            Reveal results
+          </Button>
+        </div>
+      )}
+      {open && !ep.resultsHidden && hiddenBefore.length === 0 && (
         <div className="border-t border-border p-4">
           {/* The commissioner's controls row, and the divider that separates it from the results --
               neither exists for a member, who'd otherwise get an empty row and a stray line. */}

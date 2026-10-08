@@ -28,7 +28,12 @@ import { isKnockedOut } from "@/lib/game/selectors";
 export function StartersBoard({ state }: { state: LeagueState }) {
   const myPlayerId = useMyPlayerId();
   const scored = (ep: Episode) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).length > 0;
+  // Spoiler protection (SpoilerLogic.viewThrough): with results this viewer hasn't revealed, stay on
+  // the first such episode -- moving on to the next one would give the boot away, its lineups already
+  // missing whoever went home.
+  const firstHidden = [...state.episodes].filter((ep) => ep.resultsHidden).sort((a, b) => a.number - b.number)[0];
   const shown =
+    firstHidden ??
     StateLogic.currentEpisode(state) ??
     [...state.episodes].filter((ep) => StateLogic.inPlay(state, ep.number) && scored(ep)).sort((a, b) => b.number - a.number)[0] ??
     null;

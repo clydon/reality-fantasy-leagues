@@ -38,7 +38,28 @@ export function PickEmPickGrid({ state }: { state: LeagueState }) {
   const mutate = useMutate();
 
   if (!myPlayerId) return null;
-  if (hiddenResults.length > 0) return <RevealFirst what="make your next pick" />;
+  if (hiddenResults.length > 0) {
+    // Still show the picks for the first unrevealed episode -- locked before it aired, so nothing in
+    // them gives a result away, and otherwise you'd have no idea who you went with.
+    const lockedEp = hiddenResults[0];
+    return (
+      <>
+        <RevealFirst what="make your next pick" />
+        <div className="mb-5 rounded-lg border border-border bg-card p-4 shadow-sm">
+          <h3 className="mb-3 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+            Picks for episode {lockedEp.number}
+          </h3>
+          <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
+            {state.players
+              .filter((p) => p.active !== false)
+              .map((p) => (
+                <PickStatusRow key={p.id} state={state} player={p} isMe={p.id === myPlayerId} ep={lockedEp} open={false} />
+              ))}
+          </div>
+        </div>
+      </>
+    );
+  }
   const ep = StateLogic.pickEmUpcomingEpisode(state);
   const history = StateLogic.pickEmHistory(state, myPlayerId);
   const aired = !!ep && !!ep.airsAt && Date.now() >= Date.parse(ep.airsAt);
