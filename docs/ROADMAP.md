@@ -6,7 +6,7 @@ shipped (that's `HANDOFF.md`) or restate full design detail for finished phases 
 `PLAN-*.md`, left in place — many are cited by code comments as permanent design rationale, not
 just task tracking, so they're not going away even once fully implemented).
 
-**Status as of 2026-10-06:** everything through Stage 4 of `PLAN-rollout-order.md` is done, including
+**Status as of 2026-10-07** (see "Direction" below; earlier status from 2026-10-06 follows): everything through Stage 4 of `PLAN-rollout-order.md` is done, including
 self-serve "+ Add it" show research — browser-verified end to end against the local dev server.
 Show artwork (`PLAN-new-user-onboarding-flow.md` phase 4) is also done: `shows.art_url` (migration
 0051), an Admin Settings field, and the Create-League wizard tile rendering it with the existing
@@ -25,6 +25,23 @@ before/after), and an end-to-end fork/edit/share/delete cycle against a disposab
 local DB.
 
 ## Remaining work, not blocked
+
+**Direction (decided 2026-10-07): until automated AI research exists, every research step is
+copy/paste.** The app builds a prompt, the user runs it in any web-searching chat themselves, and
+pastes the answer back. That paid automation, not league counts, is what monetization will gate
+(see Blocked). Copy/paste flows so far:
+- Show research ("+ Add it", stage 3/4): done.
+- Cast research (`PLAN-cast-import-prompt.md`): **done 2026-10-07**, "Import a cast" in League
+  Settings, available to every commissioner.
+- **Episode research for commissioners: next, no plan yet.** The paste flow already exists for
+  admins (`PasteImportPanel` in `season-episodes.tsx`, applied per season). What's needed is a
+  commissioner-facing version for a league whose season no admin is researching. It has to be designed
+  alongside "compiled research" (below), so two leagues on the same season don't each research it.
+
+- **Format review gap-filling** (`PLAN-format-review-gap-filling.md`): a written plan, not started.
+  Lets an admin add a missing question, event and rule on the format review screen with no raw JSON.
+  UI only, no storage or route changes. Small; it pairs naturally with scoring-rules phase 4 below,
+  since both are rule editing, and doing it first gives phase 4 the add-question/add-rule plumbing.
 
 - **Season rule changes** (was "season-level delta research", `PLAN-ai-generated-show-formats.md`
   phase 5) — **done 2026-10-06, all five phases; `docs/PLAN-season-rule-changes.md` has the design and
@@ -57,9 +74,21 @@ local DB.
 
 ## Blocked
 
-- **Monetization gating** — `PLAN-new-user-onboarding-flow.md` phase 5 (multi-league ceiling,
-  AI-credit upsell on "+ Add it"). Waiting on a pricing decision — a product conversation, not a
-  coding task — so it's last regardless of engineering readiness.
+- **Monetization gating** — `PLAN-new-user-onboarding-flow.md` phase 5. Reframed 2026-10-07: what
+  gets gated is **automated AI research** (show, cast and episode research run by the app instead of
+  copy/paste), not mainly a league ceiling. So it needs the automated research path built first, plus a
+  pricing decision, which is a product conversation, not a coding task.
+
+## To brainstorm later (design, not scheduled)
+
+- **Compiled research.** Every bit of research on a show (rules, cast, episodes) plus commissioners'
+  manual decisions gets compiled into shared data sets that other leagues on the same show/season can
+  use, so the same season isn't researched again league by league. Open questions: who owns and
+  curates a compiled set, how conflicting answers from two leagues are reconciled, and how it relates to
+  today's admin season data (season cast and accepted episode decisions are already shared per season).
+- **Admin view of league-by-league research.** Admins can see the research each league has done
+  (pasted answers, decisions, imports), per league. Probably the same design session as compiled
+  research, since it's the raw material that would get compiled.
 
 ## Model guidance (unchanged from `PLAN-rollout-order.md`)
 
