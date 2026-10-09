@@ -24,6 +24,18 @@ commissioner. Verified by tsc/eslint/tests (167/167), the format-regression harn
 before/after), and an end-to-end fork/edit/share/delete cycle against a disposable league in the
 local DB.
 
+**Shipped 2026-10-08, Active Roster results and lineup UX** (commits `7f622ec`, `60f01f9`):
+Overview's Latest Episode lists every team's points for the week, each opening to how they earned
+them; a new League Scoring Overview section (collapsed, first by default) sets out what everything is
+worth; each Scoreboard card has Episode N rows (earlier ones behind "Show all episodes…") above the
+renamed Roster section, replacing the emoji episode summary; and the Episode N Starters board gained
+Set/Edit lineup → Done, using the same editor as the lineup card. Small follow-ups, none urgent:
+- The separate "Your lineup" card (`lineupGrid`) is now redundant with the Starters board's edit mode.
+  It's being hidden through Customize Overview for now; once that's settled, drop it from
+  `DEFAULT_OVERVIEW_ORDER` or delete it (`LineupEditor` in the same file is shared and must stay).
+- `episodeTeamBullets` (`src/lib/game/episode-team-summary.ts`) no longer renders anywhere, only its
+  tests use it. Delete it, or find it a new home.
+
 ## Remaining work, not blocked
 
 **Direction (decided 2026-10-07): until automated AI research exists, every research step is
@@ -35,7 +47,10 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
   Settings, available to every commissioner.
 
 - **Episode research for commissioners, as a compiled-research cache** (`PLAN-episode-research-
-  compiled-cache.md`): **plan written 2026-10-08, not started.** Full design and rationale are in
+  compiled-cache.md`): **built and smoke-tested 2026-10-08 (pieces 1-6)**. See that doc's
+  "Implementation notes" for what differs from the plan, and the smoke test's results and fixes.
+  Known gap: an admin can't review a self-serve season's staged results from the UI (its Episodes step
+  waits on a season cast it will never have). Full design and rationale are in
   that doc now — this entry only summarizes it, and the doc is the one to read before building. In
   short: a read-only cache (`episode_research`/`season_decisions`, already-existing tables, with one
   real fix — a re-research merges into the stored payload per castaway instead of replacing it

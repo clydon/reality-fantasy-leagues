@@ -155,3 +155,97 @@ same cast, the same episode, the same questions, answered twice.
   to the league's own castaways, so an empty roster means an empty checklist. Not a blocker for this
   plan (the commissioner just needs to add the cast first, same as today), but worth noting since it's
   the same underlying gap `docs/ROADMAP.md` already flags for cast import.
+
+## Implementation notes (2026-10-08)
+
+Built in the plan's order. Where it differs from the text above, and why:
+
+- **The merge is opt-in (`storeResearch`'s `opts.merge`), set only by the per-league path.** Applied to
+  every re-research, "keep the more confident entry" would change the admin path: a full re-research
+  that lowers someone's confidence would no longer replace them, and someone a newer read shows was
+  already out would linger in the payload and keep their staged decisions. The admin, CLI and
+  auto-research paths replace exactly as before. Proof: `tests/harness/research-store-regression.js`
+  (before/after diff of every write on fixed admin scenarios -- byte-identical against the pre-change
+  file, and mutation-checked: forcing the merge on the admin path makes it differ).
+- **Staging runs over the MERGED payload, not the partial run.** `stageDecisions` withdraws any pending
+  research decision for the episode that its run no longer reports, so staging a narrowed run alone
+  would withdraw every other league's pending rows. Covered (and mutation-checked) in
+  `tests/episode-research-cache.test.js`.
+- **The league path is JSON-paste only.** A prose paste costs a structuring call on the site's
+  Anthropic key; that stays an admin choice. JSON is parsed free.
+- **A partial run only answers for who it asked.** Anything else the chat volunteers is dropped
+  before the merge, so it can't replace a stored answer nobody asked to replace.
+- **Two requests, not one.** Paste (`POST .../research`) writes only the shared cache; apply
+  (`POST .../research/apply`) is the one league write, in one `withLeagueLock`. Piece 4's review sits
+  between them, so they can't be one request. Apply takes staged row ids plus corrections; the kind
+  and episode always come from `season_decisions`, and corrections are held to the league's format.
+- **Apply covers every staged kind** (elimination, event, exiled, role, group), not just the two import
+  functions: exile/roles/tribe moves have none, so they use the same per-person idempotency
+  `syncLeagueDecisions` does.
+- **Catching-up leagues can't research or apply past their reveal pointer** -- results there arrive on
+  reveal, the same gate the season sync uses.
+- **Double-scoring is tested directly** (`tests/episode-research-apply.test.js`) against the real
+  `syncLeagueDecisions`, both orders: commissioner first then admin accept (the sync records the
+  results as `preexisting`, adds nothing, and a later admin reject leaves them), and admin first then
+  commissioner (a no-op). One consequence worth knowing: if the admin accepts first and LATER rejects,
+  the sync undoes that result in every league, including one whose commissioner "applied" it after --
+  their apply was a no-op, so there's nothing of theirs to keep.
+- **Lazy `show_seasons` rows**, checked against Admin > Shows & Seasons: a lazily-created row is just a
+  season with a number and column defaults (status `completed`, no wiki, no schedule, auto-research
+  off) -- the same as an admin adding one with only a number, and every listing/sync/air-time reader
+  tolerates that. One real knock-on, fixed: League Info swapped its free-text Season box for a
+  dropdown as soon as a show had ANY catalogued season, so a second league on another season number
+  would have lost its value. The dropdown now keeps an off-catalog pick and offers "Another season…".
+  **Not covered by "no new UI needed":** the season lists and opens fine in Admin, but its Episodes
+  step reads "Approve the cast first", and a self-serve season never has a season cast (each league
+  keeps its own). So an admin can't review or accept its staged decisions from the UI -- only through
+  the API the review buttons call. Left as is: commissioners apply per league, and the admin view of
+  league-by-league research is the parked follow-on in `docs/ROADMAP.md`.
+
+### Smoke test (2026-10-08), against the local dev server
+
+Two throwaway commissioners, each with a league on a throwaway self-serve show (an approved copy of the
+stored Love Island (UK) format, created by commissioner A) at season 11, which had no `show_seasons`
+row. League A typed the cast as the wiki spells it ("Jess White"), league B shorter ("Jess"). The
+pasted answers were real: Love Island UK series 11 episode 1 (3 June 2024), sourced from Wikipedia and
+recaps. Driven through the real panel in a headless browser (phone width), with the database checked
+after each step; fixtures torn down afterwards, with no orphans left.
+
+1. A opened episode 1: "Not researched yet", prompt for all 13. A pasted a partial answer (11 of 13,
+   two of them low confidence). The season row was created, with column defaults; 22 decisions were
+   staged; neither league changed.
+2. B opened the same episode: "9 of 13 answered, 2 missing, 2 low-confidence", the prompt narrowed to
+   those 4 in B's own spellings, and the staged rows resolved to B's names. B pasted its answer for the
+   4: A's 9 entries were kept untouched, the 2 low ones were upgraded, the 2 missing were added, and
+   nothing pending was withdrawn (25 staged).
+3. Each applied independently, correcting differently: A applied the 11 "coupled up" rows and left
+   out the format's wrong "entered as bombshell" rows; B kept only Joey's bombshell row. Each apply
+   changed only its own league; every decision stayed `pending`.
+4. A reopened, opted into B's two new rows (B's "Patsy" resolved to A's "Patsy Field"), and applied
+   them. Both leagues then held the same 13 results, reached by different routes.
+5. Admin's season-wide path through its own endpoints: reject the 12 wrong rows, accept the 13 others,
+   sync. Each league's ledger filed all 13 as `preexisting`, and nothing was added. A second
+   accept+sync did nothing. A later admin reject of Joey's row "undid" it in the ledger, but both
+   leagues kept it, because it was preexisting.
+
+What it found, all fixed:
+
+- **A paste that left anyone out was refused outright** ("don't cover the cast, so nothing was saved"),
+  so a real partial paste could never happen on the league path. On the merge path, someone left out
+  loses nothing (they keep what's stored, or stay "missing" for the next pass), so there it's now a
+  note ("no answers for 2 islanders, still to research: …"). It's still refused when NOBODY asked about
+  was answered, which usually means wrong names. The admin path is unchanged: its store replaces, so a
+  gap there would erase people.
+- **The filter for who was asked matched more loosely than the validation reported.** "Jess" for
+  "Jess White" was reported as "dropped" but merged anyway. Both now match the name as asked, in any
+  case (the prompt says to keep every name exactly as written).
+- **The league prompt ended by pointing at the admin box** ("Paste research notes" with "Structured
+  (JSON)" ticked). It now names the commissioner's "Research this episode" box.
+- **Rows a commissioner left out came back ticked** after applying, under an "Apply N" button, so
+  reopening the panel later (say, to pick up another league's new rows) invited re-applying what
+  they'd turned down. Nothing records a league's "no", and the shared rows aren't theirs to reject.
+  So once any of the episode's research is in the league, rows start unticked, with a line saying why.
+
+Not fixed, noted: the stored Love Island format's `enteredVilla` rule awards "Entered as bombshell" to
+every original islander too (a format-data problem, not this feature's; reviewing caught it). The admin
+sync's response counts preexisting results as "applied" (its ledger rows), which is existing behaviour.
