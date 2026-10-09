@@ -17,6 +17,7 @@ import { SeasonResultsCard } from "./season-results-card";
 import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
 import { ActiveRosterLineupGrid } from "./active-roster-lineup-grid";
+import { LeagueScoringCard } from "./league-scoring-card";
 import { OverviewCustomizePanel } from "./overview-customize-panel";
 import { useOverviewLayout } from "@/lib/use-overview-layout";
 import { isOverviewSectionEligible, toOverviewLeagueTypeId, type OverviewSectionId } from "@/lib/overview-layout";
@@ -24,6 +25,8 @@ import type { LeagueState } from "@/lib/game/types";
 
 function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
   switch (id) {
+    case "leagueScoring":
+      return <LeagueScoringCard state={state} />;
     case "notifications":
       return <NotificationsBanner />;
     case "sideBets":
@@ -61,10 +64,11 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
 
 // Standings and Latest Episode are both small, so when they're next to each other in the order they
 // share a row, half each -- unless the latest episode has more than one person out, whose cards then
-// need the full width.
+// need the full width. Active Roster's Latest Episode lists every team's week, so it always does.
 function groupSections(sections: OverviewSectionId[], state: LeagueState): OverviewSectionId[][] {
+  const lt = StateLogic.getLeagueType(state);
   const latest = [...state.episodes].filter((ep) => ep.events.length > 0).sort((a, b) => b.number - a.number)[0];
-  const latestFitsHalf = !latest || latest.events.length <= 1;
+  const latestFitsHalf = !(lt.hasActiveRoster && !lt.hasWeeklyPicks) && (!latest || latest.events.length <= 1);
   const pair = new Set<OverviewSectionId>(["standings", "latestEpisode"]);
   const groups: OverviewSectionId[][] = [];
   for (let i = 0; i < sections.length; i++) {

@@ -7,6 +7,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 // (no point offering "Weekly Pick" to a Classic Draft league), while hidden is the admin's own choice
 // among whatever's eligible.
 export type OverviewSectionId =
+  | "leagueScoring"
   | "notifications"
   | "sideBets"
   | "pickGrid"
@@ -20,6 +21,7 @@ export type OverviewSectionId =
   | "board";
 
 export const OVERVIEW_SECTION_LABELS: Record<OverviewSectionId, string> = {
+  leagueScoring: "League Scoring (Active Roster)",
   notifications: "Notifications",
   sideBets: "Predictions",
   pickGrid: "Weekly Pick (Eliminator Pool)",
@@ -50,6 +52,7 @@ export function toOverviewLeagueTypeId(id: string): OverviewLeagueTypeId {
 }
 
 export const DEFAULT_OVERVIEW_ORDER: OverviewSectionId[] = [
+  "leagueScoring",
   "notifications",
   "sideBets",
   "pickGrid",
@@ -88,6 +91,8 @@ export function isOverviewSectionEligible(id: OverviewSectionId, state: LeagueSt
       return leagueType.hasWeeklyPicks;
     case "lineupGrid":
       return leagueType.hasActiveRoster;
+    case "leagueScoring":
+      return leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks;
     // The commissioner writes these from the Active Roster Scoreboard.
     case "yourLine":
       return leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks;

@@ -9,14 +9,17 @@ import { cn } from "cn";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore } from "@/lib/store";
-import { episodeTeamBullets, latestScoredEpisode, weekInRace } from "@/lib/game/episode-team-summary";
+import { latestScoredEpisode, weekInRace } from "@/lib/game/episode-team-summary";
+import { scoredEpisodes, teamEpisodeBreakdown } from "@/lib/game/team-episode-breakdown";
+import { TeamEpisodeBreakdown, fmt } from "./team-episode-breakdown";
 import { useTeamSummary } from "./use-team-summary";
 import { isKnockedOut } from "@/lib/game/selectors";
 
 // Active Roster's leaderboard row. Separate from LeaderboardRow because that one's breakdown is
 // "Boot Order" plus a roster list with elimination placements -- which is exactly what this league
-// type does NOT score on. Here the breakdown is one compact list: each castaway and what they earned
-// this player while fielded (benched points score nothing), then predictions.
+// type does NOT score on. Under the total: the latest episode's points (earlier ones a tap away), each
+// opening to how the team earned them; then the Roster -- each castaway and what they earned this
+// player while fielded (benched points score nothing), then predictions.
 export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; state: LeagueState }) {
   const bonusEnabled = state.settings.bonusEnabled;
   const bets = bonusEnabled ? playerBetRows(state, r.playerId) : [];
@@ -45,10 +48,10 @@ export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; ra
         </div>
       </div>
 
-      <EpisodeSummary state={state} playerId={r.playerId} />
+      <EpisodeRows state={state} playerId={r.playerId} />
 
       <details className="border-t border-border px-3.5 py-2">
-        <summary className="cursor-pointer text-xs text-muted-foreground">Breakdown</summary>
+        <summary className="cursor-pointer text-xs text-muted-foreground">Roster</summary>
         <RosterBreakdown state={state} playerId={r.playerId} />
         {bets.length > 0 && (
           <div className="mt-2.5 border-t border-border pt-2">
@@ -94,36 +97,43 @@ function WeekTrend({ race, ep }: { race: ReturnType<typeof weekInRace>; ep: numb
   );
 }
 
-// The latest scored episode for this team, in a few bullets compared against the league (never a
-// named team), plus the "why it mattered" line the commissioner wrote for it, if any. The bullets are
-// computed right here from state -- no fetch -- so they show even in demo mode; only the saved lines
-// need the server (written from the Scoreboard's commissioner button, EpisodeLinesModal).
-function EpisodeSummary({ state, playerId }: { state: LeagueState; playerId: string }) {
-  const ep = latestScoredEpisode(state);
+// This team's points episode by episode: the latest one, with the rest behind "Show all episodes...",
+// newest first. Each opens to how the team earned them (TeamEpisodeBreakdown). The latest one also
+// carries the "why it mattered" line the commissioner wrote for it, if any -- only that needs the
+// server (written from the Scoreboard's commissioner button, EpisodeLinesModal).
+function EpisodeRows({ state, playerId }: { state: LeagueState; playerId: string }) {
+  const [showAll, setShowAll] = useState(false);
+  const eps = scoredEpisodes(state);
   const leagueId = useLeagueStore((s) => (s.mode === "live" ? s.leagueId : null));
-  const { data } = useTeamSummary(leagueId, ep?.id ?? null);
-  if (!ep) return null;
-  const bullets = episodeTeamBullets(state, ep.id, playerId);
-  const why = data?.notes[playerId];
-  if (bullets.length === 0 && !why) return null;
+  const { data } = useTeamSummary(leagueId, eps[0]?.id ?? null);
+  if (eps.length === 0) return null;
+  const [latest, ...older] = eps;
 
   return (
-    <div className="border-t border-border px-3.5 py-2 text-xs text-muted-foreground">
-      <div className="mb-0.5 text-[0.65rem] font-bold uppercase tracking-wide">Episode {ep.number}</div>
-      <ul className="flex flex-col gap-0.5">
-        {bullets.map((b) => (
-          <li key={b.kind} className="flex items-baseline gap-1.5">
-            <span className="w-4 shrink-0 text-center" aria-hidden>
-              {b.icon}
-            </span>
-            {/* No points figure beside a line: "Good call benching Ana" next to a red -6 read as six
-                points this team lost, when it's six it didn't. */}
-            <span className={cn("min-w-0 flex-1", b.kind === "perfect" && "font-semibold text-foreground")}>{b.text}</span>
-          </li>
-        ))}
-      </ul>
-      {why && <p className="mt-1 italic text-foreground">&ldquo;{why}&rdquo;</p>}
+    <div className="border-t border-border px-3.5 py-2">
+      <EpisodeRow state={state} ep={latest} playerId={playerId} note={data?.notes[playerId]} />
+      {older.length > 0 && (
+        <>
+          {showAll && older.map((ep) => <EpisodeRow key={ep.id} state={state} ep={ep} playerId={playerId} />)}
+          <button className="mt-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? "Show latest only" : "Show all episodes…"}
+          </button>
+        </>
+      )}
     </div>
+  );
+}
+
+function EpisodeRow({ state, ep, playerId, note }: { state: LeagueState; ep: { id: string; number: number }; playerId: string; note?: string }) {
+  const { total } = teamEpisodeBreakdown(state, ep.id, playerId);
+  return (
+    <details className="py-0.5">
+      <summary className="cursor-pointer text-xs text-muted-foreground">
+        Episode {ep.number}
+        <span className={cn("float-right font-mono font-bold", total < 0 ? "text-destructive" : "text-foreground")}>{fmt(total)}</span>
+      </summary>
+      <TeamEpisodeBreakdown state={state} epId={ep.id} playerId={playerId} note={note} />
+    </details>
   );
 }
 
@@ -284,12 +294,12 @@ function EpisodeBar({ e, maxAbs }: { e: { n: number; out: boolean; fielded: bool
   );
 }
 
-// Once per Scoreboard, above the list (not repeated in every card): how to read a Breakdown.
+// Once per Scoreboard, above the list (not repeated in every card): how to read a Roster.
 export function ScoreboardLegend() {
   const terms = useShowTerms();
   return (
     <details className="mb-3 rounded-lg border border-border bg-card px-3.5 py-2 text-xs text-muted-foreground shadow-sm">
-      <summary className="cursor-pointer">How to read the breakdown</summary>
+      <summary className="cursor-pointer">How to read the roster</summary>
       <p className="mt-2">
         Each number is what that {terms.castaway} earned <b className="text-foreground">that player</b> — points only count in
         episodes they started. Tap a {terms.castaway} for the episode-by-episode events.
@@ -331,9 +341,4 @@ export function ScoreboardLegend() {
       </div>
     </details>
   );
-}
-
-// "+2", "-0.5", "0".
-function fmt(n: number) {
-  return n > 0 ? `+${n}` : String(n);
 }
