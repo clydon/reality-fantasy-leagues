@@ -62,7 +62,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
 1. ~~`/impeccable document`~~ **Done 2026-10-09:** `DESIGN.md` (repo root) documents direction A
    as built in dark mode, with `.impeccable/design.json` alongside. Update both after the light-mode
    pass.
-2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, then Draft, then
+2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~, then
    League Settings (as a list of pages), then the rest; admin last.
    - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
      episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
@@ -77,6 +77,37 @@ explained to a commissioner") rather than re-deriving it from source each time.
      the research panel's insides, and the catch-up panel. Hidden/blocked/upcoming row states were
      built but the local test leagues have no such episodes, so only scored and "waiting" rows were
      seen in a browser.
+   - **Draft done 2026-10-09** (plan 2d; canvas page "A · Draft, scouting & mid-season"). One
+     layout per phase in `draft/draft-board.tsx`; the turn-based phases are in `snake-draft.tsx`:
+     before (order with 44px ↑↓, Start, the cast collapsed), live ("On the clock" plate, snake order
+     strip, your roster as photos plus numbered empty slots, tribe filter, 4-up tiles, and
+     **select-then-confirm** in a sticky bar above the tab bar; a commissioner picking for someone
+     else sees "Draft for Sam"), complete ("Draft complete" plate, Overview/Episodes buttons, teams
+     as photo grids). The order panel and Undraft are gone after the start; Undraft lives behind
+     ⋯ → Edit picks (commissioner, turn-based only). Blind draft (`blind-draft-panel.tsx`): lock
+     strip, tiles, "N of 13 picked" bar with Lock in; the reveal shows your team with how many teams
+     share each pick, "Most picked", then the other teams. New board page `/draft/board`
+     (`draft-grid.tsx`): rounds × players, upcoming picks as numbered slots. Shared pieces (tile,
+     confirm bar, tribe filter, pills) are in `draft/draft-ui.tsx`; `--tabbar-h` in `globals.css`
+     is what the sticky bar sits on. The four old panels are deleted. More's "Draft Results" is
+     now "Draft".
+   - Mid-season restyled with the same pieces: Replenish (plate says whose turn and who they're
+     replacing, order pills, 3-up free agents, confirm bar), Swap (1 · Drop photos, 2 · Add tiles,
+     bar confirms both; Skip and End swap round below, End asks first), history as hairline rows.
+     Finale predictions only got the new section heading.
+   - **Decisions for the user** (surfaced by the canvas, not built): the canvas shows Pickups and
+     Swap as the *player's* turn, but the server routes are commissioner-only, so only the
+     commissioner gets the pickers; making them player-run is a permissions change. The canvas also
+     says "Pickups" where the app and League Settings say "Replenish"; the name is unchanged.
+   - Known limits: the app doesn't record which round each pick was made in, so the board fills
+     each player's column in cast order (right per round by count, not by which pick) and the
+     on-the-clock plate can't say "Josie just took Maggie". No drag handle or Randomise on the
+     order (only ↑↓; there's no bulk-reorder API), and scheduling stays in League Settings. The
+     canvas's Scouting board (Research tab) wasn't in scope.
+   - Verified at 390×844 dark with headless scripts (every phase, both draft kinds, Replenish and
+     Swap, sheet and Edit picks), plus 1280 dark and 390 light for the live draft. Test leagues
+     `UX D Pre`, `UX D Live`, `UX D Blind` (now revealed) and `UX D Done` (Replenish/Swap on, Swap
+     round left open) are in the local DB; see `docs/ux-baseline/README.md`.
 3. Light mode pass.
 4. Then merge and push.
 

@@ -331,6 +331,12 @@ The caption plate as the app's to-do list (`action-bar.tsx`). Chyron tag names t
 ### Bottom Sheet
 Row actions in a sheet from the bottom (`bottom-sheet.tsx`), replacing rows of buttons. Night panel, 14px top corners, a grab handle, a condensed caps title with an optional detail beside it, actions as 52px rows split by hairlines, destructive actions last in red text, and a full-width Cancel at the bottom. Slides up over 200ms; respects the safe-area inset. On wide screens it's capped at 480px and centred.
 
+### Cast Tile and Confirm Bar (pickers)
+Every picker (draft, blind draft, replenish, swap) works the same way, in `src/components/draft/draft-ui.tsx`: tap a tile to select it, then confirm in a bar. Nothing happens on a single tap.
+- **Cast tile:** a white plate with the photo on top (fixed height on phones, square from `sm` up), the first name in 15px condensed caps, and the tribe as a small colour square plus name. Selected to add: 3px chyron outline with a chyron tick badge. Selected to drop: the same in live red with a cross. Unavailable: muted fill, greyed photo. Four across on a phone (three for the roomier mid-season grids).
+- **Confirm bar:** sticky at the bottom of its picker, sitting on `--tabbar-h` so it clears the mobile tab bar; full bleed on phones, a bordered bar on desktop. A small muted line (the pick, who it's for), the selection's name in 22px condensed caps, and one chyron button that names the action ("Draft Jelly", "Give to Sam", "Lock in", "Swap"), disabled until there's something to confirm.
+- **Turn pills:** the order strip. Your turns are bone-white like the You badge; the current turn has a 3px chyron underline; finished turns are struck through.
+
 ### Section (Overview)
 `DashCard` and the shared `section-shell` / `section-title`: in dark mode no box at all, just a 24px condensed caps heading in Bone Text over the content, with an optional aside on the heading line. Sections read like a broadcast rundown.
 

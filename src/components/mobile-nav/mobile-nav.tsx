@@ -184,7 +184,7 @@ export function MobileNav() {
       : draftComplete
         ? { ...midSeasonSlot!, urgent: midBadge?.urgent ?? null }
         : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
-  const demoted = !hasRoster ? null : draftComplete ? { href: "/draft", label: "Draft Results", icon: DraftIcon } : midSeasonSlot;
+  const demoted = !hasRoster ? null : draftComplete ? { href: "/draft", label: "Draft", icon: DraftIcon } : midSeasonSlot;
 
   const leagueTabs: { href: string; label: string; icon: typeof OverviewIcon; urgent?: boolean | null }[] = [
     { href: "/", label: "Overview", icon: OverviewIcon },
@@ -215,11 +215,12 @@ export function MobileNav() {
     "/account": "Account",
     "/dashboard": "My Leagues",
   };
-  // A page under another one (only an episode's own page so far) names itself and gets a back button
-  // to its parent in place of the logo.
+  // A page under another one (an episode's own page, the draft board) names itself and gets a back
+  // button to its parent in place of the logo.
   const episodeMatch = /^\/episodes\/(\d+)$/.exec(pathname);
-  const parentHref = episodeMatch ? "/episodes" : null;
-  const pageTitle = PAGE_TITLES[pathname] ?? (episodeMatch ? `Episode ${episodeMatch[1]}` : null);
+  const boardPage = pathname === "/draft/board";
+  const parentHref = episodeMatch ? "/episodes" : boardPage ? "/draft" : null;
+  const pageTitle = PAGE_TITLES[pathname] ?? (episodeMatch ? `Episode ${episodeMatch[1]}` : boardPage ? "Draft board" : null);
 
   function go(href: string) {
     // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same

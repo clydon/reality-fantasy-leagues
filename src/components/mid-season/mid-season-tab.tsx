@@ -6,6 +6,7 @@ import { ReplenishPanel } from "./replenish-panel";
 import { TradePanel } from "./trade-panel";
 import { FinalePanel } from "./finale-panel";
 import { useShowTerms } from "@/lib/use-show-terms";
+import { SectionHead } from "@/components/draft/draft-ui";
 
 // Direct port of renderMidseason() (public/app.js): intro panel, then Replenish, Swap, and
 // Finale Predictions, same order. Each panel is gated on BOTH the active league type's
@@ -28,57 +29,57 @@ export function MidSeasonTab() {
   if (!leagueType.hasRoster) {
     return (
       <>
-        <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Mid-Season Tools</h2>
-        <p className="text-sm text-muted-foreground">This league type has no roster, so there&rsquo;s nothing to replenish or swap.</p>
+        <h2 className="type-caption mb-4 text-[28px] max-nav:hidden">Mid-Season</h2>
+        <p className="text-base text-muted-foreground">This league type has no roster, so there&rsquo;s nothing to replenish or swap.</p>
       </>
     );
   }
 
+  // Each tool is a flat section with a condensed caps heading, like Overview's (direction A). The
+  // turn-based ones (Replenish, Swap) run the same select-then-confirm pickers as the draft.
   return (
-    <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Mid-Season Tools</h2>
-
-      {/* Hidden when neither mechanic is available -- either the league type can't support them
-          (shared ownership has no free agents) or the commissioner hasn't enabled them. */}
-      {(replenishOn || tradeOn) && (
-        <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-          <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Replenish &amp; Swap</h3>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-2">
+        <h2 className="type-caption text-[28px] max-nav:hidden">Mid-Season</h2>
+        {/* Hidden when neither mechanic is available -- either the league type can't support them
+            (shared ownership has no free agents) or the commissioner hasn't enabled them. */}
+        {(replenishOn || tradeOn) && (
           <p className="text-sm text-muted-foreground">
             {leagueType.hasActiveRoster ? (
               <>
-                Replenish keeps every roster able to field a full lineup after eliminations; Swap runs on a schedule so
+                Replenish keeps every roster able to field a full lineup after eliminations. Swap runs on a schedule so
                 everyone gets the same chances to change a {terms.castaway}.
               </>
             ) : (
               <>
-                Change who owns which {terms.castaway} after eliminations. Usually run Replenish first,{" "}
+                Change who owns which {terms.castaway} after eliminations. Usually Replenish first,{" "}
                 {StateLogic.formatOf(state).hasMerge ? "right after the merge" : "about halfway through the season"}, then Swap.
               </>
             )}
           </p>
-        </div>
-      )}
+        )}
+      </div>
 
       {replenishOn && (
-        <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-          <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Replenish</h3>
+        <section className="flex flex-col gap-2">
+          <SectionHead>Replenish</SectionHead>
           <ReplenishPanel state={state} />
-        </div>
+        </section>
       )}
 
       {tradeOn && (
-        <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-          <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Swap (Drop &amp; Add)</h3>
+        <section className="flex flex-col gap-2">
+          <SectionHead>Swap</SectionHead>
           <TradePanel state={state} />
-        </div>
+        </section>
       )}
 
       {finaleOn && (
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Finale Predictions</h3>
+        <section className="flex flex-col gap-2">
+          <SectionHead>Finale predictions</SectionHead>
           <FinalePanel state={state} />
-        </div>
+        </section>
       )}
-    </>
+    </div>
   );
 }

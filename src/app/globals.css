@@ -216,7 +216,15 @@
    text field is 16px, whatever size class it carries. Deliberately NOT inside @layer: unlayered CSS
    wins over Tailwind's utilities layer, so this beats the text-xs / text-[0.75rem] on hand-rolled
    inputs too. 879px matches the `max-nav` breakpoint. */
+:root {
+  /* Height of the fixed mobile tab bar (mobile-nav.tsx), so a sticky bottom bar -- the draft's
+     confirm bar -- can sit just above it. Zero from the `nav` breakpoint up, where there's no tab bar. */
+  --tabbar-h: 0px;
+}
 @media (max-width: 879px) {
+  :root {
+    --tabbar-h: calc(63px + env(safe-area-inset-bottom, 0px));
+  }
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
   select,
   textarea {

@@ -1,23 +1,34 @@
 "use client";
 
+import { useState } from "react";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { ordinal } from "@/lib/game/selectors";
-import { CastawayAvatar } from "@/components/castaway-avatar";
 import { TransactionHistory } from "@/components/mid-season/transaction-history";
-import { useLeagueStore, useCanManage } from "@/lib/store";
+import { useShowTerms } from "@/lib/use-show-terms";
+import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
+import { confirm } from "@/lib/confirm-store";
+import { CaptionPlate } from "@/components/ui/caption-plate";
+import { BarButton, CastTile, ConfirmBar, PlainButton, SectionHead, TileGrid, TurnPill, shortNames } from "@/components/draft/draft-ui";
+import { whoName } from "@/components/draft/draft-helpers";
 
-// Port of renderReplenishPanel() (public/app.js). The whole route (server/routes/replenish.js)
-// is commissioner-only, so canManage() gating here matches server enforcement exactly -- a
-// member never even sees an actionable control they'd be rejected for using.
+// Replenish (the canvas's "Pickups after an elimination"): a turn-based round that refills rosters
+// after eliminations. The plate says whose turn it is and who they're replacing, the order runs
+// underneath, and the free agents are picked by select-then-confirm like the draft. The whole route
+// (server/routes/replenish.js) is commissioner-only, so only a commissioner gets the confirm bar;
+// everyone else sees the round as it happens.
 export function ReplenishPanel({ state }: { state: LeagueState }) {
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
+  const me = useMyPlayerId();
   const mutate = useMutate();
-  const r = state.midSeason.replenish;
+  const [sel, setSel] = useState<{ pick: number; id: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const r = state.midSeason.replenish as
+    | { sequence: { playerId: string; scoreAtStart: number }[]; index: number; lossIdsByPlayer?: Record<string, string[]> }
+    | null;
   const orderLabel =
     state.settings.replenishOrderBy === "leastPoints"
       ? "fewest points first"
@@ -41,121 +52,153 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
     );
   }
 
-  async function assign(castawayId: string) {
-    await mutate(
-      (s) => StateLogic.replenishAssign(s, castawayId),
-      () => api.replenishAssign(leagueId!, castawayId)
-    );
-  }
-
-  async function cancel() {
+  async function cancel(ask: boolean) {
+    if (ask && !(await confirm("End this replenish round? Picks already made stay; nobody else gets one.", { confirmLabel: "End round" }))) return;
+    setSel(null);
     await mutate(
       (s) => StateLogic.cancelReplenish(s),
       () => api.cancelReplenish(leagueId!)
     );
   }
 
-  if (!canManage && !r) {
-    return (
-      <>
-        <p className="text-sm text-muted-foreground">Commissioner-run.</p>
-        <TransactionHistory state={state} entries={log} />
-      </>
-    );
-  }
   if (!r) {
     return (
-      <>
-        <p className="mb-2 text-sm text-muted-foreground">
-          {activeRoster ? (
-            <>
-              A roster down to <b>{StateLogic.MidSeasonLogic.replenishAt(state)}</b> still in the game adds players back up to{" "}
-              {StateLogic.MidSeasonLogic.replenishAt(state) + 1}
-              {shared ? " — from anyone still in the game who isn't already theirs" : " from the free agents"}. Order: <b>{orderLabel}</b>.
-            </>
-          ) : (
-            <>
-              Re-draft to replace eliminated players and refill your roster. Order: <b>{orderLabel}</b>{" "}
-              <span className="text-muted-foreground">(League Settings)</span>.
-            </>
-          )}
-        </p>
-        {activeRoster && (
-          <p className="mb-2 text-sm">
-            {owed.length === 0
-              ? "Nobody's roster is down that far right now."
-              : `Owed now: ${owed.map((x) => `${x.p.name} (${x.need})`).join(", ")}`}
-          </p>
+      <div className="flex flex-col gap-3">
+        {canManage ? (
+          <>
+            <p className="text-base">
+              {activeRoster ? (
+                <>
+                  A roster down to <b>{StateLogic.MidSeasonLogic.replenishAt(state)}</b> still in the game adds players back up to{" "}
+                  {StateLogic.MidSeasonLogic.replenishAt(state) + 1}
+                  {shared ? ", from anyone still in the game who isn't already theirs" : " from the free agents"}.
+                </>
+              ) : (
+                <>Replace eliminated {terms.castaways} with free agents, one pick per turn.</>
+              )}{" "}
+              <span className="text-muted-foreground">Order: {orderLabel}.</span>
+            </p>
+            {activeRoster && (
+              <p className="text-sm text-muted-foreground">
+                {owed.length === 0
+                  ? "Nobody's roster is down that far right now."
+                  : `Owed now: ${owed.map((x) => `${x.p.name} (${x.need})`).join(", ")}`}
+              </p>
+            )}
+            <PlainButton onClick={handleStart} className="nav:self-start">
+              Start replenish
+            </PlainButton>
+          </>
+        ) : (
+          <p className="text-base text-muted-foreground">Your commissioner runs replenish rounds after eliminations.</p>
         )}
-        <Button onClick={handleStart}>Start Replenish</Button>
         <TransactionHistory state={state} entries={log} />
-      </>
+      </div>
     );
   }
 
   const turn = StateLogic.currentReplenishTurn(state);
-  if (!turn || turn.isComplete) {
+  if (!turn || turn.isComplete || !turn.playerId) {
     return (
-      <>
-        <p className="text-sm font-semibold text-good">Replenish complete.</p>
+      <div className="flex flex-col gap-3">
+        <CaptionPlate tone="good" tag="Done" title="Replenish complete" subtitle="Every roster that was owed a pick has it." />
         {canManage && (
-          <Button variant="secondary" size="sm" className="mt-2" onClick={cancel}>
+          <PlainButton onClick={() => cancel(false)} className="nav:self-start">
             Clear
-          </Button>
+          </PlainButton>
         )}
         <TransactionHistory state={state} entries={log} />
-      </>
+      </div>
     );
   }
 
-  const player = StateLogic.getPlayer(state, turn.playerId ?? "");
-  const fa = StateLogic.availableFor(state, turn.playerId ?? "");
+  const pickNo = turn.overallPickNumber!;
+  const who = whoName(state, turn.playerId, me);
+  const mineTurn = turn.playerId === me;
+  const lossId = r.lossIdsByPlayer?.[turn.playerId]?.[(turn.personalPickNumber ?? 1) - 1];
+  const loss = lossId ? StateLogic.getCastaway(state, lossId) : null;
+  const fa = StateLogic.availableFor(state, turn.playerId);
+  const names = shortNames(fa);
+  const selected = sel && sel.pick === pickNo && fa.some((c) => c.id === sel.id) ? StateLogic.getCastaway(state, sel.id) : null;
+
+  async function assign() {
+    if (!selected || busy) return;
+    setBusy(true);
+    const id = selected.id;
+    const ok = await mutate(
+      (s) => StateLogic.replenishAssign(s, id),
+      () => api.replenishAssign(leagueId!, id)
+    );
+    setBusy(false);
+    if (ok) setSel(null);
+  }
+
+  const strip = r.sequence.map((t, i) => ({ ...t, i })).slice(Math.max(0, r.index - 1), r.index + 5);
 
   return (
-    <>
-      <div className="mb-3.5 rounded-lg border-2 bg-card p-3.5" style={{ borderColor: player?.color || "var(--primary)" }}>
-        <h4 className="text-base font-bold" style={{ color: player?.color }}>
-          {player?.name || "?"}&rsquo;s turn, {ordinal(turn.personalPickNumber)} replenish pick
-        </h4>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Overall pick #{turn.overallPickNumber} <span>({turn.scoreAtStart} pts at the time)</span>
-        </p>
+    <div className="flex flex-col gap-4">
+      <CaptionPlate
+        tone={mineTurn ? "chyron" : "quiet"}
+        tag={
+          mineTurn ? (
+            <>
+              Your
+              <br />
+              turn
+            </>
+          ) : (
+            `Pick ${pickNo}`
+          )
+        }
+        title={loss ? `${mineTurn ? "Replace" : `${who}: replace`} ${loss.name.split(" ")[0]}` : `${who} · pick ${pickNo}`}
+        subtitle={[`${turn.scoreAtStart ?? 0} pts when the round started`, !canManage && "your commissioner assigns it"].filter(Boolean).join(" · ")}
+      />
+
+      <div className="flex flex-wrap items-center gap-1.5" aria-label="Replenish order">
+        <span className="text-[13px] text-muted-foreground">Order, {orderLabel}:</span>
+        {strip.map((t) => (
+          <TurnPill key={t.i} you={t.playerId === me} now={t.i === r.index} done={t.i < r.index}>
+            {whoName(state, t.playerId, me)}
+          </TurnPill>
+        ))}
       </div>
-      {!canManage && <p className="mb-2 text-sm text-muted-foreground">Waiting for your commissioner to assign a pick.</p>}
-      {fa.length === 0 ? (
-        <div className="text-sm italic text-muted-foreground">Nobody left to add.</div>
-      ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-3">
-          {fa.map((c) => (
-            <div
-              key={c.id}
-              role={canManage ? "button" : undefined}
-              tabIndex={canManage ? 0 : undefined}
-              className={
-                "flex flex-col items-center gap-1.5 rounded-lg border-2 border-border bg-card p-2.5 text-center shadow-sm " +
-                (canManage ? "cursor-pointer hover:border-primary" : "opacity-60")
-              }
-              onClick={() => canManage && assign(c.id)}
-              onKeyDown={(e) => canManage && e.key === "Enter" && assign(c.id)}
-            >
-              <CastawayAvatar
+
+      <section className="flex flex-col gap-2">
+        <SectionHead>
+          {shared ? "Available" : "Free agents"} · {fa.length}
+        </SectionHead>
+        {fa.length === 0 ? (
+          <p className="text-base text-muted-foreground">Nobody left to add.</p>
+        ) : (
+          <TileGrid cols={3}>
+            {fa.map((c) => (
+              <CastTile
+                key={c.id}
                 castaway={c}
-                className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold"
+                label={names.get(c.id)!}
+                state={state}
+                photoHeight={84}
+                mark={selected?.id === c.id ? "add" : undefined}
+                onClick={canManage ? () => setSel(selected?.id === c.id ? null : { pick: pickNo, id: c.id }) : undefined}
               />
-              <div className="text-xs font-medium leading-tight">{c.name}</div>
-              {canManage && (
-                <div className="rounded bg-primary px-2 py-0.5 text-[0.65rem] font-bold text-primary-foreground">Assign</div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </TileGrid>
+        )}
+      </section>
+
       {canManage && (
-        <Button variant="destructive" size="sm" className="mt-3" onClick={cancel}>
-          Cancel Replenish
-        </Button>
+        <>
+          <ConfirmBar note={`${who} ${mineTurn ? "get" : "gets"}`} title={selected ? selected.name : `Choose a ${terms.castaway}`}>
+            <BarButton onClick={assign} disabled={!selected || busy}>
+              {selected ? (mineTurn ? `Pick up ${names.get(selected.id)}` : `Give to ${who}`) : "Assign"}
+            </BarButton>
+          </ConfirmBar>
+          <PlainButton danger onClick={() => cancel(true)} className="nav:self-start">
+            End replenish round
+          </PlainButton>
+        </>
       )}
       <TransactionHistory state={state} entries={log} />
-    </>
+    </div>
   );
 }
