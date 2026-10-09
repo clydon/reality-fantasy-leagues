@@ -110,6 +110,7 @@ function LeafEditor({
   removable,
   onChange,
   onRemove,
+  onCreateQuestion,
 }: {
   leaf: Leaf;
   fields: ConditionField[];
@@ -117,6 +118,7 @@ function LeafEditor({
   removable: boolean;
   onChange: (next: Leaf) => void;
   onRemove: () => void;
+  onCreateQuestion?: (label: string) => string;
 }) {
   const field = fields.find((f) => f.key === leaf.answer);
   const ops = OPS_FOR[field?.type ?? "answer"] ?? ["is", "isNot"];
@@ -126,6 +128,16 @@ function LeafEditor({
         size="sm"
         value={leaf.answer}
         onChange={(e) => {
+          if (e.target.value === "__new__") {
+            const label = window.prompt('What does research answer about each person, each episode? (e.g. "did they sit out of a challenge")');
+            if (label && label.trim() && onCreateQuestion) {
+              const key = onCreateQuestion(label.trim());
+              const newField: ConditionField = { key, type: "answer" };
+              const newOps = OPS_FOR["answer"];
+              onChange({ answer: key, op: newOps[0] as Leaf["op"], value: defaultValueFor(newOps[0], newField) });
+            }
+            return;
+          }
           const f = fields.find((x) => x.key === e.target.value);
           const newOps = OPS_FOR[f?.type ?? "answer"] ?? ["is", "isNot"];
           onChange({ answer: e.target.value, op: newOps[0] as Leaf["op"], value: defaultValueFor(newOps[0], f) });
@@ -137,6 +149,7 @@ function LeafEditor({
             {f.key}
           </option>
         ))}
+        {onCreateQuestion && <option value="__new__">+ New question…</option>}
       </Select>
       <Select
         size="sm"
@@ -205,11 +218,13 @@ function ConditionEditor({
   fields,
   exitMethods,
   onChange,
+  onCreateQuestion,
 }: {
   value: unknown;
   fields: ConditionField[];
   exitMethods: string[];
   onChange: (next: unknown) => void;
+  onCreateQuestion?: (label: string) => string;
 }) {
   const leaves = leavesFromWhen(value);
   const [jsonMode, setJsonMode] = useState(false);
@@ -281,6 +296,7 @@ function ConditionEditor({
           removable={safeLeaves.length > 1}
           onChange={(next) => setLeaf(i, next)}
           onRemove={() => removeLeaf(i)}
+          onCreateQuestion={onCreateQuestion}
         />
       ))}
       <div className="flex items-center gap-2">
@@ -417,6 +433,7 @@ function RuleFields({
   onSet,
   onReplace,
   onCreateEvent,
+  onCreateQuestion,
 }: {
   rule: Record<string, unknown>;
   builtIn: BuiltInSpec | undefined;
@@ -429,6 +446,7 @@ function RuleFields({
   onSet: (key: string, value: unknown) => void;
   onReplace: (next: Record<string, unknown>) => void;
   onCreateEvent: (label: string) => string;
+  onCreateQuestion?: (label: string) => string;
 }) {
   const params: [string, ParamSpec][] = builtIn ? Object.entries(builtIn.params) : hasAward ? [["award", { type: "event" }]] : [];
   const builtInOptions = Object.entries(BUILT_IN_SPECS).filter(([, b]) => b.context === context);
@@ -474,7 +492,7 @@ function RuleFields({
         <div className="flex items-start gap-1.5">
           <span className="w-24 shrink-0 text-muted-foreground">When</span>
           <div className="flex-1">
-            <ConditionEditor value={rule.when} fields={conditionFields} exitMethods={exitMethods} onChange={(v) => onSet("when", v)} />
+            <ConditionEditor value={rule.when} fields={conditionFields} exitMethods={exitMethods} onChange={(v) => onSet("when", v)} onCreateQuestion={onCreateQuestion} />
           </div>
         </div>
       )}
@@ -495,17 +513,29 @@ function RuleFields({
                 ))}
               </Select>
             ) : spec.type === "field" ? (
-              <Select size="sm" value={typeof value === "string" ? value : ""} onChange={(e) => onSet(key, e.target.value)}>
+              <Select
+                size="sm"
+                value={typeof value === "string" ? value : ""}
+                onChange={(e) => {
+                  if (e.target.value === "__new__") {
+                    const label = window.prompt('What does research answer about each person, each episode? (e.g. "did they sit out of a challenge")');
+                    if (label && label.trim() && onCreateQuestion) onSet(key, onCreateQuestion(label.trim()));
+                    return;
+                  }
+                  onSet(key, e.target.value);
+                }}
+              >
                 <option value="">Choose a question…</option>
                 {questions.map((q) => (
                   <option key={q.key} value={q.key}>
                     {q.key} ({q.type})
                   </option>
                 ))}
+                {onCreateQuestion && <option value="__new__">+ New question…</option>}
               </Select>
             ) : spec.type === "condition" ? (
               <div className="flex-1">
-                <ConditionEditor value={value} fields={conditionFields} exitMethods={exitMethods} onChange={(v) => onSet(key, v)} />
+                <ConditionEditor value={value} fields={conditionFields} exitMethods={exitMethods} onChange={(v) => onSet(key, v)} onCreateQuestion={onCreateQuestion} />
               </div>
             ) : (
               <span className="text-[0.65rem] italic text-muted-foreground">use &ldquo;edit&rdquo; above for this one</span>
@@ -566,6 +596,7 @@ export function RuleLine({
   questions,
   conditionFields,
   onCreateEvent,
+  onCreateQuestion,
 }: {
   sentence: string;
   problems: string[];
@@ -578,6 +609,7 @@ export function RuleLine({
   questions: { key: string; type: string }[];
   conditionFields: ConditionField[];
   onCreateEvent: (label: string) => string;
+  onCreateQuestion?: (label: string) => string;
 }) {
   const [manuallyOpen, setManuallyOpen] = useState(false);
   const [jsonOpen, setJsonOpen] = useState(false);
@@ -619,6 +651,7 @@ export function RuleLine({
             onSet={(key, value) => onApply({ ...ruleObj, [key]: value })}
             onReplace={onApply}
             onCreateEvent={onCreateEvent}
+            onCreateQuestion={onCreateQuestion}
           />
           <button
             className="mt-0.5 text-[0.65rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
@@ -773,6 +806,7 @@ export function FormatReviewScreen({
       .filter((f) => !["name", "sources", "confidence"].includes(f.key))
       .map((f) => ({ key: f.key, type: f.type, values: f.values })),
     onCreateEvent: addEvent,
+    onCreateQuestion: addQuestion,
   };
   const categoryOptions = review.categories.map((g) => g.label);
   const shownAts = useMemo(() => {
@@ -814,6 +848,25 @@ export function FormatReviewScreen({
     });
   }
 
+  // A blank rule, same shape a chat's own answer would use -- the condition starts with no question
+  // picked, so it opens already in edit mode (RuleLine's `open` follows `problems.length > 0`) with the
+  // dropdown ready to fill in.
+  function addRuleForEvent(eventId: string) {
+    setProposal((p) => ({
+      ...p,
+      rules: { ...(p.rules ?? {}), research: [...(Array.isArray(p.rules?.research) ? p.rules!.research! : []), { when: { answer: "", is: "yes" }, award: eventId }] },
+    }));
+  }
+
+  // Same, with no award -- for a rule that only stages a fact (like Survivor's `exiled`) rather than
+  // scoring a shown event.
+  function addOtherRule() {
+    setProposal((p) => ({
+      ...p,
+      rules: { ...(p.rules ?? {}), research: [...(Array.isArray(p.rules?.research) ? p.rules!.research! : []), { when: { answer: "", is: "yes" } }] },
+    }));
+  }
+
   function updateEvent(id: string, patch: Partial<{ label: string; points: number; category: string }>) {
     setProposal((p) => ({
       ...p,
@@ -826,6 +879,20 @@ export function FormatReviewScreen({
       ...p,
       questions: (p.questions ?? []).map((q) => (effectiveQuestionKey(q) === key ? { ...q, type } : q)),
     }));
+  }
+
+  function updateQuestion(key: string, patch: Partial<{ question: string; note: string; tier: string }>) {
+    setProposal((p) => ({
+      ...p,
+      questions: (p.questions ?? []).map((q) => (effectiveQuestionKey(q) === key ? { ...q, ...patch } : q)),
+    }));
+  }
+
+  // Not pre-checked against the rules that read it -- reviewProposal already raises "a rule reads a
+  // missing question" as a problem on save/approve, the same way every other dangling reference here is
+  // already caught (see removeRule, which lets an event end up with zero rules too).
+  function removeQuestion(key: string) {
+    setProposal((p) => ({ ...p, questions: (p.questions ?? []).filter((q) => effectiveQuestionKey(q) !== key) }));
   }
 
   // For a rule param with no valid event to point at (a built-in's "otherwise", say) -- a new, bare
@@ -841,6 +908,21 @@ export function FormatReviewScreen({
       events: [...(p.events ?? []), { id, label, category: "Other", points: 0, tier: "C" as const, why: "", headline: false }],
     }));
     return id;
+  }
+
+  // For a brand-new checklist fact no existing question covers -- defaults to tier A, unlike addEvent's
+  // tier C: a chat's tier is a guess about research reliability, but an admin adding one by hand already
+  // knows it's reliably reported, or wouldn't bother. There's no inference to make.
+  function addQuestion(label: string): string {
+    const base = camelId(label) || "newQuestion";
+    const taken = new Set((proposal.questions ?? []).map((q) => effectiveQuestionKey(q)));
+    let key = base;
+    for (let n = 2; taken.has(key); n++) key = `${base}${n}`;
+    setProposal((p) => ({
+      ...p,
+      questions: [...(p.questions ?? []), { key, type: "answer", question: label, note: "", tier: "A", where: "" }],
+    }));
+    return key;
   }
 
   function toggleDomain(domain: string) {
@@ -1071,6 +1153,12 @@ export function FormatReviewScreen({
                         ))}
                       </ul>
                     )}
+                    <button
+                      className="mt-1 text-[0.65rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                      onClick={() => addRuleForEvent(ev.id)}
+                    >
+                      + Add rule
+                    </button>
                   </m.div>
                   );
                 })}
@@ -1080,9 +1168,14 @@ export function FormatReviewScreen({
         </AnimatePresence>
       </div>
 
-      {review.otherRules.length > 0 && (
-        <div className="mt-3">
-          <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Other rules</div>
+      <div className="mt-3">
+        <div className="mb-1 flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
+          <span>Other rules</span>
+          <button className="font-normal normal-case text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={addOtherRule}>
+            + Add rule
+          </button>
+        </div>
+        {review.otherRules.length > 0 && (
           <ul className="flex flex-col gap-1">
             {review.otherRules.map((r) => (
               <div key={r.at} className="rounded-md border border-border px-2.5 py-1.5">
@@ -1098,19 +1191,51 @@ export function FormatReviewScreen({
               </div>
             ))}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Questions: asked every episode, read-only here -- only the events above get inline edits. */}
+      {/* Questions: asked every episode. Editable like the events above -- label, note, tier and type;
+          removing one a rule still reads is deliberately not pre-blocked here, same as removeRule --
+          reviewProposal already raises that as a problem on save/approve. */}
       <div className="mt-3">
-        <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Questions research answers</div>
+        <div className="mb-1 flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
+          <span>Questions research answers</span>
+          <button
+            className="font-normal normal-case text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            onClick={() => {
+              const label = window.prompt('What does research answer about each person, each episode? (e.g. "did they sit out of a challenge")');
+              if (label && label.trim()) addQuestion(label.trim());
+            }}
+          >
+            + Add question
+          </button>
+        </div>
         <ul className="flex flex-col gap-1">
           {review.questions.map((q) => (
             <li key={q.key} className={cn("rounded-md border px-2.5 py-1.5", q.problems.length ? "border-destructive/40" : "border-border")}>
               <div className="flex flex-wrap items-center gap-1.5">
-                <TierChip tier={q.tier} />
+                <Select
+                  size="sm"
+                  className="w-14"
+                  value={q.tier ?? ""}
+                  title="A: stated plainly every episode · B: worked out from other answers · C: reported often but not always"
+                  onChange={(e) => updateQuestion(q.key, { tier: e.target.value })}
+                >
+                  <option value="">tier?</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                </Select>
                 <code className="font-mono text-[0.7rem]">{q.key}</code>
-                <span>{q.question}</span>
+                <Input
+                  size="sm"
+                  className="min-w-[160px] flex-1"
+                  defaultValue={q.question}
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    if (v && v !== q.question) updateQuestion(q.key, { question: v });
+                  }}
+                />
                 <Select size="sm" value={q.type} onChange={(e) => updateQuestionType(q.key, e.target.value)}>
                   {QUESTION_TYPES.map((t) => (
                     <option key={t} value={t}>
@@ -1118,7 +1243,19 @@ export function FormatReviewScreen({
                     </option>
                   ))}
                 </Select>
-                {q.note && <span className="text-muted-foreground">“{q.note}”</span>}
+                <Input
+                  size="sm"
+                  className="w-28"
+                  placeholder="note"
+                  defaultValue={q.note}
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    if (v !== q.note) updateQuestion(q.key, { note: v });
+                  }}
+                />
+                <button className="text-muted-foreground underline-offset-2 hover:text-destructive hover:underline" onClick={() => removeQuestion(q.key)}>
+                  remove
+                </button>
               </div>
               <Notes problems={q.problems} warnings={q.warnings} />
             </li>

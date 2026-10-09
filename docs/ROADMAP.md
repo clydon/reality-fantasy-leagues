@@ -70,10 +70,32 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
     same self-serve season's cast still duplicate that research. Worth retrofitting onto the same
     model once it exists, but not a blocker for shipping episode research first.
 
-- **Format review gap-filling** (`PLAN-format-review-gap-filling.md`): a written plan, not started.
-  Lets an admin add a missing question, event and rule on the format review screen with no raw JSON.
-  UI only, no storage or route changes. Small; it pairs naturally with scoring-rules phase 4 below,
-  since both are rule editing, and doing it first gives phase 4 the add-question/add-rule plumbing.
+- **One cast per season, shared by every league on it** (`PLAN-universal-season-cast.md`): a written
+  plan, decided 2026-10-08, not started. The cast (names, photos, starting tribes, never spoiled) is a
+  season fact: the first league to enter it, or an admin, creates it, and only an admin changes it after.
+  Strictly just cast: results get their own per-season switch (admin-decided, like Survivor 50 today, or
+  league-decided), and a league-decided season's Admin Episodes step becomes a curator view. This fixes
+  the known gap above (admin can't review a self-serve season), the spelling mismatches between leagues'
+  rosters, and the cast-import follow-on above. Data-moving (it links existing rosters to a season cast),
+  so Opus. Three open questions at the end of the plan.
+
+- **Format review gap-filling** (`PLAN-format-review-gap-filling.md`): **done 2026-10-08.** An admin
+  can add a missing question, event and rule on the format review screen with no raw JSON --
+  `addQuestion`/`updateQuestion`/`removeQuestion`, "+ New question…" threaded (optionally) through
+  `LeafEditor` and `RuleFields`' field-param dropdown the same way `onCreateEvent` already was, and
+  "+ Add rule" both per-event and in "Other rules". `season-rule-check.tsx` is untouched and still
+  compiles without passing `onCreateQuestion`, as scoped. Browser-verified end to end against the local
+  dev server: a throwaway draft got a new question + new event + a rule connecting them purely through
+  the UI, saved with zero problems, approved into a real (throwaway) show, and the approved format's own
+  rules engine was run directly against a synthetic answer -- it scored the new event and left the
+  format's original rule untouched. Removing a question a rule still reads surfaces a clear problem
+  (`answer: no checklist question "..."`), as the plan expected -- deliberately not pre-blocked. tsc/
+  eslint/`npm test` (232/232) all clean (only the known pre-existing pickem-pick-grid error). Side
+  finding, out of scope here: reopening a draft immediately after "Save as draft" can show the pre-save
+  proposal (`FormatReviewScreen`'s state is seeded once from props and never re-synced, racing the
+  "admin-format" query's own invalidation-triggered refetch) -- approving straight from an still-open
+  screen avoids it and is how the buttons are actually used, so left as a note for later rather than
+  fixed here.
 
 - **Season rule changes** (was "season-level delta research", `PLAN-ai-generated-show-formats.md`
   phase 5) — **done 2026-10-06, all five phases; `docs/PLAN-season-rule-changes.md` has the design and
