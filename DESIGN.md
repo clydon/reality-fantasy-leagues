@@ -345,6 +345,9 @@ League Settings is a list of pages, like a phone's settings (`src/components/set
 - **Fields:** label above, 48px full-width control, help below. Anything locked or read-only is plain text (with a lock when it's locked by the game), never a greyed-out control.
 - **Row actions** are a ⋯ button opening a bottom sheet; page actions are a ⋯ beside the page's first line. Page-level destructive actions sit in a collapsed Danger zone at the bottom of the index.
 
+### Full-screen flow (create a league)
+A multi-step task gets the whole screen, with no tab bar or sidebar (`/new-league`, `create-league-flow.tsx`): a header with ✕ (first and last step) or back, the flow's name and "N of 4"; a row of 4px segments, chyron up to the current step; the step's question as a 30px condensed caps heading; and one full-width 52px button in a sticky footer. Choices are **option cards**: a night panel with a hairline, and when chosen a white plate with a 3px chyron outline and a tick. Show tiles are 84px key art (a plain 64px tile without art) with the season as a small dark chip.
+
 ### Section (Overview)
 `DashCard` and the shared `section-shell` / `section-title`: in dark mode no box at all, just a 24px condensed caps heading in Bone Text over the content, with an optional aside on the heading line. Sections read like a broadcast rundown.
 

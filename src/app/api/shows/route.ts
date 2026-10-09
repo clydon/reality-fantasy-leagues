@@ -10,11 +10,17 @@ import { pool } from "@/lib/server/db";
 //
 // Seasons come nested rather than as a second request, because every consumer needs the pairing:
 // the Season picker's options depend on which Show is selected.
+//
+// `curated` (no creator: added by an admin) and `mine` let the create-league flow offer a non-admin
+// only the curated shows plus their own researched ones, so test shows stay out of everyone else's
+// way. The list itself isn't filtered: a member of a league on someone else's researched show still
+// needs its terms (useShowTerms reads this same catalog).
 export const GET = apiRoute(async (req) => {
-  await requireAuth(req);
+  const user = await requireAuth(req);
 
   const { rows } = await pool.query(
     `SELECT s.slug, s.name, s.castaway_term, s.tribe_term, s.art_url,
+            s.created_by IS NULL AS curated, COALESCE(s.created_by = $1, false) AS mine,
             COALESCE(
               json_agg(
                 json_build_object(
@@ -32,7 +38,8 @@ export const GET = apiRoute(async (req) => {
        LEFT JOIN show_seasons ss ON ss.show_id = s.id
       WHERE s.archived = false
       GROUP BY s.id
-      ORDER BY s.name`
+      ORDER BY s.name`,
+    [user.id]
   );
   return NextResponse.json({ shows: rows });
 });

@@ -63,7 +63,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
    as built in dark mode, with `.impeccable/design.json` alongside. Update both after the light-mode
    pass.
 2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~,
-   ~~League Settings~~, then the rest; admin last.
+   ~~League Settings~~, ~~Create a league~~, then the rest; admin last.
    - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
      episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
      `src/app/episodes/[number]/page.tsx` -> `episode-detail.tsx`: read view by default (who left as
@@ -171,6 +171,45 @@ explained to a commissioner") rather than re-deriving it from source each time.
      after), a save round-trip (a toggle and a stepper, checked against the server, then put back),
      and `uxplayer`'s read-only view in `UX D Done`; plus 1280 dark and 390 light for the index. No
      new test data left behind.
+   - **Create a league done 2026-10-09** (plan 2a; canvas page "A · Create a league", Create-1 to
+     Create-4). A full-screen flow at `/new-league` (`dashboard/create-league-flow.tsx`, renamed from
+     `create-league-wizard.tsx`): no app shell (AuthGate's `FULLSCREEN_ROUTES`), its own header (✕ or
+     back, "New league", "N of 4"), a 4-segment chyron progress bar, and a sticky footer button.
+     1 · show tiles (key art when an admin set `art_url`, else a plain 64px tile with the name; the
+     lead season as a chip) and "My show isn't here" (the existing research flow), then season cards
+     (newest 5 plus "Another", which takes a number). A finished season defaults to catch-up results
+     and says so in one line, with a toggle either way. 2 · the three type cards (canvas copy, in the
+     show's terms). 3 · name, then for draft types "When's the draft?" (Start it myself, the default,
+     or Pick a time with date and time inputs) and a summary of the roster shape and draft kind from
+     the real defaults. Create league makes the league and sets show, type, catch-up, season, draft
+     time and `setupComplete` in that order (catch-up before season, so a catching-up league never
+     gets results filed early; type before setupComplete, so Active Roster still defaults to shared).
+     A retry after a part-way failure reuses the league. 4 · "{name} is ready", the join code plate
+     with Share invite (share sheet, else copy) and Copy, invite by username or email, the players so
+     far, Add a computer player (name sheet), and "Go to the draft" (or "Go to your league" for
+     Eliminator Pool). The store only switches to the new league on leaving step 4, because switching
+     shows the boot overlay and would unmount the flow.
+   - **Guided setup is gone:** `setup-tab.tsx` always shows the settings list and
+     `league-info-section.tsx` has no guided branches. `SetupLogic` stays in `state-logic.js` (the
+     Active Roster shared default still reads `isComplete`); an old league left with
+     `setupComplete: false` simply sees the normal settings.
+   - **My Leagues** (`dashboard.tsx`) is restyled: invites as rows with Accept/Decline, your leagues
+     as rows (tap to open; "Open" chip on the current one), then **New league** (chyron, to
+     `/new-league`) and **Join with a code** (reveals the code field). The "Signed in as" line and
+     the inline wizard card are gone.
+   - **Test shows hidden from non-admins:** `/api/shows` now returns `curated` (no `created_by`) and
+     `mine`; the flow offers a non-admin curated shows plus their own researched ones. The catalog
+     itself isn't filtered, because members of a league on someone's researched show still need its
+     terms. Verified: `uxplayer` sees 4 shows, `uxbaseline` (admin) sees all 6.
+   - Not done from plan 2a: the commissioner's Danger zone still offers Leave league (Transfer
+     commissioner and Delete league need new API routes). Step 3 shows the lineup or team size as a
+     summary only (the canvas's Change button would need the league to exist). No show has key art
+     locally, so the art tile was only checked in code, not in a browser.
+   - Verified at 390×844 dark with `docs/ux-baseline/scripts/create-flow.js` (outside `run.js`; it
+     signs in itself): both paths end to end (Survivor 51 live, Active Roster, scheduled draft, a
+     computer player and an invite; Survivor 49 catch-up, Classic, start it myself), the saved
+     settings checked in the DB (catch-up league revealed through 0 with nobody out), and Draft and
+     League Settings afterwards. Both test leagues were deleted; no test data left behind.
 3. Light mode pass.
 4. Then merge and push.
 

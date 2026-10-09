@@ -37,6 +37,10 @@ const BARE_ROUTES = ["/forgot-password", "/reset-password"];
 // super-admin can still use, and account settings.
 const LEAGUELESS_ROUTES = ["/dashboard", "/admin", "/reports", "/account"];
 
+// Full-screen flows: signed in, but no sidebar, tab bar or alert strip. The page brings its own
+// header and its own way out (the create-league flow, docs/PLAN-ux-redesign.md 2a).
+const FULLSCREEN_ROUTES = ["/new-league"];
+
 // Owns the same top-level branch the live app's boot()/renderLoginScreen() do: either the login
 // screen (no sidebar at all -- see public/index.html's <aside style="display:none">, only shown
 // once renderTabs() runs after auth) or the full sidebar+content shell, never both at once. An
@@ -188,6 +192,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (!entered) {
     return <LoginScreen onLogin={handleLogin} onSkip={handleSkip} error={error} loading={status === "loading"} />;
+  }
+
+  if (FULLSCREEN_ROUTES.includes(pathname)) {
+    return (
+      <div className="min-h-dvh bg-background">
+        <ConfirmDialog />
+        {children}
+      </div>
+    );
   }
 
   const impersonationBanner = impersonating && (

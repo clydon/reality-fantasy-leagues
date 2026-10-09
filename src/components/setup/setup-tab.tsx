@@ -11,7 +11,6 @@ import { api } from "@/lib/api";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { cn } from "cn";
 import { IndexRow, RowList } from "./settings-ui";
-import { LeagueSetupForm } from "./league-info-section";
 import { LeaveLeagueButton } from "./leave-league-section";
 import { ResetLeagueButton } from "./backup-section";
 
@@ -23,24 +22,11 @@ import { ResetLeagueButton } from "./backup-section";
 // Still "viewable by everyone, only the commissioner can edit": every page renders for a member, with
 // its controls disabled (useCanManage) rather than hidden.
 //
-// GUIDED SETUP: a brand-new league lands here and sees only the league setup questions until the five
-// basics are answered -- name, show, season, league type, ownership. Everything else depends on them.
-// The gate is SetupLogic.isComplete (state-logic.js), false only for leagues created after it shipped.
+// There's no guided setup here any more: the create-league flow (/new-league) asks for the show,
+// season, type and name before the league exists.
 export function SetupTab() {
   const state = useLeagueStore((s) => s.state);
   const canManage = useCanManage();
-  const guiding = !StateLogic.SetupLogic.isComplete(state);
-
-  if (guiding) {
-    return (
-      <div className="flex max-w-[640px] flex-col gap-6">
-        <h2 className="type-caption text-[28px] max-nav:hidden">Set up your league</h2>
-        <JoinCode />
-        <LeagueSetupForm state={state} />
-        <DangerZone />
-      </div>
-    );
-  }
 
   return (
     <div className="flex max-w-[640px] flex-col gap-6">

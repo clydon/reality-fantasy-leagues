@@ -2,34 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ChevronRight, Plus } from "lucide-react";
+import StateLogic from "@/lib/game/state-logic.js";
 import type { MyInvite } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
 import { useLeagueStore, useIsAuthenticated } from "@/lib/store";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { BrandLogo } from "@/components/brand-logo";
-import { CreateLeagueWizard } from "@/components/dashboard/create-league-wizard";
+import { PlainButton } from "@/components/draft/draft-ui";
+import { Chip, PrimaryButton, fieldCls } from "@/components/setup/settings-ui";
 
-const PANEL = "mb-4 rounded-lg border border-border bg-card p-[18px_20px] shadow-sm";
-const PANEL_TITLE = "mb-2.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground";
-
-// Port of the live app's renderDashboard() landing page -- a full page with no Sidebar/MobileNav
-// chrome, same as the original had no tabs there either. AuthGate shows it automatically to a
-// signed-in user with zero leagues (instead of demo data); /dashboard renders it standalone too,
-// reachable from the league switcher for joining/creating an additional league. Pending invites
-// (league_invites) sit above join/create, same real-estate the live app used for this.
+// My Leagues: your leagues, any invites, and the two ways into a new one -- New league (the
+// full-screen flow at /new-league, docs/PLAN-ux-redesign.md 2a) and Join with a code. AuthGate shows
+// it automatically to a signed-in user with zero leagues (instead of demo data), inside the shell;
+// /dashboard renders it too, from the sidebar and the league switcher.
 export function Dashboard() {
   const router = useRouter();
   const isAuthenticated = useIsAuthenticated();
-  const mode = useLeagueStore((s) => s.mode);
-  const leagueName = useLeagueStore((s) => s.leagueName);
+  const leagues = useLeagueStore((s) => s.leagues);
+  const currentId = useLeagueStore((s) => (s.mode === "live" ? s.leagueId : null));
   const setLeagues = useLeagueStore((s) => s.setLeagues);
   const switchLeague = useLeagueStore((s) => s.switchLeague);
   const setFlash = useLeagueStore((s) => s.setFlash);
   const enterMockMode = useLeagueStore((s) => s.useMock);
   const setEntered = useLeagueStore((s) => s.setEntered);
-  const [username, setUsername] = useState<string | null>(null);
   const [invites, setInvites] = useState<MyInvite[]>([]);
+  const [joining, setJoining] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [busy, setBusy] = useState<string | null>(null); // which action is in flight
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +35,6 @@ export function Dashboard() {
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
-    api
-      .me()
-      .then((me) => !cancelled && setUsername(me.user.username))
-      .catch(() => {});
     api
       .myInvites()
       .then((r) => !cancelled && setInvites(r.invites))
@@ -51,22 +45,16 @@ export function Dashboard() {
   }, [isAuthenticated]);
 
   // Same end state as AuthGate's loadFirstLeague: refreshed league list, the target league loaded
-  // live -- then into a tab. `to` exists because a league you just CREATED has nothing to show on
-  // Overview: no show, no season, no cast. It goes to League Settings instead, where guided setup
-  // asks for those. Joining an existing league still lands on Overview, which is where the
-  // interesting thing is.
-  async function enterLeague(leagueId: string, message: string, to = "/") {
+  // live, then Overview. switchLeague BEFORE setLeagues, and both before the push: the other way
+  // round, `leagues` is non-empty (so AuthGate renders the league shell) while `state` is still the
+  // demo season, which flashed a grid of demo cast. switchLeague holds the store's loadingLeague flag
+  // meanwhile, so the shell shows a loading screen instead.
+  async function enterLeague(leagueId: string, message: string | null) {
     const me = await api.me();
-    // switchLeague BEFORE setLeagues, and both before the push. Going the other way round put the
-    // store in a state it can't render honestly: `leagues` is non-empty (so AuthGate stops showing
-    // the Dashboard and renders the league shell) while `state` is still the demo season -- which
-    // is why creating a league flashed a grid of demo cast members. switchLeague also holds the
-    // store's loadingLeague flag for its duration, so the shell shows a loading screen rather than
-    // whatever was underneath.
     await switchLeague(leagueId);
     setLeagues(me.leagues);
-    setFlash(message);
-    router.push(to);
+    if (message) setFlash(message);
+    router.push("/");
   }
 
   async function run(key: string, fn: () => Promise<void>) {
@@ -75,14 +63,14 @@ export function Dashboard() {
     try {
       await fn();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong — try again.");
+      setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
     } finally {
       setBusy(null);
     }
   }
 
   const joinedMessage = (name: string, reclaimed: boolean) =>
-    reclaimed ? `Welcome back to ${name} — your previous roster has been restored.` : `You joined ${name}!`;
+    reclaimed ? `Welcome back to ${name}. Your previous roster has been restored.` : `You joined ${name}!`;
 
   function handleJoin() {
     const code = joinCode.trim();
@@ -107,85 +95,130 @@ export function Dashboard() {
     });
   }
 
+  function openLeague(id: string) {
+    if (id === currentId) return router.push("/");
+    run(`open-${id}`, () => enterLeague(id, null));
+  }
+
   function handleShowLogin() {
     enterMockMode();
     setEntered(false);
     router.push("/");
   }
 
+  if (!isAuthenticated) {
+    return (
+      <div className="mx-auto flex w-full max-w-[480px] flex-col gap-4 pb-16">
+        <BrandLogo kind="banner" className="mx-auto block h-auto w-full max-w-[360px]" priority />
+        <p className="text-base">Sign in to join or create a league.</p>
+        <PrimaryButton onClick={handleShowLogin}>Sign in</PrimaryButton>
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto w-full max-w-[480px] pb-16">
-      {/* Branding only when this is the whole screen. Signed in, it renders inside the app shell,
-          whose sidebar already carries the logo -- two of them stacked just pushed the actual
-          join/create controls down the page. */}
-      {!isAuthenticated && (
-        <BrandLogo kind="banner" className="mx-auto mb-2 block h-auto w-full max-w-[360px]" priority />
+    <div className="flex w-full max-w-[640px] flex-col gap-6 pb-16">
+      <h2 className="type-caption text-[28px] max-nav:hidden">My Leagues</h2>
+
+      {error && (
+        <p role="alert" className="text-sm font-semibold text-live">
+          {error}
+        </p>
       )}
 
-      {!isAuthenticated ? (
-        <div className={PANEL}>
-          <p className="mb-3 text-sm">Sign in to join or create a league.</p>
-          <Button onClick={handleShowLogin}>Sign in</Button>
-        </div>
-      ) : (
-        <>
-          {/* Admin and Log out used to live here too. They're account-level, they're in the
-              sidebar and the mobile More sheet now, and this page is no longer the only screen a
-              leagueless user can see -- so repeating them here was just three of the four things
-              on an otherwise empty page. */}
-          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <span className="flex-1">{username ? <>Signed in as <b className="text-foreground">{username}</b></> : null}</span>
-            {mode === "live" && leagueName && (
-              <button className="font-semibold text-primary hover:underline" onClick={() => router.push("/")}>
-                ← Back to {leagueName}
-              </button>
-            )}
-          </div>
-
-          {error && <p className="mb-3 rounded-md border border-destructive/30 bg-card px-3 py-2 text-sm text-destructive">{error}</p>}
-
-          {invites.length > 0 && (
-            <div className={`${PANEL} border-primary/40`}>
-              <h3 className={PANEL_TITLE}>You&apos;re invited</h3>
-              <div className="flex flex-col gap-2">
-                {invites.map((inv) => (
-                  <div key={inv.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">{inv.league_name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {inv.seat_name ? `To take over ${inv.seat_name}'s team · ` : ""}Invited by {inv.invited_by_username ?? "a league member"}
-                      </div>
-                    </div>
-                    <Button size="sm" disabled={!!busy} onClick={() => handleAccept(inv)}>
-                      {busy === `accept-${inv.id}` ? "Joining…" : "Accept"}
-                    </Button>
-                    <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => handleDecline(inv)}>
-                      Decline
-                    </Button>
-                  </div>
-                ))}
+      {invites.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h3 className="type-caption text-[22px]">You&rsquo;re invited</h3>
+          <div className="flex flex-col border-b border-border [&>*]:border-t [&>*]:border-border">
+            {invites.map((inv) => (
+              <div key={inv.id} className="flex min-h-[60px] flex-wrap items-center gap-2 py-2">
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="truncate text-base font-semibold">{inv.league_name}</span>
+                  <span className="text-[13px] text-muted-foreground">
+                    {inv.seat_name ? `To take over ${inv.seat_name}'s team · ` : ""}From {inv.invited_by_username ?? "a league member"}
+                  </span>
+                </span>
+                <PrimaryButton className="min-h-11 px-4" disabled={!!busy} onClick={() => handleAccept(inv)}>
+                  {busy === `accept-${inv.id}` ? "Joining…" : "Accept"}
+                </PrimaryButton>
+                <PlainButton className="min-h-11" disabled={!!busy} onClick={() => handleDecline(inv)}>
+                  Decline
+                </PlainButton>
               </div>
-            </div>
-          )}
-
-          <div className={PANEL}>
-            <h3 className={PANEL_TITLE}>Join a League</h3>
-            <div className="flex gap-1.5">
-              <Input
-                className="min-w-0 flex-1 uppercase placeholder:normal-case"
-                placeholder="Join code"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-              />
-              <Button onClick={handleJoin} disabled={!!busy || !joinCode.trim()}>
-                {busy === "join" ? "Joining…" : "Join"}
-              </Button>
-            </div>
+            ))}
           </div>
+        </section>
+      )}
 
-          <CreateLeagueWizard busy={busy} run={run} enterLeague={enterLeague} />
-        </>
+      {leagues.length > 0 && (
+        <div className="flex flex-col border-b border-border [&>*]:border-t [&>*]:border-border">
+          {leagues.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              disabled={!!busy}
+              onClick={() => openLeague(l.id)}
+              className="flex min-h-[60px] items-center gap-3 py-2 text-left outline-none hover:bg-accent/40 focus-visible:bg-accent"
+            >
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="flex items-center gap-2 text-base font-semibold">
+                  <span className="truncate">{l.name}</span>
+                  {l.id === currentId && <Chip>Open</Chip>}
+                </span>
+                <span className="truncate text-[13px] text-muted-foreground">
+                  {[StateLogic.LEAGUE_TYPES[l.type]?.name, l.role === "commissioner" ? "Commissioner" : null].filter(Boolean).join(" · ")}
+                </span>
+              </span>
+              <ChevronRight className="size-5 shrink-0 text-muted-foreground" strokeWidth={2.2} aria-hidden />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {leagues.length === 0 && invites.length === 0 && (
+        <p className="text-base text-muted-foreground">You&rsquo;re not in a league yet. Start one, or join one with a code from a friend.</p>
+      )}
+
+      <div className="flex gap-2.5">
+        <Link
+          href="/new-league"
+          className="flex min-h-[52px] flex-1 items-center justify-center gap-1.5 rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron"
+        >
+          <Plus className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          New league
+        </Link>
+        <PlainButton className="min-h-[52px] flex-1" onClick={() => setJoining((j) => !j)}>
+          Join with a code
+        </PlainButton>
+      </div>
+
+      {joining && (
+        <form
+          className="flex flex-col gap-1.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleJoin();
+          }}
+        >
+          <label htmlFor="join-code" className="text-sm font-semibold">
+            Join code
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="join-code"
+              className={`${fieldCls} min-w-0 flex-1 uppercase placeholder:normal-case`}
+              placeholder="K7WQ2M"
+              autoComplete="off"
+              autoCapitalize="characters"
+              autoFocus
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+            />
+            <PrimaryButton type="submit" disabled={!!busy || !joinCode.trim()}>
+              {busy === "join" ? "Joining…" : "Join"}
+            </PrimaryButton>
+          </div>
+        </form>
       )}
     </div>
   );

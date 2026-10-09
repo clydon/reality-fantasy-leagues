@@ -724,8 +724,12 @@ export interface CatalogShow {
   name: string;
   castaway_term: string;
   tribe_term: string;
-  /** Tile image (migration 0051); null falls back to the per-format emoji. */
+  /** Tile image (migration 0051); null falls back to a plain tile with the show's name. */
   art_url: string | null;
+  /** Added by an admin rather than researched by a user (shows.created_by is null). */
+  curated?: boolean;
+  /** Researched by the signed-in user. */
+  mine?: boolean;
   seasons: Pick<ShowSeason, "seasonNumber" | "name" | "status" | "castSize" | "premiereDate" | "finaleDate">[];
 }
 

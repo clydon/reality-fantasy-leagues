@@ -7,7 +7,7 @@ import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { useShowCatalog, useShowTerms } from "@/lib/use-show-terms";
-import { Field, LockedValue, MoreOptions, PrimaryButton, ReadOnlyNote, SettingsPage, StepperRow, fieldCls } from "./settings-ui";
+import { Field, LockedValue, MoreOptions, ReadOnlyNote, SettingsPage, StepperRow, fieldCls } from "./settings-ui";
 
 // League Settings > League setup (docs/PLAN-ux-redesign.md, 2b): name, show, season, league type,
 // results, draft date and roster size, with Starts-at and Ownership behind "More options". Each is a
@@ -20,10 +20,8 @@ import { Field, LockedValue, MoreOptions, PrimaryButton, ReadOnlyNote, SettingsP
 // is what lets a super-admin add a show without a deploy. The Season picker is driven by the selected
 // show's seasons, falling back to a free-text number when the catalog has none.
 //
-// GUIDED SETUP: on a brand-new league this is a short wizard instead (setup-tab.tsx renders it in
-// place of the settings list) -- one question at a time, in the order SetupLogic defines (name, show,
-// season, type, ownership), with a confirm button at the end. Ordering and done-ness live in SetupLogic
-// so they're testable without React; this file only renders them.
+// A new league arrives here with these already answered by the create-league flow (/new-league), so
+// there's no guided version of this page any more.
 export function LeagueSetupPage() {
   const state = useLeagueStore((s) => s.state);
   return (
@@ -50,12 +48,6 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
   // can't orphan them. Results arriving from the season don't count; see seasonUnderway.
   const seasonUnderway = StateLogic.seasonUnderway(state);
 
-  const Setup = StateLogic.SetupLogic;
-  const guiding = !Setup.isComplete(state);
-  const basicsAnswered = Setup.basicsAnswered(state, leagueName);
-  // While guiding, a step's control appears only once everything before it is answered. Afterwards
-  // every control is simply visible.
-  const visible = (stepId: string) => !guiding || Setup.isStepVisible(state, leagueName, stepId);
   const revealedThrough = StateLogic.RevealLogic.revealedThrough(state);
   const catchingUp = revealedThrough !== null;
   const startEp = StateLogic.startEpisode(state);
@@ -74,9 +66,9 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
   // pick, and offers to type one.
   const seasonOffCatalog = state.settings.wikiSeason != null && !seasons.some((s) => s.seasonNumber === state.settings.wikiSeason);
   // Locked when there's nothing to choose between -- one show (or none loaded) means the picker would
-  // be decorative. Never while guiding: "pick the show" is a step the commissioner must answer.
-  const nothingToPickShow = !guiding && shows.length <= 1;
-  const nothingToPickType = !guiding && Object.keys(StateLogic.LEAGUE_TYPES).length <= 1;
+  // be decorative.
+  const nothingToPickShow = shows.length <= 1;
+  const nothingToPickType = Object.keys(StateLogic.LEAGUE_TYPES).length <= 1;
   const showLocked = !canManage || seasonUnderway || nothingToPickShow;
   const typeLocked = !canManage || seasonUnderway || nothingToPickType;
   // Season locks with its show: a season belongs to one, and the league's cast and results come from it.
@@ -107,7 +99,6 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
   }
 
   // Seasons belong to a show, so a season number carried across a show change is meaningless.
-  // Clearing it also re-opens the season step in the guide, which is the right thing to ask next.
   async function changeShow(slug: string) {
     await mutate(
       (s) => {
@@ -140,13 +131,6 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
     );
   }
 
-  async function finishSetup() {
-    await mutate(
-      (s) => StateLogic.SetupLogic.complete(s),
-      () => api.updateLeagueSettings(leagueId!, "setupComplete", true)
-    );
-  }
-
   const selectedSeason = seasons.find((x) => x.seasonNumber === state.settings.wikiSeason);
   const seasonLabel = (n: number | null | undefined) => {
     if (n == null) return "Not picked";
@@ -156,7 +140,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
   const showName = currentShow?.name ?? state.settings.showId ?? "Not picked";
   const hasSeason = state.settings.wikiSeason != null;
 
-  const results = visible("pace") && hasSeason && (
+  const results = hasSeason && (
     <>
       {!canManage || revealedPastStart ? (
         <LockedValue label="Results" value={catchingUp ? "Catch up, one episode at a time" : "Live, as they come in"} lock={canManage} />
@@ -185,7 +169,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
 
   // Catch-up and the starting episode (a league formed mid-season: earlier episodes are shown, but not
   // scored, and no picks or lineups for them). Locked once the league has started playing.
-  const startAt = visible("pace") && hasSeason && (
+  const startAt = hasSeason && (
     <>
       {!canManage || seasonUnderway || revealedPastStart ? (
         <LockedValue label="Starts at episode" value={startEp} lock={canManage} />
@@ -205,7 +189,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
     </>
   );
 
-  const ownership = visible("ownership") && leagueType.hasRoster && (
+  const ownership = leagueType.hasRoster && (
     <>
       {ownershipLocked ? (
         <LockedValue
@@ -244,8 +228,6 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
 
   return (
     <div className="flex flex-col gap-5">
-      {guiding && <p className="text-base font-semibold">Answer these to open the rest of League Settings.</p>}
-
       {canManage ? (
         <Field label="League name" htmlFor="ls-name">
           <input
@@ -261,7 +243,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
         <LockedValue label="League name" value={leagueName} lock={false} />
       )}
 
-      {visible("show") &&
+      {
         (showLocked ? (
           <LockedValue label="Show" value={showName} lock={canManage && seasonUnderway} />
         ) : (
@@ -285,7 +267,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
           </Field>
         ))}
 
-      {visible("season") &&
+      {
         (!canManage || seasonUnderway ? (
           <LockedValue label="Season" value={seasonLabel(state.settings.wikiSeason)} lock={canManage} />
         ) : seasons.length > 0 && !typingSeason ? (
@@ -340,7 +322,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
           </Field>
         ))}
 
-      {visible("type") &&
+      {
         (typeLocked ? (
           <div className="flex flex-col gap-1">
             <LockedValue label="League type" value={leagueType.name} lock={canManage && seasonUnderway} />
@@ -360,9 +342,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
 
       {results}
 
-      {/* Draft schedule and roster size aren't basics, so they wait until the guide is done -- a draft
-          date is meaningless before the league type that decides whether there IS a draft. */}
-      {!guiding && leagueType.hasRoster && !canManage && (
+      {leagueType.hasRoster && !canManage && (
         <LockedValue
           label="Draft date"
           value={
@@ -373,7 +353,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
           lock={false}
         />
       )}
-      {!guiding && leagueType.hasRoster && canManage && (
+      {leagueType.hasRoster && canManage && (
         <Field
           label="Draft date"
           htmlFor="ls-draft"
@@ -391,7 +371,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
 
       {/* Active Roster derives its roster size from its starters and bench (Lineups), so a separate
           number here would silently do nothing. */}
-      {!guiding && leagueType.hasRoster && !leagueType.hasActiveRoster && (
+      {leagueType.hasRoster && !leagueType.hasActiveRoster && (
         <StepperRow
           label="Roster size"
           hint={`${terms.Castaways} each player drafts.`}
@@ -402,41 +382,18 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
         />
       )}
 
-      {/* While guiding, the pace and ownership questions are steps of their own; afterwards they're
-          set-once, so they sit behind More options. */}
-      {guiding ? (
-        <>
+      {/* Set once, so they sit behind More options. */}
+      {(startAt || ownership) && (
+        <MoreOptions>
           {startAt}
           {ownership}
-        </>
-      ) : (
-        (startAt || ownership) && (
-          <MoreOptions>
-            {startAt}
-            {ownership}
-          </MoreOptions>
-        )
+        </MoreOptions>
       )}
 
       {canManage && seasonUnderway && (
         <p className="text-[13px] leading-snug text-muted-foreground">
           Show, season, league type and ownership are locked because this league has started playing.
         </p>
-      )}
-
-      {/* Ends the guide. Only offered once every question is answered, and only to someone who can
-          change these. There's no "skip": the answers are cheap, and skipping them is what produced a
-          league full of the wrong show's cast. */}
-      {guiding && canManage && (
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
-          {basicsAnswered ? (
-            <PrimaryButton onClick={finishSetup}>Looks good, open League Settings</PrimaryButton>
-          ) : (
-            <p className="text-[13px] text-muted-foreground">
-              Nothing here is locked in: you can change any of it until the draft runs or the first episode is logged.
-            </p>
-          )}
-        </div>
       )}
     </div>
   );
