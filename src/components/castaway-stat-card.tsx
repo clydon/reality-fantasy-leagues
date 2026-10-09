@@ -14,9 +14,9 @@ import { cn } from "cn";
 // in a roster list, so a glance at "who's on this roster" also shows how they got there or left.
 function movementSymbol(c: Castaway): { symbol: string; title: string } | null {
   if (c.departedVia === "trade") return { symbol: "⇄", title: "Traded away" };
-  if (c.departedVia === "replenish") return { symbol: "↓", title: "Eliminated, replenished away" };
+  if (c.departedVia === "replenish") return { symbol: "↓", title: "Eliminated, replaced" };
   if (c.acquiredVia === "trade") return { symbol: "↑", title: "Added via Swap" };
-  if (c.acquiredVia === "replenish") return { symbol: "↑", title: "Added via Replenish" };
+  if (c.acquiredVia === "replenish") return { symbol: "↑", title: "Picked up" };
   return null;
 }
 
@@ -199,7 +199,7 @@ export function CastawayStatCard({
       {showOwner && formerOwner && (
         <div
           className="mt-[3px] text-[0.7rem] font-semibold text-muted-foreground line-through"
-          title={c.departedVia === "trade" ? "Swapped away" : "Replenished away"}
+          title={c.departedVia === "trade" ? "Swapped away" : "Replaced"}
         >
           {formerOwner.name}
         </div>

@@ -46,15 +46,18 @@ export function notifyDraftTurn(leagueId: string, state: LeagueState, actorUserI
 export function notifyMidSeasonTurn(leagueId: string, state: LeagueState, actorUserId: string | null) {
   notifyAfter("midSeasonTurn", async () => {
     let playerId: string | undefined;
-    let what = "";
+    let title = "";
+    let body = "";
     const r = StateLogic.currentReplenishTurn(state);
     const t = state.midSeason.trade;
     if (r && !r.isComplete && r.playerId) {
       playerId = r.playerId;
-      what = "replenish pick";
+      title = "Your turn for a pickup";
+      body = "Pick up a replacement";
     } else if (t && t.index < t.queue.length) {
       playerId = t.queue[t.index].playerId;
-      what = "swap";
+      title = "Your turn to swap";
+      body = "Make your swap, or skip it,";
     }
     if (!playerId) return null;
     const userIds = (await userIdsForPlayers(leagueId, [playerId])).filter((id) => id !== actorUserId);
@@ -62,8 +65,8 @@ export function notifyMidSeasonTurn(leagueId: string, state: LeagueState, actorU
     return {
       userIds,
       message: {
-        title: `You're up for a ${what}`,
-        body: `Let your commissioner know your ${what} in ${await leagueName(leagueId)}.`,
+        title,
+        body: `${body} in ${await leagueName(leagueId)}.`,
         url: link("/mid-season", leagueId),
         tag: `midseason-${leagueId}`,
       },

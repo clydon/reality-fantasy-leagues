@@ -16,9 +16,9 @@ import { BarButton, CastTile, ConfirmBar, PhotoSquare, PlainButton, SectionHead,
 import { whoName } from "@/components/draft/draft-helpers";
 
 // Swap (the canvas's "Swap window: drop one, add one"): one optional swap each, in priority order.
-// Pick who to drop and who to add, in either order, then confirm both in the bar. Every route here is
-// commissioner-only (server/routes/trade.js), so only a commissioner gets the pickers; everyone else
-// sees whose turn it is and the order.
+// The commissioner starts and ends the round; on your turn you pick who to drop and who to add, in
+// either order, and confirm both in the bar, or skip. The commissioner can act for anyone (trade/swap
+// and trade/skip's rule, same as draft/pick); everyone else sees whose turn it is and the order.
 export function TradePanel({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -65,7 +65,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
                 : `Next window: after episode ${window.nextAfterEpisode} (every ${StateLogic.MidSeasonLogic.swapEvery(state)} episodes).`
               : canManage
                 ? ""
-                : "Your commissioner runs swap rounds."}
+                : "Your commissioner starts a swap round, and you swap or skip on your turn."}
           </span>
         </p>
         {canManage && (
@@ -95,6 +95,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
   const turn = t.queue[t.index];
   const who = whoName(state, turn.playerId, me);
   const mineTurn = turn.playerId === me;
+  const canAct = mineTurn || canManage;
   const next = t.queue[t.index + 1];
   const owned = state.castaways.filter((c) => c.ownerIds.includes(turn.playerId) && c.status === "active");
   const fa = StateLogic.availableFor(state, turn.playerId);
@@ -133,7 +134,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
           )
         }
         title={mineTurn ? "One swap: drop one, add one" : `${who}: drop one, add one`}
-        subtitle={[next ? `Then ${whoName(state, next.playerId, me)}.` : "Last turn of the round.", !canManage && "Your commissioner makes the swap."]
+        subtitle={[!canAct && `Waiting on ${who}.`, next ? `Then ${whoName(state, next.playerId, me)}.` : "Last turn of the round."]
           .filter(Boolean)
           .join(" ")}
       />
@@ -147,7 +148,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
         ))}
       </div>
 
-      {canManage && (
+      {canAct && (
         <>
           <section className="flex flex-col gap-2">
             <SectionHead aside={drop && <span className="pb-1.5 text-[13px] text-muted-foreground">{ownedNames.get(drop.id)} selected</span>}>1 · Drop</SectionHead>
@@ -218,13 +219,15 @@ export function TradePanel({ state }: { state: LeagueState }) {
             </BarButton>
           </ConfirmBar>
 
-          <div className="grid grid-cols-2 gap-2 nav:flex">
-            <PlainButton onClick={skip}>Skip {mineTurn ? "my turn" : who}</PlainButton>
-            <PlainButton danger onClick={() => cancel(true)}>
-              End swap round
-            </PlainButton>
-          </div>
+          <PlainButton onClick={skip} className="nav:self-start">
+            {mineTurn ? "Skip my swap" : `Skip ${who}`}
+          </PlainButton>
         </>
+      )}
+      {canManage && (
+        <PlainButton danger onClick={() => cancel(true)} className="nav:self-start">
+          End swap round
+        </PlainButton>
       )}
       <TransactionHistory state={state} entries={log} />
     </div>

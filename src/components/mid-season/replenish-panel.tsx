@@ -13,11 +13,11 @@ import { CaptionPlate } from "@/components/ui/caption-plate";
 import { BarButton, CastTile, ConfirmBar, PlainButton, SectionHead, TileGrid, TurnPill, shortNames } from "@/components/draft/draft-ui";
 import { whoName } from "@/components/draft/draft-helpers";
 
-// Replenish (the canvas's "Pickups after an elimination"): a turn-based round that refills rosters
-// after eliminations. The plate says whose turn it is and who they're replacing, the order runs
-// underneath, and the free agents are picked by select-then-confirm like the draft. The whole route
-// (server/routes/replenish.js) is commissioner-only, so only a commissioner gets the confirm bar;
-// everyone else sees the round as it happens.
+// Pickups (the canvas's "Pickups after an elimination"; "replenish" in code and settings data): a
+// turn-based round that refills rosters after eliminations. The commissioner starts and ends it; each
+// player picks their own replacement on their turn, by select-then-confirm like the draft, and the
+// commissioner can pick for anyone (replenish/assign's rule, same as draft/pick). The plate says whose
+// turn it is and who they're replacing, with the order underneath.
 export function ReplenishPanel({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -46,14 +46,14 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
   async function handleStart() {
     await mutate(
       (s) => {
-        if (!StateLogic.startReplenish(s)) alert("Nobody has a roster spot to fill right now.");
+        if (!StateLogic.startReplenish(s)) alert("Nobody has an eliminated castaway to replace yet.");
       },
       () => api.startReplenish(leagueId!)
     );
   }
 
   async function cancel(ask: boolean) {
-    if (ask && !(await confirm("End this replenish round? Picks already made stay; nobody else gets one.", { confirmLabel: "End round" }))) return;
+    if (ask && !(await confirm("End this pickup round? Pickups already made stay; nobody else gets one.", { confirmLabel: "End round" }))) return;
     setSel(null);
     await mutate(
       (s) => StateLogic.cancelReplenish(s),
@@ -74,7 +74,7 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
                   {shared ? ", from anyone still in the game who isn't already theirs" : " from the free agents"}.
                 </>
               ) : (
-                <>Replace eliminated {terms.castaways} with free agents, one pick per turn.</>
+                <>Players replace eliminated {terms.castaways} with free agents, one pickup per turn.</>
               )}{" "}
               <span className="text-muted-foreground">Order: {orderLabel}.</span>
             </p>
@@ -86,11 +86,13 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
               </p>
             )}
             <PlainButton onClick={handleStart} className="nav:self-start">
-              Start replenish
+              Start pickup round
             </PlainButton>
           </>
         ) : (
-          <p className="text-base text-muted-foreground">Your commissioner runs replenish rounds after eliminations.</p>
+          <p className="text-base text-muted-foreground">
+            After eliminations your commissioner starts a pickup round, and you pick up a replacement on your turn.
+          </p>
         )}
         <TransactionHistory state={state} entries={log} />
       </div>
@@ -101,7 +103,7 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
   if (!turn || turn.isComplete || !turn.playerId) {
     return (
       <div className="flex flex-col gap-3">
-        <CaptionPlate tone="good" tag="Done" title="Replenish complete" subtitle="Every roster that was owed a pick has it." />
+        <CaptionPlate tone="good" tag="Done" title="Pickups complete" subtitle="Every roster that was owed a pickup has it." />
         {canManage && (
           <PlainButton onClick={() => cancel(false)} className="nav:self-start">
             Clear
@@ -115,6 +117,7 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
   const pickNo = turn.overallPickNumber!;
   const who = whoName(state, turn.playerId, me);
   const mineTurn = turn.playerId === me;
+  const canAct = mineTurn || canManage;
   const lossId = r.lossIdsByPlayer?.[turn.playerId]?.[(turn.personalPickNumber ?? 1) - 1];
   const loss = lossId ? StateLogic.getCastaway(state, lossId) : null;
   const fa = StateLogic.availableFor(state, turn.playerId);
@@ -151,10 +154,10 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
           )
         }
         title={loss ? `${mineTurn ? "Replace" : `${who}: replace`} ${loss.name.split(" ")[0]}` : `${who} · pick ${pickNo}`}
-        subtitle={[`${turn.scoreAtStart ?? 0} pts when the round started`, !canManage && "your commissioner assigns it"].filter(Boolean).join(" · ")}
+        subtitle={[`${turn.scoreAtStart ?? 0} pts when the round started`, !canAct && `waiting on ${who}`].filter(Boolean).join(" · ")}
       />
 
-      <div className="flex flex-wrap items-center gap-1.5" aria-label="Replenish order">
+      <div className="flex flex-wrap items-center gap-1.5" aria-label="Pickup order">
         <span className="text-[13px] text-muted-foreground">Order, {orderLabel}:</span>
         {strip.map((t) => (
           <TurnPill key={t.i} you={t.playerId === me} now={t.i === r.index} done={t.i < r.index}>
@@ -179,24 +182,24 @@ export function ReplenishPanel({ state }: { state: LeagueState }) {
                 state={state}
                 photoHeight={84}
                 mark={selected?.id === c.id ? "add" : undefined}
-                onClick={canManage ? () => setSel(selected?.id === c.id ? null : { pick: pickNo, id: c.id }) : undefined}
+                onClick={canAct ? () => setSel(selected?.id === c.id ? null : { pick: pickNo, id: c.id }) : undefined}
               />
             ))}
           </TileGrid>
         )}
       </section>
 
+      {canAct && (
+        <ConfirmBar note={`${who} ${mineTurn ? "get" : "gets"}`} title={selected ? selected.name : `Choose a ${terms.castaway}`}>
+          <BarButton onClick={assign} disabled={!selected || busy}>
+            {selected ? (mineTurn ? `Pick up ${names.get(selected.id)}` : `Give to ${who}`) : "Pick up"}
+          </BarButton>
+        </ConfirmBar>
+      )}
       {canManage && (
-        <>
-          <ConfirmBar note={`${who} ${mineTurn ? "get" : "gets"}`} title={selected ? selected.name : `Choose a ${terms.castaway}`}>
-            <BarButton onClick={assign} disabled={!selected || busy}>
-              {selected ? (mineTurn ? `Pick up ${names.get(selected.id)}` : `Give to ${who}`) : "Assign"}
-            </BarButton>
-          </ConfirmBar>
-          <PlainButton danger onClick={() => cancel(true)} className="nav:self-start">
-            End replenish round
-          </PlainButton>
-        </>
+        <PlainButton danger onClick={() => cancel(true)} className="nav:self-start">
+          End pickup round
+        </PlainButton>
       )}
       <TransactionHistory state={state} entries={log} />
     </div>

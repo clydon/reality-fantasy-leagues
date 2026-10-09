@@ -11,7 +11,7 @@ import { InfoHint } from "@/components/info-hint";
 
 // Port of renderSetup()'s General Settings panel: teamSize (roster cap, consumed by
 // DraftLogic.currentTurn's totalPicksNeeded) and replenishOrderBy (mid-season pick-order
-// direction), plus the two opt-in mid-season toggles (Replenish/Swap, both default off). Gated on
+// direction), plus the two opt-in mid-season toggles (Pickups, i.e. replenish, and Swap; both default off). Gated on
 // hasRoster -- every field here is a roster concept (replenish specifically is a roster-loss
 // backfill mechanic), meaningless for a league type with no roster at all (pickem).
 export function GeneralSettingsSection({ state }: { state: LeagueState }) {
@@ -70,19 +70,19 @@ export function GeneralSettingsSection({ state }: { state: LeagueState }) {
               checked={state.settings.replenishEnabled}
               onChange={(e) => update("replenishEnabled", e.target.checked)}
             />
-            Enable Replenish
+            Enable Pickups
             <InfoHint
               text={
                 activeRoster
-                  ? "When a roster is down to a set number of players still in the game, its owner adds players back up to one more than that — enough to keep fielding a full lineup. Each pick releases one of their eliminated players."
-                  : "When a player's roster spot is eliminated, they draft a replacement from the remaining free agents."
+                  ? "When a roster is down to a set number of players still in the game, its owner picks up players back up to one more than that — enough to keep fielding a full lineup. Each pickup releases one of their eliminated players. You start the round; each player picks on their turn."
+                  : "When someone on a player's roster is eliminated, they pick up a replacement from the remaining free agents. You start the round; each player picks on their turn."
               }
             />
           </label>
         )}
         {activeRoster && StateLogic.replenishAvailable(state) && (
           <label className="flex items-center gap-1.5 text-sm">
-            Replenish when a roster is down to
+            Pickups start when a roster is down to
             <Input
               type="number"
               min={0}
@@ -110,8 +110,8 @@ export function GeneralSettingsSection({ state }: { state: LeagueState }) {
             <InfoHint
               text={
                 activeRoster
-                  ? "At each scheduled swap window, every player may drop one of their players still in the game and add one who's available."
-                  : "Players can trade a castaway on their roster for one on another player's roster."
+                  ? "At each scheduled swap window, every player may drop one of their players still in the game and add one who's available. You start the round; each player swaps or skips on their turn."
+                  : "One at a time, in priority order, each player may drop one castaway and add a free agent. You start the round; each player swaps or skips on their turn."
               }
             />
           </label>

@@ -51,7 +51,7 @@ export function LeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; 
           ))}
         </div>
         {(r.formerRoster.length > 0 || r.roster.some((c) => c.acquiredVia && c.acquiredVia !== "draft")) && (
-          <p className="mt-1.5 text-[0.7rem] text-muted-foreground">⇄ traded away · ↓ eliminated, replenished away · ↑ added via Replenish/Swap</p>
+          <p className="mt-1.5 text-[0.7rem] text-muted-foreground">⇄ swapped away · ↓ eliminated, replaced · ↑ picked up or swapped in</p>
         )}
       </details>
 

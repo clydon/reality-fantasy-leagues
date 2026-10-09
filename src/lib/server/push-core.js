@@ -17,7 +17,7 @@ const webpush = require("web-push");
 const NOTIFICATION_TYPES = [
   { id: "draftTurn", label: "It's your turn to draft", description: "When the draft starts or reaches your pick.",
     sample: { title: "You're on the clock", body: "It's your turn to draft in Sample League." } },
-  { id: "midSeasonTurn", label: "Your turn to replenish or swap", description: "When a mid-season round reaches you.",
+  { id: "midSeasonTurn", label: "Your turn for a pickup or swap", description: "When a mid-season round reaches you.",
     sample: { title: "You're up for a swap", body: "Let your commissioner know your swap in Sample League." } },
   { id: "reminder", label: "Reminders before an episode", description: "A day and two hours before an episode airs, if your lineup, pick or a prediction is still open.",
     sample: { title: "Sample League: episode 9 airs in about 2 hours", body: "Set your episode 9 lineup (1 empty slot)" } },

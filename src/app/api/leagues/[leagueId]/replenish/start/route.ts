@@ -13,13 +13,13 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   const state = await withLeagueLock(leagueId, (s) => {
     // Replenish is opt-in and off by default, and shared-ownership leagues can't run it at all --
     // check here too rather than trusting the UI to have hidden the button.
-    if (!StateLogic.replenishAvailable(s)) throw new HttpError(400, "Replenish isn't enabled for this league");
+    if (!StateLogic.replenishAvailable(s)) throw new HttpError(400, "Pickups aren't turned on for this league");
     if (!StateLogic.startReplenish(s)) {
       throw new HttpError(
         400,
         StateLogic.getLeagueType(s).hasActiveRoster
           ? `Nobody's roster is down to ${StateLogic.MidSeasonLogic.replenishAt(s)} still in the game.`
-          : "No unclaimed losses to replenish"
+          : "Nobody has an eliminated castaway to replace yet."
       );
     }
   });

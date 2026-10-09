@@ -66,7 +66,7 @@ function TeamRow({ state, player, isMe }: { state: LeagueState; player: Player; 
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
               <span className="mr-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-muted-foreground">Dropped</span>
               {dropped.map((c) => (
-                <span key={c.id} title={`${c.name} — ${c.departedVia === "trade" ? "swapped away" : "replenished away"}`}>
+                <span key={c.id} title={`${c.name} — ${c.departedVia === "trade" ? "swapped away" : "replaced after elimination"}`}>
                   <Chip state={state} castaway={c} small />
                 </span>
               ))}

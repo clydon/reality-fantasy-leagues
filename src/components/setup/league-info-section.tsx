@@ -393,7 +393,7 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
         if (needed > castSize * 0.75) {
           return (
             <p className="mt-1 text-xs text-muted-foreground">
-              Heads up: {needed} of {castSize} {terms.castaways} would be claimed, leaving little room for Replenish
+              Heads up: {needed} of {castSize} {terms.castaways} would be claimed, leaving little room for Pickups
               or Swap. Shared ownership is worth considering.
             </p>
           );
@@ -404,7 +404,7 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
       {visible("ownership") && leagueType.hasRoster && state.settings.ownershipMode === "shared" && (
         <p className="mt-1 text-xs text-muted-foreground">
           Everyone picks privately, then all picks are revealed together once everyone has locked in. Nobody is ever
-          removed from the board, so there&rsquo;s no Replenish or Swap in this mode.
+          removed from the board, so there&rsquo;s no Pickups or Swap in this mode.
         </p>
       )}
 

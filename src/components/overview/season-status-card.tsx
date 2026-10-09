@@ -62,8 +62,8 @@ export function SeasonStatusCard({ state }: { state: LeagueState }) {
   } else if (replenishActive) {
     statusBody = (
       <>
-        <p className="mt-1.5 text-sm">Replenish round in progress.</p>
-        <DashLink href="/mid-season">Resume replenish →</DashLink>
+        <p className="mt-1.5 text-sm">Pickup round in progress.</p>
+        <DashLink href="/mid-season">Go to pickups →</DashLink>
       </>
     );
   } else if (tradeActive) {

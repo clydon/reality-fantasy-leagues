@@ -40,13 +40,13 @@ function actionItems(state, playerId) {
     }
   }
 
-  // Mid-season: your turn in a running replenish or swap round.
+  // Mid-season: your turn in a running pickup (replenish) or swap round.
   const rep = StateLogic.currentReplenishTurn(state);
   const repMine = !!(rep && !rep.isComplete && rep.playerId === playerId);
   const trade = state.midSeason && state.midSeason.trade;
   const tradeTurn = trade && trade.index < trade.queue.length ? trade.queue[trade.index].playerId : null;
   if (repMine || tradeTurn === playerId) {
-    items.push({ kind: "midSeasonTurn", text: repMine ? "It's your turn to replenish" : "It's your turn to swap", href: "/mid-season" });
+    items.push({ kind: "midSeasonTurn", text: repMine ? "It's your turn to pick up a replacement" : "It's your turn to swap", href: "/mid-season" });
   }
 
   // Active Roster: this episode's lineup has open slots you could fill.

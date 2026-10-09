@@ -219,7 +219,7 @@ function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: st
                   </span>
                 )}
                 {l.current && (l.c.acquiredVia === "trade" || l.c.acquiredVia === "replenish") && (
-                  <span className="ml-1 text-muted-foreground" title={l.c.acquiredVia === "trade" ? "Added via Swap" : "Added via Replenish"}>
+                  <span className="ml-1 text-muted-foreground" title={l.c.acquiredVia === "trade" ? "Added via Swap" : "Picked up"}>
                     ↑
                   </span>
                 )}

@@ -8,7 +8,7 @@ import { FinalePanel } from "./finale-panel";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { SectionHead } from "@/components/draft/draft-ui";
 
-// Direct port of renderMidseason() (public/app.js): intro panel, then Replenish, Swap, and
+// Direct port of renderMidseason() (public/app.js): intro panel, then Pickups (replenish), Swap, and
 // Finale Predictions, same order. Each panel is gated on BOTH the active league type's
 // supportsReplenish/supportsTrade/supportsFinalePredictions capability (state-logic.js's
 // LEAGUE_TYPES) AND the commissioner's own enable toggle in League Settings -- see
@@ -30,13 +30,13 @@ export function MidSeasonTab() {
     return (
       <>
         <h2 className="type-caption mb-4 text-[28px] max-nav:hidden">Mid-Season</h2>
-        <p className="text-base text-muted-foreground">This league type has no roster, so there&rsquo;s nothing to replenish or swap.</p>
+        <p className="text-base text-muted-foreground">This league type has no roster, so there are no pickups or swaps.</p>
       </>
     );
   }
 
   // Each tool is a flat section with a condensed caps heading, like Overview's (direction A). The
-  // turn-based ones (Replenish, Swap) run the same select-then-confirm pickers as the draft.
+  // turn-based ones (Pickups, Swap) run the same select-then-confirm pickers as the draft.
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
@@ -47,12 +47,12 @@ export function MidSeasonTab() {
           <p className="text-sm text-muted-foreground">
             {leagueType.hasActiveRoster ? (
               <>
-                Replenish keeps every roster able to field a full lineup after eliminations. Swap runs on a schedule so
+                Pickups keep every roster able to field a full lineup after eliminations. Swap runs on a schedule so
                 everyone gets the same chances to change a {terms.castaway}.
               </>
             ) : (
               <>
-                Change who owns which {terms.castaway} after eliminations. Usually Replenish first,{" "}
+                Change who owns which {terms.castaway} after eliminations. Usually Pickups first,{" "}
                 {StateLogic.formatOf(state).hasMerge ? "right after the merge" : "about halfway through the season"}, then Swap.
               </>
             )}
@@ -62,7 +62,7 @@ export function MidSeasonTab() {
 
       {replenishOn && (
         <section className="flex flex-col gap-2">
-          <SectionHead>Replenish</SectionHead>
+          <SectionHead>Pickups</SectionHead>
           <ReplenishPanel state={state} />
         </section>
       )}

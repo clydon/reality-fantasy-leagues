@@ -95,10 +95,22 @@ explained to a commissioner") rather than re-deriving it from source each time.
      replacing, order pills, 3-up free agents, confirm bar), Swap (1 · Drop photos, 2 · Add tiles,
      bar confirms both; Skip and End swap round below, End asks first), history as hairline rows.
      Finale predictions only got the new section heading.
-   - **Decisions for the user** (surfaced by the canvas, not built): the canvas shows Pickups and
-     Swap as the *player's* turn, but the server routes are commissioner-only, so only the
-     commissioner gets the pickers; making them player-run is a permissions change. The canvas also
-     says "Pickups" where the app and League Settings say "Replenish"; the name is unchanged.
+   - **Pickups and Swap are player-run now** (user decision, 2026-10-09): the commissioner starts
+     and ends a round; each player picks up, swaps or skips on their own turn, and the commissioner
+     can still act for anyone. Server: `replenish/assign`, `trade/swap` and `trade/skip` take any
+     member but refuse anyone but the turn's player or the commissioner (403 "It's not your turn"),
+     the same rule as `draft/pick`; `start`/`cancel` stay commissioner-only. The turn push now says
+     "Pick up a replacement" / "Make your swap, or skip it" instead of "let your commissioner know".
+     Verified end to end with a real player account (`uxplayer`, holding Josie's old seat in
+     `UX D Done`): refused off-turn, swapped and picked up on its turn.
+   - **Replenish is called "Pickups"** everywhere a person reads it (Mid-Season, League Settings,
+     the alert strip, pushes, Overview's status card, scoreboard and stat-card hints, the episode
+     editor's warning). Code, routes, settings keys and the database still say `replenish`. The
+     User Manual & Product Guide doc still says Replenish and commissioner-run; it isn't
+     auto-updated. A What's New entry for both changes is due when the branch merges (the user
+     approves those).
+   - Also fixed while there: League Settings' Swap hint for non–Active Roster leagues described
+     trading with other players; it now says drop one, add a free agent.
    - Known limits: the app doesn't record which round each pick was made in, so the board fills
      each player's column in cast order (right per round by count, not by which pick) and the
      on-the-clock plate can't say "Josie just took Maggie". No drag handle or Randomise on the
