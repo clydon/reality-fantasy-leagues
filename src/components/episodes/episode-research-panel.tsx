@@ -48,8 +48,10 @@ export function EpisodeResearchPanel({ ep, state }: { ep: Episode; state: League
   if (mode === "mock") return null;
 
   // The staged spelling, resolved to this league's own where it matches someone, so the dropdown
-  // starts on the right person.
-  const leagueName = (name: string) => StateLogic.Core.findCastawayByName(state, name).castaway?.name ?? name;
+  // starts on the right person. The server resolves it through the season cast link
+  // (docs/PLAN-universal-season-cast.md, piece 7); the loose match here is only for a row without one.
+  const leagueName = (d: { castawayName: string; leagueName?: string }) =>
+    d.leagueName ?? StateLogic.Core.findCastawayByName(state, d.castawayName).castaway?.name ?? d.castawayName;
 
   // Rows start ticked only until the league has any of this episode's research. After that, an unticked
   // row is as likely a result the commissioner already turned down as a new one -- nothing records a
@@ -60,7 +62,9 @@ export function EpisodeResearchPanel({ ep, state }: { ep: Episode; state: League
     setPanel(p);
     setRows(
       p.staged
-        .map((d) => ({ ...d, castawayName: leagueName(d.castawayName), keep: !d.inLeague && !started(p), group: groupKey(d) }))
+        // A row an admin flagged as wrong (curator mode: status "rejected") starts unticked -- still
+        // the commissioner's call, but not a default.
+        .map((d) => ({ ...d, castawayName: leagueName(d), keep: !d.inLeague && !started(p) && d.status !== "rejected", group: groupKey(d) }))
         // Sorted once here, not on render, so renaming a row doesn't reshuffle its group.
         .sort((a, b) => a.castawayName.localeCompare(b.castawayName))
     );
@@ -302,6 +306,16 @@ export function EpisodeResearchPanel({ ep, state }: { ep: Episode; state: League
                               )}
                               {r.kind === "group" && (
                                 <Input size="sm" className="w-[110px]" placeholder={terms.Tribe} value={r.method} disabled={r.inLeague} onChange={(e) => edit(r.id, { method: e.target.value })} />
+                              )}
+                              {r.status === "rejected" && (
+                                <span className={cn("basis-full font-semibold", r.inLeague ? "text-destructive" : "text-muted-foreground line-through")}>
+                                  {r.inLeague
+                                    ? "An admin flagged this as wrong, and it's already in your league. Check it."
+                                    : "Flagged as wrong by an admin."}
+                                </span>
+                              )}
+                              {r.status === "accepted" && r.corrected && (
+                                <span className="basis-full font-semibold text-muted-foreground">Corrected by an admin.</span>
                               )}
                               <span className="basis-full text-muted-foreground">
                                 {r.inLeague

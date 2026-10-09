@@ -21,6 +21,14 @@ import { useShowSpoilers } from "@/lib/paid-ai-store";
 // row undoes it everywhere. Decided rows stay listed, tinted, with their buttons live, so this is
 // also the season's permanent record: every row says who decided it, when, and how many leagues
 // it's in.
+//
+// CURATOR MODE, for a league-decided season (show_seasons.results_by = 'leagues'; docs/PLAN-universal-
+// season-cast.md, piece 5). Nothing here reaches a league -- each commissioner applies results to their
+// own -- so the same buttons mean something else: Flag as wrong (reject) and Correct... (accept with a
+// correction) fix the SHARED row every commissioner's research panel reads, where a flagged row shows
+// struck out and unticked and a corrected one in its corrected form. A plain Confirm just marks it
+// checked. There's no Accept all (nothing to push), and each row says which leagues already have it,
+// worked out from their state -- so a result no league applied stands out ("often a rule problem").
 
 type Cast = SeasonDecisionsResponse["cast"][number];
 
@@ -56,6 +64,7 @@ export function EpisodeDecisions({
   leagueCount,
   format,
   onSynced,
+  curator = false,
 }: {
   seasonId: string;
   episode: number;
@@ -65,6 +74,8 @@ export function EpisodeDecisions({
   /** The show's rules: which exit methods and events a correction may pick. */
   format: GameFormat;
   onSynced: (leagues: LeagueDecisionSync[]) => void;
+  /** A league-decided season: curate the shared rows, push nothing (see the top of this file). */
+  curator?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +98,16 @@ export function EpisodeDecisions({
   }
 
   const groups = groupByScoringEvent(decisions, cast, format);
+  // Curator mode: results no league has, once some league has started applying this episode -- before
+  // that, "nobody applied it" says nothing.
+  const anyApplied = curator && decisions.some((d) => (d.in_leagues?.length ?? 0) > 0);
+  const unapplied = anyApplied ? decisions.filter((d) => d.status !== "rejected" && !(d.in_leagues?.length ?? 0)).length : 0;
+  const unappliedNote = unapplied > 0 && (
+    <p className="text-[0.7rem] font-semibold text-destructive">
+      {unapplied} result{unapplied === 1 ? "" : "s"} no league has applied — often a rule problem. Check the show&rsquo;s rules
+      (Settings → view rules).
+    </p>
+  );
 
   // Spoiler-free: the episode's results by the count -- eliminations, events, roles and tribe/team
   // changes alike -- with Accept all, and nothing that says who or what until asked for.
@@ -97,14 +118,15 @@ export function EpisodeDecisions({
       <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-2">
         <p className="text-[0.7rem] text-muted-foreground">
           {decisions.length} result{decisions.length === 1 ? "" : "s"}
-          {[pending && `${pending} pending`, accepted && `${accepted} accepted`, rejected && `${rejected} rejected`]
+          {[pending && `${pending} pending`, accepted && `${accepted} ${curator ? "confirmed" : "accepted"}`, rejected && `${rejected} ${curator ? "flagged" : "rejected"}`]
             .filter(Boolean)
             .map((t) => ` · ${t}`)
             .join("")}{" "}
           — hidden while spoilers are off.
         </p>
+        {unappliedNote}
         <div className="flex flex-wrap items-center gap-2">
-          {pending > 0 && (
+          {pending > 0 && !curator && (
             <Button size="xs" disabled={busy} onClick={() => acceptAll()}>
               {busy ? "Accepting…" : `Accept all ${pending} pending`}
             </Button>
@@ -120,7 +142,8 @@ export function EpisodeDecisions({
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-2">
-      {pending > 0 && (
+      {unappliedNote}
+      {pending > 0 && !curator && (
         <div className="flex items-center gap-2">
           <Button size="xs" disabled={busy} onClick={() => acceptAll()}>
             {busy ? "Accepting…" : `Accept all ${pending} pending`}
@@ -142,12 +165,16 @@ export function EpisodeDecisions({
             title={g.title}
             names={g.rows.map(nameOf)}
             noun={["person", "people"]}
-            detail={[pendingIds.length && `${pendingIds.length} pending`, accepted && `${accepted} accepted`, rejected && `${rejected} rejected`]
+            detail={[
+              pendingIds.length && `${pendingIds.length} pending`,
+              accepted && `${accepted} ${curator ? "confirmed" : "accepted"}`,
+              rejected && `${rejected} ${curator ? "flagged" : "rejected"}`,
+            ]
               .filter(Boolean)
               .join(", ")}
             defaultOpen={g.key !== "group" && (g.key === "elimination" || g.rows.length <= 2 || needsLook)}
             action={
-              pendingIds.length > 1 && (
+              pendingIds.length > 1 && !curator && (
                 <Button size="xs" disabled={busy} onClick={() => acceptAll(pendingIds)}>
                   Accept {pendingIds.length}
                 </Button>
@@ -155,7 +182,7 @@ export function EpisodeDecisions({
             }
           >
             {g.rows.map((d) => (
-              <DecisionRow key={d.id} seasonId={seasonId} decision={d} cast={cast} leagueCount={leagueCount} format={format} onSynced={onSynced} />
+              <DecisionRow key={d.id} seasonId={seasonId} decision={d} cast={cast} leagueCount={leagueCount} format={format} onSynced={onSynced} curator={curator} />
             ))}
           </ResultGroup>
         );
@@ -203,6 +230,7 @@ function DecisionRow({
   leagueCount,
   format,
   onSynced,
+  curator,
 }: {
   seasonId: string;
   decision: SeasonDecision;
@@ -210,6 +238,7 @@ function DecisionRow({
   leagueCount: number;
   format: GameFormat;
   onSynced: (leagues: LeagueDecisionSync[]) => void;
+  curator: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -284,22 +313,33 @@ function DecisionRow({
           </span>
         )}
         <span title={decidedTitle} className={cn(decidedTitle && "cursor-help")}>
-          <StatusNote status={d.status} />
+          {curator && d.status !== "pending" ? (
+            <span className="text-[0.65rem] font-semibold">
+              {d.status === "rejected" ? "flagged as wrong" : d.applied ? "corrected" : "confirmed"}
+            </span>
+          ) : (
+            <StatusNote status={d.status} />
+          )}
         </span>
-        {d.status === "accepted" && (
+        {curator && (
+          <span className="text-[0.65rem] text-muted-foreground" title={d.in_leagues?.length ? `Already in: ${d.in_leagues.join(", ")}` : "No league has applied this"}>
+            in {d.in_leagues?.length ?? 0}/{leagueCount} league{leagueCount === 1 ? "" : "s"}
+          </span>
+        )}
+        {!curator && d.status === "accepted" && (
           <span className="text-[0.65rem] text-muted-foreground" title="Leagues this result has been applied to">
             in {d.applied_leagues}/{leagueCount} league{leagueCount === 1 ? "" : "s"}
           </span>
         )}
         <div className="ml-auto flex gap-1">
           <Button size="xs" className={decidedButtonClass(d.status)} disabled={busy} onClick={() => decide("accept")}>
-            Accept
+            {curator ? "Confirm" : "Accept"}
           </Button>
           <Button variant="secondary" size="xs" className={decidedButtonClass(d.status)} disabled={busy} onClick={() => setEditing((v) => !v)}>
-            Edit
+            {curator ? "Correct…" : "Edit"}
           </Button>
           <Button variant="destructive" size="xs" className={decidedButtonClass(d.status)} disabled={busy} onClick={() => decide("reject")}>
-            Reject
+            {curator ? "Flag as wrong" : "Reject"}
           </Button>
         </div>
       </div>
@@ -349,7 +389,7 @@ function DecisionRow({
               })
             }
           >
-            Confirm &amp; accept
+            {curator ? "Save correction" : <>Confirm &amp; accept</>}
           </Button>
         </div>
       )}

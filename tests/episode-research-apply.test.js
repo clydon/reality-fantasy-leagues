@@ -34,7 +34,8 @@ function fakeClient(world) {
   return {
     async query(sql, params) {
       const q = sql.replace(/\s+/g, " ").trim();
-      if (q.startsWith("SELECT ss.id FROM show_seasons ss JOIN shows s")) return { rows: [{ id: "season-3" }] };
+      // An admin-decided season with no cutoff (db/migrations/0054): the path these tests exercise.
+      if (q.startsWith("SELECT ss.id, ss.results_by")) return { rows: [{ id: "season-3", resultsBy: "admin", adminSince: null }] };
       if (q.includes("FROM season_decisions WHERE season_id=$1 AND status='accepted'")) {
         return { rows: world.decisions.filter((d) => world.accepted.has(d.id)) };
       }
@@ -50,6 +51,8 @@ function fakeClient(world) {
         return { rows: [] };
       }
       if (q.includes("FROM season_cast sc")) return { rows: [] };
+      // No season cast rows: names resolve by the loose fallback, as before the links existed.
+      if (q.startsWith("SELECT id, name FROM season_cast WHERE season_id")) return { rows: [] };
       throw new Error("unexpected query: " + q.slice(0, 120));
     },
   };

@@ -5,6 +5,24 @@ import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Ep
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
 
 /** One question in guided first-time setup, in the order it should be asked. */
+/** A season_cast row as the cast-linking functions read it. */
+export interface SeasonCastRef {
+  id: string;
+  name: string;
+  tribeName?: string | null;
+  photoUrl?: string | null;
+}
+
+export interface SeasonCastLinkPlan {
+  links: { seasonCastId: string; seasonName: string; castawayId: string; castawayName: string; how: "id" | "exact" | "forgiving" }[];
+  /** Rows no castaway matched. */
+  unmatched: { seasonCastId: string; seasonName: string }[];
+  /** Rows that matched more than one castaway, or reached for one another row also reached for. */
+  ambiguous: { seasonCastId: string; seasonName: string; how: "exact" | "forgiving"; candidates: string[] }[];
+  /** Castaways no row claimed. */
+  unlinked: { castawayId: string; castawayName: string }[];
+}
+
 export interface SetupStep {
   id: "name" | "show" | "season" | "type" | "ownership";
   label: string;
@@ -60,6 +78,15 @@ declare const StateLogic: {
     findCastawayByName(
       state: LeagueState,
       name: string
+    ): { castaway?: Castaway; ambiguous?: string[] };
+    /**
+     * Resolves a season's spelling to this league's castaway through the season cast link first
+     * (castaway.seasonCastId), falling back to findCastawayByName.
+     */
+    findSeasonCastaway(
+      state: LeagueState,
+      name: string,
+      seasonCast: { id: string; name: string }[] | null | undefined
     ): { castaway?: Castaway; ambiguous?: string[] };
   };
   ScoringLogic: {
@@ -174,6 +201,7 @@ declare const StateLogic: {
   };
   getPlayer(state: LeagueState, id: string): Player | undefined;
   getCastaway(state: LeagueState, id: string): Castaway | undefined;
+  getTribe(state: LeagueState, id: string): Tribe | undefined;
   computeScores(state: LeagueState): ScoreRow[];
   currentDraftTurn(state: LeagueState): DraftTurn | null;
   isDraftStarted(state: LeagueState): boolean;
@@ -203,7 +231,7 @@ declare const StateLogic: {
    * missing. What applyCastImport can't do (it skips anyone already present), and what catch-up
    * mode needs when a league finally reveals the episode that shows the division.
    */
-  applyCastTribes(state: LeagueState, proposal: { castaways: { name: string; tribeName?: string | null }[] }): {
+  applyCastTribes(state: LeagueState, proposal: { castaways: { id?: string; name: string; tribeName?: string | null }[] }): {
     tribes: string[];
     linked: string[];
     unchanged: string[];
@@ -219,8 +247,55 @@ declare const StateLogic: {
   ): { recorded: string[]; unchanged: string[]; unresolved: string[] };
   applyCastImport(
     state: LeagueState,
-    proposal: { tribes?: { name: string; color?: string }[]; castaways?: { name: string; tribeName?: string | null; photoUrl?: string | null }[] }
+    proposal: {
+      tribes?: { name: string; color?: string }[];
+      /** `id` is a season_cast row id: matched by castaway.seasonCastId first, and set on anyone created. */
+      castaways?: { id?: string; name: string; tribeName?: string | null; photoUrl?: string | null }[];
+    }
   ): { tribes: string[]; castaways: string[]; skipped: string[] };
+  /**
+   * Which league castaways are which season_cast rows (castaway.seasonCastId), without changing
+   * anything: already linked ('id'), the same name ('exact'), and -- only with `forgiving` -- a
+   * findCastawayByName match that agrees in both directions. Anything else is reported, never guessed.
+   */
+  planSeasonCastLinks(state: LeagueState, cast: SeasonCastRef[], opts?: { forgiving?: boolean }): SeasonCastLinkPlan;
+  /**
+   * Applies a season's cast to one league: link exact names, sync linked castaways, add who's missing
+   * (except possible duplicates of an unlinked castaway -- `needsReview`), then starting tribes.
+   */
+  applySeasonCast(
+    state: LeagueState,
+    cast: SeasonCastRef[],
+    opts?: { withTribes?: boolean }
+  ): {
+    tribes: string[];
+    castaways: string[];
+    skipped: string[];
+    linked: string[];
+    synced: { renamed: { from: string; to: string }[]; photos: string[]; retribed: { name: string; from: string; to: string }[]; conflicts: { from: string; to: string }[] };
+    needsReview: string[];
+    tribed: string[];
+  };
+  /** Whether anything in the league (an owner, a result, a pick, a lineup...) refers to this castaway. */
+  castawayInUse(state: LeagueState, castawayId: string): boolean;
+  /** Whether a league may see its season's starting tribes yet (season-cast.ts's tribesDue). */
+  castTribesDue(state: LeagueState, tribesFromEpisode: number | null | undefined): boolean;
+  /** Writes a plan's new links onto unlinked castaways; returns the names linked. */
+  applySeasonCastLinks(state: LeagueState, plan: SeasonCastLinkPlan): string[];
+  /**
+   * Brings linked castaways in line with their season_cast row: name, photo, and (with `withTribes`)
+   * the starting tribe. Never touches anyone unlinked.
+   */
+  syncSeasonCast(
+    state: LeagueState,
+    cast: SeasonCastRef[],
+    opts?: { withTribes?: boolean }
+  ): {
+    renamed: { from: string; to: string }[];
+    photos: string[];
+    retribed: { name: string; from: string; to: string }[];
+    conflicts: { from: string; to: string }[];
+  };
   /**
    * Apply halves of the connector's phase-2 proposals. Both additive and idempotent: they create any
    * missing episodes by number, skip anything already recorded, and report unresolved names rather

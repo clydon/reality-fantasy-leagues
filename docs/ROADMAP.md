@@ -71,13 +71,132 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
     model once it exists, but not a blocker for shipping episode research first.
 
 - **One cast per season, shared by every league on it** (`PLAN-universal-season-cast.md`): a written
-  plan, decided 2026-10-08, not started. The cast (names, photos, starting tribes, never spoiled) is a
+  plan, decided 2026-10-08, **in progress since 2026-10-09**, one piece per session with a review between
+  each, in the plan's "Order of work".
+  - **Open questions, resolved 2026-10-09 with the plan's own suggestions:** (1) the creating league's
+    cast locks on "Finish cast" or the season's first draft start, whichever comes first; (2) roles aren't
+    cast, they're episode-1 results, spoiler-gated; (3) switching league-decided → admin-decided pushes
+    only results accepted after the switch, nothing retroactive.
+  - **Step 1, the link (piece 1, plus piece 6's pass for approved-cast seasons): done locally
+    2026-10-09; the production linking pass is the user's to run.**
+    - `castaway.seasonCastId`. `StateLogic.planSeasonCastLinks` / `applySeasonCastLinks` /
+      `syncSeasonCast` / `castTribesDue`.
+    - `applyCastImport` and `applyCastTribes` match a season row by its link first.
+    - `applyCastToState` runs link (exact names only) → sync → add → tribes.
+    - The castaway PATCH setter refuses `seasonCastId`.
+    - `db/link-season-cast.js` is the reviewed linking pass: a dry run by default, and `--apply` only
+      with the dry run's fingerprint.
+    - Local dry run: 103 exact links across 5 leagues (S49, all three S51 leagues, Traitors 5). There
+      were no forgiving, ambiguous or unmatched names. In every league only `seasonCastId` changes and
+      scores are identical, and the next approve would change nothing in place.
+    - Applied locally with the dry run's fingerprint. The stored leagues were snapshotted before and
+      after: the only changed paths are `castaways[i].seasonCastId` (103), and scores are identical
+      in all 7 local leagues, including WUYXVU, T9FUMY and B999RR. A second dry run finds 0 new links.
+    - Production: run `node db/link-season-cast.js` there, review its report, then apply with the
+      fingerprint it prints. Until then, a cast approve or a season pick links exact names lazily.
+  - **Step 2, the results switch (piece 4): done locally 2026-10-09; the admin copy and one default
+    are waiting on the user's approval.**
+    - Migration 0054 adds `show_seasons.results_by` (`admin` | `leagues`, default `leagues`) and
+      `results_admin_since` (the cutoff). Seasons with an approved cast become `admin` with no cutoff,
+      which locally is all five.
+    - A season added through Admin is created as `admin`. A lazily created season gets `leagues`.
+    - `syncSeasonLeagues` returns at once for a `leagues` season, without locking or writing any
+      league. `syncLeagueDecisions` (the reveal and settings path) applies and undoes nothing there.
+    - Past a cutoff, only decisions settled at or after it are in scope. Ledger entries settled before
+      it are never undone, and pre-cutoff decisions are never pushed.
+    - The season PATCH takes `resultsBy`. Switching to admin sets the cutoff to now; re-saving admin
+      keeps it. A "Results" select with a confirm is in the season's Settings in Admin.
+    - **Proof A:** the old and new `syncLeagueDecisions`, run inside rolled-back transactions with a
+      fixed perturbation (one rejected, one re-decided, 3 ledger rows dropped). The result was
+      byte-identical state, ledger and result on all 5 admin-season leagues, with 4 applied and 2
+      undone each.
+    - **Proof B:** 11 checks on a throwaway season (9901) and league, covering the league-decided
+      no-op, the cutoff, re-decided rows, a second switch and rejections. All pass, and the throwaway
+      data was deleted with no orphans.
+    - The real leagues' states are unchanged since step 1's snapshot, and their ledger counts are
+      unchanged.
+  - **Step 3: commissioner entry writes the season cast, "Finish cast", the admin's fixes and change
+    log, and the self-serve linking pass (pieces 2, 3 and 6). Built 2026-10-09; the copy needs the user's
+    approval.** Locally there are no self-serve seasons to link: the real dry run creates nothing, and
+    the five real leagues' existing links are unchanged.
+    - Migration 0055 adds `show_seasons.cast_created_by_league`, `cast_locked_at` and
+      `cast_tribes_confirmed`, plus the `season_cast_changes` log.
+    - `src/lib/server/season-cast-write.ts` decides each league's cast mode: own (no season), create,
+      creating, or shared. Every league cast route goes through it: add, the name/photo/tribe edits,
+      remove, "Import a cast", and renaming or removing a *starting* tribe.
+    - The first write creates the season cast from the league's whole roster. It's approved at once,
+      with starting tribes held from episode 1 until the commissioner answers the tribes question.
+    - "Finish cast", or any league on the season getting underway (`StateLogic.seasonUnderway`), locks
+      it for good. After that only an admin can change it. Removing someone is refused if any league
+      already uses them (`StateLogic.castawayInUse`).
+    - The pure apply steps moved into `StateLogic.applySeasonCast`. They now hold back possible
+      duplicates of an unlinked castaway (`needsReview`) instead of adding them.
+    - Admin can rename someone, change their photo or change their starting tribe in place, on every
+      league at once, without un-approving the cast. It also shows who created the cast and its change
+      log.
+    - `db/link-season-cast.js` gained the self-serve pass: the most complete roster becomes the cast,
+      `--confirm` lets an admin resolve a name, and the report previews held-tribe changes.
+    - **Proof C:** 20 checks through the real write path on throwaway seasons and leagues, all passing,
+      with nothing left behind. A self-serve fixture dry run was reviewed; nothing was applied.
+  - **Step 4: curator mode (piece 5) and research simplification (piece 7). Built 2026-10-09; the copy
+    needs the user's approval.**
+    - A league-decided season's Episodes step opens without waiting on an approved cast. The review
+      screen relabels Accept / Edit / Reject as Confirm / Correct… / Flag as wrong, and drops the bulk
+      Accepts, since nothing is pushed.
+    - Each result shows "in X/N leagues", worked out on read from league state by the decisions GET's
+      `in_leagues`. An episode calls out results no league has applied once any league has started
+      applying it ("often a rule problem").
+    - Commissioner panel: a flagged row starts unticked and struck out. If it's already in the league,
+      it says so in red ("check it"). A corrected row shows corrected.
+    - Piece 7: research already asks about the season cast's names wherever one exists, which is now
+      every league on a season.
+      - New `Core.findSeasonCastaway` resolves a staged name through the link first, falling back to
+        `findCastawayByName`. It's used by the season sync, `inLeague` and the panel's names.
+      - A rename (admin or creating commissioner) carries into the season's staged results via
+        `renameInSeasonDecisions`.
+      - Not done: stored research payloads keep the old spelling, so research coverage may re-ask
+        about a renamed person.
+    - **Proof A was re-run** with link-first resolution: old and new sync were byte-identical on all 5
+      admin-season leagues.
+    - **Proof D:** 11 checks on a throwaway league-decided season through the real server code, all
+      passing, with nothing left behind. They cover in-league counts, the unapplied callout, flagging
+      pushing nothing, flagged and corrected rows in both panels, and a rename carrying through results,
+      leagues and the panel.
+  - **Step 5, the smoke test, and step 6, the gates: done 2026-10-09.**
+    - Run against the running dev server over real HTTP and Better Auth sessions, with throwaway
+      accounts, a fresh Survivor 9910 and two disposable leagues: 28 checks, all passing.
+      - A imports the cast with held tribes. B (catching up) receives it linked with tribes hidden,
+        and can't add, rename, remove or import (403 each).
+      - B gets the tribes on revealing episode 1; A gets them once its own episode 1 results land.
+      - An admin rename updates both leagues in place.
+      - Research asks about the season cast's names, and B's panel matches every staged name to its own
+        castaway with no spelling differences. B needs no research of its own.
+      - Curator: per-result league lists. Flagging pushes into no league and shows in both panels,
+        including A's "already in your league" case.
+      - Finish cast locks A out.
+    - Screenshots of League Settings (creating and shared) and Admin (cast, change log, curator
+      episodes): no console errors. They surfaced three bits of text, now fixed: the change log's
+      "created the cast 0 people" and "held until episode 1 → held until episode 1", and the curator
+      group counts saying "rejected" instead of "flagged".
+    - Teardown left nothing behind, and no rows anywhere point at a deleted league.
+    - Regression pass: all 7 real leagues have identical state and scores to the step-1 snapshot, the
+      applied-results counts are unchanged, and the linking dry run finds nothing to do.
+    - Gates: tsc clean, eslint only the known pickem error, `npm test` 247/247, both harnesses
+      byte-identical.
+    - Still open: the user's approval of the copy (steps 2-4), committing, and running the linking
+      dry run against production.
+  - Found in the smoke test and fixed afterwards: the red "No wiki page yet" now shows only for
+    admin-decided seasons, and a season created by a league's cast entry starts as "airing". A season
+    created by episode research (`db/episode-research.js`'s own insert) still defaults to "completed";
+    that insert was left alone.
+
+  The plan in short: the cast (names, photos, starting tribes, never spoiled) is a
   season fact: the first league to enter it, or an admin, creates it, and only an admin changes it after.
   Strictly just cast: results get their own per-season switch (admin-decided, like Survivor 50 today, or
   league-decided), and a league-decided season's Admin Episodes step becomes a curator view. This fixes
   the known gap above (admin can't review a self-serve season), the spelling mismatches between leagues'
   rosters, and the cast-import follow-on above. Data-moving (it links existing rosters to a season cast),
-  so Opus. Three open questions at the end of the plan.
+  so Opus. The plan's three open questions are resolved above.
 
 - **Format review gap-filling** (`PLAN-format-review-gap-filling.md`): **done 2026-10-08.** An admin
   can add a missing question, event and rule on the format review screen with no raw JSON --

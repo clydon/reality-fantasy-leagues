@@ -44,10 +44,13 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   const castSize = Number.isInteger(Number(body.castSize)) && Number(body.castSize) > 0 ? Number(body.castSize) : null;
 
   try {
+    // An admin adding a season here is cataloguing it, so its results are admin-decided from the start
+    // (db/migrations/0054) -- today's catalogued-season flow. Seasons created any other way (lazily, by
+    // a commissioner's episode research) take the column's league-decided default.
     const { rows } = await pool.query(
       `INSERT INTO show_seasons
-         (show_id, season_number, name, wiki_page_title, wiki_url, status, cast_size, premiere_date, finale_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         (show_id, season_number, name, wiki_page_title, wiki_url, status, cast_size, premiere_date, finale_date, results_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'admin')
        RETURNING id, season_number, name, wiki_page_title, wiki_url, status, cast_size`,
       [
         id,

@@ -1,4 +1,4 @@
-import type { PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { pool, withLeagueLock } from "./db";
@@ -13,9 +13,17 @@ import { pool, withLeagueLock } from "./db";
 //   * an admin approves the season's cast -> every league already tracking it gets it now;
 //   * a league picks that season later     -> it gets the approved cast on the spot.
 //
-// Applying is StateLogic.applyCastImport, which is additive and idempotent: it never renames,
-// re-tribes or removes an existing castaway, so a league that already entered its cast by hand keeps
-// exactly what it had and simply gains whoever was missing.
+// Each league castaway is linked to the season_cast row it is (castaway.seasonCastId, docs/PLAN-
+// universal-season-cast.md), and from then on the season cast finds them by that link rather than by
+// name. So applying a cast does two different things to two different groups:
+//
+//   * linked castaways are brought in line with their row -- an admin's rename, new photo or
+//     starting-tribe fix reaches every league in place (StateLogic.syncSeasonCast);
+//   * everyone else is left exactly as they were, and anyone the league doesn't have yet is added
+//     (StateLogic.applyCastImport, additive and idempotent), born linked.
+//
+// Linking here is by exact name only -- the same test applyCastImport has always used for "this
+// person is already here". Anything looser goes through db/link-season-cast.js's reviewed dry run.
 
 export interface SeasonCastRow {
   id: string;
@@ -31,6 +39,14 @@ export interface CastApplyResult {
   skipped: string[];
   /** Castaways linked to a starting tribe by this call (see tribesDue). */
   tribed?: string[];
+  /** Castaways newly linked to their season_cast row by exact name. */
+  linked?: string[];
+  /** What bringing linked castaways in line with the season cast changed. */
+  synced?: ReturnType<typeof StateLogic.syncSeasonCast>;
+  /** Season rows NOT added because an unlinked castaway here might already be them (see applyCastToState). */
+  needsReview?: string[];
+  /** Castaways taken out because their season row was removed while the cast was being created. */
+  removed?: string[];
   error?: string;
 }
 
@@ -50,10 +66,8 @@ export interface CastApplyResult {
  * case -- was being handed the tribes the moment the cast was approved.
  */
 export function tribesDue(state: LeagueState, tribesFromEpisode: number | null | undefined): boolean {
-  if (tribesFromEpisode == null) return true;
-  const revealed = StateLogic.RevealLogic.revealedThrough(state);
-  if (revealed !== null) return revealed >= tribesFromEpisode;
-  return (state.episodes || []).some((ep) => ep.number >= tribesFromEpisode && StateLogic.episodeHasResults(ep));
+  // The rule itself lives in StateLogic so db/link-season-cast.js (bare node) reads the same one.
+  return StateLogic.castTribesDue(state, tribesFromEpisode);
 }
 
 /**
@@ -68,8 +82,27 @@ export async function applyHeldTribesIfDue(client: PoolClient, state: LeagueStat
   if (!approved || approved.tribesFromEpisode == null) return [];
   if (!tribesDue(state, approved.tribesFromEpisode)) return [];
   return StateLogic.applyCastTribes(state, {
-    castaways: approved.cast.map((c) => ({ name: c.name, tribeName: c.tribeName })),
+    castaways: approved.cast.map((c) => ({ id: c.id, name: c.name, tribeName: c.tribeName })),
   }).linked;
+}
+
+/**
+ * Carries a season cast rename into the season's staged results (docs/PLAN-universal-season-cast.md,
+ * piece 7). A result is staged under the season cast's spelling of the moment; renaming someone would
+ * otherwise leave their results under the old name, matched only by the loose fallback. Both the
+ * proposed name and an admin's correction (`applied.castawayName`) follow. Nothing else moves:
+ * syncLeagueDecisions keys on decided_at, so a renamed result isn't re-applied or undone anywhere.
+ */
+export async function renameInSeasonDecisions(db: Pool | PoolClient, seasonId: string, from: string, to: string) {
+  await db.query(
+    "UPDATE season_decisions SET castaway_name=$3 WHERE season_id=$1 AND lower(castaway_name)=lower($2)",
+    [seasonId, from, to]
+  );
+  await db.query(
+    `UPDATE season_decisions SET applied = jsonb_set(applied, '{castawayName}', to_jsonb($3::text))
+      WHERE season_id=$1 AND lower(applied->>'castawayName')=lower($2)`,
+    [seasonId, from, to]
+  );
 }
 
 /** The season's staged/approved cast, in the order an admin arranged it. */
@@ -82,40 +115,33 @@ export async function seasonCastRows(seasonId: string): Promise<SeasonCastRow[]>
   return rows;
 }
 
-// The shape StateLogic.applyCastImport wants. `withTribes: false` strips the division entirely --
-// no tribe list, no tribeName on anyone -- which is what a league that hasn't revealed the premiere
-// gets. Empty tribes are never created: a tribe with nobody in it is a spoiler of its own (it names
-// the division and how many there are) and clutter besides.
-function payloadFor(cast: SeasonCastRow[], withTribes: boolean) {
-  const tribes: { name: string }[] = [];
-  if (withTribes) {
-    for (const c of cast) {
-      if (c.tribeName && !tribes.some((t) => t.name.toLowerCase() === c.tribeName!.toLowerCase())) {
-        tribes.push({ name: c.tribeName });
-      }
-    }
-  }
-  return {
-    tribes,
-    castaways: cast.map((c) => ({ name: c.name, tribeName: withTribes ? c.tribeName : null, photoUrl: c.photoUrl })),
-  };
+/**
+ * Applies a season's approved cast into one already-locked league state, including the starting
+ * tribes only if this league is allowed to see them yet. Returns what it changed.
+ *
+ * The steps -- link exact names, bring linked castaways in line, add who's missing (holding back any
+ * possible duplicate of an unlinked castaway as `needsReview`), then starting tribes -- are
+ * StateLogic.applySeasonCast, shared with db/link-season-cast.js's preview so the two can't drift.
+ */
+export function applyCastToState(state: LeagueState, cast: SeasonCastRow[], tribesFromEpisode?: number | null) {
+  return StateLogic.applySeasonCast(state, cast, { withTribes: tribesDue(state, tribesFromEpisode) });
 }
 
 /**
- * Applies a season's approved cast into one already-locked league state, including the starting
- * tribes only if this league is allowed to see them yet. Returns what it added.
- *
- * Two calls, not one, because they do different jobs: applyCastImport adds people who aren't there
- * (and skips everyone who is), while applyCastTribes links people who ARE there to a tribe. A
- * league receiving its cast for the first time uses the first; a league that already has the cast
- * and has just revealed the premiere uses the second. Running both always is simplest and costs
- * nothing -- each is additive and idempotent.
+ * Takes out castaways whose season_cast row was removed, but only someone nothing refers to yet (no
+ * owner, no result, no pick or lineup -- StateLogic.castawayInUse). A row can only be removed while
+ * its cast is still being created, before any league on the season is underway, so in practice this
+ * always succeeds; the check is there so it can never strand a drafted pick. Returns the names removed.
  */
-export function applyCastToState(state: LeagueState, cast: SeasonCastRow[], tribesFromEpisode?: number | null) {
-  const withTribes = tribesDue(state, tribesFromEpisode);
-  const added = StateLogic.applyCastImport(state, payloadFor(cast, withTribes));
-  const tribed = withTribes ? StateLogic.applyCastTribes(state, payloadFor(cast, true)) : null;
-  return { ...added, tribed: tribed ? tribed.linked : [] };
+export function removeUnlinkedRows(state: LeagueState, removedSeasonCastIds: string[]): string[] {
+  const gone: string[] = [];
+  for (const id of removedSeasonCastIds) {
+    const c = state.castaways.find((x) => x.seasonCastId === id);
+    if (!c || StateLogic.castawayInUse(state, c.id)) continue;
+    StateLogic.removeCastaway(state, c.id);
+    gone.push(c.name);
+  }
+  return gone;
 }
 
 /**
@@ -157,12 +183,16 @@ export async function approvedCastForLeague(
  * Pushes a season's approved cast into every league tracking it. One league failing (a lock
  * timeout, a league deleted mid-loop) is reported against that league and never denies the others,
  * same rule syncSeasonLeagues follows.
+ *
+ * `exceptLeagueId` skips the league a commissioner's write already updated inside its own lock
+ * (season-cast-write.ts); `removed` is season_cast rows deleted by that write, taken out of each league.
  */
 export async function applyApprovedCastToLeagues(
   showSlug: string,
   seasonNumber: number,
   cast: SeasonCastRow[],
-  tribesFromEpisode: number | null
+  tribesFromEpisode: number | null,
+  opts: { exceptLeagueId?: string; removed?: string[] } = {}
 ): Promise<CastApplyResult[]> {
   // Text comparison rather than ::int for the season: one league with a non-numeric value there
   // would otherwise make the cast error out for every league on the season.
@@ -176,17 +206,25 @@ export async function applyApprovedCastToLeagues(
 
   const results: CastApplyResult[] = [];
   for (const league of leagues) {
+    if (league.id === opts.exceptLeagueId) continue;
     try {
-      let added: { castaways: string[]; skipped: string[]; tribed: string[] } = { castaways: [], skipped: [], tribed: [] };
+      let added: ReturnType<typeof applyCastToState> | null = null;
+      let removed: string[] = [];
       await withLeagueLock(league.id, (state) => {
+        if (opts.removed?.length) removed = removeUnlinkedRows(state, opts.removed);
         added = applyCastToState(state, cast, tribesFromEpisode);
       });
+      const done = added as ReturnType<typeof applyCastToState> | null;
       results.push({
         leagueId: league.id,
         leagueName: league.name,
-        added: added.castaways,
-        skipped: added.skipped,
-        tribed: added.tribed,
+        added: done?.castaways ?? [],
+        skipped: done?.skipped ?? [],
+        tribed: done?.tribed ?? [],
+        linked: done?.linked ?? [],
+        synced: done?.synced,
+        needsReview: done?.needsReview ?? [],
+        removed,
       });
     } catch (e) {
       results.push({

@@ -47,6 +47,12 @@ export interface Castaway {
   acquiredVia?: "draft" | "replenish" | "trade" | null;
   formerOwnerId?: string | null;
   departedVia?: "replenish" | "trade" | null;
+  /**
+   * The season_cast row this castaway is (docs/PLAN-universal-season-cast.md). Set only by matching
+   * (StateLogic.planSeasonCastLinks / applyCastImport), never by hand; absent for a league with no
+   * season, or a castaway the season's cast doesn't have.
+   */
+  seasonCastId?: string | null;
 }
 
 export interface BetPrediction {
@@ -308,6 +314,13 @@ export interface ShowSeason {
   castStaged?: number;
   /** When an admin last approved the staged cast; null if never, or if a re-pull changed it since. */
   castApprovedAt?: string | null;
+  /**
+   * Who decides episode results (db/migrations/0054): "admin" pushes an admin's Accept into every
+   * league; "leagues" leaves each league's results to its commissioner.
+   */
+  resultsBy?: "admin" | "leagues";
+  /** Set when switched to "admin" from "leagues": only decisions settled from then on are pushed. */
+  resultsAdminSince?: string | null;
   /** Highest episode number in the cached wiki extraction; null if episodes were never pulled. */
   wikiEpisodesThrough?: number | null;
   /** Episode numbers that have a stored research row. */
@@ -543,6 +556,10 @@ export interface StagedResearchDecision {
   postMerge: boolean;
   /** Already in this league's state (by whichever path, or entered by hand). */
   inLeague?: boolean;
+  /** This league's own name for the person, resolved through the season cast link (else the staged name). */
+  leagueName?: string;
+  /** An admin corrected the row (season_decisions.applied): the values above are the corrected ones. */
+  corrected?: boolean;
 }
 
 /** GET/POST /api/leagues/[leagueId]/episodes/[epId]/research. */
@@ -671,6 +688,8 @@ export interface SeasonDecision {
   created_at: string;
   /** How many leagues this accepted decision has been applied to so far. */
   applied_leagues: number;
+  /** League-decided seasons only (curator mode): the leagues that already have this result. */
+  in_leagues?: string[];
 }
 
 /** One league's result from applying the season's accepted decisions. */
@@ -686,6 +705,8 @@ export interface LeagueDecisionSync {
 
 /** GET /api/admin/seasons/:id/decisions */
 export interface SeasonDecisionsResponse {
+  /** Who decides the season's results (db/migrations/0054); "leagues" puts the review in curator mode. */
+  resultsBy?: "admin" | "leagues";
   decisions: SeasonDecision[];
   cast: { name: string; tribeName: string | null; photoUrl: string | null }[];
   leagueCount: number;

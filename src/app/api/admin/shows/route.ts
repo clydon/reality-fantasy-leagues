@@ -28,6 +28,8 @@ export const GET = apiRoute(async (req) => {
                   -- state and the next step instead of a row of equal-looking buttons.
                   'castStaged', (SELECT count(*)::int FROM season_cast sc WHERE sc.season_id = ss.id),
                   'castApprovedAt', ss.cast_approved_at,
+                  -- Who decides its results (0054), shown and switched in the season's Settings.
+                  'resultsBy', ss.results_by, 'resultsAdminSince', ss.results_admin_since,
                   'wikiEpisodesThrough', (
                     SELECT max((e->>'number')::int)
                       FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e

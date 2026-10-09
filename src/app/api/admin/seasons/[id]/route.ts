@@ -117,6 +117,16 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
   // Allows correcting a derived title directly, for a wiki whose URL scheme and canonical page title
   // genuinely differ.
   if ("wikiPageTitle" in body) push("wiki_page_title", String(body.wikiPageTitle || "").trim() || null);
+  // Who decides the season's results (db/migrations/0054). Switching TO admin starts the clock: only
+  // decisions settled from now on are pushed, so nothing a commissioner chose not to apply arrives
+  // retroactively. Re-saving "admin" on a season that already is keeps its cutoff (the old value is
+  // what the CASE reads -- an UPDATE's right-hand side sees the row as it was).
+  if ("resultsBy" in body) {
+    const by = String(body.resultsBy);
+    if (by !== "admin" && by !== "leagues") throw new HttpError(400, "resultsBy must be admin or leagues");
+    if (by === "admin") sets.push("results_admin_since = CASE WHEN results_by = 'admin' THEN results_admin_since ELSE now() END");
+    push("results_by", by);
+  }
 
   if (!sets.length) throw new HttpError(400, "No editable fields supplied");
 

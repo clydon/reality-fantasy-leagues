@@ -3,6 +3,7 @@ import type { Episode, EpisodeResearchPanel, LeagueState } from "@/lib/game/type
 import { leagueResearchStatus } from "@db/episode-research.js";
 import { pool, HttpError } from "./db";
 import { inLeague, stagedForEpisode } from "./episode-research-apply";
+import { seasonCastRefs } from "./season-decisions";
 
 /** The league's episode by its in-state id, refused where a commissioner may not research it. */
 export function researchableEpisode(state: LeagueState, epId: string): Episode {
@@ -30,6 +31,15 @@ export async function episodeResearchPanel(leagueId: string, state: LeagueState,
     throw new HttpError(400, e instanceof Error ? e.message : "Couldn't read this episode's research");
   }
   const staged = status.ctx.seasonId ? await stagedForEpisode(pool, status.ctx.seasonId, episodeNumber) : [];
+  // The season cast, so each staged name finds this league's castaway through its link (piece 7 of
+  // docs/PLAN-universal-season-cast.md) rather than by spelling.
+  const client = await pool.connect();
+  let refs: { id: string; name: string }[] = [];
+  try {
+    refs = await seasonCastRefs(client, status.ctx.seasonId ?? null);
+  } finally {
+    client.release();
+  }
   return {
     episodeNumber,
     showName: status.ctx.showName,
@@ -37,6 +47,10 @@ export async function episodeResearchPanel(leagueId: string, state: LeagueState,
     coverage: status.coverage,
     prompt: status.prompt,
     betCount: status.betCount,
-    staged: staged.map((d) => ({ ...d, inLeague: inLeague(state, episodeNumber, d) })),
+    staged: staged.map((d) => ({
+      ...d,
+      inLeague: inLeague(state, episodeNumber, d, refs),
+      leagueName: StateLogic.Core.findSeasonCastaway(state, d.castawayName, refs).castaway?.name ?? d.castawayName,
+    })),
   };
 }

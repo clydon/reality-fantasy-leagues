@@ -599,6 +599,10 @@ function SeasonCard({
   const label = season.name || `Season ${season.seasonNumber}`;
   const staged = season.castStaged ?? 0;
   const approved = !!season.castApprovedAt;
+  // A league-decided season's Episodes step is a curator view (docs/PLAN-universal-season-cast.md,
+  // piece 5): it pushes nothing, so it doesn't wait on an approved cast.
+  const curator = season.resultsBy === "leagues";
+  const episodesOpen = approved || curator;
   const wikiThrough = season.wikiEpisodesThrough ?? null;
   const hasWiki = !!season.wikiPageTitle;
 
@@ -676,7 +680,9 @@ function SeasonCard({
 
       {settingsOpen && <SeasonSettings season={season} busy={busy} run={run} />}
 
-      {!hasWiki && (
+      {/* Only an admin-decided season is read from a wiki; a league-decided one (self-serve, made by a
+          league's cast entry or research) has nothing for the connector to do. */}
+      {!hasWiki && !curator && (
         <p className="mt-1.5 font-semibold text-destructive">
           No wiki page yet — add the season&rsquo;s wiki URL in Settings so the connector has something to read.
         </p>
@@ -735,10 +741,12 @@ function SeasonCard({
         n={3}
         title="Episodes"
         done={false}
-        disabled={!approved}
+        disabled={!episodesOpen}
         status={
-          !approved
+          !episodesOpen
             ? "Approve the cast first — results are matched to it by name"
+            : curator
+              ? "Each league decides its own results — review what's staged for them below"
             : pendingDecisions
               ? `${pendingDecisions} result${pendingDecisions === 1 ? "" : "s"} to review below`
               : wikiThrough
@@ -746,7 +754,7 @@ function SeasonCard({
                 : "No results pulled yet"
         }
       >
-        {approved && showPaid && (
+        {episodesOpen && showPaid && (
           <>
             <CostHint title={`Typical cost with ${modelLabel(models.wiki)}. Free when the wiki hasn't changed since the last pull — nothing is sent to the model.`}>
               {estimate("episodes", models.wiki)} · free if unchanged
@@ -783,7 +791,7 @@ function SeasonCard({
         />
       )}
       {/* The season's episodes, each with what to do next -- the main path through step 2. */}
-      {approved && (
+      {episodesOpen && (
         <SeasonEpisodes
           season={season}
           researching={researchingEpisode}
@@ -876,6 +884,36 @@ function SeasonSettings({ season, busy, run }: { season: ShowSeason; busy: boole
           />
         </label>
       </div>
+      {/* Who decides the season's results (db/migrations/0054). Controlled, so cancelling the confirm
+          leaves the select where it was. Neither direction changes any league's existing results. */}
+      <label className="flex flex-wrap items-center gap-1">
+        Results
+        <Select
+          size="sm"
+          value={season.resultsBy ?? "leagues"}
+          disabled={busy}
+          onChange={async (e) => {
+            const to = e.target.value as "admin" | "leagues";
+            const ok = await confirm(
+              to === "admin"
+                ? `From now on, results you accept for season ${season.seasonNumber} go into every league on it. ` +
+                    `Results each league already has stay as they are, and nothing accepted before now is pushed.`
+                : `Results you accept for season ${season.seasonNumber} will stop reaching leagues; each league's ` +
+                    `commissioner applies their own. Results leagues already have stay as they are.`,
+              { confirmLabel: to === "admin" ? "Admin decides" : "Each league decides" }
+            );
+            if (ok) run(() => api.adminUpdateSeason(season.id, { resultsBy: to }));
+          }}
+        >
+          <option value="admin">Admin decides (pushed to every league)</option>
+          <option value="leagues">Each league decides</option>
+        </Select>
+        {season.resultsBy === "admin" && season.resultsAdminSince && (
+          <span className="text-xs text-muted-foreground">
+            since {new Date(season.resultsAdminSince).toLocaleDateString()}
+          </span>
+        )}
+      </label>
       <div>
         <Button
           variant="destructive"

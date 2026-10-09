@@ -54,16 +54,26 @@ export async function stagedForEpisode(db: Pool | PoolClient, seasonId: string, 
     confidence: r.confidence,
     sources: r.sources || [],
     status: r.status,
+    // Curator mode shows a corrected row as corrected (docs/PLAN-universal-season-cast.md, piece 5).
+    corrected: !!r.applied,
     fromWiki: r.from_wiki,
     fromResearch: r.from_research,
     postMerge: r.post_merge,
   }));
 }
 
-/** Whether a decision's result is already in the league's episode -- what makes applying it a no-op. */
-export function inLeague(state: LeagueState, episodeNumber: number, d: Pick<StagedResearchDecision, "kind" | "castawayName" | "eventType">): boolean {
+/**
+ * Whether a decision's result is already in the league's episode -- what makes applying it a no-op.
+ * `seasonCast` (the season's [{ id, name }]) resolves the staged name through the league's link first.
+ */
+export function inLeague(
+  state: LeagueState,
+  episodeNumber: number,
+  d: Pick<StagedResearchDecision, "kind" | "castawayName" | "eventType">,
+  seasonCast?: { id: string; name: string }[]
+): boolean {
   const ep = state.episodes.find((e) => e.number === episodeNumber);
-  const { castaway } = StateLogic.Core.findCastawayByName(state, d.castawayName);
+  const { castaway } = StateLogic.Core.findSeasonCastaway(state, d.castawayName, seasonCast);
   if (!ep || !castaway) return false;
   if (d.kind === "elimination") return (ep.events || []).some((e) => e.castawayId === castaway.id);
   if (d.kind === "event") return (ep.scoringEvents || []).some((e) => e.type === d.eventType && e.castawayId === castaway.id);

@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
-import { leagueCountForSeason } from "@/lib/server/season-decisions";
+import { leagueCountForSeason, seasonCastRefs } from "@/lib/server/season-decisions";
+import { inLeague } from "@/lib/server/episode-research-apply";
+import type { LeagueState } from "@/lib/game/types";
 import { stageCachedSeasonEpisodes } from "@db/wiki-sync.js";
 import { stageCachedSeasonResearch } from "@db/episode-research.js";
 import { formatDataFor } from "@db/show-formats.js";
@@ -19,7 +21,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: stri
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
 
   const { rows: season } = await pool.query(
-    "SELECT ss.id, s.format FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id=$1",
+    "SELECT ss.id, ss.results_by, s.format FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id=$1",
     [id]
   );
   if (!season.length) throw new HttpError(404, "Season not found");
@@ -50,8 +52,39 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: stri
        FROM season_cast WHERE season_id=$1 ORDER BY sort_order ASC, name ASC`,
     [id]
   );
+  // Curator mode (docs/PLAN-universal-season-cast.md, piece 5): on a league-decided season nothing here
+  // pushes into leagues, so the ledger count means nothing. Instead each result says which leagues
+  // already have it -- worked out now from each league's own state (the commissioner panel's inLeague),
+  // nothing stored -- so a result no league applied stands out.
+  const resultsBy: "admin" | "leagues" = season[0].results_by;
+  if (resultsBy === "leagues") {
+    const { rows: leagues } = await pool.query<{ name: string; state: LeagueState }>(
+      `SELECT l.name, l.state FROM leagues l
+         JOIN shows s ON s.slug = l.state->'settings'->>'showId'
+         JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
+        WHERE ss.id = $1 ORDER BY l.name`,
+      [id]
+    );
+    const client = await pool.connect();
+    let refs: { id: string; name: string }[] = [];
+    try {
+      refs = await seasonCastRefs(client, id);
+    } finally {
+      client.release();
+    }
+    for (const d of decisions) {
+      const row = {
+        kind: d.kind,
+        castawayName: d.applied?.castawayName || d.castaway_name,
+        eventType: d.applied?.eventType || d.event_type,
+      };
+      d.in_leagues = leagues.filter((l) => inLeague(l.state, d.episode_number, row, refs)).map((l) => l.name);
+    }
+  }
+
   // The show's format, so the review offers its exit methods and events when correcting a result.
   return NextResponse.json({
+    resultsBy,
     decisions,
     cast,
     leagueCount: await leagueCountForSeason(id),

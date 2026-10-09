@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { ChevronDownIcon } from "@/components/icons";
 import { cn } from "cn";
+import { seasonCastApi, useSeasonCastMode } from "@/lib/season-cast-api";
 
 // "Import a cast" (docs/PLAN-cast-import-prompt.md): copy a research prompt into any web-searching
 // chat, paste its JSON back, review one row per person, confirm. Same shape as "Research a new show"
@@ -23,6 +24,11 @@ import { cn } from "cn";
 //
 // Applying is StateLogic.applyCastImport then applyCastRoles (the route re-parses against the
 // league's format first), so it's additive: anyone already in the league is left as they are.
+//
+// On a league with a season (docs/PLAN-universal-season-cast.md) the people become the SEASON's
+// shared cast, so the review asks whether the starting groups were public before the premiere -- it
+// never assumes -- and roles stay this league's own, as episode-1 results. Once the season's cast is
+// someone else's or finished, there's nothing to import into, and the section hides.
 export function CastImportSection({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mode = useLeagueStore((s) => s.mode);
@@ -37,6 +43,8 @@ export function CastImportSection({ state }: { state: LeagueState }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const { mode: cast, refresh } = useSeasonCastMode();
+  const [tribesPublic, setTribesPublic] = useState<boolean | null>(null);
 
   // The league's format with the show's own words for its people and groups.
   const base = StateLogic.formatOf(state);
@@ -47,7 +55,9 @@ export function CastImportSection({ state }: { state: LeagueState }) {
   const prompt = buildCastPrompt(format, { seasonName: season.trim() || undefined, showName: terms.showName ?? undefined });
   const roles = roleChoices(format);
 
-  if (!canManage) return null;
+  if (!canManage || cast.kind === "shared") return null;
+  const seasonal = cast.kind === "create" || cast.kind === "creating";
+  const seasonName = seasonal ? `Season ${cast.seasonNumber}` : "";
 
   async function copyPrompt() {
     try {
@@ -83,6 +93,12 @@ export function CastImportSection({ state }: { state: LeagueState }) {
 
   const inLeague = (name: string) => state.castaways.some((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
   const importable = parsed ? parsed.castaways.filter((c) => c.name && !c.problems.length && !inLeague(c.name)) : [];
+  // Asked once per season cast, and only when this answer brings starting groups with it.
+  const askTribes =
+    seasonal &&
+    format.hasGroups &&
+    !(cast.kind === "creating" && cast.tribesConfirmed) &&
+    !!parsed?.castaways.some((c) => c.startingGroup && c.startingGroup.trim());
 
   async function confirmImport() {
     if (!parsed) return;
@@ -98,6 +114,12 @@ export function CastImportSection({ state }: { state: LeagueState }) {
         added = StateLogic.applyCastImport(state, toCastImport(p)).castaways;
         recorded = StateLogic.applyCastRoles(state, toCastRoles(p, base)).recorded;
         setState(state);
+      } else if (seasonal) {
+        const res = await seasonCastApi.importCast(leagueId!, proposal, askTribes ? (tribesPublic ? null : 1) : undefined);
+        setState(res.state);
+        added = res.added.castaways;
+        recorded = res.roles.recorded;
+        refresh();
       } else {
         const res = await api.importCast(leagueId!, proposal);
         setState(res.state);
@@ -162,6 +184,8 @@ export function CastImportSection({ state }: { state: LeagueState }) {
               <p className="text-muted-foreground">
                 {importable.length} new {importable.length === 1 ? terms.castaway : terms.castaways} to import. Fix anything wrong
                 before importing.
+                {seasonal && ` They become ${seasonName}'s shared cast, for every league on the season.`}
+                {seasonal && roles.length > 0 && " Starting roles are recorded in this league only, as episode 1 results."}
               </p>
               {parsed.repairs.length > 0 && (
                 <ul className="list-disc pl-4 text-muted-foreground">
@@ -213,8 +237,21 @@ export function CastImportSection({ state }: { state: LeagueState }) {
                   );
                 })}
               </div>
+              {askTribes && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-semibold">Were these starting {terms.tribes} public before the premiere?</span>
+                  <label className="flex items-center gap-1">
+                    <input type="radio" name="tribes-public" checked={tribesPublic === true} onChange={() => setTribesPublic(true)} />
+                    Yes, show them now
+                  </label>
+                  <label className="flex items-center gap-1">
+                    <input type="radio" name="tribes-public" checked={tribesPublic === false} onChange={() => setTribesPublic(false)} />
+                    No, episode 1 shows them (held until each league gets there)
+                  </label>
+                </div>
+              )}
               <div className="flex items-center gap-1.5">
-                <Button size="xs" disabled={busy || importable.length === 0} onClick={confirmImport}>
+                <Button size="xs" disabled={busy || importable.length === 0 || (askTribes && tribesPublic === null)} onClick={confirmImport}>
                   {busy ? "Importing…" : `Import ${importable.length}`}
                 </Button>
                 <Button variant="secondary" size="xs" disabled={busy} onClick={() => setParsed(null)}>

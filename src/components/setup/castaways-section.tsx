@@ -14,6 +14,8 @@ import { confirm } from "@/lib/confirm-store";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { ChevronDownIcon } from "@/components/icons";
 import { cn } from "cn";
+import { useSeasonCastMode } from "@/lib/season-cast-api";
+import { SeasonCastNotice } from "./season-cast-notice";
 
 // Port of renderSetup()'s Castaways panel. Removing a castaway is a hard delete
 // (StateLogic.removeCastaway), unlike removing a tribe or player, which only un-assign -- matches
@@ -23,13 +25,30 @@ import { cn } from "cn";
 // Collapsed by default: the full cast list is the longest, least-often-touched section in League
 // Settings (set once at draft time), so it shouldn't push everything below it down the page on
 // every visit -- same idea as EpisodeCard's own per-card `open` state.
+//
+// On a league with a season, this list is the SEASON's cast (docs/PLAN-universal-season-cast.md): the
+// server writes it to every league on the season, and once it's shared and finished nobody here can
+// change it -- the inputs lock and SeasonCastNotice says why.
 export function CastawaysSection({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const terms = useShowTerms();
-  const mutate = useMutate();
+  const baseMutate = useMutate();
+  const { mode: cast, refresh } = useSeasonCastMode();
+  const editable = canManage && cast.kind !== "shared";
   const [newName, setNewName] = useState("");
   const [open, setOpen] = useState(false);
+
+  // Any cast write can change the season cast's situation (the first one creates it), so re-read it.
+  const mutate: typeof baseMutate = async (mock, live) => {
+    const ok = await baseMutate(mock, live);
+    if (ok) refresh();
+    return ok;
+  };
+  // A starting tribe the season holds back (season_cast.tribes_from_episode) isn't on the castaway in
+  // this league yet; the creating commissioner still sees what they set.
+  const heldTribe = (seasonCastId: string | null | undefined) =>
+    cast.kind === "creating" && seasonCastId ? cast.cast.find((r) => r.id === seasonCastId)?.tribeName ?? null : null;
 
   async function handleAdd() {
     const trimmed = newName.trim();
@@ -69,6 +88,7 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
       </button>
       {open && (
         <div className="px-4 pb-4">
+          <SeasonCastNotice state={state} cast={cast} onChanged={refresh} />
           <div className="flex flex-col gap-2">
             {state.castaways.map((c) => {
               // Shared-ownership leagues can have several owners per castaway, so all of them are
@@ -77,6 +97,7 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
               const ownerNames = c.ownerIds
                 .map((id) => StateLogic.getPlayer(state, id)?.name)
                 .filter((n): n is string => !!n);
+              const held = !c.tribeId ? heldTribe(c.seasonCastId) : null;
               return (
                 <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2.5 text-sm">
                   <CastawayAvatar expandable
@@ -87,10 +108,10 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
                     size="sm"
                     className="min-w-[120px] flex-1"
                     defaultValue={c.name}
-                    disabled={!canManage}
+                    disabled={!editable}
                     onBlur={(e) => e.target.value.trim() && e.target.value !== c.name && update(c.id, "name", e.target.value.trim())}
                   />
-                  <Select size="sm" value={c.tribeId ?? ""} disabled={!canManage} onChange={(e) => update(c.id, "tribeId", e.target.value || null)}>
+                  <Select size="sm" value={c.tribeId ?? ""} disabled={!editable} onChange={(e) => update(c.id, "tribeId", e.target.value || null)}>
                     <option value="">— no {terms.tribe} —</option>
                     {state.tribes.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -98,12 +119,17 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
                       </option>
                     ))}
                   </Select>
+                  {held && (
+                    <span className="text-xs text-muted-foreground">
+                      {held}, held until episode {cast.kind === "creating" ? cast.tribesFromEpisode : ""}
+                    </span>
+                  )}
                   <Input
                     size="sm"
                     className="min-w-[140px] flex-1"
                     placeholder="Photo URL"
                     defaultValue={c.photoUrl ?? ""}
-                    disabled={!canManage}
+                    disabled={!editable}
                     onBlur={(e) => e.target.value !== (c.photoUrl ?? "") && update(c.id, "photoUrl", e.target.value)}
                   />
                   <span className="text-xs text-muted-foreground">
@@ -116,7 +142,7 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
                   <span className="text-xs text-muted-foreground">
                     {c.status === "eliminated" ? `#${c.placementOrder} — ${c.exitMethod}` : "Active"}
                   </span>
-                  {canManage && (
+                  {editable && (
                     <Button variant="destructive" size="sm" onClick={() => remove(c.id, c.name)}>
                       Remove
                     </Button>
@@ -125,7 +151,7 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
               );
             })}
           </div>
-          {canManage && (
+          {editable && (
             <div className="mt-3 flex gap-1.5">
               <Input
                 className="min-w-0 flex-1"

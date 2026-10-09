@@ -9,6 +9,16 @@ import { Button } from "@/components/ui/button";
 import { confirm } from "@/lib/confirm-store";
 import { plural } from "@/lib/use-show-terms";
 import { useShowSpoilers } from "@/lib/paid-ai-store";
+import { seasonCastApi } from "@/lib/season-cast-api";
+import { Input } from "@/components/ui/input";
+
+// What the cast GET adds for a season's shared cast (db/migrations/0055): who created it, whether
+// it's finished, and every change since -- each one reached every league on the season.
+interface CastProvenance {
+  createdByLeague?: { id: string; name: string | null } | null;
+  lockedAt?: string | null;
+  changes?: { field: string; before: string | null; after: string | null; changedAt: string; by: string | null; byLeague: string | null }[];
+}
 
 // Reviewing and approving one season's cast (db/migrations/0011). This is the step that used to be
 // every commissioner's job -- "Apply" on a per-league cast proposal -- and it's here because a cast
@@ -61,6 +71,22 @@ export function SeasonCastReview({
   const leagueCount = data?.leagueCount ?? 0;
   const withTribes = cast.filter((c) => c.tribeName).length;
   const heldFrom = data?.tribesFromEpisode ?? null;
+  const provenance = (data ?? {}) as CastProvenance;
+
+  // One person's fix (docs/PLAN-universal-season-cast.md): on an approved cast it reaches every league
+  // on the season straight away, in place, rather than waiting for a re-approve.
+  async function saveEdit(member: SeasonCastMember, next: { name: string; photoUrl: string; tribeName: string | null }) {
+    const edits: Parameters<typeof seasonCastApi.adminEdit>[1][] = [];
+    if (next.name.trim() && next.name.trim() !== member.name) edits.push({ rename: { id: member.id, name: next.name.trim() } });
+    if ((next.photoUrl.trim() || null) !== (member.photoUrl || null)) edits.push({ photo: { id: member.id, photoUrl: next.photoUrl.trim() || null } });
+    if (next.tribeName !== null && (next.tribeName.trim() || null) !== (member.tribeName || null)) {
+      edits.push({ tribe: { id: member.id, tribeName: next.tribeName.trim() || null } });
+    }
+    if (!edits.length) return null;
+    if (approved && !(await confirm(`Change ${member.name} in every league on this season (${leagueCount})?`, { confirmLabel: "Change" }))) return null;
+    for (const edit of edits) await seasonCastApi.adminEdit(seasonId, edit);
+    return approved ? `Changed ${member.name} in every league on this season.` : `Changed ${member.name}.`;
+  }
 
   if (!cast.length) {
     return (
@@ -102,6 +128,14 @@ export function SeasonCastReview({
         </span>
       </div>
 
+      {provenance.createdByLeague !== undefined && (
+        <p className="mb-1.5 text-[0.7rem] text-muted-foreground">
+          {provenance.createdByLeague
+            ? `Created by ${provenance.createdByLeague.name ?? "a league that's since been deleted"}'s commissioner` +
+              (provenance.lockedAt ? " · finished" : " · still being created — its commissioner can edit it until it's finished")
+            : "Created in Admin"}
+        </p>
+      )}
       <div className="mb-2 max-h-[340px] overflow-y-auto rounded border border-border bg-card">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-card">
@@ -114,7 +148,9 @@ export function SeasonCastReview({
           </thead>
           <tbody>
             {cast.map((member) => (
-              <CastRow key={member.id} member={member} busy={busy} held={heldFrom !== null} onRemove={() =>
+              <CastRow key={member.id} member={member} busy={busy} held={heldFrom !== null}
+                onSave={(next) => run(() => saveEdit(member, next))}
+                onRemove={() =>
                 run(async () => {
                   if (!(await confirm(`Remove ${member.name} from this season's cast?`, { danger: true, confirmLabel: "Remove" }))) return null;
                   await api.adminEditSeasonCast(seasonId, { remove: member.id });
@@ -170,13 +206,106 @@ export function SeasonCastReview({
       </p>
       {note && <p className="mt-1 text-[0.7rem] font-semibold text-good">{note}</p>}
       {error && <p className="mt-1 text-[0.7rem] font-semibold text-destructive">{error}</p>}
+      {provenance.changes && provenance.changes.length > 0 && <CastChanges changes={provenance.changes} />}
     </div>
   );
 }
 
-function CastRow({ member, busy, held, onRemove }: { member: SeasonCastMember; busy: boolean; held: boolean; onRemove: () => void }) {
+// The trail of changes to the season's cast. Tribe values are the premiere's own reveal, so with
+// spoilers off they're counted, not shown.
+function CastChanges({ changes }: { changes: NonNullable<CastProvenance["changes"]> }) {
+  const [open, setOpen] = useState(false);
+  const showSpoilers = useShowSpoilers();
+  const label: Record<string, string> = {
+    created: "created the cast",
+    added: "added",
+    removed: "removed",
+    name: "renamed",
+    photo: "changed the photo of",
+    tribe: "changed a starting tribe",
+    tribes_hold: "set starting tribes:",
+    finished: "finished the cast",
+  };
+  // The tribes hold is logged as words by a commissioner and as an episode number by an admin.
+  const hold = (v: string | null) => (!v ? "public before the premiere" : /^\d+$/.test(v) ? `held until episode ${v}` : v);
+  return (
+    <div className="mt-1.5 text-[0.7rem] text-muted-foreground">
+      <button className="underline-offset-2 hover:underline" onClick={() => setOpen((o) => !o)}>
+        {open ? "Hide changes" : `Changes (${changes.length})`}
+      </button>
+      {open && (
+        <ul className="mt-1 flex flex-col gap-0.5">
+          {changes.map((c, i) => {
+            const hidden = c.field === "tribe" && !showSpoilers;
+            const what =
+              c.field === "name" ? `${c.before} → ${c.after}`
+              : c.field === "added" ? c.after
+              : c.field === "removed" ? c.before
+              : c.field === "created" ? (c.after && c.after !== "0" ? `with ${c.after} people` : "")
+              : c.field === "tribes_hold" ? hold(c.after)
+              : hidden ? ""
+              : c.before || c.after ? `${c.before ?? "—"} → ${c.after ?? "—"}` : "";
+            return (
+              <li key={i}>
+                {new Date(c.changedAt).toLocaleString()} · {c.by ?? "automatic"}
+                {c.byLeague ? ` (via ${c.byLeague})` : ""} {label[c.field] ?? c.field} {what}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function CastRow({
+  member,
+  busy,
+  held,
+  onRemove,
+  onSave,
+}: {
+  member: SeasonCastMember;
+  busy: boolean;
+  held: boolean;
+  onRemove: () => void;
+  onSave: (next: { name: string; photoUrl: string; tribeName: string | null }) => void;
+}) {
   const showSpoilers = useShowSpoilers();
   const [broken, setBroken] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(member.name);
+  const [photoUrl, setPhotoUrl] = useState(member.photoUrl ?? "");
+  const [tribeName, setTribeName] = useState(member.tribeName ?? "");
+  if (editing) {
+    return (
+      <tr className="border-b border-border last:border-0">
+        <td colSpan={4} className="px-2 py-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Input size="sm" className="min-w-[120px] flex-1" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input size="sm" className="min-w-[140px] flex-1" placeholder="Photo URL" value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} />
+            {/* The starting tribe is only editable with spoilers on -- otherwise it isn't shown at all. */}
+            {showSpoilers && (
+              <Input size="sm" className="w-[110px]" placeholder="Tribe" value={tribeName} onChange={(e) => setTribeName(e.target.value)} />
+            )}
+            <Button
+              size="xs"
+              disabled={busy}
+              onClick={() => {
+                onSave({ name, photoUrl, tribeName: showSpoilers ? tribeName : null });
+                setEditing(false);
+              }}
+            >
+              Save
+            </Button>
+            <Button variant="secondary" size="xs" disabled={busy} onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
   return (
     <tr className="border-b border-border last:border-0">
       <td className="px-2 py-1">
@@ -212,7 +341,20 @@ function CastRow({ member, busy, held, onRemove }: { member: SeasonCastMember; b
           <span className="italic">—</span>
         )}
       </td>
-      <td className="px-2 py-1">
+      <td className="whitespace-nowrap px-2 py-1">
+        <button
+          className="mr-1.5 text-muted-foreground hover:text-foreground disabled:opacity-40"
+          disabled={busy}
+          onClick={() => {
+            setName(member.name);
+            setPhotoUrl(member.photoUrl ?? "");
+            setTribeName(member.tribeName ?? "");
+            setEditing(true);
+          }}
+          title="Edit"
+        >
+          ✎
+        </button>
         <button className="text-muted-foreground hover:text-destructive disabled:opacity-40" disabled={busy} onClick={onRemove} title="Remove from this season's cast">
           ✕
         </button>

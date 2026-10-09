@@ -44,7 +44,7 @@ async function revealNextIn(leagueId: string, expectFrom?: number) {
     const approved = await approvedCastForLeague(client, s);
     if (approved && tribesDue(s, approved.tribesFromEpisode)) {
       tribed = StateLogic.applyCastTribes(s, {
-        castaways: approved.cast.map((c) => ({ name: c.name, tribeName: c.tribeName })),
+        castaways: approved.cast.map((c) => ({ id: c.id, name: c.name, tribeName: c.tribeName })),
       }).linked;
     }
 

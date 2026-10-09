@@ -227,6 +227,18 @@ class Core {
       {}
     );
   }
+  // Resolves a SEASON's name for someone -- a staged result's castaway_name, which is the season
+  // cast's own spelling -- to this league's castaway (docs/PLAN-universal-season-cast.md, piece 7). By
+  // the link first: the season_cast row with exactly that name, then whoever here is linked to it
+  // (castaway.seasonCastId), whatever this league calls them. Only when that finds nobody -- no season
+  // cast given, a league not linked yet, data from before the links -- does it fall back to the loose
+  // findCastawayByName. `seasonCast` is that season's rows, [{ id, name }].
+  static findSeasonCastaway(state, name, seasonCast){
+    const wanted = String(name == null ? '' : name).trim().toLowerCase();
+    const row = wanted && (seasonCast || []).find(r => String(r.name).trim().toLowerCase() === wanted);
+    const linked = row && (state.castaways || []).find(c => c.seasonCastId === row.id);
+    return linked ? { castaway: linked } : Core.findCastawayByName(state, name);
+  }
   static getCastaway(state, id){ return state.castaways.find(c=>c.id===id); }
   static getTribe(state, id){ return state.tribes.find(t=>t.id===id); }
 
@@ -1284,7 +1296,13 @@ class RosterLogic {
     state.castaways.push(c);
     return c;
   }
-  static updateCastaway(state, id, field, value){ const c=Core.getCastaway(state,id); if(c) c[field]=value; }
+  // seasonCastId is refused here: this is the generic field setter the league's castaway PATCH route
+  // calls with whatever the client sends, and the link to the season cast is only ever set by
+  // matching (planSeasonCastLinks) -- a hand-set one would let a league claim to BE someone else.
+  static updateCastaway(state, id, field, value){
+    if(field === 'seasonCastId') return;
+    const c=Core.getCastaway(state,id); if(c) c[field]=value;
+  }
   static removeCastaway(state, id){ state.castaways = state.castaways.filter(c=>c.id!==id); }
   // Applies a commissioner-approved cast proposal from the wiki connector (see db/wiki-sync.js).
   //
@@ -1298,6 +1316,11 @@ class RosterLogic {
   //      one of those. Additive can't.
   // Returns what it actually added, so the route can tell the commissioner rather than making them
   // diff it themselves.
+  //
+  // A row carrying an `id` is a season_cast row (src/lib/server/season-cast.ts): someone already
+  // linked to it (castaway.seasonCastId) is skipped whatever their name is now, and anyone created
+  // from it is born linked. A row without one (a league's own "Import a cast" paste) matches by name
+  // only, as it always has.
   static applyCastImport(state, proposal){
     const added = { tribes: [], castaways: [], skipped: [] };
     const sameName = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
@@ -1309,8 +1332,10 @@ class RosterLogic {
     });
     (proposal.castaways || []).forEach(c=>{
       if(!c || !c.name) return;
+      if(c.id && state.castaways.some(x=>x.seasonCastId===c.id)){ added.skipped.push(c.name); return; }
       if(state.castaways.some(x=>sameName(x.name, c.name))){ added.skipped.push(c.name); return; }
       const created = RosterLogic.addCastaway(state, c.name);
+      if(c.id) created.seasonCastId = c.id;
       if(c.photoUrl) created.photoUrl = c.photoUrl;
       if(c.tribeName){
         const t = state.tribes.find(x=>sameName(x.name, c.tribeName));
@@ -1337,7 +1362,9 @@ class RosterLogic {
     const sameName = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
     (proposal.castaways || []).forEach(c=>{
       if(!c || !c.name || !c.tribeName) return;
-      const castaway = state.castaways.find(x=>sameName(x.name, c.name));
+      // A season_cast row (with an id) finds its castaway by the link first, so a rename can't lose it.
+      const castaway = (c.id && state.castaways.find(x=>x.seasonCastId===c.id)) ||
+        state.castaways.find(x=>sameName(x.name, c.name) && (!c.id || !x.seasonCastId));
       if(!castaway) return;                       // not in this league; nothing to link
       // Someone who has already moved (GroupLogic) with no starting group on record gets it filled in
       // underneath their moves; otherwise a group already set is left alone.
@@ -1353,6 +1380,184 @@ class RosterLogic {
       result.linked.push(castaway.name);
     });
     return result;
+  }
+  // ---- the link from a league's castaway to its season's cast (docs/PLAN-universal-season-cast.md) ----
+  //
+  // castaway.seasonCastId is the season_cast row a castaway IS. Once it's set, the season cast finds
+  // its people by it rather than by name, so renaming someone in the season cast renames them here
+  // instead of adding a second person. Nothing else keys on it: owners, picks, lineups and events
+  // all reference the league's own castaway.id, which a link never changes.
+  //
+  // Works out which castaways go with which season_cast rows, without changing anything -- the
+  // linking pass (db/link-season-cast.js) prints this as its dry-run report, and applySeasonCastLinks
+  // writes it. Tiers, each strictly one-to-one:
+  //   id        -- already linked; kept as it is.
+  //   exact     -- the same name ignoring case and outer spaces (applyCastImport's own test for "this
+  //                person is already here", so linking on it is no bolder than what an approve does).
+  //   forgiving -- only with { forgiving: true }: Core.findCastawayByName, and only when it agrees in
+  //                BOTH directions (the row's name finds exactly one free castaway, and that
+  //                castaway's name finds exactly that row among every row in the cast). A one-way
+  //                match is how "Jess" would end up as Jess White when the season also has a Jess
+  //                Smith -- a wrong link hands someone's drafted castaway a different identity.
+  // Anything left over is reported, never guessed: `unmatched` rows, `ambiguous` rows (with the
+  // candidates), and `unlinked` castaways nobody claimed (an extra a league added by hand).
+  static planSeasonCastLinks(state, cast, opts = {}){
+    const sameName = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
+    const castaways = state.castaways || [];
+    const rows = (cast || []).filter(r => r && r.id && r.name);
+    const plan = { links: [], unmatched: [], ambiguous: [], unlinked: [] };
+    const claimed = new Set();
+    const link = (row, c, how) => {
+      claimed.add(c.id);
+      plan.links.push({ seasonCastId: row.id, seasonName: row.name, castawayId: c.id, castawayName: c.name, how });
+    };
+    // Linked to a row that's no longer in the cast (an admin removed it) still counts as taken: that
+    // person is somebody, just not anybody in this list, and must not be handed to another row.
+    castaways.forEach(c => { if(c.seasonCastId) claimed.add(c.id); });
+
+    let pending = [];
+    rows.forEach(row => {
+      const c = castaways.find(x => x.seasonCastId === row.id);
+      if(c) link(row, c, 'id'); else pending.push(row);
+    });
+
+    // One tier at a time: collect every row's candidates first, so two rows reaching for the same
+    // castaway both become ambiguous instead of the first one winning.
+    // candidatesFor returns the castaways a row reaches, or { hits, refuse: true } for a match that
+    // mustn't be taken even if it's the only one (it failed the reverse check) -- still reported as
+    // ambiguous with its candidate, so whoever reviews it sees who it nearly was.
+    const tier = (how, candidatesFor) => {
+      const found = pending.map(row => {
+        const got = candidatesFor(row, castaways.filter(c => !claimed.has(c.id)));
+        return Array.isArray(got) ? { row, hits: got, refuse: false } : { row, hits: got.hits, refuse: true };
+      });
+      const reach = {};
+      found.forEach(f => { if(f.hits.length === 1) reach[f.hits[0].id] = (reach[f.hits[0].id] || 0) + 1; });
+      const left = [];
+      found.forEach(f => {
+        if(f.hits.length === 1 && !f.refuse && reach[f.hits[0].id] === 1) link(f.row, f.hits[0], how);
+        else if(f.hits.length >= 1) plan.ambiguous.push({ seasonCastId: f.row.id, seasonName: f.row.name, how, candidates: f.hits.map(c => c.name) });
+        else left.push(f.row);
+      });
+      // A row that's ambiguous at this tier stays ambiguous: a looser tier would only guess harder.
+      pending = left;
+    };
+    tier('exact', (row, free) => free.filter(c => sameName(c.name, row.name)));
+    if(opts.forgiving){
+      const asCast = { castaways: rows.map(r => ({ id: r.id, name: r.name })) };
+      tier('forgiving', (row, free) => {
+        const found = Core.findCastawayByName({ castaways: free }, row.name);
+        if(found.ambiguous) return free.filter(c => found.ambiguous.includes(c.name));
+        if(!found.castaway) return [];
+        const back = Core.findCastawayByName(asCast, found.castaway.name);
+        return back.castaway && back.castaway.id === row.id ? [found.castaway] : { hits: [found.castaway] };
+      });
+    }
+    plan.unmatched = pending.map(row => ({ seasonCastId: row.id, seasonName: row.name }));
+    plan.unlinked = castaways.filter(c => !claimed.has(c.id)).map(c => ({ castawayId: c.id, castawayName: c.name }));
+    return plan;
+  }
+  // Writes a plan's new links (everything but 'id', which is already there). Nothing else changes.
+  static applySeasonCastLinks(state, plan){
+    const done = [];
+    (plan.links || []).forEach(l => {
+      if(l.how === 'id') return;
+      const c = Core.getCastaway(state, l.castawayId);
+      if(!c || c.seasonCastId) return;
+      c.seasonCastId = l.seasonCastId;
+      done.push(c.name);
+    });
+    return done;
+  }
+  // Brings every LINKED castaway in line with their season_cast row: the name, the photo, and -- when
+  // `withTribes` (the league may see starting tribes yet; see season-cast.ts's tribesDue) -- the
+  // starting tribe. This is what makes the season cast the one copy: an admin's rename, new photo or
+  // starting-tribe fix reaches every league in place.
+  //
+  // Careful in the ways the rest of this class is: it never touches anyone unlinked, never removes
+  // anyone, never clears a photo the season has none for, never renames onto a name another castaway
+  // already has (reported as a conflict instead), and a starting-tribe fix rewrites only the starting
+  // group -- moves recorded since (GroupLogic) still decide where they are now. A castaway with no
+  // starting tribe yet is applyCastTribes' job, not a fix, and is left to it.
+  static syncSeasonCast(state, cast, opts = {}){
+    const sameName = (a, b) => String(a||'').trim().toLowerCase() === String(b||'').trim().toLowerCase();
+    const result = { renamed: [], photos: [], retribed: [], conflicts: [] };
+    (cast || []).forEach(row => {
+      if(!row || !row.id || !row.name) return;
+      const c = state.castaways.find(x => x.seasonCastId === row.id);
+      if(!c) return;
+      if(c.name !== row.name){
+        if(state.castaways.some(x => x !== c && sameName(x.name, row.name))) result.conflicts.push({ from: c.name, to: row.name });
+        else { result.renamed.push({ from: c.name, to: row.name }); c.name = row.name; }
+      }
+      if(row.photoUrl && c.photoUrl !== row.photoUrl){ c.photoUrl = row.photoUrl; result.photos.push(c.name); }
+      if(opts.withTribes && row.tribeName){
+        const startId = c.startTribeId !== undefined ? c.startTribeId : c.tribeId;
+        const start = startId ? Core.getTribe(state, startId) : null;
+        if(start && !sameName(start.name, row.tribeName)){
+          const tribe = GroupLogic.tribeNamed(state, row.tribeName);
+          if(c.startTribeId !== undefined){ c.startTribeId = tribe.id; GroupLogic.recompute(state, c.id); }
+          else c.tribeId = tribe.id;
+          result.retribed.push({ name: c.name, from: start.name, to: tribe.name });
+        }
+      }
+    });
+    return result;
+  }
+  // Applies a season's cast (season_cast rows: { id, name, tribeName, photoUrl }) to one league:
+  // src/lib/server/season-cast.ts's applyCastToState is this plus the tribes-due check, and
+  // db/link-season-cast.js previews with it. In order, each step additive and idempotent:
+  //   1. link anyone unlinked whose name is exactly a row's (planSeasonCastLinks, exact tier only);
+  //   2. bring linked castaways in line with their row (syncSeasonCast: name, photo, starting tribe);
+  //   3. add whoever the league doesn't have yet (applyCastImport), born linked -- EXCEPT a row an
+  //      unlinked castaway here might already be (a forgiving or ambiguous match, "Jess" for "Jess
+  //      White"): adding it would give the league the same person twice, so it's `needsReview`, for
+  //      the reviewed linking pass, and arrives on a later apply once nobody unlinked could be them;
+  //   4. give a starting tribe to anyone with none yet (applyCastTribes).
+  // `withTribes` false strips the division entirely -- no tribe list, no tribeName -- which is what a
+  // league that may not see the starting tribes yet gets. Empty tribes are never created: a tribe with
+  // nobody in it is a spoiler of its own (it names the division and how many there are).
+  static applySeasonCast(state, cast, opts = {}){
+    const withTribes = !!opts.withTribes;
+    const payload = (rows, tribes) => {
+      const list = [];
+      if(tribes) rows.forEach(c => {
+        if(c.tribeName && !list.some(t => t.name.toLowerCase() === c.tribeName.toLowerCase())) list.push({ name: c.tribeName });
+      });
+      return { tribes: list, castaways: rows.map(c => ({ id: c.id, name: c.name, tribeName: tribes ? c.tribeName : null, photoUrl: c.photoUrl })) };
+    };
+    const linked = RosterLogic.applySeasonCastLinks(state, RosterLogic.planSeasonCastLinks(state, cast));
+    const synced = RosterLogic.syncSeasonCast(state, cast, { withTribes });
+    const maybe = RosterLogic.planSeasonCastLinks(state, cast, { forgiving: true });
+    const held = new Set([
+      ...maybe.links.filter(l => l.how === 'forgiving').map(l => l.seasonCastId),
+      ...maybe.ambiguous.map(a => a.seasonCastId),
+    ]);
+    const added = RosterLogic.applyCastImport(state, payload(cast.filter(c => !held.has(c.id)), withTribes));
+    const tribed = withTribes ? RosterLogic.applyCastTribes(state, payload(cast, true)).linked : [];
+    const needsReview = cast.filter(c => held.has(c.id)).map(c => c.name);
+    return { ...added, linked, synced, needsReview, tribed };
+  }
+  // Whether removing this castaway would strand anything: an owner, or any reference anywhere else in
+  // the league -- results, picks, lineups, the mid-season log, finale picks, whatever comes next. A
+  // castaway id is a random token (Core.uid), so "appears anywhere in the state outside its own record"
+  // is an exact test that can't fall behind as new kinds of reference are added. Used before a season
+  // cast removal reaches a league (season-cast.ts's removeUnlinkedRows).
+  static castawayInUse(state, castawayId){
+    const c = Core.getCastaway(state, castawayId);
+    if(!c) return false;
+    if((c.ownerIds || []).length) return true;
+    const rest = { ...state, castaways: state.castaways.filter(x => x.id !== castawayId) };
+    return JSON.stringify(rest).includes(JSON.stringify(castawayId));
+  }
+  // Whether a league may see its season's starting tribes yet. src/lib/server/season-cast.ts's
+  // tribesDue documents the rule and is what the app calls; it lives here so the bare-node linking
+  // pass (db/link-season-cast.js) reads the same one.
+  static castTribesDue(state, tribesFromEpisode){
+    if(tribesFromEpisode == null) return true;
+    const revealed = RevealLogic.revealedThrough(state);
+    if(revealed !== null) return revealed >= tribesFromEpisode;
+    return (state.episodes || []).some(ep => ep.number >= tribesFromEpisode && EpisodeLogic.hasResults(ep));
   }
   // The secret-role half of a cast import (formats/cast-prompt.js), a sibling of applyCastTribes: for
   // each castaway matched by name, records their role as a fact at `episode` -- the same
@@ -2522,6 +2727,8 @@ return {
   addTribe: RosterLogic.addTribe, updateTribe: RosterLogic.updateTribe, removeTribe: RosterLogic.removeTribe,
   addCastaway: RosterLogic.addCastaway, updateCastaway: RosterLogic.updateCastaway, removeCastaway: RosterLogic.removeCastaway,
   applyCastImport: RosterLogic.applyCastImport, applyCastTribes: RosterLogic.applyCastTribes, applyCastRoles: RosterLogic.applyCastRoles,
+  planSeasonCastLinks: RosterLogic.planSeasonCastLinks, applySeasonCastLinks: RosterLogic.applySeasonCastLinks, syncSeasonCast: RosterLogic.syncSeasonCast,
+  castTribesDue: RosterLogic.castTribesDue, castawayInUse: RosterLogic.castawayInUse, applySeasonCast: RosterLogic.applySeasonCast,
   applyEliminationsImport: EpisodeLogic.applyEliminationsImport,
   applyScoringEventsImport: EpisodeLogic.applyScoringEventsImport,
   updateSettings: RosterLogic.updateSettings,

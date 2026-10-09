@@ -14,6 +14,13 @@ import { notifyEpisodeResults } from "./push-events";
 // a method), in which case the new version is applied in its place. So every moment that could
 // change what a league should have -- an admin deciding, a league revealing an episode, a league
 // picking the season -- is the same call, and running it twice does nothing the second time.
+//
+// Only for a season whose results an admin decides (show_seasons.results_by, db/migrations/0054). A
+// league-decided season's leagues get their results from their own commissioner, and the season sync
+// leaves them entirely alone -- it neither applies nor undoes anything. A season switched from
+// league-decided to admin-decided has a cutoff (results_admin_since): only decisions settled at or after
+// it are in scope, and anything settled before it is left as each league has it, never pushed and never
+// undone.
 
 interface DecisionRow {
   id: string;
@@ -39,21 +46,36 @@ interface LedgerDetail {
   preexisting?: boolean;
 }
 
-/** show_seasons.id for the season a league is playing, or null. */
-async function seasonIdForLeague(client: PoolClient, state: LeagueState): Promise<string | null> {
+/** The season a league is playing and who decides its results, or null. */
+async function seasonForLeague(
+  client: PoolClient,
+  state: LeagueState
+): Promise<{ id: string; resultsBy: "admin" | "leagues"; adminSince: Date | null } | null> {
   const { showId, wikiSeason } = state.settings;
   if (!showId || wikiSeason == null) return null;
   const { rows } = await client.query(
-    `SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
+    `SELECT ss.id, ss.results_by AS "resultsBy", ss.results_admin_since AS "adminSince"
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE s.slug = $1 AND ss.season_number::text = $2`,
     [showId, String(wikiSeason)]
   );
-  return rows.length ? rows[0].id : null;
+  return rows.length ? rows[0] : null;
 }
 
-function applyDecision(state: LeagueState, d: DecisionRow): { detail?: LedgerDetail; skip?: string } {
+type CastRef = { id: string; name: string }[];
+
+/** The season's cast rows, for resolving staged names through each league's link (findSeasonCastaway). */
+export async function seasonCastRefs(client: PoolClient, seasonId: string | null): Promise<CastRef> {
+  if (!seasonId) return [];
+  const { rows } = await client.query<{ id: string; name: string }>("SELECT id, name FROM season_cast WHERE season_id=$1", [seasonId]);
+  return rows;
+}
+
+function applyDecision(state: LeagueState, d: DecisionRow, cast: CastRef): { detail?: LedgerDetail; skip?: string } {
   const name = d.applied?.castawayName || d.castaway_name;
-  const { castaway, ambiguous } = StateLogic.Core.findCastawayByName(state, name);
+  // By the season cast link first (docs/PLAN-universal-season-cast.md, piece 7); the loose name match
+  // only for a league not linked yet.
+  const { castaway, ambiguous } = StateLogic.Core.findSeasonCastaway(state, name, cast);
   if (!castaway) return { skip: ambiguous ? `matches more than one castaway (${ambiguous.join(", ")})` : "not in this league's cast" };
 
   const ep = StateLogic.ensureEpisodeNumber(state, d.episode_number, d.post_merge);
@@ -143,7 +165,11 @@ export async function syncLeagueDecisions(
   state: LeagueState
 ): Promise<{ applied: number; undone: number; skipped: { name: string; why: string }[]; eliminatedEpisodeIds: string[] }> {
   const result = { applied: 0, undone: 0, skipped: [] as { name: string; why: string }[], eliminatedEpisodeIds: [] as string[] };
-  const seasonId = await seasonIdForLeague(client, state);
+  const season = await seasonForLeague(client, state);
+  // League-decided: this league's results are its commissioner's. Nothing to apply, nothing to undo.
+  if (season && season.resultsBy === "leagues") return result;
+  const seasonId = season ? season.id : null;
+  const since = season ? season.adminSince : null;
 
   const gate = StateLogic.RevealLogic.revealedThrough(state);
   const { rows: accepted } = seasonId
@@ -151,8 +177,9 @@ export async function syncLeagueDecisions(
         `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, jury_votes, applied, decided_at
            FROM season_decisions
           WHERE season_id=$1 AND status='accepted' AND ($2::int IS NULL OR episode_number <= $2)
+            AND ($3::timestamptz IS NULL OR decided_at >= $3)
           ORDER BY episode_number ASC, (kind = 'elimination') DESC, created_at ASC`,
-        [seasonId, gate]
+        [seasonId, gate, since]
       )
     : { rows: [] as DecisionRow[] };
   const byId = new Map(accepted.map((d) => [d.id, d]));
@@ -163,10 +190,24 @@ export async function syncLeagueDecisions(
   );
   const current = new Set<string>();
   let eliminationsChanged = false;
+  const cast = await seasonCastRefs(client, seasonId);
+
+  // Past a cutoff, a ledger entry whose decision was last settled BEFORE it (in an earlier admin-decided
+  // spell) is out of scope: left exactly as it is, as if current. One settled since -- re-decided,
+  // rejected, deleted -- is in scope and handled as always. With no cutoff, nothing is out of scope.
+  const outOfScope = new Set<string>();
+  if (since) {
+    const { rows: settled } = await client.query<{ id: string; decided_at: Date | null }>(
+      "SELECT id, decided_at FROM season_decisions WHERE id = ANY($1::uuid[])",
+      [ledger.filter((row) => !byId.has(row.decision_id)).map((row) => row.decision_id)]
+    );
+    for (const d of settled) if (d.decided_at && d.decided_at.getTime() < since.getTime()) outOfScope.add(d.id);
+  }
 
   // Undo first, newest episode first, so eliminations come off in the reverse of the order they went on.
   const stale = ledger
     .filter((row) => {
+      if (outOfScope.has(row.decision_id)) return false;
       const d = byId.get(row.decision_id);
       return !d || !row.decided_at || d.decided_at.getTime() !== new Date(row.decided_at).getTime();
     })
@@ -181,7 +222,7 @@ export async function syncLeagueDecisions(
 
   for (const d of accepted) {
     if (current.has(d.id)) continue;
-    const { detail, skip } = applyDecision(state, d);
+    const { detail, skip } = applyDecision(state, d, cast);
     if (!detail) {
       result.skipped.push({ name: d.applied?.castawayName || d.castaway_name, why: skip || "couldn't be applied" });
       continue;
@@ -204,7 +245,7 @@ export async function syncLeagueDecisions(
   for (const d of accepted) {
     if (d.kind !== "elimination" || d.jury_votes == null || !current.has(d.id)) continue;
     const ep = state.episodes.find((e) => e.number === d.episode_number);
-    const { castaway } = StateLogic.Core.findCastawayByName(state, d.applied?.castawayName || d.castaway_name);
+    const { castaway } = StateLogic.Core.findSeasonCastaway(state, d.applied?.castawayName || d.castaway_name, cast);
     const ev = ep && castaway ? (ep.events || []).find((e) => e.castawayId === castaway.id) : null;
     if (ep && castaway && ev && ev.juryVotes !== d.jury_votes) StateLogic.setJuryVotes(state, ep.id, castaway.id, d.jury_votes);
   }
@@ -221,6 +262,10 @@ export async function syncLeagueDecisions(
  * Live leagues that gained an elimination get the usual episode-results push.
  */
 export async function syncSeasonLeagues(seasonId: string, actorUserId: string | null): Promise<LeagueDecisionSync[]> {
+  // A league-decided season reaches no league from here -- not even a no-op lock-and-write, which would
+  // still run each league's bots and episode bookkeeping on an admin's click.
+  const { rows: seasonRows } = await pool.query("SELECT results_by FROM show_seasons WHERE id=$1", [seasonId]);
+  if (!seasonRows.length || seasonRows[0].results_by === "leagues") return [];
   const { rows: leagues } = await pool.query(
     `SELECT l.id, l.name FROM leagues l
        JOIN shows s ON s.slug = l.state->'settings'->>'showId'

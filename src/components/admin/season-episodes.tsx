@@ -192,17 +192,23 @@ export function SeasonEpisodes({
                 leagueCount={data.leagueCount}
                 format={withChanges(formatFor(data.format, data.formatData), data.ruleChanges)}
                 onSynced={reportSync}
+                curator={data.resultsBy === "leagues"}
               />
             )}
           </EpisodeLine>
         ))}
       </div>
-      {data && (
+      {data && data.resultsBy === "leagues" ? (
+        <p className="text-[0.65rem] text-muted-foreground">
+          Each league decides this season&rsquo;s results: its commissioner applies them to their own league. Flagging or
+          correcting a result here changes what every commissioner sees staged, but never changes a league.
+        </p>
+      ) : data ? (
         <p className="text-[0.65rem] text-muted-foreground">
           Accepted results go to all {data.leagueCount} league{data.leagueCount === 1 ? "" : "s"} on this season automatically
           (catching-up leagues get them when they reveal the episode). Any decision can be changed later.
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
