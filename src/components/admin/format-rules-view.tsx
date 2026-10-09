@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 // stored one looked at from a show's settings rather than from "Researched show formats". Same
 // layout (events by category, rules as sentences) with every edit control stripped out.
 
-function awardsOf(rule: ScoringRule): string[] {
+export function awardsOf(rule: ScoringRule): string[] {
   const out: string[] = [];
   if (typeof rule.award === "string") out.push(rule.award);
   const b = rule.builtIn && (BUILT_INS as Record<string, { params: Record<string, { type: string }> }>)[rule.builtIn];
@@ -20,6 +20,11 @@ function awardsOf(rule: ScoringRule): string[] {
     }
   }
   return out;
+}
+
+/** Every rule that awards an event, as its sentence -- "when" it scores. Shared with League Settings > Scoring & rules. */
+export function ruleSentencesFor(data: FormatData, eventId: string): string[] {
+  return [...(data.rules.research ?? []), ...(data.rules.implied ?? [])].filter((r) => awardsOf(r).includes(eventId)).map((r) => describeRule(r, data));
 }
 
 function pointsOf(points: number | { exclusive: number; shared: number }): string {

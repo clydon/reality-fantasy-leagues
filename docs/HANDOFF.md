@@ -62,8 +62,8 @@ explained to a commissioner") rather than re-deriving it from source each time.
 1. ~~`/impeccable document`~~ **Done 2026-10-09:** `DESIGN.md` (repo root) documents direction A
    as built in dark mode, with `.impeccable/design.json` alongside. Update both after the light-mode
    pass.
-2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~, then
-   League Settings (as a list of pages), then the rest; admin last.
+2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~,
+   ~~League Settings~~, then the rest; admin last.
    - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
      episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
      `src/app/episodes/[number]/page.tsx` -> `episode-detail.tsx`: read view by default (who left as
@@ -120,6 +120,57 @@ explained to a commissioner") rather than re-deriving it from source each time.
      Swap, sheet and Edit picks), plus 1280 dark and 390 light for the live draft. Test leagues
      `UX D Pre`, `UX D Live`, `UX D Blind` (now revealed) and `UX D Done` (Replenish/Swap on, Swap
      round left open) are in the local DB; see `docs/ux-baseline/README.md`.
+   - **League Settings done 2026-10-09** (plan 2b, 2c and 1c; canvas page "A · Commissioner":
+     Settings-Index, Settings-Players, Rules, Rules-Edit). `/setup` (`setup/setup-tab.tsx`) is now a
+     list: the join code as a quiet caption plate with Share (the phone's share sheet, else copy),
+     then one row per page showing its current value, then a collapsed Danger zone (Leave league;
+     Reset all data for site admins). Each row is its own route under `src/app/setup/`: `players`,
+     `league`, `lineups` (Active Roster only), `rules` and `rules/edit`, `pickups` (hidden when the
+     type can't have either, e.g. shared ownership), `predictions`, `cast`, `linked` (row only when
+     there's something to link or it's linked), `backup`. The mobile header names each and backs up
+     to `/setup` (`/setup/rules` for the editor). Shared pieces are `setup/settings-ui.tsx`
+     (`SettingsPage`, `IndexRow`, `ToggleRow`, `StepperRow`, `Field`, `LockedValue`, `TextSheet`,
+     `MoreButton`, `fieldCls`).
+   - Players & invites: invite field, invite rows with a status chip and ⋯ → Revoke (no confirm
+     dialog now; the sheet is the deliberate step). Player rows are one line (colour, name, who,
+     roster count, ⋯); the sheet has Rename, Colour, Computer player on/off, Skill, Hand over,
+     Activate (inactive seats) and Remove last in red. Add player / Add computer open a name sheet;
+     the bot description shows there and in Skill, not on every row. Departed players stay listed as
+     "Left the league", as before.
+   - League setup: full-width fields, label above. Locked values are plain text with a lock and
+     one sentence says why; a player sees every value as plain text. Starts-at and Ownership are
+     behind "More options" (inline while guiding). Roster size (Classic) moved here from General.
+     **Behaviour changes:** Season now locks with Show/type once the league is underway (the plan
+     flagged it being editable after the draft), and the draft date input now shows local time (it
+     used to show the UTC value as if local).
+   - Guided setup is the same gate (`SetupLogic.isComplete`): `/setup` shows only the setup form
+     (plus join code and Danger zone) until "Looks good, open League Settings".
+   - Scoring & rules (`rules-section.tsx`): one line per event in the show's categories, first two
+     open and "Show N more categories"; Active Roster rows show this league's points with a chyron
+     dot when changed from recommended. Tapping a row opens a sheet with "Scores when" (the rule
+     sentences, via `ruleSentencesFor` in `admin/format-rules-view.tsx`) and, for an Active Roster
+     commissioner, a points stepper (decimals allowed) and Done. Classic explains finishing-place
+     scoring and lists the events without points under "What the show records"; Eliminator Pool
+     has its points-per-pick stepper here. The page's ⋯ has Customise/Edit when events score, Use
+     recommended points, and Go back to the show's rules (red). Customise forks and opens
+     `/setup/rules/edit`: the existing `LeagueRulesetEditor` with a sticky Save bar above the tab
+     bar. Rule changes this season and the "master changed" notice sit on this page too. Admin's
+     format rules view (3e) still uses its own `FormatRulesView`; unifying them is still open.
+   - Lineups (starters, bench, hide starters), Swaps & pickups (toggles, thresholds, who goes
+     first) and Predictions (weekly and finale, with points) are toggle and stepper rows.
+     `finale-settings-section.tsx` and `pickem-settings-section.tsx` are gone (merged).
+   - Tribes & castaways: tribe rows (swatch, name, count, ⋯ Rename/Colour/Remove), castaway rows
+     (photo, name, tribe chip, where they stand, ⋯ Rename/Tribe/Photo/Delete when the cast is
+     editable), then Import a cast as a flat disclosure. The season-cast notice is restyled.
+   - Not done: the plan's desktop left sub-nav (desktop shows the same pages at 640px with a back
+     link), an Undo toast in place of confirm dialogs for small removals (there's no toast yet), and
+     the rules editor's insides (`RuleLine` etc.) are unrestyled. The "member joined" push now opens
+     `/setup/players`.
+   - Verified at 390×844 dark with headless scripts: every page, the player, tribe and castaway
+     sheets, the rule sheet and menu, Danger zone, guided setup on a throwaway league (deleted
+     after), a save round-trip (a toggle and a stepper, checked against the server, then put back),
+     and `uxplayer`'s read-only view in `UX D Done`; plus 1280 dark and 390 light for the index. No
+     new test data left behind.
 3. Light mode pass.
 4. Then merge and push.
 

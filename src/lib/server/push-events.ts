@@ -208,7 +208,7 @@ export function notifyMemberJoined(leagueId: string, joinerUserId: string, joine
       message: {
         title: returning ? "Welcome back" : "New league member",
         body: `${joinerName} ${returning ? "rejoined" : "joined"} ${await leagueName(leagueId)}.`,
-        url: link("/setup", leagueId),
+        url: link("/setup/players", leagueId),
         tag: `joined-${leagueId}`,
       },
     };

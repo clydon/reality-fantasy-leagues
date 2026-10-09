@@ -1,24 +1,18 @@
 "use client";
 
-import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useShowTerms } from "@/lib/use-show-terms";
-import { scoringGroups } from "@/lib/game/scoring-groups";
+import { NotInThisLeague, ReadOnlyNote, RowList, SettingsPage, StepperRow, ToggleRow } from "./settings-ui";
 
-// Active Roster's own settings section, gated on the league type's hasActiveRoster flag exactly the
-// way FinaleSettingsSection gates on supportsFinalePredictions -- rather than being dumped into
-// General Settings, which is about the roster/replenish concepts every roster league shares.
-//
-// The point-value list is generated from the league's format's event catalog (formats/), so adding an
-// event type to that catalog gives it an input here automatically. Same "one point input per category"
-// shape as SideBetSettingsSection, including that a commissioner can zero a category out rather than
-// being stuck with whichever ones the catalog happens to ship.
-export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
+// League Settings > Lineups, Active Roster only (gated on the league type's hasActiveRoster flag):
+// how many start and how many sit on the bench -- which together are the roster size (rosterSize) --
+// and whether other players' starters stay hidden until lineups lock. What each event is worth moved
+// to Scoring & rules (rules-section.tsx).
+export function LineupsPage() {
+  const state = useLeagueStore((s) => s.state);
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
@@ -31,131 +25,32 @@ export function ActiveRosterSettingsSection({ state }: { state: LeagueState }) {
     );
   }
 
-  // eventPoints is one settings field holding a map, so a single input writes the whole object back
-  // with that one key changed -- updateSettings is a flat field/value setter, it has no notion of
-  // nested paths.
-  async function updateEventPoints(type: string, points: number) {
-    const next = { ...state.settings.eventPoints, [type]: points };
-    await update("eventPoints", next);
+  if (!StateLogic.getLeagueType(state).hasActiveRoster) {
+    return (
+      <SettingsPage title="Lineups">
+        <NotInThisLeague what="lineups" />
+      </SettingsPage>
+    );
   }
 
-  const recommended = StateLogic.defaultEventPoints(state);
-  const usingRecommended = Object.keys(recommended).every(
-    (id) => StateLogic.ActiveRosterLogic.pointsFor(state, id) === recommended[id]
-  );
-  async function applyRecommended() {
-    await update("eventPoints", { ...state.settings.eventPoints, ...recommended });
-  }
-
-  if (!StateLogic.getLeagueType(state).hasActiveRoster) return null;
-
-  const activeSlots = state.settings.activeSlots;
-  const benchSlots = state.settings.benchSlots;
-
+  const { activeSlots, benchSlots } = state.settings;
   return (
-    <>
-    <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Active Roster Settings</h3>
-      <div className="mb-3 flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-1.5 text-sm">
-          Active slots:
-          <Input
-            type="number"
-            className="w-16"
-            disabled={!canManage}
-            defaultValue={activeSlots}
-            onBlur={(e) => update("activeSlots", Math.max(1, parseInt(e.target.value) || 1))}
-          />
-        </label>
-        <label className="flex items-center gap-1.5 text-sm">
-          Bench slots:
-          <Input
-            type="number"
-            className="w-16"
-            disabled={!canManage}
-            defaultValue={benchSlots}
-            onBlur={(e) => update("benchSlots", Math.max(0, parseInt(e.target.value) || 0))}
-          />
-        </label>
-        <span className="text-xs text-muted-foreground">
-          Each player drafts <b>{activeSlots + benchSlots}</b> {terms.castaways} and fields <b>{activeSlots}</b> each
-          episode.
-        </span>
-      </div>
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="mt-0.5"
-          disabled={!canManage}
-          checked={!!state.settings.hideStartersUntilLock}
-          onChange={(e) => update("hideStartersUntilLock", e.target.checked)}
-        />
-        <span>
-          Hide other players&rsquo; starters until the episode airs
-          <span className="block text-xs text-muted-foreground">
-            Off: the Board shows everyone&rsquo;s starters as soon as they&rsquo;re set. On: only whether each player is
-            set, until lineups lock when the episode airs — so nobody can copy a lineup.
-          </span>
-        </span>
-      </label>
-    </div>
-
-    <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <div className="mb-1 flex flex-wrap items-center gap-2">
-        <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">League Scoring</h3>
-        {canManage && !usingRecommended && (
-          <Button variant="secondary" size="xs" className="ml-auto" onClick={applyRecommended}>
-            Use recommended values
-          </Button>
-        )}
-      </div>
-      <p className="mb-3 text-xs text-muted-foreground">
-        Points per event — decimals are fine (e.g. 0.5). Only your active {terms.castaways} earn these. Set a category
-        to <b>0</b> to switch it off. Recommended values are balanced for{" "}
-        <b>{state.settings.ownershipMode === "shared" ? "shared" : "exclusive"}</b> ownership
-        {state.settings.ownershipMode === "shared"
-          ? "."
-          : ": winner-heavy categories count for less, so owning the winner outright doesn't decide the league."}
+    <SettingsPage title="Lineups">
+      <ReadOnlyNote />
+      <p className="text-base leading-relaxed text-muted-foreground">
+        Each player drafts {activeSlots + benchSlots} {terms.castaways} and starts {activeSlots} of them each episode. Only starters score.
       </p>
-      {/* Grouped like "How starters score" (scoring-groups.ts), each category in its listed order --
-          not by points, which would move a row out from under you as you edit it. */}
-      <div className="flex flex-col gap-4">
-        {scoringGroups(state).map((g) => (
-          <div key={g.id}>
-            <div className="mb-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">{g.label}</div>
-            <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
-              {g.events.map((ev) => (
-                <label key={ev.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
-                  <span>
-                    {ev.label}
-                    {ev.implied && (
-                      <span className="ml-1 text-xs text-muted-foreground" title="Scored automatically from how they left, their role, or being sent to Exile">
-                        (automatic)
-                      </span>
-                    )}
-                  </span>
-                  <Input
-                    // Keyed on the value so "Use recommended values" (a whole-map write) refreshes every box.
-                    key={`${ev.id}:${StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)}`}
-                    type="number"
-                    step="0.25"
-                    inputMode="decimal"
-                    className="w-20"
-                    disabled={!canManage}
-                    defaultValue={StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)}
-                    onBlur={(e) => {
-                      const n = parseFloat(e.target.value);
-                      const next = Number.isFinite(n) ? StateLogic.roundPoints(n) : 0;
-                      if (next !== StateLogic.ActiveRosterLogic.pointsFor(state, ev.id)) updateEventPoints(ev.id, next);
-                    }}
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-    </>
+      <RowList>
+        <StepperRow label="Starters" value={activeSlots} min={1} disabled={!canManage} onChange={(n) => update("activeSlots", n)} />
+        <StepperRow label="Bench" value={benchSlots} min={0} disabled={!canManage} onChange={(n) => update("benchSlots", n)} />
+        <ToggleRow
+          label="Hide starters until airtime"
+          hint="Others only see whether you've set your lineup until it locks when the episode airs, so nobody can copy it."
+          checked={!!state.settings.hideStartersUntilLock}
+          disabled={!canManage}
+          onChange={(v) => update("hideStartersUntilLock", v)}
+        />
+      </RowList>
+    </SettingsPage>
   );
 }

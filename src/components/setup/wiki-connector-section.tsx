@@ -75,8 +75,8 @@ export function WikiConnectorSection({ state }: { state: LeagueState }) {
   if (!live || proposals.length === 0) return null;
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Leftover cast proposal</h3>
+    <div className="rounded-[3px] bg-card p-4">
+      <h3 className="type-caption mb-2 text-[22px]">Leftover cast proposal</h3>
       <p className="mb-3 text-sm text-muted-foreground">
         From before the season&rsquo;s cast was approved once for every league. Apply it to bring in anyone missing,
         or reject it to clear it. Only admins see this.

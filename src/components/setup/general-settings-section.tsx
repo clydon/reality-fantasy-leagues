@@ -1,20 +1,27 @@
 "use client";
 
-import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { InfoHint } from "@/components/info-hint";
+import { useShowTerms } from "@/lib/use-show-terms";
+import { Field, LockedValue, NotInThisLeague, ReadOnlyNote, RowList, SettingsPage, StepperRow, ToggleRow, fieldCls } from "./settings-ui";
 
-// Port of renderSetup()'s General Settings panel: teamSize (roster cap, consumed by
-// DraftLogic.currentTurn's totalPicksNeeded) and replenishOrderBy (mid-season pick-order
-// direction), plus the two opt-in mid-season toggles (Pickups, i.e. replenish, and Swap; both default off). Gated on
-// hasRoster -- every field here is a roster concept (replenish specifically is a roster-loss
-// backfill mechanic), meaningless for a league type with no roster at all (pickem).
-export function GeneralSettingsSection({ state }: { state: LeagueState }) {
+// League Settings > Swaps & pickups: the two opt-in mid-season mechanics (Pickups, i.e. replenish,
+// and Swap; both default off), Active Roster's thresholds for them, and who goes first. Roster size,
+// which used to sit here too, is in League setup (Classic) or Lineups (Active Roster).
+//
+// Hidden from the index when the league type can't support either -- shared ownership has no free
+// agents for them to draw on -- so the commissioner is never offered a switch that would do nothing.
+const ORDER_LABELS = {
+  rolling: "Reverse draft order, rolling",
+  leastPoints: "Standings, fewest points first",
+  mostPoints: "Standings, most points first",
+};
+
+export function PickupsPage() {
+  const state = useLeagueStore((s) => s.state);
+  const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const mutate = useMutate();
@@ -26,137 +33,106 @@ export function GeneralSettingsSection({ state }: { state: LeagueState }) {
     );
   }
 
-  const leagueType = StateLogic.getLeagueType(state);
-  const activeRoster = !!leagueType.hasActiveRoster;
-  if (!leagueType.hasRoster) return null;
-
-  // Every field below is independently gated (teamSize by !hasActiveRoster, the two toggles by
-  // supports*, replenish order by replenishAvailable) -- a shared-ownership Active Roster league
-  // fails all of them at once (no teamSize field, and shared ownership forces supportsReplenish/
-  // supportsTrade false), which would otherwise leave the header floating over an empty panel.
-  const hasAnyField =
-    !leagueType.hasActiveRoster ||
-    leagueType.supportsReplenish ||
-    leagueType.supportsTrade ||
-    StateLogic.replenishAvailable(state);
-  if (!hasAnyField) return null;
+  const type = StateLogic.getLeagueType(state);
+  const activeRoster = !!type.hasActiveRoster;
+  if (!type.supportsReplenish && !type.supportsTrade) {
+    return (
+      <SettingsPage title="Swaps & pickups">
+        <NotInThisLeague what="swaps or pickups" />
+      </SettingsPage>
+    );
+  }
+  const replenishAt = StateLogic.MidSeasonLogic.replenishAt(state);
+  const swapEvery = StateLogic.MidSeasonLogic.swapEvery(state);
+  const anyOn = StateLogic.replenishAvailable(state) || StateLogic.tradeAvailable(state);
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">General Settings</h3>
-      <div className="flex flex-wrap items-center gap-4">
-        {/* Active Roster derives its roster size from activeSlots+benchSlots (see rosterSize), so an
-            independent teamSize field there would silently do nothing. */}
-        {!leagueType.hasActiveRoster && (
-          <label className="flex items-center gap-1.5 text-sm">
-            Roster size (picks per player):
-            <Input
-              type="number"
-              className="w-16"
-              disabled={!canManage}
-              defaultValue={state.settings.teamSize}
-              onBlur={(e) => update("teamSize", parseInt(e.target.value) || 1)}
-            />
-          </label>
-        )}
-        {/* Both mid-season mechanics are opt-in (default off). Hidden entirely when the league
-            type can't support them at all -- shared ownership has no free agents for either to draw
-            on -- so the commissioner is never offered a switch that would do nothing. */}
-        {leagueType.supportsReplenish && (
-          <label className="flex items-center gap-1.5 text-sm">
-            <input
-              type="checkbox"
-              disabled={!canManage}
-              checked={state.settings.replenishEnabled}
-              onChange={(e) => update("replenishEnabled", e.target.checked)}
-            />
-            Enable Pickups
-            <InfoHint
-              text={
-                activeRoster
-                  ? "When a roster is down to a set number of players still in the game, its owner picks up players back up to one more than that — enough to keep fielding a full lineup. Each pickup releases one of their eliminated players. You start the round; each player picks on their turn."
-                  : "When someone on a player's roster is eliminated, they pick up a replacement from the remaining free agents. You start the round; each player picks on their turn."
-              }
-            />
-          </label>
+    <SettingsPage title="Swaps & pickups">
+      <ReadOnlyNote />
+      <p className="text-base leading-relaxed text-muted-foreground">
+        The commissioner starts each round. Then each player picks up, swaps or skips on their own turn, and the commissioner can act for
+        anyone.
+      </p>
+      <RowList>
+        {type.supportsReplenish && (
+          <ToggleRow
+            label="Pickups"
+            hint={
+              activeRoster
+                ? `When a roster runs low on ${terms.castaways} still in the game, its owner picks up free agents to fill it again. Each pickup releases one of their eliminated ${terms.castaways}.`
+                : `When someone on a team is eliminated, its owner picks up a replacement from the free agents.`
+            }
+            checked={state.settings.replenishEnabled}
+            disabled={!canManage}
+            onChange={(v) => update("replenishEnabled", v)}
+          />
         )}
         {activeRoster && StateLogic.replenishAvailable(state) && (
-          <label className="flex items-center gap-1.5 text-sm">
-            Pickups start when a roster is down to
-            <Input
-              type="number"
-              min={0}
-              className="w-14"
-              disabled={!canManage}
-              defaultValue={StateLogic.MidSeasonLogic.replenishAt(state)}
-              onBlur={(e) => {
-                const n = parseInt(e.target.value);
-                if (Number.isInteger(n) && n >= 0 && n !== StateLogic.MidSeasonLogic.replenishAt(state)) update("replenishAt", n);
-              }}
-            />
-            still in the game
-            <InfoHint text={`Default ${Math.max(0, state.settings.activeSlots - 1)}: the moment someone can't fill all ${state.settings.activeSlots} active slots. Higher is more forgiving of early boots; it never refills a bench.`} />
-          </label>
+          <StepperRow
+            label="Pick up when down to"
+            hint={`${terms.Castaways} still in the game. Default ${Math.max(0, state.settings.activeSlots - 1)}: the moment a team can't fill all ${state.settings.activeSlots} starting spots.`}
+            value={replenishAt}
+            min={0}
+            disabled={!canManage}
+            onChange={(n) => update("replenishAt", n)}
+          />
         )}
-        {leagueType.supportsTrade && (
-          <label className="flex items-center gap-1.5 text-sm">
-            <input
-              type="checkbox"
-              disabled={!canManage}
-              checked={state.settings.tradeEnabled}
-              onChange={(e) => update("tradeEnabled", e.target.checked)}
-            />
-            Enable Swap
-            <InfoHint
-              text={
-                activeRoster
-                  ? "At each scheduled swap window, every player may drop one of their players still in the game and add one who's available. You start the round; each player swaps or skips on their turn."
-                  : "One at a time, in priority order, each player may drop one castaway and add a free agent. You start the round; each player swaps or skips on their turn."
-              }
-            />
-          </label>
+        {type.supportsTrade && (
+          <ToggleRow
+            label="Swap"
+            hint={
+              activeRoster
+                ? `At each swap window, every player may drop one ${terms.castaway} still in the game and add one who's free.`
+                : `One at a time, each player may drop one ${terms.castaway} and add a free agent.`
+            }
+            checked={state.settings.tradeEnabled}
+            disabled={!canManage}
+            onChange={(v) => update("tradeEnabled", v)}
+          />
         )}
         {activeRoster && StateLogic.tradeAvailable(state) && (
-          <label className="flex items-center gap-1.5 text-sm">
-            Swap window every
-            <Input
-              type="number"
-              min={1}
-              className="w-14"
-              disabled={!canManage}
-              defaultValue={StateLogic.MidSeasonLogic.swapEvery(state)}
-              onBlur={(e) => {
-                const n = parseInt(e.target.value);
-                if (Number.isInteger(n) && n >= 1 && n !== StateLogic.MidSeasonLogic.swapEvery(state)) update("swapEvery", n);
-              }}
-            />
-            episodes
-            <InfoHint text="Default 3. Every week turns into chasing whoever just won immunity and makes the draft matter less; every three gives four or five windows a season — enough to fix a bad pick or react to the merge." />
-          </label>
+          <StepperRow
+            label="Swap window every"
+            hint={`${swapEvery === 1 ? "episode" : "episodes"}. Default 3: four or five windows a season, enough to fix a bad pick without chasing every result.`}
+            value={swapEvery}
+            min={1}
+            disabled={!canManage}
+            onChange={(n) => update("swapEvery", n)}
+          />
         )}
-        {(StateLogic.replenishAvailable(state) || StateLogic.tradeAvailable(state)) && (
-          <label className="flex items-center gap-1.5 text-sm">
-            Priority:
-            <Select
-              disabled={!canManage}
-              defaultValue={state.settings.replenishOrderBy}
-              onChange={(e) => update("replenishOrderBy", e.target.value)}
-            >
-              <option value="rolling">Reverse draft order, rolling</option>
-              <option value="leastPoints">Standings — fewest points first</option>
-              <option value="mostPoints">Standings — most points first</option>
-            </Select>
-            <InfoHint
-              text={
-                "Who goes first in a replenish or swap round. Rolling (recommended): starts with the last pick of the draft; whoever makes a move goes to the back, so waiting keeps your spot. Fewest points first resets every round from the standings." +
-                (state.settings.ownershipMode === "shared"
-                  ? " In a shared league everyone can add the same person, so this only sets the order of turns."
-                  : "")
-              }
-            />
-          </label>
-        )}
-      </div>
-    </div>
+      </RowList>
+      {anyOn && !canManage && (
+        <LockedValue
+          label="Who goes first"
+          value={ORDER_LABELS[state.settings.replenishOrderBy as keyof typeof ORDER_LABELS] ?? state.settings.replenishOrderBy}
+          lock={false}
+        />
+      )}
+      {anyOn && canManage && (
+        <Field
+          label="Who goes first"
+          htmlFor="mid-order"
+          hint={
+            "Reverse draft order, rolling: starts with the draft's last pick, and whoever makes a move goes to the back, so waiting keeps your spot. Standings reset the order every round." +
+            (state.settings.ownershipMode === "shared"
+              ? " In a shared league everyone can add the same person, so this only sets the order of turns."
+              : "")
+          }
+        >
+          <select
+            id="mid-order"
+            className={fieldCls}
+            value={state.settings.replenishOrderBy}
+            onChange={(e) => update("replenishOrderBy", e.target.value)}
+          >
+            {Object.entries(ORDER_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
+    </SettingsPage>
   );
 }

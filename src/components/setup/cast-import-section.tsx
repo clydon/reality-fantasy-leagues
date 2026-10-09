@@ -141,13 +141,16 @@ export function CastImportSection({ state }: { state: LeagueState }) {
   }
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-card shadow-sm">
-      <button className="flex w-full items-center justify-between gap-2 p-4 text-left" onClick={() => setOpen((o) => !o)}>
-        <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Import a cast</h3>
-        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+    <section className="flex flex-col border-y border-border">
+      <button className="flex min-h-[56px] w-full items-center justify-between gap-2 text-left" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className="flex flex-col gap-0.5">
+          <span className="text-base font-semibold">Import a cast</span>
+          <span className="text-[13px] text-muted-foreground">Fill everyone in at once from an AI chat&rsquo;s answer</span>
+        </span>
+        <ChevronDownIcon className={cn("h-5 w-5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="flex flex-col gap-2 px-4 pb-4 text-xs">
+        <div className="flex flex-col gap-2 pb-4 text-sm">
           {!parsed ? (
             <>
               <p className="text-muted-foreground">
@@ -264,6 +267,6 @@ export function CastImportSection({ state }: { state: LeagueState }) {
           {note && <p className="text-muted-foreground">{note}</p>}
         </div>
       )}
-    </div>
+    </section>
   );
 }

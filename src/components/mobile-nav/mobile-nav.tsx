@@ -39,6 +39,7 @@ import { useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
 import { SwipeTitle } from "@/components/league-swipe";
 import { ChevronLeft } from "lucide-react";
+import { useShowTerms } from "@/lib/use-show-terms";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
 // / <nav class="mobile-bottombar"> / <div class="mobile-more-sheet">, populated by
@@ -146,6 +147,7 @@ export function MobileNav() {
   const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
+  const terms = useShowTerms();
   const notifications = useNotificationsStore((s) => s.notifications);
 
   const turn = StateLogic.currentDraftTurn(state);
@@ -219,8 +221,31 @@ export function MobileNav() {
   // button to its parent in place of the logo.
   const episodeMatch = /^\/episodes\/(\d+)$/.exec(pathname);
   const boardPage = pathname === "/draft/board";
-  const parentHref = episodeMatch ? "/episodes" : boardPage ? "/draft" : null;
-  const pageTitle = PAGE_TITLES[pathname] ?? (episodeMatch ? `Episode ${episodeMatch[1]}` : boardPage ? "Draft board" : null);
+  // League Settings' own pages (docs/PLAN-ux-redesign.md, 2b), each a row of /setup.
+  const SETUP_PAGES: Record<string, string> = {
+    "/setup/players": "Players & invites",
+    "/setup/league": "League setup",
+    "/setup/lineups": "Lineups",
+    "/setup/rules": "Scoring & rules",
+    "/setup/rules/edit": "Edit rules",
+    "/setup/pickups": "Swaps & pickups",
+    "/setup/predictions": "Predictions",
+    "/setup/cast": `${terms.Tribes} & ${terms.castaways}`,
+    "/setup/linked": "Linked leagues",
+    "/setup/backup": "Backup",
+  };
+  const setupPage = SETUP_PAGES[pathname];
+  const parentHref = episodeMatch
+    ? "/episodes"
+    : boardPage
+      ? "/draft"
+      : setupPage
+        ? pathname === "/setup/rules/edit"
+          ? "/setup/rules"
+          : "/setup"
+        : null;
+  const pageTitle =
+    PAGE_TITLES[pathname] ?? (episodeMatch ? `Episode ${episodeMatch[1]}` : boardPage ? "Draft board" : (setupPage ?? null));
 
   function go(href: string) {
     // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same

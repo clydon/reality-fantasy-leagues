@@ -1,43 +1,56 @@
 "use client";
 
 import { useState } from "react";
-import type { LeagueState } from "@/lib/game/types";
+import { Plus } from "lucide-react";
+import type { Castaway, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { confirm } from "@/lib/confirm-store";
-import { CastawayAvatar } from "@/components/castaway-avatar";
-import { ChevronDownIcon } from "@/components/icons";
-import { cn } from "cn";
+import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
+import { PhotoSquare, PlainButton } from "@/components/draft/draft-ui";
 import { useSeasonCastMode } from "@/lib/season-cast-api";
 import { SeasonCastNotice } from "./season-cast-notice";
+import { TribesSection } from "./tribes-section";
+import { CastImportSection } from "./cast-import-section";
+import { WikiConnectorSection } from "./wiki-connector-section";
+import { GroupHead, MoreButton, RowList, SettingsPage, TextSheet } from "./settings-ui";
 
-// Port of renderSetup()'s Castaways panel. Removing a castaway is a hard delete
-// (StateLogic.removeCastaway), unlike removing a tribe or player, which only un-assign -- matches
-// the original exactly, including no confirm warning about drafted castaways since the live app
-// doesn't have one there either.
+// League Settings > Tribes & castaways (docs/PLAN-ux-redesign.md, 2b): tribes as colour + name rows,
+// then the cast as a photo list with each one's tribe and where they stand, then importing a cast.
+// Editing a castaway (name, tribe, photo, remove) is in its ⋯ sheet, not a row of always-on inputs.
 //
-// Collapsed by default: the full cast list is the longest, least-often-touched section in League
-// Settings (set once at draft time), so it shouldn't push everything below it down the page on
-// every visit -- same idea as EpisodeCard's own per-card `open` state.
-//
-// On a league with a season, this list is the SEASON's cast (docs/PLAN-universal-season-cast.md): the
-// server writes it to every league on the season, and once it's shared and finished nobody here can
-// change it -- the inputs lock and SeasonCastNotice says why.
-export function CastawaysSection({ state }: { state: LeagueState }) {
+// On a league with a season, the cast is the SEASON's (docs/PLAN-universal-season-cast.md): the server
+// writes it to every league on the season, and once it's shared and finished nobody here can change it
+// -- the ⋯ buttons go and SeasonCastNotice says why. Removing a castaway is a hard delete
+// (StateLogic.removeCastaway), unlike removing a tribe or player, which only un-assign.
+export function CastPage() {
+  const state = useLeagueStore((s) => s.state);
+  const terms = useShowTerms();
+  const { mode: cast, refresh } = useSeasonCastMode();
+  return (
+    <SettingsPage title={`${terms.Tribes} & ${terms.castaways}`}>
+      <SeasonCastNotice state={state} cast={cast} onChanged={refresh} />
+      <TribesSection state={state} />
+      <CastawaysSection state={state} />
+      <CastImportSection state={state} />
+      <WikiConnectorSection state={state} />
+    </SettingsPage>
+  );
+}
+
+function CastawaysSection({ state }: { state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
   const terms = useShowTerms();
   const baseMutate = useMutate();
   const { mode: cast, refresh } = useSeasonCastMode();
   const editable = canManage && cast.kind !== "shared";
-  const [newName, setNewName] = useState("");
-  const [open, setOpen] = useState(false);
+  const [sheet, setSheet] = useState<{ kind: "menu" | "rename" | "tribe" | "photo"; id: string } | { kind: "add" } | null>(null);
+  const close = () => setSheet(null);
+  const target = sheet && "id" in sheet ? state.castaways.find((c) => c.id === sheet.id) : undefined;
 
   // Any cast write can change the season cast's situation (the first one creates it), so re-read it.
   const mutate: typeof baseMutate = async (mock, live) => {
@@ -47,16 +60,14 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
   };
   // A starting tribe the season holds back (season_cast.tribes_from_episode) isn't on the castaway in
   // this league yet; the creating commissioner still sees what they set.
-  const heldTribe = (seasonCastId: string | null | undefined) =>
-    cast.kind === "creating" && seasonCastId ? cast.cast.find((r) => r.id === seasonCastId)?.tribeName ?? null : null;
+  const heldTribe = (c: Castaway) =>
+    !c.tribeId && cast.kind === "creating" && c.seasonCastId ? (cast.cast.find((r) => r.id === c.seasonCastId)?.tribeName ?? null) : null;
 
-  async function handleAdd() {
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-    setNewName("");
+  async function add(name: string) {
+    close();
     await mutate(
-      (s) => StateLogic.addCastaway(s, trimmed),
-      () => api.addCastaway(leagueId!, trimmed)
+      (s) => StateLogic.addCastaway(s, name),
+      () => api.addCastaway(leagueId!, name)
     );
   }
 
@@ -67,104 +78,145 @@ export function CastawaysSection({ state }: { state: LeagueState }) {
     );
   }
 
-  async function remove(id: string, name: string) {
-    if (!(await confirm(`Delete "${name}"? This cannot be undone.`, { danger: true, confirmLabel: "Delete" }))) return;
+  async function remove(c: Castaway) {
+    close();
+    if (!(await confirm(`Delete "${c.name}"? This cannot be undone.`, { danger: true, confirmLabel: "Delete" }))) return;
     await mutate(
-      (s) => StateLogic.removeCastaway(s, id),
-      () => api.removeCastaway(leagueId!, id)
+      (s) => StateLogic.removeCastaway(s, c.id),
+      () => api.removeCastaway(leagueId!, c.id)
     );
   }
 
+  // Shared-ownership leagues can have several owners per castaway, so all of them are named. "Free
+  // agent" is an exclusive-mode idea (shared mode never takes anyone off the board).
+  function standing(c: Castaway) {
+    const owners = c.ownerIds.map((id) => StateLogic.getPlayer(state, id)?.name).filter((n): n is string => !!n);
+    const who = owners.length ? owners.join(", ") : state.settings.ownershipMode === "shared" ? "Unpicked" : "Free agent";
+    return c.status === "eliminated" ? `Out #${c.placementOrder} · ${c.exitMethod} · ${who}` : who;
+  }
+  const tribeOf = (c: Castaway) => state.tribes.find((t) => t.id === c.tribeId);
+
   return (
-    <div className="mb-4 rounded-lg border border-border bg-card shadow-sm">
-      <button
-        className="flex w-full items-center justify-between gap-2 p-4 text-left"
-        onClick={() => setOpen((o) => !o)}
-      >
-        <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
-          {terms.Castaways} ({state.castaways.length})
-        </h3>
-        <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="px-4 pb-4">
-          <SeasonCastNotice state={state} cast={cast} onChanged={refresh} />
-          <div className="flex flex-col gap-2">
-            {state.castaways.map((c) => {
-              // Shared-ownership leagues can have several owners per castaway, so all of them are
-              // named rather than just ownerIds[0]. "Free agent" is an exclusive-mode idea (shared
-              // mode never takes anyone off the board), hence the unowned label differs by mode below.
-              const ownerNames = c.ownerIds
-                .map((id) => StateLogic.getPlayer(state, id)?.name)
-                .filter((n): n is string => !!n);
-              const held = !c.tribeId ? heldTribe(c.seasonCastId) : null;
-              return (
-                <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border p-2.5 text-sm">
-                  <CastawayAvatar expandable
-                    castaway={c}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary text-[0.6rem] font-bold text-muted-foreground"
-                  />
-                  <Input
-                    size="sm"
-                    className="min-w-[120px] flex-1"
-                    defaultValue={c.name}
-                    disabled={!editable}
-                    onBlur={(e) => e.target.value.trim() && e.target.value !== c.name && update(c.id, "name", e.target.value.trim())}
-                  />
-                  <Select size="sm" value={c.tribeId ?? ""} disabled={!editable} onChange={(e) => update(c.id, "tribeId", e.target.value || null)}>
-                    <option value="">— no {terms.tribe} —</option>
-                    {state.tribes.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </Select>
-                  {held && (
-                    <span className="text-xs text-muted-foreground">
-                      {held}, held until episode {cast.kind === "creating" ? cast.tribesFromEpisode : ""}
-                    </span>
-                  )}
-                  <Input
-                    size="sm"
-                    className="min-w-[140px] flex-1"
-                    placeholder="Photo URL"
-                    defaultValue={c.photoUrl ?? ""}
-                    disabled={!editable}
-                    onBlur={(e) => e.target.value !== (c.photoUrl ?? "") && update(c.id, "photoUrl", e.target.value)}
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {ownerNames.length > 0
-                      ? ownerNames.join(", ")
-                      : state.settings.ownershipMode === "shared"
-                      ? "Unpicked"
-                      : "Free agent"}
+    <section className="flex flex-col gap-2">
+      <GroupHead aside={<span className="text-[13px] text-muted-foreground">{state.castaways.length}</span>}>
+        {terms.Castaways}
+      </GroupHead>
+      {state.castaways.length === 0 ? (
+        <p className="text-base text-muted-foreground">No {terms.castaways} yet.</p>
+      ) : (
+        <RowList>
+          {state.castaways.map((c) => {
+            const tribe = tribeOf(c);
+            const held = heldTribe(c);
+            return (
+              <div key={c.id} className="flex min-h-[60px] items-center gap-3 py-2">
+                <PhotoSquare castaway={c} size={44} faded={c.status === "eliminated"} expandable />
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate text-base font-semibold">{c.name}</span>
+                    {tribe && (
+                      <span className="flex shrink-0 items-center gap-1 text-[13px] text-muted-foreground">
+                        <span className="size-2.5 rounded-[2px]" style={{ background: tribe.color }} aria-hidden />
+                        {tribe.name}
+                      </span>
+                    )}
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    {c.status === "eliminated" ? `#${c.placementOrder} — ${c.exitMethod}` : "Active"}
+                  <span className="truncate text-[13px] text-muted-foreground">
+                    {held ? `${held}, held until episode ${cast.kind === "creating" ? cast.tribesFromEpisode : ""} · ` : ""}
+                    {standing(c)}
                   </span>
-                  {editable && (
-                    <Button variant="destructive" size="sm" onClick={() => remove(c.id, c.name)}>
-                      Remove
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {editable && (
-            <div className="mt-3 flex gap-1.5">
-              <Input
-                className="min-w-0 flex-1"
-                placeholder={`New ${terms.castaway} name`}
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              />
-              <Button onClick={handleAdd}>Add {terms.Castaway}</Button>
-            </div>
-          )}
-        </div>
+                </span>
+                {editable ? (
+                  <MoreButton label={`Options for ${c.name}`} onClick={() => setSheet({ kind: "menu", id: c.id })} />
+                ) : (
+                  <span className="w-2" />
+                )}
+              </div>
+            );
+          })}
+        </RowList>
       )}
-    </div>
+      {editable && (
+        <PlainButton className="mt-2" onClick={() => setSheet({ kind: "add" })}>
+          <Plus className="size-[18px]" aria-hidden />
+          Add {terms.castaway}
+        </PlainButton>
+      )}
+
+      {sheet?.kind === "menu" && target && (
+        <BottomSheet open onOpenChange={(o) => !o && close()} title={target.name} description={tribeOf(target)?.name}>
+          <SheetAction onClick={() => setSheet({ kind: "rename", id: target.id })}>Rename</SheetAction>
+          <SheetAction detail={tribeOf(target)?.name ?? "None"} onClick={() => setSheet({ kind: "tribe", id: target.id })}>
+            {terms.Tribe}
+          </SheetAction>
+          <SheetAction detail={target.photoUrl ? "Set" : "None"} onClick={() => setSheet({ kind: "photo", id: target.id })}>
+            Photo
+          </SheetAction>
+          <SheetAction danger onClick={() => remove(target)}>
+            Delete {terms.castaway}
+          </SheetAction>
+        </BottomSheet>
+      )}
+      {sheet?.kind === "rename" && target && (
+        <TextSheet
+          title={`Rename ${target.name}`}
+          label="Name"
+          initial={target.name}
+          submit="Save"
+          onClose={close}
+          onSubmit={(v) => {
+            close();
+            if (v !== target.name) update(target.id, "name", v);
+          }}
+        />
+      )}
+      {sheet?.kind === "tribe" && target && (
+        <BottomSheet open onOpenChange={(o) => !o && close()} title={terms.Tribe} description={target.name}>
+          {[...state.tribes, null].map((t) => (
+            <SheetAction
+              key={t?.id ?? "none"}
+              detail={(target.tribeId ?? null) === (t?.id ?? null) ? "✓" : undefined}
+              onClick={() => {
+                close();
+                if ((target.tribeId ?? null) !== (t?.id ?? null)) update(target.id, "tribeId", t?.id ?? null);
+              }}
+            >
+              <span className="flex items-center gap-2.5">
+                {t && <span className="size-3 rounded-[3px]" style={{ background: t.color }} aria-hidden />}
+                {t ? t.name : `No ${terms.tribe}`}
+              </span>
+            </SheetAction>
+          ))}
+        </BottomSheet>
+      )}
+      {sheet?.kind === "photo" && target && (
+        <PhotoSheet
+          castaway={target}
+          onClose={close}
+          onSubmit={(url) => {
+            close();
+            if (url !== (target.photoUrl ?? "")) update(target.id, "photoUrl", url);
+          }}
+        />
+      )}
+      {sheet?.kind === "add" && <TextSheet title={`Add a ${terms.castaway}`} label="Name" submit="Add" onClose={close} onSubmit={add} />}
+    </section>
+  );
+}
+
+// A photo is a URL; saving it blank clears it.
+function PhotoSheet({ castaway, onClose, onSubmit }: { castaway: Castaway; onClose: () => void; onSubmit: (url: string) => void }) {
+  return (
+    <TextSheet
+      title="Photo"
+      description={castaway.name}
+      label="Photo URL"
+      help="A link to an image. Research and cast imports usually fill this in."
+      initial={castaway.photoUrl ?? ""}
+      allowEmpty
+      submit="Save"
+      onClose={onClose}
+      onSubmit={onSubmit}
+    />
   );
 }

@@ -7,17 +7,26 @@ import { api, ApiError } from "@/lib/api";
 import { confirm } from "@/lib/confirm-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SettingsPage } from "./settings-ui";
 
 type Candidate = Awaited<ReturnType<typeof api.getLeagueLinks>>["candidates"][number];
 
-// League Settings > Linked leagues (league-groups.ts): the same friends playing several leagues on
+// League Settings > Linked leagues, its own page (league-groups.ts): the same friends playing several leagues on
 // one season can link them -- one shared chat, and revealing an episode in one reveals it in all.
 // Everyone sees what this league is linked with; a commissioner of every league involved links and
 // unlinks. Linking says first who'd newly share the conversation, so it's a choice, not a surprise.
 // A commissioner also sets the group's order (the swipe and the league list follow it) and which
 // league the app opens on for everyone in it (0046), and its name (0047) -- what the league dropdowns
 // call the group; unnamed, it's the show and season.
-export function LinkedLeaguesSection() {
+export function LinkedLeaguesPage() {
+  return (
+    <SettingsPage title="Linked leagues">
+      <LinkedLeaguesSection />
+    </SettingsPage>
+  );
+}
+
+function LinkedLeaguesSection() {
   const mode = useLeagueStore((s) => s.mode);
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
@@ -33,9 +42,12 @@ export function LinkedLeaguesSection() {
     queryFn: () => api.getLeagueLinks(leagueId!),
     enabled: live,
   });
-  if (!live || !data) return null;
+  if (!live) return <p className="text-base text-muted-foreground">Linking needs a real league, not the demo.</p>;
+  if (!data) return null;
   const available = data.candidates.filter((c) => !c.problem);
-  if (data.linked.length === 0 && (!canManage || data.candidates.length === 0)) return null;
+  if (data.linked.length === 0 && (!canManage || data.candidates.length === 0)) {
+    return <p className="text-base text-muted-foreground">This league isn&rsquo;t linked with any other.</p>;
+  }
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -83,8 +95,7 @@ export function LinkedLeaguesSection() {
   }
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Linked leagues</h3>
+    <div className="flex flex-col text-base">
       {data.linked.length > 0 ? (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
@@ -131,7 +142,7 @@ export function LinkedLeaguesSection() {
             {data.order.map((l, i) => {
               const fav = data.favoriteId === l.id;
               return (
-                <div key={l.id} className="flex items-center gap-2 rounded-md bg-secondary/50 px-2.5 py-1.5 text-sm">
+                <div key={l.id} className="flex min-h-12 items-center gap-2 rounded-[3px] bg-card px-3 text-[15px]">
                   {canManage ? (
                     <button
                       type="button"

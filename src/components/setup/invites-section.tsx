@@ -4,14 +4,13 @@ import { useEffect, useState } from "react";
 import type { LeagueInvite } from "@/lib/game/types";
 import { useLeagueStore } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { confirm } from "@/lib/confirm-store";
+import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
+import { Chip, Field, MoreButton, PrimaryButton, fieldCls } from "./settings-ui";
 
-// Not a port of anything in the live app (which only had join-by-code). Any member can invite,
-// not just the commissioner -- so this deliberately doesn't gate on useCanManage(); being able to
-// see League Settings for a live league already means you're a member. Revoking a pending invite
-// is limited to whoever sent it, or the commissioner (enforced server-side too). Live-only:
+// The invite half of League Settings > Players & invites (the canvas's "Settings-Players"): an invite
+// field, then one row per invite with its status and a ⋯ sheet for Revoke. Any member can invite, not
+// just the commissioner -- so this deliberately doesn't gate on useCanManage(). Revoking a pending
+// invite is limited to whoever sent it, or the commissioner (enforced server-side too). Live-only:
 // invites live in their own table, there's nothing to invite anyone to in demo mode.
 export function InvitesSection() {
   const mode = useLeagueStore((s) => s.mode);
@@ -23,6 +22,7 @@ export function InvitesSection() {
   const [identifier, setIdentifier] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [sheetFor, setSheetFor] = useState<LeagueInvite | null>(null);
 
   useEffect(() => {
     if (mode !== "live" || !leagueId) return;
@@ -38,7 +38,7 @@ export function InvitesSection() {
 
   if (mode !== "live" || !leagueId) return null;
 
-  // A hand-over invite (sent from Players) names the seat it offers.
+  // A hand-over invite (sent from a player's sheet) names the seat it offers.
   const seatName = (inv: LeagueInvite) => (inv.player_id ? players.find((p) => p.id === inv.player_id)?.name : null);
 
   async function handleSend() {
@@ -58,7 +58,7 @@ export function InvitesSection() {
   }
 
   async function handleRevoke(invite: LeagueInvite) {
-    if (!(await confirm(`Revoke the invite to "${invite.identifier}"?`))) return;
+    setSheetFor(null);
     try {
       await api.revokeInvite(leagueId!, invite.id);
       setInvites((list) => list.filter((i) => i.id !== invite.id));
@@ -68,54 +68,65 @@ export function InvitesSection() {
   }
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Invites</h3>
-      <p className="mb-2 text-xs text-muted-foreground">
-        Invite someone by username or email. If they don&apos;t have an account yet, the invite will be waiting once they
-        sign up with that username or email.
-      </p>
-      <div className="flex gap-1.5">
-        <Input
-          className="min-w-0 flex-1"
-          placeholder="Username or email"
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-        />
-        <Button onClick={handleSend} disabled={sending || !identifier.trim()}>
-          {sending ? "Sending…" : "Send Invite"}
-        </Button>
-      </div>
-      {error && <p className="mt-1.5 text-sm text-destructive">{error}</p>}
+    <div className="flex flex-col gap-3">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSend();
+        }}
+      >
+        <Field
+          label="Invite by username or email"
+          htmlFor="invite-id"
+          hint="No account yet? The invite waits for them to sign up with that username or email."
+        >
+          <div className="flex gap-2">
+            <input
+              id="invite-id"
+              className={`${fieldCls} min-w-0 flex-1`}
+              placeholder="name@example.com"
+              autoComplete="off"
+              autoCapitalize="none"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+            />
+            <PrimaryButton type="submit" disabled={sending || !identifier.trim()}>
+              {sending ? "Sending…" : "Invite"}
+            </PrimaryButton>
+          </div>
+        </Field>
+      </form>
+      {error && <p className="text-sm font-semibold text-live">{error}</p>}
       {invites.length > 0 && (
-        <div className="mt-3 flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5">
           {invites.map((inv) => {
             const canRevoke = inv.status === "pending" && (inv.invited_by === userId || isCommissioner);
+            const seat = seatName(inv);
             return (
-              <div key={inv.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
-                <span className="min-w-0 flex-1 truncate font-semibold">{inv.identifier}</span>
-                {seatName(inv) && <span className="text-xs text-muted-foreground">to take over {seatName(inv)}</span>}
-                <span className="text-xs text-muted-foreground">from {inv.invited_by_username ?? "unknown"}</span>
-                <span
-                  className={
-                    inv.status === "pending"
-                      ? "text-xs font-semibold text-primary"
-                      : inv.status === "accepted"
-                        ? "text-xs font-semibold text-emerald-700"
-                        : "text-xs text-muted-foreground"
-                  }
-                >
-                  {inv.status}
+              <div key={inv.id} className="flex min-h-12 items-center gap-2.5 rounded-[3px] bg-card pl-3.5 pr-1">
+                <span className="flex min-w-0 flex-1 flex-col py-1.5">
+                  <span className="truncate text-[15px] font-semibold">{inv.identifier}</span>
+                  <span className="truncate text-[13px] text-muted-foreground">
+                    {[seat && `to take over ${seat}`, `from ${inv.invited_by_username ?? "unknown"}`].filter(Boolean).join(" · ")}
+                  </span>
                 </span>
-                {canRevoke && (
-                  <Button variant="secondary" size="sm" onClick={() => handleRevoke(inv)}>
-                    Revoke
-                  </Button>
+                <Chip tone={inv.status === "pending" ? "chyron" : "quiet"}>{inv.status}</Chip>
+                {canRevoke ? (
+                  <MoreButton label={`Options for the invite to ${inv.identifier}`} onClick={() => setSheetFor(inv)} />
+                ) : (
+                  <span className="w-2" />
                 )}
               </div>
             );
           })}
         </div>
+      )}
+      {sheetFor && (
+        <BottomSheet open onOpenChange={(o) => !o && setSheetFor(null)} title={sheetFor.identifier} description="Invite pending">
+          <SheetAction danger onClick={() => handleRevoke(sheetFor)}>
+            Revoke invite
+          </SheetAction>
+        </BottomSheet>
       )}
     </div>
   );

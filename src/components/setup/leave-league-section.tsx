@@ -3,15 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useLeagueStore } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
-import { Button } from "@/components/ui/button";
 import StateLogic from "@/lib/game/state-logic.js";
 import { confirm } from "@/lib/confirm-store";
+import { PlainButton } from "@/components/draft/draft-ui";
 
-// Port of renderSetup()'s Leave League panel -- live-only (no real membership to leave in mock
-// mode), same as the live app only showing it when currentMembership.playerId exists. Falls back
-// to the user's next league afterward, or -- if that was their last one -- to the Dashboard
-// (AuthGate shows it automatically once the store has no league loaded and no leagues listed).
-export function LeaveLeagueSection() {
+// Port of renderSetup()'s Leave League panel, now in League Settings' Danger zone (setup-tab.tsx) --
+// live-only (no real membership to leave in mock mode), same as the live app only showing it when
+// currentMembership.playerId exists. Falls back to the user's next league afterward, or -- if that was
+// their last one -- to the Dashboard (AuthGate shows it once the store has no league loaded and no
+// leagues listed).
+export function LeaveLeagueButton() {
   const router = useRouter();
   const mode = useLeagueStore((s) => s.mode);
   const membership = useLeagueStore((s) => s.membership);
@@ -22,9 +23,9 @@ export function LeaveLeagueSection() {
   const clearLeague = useLeagueStore((s) => s.clearLeague);
 
   if (mode !== "live" || !membership?.playerId) return null;
+  const draftStarted = StateLogic.isDraftStarted(state);
 
   async function handleLeave() {
-    const draftStarted = StateLogic.isDraftStarted(state);
     const msg = draftStarted
       ? "Leave this league? Your roster and points stay intact but you'll be removed as an active player."
       : "Leave this league? You'll be removed from the draft order entirely.";
@@ -42,11 +43,13 @@ export function LeaveLeagueSection() {
   }
 
   return (
-    <div className="rounded-lg border border-destructive/30 bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Leave League</h3>
-      <Button variant="destructive" onClick={handleLeave}>
-        Leave League
-      </Button>
+    <div className="flex flex-col gap-1.5">
+      <PlainButton danger onClick={handleLeave}>
+        Leave league
+      </PlainButton>
+      <p className="text-[13px] text-muted-foreground">
+        {draftStarted ? "Your roster and points stay, but you stop playing." : "You come out of the draft order."}
+      </p>
     </div>
   );
 }

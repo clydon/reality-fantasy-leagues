@@ -45,7 +45,7 @@ export function SeasonCastNotice({ state, cast, onChanged }: { state: LeagueStat
     if (ok) await run(() => seasonCastApi.finish(leagueId!));
   }
 
-  const box = "mb-3 rounded-md border border-border bg-secondary/40 p-2.5 text-xs";
+  const box = "rounded-[3px] bg-card p-3.5 text-sm leading-snug";
 
   if (cast.kind === "shared") {
     // Only someone who'd otherwise expect to edit needs telling why they can't; players see nothing new.

@@ -4,13 +4,13 @@ import { useMemo, useState } from "react";
 import type { FormatData } from "@/lib/game/formats/index";
 import { reviewRuleset } from "@/lib/game/formats/ruleset-review.js";
 import { camelId } from "@/lib/game/formats/proposal.js";
-import { Button } from "@/components/ui/button";
+import { BarButton, ConfirmBar, PlainButton } from "@/components/draft/draft-ui";
 import { Input } from "@/components/ui/input";
 import { Notes, CategorySelect, RuleLine, ruleAtPath } from "@/components/admin/format-review-screen";
 import { cn } from "cn";
 
-// The editable half of League Settings > Rules (docs/PLAN-scoring-rules-as-data.md phase 4): a
-// league's OWN ruleset copy, as a list of rules a commissioner can read and change. Reuses
+// The editable half of League Settings > Scoring & rules, on its own page, /setup/rules/edit
+// (docs/PLAN-scoring-rules-as-data.md phase 4): a league's OWN ruleset copy, as a list of rules a commissioner can read and change. Reuses
 // format-review-screen.tsx's row pieces (RuleLine etc.) exactly like season-rule-check.tsx does, but
 // drives them straight off a FormatData instead of a raw AI proposal -- there's no chat answer to
 // repair here, only edits a commissioner makes on purpose, re-validated live by reviewRuleset.
@@ -24,7 +24,7 @@ import { cn } from "cn";
 //    unconditionally backfills settings.eventPoints with every event's current default on every load
 //    ({...defaultEventPoints(s), ...existingOverrides}), and ActiveRosterLogic.pointsFor reads THAT
 //    first -- so by the time a league has loaded even once, its own defaultPoints edit here would
-//    silently never affect a real score. Points stay the Active Roster Settings section's job
+//    silently never affect a real score. Points stay the Scoring & rules page's job
 //    (settings.eventPoints, already live and working); this screen edits what award/condition rules
 //    the event, not what it's worth.
 //  - No event/question removal, no raw rules-block JSON escape hatch, no research-site picker: this
@@ -107,7 +107,7 @@ export function LeagueRulesetEditor({
   // up in a category's own grid, unlike a Proposal row where category is just a field. defaultPoints
   // starts at 0 only as a placeholder the data shape requires; the league's normalization seeds
   // settings.eventPoints from it the first time the league loads with this event in its catalog, and
-  // Active Roster Settings (not this screen, see the file comment above) is where a commissioner sets
+  // the Scoring & rules page (not this screen, see the file comment above) is where a commissioner sets
   // its real value.
   function addEvent(label: string): string {
     const base = camelId(label) || "newEvent";
@@ -126,8 +126,8 @@ export function LeagueRulesetEditor({
 
   return (
     <div className="mt-2 flex flex-col gap-3">
-      <p className="text-[0.7rem] text-muted-foreground">
-        What triggers each event, and under what condition. Point values are set elsewhere in League Settings, not here.
+      <p className="text-[13px] text-muted-foreground">
+        What triggers each event, and under what condition. Points are set on the Scoring &amp; rules page, not here.
       </p>
       {review.leftoverProblems.length > 0 && (
         <div className="rounded border border-destructive/40 bg-destructive/5 p-1.5 text-[0.7rem]">
@@ -242,14 +242,18 @@ export function LeagueRulesetEditor({
       {review.problems.length > 0 && (
         <Notes problems={[`${review.problems.length} problem${review.problems.length === 1 ? "" : "s"} to fix before saving.`]} warnings={[]} />
       )}
-      <div className="flex items-center gap-1.5 border-t border-border pt-2.5">
-        <Button size="xs" disabled={busy || !review.approvable} onClick={() => onSave(draft)}>
-          {busy ? "Saving…" : "Save changes"}
-        </Button>
-        <Button variant="secondary" size="xs" disabled={busy} onClick={onCancel}>
+      {/* Sticky above the tab bar, so saving doesn't mean scrolling to the end of a long list. */}
+      <ConfirmBar
+        note={review.problems.length ? "Fix the problems above first" : "Nothing applies until you save"}
+        title={draft === data ? "No changes" : "Unsaved changes"}
+      >
+        <PlainButton disabled={busy} onClick={onCancel}>
           Cancel
-        </Button>
-      </div>
+        </PlainButton>
+        <BarButton disabled={busy || !review.approvable || draft === data} onClick={() => onSave(draft)}>
+          {busy ? "Saving…" : "Save"}
+        </BarButton>
+      </ConfirmBar>
     </div>
   );
 }

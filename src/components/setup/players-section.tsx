@@ -1,72 +1,67 @@
 "use client";
 
 import { useState } from "react";
-import type { LeagueState } from "@/lib/game/types";
+import { Plus } from "lucide-react";
+import type { LeagueState, Player } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api, ApiError } from "@/lib/api";
-import { Button } from "@/components/ui/button";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
-import { MoreHorizontal } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { ColorInput } from "@/components/ui/color-input";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { confirm } from "@/lib/confirm-store";
-import { ColorInput } from "@/components/ui/color-input";
+import { PlainButton } from "@/components/draft/draft-ui";
+import { cn } from "cn";
+import { InvitesSection } from "./invites-section";
+import { Chip, GroupHead, MoreButton, PrimaryButton, RowList, SettingsPage, TextSheet } from "./settings-ui";
 
-// Port of renderSetup()'s Players panel: color/name edit, remove, and activating a player who
-// joined after the draft concluded (RosterLogic.addPlayer marks them inactive in that case --
-// there's no fair turn order left to slot them into, so the commissioner assigns free agents
-// directly instead of a live pick).
+// League Settings > Players & invites (docs/PLAN-ux-redesign.md, 2b and 1c; the canvas's
+// "Settings-Players"): invites first, then one line per player -- colour, name, who they are, roster
+// count -- with everything you can do to a player in its ⋯ sheet: rename, colour, computer player and
+// its skill, hand over, activate, and Remove last in red.
 //
 // A seat with no account behind it can be a computer player (player.automated, src/lib/game/bot-logic.js),
 // which makes its own moves, and any such seat can be handed over to a real account by invite: whoever
-// accepts takes over the team (see join-league.ts).
-const LEVEL_HELP = {
-  casual: "Casual: plays its favourites and rarely swaps.",
-  solid: "Solid: follows the form and avoids anyone in danger.",
-  sharp: "Sharp: reads every warning sign and swaps whenever it pays.",
-};
+// accepts takes over the team (see join-league.ts). A player who joined after the draft is inactive
+// (RosterLogic.addPlayer) until the commissioner assigns them free agents directly -- there's no fair
+// turn order left to slot them into.
+const LEVELS = {
+  casual: { label: "Casual", help: "Plays its favourites and rarely swaps." },
+  solid: { label: "Solid", help: "Follows the form and avoids anyone in danger." },
+  sharp: { label: "Sharp", help: "Reads every warning sign and swaps whenever it pays." },
+} as const;
+const BOT_HELP = "Plays itself: drafts, sets its lineup and makes its picks from how everyone's doing so far.";
 
-export function PlayersSection({ state }: { state: LeagueState }) {
+type Sheet =
+  { kind: "menu" | "rename" | "colour" | "skill" | "handover" | "activate"; playerId: string } | { kind: "add"; automated: boolean };
+
+export function PlayersPage() {
+  const state = useLeagueStore((s) => s.state);
+  return (
+    <SettingsPage title="Players & invites">
+      <InvitesSection />
+      <PlayersSection state={state} />
+    </SettingsPage>
+  );
+}
+
+function PlayersSection({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const playerAccounts = useLeagueStore((s) => s.playerAccounts);
+  const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const mode = useLeagueStore((s) => s.mode);
   const canManage = useCanManage();
   const mutate = useMutate();
-  const [newName, setNewName] = useState("");
-  const [newAutomated, setNewAutomated] = useState(false);
-  const [handingOverId, setHandingOverId] = useState<string | null>(null);
-  const [handOverTo, setHandOverTo] = useState("");
-  const [handOverNote, setHandOverNote] = useState<{ playerId: string; text: string; error?: boolean } | null>(null);
-  const [activatingId, setActivatingId] = useState<string | null>(null);
-  const [activateIds, setActivateIds] = useState<string[]>([]);
+  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
 
-  async function handleAdd() {
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-    const automated = newAutomated;
-    setNewName("");
-    setNewAutomated(false);
-    await mutate(
-      (s) => StateLogic.addPlayer(s, trimmed, { automated }),
-      () => api.addPlayer(leagueId!, trimmed, automated)
-    );
-  }
-
-  async function handOver(playerId: string) {
-    const to = handOverTo.trim();
-    if (!to) return;
-    try {
-      await api.sendInvite(leagueId!, to, playerId);
-      setHandOverNote({ playerId, text: `Invite sent to ${to}. They take over this team when they accept.` });
-      setHandingOverId(null);
-      setHandOverTo("");
-    } catch (err) {
-      setHandOverNote({ playerId, text: err instanceof ApiError ? err.message : "Could not send the invite.", error: true });
-    }
-  }
+  const hasRoster = StateLogic.getLeagueType(state).hasRoster;
+  const players = state.players;
+  const close = () => setSheet(null);
+  const target = sheet && "playerId" in sheet ? state.players.find((p) => p.id === sheet.playerId) : undefined;
+  const accountOf = (p: Player) => playerAccounts.find((a) => a.player_id === p.id);
 
   async function update(id: string, field: string, value: unknown) {
     await mutate(
@@ -75,209 +70,246 @@ export function PlayersSection({ state }: { state: LeagueState }) {
     );
   }
 
-  async function remove(id: string, name: string) {
-    const warning = hasRoster
-      ? `Remove "${name}"? Their drafted ${terms.castaways} will become free agents.`
-      : `Remove "${name}"?`;
+  async function add(name: string, automated: boolean) {
+    close();
+    await mutate(
+      (s) => StateLogic.addPlayer(s, name, { automated }),
+      () => api.addPlayer(leagueId!, name, automated)
+    );
+  }
+
+  async function remove(p: Player) {
+    close();
+    const warning = hasRoster ? `Remove "${p.name}"? Their drafted ${terms.castaways} will become free agents.` : `Remove "${p.name}"?`;
     if (!(await confirm(warning, { danger: true, confirmLabel: "Remove" }))) return;
     await mutate(
-      (s) => StateLogic.removePlayer(s, id),
-      () => api.removePlayer(leagueId!, id)
+      (s) => StateLogic.removePlayer(s, p.id),
+      () => api.removePlayer(leagueId!, p.id)
     );
   }
 
-  async function activate(id: string) {
-    const ids = activateIds;
-    setActivatingId(null);
-    setActivateIds([]);
+  async function handOver(p: Player, to: string) {
+    try {
+      await api.sendInvite(leagueId!, to, p.id);
+      close();
+      setNote({ text: `Invite sent to ${to}. They take over ${p.name} when they accept.` });
+    } catch (err) {
+      setNote({ text: err instanceof ApiError ? err.message : "Could not send the invite.", error: true });
+    }
+  }
+
+  async function activate(p: Player, ids: string[]) {
+    close();
     await mutate(
-      (s) => StateLogic.activatePlayer(s, id, ids),
-      () => api.activatePlayer(leagueId!, id, ids)
+      (s) => StateLogic.activatePlayer(s, p.id, ids),
+      () => api.activatePlayer(leagueId!, p.id, ids)
     );
   }
 
-  const [sheetFor, setSheetFor] = useState<string | null>(null);
-  const freeAgents = StateLogic.freeAgents(state);
-  const hasRoster = StateLogic.getLeagueType(state).hasRoster;
+  function whoLine(p: Player) {
+    const account = accountOf(p);
+    const you = p.id === myPlayerId;
+    if (p.disabled) return "Left the league";
+    if (account)
+      return [you ? "You" : account.username, account.role === "commissioner" ? "commissioner" : null].filter(Boolean).join(" · ");
+    if (p.automated) return `Computer player · ${LEVELS[p.botLevel ?? "solid"].label}`;
+    return "No account yet";
+  }
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Players</h3>
-      <div className="flex flex-col gap-2">
-        {state.players.map((p) => {
-          const account = playerAccounts.find((a) => a.player_id === p.id);
-          const activeCount = StateLogic.activeOwnedCount(state, p.id);
+    <section className="flex flex-col gap-2">
+      <GroupHead>Players</GroupHead>
+      <RowList>
+        {players.map((p) => (
+          <div key={p.id} className="flex min-h-[60px] items-center gap-3">
+            <span className="size-3 shrink-0 rounded-[3px]" style={{ background: p.color }} aria-hidden />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5 py-2">
+              <span className="flex items-center gap-2">
+                <span className="truncate text-base font-semibold">{p.name}</span>
+                {p.active === false && <Chip tone="chyron">To activate</Chip>}
+              </span>
+              <span className="truncate text-[13px] text-muted-foreground">{whoLine(p)}</span>
+            </span>
+            {hasRoster && (
+              <span className="shrink-0 text-[13px] text-muted-foreground">
+                {StateLogic.activeOwnedCount(state, p.id)}/{StateLogic.rosterSize(state)}
+              </span>
+            )}
+            {canManage ? (
+              <MoreButton label={`Options for ${p.name}`} onClick={() => setSheet({ kind: "menu", playerId: p.id })} />
+            ) : (
+              <span className="w-2" />
+            )}
+          </div>
+        ))}
+      </RowList>
+      {note && <p className={cn("text-sm", note.error ? "font-semibold text-live" : "text-muted-foreground")}>{note.text}</p>}
+      {canManage && (
+        <div className="mt-2 flex gap-2.5">
+          <PlainButton className="flex-1" onClick={() => setSheet({ kind: "add", automated: false })}>
+            <Plus className="size-[18px]" aria-hidden />
+            Add player
+          </PlainButton>
+          <PlainButton className="flex-1" onClick={() => setSheet({ kind: "add", automated: true })}>
+            <Plus className="size-[18px]" aria-hidden />
+            Add computer
+          </PlainButton>
+        </div>
+      )}
+
+      {sheet?.kind === "menu" && target && (
+        <BottomSheet
+          open
+          onOpenChange={(o) => !o && close()}
+          title={
+            <span className="flex items-center gap-2.5">
+              <span className="size-3.5 rounded-[3px]" style={{ background: target.color }} aria-hidden />
+              {target.name}
+            </span>
+          }
+          description={whoLine(target)}
+        >
+          <SheetAction onClick={() => setSheet({ kind: "rename", playerId: target.id })}>Rename</SheetAction>
+          <SheetAction onClick={() => setSheet({ kind: "colour", playerId: target.id })}>Colour</SheetAction>
+          {!accountOf(target) && !target.disabled && (
+            <SheetAction
+              detail={target.automated ? "On" : "Off"}
+              onClick={() => update(target.id, "automated", !target.automated).then(close)}
+            >
+              Computer player
+            </SheetAction>
+          )}
+          {!accountOf(target) && target.automated && (
+            <SheetAction detail={LEVELS[target.botLevel ?? "solid"].label} onClick={() => setSheet({ kind: "skill", playerId: target.id })}>
+              Skill
+            </SheetAction>
+          )}
+          {!accountOf(target) && !target.disabled && mode === "live" && (
+            <SheetAction onClick={() => setSheet({ kind: "handover", playerId: target.id })}>Hand over to a person…</SheetAction>
+          )}
+          {hasRoster && target.active === false && (
+            <SheetAction onClick={() => setSheet({ kind: "activate", playerId: target.id })}>Activate…</SheetAction>
+          )}
+          <SheetAction danger onClick={() => remove(target)}>
+            Remove from league
+          </SheetAction>
+        </BottomSheet>
+      )}
+
+      {sheet?.kind === "rename" && target && (
+        <TextSheet
+          title={`Rename ${target.name}`}
+          label="Name"
+          initial={target.name}
+          submit="Save"
+          onClose={close}
+          onSubmit={(v) => {
+            close();
+            if (v !== target.name) update(target.id, "name", v);
+          }}
+        />
+      )}
+
+      {sheet?.kind === "colour" && target && (
+        <BottomSheet open onOpenChange={(o) => !o && close()} title="Colour" description={target.name}>
+          <div className="flex items-center gap-3 border-t border-border py-4">
+            <ColorInput value={target.color} onChange={(hex) => update(target.id, "color", hex)} swatchClassName="h-11 w-11" />
+            <span className="text-[13px] text-muted-foreground">Tap the swatch, or type a hex code to match another league.</span>
+          </div>
+        </BottomSheet>
+      )}
+
+      {sheet?.kind === "skill" && target && (
+        <BottomSheet open onOpenChange={(o) => !o && close()} title="Skill" description={target.name}>
+          {(Object.keys(LEVELS) as (keyof typeof LEVELS)[]).map((k) => (
+            <SheetAction
+              key={k}
+              detail={(target.botLevel ?? "solid") === k ? "✓" : undefined}
+              onClick={() => update(target.id, "botLevel", k).then(close)}
+            >
+              <span className="flex flex-col gap-0.5 py-2">
+                <span>{LEVELS[k].label}</span>
+                <span className="text-[13px] font-normal text-muted-foreground">{LEVELS[k].help}</span>
+              </span>
+            </SheetAction>
+          ))}
+        </BottomSheet>
+      )}
+
+      {sheet?.kind === "handover" && target && (
+        <TextSheet
+          title="Hand over"
+          description={target.name}
+          label="Username or email"
+          help={`When they accept, the team is theirs, points and all, under their own name${target.automated ? ", and the computer stops playing it" : ""}.`}
+          submit="Send invite"
+          onClose={close}
+          onSubmit={(v) => handOver(target, v)}
+        />
+      )}
+
+      {sheet?.kind === "activate" && target && (
+        <ActivateSheet state={state} player={target} onClose={close} onActivate={(ids) => activate(target, ids)} />
+      )}
+
+      {sheet?.kind === "add" && (
+        <TextSheet
+          title={sheet.automated ? "Add a computer player" : "Add a player"}
+          label="Name"
+          help={
+            sheet.automated
+              ? `${BOT_HELP} Hand it over to a person any time.`
+              : "Invite them afterwards from its ⋯ menu, or let them join with the code."
+          }
+          submit="Add"
+          onClose={close}
+          onSubmit={(v) => add(v, sheet.automated)}
+        />
+      )}
+    </section>
+  );
+}
+
+// A player who joined after the draft: pick up to a roster's worth of free agents to give them directly.
+function ActivateSheet({
+  state,
+  player,
+  onClose,
+  onActivate,
+}: {
+  state: LeagueState;
+  player: Player;
+  onClose: () => void;
+  onActivate: (ids: string[]) => void;
+}) {
+  const [ids, setIds] = useState<string[]>([]);
+  const max = StateLogic.rosterSize(state);
+  const freeAgents = StateLogic.freeAgents(state);
+  return (
+    <BottomSheet open onOpenChange={(o) => !o && onClose()} title="Activate" description={player.name}>
+      <p className="border-t border-border py-3 text-[13px] leading-snug text-muted-foreground">
+        The draft is over, so pick up to {max} free agents to give {player.name} directly.
+      </p>
+      <div className="flex max-h-[40vh] flex-col overflow-y-auto">
+        {freeAgents.map((c) => {
+          const on = ids.includes(c.id);
           return (
-            <div key={p.id} className="rounded-md border border-border p-2.5">
-              <div className="mb-1.5 flex flex-wrap items-center gap-2 text-sm">
-                <ColorInput value={p.color} disabled={!canManage} onChange={(hex) => update(p.id, "color", hex)} />
-                <Input
-                  size="sm"
-                  className="min-w-0 flex-1"
-                  defaultValue={p.name}
-                  disabled={!canManage}
-                  onBlur={(e) => e.target.value.trim() && e.target.value !== p.name && update(p.id, "name", e.target.value.trim())}
-                />
-                {hasRoster && (
-                  <span className="text-xs text-muted-foreground">
-                    {activeCount}/{StateLogic.rosterSize(state)} roster
-                  </span>
-                )}
-                {account ? (
-                  <span className="text-xs text-muted-foreground">
-                    {account.username} ({account.role})
-                  </span>
-                ) : (
-                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={!!p.automated}
-                      disabled={!canManage || !!p.disabled}
-                      onChange={(e) => update(p.id, "automated", e.target.checked)}
-                    />
-                    Computer player
-                  </label>
-                )}
-                {!account && p.automated && (
-                  <select
-                    aria-label="How well it plays"
-                    className="rounded-md border border-border bg-background px-1.5 py-0.5 text-xs"
-                    value={p.botLevel ?? "solid"}
-                    disabled={!canManage}
-                    onChange={(e) => update(p.id, "botLevel", e.target.value)}
-                  >
-                    <option value="casual">Casual</option>
-                    <option value="solid">Solid</option>
-                    <option value="sharp">Sharp</option>
-                  </select>
-                )}
-                {p.active === false && <span className="text-xs font-semibold text-primary">Inactive — needs activation</span>}
-                {canManage && (
-                  // Hand over and Remove live in a sheet (docs/PLAN-ux-redesign.md, 1c): one button per
-                  // row, and the destructive one last, in red text, not a red button beside routine ones.
-                  <button
-                    type="button"
-                    className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary"
-                    aria-label={`Options for ${p.name}`}
-                    onClick={() => setSheetFor(p.id)}
-                  >
-                    <MoreHorizontal className="size-5" />
-                  </button>
-                )}
-              </div>
-              {sheetFor === p.id && (
-                <BottomSheet
-                  open
-                  onOpenChange={(o) => !o && setSheetFor(null)}
-                  title={p.name}
-                  description={account ? account.username : p.automated ? "Computer player" : undefined}
-                >
-                  {!account && !p.disabled && mode === "live" && (
-                    <SheetAction
-                      onClick={() => {
-                        setSheetFor(null);
-                        setHandingOverId(p.id);
-                        setHandOverTo("");
-                        setHandOverNote(null);
-                      }}
-                    >
-                      Hand over to a person…
-                    </SheetAction>
-                  )}
-                  <SheetAction
-                    danger
-                    onClick={() => {
-                      setSheetFor(null);
-                      remove(p.id, p.name);
-                    }}
-                  >
-                    Remove from league
-                  </SheetAction>
-                </BottomSheet>
-              )}
-              {canManage && hasRoster && p.active === false && (
-                <div className="flex flex-wrap gap-1.5">
-                  <Button variant="secondary" size="sm" onClick={() => setActivatingId(activatingId === p.id ? null : p.id)}>
-                    Activate
-                  </Button>
-                </div>
-              )}
-              {!account && p.automated && (
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Plays itself: drafts, sets its lineup and makes its picks using how everyone&apos;s doing so far.{" "}
-                  {LEVEL_HELP[p.botLevel ?? "solid"]}
-                </p>
-              )}
-              {handingOverId === p.id && (
-                <div className="mt-2 rounded-md border border-dashed border-border bg-secondary/40 p-2.5">
-                  <p className="mb-1.5 text-xs text-muted-foreground">
-                    Invite someone to take over this team. When they accept, it&apos;s theirs, points and all, under their own name
-                    {p.automated ? ", and the computer stops playing it" : ""}.
-                  </p>
-                  <div className="flex gap-1.5">
-                    <Input
-                      size="sm"
-                      className="min-w-0 flex-1"
-                      placeholder="Username or email"
-                      value={handOverTo}
-                      onChange={(e) => setHandOverTo(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handOver(p.id)}
-                    />
-                    <Button size="sm" onClick={() => handOver(p.id)} disabled={!handOverTo.trim()}>
-                      Send Invite
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {handOverNote?.playerId === p.id && (
-                <p className={handOverNote.error ? "mt-1.5 text-xs text-destructive" : "mt-1.5 text-xs text-muted-foreground"}>
-                  {handOverNote.text}
-                </p>
-              )}
-              {hasRoster && activatingId === p.id && (
-                <div className="mt-2 rounded-md border border-dashed border-border bg-secondary/40 p-2.5">
-                  <p className="mb-1.5 text-xs text-muted-foreground">
-                    Pick up to {StateLogic.rosterSize(state)} free agents to assign directly (no fair turn order left post-draft):
-                  </p>
-                  <div className="mb-2 flex flex-wrap gap-1.5">
-                    {freeAgents.map((c) => (
-                      <label key={c.id} className="flex items-center gap-1 text-xs">
-                        <input
-                          type="checkbox"
-                          checked={activateIds.includes(c.id)}
-                          onChange={(e) =>
-                            setActivateIds((ids) => (e.target.checked ? [...ids, c.id] : ids.filter((id) => id !== c.id)))
-                          }
-                        />
-                        {c.name}
-                      </label>
-                    ))}
-                  </div>
-                  <Button size="sm" onClick={() => activate(p.id)}>
-                    Assign &amp; Activate
-                  </Button>
-                </div>
-              )}
-            </div>
+            <label key={c.id} className="flex min-h-12 items-center gap-3 border-t border-border text-base">
+              <input
+                type="checkbox"
+                className="size-5 accent-[var(--chyron)]"
+                checked={on}
+                disabled={!on && ids.length >= max}
+                onChange={(e) => setIds((list) => (e.target.checked ? [...list, c.id] : list.filter((id) => id !== c.id)))}
+              />
+              {c.name}
+            </label>
           );
         })}
       </div>
-      {canManage && (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <Input
-            className="min-w-0 flex-1 basis-40"
-            placeholder="New player name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          />
-          <label className="flex items-center gap-1 text-sm" title="Drafts, sets lineups and makes picks by itself">
-            <input type="checkbox" checked={newAutomated} onChange={(e) => setNewAutomated(e.target.checked)} />
-            Computer player
-          </label>
-          <Button onClick={handleAdd}>Add Player</Button>
-        </div>
-      )}
-    </div>
+      <PrimaryButton className="mt-3" onClick={() => onActivate(ids)}>
+        {ids.length ? `Give ${ids.length} and activate` : "Activate"}
+      </PrimaryButton>
+    </BottomSheet>
   );
 }

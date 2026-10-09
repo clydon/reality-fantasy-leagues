@@ -44,9 +44,9 @@ export function RuleChangesSection({ state }: { state: LeagueState }) {
   }
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Rule changes this season</h3>
-      <p className="mb-3 text-xs text-muted-foreground">
+    <section className="flex flex-col">
+      <h3 className="type-caption pb-1.5 text-[22px]">Rule changes this season</h3>
+      <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
         The show has changed how it&rsquo;s played partway through the season. A change only counts in this league once your
         commissioner adopts it, and only from the episode it starts — nothing before that is rescored.
       </p>
@@ -59,7 +59,7 @@ export function RuleChangesSection({ state }: { state: LeagueState }) {
         <div className="flex flex-col gap-1.5">
           <div className="text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Scored in this league</div>
           {adopted.map(({ change, status }) => (
-            <div key={change.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+            <div key={change.id} className="flex flex-wrap items-center gap-2 border-t border-border py-2.5 text-sm">
               <span className="font-semibold">From episode {change.effectiveEpisode}</span>
               <span className="min-w-0 flex-1 text-muted-foreground">{change.summary || "A rule change"}</span>
               {status === "updated" &&
@@ -88,7 +88,7 @@ export function RuleChangesSection({ state }: { state: LeagueState }) {
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -135,7 +135,7 @@ function PendingChange({
   }
 
   return (
-    <div className="mb-3 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
+    <div className="mb-3 rounded-[3px] border border-chyron/50 bg-card p-3.5 text-sm">
       <p className="font-semibold">
         {updateOf ? "Updated: " : ""}Rules changed from episode {change.effectiveEpisode}
       </p>

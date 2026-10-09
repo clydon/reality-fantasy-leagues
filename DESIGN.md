@@ -337,6 +337,14 @@ Every picker (draft, blind draft, replenish, swap) works the same way, in `src/c
 - **Confirm bar:** sticky at the bottom of its picker, sitting on `--tabbar-h` so it clears the mobile tab bar; full bleed on phones, a bordered bar on desktop. A small muted line (the pick, who it's for), the selection's name in 22px condensed caps, and one chyron button that names the action ("Draft Jelly", "Give to Sam", "Lock in", "Swap"), disabled until there's something to confirm.
 - **Turn pills:** the order strip. Your turns are bone-white like the You badge; the current turn has a 3px chyron underline; finished turns are struck through.
 
+### Settings pages
+League Settings is a list of pages, like a phone's settings (`src/components/setup/settings-ui.tsx`).
+- **Index row:** 60px, icon, name in 16px semibold, its current value in 13px muted underneath, chevron. The list doubles as a summary; a chyron dot marks one that needs the commissioner.
+- **Toggle row:** label and a line of help on the left, a switch on the right (chyron when on); the whole row toggles.
+- **Stepper row:** label and help on the left, − value + with 44px buttons on the right; read-only, just the number.
+- **Fields:** label above, 48px full-width control, help below. Anything locked or read-only is plain text (with a lock when it's locked by the game), never a greyed-out control.
+- **Row actions** are a ⋯ button opening a bottom sheet; page actions are a ⋯ beside the page's first line. Page-level destructive actions sit in a collapsed Danger zone at the bottom of the index.
+
 ### Section (Overview)
 `DashCard` and the shared `section-shell` / `section-title`: in dark mode no box at all, just a 24px condensed caps heading in Bone Text over the content, with an optional aside on the heading line. Sections read like a broadcast rundown.
 
