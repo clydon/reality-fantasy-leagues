@@ -24,6 +24,7 @@ export function CaptionPlate({
   tag,
   tone = "chyron",
   tagStyle,
+  image,
   title,
   subtitle,
   action,
@@ -38,6 +39,8 @@ export function CaptionPlate({
   tone?: CaptionTone;
   /** Overrides the tone's colours, e.g. a tribe's own colour. */
   tagStyle?: CSSProperties;
+  /** A photo before the tag (who went home, who's up). Decorative: the title names them. */
+  image?: string;
   title: ReactNode;
   subtitle?: ReactNode;
   /** Text for the action at the right end; gets a chevron. Only meaningful with href or onClick. */
@@ -50,6 +53,10 @@ export function CaptionPlate({
 }) {
   const body = (
     <>
+      {image && (
+        // eslint-disable-next-line @next/next/no-img-element -- cast photos are plain files under /photos, any size
+        <img src={image} alt="" className="w-14 shrink-0 object-cover object-top" />
+      )}
       <span
         className={cn(
           "type-caption flex shrink-0 items-center pl-3 pr-5 tracking-[0.04em] [clip-path:polygon(0_0,100%_0,84%_100%,0_100%)]",

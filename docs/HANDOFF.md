@@ -62,8 +62,21 @@ explained to a commissioner") rather than re-deriving it from source each time.
 1. ~~`/impeccable document`~~ **Done 2026-10-09:** `DESIGN.md` (repo root) documents direction A
    as built in dark mode, with `.impeccable/design.json` alongside. Update both after the light-mode
    pass.
-2. Redesign the remaining screens one at a time against the canvas: Episodes, then Draft, then
+2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, then Draft, then
    League Settings (as a list of pages), then the rest; admin last.
+   - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
+     episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
+     `src/app/episodes/[number]/page.tsx` -> `episode-detail.tsx`: read view by default (who left as
+     live "Out" caption plates, then wins and role/tribe changes, predictions, lineups), and a
+     commissioner's ⋯ sheet with "Edit results" (`episode-editor.tsx`: recorded items with Undo,
+     full-width forms, research as "Fill gaps with research", renumber) and "Delete episode" last.
+     Status logic is `episode-status.ts`. `episode-card.tsx` is gone. The mobile header shows a back
+     button and "Episode N" on the sub-page; tab/sidebar highlight Episodes there too.
+   - Not yet restyled inside the episode page: the Active Roster lineups section
+     (`episode-active-roster-section.tsx`), prediction rows (`episode-bet-row.tsx`, still a ✏️),
+     the research panel's insides, and the catch-up panel. Hidden/blocked/upcoming row states were
+     built but the local test leagues have no such episodes, so only scored and "waiting" rows were
+     seen in a browser.
 3. Light mode pass.
 4. Then merge and push.
 

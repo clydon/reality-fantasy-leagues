@@ -38,6 +38,7 @@ import {
 import { useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
 import { SwipeTitle } from "@/components/league-swipe";
+import { ChevronLeft } from "lucide-react";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
 // / <nav class="mobile-bottombar"> / <div class="mobile-more-sheet">, populated by
@@ -214,7 +215,11 @@ export function MobileNav() {
     "/account": "Account",
     "/dashboard": "My Leagues",
   };
-  const pageTitle = PAGE_TITLES[pathname] ?? null;
+  // A page under another one (only an episode's own page so far) names itself and gets a back button
+  // to its parent in place of the logo.
+  const episodeMatch = /^\/episodes\/(\d+)$/.exec(pathname);
+  const parentHref = episodeMatch ? "/episodes" : null;
+  const pageTitle = PAGE_TITLES[pathname] ?? (episodeMatch ? `Episode ${episodeMatch[1]}` : null);
 
   function go(href: string) {
     // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same
@@ -268,7 +273,15 @@ export function MobileNav() {
         <div className="flex items-center gap-2.5 px-3.5 py-2.5">
           {/* The logo opens the league menu, same as tapping the name. Stopping pointerdown keeps the
               menu's click-outside close from firing first, which would close-then-reopen it. */}
-          {mode !== "mock" && leagues.length > 0 ? (
+          {parentHref ? (
+            <Link
+              href={parentHref}
+              aria-label="Back"
+              className="-my-1.5 -ml-2 flex h-11 w-11 shrink-0 items-center justify-center text-foreground"
+            >
+              <ChevronLeft className="size-6" strokeWidth={2.2} aria-hidden />
+            </Link>
+          ) : mode !== "mock" && leagues.length > 0 ? (
             <button
               type="button"
               aria-label="Switch league"
@@ -348,7 +361,7 @@ export function MobileNav() {
         style={{ paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))" }}
       >
         {tabs.map((tab) => {
-          const active = pathname === tab.href;
+          const active = pathname === tab.href || (!!tab.href && tab.href !== "/" && pathname.startsWith(`${tab.href}/`));
           const Icon = tab.icon;
           return (
             <button

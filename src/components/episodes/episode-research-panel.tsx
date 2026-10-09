@@ -173,7 +173,7 @@ export function EpisodeResearchPanel({ ep, state }: { ep: Episode; state: League
   return (
     <div className="mb-3 rounded-md border border-border">
       <button className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left" onClick={toggle}>
-        <h4 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Research this episode</h4>
+        <h4 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Fill gaps with research</h4>
         <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
       {open && (

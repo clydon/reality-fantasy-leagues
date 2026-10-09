@@ -1,6 +1,7 @@
 "use client";
 
 import type { Castaway, Episode, LeagueState } from "@/lib/game/types";
+import { episodeExits } from "./episode-status";
 import type { ReactNode } from "react";
 import StateLogic from "@/lib/game/state-logic.js";
 import { episodeRecapWins } from "@/lib/game/episode-recap";
@@ -13,25 +14,27 @@ import { cn } from "cn";
 // single phone line (three ~96px cards inside the episode card's ~320px).
 const CARD_W = "w-24 shrink-0";
 
-// The top of an opened EpisodeCard: what happened, as player cards. The episode's headline wins first
-// (the format's `recap` list -- Survivor's Reward and Immunity), a whole tribe as one card, then
-// everyone who left, each card with how they went. Groups sit side by side and wrap when they don't fit. `onUndoExit` is the commissioner's edit mode.
+// What happened in an episode, as player cards. The episode's headline wins first (the format's
+// `recap` list -- Survivor's Reward and Immunity), a whole tribe as one card, then everyone who left,
+// each card with how they went. Groups sit side by side and wrap when they don't fit. `onUndoExit` is
+// the commissioner's edit mode; `showExits={false}` is the episode page's read view, which shows who
+// left as caption plates above this instead.
 export function EpisodeRecap({
   ep,
   state,
   onUndoExit,
+  showExits = true,
 }: {
   ep: Episode;
   state: LeagueState;
   onUndoExit?: (castawayId: string) => void;
+  showExits?: boolean;
 }) {
   const terms = useShowTerms();
   const wins = episodeRecapWins(state, ep);
   // Boot order is only the score in a Classic league -- elsewhere the corner number is noise.
   const showPlacement = !StateLogic.getLeagueType(state).hasActiveRoster;
-  const exits = ep.events
-    .map((ev) => ({ ev, c: StateLogic.getCastaway(state, ev.castawayId) }))
-    .filter((x): x is { ev: (typeof ep.events)[number]; c: Castaway } => !!x.c);
+  const exits = showExits ? episodeExits(state, ep) : [];
 
   const card = (c: Castaway, extra?: ReactNode) => (
     <CastawayStatCard
@@ -50,13 +53,13 @@ export function EpisodeRecap({
   );
 
   if (wins.length === 0 && exits.length === 0) {
-    return <div className="text-sm italic text-muted-foreground">Nothing logged yet.</div>;
+    return showExits ? <div className="text-sm text-muted-foreground">Nothing recorded yet.</div> : null;
   }
 
   // One labelled group: its heading over a row of cards, stretched to the tallest so they line up.
   const group = (label: string, cards: ReactNode) => (
     <div key={label} className="flex min-w-0 max-w-full flex-col">
-      <h5 className="mb-1 text-[0.7rem] font-semibold">{label}</h5>
+      <h4 className="mb-1.5 text-[13px] font-semibold text-muted-foreground">{label}</h4>
       <div className="flex flex-1 flex-wrap gap-1.5">{cards}</div>
     </div>
   );
@@ -95,7 +98,7 @@ export function EpisodeRecap({
                   {typeof ev.juryVotes === "number" && ` · ${ev.juryVotes} jury vote${ev.juryVotes === 1 ? "" : "s"}`}
                 </div>
                 {onUndoExit && (
-                  <Button variant="destructive" size="xs" className="mt-1" onClick={() => onUndoExit(c.id)}>
+                  <Button variant="secondary" size="xs" className="mt-1" onClick={() => onUndoExit(c.id)}>
                     Undo
                   </Button>
                 )}
@@ -103,6 +106,63 @@ export function EpisodeRecap({
             )
           )
         )}
+    </div>
+  );
+}
+
+// Secret roles taken (The Traitors) and tribe/team changes (swaps, the merge, new partners) in this
+// episode. Only present once the viewer has the episode's results, so a league catching up doesn't
+// see them early. The undo handlers are the commissioner's edit mode.
+export function EpisodeChanges({
+  ep,
+  state,
+  onUndoRole,
+  onUndoMove,
+}: {
+  ep: Episode;
+  state: LeagueState;
+  onUndoRole?: (castawayId: string) => void;
+  onUndoMove?: (castawayId: string) => void;
+}) {
+  const roles = ep.roles || [];
+  const groups = ep.groups || [];
+  if (roles.length === 0 && groups.length === 0) return null;
+  const name = (id: string) => StateLogic.getCastaway(state, id)?.name ?? "?";
+  const row = (key: string, tag: ReactNode, who: string, undo?: () => void) => (
+    <div key={key} className="flex min-h-12 items-center gap-3 border-t border-border first:border-t-0">
+      {tag}
+      <span className="min-w-0 flex-1 truncate text-base font-semibold">{who}</span>
+      {undo && (
+        <Button variant="secondary" size="sm" onClick={undo}>
+          Undo
+        </Button>
+      )}
+    </div>
+  );
+  return (
+    <div className="flex flex-col">
+      {roles.map((r) =>
+        row(
+          `r-${r.castawayId}`,
+          <span className="type-caption shrink-0 rounded-[2px] bg-foreground px-1.5 py-1 text-[13px] text-background">{r.role}</span>,
+          name(r.castawayId),
+          onUndoRole && (() => onUndoRole(r.castawayId)),
+        ),
+      )}
+      {groups.map((g) => {
+        const tribe = g.tribeId ? StateLogic.Core.getTribe(state, g.tribeId) : null;
+        return row(
+          `g-${g.castawayId}`,
+          <span
+            className="type-caption shrink-0 rounded-[2px] px-1.5 py-1 text-[13px] text-white"
+            style={{ background: tribe?.color ?? "#4a4558" }}
+          >
+            → {tribe?.name ?? "On their own"}
+          </span>,
+          name(g.castawayId),
+          onUndoMove && (() => onUndoMove(g.castawayId)),
+        );
+      })}
     </div>
   );
 }

@@ -121,7 +121,7 @@ export function Sidebar() {
 
       <nav className="flex flex-col gap-0.5">
         {hasSeason ? (
-          tabs.map((tab) => <NavLink key={tab.href} href={tab.href} label={tab.label} active={pathname === tab.href} badge={badgeFor(tab.href)} />)
+          tabs.map((tab) => <NavLink key={tab.href} href={tab.href} label={tab.label} active={pathname === tab.href || (tab.href !== "/" && pathname.startsWith(`${tab.href}/`))} badge={badgeFor(tab.href)} />)
         ) : (
           <>
             <NavLink href="/dashboard" label="My Leagues" active={pathname === "/dashboard" || pathname === "/"} />
