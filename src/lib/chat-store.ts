@@ -34,6 +34,9 @@ interface ChatStore {
   lastSeenAt: string | null;
   /** Which league lastSeenAt belongs to -- it says nothing about any other league's chat. */
   lastSeenLeagueId: string | null;
+  /** Spoiler protection: messages tapped open past the "may contain spoilers" line (ChatTab). */
+  shownIds: string[];
+  showMessage: (id: string) => void;
   // Both return a real value (not implicit undefined) since they double as TanStack Query
   // queryFns (ChatTab's poll, and the background chat-unread poll respectively) -- a queryFn may
   // not resolve to undefined. Callers that just want the side effect can ignore the return.
@@ -55,6 +58,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   unreadCount: 0,
   lastSeenAt: null,
   lastSeenLeagueId: null,
+  shownIds: [],
+  showMessage: (id) => set({ shownIds: [...get().shownIds, id] }),
 
   async load() {
     const { mode, leagueId, state } = useLeagueStore.getState();

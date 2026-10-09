@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLeagueStore } from "@/lib/store";
 import { useChatStore } from "@/lib/chat-store";
 import { ChatMessageRow } from "./chat-message-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import StateLogic from "@/lib/game/state-logic.js";
+import { useHiddenResults } from "@/components/results-in-banner";
 
 // Port of renderChat() (public/app.js). Polls every 5s while mounted, matching the live app's
 // loadChatMessages interval -- gated to live mode only: polling in mock mode would periodically
@@ -21,6 +23,23 @@ export function ChatTab() {
   const [draft, setDraft] = useState("");
   const userId = useLeagueStore((s) => s.userId);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
+
+  // Spoiler protection: once an episode this viewer hasn't revealed starts airing, people watching
+  // live may be talking about it (SpoilerLogic.chatWindow). Everything posted since sits behind a
+  // "may contain spoilers" line, each message tapped open one by one -- or all at once, with Show all
+  // or by revealing the episode (which moves the line on). Your own messages and reveal lines show.
+  const fullState = useLeagueStore((s) => s.fullState);
+  const seen = useLeagueStore((s) => s.membership?.resultsSeenThrough);
+  const window_ = mode === "live" ? StateLogic.SpoilerLogic.chatWindow(fullState, seen) : null;
+  const { hidden: hiddenResults, reveal } = useHiddenResults();
+  const shownIds = useChatStore((s) => s.shownIds);
+  const showMessage = useChatStore((s) => s.showMessage);
+  const since = window_ ? new Date(window_.since).getTime() : null;
+  const isOwnMsg = (m: (typeof messages)[number]) => !!userId && m.user_id === userId;
+  const guarded = (m: (typeof messages)[number]) =>
+    since !== null && m.type === "message" && !isOwnMsg(m) && new Date(m.created_at).getTime() >= since && !shownIds.includes(m.id);
+  const firstInWindow = since === null ? -1 : messages.findIndex((m) => new Date(m.created_at).getTime() >= since);
+  const anyGuarded = messages.some(guarded);
 
   // "Read by" for the newest message: everyone else in the league (not its author, not you) whose
   // read position has reached it. All of them -> "Read by all"; none -> nothing shown.
@@ -98,7 +117,40 @@ export function ChatTab() {
         {messages.length === 0 ? (
           <div className="text-sm italic text-muted-foreground">No messages yet — say hello!</div>
         ) : (
-          messages.map((m) => <ChatMessageRow key={m.id} m={m} state={state} />)
+          messages.map((m, i) => (
+            <Fragment key={m.id}>
+              {i === firstInWindow && window_ && (
+                <div className="my-2 flex flex-wrap items-center justify-center gap-2 border-y border-border py-2 text-center text-xs text-muted-foreground">
+                  <span>Episode {window_.episode} has started — chat from here may contain spoilers.</span>
+                  {anyGuarded && (
+                    <button
+                      className="font-semibold text-foreground underline underline-offset-2"
+                      onClick={() => messages.filter(guarded).forEach((g) => showMessage(g.id))}
+                    >
+                      Show all
+                    </button>
+                  )}
+                  {hiddenResults.length > 0 && (
+                    <button className="font-semibold text-foreground underline underline-offset-2" onClick={reveal}>
+                      Reveal episode {hiddenResults[hiddenResults.length - 1].number}
+                    </button>
+                  )}
+                </div>
+              )}
+              {guarded(m) ? (
+                <button
+                  className="mb-2 block max-w-[80%] rounded-lg bg-secondary p-2.5 text-left"
+                  onClick={() => showMessage(m.id)}
+                  title="Show this message"
+                >
+                  <div className="mb-1 text-xs font-semibold opacity-80">{m.author_name}</div>
+                  <div className="text-sm italic text-muted-foreground">May contain spoilers — tap to show</div>
+                </button>
+              ) : (
+                <ChatMessageRow m={m} state={state} />
+              )}
+            </Fragment>
+          ))
         )}
         {readLabel && <div className="mt-1 text-right text-[0.7rem] text-muted-foreground">{readLabel}</div>}
       </div>

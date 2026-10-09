@@ -2102,6 +2102,17 @@ class SpoilerLogic {
   static latestWithResults(state){
     return state.episodes.filter(e => EpisodeLogic.hasResults(e)).reduce((m, e) => Math.max(m, e.number), 0);
   }
+  // Chat's spoiler window: the first episode past what this viewer has revealed that has started
+  // airing -- from its air time on, anyone watching live may be talking about it. { episode, since }
+  // or null (opted out, nothing airing, or no schedule to tell when it started). Used by the chat tab
+  // (blurs what was posted since) and chat pushes (leave the text out).
+  static chatWindow(state, seenThrough, now){
+    if(seenThrough === null || seenThrough === undefined) return null;
+    const ep = state.episodes
+      .filter(e => e.number > seenThrough && hasAired(e, now))
+      .sort((a,b) => a.number - b.number)[0];
+    return ep ? { episode: ep.number, since: ep.airsAt } : null;
+  }
   static viewThrough(state, seenThrough){
     const hidden = SpoilerLogic.hiddenEpisodes(state, seenThrough);
     // A season rule change from an episode this viewer hasn't seen would say a twist is coming

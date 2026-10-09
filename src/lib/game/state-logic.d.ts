@@ -106,6 +106,8 @@ declare const StateLogic: {
   SpoilerLogic: {
     hiddenEpisodes(state: LeagueState, seenThrough: number | null | undefined): Episode[];
     latestWithResults(state: LeagueState): number;
+    /** Chat's spoiler window: the first unrevealed episode that has started airing, and when. */
+    chatWindow(state: LeagueState, seenThrough: number | null | undefined, now?: number): { episode: number; since: string } | null;
     /** A copy with later episodes' results taken out (or `state` itself when nothing is hidden). */
     viewThrough(state: LeagueState, seenThrough: number | null | undefined): LeagueState;
   };

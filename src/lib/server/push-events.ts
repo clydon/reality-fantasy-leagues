@@ -3,7 +3,7 @@ import type { LeagueState } from "@/lib/game/types";
 import { pool } from "./db";
 import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName } from "./push-targets";
 import { splitBySpoilerProtection } from "./results-seen";
-import { groupMemberUserIds } from "./league-groups";
+import { groupLeagueIds, groupMemberUserIds } from "./league-groups";
 
 // One function per pushable event, so each route's trigger is a single line and all the "who gets
 // this, and what does it say" decisions live together in one reviewable place.
@@ -137,18 +137,62 @@ export function notifyBetResult(leagueId: string, state: LeagueState, epId: stri
   });
 }
 
-/** New chat message: everyone but the author. One notification per league, kept up to date. */
+/**
+ * New chat message: everyone but the author. One notification per league, kept up to date.
+ * Spoiler protection: once an episode someone hasn't revealed has started airing, the chat may be
+ * talking about it (SpoilerLogic.chatWindow) -- they hear that a message came in, not what it says.
+ */
 export function notifyChat(leagueId: string, authorUserId: string, authorName: string, text: string) {
+  // Looked up inside the after() callbacks, once, shared by both.
+  let split: Promise<{ plain: string[]; guarded: string[]; episode: number | null }> | null = null;
+  const audience = () => (split ??= chatAudience(leagueId, authorUserId));
+  const tag = `chat-${leagueId}`;
   notifyAfter("chat", async () => ({
-    // Everyone in the conversation: a linked league's chat is its whole group's (league-groups.ts).
-    userIds: await groupMemberUserIds(leagueId, authorUserId),
-    message: {
-      title: await leagueName(leagueId),
-      body: truncate(`${authorName}: ${text}`),
-      url: link("/chat", leagueId),
-      tag: `chat-${leagueId}`,
-    },
+    userIds: (await audience()).plain,
+    message: { title: await leagueName(leagueId), body: truncate(`${authorName}: ${text}`), url: link("/chat", leagueId), tag },
   }));
+  notifyAfter("chat", async () => {
+    const { guarded, episode } = await audience();
+    return {
+      userIds: guarded,
+      message: {
+        title: await leagueName(leagueId),
+        body: `${authorName} sent a message — it may contain episode ${episode} spoilers.`,
+        url: link("/chat", leagueId),
+        tag,
+      },
+    };
+  });
+}
+
+// Everyone in the conversation (a linked league's chat is its whole group's, league-groups.ts), split
+// by whether the episode now airing is one they've revealed. Their mark is the furthest across the
+// group (a reveal is a reveal in every linked league); never loaded yet means the latest with results,
+// what their first load will set it to.
+async function chatAudience(leagueId: string, authorUserId: string) {
+  const userIds = await groupMemberUserIds(leagueId, authorUserId);
+  const { rows: st } = await pool.query("SELECT state FROM leagues WHERE id=$1", [leagueId]);
+  const state = st[0]?.state as LeagueState | undefined;
+  if (!state || !userIds.length) return { plain: userIds, guarded: [], episode: null };
+  const { immediate } = await splitBySpoilerProtection(userIds);
+  const { rows } = await pool.query(
+    `SELECT user_id, max(results_seen_through) AS seen FROM league_memberships
+      WHERE league_id = ANY($1::uuid[]) AND user_id = ANY($2::text[]) GROUP BY user_id`,
+    [await groupLeagueIds(leagueId), userIds]
+  );
+  const seenBy = new Map(rows.map((r) => [r.user_id as string, r.seen as number | null]));
+  const latest = StateLogic.SpoilerLogic.latestWithResults(state);
+  const plain: string[] = [];
+  const guarded: string[] = [];
+  let episode: number | null = null;
+  for (const id of userIds) {
+    const w = immediate.includes(id) ? null : StateLogic.SpoilerLogic.chatWindow(state, seenBy.get(id) ?? latest);
+    if (w) {
+      guarded.push(id);
+      episode = w.episode;
+    } else plain.push(id);
+  }
+  return { plain, guarded, episode };
 }
 
 /** Someone joined (or came back to) a league: everyone already in it, not the person joining. */
