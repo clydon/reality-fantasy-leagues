@@ -111,18 +111,55 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
     produces exactly `rules: { research, implied }` (via `show_formats`, not a `rulesets` row — the
     plan's phase-3 text was written assuming phase 2's table would hold proposals too, before Stage 3
     shipped against `show_formats` instead). Nothing left to build for phase 3 itself.
-  - **Phase 4 — rule-list editor**, desktop-first. Admin edits masters with a version bump on save;
-    commissioner gets "Customise this league's rules" (copy) and "Update from master" (merge newer
-    version); rows read as sentences ("When *won individual immunity* is *yes* → award *Individual
-    immunity win*"). Depended on by phase 5.
+  - **Phase 4 — rule-list editor, done 2026-10-09.** Admin editing of masters was already substantially
+    covered before this phase started: `format-review-screen.tsx` (stage 3/gap-filling) already lets an
+    admin edit a `show_formats` row's rules, and built-ins stay code-only by design (`CLAUDE.md`) --
+    nothing new needed there. The actual gap, and all this phase built, is the commissioner-facing half:
+    - **League Settings > Rules** (`src/components/setup/rules-section.tsx`, mounted in `setup-tab.tsx`
+      right after General Settings): read-only rule sentences for every league (reusing the admin's
+      `FormatRulesView`), with "Customise this league's rules" for a commissioner forking a private copy
+      of whatever the league follows today (built-in or its show's approved format) via the already-shipped
+      `POST /api/leagues/:id/ruleset`.
+    - **The editable list** (`src/components/setup/league-ruleset-editor.tsx`) reuses
+      `format-review-screen.tsx`'s row pieces (`RuleLine`, `CategorySelect`, etc. -- newly exported
+      `awardsOf`/`locate` from `proposal.js` so a new pure function, `formats/ruleset-review.js`, could
+      drive them from a plain `FormatData` instead of a raw AI proposal) for sentences like "When *left
+      the game by* Voted Out → award *Voted out*", editable via the same condition/built-in controls the
+      admin screen has. Deliberately narrower: no new-question authoring (a league's own checklist can't
+      gain a question research never asks -- research runs once per show, not per league copy), no event/
+      question removal, no raw-JSON escape hatch.
+    - **No points field.** The first browser pass caught a real bug here: `defaultPoints` edited on an
+      event silently never affects a real score, because `state-logic.js`'s normalization unconditionally
+      backfills `settings.eventPoints` from the format's defaults on every load, and
+      `ActiveRosterLogic.pointsFor` reads that override first -- so once a league has loaded even once
+      (i.e. always), the ruleset's own point value is permanently shadowed. Points stay Active Roster
+      Settings' job, exactly as the plan said points "doesn't change here"; this screen only edits what
+      triggers an event, never what it's worth.
+    - **"Update from master"** is the plan's simplified version, not a merge: a client-side diff
+      (`rules-section.tsx`'s `diffRulesets`, comparing rule sentences and event sets) against the current
+      master's data -- a built-in's is always current code, a `show_format`'s is `settings.showFormatData`
+      (kept current by the admin's own push regardless of whether this league forked away) -- shown as
+      "here's what changed", with "Replace with the master's current rules" implemented as abandon-then-
+      refork from the same parent (loses the commissioner's own edits, stated plainly before confirming).
+      Not implemented for a `league_ruleset` parent (another league's shared copy): no live read exists for
+      that without the sharing/browse UI this phase deliberately leaves out, same as phase 2 scoped it.
+    - **Verified:** tsc/eslint/`npm test` (232/232, only the pre-existing pickem error) all clean; the
+      format-regression harness byte-identical before/after (only `proposal.js` changed, by adding two
+      exports with no behavior change). Two browser passes against the local dev server with a throwaway
+      commissioner account and disposable leagues: the first caught the points-field bug above by recording
+      a real Survivor 49 elimination, editing that event's points, and confirming the castaway's score
+      didn't move (it should have, for an implied/exit-based rule, which does recompute live); the second,
+      after removing the points field, confirmed fork → edit a rule's condition → save → reload persists
+      the edit → abandon → reverts, with no console errors. Both left no orphaned test data.
   - **Phase 5 — flowchart editor**, desktop-first. Built with `@xyflow/react` (React Flow): condition
     nodes, award nodes, built-in nodes shown as locked blocks. Loaded only on the editor route
     (`next/dynamic`) so it adds nothing to the player-facing bundle. The list (phase 4) and the
     flowchart edit the same JSON, so neither can drift from the other.
-  - Open design risks noted in the plan for later: three-way merge UI for copies (phase 4 can start
-    with "here's what changed, apply these rules?" and defer full merge); mid-season lock (deferred,
-    `locked_at` hook already in the phase-1 model); sharing UI/trust (deferred to when a browse list
-    exists).
+  - Open design risks noted in the plan for later: three-way merge UI for copies (phase 4 started with
+    "here's what changed, apply these rules?" as planned, and defers full merge); mid-season lock
+    (deferred, `locked_at` hook already in the phase-1 model); sharing UI/trust (deferred to when a browse
+    list exists -- phase 4's "Customise" only forks from the league's current master, not from another
+    league's shared copy, even though the backend already supports that source).
 - **Confetti extended to new trigger points, optional Rive flourish** — the low-risk tail end of the
   old rollout plan's Stage 5, reusing already-proven patterns. No urgency.
 

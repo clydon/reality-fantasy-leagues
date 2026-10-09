@@ -71,3 +71,7 @@ export function parseProposal(answer: string): Proposal;
 export function reviewProposal(proposal: Proposal, opts?: { id?: string }): Review;
 export function formatIdFor(name: string): string;
 export function camelId(label: string): string;
+/** Every event id a rule awards (its own award, and a built-in's event params). */
+export function awardsOf(rule: unknown): string[];
+/** A formatProblems() message -> { at, message }, the row it belongs to. */
+export function locate(message: string, questionKeys: string[]): ReviewNote;

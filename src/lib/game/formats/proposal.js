@@ -471,4 +471,7 @@ function reviewProposal(proposal, { id } = {}) {
   };
 }
 
-module.exports = { PROPOSAL_SHAPE, buildProposalPrompt, parseProposal, reviewProposal, formatIdFor, camelId };
+// awardsOf and locate are also reused by ruleset-review.js, which runs the same "what does this rule
+// award, where does a formatProblems message belong" logic over an already-valid FormatData (a
+// league's own ruleset) instead of a raw proposal.
+module.exports = { PROPOSAL_SHAPE, buildProposalPrompt, parseProposal, reviewProposal, formatIdFor, camelId, awardsOf, locate };

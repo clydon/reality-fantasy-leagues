@@ -26,7 +26,16 @@ function pointsOf(points: number | { exclusive: number; shared: number }): strin
   return typeof points === "number" ? String(points) : `${points.exclusive} excl. / ${points.shared} shared`;
 }
 
-export function FormatRulesView({ data, onClose }: { data: FormatData; onClose: () => void }) {
+export function FormatRulesView({
+  data,
+  onClose,
+  badge = "Built-in — read only",
+}: {
+  data: FormatData;
+  onClose: () => void;
+  /** src/components/setup/rules-section.tsx reuses this for a league's own (possibly non-built-in) rules. */
+  badge?: string;
+}) {
   const research = data.rules.research ?? [];
   const implied = data.rules.implied ?? [];
   const allRules: { at: string; r: ScoringRule }[] = [
@@ -43,7 +52,7 @@ export function FormatRulesView({ data, onClose }: { data: FormatData; onClose: 
     <div className="mt-2 rounded-md border border-border bg-card p-3 text-xs">
       <div className="flex flex-wrap items-center gap-2">
         <h4 className="text-sm font-bold">{data.name}</h4>
-        <Badge variant="secondary">Built-in -- read only</Badge>
+        <Badge variant="secondary">{badge}</Badge>
         <Button variant="secondary" size="xs" className="ml-auto" onClick={onClose}>
           Close
         </Button>

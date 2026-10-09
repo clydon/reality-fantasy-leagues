@@ -18,6 +18,7 @@ import { BackupSection } from "./backup-section";
 import { LeaveLeagueSection } from "./leave-league-section";
 import { LinkedLeaguesSection } from "./linked-leagues-section";
 import { RuleChangesSection } from "./rule-changes-section";
+import { RulesSection } from "./rules-section";
 
 // Port of renderSetup() (public/app.js) -- same section order and the same "viewable by everyone,
 // only the commissioner can edit" model: every field below disables itself via useCanManage()
@@ -57,6 +58,7 @@ export function SetupTab() {
           {/* Scoring-related sections come right after League Info -- the settings people actually
               tune during a season, ahead of roster/cast management they touch once at draft time. */}
           <GeneralSettingsSection state={state} />
+          <RulesSection state={state} />
           <SideBetSettingsSection state={state} />
           <FinaleSettingsSection state={state} />
           <PickEmSettingsSection state={state} />

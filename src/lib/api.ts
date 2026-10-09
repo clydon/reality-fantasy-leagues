@@ -1,4 +1,5 @@
-import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal, SeasonRuleChange, SeasonRuleChangeWithReview, EpisodeResearchPanel, ResearchApplySummary } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal, SeasonRuleChange, SeasonRuleChangeWithReview, EpisodeResearchPanel, ResearchApplySummary, LeagueRuleset } from "@/lib/game/types";
+import type { FormatData } from "@/lib/game/formats/index";
 import type { SeasonCheck } from "@/lib/game/formats/season-check";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 import type { ActionItem } from "@/lib/game/action-items.js";
@@ -386,6 +387,19 @@ export const api = {
   // Season rule changes (docs/PLAN-season-rule-changes.md): a commissioner adopts, declines or removes one.
   leagueRuleChange: (leagueId: string, changeId: string, action: "adopt" | "decline" | "remove", points?: Record<string, number>) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/rule-changes`, { method: "POST", body: JSON.stringify({ changeId, action, points }) }),
+  // A league's own ruleset copy (docs/PLAN-scoring-rules-as-data.md phase 4, db/league-rulesets.js).
+  // None of these return the league's state directly (the ruleset lives outside `state`, cached onto
+  // it server-side) -- callers re-fetch via api.leagueState after a successful write.
+  getLeagueRuleset: (leagueId: string) =>
+    localFetch<{ custom: LeagueRuleset | null; following?: { kind: "builtin" | "show_format"; id: string } }>(
+      `/api/leagues/${leagueId}/ruleset`
+    ),
+  forkLeagueRuleset: (leagueId: string, source: { from: "builtin" | "show_format" | "league_ruleset"; sourceId: string; name?: string }) =>
+    localFetch<{ ruleset: LeagueRuleset }>(`/api/leagues/${leagueId}/ruleset`, { method: "POST", body: JSON.stringify(source) }),
+  editLeagueRuleset: (leagueId: string, data: FormatData) =>
+    localFetch<{ ruleset: LeagueRuleset }>(`/api/leagues/${leagueId}/ruleset`, { method: "PATCH", body: JSON.stringify({ data }) }),
+  abandonLeagueRuleset: (leagueId: string) =>
+    localFetch<{ abandoned: boolean; deleted: boolean }>(`/api/leagues/${leagueId}/ruleset`, { method: "DELETE" }),
   addPlayer: (leagueId: string, name: string, automated = false) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/players`, { method: "POST", body: JSON.stringify({ name, automated }) }),
   updatePlayer: (leagueId: string, id: string, field: string, value: unknown) =>
