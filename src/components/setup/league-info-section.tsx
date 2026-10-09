@@ -36,6 +36,8 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
   const mutate = useMutate();
   const terms = useShowTerms();
   const [name, setName] = useState(leagueName ?? "");
+  // "Another season…" picked from the Season list: type a number the catalog doesn't have.
+  const [typingSeason, setTypingSeason] = useState(false);
 
   const leagueType = StateLogic.getLeagueType(state);
   // Locks once the league has started playing -- the draft, or picks or lineups made -- so a switch
@@ -62,6 +64,10 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
   const shows = catalog?.shows ?? [];
   const currentShow = shows.find((s) => s.slug === state.settings.showId);
   const seasons = currentShow?.seasons ?? [];
+  // A show's catalog isn't only an admin's any more: a commissioner researching an uncatalogued season
+  // adds it (db/episode-research.js ensureSeasonRow). So a show having SOME catalogued seasons no longer
+  // means the league's own is among them -- the list keeps an off-catalog pick, and offers to type one.
+  const seasonOffCatalog = state.settings.wikiSeason != null && !seasons.some((s) => s.seasonNumber === state.settings.wikiSeason);
   // Locked when there's nothing to choose between -- one show (or none loaded) means the picker
   // would be decorative, same reasoning the League Type picker uses. Never locked while guiding,
   // though: "pick the show" is a step the commissioner has to be able to answer even if the answer
@@ -210,11 +216,14 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
         {visible("season") && (
           <label className="flex items-center gap-1.5 text-sm">
             Season:
-            {seasons.length > 0 ? (
+            {seasons.length > 0 && !typingSeason ? (
               <Select
                 value={state.settings.wikiSeason ?? ""}
                 disabled={!canManage}
-                onChange={(e) => updateSetting("wikiSeason", e.target.value ? parseInt(e.target.value) : null)}
+                onChange={(e) => {
+                  if (e.target.value === "other") return setTypingSeason(true);
+                  updateSetting("wikiSeason", e.target.value ? parseInt(e.target.value) : null);
+                }}
               >
                 <option value="">— pick a season —</option>
                 {seasons.map((s) => (
@@ -223,6 +232,8 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
                     {s.status === "airing" ? " (airing)" : s.status === "upcoming" ? " (upcoming)" : ""}
                   </option>
                 ))}
+                {seasonOffCatalog && <option value={state.settings.wikiSeason!}>Season {state.settings.wikiSeason}</option>}
+                <option value="other">Another season…</option>
               </Select>
             ) : (
               // No catalogued seasons for this show: keep a free-text number so a league isn't
@@ -233,10 +244,12 @@ export function LeagueInfoSection({ state }: { state: LeagueState }) {
                 disabled={!canManage}
                 defaultValue={state.settings.wikiSeason ?? ""}
                 placeholder="44"
+                autoFocus={typingSeason}
                 onBlur={(e) => {
                   const v = e.target.value.trim();
                   const n = v === "" ? null : parseInt(v);
                   if (n !== state.settings.wikiSeason) updateSetting("wikiSeason", Number.isFinite(n as number) ? n : null);
+                  setTypingSeason(false);
                 }}
               />
             )}

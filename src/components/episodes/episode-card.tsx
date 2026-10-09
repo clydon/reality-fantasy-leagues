@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { EpisodeBetRow } from "./episode-bet-row";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
 import { EpisodeRecap } from "./episode-recap";
+import { EpisodeResearchPanel } from "./episode-research-panel";
 import { episodePlayerPoints } from "@/lib/game/active-roster-rows";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -255,6 +256,10 @@ export function EpisodeCard({ ep, state }: { ep: Episode; state: LeagueState }) 
               </Button>
             </div>
           )}
+
+          {/* Paste-and-apply episode research, for a league no admin is researching (and a quick way to
+              pull in what another league on the season already found). */}
+          {canManage && <EpisodeResearchPanel ep={ep} state={state} />}
 
           <div className={cn("mb-4", canManage && "border-t border-border pt-3")}>
             <h4 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Recap</h4>
