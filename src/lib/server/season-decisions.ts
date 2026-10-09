@@ -124,7 +124,7 @@ function undoDetail(state: LeagueState, detail: LedgerDetail) {
 // the episode-2 one. Re-deriving it from episode order after a sync keeps it right whatever order
 // the admin worked in. Only when every eliminated castaway has a known exit episode, so a league with
 // hand-entered history from before exit episodes were recorded is left exactly as it is.
-function orderPlacementsByEpisode(state: LeagueState) {
+export function orderPlacementsByEpisode(state: LeagueState) {
   const epNumber = new Map(state.episodes.map((e) => [e.id, e.number]));
   const out = state.castaways.filter((c) => c.status === "eliminated" && typeof c.placementOrder === "number");
   if (out.some((c) => !c.exitEpisodeId || !epNumber.has(c.exitEpisodeId))) return;

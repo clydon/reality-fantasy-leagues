@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal, SeasonRuleChange, SeasonRuleChangeWithReview } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal, SeasonRuleChange, SeasonRuleChangeWithReview, EpisodeResearchPanel, ResearchApplySummary } from "@/lib/game/types";
 import type { SeasonCheck } from "@/lib/game/formats/season-check";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 import type { ActionItem } from "@/lib/game/action-items.js";
@@ -431,6 +431,25 @@ export const api = {
       added: { tribes: string[]; castaways: string[]; skipped: string[] };
       roles: { recorded: string[]; unchanged: string[]; unresolved: string[] };
     }>(`/api/leagues/${leagueId}/castaways/import`, { method: "POST", body: JSON.stringify({ proposal }) }),
+  // A commissioner's episode research (docs/PLAN-episode-research-compiled-cache.md): the panel (coverage,
+  // narrowed prompt, what's staged), a pasted answer into the shared cache, and applying staged rows to
+  // this league only.
+  episodeResearch: (leagueId: string, epId: string) =>
+    localFetch<EpisodeResearchPanel>(`/api/leagues/${leagueId}/episodes/${epId}/research`),
+  submitEpisodeResearch: (leagueId: string, epId: string, notes: string) =>
+    localFetch<EpisodeResearchPanel>(`/api/leagues/${leagueId}/episodes/${epId}/research`, {
+      method: "POST",
+      body: JSON.stringify({ notes }),
+    }),
+  applyEpisodeResearch: (
+    leagueId: string,
+    epId: string,
+    items: { id: string; castawayName: string; method: string; eventType: string }[]
+  ) =>
+    localFetch<{ state: LeagueState; applied: ResearchApplySummary }>(`/api/leagues/${leagueId}/episodes/${epId}/research/apply`, {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    }),
   importLeagueState: (leagueId: string, raw: unknown) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/import`, { method: "POST", body: JSON.stringify(raw) }),
   resetLeague: (leagueId: string) =>

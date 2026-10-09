@@ -505,6 +505,70 @@ export interface EpisodeResearch {
 }
 
 /**
+ * A commissioner's episode research (docs/PLAN-episode-research-compiled-cache.md): who an episode's
+ * stored research already settles among the people the league's checklist would ask about. Medium or
+ * high confidence is settled; low, or no entry, is asked again.
+ */
+export interface ResearchCoverage {
+  /** False when the episode has no stored research for this show's format. */
+  researched: boolean;
+  researchedAt: string | null;
+  total: number;
+  covered: string[];
+  lowConfidence: string[];
+  missing: string[];
+  /** missing + lowConfidence: who a paste would be asked about. Empty means nothing to paste. */
+  needsAsking: string[];
+}
+
+/** Every kind season_decisions holds: research stages the first four, the wiki also stages tribe moves. */
+export type ResearchDecisionKind = "elimination" | "event" | "exiled" | "role" | "group";
+
+/** One staged season decision for an episode, as the commissioner's research panel shows and edits it. */
+export interface StagedResearchDecision {
+  id: string;
+  kind: ResearchDecisionKind;
+  castawayName: string;
+  /** elimination: an exit method; role: the role; group: the tribe moved to ("" for none). */
+  method: string;
+  /** event: the scoring event id. */
+  eventType: string;
+  juryVotes: number | null;
+  confidence: "high" | "medium" | "low";
+  sources: string[];
+  /** The admin's season-wide decision, for information only -- the commissioner's apply ignores it. */
+  status: "pending" | "accepted" | "rejected";
+  fromWiki: boolean;
+  fromResearch: boolean;
+  postMerge: boolean;
+  /** Already in this league's state (by whichever path, or entered by hand). */
+  inLeague?: boolean;
+}
+
+/** GET/POST /api/leagues/[leagueId]/episodes/[epId]/research. */
+export interface EpisodeResearchPanel {
+  episodeNumber: number;
+  showName: string;
+  season: number;
+  coverage: ResearchCoverage;
+  /** The JSON paste prompt narrowed to coverage.needsAsking; null when nobody needs asking. */
+  prompt: string | null;
+  betCount: number;
+  staged: StagedResearchDecision[];
+  /** POST only: non-fatal notes on the paste (unsourced claims, repaired values). */
+  problems?: string[];
+}
+
+/** What applying research to one league did. */
+export interface ResearchApplySummary {
+  eliminations: { name: string; method: string }[];
+  events: { name: string; type: string }[];
+  other: { name: string; kind: string }[];
+  skipped: string[];
+  unresolved: string[];
+}
+
+/**
  * A search isn't reproducible, so there's no revision id to point at the way a wiki extraction has.
  * This is the substitute, and it's what a reviewer checks against -- not optional metadata.
  */

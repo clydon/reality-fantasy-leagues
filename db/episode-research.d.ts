@@ -2,10 +2,11 @@
 // wiki-sync.d.ts: the implementation stays plain CommonJS so the CLI can require it under bare
 // `node`, and TypeScript sees it through this file.
 //
-// Only the season-scoped entry point is declared: it's what the admin research route imports. The
-// league-scoped entry point is CLI surface only.
+// The season-scoped entry points are what the admin research routes import; the league-scoped paste
+// ones are what a commissioner's episode research route imports. researchEpisode (league-scoped, with
+// a paid search) is CLI surface only.
 import type { Pool } from "pg";
-import type { BetAnswer, DecisionStageResult, EpisodeResearch, EpisodeResearchProvenance, ResearchAnswer } from "@/lib/game/types";
+import type { BetAnswer, DecisionStageResult, EpisodeResearch, EpisodeResearchProvenance, ResearchAnswer, ResearchCoverage } from "@/lib/game/types";
 
 export interface EpisodeResearchOptions {
   /** Research it again even if this episode already has a row. */
@@ -93,6 +94,33 @@ export function researchFromPaste(
 ): Promise<EpisodeResearchRun>;
 
 /**
+ * The commissioner panel's read: coverage for one episode of the league's season and, unless everyone
+ * is settled, the JSON paste prompt narrowed to just who isn't. Read-only.
+ */
+export function leagueResearchStatus(
+  pool: Pool,
+  leagueId: string,
+  episodeNumber: number
+): Promise<{
+  ctx: { showId: string; showSlug: string; showName: string; season: number; seasonId: string | null; castNames: string[] };
+  coverage: ResearchCoverage;
+  prompt: string | null;
+  betCount: number;
+}>;
+
+/**
+ * researchFromPaste for one league: JSON only, asked only about who the stored answers don't settle,
+ * merged into them rather than replacing them, and staged as season decisions. Creates the season's
+ * catalog row if the league's season had none. Throws if everyone is already settled.
+ */
+export function researchFromPasteForLeague(
+  pool: Pool,
+  leagueId: string,
+  episodeNumber: number,
+  notes: string
+): Promise<EpisodeResearchRun & { coverage: ResearchCoverage }>;
+
+/**
  * The research answer to one side bet, looked up by its wording. `researched` is false when the
  * episode has no research at all; `answer` is null when it has research that didn't settle this bet.
  */
@@ -104,4 +132,4 @@ export function storedBetAnswer(
 /** Re-stages every episode already researched for a season from the stored answers (no search). */
 export function stageCachedSeasonResearch(pool: Pool, seasonId: string): Promise<{ episodes: number; inserted: number }>;
 
-export type { ResearchAnswer };
+export type { ResearchAnswer, ResearchCoverage };

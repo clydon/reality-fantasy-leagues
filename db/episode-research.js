@@ -928,7 +928,10 @@ function sumUsage(a, b) {
 // The schema guarantees shape; this guards content, same division of labour as wiki-sync.js. The
 // checks that matter are about COVERAGE and about answers contradicting themselves -- a checklist
 // whose whole promise is "everyone is accounted for" has to be held to it.
-function validateResearch(parsed, castNames, terms, format) {
+// `opts.partial` (the per-league paste, which merges): someone left unanswered is a note, not a refusal --
+// they keep whatever's stored, and the next pass is asked about just them. Still fatal if NOBODY asked
+// about was answered, which is far likelier to be wrong names than a real answer.
+function validateResearch(parsed, castNames, terms, format, opts = {}) {
   const problems = [];
   const fatal = [];
   const byName = new Map();
@@ -945,7 +948,9 @@ function validateResearch(parsed, castNames, terms, format) {
   const extra = [...byName.values()]
     .map((e) => e.name)
     .filter((n) => !castNames.some((c) => c.toLowerCase() === n.trim().toLowerCase()));
-  if (missing.length) fatal.push(`no answers for ${missing.length} ${terms.castaways}: ${missing.join(", ")}`);
+  if (missing.length && opts.partial && missing.length < castNames.length) {
+    problems.push(`no answers for ${missing.length} ${terms.castaways}, still to research: ${missing.join(", ")}`);
+  } else if (missing.length) fatal.push(`no answers for ${missing.length} ${terms.castaways}: ${missing.join(", ")}`);
   if (extra.length) problems.push(`answers for ${extra.length} ${terms.castaways} who aren't in the cast, dropped: ${extra.join(", ")}`);
 
   // Self-contradictions. Each is cheap to check and each would otherwise reach a reviewer as a
@@ -1245,11 +1250,69 @@ async function cachedResearch(pool, showId, season, episodeNumber, formatId, opt
   return { ...rows[0], cached: true };
 }
 
+// One run's answers folded into what's already stored for the episode -- for a PARTIAL run, one asked
+// only about the people the stored answers didn't settle (docs/PLAN-episode-research-compiled-cache.md).
+// Replacing wholesale, as a full run does, would erase everyone that run deliberately didn't ask about.
+//
+//   - Someone the new run didn't answer for keeps their stored entry, untouched.
+//   - Someone in both keeps the more confident entry; a tie goes to the new one (it's more recent).
+//     A replaced entry keeps the stored spelling of the name, so the same person from two leagues'
+//     rosters ("Jon" / "Jon Lovett") stays one entry -- and one season decision -- not two.
+//   - Episode-level answers are the new run's, except where it had nothing (null / "unknown") and
+//     the stored ones did. Side-bet answers are merged by question, the new run's winning.
+//
+// Answers to another format's checklist don't merge with this one's (see cachedResearch): the new
+// run's payload is returned as-is. Pure, so it's tested without a database.
+function mergeResearchPayload(stored, incoming) {
+  if (!stored || !Array.isArray(stored.castaways)) return { payload: incoming, kept: [], replaced: [], added: [] };
+  const castaways = stored.castaways.map((c) => ({ ...c }));
+  const roster = { castaways: castaways.map((c, i) => ({ id: String(i), name: c.name })) };
+  const kept = new Set(castaways.map((c) => c.name));
+  const replaced = [];
+  const added = [];
+  for (const entry of incoming.castaways || []) {
+    const { castaway } = StateLogic.Core.findCastawayByName(roster, entry.name);
+    if (!castaway) {
+      castaways.push(entry);
+      added.push(entry.name);
+      continue;
+    }
+    const i = Number(castaway.id);
+    const was = castaways[i];
+    kept.delete(was.name);
+    if ((CONFIDENCE_RANK[entry.confidence] || 0) >= (CONFIDENCE_RANK[was.confidence] || 0)) {
+      castaways[i] = { ...entry, name: was.name };
+      replaced.push(was.name);
+    }
+  }
+
+  const payload = { ...stored };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (key === "castaways" || key === "betAnswers") continue;
+    const empty = value == null || value === "unknown";
+    if (!empty || stored[key] == null) payload[key] = value;
+  }
+  payload.castaways = castaways;
+  if (incoming.betAnswers || stored.betAnswers) {
+    const byQuestion = new Map();
+    for (const a of [...(stored.betAnswers || []), ...(incoming.betAnswers || [])]) byQuestion.set(betKey(a.question), a);
+    payload.betAnswers = [...byQuestion.values()];
+  }
+  return { payload, kept: [...kept], replaced, added };
+}
+
+const CONFIDENCE_RANK = { low: 1, medium: 2, high: 3 };
+
+// `opts.merge`: fold this run into what's stored (mergeResearchPayload) instead of replacing it --
+// only the per-league path sets it, because only it sends partial runs. Every other caller (the admin
+// research and paste paths, the CLI, auto-research) replaces exactly as before: a full run is meant to
+// be the whole answer, including dropping someone a later read shows was already out.
 async function storeResearch(pool, ctx, payload, provenance, opts) {
   if (opts.dry) {
     console.log("[research] --dry: nothing written");
     return { id: null, payload, provenance, cached: false };
   }
+  if (opts.merge) return storeMergedResearch(pool, ctx, payload, provenance);
   const { rows } = await pool.query(
     `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance)
      VALUES ($1,$2,$3,$4::jsonb,$5::jsonb)
@@ -1259,6 +1322,51 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
     [ctx.showId, ctx.season, ctx.episodeNumber, JSON.stringify(payload), JSON.stringify(provenance)]
   );
   return { id: rows[0].id, payload, provenance, cached: false };
+}
+
+// Read, merge and write under one lock on the episode's key, so two leagues pasting the same episode
+// at once can't each merge into the same old copy and have the second write drop the first's answers.
+// (An advisory lock rather than FOR UPDATE: the first paste for an episode has no row yet to lock.)
+async function storeMergedResearch(pool, ctx, payload, provenance) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`episode_research:${ctx.showId}:${ctx.season}:${ctx.episodeNumber}`]);
+    const { rows: prior } = await client.query(
+      "SELECT payload, provenance, researched_at FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3",
+      [ctx.showId, ctx.season, ctx.episodeNumber]
+    );
+    const sameFormat = prior.length && ((prior[0].provenance && prior[0].provenance.format) || Formats.DEFAULT_FORMAT) === provenance.format;
+    const merged = mergeResearchPayload(sameFormat ? prior[0].payload : null, payload);
+    const fullProvenance = {
+      ...provenance,
+      // Whose answers this row now holds besides this run's, for a reviewer reading it later.
+      ...(sameFormat
+        ? {
+            mergedInto: {
+              researchedAt: prior[0].researched_at,
+              provider: prior[0].provenance && prior[0].provenance.provider,
+              castKept: merged.kept,
+            },
+          }
+        : {}),
+    };
+    const { rows } = await client.query(
+      `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance)
+       VALUES ($1,$2,$3,$4::jsonb,$5::jsonb)
+       ON CONFLICT (show_id, season_number, episode_number)
+       DO UPDATE SET payload=EXCLUDED.payload, provenance=EXCLUDED.provenance, researched_at=now()
+       RETURNING id`,
+      [ctx.showId, ctx.season, ctx.episodeNumber, JSON.stringify(merged.payload), JSON.stringify(fullProvenance)]
+    );
+    await client.query("COMMIT");
+    return { id: rows[0].id, payload: merged.payload, provenance: fullProvenance, cached: false, merged };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 // ---------- staging: turning answered checklists into season decisions ----------
@@ -1435,7 +1543,8 @@ function requireEpisodeNumber(episodeNumber) {
 // asks the outside chat for the checklist's exact shape and is parsed directly -- no model call at
 // all, so it's free -- at the price of a chat occasionally getting the shape wrong, which surfaces as
 // a clear "fix this and paste again" error rather than a silent charge.
-function buildPastePrompt(ctx, bets, { structured = false } = {}) {
+// `pasteBack` replaces the last line (where to paste the answer) -- the admin panel's box by default.
+function buildPastePrompt(ctx, bets, { structured = false, pasteBack = null } = {}) {
   const { system, user } = buildPrompt({ ...ctx, bets });
   const closing = structured
     ? [
@@ -1450,7 +1559,7 @@ function buildPastePrompt(ctx, bets, { structured = false } = {}) {
         "",
         JSON.stringify(pasteSkeleton(ctx, bets), null, 2),
         "",
-        "Paste the JSON back into Reality Fantasy Leagues' \"Paste research notes\" box with \"Structured (JSON)\" ticked.",
+        pasteBack || "Paste the JSON back into Reality Fantasy Leagues' \"Paste research notes\" box with \"Structured (JSON)\" ticked.",
       ]
     : [
         "Answer in plain prose or bullet points, one section per person, in the order given -- not JSON,",
@@ -1561,10 +1670,123 @@ async function buildPasteImportPrompt(pool, showSlug, season, episodeNumber, opt
  */
 async function researchFromPaste(pool, showSlug, season, episodeNumber, notes, opts = {}) {
   requireEpisodeNumber(episodeNumber);
+  const trimmed = requireNotes(notes);
+  const ctx = await resolveSeasonResearchContext(pool, showSlug, season, episodeNumber);
+  return pastedRun(pool, ctx, episodeNumber, trimmed, opts);
+}
+
+function requireNotes(notes) {
   const trimmed = (notes || "").trim();
   if (!trimmed) throw new Error("Paste the notes your own research produced -- nothing was pasted.");
+  return trimmed;
+}
 
-  const ctx = await resolveSeasonResearchContext(pool, showSlug, season, episodeNumber);
+// ---------- per league: the compiled-research cache (docs/PLAN-episode-research-compiled-cache.md) ----------
+// A commissioner's way in, for a league no admin is researching. The stored episode_research row is a
+// shared, read-only cache: what any league (or an admin) already found for an episode narrows the next
+// league's prompt to just the people it didn't settle, and nobody's answers change any league but their
+// own -- applying is each commissioner's separate, per-league step (src/lib/server/episode-research-apply.ts).
+
+// Who the stored answers already settle, among the people this league's checklist would ask about.
+// One confidence per person per episode (formats/checklist.js's CORE_FIELDS.confidence), so a person is
+// settled or not as a whole: medium or high is settled; low or no entry at all is asked again. Stored
+// answers to another format's checklist settle nobody (see cachedResearch). Pure.
+function researchCoverage(stored, castNames, formatId) {
+  const usable =
+    stored && stored.payload && ((stored.provenance && stored.provenance.format) || Formats.DEFAULT_FORMAT) === formatId;
+  const entries = usable ? stored.payload.castaways || [] : [];
+  const roster = { castaways: entries.map((c, i) => ({ id: String(i), name: c.name })) };
+  const covered = [];
+  const lowConfidence = [];
+  const missing = [];
+  for (const name of castNames) {
+    const { castaway } = StateLogic.Core.findCastawayByName(roster, name);
+    const entry = castaway ? entries[Number(castaway.id)] : null;
+    if (!entry) missing.push(name);
+    else if (entry.confidence === "low") lowConfidence.push(name);
+    else covered.push(name);
+  }
+  return {
+    researched: !!usable,
+    researchedAt: usable ? stored.researched_at || null : null,
+    total: castNames.length,
+    covered,
+    lowConfidence,
+    missing,
+    needsAsking: [...missing, ...lowConfidence],
+  };
+}
+
+async function storedResearchFor(pool, ctx) {
+  const { rows } = await pool.query(
+    "SELECT payload, provenance, researched_at FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3",
+    [ctx.showId, ctx.season, ctx.episodeNumber]
+  );
+  return rows[0] || null;
+}
+
+// A league can be on a season nobody catalogued (League Info takes a free-typed number), but staging
+// files decisions against a show_seasons row -- so the first league to research such a season creates
+// it, with nothing but its number. Everything else on the row keeps its column default, the same as an
+// admin adding a season with only a number; Admin > Shows & Seasons lists it like any other from then on.
+async function ensureSeasonRow(pool, ctx) {
+  if (ctx.seasonId) return ctx.seasonId;
+  await pool.query(
+    "INSERT INTO show_seasons (show_id, season_number) VALUES ($1,$2) ON CONFLICT (show_id, season_number) DO NOTHING",
+    [ctx.showId, ctx.season]
+  );
+  const id = await decisions.seasonIdFor(pool, ctx.showId, ctx.season);
+  if (!id) throw new Error(`Couldn't add ${ctx.showName} season ${ctx.season} to the catalog.`);
+  console.log(`[research] ${ctx.showName} season ${ctx.season} wasn't catalogued -- added it, for its research to be staged against`);
+  return id;
+}
+
+/**
+ * The league's view of one episode's research, for the commissioner panel: who the stored answers
+ * already settle, and -- if anyone's left -- the paste prompt narrowed to just them. Read-only: no model
+ * call, nothing written, and no season row created (a league only gets one when it actually stages).
+ */
+async function leagueResearchStatus(pool, leagueId, episodeNumber) {
+  requireEpisodeNumber(episodeNumber);
+  const ctx = await resolveResearchContext(pool, leagueId, episodeNumber);
+  const coverage = researchCoverage(await storedResearchFor(pool, ctx), ctx.castNames, ctx.format.id);
+  if (!coverage.needsAsking.length) return { ctx, coverage, prompt: null, betCount: 0 };
+  const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
+  // The league path is JSON-only: a prose paste is structured by a model call on the site's own key,
+  // which is an admin's call to make, not every commissioner's.
+  const prompt = buildPastePrompt({ ...ctx, castNames: coverage.needsAsking }, bets, {
+    structured: true,
+    // The commissioner's panel (episode-research-panel.tsx), not the admin one: no "Structured" tick box there.
+    pasteBack: "Paste the JSON back into Reality Fantasy Leagues' \"Research this episode\" box for this episode.",
+  });
+  return { ctx, coverage, prompt, betCount: bets.length };
+}
+
+/**
+ * researchFromPaste's per-league sibling: the same pipeline, but resolved through the league (so a
+ * season with no staged cast asks about the league's own castaways), asked only about the people the
+ * stored answers don't settle, and merged into those answers rather than replacing them. Stages into
+ * season_decisions like any other run -- applying any of it to a league is a separate step.
+ */
+async function researchFromPasteForLeague(pool, leagueId, episodeNumber, notes, opts = {}) {
+  requireEpisodeNumber(episodeNumber);
+  const trimmed = requireNotes(notes);
+  const ctx = await resolveResearchContext(pool, leagueId, episodeNumber);
+  const coverage = researchCoverage(await storedResearchFor(pool, ctx), ctx.castNames, ctx.format.id);
+  if (!coverage.needsAsking.length) {
+    throw new Error(`Episode ${episodeNumber} is already researched for everyone in this league — there's nothing to paste, just review it.`);
+  }
+  const seasonId = await ensureSeasonRow(pool, ctx);
+  const asked = { ...ctx, seasonId, castNames: coverage.needsAsking };
+  const run = await pastedRun(pool, asked, episodeNumber, trimmed, { ...opts, structured: true, merge: true });
+  return { ...run, coverage };
+}
+
+// The body both paste paths share: structure (or parse) the paste, hold it to the checklist, store it,
+// index it, stage it. `opts.merge` (the league path) folds it into the stored answers -- and then the
+// MERGED answers are what's indexed and staged: staging withdraws a pending research decision its run
+// no longer reports, so staging a partial run alone would withdraw everyone it didn't ask about.
+async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
   // Structuring, not searching -- the cheapest model is plenty for "reorganise this text", and this
   // path exists specifically to avoid paying for a bigger one.
   const model = opts.model && RESEARCH_MODELS.includes(opts.model) ? opts.model : "claude-haiku-4-5";
@@ -1596,7 +1818,7 @@ async function researchFromPaste(pool, showSlug, season, episodeNumber, notes, o
   }
   if (bets.length) parsed.betAnswers = betAnswersFrom(parsed, bets);
 
-  const review = validateResearch(parsed, ctx.castNames, ctx.terms, ctx.format);
+  const review = validateResearch(parsed, ctx.castNames, ctx.terms, ctx.format, { partial: !!opts.merge });
   review.problems.unshift(...(parsed.repairs || []));
   for (const problem of review.problems) console.log(`[research] ! ${problem}`);
   if (review.fatal.length) {
@@ -1632,18 +1854,26 @@ async function researchFromPaste(pool, showSlug, season, episodeNumber, notes, o
     // no revision id or page URL list to point at instead, the way a search run has.
     pastedNotes: trimmed.length > 20000 ? trimmed.slice(0, 20000) + "… (truncated)" : trimmed,
   };
+  // A partial run only answers for who it asked: anything else the chat volunteered would otherwise be
+  // merged over a stored answer nobody asked to replace. Matched the way validateResearch matches (the
+  // name as asked, any case), so what it reported as dropped really is dropped.
+  if (opts.merge) {
+    const asked = new Set(ctx.castNames.map((n) => n.toLowerCase()));
+    parsed.castaways = (parsed.castaways || []).filter((c) => asked.has(String((c && c.name) || "").trim().toLowerCase()));
+  }
   const stored = await storeResearch(pool, ctx, parsed, provenance, opts);
+  const payload = stored.payload;
 
   if (!opts.dry && stored.id) {
     try {
-      const { stored: chunkCount } = await embeddings.storeChunksForEpisode(pool, ctx, parsed);
+      const { stored: chunkCount } = await embeddings.storeChunksForEpisode(pool, ctx, payload);
       console.log(`[research] embedded ${chunkCount} chunk(s) for semantic search`);
     } catch (e) {
       console.log(`[research] ! could not embed for semantic search (side-bet suggestions won't see this episode): ${e.message}`);
     }
   }
 
-  const result = { ...ctx, ...review, payload: parsed, provenance, cached: false, id: stored.id };
+  const result = { ...ctx, ...review, payload, provenance: stored.provenance, cached: false, id: stored.id, merged: stored.merged || null };
   return { ...result, decisions: await stageResearchDecisions(pool, result, opts) };
 }
 
@@ -1812,6 +2042,12 @@ module.exports = {
   extractJsonObject,
   buildPasteImportPrompt,
   researchFromPaste,
+  researchFromPasteForLeague,
+  leagueResearchStatus,
+  researchCoverage,
+  mergeResearchPayload,
+  storeResearch,
+  ensureSeasonRow,
   printResearch,
   resolveResearchContext,
   resolveSeasonResearchContext,
