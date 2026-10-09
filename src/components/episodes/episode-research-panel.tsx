@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ChevronDownIcon } from "@/components/icons";
+import { ResultGroup } from "@/components/review-bits";
 import { cn } from "cn";
 
 // A commissioner's episode research (docs/PLAN-episode-research-compiled-cache.md): the same copy-a-
@@ -22,7 +23,9 @@ import { cn } from "cn";
 // Two steps, deliberately separate: pasting adds to the shared research (no league changes), and
 // "Apply" puts the rows this commissioner kept into THIS league only.
 
-type Row = StagedResearchDecision & { keep: boolean };
+// `group` is fixed from what was staged, so correcting a row's event type doesn't make it jump groups
+// mid-edit.
+type Row = StagedResearchDecision & { keep: boolean; group: string };
 
 export function EpisodeResearchPanel({ ep, state }: { ep: Episode; state: LeagueState }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -55,7 +58,12 @@ export function EpisodeResearchPanel({ ep, state }: { ep: Episode; state: League
 
   function show(p: Panel) {
     setPanel(p);
-    setRows(p.staged.map((d) => ({ ...d, castawayName: leagueName(d.castawayName), keep: !d.inLeague && !started(p) })));
+    setRows(
+      p.staged
+        .map((d) => ({ ...d, castawayName: leagueName(d.castawayName), keep: !d.inLeague && !started(p), group: groupKey(d) }))
+        // Sorted once here, not on render, so renaming a row doesn't reshuffle its group.
+        .sort((a, b) => a.castawayName.localeCompare(b.castawayName))
+    );
   }
 
   async function load() {
@@ -130,8 +138,33 @@ export function EpisodeResearchPanel({ ep, state }: { ep: Episode; state: League
     }
   }
 
-  const edit = (i: number, patch: Partial<Row>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const edit = (id: string, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const toApply = rows.filter((r) => r.keep && !r.inLeague).length;
+
+  // Grouped by what happened -- who left, then each scoring event in the show's rule order, then team
+  // moves -- so a reward a whole tribe won is one line, not ten.
+  const groupRank = (key: string) => {
+    if (key === "elimination") return 0;
+    if (key.startsWith("role:")) return 1;
+    if (key === "exiled") return 2;
+    if (key === "group") return 10_000;
+    const i = format.events.findIndex((e) => `event:${e.id}` === key);
+    return 3 + (i < 0 ? 5_000 : i);
+  };
+  const groupTitle = (r: Row) =>
+    r.kind === "event"
+      ? format.events.find((e) => `event:${e.id}` === r.group)?.label ?? r.group.slice("event:".length)
+      : r.kind === "role"
+        ? `Role: ${r.group.slice("role:".length)}`
+        : r.kind === "group"
+          ? `${terms.Tribe} changes`
+          : kindLabel(r.kind);
+  const groups = [...new Set(rows.map((r) => r.group))]
+    .sort((a, b) => groupRank(a) - groupRank(b) || a.localeCompare(b))
+    .map((key) => {
+      const members = rows.filter((r) => r.group === key);
+      return { key, title: groupTitle(members[0]), rows: members };
+    });
 
   return (
     <div className="mb-3 rounded-md border border-border">
@@ -193,73 +226,103 @@ export function EpisodeResearchPanel({ ep, state }: { ep: Episode; state: League
                     </p>
                   )}
                   <div className="flex flex-col gap-1.5">
-                    {rows.map((r, i) => (
-                      <div key={r.id} className={cn("flex flex-wrap items-center gap-1.5 rounded-md border border-border p-2", r.inLeague && "opacity-60")}>
-                        <input
-                          type="checkbox"
-                          aria-label="Apply this result"
-                          checked={r.keep && !r.inLeague}
-                          disabled={r.inLeague}
-                          onChange={(e) => edit(i, { keep: e.target.checked })}
-                        />
-                        <span className="w-[86px] shrink-0 font-semibold">{kindLabel(r.kind)}</span>
-                        <Select size="sm" value={r.castawayName} disabled={r.inLeague} onChange={(e) => edit(i, { castawayName: e.target.value })}>
-                          {!state.castaways.some((c) => c.name === r.castawayName) && <option value={r.castawayName}>{r.castawayName} (not in league)</option>}
-                          {state.castaways.map((c) => (
-                            <option key={c.id} value={c.name}>
-                              {c.name}
-                            </option>
+                    {groups.map((g) => {
+                      const open = g.rows.filter((r) => !r.inLeague);
+                      const ticked = open.filter((r) => r.keep).length;
+                      const inLeague = g.rows.length - open.length;
+                      // Small groups, and any with someone not in this league or a low-confidence result,
+                      // start open; a big shared event (a tribe's reward win) starts as one line.
+                      const needsLook = open.some((r) => r.confidence === "low" || !state.castaways.some((c) => c.name === r.castawayName));
+                      return (
+                        <ResultGroup
+                          key={g.key}
+                          title={g.title}
+                          names={g.rows.map((r) => r.castawayName)}
+                          noun={[terms.castaway, terms.castaways]}
+                          detail={[open.length && `${ticked} of ${open.length} ticked`, inLeague && `${inLeague} already in your league`].filter(Boolean).join(", ")}
+                          defaultOpen={g.key !== "group" && (g.key === "elimination" || g.rows.length <= 2 || needsLook)}
+                          action={
+                            open.length > 1 && (
+                              <label className="flex items-center gap-1 text-[0.65rem] text-muted-foreground">
+                                <input
+                                  type="checkbox"
+                                  checked={ticked === open.length}
+                                  onChange={(e) => setRows((rs) => rs.map((r) => (r.group === g.key && !r.inLeague ? { ...r, keep: e.target.checked } : r)))}
+                                />
+                                all
+                              </label>
+                            )
+                          }
+                        >
+                          {g.rows.map((r) => (
+                            <div key={r.id} className={cn("flex flex-wrap items-center gap-1.5 rounded-md border border-border p-2", r.inLeague && "opacity-60")}>
+                              <input
+                                type="checkbox"
+                                aria-label="Apply this result"
+                                checked={r.keep && !r.inLeague}
+                                disabled={r.inLeague}
+                                onChange={(e) => edit(r.id, { keep: e.target.checked })}
+                              />
+                              <Select size="sm" value={r.castawayName} disabled={r.inLeague} onChange={(e) => edit(r.id, { castawayName: e.target.value })}>
+                                {!state.castaways.some((c) => c.name === r.castawayName) && <option value={r.castawayName}>{r.castawayName} (not in league)</option>}
+                                {state.castaways.map((c) => (
+                                  <option key={c.id} value={c.name}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </Select>
+                              {r.kind === "elimination" && (
+                                <Select size="sm" value={r.method} disabled={r.inLeague} onChange={(e) => edit(r.id, { method: e.target.value })}>
+                                  {!format.exitMethods.includes(r.method) && <option value={r.method}>{r.method}</option>}
+                                  {format.exitMethods.map((m) => (
+                                    <option key={m} value={m}>
+                                      {m}
+                                    </option>
+                                  ))}
+                                </Select>
+                              )}
+                              {r.kind === "event" && (
+                                <Select size="sm" value={r.eventType} disabled={r.inLeague} onChange={(e) => edit(r.id, { eventType: e.target.value })}>
+                                  {!format.events.some((x) => x.id === r.eventType) && <option value={r.eventType}>{r.eventType}</option>}
+                                  {format.events.map((x) => (
+                                    <option key={x.id} value={x.id}>
+                                      {x.label}
+                                    </option>
+                                  ))}
+                                </Select>
+                              )}
+                              {r.kind === "role" && format.roles && (
+                                <Select size="sm" value={r.method} disabled={r.inLeague} onChange={(e) => edit(r.id, { method: e.target.value })}>
+                                  {format.roles.values.map((v) => (
+                                    <option key={v} value={v}>
+                                      {v}
+                                    </option>
+                                  ))}
+                                </Select>
+                              )}
+                              {r.kind === "group" && (
+                                <Input size="sm" className="w-[110px]" placeholder={terms.Tribe} value={r.method} disabled={r.inLeague} onChange={(e) => edit(r.id, { method: e.target.value })} />
+                              )}
+                              <span className="basis-full text-muted-foreground">
+                                {r.inLeague
+                                  ? "Already in your league."
+                                  : [
+                                      `${r.confidence} confidence`,
+                                      r.fromWiki && r.fromResearch ? "wiki and research agree" : r.fromWiki ? "from the wiki" : "from research",
+                                      r.sources.length ? `${r.sources.length} source${r.sources.length === 1 ? "" : "s"}` : "no source cited",
+                                    ].join(" · ")}
+                                {!r.inLeague &&
+                                  r.sources.slice(0, 2).map((url) => (
+                                    <a key={url} href={url} target="_blank" rel="noreferrer" className="ml-1.5 underline">
+                                      {hostOf(url)}
+                                    </a>
+                                  ))}
+                              </span>
+                            </div>
                           ))}
-                        </Select>
-                        {r.kind === "elimination" && (
-                          <Select size="sm" value={r.method} disabled={r.inLeague} onChange={(e) => edit(i, { method: e.target.value })}>
-                            {!format.exitMethods.includes(r.method) && <option value={r.method}>{r.method}</option>}
-                            {format.exitMethods.map((m) => (
-                              <option key={m} value={m}>
-                                {m}
-                              </option>
-                            ))}
-                          </Select>
-                        )}
-                        {r.kind === "event" && (
-                          <Select size="sm" value={r.eventType} disabled={r.inLeague} onChange={(e) => edit(i, { eventType: e.target.value })}>
-                            {!format.events.some((x) => x.id === r.eventType) && <option value={r.eventType}>{r.eventType}</option>}
-                            {format.events.map((x) => (
-                              <option key={x.id} value={x.id}>
-                                {x.label}
-                              </option>
-                            ))}
-                          </Select>
-                        )}
-                        {r.kind === "role" && format.roles && (
-                          <Select size="sm" value={r.method} disabled={r.inLeague} onChange={(e) => edit(i, { method: e.target.value })}>
-                            {format.roles.values.map((v) => (
-                              <option key={v} value={v}>
-                                {v}
-                              </option>
-                            ))}
-                          </Select>
-                        )}
-                        {r.kind === "group" && (
-                          <Input size="sm" className="w-[110px]" placeholder={terms.Tribe} value={r.method} disabled={r.inLeague} onChange={(e) => edit(i, { method: e.target.value })} />
-                        )}
-                        <span className="basis-full text-muted-foreground">
-                          {r.inLeague
-                            ? "Already in your league."
-                            : [
-                                `${r.confidence} confidence`,
-                                r.fromWiki && r.fromResearch ? "wiki and research agree" : r.fromWiki ? "from the wiki" : "from research",
-                                r.sources.length ? `${r.sources.length} source${r.sources.length === 1 ? "" : "s"}` : "no source cited",
-                              ].join(" · ")}
-                          {!r.inLeague &&
-                            r.sources.slice(0, 2).map((url) => (
-                              <a key={url} href={url} target="_blank" rel="noreferrer" className="ml-1.5 underline">
-                                {hostOf(url)}
-                              </a>
-                            ))}
-                        </span>
-                      </div>
-                    ))}
+                        </ResultGroup>
+                      );
+                    })}
                   </div>
                   <div>
                     <Button size="xs" disabled={busy || toApply === 0} onClick={apply}>
@@ -294,6 +357,14 @@ function coverageLine(p: Panel, people: string): string {
 
 function kindLabel(kind: StagedResearchDecision["kind"]): string {
   return { elimination: "Left the game", event: "Scored", exiled: "Exiled", role: "Role", group: "Moved to" }[kind];
+}
+
+// Which group a staged result sits in: one per scoring event or role value; eliminations, exiles and
+// team moves each as one.
+function groupKey(d: StagedResearchDecision): string {
+  if (d.kind === "event") return `event:${d.eventType}`;
+  if (d.kind === "role") return `role:${d.method}`;
+  return d.kind;
 }
 
 function hostOf(url: string): string {

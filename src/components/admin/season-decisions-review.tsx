@@ -8,7 +8,7 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ConfidenceDot, StatusNote, decidedButtonClass, rowTint } from "@/components/review-bits";
+import { ConfidenceDot, ResultGroup, StatusNote, decidedButtonClass, rowTint } from "@/components/review-bits";
 import { cn } from "cn";
 import { useShowSpoilers } from "@/lib/paid-ai-store";
 
@@ -73,11 +73,11 @@ export function EpisodeDecisions({
   const [revealed, setRevealed] = useState(false);
   const pending = decisions.filter((d) => d.status === "pending").length;
 
-  async function acceptAll() {
+  async function acceptAll(ids?: string[]) {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.adminAcceptEpisode(seasonId, episode);
+      const res = await api.adminAcceptEpisode(seasonId, episode, ids);
       onSynced(res.leagues);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't accept those.");
@@ -86,33 +86,7 @@ export function EpisodeDecisions({
     }
   }
 
-  // Grouped by tribe, then by player, with whoever left the game at the top of their tribe -- the
-  // way an episode is read. Everyone on a tribe's rows stay together.
-  const exited = new Set(
-    decisions.filter((d) => d.kind === "elimination" && d.status !== "rejected").map((d) => nameOf(d).toLowerCase())
-  );
-  // Team changes get their own collapsed block: a weekly reshuffle can move nearly everyone, and those
-  // rows would otherwise bury the eliminations and events among them.
-  const moves = decisions.filter((d) => d.kind === "group").sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
-  const pendingMoves = moves.filter((d) => d.status === "pending").length;
-  const tribes = [...new Set(cast.map((c) => c.tribeName).filter(Boolean))] as string[];
-  const groups = new Map<string | null, SeasonDecision[]>();
-  for (const d of decisions.filter((x) => x.kind !== "group")) {
-    const tribe = castFor(cast, nameOf(d))?.tribeName ?? null;
-    const list = groups.get(tribe);
-    if (list) list.push(d);
-    else groups.set(tribe, [d]);
-  }
-  const kindOrder = (d: SeasonDecision) => (d.kind === "elimination" ? 0 : d.kind === "role" ? 1 : 2);
-  const sortRows = (a: SeasonDecision, b: SeasonDecision) =>
-    Number(!exited.has(nameOf(a).toLowerCase())) - Number(!exited.has(nameOf(b).toLowerCase())) ||
-    nameOf(a).localeCompare(nameOf(b)) ||
-    kindOrder(a) - kindOrder(b) ||
-    labelFor(a, format).localeCompare(labelFor(b, format));
-  const ordered = [...groups.entries()].sort(
-    ([a], [b]) => (a === null ? 999 : tribes.indexOf(a)) - (b === null ? 999 : tribes.indexOf(b))
-  );
-  const showHeaders = ordered.some(([t]) => t);
+  const groups = groupByScoringEvent(decisions, cast, format);
 
   // Spoiler-free: the episode's results by the count -- eliminations, events, roles and tribe/team
   // changes alike -- with Accept all, and nothing that says who or what until asked for.
@@ -131,7 +105,7 @@ export function EpisodeDecisions({
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {pending > 0 && (
-            <Button size="xs" disabled={busy} onClick={acceptAll}>
+            <Button size="xs" disabled={busy} onClick={() => acceptAll()}>
               {busy ? "Accepting…" : `Accept all ${pending} pending`}
             </Button>
           )}
@@ -148,38 +122,78 @@ export function EpisodeDecisions({
     <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-2">
       {pending > 0 && (
         <div className="flex items-center gap-2">
-          <Button size="xs" disabled={busy} onClick={acceptAll}>
+          <Button size="xs" disabled={busy} onClick={() => acceptAll()}>
             {busy ? "Accepting…" : `Accept all ${pending} pending`}
           </Button>
           <span className="text-[0.65rem] text-muted-foreground">as proposed — check the low-confidence ones first</span>
         </div>
       )}
       {error && <p className="font-semibold text-destructive">{error}</p>}
-      {ordered.map(([tribe, rows]) => (
-        <div key={tribe ?? "none"} className="flex flex-col gap-1">
-          {showHeaders && (
-            <span className="text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">{tribe ?? "No tribe"}</span>
-          )}
-          {[...rows].sort(sortRows).map((d) => (
-            <DecisionRow key={d.id} seasonId={seasonId} decision={d} cast={cast} leagueCount={leagueCount} format={format} onSynced={onSynced} />
-          ))}
-        </div>
-      ))}
-      {moves.length > 0 && (
-        <details className="rounded-md border border-dashed border-border px-2 py-1">
-          <summary className="cursor-pointer text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
-            Team changes ({moves.length}
-            {pendingMoves ? `, ${pendingMoves} pending` : ""})
-          </summary>
-          <div className="mt-1 flex flex-col gap-1">
-            {moves.map((d) => (
+      {groups.map((g) => {
+        const pendingIds = g.rows.filter((d) => d.status === "pending").map((d) => d.id);
+        const accepted = g.rows.filter((d) => d.status === "accepted").length;
+        const rejected = g.rows.filter((d) => d.status === "rejected").length;
+        // Small groups and anything that needs a look start open; a big shared event (a tribe's reward
+        // win) starts as one line. Team changes always start shut -- a reshuffle can move everyone.
+        const needsLook = g.rows.some((d) => !castFor(cast, nameOf(d)) || (d.status === "pending" && d.confidence === "low"));
+        return (
+          <ResultGroup
+            key={g.key}
+            title={g.title}
+            names={g.rows.map(nameOf)}
+            noun={["person", "people"]}
+            detail={[pendingIds.length && `${pendingIds.length} pending`, accepted && `${accepted} accepted`, rejected && `${rejected} rejected`]
+              .filter(Boolean)
+              .join(", ")}
+            defaultOpen={g.key !== "group" && (g.key === "elimination" || g.rows.length <= 2 || needsLook)}
+            action={
+              pendingIds.length > 1 && (
+                <Button size="xs" disabled={busy} onClick={() => acceptAll(pendingIds)}>
+                  Accept {pendingIds.length}
+                </Button>
+              )
+            }
+          >
+            {g.rows.map((d) => (
               <DecisionRow key={d.id} seasonId={seasonId} decision={d} cast={cast} leagueCount={leagueCount} format={format} onSynced={onSynced} />
             ))}
-          </div>
-        </details>
-      )}
+          </ResultGroup>
+        );
+      })}
     </div>
   );
+}
+
+// An episode's results grouped by what happened -- who left, then each scoring event in the show's
+// rule order, then team changes -- so an event a whole tribe shares reads as one group. Within a group,
+// by tribe then name.
+function groupByScoringEvent(decisions: SeasonDecision[], cast: Cast[], format: GameFormat) {
+  const tribes = [...new Set(cast.map((c) => c.tribeName).filter(Boolean))] as string[];
+  const tribeRank = (d: SeasonDecision) => {
+    const t = castFor(cast, nameOf(d))?.tribeName;
+    return t ? tribes.indexOf(t) : 999;
+  };
+  const groups = new Map<string, { key: string; title: string; rank: number; rows: SeasonDecision[] }>();
+  for (const d of decisions) {
+    let key: string, title: string, rank: number;
+    if (d.kind === "elimination") [key, title, rank] = ["elimination", "Left the game", 0];
+    else if (d.kind === "role") {
+      const role = d.applied?.method || d.method;
+      [key, title, rank] = [`role:${role}`, `Became ${role}`, 1];
+    } else if (d.kind === "exiled") [key, title, rank] = ["exiled", "Exile Island", 2];
+    else if (d.kind === "group") [key, title, rank] = ["group", "Team changes", 10_000];
+    else {
+      const type = d.applied?.eventType || d.event_type;
+      const i = format.events.findIndex((e) => e.id === type);
+      [key, title, rank] = [`event:${type}`, labelFor(d, format), 3 + (i < 0 ? 5_000 : i)];
+    }
+    const g = groups.get(key);
+    if (g) g.rows.push(d);
+    else groups.set(key, { key, title, rank, rows: [d] });
+  }
+  return [...groups.values()]
+    .sort((a, b) => a.rank - b.rank || a.title.localeCompare(b.title))
+    .map((g) => ({ ...g, rows: g.rows.sort((a, b) => tribeRank(a) - tribeRank(b) || nameOf(a).localeCompare(nameOf(b))) }));
 }
 
 function DecisionRow({
@@ -247,7 +261,8 @@ function DecisionRow({
         )}
         <span className="text-sm font-medium">{nameOf(d)}</span>
         {!member && <span className="font-semibold text-destructive">not in the cast</span>}
-        <span className="text-sm text-muted-foreground">{labelFor(d, format)}</span>
+        {/* An event row sits under its event's group heading, so it doesn't repeat it. */}
+        {d.kind !== "event" && d.kind !== "exiled" && <span className="text-sm text-muted-foreground">{labelFor(d, format)}</span>}
         {d.applied && (
           <span className="text-[0.65rem] text-muted-foreground" title="Corrected before accepting">
             (was {d.castaway_name}

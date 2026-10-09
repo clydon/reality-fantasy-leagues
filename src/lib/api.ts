@@ -702,10 +702,11 @@ export const api = {
       `/api/admin/seasons/${seasonId}/research?episode=${episode}${scope === "all" ? "&scope=all" : ""}`, {
       method: "DELETE",
     }),
-  adminAcceptEpisode: (seasonId: string, episode: number) =>
+  // `ids` narrows it to those rows (one scoring event's group); omitted, every pending row.
+  adminAcceptEpisode: (seasonId: string, episode: number, ids?: string[]) =>
     localFetch<{ ok: true; accepted: number; leagues: LeagueDecisionSync[] }>(
       `/api/admin/seasons/${seasonId}/decisions/accept-episode`,
-      { method: "POST", body: JSON.stringify({ episode }) }
+      { method: "POST", body: JSON.stringify({ episode, ids }) }
     ),
 
   adminResearchEpisode: (id: string, episode: number, opts: { force?: boolean; provider?: string; model?: string } = {}) =>
