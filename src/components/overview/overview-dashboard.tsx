@@ -96,11 +96,13 @@ function groupSections(sections: OverviewSectionId[], state: LeagueState): Overv
 export function OverviewDashboard() {
   const state = useLeagueStore((s) => s.state);
   const leagueTypeId = toOverviewLeagueTypeId(StateLogic.getLeagueType(state).id);
-  const { order, hidden } = useOverviewLayout(leagueTypeId);
+  const { order, hidden, isLoading: layoutLoading } = useOverviewLayout(leagueTypeId);
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
 
-  const sections = order.filter((id) => isOverviewSectionEligible(id, state, draftComplete) && !hidden[id]);
+  // Hold the cards back until the saved layout is in, rather than flashing the default order and
+  // reordering (normally already cached by AuthGate's boot prefetch; this covers the demo path).
+  const sections = layoutLoading ? [] : order.filter((id) => isOverviewSectionEligible(id, state, draftComplete) && !hidden[id]);
 
   return (
     <>

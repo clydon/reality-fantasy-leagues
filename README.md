@@ -1328,7 +1328,7 @@ with a regex (`^(={2,6})\s*title\s*\1$`, any level), and the section runs to the
 `===Tribe A===` / `===Tribe B===` subsections no longer gets truncated.
 
 Which heading to look for is derived, not hardcoded: the show's own `castaway_term`, pluralized, then
-singular, then the words wikis reach for regardless of show (`Castaways`, `Contestants`, `Cast`,
+singular, then the words wikis reach for regardless of show (`Castaways`, `Contestants`, `Cast`,https://www.youtube.com/watch?v=QAta2CRW1iw
 `Cast Members`, `Houseguests`, `Players`, `Competitors`). Survivor's "Castaways", Traitors'
 "Contestants" and Big Brother's "Houseguests" all fall out of a term an admin has already entered for
 the UI's sake, so the common case needs no configuration at all. `shows.cast_section_heading`

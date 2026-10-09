@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { signInWithIdentifier } from "@/lib/auth-client";
 import { useLeagueStore, useIsPreviewingDemo, useIsAuthenticated } from "@/lib/store";
@@ -44,6 +45,7 @@ const LEAGUELESS_ROUTES = ["/dashboard", "/admin", "/reports", "/account"];
 // `entered`, matching the original's actual behavior instead of approximating it.
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const mode = useLeagueStore((s) => s.mode);
   const loadLive = useLeagueStore((s) => s.loadLive);
   const enterMockMode = useLeagueStore((s) => s.useMock); // renamed locally -- a plain callback, not a hook, but eslint's rule flags anything named use*
@@ -88,7 +90,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
       const byId = (id: string | null) => me.leagues.find((l) => l.id === id);
       const last = byId(rememberedLeague(me.user.id)) ?? me.leagues[0];
       const target = byId(wanted) ?? byId(reloadedLeague(me.user.id)) ?? byId(last.landOn) ?? last;
-      const { league, state, membership, playerAccounts } = await api.leagueState(target.id);
+      // The Overview layout is fetched alongside the league so the boot overlay covers both --
+      // otherwise Overview briefly renders its cards in the default order, then jumps to the saved
+      // one. prefetchQuery never throws, so a failed fetch just falls back to the default order.
+      const [{ league, state, membership, playerAccounts }] = await Promise.all([
+        api.leagueState(target.id),
+        queryClient.prefetchQuery({ queryKey: ["overview-layout"], queryFn: () => api.getOverviewLayout(), staleTime: 60_000 }),
+      ]);
       loadLive(league.id, state, league.name, membership, me.user.id, me.user.isSuperAdmin, playerAccounts);
     }
     setEntered(true);
