@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-09T00:00:00Z",
+  "title": "Design System: Reality Fantasy Leagues",
+  "extensions": {
+    "colorMeta": {
+      "night-ground": { "role": "neutral", "displayName": "Night Ground", "canonical": "#16141d", "tonalRamp": ["#0b0a0f", "#16141d", "#221f2c", "#3a3548", "#5c566d", "#837d94", "#b3aec2", "#e4e1ec"] },
+      "night-panel": { "role": "neutral", "displayName": "Night Panel", "canonical": "#221f2c", "tonalRamp": ["#100e15", "#16141d", "#221f2c", "#2a2633", "#3a3548", "#5c566d", "#a9a4b8", "#f4f2f8"] },
+      "bone-text": { "role": "neutral", "displayName": "Bone Text", "canonical": "#f4f2f8", "tonalRamp": ["#2a2633", "#4a4558", "#6f6982", "#8f89a2", "#a9a4b8", "#c9c5d5", "#e2dfea", "#f4f2f8"] },
+      "chyron-yellow": { "role": "primary", "displayName": "Chyron Yellow", "canonical": "#ffc531", "tonalRamp": ["#3d2c00", "#5e4500", "#8a6700", "#b88b00", "#e6ad00", "#ffc531", "#ffd978", "#fff0c7"] },
+      "caption-plate": { "role": "primary", "displayName": "Caption Plate", "canonical": "#ffffff", "tonalRamp": ["#121018", "#2a2633", "#4a4558", "#7a748a", "#a9a4b8", "#d8d5e0", "#f1eff6", "#ffffff"] },
+      "live-red": { "role": "secondary", "displayName": "Live Red", "canonical": "#f2545b", "tonalRamp": ["#2a0a0c", "#55141a", "#86202a", "#b9303b", "#e0444d", "#f2545b", "#f78f93", "#fcd3d5"] },
+      "safe-teal": { "role": "secondary", "displayName": "Safe Teal", "canonical": "#35b5a5", "tonalRamp": ["#0e2b27", "#16443e", "#1f6058", "#2a8174", "#35b5a5", "#5fcabd", "#9de0d7", "#d6f3ef"] },
+      "gold-accent": { "role": "tertiary", "displayName": "Gold Accent", "canonical": "#e0b23a", "tonalRamp": ["#2e2306", "#4d3a0a", "#715510", "#987218", "#c19222", "#e0b23a", "#ecce7d", "#f8ecc8"] }
+    },
+    "typographyMeta": {
+      "caption-xl": { "displayName": "Section heading", "purpose": "Condensed caps heading over each flat section in dark mode." },
+      "caption-lg": { "displayName": "Plate title", "purpose": "Caption plate titles, the mobile header's page name, sheet titles." },
+      "caption-md": { "displayName": "Small plate title", "purpose": "Alert strip and small caption plates." },
+      "caption-tag": { "displayName": "Tag", "purpose": "The angled tag on a caption plate; one or two words." },
+      "number-hero": { "displayName": "Hero number", "purpose": "The one big number in a section." },
+      "number-row": { "displayName": "Row number", "purpose": "Ranks and totals in standings rows; tabular." },
+      "body": { "displayName": "Body", "purpose": "Everything you read." },
+      "detail": { "displayName": "Detail", "purpose": "Second line on a plate; league name above a page title." },
+      "badge": { "displayName": "Badge", "purpose": "Inline caps badges such as You." },
+      "mono": { "displayName": "Mono", "purpose": "Legacy number cells and code-like content only." }
+    },
+    "shadows": [
+      { "name": "plate-lift", "value": "0 6px 18px rgba(0,0,0,0.3)", "purpose": "Caption plates and the alert strip, laid over the picture." },
+      { "name": "sheet-lift", "value": "0 -12px 30px rgba(0,0,0,0.45)", "purpose": "The bottom sheet rising from below." },
+      { "name": "scrim", "value": "rgba(8,6,12,0.6)", "purpose": "Backdrop behind sheets and dialogs." }
+    ],
+    "motion": [
+      { "name": "sheet-slide", "value": "transform 200ms ease-out", "purpose": "Bottom sheet enter/exit (translateY 100%)." },
+      { "name": "press", "value": "translateY(1px)", "purpose": "Button active state." },
+      { "name": "hover-brighten", "value": "filter: brightness(1.04–1.06)", "purpose": "Hover on plates and buttons." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "nav", "value": "880px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Caption Plate",
+      "kind": "custom",
+      "refersTo": "caption-plate",
+      "description": "The signature: angled tone tag, white plate with condensed caps title and detail, optional action.",
+      "html": "<a class=\"ds-plate\" href=\"#\"><span class=\"ds-plate-tag\">Ep 3</span><span class=\"ds-plate-body\"><span class=\"ds-plate-title\">Results are in</span><span class=\"ds-plate-sub\">Tap when you've watched</span></span><span class=\"ds-plate-action\">Reveal<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg></span></a>",
+      "css": ".ds-plate{display:flex;align-items:stretch;min-height:60px;width:100%;max-width:390px;overflow:hidden;border-radius:3px;box-shadow:0 6px 18px rgba(0,0,0,.3);text-decoration:none;font-family:Archivo,system-ui,sans-serif;transition:filter .15s}.ds-plate:hover{filter:brightness(1.04)}.ds-plate:focus-visible{outline:3px solid #ffc531;outline-offset:2px}.ds-plate-tag{display:flex;align-items:center;padding:0 20px 0 12px;background:#ffc531;color:#121018;font-stretch:62%;font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:15px;line-height:1;clip-path:polygon(0 0,100% 0,84% 100%,0 100%)}.ds-plate-body{margin-left:-10px;display:flex;flex:1;min-width:0;flex-direction:column;justify-content:center;gap:2px;background:#fff;color:#121018;padding:8px 12px}.ds-plate-title{font-stretch:62%;font-weight:800;text-transform:uppercase;letter-spacing:.01em;font-size:22px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ds-plate-sub{font-size:13px;color:#4a4558}.ds-plate-action{display:flex;align-items:center;gap:2px;background:#fff;color:#121018;padding:0 12px 0 4px;font-size:15px;font-weight:700}"
+    },
+    {
+      "name": "Out Plate",
+      "kind": "custom",
+      "refersTo": "caption-tag-live",
+      "description": "Caption plate in the live tone, for someone leaving the game.",
+      "html": "<div class=\"ds-plate-out\"><span class=\"ds-out-tag\">Out</span><span class=\"ds-out-body\"><span class=\"ds-out-title\">Jordan Reyes</span><span class=\"ds-out-sub\">Voted out, episode 6</span></span></div>",
+      "css": ".ds-plate-out{display:flex;align-items:stretch;min-height:52px;max-width:390px;overflow:hidden;border-radius:3px;box-shadow:0 6px 18px rgba(0,0,0,.3);font-family:Archivo,system-ui,sans-serif}.ds-out-tag{display:flex;align-items:center;padding:0 20px 0 12px;background:#f2545b;color:#2a0a0c;font-stretch:62%;font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:13px;clip-path:polygon(0 0,100% 0,84% 100%,0 100%)}.ds-out-body{margin-left:-10px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:2px;background:#fff;color:#121018;padding:8px 12px}.ds-out-title{font-stretch:62%;font-weight:800;text-transform:uppercase;font-size:19px;line-height:1}.ds-out-sub{font-size:13px;color:#4a4558}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action on a screen, in chyron.",
+      "html": "<button class=\"ds-btn-primary\">Save lineup</button>",
+      "css": ".ds-btn-primary{background:#ffc531;color:#121018;border:0;border-radius:6px;padding:8px 15px;font:600 13.6px Archivo,system-ui,sans-serif;box-shadow:0 1px 2px rgba(0,0,0,.2);cursor:pointer;transition:filter .15s,transform .1s}.ds-btn-primary:hover{filter:brightness(1.06)}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(255,197,49,.5)}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Routine actions beside the primary.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary{background:#221f2c;color:#f4f2f8;border:1px solid #2e2a3a;border-radius:6px;padding:8px 15px;font:600 13.6px Archivo,system-ui,sans-serif;cursor:pointer;transition:background .15s,transform .1s}.ds-btn-secondary:hover{background:#2a2633}.ds-btn-secondary:active{transform:translateY(1px)}.ds-btn-secondary:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(255,197,49,.5)}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "44px on phones, 16px text so iOS never zooms.",
+      "html": "<input class=\"ds-input\" placeholder=\"League name\" />",
+      "css": ".ds-input{background:#221f2c;color:#f4f2f8;border:1px solid #3a3548;border-radius:3px;padding:7px 10px;min-height:44px;font:400 16px Archivo,system-ui,sans-serif;transition:border-color .15s,box-shadow .15s}.ds-input::placeholder{color:#a9a4b8}.ds-input:hover{border-color:#5c566d}.ds-input:focus{outline:none;border-color:#ffc531;box-shadow:0 0 0 3px rgba(255,197,49,.15)}"
+    },
+    {
+      "name": "Standings Row",
+      "kind": "custom",
+      "refersTo": "standings-row",
+      "description": "Rank, colour dot, name, total; your row lifted with a You badge.",
+      "html": "<div class=\"ds-standings\"><div class=\"ds-row\"><span class=\"ds-rank ds-lead\">1</span><span class=\"ds-dot\" style=\"background:#f2804b\"></span><span class=\"ds-name\">Maya</span><span class=\"ds-total\">48</span></div><div class=\"ds-row ds-you\"><span class=\"ds-rank\">2</span><span class=\"ds-dot\" style=\"background:#5089c9\"></span><span class=\"ds-name\">conor <span class=\"ds-badge\">You</span></span><span class=\"ds-total\">41</span></div><div class=\"ds-row\"><span class=\"ds-rank\">3</span><span class=\"ds-dot\" style=\"background:#a76bb0\"></span><span class=\"ds-name\">Sam</span><span class=\"ds-total\">37</span></div></div>",
+      "css": ".ds-standings{max-width:390px;font-family:Archivo,system-ui,sans-serif;color:#f4f2f8;background:#16141d;padding:8px 16px}.ds-row{display:flex;align-items:center;gap:12px;min-height:48px;border-top:1px solid #2e2a3a;font-size:16px}.ds-row:first-child{border-top:0}.ds-you{margin:0 -8px;padding:0 8px;background:#2a2633;border-radius:3px}.ds-rank,.ds-total{font-stretch:62%;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}.ds-rank{width:24px;font-size:24px;color:#a9a4b8}.ds-lead{color:#ffc531}.ds-total{font-size:26px}.ds-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}.ds-name{flex:1;font-weight:600;display:flex;align-items:center;gap:8px}.ds-badge{background:#f4f2f8;color:#16141d;border-radius:2px;padding:1px 6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.025em}"
+    },
+    {
+      "name": "Bottom Sheet",
+      "kind": "custom",
+      "refersTo": "bottom-sheet",
+      "description": "Row actions from the bottom; destructive last in red text.",
+      "html": "<div class=\"ds-sheet\"><span class=\"ds-grab\"></span><div class=\"ds-sheet-head\"><span class=\"ds-sheet-title\">Maya</span><span class=\"ds-sheet-desc\">Computer player</span></div><button class=\"ds-sheet-action\">Level <span class=\"ds-detail\">Solid</span></button><button class=\"ds-sheet-action\">Hand over…</button><button class=\"ds-sheet-action ds-danger\">Remove from league</button><button class=\"ds-sheet-cancel\">Cancel</button></div>",
+      "css": ".ds-sheet{max-width:390px;display:flex;flex-direction:column;background:#221f2c;color:#f4f2f8;border-radius:14px 14px 0 0;padding:8px 16px 16px;box-shadow:0 -12px 30px rgba(0,0,0,.45);font-family:Archivo,system-ui,sans-serif}.ds-grab{align-self:center;width:40px;height:4px;border-radius:9999px;background:rgba(169,164,184,.4);margin-bottom:12px}.ds-sheet-head{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}.ds-sheet-title{font-stretch:62%;font-weight:800;text-transform:uppercase;font-size:22px;line-height:1}.ds-sheet-desc{font-size:13px;color:#a9a4b8}.ds-sheet-action{display:flex;justify-content:space-between;align-items:center;min-height:52px;background:none;border:0;border-top:1px solid #2e2a3a;color:inherit;font:600 16px Archivo,system-ui,sans-serif;text-align:left;cursor:pointer}.ds-sheet-action:hover{color:#ffc531}.ds-sheet-action:focus-visible{outline:3px solid #ffc531;outline-offset:-3px}.ds-detail{font-size:14px;font-weight:500;color:#a9a4b8}.ds-danger{color:#f2545b}.ds-danger:hover{color:#f78f93}.ds-sheet-cancel{margin-top:12px;min-height:48px;border-radius:3px;border:1px solid #2e2a3a;background:#2a2633;color:#f4f2f8;font:700 15px Archivo,system-ui,sans-serif;cursor:pointer}"
+    },
+    {
+      "name": "Section Heading",
+      "kind": "card",
+      "refersTo": "caption-xl",
+      "description": "A flat Overview section: condensed caps heading, no box.",
+      "html": "<section class=\"ds-section\"><h3 class=\"ds-section-title\">Standings</h3><p class=\"ds-section-body\">Rows run edge to edge under the heading, divided by hairlines.</p></section>",
+      "css": ".ds-section{max-width:390px;background:#16141d;color:#f4f2f8;padding:16px;font-family:Archivo,system-ui,sans-serif}.ds-section-title{margin:0 0 10px;font-stretch:62%;font-weight:800;text-transform:uppercase;font-size:24px;letter-spacing:.01em;line-height:1}.ds-section-body{margin:0;font-size:16px;line-height:1.5;color:#a9a4b8}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Lower Third",
+    "overview": "The app speaks in the on-screen graphics reality TV already uses: the strip across the bottom of the frame that names who's talking, the yellow bar that says something is happening now, the red bar when someone's gone home. Players use it on a phone, on the couch, the night an episode airs, so the ground is night-dark and everything that matters sits on a white caption plate that reads instantly against it. The rest of the screen stays quiet and flat so those plates carry the news.\n\nDensity is a rundown, not a dashboard. Overview sections have no boxes, just a condensed caps heading over their content, in the order a broadcast would run them. One family, Archivo, does everything, and its width axis does most of the work: normal width for anything you read, the condensed end in caps for names, headings and numbers. Colour is rationed. Chyron yellow means \"now\" or \"you\", live red means out, and tribe or team colours appear only as small tags.\n\nThe product is any show, not just Survivor, so the vocabulary is broadcast television in general, not one show's world. No torches, tiki, jungle textures or tribal patterns.",
+    "keyCharacteristics": [
+      "Night ground, white caption plates, one yellow accent for \"now\".",
+      "Archivo throughout; condensed (wdth 62) 800-weight caps for captions and numbers.",
+      "Flat sections separated by headings and hairlines, not cards.",
+      "Nearly square corners (3–4px) on everything that is broadcast graphics; only the bottom sheet is rounded.",
+      "Mobile first: designed at 390px, 44px minimum touch targets, 16px text in every field."
+    ],
+    "rules": [
+      { "name": "The One Chyron Rule", "body": "Yellow means \"now\" or \"you\". If more than one thing on a screen is yellow, one of them is wrong. Never use it for decoration or as a generic brand colour.", "section": "colors" },
+      { "name": "The Red Is For Leaving Rule", "body": "Live Red is for someone going home and for actions that delete. Losing points is not an elimination; use muted text or a down chart bar, not red text everywhere.", "section": "colors" },
+      { "name": "The Tags Not Fills Rule", "body": "Tribe, team and player colours appear as a small tag, dot or the angled end of a plate, never as a large background.", "section": "colors" },
+      { "name": "The Width Not Weight Rule", "body": "Hierarchy comes from switching to the condensed caps, not from piling on sizes. Body text stays normal width; captions and numbers go condensed. There is no third style.", "section": "typography" },
+      { "name": "The Tabular Numbers Rule", "body": "Any number that sits in a column (rank, score, streak) is condensed and tabular so columns line up.", "section": "typography" },
+      { "name": "The 16px Field Rule", "body": "On phones every text field is 16px, whatever its size class, so iOS never zooms on focus. This is a global rule in globals.css and must not be overridden.", "section": "typography" },
+      { "name": "The Only Plates Float Rule", "body": "If it isn't a caption plate, an alert, a sheet or a popover, it doesn't get a shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do put \"now\" moments on a Caption Plate with a chyron tag, and keep them to one or two per screen.",
+      "Do use the condensed caps (type-caption) for names, headings and tags, and type-num for any number in a column.",
+      "Do keep sections flat in dark mode: a heading and hairlines, no card box.",
+      "Do design at 390px first, with 44px touch targets and 48px rows.",
+      "Do use the show's own terms (castaways, tribes, Faithful, teams). The graphics are generic TV; the words belong to the show.",
+      "Do put destructive row actions last in a bottom sheet, as red text after a divider."
+    ],
+    "donts": [
+      "Don't use Chyron Yellow decoratively or on more than one competing element.",
+      "Don't use Live Red for anything except leaving the game and deleting.",
+      "Don't fill large areas with tribe or team colours; they're tags.",
+      "Don't add shadows to sections, rows or ordinary cards.",
+      "Don't round graphics past 4px, or give the caption tag a straight edge.",
+      "Don't use Survivor-specific motifs (torches, tiki, jungle, tribal patterns) in shared UI.",
+      "Don't put a filled red button next to routine buttons.",
+      "Don't reveal results anywhere outside the reveal: no names, eliminations or scores in teasers, plates or tags before a player has chosen to see them.",
+      "Don't treat light mode's cream cards as the target; they're interim until the light-mode pass."
+    ]
+  }
+}

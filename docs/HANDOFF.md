@@ -59,8 +59,9 @@ explained to a commissioner") rather than re-deriving it from source each time.
   (`overview/overview-customize-panel.tsx`, `isOverviewSectionForType` in `lib/overview-layout.ts`).
 
 **Next, in order:**
-1. `/impeccable document`: write `DESIGN.md` from the real code (tokens, caption plate, section
-   style, sheet).
+1. ~~`/impeccable document`~~ **Done 2026-10-09:** `DESIGN.md` (repo root) documents direction A
+   as built in dark mode, with `.impeccable/design.json` alongside. Update both after the light-mode
+   pass.
 2. Redesign the remaining screens one at a time against the canvas: Episodes, then Draft, then
    League Settings (as a list of pages), then the rest; admin last.
 3. Light mode pass.

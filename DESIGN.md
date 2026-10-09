@@ -1,0 +1,362 @@
+---
+name: Reality Fantasy Leagues
+description: Fantasy leagues for any TV show, styled as the on-screen graphics reality TV runs.
+colors:
+  night-ground: "#16141d"
+  night-panel: "#221f2c"
+  night-panel-raised: "#2a2633"
+  night-rail: "#100e15"
+  night-line: "#2e2a3a"
+  night-field-line: "#3a3548"
+  bone-text: "#f4f2f8"
+  dusk-muted: "#a9a4b8"
+  chyron-yellow: "#ffc531"
+  chyron-ink: "#121018"
+  caption-plate: "#ffffff"
+  plate-ink: "#121018"
+  plate-muted: "#4a4558"
+  live-red: "#f2545b"
+  live-ink: "#2a0a0c"
+  safe-teal: "#35b5a5"
+  safe-ink: "#0e2b27"
+  gold-accent: "#e0b23a"
+  chart-ember: "#f2804b"
+  chart-orchid: "#a76bb0"
+  chart-lake: "#5089c9"
+typography:
+  caption-xl:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "24px"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "0.01em"
+    fontVariation: "'wdth' 62"
+  caption-lg:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "22px"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "0.01em"
+    fontVariation: "'wdth' 62"
+  caption-md:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "19px"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "0.01em"
+    fontVariation: "'wdth' 62"
+  caption-tag:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "15px"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "0.04em"
+    fontVariation: "'wdth' 62"
+  number-hero:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "44px"
+    fontWeight: 800
+    lineHeight: 1
+    fontFeature: "'tnum' 1"
+    fontVariation: "'wdth' 62"
+  number-row:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "26px"
+    fontWeight: 800
+    lineHeight: 1
+    fontFeature: "'tnum' 1"
+    fontVariation: "'wdth' 62"
+  body:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: 1.5
+  body-strong:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 600
+    lineHeight: 1.4
+  detail:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.3
+  badge:
+    fontFamily: "Archivo, system-ui, sans-serif"
+    fontSize: "11px"
+    fontWeight: 700
+    lineHeight: 1.2
+    letterSpacing: "0.025em"
+  mono:
+    fontFamily: "IBM Plex Mono, ui-monospace, monospace"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.4
+rounded:
+  plate: "3px"
+  base: "4px"
+  button: "6px"
+  sheet: "14px"
+  pill: "9999px"
+spacing:
+  gutter: "16px"
+  plate-x: "12px"
+  plate-y: "8px"
+  row-gap: "12px"
+  section: "24px"
+components:
+  caption-plate:
+    backgroundColor: "{colors.caption-plate}"
+    textColor: "{colors.plate-ink}"
+    typography: "{typography.caption-lg}"
+    rounded: "{rounded.plate}"
+    padding: "8px 12px"
+    height: "60px"
+  caption-plate-sm:
+    backgroundColor: "{colors.caption-plate}"
+    textColor: "{colors.plate-ink}"
+    typography: "{typography.caption-md}"
+    rounded: "{rounded.plate}"
+    padding: "8px 12px"
+    height: "52px"
+  caption-tag-chyron:
+    backgroundColor: "{colors.chyron-yellow}"
+    textColor: "{colors.chyron-ink}"
+    typography: "{typography.caption-tag}"
+    padding: "0 20px 0 12px"
+  caption-tag-live:
+    backgroundColor: "{colors.live-red}"
+    textColor: "{colors.live-ink}"
+    typography: "{typography.caption-tag}"
+    padding: "0 20px 0 12px"
+  caption-tag-good:
+    backgroundColor: "{colors.safe-teal}"
+    textColor: "{colors.safe-ink}"
+    typography: "{typography.caption-tag}"
+    padding: "0 20px 0 12px"
+  caption-tag-quiet:
+    backgroundColor: "{colors.night-panel-raised}"
+    textColor: "{colors.bone-text}"
+    typography: "{typography.caption-tag}"
+    padding: "0 20px 0 12px"
+  button-primary:
+    backgroundColor: "{colors.chyron-yellow}"
+    textColor: "{colors.chyron-ink}"
+    rounded: "{rounded.button}"
+    padding: "8px 15px"
+  button-secondary:
+    backgroundColor: "{colors.night-panel}"
+    textColor: "{colors.bone-text}"
+    rounded: "{rounded.button}"
+    padding: "8px 15px"
+  button-destructive:
+    backgroundColor: "{colors.live-red}"
+    textColor: "{colors.caption-plate}"
+    rounded: "{rounded.button}"
+    padding: "8px 15px"
+  plate-button-chyron:
+    backgroundColor: "{colors.chyron-yellow}"
+    textColor: "{colors.chyron-ink}"
+    rounded: "{rounded.plate}"
+    padding: "0 16px"
+    height: "44px"
+  input:
+    backgroundColor: "{colors.night-panel}"
+    textColor: "{colors.bone-text}"
+    rounded: "{rounded.base}"
+    padding: "7px 10px"
+    height: "44px"
+  bottom-sheet:
+    backgroundColor: "{colors.night-panel}"
+    textColor: "{colors.bone-text}"
+    rounded: "{rounded.sheet}"
+    padding: "8px 16px 16px"
+  sheet-action:
+    textColor: "{colors.bone-text}"
+    typography: "{typography.body-strong}"
+    height: "52px"
+  sheet-action-danger:
+    textColor: "{colors.live-red}"
+    typography: "{typography.body-strong}"
+    height: "52px"
+  standings-row:
+    textColor: "{colors.bone-text}"
+    typography: "{typography.body-strong}"
+    height: "48px"
+  standings-row-you:
+    backgroundColor: "{colors.night-panel-raised}"
+    textColor: "{colors.bone-text}"
+    rounded: "{rounded.plate}"
+    height: "48px"
+  you-badge:
+    backgroundColor: "{colors.bone-text}"
+    textColor: "{colors.night-ground}"
+    typography: "{typography.badge}"
+    rounded: "2px"
+    padding: "1px 6px"
+---
+
+# Design System: Reality Fantasy Leagues
+
+<!-- Scope: this documents dark mode, which is direction A ("Lower Third"). Light mode still runs the
+     previous cream-and-terracotta palette in cards, with Archivo and the new plates on top; it gets
+     its own pass at the end of the redesign and this file will be updated then. Token values above
+     are the `.dark` values in src/app/globals.css. -->
+
+## Overview
+
+**Creative North Star: "Lower Third"**
+
+The app speaks in the on-screen graphics reality TV already uses: the strip across the bottom of the frame that names who's talking, the yellow bar that says something is happening now, the red bar when someone's gone home. Players use it on a phone, on the couch, the night an episode airs, so the ground is night-dark and everything that matters sits on a white caption plate that reads instantly against it. The rest of the screen stays quiet and flat so those plates carry the news.
+
+Density is a rundown, not a dashboard. Overview sections have no boxes, just a condensed caps heading over their content, in the order a broadcast would run them. One family, Archivo, does everything, and its width axis does most of the work: normal width for anything you read, the condensed end in caps for names, headings and numbers. Colour is rationed. Chyron yellow means "now" or "you", live red means out, and tribe or team colours appear only as small tags.
+
+The product is any show, not just Survivor, so the vocabulary is broadcast television in general, not one show's world. No torches, tiki, jungle textures or tribal patterns.
+
+**Key Characteristics:**
+- Night ground, white caption plates, one yellow accent for "now".
+- Archivo throughout; condensed (wdth 62) 800-weight caps for captions and numbers.
+- Flat sections separated by headings and hairlines, not cards.
+- Nearly square corners (3–4px) on everything that is broadcast graphics; only the bottom sheet is rounded.
+- Mobile first: designed at 390px, 44px minimum touch targets, 16px text in every field.
+
+## Colors
+
+A cool violet-black night with one hot accent and one alarm colour; everything else is neutral.
+
+### Primary
+- **Chyron Yellow** (#ffc531): "This is happening now, and it's yours." The alert strip's tag, your turn, the primary action, the leader's rank, focus rings, text selection, the active tab. On dark it is also the shadcn `primary` and `ring`.
+- **Caption Plate** (#ffffff): the white bar that names and moments sit on. It's a surface, not text colour: only plates, the alert strip and the "You" badge are white-backed.
+
+### Secondary
+- **Live Red** (#f2545b): eliminations, "Out", destructive actions and errors. Its ink (#2a0a0c) is near-black red, so a red tag reads like broadcast "LIVE", not a warning dialog.
+- **Safe Teal** (#35b5a5): good news: safe, correct pick, points gained. Tag ink is #0e2b27.
+
+### Tertiary
+- **Gold Accent** (#e0b23a): the old `accent-2`, kept for secondary emphasis that predates the redesign. Prefer Chyron Yellow in new work.
+- **Chart set**: Ember (#f2804b), Safe Teal, Orchid (#a76bb0), Lake (#5089c9), Chyron Yellow. Only in charts and player colour dots.
+
+### Neutral
+- **Night Ground** (#16141d): the page.
+- **Night Rail** (#100e15): the sidebar and menu panel, one step darker than the page.
+- **Night Panel** (#221f2c): cards, popovers, sheets and fields; the only raised surface.
+- **Night Panel Raised** (#2a2633): muted fills: your own standings row, the quiet tag, secondary buttons on hover.
+- **Night Line** (#2e2a3a): row dividers and borders; also the hover fill (`accent`).
+- **Field Line** (#3a3548): input borders, a step brighter than row lines so fields are findable.
+- **Bone Text** (#f4f2f8): body text on the night.
+- **Dusk Muted** (#a9a4b8): secondary text, ranks other than first, labels.
+- **Plate Ink** (#121018) and **Plate Muted** (#4a4558): text on a caption plate.
+
+### Named Rules
+**The One Chyron Rule.** Yellow means "now" or "you". If more than one thing on a screen is yellow, one of them is wrong. Never use it for decoration or as a generic brand colour.
+
+**The Red Is For Leaving Rule.** Live Red is for someone going home and for actions that delete. Losing points is not an elimination; use muted text or a down chart bar, not red text everywhere.
+
+**The Tags Not Fills Rule.** Tribe, team and player colours appear as a small tag, dot or the angled end of a plate, never as a large background.
+
+## Typography
+
+**Display Font:** Archivo, condensed end (variable `wdth` 62%, weight 800), uppercase
+**Body Font:** Archivo, normal width (weights 400–700)
+**Label/Mono Font:** IBM Plex Mono, kept only for code-like content and a few legacy number cells
+
+**Character:** One family split by width, like a broadcast package. The condensed caps are loud and compact, so a long castaway name still fits a 390px plate; the normal width underneath is plain and readable.
+
+### Hierarchy
+- **Section heading** (800, 24px, condensed caps, line-height 1): Overview sections and other page sections in dark mode (`section-title`, `DashCard`).
+- **Page title / plate title** (800, 22px, condensed caps): the mobile header's page name, caption plate titles, bottom sheet titles.
+- **Small plate title** (800, 19px, condensed caps): the alert strip and small plates.
+- **Tag** (800, 13–15px, condensed caps, 0.04em tracking): the angled tag on a plate.
+- **Hero number** (800, 44px, condensed, tabular): the single big number in a section (`DashBig`).
+- **Row number** (800, 24–26px, condensed, tabular): ranks and totals in standings rows.
+- **Body** (400–600, 16px): rows, names, paragraphs. Names in rows are 600.
+- **Detail** (400, 13px): the second line on a plate, the league name above a page title.
+- **Badge** (700, 11px, caps, wide tracking): "You" and similar inline badges.
+
+### Named Rules
+**The Width Not Weight Rule.** Hierarchy comes from switching to the condensed caps, not from piling on sizes. Body text stays normal width; captions and numbers go condensed. There is no third style.
+
+**The Tabular Numbers Rule.** Any number that sits in a column (rank, score, streak) is condensed and tabular so columns line up.
+
+**The 16px Field Rule.** On phones every text field is 16px, whatever its size class, so iOS never zooms on focus. This is a global rule in `globals.css` and must not be overridden.
+
+## Layout
+
+Single column at phone width with a 16px gutter; designed and checked at 390×844 first. The `nav` breakpoint (880px) is the only structural one: below it, a top header plus a bottom tab bar; above it, a sidebar. Overview sections become a two-column grid from `sm` up, with wide sections spanning both.
+
+The mobile header centres the page's own name in condensed caps, with the league name small above it (still the league switcher, still swipeable between linked leagues). The alert strip sits at the top of the content, one item at a time with a pager.
+
+Rows are at least 48px tall, separated by hairlines rather than gaps. Touch targets are at least 44px; inputs and selects are 44px tall on phones (40px for the dense size). Sections are spaced roughly 24px apart; within a section, rows run edge to edge with no internal padding in dark mode.
+
+## Elevation & Depth
+
+Flat by default. Sections have no box, border or shadow in dark mode; depth comes from tone (night ground → night panel) and from hairlines. Shadows exist only on things that float over the broadcast:
+
+- **Plate lift** (`box-shadow: 0 6px 18px rgba(0,0,0,0.3)`): caption plates and the alert strip, so they read as graphics laid over the picture.
+- **Sheet lift** (`box-shadow: 0 -12px 30px rgba(0,0,0,0.45)`): the bottom sheet, rising from below.
+- **Scrim** (`rgba(8,6,12,0.6)`): behind sheets and dialogs.
+
+### Named Rules
+**The Only Plates Float Rule.** If it isn't a caption plate, an alert, a sheet or a popover, it doesn't get a shadow.
+
+## Shapes
+
+Broadcast graphics are hard-edged, so nearly everything is square: 3px on plates, strips and the buttons inside them, 4px as the dark theme's base radius (shadcn `--radius`), 2px on badges. The signature shape is the caption tag's angled right edge (`clip-path: polygon(0 0, 100% 0, 84% 100%, 0 100%)`), which the white plate tucks under by 10px. The one soft shape is the bottom sheet's 14px top corners, because it's a phone-native surface, not a graphic. Round shapes are only for dots (player colours), the sheet's grab handle and avatar-style icons.
+
+## Components
+
+### Caption Plate (signature)
+Direction A's signature, in `src/components/ui/caption-plate.tsx`, for the moments that matter: your turn, results are in, last week's score, who went home. Not for every row.
+- **Structure:** an angled tag (one or two words: "New", "Ep 3", "Out") in a tone colour, then a white plate with a condensed caps title and an optional one-line detail, then an optional action label with a chevron.
+- **Tones:** chyron (now / yours), live (out), good (safe, won), quiet (informational). A tribe's own colour can replace the tag colour.
+- **Sizes:** 60px tall (22px title) or 52px small (19px title).
+- **States:** as a link or button, hover brightens slightly (`brightness 1.04`); focus shows a 3px chyron outline offset 2px.
+- **Variants built from it:** the alert strip (`action-bar.tsx`), the reveal prompt and "reveal first" (`results-in-banner.tsx`), Last Week.
+
+### Alert Strip
+The caption plate as the app's to-do list (`action-bar.tsx`). Chyron tag names the kind of thing ("Your pick", "Lineup", "Invite"), the plate gives the message and the league. Controls inside the plate are 44px square, divided by faint plate-muted lines; an invite's "Join" is a small chyron button, "Decline" an outlined one.
+
+### Buttons
+- **Shape:** slightly rounded (6px). Still the ported shape from the old app; plate-embedded buttons are 3px.
+- **Primary:** Chyron Yellow with Plate Ink, 8px × 15px, 13.6px semibold.
+- **Secondary:** night panel with a hairline border, no shadow; hover fills with Night Panel Raised.
+- **Destructive:** Live Red. Use it only in a confirmation step; in lists, destructive actions go in a bottom sheet as red text.
+- **Hover / Focus:** hover brightens 6%, press nudges down 1px, focus is a 3px ring in the ring colour at 50%. Disabled is 40% opacity.
+
+### Inputs / Fields
+- **Style:** night panel fill, hairline border, 4px radius; 44px tall on phones (40px dense), 16px text.
+- **Focus:** the border switches to primary with a 3px soft halo. The halo is still the old terracotta tint, a known leftover to fix with the light-mode pass.
+- **Disabled:** 50% opacity, not-allowed cursor.
+
+### Bottom Sheet
+Row actions in a sheet from the bottom (`bottom-sheet.tsx`), replacing rows of buttons. Night panel, 14px top corners, a grab handle, a condensed caps title with an optional detail beside it, actions as 52px rows split by hairlines, destructive actions last in red text, and a full-width Cancel at the bottom. Slides up over 200ms; respects the safe-area inset. On wide screens it's capped at 480px and centred.
+
+### Section (Overview)
+`DashCard` and the shared `section-shell` / `section-title`: in dark mode no box at all, just a 24px condensed caps heading in Bone Text over the content, with an optional aside on the heading line. Sections read like a broadcast rundown.
+
+### Standings Row
+48px rows divided by hairlines: a condensed rank (the leader's in chyron), the player's colour dot, the name in 16px semibold, and a condensed tabular total on the right. Your own row is lifted with a Night Panel Raised fill and a white "You" badge.
+
+### Navigation
+Mobile: a header with the page's name in 22px condensed caps and the league name in 12px above it, chat on the right; a fixed bottom tab bar. Desktop (880px+): a Night Rail sidebar. The current tab is marked in chyron.
+
+## Do's and Don'ts
+
+### Do:
+- **Do** put "now" moments on a Caption Plate with a chyron tag, and keep them to one or two per screen.
+- **Do** use the condensed caps (`type-caption`) for names, headings and tags, and `type-num` for any number in a column.
+- **Do** keep sections flat in dark mode: a heading and hairlines, no card box.
+- **Do** design at 390px first, with 44px touch targets and 48px rows.
+- **Do** use the show's own terms (castaways, tribes, Faithful, teams). The graphics are generic TV; the words belong to the show.
+- **Do** put destructive row actions last in a bottom sheet, as red text after a divider.
+
+### Don't:
+- **Don't** use Chyron Yellow decoratively or on more than one competing element.
+- **Don't** use Live Red for anything except leaving the game and deleting.
+- **Don't** fill large areas with tribe or team colours; they're tags.
+- **Don't** add shadows to sections, rows or ordinary cards.
+- **Don't** round graphics past 4px, or give the caption tag a straight edge.
+- **Don't** use Survivor-specific motifs (torches, tiki, jungle, tribal patterns) in shared UI.
+- **Don't** put a filled red button next to routine buttons.
+- **Don't** reveal results anywhere outside the reveal: no names, eliminations or scores in teasers, plates or tags before a player has chosen to see them.
+- **Don't** treat light mode's cream cards as the target; they're interim until the light-mode pass.
