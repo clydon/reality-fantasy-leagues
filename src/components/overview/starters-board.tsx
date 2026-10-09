@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Castaway, Episode, LeagueState, Player } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { castawayEpisodeStats } from "@/lib/game/active-roster-rows";
@@ -11,6 +11,7 @@ import { CastawayStatCard } from "@/components/castaway-stat-card";
 import { cn } from "cn";
 import { formatInTz } from "@/lib/game/air-schedule.js";
 import { isKnockedOut } from "@/lib/game/selectors";
+import { LineupEditor } from "./active-roster-lineup-grid";
 
 // Active Roster's Board: who each player is starting, then the whole cast as compact chips grouped
 // by current tribe. Replaces BoardGrid's full cards for this league type -- with starters being the
@@ -25,6 +26,12 @@ import { isKnockedOut } from "@/lib/game/selectors";
 // open, other players' rows show only whether they're set -- not their starters, and not their bench
 // either, since a bench is just the starters by omission. A courtesy, not a secret: every lineup is
 // in the league state the client already holds.
+//
+// Your own lineup is set from here too: "Set lineup" / "Edit lineup" swaps everyone's rows (and the
+// cast) for the lineup editor -- the same Active + Roster view as the separate lineup card
+// (LineupEditor) -- and the button becomes "Done". Each tap saves as it's made, so there's nothing to
+// save or cancel: Done just goes back, and "Saved ✓" confirms each change. Only for this week's
+// episode while it's still open, and only for someone with a roster.
 export function StartersBoard({ state }: { state: LeagueState }) {
   const myPlayerId = useMyPlayerId();
   const scored = (ep: Episode) => StateLogic.ActiveRosterLogic.episodeEvents(state, ep).length > 0;
@@ -42,22 +49,80 @@ export function StartersBoard({ state }: { state: LeagueState }) {
   const activeSlots = StateLogic.ActiveRosterLogic.activeSlots(state);
   const players = state.players.filter((p) => p.active !== false);
 
+  const canEdit =
+    open &&
+    !!myPlayerId &&
+    shown.id === StateLogic.currentEpisode(state)?.id &&
+    state.castaways.some((c) => c.ownerIds.includes(myPlayerId) && c.status !== "eliminated");
+  const [editingRaw, setEditing] = useState(false);
+  // Drops out of edit mode by itself once the lineup locks (the episode starts airing).
+  const editing = editingRaw && canEdit;
+  const mySet = canEdit && lineupStatus(state, shown, myPlayerId!, activeSlots).set;
+
+  // "Saved ✓" for a moment after each change lands.
+  const [saved, setSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => clearTimeout(savedTimer.current ?? undefined), []);
+  function flashSaved() {
+    setSaved(true);
+    clearTimeout(savedTimer.current ?? undefined);
+    savedTimer.current = setTimeout(() => setSaved(false), 1500);
+  }
+
+  const boardRef = useRef<HTMLDivElement>(null);
+  function done() {
+    setEditing(false);
+    setSaved(false);
+    // From the bottom Done on a long roster, bring the board's top back into view.
+    const top = boardRef.current?.getBoundingClientRect().top ?? 0;
+    if (top < 0) boardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  const lockLine = shown?.airsAt ? `Lineups lock ${formatInTz(new Date(shown.airsAt), localTz())}.` : "";
+
   return (
-    <div id="board" className="rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-0.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
-        {shown ? `Episode ${shown.number} starters` : "Starters"}
-      </h3>
+    <div id="board" ref={boardRef} className="scroll-mt-20 rounded-lg border border-border bg-card p-4 shadow-sm">
+      <div className="mb-0.5 flex min-h-7 items-center gap-2">
+        <h3 className="min-w-0 flex-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+          {shown ? `Episode ${shown.number} starters` : "Starters"}
+        </h3>
+        {editing && saved && <span className="text-xs font-semibold text-good">Saved ✓</span>}
+        {canEdit && (
+          <button
+            className={cn(
+              "shrink-0 rounded-md px-3 py-1 text-xs font-bold",
+              editing || !mySet
+                ? "bg-primary text-primary-foreground hover:opacity-90"
+                : "border border-border text-foreground hover:bg-secondary"
+            )}
+            onClick={() => (editing ? done() : setEditing(true))}
+          >
+            {editing ? "Done" : mySet ? "Edit lineup" : "Set lineup"}
+          </button>
+        )}
+      </div>
       <p className="mb-3 text-xs text-muted-foreground">
         {!shown
           ? "No episode to field a lineup for yet."
-          : open
-            ? `${hideOthers ? "Everyone else's starters show once it airs" : "Updates as lineups change"}${
-                shown.airsAt ? ` — lineups lock ${formatInTz(new Date(shown.airsAt), localTz())}` : ""
-              }.`
-            : scored(shown)
-              ? "What each starter scored."
-              : `Locked — episode ${shown.number} has started.`}
+          : editing
+            ? `Tap to start or bench — changes save as you go. ${lockLine}`
+            : open
+              ? `${hideOthers ? "Everyone else's starters show once it airs." : "Updates as lineups change."} ${lockLine}`
+              : scored(shown)
+                ? "What each starter scored."
+                : `Locked — episode ${shown.number} has started.`}
       </p>
+      {editing ? (
+        <>
+          <LineupEditor state={state} ep={shown} playerId={myPlayerId!} onSaved={flashSaved} />
+          <button
+            className="mt-4 w-full rounded-md bg-primary py-2 text-sm font-bold text-primary-foreground hover:opacity-90"
+            onClick={done}
+          >
+            Done
+          </button>
+        </>
+      ) : (
+        <>
       <div className="flex flex-col divide-y divide-border">
         {players.map((p) => (
           <StarterRow
@@ -70,12 +135,26 @@ export function StartersBoard({ state }: { state: LeagueState }) {
             showPoints={!!shown && scored(shown)}
             hidden={hideOthers && p.id !== myPlayerId}
             activeSlots={activeSlots}
+            onEdit={canEdit && p.id === myPlayerId ? () => setEditing(true) : undefined}
           />
         ))}
       </div>
       <CastByTribe state={state} />
+        </>
+      )}
     </div>
   );
+}
+
+// A player's lineup for one episode: who's starting, who's on the bench, and whether it's "set" --
+// every slot they can fill is filled (late in a season someone may own fewer survivors).
+function lineupStatus(state: LeagueState, ep: Episode, playerId: string, activeSlots: number) {
+  const lineupIds = StateLogic.activeRosterLineupFor(state, ep.id, playerId);
+  const starters = lineupIds.map((id) => StateLogic.getCastaway(state, id)).filter((c): c is Castaway => !!c);
+  // Everyone still in the game on the roster who isn't starting.
+  const bench = state.castaways.filter((c) => c.ownerIds.includes(playerId) && c.status !== "eliminated" && !lineupIds.includes(c.id));
+  const need = Math.min(activeSlots, starters.length + bench.length);
+  return { starters, bench, need, empty: Math.max(0, activeSlots - starters.length), set: starters.length >= need };
 }
 
 function StarterRow({
@@ -87,6 +166,7 @@ function StarterRow({
   showPoints,
   hidden,
   activeSlots,
+  onEdit,
 }: {
   state: LeagueState;
   player: Player;
@@ -96,16 +176,26 @@ function StarterRow({
   showPoints: boolean;
   hidden: boolean;
   activeSlots: number;
+  /** Your own row while the lineup is open: an empty slot opens the lineup editor. */
+  onEdit?: () => void;
 }) {
-  const lineupIds = ep ? StateLogic.activeRosterLineupFor(state, ep.id, player.id) : [];
-  const starters = lineupIds.map((id) => StateLogic.getCastaway(state, id)).filter((c): c is Castaway => !!c);
-  // Everyone still in the game on the roster who isn't starting.
-  const bench = state.castaways.filter(
-    (c) => c.ownerIds.includes(player.id) && c.status !== "eliminated" && !lineupIds.includes(c.id)
-  );
-  // "Set" means every slot they can fill is filled (late in a season someone may own fewer survivors).
-  const need = Math.min(activeSlots, starters.length + bench.length);
-  const empty = Math.max(0, activeSlots - starters.length);
+  const { starters, bench, need, empty } = ep
+    ? lineupStatus(state, ep, player.id, activeSlots)
+    : { starters: [] as Castaway[], bench: [] as Castaway[], need: 0, empty: activeSlots };
+  const emptySlot = (i: number) =>
+    onEdit ? (
+      <button
+        key={i}
+        className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-dashed border-border text-lg text-muted-foreground hover:border-primary hover:text-primary"
+        title="Set lineup"
+        aria-label="Set lineup"
+        onClick={onEdit}
+      >
+        +
+      </button>
+    ) : (
+      <div key={i} className="h-10 w-10 rounded-lg border-2 border-dashed border-border" title="Empty slot" />
+    );
 
   return (
     <div className="py-2.5 first:pt-0 last:pb-0">
@@ -134,9 +224,7 @@ function StarterRow({
               ?
             </div>
           ))}
-          {Array.from({ length: empty }, (_, i) => (
-            <div key={i} className="h-10 w-10 rounded-lg border-2 border-dashed border-border" title="Empty slot" />
-          ))}
+          {Array.from({ length: empty }, (_, i) => emptySlot(i))}
         </div>
       )}
       {ep && !hidden && (
@@ -152,9 +240,7 @@ function StarterRow({
                 points={showPoints ? castawayEpisodeStats(state, ep.id, c.id).total : undefined}
               />
             ))}
-            {Array.from({ length: empty }, (_, i) => (
-              <div key={i} className="h-10 w-10 rounded-lg border-2 border-dashed border-border" title="Empty slot" />
-            ))}
+            {Array.from({ length: empty }, (_, i) => emptySlot(i))}
           </div>
           {bench.length > 0 && (
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1">

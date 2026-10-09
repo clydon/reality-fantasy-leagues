@@ -1,6 +1,6 @@
 "use client";
 
-import type { Castaway, LeagueState } from "@/lib/game/types";
+import type { Castaway, Episode, LeagueState } from "@/lib/game/types";
 import { sortByTribe } from "@/lib/game/sort-by-tribe";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useMyPlayerId } from "@/lib/store";
@@ -27,10 +27,8 @@ import { isKnockedOut } from "@/lib/game/selectors";
 // for what the episode card still shows (read-only, plus the commissioner's lock).
 export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
-  const leagueId = useLeagueStore((s) => s.leagueId);
   const myPlayerId = useMyPlayerId();
   const { hidden: hiddenResults } = useHiddenResults();
-  const mutate = useMutate();
 
   if (!myPlayerId) return null;
   if (hiddenResults.length > 0) return <RevealFirst what="set your next lineup" />;
@@ -42,22 +40,6 @@ export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
   // Open until the episode starts airing (or has results, or a commissioner locked it by hand).
   const locked = !ep || StateLogic.ActiveRosterLogic.isLineupLocked(state, ep.id);
   const lineup = ep ? StateLogic.activeRosterLineupFor(state, ep.id, myPlayerId) : [];
-  const starters = lineup.map((id) => roster.find((c) => c.id === id)).filter((c): c is Castaway => !!c);
-  const bench = [
-    ...sortByTribe(roster.filter((c) => !lineup.includes(c.id) && c.status !== "eliminated"), state),
-    ...roster.filter((c) => !lineup.includes(c.id) && c.status === "eliminated"),
-  ];
-
-  async function toggle(castawayId: string) {
-    if (!ep || locked || !myPlayerId) return;
-    const active = lineup.includes(castawayId);
-    if (!active && lineup.length >= activeSlots) return;
-    const next = active ? lineup.filter((id) => id !== castawayId) : [...lineup, castawayId];
-    await mutate(
-      (s) => StateLogic.setActiveRosterLineup(s, ep.id, myPlayerId, next),
-      () => api.setActiveRosterLineup(leagueId!, ep.id, myPlayerId, next)
-    );
-  }
 
   return (
     <div id="lineup" className="mb-5 scroll-mt-20 rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -78,6 +60,54 @@ export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
                 ep.airsAt ? ` Locks when it airs, ${formatInTz(new Date(ep.airsAt), localTz())}.` : ""
               }`}
       </p>
+      <LineupEditor state={state} ep={ep} playerId={myPlayerId} />
+      <ScoringChart state={state} />
+    </div>
+  );
+}
+
+/**
+ * The Active row and the rest of the roster, tap to field or bench -- each tap saves straight away
+ * (no Save step). Used by the lineup card above and by the Starters board's "Edit lineup" mode
+ * (starters-board.tsx). `onSaved` fires after each change lands, for a "Saved" tick.
+ */
+export function LineupEditor({
+  state,
+  ep,
+  playerId,
+  onSaved,
+}: {
+  state: LeagueState;
+  ep: Episode | null;
+  playerId: string;
+  onSaved?: () => void;
+}) {
+  const leagueId = useLeagueStore((s) => s.leagueId);
+  const mutate = useMutate();
+  const roster = state.castaways.filter((c) => c.ownerIds.includes(playerId));
+  const activeSlots = state.settings.activeSlots;
+  const locked = !ep || StateLogic.ActiveRosterLogic.isLineupLocked(state, ep.id);
+  const lineup = ep ? StateLogic.activeRosterLineupFor(state, ep.id, playerId) : [];
+  const starters = lineup.map((id) => roster.find((c) => c.id === id)).filter((c): c is Castaway => !!c);
+  const bench = [
+    ...sortByTribe(roster.filter((c) => !lineup.includes(c.id) && c.status !== "eliminated"), state),
+    ...roster.filter((c) => !lineup.includes(c.id) && c.status === "eliminated"),
+  ];
+
+  async function toggle(castawayId: string) {
+    if (!ep || locked) return;
+    const active = lineup.includes(castawayId);
+    if (!active && lineup.length >= activeSlots) return;
+    const next = active ? lineup.filter((id) => id !== castawayId) : [...lineup, castawayId];
+    const ok = await mutate(
+      (s) => StateLogic.setActiveRosterLineup(s, ep.id, playerId, next),
+      () => api.setActiveRosterLineup(leagueId!, ep.id, playerId, next)
+    );
+    if (ok) onSaved?.();
+  }
+
+  return (
+    <>
       {/* Active: one slot per active spot, filled in lineup order; an empty one is a dashed outline of
           a card, waiting for someone from the roster below. */}
       <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Active</div>
@@ -122,9 +152,7 @@ export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
           ))}
         </div>
       )}
-
-      <ScoringChart state={state} />
-    </div>
+    </>
   );
 }
 

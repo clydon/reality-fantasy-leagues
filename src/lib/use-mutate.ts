@@ -12,18 +12,21 @@ export function useMutate() {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const setState = useLeagueStore((s) => s.setState);
 
-  return async function mutate(mockMutator: (state: LeagueState) => void, liveCall: () => Promise<LeagueState>) {
+  // Resolves true once the change has landed, false if the server refused it (already alerted).
+  return async function mutate(mockMutator: (state: LeagueState) => void, liveCall: () => Promise<LeagueState>): Promise<boolean> {
     if (mode === "mock") {
       mockMutator(state);
       setState(state);
-      return;
+      return true;
     }
     if (!leagueId) throw new Error("mutate() called in live mode with no leagueId loaded");
     try {
       const next = await liveCall();
       setState(next);
+      return true;
     } catch (err) {
       alert(err instanceof ApiError ? err.message : "Request failed.");
+      return false;
     }
   };
 }
