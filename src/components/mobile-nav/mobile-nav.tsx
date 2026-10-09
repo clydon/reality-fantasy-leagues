@@ -200,6 +200,22 @@ export function MobileNav() {
         { href: "", label: "Demo Season", icon: EpisodesIcon },
       ];
 
+  // The page's own name for the top bar. Overview has none: there the league name is the title.
+  const PAGE_TITLES: Record<string, string> = {
+    "/episodes": "Episodes",
+    "/scoreboard": "Scoreboard",
+    "/draft": "Draft",
+    "/mid-season": "Mid-Season",
+    "/research": "Research",
+    "/chat": "Chat",
+    "/setup": "League Settings",
+    "/admin": "Admin",
+    "/reports": "Reports",
+    "/account": "Account",
+    "/dashboard": "My Leagues",
+  };
+  const pageTitle = PAGE_TITLES[pathname] ?? null;
+
   function go(href: string) {
     // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same
     // as the sidebar's row).
@@ -275,10 +291,24 @@ export function MobileNav() {
               onClick={toggleLeagueMenu}
               disabled={leagues.length === 0}
             >
-              {/* Balances the arrow on the right, so the name is centred in the bar. */}
-              <span className="w-4 shrink-0" aria-hidden />
-              <SwipeTitle name={mode === "mock" ? "Demo Mode" : (leagueName ?? "")} className="truncate text-[0.95rem] font-bold" />
-              <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
+              {pageTitle ? (
+                // Direction A: every page names itself. The league name moves up to a small line above
+                // the title -- still the switcher, still swipeable.
+                <span className="flex min-w-0 flex-col items-center gap-0.5">
+                  <span className="flex min-w-0 items-center gap-0.5 text-[12px] font-semibold text-muted-foreground">
+                    <SwipeTitle name={mode === "mock" ? "Demo Mode" : (leagueName ?? "")} className="truncate" />
+                    <ChevronDownIcon className={cn("h-3.5 w-3.5 shrink-0 transition-transform", leagueMenuOpen && "rotate-180")} />
+                  </span>
+                  <span className="type-caption truncate text-[22px]">{pageTitle}</span>
+                </span>
+              ) : (
+                <>
+                  {/* Balances the arrow on the right, so the name is centred in the bar. */}
+                  <span className="w-4 shrink-0" aria-hidden />
+                  <SwipeTitle name={mode === "mock" ? "Demo Mode" : (leagueName ?? "")} className="type-caption truncate text-[22px]" />
+                  <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
+                </>
+              )}
             </button>
             {leagueMenuOpen && (
               <div className="absolute left-1/2 top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] -translate-x-1/2 overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">

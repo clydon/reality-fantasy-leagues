@@ -16,8 +16,8 @@ export function TeamsBoard({ state }: { state: LeagueState }) {
   const myPlayerId = useMyPlayerId();
   const players = state.players.filter((p) => p.active !== false);
   return (
-    <div id="board" className="rounded-lg border border-border bg-card p-4 shadow-sm">
-      <h3 className="mb-0.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Teams</h3>
+    <div id="board" className="section-shell">
+      <h3 className="mb-0.5 section-title">Teams</h3>
       <p className="mb-3 text-xs text-muted-foreground">Everyone&rsquo;s draft. The number is where each one finished.</p>
       <div className="flex flex-col divide-y divide-border">
         {players.map((p) => (

@@ -4,7 +4,8 @@ import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useMyPlayerId } from "@/lib/store";
 import { useShowTerms } from "@/lib/use-show-terms";
-import { DashCard, DashBig } from "./dash-card";
+import { DashCard } from "./dash-card";
+import { CaptionPlate } from "@/components/ui/caption-plate";
 
 // Active Roster only -- "what did I score last week," the thing a fantasy-football dashboard always
 // leads with. "Last week" is the most recently PLAYED episode (StateLogic.episodeHasResults), not
@@ -32,38 +33,52 @@ export function LastWeekCard({ state }: { state: LeagueState }) {
   }
 
   const lineup = new Set(StateLogic.activeRosterLineupFor(state, lastEp.id, myPlayerId));
-  const myEvents = StateLogic.ActiveRosterLogic.episodeEvents(state, lastEp).filter((ev) => lineup.has(ev.castawayId));
-  const total = StateLogic.roundPoints(myEvents.reduce((sum, ev) => sum + StateLogic.ActiveRosterLogic.pointsFor(state, ev.type), 0));
+  const allEvents = StateLogic.ActiveRosterLogic.episodeEvents(state, lastEp);
+  const myEvents = allEvents.filter((ev) => lineup.has(ev.castawayId));
+  const pts = (evs: typeof allEvents) =>
+    StateLogic.roundPoints(evs.reduce((sum, ev) => sum + StateLogic.ActiveRosterLogic.pointsFor(state, ev.type), 0));
+  const total = pts(myEvents);
+  // What your bench did that week: castaways you own who weren't in that episode's lineup. Ownership
+  // is today's (a swap since then can shift it), which is fine for a "you left this on the bench" nudge.
+  const mine = new Set(state.castaways.filter((c) => (c.ownerIds || []).includes(myPlayerId)).map((c) => c.id));
+  const benchPts = pts(allEvents.filter((ev) => mine.has(ev.castawayId) && !lineup.has(ev.castawayId)));
   const events = StateLogic.formatOf(state).events;
 
+  // Direction A: last week's score is a caption plate -- the moment, at a glance -- with the
+  // breakdown underneath for anyone who wants it.
   return (
-    <DashCard title="Last Week">
-      <DashBig>
-        {total}
-        <span className="ml-1 text-base text-muted-foreground"> pts · Episode {lastEp.number}</span>
-      </DashBig>
-      {myEvents.length === 0 ? (
-        <p className="mt-1.5 text-sm text-muted-foreground">Nothing from your lineup scored.</p>
-      ) : (
-        <div className="mt-1.5 flex flex-col gap-1">
+    <section className="flex flex-col gap-2.5">
+      <CaptionPlate
+        tag={`Ep ${lastEp.number}`}
+        tone="good"
+        title={`${signed(total)} last week`}
+        subtitle={
+          benchPts > 0
+            ? `${benchPts} more ${benchPts === 1 ? "point" : "points"} sat on your bench`
+            : myEvents.length === 0
+              ? "Nothing from your lineup scored"
+              : `From your ${terms.castaways} in the lineup`
+        }
+        href="/scoreboard"
+        action="Recap"
+      />
+      {myEvents.length > 0 && (
+        <div className="flex flex-col">
           {myEvents.map((ev) => {
             const def = events.find((e) => e.id === ev.type);
             const c = StateLogic.getCastaway(state, ev.castawayId);
             return (
-              <div key={ev.id} className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex-1">
-                  {c?.name ?? "?"} — <span className="text-muted-foreground">{def?.label ?? ev.type}</span>
+              <div key={ev.id} className="flex min-h-10 items-center justify-between gap-2 border-t border-border text-sm first:border-t-0">
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-semibold">{c?.name ?? "?"}</span> <span className="text-muted-foreground">· {def?.label ?? ev.type}</span>
                 </span>
-                <span className="font-mono text-xs">{signed(StateLogic.ActiveRosterLogic.pointsFor(state, ev.type))}</span>
+                <span className="type-num text-[18px]">{signed(StateLogic.ActiveRosterLogic.pointsFor(state, ev.type))}</span>
               </div>
             );
           })}
         </div>
       )}
-      <p className="mt-1.5 text-[0.7rem] text-muted-foreground">
-        Only {terms.castaways} in your active lineup that episode count.
-      </p>
-    </DashCard>
+    </section>
   );
 }
 

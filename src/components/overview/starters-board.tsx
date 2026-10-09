@@ -80,9 +80,9 @@ export function StartersBoard({ state }: { state: LeagueState }) {
   const lockLine = shown?.airsAt ? `Lineups lock ${formatInTz(new Date(shown.airsAt), localTz())}.` : "";
 
   return (
-    <div id="board" ref={boardRef} className="scroll-mt-20 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div id="board" ref={boardRef} className="scroll-mt-20 section-shell">
       <div className="mb-0.5 flex min-h-7 items-center gap-2">
-        <h3 className="min-w-0 flex-1 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+        <h3 className="min-w-0 flex-1 section-title">
           {shown ? `Episode ${shown.number} starters` : "Starters"}
         </h3>
         {editing && saved && <span className="text-xs font-semibold text-good">Saved ✓</span>}
@@ -337,7 +337,7 @@ export function CastByTribe({ state }: { state: LeagueState }) {
 
   return (
     <div className="mt-4 border-t border-border pt-3">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+      <h3 className="mb-2 section-title">
         {terms.castaways.replace(/^./, (ch) => ch.toUpperCase())}
       </h3>
       <div className="flex flex-col gap-3">

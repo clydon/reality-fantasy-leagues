@@ -22,7 +22,7 @@ export function NotificationsBanner() {
 
   return (
     <div className="rounded-lg border border-primary bg-card p-4 shadow-sm">
-      <h3 className="mb-2 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Notifications</h3>
+      <h3 className="mb-2 section-title">Notifications</h3>
       <div className="flex flex-col">
         {listed.map((n) => (
           <button

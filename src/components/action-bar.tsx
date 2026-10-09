@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLeagueStore, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { actionItems, type ActionItem } from "@/lib/game/action-items.js";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "cn";
 import { dismissNotificationsNudge, shouldNudgeNotifications } from "@/lib/notify-nudge";
 
@@ -124,82 +125,88 @@ export function ActionBar() {
 
   const step = (d: number) => setIndex((i + d + items.length) % items.length);
 
+  // Direction A: the strip is a broadcast caption -- a tag naming what kind of thing this is, then a
+  // white plate with the message. One strip, one item at a time, the pager for the rest.
+  const TAGS: Record<string, string> = {
+    invite: "Invite",
+    notifications: "Alerts",
+    draftTurn: "Your pick",
+    blindDraft: "Draft",
+    midSeasonTurn: "Your turn",
+    lineup: "Lineup",
+    pick: "Pick",
+    prediction: "Predict",
+  };
+  const plateBtn = "flex min-h-11 min-w-11 items-center justify-center bg-plate text-plate-foreground hover:bg-[#f1eff6]";
+
   return (
-    <div
-      role="status"
-      className="mb-4 flex items-stretch overflow-hidden rounded-lg border-2 border-amber-500 bg-amber-50 text-amber-950 shadow-sm dark:bg-amber-950/40 dark:text-amber-100"
-    >
-      {item.kind === "invite" ? (
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-2 px-3 py-2.5">
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm text-white" aria-hidden>
-            ✉
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold">{item.text}</span>
-            {item.invitedBy && <span className="block truncate text-xs opacity-70">from {item.invitedBy}</span>}
-          </span>
-          <span className="ml-auto flex shrink-0 gap-1.5">
-            <button
-              className="rounded-md bg-amber-500 px-3 py-1 text-sm font-bold text-white hover:bg-amber-600 disabled:opacity-60"
-              disabled={busy}
-              onClick={() => answer(item, true)}
-            >
-              Join
-            </button>
-            <button
-              className="rounded-md border border-amber-500/60 px-3 py-1 text-sm font-semibold hover:bg-amber-100/60 disabled:opacity-60 dark:hover:bg-amber-900/40"
-              disabled={busy}
-              onClick={() => answer(item, false)}
-            >
-              Decline
-            </button>
-          </span>
-        </div>
-      ) : (
-        <button className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left hover:bg-amber-100/60 dark:hover:bg-amber-900/40" onClick={() => open(item)}>
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-bold text-white" aria-hidden>
-            {item.kind === "notifications" ? "🔔" : "!"}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-bold">{item.text}</span>
-            <span
-              className={cn("block truncate text-xs", item.kind === "notifications" || item.leagueId === hereId ? "opacity-70" : "font-semibold")}
-            >
-              {item.kind === "notifications" || item.leagueId === hereId ? item.leagueName : `in ${item.leagueName}`}
+    <div role="status" className="mb-4 flex min-h-[56px] items-stretch overflow-hidden rounded-[3px] shadow-[0_6px_18px_rgba(0,0,0,0.3)]">
+      <span className="type-caption flex shrink-0 items-center bg-chyron pl-3 pr-5 text-[14px] tracking-[0.04em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,84%_100%,0_100%)]">
+        {TAGS[item.kind] ?? "Now"}
+      </span>
+      <div className="-ml-2.5 flex min-w-0 flex-1 items-stretch bg-plate text-plate-foreground">
+        {item.kind === "invite" ? (
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-2 py-2 pl-3 pr-2">
+            <span className="min-w-0 flex-1">
+              <span className="type-caption block truncate text-[19px]">{item.text}</span>
+              {item.invitedBy && <span className="block truncate text-[13px] text-plate-muted">from {item.invitedBy}</span>}
             </span>
-          </span>
-          <span className="shrink-0 text-lg font-bold" aria-hidden>
-            ›
-          </span>
-        </button>
-      )}
-      {/* The nudge is the one item you can wave away (snoozed -- see notify-nudge.ts). */}
-      {item.kind === "notifications" && (
-        <button
-          className="shrink-0 border-l border-amber-500/40 px-3 text-base font-bold hover:bg-amber-100/60 dark:hover:bg-amber-900/40"
-          aria-label="Not now"
-          title="Not now"
-          onClick={() => {
-            dismissNotificationsNudge();
-            setNudge(false);
-          }}
-        >
-          ✕
-        </button>
-      )}
-      {items.length > 1 && (
-        <div className="flex shrink-0 items-center border-l border-amber-500/40">
-          <button className="h-full px-2.5 text-lg font-bold hover:bg-amber-100/60 dark:hover:bg-amber-900/40" aria-label="Previous" onClick={() => step(-1)}>
-            ‹
+            <span className="ml-auto flex shrink-0 gap-1.5">
+              <button
+                className="min-h-11 rounded-[3px] bg-chyron px-4 text-sm font-bold text-chyron-foreground disabled:opacity-60"
+                disabled={busy}
+                onClick={() => answer(item, true)}
+              >
+                Join
+              </button>
+              <button
+                className="min-h-11 rounded-[3px] border border-plate-muted/40 px-3 text-sm font-semibold disabled:opacity-60"
+                disabled={busy}
+                onClick={() => answer(item, false)}
+              >
+                Decline
+              </button>
+            </span>
+          </div>
+        ) : (
+          <button className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 pr-2 text-left hover:bg-[#f1eff6]" onClick={() => open(item)}>
+            <span className="min-w-0 flex-1">
+              <span className="type-caption block truncate text-[19px]">{item.text}</span>
+              <span className={cn("block truncate text-[13px] text-plate-muted", !(item.kind === "notifications" || item.leagueId === hereId) && "font-semibold text-plate-foreground")}>
+                {item.kind === "notifications" || item.leagueId === hereId ? item.leagueName : `in ${item.leagueName}`}
+              </span>
+            </span>
+            <ChevronRight className="size-[18px] shrink-0" strokeWidth={2.4} aria-hidden />
           </button>
-          <span className="w-9 text-center font-mono text-xs">
-            {i + 1}/{items.length}
-          </span>
-          <button className="h-full px-2.5 text-lg font-bold hover:bg-amber-100/60 dark:hover:bg-amber-900/40" aria-label="Next" onClick={() => step(1)}>
-            ›
+        )}
+        {/* The nudge is the one item you can wave away (snoozed -- see notify-nudge.ts). */}
+        {item.kind === "notifications" && (
+          <button
+            className={cn(plateBtn, "border-l border-plate-muted/20")}
+            aria-label="Not now"
+            title="Not now"
+            onClick={() => {
+              dismissNotificationsNudge();
+              setNudge(false);
+            }}
+          >
+            <X className="size-[18px]" strokeWidth={2.2} aria-hidden />
           </button>
-        </div>
-      )}
+        )}
+        {items.length > 1 && (
+          <div className="flex shrink-0 items-center border-l border-plate-muted/20">
+            <button className={plateBtn} aria-label="Previous" onClick={() => step(-1)}>
+              <ChevronLeft className="size-[18px]" strokeWidth={2.4} aria-hidden />
+            </button>
+            <span className="type-num w-7 text-center text-[13px]">
+              {i + 1}/{items.length}
+            </span>
+            <button className={plateBtn} aria-label="Next" onClick={() => step(1)}>
+              <ChevronRight className="size-[18px]" strokeWidth={2.4} aria-hidden />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -32,7 +32,7 @@ export function SeasonResultsCard({ state }: { state: LeagueState }) {
     <div ref={cardRef} className="relative mb-4 rounded-lg border-2 bg-card p-4 text-center shadow-sm" style={{ borderColor: PODIUM_COLORS[0] }}>
       {/* Not in a peeked neighbour (league swipe): it's display-only, and the burst is for when you land. */}
       {!peek && <Confetti anchor={cardRef} />}
-      <div className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Season complete</div>
+      <div className="section-title">Season complete</div>
       <div className="mt-2 text-3xl" aria-hidden>
         🏆
       </div>

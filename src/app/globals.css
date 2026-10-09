@@ -13,9 +13,19 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-plex-sans);
+  --font-sans: var(--font-archivo);
   --font-mono: var(--font-plex-mono);
-  --font-heading: var(--font-plex-sans);
+  --font-heading: var(--font-archivo);
+  /* Direction A ("Lower Third", docs/PLAN-ux-redesign.md): the caption-plate vocabulary. Chyron is
+     the "this is happening now" accent (alerts, your turn, the current tab); plate is the white
+     caption bar names and moments sit on; live is the elimination red. */
+  --color-chyron: var(--chyron);
+  --color-chyron-foreground: var(--chyron-foreground);
+  --color-plate: var(--plate);
+  --color-plate-foreground: var(--plate-foreground);
+  --color-plate-muted: var(--plate-muted);
+  --color-live: var(--live);
+  --color-live-foreground: var(--live-foreground);
   /* Brand tokens ported 1:1 from the live app's public/styles.css :root block — a translation,
      not a redesign (see docs/ARCHITECTURE.md). Kept as their own --color-* theme entries rather
      than overloaded onto shadcn's generic slots, so utility classes read the same as the CSS
@@ -71,6 +81,15 @@
   --accent-2: #a4783a;
   --good: #3f8a5a;
 
+  /* ---- direction A caption-plate tokens; interim light values until light mode is redesigned ---- */
+  --chyron: #ffc531;
+  --chyron-foreground: #121018;
+  --plate: #ffffff;
+  --plate-foreground: #1d1c19;
+  --plate-muted: #5a5750;
+  --live: #c0392b;
+  --live-foreground: #ffffff;
+
   /* ---- shadcn semantic slots, mapped onto the same brand tokens ---- */
   --background: #f7f6f3; /* --bg */
   --foreground: #1d1c19; /* --text */
@@ -106,48 +125,119 @@
   --sidebar-ring: #a4783a;
 }
 
-/* Dark theme (src/lib/theme.ts): the same brand in low light -- warm charcoals rather than neutral
-   grey, the terracotta accent lifted slightly so it still reads on a dark surface. Lifted a few steps
-   from the original near-blacks (#161512 page, #211f1b cards), which read as too dark. */
+/* Dark theme (src/lib/theme.ts) = direction A, "Lower Third" (docs/PLAN-ux-redesign.md): the app
+   speaks in the on-screen graphics reality TV runs. Night ground for the evening couch, white caption
+   plates, chyron yellow for "now", live red only for eliminations, tribe colours as tags. Light mode
+   keeps the previous palette until it gets its own pass. */
 .dark {
   color-scheme: dark;
-  --panel: #2e2b26;
-  --panel-2: #38352f;
-  --panel-menu: #282521;
-  --accent-2: #c49a58;
-  --good: #58a877;
+  --panel: #221f2c;
+  --panel-2: #2a2633;
+  --panel-menu: #100e15;
+  --accent-2: #e0b23a;
+  --good: #35b5a5;
 
-  --background: #23211d;
-  --foreground: #ece9e2;
-  --card: #2e2b26;
-  --card-foreground: #ece9e2;
-  --popover: #33302a;
-  --popover-foreground: #ece9e2;
-  --primary: #e0764f;
-  --primary-foreground: #ffffff;
-  --secondary: #38352f;
-  --secondary-foreground: #ece9e2;
-  --muted: #38352f;
-  --muted-foreground: #b3ada1;
-  --accent: #4a3328;
-  --accent-foreground: #f0906b;
-  --destructive: #e5604e;
-  --border: #48443c;
-  --input: #4d4940;
-  --ring: #c49a58;
-  --chart-1: #e0764f;
-  --chart-2: #56b8aa;
-  --chart-3: #b884c0;
-  --chart-4: #6aa0d6;
-  --chart-5: #d4a94f;
-  --sidebar: #282521;
-  --sidebar-foreground: #ece9e2;
-  --sidebar-primary: #e0764f;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #38352f;
-  --sidebar-accent-foreground: #ece9e2;
-  --sidebar-border: #48443c;
-  --sidebar-ring: #c49a58;
+  --chyron: #ffc531;
+  --chyron-foreground: #121018;
+  --plate: #ffffff;
+  --plate-foreground: #121018;
+  --plate-muted: #4a4558;
+  --live: #f2545b;
+  --live-foreground: #2a0a0c;
+
+  --background: #16141d;
+  --foreground: #f4f2f8;
+  --card: #221f2c;
+  --card-foreground: #f4f2f8;
+  --popover: #221f2c;
+  --popover-foreground: #f4f2f8;
+  --primary: #ffc531;
+  --primary-foreground: #121018;
+  --secondary: #2a2633;
+  --secondary-foreground: #f4f2f8;
+  --muted: #2a2633;
+  --muted-foreground: #a9a4b8;
+  --accent: #2e2a3a;
+  --accent-foreground: #ffc531;
+  --destructive: #f2545b;
+  --border: #2e2a3a;
+  --input: #3a3548;
+  --ring: #ffc531;
+  --chart-1: #f2804b;
+  --chart-2: #35b5a5;
+  --chart-3: #a76bb0;
+  --chart-4: #5089c9;
+  --chart-5: #ffc531;
+  --radius: 4px;
+  --sidebar: #100e15;
+  --sidebar-foreground: #f4f2f8;
+  --sidebar-primary: #ffc531;
+  --sidebar-primary-foreground: #121018;
+  --sidebar-accent: #221f2c;
+  --sidebar-accent-foreground: #f4f2f8;
+  --sidebar-border: #2e2a3a;
+  --sidebar-ring: #ffc531;
+}
+.dark ::selection {
+  background: var(--chyron);
+  color: var(--chyron-foreground);
+}
+
+
+/* Overview section shell and heading, shared by every Overview section that doesn't use DashCard.
+   Light: the original card. Dark (direction A): no box, a condensed caps heading, like a broadcast
+   rundown. Kept as two classes so a section's own spacing utilities still apply on top. */
+@layer components {
+  .section-shell {
+    @apply rounded-lg border border-border bg-card p-4 shadow-sm;
+  }
+  .dark .section-shell {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  .section-title {
+    @apply text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground;
+  }
+  .dark .section-title {
+    font-stretch: 62%;
+    font-weight: 800;
+    font-size: 24px;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    color: var(--foreground);
+  }
+}
+
+
+/* iOS zooms the page in whenever a field under 16px gets focus, and leaves it zoomed. On phones every
+   text field is 16px, whatever size class it carries. Deliberately NOT inside @layer: unlayered CSS
+   wins over Tailwind's utilities layer, so this beats the text-xs / text-[0.75rem] on hand-rolled
+   inputs too. 879px matches the `max-nav` breakpoint. */
+@media (max-width: 879px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Caption type: Archivo's condensed end in caps, for names, headings and moments on a plate. */
+@utility type-caption {
+  font-stretch: 62%;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+/* Scores and ranks: condensed, tabular, so columns of numbers line up. */
+@utility type-num {
+  font-stretch: 62%;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 @layer base {

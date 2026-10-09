@@ -1,4 +1,8 @@
+"use client";
+
 import type { LeagueState } from "@/lib/game/types";
+import { useMyPlayerId } from "@/lib/store";
+import { cn } from "cn";
 import StateLogic from "@/lib/game/state-logic.js";
 import { DashCard, DashLink } from "./dash-card";
 
@@ -11,6 +15,7 @@ export function StandingsCard({ state }: { state: LeagueState }) {
   // that's the number shown, with 🔥 when it's still going, or else the streak they're on now. A
   // wrong or missed pick only resets a streak; nobody's out.
   const pickem = StateLogic.getLeagueType(state).hasWeeklyPicks;
+  const me = useMyPlayerId();
 
   return (
     <DashCard title="Standings" wide>
@@ -25,10 +30,23 @@ export function StandingsCard({ state }: { state: LeagueState }) {
             const best = r.longestStreak ?? 0;
             const now = r.currentStreak ?? 0;
             return (
-              <div key={r.playerId} className="flex items-center gap-2.5 py-1.5 text-sm">
-                <span className="w-4 shrink-0 font-mono text-muted-foreground">{i + 1}</span>
+              // Direction A: condensed tabular rank and score either side, the leader's rank in chyron
+              // yellow, your own row lifted so you can find yourself at a glance.
+              <div
+                key={r.playerId}
+                className={cn(
+                  "flex min-h-[48px] items-center gap-3 border-t border-border text-base first:border-t-0",
+                  r.playerId === me && "-mx-2 rounded-[3px] bg-muted px-2",
+                )}
+              >
+                <span className={cn("type-num w-6 shrink-0 text-[24px] text-muted-foreground", i === 0 && "dark:text-chyron")}>{i + 1}</span>
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: r.color }} />
-                <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                <span className="flex min-w-0 flex-1 items-center gap-2 truncate font-semibold">
+                  {r.name}
+                  {r.playerId === me && (
+                    <span className="rounded-[2px] bg-foreground px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-background">You</span>
+                  )}
+                </span>
                 {pickem ? (
                   <span className="flex shrink-0 items-baseline gap-1.5 font-mono">
                     {best > 0 && now === best ? (
@@ -39,7 +57,7 @@ export function StandingsCard({ state }: { state: LeagueState }) {
                     <b className="min-w-[1.5ch] text-right">{best}</b>
                   </span>
                 ) : (
-                  <span className="shrink-0 font-mono font-bold">{r.total}</span>
+                  <span className="type-num shrink-0 text-[26px]">{r.total}</span>
                 )}
               </div>
             );

@@ -6,6 +6,7 @@ import { useAdminStore } from "@/lib/admin-store";
 import { LinkMembershipForm } from "./link-membership-form";
 import { UserEditModal } from "./user-edit-modal";
 import { ShowsSection } from "./shows-section";
+import { OverviewLayoutsSection } from "@/components/overview/overview-customize-panel";
 import { useLoadPaidAiPref, usePaidAiStore } from "@/lib/paid-ai-store";
 import { realEmail } from "@/lib/no-email";
 import { formatDateTime } from "@/lib/game/selectors";
@@ -149,6 +150,8 @@ export function AdminTab() {
           Preview What&rsquo;s New
         </Button>
       </div>
+
+      {isSuperAdmin && <OverviewLayoutsSection />}
 
       {/* Catalog config rather than per-account admin, and what a fresh install needs set up first,
           so it sits above the users/leagues tables. */}

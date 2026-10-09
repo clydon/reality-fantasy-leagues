@@ -105,3 +105,24 @@ export function isOverviewSectionEligible(id: OverviewSectionId, state: LeagueSt
       return true;
   }
 }
+
+// The same rules as isOverviewSectionEligible, answered for a league TYPE rather than one league --
+// for Admin's layout editor, which has no league in hand. Assumes a finished draft, so the Board
+// (which only appears once the draft is done) is offered for ordering too.
+export function isOverviewSectionForType(id: OverviewSectionId, typeId: OverviewLeagueTypeId): boolean {
+  const activeRoster = typeId === "active-roster";
+  const picks = typeId === "pickem";
+  switch (id) {
+    case "pickGrid":
+      return picks;
+    case "lineupGrid":
+      return activeRoster;
+    case "leagueScoring":
+    case "yourLine":
+      return activeRoster;
+    case "lastWeek":
+      return false;
+    default:
+      return true;
+  }
+}

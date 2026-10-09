@@ -42,9 +42,9 @@ export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
   const lineup = ep ? StateLogic.activeRosterLineupFor(state, ep.id, myPlayerId) : [];
 
   return (
-    <div id="lineup" className="scroll-mt-20 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div id="lineup" className="scroll-mt-20 section-shell">
       <div className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+        <h3 className="section-title">
           {ep ? `Your lineup for episode ${ep.number}` : "Your lineup"}
         </h3>
         <span className="ml-auto text-xs text-muted-foreground">

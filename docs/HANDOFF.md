@@ -11,6 +11,72 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## UX redesign in progress: direction A, "Lower Third" (branch `ux-direction-a`, not pushed)
+
+**Status as of 2026-10-09.** A visual redesign is under way on the local branch `ux-direction-a`.
+**Do not push or merge it until the redesign is done** (the user's call). Read these first:
+
+- `PRODUCT.md` (repo root): product truth captured with the impeccable skill's `init`. Users,
+  positioning ("any show can become a league", free copy/paste research, paid automation later),
+  league types, principles. Open decisions recorded there: **the product name** ("Reality Fantasy
+  Leagues" vs "Survivor Fantasy Engine"; neither, nor the torch logo, is binding) and pricing.
+- `docs/PLAN-ux-redesign.md`: the mobile-first UX review and plan (problems per screen, wireframes,
+  ranked shortlist). The app is **mobile-first** for players and commissioners; admin is
+  desktop-first but must work at 390px.
+- `docs/ux-baseline/`: the "before" screenshots. `2026-10-09-mobile/` (390px) is the primary set.
+- **Mockups:** a private design canvas, https://claude.ai/artifact/DeXL8tptC8crqRx8UtkEa5. Pages
+  "A · …" are the chosen direction (Classic, Active Roster, Eliminator Pool, Commissioner, Create a
+  league, Draft & mid-season, Spoilers & reveal, Admin). B ("Card Binder") and C were explored and
+  **dropped**; B's pages are still there for reference.
+
+**Decisions made:**
+- **Direction A, "Lower Third", is the visual system.** The app speaks in broadcast graphics:
+  night ground, white caption plates, chyron yellow (#FFC531) for "now", live red for eliminations,
+  tribe colours as tags. One family, Archivo (variable; condensed caps for names, headings and
+  numbers). Signature element: the caption plate (angled tag + white plate + optional action).
+- **Dark mode = direction A for now. Light mode gets its own pass at the very end** (user decision).
+  Until then light mode keeps the old cream palette and cards, plus Archivo and the new plates.
+- The spoiler mechanic already exists (each player is told results are ready and chooses when to
+  reveal); the redesign restyles it, it doesn't add it.
+- Show tiles in the create-league wizard use each show's key art with a brand-coloured gradient
+  (mocked on the canvas). Rights to network key art are unconfirmed; check before shipping it.
+
+**Built so far (foundation + Active Roster home, dark mode):**
+- Tokens and type: `src/app/globals.css` (`.dark` = direction A palette; `--chyron`, `--plate`,
+  `--plate-foreground`, `--plate-muted`, `--live` tokens in both modes; `type-caption` and
+  `type-num` utilities; `section-shell` / `section-title` classes, flat in dark; an unlayered mobile
+  rule forcing 16px on every text field so iOS doesn't zoom). Archivo replaces IBM Plex Sans in
+  `src/app/layout.tsx` (Plex Mono stays as `font-mono`).
+- `src/components/ui/caption-plate.tsx`: the signature component. Used by the alert strip
+  (`action-bar.tsx`), the reveal prompt and "reveal first" (`results-in-banner.tsx`), and Last Week.
+- `src/components/ui/bottom-sheet.tsx`: row actions in a sheet, destructive last in red text. Used
+  for player rows in `setup/players-section.tsx`.
+- Overview sections flat with condensed caps headings in dark (`dash-card.tsx` and the shared
+  classes); Standings rows rebuilt (`standings-card.tsx`).
+- Mobile header shows each page's title, league name above it (`mobile-nav/mobile-nav.tsx`).
+- Shared Input/Select are 44px tall on phones.
+- Customize Overview moved from a league's Overview into Admin as "Overview layouts"
+  (`overview/overview-customize-panel.tsx`, `isOverviewSectionForType` in `lib/overview-layout.ts`).
+
+**Next, in order:**
+1. `/impeccable document`: write `DESIGN.md` from the real code (tokens, caption plate, section
+   style, sheet).
+2. Redesign the remaining screens one at a time against the canvas: Episodes, then Draft, then
+   League Settings (as a list of pages), then the rest; admin last.
+3. Light mode pass.
+4. Then merge and push.
+
+**Notes for the next session:**
+- The impeccable skill's launcher (`~/.claude/skills/impeccable/scripts/impeccable`) downloads and
+  runs a prebuilt binary. This session didn't run it and used the skill's documented fallback
+  (reading PRODUCT.md directly). Whether to run it is the user's call.
+- `src/components/overview/pickem-pick-grid.tsx:65` has a pre-existing lint error (`Date.now()`
+  during render), not introduced by this work.
+- Test data in the local DB: league `UX AR S51` (Active Roster, used to check the build) and the
+  baseline league `UX Baseline S51`, both owned by the throwaway `uxbaseline` account; see
+  `docs/ux-baseline/README.md`.
+- Verify UI at 390×844 in dark mode first (headless Chromium scripts: `docs/ux-baseline/scripts/`).
+
 **State as of 2026-10-02:** everything below is on `master` and pushed (live). The user tests on
 their phone against production and reports back, often with screenshots or screen recordings.
 

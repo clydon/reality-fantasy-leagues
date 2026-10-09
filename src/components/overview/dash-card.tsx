@@ -20,21 +20,29 @@ export function DashCard({
   children: ReactNode;
 }) {
   return (
-    <Card className={cn("border border-border shadow-sm rounded-lg", wide && "sm:col-span-2")}>
-      <CardHeader className={cn(aside && "flex flex-row items-baseline justify-between gap-2")}>
-        <CardTitle className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+    // Dark mode is direction A (docs/PLAN-ux-redesign.md): no card box, just a condensed caps heading
+    // over the content, so sections read as a broadcast rundown rather than a stack of tiles. Light
+    // mode keeps the card until it gets its own pass.
+    <Card
+      className={cn(
+        "border border-border shadow-sm rounded-lg dark:gap-2.5 dark:overflow-visible dark:rounded-none dark:border-0 dark:bg-transparent dark:py-0 dark:shadow-none dark:ring-0",
+        wide && "sm:col-span-2",
+      )}
+    >
+      <CardHeader className={cn("dark:px-0", aside && "flex flex-row items-baseline justify-between gap-2")}>
+        <CardTitle className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground dark:type-caption dark:text-[24px] dark:text-foreground">
           {title}
         </CardTitle>
         {aside}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="dark:px-0">{children}</CardContent>
     </Card>
   );
 }
 
 // Matches .dash-big: font-mono, 1.9rem, bold, tight line-height.
 export function DashBig({ children }: { children: ReactNode }) {
-  return <div className="font-mono text-3xl font-bold leading-none">{children}</div>;
+  return <div className="font-mono text-3xl font-bold leading-none dark:type-num dark:font-sans dark:text-[44px]">{children}</div>;
 }
 
 // Matches .dash-link -- a real navigation link now that the app has real routes.

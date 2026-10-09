@@ -18,7 +18,6 @@ import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
 import { ActiveRosterLineupGrid } from "./active-roster-lineup-grid";
 import { LeagueScoringCard } from "./league-scoring-card";
-import { OverviewCustomizePanel } from "./overview-customize-panel";
 import { useOverviewLayout } from "@/lib/use-overview-layout";
 import { isOverviewSectionEligible, toOverviewLeagueTypeId, type OverviewSectionId } from "@/lib/overview-layout";
 import type { LeagueState } from "@/lib/game/types";
@@ -107,7 +106,6 @@ export function OverviewDashboard() {
   return (
     <>
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Overview</h2>
-      <OverviewCustomizePanel state={state} leagueTypeId={leagueTypeId} draftComplete={draftComplete} />
       {/* Season over: the results announcement leads the page (renders nothing until then). */}
       <SeasonResultsCard state={state} />
       {/* Catch-up mode (StateLogic.RevealLogic): say so here, or the standings look inexplicably

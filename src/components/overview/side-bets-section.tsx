@@ -45,9 +45,9 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
   }
 
   return (
-    <div id="predictions" className="scroll-mt-20 rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div id="predictions" className="scroll-mt-20 section-shell">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+        <h3 className="section-title">
           Predictions{" "}
           {needsCount > 0 && (
             <Badge className="ml-1 normal-case">

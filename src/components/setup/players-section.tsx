@@ -7,6 +7,8 @@ import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
+import { MoreHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { confirm } from "@/lib/confirm-store";
@@ -94,6 +96,7 @@ export function PlayersSection({ state }: { state: LeagueState }) {
     );
   }
 
+  const [sheetFor, setSheetFor] = useState<string | null>(null);
   const freeAgents = StateLogic.freeAgents(state);
   const hasRoster = StateLogic.getLeagueType(state).hasRoster;
 
@@ -149,29 +152,53 @@ export function PlayersSection({ state }: { state: LeagueState }) {
                   </select>
                 )}
                 {p.active === false && <span className="text-xs font-semibold text-primary">Inactive — needs activation</span>}
+                {canManage && (
+                  // Hand over and Remove live in a sheet (docs/PLAN-ux-redesign.md, 1c): one button per
+                  // row, and the destructive one last, in red text, not a red button beside routine ones.
+                  <button
+                    type="button"
+                    className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary"
+                    aria-label={`Options for ${p.name}`}
+                    onClick={() => setSheetFor(p.id)}
+                  >
+                    <MoreHorizontal className="size-5" />
+                  </button>
+                )}
               </div>
-              {canManage && (
-                <div className="flex flex-wrap gap-1.5">
-                  {hasRoster && p.active === false && (
-                    <Button variant="secondary" size="sm" onClick={() => setActivatingId(activatingId === p.id ? null : p.id)}>
-                      Activate
-                    </Button>
-                  )}
+              {sheetFor === p.id && (
+                <BottomSheet
+                  open
+                  onOpenChange={(o) => !o && setSheetFor(null)}
+                  title={p.name}
+                  description={account ? account.username : p.automated ? "Computer player" : undefined}
+                >
                   {!account && !p.disabled && mode === "live" && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
+                    <SheetAction
                       onClick={() => {
-                        setHandingOverId(handingOverId === p.id ? null : p.id);
+                        setSheetFor(null);
+                        setHandingOverId(p.id);
                         setHandOverTo("");
                         setHandOverNote(null);
                       }}
                     >
-                      Hand over…
-                    </Button>
+                      Hand over to a person…
+                    </SheetAction>
                   )}
-                  <Button variant="destructive" size="sm" onClick={() => remove(p.id, p.name)}>
-                    Remove
+                  <SheetAction
+                    danger
+                    onClick={() => {
+                      setSheetFor(null);
+                      remove(p.id, p.name);
+                    }}
+                  >
+                    Remove from league
+                  </SheetAction>
+                </BottomSheet>
+              )}
+              {canManage && hasRoster && p.active === false && (
+                <div className="flex flex-wrap gap-1.5">
+                  <Button variant="secondary" size="sm" onClick={() => setActivatingId(activatingId === p.id ? null : p.id)}>
+                    Activate
                   </Button>
                 </div>
               )}

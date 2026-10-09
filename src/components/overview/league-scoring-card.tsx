@@ -19,9 +19,9 @@ export function LeagueScoringCard({ state }: { state: LeagueState }) {
   const pts = (n: number) => `${n} pt${n === 1 ? "" : "s"}`;
 
   return (
-    <Card className="rounded-lg border border-border px-4 shadow-sm">
+    <Card className="rounded-lg border border-border px-4 shadow-sm dark:rounded-none dark:border-0 dark:bg-transparent dark:px-0 dark:py-0 dark:shadow-none dark:ring-0">
       <details>
-        <summary className="cursor-pointer text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+        <summary className="cursor-pointer section-title">
           League Scoring
         </summary>
         <p className="mt-2 text-xs text-muted-foreground">

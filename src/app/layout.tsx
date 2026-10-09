@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthGate } from "@/components/auth-gate";
 import { MotionProvider } from "@/components/motion";
@@ -7,12 +7,13 @@ import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme-script";
 
-// Matches the live app's typography exactly (public/styles.css --font-body / --font-mono),
-// so ported components need zero font-related visual tweaking.
-const plexSans = IBM_Plex_Sans({
-  variable: "--font-plex-sans",
+// Archivo is the one UI family (docs/PLAN-ux-redesign.md, direction A "Lower Third"). It's variable on
+// both weight and width: normal width for everything you read, the condensed end (font-stretch 62%,
+// the `display` utility in globals.css) for names, numbers and headings, like a broadcast caption.
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  axes: ["wdth"],
 });
 
 const plexMono = IBM_Plex_Mono({
@@ -55,7 +56,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}
+      className={`${archivo.variable} ${plexMono.variable} h-full antialiased`}
       // The inline script below adds `dark` before React hydrates; the DOM's class list wins.
       suppressHydrationWarning
     >

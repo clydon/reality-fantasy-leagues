@@ -2,6 +2,7 @@
 
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore } from "@/lib/store";
+import { CaptionPlate } from "@/components/ui/caption-plate";
 
 // Spoiler protection's one control: new episode results are held back from each member
 // (StateLogic.SpoilerLogic) until they tap this. Only there once there's something to reveal --
@@ -22,14 +23,7 @@ export function useHiddenResults() {
  *  this week's depends on who went home -- so reveal first. */
 export function RevealFirst({ what }: { what: string }) {
   const { reveal } = useHiddenResults();
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4 text-sm shadow-sm">
-      <span className="flex-1 text-muted-foreground">Results are in — reveal them to {what}.</span>
-      <button className="rounded-md bg-primary px-3 py-1.5 text-sm font-bold text-primary-foreground hover:opacity-90" onClick={reveal}>
-        Reveal results
-      </button>
-    </div>
-  );
+  return <CaptionPlate size="sm" tag="First" title="Reveal the results" subtitle={`Then ${what}.`} action="Reveal" onClick={reveal} />;
 }
 
 export function ResultsInBanner() {
@@ -37,25 +31,19 @@ export function ResultsInBanner() {
   if (hidden.length === 0) return null;
   const first = hidden[0].number;
   const last = hidden[hidden.length - 1].number;
+  const which = first === last ? `Episode ${first}` : `Episodes ${first}–${last}`;
 
+  // Direction A: the reveal prompt is a caption plate, like the alert strip. Not watched yet? It
+  // simply stays until they tap it.
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border-2 border-primary bg-primary/10 px-4 py-3 shadow-sm">
-      <span className="text-2xl" aria-hidden>
-        📺
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="font-bold">Results are in!</div>
-        <div className="text-xs text-muted-foreground">
-          {first === last ? `Episode ${first}` : `Episodes ${first}–${last}`} — hidden until you&rsquo;re ready, so nothing
-          gets spoiled.
-        </div>
-      </div>
-      <button
-        className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:opacity-90"
-        onClick={reveal}
-      >
-        Reveal results
-      </button>
-    </div>
+    <CaptionPlate
+      className="mb-4"
+      tag="New"
+      title={first === last ? `${which} results are in` : `${which} are in`}
+      subtitle="Hidden until you reveal. No spoilers."
+      action="Reveal"
+      onClick={reveal}
+      aria-label={`Reveal ${which} results`}
+    />
   );
 }
