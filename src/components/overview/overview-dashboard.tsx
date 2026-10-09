@@ -133,7 +133,13 @@ export function OverviewDashboard() {
               ))}
             </div>
           ) : (
-            <div key={group[0]}>{renderSection(group[0], state)}</div>
+            // A section with nothing to show renders null: its wrapper collapses (empty:hidden) instead
+            // of leaving a blank flex item that doubles the gap. Cards carry no outer margin of their
+            // own -- this column's gap is the only spacing between them, and the wrapper's gap spaces
+            // a section that renders two blocks (e.g. the pick grid's "reveal first" + locked picks).
+            <div key={group[0]} className="flex flex-col gap-3.5 empty:hidden">
+              {renderSection(group[0], state)}
+            </div>
           )
         )}
       </div>

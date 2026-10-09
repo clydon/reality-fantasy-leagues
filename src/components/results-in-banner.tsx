@@ -23,7 +23,7 @@ export function useHiddenResults() {
 export function RevealFirst({ what }: { what: string }) {
   const { reveal } = useHiddenResults();
   return (
-    <div className="mb-5 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4 text-sm shadow-sm">
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4 text-sm shadow-sm">
       <span className="flex-1 text-muted-foreground">Results are in — reveal them to {what}.</span>
       <button className="rounded-md bg-primary px-3 py-1.5 text-sm font-bold text-primary-foreground hover:opacity-90" onClick={reveal}>
         Reveal results
