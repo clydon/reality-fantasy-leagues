@@ -49,8 +49,8 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
 - **Episode research for commissioners, as a compiled-research cache** (`PLAN-episode-research-
   compiled-cache.md`): **built and smoke-tested 2026-10-08 (pieces 1-6)**. See that doc's
   "Implementation notes" for what differs from the plan, and the smoke test's results and fixes.
-  Known gap: an admin can't review a self-serve season's staged results from the UI (its Episodes step
-  waits on a season cast it will never have). Full design and rationale are in
+  The known gap here (an admin couldn't review a self-serve season's staged results) was fixed by the
+  one-cast-per-season plan's curator mode, below. Full design and rationale are in
   that doc now — this entry only summarizes it, and the doc is the one to read before building. In
   short: a read-only cache (`episode_research`/`season_decisions`, already-existing tables, with one
   real fix — a re-research merges into the stored payload per castaway instead of replacing it
@@ -65,14 +65,13 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
   no existing per-league `season_decisions.applied` override; that field is a single, admin-only
   correction applied identically to every league. The plan's per-league apply path is genuinely new,
   not a reuse, and is spelled out there.
-  - **Follow-on, not required day one:** cast import (already shipped) bypasses this entirely,
-    writing straight into the calling league's state with no shared record — so two leagues on the
-    same self-serve season's cast still duplicate that research. Worth retrofitting onto the same
-    model once it exists, but not a blocker for shipping episode research first.
+  - **Follow-on, done 2026-10-09:** cast import used to write only into the calling league, so two
+    leagues on one self-serve season duplicated that research. It now writes the season's shared cast
+    (`PLAN-universal-season-cast.md`).
 
 - **One cast per season, shared by every league on it** (`PLAN-universal-season-cast.md`): a written
-  plan, decided 2026-10-08, **in progress since 2026-10-09**, one piece per session with a review between
-  each, in the plan's "Order of work".
+  plan, decided 2026-10-08. **Done and live 2026-10-09** (`39373d8`), built in the plan's "Order of work"
+  with a review between each piece.
   - **Open questions, resolved 2026-10-09 with the plan's own suggestions:** (1) the creating league's
     cast locks on "Finish cast" or the season's first draft start, whichever comes first; (2) roles aren't
     cast, they're episode-1 results, spoiler-gated; (3) switching league-decided → admin-decided pushes
@@ -92,8 +91,11 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
     - Applied locally with the dry run's fingerprint. The stored leagues were snapshotted before and
       after: the only changed paths are `castaways[i].seasonCastId` (103), and scores are identical
       in all 7 local leagues, including WUYXVU, T9FUMY and B999RR. A second dry run finds 0 new links.
-    - Production: run `node db/link-season-cast.js` there, review its report, then apply with the
-      fingerprint it prints. Until then, a cast approve or a season pick links exact names lazily.
+    - **Production: applied 2026-10-09** with fingerprint `924abd9519ada9d9`, after the user reviewed
+      the dry run. 119 links: S49, all three S51 leagues and Traitors 5 linked by exact name, plus
+      Dancing with the Stars 35's season cast created from "Dancing with the Lars" (YXEGSN), which is
+      in "creating" mode until Finish cast or its draft starts. Every league's proof was "only
+      seasonCastId changes, scores identical".
   - **Step 2, the results switch (piece 4): done locally 2026-10-09; the admin copy and one default
     are waiting on the user's approval.**
     - Migration 0054 adds `show_seasons.results_by` (`admin` | `leagues`, default `leagues`) and
@@ -183,8 +185,8 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
       applied-results counts are unchanged, and the linking dry run finds nothing to do.
     - Gates: tsc clean, eslint only the known pickem error, `npm test` 247/247, both harnesses
       byte-identical.
-    - Still open: the user's approval of the copy (steps 2-4), committing, and running the linking
-      dry run against production.
+    - Shipped in `39373d8`, with the copy and defaults as proposed. The production linking pass is
+      done (above).
   - Found in the smoke test and fixed afterwards: the red "No wiki page yet" now shows only for
     admin-decided seasons, and a season created by a league's cast entry starts as "airing". A season
     created by episode research (`db/episode-research.js`'s own insert) still defaults to "completed";
