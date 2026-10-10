@@ -13,7 +13,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
 
 ## UX redesign in progress: direction A, "Lower Third" (branch `ux-direction-a`, not pushed)
 
-**Status as of 2026-10-10 (light-mode pass done; next is merge and push).** A visual redesign is under way on the local branch `ux-direction-a`.
+**Status as of 2026-10-10 (light-mode pass done; a declutter pass is decided and comes next, then merge and push).** A visual redesign is under way on the local branch `ux-direction-a`.
 **Do not push or merge it until the redesign is done** (the user's call). Read these first:
 
 - `PRODUCT.md` (repo root): product truth captured with the impeccable skill's `init`. Users,
@@ -521,7 +521,18 @@ explained to a commissioner") rather than re-deriving it from source each time.
      setup) and dark at 390 and 1280 for regressions (Overview, League setup, Lineup, Pool, sheet, What's
      New). The two throwaway leagues were deleted (no invites left). `tsc` clean in `src`, eslint clean
      on every changed file, `npm test` 247/247. No paid AI was triggered.
-4. Then merge and push.
+4. **Declutter pass (direction A2), decided 2026-10-10, not built: read `docs/PLAN-ux-declutter.md`.**
+   Next to the mockups the built app felt cluttered (6–8 Overview sections, an arrow link under each,
+   repeated explainers, the page's real job buried in Season Status) and top-light without the alert plate.
+   The user chose, from canvas pages "A2 · …": Overview trimmed to an opener plus three sections per league
+   type (League Scoring, Season Status, the Commissioner list, the post-draft Castaways board and the empty
+   Predictions box leave it); a quiet **status plate** in the alert's slot when nothing's due (O1); the
+   commissioner's to-dos as League Settings dots; a Cast page linked from Episodes; the desktop sidebar as a
+   league plate rail with one expanding account menu (D1); the More sheet as a league plate plus grouped rows
+   (M1); and the mobile header without the logo. New and still to mock: a faded show-art background behind
+   the header, per league. Saved Overview layouts get reset on merge. "Before" shots:
+   `docs/ux-baseline/2026-10-10-declutter/` (script `scripts/declutter.js`).
+5. Then merge and push.
 
 **Notes for the next session:**
 - The impeccable skill's launcher (`~/.claude/skills/impeccable/scripts/impeccable`) downloads and
