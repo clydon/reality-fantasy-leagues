@@ -114,6 +114,11 @@
      raised fill would melt into the white plate beside it. */
   --quiet-tag: #16141d;
   --quiet-tag-foreground: #ffffff;
+  /* The show's art behind Overview's header (.show-art): washed out on Studio, the name's side
+     lightened most. */
+  --art-opacity: 0.3;
+  --art-filter: grayscale(1) contrast(0.8) brightness(1.2);
+  --art-side: linear-gradient(90deg, rgba(236, 235, 241, 0.8) 0%, rgba(236, 235, 241, 0.3) 68%, rgba(236, 235, 241, 0) 100%);
 
   /* ---- depth: only plates, sheets, sticky bars and popovers float ---- */
   --plate-shadow: 0 1px 2px rgba(22, 20, 29, 0.1), 0 4px 14px rgba(22, 20, 29, 0.14);
@@ -176,6 +181,9 @@
   --live-foreground: #2a0a0c;
   --quiet-tag: #2a2633;
   --quiet-tag-foreground: #f4f2f8;
+  --art-opacity: 0.4;
+  --art-filter: grayscale(1) contrast(1.15) brightness(0.9);
+  --art-side: linear-gradient(90deg, rgba(22, 20, 29, 0.72) 0%, rgba(22, 20, 29, 0.25) 68%, rgba(22, 20, 29, 0) 100%);
 
   --plate-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
   --sheet-shadow: 0 -12px 30px rgba(0, 0, 0, 0.45);
@@ -288,6 +296,31 @@
   html {
     @apply font-sans;
   }
+}
+
+/* The show's key art behind Overview's mobile header (mobile-nav.tsx): greyscale at low strength,
+   dimmed toward the league name, faded into the ground before the first section. The league name
+   stays 7:1 or better over it in both modes. */
+.show-art {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 36%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 36%, transparent 100%);
+}
+.show-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 40%;
+  filter: var(--art-filter);
+  opacity: var(--art-opacity);
+}
+.show-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--art-side);
 }
 
 /* Port of SurvivorDraft's boot overlay (public/styles.css) -- a pulsing app icon + three bouncing

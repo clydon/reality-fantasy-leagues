@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useClickOutside } from "@/lib/use-click-outside";
-import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
 import { useReportModalStore } from "@/lib/report-modal-store";
@@ -45,7 +44,8 @@ import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { commissionerItems } from "@/lib/game/commissioner-items";
 import { useHeaderAction } from "@/lib/header-action-store";
-import { useShowTerms } from "@/lib/use-show-terms";
+import { useShowCatalog, useShowTerms } from "@/lib/use-show-terms";
+import { publicMediaSrc } from "@/lib/game/selectors";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
 // / <nav class="mobile-bottombar"> / <div class="mobile-more-sheet">, populated by
@@ -162,6 +162,19 @@ export function MobileNav() {
   const activeSeats = state.players.filter((p) => !p.disabled).length;
   // League Settings' rows carry the commissioner's to-dos as dots; this one says there's one inside.
   const commishWaiting = canManage && commissionerItems(state).length > 0;
+  // The league's show art for Overview's header (catalog shows.art_url), unless it failed to load.
+  const { data: catalog } = useShowCatalog();
+  const [artFailed, setArtFailed] = useState<string | null>(null);
+  const showArt = publicMediaSrc(catalog?.shows.find((sh) => sh.slug === state.settings.showId)?.art_url);
+  const artSrc = pathname === "/" && mode === "live" && showArt && showArt !== artFailed ? showArt : null;
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    if (!artSrc) return;
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [artSrc]);
 
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
@@ -322,10 +335,27 @@ export function MobileNav() {
 
   return (
     <>
-      <header className="sticky top-[env(safe-area-inset-top,0px)] z-[55] hidden border-b border-border bg-panel-menu max-nav:block">
-        <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-          {/* The logo opens the league menu, same as tapping the name. Stopping pointerdown keeps the
-              menu's click-outside close from firing first, which would close-then-reopen it. */}
+      {/* Overview only: the show's key art, faded, behind the header and the opener plate
+          (docs/PLAN-ux-declutter.md, decision 8; the canvas's "A2 · Header art"). A texture, not a
+          picture: greyscale, low strength, dimmed toward the name and gone before the first section
+          (.show-art in globals.css). It sits at the top of the page under everything, so it scrolls
+          away with it. A show without art gets the plain ground. */}
+      {artSrc && (
+        <div aria-hidden className="show-art pointer-events-none absolute inset-x-0 top-0 -z-10 hidden h-[170px] max-nav:block">
+          {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
+          <img src={artSrc} alt="" onError={() => setArtFailed(artSrc)} />
+        </div>
+      )}
+      <header
+        className={cn(
+          "sticky top-[env(safe-area-inset-top,0px)] z-[55] hidden border-b transition-colors max-nav:block",
+          // Over the art the bar is clear until the page scrolls under it.
+          artSrc && !scrolled ? "border-transparent bg-transparent" : "border-border bg-panel-menu",
+        )}
+      >
+        <div className={cn("flex items-center gap-2.5 py-2.5", pageTitle ? "px-3.5" : "pl-4 pr-3.5")}>
+          {/* No logo (docs/PLAN-ux-declutter.md): a page under another gets a back button; any other
+              page with a title balances chat with a spacer, so the title stays centred. */}
           {parentHref ? (
             <Link
               href={parentHref}
@@ -334,28 +364,16 @@ export function MobileNav() {
             >
               <ChevronLeft className="size-6" strokeWidth={2.2} aria-hidden />
             </Link>
-          ) : mode !== "mock" && leagues.length > 0 ? (
+          ) : (
+            pageTitle && <span className="w-[34px] shrink-0" aria-hidden />
+          )}
+          <div ref={leagueMenuRef} className="relative min-w-0 flex-1">
             <button
-              type="button"
-              aria-label="Switch league"
-              className="h-[30px] w-[30px] shrink-0 overflow-hidden rounded-lg shadow-sm"
+              className={cn("flex w-full min-w-0 items-center gap-1 py-0.5 text-foreground", pageTitle ? "justify-center" : "justify-start")}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={toggleLeagueMenu}
-            >
-              <Image src="/icon.png" alt="" width={30} height={30} className="h-full w-full object-cover" />
-            </button>
-          ) : (
-            <Link href="/" className="h-[30px] w-[30px] shrink-0 overflow-hidden rounded-lg shadow-sm">
-              <Image src="/icon.png" alt="" width={30} height={30} className="h-full w-full object-cover" />
-            </Link>
-          )}
-          {/* visibility, not display -- demo mode has nothing to switch between, but the button
-              still reserves its layout space, exactly like the live app's leagueBtn.style.visibility. */}
-          <div ref={leagueMenuRef} className={cn("relative min-w-0 flex-1", mode === "mock" && "invisible")}>
-            <button
-              className="flex w-full min-w-0 items-center justify-center gap-1 py-0.5 text-foreground"
-              onClick={toggleLeagueMenu}
-              disabled={leagues.length === 0}
+              disabled={mode === "mock" || leagues.length === 0}
+              aria-label={pageTitle ? undefined : "Switch league"}
             >
               {pageTitle ? (
                 // Direction A: every page names itself. The league name moves up to a small line above
@@ -363,21 +381,27 @@ export function MobileNav() {
                 <span className="flex min-w-0 flex-col items-center gap-0.5">
                   <span className="flex min-w-0 items-center gap-0.5 text-[12px] font-semibold text-muted-foreground">
                     <SwipeTitle name={mode === "mock" ? "Demo Mode" : (leagueName ?? "")} className="truncate" />
-                    <ChevronDownIcon className={cn("h-3.5 w-3.5 shrink-0 transition-transform", leagueMenuOpen && "rotate-180")} />
+                    {mode !== "mock" && <ChevronDownIcon className={cn("h-3.5 w-3.5 shrink-0 transition-transform", leagueMenuOpen && "rotate-180")} />}
                   </span>
                   <span className="type-caption truncate text-[22px]">{pageTitle}</span>
                 </span>
               ) : (
+                // Overview: the league name is the page's title, left-aligned like the canvas's A2 pages.
                 <>
-                  {/* Balances the arrow on the right, so the name is centred in the bar. */}
-                  <span className="w-4 shrink-0" aria-hidden />
-                  <SwipeTitle name={mode === "mock" ? "Demo Mode" : (leagueName ?? "")} className="type-caption truncate text-[22px]" />
-                  <ChevronDownIcon className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
+                  <SwipeTitle name={mode === "mock" ? "Demo Mode" : (leagueName ?? "")} className="type-caption truncate text-[26px] leading-none" align="start" />
+                  {mode !== "mock" && (
+                    <ChevronDownIcon className={cn("h-[18px] w-[18px] shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
+                  )}
                 </>
               )}
             </button>
             {leagueMenuOpen && (
-              <div className="absolute left-1/2 top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] -translate-x-1/2 overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md">
+              <div
+                className={cn(
+                  "absolute top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md",
+                  pageTitle ? "left-1/2 -translate-x-1/2" : "left-0",
+                )}
+              >
                 <LeagueMenu
                   leagues={leagues}
                   leagueId={leagueId}
@@ -636,3 +660,4 @@ function MoreRow({
     </button>
   );
 }
+

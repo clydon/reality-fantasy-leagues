@@ -7,6 +7,7 @@ import { create } from "zustand";
 import { LeagueStoreContext, makePeekStore, useLeagueStore } from "@/lib/store";
 import { api } from "@/lib/api";
 import StateLogic from "@/lib/game/state-logic.js";
+import { cn } from "cn";
 
 // Swipe left/right between LINKED leagues (league-groups.ts) on a phone, staying on the same page.
 // While you drag, the neighbouring league's version of this page slides in beside the current one --
@@ -298,7 +299,7 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
  * by exactly its own height so the two never overlap mid-change. Centred, with dots under it showing
  * where you are in the linked group.
  */
-export function SwipeTitle({ name, className }: { name: string; className?: string }) {
+export function SwipeTitle({ name, className, align = "center" }: { name: string; className?: string; align?: "center" | "start" }) {
   const { progress, targetName, dragging } = useSwipeProgress();
   const { ids, index } = useLinkedOrder();
   const p = Math.max(-1, Math.min(1, progress));
@@ -307,11 +308,13 @@ export function SwipeTitle({ name, className }: { name: string; className?: stri
   const dir = p < 0 ? -1 : 1;
   const transition = dragging ? "none" : `transform ${SETTLE_MS}ms ease-out`;
   return (
-    // A fixed-width box (the space it's given), not one sized to the name: sized to the name, it
-    // resized as a longer or shorter one landed, and the centred text jumped sideways at the end.
-    <span className="flex min-w-0 flex-1 flex-col items-center">
+    // Centred: a fixed-width box (the space it's given), not one sized to the name: sized to the name,
+    // it resized as a longer or shorter one landed, and the centred text jumped sideways at the end.
+    // Left-aligned (Overview's header) the name's start never moves, so the box can fit the name and
+    // keep the switcher's chevron right beside it.
+    <span className={cn("flex min-w-0 flex-col", align === "start" ? "items-start" : "flex-1 items-center")}>
       <span className="relative block w-full min-w-0 overflow-hidden">
-        <span className={className} style={{ display: "block", textAlign: "center", transform: `translateY(${dir * t * 100}%)`, transition }}>
+        <span className={className} style={{ display: "block", textAlign: align === "start" ? "left" : "center", transform: `translateY(${dir * t * 100}%)`, transition }}>
           {name}
         </span>
         {targetName && t > 0 && (
@@ -321,7 +324,7 @@ export function SwipeTitle({ name, className }: { name: string; className?: stri
               position: "absolute",
               inset: 0,
               display: "block",
-              textAlign: "center",
+              textAlign: align === "start" ? "left" : "center",
               transform: `translateY(${-dir * (1 - t) * 100}%)`,
               transition,
             }}
