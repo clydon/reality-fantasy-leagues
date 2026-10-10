@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
+import { PageBackLink } from "@/components/back-link";
 import type { Episode, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
@@ -38,7 +38,7 @@ export function EpisodeDetail({ number }: { number: number }) {
   if (!ep) {
     return (
       <div className="flex flex-col items-start gap-3">
-        <BackLink />
+        <PageBackLink />
         <p className="text-base text-muted-foreground">There&rsquo;s no episode {number} in this league.</p>
       </div>
     );
@@ -85,7 +85,7 @@ function EpisodeView({ ep, state }: { ep: Episode; state: LeagueState }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <BackLink className="max-nav:hidden" />
+        <PageBackLink className="max-nav:hidden" />
         <div className="flex items-center gap-3">
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <h2 className="type-caption text-[28px] max-nav:hidden">Episode {ep.number}</h2>
@@ -433,16 +433,4 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Chip({ children }: { children: React.ReactNode }) {
   return <span className="rounded-[2px] bg-muted px-1.5 py-0.5 text-[12px] font-semibold text-muted-foreground">{children}</span>;
-}
-
-function BackLink({ className }: { className?: string }) {
-  return (
-    <Link
-      href="/episodes"
-      className={`-ml-1 inline-flex min-h-11 items-center gap-0.5 self-start pr-2 text-sm font-semibold text-muted-foreground hover:text-foreground ${className ?? ""}`}
-    >
-      <ChevronLeft className="size-5" strokeWidth={2.2} aria-hidden />
-      Episodes
-    </Link>
-  );
 }

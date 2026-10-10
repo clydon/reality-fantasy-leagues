@@ -2,7 +2,8 @@
 
 import { useState, type ComponentType, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Lock, Minus, MoreHorizontal, Plus } from "lucide-react";
+import { PageBackLink } from "@/components/back-link";
+import { ChevronRight, Lock, Minus, MoreHorizontal, Plus } from "lucide-react";
 import { useCanManage } from "@/lib/store";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { cn } from "cn";
@@ -15,11 +16,13 @@ import { cn } from "cn";
 /** One settings sub-page: a back link and title on desktop (the mobile header has both), then content. */
 export function SettingsPage({
   title,
-  back = { href: "/setup", label: "League Settings" },
+  back,
   actions,
   children,
 }: {
   title: string;
+  /** Where back goes when you didn't come from somewhere in this league (lib/nav-trail.ts);
+      defaults to the page's parent. */
   back?: { href: string; label: string };
   /** Opens the page's ⋯ sheet; the button only shows when given. */
   actions?: { label: string; onClick: () => void };
@@ -29,13 +32,7 @@ export function SettingsPage({
     <div className="flex max-w-[640px] flex-col gap-6">
       <div className={cn("flex items-end gap-3", !actions && "max-nav:hidden")}>
         <div className="flex min-w-0 flex-1 flex-col gap-1 max-nav:hidden">
-          <Link
-            href={back.href}
-            className="-ml-1 inline-flex min-h-11 items-center gap-0.5 self-start pr-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
-          >
-            <ChevronLeft className="size-5" strokeWidth={2.2} aria-hidden />
-            {back.label}
-          </Link>
+          <PageBackLink fallback={back} />
           <h2 className="type-caption text-[28px]">{title}</h2>
         </div>
         {actions && <MoreButton label={actions.label} onClick={actions.onClick} className="ml-auto" />}

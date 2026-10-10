@@ -27,6 +27,7 @@ import { ResultsInBanner, RevealSheet } from "@/components/results-in-banner";
 import { LeagueSwipe } from "@/components/league-swipe";
 import { AdminMobileChrome, AdminSidebar, isAdminRoute } from "@/components/admin/admin-shell";
 
+import { useRecordNavTrail } from "@/lib/nav-trail";
 type Status = "checking" | "idle" | "loading";
 
 // Password recovery bypasses this gate entirely: both are reached from an emailed link with no
@@ -53,6 +54,8 @@ const isFullscreen = (pathname: string) => FULLSCREEN_ROUTES.some((r) => pathnam
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
+  // Where each page's back goes (lib/nav-trail.ts).
+  useRecordNavTrail();
   const mode = useLeagueStore((s) => s.mode);
   const loadLive = useLeagueStore((s) => s.loadLive);
   const enterMockMode = useLeagueStore((s) => s.useMock); // renamed locally -- a plain callback, not a hook, but eslint's rule flags anything named use*

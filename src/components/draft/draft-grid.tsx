@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { PageBackLink } from "@/components/back-link";
 import { useLeagueStore, useMyPlayerId } from "@/lib/store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { cn } from "cn";
@@ -27,13 +26,7 @@ export function DraftGrid() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 max-nav:hidden">
-        <Link
-          href="/draft"
-          className="-ml-1 inline-flex min-h-11 items-center gap-0.5 self-start pr-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft className="size-5" aria-hidden />
-          Draft
-        </Link>
+        <PageBackLink />
         <h2 className="type-caption text-[28px]">Draft board</h2>
       </div>
 

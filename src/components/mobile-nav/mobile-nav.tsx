@@ -40,7 +40,9 @@ import {
 import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
 import { SwipeTitle } from "@/components/league-swipe";
-import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import { ChevronRight, MoreHorizontal } from "lucide-react";
+import { BackLink } from "@/components/back-link";
+import { pageTitle as pageTitleFor, useBackTarget } from "@/lib/nav-trail";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { commissionerItems } from "@/lib/game/commissioner-items";
 import { useHeaderAction } from "@/lib/header-action-store";
@@ -236,58 +238,15 @@ export function MobileNav() {
         { href: "", label: "Demo Season", icon: EpisodesIcon },
       ];
 
-  // The page's own name for the top bar. Overview has none: there the league name is the title.
-  const PAGE_TITLES: Record<string, string> = {
-    "/episodes": "Episodes",
-    "/scoreboard": "Scoreboard",
-    "/draft": "Draft",
-    "/mid-season": "Mid-Season",
-    "/research": "Research",
-    "/lineup": "Lineup",
-    "/pick": "Pick",
-    "/chat": "Chat",
-    "/setup": "League Settings",
-    "/account": "Account",
-    "/dashboard": "My Leagues",
-  };
-  // A page under another one (an episode's own page, the draft board) names itself and gets a back
-  // button to its parent in place of the logo.
-  const episodeMatch = /^\/episodes\/(\d+)$/.exec(pathname);
-  const boardPage = pathname === "/draft/board";
-  const castPage = pathname === "/cast";
-  // A player's own Scoreboard page is titled with their name.
-  // (/scoreboard/lines is the commissioner's episode lines, not a player.)
-  const linesPage = pathname === "/scoreboard/lines";
-  const scorePlayer = linesPage ? null : /^\/scoreboard\/([^/]+)$/.exec(pathname);
-  const scorePlayerName = scorePlayer ? (state.players.find((p) => p.id === decodeURIComponent(scorePlayer[1]))?.name ?? "Scoreboard") : null;
-  // League Settings' own pages (docs/PLAN-ux-redesign.md, 2b), each a row of /setup.
-  const SETUP_PAGES: Record<string, string> = {
-    "/setup/players": "Players & invites",
-    "/setup/league": "League setup",
-    "/setup/lineups": "Lineups",
-    "/setup/rules": "Scoring & rules",
-    "/setup/rules/edit": "Edit rules",
-    "/setup/pickups": "Swaps & pickups",
-    "/setup/predictions": "Predictions",
-    "/setup/cast": `${terms.Tribes} & ${terms.castaways}`,
-    "/setup/linked": "Linked leagues",
-    "/setup/backup": "Backup",
-  };
-  const setupPage = SETUP_PAGES[pathname];
-  const parentHref = episodeMatch || castPage
-    ? "/episodes"
-    : scorePlayer || linesPage
-      ? "/scoreboard"
-    : boardPage
-      ? "/draft"
-      : setupPage
-        ? pathname === "/setup/rules/edit"
-          ? "/setup/rules"
-          : "/setup"
-        : null;
-  const pageTitle =
-    PAGE_TITLES[pathname] ??
-    (episodeMatch ? `Episode ${episodeMatch[1]}` : castPage ? "The cast" : linesPage ? "Episode lines" : boardPage ? "Draft board" : (scorePlayerName ?? setupPage ?? null));
+  // The page's own name for the top bar. Overview has none: there the league name is the title. A
+  // page under another gets a back that names where it goes (lib/nav-trail.ts: the page you came
+  // from, else its parent).
+  const pageTitle = pageTitleFor(pathname, {
+    playerName: (id) => state.players.find((p) => p.id === id)?.name,
+    tribes: terms.Tribes,
+    castaways: terms.castaways,
+  });
+  const back = useBackTarget();
 
   function go(href: string) {
     // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same
@@ -355,21 +314,17 @@ export function MobileNav() {
           artSrc && !scrolled ? "border-transparent bg-transparent" : "border-border bg-panel-menu",
         )}
       >
-        <div className={cn("flex items-center gap-2.5 py-2.5", pageTitle ? "px-3.5" : "pl-4 pr-3.5")}>
-          {/* No logo (docs/PLAN-ux-declutter.md): a page under another gets a back button; any other
-              page with a title balances chat with a spacer, so the title stays centred. */}
-          {parentHref ? (
-            <Link
-              href={parentHref}
-              aria-label="Back"
-              className="-my-1.5 -ml-2 flex h-11 w-11 shrink-0 items-center justify-center text-foreground"
-            >
-              <ChevronLeft className="size-6" strokeWidth={2.2} aria-hidden />
-            </Link>
-          ) : (
-            pageTitle && <span className="w-[34px] shrink-0" aria-hidden />
+        <div
+          className={cn(
+            "py-2.5",
+            // A titled page is three columns, so the title stays centred whatever the back says.
+            pageTitle ? "grid grid-cols-[minmax(34px,1fr)_auto_minmax(34px,1fr)] items-center gap-2 px-3.5" : "flex items-center gap-2.5 pl-4 pr-3.5",
           )}
-          <div ref={leagueMenuRef} className="relative min-w-0 flex-1">
+        >
+          {/* No logo (docs/PLAN-ux-declutter.md). A page under another backs up to where you came from,
+              named; any other titled page leaves the left column empty. */}
+          {pageTitle && <div className="flex min-w-0 items-center">{back && <BackLink target={back} variant="header" />}</div>}
+          <div ref={leagueMenuRef} className={cn("relative min-w-0", !pageTitle && "flex-1")}>
             <button
               className={cn("flex w-full min-w-0 items-center gap-1 py-0.5 text-foreground", pageTitle ? "justify-center" : "justify-start")}
               onPointerDown={(e) => e.stopPropagation()}
@@ -422,14 +377,14 @@ export function MobileNav() {
               type="button"
               aria-label={headerAction.label}
               onClick={headerAction.onClick}
-              className="-my-1.5 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center text-foreground"
+              className="-my-1.5 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center justify-self-end text-foreground"
             >
               <MoreHorizontal className="size-[22px]" strokeWidth={2.2} aria-hidden />
             </button>
           ) : (
             <Link
               href="/chat"
-              className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-foreground"
+              className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center justify-self-end rounded-full text-foreground"
               aria-label="Chat"
             >
               <ChatIcon className="h-[19px] w-[19px]" />

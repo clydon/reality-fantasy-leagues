@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { PageBackLink } from "@/components/back-link";
 import { useLeagueStore } from "@/lib/store";
 import { CastByTribe } from "@/components/overview/cast-by-tribe";
 
@@ -14,13 +13,7 @@ export function CastPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1 max-nav:hidden">
-        <Link
-          href="/episodes"
-          className="-ml-1 inline-flex min-h-11 items-center gap-0.5 self-start pr-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft className="size-5" strokeWidth={2.2} aria-hidden />
-          Episodes
-        </Link>
+        <PageBackLink />
         <h2 className="type-caption text-[28px]">The cast</h2>
       </div>
       {state.castaways.length === 0 ? (
