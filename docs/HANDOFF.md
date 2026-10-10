@@ -13,7 +13,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
 
 ## UX redesign in progress: direction A, "Lower Third" (branch `ux-direction-a`, not pushed)
 
-**Status as of 2026-10-09.** A visual redesign is under way on the local branch `ux-direction-a`.
+**Status as of 2026-10-10.** A visual redesign is under way on the local branch `ux-direction-a`.
 **Do not push or merge it until the redesign is done** (the user's call). Read these first:
 
 - `PRODUCT.md` (repo root): product truth captured with the impeccable skill's `init`. Users,
@@ -64,7 +64,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
    pass.
 2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~,
    ~~League Settings~~, ~~Create a league~~, ~~Overview & Scoreboard (commissioner)~~, ~~Spoilers &
-   reveal~~, ~~Active Roster~~, ~~Classic~~, ~~Eliminator Pool~~; admin last (next).
+   reveal~~, ~~Active Roster~~, ~~Classic~~, ~~Eliminator Pool~~, ~~Admin~~. All screens done; the light-mode pass is next.
    - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
      episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
      `src/app/episodes/[number]/page.tsx` -> `episode-detail.tsx`: read view by default (who left as
@@ -430,6 +430,50 @@ explained to a commissioner") rather than re-deriving it from source each time.
      Episodes and Overview after both outcomes; used tiles on Episode 3. Plus 1280 dark and 390 light,
      and the tab bar on `UX AR S51` (Lineup) and `UX Baseline S51` (Chat) for regressions. No console
      errors, no horizontal overflow, `npm test` 247/247. No test data left behind.
+   - **Admin done 2026-10-10** (plan 3a-3g; canvas page "A · Admin": Admin-Home, NewShow, ShowReview,
+     Cast, Episode, Approve). The one long /admin page is now an admin area of separate pages, shared
+     pieces in `admin/admin-ui.tsx` (`AdminPage`, `Row`, `ActButton`, `StickyBar`, `Step`, `CopyButton`,
+     `Segmented`, `useAdminShows`/`useAdminSeason`) and episode-list logic in `lib/admin-season.ts`.
+   - **Its own chrome** (`admin/admin-shell.tsx`, an AuthGate branch for `/admin/*`): on a phone a header
+     (Back, "Admin" over the page name, a Paid AI on/off chip linking to Site) and a tab bar To do · Shows ·
+     Users · Leagues · Site (chyron dot on To do while anything waits); on desktop an admin sidebar with
+     "Back to {league}", plus Formats & rules and Reports. No alert strip, league swipe or install banner
+     there. `/admin/layout.tsx` gates every page to super-admins and loads the paid-AI preferences.
+   - **Pages:** `/admin` To do (Needs you: results per episode, a backlog season as one row, casts to
+     approve, draft formats, open reports, airing seasons with no schedule; only the first button
+     chyron; then Coming up). `/admin/shows` (empty and archived shows behind a disclosure),
+     `/admin/shows/new` (Research new rules: name, terms, optional wiki/seasons, copy prompt, paste, then
+     "Review the format" opens it; or Use a show's rules), `/admin/shows/[id]` (seasons, Add season sheet,
+     ⋯ Archive/Delete) and `/settings` (Basics, "Connector and art" disclosure, Danger zone).
+     `/admin/seasons/[id]` with tabs Episodes (schedule and auto-research summaries, wiki pull when paid
+     AI is on, episode rows with one status and Review), `/cast` (rows with ⋯ Rename/Photo/Tribe/Remove,
+     "Add photo" where one's missing, the tribes-hold toggle, change log, sticky Approve; Pull again is
+     in ⋯ with its price and a confirm), `/rules` (the existing rule-check component) and `/setup` (name,
+     status, wiki, schedule, auto research, who decides, Danger zone). `/episodes/[n]` sources (Wiki,
+     Research, Paste research with the two steps; Clear/Discard in ⋯; sticky "Review N") and
+     `/episodes/[n]/review` (see DESIGN.md). `/admin/formats` and `/formats/[id]` (built-in read-only via
+     `FormatRulesView`, researched via `FormatReviewScreen`). `/admin/users` and `/users/[id]` (Profile,
+     Password with a confirm now, Leagues with ⋯ role/unlink, Danger zone), `/admin/leagues` and
+     `/leagues/[id]` (players with ⋯ link/unlink/remove, a link sheet), `/admin/site` (the two switches,
+     AI models, What's New preview, Overview layouts, restyled flat), `/admin/reports` (`/reports`
+     redirects there; the More sheet and sidebar no longer list Reports).
+   - **Moved, not lost:** the AI model picker went from the Shows card to Site (`paid-ai-store` holds it
+     now, same localStorage key). Cast photos resolve through `castawayPhotoSrc` (relative paths broke on
+     the deeper routes). Deleted: `admin-tab`, `shows-section`, `season-cast-review`,
+     `season-decisions-review`, `formats-panel`, `user-edit-modal`, `link-membership-form`,
+     `reports/reports-tab`, `lib/reports-store`.
+   - Not done: the canvas's paste-a-cast flow on the Cast tab (there's no admin route that adds people
+     from a pasted cast; the wiki pull stays the source). The insides of the format editor
+     (`format-review-screen.tsx`), the built-in rules view and the season rule-check review are the old
+     screens in the new frame (their dropdowns are kept from running off a phone). Users and leagues are
+     rows at every width, not a desktop table. Delete league still uses the plain confirm, not a typed
+     name. No pending-result episode existed for Survivor 51 locally, so Needs a look and Accept all were
+     checked on The Traitors (US) 5.
+   - Verified with `docs/ux-baseline/scripts/admin-flow.js` (read-only: it blocks any accept, decide,
+     pull, research or approve request, and leaves paid AI off) at 390×844 dark on Survivor 51 and The
+     Traitors (US) 5, at 1280×900 dark, and 390 light. Every page, the cast row sheet, the paste panel
+     (the free prompt fetch only), the review hidden and shown with a result sheet. No console errors,
+     no horizontal overflow, `npm test` 247/247. No data was changed.
 3. Light mode pass.
 4. Then merge and push.
 

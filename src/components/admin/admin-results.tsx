@@ -1,0 +1,225 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronRight } from "lucide-react";
+import type { LeagueDecisionSync, ModelUsage, ResearchCastaway, SeasonResearchResult, WikiSeasonSyncResult } from "@/lib/game/types";
+import { AI_MODELS, costOf, formatCost } from "@/lib/ai-cost";
+import { formatFor, withChanges } from "@/lib/game/formats/index.js";
+import { useShowPaidAi, useShowSpoilers } from "@/lib/paid-ai-store";
+import { ActButton, Cost, count } from "./admin-ui";
+import { cn } from "cn";
+
+// What a finished admin action did, said plainly next to where it was run: a wiki pull, an episode's
+// research, and accepting results into leagues. Spoiler-safe: with "Show episode results" off, anything
+// that would name a castaway or an outcome is a count.
+
+export function modelLabel(id: string | null | undefined) {
+  return AI_MODELS.find((m) => m.id === id)?.label ?? id ?? "";
+}
+
+/** What a finished call actually cost, from the usage the API reported. */
+export function SpentNote({ model, usage, cached }: { model?: string | null; usage?: ModelUsage | null; cached: boolean }) {
+  if (cached) return <Cost title="Nothing was sent to the model">Free, nothing new to read.</Cost>;
+  const usd = costOf(model, usage);
+  if (usd == null) return null;
+  const tokens = usage ? `${usage.input_tokens} in / ${usage.output_tokens} out` : "";
+  const searches = usage?.web_search_requests ? `, ${usage.web_search_requests} searches` : "";
+  return <Cost title={`${modelLabel(model)}: ${tokens} tokens${searches}`}>Cost {formatCost(usd)}.</Cost>;
+}
+
+const box = "flex flex-col gap-1.5 rounded-[3px] bg-card px-3.5 py-3 text-sm";
+
+/** One line of outcome for an episodes pull; any failure always visible, never behind a click. */
+export function PullResult({ result, busy, onForce, forceCost }: { result: WikiSeasonSyncResult; busy: boolean; onForce: () => void; forceCost: string }) {
+  const d = result.decisions;
+  const showPaid = useShowPaidAi();
+  const showSpoilers = useShowSpoilers();
+  return (
+    <div className={box} role="status">
+      <p>
+        {result.cached ? "The wiki hasn't changed since the last read." : "Read fresh from the wiki."}{" "}
+        {d && (d.inserted ? `${count(d.inserted, "new result")} to review.` : "Nothing new to review.")}
+        {d?.withdrawn ? ` ${d.withdrawn} withdrawn (no longer on the wiki).` : ""}{" "}
+        <SpentNote model={result.model} usage={result.usage} cached={result.cached} />
+      </p>
+      {d?.unmatched?.length ? (
+        <p className="text-destructive">
+          {showSpoilers ? (
+            <>Couldn&rsquo;t match to the cast, so dropped: {d.unmatched.join(", ")}. Fix the name in the cast, then pull again.</>
+          ) : (
+            <>{count(d.unmatched.length, "result")} couldn&rsquo;t be matched to the cast. Show names to see which.</>
+          )}
+        </p>
+      ) : null}
+      {d?.dropped?.length ? (
+        <p className="text-muted-foreground">
+          {showSpoilers
+            ? `Thrown out as impossible: ${d.dropped.map((x) => `${x.name} (ep ${x.episode}: ${x.why})`).join("; ")}.`
+            : `${d.dropped.length} thrown out as impossible.`}
+        </p>
+      ) : null}
+      {/* The only way past the revision-id cache: offered only when the cache was hit, the one case
+          where pulling again would otherwise do nothing. */}
+      {result.cached && showPaid && (
+        <span className="flex items-center gap-2">
+          <ActButton disabled={busy} onClick={onForce}>
+            Read it again anyway
+          </ActButton>
+          <Cost>{forceCost}</Cost>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What one episode's research found. The summary says what happened to the RESULTS (they're review
+ * items now); the full checklist is behind a toggle, and lists every castaway, including the ones
+ * nothing was found for -- telling "asked, nothing found" apart from "never asked" is the point.
+ */
+export function ResearchResult({ research, busy, onForce, forceCost }: { research: SeasonResearchResult; busy: boolean; onForce: () => void; forceCost: string }) {
+  const [open, setOpen] = useState(false);
+  const showPaid = useShowPaidAi();
+  const showSpoilers = useShowSpoilers();
+  const { payload, provenance, counts, problems } = research;
+  const notesFor = (c: ResearchCastaway) => withChanges(formatFor(provenance.format, research.formatData), research.ruleChanges).research.notes(c);
+  const noted = payload.castaways.filter((c) => notesFor(c).length > 0);
+  const quiet = payload.castaways.filter((c) => notesFor(c).length === 0);
+  const newItems = research.decisions?.inserted ?? 0;
+
+  return (
+    <div className={box} role="status">
+      <p>
+        <b>{research.cached ? "Already researched, reused." : "Researched."}</b> {noted.length} of {counts.castaways} had something to note;{" "}
+        {newItems ? `${count(newItems, "new result")} to review.` : "nothing new to review."}{" "}
+        {provenance.pasteMode === "json" ? (
+          <Cost title="Pasted as JSON and read directly; nothing was sent to a model">Free.</Cost>
+        ) : (
+          <SpentNote model={provenance.model} usage={provenance.usage} cached={research.cached} />
+        )}
+      </p>
+      {provenance.domainsBlocked?.length ? (
+        <p className="text-muted-foreground">
+          {provenance.domainsBlocked.join(", ")} block{provenance.domainsBlocked.length === 1 ? "s" : ""} Anthropic&rsquo;s search, so{" "}
+          {provenance.domainsBlocked.length === 1 ? "it was" : "they were"} skipped. Remove {provenance.domainsBlocked.length === 1 ? "it" : "them"} from the
+          show&rsquo;s research sites.
+        </p>
+      ) : null}
+      {problems.length > 0 &&
+        (showSpoilers ? (
+          <ul className="text-destructive">
+            {problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-destructive">{count(problems.length, "answer")} to double-check. Show names to see them.</p>
+        ))}
+      <span className="flex flex-wrap items-center gap-2">
+        {/* The details are the episode's events, by name: off-limits with spoilers off. */}
+        {showSpoilers && (
+          <ActButton onClick={() => setOpen((v) => !v)}>
+            <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} strokeWidth={2.4} aria-hidden />
+            {open ? "Hide details" : "Details"}
+          </ActButton>
+        )}
+        {showPaid && (
+          <>
+            <ActButton disabled={busy} onClick={onForce}>
+              Research again
+            </ActButton>
+            <Cost>{forceCost}</Cost>
+          </>
+        )}
+      </span>
+      {open && showSpoilers && (
+        <div className="flex flex-col gap-2 border-t border-border pt-2">
+          <p>{payload.summary}</p>
+          {payload.rulesNote && (
+            <p>
+              <b>Rules note:</b> {payload.rulesNote} <span className="text-muted-foreground">See the season&rsquo;s Rules tab.</span>
+            </p>
+          )}
+          <ul className="flex flex-col gap-1">
+            {noted.map((c) => (
+              <li key={c.name} className="flex flex-wrap items-baseline gap-1.5">
+                <span
+                  className={cn(
+                    "rounded-[2px] px-1 text-[10px] font-bold uppercase tracking-wide",
+                    c.confidence === "high" ? "bg-good/20 text-good" : c.confidence === "medium" ? "bg-muted text-muted-foreground" : "bg-chyron/20 text-chyron",
+                  )}
+                >
+                  {c.confidence}
+                </span>
+                <b>{c.name}</b>
+                <span>{notesFor(c).join("; ")}</span>
+                {c.sources.length ? (
+                  <span className="text-muted-foreground">
+                    {c.sources.map((url, i) => (
+                      <a key={url} href={url} target="_blank" rel="noreferrer" className="ml-1 underline underline-offset-2" title={url}>
+                        [{i + 1}]
+                      </a>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="font-semibold text-destructive">no source</span>
+                )}
+              </li>
+            ))}
+          </ul>
+          {provenance.castSkipped?.length ? (
+            <p className="text-muted-foreground">
+              <b>Not asked (already out):</b> {provenance.castSkipped.join(", ")}
+            </p>
+          ) : null}
+          {quiet.length > 0 && (
+            <p className="text-muted-foreground">
+              <b>Asked, nothing found:</b> {quiet.map((c) => c.name).join(", ")}
+            </p>
+          )}
+          {(payload.betAnswers || []).length > 0 && (
+            <div>
+              <b>Predictions settled</b> <span className="text-muted-foreground">(shown to commissioners when they grade)</span>
+              <ul className="ml-4 list-disc">
+                {(payload.betAnswers || []).map((b) => (
+                  <li key={b.question}>
+                    {b.question}: <b>{b.answer ?? "couldn’t tell"}</b>
+                    {b.answer && <span className="text-muted-foreground"> ({b.confidence})</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {counts.sourced} sourced · {counts.lowConfidence} low confidence · {counts.unknowns} unknown ·{" "}
+            {provenance.provider === "paste"
+              ? provenance.pasteMode === "json"
+                ? "pasted JSON"
+                : "pasted notes, structured"
+              : `${provenance.pagesRead.length} pages read`}
+            {provenance.model ? ` · ${modelLabel(provenance.model)}` : ""}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** What accepting or deciding results did in each league, as one line plus any problems. */
+export function syncSummary(leagues: LeagueDecisionSync[], showSpoilers: boolean): { text: string; problems: string[] } {
+  const applied = leagues.reduce((n, l) => n + l.applied, 0);
+  const undone = leagues.reduce((n, l) => n + l.undone, 0);
+  const skipped = leagues.flatMap((l) => l.skipped.map((s) => `${l.leagueName}: ${s.name}, ${s.why}`));
+  const problems = [
+    ...leagues.filter((l) => l.error).map((l) => `${l.leagueName}: ${l.error}`),
+    // Who couldn't be applied names a castaway: a count only with spoilers off.
+    ...(showSpoilers || !skipped.length ? skipped : [`${count(skipped.length, "result")} couldn't be applied. Show names to see which.`]),
+  ];
+  const parts = [applied && `${applied} applied`, undone && `${undone} undone`].filter(Boolean);
+  return {
+    text: leagues.length
+      ? `${count(leagues.length, "league")} updated${parts.length ? ` (${parts.join(", ")})` : ""}.`
+      : "No league plays this season yet. They'll get these results when they pick it.",
+    problems,
+  };
+}

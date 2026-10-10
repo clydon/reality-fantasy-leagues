@@ -153,9 +153,6 @@ export function Sidebar() {
             <Link href="/admin" className="block text-[0.8rem] font-semibold text-primary hover:underline">
               Admin
             </Link>
-            <Link href="/reports" className="block text-[0.8rem] font-semibold text-primary hover:underline">
-              Reports
-            </Link>
             <div className="my-1 h-px bg-border" />
           </>
         )}

@@ -8,7 +8,7 @@ import { useLeagueStore } from "@/lib/store";
 // useLeagueStore holds -- and unlike every other tab, it has no mock-mode equivalent at all: the
 // live app never shows its Admin nav link to non-super-admins in the first place, demo mode
 // included. So this store only ever does real API calls; AdminTab itself handles the
-// not-a-super-admin case by not rendering this at all (see admin-tab.tsx).
+// not-a-super-admin case by not rendering this at all (see admin-shell.tsx's AdminGate).
 interface AdminStore {
   users: AdminUser[];
   leagues: AdminLeague[];

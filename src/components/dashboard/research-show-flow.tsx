@@ -7,7 +7,7 @@ import { FormatResearchPanel } from "@/components/admin/format-research-panel";
 import { FormatReviewScreen } from "@/components/admin/format-review-screen";
 
 // The create-league wizard's "+ Add it" tile (docs/PLAN-rollout-order.md stage 4): the same
-// research-prompt-then-review loop Admin's "Research a new show" uses (formats-panel.tsx), reused
+// research-prompt-then-review loop Admin's "Research a new show" uses (admin/new-show-page.tsx), reused
 // rather than forked, but self-serve -- any signed-in user, scoped to formats they created, and
 // never able to switch an EXISTING show onto the result (see FormatReviewScreen's `allowExisting`
 // and src/app/api/formats/[id]/create-show/route.ts for why that boundary holds). Always starts

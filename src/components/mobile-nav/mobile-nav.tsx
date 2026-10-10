@@ -26,7 +26,6 @@ import {
   DraftIcon,
   MoreIcon,
   ShieldIcon,
-  ClipboardIcon,
   AlertIcon,
   LogoutIcon,
   ChatIcon,
@@ -225,8 +224,6 @@ export function MobileNav() {
     "/pick": "Pick",
     "/chat": "Chat",
     "/setup": "League Settings",
-    "/admin": "Admin",
-    "/reports": "Reports",
     "/account": "Account",
     "/dashboard": "My Leagues",
   };
@@ -493,7 +490,6 @@ export function MobileNav() {
             <div className="my-1.5 h-px bg-border" />
             <div className="px-3 pb-0.5 pt-2 text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">Admin</div>
             <MoreRow icon={ShieldIcon} label="Admin" onClick={() => go("/admin")} />
-            <MoreRow icon={ClipboardIcon} label="Reports" onClick={() => go("/reports")} />
           </>
         )}
         <div className="my-1.5 h-px bg-border" />

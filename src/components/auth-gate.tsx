@@ -25,6 +25,7 @@ import { rememberedLeague, reloadedLeague } from "@/lib/last-league";
 import { Button } from "@/components/ui/button";
 import { ResultsInBanner, RevealSheet } from "@/components/results-in-banner";
 import { LeagueSwipe } from "@/components/league-swipe";
+import { AdminMobileChrome, AdminSidebar, isAdminRoute } from "@/components/admin/admin-shell";
 
 type Status = "checking" | "idle" | "loading";
 
@@ -35,7 +36,7 @@ const BARE_ROUTES = ["/forgot-password", "/reset-password"];
 // Routes that mean something without a league loaded, so the zero-leagues case below leaves them
 // alone instead of substituting the Dashboard: the Dashboard itself, the admin pages a leagueless
 // super-admin can still use, and account settings.
-const LEAGUELESS_ROUTES = ["/dashboard", "/admin", "/reports", "/account"];
+const LEAGUELESS_ROUTES = ["/dashboard", "/reports", "/account"];
 
 // Full-screen flows: signed in, but no sidebar, tab bar or alert strip. The page brings its own
 // header and its own way out (the create-league flow, docs/PLAN-ux-redesign.md 2a; the reveal,
@@ -222,6 +223,30 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // preview the demo (demoPreview) -- they get the real tabs over demo data.
   const leaguelessUser = isAuthenticated && leagues.length === 0 && mode === "mock" && !demoPreview;
   const showsDashboard = leaguelessUser && !LEAGUELESS_ROUTES.includes(pathname);
+
+  // The admin area (docs/PLAN-ux-redesign.md 3a) has its own chrome: its own header and tab bar on a
+  // phone, its own sidebar on desktop, and no league alert strip, swipe or install banner -- none of
+  // those are about running the site, and the strip could name a league's results in passing. It
+  // works the same for a super-admin with no league of their own.
+  if (isAdminRoute(pathname)) {
+    return (
+      <>
+        {impersonationBanner}
+        <AdminMobileChrome />
+        <ReportModal />
+        <ConfirmDialog />
+        <WhatsNewModal />
+        <div className="flex min-h-screen items-stretch">
+          <div className="max-nav:hidden">
+            <AdminSidebar />
+          </div>
+          <main className="min-w-0 max-w-[1060px] flex-1 px-11 pb-[90px] pt-9 max-nav:max-w-full max-nav:px-4 max-nav:pb-[calc(84px+env(safe-area-inset-bottom,0px))] max-nav:pt-4">
+            {children}
+          </main>
+        </div>
+      </>
+    );
+  }
 
   // Matches .app-shell / main's exact layout from public/styles.css (flex, sidebar + a
   // width-capped content column with 36px/44px/90px padding on desktop; below the 880px

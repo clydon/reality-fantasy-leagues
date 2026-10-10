@@ -405,6 +405,15 @@ Results a player hasn't chosen to see stay out of every screen until they do.
   140px chyron number with one or two muted lines. The last beat's button is a white plate, so the
   number stays the only yellow. Beats fade and slide up over 300ms, only when motion is allowed.
 
+### Admin area
+Admin is desktop-first but built to work at 390px, in the same vocabulary as League Settings: pages, rows and sheets, not one long page (`/admin/*`, `src/components/admin/`).
+- **Chrome:** its own, never a league's. On a phone a header (Back, a small "Admin" line over the page's name in 22px condensed caps, and a **Paid AI on/off** chip that links to Site; chyron when on) and a tab bar of **To do · Shows · Users · Leagues · Site**, with a chyron dot on To do while anything waits. On desktop a Night Rail sidebar with "Back to {league}" on top, the same sections plus Formats & rules and Reports. No alert strip, league swipe or install banner.
+- **To do:** "Needs you" as 60px rows (a 40px icon square, title, one line of detail, the action), most urgent first; only the first row's button is chyron. A season with more than two waiting episodes is one row. "Coming up" lists each airing season's next episode.
+- **Pages:** `AdminPage` gives each one a desktop back link and 28px title, one muted summary line, and a ⋯ for page actions. Lists are hairline rows; anything destructive is red text last in a ⋯ sheet or behind a collapsed Danger zone. A season page has four segmented tabs (Episodes, Cast ✓, Rules, Setup), each its own route.
+- **Sticky bar:** the one primary action of a page (Approve and send to 4 leagues, Accept all 12, Review 31, Review the format) sits in a bar above the tab bar, with one muted line of what it does. Pages are at least a screen tall, so on a short page the bar rests at the bottom.
+- **Review:** a segmented "Spoilers hidden / Show names" (it follows Site's switch until flipped). Hidden is counts only. Shown, "Needs a look" rows (low confidence or not in the cast) carry their reason in Gold Accent and a 44px live-red ✕ and teal ✓; the rest are one row per kind of result that opens to its people. Any result opens a sheet with its sources, confidence, who decided it, and Accept / Correct… / Reject.
+- **Copy-and-paste flows** (an episode's research, a new show's rules): numbered steps with a 30px step number, chyron on the current step; the copy button is chyron until something's pasted.
+
 ### Navigation
 Mobile: a header with the page's name in 22px condensed caps and the league name in 12px above it, chat on the right; a fixed bottom tab bar. Its fourth slot follows the league and the season's phase: Draft until the draft is done, then Lineup (Active Roster), Mid-Season or Chat; Eliminator Pool has no draft, so its slot is always Pick, badged while your pick is due (Chat is on the header); Research and anything else displaced go in More. Desktop (880px+): a Night Rail sidebar. The current tab is marked in chyron.
 
