@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Castaway, LeagueState, Player } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useShowTerms } from "@/lib/use-show-terms";
@@ -70,7 +70,20 @@ export function Chip({
 // The whole cast, compact: a small photo per castaway grouped by current tribe (biggest group first,
 // same as BoardGrid), a dot per owner beneath. Tap one for its full stat card. The Board for Classic
 // and Active Roster (CastBoard below).
-export function CastByTribe({ state, bare }: { state: LeagueState; /** No rule above it: it's the whole section. */ bare?: boolean }) {
+export function CastByTribe({
+  state,
+  bare,
+  title,
+  aside,
+}: {
+  state: LeagueState;
+  /** No rule above it: it's the whole section. */
+  bare?: boolean;
+  /** The heading; the show's word for its cast when not given. */
+  title?: string;
+  /** On the heading line (one link per section). */
+  aside?: ReactNode;
+}) {
   const terms = useShowTerms();
   const [openId, setOpenId] = useState<string | null>(null);
   const groups = [{ id: null as string | null, name: "Unassigned", color: "#4a5245" }, ...state.tribes]
@@ -90,9 +103,10 @@ export function CastByTribe({ state, bare }: { state: LeagueState; /** No rule a
 
   return (
     <div className={cn(!bare && "mt-4 border-t border-border pt-3")}>
-      <h3 className="mb-2 section-title">
-        {terms.castaways.replace(/^./, (ch) => ch.toUpperCase())}
-      </h3>
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <h3 className="section-title">{title ?? terms.castaways.replace(/^./, (ch) => ch.toUpperCase())}</h3>
+        {aside}
+      </div>
       <div className="flex flex-col gap-3">
         {groups.map(({ g, members }) => (
           <div key={g.id ?? "unassigned"} className="flex gap-2">
@@ -155,12 +169,13 @@ export function CastByTribe({ state, bare }: { state: LeagueState; /** No rule a
   );
 }
 
-// The Board on Overview for a roster league: just the cast. Who's starting whom is on the Lineup
-// page's Everyone view (Active Roster); each team's faces are in Standings (Classic).
-export function CastBoard({ state }: { state: LeagueState }) {
+// The cast for a roster league, by tribe. On Overview only before the draft, as "The cast" with a
+// Scout link (docs/PLAN-ux-declutter.md). Who's starting whom is on the Lineup page's Everyone view
+// (Active Roster); each team's faces are in Standings (Classic).
+export function CastBoard({ state, title, aside }: { state: LeagueState; title?: string; aside?: ReactNode }) {
   return (
     <section id="board" className="scroll-mt-20">
-      <CastByTribe state={state} bare />
+      <CastByTribe state={state} bare title={title} aside={aside} />
     </section>
   );
 }

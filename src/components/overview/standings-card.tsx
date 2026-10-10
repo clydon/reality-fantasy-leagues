@@ -14,8 +14,8 @@ import { standingLine, teamOrder } from "@/lib/game/classic-view";
 import { finishedPlace } from "@/components/scoreboard/scoreboard-tab";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { isKnockedOut } from "@/lib/game/selectors";
-import { useShowTerms } from "@/lib/use-show-terms";
-import { DashCard, DashLink } from "./dash-card";
+import { pickWindow } from "@/lib/game/pool-view";
+import { DashAside, DashCard } from "./dash-card";
 
 // Direct port of renderOverview()'s "Standings" card -- the wide one, using the same
 // StateLogic.computeScores(state) the live app and server both call (ScoringLogic.compute
@@ -23,8 +23,8 @@ import { DashCard, DashLink } from "./dash-card";
 export function StandingsCard({ state }: { state: LeagueState }) {
   const scores = StateLogic.computeScores(state);
   // Pick'em ranks by longest streak (total points only break ties -- the Scoreboard has them), so
-  // that's the number shown, with 🔥 when it's still going, or else the streak they're on now. A
-  // wrong or missed pick only resets a streak; nobody's out.
+  // that's the number shown. A wrong or missed pick only resets a streak; nobody's out. While this
+  // week's pick is open each row says whether they've picked (never what: that waits until it airs).
   const pickem = StateLogic.getLeagueType(state).hasWeeklyPicks;
   const me = useMyPlayerId();
   const { hidden } = useHiddenResults();
@@ -36,10 +36,11 @@ export function StandingsCard({ state }: { state: LeagueState }) {
   // Classic (the canvas's Classic Home): a team IS the draft and the score is who's still standing,
   // so each row carries its faces, the ones out greyed with where they finished.
   const classic = type.hasRoster && !type.hasActiveRoster && !pickem;
-  const terms = useShowTerms();
+  const week = pickem ? pickWindow(state) : null;
+  const pickOpen = week?.open && week.ep ? week.ep : null;
 
   return (
-    <DashCard title="Standings" wide>
+    <DashCard title="Standings" wide aside={scores.length > 0 && <DashAside href="/scoreboard">Full board</DashAside>}>
       {scores.length === 0 ? (
         <p className="text-sm text-muted-foreground">Add players in League Settings to get started.</p>
       ) : (
@@ -47,11 +48,13 @@ export function StandingsCard({ state }: { state: LeagueState }) {
           {/* Results waiting to be revealed: say these are the standings from before them. */}
           {hidden.length > 0 && <AsOfPill state={state} />}
           {pickem && (
-            <div className="flex justify-end text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Best streak</div>
+            <div className="flex justify-end gap-2.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
+              {pickOpen && <span className="w-16 text-center">Ep {pickOpen.number}</span>}
+              <span className="min-w-9 text-right">Best</span>
+            </div>
           )}
           {scores.map((r, i) => {
-            const best = r.longestStreak ?? 0;
-            const now = r.currentStreak ?? 0;
+            const picked = pickOpen ? !!StateLogic.pickEmPickFor(state, pickOpen.id, r.playerId) : false;
             return (
               // Direction A: condensed tabular rank and score either side, the leader's rank in chyron
               // yellow, your own row lifted so you can find yourself at a glance.
@@ -82,14 +85,19 @@ export function StandingsCard({ state }: { state: LeagueState }) {
                   </span>
                 )}
                 {pickem ? (
-                  <span className="flex shrink-0 items-baseline gap-1.5 font-mono">
-                    {best > 0 && now === best ? (
-                      <span className="text-xs" title="Still going">🔥</span>
-                    ) : (
-                      now > 0 && <span className="text-xs text-muted-foreground">now {now}</span>
+                  <>
+                    {pickOpen && (
+                      <span
+                        className={cn(
+                          "w-16 shrink-0 rounded-[2px] py-px text-center text-[11px] font-bold uppercase tracking-wide",
+                          picked ? "bg-good text-good-foreground" : "bg-input text-foreground",
+                        )}
+                      >
+                        {picked ? "Picked" : "Not yet"}
+                      </span>
                     )}
-                    <b className="min-w-[1.5ch] text-right">{best}</b>
-                  </span>
+                    <span className="type-num min-w-9 shrink-0 text-right text-[26px]">{r.longestStreak ?? 0}</span>
+                  </>
                 ) : (
                   <>
                     {lastEp && (
@@ -105,12 +113,6 @@ export function StandingsCard({ state }: { state: LeagueState }) {
           })}
         </>
       )}
-      {classic && scores.length > 0 && (
-        <p className="mt-1.5 text-[13px] leading-snug text-muted-foreground">
-          {terms.castaways.replace(/^./, (ch) => ch.toUpperCase())} score their place in the boot order. The last one standing scores most.
-        </p>
-      )}
-      <DashLink href="/scoreboard">View full scoreboard →</DashLink>
     </DashCard>
   );
 }

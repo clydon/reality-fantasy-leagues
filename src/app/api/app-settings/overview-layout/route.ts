@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
-import { DEFAULT_OVERVIEW_ORDER, OVERVIEW_LEAGUE_TYPE_IDS, type OverviewLeagueTypeId, type OverviewSectionId } from "@/lib/overview-layout";
+import { OVERVIEW_LEAGUE_TYPE_IDS, OVERVIEW_SECTION_IDS, type OverviewLeagueTypeId, type OverviewSectionId } from "@/lib/overview-layout";
 
-const VALID_SECTION_IDS = new Set<string>(DEFAULT_OVERVIEW_ORDER);
+const VALID_SECTION_IDS = new Set<string>(OVERVIEW_SECTION_IDS);
 const key = (leagueTypeId: string) => `overview_layout:${leagueTypeId}`;
 
 // App-wide Overview layout, one per league type (db/migrations/0027_app_settings.sql, keys

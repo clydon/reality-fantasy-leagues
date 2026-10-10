@@ -3,14 +3,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useIsSuperAdmin } from "@/lib/store";
-import { DEFAULT_OVERVIEW_ORDER, withNewSections, type OverviewLeagueTypeId, type OverviewSectionId } from "./overview-layout";
+import { defaultOverviewOrder, withNewSections, type OverviewLeagueTypeId, type OverviewSectionId } from "./overview-layout";
 
 export interface OverviewLayoutValue {
   order: OverviewSectionId[];
   hidden: Record<string, boolean>;
 }
-
-const DEFAULT_VALUE: OverviewLayoutValue = { order: DEFAULT_OVERVIEW_ORDER, hidden: {} };
 
 function swap(order: OverviewSectionId[], id: OverviewSectionId, dir: -1 | 1): OverviewSectionId[] {
   const idx = order.indexOf(id);
@@ -44,7 +42,8 @@ export function useOverviewLayout(leagueTypeId: OverviewLeagueTypeId) {
     staleTime: 60_000,
   });
   const saved = data?.layouts?.[leagueTypeId] as OverviewLayoutValue | undefined;
-  const value: OverviewLayoutValue = saved ? { ...saved, order: withNewSections(saved.order) } : DEFAULT_VALUE;
+  const defaults: OverviewLayoutValue = { order: defaultOverviewOrder(leagueTypeId), hidden: {} };
+  const value: OverviewLayoutValue = saved ? { ...saved, order: withNewSections(saved.order, leagueTypeId) } : defaults;
 
   async function save(next: OverviewLayoutValue) {
     queryClient.setQueryData(["overview-layout"], (prev: { layouts?: Record<string, OverviewLayoutValue> } | undefined) => ({
@@ -73,7 +72,7 @@ export function useOverviewLayout(leagueTypeId: OverviewLeagueTypeId) {
   }
   function reset() {
     if (!isSuperAdmin) return;
-    save(DEFAULT_VALUE);
+    save(defaults);
   }
 
   return { order: value.order, hidden: value.hidden, isLoading, moveUp, moveDown, toggleHidden, reset };

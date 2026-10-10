@@ -16,8 +16,7 @@ import { cn } from "cn";
 // made on its own page (/pick, the tab bar's Pick); here is where it leaves you:
 //   your streak     -- the one number this league type is about, and where it puts you
 //   your picks      -- the last few, each survived or went home, then this week's (or an open slot)
-//   this week       -- who else has picked, without giving away what they picked until it airs
-//                      (the same lock PickEmLogic.setPick enforces)
+// Who else has picked this week is a chip on each Standings row (standings-card.tsx).
 export function PickEmPickGrid({ state }: { state: LeagueState }) {
   const me = useMyPlayerId();
   const { hidden } = useHiddenResults();
@@ -40,7 +39,6 @@ export function PickEmPickGrid({ state }: { state: LeagueState }) {
     <section className="flex flex-col gap-5 sm:col-span-2">
       {me && <Streak state={state} me={me} />}
       {me && <YourPicks state={state} me={me} ep={ep} open={open} />}
-      {ep && <WhoPicked state={state} ep={ep} players={players} me={me} open={open} />}
     </section>
   );
 }

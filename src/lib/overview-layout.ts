@@ -7,32 +7,28 @@ import StateLogic from "@/lib/game/state-logic.js";
 // (no point offering "Weekly Pick" to a Classic Draft league), while hidden is the admin's own choice
 // among whatever's eligible.
 export type OverviewSectionId =
-  | "leagueScoring"
-  | "notifications"
-  | "sideBets"
+  | "draftOrder"
+  | "board"
   | "pickGrid"
   | "lineupGrid"
   | "standings"
   | "yourTeam"
-  | "lastWeek"
   | "latestEpisode"
   | "yourLine"
-  | "seasonStatus"
-  | "board";
+  | "sideBets"
+  | "notifications";
 
 export const OVERVIEW_SECTION_LABELS: Record<OverviewSectionId, string> = {
-  leagueScoring: "League Scoring (Active Roster)",
-  notifications: "Notifications",
-  sideBets: "Predictions",
+  draftOrder: "Draft Order (before the draft)",
+  board: "The Cast (before the draft)",
   pickGrid: "Your Pick & Streak (Eliminator Pool)",
   lineupGrid: "Starting This Week (Active Roster)",
   standings: "Standings",
   yourTeam: "Your Team (Classic)",
-  lastWeek: "Last Week (Active Roster)",
   latestEpisode: "Latest Episode",
   yourLine: "Your Episode Line (Active Roster)",
-  seasonStatus: "Season Status",
-  board: "Board",
+  sideBets: "Predictions",
+  notifications: "Notifications",
 };
 
 // The 3 real (and demo) league types -- same ids as state-logic.js's LEAGUE_TYPES and
@@ -51,31 +47,35 @@ export function toOverviewLeagueTypeId(id: string): OverviewLeagueTypeId {
   return (OVERVIEW_LEAGUE_TYPE_IDS as readonly string[]).includes(id) ? (id as OverviewLeagueTypeId) : "classic-draft";
 }
 
-export const DEFAULT_OVERVIEW_ORDER: OverviewSectionId[] = [
-  "leagueScoring",
-  "notifications",
-  "sideBets",
-  "pickGrid",
-  "lineupGrid",
-  "lastWeek",
-  "standings",
-  "yourTeam",
-  "latestEpisode",
-  "yourLine",
-  "seasonStatus",
-  "board",
-];
+// Every section, once. The API only accepts a saved order that holds each of these exactly once.
+export const OVERVIEW_SECTION_IDS = Object.keys(OVERVIEW_SECTION_LABELS) as OverviewSectionId[];
+
+// The default order per league type (docs/PLAN-ux-declutter.md): a broadcast rundown, three sections
+// after the opener. Each is a full order of every id; the ones a type never has sit at the end, where
+// eligibility filters them out. Before the draft a roster league shows only Draft Order and The Cast
+// (see isOverviewSectionEligible), which is why those lead.
+const DEFAULT_OVERVIEW_ORDERS: Record<OverviewLeagueTypeId, OverviewSectionId[]> = {
+  "classic-draft": ["draftOrder", "board", "standings", "yourTeam", "latestEpisode", "sideBets", "notifications", "lineupGrid", "yourLine", "pickGrid"],
+  "active-roster": ["draftOrder", "board", "lineupGrid", "latestEpisode", "standings", "yourLine", "sideBets", "notifications", "yourTeam", "pickGrid"],
+  pickem: ["pickGrid", "standings", "latestEpisode", "sideBets", "notifications", "draftOrder", "board", "lineupGrid", "yourTeam", "yourLine"],
+};
+
+export function defaultOverviewOrder(typeId: OverviewLeagueTypeId): OverviewSectionId[] {
+  return DEFAULT_OVERVIEW_ORDERS[typeId];
+}
 
 /**
- * A saved order, plus any section added to the app since it was saved -- otherwise a new section
- * would never show for a league type whose layout an admin had already customized. Each one goes
- * right after the section it follows by default (or first, if none of those are there).
+ * A saved order, minus any section since removed from the app, plus any added since it was saved --
+ * otherwise a new section would never show for a league type whose layout an admin had already
+ * customized. Each new one goes right after the section it follows by default (or first, if none of
+ * those are there).
  */
-export function withNewSections(saved: OverviewSectionId[]): OverviewSectionId[] {
-  const order = [...saved];
-  DEFAULT_OVERVIEW_ORDER.forEach((id, i) => {
+export function withNewSections(saved: string[], typeId: OverviewLeagueTypeId): OverviewSectionId[] {
+  const defaults = defaultOverviewOrder(typeId);
+  const order = saved.filter((id): id is OverviewSectionId => (OVERVIEW_SECTION_IDS as string[]).includes(id));
+  defaults.forEach((id, i) => {
     if (order.includes(id)) return;
-    const before = DEFAULT_OVERVIEW_ORDER.slice(0, i).reverse().find((prev) => order.includes(prev));
+    const before = defaults.slice(0, i).reverse().find((prev) => order.includes(prev));
     order.splice(before ? order.indexOf(before) + 1 : 0, 0, id);
   });
   return order;
@@ -84,46 +84,47 @@ export function withNewSections(saved: OverviewSectionId[]): OverviewSectionId[]
 // Whether a section applies at all to this league right now -- independent of the admin's own
 // hidden/order choices. A section the league doesn't have (Weekly Pick for a Classic Draft league)
 // is never offered in the customize panel and never rendered, no matter what's saved.
+// Before the draft a roster league has nothing to rank or recap: Draft Order and The Cast stand in for
+// Standings, Your Team, the latest episode and the lineup until it's done (all zeros otherwise).
 export function isOverviewSectionEligible(id: OverviewSectionId, state: LeagueState, draftComplete: boolean): boolean {
   const leagueType = StateLogic.getLeagueType(state);
+  const preDraft = leagueType.hasRoster && !draftComplete;
   switch (id) {
+    case "draftOrder":
+    case "board":
+      return preDraft;
     case "pickGrid":
       return leagueType.hasWeeklyPicks;
     case "lineupGrid":
-      return leagueType.hasActiveRoster;
-    case "leagueScoring":
-      return leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks;
+      return leagueType.hasActiveRoster && !preDraft;
     // The commissioner writes these from the Active Roster Scoreboard.
     case "yourLine":
-      return leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks;
-    // Active Roster's last week is a caption plate (last-week-card.tsx); the season detail Your Team
-    // used to carry for it is on your Scoreboard page now.
-    case "lastWeek":
-      return leagueType.hasActiveRoster;
+      return leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks && !preDraft;
     // Classic only: Eliminator Pool's picks are its pickGrid section.
     case "yourTeam":
-      return !leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks;
-    case "board":
-      return draftComplete;
+      return !leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks && !preDraft;
+    case "standings":
+    case "latestEpisode":
+      return !preDraft;
     default:
       return true;
   }
 }
 
 // The same rules as isOverviewSectionEligible, answered for a league TYPE rather than one league --
-// for Admin's layout editor, which has no league in hand. Assumes a finished draft, so the Board
-// (which only appears once the draft is done) is offered for ordering too.
+// for Admin's layout editor, which has no league in hand. The before-the-draft sections are offered
+// to the roster types; Eliminator Pool has no draft.
 export function isOverviewSectionForType(id: OverviewSectionId, typeId: OverviewLeagueTypeId): boolean {
   const activeRoster = typeId === "active-roster";
   const picks = typeId === "pickem";
   switch (id) {
+    case "draftOrder":
+    case "board":
+      return !picks;
     case "pickGrid":
       return picks;
     case "lineupGrid":
-      return activeRoster;
-    case "leagueScoring":
     case "yourLine":
-    case "lastWeek":
       return activeRoster;
     case "yourTeam":
       return !activeRoster && !picks;

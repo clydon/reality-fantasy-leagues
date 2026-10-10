@@ -22,6 +22,7 @@ import { episodePicks } from "@/lib/game/pool-view";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
 import { EpisodeBetRow } from "./episode-bet-row";
+import { ProposePrediction } from "./propose-prediction";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
 import { EpisodeChanges, EpisodeRecap } from "./episode-recap";
 import { EpisodeEditor } from "./episode-editor";
@@ -167,6 +168,10 @@ function ReadView({
   const inPlay = StateLogic.inPlay(state, ep.number);
   const type = StateLogic.getLeagueType(state);
   const hasBets = state.settings.bonusEnabled && (ep.bets || []).length > 0;
+  // New predictions go on the episode about to be played (the one the server adds them to), until it
+  // has results -- the same window Overview's old "Propose a Prediction" box had.
+  const canPropose =
+    state.settings.bonusEnabled && !!me && (status === "upcoming" || status === "waiting") && StateLogic.currentEpisode(state)?.id === ep.id;
   // Classic scores by boot order (the canvas's Classic "Episode 3" board): where each one finished,
   // who banked it, and the boot order so far.
   const classic = type.hasRoster && !type.hasActiveRoster;
@@ -251,15 +256,18 @@ function ReadView({
         </>
       )}
 
-      {/* Side bets are proposed and guessed on Overview (bet-card.tsx) -- here it's how they went,
-          plus the commissioner's grading and editing behind each bet's ✏️. */}
-      {hasBets && (
+      {/* Predictions are guessed on Overview (bet-card.tsx) and proposed here, on the upcoming episode --
+          here it's also how they went, plus the commissioner's grading and editing behind each bet's ✏️. */}
+      {(hasBets || canPropose) && (
         <Section title="Predictions">
-          <div className="divide-y divide-border border-y border-border">
-            {(ep.bets || []).map((bet) => (
-              <EpisodeBetRow key={bet.id} ep={ep} bet={bet} state={state} />
-            ))}
-          </div>
+          {hasBets && (
+            <div className="divide-y divide-border border-y border-border">
+              {(ep.bets || []).map((bet) => (
+                <EpisodeBetRow key={bet.id} ep={ep} bet={bet} state={state} />
+              ))}
+            </div>
+          )}
+          {canPropose && <ProposePrediction state={state} />}
         </Section>
       )}
 

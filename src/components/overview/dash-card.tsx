@@ -39,15 +39,11 @@ export function DashCard({
   );
 }
 
-// Matches .dash-big: font-mono, 1.9rem, bold, tight line-height.
-export function DashBig({ children }: { children: ReactNode }) {
-  return <div className="type-num text-[44px]">{children}</div>;
-}
-
-// Matches .dash-link -- a real navigation link now that the app has real routes.
-export function DashLink({ href, children }: { href: string; children: ReactNode }) {
+// The one link a section gets, on its heading line ("Full board", "Recap", "Change"): never an arrow
+// link under the section (docs/PLAN-ux-declutter.md). The padding keeps it a 44px target.
+export function DashAside({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <Link href={href} className="mt-2.5 inline-block text-[0.8rem] font-semibold text-chyron-line hover:underline">
+    <Link href={href} className="-my-3 shrink-0 py-3 pl-3 text-sm font-semibold text-chyron-line hover:underline">
       {children}
     </Link>
   );

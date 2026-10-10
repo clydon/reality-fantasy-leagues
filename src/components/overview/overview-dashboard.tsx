@@ -5,18 +5,16 @@ import { useLeagueStore } from "@/lib/store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { LatestEpisodeCard } from "./latest-episode-card";
 import { YourLineCard } from "./your-line-card";
-import { SeasonStatusCard } from "./season-status-card";
 import { StandingsCard } from "./standings-card";
 import { YourTeamCard } from "./your-team-card";
-import { LastWeekCard } from "./last-week-card";
 import { SideBetsSection } from "./side-bets-section";
-import { BoardGrid } from "./board-grid";
 import { CastBoard } from "./cast-by-tribe";
+import { DraftOrderCard } from "./draft-order-card";
+import { DashAside } from "./dash-card";
 import { SeasonResultsCard } from "./season-results-card";
 import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
 import { StartingThisWeek } from "./active-roster-lineup-grid";
-import { LeagueScoringCard } from "./league-scoring-card";
 import { CommissionerCard } from "./commissioner-card";
 import { useOverviewLayout } from "@/lib/use-overview-layout";
 import { isOverviewSectionEligible, toOverviewLeagueTypeId, type OverviewSectionId } from "@/lib/overview-layout";
@@ -24,8 +22,12 @@ import type { LeagueState } from "@/lib/game/types";
 
 function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
   switch (id) {
-    case "leagueScoring":
-      return <LeagueScoringCard state={state} />;
+    case "draftOrder":
+      return <DraftOrderCard state={state} />;
+    case "board":
+      // Only before the draft (isOverviewSectionEligible): the cast to scout. Afterwards it's the
+      // Cast page, linked from Episodes.
+      return <CastBoard state={state} title="The cast" aside={<DashAside href="/draft">Scout</DashAside>} />;
     case "notifications":
       return <NotificationsBanner />;
     case "sideBets":
@@ -38,32 +40,19 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
       return <StandingsCard state={state} />;
     case "yourTeam":
       return <YourTeamCard state={state} />;
-    case "lastWeek":
-      return <LastWeekCard state={state} />;
     case "latestEpisode":
       return <LatestEpisodeCard state={state} />;
     case "yourLine":
       return <YourLineCard state={state} />;
-    case "seasonStatus":
-      return <SeasonStatusCard state={state} />;
-    case "board":
-      // Only ever in the ordered section list when isOverviewSectionEligible already confirmed
-      // draftComplete, so no need to re-check it here. BoardGrid owns its own card shell/heading
-      // now (previously the one Overview section without one).
-      // A roster league gets just the compact cast (cast-by-tribe.tsx): who's starting whom is on the
-      // Lineup page (Active Roster), and every team's faces are in Standings (Classic). Eliminator
-      // Pool's equivalent status/nudge section lives on the pick grid itself (pickem-pick-grid.tsx).
-      return StateLogic.getLeagueType(state).hasRoster ? <CastBoard state={state} /> : <BoardGrid state={state} />;
   }
 }
 
 // Standings and Latest Episode are both small, so when they're next to each other in the order they
 // share a row from 420px up, half each -- unless the latest episode has more than one person out, whose cards then
-// need the full width. Active Roster's Latest Episode lists every team's week, so it always does.
+// need the full width.
 function groupSections(sections: OverviewSectionId[], state: LeagueState): OverviewSectionId[][] {
-  const lt = StateLogic.getLeagueType(state);
   const latest = [...state.episodes].filter((ep) => ep.events.length > 0).sort((a, b) => b.number - a.number)[0];
-  const latestFitsHalf = !(lt.hasActiveRoster && !lt.hasWeeklyPicks) && (!latest || latest.events.length <= 1);
+  const latestFitsHalf = !latest || latest.events.length <= 1;
   const pair = new Set<OverviewSectionId>(["standings", "latestEpisode"]);
   const groups: OverviewSectionId[][] = [];
   for (let i = 0; i < sections.length; i++) {
@@ -101,7 +90,6 @@ export function OverviewDashboard() {
 
   return (
     <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Overview</h2>
       {/* Season over: the results announcement leads the page (renders nothing until then). */}
       <SeasonResultsCard state={state} />
       {/* What only the commissioner can do, when anything's waiting (renders nothing otherwise). */}

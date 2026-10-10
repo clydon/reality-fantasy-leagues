@@ -4,7 +4,7 @@ import type { LeagueState } from "@/lib/game/types";
 import { useLeagueStore, useMyPlayerId } from "@/lib/store";
 import { latestScoredEpisode } from "@/lib/game/episode-team-summary";
 import { useTeamSummary } from "@/components/scoreboard/use-team-summary";
-import { DashCard, DashLink } from "./dash-card";
+import { DashAside, DashCard } from "./dash-card";
 
 // The viewer's own team's "why it mattered" line for the latest episode -- the one the commissioner
 // wrote from the Scoreboard. Only theirs: Overview is the personal page, and everyone's lines are on
@@ -20,9 +20,8 @@ export function YourLineCard({ state }: { state: LeagueState }) {
   if (!ep || !why) return null;
 
   return (
-    <DashCard title={`Your episode ${ep.number}`} wide>
+    <DashCard title={`Your episode ${ep.number}`} wide aside={<DashAside href="/scoreboard">Everyone&rsquo;s</DashAside>}>
       <p className="text-sm italic">&ldquo;{why}&rdquo;</p>
-      <DashLink href="/scoreboard">Everyone&rsquo;s on the Scoreboard →</DashLink>
     </DashCard>
   );
 }

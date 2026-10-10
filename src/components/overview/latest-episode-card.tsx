@@ -1,28 +1,26 @@
 "use client";
 
-import type { LeagueState } from "@/lib/game/types";
+import type { Episode, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { castawayPhotoSrc } from "@/lib/game/selectors";
 import { banksLine } from "@/lib/game/classic-view";
 import { finishedPlace, ordinal } from "@/components/scoreboard/scoreboard-tab";
-import { useLeagueStore, useMyPlayerId } from "@/lib/store";
+import { useMyPlayerId } from "@/lib/store";
 import { latestScoredEpisode } from "@/lib/game/episode-team-summary";
-import { teamEpisodeBreakdown } from "@/lib/game/team-episode-breakdown";
-import { TeamEpisodeBreakdown, fmt } from "@/components/scoreboard/team-episode-breakdown";
-import { useTeamSummary } from "@/components/scoreboard/use-team-summary";
-import { cn } from "cn";
+import { signed } from "@/lib/game/lineup-view";
+import { useShowTerms } from "@/lib/use-show-terms";
 import { EyeOff, Lock } from "lucide-react";
 import { episodesLabel, useHiddenResults } from "@/components/results-in-banner";
-import { DashCard, DashLink } from "./dash-card";
+import { DashAside, DashCard } from "./dash-card";
 
-// The latest episode with results: who left, each as an "Out" caption plate (the episode page's), and
-// a link to that episode's page for the rest. Classic says where each finished and who banked the
-// points, since that's its whole score.
-//
-// Active Roster: the first thing anyone wants once results are revealed -- who left, what every team
-// scored, and (a tap away) how. The episode is the latest that SCORED, not just the latest with an
-// exit; state is already spoiler-trimmed, so it's only ever one this viewer has revealed.
+// The latest episode with results (docs/PLAN-ux-declutter.md): "Episode N" with Recap on the heading
+// line, then who left, each as an "Out" caption plate (the episode page's). Classic says where each
+// finished and who banked the points, since that's its whole score. Active Roster adds your own week
+// as a second plate -- what you scored and what sat on your bench; every team's points are Standings'
+// +N column and the Scoreboard. The episode is the latest that SCORED for Active Roster, not just the
+// latest with an exit; state is already spoiler-trimmed, so it's only ever one this viewer has revealed.
+// No episode yet renders nothing.
 export function LatestEpisodeCard({ state }: { state: LeagueState }) {
   const { hidden } = useHiddenResults();
   const me = useMyPlayerId();
@@ -33,90 +31,67 @@ export function LatestEpisodeCard({ state }: { state: LeagueState }) {
   const latestEp = activeRoster
     ? latestScoredEpisode(state)
     : [...state.episodes].filter((ep) => ep.events.length > 0).sort((a, b) => b.number - a.number)[0];
-  const out = latestEp
-    ? latestEp.events
-        .map((ev) => ({ ev, c: StateLogic.getCastaway(state, ev.castawayId) }))
-        .filter((x): x is { ev: (typeof latestEp.events)[number]; c: NonNullable<typeof x.c> } => !!x.c)
-    : [];
+  if (!latestEp) return null;
+  const out = latestEp.events
+    .map((ev) => ({ ev, c: StateLogic.getCastaway(state, ev.castawayId) }))
+    .filter((x): x is { ev: (typeof latestEp.events)[number]; c: NonNullable<typeof x.c> } => !!x.c);
 
   return (
-    <DashCard title={latestEp ? `Episode ${latestEp.number}` : "Latest Episode"} wide={activeRoster}>
-      {latestEp ? (
-        <>
-          {latestEp.title && <p className="mb-2 text-sm font-semibold">{latestEp.title}</p>}
-          {out.length > 0 && (
-            <div className="flex flex-col gap-2.5">
-              {out.map(({ ev, c }) => {
-                const place = finishedPlace(state, c);
-                return (
-                  <CaptionPlate
-                    key={c.id}
-                    size="sm"
-                    tone="live"
-                    tag="Out"
-                    image={castawayPhotoSrc(c.photoUrl) ?? undefined}
-                    title={c.name}
-                    subtitle={
-                      classic
-                        ? [place && `Finished ${ordinal(place)}`, banksLine(state, c, me)].filter(Boolean).join(" · ")
-                        : ev.method
-                    }
-                  />
-                );
-              })}
-            </div>
-          )}
-          {activeRoster ? (
-            <LeagueWeek state={state} epId={latestEp.id} />
-          ) : (
-            <DashLink href={`/episodes/${latestEp.number}`}>Episode {latestEp.number} recap →</DashLink>
-          )}
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground">No episodes logged yet.</p>
-      )}
+    <DashCard title={`Episode ${latestEp.number}`} aside={<DashAside href={`/episodes/${latestEp.number}`}>Recap</DashAside>}>
+      {latestEp.title && <p className="mb-2 text-sm font-semibold">{latestEp.title}</p>}
+      <div className="flex flex-col gap-2.5">
+        {out.map(({ ev, c }) => {
+          const place = finishedPlace(state, c);
+          return (
+            <CaptionPlate
+              key={c.id}
+              size="sm"
+              tone="live"
+              tag="Out"
+              image={castawayPhotoSrc(c.photoUrl) ?? undefined}
+              title={c.name}
+              subtitle={
+                classic ? [place && `Finished ${ordinal(place)}`, banksLine(state, c, me)].filter(Boolean).join(" · ") : ev.method
+              }
+            />
+          );
+        })}
+        {activeRoster && <YourWeekPlate state={state} ep={latestEp} />}
+      </div>
     </DashCard>
   );
 }
 
-// Every team's points for the episode, highest first, each opening to how they earned them. The
-// viewer's own team is marked; the commissioner's "why it mattered" lines show inside, when written.
-function LeagueWeek({ state, epId }: { state: LeagueState; epId: string }) {
-  const myPlayerId = useMyPlayerId();
-  const leagueId = useLeagueStore((s) => (s.mode === "live" ? s.leagueId : null));
-  const { data } = useTeamSummary(leagueId, epId);
-  const teams = state.players
-    .filter((p) => p.active !== false)
-    .map((p) => ({ p, total: teamEpisodeBreakdown(state, epId, p.id).total }))
-    .sort((a, b) => b.total - a.total || a.p.name.localeCompare(b.p.name));
-
+// Active Roster: "what did I score," the thing a fantasy-football dashboard always leads with. Only
+// your own lineup's events count, the same rule the real score uses (a benched castaway's events never
+// were yours); the bench line is the nudge for next time.
+function YourWeekPlate({ state, ep }: { state: LeagueState; ep: Episode }) {
+  const me = useMyPlayerId();
+  const terms = useShowTerms();
+  if (!me) return null;
+  const lineup = new Set(StateLogic.activeRosterLineupFor(state, ep.id, me));
+  const allEvents = StateLogic.ActiveRosterLogic.episodeEvents(state, ep);
+  const myEvents = allEvents.filter((ev) => lineup.has(ev.castawayId));
+  const pts = (evs: typeof allEvents) =>
+    StateLogic.roundPoints(evs.reduce((sum, ev) => sum + StateLogic.ActiveRosterLogic.pointsFor(state, ev.type), 0));
+  // Your bench that week: castaways you own who weren't in its lineup. Ownership is today's (a swap
+  // since then can shift it), which is fine for a "you left this on the bench" nudge.
+  const mine = new Set(state.castaways.filter((c) => (c.ownerIds || []).includes(me)).map((c) => c.id));
+  const benchPts = pts(allEvents.filter((ev) => mine.has(ev.castawayId) && !lineup.has(ev.castawayId)));
   return (
-    <div className="mt-3">
-      <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">League this week</div>
-      {teams.map(({ p, total }) => (
-        <details key={p.id} className={cn("border-b border-border/60 last:border-b-0", p.id === myPlayerId && "bg-muted")}>
-          <summary className="flex cursor-pointer list-none items-center gap-2.5 px-1 py-1.5 [&::-webkit-details-marker]:hidden">
-            {/* Rank by this episode's points, ties sharing a place. */}
-            <span className="w-5 text-center font-mono text-xs font-bold text-muted-foreground">
-              {teams.findIndex((t) => t.total === total) + 1}
-            </span>
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: p.color }} />
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-              {p.name}
-              {p.id === myPlayerId && <span className="ml-1 text-xs font-normal text-muted-foreground">(you)</span>}
-            </span>
-            <span className={cn("font-mono text-sm font-bold", total < 0 && "text-destructive")}>{fmt(total)}</span>
-            <span className="text-xs text-muted-foreground transition-transform [details[open]_&]:rotate-90" aria-hidden>
-              ›
-            </span>
-          </summary>
-          <div className="pb-2 pl-8 pr-1">
-            <TeamEpisodeBreakdown state={state} epId={epId} playerId={p.id} note={data?.notes[p.id]} />
-          </div>
-        </details>
-      ))}
-      <DashLink href="/scoreboard">Every episode on the Scoreboard →</DashLink>
-    </div>
+    <CaptionPlate
+      tag="You"
+      tone="good"
+      size="sm"
+      title={`${signed(pts(myEvents))} last week`}
+      subtitle={
+        benchPts > 0
+          ? `${benchPts} more ${benchPts === 1 ? "point" : "points"} sat on your bench`
+          : myEvents.length === 0
+            ? "Nothing from your lineup scored"
+            : `From your ${terms.castaways} in the lineup`
+      }
+    />
   );
 }
 

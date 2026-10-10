@@ -1,48 +1,25 @@
 "use client";
 
-import { useState } from "react";
 import type { LeagueState } from "@/lib/game/types";
-import StateLogic from "@/lib/game/state-logic.js";
 import { getActiveBets } from "@/lib/game/selectors";
-import { useLeagueStore, useCanGuess, useMyPlayerId } from "@/lib/store";
-import { useMutate } from "@/lib/use-mutate";
-import { api } from "@/lib/api";
+import { useCanGuess, useMyPlayerId } from "@/lib/store";
 import { BetCard } from "./bet-card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { PointsPicker } from "@/components/ui/points-picker";
 
-// Direct port of renderBonusBetsSection() (public/app.js). overviewNewBetOpen was a single
-// global flag there; here it's this component's own state, same as BetCard's revealedBetCardId.
+// The league's open predictions (docs/PLAN-ux-declutter.md): only when there are some -- an empty
+// section renders nothing. New ones are proposed on the upcoming episode's own page
+// (episode-detail.tsx), where they belong; how they went is on each episode's page too.
 export function SideBetsSection({ state }: { state: LeagueState }) {
-  const [formOpen, setFormOpen] = useState(false);
-  const [label, setLabel] = useState("");
-  const [points, setPoints] = useState(Math.min(StateLogic.MAX_BET_POINTS, Math.max(1, state.settings.defaultBetPoints || 1)));
-  const leagueId = useLeagueStore((s) => s.leagueId);
   const myPlayerId = useMyPlayerId();
   const canGuessBets = useCanGuess();
-  const mutate = useMutate();
 
   if (!state.settings.bonusEnabled) return null;
   const rows = getActiveBets(state);
+  if (rows.length === 0) return null;
   const needsCount =
     canGuessBets && myPlayerId
       ? rows.filter(({ bet }) => !(bet.predictions || []).some((p) => p.playerId === myPlayerId)).length
       : 0;
-
-  async function submit() {
-    const trimmed = label.trim();
-    if (!trimmed) return;
-    setFormOpen(false);
-    setLabel("");
-    // "upcoming" rather than an episode id: a brand-new league may have no episodes yet, so the
-    // server works out the episode about to be played and creates it if needed.
-    await mutate(
-      (s) => StateLogic.addBetToUpcoming(s, trimmed, points, myPlayerId),
-      () => api.proposeBet(leagueId!, "upcoming", trimmed, points)
-    );
-  }
 
   return (
     <div id="predictions" className="scroll-mt-20">
@@ -60,39 +37,6 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
         {rows.map(({ ep, bet }) => (
           <BetCard key={bet.id} ep={ep} bet={bet} state={state} />
         ))}
-        {formOpen ? (
-          <div className="rounded-lg border-2 border-dashed border-border bg-card p-3">
-            <Input
-              size="sm"
-              className="mb-2 w-full"
-              placeholder='e.g. "Who wins reward?"'
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              autoFocus
-            />
-            <label className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-              Points if correct:
-              <PointsPicker value={points} onChange={setPoints} />
-            </label>
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" size="xs" onClick={() => setFormOpen(false)}>
-                Cancel
-              </Button>
-              <Button size="xs" onClick={submit}>
-                Propose
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <button
-            className="flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border p-4 text-center text-muted-foreground hover:border-chyron-line hover:text-chyron-line"
-            onClick={() => setFormOpen(true)}
-          >
-            <div className="text-xl">+</div>
-            <div className="text-sm font-semibold">Propose a Prediction</div>
-            <div className="text-xs">Anyone can add one, any time</div>
-          </button>
-        )}
       </div>
     </div>
   );
