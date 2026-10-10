@@ -15,7 +15,6 @@ import { SeasonResultsCard } from "./season-results-card";
 import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
 import { StartingThisWeek } from "./active-roster-lineup-grid";
-import { CommissionerCard } from "./commissioner-card";
 import { useOverviewLayout } from "@/lib/use-overview-layout";
 import { isOverviewSectionEligible, toOverviewLeagueTypeId, type OverviewSectionId } from "@/lib/overview-layout";
 import type { LeagueState } from "@/lib/game/types";
@@ -92,24 +91,6 @@ export function OverviewDashboard() {
     <>
       {/* Season over: the results announcement leads the page (renders nothing until then). */}
       <SeasonResultsCard state={state} />
-      {/* What only the commissioner can do, when anything's waiting (renders nothing otherwise). */}
-      <div className="mb-6 empty:hidden">
-        <CommissionerCard state={state} />
-      </div>
-      {/* Catch-up mode (StateLogic.RevealLogic): say so here, or the standings look inexplicably
-          early to anyone who knows how far the real season has run. Deliberately says nothing about
-          how much is left -- see catch-up-panel.tsx. */}
-      {StateLogic.RevealLogic.isCatchingUp(state) && !StateLogic.RevealLogic.isComplete(state) && (
-        <p className="mb-4 text-[13px] text-muted-foreground">
-          Catching up — this league has played through{" "}
-          <b>
-            {StateLogic.RevealLogic.revealedThrough(state) === 0
-              ? "none of the season yet"
-              : `episode ${StateLogic.RevealLogic.revealedThrough(state)}`}
-          </b>
-          . Later episodes stay hidden until the commissioner reveals them.
-        </p>
-      )}
       <div className="flex flex-col gap-3.5">
         {groupSections(sections, state).map((group) =>
           group.length === 2 ? (

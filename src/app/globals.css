@@ -28,6 +28,8 @@
   --color-plate-muted: var(--plate-muted);
   --color-live: var(--live);
   --color-live-foreground: var(--live-foreground);
+  --color-quiet-tag: var(--quiet-tag);
+  --color-quiet-tag-foreground: var(--quiet-tag-foreground);
   --shadow-plate: var(--plate-shadow);
   --shadow-sheet: var(--sheet-shadow);
   --shadow-bar: var(--bar-shadow);
@@ -108,6 +110,10 @@
   --plate-muted: #4a4558;
   --live: #c02a34;
   --live-foreground: #ffffff;
+  /* A caption tag that says something without saying "now": ink with white on Studio, where a pale
+     raised fill would melt into the white plate beside it. */
+  --quiet-tag: #16141d;
+  --quiet-tag-foreground: #ffffff;
 
   /* ---- depth: only plates, sheets, sticky bars and popovers float ---- */
   --plate-shadow: 0 1px 2px rgba(22, 20, 29, 0.1), 0 4px 14px rgba(22, 20, 29, 0.14);
@@ -168,6 +174,8 @@
   --plate-muted: #4a4558;
   --live: #f2545b;
   --live-foreground: #2a0a0c;
+  --quiet-tag: #2a2633;
+  --quiet-tag-foreground: #f4f2f8;
 
   --plate-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
   --sheet-shadow: 0 -12px 30px rgba(0, 0, 0, 0.45);

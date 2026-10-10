@@ -7,6 +7,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { useLeagueStore, useCanManage, useIsSuperAdmin } from "@/lib/store";
 import { useShowTerms } from "@/lib/use-show-terms";
+import { commissionerItems } from "@/lib/game/commissioner-items";
 import { api } from "@/lib/api";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { cn } from "cn";
@@ -57,6 +58,18 @@ function SettingsList({ state }: { state: LeagueState }) {
     enabled: live,
   });
   const showLinks = !!links && (links.linked.length > 0 || (canManage && links.candidates.length > 0));
+  // Invites still waiting are part of the Players row's value, not a to-do (the same query Overview's
+  // old commissioner list read).
+  const { data: invites } = useQuery({
+    queryKey: ["league-invites", leagueId],
+    queryFn: () => api.listLeagueInvites(leagueId!),
+    enabled: live,
+    staleTime: 60_000,
+  });
+  const waiting = (invites?.invites ?? []).filter((inv) => inv.status === "pending").length;
+  // The commissioner's to-dos (lib/game/commissioner-items.ts) as chyron dots on the rows that fix
+  // them; the one that blocks the league is also Overview's status plate.
+  const todo = new Set(canManage ? commissionerItems(state).map((it) => it.id) : []);
 
   const seats = state.players.filter((p) => !p.disabled);
   const inactive = seats.filter((p) => p.active === false).length;
@@ -108,10 +121,16 @@ function SettingsList({ state }: { state: LeagueState }) {
         href="/setup/players"
         icon={Users}
         title="Players & invites"
-        value={`${seats.length} player${seats.length === 1 ? "" : "s"}${inactive ? ` · ${inactive} to activate` : ""}`}
-        alert={canManage && inactive > 0}
+        value={[
+          `${seats.length} player${seats.length === 1 ? "" : "s"}`,
+          inactive ? `${inactive} to activate` : null,
+          waiting ? `${waiting} invite${waiting === 1 ? "" : "s"} waiting` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        alert={canManage && (inactive > 0 || todo.has("players"))}
       />
-      <IndexRow href="/setup/league" icon={Flag} title="League setup" value={setupLine} />
+      <IndexRow href="/setup/league" icon={Flag} title="League setup" value={setupLine} alert={todo.has("draft")} />
       {type.hasActiveRoster && (
         <IndexRow
           href="/setup/lineups"
@@ -122,7 +141,13 @@ function SettingsList({ state }: { state: LeagueState }) {
       )}
       <IndexRow href="/setup/rules" icon={Calculator} title="Scoring & rules" value={rulesLine} alert={pendingChanges > 0} />
       {midSeason && s.ownershipMode !== "shared" && (
-        <IndexRow href="/setup/pickups" icon={ArrowLeftRight} title="Swaps & pickups" value={midLine} />
+        <IndexRow
+          href="/setup/pickups"
+          icon={ArrowLeftRight}
+          title="Swaps & pickups"
+          value={midLine}
+          alert={todo.has("pickups") || todo.has("swap")}
+        />
       )}
       <IndexRow href="/setup/predictions" icon={Target} title="Predictions" value={predLine} />
       <IndexRow

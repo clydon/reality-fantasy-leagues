@@ -17,7 +17,7 @@ const TONES: Record<CaptionTone, string> = {
   chyron: "bg-chyron text-chyron-foreground",
   live: "bg-live text-live-foreground",
   good: "bg-good text-good-foreground",
-  quiet: "bg-muted text-foreground",
+  quiet: "bg-quiet-tag text-quiet-tag-foreground",
 };
 
 /** A tag in someone's own colour (a player, a tribe), with whichever ink reads on it: plate ink on a
