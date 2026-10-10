@@ -10,7 +10,7 @@ import { XMarkIcon } from "@/components/icons";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
 import { RevealFirst, useHiddenResults } from "@/components/results-in-banner";
-import { Chip } from "./starters-board";
+import { Chip } from "./cast-by-tribe";
 
 // Pick'em: YOUR pick for the upcoming episode, plus (above it) who ELSE in the league has picked --
 // a nudge for stragglers, without giving away what they picked. Everyone's full pick history lives

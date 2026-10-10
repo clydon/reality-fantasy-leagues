@@ -1,230 +1,80 @@
 "use client";
 
-import type { Castaway, Episode, LeagueState } from "@/lib/game/types";
-import { sortByTribe } from "@/lib/game/sort-by-tribe";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { useLeagueStore, useMyPlayerId } from "@/lib/store";
-import { useMutate } from "@/lib/use-mutate";
-import { api } from "@/lib/api";
+import { useMyPlayerId } from "@/lib/store";
+import { lineupStatus } from "@/lib/game/lineup-view";
 import { CastawayAvatar } from "@/components/castaway-avatar";
-import { XMarkIcon } from "@/components/icons";
-import { useShowTerms } from "@/lib/use-show-terms";
-import { cn } from "cn";
+import { CastTile, shortNames } from "@/components/draft/draft-ui";
 import { RevealFirst, useHiddenResults } from "@/components/results-in-banner";
-import { formatInTz } from "@/lib/game/air-schedule.js";
-import { ScoringTable, scoringTableGroups } from "@/components/scoring-table";
-import { isKnockedOut } from "@/lib/game/selectors";
 
-// Active Roster: YOUR lineup for the current episode (StateLogic.currentEpisode): an Active row of
-// activeSlots slots (empty ones as dashed outlines), then the rest of your roster by current tribe.
-// Tap a roster card to field it (up to activeSlots), tap a starter to bench it -- the same
-// tap-to-toggle interaction as Eliminator Pool's pick grid (pickem-pick-grid.tsx),
-// since both are "this week's choice from your people" even though the rule underneath differs (field
-// up to N to score vs. pick exactly one to survive).
-//
-// Self-service only, like the pick grid: this sets YOUR OWN lineup. Setting a lineup on behalf of
-// another player (an inactive one, say) isn't offered here -- see episode-active-roster-section.tsx
-// for what the episode card still shows (read-only, plus the commissioner's lock).
-export function ActiveRosterLineupGrid({ state }: { state: LeagueState }) {
-  const terms = useShowTerms();
+// Active Roster on Overview: who you're starting this week (the canvas's AR-Home), as tiles, with your
+// bench as small faces underneath. Read-only: "Change" and an open slot go to the Lineup page
+// (src/components/lineup/lineup-page.tsx), where it's set. The alert strip above already says when
+// it isn't set, so this doesn't repeat it.
+export function StartingThisWeek({ state }: { state: LeagueState }) {
   const myPlayerId = useMyPlayerId();
-  const { hidden: hiddenResults } = useHiddenResults();
+  const { hidden } = useHiddenResults();
 
   if (!myPlayerId) return null;
-  if (hiddenResults.length > 0) return <RevealFirst what="set your next lineup" />;
+  if (hidden.length > 0) return <RevealFirst what="set your next lineup" />;
   const roster = state.castaways.filter((c) => c.ownerIds.includes(myPlayerId));
-  if (roster.length === 0) return null;
-
   const ep = StateLogic.currentEpisode(state);
-  const activeSlots = state.settings.activeSlots;
-  // Open until the episode starts airing (or has results, or a commissioner locked it by hand).
-  const locked = !ep || StateLogic.ActiveRosterLogic.isLineupLocked(state, ep.id);
-  const lineup = ep ? StateLogic.activeRosterLineupFor(state, ep.id, myPlayerId) : [];
+  if (roster.length === 0 || !ep) return null;
+
+  const locked = StateLogic.ActiveRosterLogic.isLineupLocked(state, ep.id);
+  const { starters, bench, activeSlots, carried } = lineupStatus(state, ep, myPlayerId);
+  const names = shortNames(roster);
+  const earlier = carried && starters.length > 0;
 
   return (
-    <div id="lineup" className="scroll-mt-20 section-shell">
-      <div className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="section-title">
-          {ep ? `Your lineup for episode ${ep.number}` : "Your lineup"}
-        </h3>
-        <span className="ml-auto text-xs text-muted-foreground">
-          {lineup.length}/{activeSlots} active
-        </span>
+    <section id="lineup" className="flex scroll-mt-20 flex-col gap-2.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="section-title">{locked ? `Episode ${ep.number} starters` : "Starting this week"}</h3>
+        {locked ? (
+          <span className="text-sm text-muted-foreground">Locked</span>
+        ) : (
+          <Link href="/lineup" className="-my-3 py-3 text-sm font-semibold text-primary hover:underline">
+            Change
+          </Link>
+        )}
       </div>
-      <p className="mb-3 text-xs text-muted-foreground">
-        {!ep
-          ? "There's no episode to field a lineup for yet."
-          : locked
-            ? `Episode ${ep.number} has started — lineups are locked.`
-            : `Tap a ${terms.castaway} in your roster to start them, or a starter to bench them — only active ones score.${
-                ep.airsAt ? ` Locks when it airs, ${formatInTz(new Date(ep.airsAt), localTz())}.` : ""
-              }`}
-      </p>
-      <LineupEditor state={state} ep={ep} playerId={myPlayerId} />
-      <ScoringChart state={state} />
-    </div>
-  );
-}
-
-/**
- * The Active row and the rest of the roster, tap to field or bench -- each tap saves straight away
- * (no Save step). Used by the lineup card above and by the Starters board's "Edit lineup" mode
- * (starters-board.tsx). `onSaved` fires after each change lands, for a "Saved" tick.
- */
-export function LineupEditor({
-  state,
-  ep,
-  playerId,
-  onSaved,
-}: {
-  state: LeagueState;
-  ep: Episode | null;
-  playerId: string;
-  onSaved?: () => void;
-}) {
-  const leagueId = useLeagueStore((s) => s.leagueId);
-  const mutate = useMutate();
-  const roster = state.castaways.filter((c) => c.ownerIds.includes(playerId));
-  const activeSlots = state.settings.activeSlots;
-  const locked = !ep || StateLogic.ActiveRosterLogic.isLineupLocked(state, ep.id);
-  const lineup = ep ? StateLogic.activeRosterLineupFor(state, ep.id, playerId) : [];
-  const starters = lineup.map((id) => roster.find((c) => c.id === id)).filter((c): c is Castaway => !!c);
-  const bench = [
-    ...sortByTribe(roster.filter((c) => !lineup.includes(c.id) && c.status !== "eliminated"), state),
-    ...roster.filter((c) => !lineup.includes(c.id) && c.status === "eliminated"),
-  ];
-
-  async function toggle(castawayId: string) {
-    if (!ep || locked) return;
-    const active = lineup.includes(castawayId);
-    if (!active && lineup.length >= activeSlots) return;
-    const next = active ? lineup.filter((id) => id !== castawayId) : [...lineup, castawayId];
-    const ok = await mutate(
-      (s) => StateLogic.setActiveRosterLineup(s, ep.id, playerId, next),
-      () => api.setActiveRosterLineup(leagueId!, ep.id, playerId, next)
-    );
-    if (ok) onSaved?.();
-  }
-
-  return (
-    <>
-      {/* Active: one slot per active spot, filled in lineup order; an empty one is a dashed outline of
-          a card, waiting for someone from the roster below. */}
-      <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Active</div>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-x-2.5 gap-y-4 pt-2">
-        {Array.from({ length: Math.max(activeSlots, lineup.length) }, (_, i) => {
+      <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
+        {Array.from({ length: Math.max(activeSlots, starters.length) }, (_, i) => {
           const c = starters[i];
           return c ? (
-            <LineupCard key={c.id} state={state} castaway={c} active showTribe canTap={!locked && !!ep} onTap={() => toggle(c.id)} />
+            <CastTile key={c.id} castaway={c} label={names.get(c.id) ?? c.name} state={state} photoHeight={112} />
+          ) : locked ? (
+            <div key={`open-${i}`} className="min-h-[152px] rounded-[3px] border-2 border-dashed border-border" aria-label="Empty slot" />
           ) : (
-            <div
-              key={`empty-${i}`}
-              className="flex min-h-[104px] flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-border p-2"
-              aria-label="Empty slot"
+            <Link
+              key={`open-${i}`}
+              href="/lineup"
+              className="flex min-h-[152px] flex-col items-center justify-center gap-1.5 rounded-[3px] border-2 border-dashed border-plate-muted text-[13px] text-muted-foreground hover:border-muted-foreground"
             >
-              <div className="h-11 w-11 rounded-lg border-2 border-dashed border-border" />
-              <span className="text-[0.65rem] text-muted-foreground">Empty</span>
-            </div>
+              <Plus className="size-[22px]" aria-hidden />
+              Open slot
+            </Link>
           );
         })}
       </div>
-
-      <div className="my-4 h-px bg-border" />
-
-      {/* The roster: everyone not starting, by current tribe (a swap or merge shows as it stands),
-          eliminated last. */}
-      <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Roster</div>
-      {bench.length === 0 ? (
-        <p className="text-xs italic text-muted-foreground">Everyone on your roster is starting.</p>
-      ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-x-2.5 gap-y-4 pt-2">
+      {(bench.length > 0 || earlier) && (
+        <div className="flex min-h-8 flex-wrap items-center gap-2.5 text-sm">
+          {bench.length > 0 && <span className="text-muted-foreground">Bench</span>}
           {bench.map((c) => (
-            <LineupCard
+            <CastawayAvatar
               key={c.id}
-              state={state}
               castaway={c}
-              active={false}
-              showTribe
-              // Fielding someone new isn't possible once they're out or the slots are full.
-              canTap={!locked && !!ep && c.status !== "eliminated" && lineup.length < activeSlots}
-              onTap={() => toggle(c.id)}
+              expandable
+              className="flex size-8 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-bold text-muted-foreground [&_img]:object-top"
             />
           ))}
+          {/* Nobody chose for this episode: the last lineup stands in (ActiveRosterLogic.lineupFor). */}
+          {earlier && <span className="text-[13px] text-muted-foreground">Same lineup as last week</span>}
         </div>
       )}
-    </>
+    </section>
   );
-}
-
-function LineupCard({
-  state,
-  castaway: c,
-  active,
-  canTap,
-  showTribe,
-  onTap,
-}: {
-  state: LeagueState;
-  castaway: Castaway;
-  active: boolean;
-  canTap: boolean;
-  showTribe?: boolean;
-  onTap: () => void;
-}) {
-  const out = isKnockedOut(state, c);
-  const tribe = showTribe && c.tribeId ? state.tribes.find((t) => t.id === c.tribeId) : null;
-  return (
-    <button
-      type="button"
-      disabled={!canTap}
-      onClick={onTap}
-      title={out ? `${c.name} is out` : undefined}
-      className={cn(
-        "relative flex min-h-[104px] flex-col items-center gap-1.5 rounded-lg border-2 bg-card p-2 text-center transition-colors",
-        active ? "border-primary bg-primary/5" : "border-border",
-        canTap && "cursor-pointer hover:border-primary",
-        out && "opacity-[.55]"
-      )}
-    >
-      {/* Current tribe, centred on the card's top edge above the photo. */}
-      {tribe && (
-        <span
-          className="absolute -top-2 left-1/2 max-w-[90%] -translate-x-1/2 truncate rounded-full px-1.5 py-px text-[0.55rem] font-bold uppercase tracking-wide text-white shadow-sm"
-          style={{ background: tribe.color }}
-        >
-          {tribe.name}
-        </span>
-      )}
-      <div className="relative mt-1 h-11 w-11">
-        <CastawayAvatar castaway={c} className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold" />
-        {out && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-black/10" aria-hidden>
-            <XMarkIcon className="h-7 w-7 text-destructive drop-shadow-[0_1px_2px_rgba(0,0,0,.4)]" />
-          </div>
-        )}
-      </div>
-      <span className="text-xs font-medium leading-tight">{c.name}</span>
-    </button>
-  );
-}
-
-// What each event is worth in this league, collapsed by default -- for deciding who to start.
-function ScoringChart({ state }: { state: LeagueState }) {
-  const groups = scoringTableGroups(state);
-  if (groups.length === 0) return null;
-  return (
-    <details className="mt-4 border-t border-border pt-2">
-      <summary className="cursor-pointer text-xs text-muted-foreground">How starters score</summary>
-      <ScoringTable groups={groups} />
-    </details>
-  );
-}
-
-// The viewer's own time zone, for "locks when it airs" -- the schedule itself is in the show's.
-function localTz(): string | undefined {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-  } catch {
-    return undefined;
-  }
 }

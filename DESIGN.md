@@ -352,11 +352,28 @@ A multi-step task gets the whole screen, with no tab bar or sidebar (`/new-leagu
 `DashCard` and the shared `section-shell` / `section-title`: in dark mode no box at all, just a 24px condensed caps heading in Bone Text over the content, with an optional aside on the heading line. Sections read like a broadcast rundown.
 
 ### Standings Row
-48px rows divided by hairlines: a condensed rank (the leader's in chyron), the player's colour dot, the name in 16px semibold, and a condensed tabular total on the right. Your own row is lifted with a Night Panel Raised fill and a white "You" badge.
+48px rows divided by hairlines: a condensed rank (ties as "T1"; the leader's in chyron, and nobody's when everyone is level), the player's colour dot, the name in 16px semibold, and a condensed tabular total on the right. Active Roster adds the latest episode's score in 13px muted text before the total. Your own row is lifted with a Night Panel Raised fill and a white "You" badge.
 
 ### Scoreboard and the commissioner's to-do list
 - **Scoreboard rows** link to the player's own page and take the shape of the league type's scoring: a team's faces (out ones greyed, with where they finished in Live Red), a per-episode table, or streak columns. Ranks show ties as "T1"; the leader's rank is chyron, and nobody's when everyone is level. Your row is lifted like the standings row.
 - **Commissioner list** (top of Overview): a muted 19px condensed caps label, then hairline rows (title, one line of detail, the action's name and a chevron). Only shown when something is waiting, and with no yellow, because the alert strip above it already holds the screen's "now".
+
+### Lineup (Active Roster)
+Setting a lineup is the weekly job, so it has its own page and tab (`/lineup`, `lineup/lineup-page.tsx`).
+- **Mine / Everyone:** a two-way segmented control on a night panel; the chosen side is a bone-white
+  fill with dark text, like the You badge. Under it, one muted line with a clock: when it locks and
+  how long until then (a lock icon once it has).
+- **Starters** are cast tiles three across with 112px photos; tapping one benches it. An empty slot
+  is a dashed plate-muted outline with a plus and "Open slot".
+- **Bench rows** are 62px: a 46px square photo, name, tribe and last episode's points (saying when
+  they were benched), and Start on the right. Start is the chyron button only while there's room;
+  otherwise it's an outlined "Full", so yellow shows only when there's something to do.
+- **Everyone rows** are 76px: the player's dot and name over a small Set (teal) / Not set (muted)
+  chip, then their starters as 44px faces, "?" squares when hidden, dashed squares for open slots.
+- **Starting this week** on Overview is the read-only version of the tiles with a Change link, the
+  bench as 32px round faces, and Last week as a small good-tone caption plate.
+- **Your season** (Scoreboard): two-up night-panel cards (4px corners), a muted label, a 40px face,
+  the first name and a 20px condensed number; points left on the bench are muted.
 
 ### Spoiler gate and the reveal
 Results a player hasn't chosen to see stay out of every screen until they do.
@@ -376,7 +393,7 @@ Results a player hasn't chosen to see stay out of every screen until they do.
   number stays the only yellow. Beats fade and slide up over 300ms, only when motion is allowed.
 
 ### Navigation
-Mobile: a header with the page's name in 22px condensed caps and the league name in 12px above it, chat on the right; a fixed bottom tab bar. Desktop (880px+): a Night Rail sidebar. The current tab is marked in chyron.
+Mobile: a header with the page's name in 22px condensed caps and the league name in 12px above it, chat on the right; a fixed bottom tab bar. Its fourth slot follows the league and the season's phase: Draft until the draft is done, then Lineup (Active Roster), Mid-Season or Chat; Research and anything else displaced go in More. Desktop (880px+): a Night Rail sidebar. The current tab is marked in chyron.
 
 ## Do's and Don'ts
 

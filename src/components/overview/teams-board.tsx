@@ -4,9 +4,9 @@ import type { Castaway, LeagueState, Player } from "@/lib/game/types";
 import { useMyPlayerId } from "@/lib/store";
 import { medalFor, MEDAL_EMOJI } from "@/lib/game/selectors";
 import { cn } from "cn";
-import { Chip, CastByTribe } from "./starters-board";
+import { Chip, CastByTribe } from "./cast-by-tribe";
 
-// Classic Draft's Board, in the shape of Active Roster's StartersBoard: every player's team as a row
+// Classic Draft's Board: every player's team as a row
 // of photos, then the whole cast as compact chips by tribe. Classic has no lineups -- the team IS the
 // draft -- so a row is the roster: still in first, then the ones who are out, most recent first, each
 // with where they finished (that's this type's score) in the corner the way BoardGrid's cards show it.
@@ -52,7 +52,7 @@ function TeamRow({ state, player, isMe }: { state: LeagueState; player: Player; 
         <p className="text-xs text-muted-foreground">No one drafted.</p>
       ) : (
         // The team left, anyone dropped right; on a narrow screen the dropped wrap under, still
-        // right-aligned (StartersBoard's starters/bench layout).
+        // right-aligned.
         <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
           <div className="flex flex-wrap gap-1.5">
             {inGame.map((c) => (

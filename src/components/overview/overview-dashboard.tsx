@@ -11,12 +11,12 @@ import { YourTeamCard } from "./your-team-card";
 import { LastWeekCard } from "./last-week-card";
 import { SideBetsSection } from "./side-bets-section";
 import { BoardGrid } from "./board-grid";
-import { StartersBoard } from "./starters-board";
+import { CastBoard } from "./cast-by-tribe";
 import { TeamsBoard } from "./teams-board";
 import { SeasonResultsCard } from "./season-results-card";
 import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
-import { ActiveRosterLineupGrid } from "./active-roster-lineup-grid";
+import { StartingThisWeek } from "./active-roster-lineup-grid";
 import { LeagueScoringCard } from "./league-scoring-card";
 import { CommissionerCard } from "./commissioner-card";
 import { useOverviewLayout } from "@/lib/use-overview-layout";
@@ -34,7 +34,7 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
     case "pickGrid":
       return <PickEmPickGrid state={state} />;
     case "lineupGrid":
-      return <ActiveRosterLineupGrid state={state} />;
+      return <StartingThisWeek state={state} />;
     case "standings":
       return <StandingsCard state={state} />;
     case "yourTeam":
@@ -51,12 +51,12 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
       // Only ever in the ordered section list when isOverviewSectionEligible already confirmed
       // draftComplete, so no need to re-check it here. BoardGrid owns its own card shell/heading
       // now (previously the one Overview section without one).
-      // Active Roster gets "who's starting whom" first, then a compact cast (starters-board.tsx);
-      // Classic the same shape with each team (teams-board.tsx). Eliminator Pool's equivalent
+      // Active Roster gets just the compact cast (cast-by-tribe.tsx): who's starting whom is on the
+      // Lineup page. Classic gets each team, then the cast (teams-board.tsx). Eliminator Pool's equivalent
       // status/nudge section lives on the pick grid itself (pickem-pick-grid.tsx), not here.
       {
         const lt = StateLogic.getLeagueType(state);
-        if (lt.hasActiveRoster) return <StartersBoard state={state} />;
+        if (lt.hasActiveRoster) return <CastBoard state={state} />;
         return lt.hasRoster ? <TeamsBoard state={state} /> : <BoardGrid state={state} />;
       }
   }

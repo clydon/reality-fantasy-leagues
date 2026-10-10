@@ -18,7 +18,7 @@ type Scored = { events: ReturnType<typeof StateLogic.ActiveRosterLogic.episodeEv
 // Active Roster's per-episode UI inside EpisodeCard: each player's episode laid out like the
 // Scoreboard's breakdown -- who they started and what each earned them, then their bench players who
 // scored (what starting them would have been worth) -- plus the commissioner's lineup lock and the
-// scoring-event log. Read-only for lineups: see overview/active-roster-lineup-grid.tsx for where
+// scoring-event log. Read-only for lineups: see lineup/lineup-page.tsx for where
 // they're actually SET, tap by tap, the same self-service pattern as Eliminator Pool's pick.
 //
 // Lineups are per-episode by design (see ActiveRosterLogic): this component only ever reads

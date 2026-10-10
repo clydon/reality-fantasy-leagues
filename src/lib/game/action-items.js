@@ -17,7 +17,7 @@ function isBetSettled(bet) {
 // nobody's blocked).
 //
 // Each check mirrors the UI that resolves it, so an item disappears as soon as the thing is done:
-// draft-board/blind-draft-panel, mid-season, active-roster-lineup-grid, pickem-pick-grid,
+// draft-board/blind-draft-panel, mid-season, lineup/lineup-page, pickem-pick-grid,
 // side-bets-section. `episode` is the episode number a weekly item is for (reminders key on it).
 function actionItems(state, playerId) {
   const me = state.players.find((p) => p.id === playerId);
@@ -61,7 +61,7 @@ function actionItems(state, playerId) {
         items.push({
           kind: "lineup",
           text: `Set your episode ${ep.number} lineup (${open} empty slot${open === 1 ? "" : "s"})`,
-          href: "/#lineup",
+          href: "/lineup",
           episode: ep.number,
         });
       }

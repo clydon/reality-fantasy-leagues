@@ -6,6 +6,10 @@ import { cn } from "cn";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useHiddenResults } from "@/components/results-in-banner";
 import { AsOfPill } from "./latest-episode-card";
+import { classicKey, leads, poolKey, rankLabels } from "@/components/scoreboard/scoreboard-tab";
+import { latestScoredEpisode } from "@/lib/game/episode-team-summary";
+import { teamEpisodeBreakdown } from "@/lib/game/team-episode-breakdown";
+import { signed } from "@/lib/game/lineup-view";
 import { DashCard, DashLink } from "./dash-card";
 
 // Direct port of renderOverview()'s "Standings" card -- the wide one, using the same
@@ -19,6 +23,10 @@ export function StandingsCard({ state }: { state: LeagueState }) {
   const pickem = StateLogic.getLeagueType(state).hasWeeklyPicks;
   const me = useMyPlayerId();
   const { hidden } = useHiddenResults();
+  // Ties read "T1", and nobody's rank is chyron when everyone is level (the Scoreboard's rules).
+  const ranks = rankLabels(scores, pickem ? poolKey : classicKey);
+  // Active Roster: what each scored in the latest episode, beside the total (the Scoreboard's column).
+  const lastEp = StateLogic.getLeagueType(state).hasActiveRoster ? latestScoredEpisode(state) : null;
 
   return (
     <DashCard title="Standings" wide>
@@ -44,7 +52,7 @@ export function StandingsCard({ state }: { state: LeagueState }) {
                   r.playerId === me && "-mx-2 rounded-[3px] bg-muted px-2",
                 )}
               >
-                <span className={cn("type-num w-6 shrink-0 text-[24px] text-muted-foreground", i === 0 && "dark:text-chyron")}>{i + 1}</span>
+                <span className={cn("type-num w-8 shrink-0 text-[24px] text-muted-foreground", leads(ranks, i) && "dark:text-chyron")}>{ranks[i]}</span>
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: r.color }} />
                 <span className="flex min-w-0 flex-1 items-center gap-2 truncate font-semibold">
                   {r.name}
@@ -62,7 +70,14 @@ export function StandingsCard({ state }: { state: LeagueState }) {
                     <b className="min-w-[1.5ch] text-right">{best}</b>
                   </span>
                 ) : (
-                  <span className="type-num shrink-0 text-[26px]">{r.total}</span>
+                  <>
+                    {lastEp && (
+                      <span className="shrink-0 text-[13px] text-muted-foreground" title={`Episode ${lastEp.number}`}>
+                        {signed(teamEpisodeBreakdown(state, lastEp.id, r.playerId).total)}
+                      </span>
+                    )}
+                    <span className="type-num min-w-9 shrink-0 text-right text-[26px]">{r.total}</span>
+                  </>
                 )}
               </div>
             );

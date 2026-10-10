@@ -298,7 +298,7 @@ const data = {
   // Exits that mean reaching the end, not being knocked out: shown as finishers, never dimmed as out.
   endgameExitMethods: ['Finalist', 'Winner'],
   events,
-  // Groups for "How starters score" (active-roster-lineup-grid.tsx), in this order.
+  // Groups for the League Scoring table (overview/league-scoring-card.tsx), in this order.
   eventCategories: [
     { id: 'challenges', label: 'Challenges', events: ['dailyWin', 'eliminationWin', 'nominatedSurvived', 'captain'] },
     { id: 'leaving', label: 'Leaving the game', events: ['eliminated', 'disqualified', 'quit', 'medicallyRemoved'] },

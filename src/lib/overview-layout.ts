@@ -25,9 +25,9 @@ export const OVERVIEW_SECTION_LABELS: Record<OverviewSectionId, string> = {
   notifications: "Notifications",
   sideBets: "Predictions",
   pickGrid: "Weekly Pick (Eliminator Pool)",
-  lineupGrid: "Set Lineup (Active Roster)",
+  lineupGrid: "Starting This Week (Active Roster)",
   standings: "Standings",
-  yourTeam: "Your Team (Your Stats in Active Roster)",
+  yourTeam: "Your Team / Your Pick",
   lastWeek: "Last Week (Active Roster)",
   latestEpisode: "Latest Episode",
   yourLine: "Your Episode Line (Active Roster)",
@@ -57,9 +57,9 @@ export const DEFAULT_OVERVIEW_ORDER: OverviewSectionId[] = [
   "sideBets",
   "pickGrid",
   "lineupGrid",
+  "lastWeek",
   "standings",
   "yourTeam",
-  "lastWeek",
   "latestEpisode",
   "yourLine",
   "seasonStatus",
@@ -96,9 +96,12 @@ export function isOverviewSectionEligible(id: OverviewSectionId, state: LeagueSt
     // The commissioner writes these from the Active Roster Scoreboard.
     case "yourLine":
       return leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks;
-    // Folded into Your Team's "Last week" view; kept as an id so saved layouts that list it still load.
+    // Active Roster's last week is a caption plate (last-week-card.tsx); the season detail Your Team
+    // used to carry for it is on your Scoreboard page now.
     case "lastWeek":
-      return false;
+      return leagueType.hasActiveRoster;
+    case "yourTeam":
+      return !leagueType.hasActiveRoster;
     case "board":
       return draftComplete;
     default:
@@ -119,9 +122,10 @@ export function isOverviewSectionForType(id: OverviewSectionId, typeId: Overview
       return activeRoster;
     case "leagueScoring":
     case "yourLine":
-      return activeRoster;
     case "lastWeek":
-      return false;
+      return activeRoster;
+    case "yourTeam":
+      return !activeRoster;
     default:
       return true;
   }

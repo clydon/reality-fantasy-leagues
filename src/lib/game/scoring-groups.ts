@@ -6,7 +6,7 @@ type EventDef = ReturnType<typeof StateLogic.formatOf>["events"][number];
 /**
  * The show's scoring events in its display categories (format.eventCategories -- Challenges, Tribal
  * Council, Endgame...), in that order and each category in its listed order; anything a format left
- * uncategorised goes in a trailing "Other". Shared by the lineup card's "How starters score" and
+ * uncategorised goes in a trailing "Other". Shared by Overview's League Scoring card and
  * League Settings' scoring list, so the two always group alike.
  */
 export function scoringGroups(state: LeagueState): { id: string; label: string; events: EventDef[] }[] {

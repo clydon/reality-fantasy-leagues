@@ -598,7 +598,7 @@ const data = {
   // Exits that mean reaching the end, not being knocked out: shown as finishers, never dimmed as out.
   endgameExitMethods: ['Finalist', 'Winner'],
   events,
-  // Groups for "How starters score" (active-roster-lineup-grid.tsx), in this order.
+  // Groups for the League Scoring table (overview/league-scoring-card.tsx), in this order.
   eventCategories: [
     { id: 'missions', label: 'Missions', events: ['shieldWon', 'wonPower', 'missionStandout', 'gaveShield', 'missionBlunder'] },
     { id: 'turret', label: 'Murder & the Turret', events: ['shieldSavedThem', 'onMurderShortlist', 'consideredForMurder', 'recruited', 'declinedRecruitment', 'murdered'] },

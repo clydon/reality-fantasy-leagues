@@ -14,6 +14,7 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { MoreButton } from "@/components/setup/settings-ui";
 import { cn } from "cn";
 import { EpisodeLinesModal } from "./episode-summary-modal";
+import { YourSeason } from "./your-season";
 import { useShowTerms } from "@/lib/use-show-terms";
 
 // The Scoreboard (docs/PLAN-ux-redesign.md, 2f; the canvas's "Standings" boards): one compact list in
@@ -252,6 +253,11 @@ function ActiveRosterBoard({ state, scores }: { state: LeagueState; scores: Scor
       <p className="mt-3 text-[13px] text-muted-foreground">
         {eps.length > 0 && "Yellow marks the best score of each episode. "}Tap a player for their roster and every episode.
       </p>
+      {me && scores.some((r) => r.playerId === me) && (
+        <div className="mt-6">
+          <YourSeason state={state} playerId={me} />
+        </div>
+      )}
     </div>
   );
 }

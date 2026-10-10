@@ -10,6 +10,7 @@ import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
+import { myLineupDue } from "@/lib/game/lineup-view";
 import { logOut } from "@/lib/auth-client";
 import { cn } from "cn";
 import { midseasonBadge } from "@/lib/game/selectors";
@@ -29,6 +30,7 @@ import {
   LogoutIcon,
   ChatIcon,
   ResearchIcon,
+  LineupIcon,
   MoonIcon,
   ChevronDownIcon,
   GearIcon,
@@ -175,11 +177,13 @@ export function MobileNav() {
   const midSeasonSlot = hasMidSeason ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon } : null;
   // Active Roster puts Research where Chat would go; chat stays one tap away on the top bar's icon.
   const hasActiveRoster = StateLogic.getLeagueType(state).hasActiveRoster;
-  // After the draft Active Roster keeps Research here even when Mid-Season is on -- scouting is the
-  // weekly job, replenish/swap an occasional one -- so Mid-Season moves to the More sheet instead.
-  const researchSlot = hasActiveRoster && draftComplete;
-  const fourth =
-    !hasRoster || (draftComplete && !midSeasonSlot) || researchSlot
+  // After the draft Active Roster's slot is the Lineup (docs/PLAN-ux-redesign.md, 1e: slot 4 follows
+  // the season phase) -- setting it is the weekly job -- flagged while your lineup has a slot to
+  // fill. Research and Mid-Season move to the More sheet.
+  const lineupSlot = hasActiveRoster && draftComplete;
+  const fourth = lineupSlot
+    ? { href: "/lineup", label: "Lineup", icon: LineupIcon, urgent: myLineupDue(state, myPlayerId) ? true : null }
+    : !hasRoster || (draftComplete && !midSeasonSlot)
       ? hasActiveRoster
         ? { href: "/research", label: "Research", icon: ResearchIcon, urgent: null }
         : { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
@@ -210,6 +214,7 @@ export function MobileNav() {
     "/draft": "Draft",
     "/mid-season": "Mid-Season",
     "/research": "Research",
+    "/lineup": "Lineup",
     "/chat": "Chat",
     "/setup": "League Settings",
     "/admin": "Admin",
@@ -425,7 +430,7 @@ export function MobileNav() {
           <span className="relative inline-flex">
             <MoreIcon className="h-[21px] w-[21px]" />
             {/* Mid-Season lives in here for Active Roster, so its "your turn" alert does too. */}
-            {researchSlot && midSeasonSlot && midBadge?.urgent && (
+            {lineupSlot && midSeasonSlot && midBadge?.urgent && (
               <span className="absolute -right-2 -top-1 flex h-[15px] w-[15px] items-center justify-center rounded-full bg-destructive text-[0.62rem] font-bold text-white">
                 !
               </span>
@@ -463,7 +468,7 @@ export function MobileNav() {
           <div className="h-1 w-9 rounded-full bg-border" />
         </div>
         {hasSeason && demoted && <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />}
-        {hasSeason && researchSlot && midSeasonSlot && (
+        {hasSeason && lineupSlot && midSeasonSlot && (
           <MoreRow
             icon={midSeasonSlot.icon}
             label={midBadge ? `Mid-Season · ${midBadge.label}` : "Mid-Season"}

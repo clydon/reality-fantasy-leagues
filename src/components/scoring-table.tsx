@@ -18,7 +18,7 @@ export function scoringTableGroups(state: LeagueState) {
     .filter((g) => g.rows.length > 0);
 }
 
-// Shared by the lineup card's "How starters score" and the Scoreboard's "League Scoring" card.
+// Used by Overview's League Scoring card.
 export function ScoringTable({ groups }: { groups: ReturnType<typeof scoringTableGroups> }) {
   return (
     <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">

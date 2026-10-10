@@ -33,6 +33,16 @@ export function TrophyIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+// Active Roster's lineup: three starters, two up and one down (the canvas's tab icon).
+export function LineupIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...common} {...props}>
+      <rect x="3" y="4" width="7" height="7" rx="1" />
+      <rect x="14" y="4" width="7" height="7" rx="1" />
+      <rect x="8.5" y="13" width="7" height="7" rx="1" />
+    </svg>
+  );
+}
 export function MoonIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...common} {...props}>

@@ -7,7 +7,7 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { Card } from "@/components/ui/card";
 
 // Overview section (Active Roster only). The league's scoring rules in one place, collapsed by default: the lineup shape, what each event
-// is worth (the same table as the lineup card's "How starters score"), and the extras that add to a
+// is worth (the same table the rules use), and the extras that add to a
 // total -- predictions and finale picks -- when this league has them on.
 export function LeagueScoringCard({ state }: { state: LeagueState }) {
   const terms = useShowTerms();

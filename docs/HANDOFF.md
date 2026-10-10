@@ -64,7 +64,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
    pass.
 2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~,
    ~~League Settings~~, ~~Create a league~~, ~~Overview & Scoreboard (commissioner)~~, ~~Spoilers &
-   reveal~~, then the rest; admin last.
+   reveal~~, ~~Active Roster~~, then the rest (Classic, Eliminator Pool); admin last.
    - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
      episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
      `src/app/episodes/[number]/page.tsx` -> `episode-detail.tsx`: read view by default (who left as
@@ -293,6 +293,65 @@ explained to a commissioner") rather than re-deriving it from source each time.
      (tribes sorted, so it stayed), then Episode 2 straight into the moment, then Episode 3 with
      Episode 2 still hidden (plays 2–3, two exits); the league was deleted after. Plus 1280 dark and
      390 light. No console errors, no horizontal overflow, no test data left behind.
+   - **Active Roster done 2026-10-09** (canvas page "A · Active Roster": AR-Home, AR-Lineup,
+     AR-Starters, AR-Scoreboard; AR-Reveal was covered by Episodes and Spoilers).
+   - **New Lineup page** at `/lineup` (`lineup/lineup-page.tsx`), with Mine and Everyone views and the
+     lock time ("Locks Wed, Oct 14, 8:00 PM EDT · in 5 days", in the viewer's zone).
+     - **Mine:** your starters as 3-up cast tiles (tap one to bench it) with dashed "Open slot"s, then
+       the bench as rows: photo, tribe, what each scored last episode ("Ep 3: +1.5 on the bench"), and
+       Start. Start is chyron while there's room and an outlined "Full" when there isn't. A status line
+       says set or "Start N more before it locks". Each change saves as it's made ("Saved.").
+     - **Everyone:** one row per player (you first) with a Set / Not set / "2 of 3" chip and their
+       starters as 44px faces. Hidden ones are "?" when the commissioner's hide-starters setting is
+       on. Points show once the episode has scored. Then **Top starters** of the last scored episode:
+       each castaway once, who started them, what they did, and +N in teal.
+     - Locked: the tiles and rows are read-only and the line says so. Results hidden: Reveal first,
+       in both views. Shared helpers are in `lib/game/lineup-view.ts` (`lineupStatus`, `myLineupDue`,
+       `lockLine`, `topStarters`, `signed`).
+   - **Navigation:** for Active Roster after the draft, the tab bar's 4th slot is **Lineup** (plan
+     1e), with the red "!" while your lineup has a slot to fill. Research moves to More, beside
+     Mid-Season. The desktop sidebar has a Lineup row (Active Roster only) with the same badge. Swipe
+     between linked leagues keeps `/lineup` when the other league has lineups. The alert strip's
+     lineup item, and so the lineup reminder push, now open `/lineup` (they opened `/#lineup`).
+     The Lineup tab is player-facing: put it in the What's New entry due at merge (the user approves
+     those).
+   - **Overview** (Active Roster):
+     - "Set Lineup" is now **Starting this week** (`active-roster-lineup-grid.tsx`, `StartingThisWeek`):
+       read-only tiles with Change and Open slot linking to `/lineup`, the bench as small round faces,
+       and "Same lineup as last week" when it carried over. Locked, it's "Episode 4 starters · Locked".
+     - **Last week** is the caption plate alone, "+6.5 last week", Recap to that episode's page.
+     - **Your Team / Your Stats is no longer shown for Active Roster.** Its last-week view is the
+       plate, and its season view is your Scoreboard page plus Your season (below).
+     - **The Board is just the cast** (`cast-by-tribe.tsx`, `CastBoard`). Everyone's starters moved to
+       Lineup → Everyone. `starters-board.tsx` and `castaway-stat-row.tsx` are gone; `Chip` and
+       `CastByTribe` live in `cast-by-tribe.tsx`.
+     - `overview-layout.ts`: `lastWeek` is eligible for Active Roster again and `yourTeam` isn't. The
+       default order puts Starting this week, then Last week, before Standings (the canvas).
+       **A saved layout overrides the default**, though. The local DB has one for Active Roster that
+       puts Standings and Latest Episode first and Last week near the bottom. Production probably has
+       one too. To match the canvas, reorder it in Admin → Overview layouts (the user's call).
+   - **Standings** (every type): ranks use the Scoreboard's rules ("T1" for ties, nobody chyron when
+     everyone is level; this was a known gap from the Spoilers work). Active Roster rows show each
+     player's latest-episode score, muted, beside the total.
+   - **Scoreboard:** "Your season" under the Active Roster table (`scoreboard/your-season.tsx`): Best
+     starter, Most left on the bench, Most starts ("3 of 3") and Never started, each with a face. A
+     card with no answer yet is left out.
+   - Not done: the Lineup page doesn't let a commissioner set someone else's lineup (it never did).
+     The "Not set" chip and "Nothing set yet" row were only checked in code, because the local
+     computer players set their own lineups on every read. The episode page's lineups section
+     (`episode-active-roster-section.tsx`) is still unrestyled. League Scoring stays on Overview
+     (the canvas drops it for "What each event scores", which the Lineup page now links to).
+   - Verified at 390×844 dark with `docs/ux-baseline/scripts/lineup-flow.js` and
+     `overview-scoreboard.js` on `UX AR S51`. It was seeded from a snapshot (lineups for Episodes
+     1–3, a few Episode 3 results, an open Episode 4) and restored after. Checked:
+     - Mine, a bench and a start round trip, each confirmed on the server;
+     - the tab badge and alert strip updating as the lineup changed;
+     - Everyone and Top starters;
+     - Overview, Scoreboard and Your season;
+     - results hidden (everything stays at Episode 2) and Episode 4 locked by hand.
+     Also checked: 390 light and 1280 dark, and a Classic Overview for regressions (Standings ties
+     read "T2"). No console errors and no horizontal overflow. `npm test` 247/247. No test data left
+     behind.
 3. Light mode pass.
 4. Then merge and push.
 

@@ -555,7 +555,7 @@ const data = {
   // Exits that mean reaching the end, not being knocked out: shown as finishers, never dimmed as out.
   endgameExitMethods: ['Lost Final Tribal (Jury Vote)', 'Sole Survivor'],
   events,
-  // Groups for "How starters score" (active-roster-lineup-grid.tsx), in this order. Every event above
+  // Groups for the League Scoring table (overview/league-scoring-card.tsx), in this order. Every event above
   // belongs to exactly one; anything left out would land in a trailing "Other".
   eventCategories: [
     { id: 'challenges', label: 'Challenges', events: ['individualImmunity', 'challengeRunnerUp', 'challengeThird', 'tribeImmunity', 'rewardWin', 'chosenForReward', 'satOut'] },
