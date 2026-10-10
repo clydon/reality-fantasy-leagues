@@ -358,6 +358,23 @@ A multi-step task gets the whole screen, with no tab bar or sidebar (`/new-leagu
 - **Scoreboard rows** link to the player's own page and take the shape of the league type's scoring: a team's faces (out ones greyed, with where they finished in Live Red), a per-episode table, or streak columns. Ranks show ties as "T1"; the leader's rank is chyron, and nobody's when everyone is level. Your row is lifted like the standings row.
 - **Commissioner list** (top of Overview): a muted 19px condensed caps label, then hairline rows (title, one line of detail, the action's name and a chevron). Only shown when something is waiting, and with no yellow, because the alert strip above it already holds the screen's "now".
 
+### Spoiler gate and the reveal
+Results a player hasn't chosen to see stay out of every screen until they do.
+- **The question:** every Reveal opens one bottom sheet, "Reveal Episode 3?", one sentence on what
+  they'll see, and two buttons side by side: **Not yet** (secondary) and **Reveal** (chyron, wider).
+  No other Cancel.
+- **While hidden:** the alert plate says "Episode 3 is in"; Standings carries an "As of Episode 2"
+  pill (eye-off icon, night panel); the latest episode is a locked card with grey placeholder
+  shapes under a blur and a lock. Never blur real photos or names: a blurred face is still a face.
+- **The reveal** (`/reveal/N`) is full screen with no app chrome: league name and Skip at the top,
+  progress dots at the bottom, tap anywhere for the next beat. Beats run like a broadcast: a
+  "Previously on" bumper in 64px condensed caps, each challenge's winners as caption plates (good
+  tone, or the tribe's colour in the tag), each exit as the **vote-out card** (the photo full width,
+  a live-red tag with how they left, the name in 30px on a white plate across its foot), earlier
+  plates of the same episode staying stacked above in the small size, then the viewer's result as a
+  140px chyron number with one or two muted lines. The last beat's button is a white plate, so the
+  number stays the only yellow. Beats fade and slide up over 300ms, only when motion is allowed.
+
 ### Navigation
 Mobile: a header with the page's name in 22px condensed caps and the league name in 12px above it, chat on the right; a fixed bottom tab bar. Desktop (880px+): a Night Rail sidebar. The current tab is marked in chyron.
 

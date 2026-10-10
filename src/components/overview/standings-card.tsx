@@ -4,6 +4,8 @@ import type { LeagueState } from "@/lib/game/types";
 import { useMyPlayerId } from "@/lib/store";
 import { cn } from "cn";
 import StateLogic from "@/lib/game/state-logic.js";
+import { useHiddenResults } from "@/components/results-in-banner";
+import { AsOfPill } from "./latest-episode-card";
 import { DashCard, DashLink } from "./dash-card";
 
 // Direct port of renderOverview()'s "Standings" card -- the wide one, using the same
@@ -16,6 +18,7 @@ export function StandingsCard({ state }: { state: LeagueState }) {
   // wrong or missed pick only resets a streak; nobody's out.
   const pickem = StateLogic.getLeagueType(state).hasWeeklyPicks;
   const me = useMyPlayerId();
+  const { hidden } = useHiddenResults();
 
   return (
     <DashCard title="Standings" wide>
@@ -23,6 +26,8 @@ export function StandingsCard({ state }: { state: LeagueState }) {
         <p className="text-sm text-muted-foreground">Add players in League Settings to get started.</p>
       ) : (
         <>
+          {/* Results waiting to be revealed: say these are the standings from before them. */}
+          {hidden.length > 0 && <AsOfPill state={state} />}
           {pickem && (
             <div className="flex justify-end text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Best streak</div>
           )}

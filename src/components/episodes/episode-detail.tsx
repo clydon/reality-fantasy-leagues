@@ -13,6 +13,7 @@ import { confirm } from "@/lib/confirm-store";
 import { Button } from "@/components/ui/button";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { CaptionPlate } from "@/components/ui/caption-plate";
+import { useHiddenResults } from "@/components/results-in-banner";
 import { castawayPhotoSrc } from "@/lib/game/selectors";
 import { EpisodeBetRow } from "./episode-bet-row";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
@@ -43,7 +44,7 @@ function EpisodeView({ ep, state }: { ep: Episode; state: LeagueState }) {
   const router = useRouter();
   const canManage = useCanManage();
   const leagueId = useLeagueStore((s) => s.leagueId);
-  const markResultsSeen = useLeagueStore((s) => s.markResultsSeen);
+  const { reveal } = useHiddenResults();
   const mutate = useMutate();
   const now = useNowMinute();
   const [editing, setEditing] = useState(false);
@@ -106,9 +107,9 @@ function EpisodeView({ ep, state }: { ep: Episode; state: LeagueState }) {
         <CaptionPlate
           tag={`Ep ${ep.number}`}
           title={`Episode ${ep.number} is in`}
-          subtitle="Watched it? Results stay hidden until you say so."
+          subtitle="Hidden until you're ready."
           action="Reveal"
-          onClick={() => markResultsSeen(ep.number)}
+          onClick={() => reveal(ep.number)}
         />
       ) : blockedBy !== null ? (
         <CaptionPlate

@@ -9,6 +9,8 @@ import { teamEpisodeBreakdown } from "@/lib/game/team-episode-breakdown";
 import { TeamEpisodeBreakdown, fmt } from "@/components/scoreboard/team-episode-breakdown";
 import { useTeamSummary } from "@/components/scoreboard/use-team-summary";
 import { cn } from "cn";
+import { EyeOff, Lock } from "lucide-react";
+import { episodesLabel, useHiddenResults } from "@/components/results-in-banner";
 import { DashCard, DashLink } from "./dash-card";
 
 // Direct port of renderOverview()'s "Latest Episode" card (public/app.js). Same
@@ -20,6 +22,8 @@ import { DashCard, DashLink } from "./dash-card";
 // scored, and (a tap away) how. The episode is the latest that SCORED, not just the latest with an
 // exit; state is already spoiler-trimmed, so it's only ever one this viewer has revealed.
 export function LatestEpisodeCard({ state }: { state: LeagueState }) {
+  const { hidden } = useHiddenResults();
+  if (hidden.length > 0) return <HiddenEpisodeCard state={state} first={hidden[0].number} last={hidden[hidden.length - 1].number} />;
   const activeRoster = StateLogic.getLeagueType(state).hasActiveRoster && !StateLogic.getLeagueType(state).hasWeeklyPicks;
   const latestEp = activeRoster
     ? latestScoredEpisode(state)
@@ -90,5 +94,48 @@ function LeagueWeek({ state, epId }: { state: LeagueState; epId: string }) {
       ))}
       <DashLink href="/scoreboard">Every episode on the Scoreboard →</DashLink>
     </div>
+  );
+}
+
+// The canvas's Spoiler-Gate: while results wait to be revealed, the latest episode is a locked card.
+// The shapes behind the lock are placeholders, never the real photos or names blurred -- a blurred
+// face is still a face.
+function HiddenEpisodeCard({ state, first, last }: { state: LeagueState; first: number; last: number }) {
+  const { reveal } = useHiddenResults();
+  const asOf = StateLogic.SpoilerLogic.latestWithResults(state);
+  return (
+    <DashCard title={episodesLabel(first, last)}>
+      <button
+        type="button"
+        onClick={() => reveal()}
+        className="relative flex w-full items-center gap-2.5 overflow-hidden rounded-[4px] bg-muted px-4 py-3.5 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron dark:bg-card"
+      >
+        <span className="flex items-center gap-2.5 opacity-50 blur-[6px]" aria-hidden>
+          <span className="size-12 shrink-0 rounded-[2px] bg-muted-foreground/60" />
+          <span className="size-12 shrink-0 rounded-[2px] bg-muted-foreground/40" />
+          <span className="h-4 w-40 rounded-[2px] bg-muted-foreground/60" />
+        </span>
+        <span className="absolute inset-0 flex items-center justify-center gap-2 text-sm font-bold">
+          <Lock className="size-[18px]" strokeWidth={2.2} aria-hidden />
+          Hidden until you reveal
+        </span>
+      </button>
+      <p className="mt-2.5 text-[13px] leading-snug text-muted-foreground">
+        {asOf > 0
+          ? `Everything in this league stays at Episode ${asOf} for you until you reveal.`
+          : `Everything in this league stays as it was before Episode ${first} for you until you reveal.`}
+      </p>
+    </DashCard>
+  );
+}
+
+/** "As of Episode 2": standings from before the results waiting to be revealed. */
+export function AsOfPill({ state }: { state: LeagueState }) {
+  const asOf = StateLogic.SpoilerLogic.latestWithResults(state);
+  return (
+    <span className="mb-1 inline-flex min-h-7 items-center gap-1.5 self-start rounded-[3px] bg-muted px-2.5 text-[13px] font-semibold text-foreground dark:bg-card">
+      <EyeOff className="size-3.5" strokeWidth={2.2} aria-hidden />
+      {asOf > 0 ? `As of Episode ${asOf}` : "Before any results"}
+    </span>
   );
 }

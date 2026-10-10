@@ -63,8 +63,8 @@ explained to a commissioner") rather than re-deriving it from source each time.
    as built in dark mode, with `.impeccable/design.json` alongside. Update both after the light-mode
    pass.
 2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~,
-   ~~League Settings~~, ~~Create a league~~, ~~Overview & Scoreboard (commissioner)~~, then the rest;
-   admin last.
+   ~~League Settings~~, ~~Create a league~~, ~~Overview & Scoreboard (commissioner)~~, ~~Spoilers &
+   reveal~~, then the rest; admin last.
    - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
      episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
      `src/app/episodes/[number]/page.tsx` -> `episode-detail.tsx`: read view by default (who left as
@@ -244,6 +244,55 @@ explained to a commissioner") rather than re-deriving it from source each time.
      (Classic), `UX AR S51`, `UX D Pre`, `UX D Done` (as commissioner and as `uxplayer`), and a
      throwaway Eliminator Pool league on Survivor 49 catch-up (two episodes revealed, picks made,
      deleted after); plus 1280 dark and 390 light. No test data left behind.
+   - **Spoilers & reveal done 2026-10-09** (canvas page "A · Spoilers & reveal": Spoiler-Gate,
+     Reveal-Moment, CatchUp). The spoiler mechanic itself is unchanged; how it's asked and how it plays
+     is new.
+   - **One question for every Reveal:** the alert plate ("Episode 3 is in · Hidden until you're
+     ready"), an Episodes row, the episode page, "reveal first" and chat all open the same sheet,
+     "Reveal Episode 3?" with **Not yet** / **Reveal** (`RevealSheet` and its store in
+     `results-in-banner.tsx`, mounted once in AuthGate; `useHiddenResults().reveal(through?)` asks,
+     it no longer reveals). An Episodes row asks through its own episode; everything else through the
+     latest. `BottomSheet` gained `hideCancel` for sheets with their own button pair.
+   - **Overview while results are hidden:** Standings carries an "As of Episode N" pill, and Latest
+     Episode becomes a locked "Episode 3" card ("Hidden until you reveal", tap to ask) with grey
+     placeholder shapes behind the blur, never real photos or names (the canvas blurred real faces).
+   - **The reveal plays** at `/reveal/[through]` (`reveal/reveal-moment.tsx`), full screen (AuthGate's
+     `FULLSCREEN_ROUTES` now matches `/reveal/*`, so no alert strip or tab bar can show a result
+     early). Tap anywhere for the next beat; Skip goes to the recap. Beats: "Previously on / Survivor /
+     Episode 3" (or "Episodes 2–3" when several were waiting), then per episode each challenge's
+     winners together as plates (tribe-coloured tag, "Yours: Brady, Danny"), each exit as the
+     vote-out card (photo, live tag with the method, name plate), earlier plates staying stacked above
+     the current one, then **your result**: Active Roster "Your starters scored +N"; Classic "You
+     scored +N" and "2 of 3 still in"; Eliminator Pool "Your pick survived / went home" with your
+     streak; plus where it leaves you ("You stay in 1st, 1 ahead of Bot Alpha", ties, "Everyone's
+     still level"). A non-player sees who leads. Ends on "See the full recap" (the episode page; a
+     white button so the hero number is the screen's one yellow) and "Go to Overview".
+   - **Opening the reveal is what marks results seen** (on mount). `through` is clamped to the
+     latest episode with results, so a typed /reveal/99 can't mark future episodes seen. Where the
+     sequence starts is read once from the viewer's seen mark, before marking.
+   - **Catch-up** (`episodes/catch-up-panel.tsx`, still at the top of Episodes; the episode list
+     below it is the canvas's list): an info block ("This league plays Survivor 49 from the start" /
+     "has played through Episode N"), a quiet plate "Episode N is up next" saying how many have set
+     lineups or made picks (else "Predictions go in now"), the commissioner's full-width "Reveal
+     Episode N results" and one line of help. The next episode's row says "Up next" instead of
+     "Needs results". **Behaviour change:** the commissioner's reveal no longer marks it seen for
+     them; when results landed cleanly it goes straight into `/reveal/N`, so the commissioner gets
+     the moment too. If the reveal also sorted the tribes or skipped results, the panel stays and
+     says so, and the normal reveal prompt offers the results.
+   - Not done: the canvas puts Catch-up on its own page under League Settings; it stays on Episodes
+     (the commissioner card already links there). No Eliminator Pool league was revealed in the
+     browser this time, so the Pool "you" beat was only checked in code. A commissioner who hasn't
+     revealed an episode for themselves can still reveal the next one for the league (unchanged).
+     Overview's Standings still marks the leader's rank in chyron when everyone is level (Scoreboard
+     already handles this; Standings doesn't).
+   - Verified at 390×844 dark with `docs/ux-baseline/scripts/reveal-flow.js` (gate, sheet, Not yet,
+     every beat, recap, Overview after) on `UX Baseline S51` (Classic, Episodes 1–2 at once, via the
+     plate), `UX AR S51` (Active Roster, via an Episodes row) and `UX D Done` as `uxplayer`, by lowering
+     `league_memberships.results_seen_through` first (each reveal put it back; all are at their old
+     values). `catchup-reveal.js` on a throwaway "UX Create CU" league (Survivor 49 catch-up): Episode 1
+     (tribes sorted, so it stayed), then Episode 2 straight into the moment, then Episode 3 with
+     Episode 2 still hidden (plays 2–3, two exits); the league was deleted after. Plus 1280 dark and
+     390 light. No console errors, no horizontal overflow, no test data left behind.
 3. Light mode pass.
 4. Then merge and push.
 

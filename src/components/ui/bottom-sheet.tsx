@@ -16,6 +16,7 @@ export function BottomSheet({
   onOpenChange,
   title,
   description,
+  hideCancel,
   children,
 }: {
   open: boolean;
@@ -23,6 +24,8 @@ export function BottomSheet({
   title: ReactNode;
   /** One line under the title, e.g. "Computer player". */
   description?: ReactNode;
+  /** For a sheet that brings its own pair of buttons (e.g. "Not yet" / "Reveal"). */
+  hideCancel?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -39,9 +42,11 @@ export function BottomSheet({
             {description && <Dialog.Description className="text-[13px] text-muted-foreground">{description}</Dialog.Description>}
           </div>
           <div className="flex flex-col">{children}</div>
-          <Dialog.Close className="mt-3 min-h-12 rounded-[3px] border border-border bg-secondary text-[15px] font-bold text-foreground">
-            Cancel
-          </Dialog.Close>
+          {!hideCancel && (
+            <Dialog.Close className="mt-3 min-h-12 rounded-[3px] border border-border bg-secondary text-[15px] font-bold text-foreground">
+              Cancel
+            </Dialog.Close>
+          )}
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

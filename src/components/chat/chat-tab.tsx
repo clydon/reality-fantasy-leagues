@@ -131,7 +131,7 @@ export function ChatTab() {
                     </button>
                   )}
                   {hiddenResults.length > 0 && (
-                    <button className="font-semibold text-foreground underline underline-offset-2" onClick={reveal}>
+                    <button className="font-semibold text-foreground underline underline-offset-2" onClick={() => reveal()}>
                       Reveal episode {hiddenResults[hiddenResults.length - 1].number}
                     </button>
                   )}

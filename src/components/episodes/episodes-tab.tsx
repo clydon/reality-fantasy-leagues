@@ -7,6 +7,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { episodePlayerPoints } from "@/lib/game/active-roster-rows";
 import { cn } from "cn";
+import { useHiddenResults } from "@/components/results-in-banner";
 import { CatchUpPanel } from "./catch-up-panel";
 import { airsInLabel, episodeDate, episodeExits, episodeStatus, hiddenBefore, ownersLine, useNowMinute } from "./episode-status";
 
@@ -40,7 +41,7 @@ export function EpisodesTab() {
 function EpisodeRow({ ep, state }: { ep: Episode; state: LeagueState }) {
   const now = useNowMinute();
   const canManage = useCanManage();
-  const markResultsSeen = useLeagueStore((s) => s.markResultsSeen);
+  const { reveal } = useHiddenResults();
   const status = episodeStatus(ep, now);
   const blockedBy = hiddenBefore(state, ep);
   const date = episodeDate(ep, status.kind === "upcoming");
@@ -70,6 +71,9 @@ function EpisodeRow({ ep, state }: { ep: Episode; state: LeagueState }) {
     detail = blockedBy !== null ? `Reveal episode ${blockedBy} first` : <ScoredDetail ep={ep} state={state} />;
   } else if (status.kind === "upcoming") {
     headline = now !== null ? airsInLabel(status.airsAt, now) : "Not aired yet";
+  } else if (StateLogic.RevealLogic.nextEpisode(state) === ep.number) {
+    // Catch-up: its results come with the commissioner's reveal (the panel above), not by hand.
+    headline = "Up next";
   } else {
     headline = canManage && !ep.airsAt ? "Needs results" : "Waiting for results";
   }
@@ -105,7 +109,7 @@ function EpisodeRow({ ep, state }: { ep: Episode; state: LeagueState }) {
         <button
           type="button"
           className="min-h-11 shrink-0 rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron"
-          onClick={() => markResultsSeen(ep.number)}
+          onClick={() => reveal(ep.number)}
         >
           Reveal
         </button>

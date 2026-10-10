@@ -23,7 +23,7 @@ import { ActionBar } from "@/components/action-bar";
 import { WhatsNewModal } from "@/components/whats-new-modal";
 import { rememberedLeague, reloadedLeague } from "@/lib/last-league";
 import { Button } from "@/components/ui/button";
-import { ResultsInBanner } from "@/components/results-in-banner";
+import { ResultsInBanner, RevealSheet } from "@/components/results-in-banner";
 import { LeagueSwipe } from "@/components/league-swipe";
 
 type Status = "checking" | "idle" | "loading";
@@ -38,8 +38,10 @@ const BARE_ROUTES = ["/forgot-password", "/reset-password"];
 const LEAGUELESS_ROUTES = ["/dashboard", "/admin", "/reports", "/account"];
 
 // Full-screen flows: signed in, but no sidebar, tab bar or alert strip. The page brings its own
-// header and its own way out (the create-league flow, docs/PLAN-ux-redesign.md 2a).
-const FULLSCREEN_ROUTES = ["/new-league"];
+// header and its own way out (the create-league flow, docs/PLAN-ux-redesign.md 2a; the reveal,
+// /reveal/N, which mustn't sit under an alert strip or a tab bar that could give results away).
+const FULLSCREEN_ROUTES = ["/new-league", "/reveal"];
+const isFullscreen = (pathname: string) => FULLSCREEN_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
 
 // Owns the same top-level branch the live app's boot()/renderLoginScreen() do: either the login
 // screen (no sidebar at all -- see public/index.html's <aside style="display:none">, only shown
@@ -194,7 +196,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <LoginScreen onLogin={handleLogin} onSkip={handleSkip} error={error} loading={status === "loading"} />;
   }
 
-  if (FULLSCREEN_ROUTES.includes(pathname)) {
+  if (isFullscreen(pathname)) {
     return (
       <div className="min-h-dvh bg-background">
         <ConfirmDialog />
@@ -243,6 +245,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <ReportModal />
       <DemoSeasonPicker />
       <ConfirmDialog />
+      <RevealSheet />
       <WhatsNewModal />
       {/* Phones only -- desktop browsers have their own install affordance (an icon in the address
           bar) that doesn't need this app repeating it. See install-hint.tsx's own comment on why
