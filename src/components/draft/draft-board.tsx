@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { cn } from "cn";
+import { useHeaderAction } from "@/lib/header-action-store";
 import { DraftComplete, EditPicks, LiveDraft, PreDraft } from "./snake-draft";
 import { BlindDraftPanel, BlindReveal } from "./blind-draft-panel";
 
@@ -21,8 +22,26 @@ export function DraftBoard() {
   const canManage = useCanManage();
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const setHeaderAction = useHeaderAction((s) => s.set);
 
-  if (!StateLogic.getLeagueType(state).hasRoster) {
+  const hasRoster = !!StateLogic.getLeagueType(state).hasRoster;
+  const shared = state.settings.ownershipMode === "shared";
+  const started = StateLogic.isDraftStarted(state);
+  const turn = StateLogic.currentDraftTurn(state);
+  const complete = !!(turn && turn.isComplete);
+  // Undraft only exists for the turn-based draft: with shared ownership a castaway can be on several
+  // teams and Undraft can't say whose (BlindDraftStrategy.undo is inert for the same reason).
+  const hasMenu = hasRoster && canManage && !shared && started && !editing;
+  // Once the draft's done there's nothing else on its row, so on a phone the ⋯ goes up into the page
+  // header (docs/PLAN-ux-declutter.md) instead of a row of its own above the plate.
+  const menuInHeader = hasMenu && complete;
+  useEffect(() => {
+    if (!menuInHeader) return;
+    setHeaderAction({ label: "Draft actions", onClick: () => setMenuOpen(true) });
+    return () => setHeaderAction(null);
+  }, [menuInHeader, setHeaderAction]);
+
+  if (!hasRoster) {
     return (
       <>
         <h2 className="type-caption mb-4 text-[28px] max-nav:hidden">Draft</h2>
@@ -31,10 +50,6 @@ export function DraftBoard() {
     );
   }
 
-  const shared = state.settings.ownershipMode === "shared";
-  const started = StateLogic.isDraftStarted(state);
-  const turn = StateLogic.currentDraftTurn(state);
-  const complete = !!(turn && turn.isComplete);
   const revealed = shared && StateLogic.BlindDraftLogic.isRevealed(state);
 
   let meta: string | null = null;
@@ -42,13 +57,10 @@ export function DraftBoard() {
     const n = state.draftOrder.length || 1;
     meta = `Round ${Math.floor((turn.overallPickNumber - 1) / n) + 1} of ${StateLogic.rosterSize(state)}`;
   }
-  // Undraft only exists for the turn-based draft: with shared ownership a castaway can be on several
-  // teams and Undraft can't say whose (BlindDraftStrategy.undo is inert for the same reason).
-  const hasMenu = canManage && !shared && started && !editing;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className={cn("flex min-h-11 items-center gap-3", !meta && !hasMenu && "max-nav:hidden")}>
+      <div className={cn("flex min-h-11 items-center gap-3", ((!meta && !hasMenu) || menuInHeader) && "max-nav:hidden")}>
         <h2 className="type-caption text-[28px] max-nav:hidden">Draft</h2>
         <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">{meta}</span>
         {hasMenu && (

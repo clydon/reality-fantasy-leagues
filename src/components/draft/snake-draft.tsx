@@ -334,14 +334,19 @@ export function DraftComplete({ state }: { state: LeagueState }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
+        {/* No Overview / Episodes buttons: the tab bar has both. */}
         <CaptionPlate tone="good" tag="Done" title="Draft complete" subtitle={`Every team has ${size} ${size === 1 ? terms.castaway : terms.castaways}.`} />
-        <div className="grid grid-cols-2 gap-2 nav:flex">
-          <PlainButton href="/">Go to Overview</PlainButton>
-          <PlainButton href="/episodes">Episodes</PlainButton>
-        </div>
       </div>
       <section className="flex flex-col gap-3">
-        <SectionHead>Teams</SectionHead>
+        <SectionHead
+          aside={
+            <Link href="/draft/board" className="-my-3 py-3 text-sm font-semibold text-chyron-line hover:underline">
+              Board
+            </Link>
+          }
+        >
+          Teams
+        </SectionHead>
         <DraftTeams state={state} />
       </section>
     </div>

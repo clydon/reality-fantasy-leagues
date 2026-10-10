@@ -41,6 +41,9 @@ export function StartingThisWeek({ state }: { state: LeagueState }) {
           </Link>
         )}
       </div>
+      {locked && starters.length === 0 ? (
+        <p className="border-y border-border py-3 text-base text-muted-foreground">No starters for Episode {ep.number}</p>
+      ) : (
       <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
         {Array.from({ length: Math.max(activeSlots, starters.length) }, (_, i) => {
           const c = starters[i];
@@ -60,6 +63,7 @@ export function StartingThisWeek({ state }: { state: LeagueState }) {
           );
         })}
       </div>
+      )}
       {(bench.length > 0 || earlier) && (
         <div className="flex min-h-8 flex-wrap items-center gap-2.5 text-sm">
           {bench.length > 0 && <span className="text-muted-foreground">Bench</span>}

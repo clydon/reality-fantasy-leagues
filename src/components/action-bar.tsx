@@ -69,9 +69,12 @@ export function ActionBar() {
       ? actionItems(state, myPlayerId).map((it) => ({ ...it, leagueId: hereId, leagueName: leagueName ?? "Demo season" }))
       : [];
   const fetched = enabled ? (data?.items ?? []) : [];
+  // Nothing that points at the page you're already on (your pick on /pick, your lineup on /lineup):
+  // the page itself is the to-do. An item for a section of a page (/#predictions) still shows.
+  const onThisPage = (it: Item) => !it.href.includes("#") && it.href === pathname;
   const items = [
     ...fetched.filter((it) => it.kind === "invite"),
-    ...here,
+    ...here.filter((it) => !onThisPage(it)),
     ...fetched.filter((it) => it.kind !== "invite" && it.leagueId !== leagueId),
     ...(enabled && nudge
       ? [{ kind: "notifications" as const, text: "Turn on notifications", href: "/account", leagueId: "", leagueName: "Get reminders before each episode" }]

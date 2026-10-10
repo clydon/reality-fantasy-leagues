@@ -15,7 +15,6 @@ import { MoreButton } from "@/components/setup/settings-ui";
 import { cn } from "cn";
 import { EpisodeLinesModal } from "./episode-summary-modal";
 import { YourSeason } from "./your-season";
-import { useShowTerms } from "@/lib/use-show-terms";
 
 // The Scoreboard (docs/PLAN-ux-redesign.md, 2f; the canvas's "Standings" boards): one compact list in
 // the shape of each league type's scoring, every row opening that player's own page
@@ -41,9 +40,14 @@ export function ScoreboardTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex min-h-11 items-center gap-3">
-        <h2 className="type-caption flex-1 text-[28px] max-nav:hidden">Scoreboard</h2>
-        <span className="text-sm text-muted-foreground max-nav:flex-1">{through ? `After episode ${through}` : "No results yet"}</span>
+      <h2 className="type-caption text-[28px] max-nav:hidden">Scoreboard</h2>
+      {/* The episode is the heading (docs/PLAN-ux-declutter.md), and how the league scores is a tap
+          away beside it rather than a paragraph under the table. */}
+      <div className="-mb-3 flex min-h-11 items-center gap-3 max-nav:-mt-2">
+        <h3 className="type-caption flex-1 text-[24px]">{through ? `After Episode ${through}` : "No results yet"}</h3>
+        <Link href="/setup/rules" className="-my-3 shrink-0 py-3 text-sm font-semibold text-chyron-line hover:underline">
+          How it scores
+        </Link>
         {canWrite && <MoreButton label="Scoreboard actions" onClick={() => setMenuOpen(true)} className="-mr-2" />}
       </div>
 
@@ -143,7 +147,6 @@ function Rank({ label, first }: { label: string; first: boolean }) {
 
 function ClassicBoard({ state, scores }: { state: LeagueState; scores: ScoreRow[] }) {
   const me = useMyPlayerId();
-  const terms = useShowTerms();
   const ranks = rankLabels(scores, classicKey);
   const bonus = state.settings.bonusEnabled;
   return (
@@ -201,10 +204,6 @@ function ClassicBoard({ state, scores }: { state: LeagueState; scores: ScoreRow[
           );
         })}
       </div>
-      <p className="mt-3 text-[13px] text-muted-foreground">
-        A {terms.castaway} who goes out scores their place in the boot order: first out scores 1, the winner most.
-        {bonus ? " Right predictions add their points." : ""}
-      </p>
     </div>
   );
 }
@@ -299,7 +298,6 @@ function PoolBoard({ state, scores }: { state: LeagueState; scores: ScoreRow[] }
             </PlayerLink>
           ))}
         </div>
-        <p className="mt-3 text-[13px] text-muted-foreground">Ranked by best streak, then points.</p>
       </div>
 
       {settled.length > 0 && (

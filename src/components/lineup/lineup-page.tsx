@@ -162,6 +162,11 @@ function MyLineup({ state, ep, playerId, locked }: { state: LeagueState; ep: Epi
         >
           Starting
         </SectionHead>
+        {/* Locked with nobody in it: say so, rather than dashed boxes that look like you could still
+            fill them. */}
+        {locked && starters.length === 0 ? (
+          <p className="border-y border-border py-3 text-base text-muted-foreground">No starters for Episode {ep.number}</p>
+        ) : (
         <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
           {Array.from({ length: Math.max(activeSlots, lineup.length) }, (_, i) => {
             const c = starters[i];
@@ -174,6 +179,8 @@ function MyLineup({ state, ep, playerId, locked }: { state: LeagueState; ep: Epi
                 photoHeight={112}
                 onClick={locked ? undefined : () => save(lineup.filter((id) => id !== c.id))}
               />
+            ) : locked ? (
+              <div key={`open-${i}`} className="min-h-[152px] rounded-[3px] border-2 border-dashed border-border" aria-label="Empty slot" />
             ) : (
               <div
                 key={`open-${i}`}
@@ -185,6 +192,7 @@ function MyLineup({ state, ep, playerId, locked }: { state: LeagueState; ep: Epi
             );
           })}
         </div>
+        )}
       </section>
 
       <section className="flex flex-col">

@@ -41,7 +41,8 @@ import {
 import { useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
 import { SwipeTitle } from "@/components/league-swipe";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, MoreHorizontal } from "lucide-react";
+import { useHeaderAction } from "@/lib/header-action-store";
 import { useShowTerms } from "@/lib/use-show-terms";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
@@ -150,6 +151,7 @@ export function MobileNav() {
   const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
+  const headerAction = useHeaderAction((s) => s.action);
   const terms = useShowTerms();
   const notifications = useNotificationsStore((s) => s.notifications);
 
@@ -380,18 +382,30 @@ export function MobileNav() {
               </div>
             )}
           </div>
-          <Link
-            href="/chat"
-            className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-foreground"
-            aria-label="Chat"
-          >
-            <ChatIcon className="h-[19px] w-[19px]" />
-            {chatUnread > 0 && (
-              <span className="absolute right-0.5 top-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-[3px] text-[0.6rem] font-bold text-white ring-2 ring-panel-menu">
-                {chatUnread > 9 ? "9+" : chatUnread}
-              </span>
-            )}
-          </Link>
+          {headerAction ? (
+            // A page's own actions (header-action-store.ts), in chat's place while that page is open.
+            <button
+              type="button"
+              aria-label={headerAction.label}
+              onClick={headerAction.onClick}
+              className="-my-1.5 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center text-foreground"
+            >
+              <MoreHorizontal className="size-[22px]" strokeWidth={2.2} aria-hidden />
+            </button>
+          ) : (
+            <Link
+              href="/chat"
+              className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full text-foreground"
+              aria-label="Chat"
+            >
+              <ChatIcon className="h-[19px] w-[19px]" />
+              {chatUnread > 0 && (
+                <span className="absolute right-0.5 top-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-destructive px-[3px] text-[0.6rem] font-bold text-white ring-2 ring-panel-menu">
+                  {chatUnread > 9 ? "9+" : chatUnread}
+                </span>
+              )}
+            </Link>
+          )}
         </div>
       </header>
 
