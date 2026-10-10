@@ -213,7 +213,7 @@ function ReadView({
                   subtitle={[
                     ev.method,
                     typeof ev.juryVotes === "number" && `${ev.juryVotes} jury vote${ev.juryVotes === 1 ? "" : "s"}`,
-                    classic ? finishedPlace(state, c) && `finished ${ordinal(finishedPlace(state, c)!)}` : ownersLine(state, c),
+                    classic ? finishedPlace(state, c) && `finished ${ordinal(finishedPlace(state, c)!)}` : ownersLine(state, c, me),
                   ]
                     .filter(Boolean)
                     .join(" · ")}

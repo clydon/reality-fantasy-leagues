@@ -19,6 +19,8 @@ export function ReportModal() {
   const pathname = usePathname();
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
+  // From the guided tour's end card ("Anything unclear?"): tagged so it reads as tour feedback.
+  const touring = useLeagueStore((s) => s.touring);
   const [type, setType] = useState<"issue" | "feature">("issue");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -41,7 +43,7 @@ export function ReportModal() {
     setSending(true);
     setError(null);
     try {
-      await api.submitReport(type, text, pathname, leagueId, leagueName);
+      await api.submitReport(type, text, pathname, leagueId, touring ? `Guided tour (${leagueName})` : leagueName);
       handleClose();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not send. Try again.");

@@ -60,7 +60,7 @@ export function LoginScreen({
         </form>
       </div>
       <Button variant="secondary" className="w-full" onClick={onSkip}>
-        🎬 Take a Tour (Preview a Mock Season)
+        Take a Tour · about 3 minutes
       </Button>
       <p className="mt-3 text-center text-xs text-muted-foreground">
         New here?{" "}

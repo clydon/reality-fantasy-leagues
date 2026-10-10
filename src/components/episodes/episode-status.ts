@@ -62,13 +62,17 @@ export function episodeExits(state: LeagueState, ep: Episode) {
     .filter((x): x is { ev: Episode["events"][number]; c: Castaway } => !!x.c);
 }
 
-/** "on Sam's team", "on Sam and Josie's rosters" -- who owned someone who left. */
-export function ownersLine(state: LeagueState, c: Castaway): string | null {
-  const names = c.ownerIds.map((id) => StateLogic.getPlayer(state, id)?.name).filter((n): n is string => !!n);
+/** "on Sam's team", "on Sam and Josie's rosters", "on your roster" -- who owned someone who left.
+ *  The viewer (`me`) is "your", listed first: their own seat's name read as someone else's. */
+export function ownersLine(state: LeagueState, c: Castaway, me?: string | null): string | null {
+  const others = c.ownerIds.filter((id) => id !== me).map((id) => StateLogic.getPlayer(state, id)?.name).filter((n): n is string => !!n);
+  const names = me && c.ownerIds.includes(me) ? ["your", ...others.map((n) => `${n}'s`)] : others.map((n) => `${n}'s`);
   if (names.length === 0) return null;
   const noun = StateLogic.getLeagueType(state).hasActiveRoster ? "roster" : "team";
-  const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-  return `on ${who}'s ${noun}${names.length > 1 ? "s" : ""}`;
+  // "Sam, Josie and Ana's": the possessive goes on the last name only.
+  const bare = (n: string) => n.replace(/'s$/, "");
+  const who = names.length === 1 ? names[0] : `${names.slice(0, -1).map(bare).join(", ")} and ${names[names.length - 1]}`;
+  return `on ${who} ${noun}${names.length > 1 ? "s" : ""}`;
 }
 
 // "Now" to the minute, without reading the clock during render (the linter forbids it, and it would

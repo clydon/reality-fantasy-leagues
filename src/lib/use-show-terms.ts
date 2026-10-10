@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLeagueStore } from "@/lib/store";
 import { api } from "@/lib/api";
 import type { CatalogShow } from "@/lib/game/types";
+import { TOUR_SHOW_ID, TOUR_SHOW_NAME, TOUR_TERMS } from "@/lib/tour/rise-and-fall";
 
 // Per-show terminology for the UI.
 //
@@ -101,6 +102,8 @@ function termsFrom(show: Pick<CatalogShow, "name" | "castaway_term" | "tribe_ter
 export function useShowTerms(): ShowTerms {
   const showId = useLeagueStore((s) => s.state.settings.showId);
   const { data } = useShowCatalog();
+  // The guided tour's made-up show isn't in any catalog: its terms travel with it.
+  if (showId === TOUR_SHOW_ID) return termsFrom({ name: TOUR_SHOW_NAME, castaway_term: TOUR_TERMS.castaway, tribe_term: TOUR_TERMS.tribe });
   const show = data?.shows.find((s) => s.slug === showId) ?? null;
   return termsFrom(show);
 }

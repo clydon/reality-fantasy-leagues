@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronsUpDown, MoreHorizontal } from "lucide-react";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
+import { useTourStore } from "@/lib/tour/tour-store";
 import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
@@ -69,6 +70,7 @@ export function Sidebar() {
   const canManage = useCanManage();
   const mode = useLeagueStore((s) => s.mode);
   const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
+  const takeTour = useTakeTour();
   const state = useLeagueStore((s) => s.state);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
@@ -122,6 +124,7 @@ export function Sidebar() {
             <NavRow href="/dashboard" label="My Leagues" icon={OverviewIcon} active={pathname === "/dashboard" || pathname === "/"} />
             {/* The one way into the demo season for someone who has no league of their own. */}
             <NavRow label="Demo Season" icon={EpisodesIcon} onClick={openDemoPicker} />
+            <NavRow label="Take the tour" icon={SparklesIcon} onClick={takeTour} />
           </>
         )}
       </nav>
@@ -259,6 +262,17 @@ function AdminRow({ active }: { active: boolean }) {
   return <NavRow href="/admin" label="Admin" icon={ShieldIcon} active={active} badge={waiting ? { kind: "dot" } : null} />;
 }
 
+// The guided tour from wherever you are (docs/PLAN-guided-tour.md): its league replaces the one
+// showing, from Overview.
+function useTakeTour() {
+  const router = useRouter();
+  const start = useTourStore((s) => s.start);
+  return () => {
+    start();
+    router.push("/");
+  };
+}
+
 // You, as one row: an initial, your username and what's behind it. Its menu opens above it.
 function AccountRow() {
   const isAuthenticated = useIsAuthenticated();
@@ -266,6 +280,8 @@ function AccountRow() {
   const enterMockMode = useLeagueStore((s) => s.useMock);
   const setEntered = useLeagueStore((s) => s.setEntered);
   const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
+  const takeTour = useTakeTour();
+  const touring = useLeagueStore((s) => s.touring);
   const openReportModal = useReportModalStore((s) => s.openModal);
   const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
   const { data: session } = useSession();
@@ -324,6 +340,15 @@ function AccountRow() {
                   Demo season
                 </MenuRow>
               )}
+              <MenuRow
+                icon={SparklesIcon}
+                onClick={() => {
+                  close();
+                  takeTour();
+                }}
+              >
+                {touring ? "Replay the tour" : "Take the tour"}
+              </MenuRow>
               <div className="my-1.5 h-px bg-border" />
               <MenuRow icon={LogoutIcon} danger onClick={logOut}>
                 Log out
@@ -333,6 +358,15 @@ function AccountRow() {
             <>
               <MenuRow icon={UserIcon} onClick={signIn}>
                 Sign in
+              </MenuRow>
+              <MenuRow
+                icon={SparklesIcon}
+                onClick={() => {
+                  close();
+                  takeTour();
+                }}
+              >
+                {touring ? "Replay the tour" : "Take the tour"}
               </MenuRow>
               <AppearanceRow />
             </>

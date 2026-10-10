@@ -130,6 +130,7 @@ function EpisodeRow({ ep, state }: { ep: Episode; state: LeagueState }) {
           type="button"
           className="min-h-11 shrink-0 rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
           onClick={() => reveal(ep.number)}
+          data-tour="episode-reveal"
         >
           Reveal
         </button>

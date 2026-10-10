@@ -11,6 +11,14 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Guided tour, phase 1 (player path) built 2026-10-10
+
+"Take a Tour" on the login screen now plays a 3-minute guided tour on a made-up Active Roster season,
+*Rise & Fall* (bakers, two computer players, two scripted episodes), with a host plate and spotlight.
+Details, file map and deviations: `docs/PLAN-guided-tour.md` → "Built: phase 1". End-to-end check:
+`node docs/ux-baseline/scripts/tour.js <outDir>`. Next phase: the commissioner path, the step log table
+and the admin funnel.
+
 ## UX redesign in progress: direction A, "Lower Third" (branch `ux-direction-a`, not pushed)
 
 **Status as of 2026-10-10 (light-mode pass and the declutter pass done; merged to master and pushed 2026-10-10).** A visual redesign is under way on the local branch `ux-direction-a`.

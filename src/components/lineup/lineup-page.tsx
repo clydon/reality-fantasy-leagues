@@ -151,7 +151,7 @@ function MyLineup({ state, ep, playerId, locked }: { state: LeagueState; ep: Epi
 
   return (
     <>
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-tour="lineup-starting">
         <SectionHead
           aside={
             <span className="pb-1.5 text-[13px] text-muted-foreground">
@@ -195,7 +195,7 @@ function MyLineup({ state, ep, playerId, locked }: { state: LeagueState; ep: Epi
         )}
       </section>
 
-      <section className="flex flex-col">
+      <section className="flex flex-col" data-tour="lineup-bench">
         <SectionHead aside={<span className="pb-1.5 text-[13px] text-muted-foreground">Benched points don&rsquo;t count</span>}>Bench</SectionHead>
         {bench.length === 0 ? (
           <p className="border-t border-border py-3 text-sm text-muted-foreground">Everyone on your roster is starting.</p>

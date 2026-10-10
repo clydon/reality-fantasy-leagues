@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Castaway, LeagueState, ScoreRow } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { useLeagueStore } from "@/lib/store";
-import { useShowCatalog } from "@/lib/use-show-terms";
+import { useLeagueStore, useSpoilersOn } from "@/lib/store";
+import { useShowTerms } from "@/lib/use-show-terms";
 import { episodeRecapWins, tribeAtEpisode } from "@/lib/game/episode-recap";
 import { episodePlayerPoints } from "@/lib/game/active-roster-rows";
 import { castawayPhotoSrc } from "@/lib/game/selectors";
@@ -26,21 +26,20 @@ import { cn } from "cn";
 // has results, so a hand-typed /reveal/99 can't mark future episodes seen before they exist.
 export function RevealMoment({ through: asked }: { through: number }) {
   const router = useRouter();
-  const mode = useLeagueStore((s) => s.mode);
+  const spoilersOn = useSpoilersOn();
   const fullState = useLeagueStore((s) => s.fullState);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const seen = useLeagueStore((s) => s.membership?.resultsSeenThrough);
   const me = useLeagueStore((s) => s.membership?.playerId ?? null);
   const markResultsSeen = useLeagueStore((s) => s.markResultsSeen);
-  const { data: catalog } = useShowCatalog();
-  const showName = catalog?.shows.find((s) => s.slug === fullState.settings.showId)?.name ?? leagueName ?? "";
+  const showName = useShowTerms().showName ?? leagueName ?? "";
 
   const latest = StateLogic.SpoilerLogic.latestWithResults(fullState);
   const through = Number.isFinite(asked) ? Math.min(asked, latest) : 0;
   // Where the reveal starts: the first episode this viewer hadn't seen, read once -- marking them seen
   // (below) moves that on.
   const [from] = useState(() => {
-    const hidden = mode === "live" ? StateLogic.SpoilerLogic.hiddenEpisodes(fullState, seen).filter((e) => e.number <= through) : [];
+    const hidden = spoilersOn ? StateLogic.SpoilerLogic.hiddenEpisodes(fullState, seen).filter((e) => e.number <= through) : [];
     return hidden.length ? hidden[0].number : through;
   });
 
@@ -261,7 +260,7 @@ function buildBeats(fullState: LeagueState, from: number, through: number, me: s
         detail: [
           tribe?.name,
           typeof ev.juryVotes === "number" && `${ev.juryVotes} jury vote${ev.juryVotes === 1 ? "" : "s"}`,
-          ownersLine(after, c),
+          ownersLine(after, c, me),
         ]
           .filter(Boolean)
           .join(" · "),

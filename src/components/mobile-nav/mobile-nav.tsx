@@ -39,6 +39,7 @@ import {
 } from "@/components/icons";
 import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
+import { useTourRunning, useTourStep, useTourStore } from "@/lib/tour/tour-store";
 import { SwipeTitle } from "@/components/league-swipe";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 import { BackLink } from "@/components/back-link";
@@ -159,6 +160,13 @@ export function MobileNav() {
   const terms = useShowTerms();
   const notifications = useNotificationsStore((s) => s.notifications);
   const canManage = useCanManage();
+  // The guided tour holds back the tab bar's urgency marks until their step (docs/PLAN-guided-tour.md):
+  // with the host on, only a tab the current step points at keeps its "!".
+  const tourRunning = useTourRunning();
+  const tourStep = useTourStep();
+  const startTour = useTourStore((s) => s.start);
+  const touring = useLeagueStore((s) => s.touring);
+  const tourAllows = (target: string) => !tourRunning || !!tourStep?.nav?.targets.includes(target) || !!tourStep?.targets.includes(target);
   const whatsNewCount = useWhatsNewCount();
   const joinCode = leagues.find((l) => l.id === leagueId)?.join_code;
   const activeSeats = state.players.filter((p) => !p.disabled).length;
@@ -247,6 +255,12 @@ export function MobileNav() {
     castaways: terms.castaways,
   });
   const back = useBackTarget();
+
+  function takeTour() {
+    setSheetOpen(false);
+    startTour();
+    router.push("/");
+  }
 
   function go(href: string) {
     // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same
@@ -337,7 +351,7 @@ export function MobileNav() {
                 // the title -- still the switcher, still swipeable.
                 <span className="flex min-w-0 flex-col items-center gap-0.5">
                   <span className="flex min-w-0 items-center gap-0.5 text-[12px] font-semibold text-muted-foreground">
-                    <SwipeTitle name={mode === "mock" ? "Demo Mode" : (leagueName ?? "")} className="truncate" />
+                    <SwipeTitle name={mode === "mock" ? (leagueName ?? "Demo Mode") : (leagueName ?? "")} className="truncate" />
                     {mode !== "mock" && <ChevronDownIcon className={cn("h-3.5 w-3.5 shrink-0 transition-transform", leagueMenuOpen && "rotate-180")} />}
                   </span>
                   <span className="type-caption truncate text-[22px]">{pageTitle}</span>
@@ -345,7 +359,7 @@ export function MobileNav() {
               ) : (
                 // Overview: the league name is the page's title, left-aligned like the canvas's A2 pages.
                 <>
-                  <SwipeTitle name={mode === "mock" ? "Demo Mode" : (leagueName ?? "")} className="type-caption truncate text-[26px] leading-none" align="start" />
+                  <SwipeTitle name={mode === "mock" ? (leagueName ?? "Demo Mode") : (leagueName ?? "")} className="type-caption truncate text-[26px] leading-none" align="start" />
                   {mode !== "mock" && (
                     <ChevronDownIcon className={cn("h-[18px] w-[18px] shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
                   )}
@@ -386,6 +400,7 @@ export function MobileNav() {
               href="/chat"
               className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center justify-self-end rounded-full text-foreground"
               aria-label="Chat"
+              data-tour="header-chat"
             >
               <ChatIcon className="h-[19px] w-[19px]" />
               {chatUnread > 0 && (
@@ -413,19 +428,22 @@ export function MobileNav() {
             // The Cast page lives under Episodes, where it's linked from.
             (tab.href === "/episodes" && pathname === "/cast");
           const Icon = tab.icon;
+          const tourId = `tab-${tab.label.toLowerCase()}`;
+          const urgent = tourAllows(tourId) ? tab.urgent : null;
           return (
             <button
               key={tab.href}
+              data-tour={tourId}
               className={cn("relative flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground", active && "text-chyron-line")}
               onClick={() => go(tab.href)}
             >
               <span className="relative inline-flex">
                 <Icon className="h-[21px] w-[21px]" />
-                {tab.urgent != null && (
+                {urgent != null && (
                   <span
                     className={cn(
                       "absolute -right-2 -top-1 flex h-[15px] w-[15px] items-center justify-center rounded-full text-[0.62rem] font-bold text-white",
-                      tab.urgent ? "bg-destructive" : "bg-accent-2"
+                      urgent ? "bg-destructive" : "bg-accent-2"
                     )}
                   >
                     !
@@ -439,11 +457,12 @@ export function MobileNav() {
         <button
           className="flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground"
           onClick={() => setSheetOpen(true)}
+          data-tour="tab-more"
         >
           <span className="relative inline-flex">
             <MoreIcon className="h-[21px] w-[21px]" />
             {/* Mid-Season lives in here for Active Roster, so its "your turn" alert does too. */}
-            {lineupSlot && midSeasonSlot && midBadge?.urgent && (
+            {lineupSlot && midSeasonSlot && midBadge?.urgent && tourAllows("tab-more") && (
               <span className="absolute -right-2 -top-1 flex h-[15px] w-[15px] items-center justify-center rounded-full bg-destructive text-[0.62rem] font-bold text-white">
                 !
               </span>
@@ -487,7 +506,7 @@ export function MobileNav() {
             size="sm"
             tone="quiet"
             tag={state.settings.wikiSeason != null ? `S${state.settings.wikiSeason}` : "League"}
-            title={mode === "live" ? (leagueName ?? "") : "Demo season"}
+            title={mode === "live" || touring ? (leagueName ?? "") : "Demo season"}
             subtitle={[
               [terms.showName, state.settings.wikiSeason].filter((x) => x != null && x !== "").join(" "),
               StateLogic.getLeagueType(state).name,
@@ -517,7 +536,14 @@ export function MobileNav() {
             />
           )}
           {hasSeason && lineupSlot && midSeasonSlot && (
-            <MoreRow icon={midSeasonSlot.icon} label="Mid-Season" value={midBadge?.label} urgent={!!midBadge?.urgent} onClick={() => go(midSeasonSlot.href)} />
+            <MoreRow
+              icon={midSeasonSlot.icon}
+              label="Mid-Season"
+              value={midBadge?.label}
+              urgent={!!midBadge?.urgent}
+              onClick={() => go(midSeasonSlot.href)}
+              tour="more-midseason"
+            />
           )}
           {hasSeason && hasActiveRoster && fourth.href !== "/research" && (
             <MoreRow icon={ResearchIcon} label="Research" onClick={() => go("/research")} />
@@ -564,6 +590,7 @@ export function MobileNav() {
             </div>
           )}
           {/* Picking one replaces the view with demo data, the same as the sidebar's Demo season. */}
+          <MoreRow icon={SparklesIcon} label={touring ? "Replay the tour" : "Take the tour"} value="3 min" onClick={takeTour} />
           <MoreRow icon={EpisodesIcon} label="Demo season" onClick={() => go("")} />
           {isSuperAdmin && <MoreRow icon={ShieldIcon} label="Admin" value="Shows, users, results" onClick={() => go("/admin")} />}
           <MoreRow
@@ -586,6 +613,7 @@ function MoreRow({
   dot,
   onClick,
   danger,
+  tour,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -597,9 +625,12 @@ function MoreRow({
   dot?: boolean;
   onClick: () => void;
   danger?: boolean;
+  /** Its `data-tour` name, when the guided tour points at it. */
+  tour?: string;
 }) {
   return (
     <button
+      data-tour={tour}
       className={cn(
         "flex min-h-[50px] w-full items-center gap-3.5 border-t border-border text-left text-base font-semibold outline-none hover:bg-accent/40 focus-visible:bg-accent",
         danger ? "text-destructive" : "text-foreground",

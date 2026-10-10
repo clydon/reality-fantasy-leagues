@@ -39,7 +39,7 @@ export function ScoreboardTab() {
   const through = lastScored(state);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6" data-tour="scoreboard">
       <h2 className="type-caption text-[28px] max-nav:hidden">Scoreboard</h2>
       {/* The episode is the heading (docs/PLAN-ux-declutter.md), and how the league scores is a tap
           away beside it rather than a paragraph under the table. */}

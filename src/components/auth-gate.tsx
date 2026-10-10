@@ -7,7 +7,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { signInWithIdentifier } from "@/lib/auth-client";
 import { useLeagueStore, useIsPreviewingDemo, useIsAuthenticated } from "@/lib/store";
-import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
+import { useTourDirector, useTourRunning, useTourStore } from "@/lib/tour/tour-store";
+import { TourHost } from "@/components/tour/tour-host";
 import { DemoBar } from "@/components/demo-bar";
 import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
@@ -26,8 +27,8 @@ import { Button } from "@/components/ui/button";
 import { ResultsInBanner, RevealSheet } from "@/components/results-in-banner";
 import { LeagueSwipe } from "@/components/league-swipe";
 import { AdminMobileChrome, AdminSidebar, isAdminRoute } from "@/components/admin/admin-shell";
-
 import { useRecordNavTrail } from "@/lib/nav-trail";
+
 type Status = "checking" | "idle" | "loading";
 
 // Password recovery bypasses this gate entirely: both are reached from an emailed link with no
@@ -53,9 +54,9 @@ const isFullscreen = (pathname: string) => FULLSCREEN_ROUTES.some((r) => pathnam
 // `entered`, matching the original's actual behavior instead of approximating it.
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const queryClient = useQueryClient();
   // Where each page's back goes (lib/nav-trail.ts).
   useRecordNavTrail();
+  const queryClient = useQueryClient();
   const mode = useLeagueStore((s) => s.mode);
   const loadLive = useLeagueStore((s) => s.loadLive);
   const enterMockMode = useLeagueStore((s) => s.useMock); // renamed locally -- a plain callback, not a hook, but eslint's rule flags anything named use*
@@ -73,7 +74,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const entered = useLeagueStore((s) => s.entered);
   const setEntered = useLeagueStore((s) => s.setEntered);
   const isPreviewingDemo = useIsPreviewingDemo();
-  const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
+  const startTour = useTourStore((s) => s.start);
+  const tourRunning = useTourRunning();
   const [status, setStatus] = useState<Status>("checking");
   const [error, setError] = useState<string | null>(null);
   const [signedInUsername, setSignedInUsername] = useState<string | null>(null);
@@ -81,6 +83,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // Internally gated on mode === 'live' (see use-league-poll.ts) -- safe to call unconditionally
   // here regardless of auth state, matching the Rules of Hooks.
   useLeaguePoll();
+  // The guided tour's league plays itself forward (computer players, episodes airing) -- inert unless
+  // the tour's league is loaded.
+  useTourDirector();
 
   async function loadFirstLeague() {
     const me = await api.me();
@@ -138,12 +143,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
   }
 
+  // "Take a Tour" is the guided tour (docs/PLAN-guided-tour.md) on its own made-up season. The
+  // unguided demo season picker is still in More -> Demo season.
   function handleSkip() {
     enterMockMode();
+    startTour();
     setEntered(true);
-    // "Take a Tour" now opens straight into the season picker rather than silently landing on
-    // the one hardcoded generic season -- see demo-season-picker.tsx.
-    openDemoPicker();
   }
 
   // Port of exitDemoMode() (public/app.js). Two distinct cases share this one banner/button:
@@ -268,13 +273,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
           #exitDemoBtn) -- always visible while previewing without an account, not tucked away as
           a footer link only, so there's an obvious way back to the login screen. Now also carries
           the show/game-type switcher and the episode scrubber -- see demo-bar.tsx. */}
-      {isPreviewingDemo && <DemoBar onExit={handleExitDemo} />}
+      {/* Hidden while the tour's host is on: its pickers and scrubber would break the script. */}
+      {isPreviewingDemo && !tourRunning && <DemoBar onExit={handleExitDemo} />}
       <MobileNav />
       <ReportModal />
       <DemoSeasonPicker />
       <ConfirmDialog />
       <RevealSheet />
       <WhatsNewModal />
+      <TourHost />
       {/* Phones only -- desktop browsers have their own install affordance (an icon in the address
           bar) that doesn't need this app repeating it. See install-hint.tsx's own comment on why
           the dismissal is remembered in localStorage rather than shown every visit. */}
@@ -285,7 +292,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <div className="max-nav:hidden">
           <Sidebar />
         </div>
-        <main className="min-w-0 max-w-[980px] flex-1 px-11 pb-[90px] pt-9 max-nav:max-w-full max-nav:px-4 max-nav:pb-[calc(84px+env(safe-area-inset-bottom,0px))] max-nav:pt-4">
+        <main className="min-w-0 max-w-[980px] flex-1 px-11 pb-[90px] pt-9 max-nav:max-w-full max-nav:px-4 max-nav:pb-[calc(84px+env(safe-area-inset-bottom,0px)+var(--tour-h,0px))] max-nav:pt-4">
           {/* Only worth saying on a page that isn't already the join/create screen -- on the
               Dashboard itself it was telling people to go where they already are. */}
           {leaguelessUser && !showsDashboard && pathname !== "/dashboard" && (
@@ -298,8 +305,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
             </div>
           )}
           {/* Anything due in any of your leagues, on every page (renders nothing when there's none). */}
-          <ResultsInBanner />
-          <ActionBar />
+          {/* The tour holds back the alert strip and the reveal prompt: its host says what's next. */}
+          {!tourRunning && <ResultsInBanner />}
+          {!tourRunning && <ActionBar />}
           {flash && (
             <div className="mb-4 flex items-start gap-2 rounded-md border border-chyron-line/30 bg-accent px-3 py-2 text-sm">
               <span className="flex-1">{flash}</span>

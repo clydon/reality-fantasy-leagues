@@ -133,10 +133,13 @@ export function CastTile({
   );
 }
 
+// `data-tour`: every picker's tiles and confirm bar are the guided tour's targets for drafting and
+// picking up (lib/tour/steps.ts).
 /** A grid of tiles: 4 across on a phone (3 for the roomier mid-season pickers), more on wider screens. */
 export function TileGrid({ cols = 4, children }: { cols?: 3 | 4; children: ReactNode }) {
   return (
     <div
+      data-tour="picker-tiles"
       className={cn(
         "grid gap-2",
         cols === 4 ? "grid-cols-4 sm:grid-cols-6 nav:grid-cols-7" : "grid-cols-3 gap-2.5 sm:grid-cols-5 nav:grid-cols-6",
@@ -254,6 +257,7 @@ export function ConfirmBar({ note, title, children }: { note: ReactNode; title: 
       className="sticky bottom-[var(--tabbar-h)] z-40 -mx-4 mt-2 flex items-center gap-3 border-t border-input bg-card px-4 py-3 shadow-bar nav:mx-0 nav:rounded-[3px] nav:border"
       role="status"
       data-confirm-bar
+      data-tour="picker-confirm"
     >
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-xs text-muted-foreground">{note}</span>

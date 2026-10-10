@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { create } from "zustand";
 import StateLogic from "@/lib/game/state-logic.js";
-import { useLeagueStore } from "@/lib/store";
+import { useLeagueStore, useSpoilersOn } from "@/lib/store";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 
@@ -26,11 +26,11 @@ const useRevealSheet = create<{ through: number | null; ask: (through: number) =
 /** Episodes whose results the viewer hasn't revealed, and `reveal`, which asks before revealing
  *  them (through `through`, else all of them). */
 export function useHiddenResults() {
-  const mode = useLeagueStore((s) => s.mode);
+  const spoilersOn = useSpoilersOn();
   const fullState = useLeagueStore((s) => s.fullState);
   const seen = useLeagueStore((s) => s.membership?.resultsSeenThrough);
   const ask = useRevealSheet((s) => s.ask);
-  const hidden = mode === "live" ? StateLogic.SpoilerLogic.hiddenEpisodes(fullState, seen) : [];
+  const hidden = spoilersOn ? StateLogic.SpoilerLogic.hiddenEpisodes(fullState, seen) : [];
   const last = hidden.length ? hidden[hidden.length - 1].number : null;
   return { hidden, reveal: (through?: number) => last !== null && ask(through ?? last) };
 }
@@ -89,12 +89,14 @@ export function RevealSheet() {
         <button
           type="button"
           onClick={close}
+          data-tour="reveal-cancel"
           className="min-h-12 flex-1 rounded-[3px] border border-input bg-card text-[15px] font-bold text-foreground hover:bg-muted focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
         >
           Not yet
         </button>
         <button
           type="button"
+          data-tour="reveal-confirm"
           onClick={() => {
             const n = through!;
             close();

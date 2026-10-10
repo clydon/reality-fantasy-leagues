@@ -8,7 +8,10 @@ import { ApiError } from "@/lib/api";
 // live app's demo mode; live mode calls the real API and replaces state with its response.
 export function useMutate() {
   const mode = useLeagueStore((s) => s.mode);
-  const state = useLeagueStore((s) => s.state);
+  // The league as it really is, not the viewer's spoiler-trimmed copy: in the guided tour (mock, with
+  // spoiler protection on) a change made to the trimmed copy would write the trimming back. Everywhere
+  // else in mock mode the two are one object.
+  const state = useLeagueStore((s) => s.fullState);
   const leagueId = useLeagueStore((s) => s.leagueId);
   const setState = useLeagueStore((s) => s.setState);
 

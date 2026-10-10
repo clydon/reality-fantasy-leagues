@@ -252,12 +252,16 @@
    inputs too. 879px matches the `max-nav` breakpoint. */
 :root {
   /* Height of the fixed mobile tab bar (mobile-nav.tsx), so a sticky bottom bar -- the draft's
-     confirm bar -- can sit just above it. Zero from the `nav` breakpoint up, where there's no tab bar. */
-  --tabbar-h: 0px;
+     confirm bar -- can sit just above it. Zero from the `nav` breakpoint up, where there's no tab bar.
+     While the guided tour's host plate is docked above the tab bar (tour-host.tsx sets --tour-h to its
+     height), --tabbar-h includes it, so those bars ride above the plate instead of under it. */
+  --tabbar-base: 0px;
+  --tabbar-h: var(--tour-h, 0px);
 }
 @media (max-width: 879px) {
   :root {
-    --tabbar-h: calc(63px + env(safe-area-inset-bottom, 0px));
+    --tabbar-base: calc(63px + env(safe-area-inset-bottom, 0px));
+    --tabbar-h: calc(var(--tabbar-base) + var(--tour-h, 0px));
   }
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
   select,
@@ -411,4 +415,23 @@
   --epr-focus-bg-color: var(--accent);
   --epr-text-color: var(--foreground);
   --epr-category-icon-active-color: var(--chyron-line);
+}
+
+/* The guided tour's host line (tour-host.tsx) wipes on like a broadcast caption: revealed left to
+   right from behind the plate's edge. Reduced motion: it's simply there. */
+@keyframes tour-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.tour-wipe {
+  animation: tour-wipe 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-wipe {
+    animation: none;
+  }
 }

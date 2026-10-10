@@ -107,6 +107,12 @@ interface LeagueStore {
   // actually read. Always resets to true on a fresh chooseDemoSeason.
   demoCommissionerView: boolean;
   setDemoCommissionerView: (value: boolean) => void;
+  // The guided tour's league (docs/PLAN-guided-tour.md, src/lib/tour/): mock state like the demo, but
+  // played forward as a member rather than browsed as a commissioner -- so it keeps spoiler protection
+  // (the tour's reveals are real reveals) and has no commissioner powers. Stays true after the tour
+  // is skipped or finished: the league is still the tour's, and still plays by the same rules.
+  touring: boolean;
+  startTour: (state: LeagueState, leagueName: string, playerId: string) => void;
   loadLive: (
     leagueId: string,
     state: LeagueState,
@@ -160,6 +166,28 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
   demoEpisodeCursor: null,
   demoCommissionerView: true,
   setDemoCommissionerView: (value) => set({ demoCommissionerView: value }),
+  touring: false,
+  // Keeps identity: a signed-in user taking the tour previews it (demoPreview) and gets their real
+  // league back the same way as from the demo season.
+  startTour: (state, leagueName, playerId) => {
+    const membership: Membership = { role: "member", playerId, resultsSeenThrough: 0 };
+    set({
+      mode: "mock",
+      state: spoilerView(state, membership),
+      fullState: state,
+      leagueId: null,
+      leagueName,
+      membership,
+      playerAccounts: [],
+      flash: null,
+      demoPreview: !!get().userId,
+      demoSeasonData: null,
+      demoLeagueTypeId: null,
+      demoEpisodeCursor: null,
+      demoCommissionerView: false,
+      touring: true,
+    });
+  },
   useMock: () =>
     set({
       mode: "mock",
@@ -178,6 +206,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
       demoLeagueTypeId: null,
       demoEpisodeCursor: null,
       demoCommissionerView: true,
+      touring: false,
     }),
   previewDemo: () =>
     set({
@@ -193,6 +222,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
       demoLeagueTypeId: null,
       demoEpisodeCursor: null,
       demoCommissionerView: true,
+      touring: false,
     }),
   // Chosen from the Demo Season picker (demo-season-picker.tsx) -- defaults to viewing the whole,
   // finished season (the last episode) rather than episode 1, since "browse a completed season" is
@@ -216,6 +246,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
       demoLeagueTypeId: leagueTypeId,
       demoEpisodeCursor: data.episodeCount,
       demoCommissionerView: true,
+      touring: false,
     }),
   switchDemoSeason: (data, leagueTypeId) => {
     const cursor = Math.min(get().demoEpisodeCursor ?? data.episodeCount, data.episodeCount);
@@ -250,6 +281,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
       demoLeagueTypeId: null,
       demoEpisodeCursor: null,
       demoCommissionerView: true,
+      touring: false,
     });
   },
   setIdentity: (userId, isSuperAdmin, impersonating) => set({ userId, isSuperAdmin, impersonating }),
@@ -272,6 +304,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
       leagueName: league.name,
       membership,
       playerAccounts,
+      touring: false,
     });
   },
   switchLeague: async (leagueId) => {
@@ -292,6 +325,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
         demoLeagueTypeId: null,
         demoEpisodeCursor: null,
         demoCommissionerView: true,
+        touring: false,
       });
     } finally {
       set({ loadingLeague: false });
@@ -321,6 +355,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
       demoLeagueTypeId: null,
       demoEpisodeCursor: null,
       demoCommissionerView: true,
+      touring: false,
     }),
   flash: null,
   setFlash: (flash) => set({ flash }),
@@ -328,7 +363,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
   // into a new top-level object is what actually triggers Zustand/React to notice the change.
   setState: (state) => {
     const full = { ...state };
-    set({ fullState: full, state: get().mode === "live" ? spoilerView(full, get().membership) : full });
+    set({ fullState: full, state: spoilersOn(get()) ? spoilerView(full, get().membership) : full });
   },
   markResultsSeen: (n) => {
     const { membership, fullState, leagueId, mode } = get();
@@ -339,6 +374,17 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
     if (mode === "live" && leagueId) api.markResultsSeen(leagueId, n).catch(() => {});
   },
 }));
+
+// Whether results can be held back from the viewer: a live league, and the guided tour, whose mock
+// league plays forward with real reveals. Every other mock season shows everything.
+function spoilersOn(s: Pick<LeagueStore, "mode" | "touring">): boolean {
+  return s.mode === "live" || s.touring;
+}
+
+/** The hook form of spoilersOn, for the few places that ask whether anything can be hidden. */
+export function useSpoilersOn(): boolean {
+  return useLeagueStore(spoilersOn);
+}
 
 // Demo/mock data: nothing is held back, so what's shown and the real thing are one object.
 function mockState(state: LeagueState): { state: LeagueState; fullState: LeagueState } {
@@ -393,6 +439,7 @@ function spoilerView(state: LeagueState, membership: Membership | null): LeagueS
 export function useCanManage(): boolean {
   return useLeagueStore((s) => {
     if (s.mode !== "mock") return s.membership?.role === "commissioner";
+    if (s.touring) return false;
     if (s.demoSeasonData) return s.demoCommissionerView;
     return true;
   });
