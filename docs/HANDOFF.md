@@ -64,7 +64,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
    pass.
 2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~,
    ~~League Settings~~, ~~Create a league~~, ~~Overview & Scoreboard (commissioner)~~, ~~Spoilers &
-   reveal~~, ~~Active Roster~~, then the rest (Classic, Eliminator Pool); admin last.
+   reveal~~, ~~Active Roster~~, ~~Classic~~, then Eliminator Pool; admin last.
    - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
      episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
      `src/app/episodes/[number]/page.tsx` -> `episode-detail.tsx`: read view by default (who left as
@@ -352,6 +352,41 @@ explained to a commissioner") rather than re-deriving it from source each time.
      Also checked: 390 light and 1280 dark, and a Classic Overview for regressions (Standings ties
      read "T2"). No console errors and no horizontal overflow. `npm test` 247/247. No test data left
      behind.
+   - **Classic done 2026-10-09** (canvas page "A · Classic": Classic-Home, Classic-Episodes,
+     Classic-Reveal; its Standings and Draft boards were already covered by the Scoreboard and Draft
+     work). Shared helpers are in `lib/game/classic-view.ts` (`teamOrder`, `standingLine`,
+     `episodeBanks`, `banksLine`, `predictionsRight`, `bootOrderThrough`), all reading the viewer's
+     trimmed state and the scoring's own rules (a prediction pays only when someone else guessed too).
+   - **Overview:** Classic Standings rows carry "2 of 3 standing" and the team as 30px faces (out ones
+     greyed with their finishing place on a live-red corner), plus one line on boot-order scoring.
+     **Your Team** is name plates: photo, then a white plate with the name and tribe ("Still in"), or a
+     dark plate with "Out · Episode 1 · finished 21st · +1"; two up from `sm`. **The Board is just the
+     cast for Classic too:** every team is in Standings now, so `teams-board.tsx` is gone. **Latest
+     Episode** (every type) shows who left as small "Out" caption plates titled "Episode N", with
+     "Finished 20th · Sam banks 2" for Classic and a recap link (Active Roster keeps its league table).
+     Swapped or replaced castaways no longer show on Overview; they're on the player's Scoreboard page.
+   - **A saved layout still overrides the default:** the local DB's Classic layout hides Your Team
+     (production probably does too). To match the canvas, unhide it in Admin → Overview layouts (the
+     user's call). It was checked by unhiding it locally and putting it back.
+   - **Episodes:** a Classic row's detail is who banked points and whether your prediction paid ("You
+     bank 1 · your prediction was right, +2"; "Nobody had Ana" when nobody did). Under the list, "19 of
+     21 castaways still in the game" (every type).
+   - **Episode page** (Classic): the Out plate says where they finished; a small plate per owner who
+     scored ("+3" in the player's own colour, `colourTag` in `caption-plate.tsx` picks the ink; "Andrew
+     banks 3"); a "Called it" plate when your prediction paid (any type); then **Boot order**: everyone
+     out so far with their place, this episode's ringed, and "19 castaways still in, 2 of yours among
+     them".
+   - Not done: the canvas's **Predict tab** and "guess who goes home". Predictions here are free-text
+     side bets graded by the commissioner, not a structured guess, so a Predict tab would be a product
+     change, not a restyle; the Predictions section (`side-bets-section.tsx`, `bet-card.tsx`) is still
+     unrestyled. The canvas's commissioner card on Episodes ("fill the gap with research") isn't added;
+     research stays in the episode editor. No "See standings" button on the episode page. In light mode
+     the `good` caption tag (e.g. "Called it") is dark ink on dark green, for the light-mode pass.
+   - Verified at 390×844 dark with `overview-scoreboard.js` on `UX Baseline S51` (Overview, Episodes,
+     Episodes 1 and 2, Scoreboard), with a graded two-guess prediction seeded on Episode 2 and Your
+     Team unhidden, then the league state and layout restored from a snapshot (checked identical). Also
+     `UX D Done` (Pickups: the out castaway banks nobody), `UX AR S51` for the Latest Episode change,
+     390 light and 1280 dark. No console errors, no horizontal overflow, `npm test` 247/247.
 3. Light mode pass.
 4. Then merge and push.
 

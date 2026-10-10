@@ -311,7 +311,7 @@ Direction A's signature, in `src/components/ui/caption-plate.tsx`, for the momen
 - **Tones:** chyron (now / yours), live (out), good (safe, won), quiet (informational). A tribe's own colour can replace the tag colour.
 - **Sizes:** 60px tall (22px title) or 52px small (19px title).
 - **States:** as a link or button, hover brightens slightly (`brightness 1.04`); focus shows a 3px chyron outline offset 2px.
-- **Variants built from it:** the alert strip (`action-bar.tsx`), the reveal prompt and "reveal first" (`results-in-banner.tsx`), Last Week.
+- **Variants built from it:** the alert strip (`action-bar.tsx`), the reveal prompt and "reveal first" (`results-in-banner.tsx`), Last Week, who left (episode page and Overview), and Classic's "banks" plate with a player-coloured tag.
 
 ### Alert Strip
 The caption plate as the app's to-do list (`action-bar.tsx`). Chyron tag names the kind of thing ("Your pick", "Lineup", "Invite"), the plate gives the message and the league. Controls inside the plate are 44px square, divided by faint plate-muted lines; an invite's "Join" is a small chyron button, "Decline" an outlined one.
@@ -352,7 +352,7 @@ A multi-step task gets the whole screen, with no tab bar or sidebar (`/new-leagu
 `DashCard` and the shared `section-shell` / `section-title`: in dark mode no box at all, just a 24px condensed caps heading in Bone Text over the content, with an optional aside on the heading line. Sections read like a broadcast rundown.
 
 ### Standings Row
-48px rows divided by hairlines: a condensed rank (ties as "T1"; the leader's in chyron, and nobody's when everyone is level), the player's colour dot, the name in 16px semibold, and a condensed tabular total on the right. Active Roster adds the latest episode's score in 13px muted text before the total. Your own row is lifted with a Night Panel Raised fill and a white "You" badge.
+48px rows divided by hairlines: a condensed rank (ties as "T1"; the leader's in chyron, and nobody's when everyone is level), the player's colour dot, the name in 16px semibold, and a condensed tabular total on the right. Active Roster adds the latest episode's score in 13px muted text before the total. Your own row is lifted with a Night Panel Raised fill and a white "You" badge. Classic rows are 62px: the name line carries "2 of 3 standing" in 12px muted, and under it the team as 30px faces (still in first; out ones greyed with their finishing place on a small live-red corner badge, a finalist's in teal), then one muted line on how boot-order scoring works.
 
 ### Scoreboard and the commissioner's to-do list
 - **Scoreboard rows** link to the player's own page and take the shape of the league type's scoring: a team's faces (out ones greyed, with where they finished in Live Red), a per-episode table, or streak columns. Ranks show ties as "T1"; the leader's rank is chyron, and nobody's when everyone is level. Your row is lifted like the standings row.
@@ -374,6 +374,13 @@ Setting a lineup is the weekly job, so it has its own page and tab (`/lineup`, `
   bench as 32px round faces, and Last week as a small good-tone caption plate.
 - **Your season** (Scoreboard): two-up night-panel cards (4px corners), a muted label, a 40px face,
   the first name and a 20px condensed number; points left on the bench are muted.
+
+### Classic: team plates and the boot order
+Classic scores by who's still standing, so its screens lead with faces and places.
+- **Your Team** (Overview): one 60px row per castaway, a 54px photo then a white plate with the name in 21px condensed caps and a line under it (tribe chip and "Still in"). Someone out drops to a Night Panel Raised plate with a greyed photo, a live-red "Out" chip and "Episode 1 · finished 21st · +1"; the winner gets a chyron chip. Two up from `sm`.
+- **Latest episode** (Overview, every type but Active Roster's league table): who left as small "Out" caption plates, Classic's detail being "Finished 20th · Sam banks 2", and a link to the episode's page.
+- **Episode page:** the Out plate says where they finished; then a small plate per owner who scored, "+3" in a tag of **the player's own colour** (`colourTag` picks plate ink or white for it) and "Andrew banks 3"; then "Called it" (good tone) when your prediction paid. **Boot order** follows: everyone out so far as 52px greyed faces with their place in live red (this episode's ringed), then "19 castaways still in, 2 of yours among them" with the number in 28px condensed.
+- **Episodes list:** a Classic row's detail is who banked what and whether your prediction paid ("You bank 1 · your prediction was right, +2"); under the list, "19 of 21 castaways still in the game".
 
 ### Spoiler gate and the reveal
 Results a player hasn't chosen to see stay out of every screen until they do.

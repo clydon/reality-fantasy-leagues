@@ -2,7 +2,10 @@
 
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { CastawayStatCard } from "@/components/castaway-stat-card";
+import { CaptionPlate } from "@/components/ui/caption-plate";
+import { castawayPhotoSrc } from "@/lib/game/selectors";
+import { banksLine } from "@/lib/game/classic-view";
+import { finishedPlace, ordinal } from "@/components/scoreboard/scoreboard-tab";
 import { useLeagueStore, useMyPlayerId } from "@/lib/store";
 import { latestScoredEpisode } from "@/lib/game/episode-team-summary";
 import { teamEpisodeBreakdown } from "@/lib/game/team-episode-breakdown";
@@ -13,41 +16,61 @@ import { EyeOff, Lock } from "lucide-react";
 import { episodesLabel, useHiddenResults } from "@/components/results-in-banner";
 import { DashCard, DashLink } from "./dash-card";
 
-// Direct port of renderOverview()'s "Latest Episode" card (public/app.js). Same
-// ensureUpcomingEpisode gotcha noted there: filter to episodes with events before taking the
-// highest number, since there's always a trailing empty "upcoming" episode. Shows who left as their
-// player cards rather than a list of names.
+// The latest episode with results: who left, each as an "Out" caption plate (the episode page's), and
+// a link to that episode's page for the rest. Classic says where each finished and who banked the
+// points, since that's its whole score.
 //
 // Active Roster: the first thing anyone wants once results are revealed -- who left, what every team
 // scored, and (a tap away) how. The episode is the latest that SCORED, not just the latest with an
 // exit; state is already spoiler-trimmed, so it's only ever one this viewer has revealed.
 export function LatestEpisodeCard({ state }: { state: LeagueState }) {
   const { hidden } = useHiddenResults();
+  const me = useMyPlayerId();
   if (hidden.length > 0) return <HiddenEpisodeCard state={state} first={hidden[0].number} last={hidden[hidden.length - 1].number} />;
-  const activeRoster = StateLogic.getLeagueType(state).hasActiveRoster && !StateLogic.getLeagueType(state).hasWeeklyPicks;
+  const type = StateLogic.getLeagueType(state);
+  const activeRoster = type.hasActiveRoster && !type.hasWeeklyPicks;
+  const classic = type.hasRoster && !type.hasActiveRoster;
   const latestEp = activeRoster
     ? latestScoredEpisode(state)
     : [...state.episodes].filter((ep) => ep.events.length > 0).sort((a, b) => b.number - a.number)[0];
   const out = latestEp
-    ? latestEp.events.map((ev) => StateLogic.getCastaway(state, ev.castawayId)).filter((c): c is NonNullable<typeof c> => !!c)
+    ? latestEp.events
+        .map((ev) => ({ ev, c: StateLogic.getCastaway(state, ev.castawayId) }))
+        .filter((x): x is { ev: (typeof latestEp.events)[number]; c: NonNullable<typeof x.c> } => !!x.c)
     : [];
 
   return (
-    <DashCard title={latestEp ? `Latest Episode (Ep ${latestEp.number})` : "Latest Episode"} wide={activeRoster}>
+    <DashCard title={latestEp ? `Episode ${latestEp.number}` : "Latest Episode"} wide={activeRoster}>
       {latestEp ? (
         <>
-          {latestEp.title && <p className="text-sm font-semibold">{latestEp.title}</p>}
+          {latestEp.title && <p className="mb-2 text-sm font-semibold">{latestEp.title}</p>}
           {out.length > 0 && (
-            <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2.5">
-              {out.map((c) => {
-                const owners = c.ownerIds
-                  .map((id) => StateLogic.getPlayer(state, id))
-                  .filter((p): p is NonNullable<typeof p> => !!p);
-                return <CastawayStatCard key={c.id} state={state} castaway={c} owners={owners} showPoints={false} expanded={false} />;
+            <div className="flex flex-col gap-2.5">
+              {out.map(({ ev, c }) => {
+                const place = finishedPlace(state, c);
+                return (
+                  <CaptionPlate
+                    key={c.id}
+                    size="sm"
+                    tone="live"
+                    tag="Out"
+                    image={castawayPhotoSrc(c.photoUrl) ?? undefined}
+                    title={c.name}
+                    subtitle={
+                      classic
+                        ? [place && `Finished ${ordinal(place)}`, banksLine(state, c, me)].filter(Boolean).join(" · ")
+                        : ev.method
+                    }
+                  />
+                );
               })}
             </div>
           )}
-          {activeRoster && <LeagueWeek state={state} epId={latestEp.id} />}
+          {activeRoster ? (
+            <LeagueWeek state={state} epId={latestEp.id} />
+          ) : (
+            <DashLink href={`/episodes/${latestEp.number}`}>Episode {latestEp.number} recap →</DashLink>
+          )}
         </>
       ) : (
         <p className="text-sm text-muted-foreground">No episodes logged yet.</p>

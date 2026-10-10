@@ -68,8 +68,8 @@ export function Chip({
 }
 
 // The whole cast, compact: a small photo per castaway grouped by current tribe (biggest group first,
-// same as BoardGrid), a dot per owner beneath. Tap one for its full stat card. Under Classic's
-// TeamsBoard, and on its own as Active Roster's Board (CastBoard below).
+// same as BoardGrid), a dot per owner beneath. Tap one for its full stat card. The Board for Classic
+// and Active Roster (CastBoard below).
 export function CastByTribe({ state, bare }: { state: LeagueState; /** No rule above it: it's the whole section. */ bare?: boolean }) {
   const terms = useShowTerms();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -155,8 +155,8 @@ export function CastByTribe({ state, bare }: { state: LeagueState; /** No rule a
   );
 }
 
-// Active Roster's Board on Overview: just the cast. Who's starting whom is on the Lineup page's
-// Everyone view (src/components/lineup/lineup-page.tsx).
+// The Board on Overview for a roster league: just the cast. Who's starting whom is on the Lineup
+// page's Everyone view (Active Roster); each team's faces are in Standings (Classic).
 export function CastBoard({ state }: { state: LeagueState }) {
   return (
     <section id="board" className="scroll-mt-20">

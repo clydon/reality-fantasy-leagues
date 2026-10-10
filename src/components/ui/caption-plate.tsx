@@ -20,6 +20,18 @@ const TONES: Record<CaptionTone, string> = {
   quiet: "bg-muted text-foreground",
 };
 
+/** A tag in someone's own colour (a player, a tribe), with whichever ink reads on it: plate ink on a
+ *  light colour, white on a dark one. Colours are user-chosen, so this can't be fixed per tone. */
+export function colourTag(hex: string): CSSProperties {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return { background: hex, color: "#fff" };
+  const n = parseInt(m[1], 16);
+  const lin = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const lum = 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  // Where white and near-black give the same contrast.
+  return { background: hex, color: lum > 0.18 ? "#121018" : "#fff" };
+}
+
 export function CaptionPlate({
   tag,
   tone = "chyron",

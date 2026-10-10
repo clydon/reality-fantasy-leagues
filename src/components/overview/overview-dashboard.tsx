@@ -12,7 +12,6 @@ import { LastWeekCard } from "./last-week-card";
 import { SideBetsSection } from "./side-bets-section";
 import { BoardGrid } from "./board-grid";
 import { CastBoard } from "./cast-by-tribe";
-import { TeamsBoard } from "./teams-board";
 import { SeasonResultsCard } from "./season-results-card";
 import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
@@ -51,14 +50,10 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
       // Only ever in the ordered section list when isOverviewSectionEligible already confirmed
       // draftComplete, so no need to re-check it here. BoardGrid owns its own card shell/heading
       // now (previously the one Overview section without one).
-      // Active Roster gets just the compact cast (cast-by-tribe.tsx): who's starting whom is on the
-      // Lineup page. Classic gets each team, then the cast (teams-board.tsx). Eliminator Pool's equivalent
-      // status/nudge section lives on the pick grid itself (pickem-pick-grid.tsx), not here.
-      {
-        const lt = StateLogic.getLeagueType(state);
-        if (lt.hasActiveRoster) return <CastBoard state={state} />;
-        return lt.hasRoster ? <TeamsBoard state={state} /> : <BoardGrid state={state} />;
-      }
+      // A roster league gets just the compact cast (cast-by-tribe.tsx): who's starting whom is on the
+      // Lineup page (Active Roster), and every team's faces are in Standings (Classic). Eliminator
+      // Pool's equivalent status/nudge section lives on the pick grid itself (pickem-pick-grid.tsx).
+      return StateLogic.getLeagueType(state).hasRoster ? <CastBoard state={state} /> : <BoardGrid state={state} />;
   }
 }
 

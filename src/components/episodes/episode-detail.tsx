@@ -6,15 +6,20 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, MoreHorizontal } from "lucide-react";
 import type { Episode, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { useLeagueStore, useCanManage } from "@/lib/store";
+import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { confirm } from "@/lib/confirm-store";
 import { Button } from "@/components/ui/button";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
-import { CaptionPlate } from "@/components/ui/caption-plate";
+import { CaptionPlate, colourTag } from "@/components/ui/caption-plate";
 import { useHiddenResults } from "@/components/results-in-banner";
-import { castawayPhotoSrc } from "@/lib/game/selectors";
+import { castawayPhotoSrc, isKnockedOut } from "@/lib/game/selectors";
+import { CastawayAvatar } from "@/components/castaway-avatar";
+import { finishedPlace, ordinal } from "@/components/scoreboard/scoreboard-tab";
+import { bootOrderThrough, episodeBanks, predictionsRight } from "@/lib/game/classic-view";
+import { useShowTerms } from "@/lib/use-show-terms";
+import { cn } from "cn";
 import { EpisodeBetRow } from "./episode-bet-row";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
 import { EpisodeChanges, EpisodeRecap } from "./episode-recap";
@@ -156,10 +161,16 @@ function ReadView({
   now: number | null;
   onEdit?: () => void;
 }) {
+  const me = useMyPlayerId();
   const exits = episodeExits(state, ep);
   const inPlay = StateLogic.inPlay(state, ep.number);
   const type = StateLogic.getLeagueType(state);
   const hasBets = state.settings.bonusEnabled && (ep.bets || []).length > 0;
+  // Classic scores by boot order (the canvas's Classic "Episode 3" board): where each one finished,
+  // who banked it, and the boot order so far.
+  const classic = type.hasRoster && !type.hasActiveRoster;
+  const banks = classic && inPlay ? episodeBanks(state, ep) : [];
+  const called = predictionsRight(state, ep, me);
 
   return (
     <>
@@ -190,7 +201,7 @@ function ReadView({
                   subtitle={[
                     ev.method,
                     typeof ev.juryVotes === "number" && `${ev.juryVotes} jury vote${ev.juryVotes === 1 ? "" : "s"}`,
-                    ownersLine(state, c),
+                    classic ? finishedPlace(state, c) && `finished ${ordinal(finishedPlace(state, c)!)}` : ownersLine(state, c),
                   ]
                     .filter(Boolean)
                     .join(" · ")}
@@ -198,6 +209,33 @@ function ReadView({
               ))}
             </div>
           )}
+          {(banks.length > 0 || called.right.length > 0) && (
+            <div className="flex flex-col gap-3">
+              {/* Each owner's points, the tag in their own colour (a tag, never a fill). */}
+              {banks.map(({ player, castaway, points }) => (
+                <CaptionPlate
+                  key={`${player.id}-${castaway.id}`}
+                  size="sm"
+                  tag={`+${points}`}
+                  tagStyle={colourTag(player.color)}
+                  title={player.id === me ? `You bank ${points}` : `${player.name} banks ${points}`}
+                  subtitle={`${castaway.name.split(" ")[0]} was on ${player.id === me ? "your" : "their"} team`}
+                />
+              ))}
+              {called.right.length > 0 && (
+                <CaptionPlate
+                  size="sm"
+                  tone="good"
+                  tag="Called it"
+                  title={called.right.length === 1 ? "Your prediction was right" : `${called.right.length} predictions right`}
+                  subtitle={
+                    called.right.length === 1 ? `${called.right[0].label} · +${called.points}` : `+${called.points} from predictions`
+                  }
+                />
+              )}
+            </div>
+          )}
+          {classic && inPlay && <BootOrder state={state} ep={ep} />}
           <Section title="What happened">
             <EpisodeRecap ep={ep} state={state} showExits={false} />
             <EpisodeChanges ep={ep} state={state} />
@@ -221,6 +259,56 @@ function ReadView({
           picks are made on Overview only (see pickem-pick-grid.tsx), never here. */}
       {inPlay && type.hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
     </>
+  );
+}
+
+// Everyone out so far, first out first, each with where they finished; then how many are still in
+// and how many of those are yours.
+function BootOrder({ state, ep }: { state: LeagueState; ep: Episode }) {
+  const me = useMyPlayerId();
+  const terms = useShowTerms();
+  const out = bootOrderThrough(state, ep.number);
+  if (out.length === 0) return null;
+  const outIds = new Set(out.map((c) => c.id));
+  const stillIn = state.castaways.filter((c) => !outIds.has(c.id));
+  const mine = me ? stillIn.filter((c) => c.ownerIds.includes(me)).length : 0;
+  const myTeam = me ? state.castaways.filter((c) => c.ownerIds.includes(me)).length : 0;
+  let yours: string | null = null;
+  if (myTeam > 0 && mine === 0) yours = "none of them yours";
+  else if (myTeam > 0 && mine < myTeam) yours = `${mine} of yours among them`;
+  else if (myTeam > 0) yours = myTeam === 1 ? "yours among them" : myTeam === 2 ? "both of yours among them" : `all ${mine} of yours among them`;
+  return (
+    <section className="flex flex-col gap-3">
+      <h3 className="section-title">Boot order</h3>
+      <ol className="flex flex-wrap gap-x-2 gap-y-3">
+        {out.map((c) => {
+          const place = finishedPlace(state, c);
+          const thisEp = c.exitEpisodeId === ep.id;
+          return (
+            <li key={c.id} className="flex w-[52px] flex-col items-center gap-1">
+              <CastawayAvatar
+                castaway={c}
+                className={cn(
+                  "flex size-[52px] items-center justify-center rounded-[2px] bg-secondary text-xs font-bold text-muted-foreground [&_img]:object-top",
+                  isKnockedOut(state, c) && "grayscale brightness-[.6]",
+                  thisEp && "outline-2 outline-offset-1 outline-live",
+                )}
+              />
+              <span className={cn("type-num text-[17px] leading-none", isKnockedOut(state, c) ? "text-live" : "text-good")}>
+                {place ? ordinal(place) : "Out"}
+              </span>
+              <span className="w-full truncate text-center text-[11px] leading-tight text-muted-foreground">{c.name.split(" ")[0]}</span>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="flex items-baseline gap-2 text-[13px] text-muted-foreground">
+        <span className="type-num text-[28px] leading-none text-foreground">{stillIn.length}</span>
+        <span>
+          {terms.castaways} still in{yours ? `, ${yours}` : ""}
+        </span>
+      </p>
+    </section>
   );
 }
 

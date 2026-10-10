@@ -8,8 +8,10 @@ import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { episodePlayerPoints } from "@/lib/game/active-roster-rows";
 import { cn } from "cn";
 import { useHiddenResults } from "@/components/results-in-banner";
+import { useShowTerms } from "@/lib/use-show-terms";
+import { banksLine, predictionsRight } from "@/lib/game/classic-view";
 import { CatchUpPanel } from "./catch-up-panel";
-import { airsInLabel, episodeDate, episodeExits, episodeStatus, hiddenBefore, ownersLine, useNowMinute } from "./episode-status";
+import { airsInLabel, episodeDate, episodeExits, episodeStatus, hiddenBefore, useNowMinute } from "./episode-status";
 
 // The Episodes list (docs/PLAN-ux-redesign.md, 2e; the canvas's "Classic · Episodes"): one row per
 // episode, newest first, each saying when it aired and one thing about where it stands -- results to
@@ -17,7 +19,10 @@ import { airsInLabel, episodeDate, episodeExits, episodeStatus, hiddenBefore, ow
 // episode's own page (/episodes/N), where the detail and the commissioner's editing live.
 export function EpisodesTab() {
   const state = useLeagueStore((s) => s.state);
+  const terms = useShowTerms();
   const sorted = [...state.episodes].sort((a, b) => b.number - a.number);
+  // From the viewer's trimmed state, so it never counts an exit they haven't revealed.
+  const stillIn = state.castaways.filter((c) => c.status !== "eliminated").length;
 
   return (
     <>
@@ -33,6 +38,13 @@ export function EpisodesTab() {
             <EpisodeRow key={ep.id} ep={ep} state={state} />
           ))}
         </ol>
+      )}
+      {state.castaways.length > 0 && (
+        <p className="mt-4 text-sm text-muted-foreground">
+          {stillIn === state.castaways.length
+            ? `All ${state.castaways.length} ${terms.castaways} still in the game`
+            : `${stillIn} of ${state.castaways.length} ${terms.castaways} still in the game`}
+        </p>
       )}
     </>
   );
@@ -127,7 +139,7 @@ function ScoredHeadline({ ep, state }: { ep: Episode; state: LeagueState }) {
 }
 
 // What it meant for you: your starters' points (Active Roster), whether your pick survived
-// (Eliminator Pool), or whose team lost someone (Classic).
+// (Eliminator Pool), or who banked points for whoever went and whether your prediction paid (Classic).
 function ScoredDetail({ ep, state }: { ep: Episode; state: LeagueState }) {
   const me = useMyPlayerId();
   const type = StateLogic.getLeagueType(state);
@@ -148,9 +160,15 @@ function ScoredDetail({ ep, state }: { ep: Episode; state: LeagueState }) {
     const out = ep.events.some((e) => e.castawayId === pick.castawayId);
     return <>{out ? `Your pick, ${name}, went home` : `Your pick, ${name}, survived`}</>;
   }
-  const first = episodeExits(state, ep)[0];
-  const owners = first ? ownersLine(state, first.c) : null;
-  return owners ? <>{`${first.c.name.split(" ")[0]} was ${owners}`}</> : null;
+  const exits = episodeExits(state, ep);
+  const banks = exits.map((x) => banksLine(state, x.c, me));
+  const { right, points } = predictionsRight(state, ep, me);
+  const parts = [
+    ...banks.filter(Boolean),
+    right.length > 0 && `${right.length === 1 ? "your prediction was" : `${right.length} predictions`} right, +${points}`,
+  ].filter(Boolean);
+  if (parts.length === 0) return exits.length === 1 ? <>{`Nobody had ${exits[0].c.name.split(" ")[0]}`}</> : null;
+  return <>{parts.join(" · ").replace(/^./, (ch) => ch.toUpperCase())}</>;
 }
 
 function fmtPoints(n: number) {
