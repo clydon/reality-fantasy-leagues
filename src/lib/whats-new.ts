@@ -20,6 +20,27 @@ export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: WhatsNewRelease[] = [
   {
+    id: "2026-10-10",
+    date: "2026-10-10",
+    items: [
+      {
+        icon: "📺",
+        title: "A whole new look",
+        detail: "The app is redesigned top to bottom: easier to read on your phone, in light and dark. A cleaner Overview, a page for every episode and every team, and simpler league setup for commissioners.",
+      },
+      {
+        icon: "🎬",
+        title: "Reveal results one moment at a time",
+        detail: "When you're ready, tap through each challenge, who went home, then how your team did.",
+      },
+      {
+        icon: "🔄",
+        title: "Make your own pickups and swaps",
+        detail: "When your commissioner opens a round, make your pick or swap on your turn. Replenish is now called Pickups.",
+      },
+    ],
+  },
+  {
     id: "2026-10-03",
     date: "2026-10-03",
     items: [

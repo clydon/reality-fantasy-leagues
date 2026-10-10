@@ -13,7 +13,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
 
 ## UX redesign in progress: direction A, "Lower Third" (branch `ux-direction-a`, not pushed)
 
-**Status as of 2026-10-10 (light-mode pass and the declutter pass done; merge and push next, when the user says).** A visual redesign is under way on the local branch `ux-direction-a`.
+**Status as of 2026-10-10 (light-mode pass and the declutter pass done; merged to master and pushed 2026-10-10).** A visual redesign is under way on the local branch `ux-direction-a`.
 **Do not push or merge it until the redesign is done** (the user's call). Read these first:
 
 - `PRODUCT.md` (repo root): product truth captured with the impeccable skill's `init`. Users,
@@ -562,7 +562,9 @@ explained to a commissioner") rather than re-deriving it from source each time.
      Cast page reuses the compact cast board rather than a new design; the sidebar's account menu and the More sheet's
      theme picker use the existing ThemePicker (its chosen segment is a chyron fill). DESIGN.md and
      `.impeccable/design.json` are updated (status plate, show art, the One Link rule, D1, M1, the quiet tag).
-5. Then merge and push (the user's call), with the production layout reset above and a What's New entry the user approves (cleaner Overview, the Cast page, plus the Pickups/Swap changes already noted).
+5. ~~Merge and push~~ **Done 2026-10-10:** `ux-direction-a` fast-forwarded into `master` and pushed, with What's New
+   release `2026-10-10` (the new look, the tap-through reveal, player-run Pickups/Swap). The production
+   `overview_layout%` rows (4) are to be deleted by the user once the deploy is live.
 
 **Notes for the next session:**
 - The impeccable skill's launcher (`~/.claude/skills/impeccable/scripts/impeccable`) downloads and
