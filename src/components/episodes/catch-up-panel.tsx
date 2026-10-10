@@ -91,37 +91,31 @@ export function CatchUpPanel({ state }: { state: LeagueState }) {
     }
   }
 
+  // One muted sentence, then the next episode as one plate (docs/PLAN-ux-declutter.md): it stands in
+  // for that episode's row in the list below, and for the commissioner its Reveal is the screen's one
+  // yellow.
   return (
     <section className="mb-6 flex flex-col gap-3.5">
-      <div className="flex flex-col gap-1.5 rounded-[4px] bg-card px-4 py-3.5">
-        <span className="text-base font-bold">
-          {revealed === 0
-            ? `This league plays ${season || "the season"} from the start.`
-            : `This league has played through Episode ${revealed}.`}
-        </span>
-        <span className="text-sm leading-snug text-muted-foreground">
-          Nothing past what&rsquo;s been revealed shows up anywhere, for anyone.
-          {!canManage && " The commissioner reveals each episode once everyone has watched."}
-        </span>
-      </div>
-
-      <CaptionPlate tone="quiet" tag={`Ep ${next}`} title={`Episode ${next} is up next`} subtitle={nextDetail(state, next)} />
-
-      {canAct && (
-        <>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={reveal}
-            className="min-h-12 rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:opacity-60"
-          >
-            {busy ? "Revealing…" : `Reveal Episode ${next} results`}
-          </button>
-          <p className="-mt-1.5 text-[13px] text-muted-foreground">
-            Reveal once everyone has watched. Episode {next + 1} opens after that.
-          </p>
-        </>
-      )}
+      <p className="text-sm leading-snug text-muted-foreground">
+        {revealed === 0
+          ? `Catching up on ${season || "the season"} from the start; episodes stay hidden for everyone until they're revealed.`
+          : `Catching up on ${season || "the season"}. Played through Episode ${revealed}; later episodes stay hidden for everyone.`}
+        {!canManage && " The commissioner reveals each one once everyone has watched."}
+      </p>
+      <CaptionPlate
+        tone="quiet"
+        tag={`Ep ${next}`}
+        title="Up next"
+        subtitle={nextDetail(state, next)}
+        {...(canAct
+          ? {
+              onClick: busy ? undefined : reveal,
+              action: busy ? "Revealing…" : "Reveal",
+              actionTone: "chyron" as const,
+              "aria-label": `Reveal Episode ${next} results`,
+            }
+          : {})}
+      />
 
       {note && <p className="text-sm font-semibold text-good">{note}</p>}
       {tribed.length > 0 && (

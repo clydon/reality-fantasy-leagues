@@ -231,6 +231,7 @@ export function MobileNav() {
   // button to its parent in place of the logo.
   const episodeMatch = /^\/episodes\/(\d+)$/.exec(pathname);
   const boardPage = pathname === "/draft/board";
+  const castPage = pathname === "/cast";
   // A player's own Scoreboard page is titled with their name.
   const scorePlayer = /^\/scoreboard\/([^/]+)$/.exec(pathname);
   const scorePlayerName = scorePlayer ? (state.players.find((p) => p.id === decodeURIComponent(scorePlayer[1]))?.name ?? "Scoreboard") : null;
@@ -248,7 +249,7 @@ export function MobileNav() {
     "/setup/backup": "Backup",
   };
   const setupPage = SETUP_PAGES[pathname];
-  const parentHref = episodeMatch
+  const parentHref = episodeMatch || castPage
     ? "/episodes"
     : scorePlayer
       ? "/scoreboard"
@@ -261,7 +262,7 @@ export function MobileNav() {
         : null;
   const pageTitle =
     PAGE_TITLES[pathname] ??
-    (episodeMatch ? `Episode ${episodeMatch[1]}` : boardPage ? "Draft board" : (scorePlayerName ?? setupPage ?? null));
+    (episodeMatch ? `Episode ${episodeMatch[1]}` : castPage ? "The cast" : boardPage ? "Draft board" : (scorePlayerName ?? setupPage ?? null));
 
   function go(href: string) {
     // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same
@@ -403,7 +404,11 @@ export function MobileNav() {
         style={{ paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))" }}
       >
         {tabs.map((tab) => {
-          const active = pathname === tab.href || (!!tab.href && tab.href !== "/" && pathname.startsWith(`${tab.href}/`));
+          const active =
+            pathname === tab.href ||
+            (!!tab.href && tab.href !== "/" && pathname.startsWith(`${tab.href}/`)) ||
+            // The Cast page lives under Episodes, where it's linked from.
+            (tab.href === "/episodes" && pathname === "/cast");
           const Icon = tab.icon;
           return (
             <button

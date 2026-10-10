@@ -20,7 +20,10 @@ import { airsInLabel, episodeDate, episodeExits, episodeStatus, hiddenBefore, us
 export function EpisodesTab() {
   const state = useLeagueStore((s) => s.state);
   const terms = useShowTerms();
-  const sorted = [...state.episodes].sort((a, b) => b.number - a.number);
+  // In a catch-up league the next episode is the catch-up panel's plate, not a row of its own.
+  const R = StateLogic.RevealLogic;
+  const nextUp = R.isCatchingUp(state) && !R.isComplete(state) ? R.nextEpisode(state) : null;
+  const sorted = [...state.episodes].filter((ep) => ep.number !== nextUp).sort((a, b) => b.number - a.number);
   // From the viewer's trimmed state, so it never counts an exit they haven't revealed.
   const stillIn = state.castaways.filter((c) => c.status !== "eliminated").length;
 
@@ -39,12 +42,17 @@ export function EpisodesTab() {
           ))}
         </ol>
       )}
+      {/* How many are left, and the way to the Cast page (the board that left Overview). */}
       {state.castaways.length > 0 && (
-        <p className="mt-4 text-sm text-muted-foreground">
-          {stillIn === state.castaways.length
-            ? `All ${state.castaways.length} ${terms.castaways} still in the game`
-            : `${stillIn} of ${state.castaways.length} ${terms.castaways} still in the game`}
-        </p>
+        <Link href="/cast" className="mt-2 flex min-h-12 items-center justify-between gap-3 text-sm outline-none focus-visible:bg-accent">
+          <span className="text-muted-foreground">
+            <b className="type-num mr-1 text-[22px] text-foreground">{stillIn}</b>
+            {stillIn === state.castaways.length
+              ? `${terms.castaways}, all still in the game`
+              : `of ${state.castaways.length} still in the game`}
+          </span>
+          <span className="shrink-0 font-semibold text-chyron-line">The cast</span>
+        </Link>
       )}
     </>
   );

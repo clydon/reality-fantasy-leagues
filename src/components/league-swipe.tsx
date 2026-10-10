@@ -40,7 +40,7 @@ const GAP = 32;
 const SETTLE_MS = 220;
 // Pages that show one league: the only ones a swipe means anything on. Not Chat (linked leagues share
 // it), and not Account, Admin or Reports, which look the same whichever league is open.
-const LEAGUE_PAGES = new Set(["/", "/episodes", "/scoreboard", "/lineup", "/pick", "/research", "/draft", "/mid-season", "/setup"]);
+const LEAGUE_PAGES = new Set(["/", "/episodes", "/scoreboard", "/lineup", "/pick", "/research", "/draft", "/mid-season", "/setup", "/cast"]);
 
 /** The open league's linked group, in the order its commissioner set (the league dropdown's too), and
  *  where the open one sits. Only the leagues you're in -- linked leagues needn't share every member. */

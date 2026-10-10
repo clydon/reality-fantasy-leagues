@@ -79,8 +79,8 @@ export function CastByTribe({
   state: LeagueState;
   /** No rule above it: it's the whole section. */
   bare?: boolean;
-  /** The heading; the show's word for its cast when not given. */
-  title?: string;
+  /** The heading; the show's word for its cast when not given, none when null (the page names it). */
+  title?: string | null;
   /** On the heading line (one link per section). */
   aside?: ReactNode;
 }) {
@@ -103,10 +103,12 @@ export function CastByTribe({
 
   return (
     <div className={cn(!bare && "mt-4 border-t border-border pt-3")}>
-      <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h3 className="section-title">{title ?? terms.castaways.replace(/^./, (ch) => ch.toUpperCase())}</h3>
-        {aside}
-      </div>
+      {title !== null && (
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <h3 className="section-title">{title ?? terms.castaways.replace(/^./, (ch) => ch.toUpperCase())}</h3>
+          {aside}
+        </div>
+      )}
       <div className="flex flex-col gap-3">
         {groups.map(({ g, members }) => (
           <div key={g.id ?? "unassigned"} className="flex gap-2">

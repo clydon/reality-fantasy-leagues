@@ -40,6 +40,7 @@ export function CaptionPlate({
   title,
   subtitle,
   action,
+  actionTone,
   href,
   onClick,
   size = "md",
@@ -57,6 +58,8 @@ export function CaptionPlate({
   subtitle?: ReactNode;
   /** Text for the action at the right end; gets a chevron. Only meaningful with href or onClick. */
   action?: ReactNode;
+  /** "chyron": the action is the screen's "now" (Reveal), a yellow block at the plate's end. */
+  actionTone?: "chyron";
   href?: string;
   onClick?: () => void;
   size?: "md" | "sm";
@@ -84,7 +87,12 @@ export function CaptionPlate({
         {subtitle && <span className="truncate text-[13px] text-plate-muted">{subtitle}</span>}
       </span>
       {action && (
-        <span className="flex shrink-0 items-center gap-0.5 bg-plate pl-1 pr-3 text-[15px] font-bold text-plate-foreground">
+        <span
+          className={cn(
+            "flex shrink-0 items-center gap-0.5 text-[15px] font-bold",
+            actionTone === "chyron" ? "bg-chyron px-3.5 text-chyron-foreground" : "bg-plate pl-1 pr-3 text-plate-foreground",
+          )}
+        >
           {action}
           <ChevronRight className="size-[18px]" strokeWidth={2.4} aria-hidden />
         </span>
