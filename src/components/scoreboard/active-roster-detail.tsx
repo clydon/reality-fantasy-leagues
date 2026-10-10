@@ -1,83 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import type { LeagueState, ScoreRow } from "@/lib/game/types";
+import { ChevronRight } from "lucide-react";
+import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { castawayEarnedStats, castawaysEverOwned } from "@/lib/game/active-roster-rows";
-import { playerBetRows } from "@/lib/game/bet-rows";
 import { cn } from "cn";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore } from "@/lib/store";
-import { latestScoredEpisode, weekInRace } from "@/lib/game/episode-team-summary";
+import { weekInRace } from "@/lib/game/episode-team-summary";
 import { scoredEpisodes, teamEpisodeBreakdown } from "@/lib/game/team-episode-breakdown";
 import { TeamEpisodeBreakdown, fmt } from "./team-episode-breakdown";
 import { useTeamSummary } from "./use-team-summary";
 import { isKnockedOut } from "@/lib/game/selectors";
 
-// Active Roster's leaderboard row. Separate from LeaderboardRow because that one's breakdown is
-// "Boot Order" plus a roster list with elimination placements -- which is exactly what this league
-// type does NOT score on. Under the total: the latest episode's points (earlier ones a tap away), each
-// opening to how the team earned them; then the Roster -- each castaway and what they earned this
-// player while fielded (benched points score nothing), then predictions.
-export function ActiveRosterLeaderboardRow({ r, rank, state }: { r: ScoreRow; rank: number; state: LeagueState }) {
-  const bonusEnabled = state.settings.bonusEnabled;
-  const bets = bonusEnabled ? playerBetRows(state, r.playerId) : [];
-  const latest = latestScoredEpisode(state);
-
-  return (
-    <div className="mb-3 rounded-lg border border-border bg-card shadow-sm">
-      <div className={cn("flex items-center gap-3 p-3.5", rank === 1 && "bg-primary/5")}>
-        <div className="w-6 text-center font-mono text-lg font-bold text-muted-foreground">{rank}</div>
-        <div className="h-3 w-3 shrink-0 rounded-full" style={{ background: r.color }} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-bold">{r.name}</div>
-          {/* Where the total came from, in players' words -- only once it isn't all lineup points
-              (then it would just repeat the total). Finale only once it has actually paid out. */}
-          {((bonusEnabled && r.bonus !== 0) || r.finale !== 0) && (
-            <div className="text-xs text-muted-foreground">
-              Lineup {r.locked}
-              {bonusEnabled && r.bonus !== 0 ? ` · Predictions ${r.bonus}` : ""}
-              {r.finale !== 0 ? ` · Finale ${r.finale}` : ""}
-            </div>
-          )}
-        </div>
-        <div className="text-right">
-          <div className="font-mono text-xl font-bold">{r.total}</div>
-          {latest && <WeekTrend race={weekInRace(state, latest.id, r.playerId)} ep={latest.number} />}
-        </div>
-      </div>
-
-      <EpisodeRows state={state} playerId={r.playerId} />
-
-      <details className="border-t border-border px-3.5 py-2">
-        <summary className="cursor-pointer text-xs text-muted-foreground">Roster</summary>
-        <RosterBreakdown state={state} playerId={r.playerId} />
-        {bets.length > 0 && (
-          <div className="mt-2.5 border-t border-border pt-2">
-            <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Predictions</div>
-            {bets.map((b, i) => (
-              <div key={i} className="flex items-start gap-2 py-1 text-xs">
-                <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.65rem] font-semibold">Ep {b.episode}</span>
-                <span className="min-w-0 flex-1">
-                  {b.label} <span className="text-muted-foreground">&mdash; guessed &ldquo;{b.guess}&rdquo;</span>
-                </span>
-                {/* Right (with points), wrong, or not graded yet. */}
-                <span className={cn("shrink-0 font-mono font-bold", b.correct === true ? "text-good" : "text-muted-foreground")}>
-                  {b.correct === true ? `✓ +${b.points}` : b.correct === false ? "✗" : "…"}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </details>
-    </div>
-  );
-}
-
+// Active Roster's half of a player's Scoreboard page (player-score-page.tsx): how the latest episode
+// moved them in the race, every scored episode opening to how the team earned it, and the Roster --
+// each castaway and what they earned this player while fielded (benched points score nothing). The
+// standings list itself is scoreboard-tab.tsx's per-episode table.
 // Under the total, small and quiet: how the latest episode moved this team in the race for 1st --
 // ▲ gained on the leader (or, for the leader, pulled away from 2nd), ▼ lost ground.
-function WeekTrend({ race, ep }: { race: ReturnType<typeof weekInRace>; ep: number }) {
+export function WeekTrend({ race, ep }: { race: ReturnType<typeof weekInRace>; ep: number }) {
   if (!race) return null;
   const { gained, leading, tookLead } = race;
   const n = Math.abs(gained);
@@ -97,29 +41,19 @@ function WeekTrend({ race, ep }: { race: ReturnType<typeof weekInRace>; ep: numb
   );
 }
 
-// This team's points episode by episode: the latest one, with the rest behind "Show all episodes...",
-// newest first. Each opens to how the team earned them (TeamEpisodeBreakdown). The latest one also
-// carries the "why it mattered" line the commissioner wrote for it, if any -- only that needs the
-// server (written from the Scoreboard's commissioner button, EpisodeLinesModal).
-function EpisodeRows({ state, playerId }: { state: LeagueState; playerId: string }) {
-  const [showAll, setShowAll] = useState(false);
+// This team's points episode by episode, newest first, each opening to how the team earned them
+// (TeamEpisodeBreakdown). The latest one also carries the "why it mattered" line the commissioner wrote
+// for it, if any -- only that needs the server (written from the Scoreboard's ⋯, EpisodeLinesModal).
+export function EpisodeRows({ state, playerId }: { state: LeagueState; playerId: string }) {
   const eps = scoredEpisodes(state);
   const leagueId = useLeagueStore((s) => (s.mode === "live" ? s.leagueId : null));
   const { data } = useTeamSummary(leagueId, eps[0]?.id ?? null);
-  if (eps.length === 0) return null;
-  const [latest, ...older] = eps;
-
+  if (eps.length === 0) return <p className="text-sm text-muted-foreground">No episodes scored yet.</p>;
   return (
-    <div className="border-t border-border px-3.5 py-2">
-      <EpisodeRow state={state} ep={latest} playerId={playerId} note={data?.notes[playerId]} />
-      {older.length > 0 && (
-        <>
-          {showAll && older.map((ep) => <EpisodeRow key={ep.id} state={state} ep={ep} playerId={playerId} />)}
-          <button className="mt-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowAll((v) => !v)}>
-            {showAll ? "Show latest only" : "Show all episodes…"}
-          </button>
-        </>
-      )}
+    <div className="flex flex-col border-b border-border">
+      {eps.map((ep, i) => (
+        <EpisodeRow key={ep.id} state={state} ep={ep} playerId={playerId} note={i === 0 ? data?.notes[playerId] : undefined} />
+      ))}
     </div>
   );
 }
@@ -127,12 +61,15 @@ function EpisodeRows({ state, playerId }: { state: LeagueState; playerId: string
 function EpisodeRow({ state, ep, playerId, note }: { state: LeagueState; ep: { id: string; number: number }; playerId: string; note?: string }) {
   const { total } = teamEpisodeBreakdown(state, ep.id, playerId);
   return (
-    <details className="py-0.5">
-      <summary className="cursor-pointer text-xs text-muted-foreground">
-        Episode {ep.number}
-        <span className={cn("float-right font-mono font-bold", total < 0 ? "text-destructive" : "text-foreground")}>{fmt(total)}</span>
+    <details className="group border-t border-border">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" strokeWidth={2.4} aria-hidden />
+        <span className="flex-1 text-base font-semibold">Episode {ep.number}</span>
+        <span className="type-num text-[22px]">{fmt(total)}</span>
       </summary>
-      <TeamEpisodeBreakdown state={state} epId={ep.id} playerId={playerId} note={note} />
+      <div className="pb-3 pl-6">
+        <TeamEpisodeBreakdown state={state} epId={ep.id} playerId={playerId} note={note} />
+      </div>
     </details>
   );
 }
@@ -142,7 +79,7 @@ function EpisodeRow({ state, ep, playerId, note }: { state: LeagueState; ep: { i
 // castaway's points were never this player's). Replaces the old card grid, whose full stat cards
 // didn't fit narrow columns and showed whole-season points that didn't reconcile with the total.
 // Tap a line for the episode-by-episode events behind its number.
-function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: string }) {
+export function RosterBreakdown({ state, playerId }: { state: LeagueState; playerId: string }) {
   const [open, setOpen] = useState<string | null>(null);
   const defs = StateLogic.formatOf(state).events;
   // Episodes that have scored for this league, oldest first -- the strip's columns.
@@ -294,12 +231,12 @@ function EpisodeBar({ e, maxAbs }: { e: { n: number; out: boolean; fielded: bool
   );
 }
 
-// Once per Scoreboard, above the list (not repeated in every card): how to read a Roster.
+// Under the Roster on a player's page: how to read it.
 export function ScoreboardLegend() {
   const terms = useShowTerms();
   return (
-    <details className="mb-3 rounded-lg border border-border bg-card px-3.5 py-2 text-xs text-muted-foreground shadow-sm">
-      <summary className="cursor-pointer">How to read the roster</summary>
+    <details className="mt-2 text-xs text-muted-foreground">
+      <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">How to read the roster</summary>
       <p className="mt-2">
         Each number is what that {terms.castaway} earned <b className="text-foreground">that player</b> — points only count in
         episodes they started. Tap a {terms.castaway} for the episode-by-episode events.
@@ -327,7 +264,7 @@ export function ScoreboardLegend() {
       </div>
       <p className="mt-1">Bars are the last 8 episodes, oldest first.</p>
       <p className="mt-1">
-        Under each total: how the latest episode moved that team in the race for 1st —{" "}
+        Under the total: how the latest episode moved this team in the race for 1st —{" "}
         <span className="text-good">▲</span> points gained on the leader (for the leader: on 2nd),{" "}
         <span className="text-destructive">▼</span> points lost. &ldquo;new 1st&rdquo; marks a team that just took the lead.
       </p>

@@ -63,7 +63,8 @@ explained to a commissioner") rather than re-deriving it from source each time.
    as built in dark mode, with `.impeccable/design.json` alongside. Update both after the light-mode
    pass.
 2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~,
-   ~~League Settings~~, ~~Create a league~~, then the rest; admin last.
+   ~~League Settings~~, ~~Create a league~~, ~~Overview & Scoreboard (commissioner)~~, then the rest;
+   admin last.
    - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
      episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
      `src/app/episodes/[number]/page.tsx` -> `episode-detail.tsx`: read view by default (who left as
@@ -210,6 +211,39 @@ explained to a commissioner") rather than re-deriving it from source each time.
      computer player and an invite; Survivor 49 catch-up, Classic, start it myself), the saved
      settings checked in the DB (catch-up league revealed through 0 with nobody out), and Draft and
      League Settings afterwards. Both test leagues were deleted; no test data left behind.
+   - **Overview & Scoreboard (commissioner) done 2026-10-09** (plan 2f; canvas "Standings" boards for
+     Classic, Active Roster and Eliminator Pool). **Overview:** a **Commissioner** to-do list at the top
+     (`overview/commissioner-card.tsx`, logic in `lib/game/commissioner-items.ts`), shown only to the
+     commissioner and only when something's waiting: Invite players (fewer than 2), Draft not
+     scheduled, "Episode N is next · Reveal" (catch-up), Pickups are due (the same check the start
+     button runs, tried on a copy), Swap window is open (Active Roster), and N invites pending (fetched
+     from the invites API). Rows link to where it's done; no chyron dots (the alert strip already owns
+     the yellow). Read from the trimmed state, so it never hints at unrevealed results. Standings and
+     Latest Episode stack below 420px. The catch-up notice is a plain muted line in dark.
+   - **Scoreboard** (`scoreboard/scoreboard-tab.tsx`) is a compact list per league type, "After episode
+     N" at the top: Classic rows show each team's faces with "IN" or where they finished ("21st" in live
+     red) and "2 of 3 standing"; Active Roster is a table of the last three scored episodes plus Total,
+     each episode's best score in chyron; Eliminator Pool is Streak / Best / Points, then a **Pick
+     history** grid of settled picks only. Ties read "T1"; the leader's rank is chyron in dark only,
+     and nobody's when everyone is level. The Sole Survivor footnote is gone (1g). The commissioner's
+     "Write episode N lines" moved into the page's ⋯ sheet.
+   - **Each player has a page**, `/scoreboard/[player]` (`scoreboard/player-score-page.tsx`, header
+     shows their name with a back button): place and total, then Classic's Team (tribe chip and "Still
+     in", or Out · episode · finished Nth · +points; "No longer on the team" for swapped or replaced),
+     Active Roster's Episodes (each opens to the breakdown) and Roster (bars, legend), or the Pool's
+     Picks, then Predictions. The Active Roster pieces moved from `active-roster-leaderboard-row.tsx`
+     to `active-roster-detail.tsx`; `leaderboard-row.tsx` and `pickem-leaderboard-row.tsx` are gone.
+   - **Privacy fix:** the old Scoreboard's Pool "Pick history" showed everyone's pick for an episode
+     that hadn't played yet, which Overview deliberately hides. Now only settled picks show, plus your
+     own pending one on your own page.
+   - Not done: the canvas's Active Roster "Your season" stat cards (best starter, most benched, ...);
+     the Overview's own sections beyond the plan's fixes (Latest Episode, Predictions, Teams, Castaways
+     cards are as before); the lines modal (`episode-summary-modal.tsx`) is unrestyled. No league had
+     real scores in Active Roster locally, so its best-score marking was only seen at all-zero.
+   - Verified at 390×844 dark with `docs/ux-baseline/scripts/overview-scoreboard.js` against `UX Baseline S51`
+     (Classic), `UX AR S51`, `UX D Pre`, `UX D Done` (as commissioner and as `uxplayer`), and a
+     throwaway Eliminator Pool league on Survivor 49 catch-up (two episodes revealed, picks made,
+     deleted after); plus 1280 dark and 390 light. No test data left behind.
 3. Light mode pass.
 4. Then merge and push.
 

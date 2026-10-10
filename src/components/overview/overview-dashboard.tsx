@@ -18,6 +18,7 @@ import { NotificationsBanner } from "./notifications-banner";
 import { PickEmPickGrid } from "./pickem-pick-grid";
 import { ActiveRosterLineupGrid } from "./active-roster-lineup-grid";
 import { LeagueScoringCard } from "./league-scoring-card";
+import { CommissionerCard } from "./commissioner-card";
 import { useOverviewLayout } from "@/lib/use-overview-layout";
 import { isOverviewSectionEligible, toOverviewLeagueTypeId, type OverviewSectionId } from "@/lib/overview-layout";
 import type { LeagueState } from "@/lib/game/types";
@@ -62,7 +63,7 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
 }
 
 // Standings and Latest Episode are both small, so when they're next to each other in the order they
-// share a row, half each -- unless the latest episode has more than one person out, whose cards then
+// share a row from 420px up, half each -- unless the latest episode has more than one person out, whose cards then
 // need the full width. Active Roster's Latest Episode lists every team's week, so it always does.
 function groupSections(sections: OverviewSectionId[], state: LeagueState): OverviewSectionId[][] {
   const lt = StateLogic.getLeagueType(state);
@@ -108,11 +109,15 @@ export function OverviewDashboard() {
       <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Overview</h2>
       {/* Season over: the results announcement leads the page (renders nothing until then). */}
       <SeasonResultsCard state={state} />
+      {/* What only the commissioner can do, when anything's waiting (renders nothing otherwise). */}
+      <div className="mb-6 empty:hidden">
+        <CommissionerCard state={state} />
+      </div>
       {/* Catch-up mode (StateLogic.RevealLogic): say so here, or the standings look inexplicably
           early to anyone who knows how far the real season has run. Deliberately says nothing about
           how much is left -- see catch-up-panel.tsx. */}
       {StateLogic.RevealLogic.isCatchingUp(state) && !StateLogic.RevealLogic.isComplete(state) && (
-        <p className="mb-4 rounded-md border border-primary/30 bg-accent px-3 py-1.5 text-xs">
+        <p className="mb-4 rounded-md border border-primary/30 bg-accent px-3 py-1.5 text-xs dark:rounded-none dark:border-0 dark:bg-transparent dark:px-0 dark:py-0 dark:text-[13px] dark:text-muted-foreground">
           Catching up — this league has played through{" "}
           <b>
             {StateLogic.RevealLogic.revealedThrough(state) === 0
@@ -125,7 +130,8 @@ export function OverviewDashboard() {
       <div className="flex flex-col gap-3.5">
         {groupSections(sections, state).map((group) =>
           group.length === 2 ? (
-            <div key={group.join("+")} className="grid grid-cols-2 gap-3.5 [&>*]:min-w-0">
+            // Stacked on a phone: two ~170px columns squeezed both (docs/PLAN-ux-redesign.md, 2f).
+            <div key={group.join("+")} className="grid grid-cols-1 gap-3.5 min-[420px]:grid-cols-2 [&>*]:min-w-0">
               {group.map((id) => (
                 <div key={id} className="[&>*]:h-full">
                   {renderSection(id, state)}

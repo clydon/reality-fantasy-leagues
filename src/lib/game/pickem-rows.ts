@@ -6,6 +6,7 @@ export interface PlayerPickRow {
   postMerge: boolean;
   /** Null for an episode that happened with no pick from this player (which breaks their streak). */
   castawayName: string | null;
+  castawayId: string | null;
   correct: boolean | null; // null = episode hasn't happened yet (no eliminations logged for it)
   points: number;
   /** Their streak after this episode. */
@@ -20,6 +21,7 @@ export function playerPickRows(state: LeagueState, playerId: string): PlayerPick
     episode: row.episode,
     postMerge: row.postMerge,
     castawayName: row.castawayId ? StateLogic.getCastaway(state, row.castawayId)?.name || "?" : null,
+    castawayId: row.castawayId ?? null,
     correct: row.correct,
     points: row.points,
     streak: row.streak,

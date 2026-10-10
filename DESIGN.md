@@ -354,6 +354,10 @@ A multi-step task gets the whole screen, with no tab bar or sidebar (`/new-leagu
 ### Standings Row
 48px rows divided by hairlines: a condensed rank (the leader's in chyron), the player's colour dot, the name in 16px semibold, and a condensed tabular total on the right. Your own row is lifted with a Night Panel Raised fill and a white "You" badge.
 
+### Scoreboard and the commissioner's to-do list
+- **Scoreboard rows** link to the player's own page and take the shape of the league type's scoring: a team's faces (out ones greyed, with where they finished in Live Red), a per-episode table, or streak columns. Ranks show ties as "T1"; the leader's rank is chyron, and nobody's when everyone is level. Your row is lifted like the standings row.
+- **Commissioner list** (top of Overview): a muted 19px condensed caps label, then hairline rows (title, one line of detail, the action's name and a chevron). Only shown when something is waiting, and with no yellow, because the alert strip above it already holds the screen's "now".
+
 ### Navigation
 Mobile: a header with the page's name in 22px condensed caps and the league name in 12px above it, chat on the right; a fixed bottom tab bar. Desktop (880px+): a Night Rail sidebar. The current tab is marked in chyron.
 
