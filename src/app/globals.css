@@ -372,3 +372,43 @@
 @media (prefers-reduced-motion: reduce) {
   .whats-new-pop { animation: none; }
 }
+
+/* Chat (chat-tab.tsx): a message that arrives while the page is open rises into place, and a
+   reaction chip pops in when it first appears. Nothing on first load, nothing under reduced motion. */
+@keyframes chat-in {
+  0% { transform: translateY(10px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.chat-in {
+  animation: chat-in 0.22s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+@keyframes chat-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.chat-pop {
+  animation: chat-pop 0.2s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-in,
+  .chat-pop { animation: none; }
+}
+/* The reaction picker (emoji-picker-react) on our tokens, so it sits in the sheet like the rest. */
+.chat-sheet .EmojiPickerReact {
+  --epr-bg-color: var(--card);
+  --epr-category-label-bg-color: var(--card);
+  --epr-picker-border-color: var(--border);
+  --epr-picker-border-radius: 3px;
+  --epr-search-input-bg-color: var(--background);
+  --epr-search-input-bg-color-active: var(--background);
+  --epr-search-border-color: var(--input);
+  --epr-search-input-border-radius: 3px;
+  --epr-search-input-text-color: var(--foreground);
+  --epr-search-input-placeholder-color: var(--muted-foreground);
+  --epr-highlight-color: var(--chyron-line);
+  --epr-hover-bg-color: var(--accent);
+  --epr-focus-bg-color: var(--accent);
+  --epr-text-color: var(--foreground);
+  --epr-category-icon-active-color: var(--chyron-line);
+}

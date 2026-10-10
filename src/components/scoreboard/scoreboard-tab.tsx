@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import type { Castaway, LeagueState, ScoreRow } from "@/lib/game/types";
 import { useCanManage, useLeagueStore, useMyPlayerId } from "@/lib/store";
@@ -13,7 +14,6 @@ import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { MoreButton } from "@/components/setup/settings-ui";
 import { cn } from "cn";
-import { EpisodeLinesModal } from "./episode-summary-modal";
 import { YourSeason } from "./your-season";
 
 // The Scoreboard (docs/PLAN-ux-redesign.md, 2f; the canvas's "Standings" boards): one compact list in
@@ -30,7 +30,7 @@ export function ScoreboardTab() {
   const canManage = useCanManage();
   const leagueId = useLeagueStore((s) => (s.mode === "live" ? s.leagueId : null));
   const [menuOpen, setMenuOpen] = useState(false);
-  const [writing, setWriting] = useState(false);
+  const router = useRouter();
   // The commissioner writes every team's "why it mattered" line for the latest episode (Active
   // Roster). Live leagues only: there's no server to save to in demo mode.
   const ar = type.hasActiveRoster && !type.hasWeeklyPicks;
@@ -66,21 +66,12 @@ export function ScoreboardTab() {
           <SheetAction
             onClick={() => {
               setMenuOpen(false);
-              setWriting(true);
+              router.push("/scoreboard/lines");
             }}
           >
             Write episode {latest.number} lines
           </SheetAction>
         </BottomSheet>
-      )}
-      {writing && latest && leagueId && (
-        <EpisodeLinesModal
-          leagueId={leagueId}
-          epId={latest.id}
-          epNumber={latest.number}
-          teams={scores.map((r) => ({ id: r.playerId, name: r.name, color: r.color }))}
-          onClose={() => setWriting(false)}
-        />
       )}
     </div>
   );

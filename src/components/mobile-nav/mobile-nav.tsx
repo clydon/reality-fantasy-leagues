@@ -256,7 +256,9 @@ export function MobileNav() {
   const boardPage = pathname === "/draft/board";
   const castPage = pathname === "/cast";
   // A player's own Scoreboard page is titled with their name.
-  const scorePlayer = /^\/scoreboard\/([^/]+)$/.exec(pathname);
+  // (/scoreboard/lines is the commissioner's episode lines, not a player.)
+  const linesPage = pathname === "/scoreboard/lines";
+  const scorePlayer = linesPage ? null : /^\/scoreboard\/([^/]+)$/.exec(pathname);
   const scorePlayerName = scorePlayer ? (state.players.find((p) => p.id === decodeURIComponent(scorePlayer[1]))?.name ?? "Scoreboard") : null;
   // League Settings' own pages (docs/PLAN-ux-redesign.md, 2b), each a row of /setup.
   const SETUP_PAGES: Record<string, string> = {
@@ -274,7 +276,7 @@ export function MobileNav() {
   const setupPage = SETUP_PAGES[pathname];
   const parentHref = episodeMatch || castPage
     ? "/episodes"
-    : scorePlayer
+    : scorePlayer || linesPage
       ? "/scoreboard"
     : boardPage
       ? "/draft"
@@ -285,7 +287,7 @@ export function MobileNav() {
         : null;
   const pageTitle =
     PAGE_TITLES[pathname] ??
-    (episodeMatch ? `Episode ${episodeMatch[1]}` : castPage ? "The cast" : boardPage ? "Draft board" : (scorePlayerName ?? setupPage ?? null));
+    (episodeMatch ? `Episode ${episodeMatch[1]}` : castPage ? "The cast" : linesPage ? "Episode lines" : boardPage ? "Draft board" : (scorePlayerName ?? setupPage ?? null));
 
   function go(href: string) {
     // The Demo Season slot has no route of its own -- it opens the picker instead of a page (same

@@ -1,24 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Bet, Episode, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { isBetSettled } from "@/lib/game/selectors";
 import { useLeagueStore, useCanManage, useCanGuess, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { confirm } from "@/lib/confirm-store";
-import { cn } from "cn";
+import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
+import { MoreButton, fieldCls } from "@/components/setup/settings-ui";
+import { ActButton } from "@/components/admin/admin-ui";
+import { GuessLine, QuestionLine } from "@/components/predictions/prediction-ui";
 
-// Direct port of renderBetCard() (public/app.js), converted from global toggle-state
-// (revealedBetCardId, one flag shared across every card) to local component state -- each card
-// owns whether its own delete button is revealed, which is what that global was really modeling.
+// One open prediction on Overview (renderBetCard() in public/app.js, restyled for direction A): the
+// question as a row, everyone's guess under it, and your own guess field while you haven't made one.
+// Its ⋯ sheet: the commissioner's way to the episode page to grade it, and Remove (the commissioner,
+// or whoever asked it until a second guess is in).
 export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: LeagueState }) {
-  const [revealed, setRevealed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const router = useRouter();
   const [guess, setGuess] = useState("");
   const canManage = useCanManage();
   const canGuessBets = useCanGuess();
@@ -26,152 +27,84 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mutate = useMutate();
 
-  const mine = myPlayerId ? (bet.predictions || []).find((p) => p.playerId === myPlayerId) : null;
+  const guesses = bet.predictions || [];
+  const mine = myPlayerId ? guesses.find((p) => p.playerId === myPlayerId) : null;
   const canGuessThis = canGuessBets && !mine;
-  const creator = bet.createdByPlayerId ? StateLogic.getPlayer(state, bet.createdByPlayerId) : null;
   const isCreator = !!myPlayerId && bet.createdByPlayerId === myPlayerId;
-  const canDelete = canManage || (isCreator && (bet.predictions || []).length < 2);
-  const needsOneMore = (bet.predictions || []).length === 1 && !isBetSettled(bet);
+  const canDelete = canManage || (isCreator && guesses.length < 2);
+  const needsOneMore = guesses.length === 1 && !isBetSettled(bet);
+  const trimmed = guess.trim();
 
   async function submitGuess() {
-    const g = guess.trim();
-    if (!g || !myPlayerId) return;
+    if (!trimmed || !myPlayerId) return;
     const playerId = myPlayerId;
     await mutate(
-      (s) => StateLogic.addBetPrediction(s, ep.id, bet.id, playerId, g),
-      () => api.addBetPrediction(leagueId!, ep.id, bet.id, playerId, g)
+      (s) => StateLogic.addBetPrediction(s, ep.id, bet.id, playerId, trimmed),
+      () => api.addBetPrediction(leagueId!, ep.id, bet.id, playerId, trimmed)
     );
     setGuess("");
   }
 
-  async function grade(predId: string, value: boolean) {
+  async function handleDelete() {
+    setMenuOpen(false);
     await mutate(
-      (s) => StateLogic.setBetPredictionCorrect(s, ep.id, bet.id, predId, value),
-      () => api.setBetPredictionCorrect(leagueId!, ep.id, bet.id, predId, value)
-    );
-  }
-
-  async function handleDelete(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!(await confirm("Remove this prediction? This cannot be undone.", { danger: true, confirmLabel: "Remove" }))) return;
-    setRevealed(false);
-    mutate(
       (s) => StateLogic.removeBet(s, ep.id, bet.id),
       () => api.removeBet(leagueId!, ep.id, bet.id)
     );
   }
 
-  const borderCls = canGuessThis
-    ? "border-chyron-line/50"
-    : mine?.correct === true
-    ? "border-good/60"
-    : mine?.correct === false
-    ? "border-destructive/50"
-    : "border-border";
-
   return (
-    <div
-      className={cn("relative flex flex-col gap-2 rounded-lg border-2 bg-card p-3 shadow-sm", borderCls)}
-      onClick={(e) => {
-        if ((e.target as HTMLElement).closest("input,button,select")) return;
-        setRevealed((r) => !r);
-      }}
-    >
-      {canDelete && (
-        <button
-          className={cn("absolute right-1.5 top-1.5 text-xs opacity-0 transition-opacity", revealed && "opacity-100")}
-          title="Delete prediction"
-          onClick={handleDelete}
-        >
-          🗑
-        </button>
+    <li className="flex flex-col gap-1.5 py-3">
+      <QuestionLine
+        bet={bet}
+        ep={ep}
+        state={state}
+        showEpisode
+        action={canDelete ? <MoreButton label="Prediction actions" onClick={() => setMenuOpen(true)} className="-my-1.5 -mr-2" /> : undefined}
+      />
+      {guesses.length > 0 && (
+        <ul className="flex flex-col">
+          {guesses.map((p) => (
+            // Grading is on the episode's page (the ⋯ sheet goes there): here a guess shows how it went
+            // once graded, and nothing before -- an open question has nothing to grade yet.
+            <GuessLine key={p.id} state={state} pred={p} bet={bet} showPending={false} />
+          ))}
+        </ul>
       )}
-      {canGuessThis && !revealed && (
-        <Badge className="absolute -right-1 -top-1 text-[0.6rem]">NEEDS YOUR GUESS</Badge>
-      )}
-      <div className="flex items-start justify-between gap-2">
-        <div className="text-sm font-semibold">
-          {bet.label}
-          {ep.postMerge ? " 🔀" : ""}
-        </div>
-        <div className="shrink-0 font-mono text-sm font-bold">
-          {bet.points}
-          <span className="ml-0.5 text-xs font-normal text-muted-foreground">pts</span>
-        </div>
-      </div>
-      <div className="text-xs text-muted-foreground">
-        {creator ? (
-          <>
-            <span
-              className="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-[0.6rem] font-bold text-white"
-              style={{ background: creator.color }}
-            >
-              {creator.name[0]}
-            </span>
-            proposed by {creator.name}
-          </>
-        ) : (
-          `Episode ${ep.number}`
-        )}
-      </div>
-      {(bet.predictions || []).length > 0 && (
-        <div className="flex flex-col gap-1">
-          {(bet.predictions || []).map((p) => {
-            const pp = StateLogic.getPlayer(state, p.playerId);
-            return (
-              <div key={p.id} className="flex items-center gap-1.5 text-xs">
-                <span
-                  className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-bold text-white"
-                  style={{ background: pp?.color || "#4a5245" }}
-                >
-                  {(pp?.name || "?")[0]}
-                </span>
-                <span>
-                  {pp?.name || "?"}: &ldquo;{p.guess}&rdquo;
-                </span>
-                {p.correct === true && (
-                  <Badge variant="secondary" className="ml-auto bg-good/15 text-good">
-                    +{bet.points} ✓
-                  </Badge>
-                )}
-                {p.correct === false && (
-                  <Badge variant="destructive" className="ml-auto">
-                    ✗
-                  </Badge>
-                )}
-                {canManage && p.correct === null && (
-                  <Select
-                    size="sm"
-                    className="ml-auto"
-                    onChange={(e) => e.target.value && grade(p.id, e.target.value === "true")}
-                    defaultValue=""
-                  >
-                    <option value="">—</option>
-                    <option value="true">Correct</option>
-                    <option value="false">Incorrect</option>
-                  </Select>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {needsOneMore && <div className="text-[0.7rem] italic text-muted-foreground">Needs 1 more guess to pay out</div>}
+      {needsOneMore && <p className="text-[13px] text-muted-foreground">One more guess and it pays out.</p>}
       {canGuessThis && (
-        <div className="flex gap-1.5">
-          <Input
-            size="sm"
-            className="min-w-0 flex-1"
-            placeholder="Your guess..."
+        <form
+          className="mt-1 flex gap-2 sm:max-w-[480px]"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submitGuess();
+          }}
+        >
+          <input
+            className={`${fieldCls} min-h-11 min-w-0 flex-1`}
+            aria-label={`Your guess: ${bet.label}`}
+            placeholder="Your guess"
             value={guess}
             onChange={(e) => setGuess(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submitGuess()}
           />
-          <Button size="xs" onClick={submitGuess}>
+          {/* Chyron only once there's something to send: a page of open questions isn't a page of yellow. */}
+          <ActButton type="submit" tone={trimmed ? "chyron" : "plain"} disabled={!trimmed}>
             Guess
-          </Button>
-        </div>
+          </ActButton>
+        </form>
       )}
-    </div>
+      <BottomSheet open={menuOpen} onOpenChange={setMenuOpen} title="Prediction" description={canManage ? undefined : "Until a second person guesses"}>
+        {canManage && guesses.length > 0 && (
+          <SheetAction onClick={() => router.push(`/episodes/${ep.number}`)} detail={`Episode ${ep.number}`}>
+            Grade guesses
+          </SheetAction>
+        )}
+        {canDelete && (
+          <SheetAction danger onClick={handleDelete}>
+            Remove prediction
+          </SheetAction>
+        )}
+      </BottomSheet>
+    </li>
   );
 }

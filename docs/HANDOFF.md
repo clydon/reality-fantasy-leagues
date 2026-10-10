@@ -566,6 +566,33 @@ explained to a commissioner") rather than re-deriving it from source each time.
    release `2026-10-10` (the new look, the tap-through reveal, player-run Pickups/Swap). The production
    `overview_layout%` rows (4) are to be deleted by the user once the deploy is live.
 
+6. **Chat and the leftover pieces, done 2026-10-10** (no canvas mock: built straight in code and checked
+   against screenshots). DESIGN.md's Chat, Predictions, and Episode lines and lineups sections describe them.
+   - **Chat** (`chat/chat-tab.tsx`, `chat-message-row.tsx`): it's flat now. Messages are grouped by author, there's a
+     divider between days, and your own messages use the You fill instead of chyron. A message's sheet holds the
+     reactions, Copy, Edit and Delete. The spoiler line and the hidden-message placeholder are restyled, the field
+     grows as you type, and new messages slide in. The keyboard and tab-bar sizing (`useFitToVisible`) is unchanged.
+   - **Predictions** (`predictions/prediction-ui.tsx`, shared by `overview/bet-card.tsx` and
+     `episodes/episode-bet-row.tsx`): they're hairline rows now. Grading uses ✓/✕ buttons instead of dropdowns, and
+     ✏️ is replaced by a ⋯ sheet. **Behaviour change:** commissioners no longer grade on Overview; the ⋯ there opens
+     the episode's page. The episode page only shows "Grade N guesses" once the episode has results. Before that,
+     grading is still available from the ⋯ sheet. `PointsPicker` is now 44px buttons, with the chosen value in the
+     You fill.
+   - **Lineups section** (`episode-active-roster-section.tsx`): flat rows, condensed totals, and Out chips. Lost
+     points are muted instead of red.
+   - **Episode lines** are their own page now, `/scoreboard/lines` (`scoreboard/episode-lines-page.tsx`), and
+     `episode-summary-modal.tsx` is deleted. The mobile header calls it "Episode lines" and its back button goes
+     to Scoreboard.
+   - Verified with headless scripts at 390×844 in dark and light, plus 1280 dark, on `UX Baseline S51` and
+     `UX AR S51`. Covered: chat with grouping, reactions, the sheet, the picker, edit and spoiler states; Overview
+     and the episode pages' predictions with grading and the edit sheet; Active Roster lineups with an open line;
+     and the lines page. The test data (7 chat messages, three predictions, Episode 2 lineups) was seeded and then
+     removed; both league states were restored from snapshots and checksum-matched. `npm test` 254/254, tsc and
+     eslint clean. Write actions were blocked in the scripts, so sending, reacting, grading and saving were checked
+     in code, not end to end.
+   - Not done: the Overview "Your episode N" line card (`your-line-card.tsx`) is still the old italic quote. The
+     User Manual still describes the old prediction grading.
+
 **Notes for the next session:**
 - The impeccable skill's launcher (`~/.claude/skills/impeccable/scripts/impeccable`) downloads and
   runs a prebuilt binary. This session didn't run it and used the skill's documented fallback

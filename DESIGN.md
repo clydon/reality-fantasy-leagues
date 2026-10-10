@@ -446,6 +446,25 @@ Results a player hasn't chosen to see stay out of every screen until they do.
   140px chyron number with one or two muted lines. The last beat's button is a white plate, so the
   number stays the only yellow. Beats fade and slide up over 300ms, only when motion is allowed.
 
+### Chat
+One conversation per set of linked leagues (`/chat`, `chat/chat-tab.tsx`), flat on the ground like every other page.
+- **Messages** run in groups: one author, nothing in between, under ten minutes apart. The first of a group has the author's colour dot, name (13px bold) and time; the rest are just bubbles 4px apart. Other people's bubbles are Night Panel; **yours sit on the right in the "You" fill** (`bg-foreground`: bone on Night, ink on Studio), never chyron. 4px corners, 16px text, 85% wide at most.
+- **A day changing** is a small condensed caps label ("Today", "Yesterday", "Wed, Oct 7") between hairlines. Reveal lines are one centred muted line with an eye icon and the time.
+- **Tap a message** for its sheet: six quick reactions (yours outlined in chyron-line) and + for the full picker (on the app's tokens), then Copy text, Edit (a text sheet) and Delete in red. Nothing sits on the bubble itself. Reactions show under it as 32px chips (emoji and a condensed count; yours with a chyron-line border), tap to toggle.
+- **Spoiler line:** "Episode 3 has started" in condensed caps with one muted sentence between hairlines, then Show all / Reveal Episode 3 as plain buttons. Each hidden message is a dashed outline with an eye-off icon, "May contain spoilers · tap to show".
+- **Composer:** a field that grows to about five lines (Enter sends, Shift+Enter is a new line) and a 44px send icon button, chyron only while there's text.
+- **Motion:** a message that arrives while the page is open rises 10px and fades in (220ms); a new reaction chip pops. Nothing on first load, nothing under reduced motion (`.chat-in`, `.chat-pop` in `globals.css`).
+
+### Predictions
+Free-text questions, one row each, in hairline rows (`predictions/prediction-ui.tsx`).
+- **The row:** the question in 16px semibold, "Episode 3 · Asked by Sam" muted under it, and "+2 / if right" as a condensed number on the right, then a ⋯ when there's something to do. Each guess is a 44px line: the guesser's dot and name, " · ", their answer, and how it went: a teal **Right +2** chip, a muted **Wrong** chip, or "Not graded" (left out on Overview, where nothing can be graded yet).
+- **Overview** lists the open ones under "Predictions" with "2 to guess" muted beside the heading; your guess is a field with Guess beside it, chyron only once something's typed. The ⋯ has the commissioner's **Grade guesses** (to the episode's page) and Remove.
+- **Episode page:** once the episode has results the commissioner gets "Grade N guesses", which turns each line's result into 44px ✓ / ✕ buttons (✓ fills teal; ✕ fills with the You ink, not red: nobody left) plus Remove, a "Suggest from research" block on a raised fill, and Done grading. The ⋯ also has Edit question or points (a sheet with the 44px points picker, chosen value in the You fill) and Remove.
+
+### Episode lines and lineups (Active Roster)
+- **Lineups** on an episode's page: "Lineups" with a lock or clock line, then one hairline row per player (dot, name, "2 of 3 started" or "Last lineup reused", the total in 26px condensed), their starters who scored as 44px lines (36px photo, name, a live "Out" chip if they left, the points in 18px condensed, a chevron that opens the events behind it), "Also started: …" for the rest, and the bench under a small caps **Bench** label, greyed. Lost points are muted, never red. The commissioner's "Log a scoring event" is two full-width selects and a plain button.
+- **Episode lines** (`/scoreboard/lines`, from the Scoreboard's ⋯): the admin copy-and-paste steps. 1 Copy the prompt, 2 Paste its reply, 3 Check each team's line, with Save in a sticky bar; Copy is the chyron until a line is pasted or typed, then Save is.
+
 ### Admin area
 Admin is desktop-first but built to work at 390px, in the same vocabulary as League Settings: pages, rows and sheets, not one long page (`/admin/*`, `src/components/admin/`).
 - **Chrome:** its own, never a league's. On a phone a header (Back, a small "Admin" line over the page's name in 22px condensed caps, and a **Paid AI on/off** chip that links to Site; chyron when on) and a tab bar of **To do · Shows · Users · Leagues · Site**, with a chyron dot on To do while anything waits. On desktop a Night Rail sidebar with "Back to {league}" on top, the same sections plus Formats & rules and Reports. No alert strip, league swipe or install banner.

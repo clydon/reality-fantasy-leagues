@@ -5,9 +5,10 @@ import type { Episode, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ChevronDown, Clock, Lock, X } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { MoreOptions } from "@/components/setup/settings-ui";
+import { ActButton, Notice } from "@/components/admin/admin-ui";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { rosterAtEpisode } from "@/lib/game/active-roster-rows";
@@ -15,7 +16,7 @@ import { cn } from "cn";
 
 type Scored = { events: ReturnType<typeof StateLogic.ActiveRosterLogic.episodeEvents>; points: number };
 
-// Active Roster's per-episode UI inside EpisodeCard: each player's episode laid out like the
+// Active Roster's per-episode lineups on an episode's page (flat rows, DESIGN.md): each player's episode laid out like the
 // Scoreboard's breakdown -- who they started and what each earned them, then their bench players who
 // scored (what starting them would have been worth) -- plus the commissioner's lineup lock and the
 // scoring-event log. Read-only for lineups: see lineup/lineup-page.tsx for where
@@ -101,181 +102,192 @@ export function EpisodeActiveRosterSection({ ep, state }: { ep: Episode; state: 
   }
 
   // One castaway's line: photo, name, points; tap it for the events behind the number (and, for the
-  // commissioner, to remove one). `benched` fades it -- its number is what they would have scored.
+  // commissioner, to remove one). `benched` mutes it -- its number is what they would have scored.
   const line = (cid: string, key: string, benched = false) => {
     const c = StateLogic.getCastaway(state, cid);
     const scored = byCastaway.get(cid);
     const isOpen = openLine === key;
     const total = scored?.points ?? 0;
+    const left = ep.events.some((ev) => ev.castawayId === cid);
     return (
-      <div key={key}>
+      <li key={key}>
         <button
-          className={cn("flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-secondary", benched && "opacity-60")}
+          type="button"
+          className="flex min-h-11 w-full items-center gap-2.5 rounded-[3px] py-1 text-left hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron-line"
           aria-expanded={isOpen}
           onClick={() => setOpenLine(isOpen ? null : key)}
         >
           {c && (
             <CastawayAvatar
               castaway={c}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-secondary text-[0.6rem] font-bold"
+              className={cn(
+                "flex size-9 shrink-0 items-center justify-center rounded-[3px] bg-secondary text-[0.65rem] font-bold",
+                benched && "opacity-70 grayscale"
+              )}
             />
           )}
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-            {c?.name ?? "?"}
-            {ep.events.some((ev) => ev.castawayId === cid) && (
-              <span className="ml-1 text-destructive" title="Left the game this episode">
-                ✕
-              </span>
-            )}
-          </span>
+          <span className={cn("min-w-0 flex-1 truncate text-[15px] font-semibold", benched && "text-muted-foreground")}>{c?.name ?? "?"}</span>
+          {left && (
+            <span
+              className="shrink-0 rounded-[2px] bg-live px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-live-foreground"
+              title="Left the game this episode"
+            >
+              Out
+            </span>
+          )}
+          {/* Lost points are muted, not red: losing points isn't leaving the game (DESIGN.md). */}
           <span
-            className={cn("w-10 shrink-0 text-right font-mono text-sm font-bold", total < 0 && "text-destructive")}
+            className={cn("type-num w-12 shrink-0 text-right text-[18px]", (benched || total < 0) && "text-muted-foreground")}
             title={benched ? "What they would have scored, started" : undefined}
           >
             {fmt(total)}
           </span>
+          <ChevronDown
+            className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-180", !scored && "invisible")}
+            aria-hidden
+          />
         </button>
         {isOpen && scored && (
-          <div className="mb-1.5 ml-10 mr-1 flex flex-col gap-0.5 text-xs">
+          <ul className="mb-1.5 ml-[46px] flex flex-col border-l border-border pl-3">
             {scored.events.map((sev) => {
               const pts = StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
               return (
-                <div key={sev.id} className="flex items-baseline justify-between gap-2">
-                  <span className="min-w-0 text-muted-foreground">{events.find((e) => e.id === sev.type)?.label || sev.type}</span>
-                  <span className="flex shrink-0 items-baseline gap-1.5">
-                    <span className={cn("font-mono", pts < 0 && "text-destructive")}>{fmt(pts)}</span>
-                    {!sev.implied && canManage && (
-                      <button
-                        className="text-muted-foreground hover:text-destructive"
-                        title="Remove event"
-                        disabled={busy}
-                        onClick={() => run(() => api.removeScoringEvent(leagueId!, ep.id, sev.id))}
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </span>
-                </div>
+                <li key={sev.id} className="flex min-h-9 items-center gap-2 text-[14px]">
+                  <span className="min-w-0 flex-1 text-muted-foreground">{events.find((e) => e.id === sev.type)?.label || sev.type}</span>
+                  <span className={cn("type-num shrink-0 text-[15px]", pts < 0 && "text-muted-foreground")}>{fmt(pts)}</span>
+                  {!sev.implied && canManage && (
+                    <button
+                      type="button"
+                      className="-mr-2 flex size-9 shrink-0 items-center justify-center text-muted-foreground hover:text-destructive"
+                      aria-label="Remove this event"
+                      disabled={busy}
+                      onClick={() => run(() => api.removeScoringEvent(leagueId!, ep.id, sev.id))}
+                    >
+                      <X className="size-4" aria-hidden />
+                    </button>
+                  )}
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
-      </div>
+      </li>
     );
   };
 
   return (
-    <div className="border-t border-border pt-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <h4 className="text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">Lineups</h4>
-        {!locked && <Badge variant="secondary">Open</Badge>}
+    <section className="flex flex-col gap-3">
+      <div className="flex min-h-11 items-center gap-3">
+        <h3 className="section-title flex-1">Lineups</h3>
         {canManage && manualLock && (
-          <Button
-            variant="secondary"
-            size="xs"
-            disabled={busy}
-            onClick={() => run(() => (locked ? api.unlockLineups(leagueId!, ep.id) : api.lockLineups(leagueId!, ep.id)))}
-          >
+          <ActButton disabled={busy} onClick={() => run(() => (locked ? api.unlockLineups(leagueId!, ep.id) : api.lockLineups(leagueId!, ep.id)))}>
             {locked ? "Reopen lineups" : "Lock lineups"}
-          </Button>
+          </ActButton>
         )}
       </div>
-      {episodeEvents.length === 0 && <p className="mb-2 text-sm italic text-muted-foreground">No scoring logged for this episode yet.</p>}
-      <div className="mb-3 flex flex-col gap-2">
+      <p className="-mt-1 flex items-center gap-1.5 text-[14px] text-muted-foreground">
+        {locked ? <Lock className="size-4 shrink-0" aria-hidden /> : <Clock className="size-4 shrink-0" aria-hidden />}
+        {locked ? "Locked" : "Open: lineups can still change"}
+        {episodeEvents.length === 0 && " · no scoring logged yet"}
+      </p>
+
+      <ul className="flex flex-col divide-y divide-border border-y border-border">
         {lineups.map(({ player: p, ids, bench, total, carried }) => {
           const scorers = ids.filter((cid) => pointsOf(cid) !== 0);
           // Starters who scored nothing share one line, so the list is just what moved the total.
           const blanks = ids.filter((cid) => pointsOf(cid) === 0);
           const missed = StateLogic.roundPoints(bench.reduce((sum, cid) => sum + Math.max(0, pointsOf(cid)), 0));
+          const sub = [ids.length > 0 && ids.length < activeSlots && `${ids.length} of ${activeSlots} started`, carried && "Last lineup reused"]
+            .filter(Boolean)
+            .join(" · ");
           return (
-            <div key={p.id} className="rounded-md border border-border px-2 py-1.5">
-              <div className="flex items-center gap-2 px-1 py-0.5">
-                <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: p.color }} />
-                <span className="min-w-0 flex-1 truncate font-bold">{p.name}</span>
-                {ids.length < activeSlots && (
-                  <span className="text-xs text-muted-foreground" title="Starting slots filled">
-                    {ids.length}/{activeSlots}
-                  </span>
-                )}
-                <span className="w-10 shrink-0 text-right font-mono text-base font-bold">{total}</span>
-              </div>
-              {carried && (
-                <div className="px-1 text-[0.7rem] text-muted-foreground" title="No lineup was set for this episode, so the last one chosen is used">
-                  Last lineup reused
+            <li key={p.id} className="flex flex-col gap-0.5 py-3">
+              <div className="flex min-h-11 items-center gap-2.5">
+                <span className="size-2.5 shrink-0 rounded-full" style={{ background: p.color }} aria-hidden />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-base font-semibold">{p.name}</span>
+                  {sub && (
+                    <span
+                      className="text-[13px] text-muted-foreground"
+                      title={carried ? "No lineup was set for this episode, so the last one chosen is used" : undefined}
+                    >
+                      {sub}
+                    </span>
+                  )}
                 </div>
-              )}
+                <span className="type-num shrink-0 text-[26px] leading-none">{total}</span>
+              </div>
               {ids.length === 0 ? (
-                <div className="px-1 py-1 text-xs italic text-muted-foreground">No lineup set</div>
+                <p className="text-[14px] text-muted-foreground">No lineup set</p>
               ) : (
-                <>
+                <ul className="flex flex-col">
                   {scorers.map((cid) => line(cid, `${p.id}:${cid}`))}
                   {blanks.length > 0 && (
-                    <div className="flex items-baseline gap-2 px-1 py-1 text-xs text-muted-foreground">
+                    <li className="flex min-h-9 items-center gap-2.5 text-[14px] text-muted-foreground">
                       <span className="min-w-0 flex-1">
                         {scorers.length > 0 ? "Also started: " : "Started: "}
                         {blanks.map((cid) => StateLogic.getCastaway(state, cid)?.name ?? "?").join(", ")}
                       </span>
-                      <span className="w-10 shrink-0 text-right font-mono">0</span>
-                    </div>
+                      <span className="type-num w-12 shrink-0 text-right text-[18px]">0</span>
+                      <span className="w-4 shrink-0" aria-hidden />
+                    </li>
                   )}
-                </>
+                </ul>
               )}
               {bench.length > 0 && (
-                <div className="mt-1 border-t border-dashed border-border pt-1">
-                  <div className="flex items-baseline justify-between gap-2 px-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
-                    <span>Bench</span>
-                    {missed > 0 && <span className="font-mono normal-case tracking-normal">+{missed} left on the bench</span>}
+                <div className="mt-1.5 flex flex-col">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="type-caption text-[13px] tracking-[0.04em] text-muted-foreground">Bench</span>
+                    {missed > 0 && <span className="text-[13px] text-muted-foreground">+{missed} left on the bench</span>}
                   </div>
-                  {bench.map((cid) => line(cid, `${p.id}:bench:${cid}`, true))}
+                  <ul className="flex flex-col">{bench.map((cid) => line(cid, `${p.id}:bench:${cid}`, true))}</ul>
                 </div>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
 
       {others.length > 0 && (
-        <details className="mb-3 rounded-md border border-border px-2 py-1.5">
-          <summary className="cursor-pointer px-1 text-xs text-muted-foreground">
-            Scored, not on anyone&rsquo;s roster ({others.length})
-          </summary>
-          <div className="mt-1">{others.map((cid) => line(cid, `other:${cid}`, true))}</div>
-        </details>
+        <MoreOptions label={`Scored, not on anyone’s roster (${others.length})`}>
+          <ul className="-mt-3 flex flex-col">{others.map((cid) => line(cid, `other:${cid}`, true))}</ul>
+        </MoreOptions>
       )}
 
       {canManage && (
-        <div className="flex flex-wrap gap-1.5">
-          <Select size="sm" value={eventType} onChange={(e) => setEventType(e.target.value)}>
+        <div className="flex flex-col gap-2 pt-1">
+          <span className="text-[15px] font-semibold">Log a scoring event</span>
+          <Select className="w-full" aria-label="Event" value={eventType} onChange={(e) => setEventType(e.target.value)}>
             {loggable.map((e) => (
               <option key={e.id} value={e.id}>
                 {e.label}
               </option>
             ))}
           </Select>
-          <Select size="sm" value={eventCastawayId} onChange={(e) => setEventCastawayId(e.target.value)}>
-            <option value="">— {terms.castaway} —</option>
+          <Select className="w-full" aria-label={terms.castaway} value={eventCastawayId} onChange={(e) => setEventCastawayId(e.target.value)}>
+            <option value="">Choose a {terms.castaway}</option>
             {state.castaways.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
           </Select>
-          <Button
-            size="sm"
+          <ActButton
+            className="self-start"
             disabled={busy || !eventCastawayId}
             onClick={async () => {
-              markResultsSeen(ep.number); // entering it is seeing it -- see episode-card.tsx
+              markResultsSeen(ep.number); // entering it is seeing it
               const ok = await run(() => api.addScoringEvent(leagueId!, ep.id, eventType, eventCastawayId));
               if (ok) setEventCastawayId("");
             }}
           >
-            + Log Event
-          </Button>
+            Log event
+          </ActButton>
         </div>
       )}
 
-      {error && <p className="mt-2 text-sm font-semibold text-destructive">{error}</p>}
-    </div>
+      {error && <Notice tone="bad">{error}</Notice>}
+    </section>
   );
 }
 

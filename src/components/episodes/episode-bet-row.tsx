@@ -1,28 +1,27 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import type { Bet, Episode, LeagueState, SuggestedBetAnswer } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api, ApiError } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { PointsPicker } from "@/components/ui/points-picker";
+import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
+import { MoreButton } from "@/components/setup/settings-ui";
+import { ActButton, Notice } from "@/components/admin/admin-ui";
+import { EditPredictionSheet, GuessLine, QuestionLine } from "@/components/predictions/prediction-ui";
 import { cn } from "cn";
-import { ChevronDownIcon } from "@/components/icons";
 
-// One bet inside EpisodeCard: everyone's guess on a line each, with how it went. Behind ✏️, the
-// commissioner-editing half -- grade guesses, correct the label or points, remove a guess or the
-// whole bet. PROPOSING a bet and GUESSING on it happen on Overview only
-// (bet-card.tsx): this component never creates a bet or a guess, only edits what's already there.
+// One prediction on an episode's page: the question, everyone's guess on a line each with how it
+// went. Its ⋯ sheet has the commissioner's tools -- grade the guesses (✓ / ✕ in place, with a
+// research suggestion to check against), edit the question or points, remove it -- or, for whoever
+// asked it, Remove until a second guess is in. PROPOSING happens on the upcoming episode's page
+// (propose-prediction.tsx) and GUESSING on Overview (bet-card.tsx): this never creates either.
 export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state: LeagueState }) {
-  const [editing, setEditing] = useState(false);
+  const [grading, setGrading] = useState(false);
+  const [sheet, setSheet] = useState<null | "menu" | "edit">(null);
   const [showMisses, setShowMisses] = useState(false);
-  const [label, setLabel] = useState(bet.label);
-  const [points, setPoints] = useState(bet.points);
 
   const leagueId = useLeagueStore((s) => s.leagueId);
   const canManage = useCanManage();
@@ -31,10 +30,10 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
 
   const isCreator = !!myPlayerId && bet.createdByPlayerId === myPlayerId;
   const creatorCanDelete = isCreator && (bet.predictions || []).length < 2;
-  const canToggleEdit = canManage || creatorCanDelete;
+  const hasMenu = canManage || creatorCanDelete;
 
   // Semantic-search grading aid (db/embeddings.js), fetched on demand rather than on every render --
-  // it costs a real embedding call, and most bets on an episode card are never opened to grade in a
+  // it costs a real embedding call, and most bets on an episode are never opened to grade in a
   // given visit. See the suggested-answer route's own comment for the same reasoning.
   const [suggestion, setSuggestion] = useState<SuggestedBetAnswer | null>(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
@@ -50,27 +49,19 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
       setSuggestionLoading(false);
     }
   }
-  const creator = bet.createdByPlayerId ? StateLogic.getPlayer(state, bet.createdByPlayerId) : null;
-
-  async function saveField(field: "label" | "points", value: string | number) {
-    await mutate(
-      (s) => StateLogic.updateBet(s, ep.id, bet.id, field, value),
-      () => api.updateBet(leagueId!, ep.id, bet.id, field, value)
-    );
-  }
 
   async function remove() {
+    setSheet(null);
     await mutate(
       (s) => StateLogic.removeBet(s, ep.id, bet.id),
       () => api.removeBet(leagueId!, ep.id, bet.id)
     );
   }
 
-  async function grade(predId: string, value: string) {
-    if (!value) return;
+  async function grade(predId: string, value: boolean) {
     await mutate(
-      (s) => StateLogic.setBetPredictionCorrect(s, ep.id, bet.id, predId, value === "true"),
-      () => api.setBetPredictionCorrect(leagueId!, ep.id, bet.id, predId, value === "true")
+      (s) => StateLogic.setBetPredictionCorrect(s, ep.id, bet.id, predId, value),
+      () => api.setBetPredictionCorrect(leagueId!, ep.id, bet.id, predId, value)
     );
   }
 
@@ -89,10 +80,7 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
     for (const pred of ungraded) {
       const verdict = suggestedVerdict(pred.guess);
       if (verdict === null) continue;
-      await mutate(
-        (s) => StateLogic.setBetPredictionCorrect(s, ep.id, bet.id, pred.id, verdict),
-        () => api.setBetPredictionCorrect(leagueId!, ep.id, bet.id, pred.id, verdict)
-      );
+      await grade(pred.id, verdict);
     }
   }
 
@@ -104,149 +92,97 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
   }
 
   const guesses = bet.predictions || [];
-  // Pays out only once at least two people have guessed.
-  const paysOut = guesses.length >= 2;
   // Once it's graded, just the winners and their answers; everyone else's behind a chevron. Ungraded,
   // or while the commissioner grades, every guess shows.
   const graded = guesses.some((p) => p.correct === true || p.correct === false);
-  const collapsible = graded && !editing;
+  const collapsible = graded && !grading;
   const misses = collapsible ? guesses.filter((p) => p.correct !== true) : [];
   const shown = collapsible && !showMisses ? guesses.filter((p) => p.correct === true) : guesses;
 
   return (
-    <div className="px-3 py-2.5">
-      <div className="flex items-start gap-2">
-        {editing && canManage ? (
-          <div className="flex flex-1 flex-wrap items-center gap-2">
-            <Input
-              className="min-w-[140px] flex-1 text-sm"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              onBlur={() => label !== bet.label && saveField("label", label)}
-            />
-            <PointsPicker
-              value={points}
-              onChange={(n) => {
-                setPoints(n);
-                saveField("points", n);
-              }}
-            />
-          </div>
-        ) : (
-          <span className="min-w-0 flex-1 text-sm font-semibold" title={creator ? `Proposed by ${creator.name}` : undefined}>
-            {bet.label}
-          </span>
-        )}
-        <span className="shrink-0 font-mono text-xs text-muted-foreground" title="points if correct">
-          +{bet.points}
-        </span>
-        {/* The commissioner's nudge that guesses are waiting to be graded -- opens the grading tools. */}
-        {canManage && !editing && ungraded.length > 0 && (
-          <button className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[0.65rem] font-semibold" onClick={() => setEditing(true)}>
-            Grade {ungraded.length}
-          </button>
-        )}
-        {canToggleEdit && (
-          <button
-            className="shrink-0 text-xs"
-            title={canManage ? "Grade / edit" : "Remove your prediction"}
-            onClick={() => setEditing((e) => !e)}
-          >
-            ✏️
-          </button>
-        )}
-      </div>
+    <div className="flex flex-col gap-1.5 py-3">
+      <QuestionLine
+        bet={bet}
+        ep={ep}
+        state={state}
+        action={hasMenu && !grading ? <MoreButton label="Prediction actions" onClick={() => setSheet("menu")} className="-my-1.5 -mr-2" /> : undefined}
+      />
 
-      {/* Everyone's guess on one line each: who, what, and how it went. */}
-      <div className="mt-1 flex flex-col gap-0.5">
-        {shown.map((pred) => {
-          const pp = StateLogic.getPlayer(state, pred.playerId);
-          const verdict = suggestedVerdict(pred.guess);
-          return (
-            <div key={pred.id} className="flex items-center gap-2 text-xs">
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: pp?.color || "#4a5245" }} />
-              <span className="shrink-0 font-semibold">{pp?.name || "?"}</span>
-              <span className="min-w-0 flex-1 truncate text-muted-foreground" title={pred.guess}>
-                {pred.guess}
-                {editing && verdict !== null && (
-                  <span
-                    className={verdict ? "ml-1.5 font-semibold text-good" : "ml-1.5"}
-                    title="What the episode's research suggests -- check it before grading"
-                  >
-                    {verdict ? "✓ suggested" : "✗ suggested"}
-                  </span>
-                )}
-              </span>
-              {editing && canManage ? (
-                <>
-                  <Select
-                    // Keyed on the grade so it redraws when a grade changes from elsewhere (Apply), since
-                    // it's an uncontrolled select.
-                    key={`${pred.id}-${pred.correct}`}
-                    size="sm"
-                    defaultValue={pred.correct === true ? "true" : pred.correct === false ? "false" : ""}
-                    onChange={(e) => grade(pred.id, e.target.value)}
-                  >
-                    <option value="">—</option>
-                    <option value="true">Correct</option>
-                    <option value="false">Incorrect</option>
-                  </Select>
-                  <button title="Remove guess" onClick={() => removeGuess(pred.id)}>
-                    ✕
-                  </button>
-                </>
-              ) : (
-                <span
-                  className={cn(
-                    "shrink-0 font-mono font-bold",
-                    pred.correct === true ? "text-good" : pred.correct === false ? "text-destructive" : "text-muted-foreground"
-                  )}
-                  title={pred.correct == null ? "Not graded yet" : undefined}
-                >
-                  {pred.correct === true ? (paysOut ? `✓ +${bet.points}` : "✓") : pred.correct === false ? "✗" : "…"}
-                </span>
-              )}
-            </div>
-          );
-        })}
-        {collapsible && !guesses.some((p) => p.correct === true) && !showMisses && (
-          <p className="text-xs italic text-muted-foreground">Nobody got it.</p>
-        )}
-        {misses.length > 0 && (
-          <button
-            className="mt-0.5 flex items-center gap-1 self-start text-[0.7rem] text-muted-foreground"
-            onClick={() => setShowMisses((v) => !v)}
-            aria-expanded={showMisses}
-          >
-            <ChevronDownIcon className={cn("h-3.5 w-3.5 transition-transform", showMisses && "rotate-180")} />
-            {showMisses ? "Hide" : "Show"} {misses.length} other guess{misses.length === 1 ? "" : "es"}
-          </button>
-        )}
-        {guesses.length === 0 && <p className="text-xs italic text-muted-foreground">No guesses.</p>}
-        {guesses.length === 1 && <p className="text-[0.7rem] text-muted-foreground">Only one guess, so it doesn&rsquo;t pay out.</p>}
-      </div>
+      <ul className="flex flex-col">
+        {shown.map((pred) => (
+          <GuessLine
+            key={pred.id}
+            state={state}
+            pred={pred}
+            bet={bet}
+            grading={grading && canManage}
+            onGrade={(v) => grade(pred.id, v)}
+            onRemove={() => removeGuess(pred.id)}
+            suggested={suggestedVerdict(pred.guess)}
+          />
+        ))}
+      </ul>
+      {collapsible && !guesses.some((p) => p.correct === true) && !showMisses && <p className="text-[14px] text-muted-foreground">Nobody got it.</p>}
+      {misses.length > 0 && (
+        <button
+          type="button"
+          className="-ml-1 flex min-h-11 items-center gap-1 self-start pr-2 text-[14px] font-semibold text-muted-foreground hover:text-foreground"
+          onClick={() => setShowMisses((v) => !v)}
+          aria-expanded={showMisses}
+        >
+          <ChevronDown className={cn("size-[18px] transition-transform", showMisses && "rotate-180")} aria-hidden />
+          {showMisses ? "Hide" : "Show"} {misses.length} other guess{misses.length === 1 ? "" : "es"}
+        </button>
+      )}
+      {guesses.length === 0 && <p className="text-[14px] text-muted-foreground">No guesses.</p>}
+      {guesses.length === 1 && <p className="text-[13px] text-muted-foreground">Only one guess, so it doesn&rsquo;t pay out.</p>}
 
-      {editing && canToggleEdit && (
-        <div className="mt-2 flex flex-col gap-2 border-t border-dashed border-border pt-2">
-          {canManage && (
-            <SuggestedAnswerBlock
-              suggestion={suggestion}
-              loading={suggestionLoading}
-              error={suggestionError}
-              onFetch={fetchSuggestion}
-              onApply={applySuggestion}
-              canApply={ungraded.length > 0}
-            />
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            {!canManage && <span className="text-xs text-muted-foreground">You can remove this until 2 people have guessed.</span>}
-            {creator && <span className="text-xs text-muted-foreground">Proposed by {creator.name}</span>}
-            <Button variant="destructive" size="sm" className="ml-auto" onClick={remove}>
-              Remove Prediction
-            </Button>
-          </div>
+      {/* The commissioner's nudge that guesses are waiting, once the episode has results -- opens grading
+          in place. (Before then it's still in the ⋯ sheet.) */}
+      {canManage && !grading && ungraded.length > 0 && StateLogic.episodeHasResults(ep) && (
+        <ActButton className="mt-1 self-start" onClick={() => setGrading(true)}>
+          Grade {ungraded.length} guess{ungraded.length === 1 ? "" : "es"}
+        </ActButton>
+      )}
+      {grading && canManage && (
+        <div className="mt-1 flex flex-col gap-3">
+          <SuggestedAnswerBlock
+            suggestion={suggestion}
+            loading={suggestionLoading}
+            error={suggestionError}
+            onFetch={fetchSuggestion}
+            onApply={applySuggestion}
+            canApply={ungraded.length > 0}
+          />
+          <ActButton className="self-start" onClick={() => setGrading(false)}>
+            Done grading
+          </ActButton>
         </div>
       )}
+
+      <BottomSheet
+        open={sheet === "menu"}
+        onOpenChange={(o) => !o && setSheet(null)}
+        title="Prediction"
+        description={canManage ? undefined : "Until a second person guesses"}
+      >
+        {canManage && guesses.length > 0 && (
+          <SheetAction
+            onClick={() => {
+              setSheet(null);
+              setGrading(true);
+            }}
+            detail={ungraded.length > 0 ? `${ungraded.length} to grade` : undefined}
+          >
+            Grade guesses
+          </SheetAction>
+        )}
+        {canManage && <SheetAction onClick={() => setSheet("edit")}>Edit question or points</SheetAction>}
+        <SheetAction danger onClick={remove}>
+          Remove prediction
+        </SheetAction>
+      </BottomSheet>
+      {sheet === "edit" && <EditPredictionSheet ep={ep} bet={bet} onClose={() => setSheet(null)} />}
     </div>
   );
 }
@@ -254,7 +190,7 @@ export function EpisodeBetRow({ ep, bet, state }: { ep: Episode; bet: Bet; state
 // The grading aid itself: a button that fetches the bet's suggested answer (the suggested-answer
 // route: the episode research's own answer to this bet, else the closest research note), then shows
 // it. Deliberately never shows an answer without also showing what backs it and how sure it is -- an
-// unlabeled suggestion next to a grading dropdown is exactly the kind of thing that gets
+// unlabeled suggestion next to the grading buttons is exactly the kind of thing that gets
 // rubber-stamped without being checked, which defeats the point of it being a SUGGESTION.
 function SuggestedAnswerBlock({
   suggestion,
@@ -273,85 +209,82 @@ function SuggestedAnswerBlock({
 }) {
   if (!suggestion && !loading && !error) {
     return (
-      <div className="mt-2">
-        <Button variant="secondary" size="xs" onClick={onFetch} title="Free — searches research that's already been paid for">
-          Suggest an answer from research
-        </Button>
-        <span className="ml-1.5 text-[0.6rem] text-muted-foreground">free</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <ActButton onClick={onFetch}>Suggest from research</ActButton>
+        <span className="text-[13px] text-muted-foreground">Free: searches research that&rsquo;s already been run.</span>
       </div>
     );
   }
 
+  const confidence = suggestion && suggestion.status === "ok" && (
+    <span className="shrink-0 rounded-[2px] bg-muted px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+      {suggestion.confidence} confidence
+    </span>
+  );
+
   return (
-    <div className="mt-2 rounded border border-dashed border-border bg-secondary/40 px-2 py-1.5 text-xs">
-      {loading && <span className="italic text-muted-foreground">Searching research for this episode…</span>}
+    <div className="flex flex-col gap-2 rounded-[3px] bg-secondary px-3 py-2.5 text-[14px] leading-snug">
+      {loading && <Notice tone="quiet">Searching this episode&rsquo;s research…</Notice>}
       {error && (
-        <span className="font-semibold text-destructive">
-          {error} <button className="ml-1 underline" onClick={onFetch}>Try again</button>
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <Notice tone="bad">{error}</Notice>
+          <ActButton onClick={onFetch}>Try again</ActButton>
+        </div>
       )}
       {suggestion && suggestion.status === "no-research" && (
-        <span className="italic text-muted-foreground">
-          No research has been run for this episode yet, so there&rsquo;s nothing to search.
-        </span>
+        <p className="text-muted-foreground">No research has been run for this episode yet, so there&rsquo;s nothing to search.</p>
       )}
       {suggestion && suggestion.status === "unconfident" && (
-        <span className="italic text-muted-foreground">
+        <p className="text-muted-foreground">
           {suggestion.source === "research"
             ? "The episode’s research couldn’t settle this one from its sources."
-            : "Can’t determine an answer confidently from research."}
-        </span>
-      )}
-      {suggestion && suggestion.source === "search" && suggestion.askedAfterResearch && (
-        <p className="mt-1 text-[0.65rem] text-muted-foreground">
-          The episode&rsquo;s research wasn&rsquo;t asked this prediction (it was made after the research ran, or this league is
-          catching up), so it&rsquo;s graded by hand. The note above is only the closest match in the research.
+            : "Can’t tell confidently from the research."}
         </p>
       )}
       {suggestion && suggestion.status === "ok" && suggestion.source === "research" && (
-        <div className="flex flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge
-              variant={suggestion.confidence === "high" ? "default" : "secondary"}
-              className="h-4 shrink-0 text-[0.6rem]"
-            >
-              {suggestion.confidence} confidence
-            </Badge>
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            {confidence}
             <span>
               Research says: <b>{suggestion.answer}</b>
             </span>
-            {canApply && (
-              <Button size="xs" variant="secondary" className="ml-auto" onClick={onApply} title="Grades the guesses not yet graded, as suggested">
-                Apply to guesses
-              </Button>
-            )}
           </div>
-          {suggestion.evidence && <span className="text-muted-foreground">{suggestion.evidence}</span>}
+          {suggestion.evidence && <p className="text-muted-foreground">{suggestion.evidence}</p>}
           {(suggestion.sources || []).length > 0 && (
-            <span className="text-muted-foreground">
+            <p className="flex flex-wrap gap-x-2 text-muted-foreground">
+              Sources:
               {(suggestion.sources || []).map((url, i) => (
-                <a key={url} href={url} target="_blank" rel="noreferrer" className="mr-1 underline underline-offset-2" title={url}>
-                  [{i + 1}]
+                <a key={url} href={url} target="_blank" rel="noreferrer" className="font-semibold text-chyron-line hover:underline" title={url}>
+                  {i + 1}
                 </a>
               ))}
-            </span>
+            </p>
           )}
-        </div>
+          {canApply && (
+            <ActButton className="self-start" onClick={onApply}>
+              Grade the rest as research says
+            </ActButton>
+          )}
+        </>
       )}
       {suggestion && suggestion.status === "ok" && suggestion.source !== "research" && (
-        <div className="flex flex-wrap items-start gap-1.5">
-          <Badge
-            variant={suggestion.confidence === "high" ? "default" : "secondary"}
-            className="h-4 shrink-0 cursor-help text-[0.6rem]"
-            title={`Confidence: ${suggestion.confidence}${suggestion.similarity != null ? ` — ${Math.round(suggestion.similarity * 100)}% match to the research` : ""}`}
+        <div className="flex flex-wrap items-start gap-2">
+          <span
+            title={suggestion.similarity != null ? `${Math.round(suggestion.similarity * 100)}% match to the research` : undefined}
           >
-            {suggestion.confidence} confidence
-          </Badge>
+            {confidence}
+          </span>
           <span>
             {suggestion.castawayName && <b>{suggestion.castawayName}: </b>}
             {suggestion.answer}
           </span>
         </div>
+      )}
+      {suggestion && suggestion.source === "search" && suggestion.askedAfterResearch && (
+        <p className="text-[13px] text-muted-foreground">
+          The episode&rsquo;s research wasn&rsquo;t asked this prediction (it was made after the research ran, or this league is catching
+          up), so it&rsquo;s graded by hand. The note above is only the closest match in the research.
+        </p>
       )}
     </div>
   );

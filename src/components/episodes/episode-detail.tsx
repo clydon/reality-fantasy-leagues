@@ -257,7 +257,7 @@ function ReadView({
       )}
 
       {/* Predictions are guessed on Overview (bet-card.tsx) and proposed here, on the upcoming episode --
-          here it's also how they went, plus the commissioner's grading and editing behind each bet's ✏️. */}
+          here it's also how they went, plus the commissioner's grading and editing in each one's ⋯ sheet. */}
       {(hasBets || canPropose) && (
         <Section title="Predictions">
           {hasBets && (
