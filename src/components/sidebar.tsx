@@ -3,7 +3,6 @@
 import { useRef, useState, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { ChevronsUpDown, MoreHorizontal } from "lucide-react";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
@@ -15,14 +14,12 @@ import { midseasonBadge } from "@/lib/game/selectors";
 import { myLineupDue } from "@/lib/game/lineup-view";
 import { myPickDue } from "@/lib/game/pool-view";
 import { commissionerItems } from "@/lib/game/commissioner-items";
-import { unseenItems } from "@/lib/whats-new";
-import { api } from "@/lib/api";
 import { logOut, useSession } from "@/lib/auth-client";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useClickOutside } from "@/lib/use-click-outside";
 import { LeagueMenu } from "@/components/league-menu";
 import { ThemePicker } from "@/components/theme-picker";
-import { useWhatsNewPreview } from "@/components/whats-new-modal";
+import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useAdminWaiting } from "@/components/admin/admin-shell";
 import {
   AlertIcon,
@@ -265,7 +262,6 @@ function AdminRow({ active }: { active: boolean }) {
 // You, as one row: an initial, your username and what's behind it. Its menu opens above it.
 function AccountRow() {
   const isAuthenticated = useIsAuthenticated();
-  const isPreviewingDemo = useIsPreviewingDemo();
   const mode = useLeagueStore((s) => s.mode);
   const enterMockMode = useLeagueStore((s) => s.useMock);
   const setEntered = useLeagueStore((s) => s.setEntered);
@@ -276,13 +272,7 @@ function AccountRow() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, open, () => setOpen(false));
-  const { data: settings } = useQuery({
-    queryKey: ["my-settings"],
-    queryFn: () => api.getMySettings(),
-    enabled: isAuthenticated && !isPreviewingDemo,
-    staleTime: 5 * 60_000,
-  });
-  const newCount = settings ? unseenItems(settings.whatsNewSeen, settings.accountCreatedAt).length : 0;
+  const newCount = useWhatsNewCount();
 
   const user = session?.user as { username?: string | null; name?: string | null } | undefined;
   const name = isAuthenticated ? (user?.username ?? user?.name ?? "Account") : "Guest";

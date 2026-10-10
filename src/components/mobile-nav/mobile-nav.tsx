@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useClickOutside } from "@/lib/use-click-outside";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
+import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
 import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
@@ -38,10 +38,12 @@ import {
   UserIcon,
   SparklesIcon,
 } from "@/components/icons";
-import { useWhatsNewPreview } from "@/components/whats-new-modal";
+import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
 import { SwipeTitle } from "@/components/league-swipe";
-import { ChevronLeft, MoreHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import { CaptionPlate } from "@/components/ui/caption-plate";
+import { commissionerItems } from "@/lib/game/commissioner-items";
 import { useHeaderAction } from "@/lib/header-action-store";
 import { useShowTerms } from "@/lib/use-show-terms";
 
@@ -154,6 +156,12 @@ export function MobileNav() {
   const headerAction = useHeaderAction((s) => s.action);
   const terms = useShowTerms();
   const notifications = useNotificationsStore((s) => s.notifications);
+  const canManage = useCanManage();
+  const whatsNewCount = useWhatsNewCount();
+  const joinCode = leagues.find((l) => l.id === leagueId)?.join_code;
+  const activeSeats = state.players.filter((p) => !p.disabled).length;
+  // League Settings' rows carry the commissioner's to-dos as dots; this one says there's one inside.
+  const commishWaiting = canManage && commissionerItems(state).length > 0;
 
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
@@ -479,7 +487,7 @@ export function MobileNav() {
         // overscroll-contain: a downward pull at the top is the close gesture, not the browser's
         // pull-to-refresh or a scroll of the page behind.
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[71] max-h-[75vh] overflow-y-auto overscroll-contain rounded-t-[18px] bg-card p-2 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] shadow-sheet transition-transform",
+          "fixed inset-x-0 bottom-0 z-[71] max-h-[85vh] overflow-y-auto overscroll-contain rounded-t-[14px] bg-card px-4 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] pt-2 shadow-sheet transition-transform",
           sheetOpen ? "translate-y-0" : "translate-y-full"
         )}
       >
@@ -491,72 +499,99 @@ export function MobileNav() {
         >
           <div className="h-1 w-9 rounded-full bg-border" />
         </div>
-        {hasSeason && demoted && <MoreRow icon={demoted.icon} label={demoted.label} onClick={() => go(demoted.href)} />}
-        {hasSeason && lineupSlot && midSeasonSlot && (
-          <MoreRow
-            icon={midSeasonSlot.icon}
-            label={midBadge ? `Mid-Season · ${midBadge.label}` : "Mid-Season"}
-            onClick={() => go(midSeasonSlot.href)}
+        {/* M1 (docs/PLAN-ux-declutter.md): this league first, under a plate that also switches league;
+            then you; then Admin; Log out last in red. */}
+        {hasSeason && (
+          <CaptionPlate
+            size="sm"
+            tone="quiet"
+            tag={state.settings.wikiSeason != null ? `S${state.settings.wikiSeason}` : "League"}
+            title={mode === "live" ? (leagueName ?? "") : "Demo season"}
+            subtitle={[
+              [terms.showName, state.settings.wikiSeason].filter((x) => x != null && x !== "").join(" "),
+              StateLogic.getLeagueType(state).name,
+              `${activeSeats} player${activeSeats === 1 ? "" : "s"}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            {...(mode === "live" && leagues.length > 0
+              ? {
+                  action: "Switch",
+                  onClick: () => {
+                    closeSheet();
+                    setLeagueMenuOpen(true);
+                  },
+                }
+              : {})}
           />
         )}
-        {hasSeason && hasActiveRoster && fourth.href !== "/research" && (
-          <MoreRow icon={ResearchIcon} label="Research" onClick={() => go("/research")} />
-        )}
-        {hasSeason && <MoreRow icon={GearIcon} label="League Settings" onClick={() => go("/setup")} />}
-        {!hasSeason && <MoreRow icon={OverviewIcon} label="My Leagues" onClick={() => go("/dashboard")} />}
-        {isSuperAdmin && (
-          <>
-            <div className="my-1.5 h-px bg-border" />
-            <div className="px-3 pb-0.5 pt-2 text-[0.68rem] font-bold uppercase tracking-wide text-muted-foreground">Admin</div>
-            <MoreRow icon={ShieldIcon} label="Admin" onClick={() => go("/admin")} />
-          </>
-        )}
-        <div className="my-1.5 h-px bg-border" />
-        {/* Report an Issue posts as the real signed-in SurvivorDraft user (server-side
-            requireAuth) -- gated on real authentication, not `mode` (a super-admin with no
-            personal league is genuinely signed in but stays mode:'mock' -- see store.ts's
-            useIsAuthenticated for why that distinction matters). */}
-        {isAuthenticated && (
-          <>
-            <MoreRow icon={UserIcon} label="Account settings" onClick={() => go("/account")} />
+        <div className="mt-2.5 flex flex-col">
+          {hasSeason && demoted && (
             <MoreRow
-              icon={AlertIcon}
-              label="Report an Issue"
-              onClick={() => {
-                setSheetOpen(false);
-                openReportModal();
-              }}
+              icon={demoted.icon}
+              label={demoted.label}
+              value={demoted.href === "/draft" ? "Done" : midBadge?.label}
+              urgent={demoted.href !== "/draft" && !!midBadge?.urgent}
+              onClick={() => go(demoted.href)}
             />
-            <div className="my-1.5 h-px bg-border" />
-          </>
-        )}
-        {/* Not a MoreRow: it's a setting to change in place, not somewhere to go, so the sheet stays open. */}
-        <div className="flex items-center gap-3 px-3 py-2 text-[0.92rem]">
-          <MoonIcon className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate">Dark mode</span>
-          <ThemePicker className="w-[172px] max-w-[55%] shrink-0" />
+          )}
+          {hasSeason && lineupSlot && midSeasonSlot && (
+            <MoreRow icon={midSeasonSlot.icon} label="Mid-Season" value={midBadge?.label} urgent={!!midBadge?.urgent} onClick={() => go(midSeasonSlot.href)} />
+          )}
+          {hasSeason && hasActiveRoster && fourth.href !== "/research" && (
+            <MoreRow icon={ResearchIcon} label="Research" onClick={() => go("/research")} />
+          )}
+          {hasSeason && (
+            <MoreRow icon={GearIcon} label="League Settings" value={joinCode ? `Code ${joinCode}` : undefined} dot={commishWaiting} onClick={() => go("/setup")} />
+          )}
+          {!hasSeason && <MoreRow icon={OverviewIcon} label="My Leagues" onClick={() => go("/dashboard")} />}
         </div>
-        {/* Reachable even with a real season loaded now, not just when leagueless -- picking one
-            replaces the view with demo data the same way Sidebar's "Switch to demo data" does. */}
-        <MoreRow icon={EpisodesIcon} label="Demo Season" onClick={() => go("")} />
-        {/* Every What's New release, any time -- not just the once it popped up. */}
-        {isAuthenticated && (
+
+        <div className="type-caption px-0.5 pb-1.5 pt-3.5 text-[14px] tracking-[0.04em] text-muted-foreground">You</div>
+        <div className="flex flex-col">
+          {/* Report an issue posts as the real signed-in user (server-side requireAuth) -- gated on real
+              authentication, not `mode` (a super-admin with no personal league is genuinely signed in
+              but stays mode:'mock' -- see store.ts's useIsAuthenticated). */}
+          {isAuthenticated ? (
+            <>
+              <MoreRow icon={UserIcon} label="Account" value="Appearance, notifications" onClick={() => go("/account")} />
+              <MoreRow
+                icon={SparklesIcon}
+                label="What's new"
+                value={whatsNewCount > 0 ? `${whatsNewCount} new` : undefined}
+                onClick={() => {
+                  closeSheet();
+                  showWhatsNew();
+                }}
+              />
+              <MoreRow
+                icon={AlertIcon}
+                label="Report an issue"
+                onClick={() => {
+                  setSheetOpen(false);
+                  openReportModal();
+                }}
+              />
+            </>
+          ) : (
+            // No account to keep it on: the theme stays here while touring. Not a MoreRow -- it's a
+            // setting changed in place, so the sheet stays open.
+            <div className="flex min-h-[50px] items-center gap-3.5 border-t border-border text-base font-semibold">
+              <MoonIcon className="size-5 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate">Appearance</span>
+              <ThemePicker className="w-[172px] max-w-[55%] shrink-0" />
+            </div>
+          )}
+          {/* Picking one replaces the view with demo data, the same as the sidebar's Demo season. */}
+          <MoreRow icon={EpisodesIcon} label="Demo season" onClick={() => go("")} />
+          {isSuperAdmin && <MoreRow icon={ShieldIcon} label="Admin" value="Shows, users, results" onClick={() => go("/admin")} />}
           <MoreRow
-            icon={SparklesIcon}
-            label="What's new"
-            onClick={() => {
-              closeSheet();
-              showWhatsNew();
-            }}
+            icon={LogoutIcon}
+            label={isAuthenticated ? "Log out" : "Sign in"}
+            onClick={isAuthenticated ? handleLogout : handleShowLogin}
+            danger={isAuthenticated}
           />
-        )}
-        <div className="my-1.5 h-px bg-border" />
-        <MoreRow
-          icon={LogoutIcon}
-          label={isAuthenticated ? "Log out" : "Sign in"}
-          onClick={isAuthenticated ? handleLogout : handleShowLogin}
-          danger
-        />
+        </div>
       </div>
     </>
   );
@@ -565,28 +600,39 @@ export function MobileNav() {
 function MoreRow({
   icon: Icon,
   label,
+  value,
+  urgent,
+  dot,
   onClick,
   danger,
-  disabled,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
+  /** Its current value, muted on the right ("Done", "Code HXG27Y", "2 new"). */
+  value?: string;
+  /** The tab bar's "needs you" mark. */
+  urgent?: boolean;
+  /** A chyron dot: something here needs the commissioner. */
+  dot?: boolean;
   onClick: () => void;
   danger?: boolean;
-  disabled?: boolean;
 }) {
   return (
     <button
       className={cn(
-        "flex w-full items-center gap-3 rounded-[9px] px-3 py-3 text-left text-[0.92rem] hover:bg-secondary",
+        "flex min-h-[50px] w-full items-center gap-3.5 border-t border-border text-left text-base font-semibold outline-none hover:bg-accent/40 focus-visible:bg-accent",
         danger ? "text-destructive" : "text-foreground",
-        disabled && "opacity-50"
       )}
       onClick={onClick}
-      disabled={disabled}
     >
-      <Icon className={cn("h-[18px] w-[18px] shrink-0", danger ? "text-destructive" : "text-muted-foreground")} />
-      {label}
+      <Icon className={cn("size-5 shrink-0", danger ? "text-destructive" : "text-muted-foreground")} />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {urgent && (
+        <span className="flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-destructive px-1 text-[0.65rem] font-bold text-white">!</span>
+      )}
+      {dot && <span className="size-2 shrink-0 rounded-full bg-chyron-line" aria-label="Needs attention" />}
+      {value && <span className="shrink-0 text-[13px] font-medium text-muted-foreground">{value}</span>}
+      {!danger && <ChevronRight className="size-[18px] shrink-0 text-muted-foreground" strokeWidth={2.2} aria-hidden />}
     </button>
   );
 }

@@ -10,6 +10,7 @@ import { cn } from "cn";
 import { create } from "zustand";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 // Opening the popup on demand:
 //   "preview" -- Admin's "Preview What's New": the newest release; closing it isn't recorded (it isn't
@@ -28,6 +29,19 @@ export const useWhatsNewPreview = create<{
   hide: () => set({ mode: null }),
 }));
 
+/** How many What's New items this account hasn't seen ("2 new" beside the menu rows). */
+export function useWhatsNewCount(): number {
+  const isAuthenticated = useIsAuthenticated();
+  const previewingDemo = useIsPreviewingDemo();
+  const { data } = useQuery({
+    queryKey: ["my-settings"],
+    queryFn: () => api.getMySettings(),
+    enabled: isAuthenticated && !previewingDemo,
+    staleTime: 5 * 60_000,
+  });
+  return data && data.whatsNewSeen !== LATEST_RELEASE_ID ? unseenItems(data.whatsNewSeen, data.accountCreatedAt).length : 0;
+}
+
 // Releases within this many days of the newest show in full in the "all" view; older ones wait behind
 // "See older releases".
 const RECENT_DAYS = 7;
@@ -43,6 +57,7 @@ export function WhatsNewModal() {
   const impersonating = useLeagueStore((s) => s.impersonating);
   // What this player hasn't seen yet (every release since the one they last dismissed); null = closed.
   const [unseen, setUnseen] = useState<WhatsNewItem[] | null>(null);
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const mode = useWhatsNewPreview((s) => s.mode);
@@ -80,7 +95,12 @@ export function WhatsNewModal() {
     setUnseen(null);
     setShowOlder(false);
     // A preview isn't the real thing; the popup or the full list is -- it's been seen.
-    if (wasMode !== "preview" && isAuthenticated) api.setMySettings({ whatsNewSeen: LATEST_RELEASE_ID }).catch(() => {});
+    // The menus' "2 new" (useWhatsNewCount) reads the same settings, so it clears too.
+    if (wasMode !== "preview" && isAuthenticated)
+      api
+        .setMySettings({ whatsNewSeen: LATEST_RELEASE_ID })
+        .then(() => queryClient.invalidateQueries({ queryKey: ["my-settings"] }))
+        .catch(() => {});
   }
 
   // A "Show me" link: a page goes straight there. What's new itself lives in the More menu on a phone
