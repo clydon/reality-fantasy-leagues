@@ -150,7 +150,7 @@ export function Sidebar() {
       <div className="mt-auto flex flex-col gap-1.5 border-t border-border px-2.5 pb-1 pt-3">
         {isSuperAdmin && (
           <>
-            <Link href="/admin" className="block text-[0.8rem] font-semibold text-primary hover:underline">
+            <Link href="/admin" className="block text-[0.8rem] font-semibold text-chyron-line hover:underline">
               Admin
             </Link>
             <div className="my-1 h-px bg-border" />
@@ -162,10 +162,10 @@ export function Sidebar() {
             mode:'mock' (no league to show live). Using `mode` here blocked that real case. */}
         {isAuthenticated && (
           <>
-            <Link href="/account" className="block text-[0.8rem] font-semibold text-primary hover:underline">
+            <Link href="/account" className="block text-[0.8rem] font-semibold text-chyron-line hover:underline">
               Account settings
             </Link>
-            <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={openReportModal}>
+            <button className="block text-left text-[0.8rem] font-semibold text-chyron-line hover:underline" onClick={openReportModal}>
               Report an Issue
             </button>
           </>
@@ -173,12 +173,12 @@ export function Sidebar() {
         {mode === "mock" ? (
           hasSeason &&
           !isAuthenticated && (
-            <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={exitDemo}>
+            <button className="block text-left text-[0.8rem] font-semibold text-chyron-line hover:underline" onClick={exitDemo}>
               Sign in
             </button>
           )
         ) : (
-          <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={openDemoPicker}>
+          <button className="block text-left text-[0.8rem] font-semibold text-chyron-line hover:underline" onClick={openDemoPicker}>
             Switch to demo data
           </button>
         )}
@@ -191,7 +191,7 @@ export function Sidebar() {
           </div>
         )}
         {isAuthenticated && (
-          <button className="block text-left text-[0.8rem] font-semibold text-primary hover:underline" onClick={showWhatsNew}>
+          <button className="block text-left text-[0.8rem] font-semibold text-chyron-line hover:underline" onClick={showWhatsNew}>
             What&rsquo;s new
           </button>
         )}
@@ -223,7 +223,7 @@ function NavLink({
       href={href}
       className={cn(
         "flex items-center gap-2.5 rounded-[7px] px-3 py-2.5 text-[0.9rem] font-semibold text-muted-foreground transition-colors",
-        active ? "bg-accent text-primary" : "hover:bg-secondary hover:text-foreground"
+        active ? "bg-accent text-chyron-line" : "hover:bg-secondary hover:text-foreground"
       )}
     >
       <span className={cn("h-1.5 w-1.5 flex-none rounded-full bg-current", active ? "opacity-100" : "opacity-35")} />

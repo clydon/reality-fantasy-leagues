@@ -283,7 +283,7 @@ export function RulesPage() {
                       <span className="min-w-0">{ev.label}</span>
                       {ev.implied && <span className="shrink-0 text-xs text-muted-foreground">auto</span>}
                       {isChanged && (
-                        <span className="size-2 shrink-0 rounded-full bg-chyron" aria-label="Changed from the recommended points" />
+                        <span className="size-2 shrink-0 rounded-full bg-chyron-line" aria-label="Changed from the recommended points" />
                       )}
                     </span>
                     {ar ? (
@@ -375,7 +375,7 @@ function EventSheet({
   const shared = state.settings.ownershipMode === "shared";
   const isChanged = points !== null && recommended !== null && points !== recommended;
   const stepBtn =
-    "flex size-[52px] shrink-0 items-center justify-center rounded-[3px] border border-input text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron";
+    "flex size-[52px] shrink-0 items-center justify-center rounded-[3px] border border-input text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron-line";
 
   return (
     <BottomSheet
@@ -405,7 +405,7 @@ function EventSheet({
                 <input
                   aria-label="Points"
                   inputMode="decimal"
-                  className="type-num min-w-0 flex-1 bg-transparent text-center text-chyron outline-none"
+                  className="type-num min-w-0 flex-1 bg-transparent text-center text-chyron-line outline-none"
                   // Inline: the global 16px phone rule for fields (globals.css) would beat a class.
                   style={{ fontSize: 44 }}
                   value={draft}

@@ -36,7 +36,7 @@ export function StartingThisWeek({ state }: { state: LeagueState }) {
         {locked ? (
           <span className="text-sm text-muted-foreground">Locked</span>
         ) : (
-          <Link href="/lineup" className="-my-3 py-3 text-sm font-semibold text-primary hover:underline">
+          <Link href="/lineup" className="-my-3 py-3 text-sm font-semibold text-chyron-line hover:underline">
             Change
           </Link>
         )}

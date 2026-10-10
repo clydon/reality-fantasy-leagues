@@ -44,8 +44,8 @@ function CastPickGrid({
             tabIndex={editable && !disabled ? 0 : undefined}
             className={cn(
               "relative flex flex-col items-center gap-1 rounded-lg border-2 p-1.5 text-center",
-              picked ? "border-primary bg-primary/10" : "border-border",
-              editable && !disabled && "cursor-pointer hover:border-primary",
+              picked ? "border-chyron-line bg-primary/10" : "border-border",
+              editable && !disabled && "cursor-pointer hover:border-chyron-line",
               disabled && !picked && "opacity-40"
             )}
             onClick={() => editable && !disabled && onToggle(c.id)}

@@ -49,7 +49,7 @@ export function ChatMessageRow({ m, state }: { m: ChatMessage; state: LeagueStat
           key={emoji}
           className={cn(
             "rounded-full border border-border bg-card px-1.5 py-0.5 text-xs",
-            mine && info.userIds.includes(mine) && "border-primary bg-primary/10"
+            mine && info.userIds.includes(mine) && "border-chyron-line bg-primary/10"
           )}
           onClick={() => react(m.id, emoji)}
         >

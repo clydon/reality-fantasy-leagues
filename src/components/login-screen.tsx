@@ -64,7 +64,7 @@ export function LoginScreen({
       </Button>
       <p className="mt-3 text-center text-xs text-muted-foreground">
         New here?{" "}
-        <Link href="/account" className="font-semibold text-primary hover:underline">
+        <Link href="/account" className="font-semibold text-chyron-line hover:underline">
           Create an account
         </Link>
       </p>

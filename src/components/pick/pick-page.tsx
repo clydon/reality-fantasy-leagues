@@ -29,7 +29,7 @@ export function PickPage() {
     return (
       <p className="text-base text-muted-foreground">
         This league doesn&rsquo;t make weekly picks.{" "}
-        <Link href="/" className="font-semibold text-primary">
+        <Link href="/" className="font-semibold text-chyron-line">
           Go to Overview
         </Link>
       </p>
@@ -146,7 +146,7 @@ function PickGrid({ state, ep, playerId }: { state: LeagueState; ep: Episode; pl
           );
         })}
       </TileGrid>
-      <Link href="/setup/rules" className="self-start text-sm font-semibold text-primary hover:underline">
+      <Link href="/setup/rules" className="self-start text-sm font-semibold text-chyron-line hover:underline">
         How the Pool scores
       </Link>
       {!open ? (

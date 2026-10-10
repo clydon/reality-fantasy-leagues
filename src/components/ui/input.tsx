@@ -15,8 +15,8 @@ export function Input({
     <input
       data-slot="input"
       className={cn(
-        "rounded-md border border-border bg-card font-[family-name:var(--font-sans)] text-foreground transition-[border-color,box-shadow] placeholder:text-muted-foreground",
-        "hover:border-muted-foreground/40 focus:border-primary focus:shadow-[0_0_0_3px_rgba(204,91,57,.12)] focus:outline-none",
+        "rounded-md border border-input bg-card font-[family-name:var(--font-sans)] text-foreground transition-[border-color,box-shadow] placeholder:text-muted-foreground",
+        "hover:border-muted-foreground/40 focus:border-chyron-line focus:shadow-[0_0_0_3px_var(--focus-halo)] focus:outline-none",
         "disabled:cursor-not-allowed disabled:opacity-50",
         // Phones: at least 44px tall (40 for the dense sm size) so a thumb can hit it; the 16px text
         // floor that stops iOS zooming in on focus is a global rule in globals.css.

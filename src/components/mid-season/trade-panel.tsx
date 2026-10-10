@@ -165,7 +165,7 @@ export function TradePanel({ state }: { state: LeagueState }) {
                         aria-pressed={on}
                         aria-label={`Drop ${c.name}`}
                         onClick={() => setSel({ ...cur, drop: on ? null : c.id })}
-                        className="flex w-full min-w-0 flex-col items-center gap-1 rounded-[3px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron"
+                        className="flex w-full min-w-0 flex-col items-center gap-1 rounded-[3px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
                       >
                         <span className={cn("rounded-[3px]", on && "outline-3 outline-offset-2 outline-live")}>
                           <PhotoSquare

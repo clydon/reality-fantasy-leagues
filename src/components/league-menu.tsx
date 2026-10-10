@@ -88,7 +88,7 @@ export function LeagueMenu({
         <span className="flex w-full items-center gap-1.5">
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{l.name}</span>
           {favorite && (
-            <span className="shrink-0 text-xs text-primary" title="The league the app opens on">
+            <span className="shrink-0 text-xs text-chyron-line" title="The league the app opens on">
               ★
             </span>
           )}
@@ -157,7 +157,7 @@ export function LeagueMenu({
         );
       })}
       <button
-        className="mt-1 flex w-full items-center rounded-md border-t border-border px-2.5 pb-1 pt-2 text-left text-sm font-semibold text-primary hover:bg-secondary"
+        className="mt-1 flex w-full items-center rounded-md border-t border-border px-2.5 pb-1 pt-2 text-left text-sm font-semibold text-chyron-line hover:bg-secondary"
         onClick={onJoinOrCreate}
       >
         + Join or create a league

@@ -182,7 +182,7 @@ export function Dashboard() {
       <div className="flex gap-2.5">
         <Link
           href="/new-league"
-          className="flex min-h-[52px] flex-1 items-center justify-center gap-1.5 rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron"
+          className="flex min-h-[52px] flex-1 items-center justify-center gap-1.5 rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
         >
           <Plus className="size-[18px]" strokeWidth={2.4} aria-hidden />
           New league

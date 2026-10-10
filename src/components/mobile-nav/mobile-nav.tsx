@@ -408,7 +408,7 @@ export function MobileNav() {
           return (
             <button
               key={tab.href}
-              className={cn("relative flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground", active && "text-primary")}
+              className={cn("relative flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground", active && "text-chyron-line")}
               onClick={() => go(tab.href)}
             >
               <span className="relative inline-flex">
@@ -460,7 +460,7 @@ export function MobileNav() {
         // overscroll-contain: a downward pull at the top is the close gesture, not the browser's
         // pull-to-refresh or a scroll of the page behind.
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[71] max-h-[75vh] overflow-y-auto overscroll-contain rounded-t-[18px] bg-card p-2 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] shadow-[0_-8px_24px_rgba(20,18,14,.2)] transition-transform",
+          "fixed inset-x-0 bottom-0 z-[71] max-h-[75vh] overflow-y-auto overscroll-contain rounded-t-[18px] bg-card p-2 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] shadow-sheet transition-transform",
           sheetOpen ? "translate-y-0" : "translate-y-full"
         )}
       >

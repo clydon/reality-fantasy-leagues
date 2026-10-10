@@ -146,7 +146,7 @@ function LinkedLeaguesSection() {
                   {canManage ? (
                     <button
                       type="button"
-                      className={fav ? "text-primary" : "text-muted-foreground"}
+                      className={fav ? "text-chyron-line" : "text-muted-foreground"}
                       disabled={busy}
                       title={fav ? "Opens first — tap to stop" : "Open the app on this league"}
                       aria-pressed={fav}
@@ -155,7 +155,7 @@ function LinkedLeaguesSection() {
                       {fav ? "★" : "☆"}
                     </button>
                   ) : (
-                    <span className={fav ? "text-primary" : "invisible"} aria-hidden>
+                    <span className={fav ? "text-chyron-line" : "invisible"} aria-hidden>
                       ★
                     </span>
                   )}

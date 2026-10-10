@@ -100,7 +100,7 @@ function EpisodeView({ ep, state }: { ep: Episode; state: LeagueState }) {
             <button
               type="button"
               aria-label="Episode actions"
-              className="flex size-11 shrink-0 items-center justify-center rounded-[3px] border border-border text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron"
+              className="flex size-11 shrink-0 items-center justify-center rounded-[3px] border border-border text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron-line"
               onClick={() => setMenuOpen(true)}
             >
               <MoreHorizontal className="size-5" aria-hidden />
@@ -343,12 +343,12 @@ function YourPickResult({ state, ep }: { state: LeagueState; ep: Episode }) {
       <span
         className={cn(
           "type-caption px-3 py-[3px] text-[15px] tracking-[0.05em]",
-          correct ? "bg-good text-[#0e2b27]" : "bg-live text-live-foreground",
+          correct ? "bg-good text-good-foreground" : "bg-live text-live-foreground",
         )}
       >
         {correct ? "Your pick survived" : "Your pick went home"}
       </span>
-      <span className="flex max-w-full flex-col gap-[3px] bg-plate py-2 pl-3 pr-3.5 text-plate-foreground shadow-[0_8px_20px_rgba(0,0,0,0.35)]">
+      <span className="flex max-w-full flex-col gap-[3px] bg-plate py-2 pl-3 pr-3.5 text-plate-foreground shadow-plate">
         <span className="type-caption text-[30px] font-black leading-[0.95]">{c.name}</span>
         <span className="text-[13px] text-plate-muted">
           {correct ? `Your streak is now ${streak}` : ended > 0 ? `Your streak ends at ${ended}` : "Back to zero"}
@@ -401,7 +401,7 @@ function EveryonesPicks({ state, ep }: { state: LeagueState; ep: Episode }) {
             <span
               className={cn(
                 "shrink-0 rounded-[2px] px-1.5 py-px text-[11px] font-bold uppercase tracking-wide",
-                correct ? "bg-good text-[#0e2b27]" : c ? "bg-live text-live-foreground" : "bg-muted text-muted-foreground",
+                correct ? "bg-good text-good-foreground" : c ? "bg-live text-live-foreground" : "bg-muted text-muted-foreground",
               )}
             >
               {correct ? "Safe" : c ? "Out" : "Missed"}

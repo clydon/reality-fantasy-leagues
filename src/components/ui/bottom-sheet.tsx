@@ -31,9 +31,9 @@ export function BottomSheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-[80] bg-[rgba(8,6,12,0.6)] transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+        <Dialog.Backdrop className="fixed inset-0 z-[80] bg-(--scrim) transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
-          className="fixed inset-x-0 bottom-0 z-[81] mx-auto flex max-w-[480px] flex-col rounded-t-[14px] bg-card px-4 pt-2 text-foreground shadow-[0_-12px_30px_rgba(0,0,0,0.45)] outline-none transition-transform duration-200 ease-out data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
+          className="fixed inset-x-0 bottom-0 z-[81] mx-auto flex max-w-[480px] flex-col rounded-t-[14px] bg-card px-4 pt-2 text-foreground shadow-sheet outline-none transition-transform duration-200 ease-out data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
           style={{ paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))" }}
         >
           <span className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/40" aria-hidden />

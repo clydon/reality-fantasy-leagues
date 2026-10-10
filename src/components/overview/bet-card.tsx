@@ -62,7 +62,7 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
   }
 
   const borderCls = canGuessThis
-    ? "border-primary/50"
+    ? "border-chyron-line/50"
     : mine?.correct === true
     ? "border-good/60"
     : mine?.correct === false

@@ -161,7 +161,7 @@ export function AccountPanel() {
       </div>
       <p className="text-center text-xs text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/" className="font-semibold text-primary hover:underline">
+        <Link href="/" className="font-semibold text-chyron-line hover:underline">
           Log in
         </Link>
       </p>

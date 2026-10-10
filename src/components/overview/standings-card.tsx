@@ -63,7 +63,7 @@ export function StandingsCard({ state }: { state: LeagueState }) {
                   r.playerId === me && "-mx-2 rounded-[3px] bg-muted px-2",
                 )}
               >
-                <span className={cn("type-num w-8 shrink-0 text-[24px] text-muted-foreground", leads(ranks, i) && "dark:text-chyron")}>{ranks[i]}</span>
+                <span className={cn("type-num w-8 shrink-0 text-[24px] text-muted-foreground", leads(ranks, i) && "text-chyron-line")}>{ranks[i]}</span>
                 {!classic && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: r.color }} />}
                 {classic ? (
                   <span className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -141,7 +141,7 @@ function TeamFaces({ state, roster }: { state: LeagueState; roster: Castaway[] }
               <span
                 className={cn(
                   "absolute -bottom-[3px] -right-[3px] rounded-[2px] px-[3px] text-[9px] font-extrabold leading-[1.35] tabular-nums",
-                  knocked ? "bg-live text-live-foreground" : "bg-good text-[#0e2b27]",
+                  knocked ? "bg-live text-live-foreground" : "bg-good text-good-foreground",
                 )}
               >
                 {place}

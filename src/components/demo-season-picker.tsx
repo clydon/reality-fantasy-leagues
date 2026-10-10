@@ -68,7 +68,7 @@ export function DemoSeasonPicker() {
               {data?.seasons.map((s) => (
                 <button
                   key={s.id}
-                  className="flex flex-col items-start gap-0.5 rounded-md border border-border p-3 text-left hover:border-primary hover:bg-secondary"
+                  className="flex flex-col items-start gap-0.5 rounded-md border border-border p-3 text-left hover:border-chyron-line hover:bg-secondary"
                   onClick={() => setSeasonId(s.id)}
                 >
                   <span className="text-sm font-semibold">{s.name}</span>
@@ -87,7 +87,7 @@ export function DemoSeasonPicker() {
               {LEAGUE_TYPES.map((lt) => (
                 <button
                   key={lt.id}
-                  className="flex flex-col items-start gap-0.5 rounded-md border border-border p-3 text-left hover:border-primary hover:bg-secondary"
+                  className="flex flex-col items-start gap-0.5 rounded-md border border-border p-3 text-left hover:border-chyron-line hover:bg-secondary"
                   onClick={() => pick(lt.id)}
                 >
                   <span className="text-sm font-semibold">{lt.label}</span>
@@ -95,7 +95,7 @@ export function DemoSeasonPicker() {
                 </button>
               ))}
             </div>
-            <button className="mt-2 text-xs font-semibold text-primary hover:underline" onClick={() => setSeasonId(null)}>
+            <button className="mt-2 text-xs font-semibold text-chyron-line hover:underline" onClick={() => setSeasonId(null)}>
               ← Pick a different show
             </button>
           </>

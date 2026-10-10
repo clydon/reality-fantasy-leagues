@@ -210,7 +210,7 @@ function DangerZone() {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "flex min-h-12 items-center gap-2 rounded-[3px] border border-live/35 px-4 text-[15px] font-bold text-live hover:bg-live/10 focus-visible:outline-3 focus-visible:outline-chyron"
+          "flex min-h-12 items-center gap-2 rounded-[3px] border border-live/35 px-4 text-[15px] font-bold text-live hover:bg-live/10 focus-visible:outline-3 focus-visible:outline-chyron-line"
         )}
       >
         <TriangleAlert className="size-[18px]" strokeWidth={2.2} aria-hidden />

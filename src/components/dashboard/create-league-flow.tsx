@@ -235,7 +235,7 @@ export function CreateLeagueFlow() {
         </div>
         <div className="flex gap-1.5 px-4" aria-hidden>
           {[1, 2, 3, 4].map((n) => (
-            <span key={n} className={cn("h-1 flex-1 rounded-full", n <= step ? "bg-chyron" : "bg-input")} />
+            <span key={n} className={cn("h-1 flex-1 rounded-full", n <= step ? "bg-chyron-line" : "bg-input")} />
           ))}
         </div>
       </header>
@@ -489,7 +489,7 @@ export function CreateLeagueFlow() {
               type="button"
               disabled={busy}
               onClick={() => enter(hasDraft ? "/draft" : "/")}
-              className="min-h-[52px] w-full rounded-[3px] bg-foreground px-5 text-base font-bold text-background transition-[filter] hover:brightness-[0.94] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron disabled:opacity-50"
+              className="min-h-[52px] w-full rounded-[3px] bg-foreground px-5 text-base font-bold text-background transition-[filter] hover:brightness-[0.94] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:opacity-50"
             >
               {busy ? "Opening…" : hasDraft ? "Go to the draft" : "Go to your league"}
             </button>
@@ -629,7 +629,7 @@ function InviteStep({
             <button
               type="submit"
               disabled={sending || !identifier.trim()}
-              className="min-h-12 shrink-0 rounded-[3px] border border-input bg-card px-4 text-[15px] font-bold hover:bg-secondary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron disabled:opacity-40"
+              className="min-h-12 shrink-0 rounded-[3px] border border-input bg-card px-4 text-[15px] font-bold hover:bg-secondary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:opacity-40"
             >
               {sending ? "Sending…" : "Invite"}
             </button>
@@ -685,7 +685,7 @@ function IconButton({ label, onClick, disabled, children }: { label: string; onC
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className="flex size-11 shrink-0 items-center justify-center rounded-[3px] text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron disabled:opacity-40 [&_svg]:pointer-events-none"
+      className="flex size-11 shrink-0 items-center justify-center rounded-[3px] text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron-line disabled:opacity-40 [&_svg]:pointer-events-none"
     >
       {children}
     </button>
@@ -705,11 +705,11 @@ function ShowTile({ show, selected, onSelect }: { show: CatalogShow; selected: b
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        "relative flex w-full overflow-hidden rounded-[3px] px-3 text-left transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron",
+        "relative flex w-full overflow-hidden rounded-[3px] px-3 text-left transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line",
         // Key art gets the canvas's 84px; a plain tile only needs room for the name.
         art ? "h-[84px] items-end bg-black pb-2.5 text-white" : "h-16 items-center",
         !art && (selected ? "bg-plate pl-12 text-plate-foreground" : "border border-input bg-card text-foreground"),
-        selected && "outline-3 outline-offset-2 outline-chyron"
+        selected && "outline-3 outline-offset-2 outline-chyron-line"
       )}
     >
       {art && (
@@ -766,8 +766,8 @@ function OptionCard({
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "flex w-full flex-col gap-1.5 rounded-[3px] px-4 py-3.5 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron",
-        selected ? "bg-plate text-plate-foreground outline-3 outline-offset-2 outline-chyron" : "border border-input bg-card text-foreground hover:bg-secondary"
+        "flex w-full flex-col gap-1.5 rounded-[3px] px-4 py-3.5 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line",
+        selected ? "bg-plate text-plate-foreground outline-3 outline-offset-2 outline-chyron-line" : "border border-input bg-card text-foreground hover:bg-secondary"
       )}
     >
       <span className="flex w-full items-center justify-between gap-2">
@@ -785,16 +785,16 @@ function RadioCard({ name, checked, onChange, title, detail }: { name: string; c
   return (
     <label
       className={cn(
-        "flex min-h-16 cursor-pointer items-center gap-3.5 rounded-[3px] border px-3.5 has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-chyron",
-        checked ? "border-chyron bg-card" : "border-input"
+        "flex min-h-16 cursor-pointer items-center gap-3.5 rounded-[3px] border px-3.5 has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-chyron-line",
+        checked ? "border-chyron-line bg-card" : "border-input"
       )}
     >
       <input type="radio" name={name} checked={checked} onChange={onChange} className="sr-only" />
       <span
         aria-hidden
-        className={cn("flex size-[22px] shrink-0 items-center justify-center rounded-full border-2", checked ? "border-chyron" : "border-muted-foreground")}
+        className={cn("flex size-[22px] shrink-0 items-center justify-center rounded-full border-2", checked ? "border-chyron-line" : "border-muted-foreground")}
       >
-        {checked && <span className="size-2.5 rounded-full bg-chyron" />}
+        {checked && <span className="size-2.5 rounded-full bg-chyron-line" />}
       </span>
       <span className="flex flex-col gap-0.5">
         <span className="text-base font-semibold">{title}</span>

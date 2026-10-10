@@ -125,7 +125,7 @@ export function WhatsNewModal() {
             </button>
             {expanded === it.title && <p className="pb-2.5 pl-[2.875rem] pr-3 text-sm text-muted-foreground">{it.detail}</p>}
             {it.link && (
-              <button className="-mt-1 pb-2.5 pl-[2.875rem] text-sm font-semibold text-primary" onClick={() => follow(it.link!)}>
+              <button className="-mt-1 pb-2.5 pl-[2.875rem] text-sm font-semibold text-chyron-line" onClick={() => follow(it.link!)}>
                 {it.link.label} &rsaquo;
               </button>
             )}
@@ -166,12 +166,12 @@ export function WhatsNewModal() {
         aria-labelledby="whats-new-title"
         className="whats-new-pop flex max-h-[85vh] w-full max-w-[440px] flex-col overflow-hidden rounded-xl bg-card shadow-xl"
       >
-        {/* A splash of the brand colour up top: new features should feel like news. */}
-        <div className="bg-gradient-to-br from-primary to-[#e8a25a] px-5 pb-4 pt-5 text-white">
+        {/* A chyron bar up top: new features should feel like news. */}
+        <div className="bg-chyron px-5 pb-4 pt-5 text-chyron-foreground">
           <h3 id="whats-new-title" className="flex items-center gap-2 text-xl font-bold">
             <span aria-hidden>✨</span> What&rsquo;s new
           </h3>
-          <p className="mt-0.5 text-sm text-white/85">{mode === "all" ? "Everything that's changed" : "Fresh in this update"}</p>
+          <p className="mt-0.5 text-sm text-chyron-foreground/75">{mode === "all" ? "Everything that's changed" : "Fresh in this update"}</p>
         </div>
         <div className="overflow-y-auto px-2 py-1">
           {mode === "all" ? (
@@ -181,7 +181,7 @@ export function WhatsNewModal() {
                 (showOlder ? (
                   dated(older)
                 ) : (
-                  <button className="w-full px-3 py-3 text-left text-sm font-semibold text-primary" onClick={() => setShowOlder(true)}>
+                  <button className="w-full px-3 py-3 text-left text-sm font-semibold text-chyron-line" onClick={() => setShowOlder(true)}>
                     See older releases ({older.length})
                   </button>
                 ))}

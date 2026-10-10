@@ -6,7 +6,7 @@ const LOGOS = {
   // the same art with the cream background taken out, the black "SURVIVOR" turned to the dark
   // theme's text colour and the gold lifted (made from the light ones; see the commit that added them).
   banner: { light: "/banner.png", dark: "/banner-dark.png", width: 1024, height: 256 },
-  sidebar: { light: "/sidebar-logo.jpg", dark: "/sidebar-logo-dark.png", width: 855, height: 301 },
+  sidebar: { light: "/sidebar-logo.png", dark: "/sidebar-logo-dark.png", width: 855, height: 301 },
 };
 
 // Both versions are rendered and CSS shows the one matching the theme (the .dark class on <html>),

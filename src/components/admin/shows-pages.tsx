@@ -50,7 +50,7 @@ export function ShowsPage() {
         title={
           <>
             {show.name}
-            {waiting && <span className="size-2 rounded-full bg-chyron" aria-label="Needs you" />}
+            {waiting && <span className="size-2 rounded-full bg-chyron-line" aria-label="Needs you" />}
           </>
         }
         detail={[count(show.seasons.length, "season"), count(show.league_count, "league"), `${formatName(show.format)} rules`, show.archived && "archived"].filter(Boolean).join(" · ")}
@@ -150,7 +150,7 @@ export function ShowPage({ showId }: { showId: string }) {
                   title={
                     <>
                       {seasonName(s)}
-                      {state.waiting && <span className="size-2 rounded-full bg-chyron" aria-label="Needs you" />}
+                      {state.waiting && <span className="size-2 rounded-full bg-chyron-line" aria-label="Needs you" />}
                     </>
                   }
                   detail={`${STATUS_LABEL[s.status]} · ${state.text}`}

@@ -53,7 +53,7 @@ export function MoreButton({ label, onClick, className }: { label: string; onCli
       aria-label={label}
       onClick={onClick}
       className={cn(
-        "flex size-11 shrink-0 items-center justify-center rounded-[3px] text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-3 focus-visible:outline-chyron",
+        "flex size-11 shrink-0 items-center justify-center rounded-[3px] text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-3 focus-visible:outline-chyron-line",
         className
       )}
     >
@@ -98,7 +98,7 @@ export function IndexRow({
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex items-center gap-2 text-base font-semibold">
           {title}
-          {alert && <span className="size-2 rounded-full bg-chyron" aria-label="Needs attention" />}
+          {alert && <span className="size-2 rounded-full bg-chyron-line" aria-label="Needs attention" />}
         </span>
         {value && <span className="truncate text-[13px] text-muted-foreground">{value}</span>}
       </span>
@@ -174,7 +174,7 @@ export function Stepper({
 }) {
   const clamp = (n: number) => Math.max(min, max === undefined ? n : Math.min(max, n));
   const btn =
-    "flex size-11 items-center justify-center rounded-[3px] border border-input text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron disabled:opacity-35";
+    "flex size-11 items-center justify-center rounded-[3px] border border-input text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron-line disabled:opacity-35";
   return (
     <span className="flex shrink-0 items-center gap-1">
       <button
@@ -346,7 +346,7 @@ export function PrimaryButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "min-h-12 shrink-0 rounded-[3px] bg-chyron px-5 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron disabled:bg-muted disabled:text-muted-foreground disabled:hover:brightness-100",
+        "min-h-12 shrink-0 rounded-[3px] bg-chyron px-5 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:bg-muted disabled:text-muted-foreground disabled:hover:brightness-100",
         className
       )}
     >
@@ -357,7 +357,7 @@ export function PrimaryButton({
 
 /** Text fields in the settings pages: 48px, square-cornered, full width. */
 export const fieldCls =
-  "min-h-12 w-full rounded-[3px] border border-input bg-card px-3.5 text-base text-foreground placeholder:text-muted-foreground focus:border-chyron focus:outline-none disabled:cursor-not-allowed disabled:opacity-50";
+  "min-h-12 w-full rounded-[3px] border border-input bg-card px-3.5 text-base text-foreground placeholder:text-muted-foreground focus:border-chyron-line focus:outline-none disabled:cursor-not-allowed disabled:opacity-50";
 
 /** A sheet with one text field and a primary button. */
 export function TextSheet({

@@ -93,7 +93,7 @@ export function CatchUpPanel({ state }: { state: LeagueState }) {
 
   return (
     <section className="mb-6 flex flex-col gap-3.5">
-      <div className="flex flex-col gap-1.5 rounded-[4px] border border-border bg-card px-4 py-3.5 dark:border-0">
+      <div className="flex flex-col gap-1.5 rounded-[4px] bg-card px-4 py-3.5">
         <span className="text-base font-bold">
           {revealed === 0
             ? `This league plays ${season || "the season"} from the start.`
@@ -113,7 +113,7 @@ export function CatchUpPanel({ state }: { state: LeagueState }) {
             type="button"
             disabled={busy}
             onClick={reveal}
-            className="min-h-12 rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron disabled:opacity-60"
+            className="min-h-12 rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:opacity-60"
           >
             {busy ? "Revealing…" : `Reveal Episode ${next} results`}
           </button>

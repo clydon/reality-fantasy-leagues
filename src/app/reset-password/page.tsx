@@ -74,7 +74,7 @@ export default function ResetPasswordPage() {
         </Suspense>
       </div>
       <p className="mt-2.5 text-center text-xs text-muted-foreground">
-        <Link href="/account" className="font-semibold text-primary hover:underline">
+        <Link href="/account" className="font-semibold text-chyron-line hover:underline">
           Back to sign in
         </Link>
       </p>

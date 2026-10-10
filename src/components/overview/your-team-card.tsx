@@ -69,7 +69,7 @@ function TeamPlate({ state, c }: { state: LeagueState; c: Castaway }) {
     // The winner and the other finalists: an ending, not a boot.
     detail = (
       <>
-        {chip(c.exitMethod === winner ? "bg-chyron text-chyron-foreground" : "bg-good text-[#0e2b27]", c.exitMethod ?? "Finalist")}
+        {chip(c.exitMethod === winner ? "bg-chyron text-chyron-foreground" : "bg-good text-good-foreground", c.exitMethod ?? "Finalist")}
         {[place && `finished ${ordinal(place)}`, c.placementOrder && `+${c.placementOrder}`].filter(Boolean).join(" · ")}
       </>
     );

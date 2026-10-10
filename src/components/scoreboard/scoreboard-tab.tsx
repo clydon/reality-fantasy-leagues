@@ -136,7 +136,7 @@ function PlayerLink({ id, me, className, children }: { id: string; me: boolean; 
 }
 
 function Rank({ label, first }: { label: string; first: boolean }) {
-  return <span className={cn("type-num w-8 shrink-0 text-[26px] text-muted-foreground", first && "text-foreground dark:text-chyron")}>{label}</span>;
+  return <span className={cn("type-num w-8 shrink-0 text-[26px] text-muted-foreground", first && "text-chyron-line")}>{label}</span>;
 }
 
 // ---- Classic: last team standing ----
@@ -241,7 +241,7 @@ function ActiveRosterBoard({ state, scores }: { state: LeagueState; scores: Scor
               {r.playerId === me && <YouBadge />}
             </span>
             {grid[i].map((n, j) => (
-              <span key={eps[j].id} className={cn("type-num text-[22px]", col, n === best[j] && n > 0 && "dark:text-chyron")}>
+              <span key={eps[j].id} className={cn("type-num text-[22px]", col, n === best[j] && n > 0 && "text-chyron-line")}>
                 {n}
               </span>
             ))}

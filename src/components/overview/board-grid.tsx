@@ -61,7 +61,7 @@ export function BoardGrid({ state }: { state: LeagueState }) {
   const ordered = [...populated].sort((a, b) => b.members.length - a.members.length);
 
   return (
-    <div id="board" className="section-shell">
+    <div id="board">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="section-title">Board</h3>
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">

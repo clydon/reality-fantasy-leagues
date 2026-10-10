@@ -140,7 +140,7 @@ export function ActionBar() {
   const plateBtn = "flex min-h-11 min-w-11 items-center justify-center bg-plate text-plate-foreground hover:bg-[#f1eff6]";
 
   return (
-    <div role="status" className="mb-4 flex min-h-[56px] items-stretch overflow-hidden rounded-[3px] shadow-[0_6px_18px_rgba(0,0,0,0.3)]">
+    <div role="status" className="mb-4 flex min-h-[56px] items-stretch overflow-hidden rounded-[3px] shadow-plate">
       <span className="type-caption flex shrink-0 items-center bg-chyron pl-3 pr-5 text-[14px] tracking-[0.04em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,84%_100%,0_100%)]">
         {TAGS[item.kind] ?? "Now"}
       </span>

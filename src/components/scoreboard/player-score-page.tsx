@@ -224,7 +224,7 @@ function Picks({ state, playerId, mine }: { state: LeagueState; playerId: string
               p.correct === null ? (
                 <Chip>Pending</Chip>
               ) : p.correct ? (
-                <span className="rounded-[2px] bg-good px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-[#0e2b27]">Survived</span>
+                <span className="rounded-[2px] bg-good px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-good-foreground">Survived</span>
               ) : c ? (
                 <Chip tone="live">Went home</Chip>
               ) : (

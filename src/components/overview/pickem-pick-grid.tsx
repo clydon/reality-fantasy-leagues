@@ -103,7 +103,7 @@ function YourPicks({ state, me, ep, open }: { state: LeagueState; me: string; ep
       <SectionHead
         aside={
           slots.some((s) => s.correct !== null) && (
-            <Link href={`/scoreboard/${encodeURIComponent(me)}`} className="flex min-h-11 items-center text-sm font-semibold text-primary hover:underline">
+            <Link href={`/scoreboard/${encodeURIComponent(me)}`} className="flex min-h-11 items-center text-sm font-semibold text-chyron-line hover:underline">
               All picks
             </Link>
           )
@@ -152,7 +152,7 @@ function PickItem({ slot, href }: { slot: PickSlot; href?: string }) {
         <span
           className={cn(
             "absolute -bottom-1.5 -right-1.5 flex size-[22px] items-center justify-center rounded-full",
-            correct ? "bg-good text-[#0e2b27]" : "bg-live text-live-foreground",
+            correct ? "bg-good text-good-foreground" : "bg-live text-live-foreground",
           )}
           aria-hidden
         >
@@ -170,7 +170,7 @@ function PickItem({ slot, href }: { slot: PickSlot; href?: string }) {
   return (
     <li className="flex min-w-0 flex-col items-center gap-1" aria-label={`Episode ${slot.episode}: ${c ? c.name : "no pick"}, ${status.toLowerCase()}`}>
       {href ? (
-        <Link href={href} className="rounded-[3px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron">
+        <Link href={href} className="rounded-[3px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line">
           {face}
         </Link>
       ) : (
@@ -214,7 +214,7 @@ function WhoPicked({ state, ep, players, me, open }: { state: LeagueState; ep: E
                 <span
                   className={cn(
                     "shrink-0 rounded-[2px] px-1.5 py-px text-[11px] font-bold uppercase tracking-wide",
-                    pk ? "bg-good text-[#0e2b27]" : "bg-muted text-muted-foreground",
+                    pk ? "bg-good text-good-foreground" : "bg-muted text-muted-foreground",
                   )}
                 >
                   {pk ? "Picked" : "Not yet"}

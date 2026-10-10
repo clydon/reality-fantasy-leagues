@@ -21,7 +21,7 @@ export function NotificationsBanner() {
   if (listed.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-primary bg-card p-4 shadow-sm">
+    <div className="rounded-lg border border-chyron-line bg-card p-4 shadow-sm">
       <h3 className="mb-2 section-title">Notifications</h3>
       <div className="flex flex-col">
         {listed.map((n) => (

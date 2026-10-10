@@ -121,12 +121,12 @@ export function AdminMobileChrome() {
               key={tab.href}
               href={tab.href}
               aria-current={active ? "page" : undefined}
-              className={cn("relative flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground", active && "text-primary")}
+              className={cn("relative flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground", active && "text-chyron-line")}
             >
               <span className="relative inline-flex">
                 <Icon className="size-[21px]" strokeWidth={active ? 2.3 : 2} aria-hidden />
                 {tab.href === "/admin" && waiting && (
-                  <span className="absolute -right-1.5 -top-0.5 size-2 rounded-full bg-chyron" aria-label="Something needs you" />
+                  <span className="absolute -right-1.5 -top-0.5 size-2 rounded-full bg-chyron-line" aria-label="Something needs you" />
                 )}
               </span>
               <span className="text-[0.63rem] font-semibold">{tab.label}</span>
@@ -166,12 +166,12 @@ export function AdminSidebar() {
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex min-h-11 items-center gap-2.5 rounded-[4px] px-3 text-[0.95rem] font-semibold text-muted-foreground transition-colors",
-                active ? "bg-accent text-primary" : "hover:bg-secondary hover:text-foreground",
+                active ? "bg-accent text-chyron-line" : "hover:bg-secondary hover:text-foreground",
               )}
             >
               <Icon className="size-[18px] shrink-0" strokeWidth={2.1} aria-hidden />
               {tab.label}
-              {tab.href === "/admin" && waiting && <span className="ml-auto size-2 rounded-full bg-chyron" aria-label="Something needs you" />}
+              {tab.href === "/admin" && waiting && <span className="ml-auto size-2 rounded-full bg-chyron-line" aria-label="Something needs you" />}
             </Link>
           );
         })}

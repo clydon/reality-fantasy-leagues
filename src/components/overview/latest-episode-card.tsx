@@ -94,7 +94,7 @@ function LeagueWeek({ state, epId }: { state: LeagueState; epId: string }) {
     <div className="mt-3">
       <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">League this week</div>
       {teams.map(({ p, total }) => (
-        <details key={p.id} className={cn("border-b border-border/60 last:border-b-0", p.id === myPlayerId && "bg-primary/5")}>
+        <details key={p.id} className={cn("border-b border-border/60 last:border-b-0", p.id === myPlayerId && "bg-muted")}>
           <summary className="flex cursor-pointer list-none items-center gap-2.5 px-1 py-1.5 [&::-webkit-details-marker]:hidden">
             {/* Rank by this episode's points, ties sharing a place. */}
             <span className="w-5 text-center font-mono text-xs font-bold text-muted-foreground">
@@ -131,7 +131,7 @@ function HiddenEpisodeCard({ state, first, last }: { state: LeagueState; first: 
       <button
         type="button"
         onClick={() => reveal()}
-        className="relative flex w-full items-center gap-2.5 overflow-hidden rounded-[4px] bg-muted px-4 py-3.5 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron dark:bg-card"
+        className="relative flex w-full items-center gap-2.5 overflow-hidden rounded-[4px] bg-card px-4 py-3.5 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
       >
         <span className="flex items-center gap-2.5 opacity-50 blur-[6px]" aria-hidden>
           <span className="size-12 shrink-0 rounded-[2px] bg-muted-foreground/60" />
@@ -156,7 +156,7 @@ function HiddenEpisodeCard({ state, first, last }: { state: LeagueState; first: 
 export function AsOfPill({ state }: { state: LeagueState }) {
   const asOf = StateLogic.SpoilerLogic.latestWithResults(state);
   return (
-    <span className="mb-1 inline-flex min-h-7 items-center gap-1.5 self-start rounded-[3px] bg-muted px-2.5 text-[13px] font-semibold text-foreground dark:bg-card">
+    <span className="mb-1 inline-flex min-h-7 items-center gap-1.5 self-start rounded-[3px] bg-card px-2.5 text-[13px] font-semibold text-foreground">
       <EyeOff className="size-3.5" strokeWidth={2.2} aria-hidden />
       {asOf > 0 ? `As of Episode ${asOf}` : "Before any results"}
     </span>

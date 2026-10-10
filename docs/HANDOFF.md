@@ -13,7 +13,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
 
 ## UX redesign in progress: direction A, "Lower Third" (branch `ux-direction-a`, not pushed)
 
-**Status as of 2026-10-10.** A visual redesign is under way on the local branch `ux-direction-a`.
+**Status as of 2026-10-10 (light-mode pass done; next is merge and push).** A visual redesign is under way on the local branch `ux-direction-a`.
 **Do not push or merge it until the redesign is done** (the user's call). Read these first:
 
 - `PRODUCT.md` (repo root): product truth captured with the impeccable skill's `init`. Users,
@@ -34,17 +34,19 @@ explained to a commissioner") rather than re-deriving it from source each time.
   night ground, white caption plates, chyron yellow (#FFC531) for "now", live red for eliminations,
   tribe colours as tags. One family, Archivo (variable; condensed caps for names, headings and
   numbers). Signature element: the caption plate (angled tag + white plate + optional action).
-- **Dark mode = direction A for now. Light mode gets its own pass at the very end** (user decision).
-  Until then light mode keeps the old cream palette and cards, plus Archivo and the new plates.
+- **Both modes are direction A** (light-mode pass done 2026-10-10). Dark is "Night", light is
+  "Studio": the same components on a pale cool-grey ground with night ink. Modes differ only in
+  token values; the reveal always plays on Night. See DESIGN.md's Colors section.
 - The spoiler mechanic already exists (each player is told results are ready and chooses when to
   reveal); the redesign restyles it, it doesn't add it.
 - Show tiles in the create-league wizard use each show's key art with a brand-coloured gradient
   (mocked on the canvas). Rights to network key art are unconfirmed; check before shipping it.
 
 **Built so far (foundation + Active Roster home, dark mode):**
-- Tokens and type: `src/app/globals.css` (`.dark` = direction A palette; `--chyron`, `--plate`,
-  `--plate-foreground`, `--plate-muted`, `--live` tokens in both modes; `type-caption` and
-  `type-num` utilities; `section-shell` / `section-title` classes, flat in dark; an unlayered mobile
+- Tokens and type: `src/app/globals.css` (`:root` = Studio, `.dark` = Night; `--chyron`,
+  `--chyron-line`, `--plate`, `--plate-foreground`, `--plate-muted`, `--live`, `--good-foreground`
+  and the shadow/scrim tokens in both modes; `type-caption` and `type-num` utilities; the
+  `section-title` class; an unlayered mobile
   rule forcing 16px on every text field so iOS doesn't zoom). Archivo replaces IBM Plex Sans in
   `src/app/layout.tsx` (Plex Mono stays as `font-mono`).
 - `src/components/ui/caption-plate.tsx`: the signature component. Used by the alert strip
@@ -64,7 +66,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
    pass.
 2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~,
    ~~League Settings~~, ~~Create a league~~, ~~Overview & Scoreboard (commissioner)~~, ~~Spoilers &
-   reveal~~, ~~Active Roster~~, ~~Classic~~, ~~Eliminator Pool~~, ~~Admin~~. All screens done; the light-mode pass is next.
+   reveal~~, ~~Active Roster~~, ~~Classic~~, ~~Eliminator Pool~~, ~~Admin~~. All screens done; the light-mode pass is done too.
    - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
      episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
      `src/app/episodes/[number]/page.tsx` -> `episode-detail.tsx`: read view by default (who left as
@@ -380,8 +382,8 @@ explained to a commissioner") rather than re-deriving it from source each time.
      side bets graded by the commissioner, not a structured guess, so a Predict tab would be a product
      change, not a restyle; the Predictions section (`side-bets-section.tsx`, `bet-card.tsx`) is still
      unrestyled. The canvas's commissioner card on Episodes ("fill the gap with research") isn't added;
-     research stays in the episode editor. No "See standings" button on the episode page. In light mode
-     the `good` caption tag (e.g. "Called it") is dark ink on dark green, for the light-mode pass.
+     research stays in the episode editor. No "See standings" button on the episode page. (The light-mode `good` tag ink was fixed in the
+     light-mode pass.)
    - Verified at 390×844 dark with `overview-scoreboard.js` on `UX Baseline S51` (Overview, Episodes,
      Episodes 1 and 2, Scoreboard), with a graded two-guess prediction seeded on Episode 2 and Your
      Team unhidden, then the league state and layout restored from a snapshot (checked identical). Also
@@ -420,8 +422,8 @@ explained to a commissioner") rather than re-deriving it from source each time.
      2", Safe / Out / Missed). An Episodes row says "Your pick, Alex Moore, survived · streak 1".
    - Not done: a commissioner can't make a pick for someone else (they never could). The closed state
      of the Pick page (an aired episode without results) and a missed pick ("No pick", "Missed") were
-     only checked in code: catch-up episodes never "air", and the computer player always picks. In
-     light mode the Overview pick section has no card around it, unlike its neighbours (light pass).
+     only checked in code: catch-up episodes never "air", and the computer player always picks. (The light-mode pick section with no card was fixed by the light-mode pass:
+     every section is flat in both modes now.)
    - Verified at 390×844 dark with `docs/ux-baseline/scripts/pool-flow.js` on a throwaway "UX Pool
      CU" league (Survivor 49 catch-up, made with `create-flow.js POOL=1`; deleted after). Checked: the
      Episode 1 pick round trip (server-checked, the tab badge clearing); results hidden (Overview,
@@ -474,7 +476,51 @@ explained to a commissioner") rather than re-deriving it from source each time.
      Traitors (US) 5, at 1280×900 dark, and 390 light. Every page, the cast row sheet, the paste panel
      (the free prompt fetch only), the review hidden and shown with a result sheet. No console errors,
      no horizontal overflow, `npm test` 247/247. No data was changed.
-3. Light mode pass.
+3. ~~Light mode pass~~ **Done 2026-10-10.** Light mode is direction A's "Studio" palette in
+   `src/app/globals.css` (`:root`); the interim cream cards and terracotta are gone. DESIGN.md and
+   `.impeccable/design.json` document both modes.
+   - **Palette:** Studio Ground #ecebf1 (a step darker than the white plates, so plates still read as
+     graphics laid over the picture), Studio Panel #f8f7fb (cards, sheets, fields, header, tab bar,
+     sidebar), Raised #e1dfe8, Night Ink #16141d, Muted #5d586b; live #c02a34, good #0b7568 and gold
+     #85601a, each with white ink on its fill where it has one; radius 4px like Night. Contrast checked:
+     every text colour is 4.5:1 or better on every Studio fill it sits on.
+   - **New tokens (both modes):** `--chyron-line` is the chyron as text, an outline, a border or a small
+     dot: the yellow on Night, deep amber #845800 on Studio, where yellow can't be read. Every
+     `text-primary`, `text-/outline-/border-chyron`, `border-primary`, the "needs you" dots, progress
+     segments and the turn pill underline moved to it; `ring` and `accent-foreground` are it too.
+     `chyron`/`primary` stay fills with ink (`primary` is the yellow in both modes now).
+     `--good-foreground` replaces the hard-coded `#0e2b27` tag ink (9 places), fixing the `good` tag.
+     `--plate-shadow`, `--sheet-shadow`, `--bar-shadow` (as `shadow-plate`/`-sheet`/`-bar`), `--scrim`
+     and `--focus-halo` replace hard-coded shadows and the terracotta field focus halo (fields also take
+     the Field Line border, `border-input`, as DESIGN.md already said).
+   - **Same structure in both modes:** every `dark:`-gated box is gone (`DashCard`, League Scoring,
+     the catch-up line, the catch-up info block, the locked Latest Episode card), and `section-shell`
+     is deleted. This fixed the Pool pick section that had no card in light. `DashCard`'s heading now
+     pins `font-extrabold leading-none` (CardTitle's `font-medium` was winning once `type-caption`
+     lost its `dark:` variant). The leader's rank is `chyron-line` in both modes (it was dark-only).
+   - **Decisions taken in the pass (easy to revert, the user's call):** the reveal (`/reveal/N`)
+     **always plays on Night** (its root has `dark`): in light it showed a muddy amber hero number and a
+     white button vanishing on the pale ground, and it's the broadcast moment. What's New's header was
+     white text on a yellow gradient (broken in dark too); it's a chyron bar with ink now. The "(you)"
+     row in Latest Episode's league table used a 5% yellow tint (beige in light); it's the documented
+     raised fill now, in both modes.
+   - **Logos:** the light `banner.png` and the sidebar logo had an opaque cream background baked in;
+     both were keyed to transparent the way the dark pair already was (`sidebar-logo.jpg` is now
+     `sidebar-logo.png`). The torch logo and name are still not binding.
+   - Not done: the shadcn `Badge`'s own `dark:` variants (unused tints) were left alone; the sidebar's
+     footer links are all chyron-line (they were all yellow in dark before; arguably too much yellow,
+     not changed). `role-badge.tsx`'s terracotta role tag and `review-bits.tsx`'s gold confidence dot
+     are fixed hex colours that read in both modes.
+   - Verified at 390×844 **light** with the headless scripts: Classic Overview, Episodes, Episode 2,
+     Scoreboard and a player page, League Settings and League setup (field focus), Players, Rules,
+     My Leagues, the More sheet, What's New, Active Roster Overview and Lineup, the live Draft, the
+     whole admin area (`admin-flow.js THEME=light`, read-only), the create-league flow end to end
+     (`create-flow.js` now takes `THEME`; catch-up Classic), an Eliminator Pool league's Overview, Pick
+     and Episodes (`POOL=1`), and the spoiler gate, sheet and every reveal beat (`reveal-flow.js`, with
+     `results_seen_through` lowered first and put back). Plus 1280 light (Overview, Episodes, League
+     setup) and dark at 390 and 1280 for regressions (Overview, League setup, Lineup, Pool, sheet, What's
+     New). The two throwaway leagues were deleted (no invites left). `tsc` clean in `src`, eslint clean
+     on every changed file, `npm test` 247/247. No paid AI was triggered.
 4. Then merge and push.
 
 **Notes for the next session:**
@@ -485,7 +531,9 @@ explained to a commissioner") rather than re-deriving it from source each time.
 - Test data in the local DB: league `UX AR S51` (Active Roster, used to check the build) and the
   baseline league `UX Baseline S51`, both owned by the throwaway `uxbaseline` account; see
   `docs/ux-baseline/README.md`.
-- Verify UI at 390×844 in dark mode first (headless Chromium scripts: `docs/ux-baseline/scripts/`).
+- Verify UI at 390×844 in dark mode first, then light (headless Chromium scripts:
+  `docs/ux-baseline/scripts/`, `THEME=light`). Use `chyron-line` for any yellow that isn't a fill
+  behind ink; DESIGN.md's Fill Not Line Rule.
 
 **State as of 2026-10-02:** everything below is on `master` and pushed (live). The user tests on
 their phone against production and reports back, often with screenshots or screen recordings.

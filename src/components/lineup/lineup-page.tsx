@@ -37,7 +37,7 @@ export function LineupPage() {
     return (
       <p className="text-base text-muted-foreground">
         This league doesn&rsquo;t use lineups.{" "}
-        <Link href="/" className="font-semibold text-primary">
+        <Link href="/" className="font-semibold text-chyron-line">
           Go to Overview
         </Link>
       </p>
@@ -244,7 +244,7 @@ function MyLineup({ state, ep, playerId, locked }: { state: LeagueState; ep: Epi
         </p>
       )}
 
-      <Link href="/setup/rules" className="self-start text-sm font-semibold text-primary hover:underline">
+      <Link href="/setup/rules" className="self-start text-sm font-semibold text-chyron-line hover:underline">
         What each event scores
       </Link>
     </>
@@ -356,7 +356,7 @@ function EveryoneRow({
           <span
             className={cn(
               "rounded-[2px] px-1.5 py-px text-[11px] font-bold uppercase tracking-wide",
-              set ? "bg-good text-[#0e2b27]" : "bg-muted text-muted-foreground"
+              set ? "bg-good text-good-foreground" : "bg-muted text-muted-foreground"
             )}
           >
             {set ? "Set" : starters.length > 0 ? `${starters.length} of ${starters.length + empty}` : "Not set"}

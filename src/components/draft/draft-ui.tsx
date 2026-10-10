@@ -107,7 +107,7 @@ export function CastTile({
     // photo keeps a portrait-friendly ratio instead of cropping to a strip of forehead.
     "relative flex min-w-0 flex-col overflow-hidden rounded-[3px] text-left [&>div:first-child]:h-[var(--photo-h)] sm:[&>div:first-child]:aspect-square sm:[&>div:first-child]:h-auto",
     dim ? "bg-muted text-muted-foreground opacity-75" : "bg-plate text-plate-foreground",
-    mark === "add" && "outline-3 outline-offset-2 outline-chyron",
+    mark === "add" && "outline-3 outline-offset-2 outline-chyron-line",
     mark === "drop" && "outline-3 outline-offset-2 outline-live",
   );
   const style = { "--photo-h": `${photoHeight}px` } as React.CSSProperties;
@@ -121,7 +121,7 @@ export function CastTile({
   return (
     <button
       type="button"
-      className={cn(cls, "focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron disabled:cursor-default")}
+      className={cn(cls, "focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:cursor-default")}
       style={style}
       aria-pressed={!!mark}
       aria-label={castaway.name}
@@ -195,7 +195,7 @@ export function TurnPill({ children, you, now, done }: { children: ReactNode; yo
       className={cn(
         "inline-flex min-h-7 shrink-0 items-center gap-1.5 rounded-[3px] px-2.5 text-[13px] font-semibold",
         you ? "bg-foreground text-background" : "bg-card text-foreground",
-        now && "shadow-[inset_0_-3px_0_var(--chyron)]",
+        now && "shadow-[inset_0_-3px_0_var(--chyron-line)]",
         done && "text-muted-foreground line-through",
       )}
     >
@@ -251,7 +251,7 @@ function FilterChip({ on, onClick, children }: { on: boolean; onClick: () => voi
 export function ConfirmBar({ note, title, children }: { note: ReactNode; title: ReactNode; children?: ReactNode }) {
   return (
     <div
-      className="sticky bottom-[var(--tabbar-h)] z-40 -mx-4 mt-2 flex items-center gap-3 border-t border-input bg-card px-4 py-3 shadow-[0_-10px_24px_rgba(0,0,0,0.35)] nav:mx-0 nav:rounded-[3px] nav:border"
+      className="sticky bottom-[var(--tabbar-h)] z-40 -mx-4 mt-2 flex items-center gap-3 border-t border-input bg-card px-4 py-3 shadow-bar nav:mx-0 nav:rounded-[3px] nav:border"
       role="status"
       data-confirm-bar
     >
@@ -271,7 +271,7 @@ export function BarButton({ onClick, disabled, children }: { onClick: () => void
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="min-h-12 max-w-[60%] shrink-0 truncate rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron disabled:bg-muted disabled:text-muted-foreground disabled:hover:brightness-100"
+      className="min-h-12 max-w-[60%] shrink-0 truncate rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:bg-muted disabled:text-muted-foreground disabled:hover:brightness-100"
     >
       {children}
     </button>
@@ -295,7 +295,7 @@ export function PlainButton({
   className?: string;
 }) {
   const cls = cn(
-    "flex min-h-12 items-center justify-center gap-1.5 rounded-[3px] border px-4 text-[15px] font-bold transition-colors focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron disabled:opacity-40",
+    "flex min-h-12 items-center justify-center gap-1.5 rounded-[3px] border px-4 text-[15px] font-bold transition-colors focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:opacity-40",
     danger ? "border-live/40 text-live hover:bg-live/10" : "border-input bg-card text-foreground hover:bg-secondary",
     className,
   );

@@ -440,7 +440,7 @@ function StatusChip({ d, curator }: { d: SeasonDecision; curator: boolean }) {
   if (d.status === "pending") return <Chip>Pending</Chip>;
   if (d.status === "rejected") return <Chip tone="live">{curator ? "Flagged" : "Rejected"}</Chip>;
   return (
-    <span className="shrink-0 rounded-[2px] bg-good px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-[#0e2b27]">
+    <span className="shrink-0 rounded-[2px] bg-good px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-good-foreground">
       {curator ? (d.applied ? "Corrected" : "Confirmed") : "Accepted"}
     </span>
   );

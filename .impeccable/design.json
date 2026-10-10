@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-09T00:00:00Z",
+  "generatedAt": "2026-10-10T00:00:00Z",
   "title": "Design System: Reality Fantasy Leagues",
   "extensions": {
     "colorMeta": {
@@ -11,7 +11,17 @@
       "caption-plate": { "role": "primary", "displayName": "Caption Plate", "canonical": "#ffffff", "tonalRamp": ["#121018", "#2a2633", "#4a4558", "#7a748a", "#a9a4b8", "#d8d5e0", "#f1eff6", "#ffffff"] },
       "live-red": { "role": "secondary", "displayName": "Live Red", "canonical": "#f2545b", "tonalRamp": ["#2a0a0c", "#55141a", "#86202a", "#b9303b", "#e0444d", "#f2545b", "#f78f93", "#fcd3d5"] },
       "safe-teal": { "role": "secondary", "displayName": "Safe Teal", "canonical": "#35b5a5", "tonalRamp": ["#0e2b27", "#16443e", "#1f6058", "#2a8174", "#35b5a5", "#5fcabd", "#9de0d7", "#d6f3ef"] },
-      "gold-accent": { "role": "tertiary", "displayName": "Gold Accent", "canonical": "#e0b23a", "tonalRamp": ["#2e2306", "#4d3a0a", "#715510", "#987218", "#c19222", "#e0b23a", "#ecce7d", "#f8ecc8"] }
+      "gold-accent": { "role": "tertiary", "displayName": "Gold Accent", "canonical": "#e0b23a", "tonalRamp": ["#2e2306", "#4d3a0a", "#715510", "#987218", "#c19222", "#e0b23a", "#ecce7d", "#f8ecc8"] },
+      "chyron-line-night": { "role": "primary", "displayName": "Chyron Line (Night)", "canonical": "#ffc531", "mode": "night", "purpose": "The chyron as text, outline, border or dot. Same as the yellow on Night." },
+      "studio-ground": { "role": "neutral", "displayName": "Studio Ground", "canonical": "#ecebf1", "mode": "studio", "tonalRamp": ["#f8f7fb", "#ecebf1", "#e1dfe8", "#dcd9e4", "#d6d3de", "#b9b4c6", "#5d586b", "#16141d"] },
+      "studio-panel": { "role": "neutral", "displayName": "Studio Panel", "canonical": "#f8f7fb", "mode": "studio", "purpose": "Cards, sheets, fields, header, tab bar, sidebar." },
+      "studio-raised": { "role": "neutral", "displayName": "Studio Raised", "canonical": "#e1dfe8", "mode": "studio", "purpose": "Your row, the quiet tag, segmented tracks." },
+      "night-ink": { "role": "neutral", "displayName": "Night Ink", "canonical": "#16141d", "mode": "studio", "purpose": "Body text on Studio: the night ground as ink." },
+      "studio-muted": { "role": "neutral", "displayName": "Studio Muted", "canonical": "#5d586b", "mode": "studio", "purpose": "Secondary text on Studio; 5.2:1 or better on every Studio fill." },
+      "chyron-line-studio": { "role": "primary", "displayName": "Chyron Line (Studio)", "canonical": "#845800", "mode": "studio", "purpose": "Deep amber: the chyron as text, outline, border or dot on a light ground, where yellow can't be read. 4.9:1 on the ground." },
+      "live-red-studio": { "role": "secondary", "displayName": "Live Red (Studio)", "canonical": "#c02a34", "mode": "studio", "purpose": "Eliminations and deletes on Studio, white ink on its fill." },
+      "safe-teal-studio": { "role": "secondary", "displayName": "Safe Teal (Studio)", "canonical": "#0b7568", "mode": "studio", "purpose": "Good news on Studio, white ink on its fill (--good-foreground)." },
+      "gold-accent-studio": { "role": "tertiary", "displayName": "Gold Accent (Studio)", "canonical": "#85601a", "mode": "studio" }
     },
     "typographyMeta": {
       "caption-xl": { "displayName": "Section heading", "purpose": "Condensed caps heading over each flat section in dark mode." },
@@ -26,9 +36,10 @@
       "mono": { "displayName": "Mono", "purpose": "Legacy number cells and code-like content only." }
     },
     "shadows": [
-      { "name": "plate-lift", "value": "0 6px 18px rgba(0,0,0,0.3)", "purpose": "Caption plates and the alert strip, laid over the picture." },
-      { "name": "sheet-lift", "value": "0 -12px 30px rgba(0,0,0,0.45)", "purpose": "The bottom sheet rising from below." },
-      { "name": "scrim", "value": "rgba(8,6,12,0.6)", "purpose": "Backdrop behind sheets and dialogs." }
+      { "name": "plate-lift", "token": "--plate-shadow", "value": "0 6px 18px rgba(0,0,0,0.3)", "studio": "0 1px 2px rgba(22,20,29,0.1), 0 4px 14px rgba(22,20,29,0.14)", "purpose": "Caption plates, the alert strip and the vote-out card, laid over the picture." },
+      { "name": "sheet-lift", "token": "--sheet-shadow", "value": "0 -12px 30px rgba(0,0,0,0.45)", "studio": "0 -10px 30px rgba(22,20,29,0.16)", "purpose": "Bottom sheets rising from below." },
+      { "name": "bar-lift", "token": "--bar-shadow", "value": "0 -10px 24px rgba(0,0,0,0.35)", "studio": "0 -6px 18px rgba(22,20,29,0.1)", "purpose": "Sticky confirm and action bars." },
+      { "name": "scrim", "token": "--scrim", "value": "rgba(8,6,12,0.6)", "studio": "rgba(22,20,29,0.45)", "purpose": "Backdrop behind sheets and dialogs." }
     ],
     "motion": [
       { "name": "sheet-slide", "value": "transform 200ms ease-out", "purpose": "Bottom sheet enter/exit (translateY 100%)." },
@@ -38,6 +49,10 @@
     "breakpoints": [
       { "name": "sm", "value": "640px" },
       { "name": "nav", "value": "880px" }
+    ],
+    "modes": [
+      { "name": "Night", "selector": ".dark", "purpose": "Dark mode: the evening couch. Violet-black ground, bone text." },
+      { "name": "Studio", "selector": ":root", "purpose": "Light mode: the same graphics on a bright set. Pale cool-grey ground, night ink. Plates, plate ink and the chyron fill don't change." }
     ]
   },
   "components": [
@@ -104,19 +119,28 @@
       "description": "A flat Overview section: condensed caps heading, no box.",
       "html": "<section class=\"ds-section\"><h3 class=\"ds-section-title\">Standings</h3><p class=\"ds-section-body\">Rows run edge to edge under the heading, divided by hairlines.</p></section>",
       "css": ".ds-section{max-width:390px;background:#16141d;color:#f4f2f8;padding:16px;font-family:Archivo,system-ui,sans-serif}.ds-section-title{margin:0 0 10px;font-stretch:62%;font-weight:800;text-transform:uppercase;font-size:24px;letter-spacing:.01em;line-height:1}.ds-section-body{margin:0;font-size:16px;line-height:1.5;color:#a9a4b8}"
+    },
+    {
+      "name": "Caption Plate (Studio)",
+      "kind": "custom",
+      "refersTo": "caption-plate",
+      "description": "The same plate on the light-mode ground: a tighter two-layer shadow gives the white plate its edge; the focus outline is the amber chyron line.",
+      "html": "<div class=\"ds-studio\"><a class=\"ds-splate\" href=\"#\"><span class=\"ds-splate-tag\">Ep 3</span><span class=\"ds-splate-body\"><span class=\"ds-splate-title\">Results are in</span><span class=\"ds-splate-sub\">Tap when you've watched</span></span></a><a class=\"ds-slink\" href=\"#\">View full scoreboard &rarr;</a></div>",
+      "css": ".ds-studio{max-width:390px;background:#ecebf1;padding:16px;display:flex;flex-direction:column;gap:12px;font-family:Archivo,system-ui,sans-serif}.ds-splate{display:flex;align-items:stretch;min-height:60px;overflow:hidden;border-radius:3px;box-shadow:0 1px 2px rgba(22,20,29,.1),0 4px 14px rgba(22,20,29,.14);text-decoration:none}.ds-splate:focus-visible{outline:3px solid #845800;outline-offset:2px}.ds-splate-tag{display:flex;align-items:center;padding:0 20px 0 12px;background:#ffc531;color:#121018;font-stretch:62%;font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:15px;clip-path:polygon(0 0,100% 0,84% 100%,0 100%)}.ds-splate-body{margin-left:-10px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:2px;background:#fff;color:#121018;padding:8px 12px}.ds-splate-title{font-stretch:62%;font-weight:800;text-transform:uppercase;font-size:22px;line-height:1}.ds-splate-sub{font-size:13px;color:#4a4558}.ds-slink{color:#845800;font-weight:600;font-size:13px;text-decoration:none}"
     }
   ],
   "narrative": {
     "northStar": "Lower Third",
-    "overview": "The app speaks in the on-screen graphics reality TV already uses: the strip across the bottom of the frame that names who's talking, the yellow bar that says something is happening now, the red bar when someone's gone home. Players use it on a phone, on the couch, the night an episode airs, so the ground is night-dark and everything that matters sits on a white caption plate that reads instantly against it. The rest of the screen stays quiet and flat so those plates carry the news.\n\nDensity is a rundown, not a dashboard. Overview sections have no boxes, just a condensed caps heading over their content, in the order a broadcast would run them. One family, Archivo, does everything, and its width axis does most of the work: normal width for anything you read, the condensed end in caps for names, headings and numbers. Colour is rationed. Chyron yellow means \"now\" or \"you\", live red means out, and tribe or team colours appear only as small tags.\n\nThe product is any show, not just Survivor, so the vocabulary is broadcast television in general, not one show's world. No torches, tiki, jungle textures or tribal patterns.",
+    "overview": "The app speaks in the on-screen graphics reality TV already uses: the strip across the bottom of the frame that names who's talking, the yellow bar that says something is happening now, the red bar when someone's gone home. Players use it on a phone, on the couch, the night an episode airs, so the ground is night-dark and everything that matters sits on a white caption plate that reads instantly against it. The rest of the screen stays quiet and flat so those plates carry the news.\n\nDensity is a rundown, not a dashboard. Overview sections have no boxes, just a condensed caps heading over their content, in the order a broadcast would run them. One family, Archivo, does everything, and its width axis does most of the work: normal width for anything you read, the condensed end in caps for names, headings and numbers. Colour is rationed. Chyron yellow means \"now\" or \"you\", live red means out, and tribe or team colours appear only as small tags.\n\nIt runs on two grounds. Night (dark mode) is the evening couch: a violet-black ground. Studio (light mode) is the same graphics package on a bright set: a pale cool grey, so the white plates still read as laid over the picture, with the night colour as ink. Everything but the colour values is shared; a component never changes shape between modes.\n\nThe product is any show, not just Survivor, so the vocabulary is broadcast television in general, not one show's world. No torches, tiki, jungle textures or tribal patterns.",
     "keyCharacteristics": [
-      "Night ground, white caption plates, one yellow accent for \"now\".",
+      "Night or Studio ground, white caption plates, one yellow accent for \"now\".",
       "Archivo throughout; condensed (wdth 62) 800-weight caps for captions and numbers.",
       "Flat sections separated by headings and hairlines, not cards.",
       "Nearly square corners (3–4px) on everything that is broadcast graphics; only the bottom sheet is rounded.",
       "Mobile first: designed at 390px, 44px minimum touch targets, 16px text in every field."
     ],
     "rules": [
+      { "name": "The Fill Not Line Rule", "body": "chyron (and primary) is only ever a fill with Chyron Ink on it. Anything else yellow (text, an outline, a border, a dot, an underline) uses chyron-line: the yellow on Night, a deep amber on Studio. Same split for good / good-foreground; never hard-code tag ink.", "section": "colors" },
       { "name": "The One Chyron Rule", "body": "Yellow means \"now\" or \"you\". If more than one thing on a screen is yellow, one of them is wrong. Never use it for decoration or as a generic brand colour.", "section": "colors" },
       { "name": "The Red Is For Leaving Rule", "body": "Live Red is for someone going home and for actions that delete. Losing points is not an elimination; use muted text or a down chart bar, not red text everywhere.", "section": "colors" },
       { "name": "The Tags Not Fills Rule", "body": "Tribe, team and player colours appear as a small tag, dot or the angled end of a plate, never as a large background.", "section": "colors" },
@@ -128,10 +152,11 @@
     "dos": [
       "Do put \"now\" moments on a Caption Plate with a chyron tag, and keep them to one or two per screen.",
       "Do use the condensed caps (type-caption) for names, headings and tags, and type-num for any number in a column.",
-      "Do keep sections flat in dark mode: a heading and hairlines, no card box.",
+      "Do keep sections flat in both modes: a heading and hairlines, no card box.",
       "Do design at 390px first, with 44px touch targets and 48px rows.",
       "Do use the show's own terms (castaways, tribes, Faithful, teams). The graphics are generic TV; the words belong to the show.",
-      "Do put destructive row actions last in a bottom sheet, as red text after a divider."
+      "Do put destructive row actions last in a bottom sheet, as red text after a divider.",
+      "Do check every new screen in both modes; a yellow line or text that looks right on Night is invisible on Studio."
     ],
     "donts": [
       "Don't use Chyron Yellow decoratively or on more than one competing element.",
@@ -142,7 +167,8 @@
       "Don't use Survivor-specific motifs (torches, tiki, jungle, tribal patterns) in shared UI.",
       "Don't put a filled red button next to routine buttons.",
       "Don't reveal results anywhere outside the reveal: no names, eliminations or scores in teasers, plates or tags before a player has chosen to see them.",
-      "Don't treat light mode's cream cards as the target; they're interim until the light-mode pass."
+      "Don't use text-chyron, border-chyron, outline-chyron or a small bg-chyron dot: those are chyron-line. Don't hard-code shadows, scrims or tag inks; use the tokens.",
+      "Don't gate structure on the mode (dark: for a box, a border or a layout). Modes differ only in token values; the one deliberate exception is the reveal, which always plays on Night."
     ]
   }
 }

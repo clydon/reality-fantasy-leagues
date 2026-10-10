@@ -20,6 +20,19 @@ colors:
   safe-teal: "#35b5a5"
   safe-ink: "#0e2b27"
   gold-accent: "#e0b23a"
+  chyron-line-night: "#ffc531"
+  studio-ground: "#ecebf1"
+  studio-panel: "#f8f7fb"
+  studio-raised: "#e1dfe8"
+  studio-hover: "#dcd9e4"
+  studio-line: "#d6d3de"
+  studio-field-line: "#b9b4c6"
+  night-ink: "#16141d"
+  studio-muted: "#5d586b"
+  chyron-line-studio: "#845800"
+  live-red-studio: "#c02a34"
+  safe-teal-studio: "#0b7568"
+  gold-accent-studio: "#85601a"
   chart-ember: "#f2804b"
   chart-orchid: "#a76bb0"
   chart-lake: "#5089c9"
@@ -198,10 +211,11 @@ components:
 
 # Design System: Reality Fantasy Leagues
 
-<!-- Scope: this documents dark mode, which is direction A ("Lower Third"). Light mode still runs the
-     previous cream-and-terracotta palette in cards, with Archivo and the new plates on top; it gets
-     its own pass at the end of the redesign and this file will be updated then. Token values above
-     are the `.dark` values in src/app/globals.css. -->
+<!-- Scope: both modes are direction A ("Lower Third"): the same components, type and shapes on two
+     grounds. Unprefixed colour tokens above are dark mode ("Night", the `.dark` block in
+     src/app/globals.css); the `studio-*` and `*-studio` tokens are light mode ("Studio", `:root`).
+     Plate, plate ink, chyron fill and chyron ink are the same in both. Component tokens reference
+     the Night values; on Studio each resolves to its Studio twin through the same CSS variable. -->
 
 ## Overview
 
@@ -211,10 +225,12 @@ The app speaks in the on-screen graphics reality TV already uses: the strip acro
 
 Density is a rundown, not a dashboard. Overview sections have no boxes, just a condensed caps heading over their content, in the order a broadcast would run them. One family, Archivo, does everything, and its width axis does most of the work: normal width for anything you read, the condensed end in caps for names, headings and numbers. Colour is rationed. Chyron yellow means "now" or "you", live red means out, and tribe or team colours appear only as small tags.
 
+It runs on two grounds. **Night** (dark mode) is the evening couch: a violet-black ground. **Studio** (light mode) is the same graphics package on a bright set: a pale cool grey, so the white plates still read as laid over the picture, with the night colour as ink. Everything but the colour values is shared; a component never changes shape between modes.
+
 The product is any show, not just Survivor, so the vocabulary is broadcast television in general, not one show's world. No torches, tiki, jungle textures or tribal patterns.
 
 **Key Characteristics:**
-- Night ground, white caption plates, one yellow accent for "now".
+- Night or Studio ground, white caption plates, one yellow accent for "now".
 - Archivo throughout; condensed (wdth 62) 800-weight caps for captions and numbers.
 - Flat sections separated by headings and hairlines, not cards.
 - Nearly square corners (3–4px) on everything that is broadcast graphics; only the bottom sheet is rounded.
@@ -222,15 +238,16 @@ The product is any show, not just Survivor, so the vocabulary is broadcast telev
 
 ## Colors
 
-A cool violet-black night with one hot accent and one alarm colour; everything else is neutral.
+A cool violet-black night (or its daylight twin, a pale violet-grey studio) with one hot accent and one alarm colour; everything else is neutral. The values below are Night's; **Studio** is listed after them.
 
 ### Primary
-- **Chyron Yellow** (#ffc531): "This is happening now, and it's yours." The alert strip's tag, your turn, the primary action, the leader's rank, focus rings, text selection, the active tab. On dark it is also the shadcn `primary` and `ring`.
+- **Chyron Yellow** (#ffc531): "This is happening now, and it's yours." The alert strip's tag, your turn, the primary action, text selection. It is the shadcn `primary` in both modes, always as a fill with Chyron Ink on it.
+- **Chyron Line** (`--chyron-line`): the chyron used as text, an outline, a border or a small dot: links, the active tab, the leader's rank, focus rings, a selected tile's outline, progress segments, "needs you" dots. On Night it is the yellow itself; on Studio it is a deep amber (#845800), because yellow as a line or text disappears on a light ground. It is also `ring` and `accent-foreground`.
 - **Caption Plate** (#ffffff): the white bar that names and moments sit on. It's a surface, not text colour: only plates, the alert strip and the "You" badge are white-backed.
 
 ### Secondary
 - **Live Red** (#f2545b): eliminations, "Out", destructive actions and errors. Its ink (#2a0a0c) is near-black red, so a red tag reads like broadcast "LIVE", not a warning dialog.
-- **Safe Teal** (#35b5a5): good news: safe, correct pick, points gained. Tag ink is #0e2b27.
+- **Safe Teal** (#35b5a5): good news: safe, correct pick, points gained. Tag ink is #0e2b27 (`--good-foreground`).
 
 ### Tertiary
 - **Gold Accent** (#e0b23a): the old `accent-2`, kept for secondary emphasis that predates the redesign. Prefer Chyron Yellow in new work.
@@ -247,7 +264,19 @@ A cool violet-black night with one hot accent and one alarm colour; everything e
 - **Dusk Muted** (#a9a4b8): secondary text, ranks other than first, labels.
 - **Plate Ink** (#121018) and **Plate Muted** (#4a4558): text on a caption plate.
 
+### Studio (light mode)
+The same roles on a bright set. Plates, plate ink, the chyron fill and its ink don't change.
+- **Studio Ground** (#ecebf1): the page. Pale and cool, a step darker than a plate so white plates still read as graphics over it.
+- **Studio Panel** (#f8f7fb): cards, popovers, sheets, fields, and the header, tab bar and sidebar (a step brighter than the ground, where Night's rail is a step darker).
+- **Studio Raised** (#e1dfe8): muted fills: your own row, the quiet tag, the segmented control's track. **Studio Hover** (#dcd9e4) is `accent`.
+- **Studio Line** (#d6d3de) for row hairlines; **Studio Field Line** (#b9b4c6) for input borders.
+- **Night Ink** (#16141d): body text, the night colour turned into ink. **Studio Muted** (#5d586b): secondary text, 5.2:1 or better on every Studio fill.
+- **Chyron Line** is deep amber (#845800). **Live Red** deepens to #c02a34 with white ink, **Safe Teal** to #0b7568 with white ink, **Gold Accent** to #85601a: each is 4.5:1 or better as text on the ground and as the fill behind its ink.
+- The You badge, the chosen side of a segmented control and your turn pills, bone on Night, are ink on Studio: they're `foreground` fills, so they invert with the ground.
+
 ### Named Rules
+**The Fill Not Line Rule.** `chyron` (and `primary`) is only ever a fill with Chyron Ink on it. Anything else yellow (text, an outline, a border, a dot, an underline) uses `chyron-line`. On Night they look identical, so the mistake only shows on Studio. The same split holds for `good` (the colour) and `good-foreground` (the ink on a `good` fill); never hard-code tag ink.
+
 **The One Chyron Rule.** Yellow means "now" or "you". If more than one thing on a screen is yellow, one of them is wrong. Never use it for decoration or as a generic brand colour.
 
 **The Red Is For Leaving Rule.** Live Red is for someone going home and for actions that delete. Losing points is not an elimination; use muted text or a down chart bar, not red text everywhere.
@@ -263,7 +292,7 @@ A cool violet-black night with one hot accent and one alarm colour; everything e
 **Character:** One family split by width, like a broadcast package. The condensed caps are loud and compact, so a long castaway name still fits a 390px plate; the normal width underneath is plain and readable.
 
 ### Hierarchy
-- **Section heading** (800, 24px, condensed caps, line-height 1): Overview sections and other page sections in dark mode (`section-title`, `DashCard`).
+- **Section heading** (800, 24px, condensed caps, line-height 1): Overview sections and other page sections (`section-title`, `DashCard`).
 - **Page title / plate title** (800, 22px, condensed caps): the mobile header's page name, caption plate titles, bottom sheet titles.
 - **Small plate title** (800, 19px, condensed caps): the alert strip and small plates.
 - **Tag** (800, 13–15px, condensed caps, 0.04em tracking): the angled tag on a plate.
@@ -286,15 +315,16 @@ Single column at phone width with a 16px gutter; designed and checked at 390×84
 
 The mobile header centres the page's own name in condensed caps, with the league name small above it (still the league switcher, still swipeable between linked leagues). The alert strip sits at the top of the content, one item at a time with a pager.
 
-Rows are at least 48px tall, separated by hairlines rather than gaps. Touch targets are at least 44px; inputs and selects are 44px tall on phones (40px for the dense size). Sections are spaced roughly 24px apart; within a section, rows run edge to edge with no internal padding in dark mode.
+Rows are at least 48px tall, separated by hairlines rather than gaps. Touch targets are at least 44px; inputs and selects are 44px tall on phones (40px for the dense size). Sections are spaced roughly 24px apart; within a section, rows run edge to edge with no internal padding.
 
 ## Elevation & Depth
 
-Flat by default. Sections have no box, border or shadow in dark mode; depth comes from tone (night ground → night panel) and from hairlines. Shadows exist only on things that float over the broadcast:
+Flat by default. Sections have no box, border or shadow; depth comes from tone (ground → panel) and from hairlines. Shadows exist only on things that float over the broadcast, as tokens so each mode gets its own strength (`shadow-plate`, `shadow-sheet`, `shadow-bar`, `bg-(--scrim)`):
 
-- **Plate lift** (`box-shadow: 0 6px 18px rgba(0,0,0,0.3)`): caption plates and the alert strip, so they read as graphics laid over the picture.
-- **Sheet lift** (`box-shadow: 0 -12px 30px rgba(0,0,0,0.45)`): the bottom sheet, rising from below.
-- **Scrim** (`rgba(8,6,12,0.6)`): behind sheets and dialogs.
+- **Plate lift** (`--plate-shadow`; Night `0 6px 18px rgba(0,0,0,0.3)`, Studio `0 1px 2px rgba(22,20,29,0.1), 0 4px 14px rgba(22,20,29,0.14)`): caption plates, the alert strip and the vote-out card, so they read as graphics laid over the picture. On Studio the tight first layer gives a white plate its edge against the pale ground.
+- **Sheet lift** (`--sheet-shadow`; Night `0 -12px 30px rgba(0,0,0,0.45)`, Studio `0 -10px 30px rgba(22,20,29,0.16)`): bottom sheets, rising from below.
+- **Bar lift** (`--bar-shadow`; Night `0 -10px 24px rgba(0,0,0,0.35)`, Studio `0 -6px 18px rgba(22,20,29,0.1)`): sticky confirm and action bars.
+- **Scrim** (`--scrim`; Night `rgba(8,6,12,0.6)`, Studio `rgba(22,20,29,0.45)`): behind sheets and dialogs.
 
 ### Named Rules
 **The Only Plates Float Rule.** If it isn't a caption plate, an alert, a sheet or a popover, it doesn't get a shadow.
@@ -310,7 +340,7 @@ Direction A's signature, in `src/components/ui/caption-plate.tsx`, for the momen
 - **Structure:** an angled tag (one or two words: "New", "Ep 3", "Out") in a tone colour, then a white plate with a condensed caps title and an optional one-line detail, then an optional action label with a chevron.
 - **Tones:** chyron (now / yours), live (out), good (safe, won), quiet (informational). A tribe's own colour can replace the tag colour.
 - **Sizes:** 60px tall (22px title) or 52px small (19px title).
-- **States:** as a link or button, hover brightens slightly (`brightness 1.04`); focus shows a 3px chyron outline offset 2px.
+- **States:** as a link or button, hover brightens slightly (`brightness 1.04`); focus shows a 3px chyron-line outline offset 2px.
 - **Variants built from it:** the alert strip (`action-bar.tsx`), the reveal prompt and "reveal first" (`results-in-banner.tsx`), Last Week, who left (episode page and Overview), and Classic's "banks" plate with a player-coloured tag.
 
 ### Alert Strip
@@ -324,8 +354,8 @@ The caption plate as the app's to-do list (`action-bar.tsx`). Chyron tag names t
 - **Hover / Focus:** hover brightens 6%, press nudges down 1px, focus is a 3px ring in the ring colour at 50%. Disabled is 40% opacity.
 
 ### Inputs / Fields
-- **Style:** night panel fill, hairline border, 4px radius; 44px tall on phones (40px dense), 16px text.
-- **Focus:** the border switches to primary with a 3px soft halo. The halo is still the old terracotta tint, a known leftover to fix with the light-mode pass.
+- **Style:** panel fill, Field Line border, 4px radius; 44px tall on phones (40px dense), 16px text.
+- **Focus:** the border switches to chyron-line with a 3px soft halo (`--focus-halo`: 18% yellow on Night, 16% amber on Studio).
 - **Disabled:** 50% opacity, not-allowed cursor.
 
 ### Bottom Sheet
@@ -349,13 +379,13 @@ League Settings is a list of pages, like a phone's settings (`src/components/set
 A multi-step task gets the whole screen, with no tab bar or sidebar (`/new-league`, `create-league-flow.tsx`): a header with ✕ (first and last step) or back, the flow's name and "N of 4"; a row of 4px segments, chyron up to the current step; the step's question as a 30px condensed caps heading; and one full-width 52px button in a sticky footer. Choices are **option cards**: a night panel with a hairline, and when chosen a white plate with a 3px chyron outline and a tick. Show tiles are 84px key art (a plain 64px tile without art) with the season as a small dark chip.
 
 ### Section (Overview)
-`DashCard` and the shared `section-shell` / `section-title`: in dark mode no box at all, just a 24px condensed caps heading in Bone Text over the content, with an optional aside on the heading line. Sections read like a broadcast rundown.
+`DashCard` and the shared `section-title`: no box at all, just a 24px condensed caps heading in Bone Text over the content, with an optional aside on the heading line. Sections read like a broadcast rundown.
 
 ### Standings Row
-48px rows divided by hairlines: a condensed rank (ties as "T1"; the leader's in chyron, and nobody's when everyone is level), the player's colour dot, the name in 16px semibold, and a condensed tabular total on the right. Active Roster adds the latest episode's score in 13px muted text before the total. Your own row is lifted with a Night Panel Raised fill and a white "You" badge. Classic rows are 62px: the name line carries "2 of 3 standing" in 12px muted, and under it the team as 30px faces (still in first; out ones greyed with their finishing place on a small live-red corner badge, a finalist's in teal), then one muted line on how boot-order scoring works.
+48px rows divided by hairlines: a condensed rank (ties as "T1"; the leader's in chyron-line, and nobody's when everyone is level), the player's colour dot, the name in 16px semibold, and a condensed tabular total on the right. Active Roster adds the latest episode's score in 13px muted text before the total. Your own row is lifted with a Night Panel Raised fill and a white "You" badge. Classic rows are 62px: the name line carries "2 of 3 standing" in 12px muted, and under it the team as 30px faces (still in first; out ones greyed with their finishing place on a small live-red corner badge, a finalist's in teal), then one muted line on how boot-order scoring works.
 
 ### Scoreboard and the commissioner's to-do list
-- **Scoreboard rows** link to the player's own page and take the shape of the league type's scoring: a team's faces (out ones greyed, with where they finished in Live Red), a per-episode table, or streak columns. Ranks show ties as "T1"; the leader's rank is chyron, and nobody's when everyone is level. Your row is lifted like the standings row.
+- **Scoreboard rows** link to the player's own page and take the shape of the league type's scoring: a team's faces (out ones greyed, with where they finished in Live Red), a per-episode table, or streak columns. Ranks show ties as "T1"; the leader's rank is chyron-line, and nobody's when everyone is level. Your row is lifted like the standings row.
 - **Commissioner list** (top of Overview): a muted 19px condensed caps label, then hairline rows (title, one line of detail, the action's name and a chevron). Only shown when something is waiting, and with no yellow, because the alert strip above it already holds the screen's "now".
 
 ### Lineup (Active Roster)
@@ -396,7 +426,7 @@ Results a player hasn't chosen to see stay out of every screen until they do.
 - **While hidden:** the alert plate says "Episode 3 is in"; Standings carries an "As of Episode 2"
   pill (eye-off icon, night panel); the latest episode is a locked card with grey placeholder
   shapes under a blur and a lock. Never blur real photos or names: a blurred face is still a face.
-- **The reveal** (`/reveal/N`) is full screen with no app chrome: league name and Skip at the top,
+- **The reveal** (`/reveal/N`) is full screen with no app chrome, and **always plays on Night**, even in light mode (its root carries `dark`): it's the broadcast itself, like the TV coming on. Its layout: league name and Skip at the top,
   progress dots at the bottom, tap anywhere for the next beat. Beats run like a broadcast: a
   "Previously on" bumper in 64px condensed caps, each challenge's winners as caption plates (good
   tone, or the tribe's colour in the tag), each exit as the **vote-out card** (the photo full width,
@@ -422,7 +452,8 @@ Mobile: a header with the page's name in 22px condensed caps and the league name
 ### Do:
 - **Do** put "now" moments on a Caption Plate with a chyron tag, and keep them to one or two per screen.
 - **Do** use the condensed caps (`type-caption`) for names, headings and tags, and `type-num` for any number in a column.
-- **Do** keep sections flat in dark mode: a heading and hairlines, no card box.
+- **Do** keep sections flat in both modes: a heading and hairlines, no card box.
+- **Do** check every new screen in both modes; a yellow line or text that looks right on Night is invisible on Studio.
 - **Do** design at 390px first, with 44px touch targets and 48px rows.
 - **Do** use the show's own terms (castaways, tribes, Faithful, teams). The graphics are generic TV; the words belong to the show.
 - **Do** put destructive row actions last in a bottom sheet, as red text after a divider.
@@ -436,4 +467,5 @@ Mobile: a header with the page's name in 22px condensed caps and the league name
 - **Don't** use Survivor-specific motifs (torches, tiki, jungle, tribal patterns) in shared UI.
 - **Don't** put a filled red button next to routine buttons.
 - **Don't** reveal results anywhere outside the reveal: no names, eliminations or scores in teasers, plates or tags before a player has chosen to see them.
-- **Don't** treat light mode's cream cards as the target; they're interim until the light-mode pass.
+- **Don't** use `text-chyron`, `border-chyron`, `outline-chyron` or a small `bg-chyron` dot: those are `chyron-line`. Don't hard-code shadows, scrims or tag inks; use the tokens.
+- **Don't** gate structure on the mode (`dark:` for a box, a border or a layout). Modes differ only in token values; the one deliberate exception is the reveal, which forces Night.

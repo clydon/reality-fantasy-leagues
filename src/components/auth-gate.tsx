@@ -288,7 +288,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           {leaguelessUser && !showsDashboard && pathname !== "/dashboard" && (
             <div className="mb-4 rounded-md border border-border bg-secondary/50 px-3 py-1.5 text-xs text-muted-foreground">
               Signed in as {signedInUsername} — no league yet.{" "}
-              <Link href="/dashboard" className="font-semibold text-primary hover:underline">
+              <Link href="/dashboard" className="font-semibold text-chyron-line hover:underline">
                 Join or create one
               </Link>
               .
@@ -298,7 +298,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <ResultsInBanner />
           <ActionBar />
           {flash && (
-            <div className="mb-4 flex items-start gap-2 rounded-md border border-primary/30 bg-accent px-3 py-2 text-sm">
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-chyron-line/30 bg-accent px-3 py-2 text-sm">
               <span className="flex-1">{flash}</span>
               <button className="text-xs font-semibold text-muted-foreground hover:text-foreground" onClick={() => setFlash(null)}>
                 Dismiss

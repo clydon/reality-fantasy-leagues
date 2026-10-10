@@ -18,14 +18,19 @@
   --font-heading: var(--font-archivo);
   /* Direction A ("Lower Third", docs/PLAN-ux-redesign.md): the caption-plate vocabulary. Chyron is
      the "this is happening now" accent (alerts, your turn, the current tab); plate is the white
-     caption bar names and moments sit on; live is the elimination red. */
+     caption bar names and moments sit on; live is the elimination red. chyron-line is the chyron as
+     text, an outline or a dot (see the comment above :root). */
   --color-chyron: var(--chyron);
   --color-chyron-foreground: var(--chyron-foreground);
+  --color-chyron-line: var(--chyron-line);
   --color-plate: var(--plate);
   --color-plate-foreground: var(--plate-foreground);
   --color-plate-muted: var(--plate-muted);
   --color-live: var(--live);
   --color-live-foreground: var(--live-foreground);
+  --shadow-plate: var(--plate-shadow);
+  --shadow-sheet: var(--sheet-shadow);
+  --shadow-bar: var(--bar-shadow);
   /* Brand tokens ported 1:1 from the live app's public/styles.css :root block — a translation,
      not a redesign (see docs/ARCHITECTURE.md). Kept as their own --color-* theme entries rather
      than overloaded onto shadcn's generic slots, so utility classes read the same as the CSS
@@ -35,6 +40,7 @@
   --color-panel-menu: var(--panel-menu);
   --color-accent-2: var(--accent-2);
   --color-good: var(--good);
+  --color-good-foreground: var(--good-foreground);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -73,62 +79,78 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  /* ---- brand tokens, verbatim from public/styles.css :root ---- */
-  --panel: #ffffff;
-  --panel-2: #f1f0eb;
-  --panel-menu: #fdf7ef;
-  --accent-2: #a4783a;
-  --good: #3f8a5a;
+/* Direction A, "Lower Third" (docs/PLAN-ux-redesign.md, DESIGN.md): the app speaks in the on-screen
+   graphics reality TV runs -- white caption plates, chyron yellow for "now", live red only for
+   eliminations, tribe colours as tags. Two grounds for the same graphics: light (:root) is "Studio",
+   a pale cool grey set the plates sit on; dark (.dark, src/lib/theme.ts) is "Night", for the evening
+   couch. Every component is the same in both; only these values change.
 
-  /* ---- direction A caption-plate tokens; interim light values until light mode is redesigned ---- */
+   Yellow can fill a button behind ink in either mode, but as text, a line or a dot it disappears on
+   a light ground. So it has two tokens: --chyron is the fill (always the broadcast yellow, with
+   --chyron-foreground ink on it) and --chyron-line is yellow used as text, an outline, a border or
+   a small dot (the yellow itself on Night, a deep amber on Studio). Same split for safe/good:
+   --good is the colour, --good-foreground the ink on a --good fill. */
+:root {
+  /* ---- brand tokens (names kept from the original public/styles.css port) ---- */
+  --panel: #f8f7fb;
+  --panel-2: #e1dfe8;
+  --panel-menu: #f8f7fb; /* header, tab bar and sidebar: a step brighter than the ground */
+  --accent-2: #85601a;
+  --good: #0b7568;
+  --good-foreground: #ffffff;
+
+  /* ---- caption-plate vocabulary ---- */
   --chyron: #ffc531;
   --chyron-foreground: #121018;
+  --chyron-line: #845800;
   --plate: #ffffff;
-  --plate-foreground: #1d1c19;
-  --plate-muted: #5a5750;
-  --live: #c0392b;
+  --plate-foreground: #121018;
+  --plate-muted: #4a4558;
+  --live: #c02a34;
   --live-foreground: #ffffff;
 
-  /* ---- shadcn semantic slots, mapped onto the same brand tokens ---- */
-  --background: #f7f6f3; /* --bg */
-  --foreground: #1d1c19; /* --text */
-  --card: #ffffff; /* --panel */
-  --card-foreground: #1d1c19;
-  --popover: #ffffff;
-  --popover-foreground: #1d1c19;
-  --primary: #cc5b39; /* --accent (terracotta) */
-  --primary-foreground: #ffffff;
-  --secondary: #f1f0eb; /* --panel2 */
-  --secondary-foreground: #1d1c19;
-  --muted: #f1f0eb; /* --panel2 */
-  --muted-foreground: #726f65; /* --muted */
-  --accent: #fbeee8; /* active-tab tint from styles.css #tabs button.active */
-  --accent-foreground: #cc5b39;
-  --destructive: #c0392b; /* --danger */
-  --border: #e5e2da;
-  --input: #e5e2da;
-  --ring: #a4783a;
-  --chart-1: #d9704a;
-  --chart-2: #45a89a;
-  --chart-3: #a76bb0;
-  --chart-4: #5089c4;
-  --chart-5: #c99a3e;
-  --radius: 8px; /* --radius */
-  --sidebar: #fdf7ef; /* --panel-menu */
-  --sidebar-foreground: #1d1c19;
-  --sidebar-primary: #cc5b39;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f1f0eb;
-  --sidebar-accent-foreground: #1d1c19;
-  --sidebar-border: #e5e2da;
-  --sidebar-ring: #a4783a;
+  /* ---- depth: only plates, sheets, sticky bars and popovers float ---- */
+  --plate-shadow: 0 1px 2px rgba(22, 20, 29, 0.1), 0 4px 14px rgba(22, 20, 29, 0.14);
+  --sheet-shadow: 0 -10px 30px rgba(22, 20, 29, 0.16);
+  --bar-shadow: 0 -6px 18px rgba(22, 20, 29, 0.1);
+  --scrim: rgba(22, 20, 29, 0.45);
+  --focus-halo: rgba(132, 88, 0, 0.16);
+
+  /* ---- shadcn semantic slots ---- */
+  --background: #ecebf1;
+  --foreground: #16141d;
+  --card: #f8f7fb;
+  --card-foreground: #16141d;
+  --popover: #f8f7fb;
+  --popover-foreground: #16141d;
+  --primary: #ffc531;
+  --primary-foreground: #121018;
+  --secondary: #e1dfe8;
+  --secondary-foreground: #16141d;
+  --muted: #e1dfe8;
+  --muted-foreground: #5d586b;
+  --accent: #dcd9e4;
+  --accent-foreground: #845800;
+  --destructive: #c02a34;
+  --border: #d6d3de;
+  --input: #b9b4c6;
+  --ring: #845800;
+  --chart-1: #e0703f;
+  --chart-2: #1f9a8a;
+  --chart-3: #9a5ea3;
+  --chart-4: #4a7fc0;
+  --chart-5: #d29b00;
+  --radius: 4px;
+  --sidebar: #f8f7fb;
+  --sidebar-foreground: #16141d;
+  --sidebar-primary: #ffc531;
+  --sidebar-primary-foreground: #121018;
+  --sidebar-accent: #e1dfe8;
+  --sidebar-accent-foreground: #16141d;
+  --sidebar-border: #d6d3de;
+  --sidebar-ring: #845800;
 }
 
-/* Dark theme (src/lib/theme.ts) = direction A, "Lower Third" (docs/PLAN-ux-redesign.md): the app
-   speaks in the on-screen graphics reality TV runs. Night ground for the evening couch, white caption
-   plates, chyron yellow for "now", live red only for eliminations, tribe colours as tags. Light mode
-   keeps the previous palette until it gets its own pass. */
 .dark {
   color-scheme: dark;
   --panel: #221f2c;
@@ -136,14 +158,22 @@
   --panel-menu: #100e15;
   --accent-2: #e0b23a;
   --good: #35b5a5;
+  --good-foreground: #0e2b27;
 
   --chyron: #ffc531;
   --chyron-foreground: #121018;
+  --chyron-line: #ffc531;
   --plate: #ffffff;
   --plate-foreground: #121018;
   --plate-muted: #4a4558;
   --live: #f2545b;
   --live-foreground: #2a0a0c;
+
+  --plate-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  --sheet-shadow: 0 -12px 30px rgba(0, 0, 0, 0.45);
+  --bar-shadow: 0 -10px 24px rgba(0, 0, 0, 0.35);
+  --scrim: rgba(8, 6, 12, 0.6);
+  --focus-halo: rgba(255, 197, 49, 0.18);
 
   --background: #16141d;
   --foreground: #f4f2f8;
@@ -178,35 +208,23 @@
   --sidebar-border: #2e2a3a;
   --sidebar-ring: #ffc531;
 }
-.dark ::selection {
+::selection {
   background: var(--chyron);
   color: var(--chyron-foreground);
 }
 
 
-/* Overview section shell and heading, shared by every Overview section that doesn't use DashCard.
-   Light: the original card. Dark (direction A): no box, a condensed caps heading, like a broadcast
-   rundown. Kept as two classes so a section's own spacing utilities still apply on top. */
+/* Overview section shell and heading, shared by every Overview section that doesn't use DashCard: no
+   box, a condensed caps heading, like a broadcast rundown. Kept as two classes so a section's own
+   spacing utilities still apply on top. */
 @layer components {
-  .section-shell {
-    @apply rounded-lg border border-border bg-card p-4 shadow-sm;
-  }
-  .dark .section-shell {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
-    padding: 0;
-  }
   .section-title {
-    @apply text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground;
-  }
-  .dark .section-title {
     font-stretch: 62%;
     font-weight: 800;
     font-size: 24px;
     letter-spacing: 0.01em;
     line-height: 1;
+    text-transform: uppercase;
     color: var(--foreground);
   }
 }

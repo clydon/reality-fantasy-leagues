@@ -79,7 +79,7 @@ export function DraftGrid() {
                             {pick ? (
                               <PhotoSquare castaway={pick} size={38} expandable faded={pick.status === "eliminated"} />
                             ) : number === current ? (
-                              <span className="flex size-[38px] items-center justify-center rounded-[3px] border-2 border-chyron text-[11px] font-bold text-foreground">
+                              <span className="flex size-[38px] items-center justify-center rounded-[3px] border-2 border-chyron-line text-[11px] font-bold text-foreground">
                                 {number}
                               </span>
                             ) : (

@@ -194,7 +194,7 @@ export function ActButton({
   type?: "button" | "submit";
 }) {
   const cls = cn(
-    "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[3px] px-3.5 text-[15px] font-bold transition-[filter,background-color] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron disabled:opacity-45",
+    "inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[3px] px-3.5 text-[15px] font-bold transition-[filter,background-color] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:opacity-45",
     tone === "chyron"
       ? "bg-chyron text-chyron-foreground hover:brightness-[1.06] disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
       : "border border-input bg-card text-foreground hover:bg-secondary",
@@ -221,7 +221,7 @@ export function ActButton({
 export function StickyBar({ note, children }: { note?: ReactNode; children: ReactNode }) {
   return (
     <div
-      className="sticky bottom-[var(--tabbar-h)] z-40 -mx-4 mt-auto flex items-center gap-3 border-t border-input bg-card px-4 py-3 shadow-[0_-10px_24px_rgba(0,0,0,0.35)] nav:mx-0 nav:rounded-[3px] nav:border"
+      className="sticky bottom-[var(--tabbar-h)] z-40 -mx-4 mt-auto flex items-center gap-3 border-t border-input bg-card px-4 py-3 shadow-bar nav:mx-0 nav:rounded-[3px] nav:border"
       data-admin-bar
     >
       {note && <span className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">{note}</span>}

@@ -56,7 +56,7 @@ export function StartDraftButton({ state, blind }: { state: LeagueState; blind?:
     <button
       type="button"
       onClick={start}
-      className="min-h-12 w-full rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron nav:w-auto nav:self-start"
+      className="min-h-12 w-full rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line nav:w-auto nav:self-start"
     >
       Start draft now
     </button>
@@ -171,7 +171,7 @@ function OrderArrow({ label, disabled, onClick, children }: { label: string; dis
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex size-11 items-center justify-center rounded-[3px] text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron disabled:opacity-25"
+      className="flex size-11 items-center justify-center rounded-[3px] text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron-line disabled:opacity-25"
     >
       {children}
     </button>
@@ -386,7 +386,7 @@ export function EditPicks({ state, onDone }: { state: LeagueState; onDone: () =>
                     <button
                       type="button"
                       onClick={() => undraft(c.id, c.name, p.name)}
-                      className="min-h-11 shrink-0 rounded-[3px] border border-input px-3 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron"
+                      className="min-h-11 shrink-0 rounded-[3px] border border-input px-3 text-sm font-semibold text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron-line"
                     >
                       Undraft
                     </button>

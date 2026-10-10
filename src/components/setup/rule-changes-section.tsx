@@ -135,7 +135,7 @@ function PendingChange({
   }
 
   return (
-    <div className="mb-3 rounded-[3px] border border-chyron/50 bg-card p-3.5 text-sm">
+    <div className="mb-3 rounded-[3px] border border-chyron-line/50 bg-card p-3.5 text-sm">
       <p className="font-semibold">
         {updateOf ? "Updated: " : ""}Rules changed from episode {change.effectiveEpisode}
       </p>

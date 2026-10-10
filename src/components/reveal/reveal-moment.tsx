@@ -60,12 +60,14 @@ export function RevealMoment({ through: asked }: { through: number }) {
   // stacking its lower thirds.
   const earlier = beat.kind === "win" || beat.kind === "exit" ? beats.slice(0, step).filter((b) => "ep" in b && b.ep === beat.ep) : [];
 
+  // `dark` whatever the theme: the reveal is the broadcast itself, so it always plays on Night, like
+  // the TV coming on. The rest of the app follows the viewer's choice.
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-background text-foreground">
+    <div className="dark relative flex min-h-dvh flex-col overflow-hidden bg-background text-foreground">
       {/* The whole screen is the "next" button; links inside the beat sit above it. */}
       <button
         type="button"
-        className="absolute inset-0 z-0 cursor-pointer outline-none focus-visible:outline-3 focus-visible:-outline-offset-4 focus-visible:outline-chyron disabled:cursor-default"
+        className="absolute inset-0 z-0 cursor-pointer outline-none focus-visible:outline-3 focus-visible:-outline-offset-4 focus-visible:outline-chyron-line disabled:cursor-default"
         aria-label={last ? "The reveal is over" : "Show the next result"}
         disabled={last}
         onClick={() => setStep((s) => Math.min(s + 1, beats.length - 1))}
@@ -113,7 +115,7 @@ export function RevealMoment({ through: asked }: { through: number }) {
           {beat.kind === "you" && (
             <div className="flex flex-1 flex-col items-start justify-center gap-3 px-6">
               <span className="type-caption text-[30px]">{beat.title}</span>
-              {beat.hero !== null && <span className="type-num text-[140px] leading-[0.8] text-chyron">{beat.hero}</span>}
+              {beat.hero !== null && <span className="type-num text-[140px] leading-[0.8] text-chyron-line">{beat.hero}</span>}
               {beat.heroLabel && <span className="type-caption text-[19px] text-muted-foreground">{beat.heroLabel}</span>}
               {beat.lines.map((l) => (
                 <span key={l} className="text-base text-muted-foreground">
@@ -122,7 +124,7 @@ export function RevealMoment({ through: asked }: { through: number }) {
               ))}
               <Link
                 href={recap}
-                className="pointer-events-auto mt-2.5 flex min-h-12 items-center rounded-[3px] bg-plate px-5 text-[15px] font-bold text-plate-foreground transition-[filter] hover:brightness-[0.94] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron"
+                className="pointer-events-auto mt-2.5 flex min-h-12 items-center rounded-[3px] bg-plate px-5 text-[15px] font-bold text-plate-foreground transition-[filter] hover:brightness-[0.94] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
               >
                 See the full recap
               </Link>
@@ -135,7 +137,7 @@ export function RevealMoment({ through: asked }: { through: number }) {
 
         <div className="flex justify-center gap-1.5 pt-4" style={{ paddingBottom: "calc(26px + env(safe-area-inset-bottom, 0px))" }} aria-hidden>
           {beats.length <= 12 ? (
-            beats.map((_, i) => <span key={i} className={cn("size-2 rounded-full", i <= step ? "bg-chyron" : "bg-input")} />)
+            beats.map((_, i) => <span key={i} className={cn("size-2 rounded-full", i <= step ? "bg-chyron-line" : "bg-input")} />)
           ) : (
             <span className="type-num text-[15px] text-muted-foreground">
               {step + 1} / {beats.length}
@@ -180,7 +182,7 @@ function ExitCard({ beat }: { beat: ExitBeat }) {
   const caption = (
     <>
       <span className="type-caption bg-live px-3 py-[3px] text-[15px] tracking-[0.05em] text-live-foreground">{beat.method}</span>
-      <span className="flex max-w-full flex-col gap-[3px] bg-plate py-2 pl-3 pr-3.5 text-plate-foreground shadow-[0_8px_20px_rgba(0,0,0,0.35)]">
+      <span className="flex max-w-full flex-col gap-[3px] bg-plate py-2 pl-3 pr-3.5 text-plate-foreground shadow-plate">
         <span className="type-caption text-[30px] font-black leading-[0.95]">{beat.c.name}</span>
         {beat.detail && <span className="text-[13px] text-plate-muted">{beat.detail}</span>}
       </span>

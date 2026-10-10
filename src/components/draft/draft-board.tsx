@@ -55,7 +55,7 @@ export function DraftBoard() {
           <button
             type="button"
             aria-label="Draft actions"
-            className="flex size-11 shrink-0 items-center justify-center rounded-[3px] border border-border text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron"
+            className="flex size-11 shrink-0 items-center justify-center rounded-[3px] border border-border text-foreground hover:bg-accent focus-visible:outline-3 focus-visible:outline-chyron-line"
             onClick={() => setMenuOpen(true)}
           >
             <MoreHorizontal className="size-5" aria-hidden />

@@ -16,7 +16,7 @@ export type CaptionTone = "chyron" | "live" | "good" | "quiet";
 const TONES: Record<CaptionTone, string> = {
   chyron: "bg-chyron text-chyron-foreground",
   live: "bg-live text-live-foreground",
-  good: "bg-good text-[#0e2b27]",
+  good: "bg-good text-good-foreground",
   quiet: "bg-muted text-foreground",
 };
 
@@ -92,9 +92,9 @@ export function CaptionPlate({
     </>
   );
   const cls = cn(
-    "flex w-full items-stretch overflow-hidden rounded-[3px] text-left shadow-[0_6px_18px_rgba(0,0,0,0.3)]",
+    "flex w-full items-stretch overflow-hidden rounded-[3px] text-left shadow-plate",
     size === "sm" ? "min-h-[52px]" : "min-h-[60px]",
-    (href || onClick) && "transition-[filter] hover:brightness-[1.04] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron",
+    (href || onClick) && "transition-[filter] hover:brightness-[1.04] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line",
     className,
   );
   if (href) {

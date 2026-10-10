@@ -45,7 +45,7 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
   }
 
   return (
-    <div id="predictions" className="scroll-mt-20 section-shell">
+    <div id="predictions" className="scroll-mt-20">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h3 className="section-title">
           Predictions{" "}
@@ -85,7 +85,7 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
           </div>
         ) : (
           <button
-            className="flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border p-4 text-center text-muted-foreground hover:border-primary hover:text-primary"
+            className="flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border p-4 text-center text-muted-foreground hover:border-chyron-line hover:text-chyron-line"
             onClick={() => setFormOpen(true)}
           >
             <div className="text-xl">+</div>

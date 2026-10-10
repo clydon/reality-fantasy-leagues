@@ -146,7 +146,7 @@ export function ResearchResult({ research, busy, onForce, forceCost }: { researc
                 <span
                   className={cn(
                     "rounded-[2px] px-1 text-[10px] font-bold uppercase tracking-wide",
-                    c.confidence === "high" ? "bg-good/20 text-good" : c.confidence === "medium" ? "bg-muted text-muted-foreground" : "bg-chyron/20 text-chyron",
+                    c.confidence === "high" ? "bg-good/20 text-good" : c.confidence === "medium" ? "bg-muted text-muted-foreground" : "bg-chyron/20 text-chyron-line",
                   )}
                 >
                   {c.confidence}
