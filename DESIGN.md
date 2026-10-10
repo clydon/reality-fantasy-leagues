@@ -150,6 +150,7 @@ components:
   caption-tag-quiet:
     backgroundColor: "{colors.night-panel-raised}"
     textColor: "{colors.bone-text}"
+    # Studio: Night Ink with white (--quiet-tag / --quiet-tag-foreground).
     typography: "{typography.caption-tag}"
     padding: "0 20px 0 12px"
   button-primary:
@@ -273,6 +274,7 @@ The same roles on a bright set. Plates, plate ink, the chyron fill and its ink d
 - **Night Ink** (#16141d): body text, the night colour turned into ink. **Studio Muted** (#5d586b): secondary text, 5.2:1 or better on every Studio fill.
 - **Chyron Line** is deep amber (#845800). **Live Red** deepens to #c02a34 with white ink, **Safe Teal** to #0b7568 with white ink, **Gold Accent** to #85601a: each is 4.5:1 or better as text on the ground and as the fill behind its ink.
 - The You badge, the chosen side of a segmented control and your turn pills, bone on Night, are ink on Studio: they're `foreground` fills, so they invert with the ground.
+- The **quiet tag** (`--quiet-tag` / `--quiet-tag-foreground`, `bg-quiet-tag`) is Night Panel Raised with bone on Night, and Night Ink with white on Studio, where a pale raised fill would melt into the white plate beside it.
 
 ### Named Rules
 **The Fill Not Line Rule.** `chyron` (and `primary`) is only ever a fill with Chyron Ink on it. Anything else yellow (text, an outline, a border, a dot, an underline) uses `chyron-line`. On Night they look identical, so the mistake only shows on Studio. The same split holds for `good` (the colour) and `good-foreground` (the ink on a `good` fill); never hard-code tag ink.
@@ -313,7 +315,7 @@ The same roles on a bright set. Plates, plate ink, the chyron fill and its ink d
 
 Single column at phone width with a 16px gutter; designed and checked at 390×844 first. The `nav` breakpoint (880px) is the only structural one: below it, a top header plus a bottom tab bar; above it, a sidebar. Overview sections become a two-column grid from `sm` up, with wide sections spanning both.
 
-The mobile header centres the page's own name in condensed caps, with the league name small above it (still the league switcher, still swipeable between linked leagues). The alert strip sits at the top of the content, one item at a time with a pager.
+The mobile header has no logo. On Overview it is the league name, left-aligned in 26px condensed caps with the switcher's chevron beside it; every other page centres its own name in condensed caps with the league name small above it (still the league switcher, still swipeable between linked leagues), a back button on the left for a page under another. The alert strip sits at the top of the content, one item at a time with a pager; when it has nothing for this league, Overview opens on the status plate in the same slot.
 
 Rows are at least 48px tall, separated by hairlines rather than gaps. Touch targets are at least 44px; inputs and selects are 44px tall on phones (40px for the dense size). Sections are spaced roughly 24px apart; within a section, rows run edge to edge with no internal padding.
 
@@ -379,14 +381,23 @@ League Settings is a list of pages, like a phone's settings (`src/components/set
 A multi-step task gets the whole screen, with no tab bar or sidebar (`/new-league`, `create-league-flow.tsx`): a header with ✕ (first and last step) or back, the flow's name and "N of 4"; a row of 4px segments, chyron up to the current step; the step's question as a 30px condensed caps heading; and one full-width 52px button in a sticky footer. Choices are **option cards**: a night panel with a hairline, and when chosen a white plate with a 3px chyron outline and a tick. Show tiles are 84px key art (a plain 64px tile without art) with the season as a small dark chip.
 
 ### Section (Overview)
-`DashCard` and the shared `section-title`: no box at all, just a 24px condensed caps heading in Bone Text over the content, with an optional aside on the heading line. Sections read like a broadcast rundown.
+`DashCard` and the shared `section-title`: no box at all, just a 24px condensed caps heading in Bone Text over the content, with an optional aside on the heading line. Sections read like a broadcast rundown: an opener (the alert or the status plate), then three sections per league type (Classic: Standings, Your team, Episode N; Active Roster: Starting this week, Episode N with your week, Standings; Eliminator Pool: your streak and picks, Standings with this week's Picked chip, Episode N; before a draft: Draft order and The cast).
+
+**The One Link Rule.** A section gets at most one link, on its heading line, in chyron-line (`DashAside`: "Full board", "Recap", "Change", "All picks", "How it scores"). No arrow links under a section, no explainer sentences on Overview (how scoring works lives on Scoreboard's "How it scores" and in Scoring & rules), and a section with nothing to show renders nothing, never an empty-state call to action.
+
+### Status Plate
+Overview's opener when the alert strip has nothing for this league (`overview/status-plate.tsx`, what it says in `lib/game/status-plate.ts`): a small caption plate in the strip's slot and size with a **quiet tag**, so it never adds yellow. One plate, the league's next beat by phase, the first that applies: a commissioner's blocking to-do ("Commish", "Draft not scheduled"), the draft's time and your pick position, who's on the clock, a blind draft's count, whose Pickups or Swap turn, catch-up's next episode, your Pool pick or set lineup, then when the next episode airs and how many are left. Its action is a chevron, like the alert strip's (the word is for screen readers). Nothing while results wait to be revealed (the reveal prompt has the slot) or once the season's over.
+
+### Show Art
+Overview's mobile header can carry the league's show key art (`shows.art_url`) behind the header and the opener (`.show-art` in `globals.css`): greyscale at low strength, dimmed toward the league name, faded out before the first section, and the header clear over it until the page scrolls. It's a texture, never a picture: no colour. The mode's values are tokens (`--art-opacity`, `--art-filter`, `--art-side`); the name stays 7:1 or better over the brightest art. A show without art gets the plain ground. Rights to network key art are unconfirmed.
 
 ### Standings Row
-48px rows divided by hairlines: a condensed rank (ties as "T1"; the leader's in chyron-line, and nobody's when everyone is level), the player's colour dot, the name in 16px semibold, and a condensed tabular total on the right. Active Roster adds the latest episode's score in 13px muted text before the total. Your own row is lifted with a Night Panel Raised fill and a white "You" badge. Classic rows are 62px: the name line carries "2 of 3 standing" in 12px muted, and under it the team as 30px faces (still in first; out ones greyed with their finishing place on a small live-red corner badge, a finalist's in teal), then one muted line on how boot-order scoring works.
+48px rows divided by hairlines: a condensed rank (ties as "T1"; the leader's in chyron-line, and nobody's when everyone is level), the player's colour dot, the name in 16px semibold, and a condensed tabular total on the right. Active Roster adds the latest episode's score in 13px muted text before the total. Your own row is lifted with a Night Panel Raised fill and a white "You" badge. Classic rows are 62px: the name line carries "2 of 3 standing" in 12px muted, and under it the team as 30px faces (still in first; out ones greyed with their finishing place on a small live-red corner badge, a finalist's in teal). "Full board" on the heading; hidden before the draft. Eliminator Pool rows show the best streak, and while this week's pick is open a Picked (teal) / Not yet chip in its own column.
 
 ### Scoreboard and the commissioner's to-do list
 - **Scoreboard rows** link to the player's own page and take the shape of the league type's scoring: a team's faces (out ones greyed, with where they finished in Live Red), a per-episode table, or streak columns. Ranks show ties as "T1"; the leader's rank is chyron-line, and nobody's when everyone is level. Your row is lifted like the standings row.
-- **Commissioner list** (top of Overview): a muted 19px condensed caps label, then hairline rows (title, one line of detail, the action's name and a chevron). Only shown when something is waiting, and with no yellow, because the alert strip above it already holds the screen's "now".
+- **Commissioner to-dos** (`lib/game/commissioner-items.ts`): not a list on Overview any more. The one that blocks the league is the status plate; each is a chyron dot on the League Settings row that fixes it (and on League Settings in the sidebar and the More sheet). Pending invites are the Players & invites row's value, not a to-do.
+- **Scoreboard heading:** "After Episode N" is the section heading, with "How it scores" (Scoring & rules) beside it.
 
 ### Lineup (Active Roster)
 Setting a lineup is the weekly job, so it has its own page and tab (`/lineup`, `lineup/lineup-page.tsx`).
@@ -401,21 +412,21 @@ Setting a lineup is the weekly job, so it has its own page and tab (`/lineup`, `
 - **Everyone rows** are 76px: the player's dot and name over a small Set (teal) / Not set (muted)
   chip, then their starters as 44px faces, "?" squares when hidden, dashed squares for open slots.
 - **Starting this week** on Overview is the read-only version of the tiles with a Change link, the
-  bench as 32px round faces, and Last week as a small good-tone caption plate.
+  bench as 32px round faces. Locked with nobody in it, it says "No starters for Episode N" instead of dashed slots (on Lineup too). Your week is a small good-tone "You" plate under the latest episode's Out plates ("+8 last week", what sat on your bench).
 - **Your season** (Scoreboard): two-up night-panel cards (4px corners), a muted label, a 40px face,
   the first name and a 20px condensed number; points left on the bench are muted.
 
 ### Classic: team plates and the boot order
 Classic scores by who's still standing, so its screens lead with faces and places.
 - **Your Team** (Overview): one 60px row per castaway, a 54px photo then a white plate with the name in 21px condensed caps and a line under it (tribe chip and "Still in"). Someone out drops to a Night Panel Raised plate with a greyed photo, a live-red "Out" chip and "Episode 1 · finished 21st · +1"; the winner gets a chyron chip. Two up from `sm`.
-- **Latest episode** (Overview, every type but Active Roster's league table): who left as small "Out" caption plates, Classic's detail being "Finished 20th · Sam banks 2", and a link to the episode's page.
+- **Latest episode** (Overview): "Episode N" with Recap on the heading line, then who left as small "Out" caption plates, Classic's detail being "Finished 20th · Sam banks 2" (Active Roster adds your week's plate; every team's points are Standings' +N column).
 - **Episode page:** the Out plate says where they finished; then a small plate per owner who scored, "+3" in a tag of **the player's own colour** (`colourTag` picks plate ink or white for it) and "Andrew banks 3"; then "Called it" (good tone) when your prediction paid. **Boot order** follows: everyone out so far as 52px greyed faces with their place in live red (this episode's ringed), then "19 castaways still in, 2 of yours among them" with the number in 28px condensed.
-- **Episodes list:** a Classic row's detail is who banked what and whether your prediction paid ("You bank 1 · your prediction was right, +2"); under the list, "19 of 21 castaways still in the game".
+- **Episodes list:** a Classic row's detail is who banked what and whether your prediction paid ("You bank 1 · your prediction was right, +2"); under the list, "19 of 21 still in the game" with "The cast" on the right, linking to the Cast page (`/cast`: the tribe-grouped cast board, read-only, a dot per owner, for every league type). In a catch-up league the list opens on one muted sentence and one quiet "Up next" plate whose Reveal is a chyron block on the plate's end (CaptionPlate's `actionTone`), standing in for that episode's row.
 
 ### Eliminator Pool: the pick and the streak
 The Pool is one pick a week and a streak, so its screens lead with those two things.
 - **Pick page** (`/pick`, `pick/pick-page.tsx`, the tab bar's fourth slot): a muted line with a clock (when picks close; "Open until Episode 3 is revealed" in a catch-up league), "Who survives Episode 3?" with one muted sentence on who's used and why, the tribe filter, and everyone still in as cast tiles four across. Used ones are dimmed with "Used Ep 1" (or "Last pick · Ep 2") in place of the tribe line. Tap a tile, then **Lock in Rob** in the confirm bar; with a pick saved, the bar names it and says it can change until it airs.
-- **Overview:** the streak as a 104px condensed number (bone, not chyron: the alert strip owns the yellow) beside "In a row" and one muted line on where it leaves you ("Tied for 1st with Josie"). Then **Your picks**: 64px faces, oldest first, with a teal tick (survived) or live-red cross (went home, face greyed) on the corner, and this week's slot as a dashed square with a plus. Then **Episode N picks**: one 48px row per player, a Picked (teal) or Not yet (muted) chip; nobody else's pick shows until the episode airs.
+- **Overview:** the streak as a 104px condensed number (bone, not chyron: the alert strip owns the yellow) beside "In a row" and one muted line on where it leaves you ("Tied for 1st with Josie"). Then **Your picks**: 64px faces, oldest first, with a teal tick (survived) or live-red cross (went home, face greyed) on the corner, and this week's slot as a dashed square with a plus. Who else has picked is Standings' Picked / Not yet chip; nobody else's pick shows until the episode airs.
 - **Episode page:** your pick as the reveal's vote-out card (230px photo, a good or live tag "Your pick survived" / "went home", the name and the streak on a white plate); the Out plate for the same person is left out. Then everyone else's pick as 64px rows: face (greyed if out), "Josie picked Patt", "Streak 3" or "Streak ends at 2", and a Safe / Out / Missed chip.
 
 ### Spoiler gate and the reveal
@@ -445,12 +456,15 @@ Admin is desktop-first but built to work at 390px, in the same vocabulary as Lea
 - **Copy-and-paste flows** (an episode's research, a new show's rules): numbered steps with a 30px step number, chyron on the current step; the copy button is chyron until something's pasted.
 
 ### Navigation
-Mobile: a header with the page's name in 22px condensed caps and the league name in 12px above it, chat on the right; a fixed bottom tab bar. Its fourth slot follows the league and the season's phase: Draft until the draft is done, then Lineup (Active Roster), Mid-Season or Chat; Eliminator Pool has no draft, so its slot is always Pick, badged while your pick is due (Chat is on the header); Research and anything else displaced go in More. Desktop (880px+): a Night Rail sidebar. The current tab is marked in chyron.
+Mobile: a header with no logo (see Layout), chat on the right, or a page's own ⋯ in its place while that page sets one (`header-action-store.ts`; the finished Draft does); a fixed bottom tab bar. Its fourth slot follows the league and the season's phase: Draft until the draft is done, then Lineup (Active Roster), Mid-Season or Chat; Eliminator Pool has no draft, so its slot is always Pick, badged while your pick is due (Chat is on the header); Research and anything else displaced go in More. The current tab is marked in chyron-line. The Cast page (`/cast`, linked from the count under the Episodes list) keeps Episodes marked.
+- **More sheet (M1):** a bottom sheet that opens on the league as a small caption plate (a quiet season tag, the name, "Survivor 51 · Classic · 4 players", and Switch, which opens the league menu); then this league's displaced pages as 50px hairline rows with their value on the right (Draft "Done", Mid-Season's badge, Research, League Settings with its join code and a chyron dot while a commissioner to-do waits); then **You** (Account, What's new with "2 new", Report an issue, Demo season); Admin; Log out last in red. The theme lives in Account → Appearance (in the sheet only while touring without an account).
+- **Desktop sidebar (D1, 880px+):** a Night Rail. Top: the league as a caption plate (quiet season tag, the name on up to two lines, show · type, an up/down chevron) that opens the league menu; no logo. Then 44px rows with the tab bar's icons in its order; the current one on a raised fill with a 3px chyron-line inset bar and a chyron-line icon; needs-you badges as the tab bar's, chat's count as a quiet chip, League Settings' commissioner dot. At the bottom an Admin row (a chyron-line dot while its To do has anything) and the **account row** (a 36px initial square, the username, "Account, help, log out", ⋯) whose menu opens above it: Account settings, Appearance (the theme picker), What's new, Report an issue, Demo season, a divider, Log out in red.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** put "now" moments on a Caption Plate with a chyron tag, and keep them to one or two per screen.
+- **Do** put "now" moments on a Caption Plate with a chyron tag, and keep them to one or two per screen. Informational plates (the status plate, catch-up's "Up next") take the quiet tag.
+- **Do** give a section one link, on its heading line, and let an empty section render nothing.
 - **Do** use the condensed caps (`type-caption`) for names, headings and tags, and `type-num` for any number in a column.
 - **Do** keep sections flat in both modes: a heading and hairlines, no card box.
 - **Do** check every new screen in both modes; a yellow line or text that looks right on Night is invisible on Studio.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-10T00:00:00Z",
+  "generatedAt": "2026-10-10T18:00:00Z",
   "title": "Design System: Reality Fantasy Leagues",
   "extensions": {
     "colorMeta": {
@@ -15,7 +15,8 @@
       "chyron-line-night": { "role": "primary", "displayName": "Chyron Line (Night)", "canonical": "#ffc531", "mode": "night", "purpose": "The chyron as text, outline, border or dot. Same as the yellow on Night." },
       "studio-ground": { "role": "neutral", "displayName": "Studio Ground", "canonical": "#ecebf1", "mode": "studio", "tonalRamp": ["#f8f7fb", "#ecebf1", "#e1dfe8", "#dcd9e4", "#d6d3de", "#b9b4c6", "#5d586b", "#16141d"] },
       "studio-panel": { "role": "neutral", "displayName": "Studio Panel", "canonical": "#f8f7fb", "mode": "studio", "purpose": "Cards, sheets, fields, header, tab bar, sidebar." },
-      "studio-raised": { "role": "neutral", "displayName": "Studio Raised", "canonical": "#e1dfe8", "mode": "studio", "purpose": "Your row, the quiet tag, segmented tracks." },
+      "studio-raised": { "role": "neutral", "displayName": "Studio Raised", "canonical": "#e1dfe8", "mode": "studio", "purpose": "Your row, segmented tracks." },
+      "quiet-tag": { "role": "neutral", "displayName": "Quiet Tag", "canonical": "#2a2633", "studio": "#16141d", "purpose": "The quiet caption tag (the status plate, catch-up's Up next): Night Panel Raised with bone on Night, Night Ink with white on Studio." },
       "night-ink": { "role": "neutral", "displayName": "Night Ink", "canonical": "#16141d", "mode": "studio", "purpose": "Body text on Studio: the night ground as ink." },
       "studio-muted": { "role": "neutral", "displayName": "Studio Muted", "canonical": "#5d586b", "mode": "studio", "purpose": "Secondary text on Studio; 5.2:1 or better on every Studio fill." },
       "chyron-line-studio": { "role": "primary", "displayName": "Chyron Line (Studio)", "canonical": "#845800", "mode": "studio", "purpose": "Deep amber: the chyron as text, outline, border or dot on a light ground, where yellow can't be read. 4.9:1 on the ground." },
@@ -63,6 +64,14 @@
       "description": "The signature: angled tone tag, white plate with condensed caps title and detail, optional action.",
       "html": "<a class=\"ds-plate\" href=\"#\"><span class=\"ds-plate-tag\">Ep 3</span><span class=\"ds-plate-body\"><span class=\"ds-plate-title\">Results are in</span><span class=\"ds-plate-sub\">Tap when you've watched</span></span><span class=\"ds-plate-action\">Reveal<svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg></span></a>",
       "css": ".ds-plate{display:flex;align-items:stretch;min-height:60px;width:100%;max-width:390px;overflow:hidden;border-radius:3px;box-shadow:0 6px 18px rgba(0,0,0,.3);text-decoration:none;font-family:Archivo,system-ui,sans-serif;transition:filter .15s}.ds-plate:hover{filter:brightness(1.04)}.ds-plate:focus-visible{outline:3px solid #ffc531;outline-offset:2px}.ds-plate-tag{display:flex;align-items:center;padding:0 20px 0 12px;background:#ffc531;color:#121018;font-stretch:62%;font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:15px;line-height:1;clip-path:polygon(0 0,100% 0,84% 100%,0 100%)}.ds-plate-body{margin-left:-10px;display:flex;flex:1;min-width:0;flex-direction:column;justify-content:center;gap:2px;background:#fff;color:#121018;padding:8px 12px}.ds-plate-title{font-stretch:62%;font-weight:800;text-transform:uppercase;letter-spacing:.01em;font-size:22px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ds-plate-sub{font-size:13px;color:#4a4558}.ds-plate-action{display:flex;align-items:center;gap:2px;background:#fff;color:#121018;padding:0 12px 0 4px;font-size:15px;font-weight:700}"
+    },
+    {
+      "name": "Status Plate",
+      "kind": "custom",
+      "refersTo": "caption-plate",
+      "description": "Overview's opener when nothing needs you: the small plate with a quiet tag and a chevron, the league's next beat.",
+      "html": "<a class=\"ds-plate ds-plate-sm\" href=\"#\"><span class=\"ds-plate-tag ds-plate-tag-quiet\">Ep 3</span><span class=\"ds-plate-body\"><span class=\"ds-plate-title\">Airs Wed 8 PM</span><span class=\"ds-plate-sub\">In 4 days · the cast is down to 19</span></span></a>",
+      "css": ".ds-plate{display:flex;align-items:stretch;min-height:60px;width:100%;max-width:390px;overflow:hidden;border-radius:3px;box-shadow:0 6px 18px rgba(0,0,0,.3);text-decoration:none;font-family:Archivo,system-ui,sans-serif;transition:filter .15s}.ds-plate:hover{filter:brightness(1.04)}.ds-plate:focus-visible{outline:3px solid #ffc531;outline-offset:2px}.ds-plate-tag{display:flex;align-items:center;padding:0 20px 0 12px;background:#ffc531;color:#121018;font-stretch:62%;font-weight:800;text-transform:uppercase;letter-spacing:.04em;font-size:15px;line-height:1;clip-path:polygon(0 0,100% 0,84% 100%,0 100%)}.ds-plate-body{margin-left:-10px;display:flex;flex:1;min-width:0;flex-direction:column;justify-content:center;gap:2px;background:#fff;color:#121018;padding:8px 12px}.ds-plate-title{font-stretch:62%;font-weight:800;text-transform:uppercase;letter-spacing:.01em;font-size:22px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ds-plate-sub{font-size:13px;color:#4a4558}.ds-plate-action{display:flex;align-items:center;gap:2px;background:#fff;color:#121018;padding:0 12px 0 4px;font-size:15px;font-weight:700}.ds-plate-sm{min-height:52px}.ds-plate-sm .ds-plate-title{font-size:19px}.ds-plate-tag-quiet{background:#2a2633;color:#f4f2f8;font-size:13px}"
     },
     {
       "name": "Out Plate",
@@ -116,9 +125,9 @@
       "name": "Section Heading",
       "kind": "card",
       "refersTo": "caption-xl",
-      "description": "A flat Overview section: condensed caps heading, no box.",
-      "html": "<section class=\"ds-section\"><h3 class=\"ds-section-title\">Standings</h3><p class=\"ds-section-body\">Rows run edge to edge under the heading, divided by hairlines.</p></section>",
-      "css": ".ds-section{max-width:390px;background:#16141d;color:#f4f2f8;padding:16px;font-family:Archivo,system-ui,sans-serif}.ds-section-title{margin:0 0 10px;font-stretch:62%;font-weight:800;text-transform:uppercase;font-size:24px;letter-spacing:.01em;line-height:1}.ds-section-body{margin:0;font-size:16px;line-height:1.5;color:#a9a4b8}"
+      "description": "A flat Overview section: condensed caps heading, no box, at most one link on the heading line.",
+      "html": "<section class=\"ds-section\"><div class=\"ds-section-head\"><h3 class=\"ds-section-title\">Standings</h3><a class=\"ds-section-aside\" href=\"#\">Full board</a></div><p class=\"ds-section-body\">Rows run edge to edge under the heading, divided by hairlines.</p></section>",
+      "css": ".ds-section{max-width:390px;background:#16141d;color:#f4f2f8;padding:16px;font-family:Archivo,system-ui,sans-serif}.ds-section-title{margin:0 0 10px;font-stretch:62%;font-weight:800;text-transform:uppercase;font-size:24px;letter-spacing:.01em;line-height:1}.ds-section-body{margin:0;font-size:16px;line-height:1.5;color:#a9a4b8}.ds-section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}.ds-section-head .ds-section-title{margin:0}.ds-section-aside{color:#ffc531;font-size:14px;font-weight:650;text-decoration:none}"
     },
     {
       "name": "Caption Plate (Studio)",
@@ -145,6 +154,7 @@
       { "name": "The Red Is For Leaving Rule", "body": "Live Red is for someone going home and for actions that delete. Losing points is not an elimination; use muted text or a down chart bar, not red text everywhere.", "section": "colors" },
       { "name": "The Tags Not Fills Rule", "body": "Tribe, team and player colours appear as a small tag, dot or the angled end of a plate, never as a large background.", "section": "colors" },
       { "name": "The Width Not Weight Rule", "body": "Hierarchy comes from switching to the condensed caps, not from piling on sizes. Body text stays normal width; captions and numbers go condensed. There is no third style.", "section": "typography" },
+      { "name": "The One Link Rule", "body": "A section gets at most one link, on its heading line, in chyron-line. No arrow links under a section, no explainer sentences on Overview, and an empty section renders nothing.", "section": "components" },
       { "name": "The Tabular Numbers Rule", "body": "Any number that sits in a column (rank, score, streak) is condensed and tabular so columns line up.", "section": "typography" },
       { "name": "The 16px Field Rule", "body": "On phones every text field is 16px, whatever its size class, so iOS never zooms on focus. This is a global rule in globals.css and must not be overridden.", "section": "typography" },
       { "name": "The Only Plates Float Rule", "body": "If it isn't a caption plate, an alert, a sheet or a popover, it doesn't get a shadow.", "section": "elevation" }

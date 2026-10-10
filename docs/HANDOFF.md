@@ -13,7 +13,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
 
 ## UX redesign in progress: direction A, "Lower Third" (branch `ux-direction-a`, not pushed)
 
-**Status as of 2026-10-10 (light-mode pass done; a declutter pass is decided and comes next, then merge and push).** A visual redesign is under way on the local branch `ux-direction-a`.
+**Status as of 2026-10-10 (light-mode pass and the declutter pass done; merge and push next, when the user says).** A visual redesign is under way on the local branch `ux-direction-a`.
 **Do not push or merge it until the redesign is done** (the user's call). Read these first:
 
 - `PRODUCT.md` (repo root): product truth captured with the impeccable skill's `init`. Users,
@@ -521,18 +521,48 @@ explained to a commissioner") rather than re-deriving it from source each time.
      setup) and dark at 390 and 1280 for regressions (Overview, League setup, Lineup, Pool, sheet, What's
      New). The two throwaway leagues were deleted (no invites left). `tsc` clean in `src`, eslint clean
      on every changed file, `npm test` 247/247. No paid AI was triggered.
-4. **Declutter pass (direction A2), decided 2026-10-10, not built: read `docs/PLAN-ux-declutter.md`.**
-   Next to the mockups the built app felt cluttered (6–8 Overview sections, an arrow link under each,
-   repeated explainers, the page's real job buried in Season Status) and top-light without the alert plate.
-   The user chose, from canvas pages "A2 · …": Overview trimmed to an opener plus three sections per league
-   type (League Scoring, Season Status, the Commissioner list, the post-draft Castaways board and the empty
-   Predictions box leave it); a quiet **status plate** in the alert's slot when nothing's due (O1); the
-   commissioner's to-dos as League Settings dots; a Cast page linked from Episodes; the desktop sidebar as a
-   league plate rail with one expanding account menu (D1); the More sheet as a league plate plus grouped rows
-   (M1); and the mobile header without the logo. New and still to mock: a faded show-art background behind
-   the header, per league. Saved Overview layouts get reset on merge. "Before" shots:
-   `docs/ux-baseline/2026-10-10-declutter/` (script `scripts/declutter.js`).
-5. Then merge and push.
+4. ~~Declutter pass (direction A2)~~ **Done 2026-10-10**, built from `docs/PLAN-ux-declutter.md` in its build order,
+   one commit per step (`d998edc`..`e0ff48b`, plus the docs commit). The header art was mocked first on the canvas
+   ("A2 · Header art": Night and Studio, with and without art, four shows) and approved (Mono treatment).
+   - **Overview** (`lib/overview-layout.ts`): an opener plus three sections per league type; default order per type
+     (`defaultOverviewOrder`); League Scoring, Season Status and Last Week are gone (Last Week is a "You" plate under
+     the latest episode); before a draft only **Draft order** (new, `draft-order-card.tsx`) and **The cast** (Scout).
+     One link per section on its heading line (`DashAside`); explainers and arrow links gone; empty sections render
+     nothing. Eliminator Pool's "Episode N picks" became a Picked / Not yet chip on Standings. "Propose a prediction"
+     moved to the upcoming episode's page (`episodes/propose-prediction.tsx`, shown on `currentEpisode` until it has
+     results, the same window the old box had). `withNewSections` drops ids that no longer exist.
+   - **Status plate** (`lib/game/status-plate.ts`, `overview/status-plate.tsx`, rendered by `action-bar.tsx` on `/`):
+     a small quiet-tag plate when the alert strip has nothing for this league. **Judgement call:** when the strip only
+     has another league's item, both show (the strip, then this league's plate). The commissioner's blocker comes first
+     ("Commish"). Its action is a chevron (the word is for screen readers): action words truncated the title on a phone.
+     New `--quiet-tag` tokens: ink with white on Studio. Commissioner to-dos left Overview: chyron dots on the League
+     Settings rows, the sidebar's and More sheet's League Settings; pending invites are the Players row's value.
+   - **Episodes / Cast:** catch-up is one sentence plus an "Up next" plate with Reveal as a chyron block
+     (CaptionPlate's `actionTone`), standing in for that row; "19 of 21 still in the game · The cast" links to the new
+     `/cast` page (the tribe-grouped board for every type; `board-grid.tsx` deleted).
+   - **Step 4:** Scoreboard's heading "After Episode N" + "How it scores"; the finished Draft lost its Overview/Episodes
+     buttons and its ⋯ moved into the mobile header (`lib/header-action-store.ts`, in chat's place); locked lineup with
+     no starters says "No starters for Episode N" (Lineup and Overview); the alert strip skips this league's item for
+     the page you're on (not `/#section` items).
+   - **Sidebar (D1)** and **More sheet (M1)** as the plan says; `useWhatsNewCount` (in `whats-new-modal.tsx`) feeds
+     "2 new" in both. **Mobile header:** no logo anywhere; Overview's name left-aligned (SwipeTitle `align="start"`).
+   - **Header art:** Overview, mobile only, when the league's show has `shows.art_url` (`.show-art` in `globals.css`,
+     tokens `--art-opacity/--art-filter/--art-side`); the header is clear over it until the page scrolls. **No show has
+     art set**, locally or (as far as this branch knows) in production, and **rights to network key art are still
+     unconfirmed** -- check before setting any. It was checked locally with the canvas's Survivor image as a temporary
+     untracked file and DB value, both removed.
+   - **Verified** at 390x844 dark, 1280 dark and 390 light with `declutter.js` and the existing scripts on UX Baseline
+     S51, UX AR S51, UX D Pre, UX D Done, UX D Live and a throwaway "UX Pool CU" (deleted after, no orphan rows). One
+     real catch-up reveal ran on that throwaway league through the new plate (`catchup-reveal.js` now finds the button
+     by its label). `tsc` clean, eslint clean on every changed file, `npm test` 254/254. No paid AI was triggered.
+   - **Local DB:** the four saved `overview_layout*` rows were deleted (decision 2; a copy of what they held is not kept
+     in the repo). **On merge, delete them in production too** (`DELETE FROM app_settings WHERE key LIKE
+     'overview_layout%'`) so the per-type defaults apply.
+   - **Not done / left as is:** Overview's Predictions are still the old BetCards (only when something's open); the
+     Cast page reuses the compact cast board rather than a new design; the sidebar's account menu and the More sheet's
+     theme picker use the existing ThemePicker (its chosen segment is a chyron fill). DESIGN.md and
+     `.impeccable/design.json` are updated (status plate, show art, the One Link rule, D1, M1, the quiet tag).
+5. Then merge and push (the user's call), with the production layout reset above and a What's New entry the user approves (cleaner Overview, the Cast page, plus the Pickups/Swap changes already noted).
 
 **Notes for the next session:**
 - The impeccable skill's launcher (`~/.claude/skills/impeccable/scripts/impeccable`) downloads and

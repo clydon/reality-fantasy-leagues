@@ -1,7 +1,7 @@
 # Plan: declutter pass (direction A2)
 
-**Status:** decided 2026-10-10, not built. Branch `ux-direction-a` (local; don't push or merge until the
-user says). This comes before the merge.
+**Status:** decided and built 2026-10-10 (see docs/HANDOFF.md, item 4, for what was built and the judgement calls).
+Branch `ux-direction-a` (local; don't push or merge until the user says). This comes before the merge.
 
 **Why:** next to the canvas mockups, the built app felt cluttered. The mockups showed the same
 information in fewer, purposeful sections. Each Overview grew to 6–8 sections. Most sections end in their
