@@ -136,19 +136,20 @@ export function botsDraft(state: LeagueState) {
 }
 
 const episode = (state: LeagueState, n: number) => state.episodes.find((e) => e.number === n);
-const lineupOf = (state: LeagueState, n: number, playerId: string) => {
+export const lineupOf = (state: LeagueState, n: number, playerId: string) => {
   const ep = episode(state, n);
   return ep ? (StateLogic.activeRosterLineupFor(state, ep.id, playerId) as string[]) : [];
 };
 const rosterOf = (state: LeagueState, playerId: string) =>
   state.castaways.filter((c) => c.ownerIds.includes(playerId) && c.status === "active").map((c) => c.id);
 
-/** The computer players start their two favourites still in, for this episode. */
-function botLineups(state: LeagueState, n: number) {
+/** The computer players (and, on the commissioner's tour, you) start their two favourites still in. */
+export function botLineups(state: LeagueState, n: number, ids: string[] = [TOUR_BEN, TOUR_KAT]) {
   const ep = episode(state, n);
   if (!ep) return;
-  for (const id of [TOUR_BEN, TOUR_KAT]) {
-    const rank = (c: string) => BOT_PREFERENCE[id].indexOf(c);
+  for (const id of ids) {
+    // Ben's list is the one that knows a master: it ranks your roster on the commissioner's tour.
+    const rank = (c: string) => (BOT_PREFERENCE[id] ?? BOT_PREFERENCE[TOUR_BEN]).indexOf(c);
     const best = rosterOf(state, id).sort((a, b) => rank(a) - rank(b)).slice(0, 2);
     StateLogic.setActiveRosterLineup(state, ep.id, id, best);
   }
@@ -159,22 +160,26 @@ export function afterDraft(state: LeagueState) {
   botLineups(state, 1);
 }
 
+/** Who wins the week, who's in the bottom two and who goes home in episode `n` (see scriptEpisode). */
+export interface EpisodePlan {
+  winner: string;
+  bottom: string[];
+  out?: string;
+}
+
 /**
- * Episode `n` airs. Clive wins the week every time, whoever has him (it counts only if they started
- * him). Gus is in the bottom two every week he's still in.
+ * What happens in episode `n`, from who's starting. Clive wins the week every time, whoever has him
+ * (it counts only if they started him). Gus is in the bottom two every week he's still in.
  *  1. The other bottom-two spot is one of YOUR starters, and your starter goes home -- Gus, if you
  *     started him -- so you always have a spot to fill with a pickup.
  *  2. The other bottom-two spot is someone else's starter, and Gus goes home if he's still in (else
  *     that other baker does).
  */
-export function scriptEpisode(state: LeagueState, n: number) {
-  const ep = episode(state, n);
-  if (!ep || StateLogic.episodeHasResults(ep)) return;
+export function planEpisode(state: LeagueState, n: number): EpisodePlan {
   const inGame = (id: string) => StateLogic.getCastaway(state, id)?.status === "active";
   const mine = lineupOf(state, n, TOUR_ME);
   const others = [...lineupOf(state, n, TOUR_KAT), ...lineupOf(state, n, TOUR_BEN)];
   const ordinary = (id: string) => id !== TOUR_STAR && id !== TOUR_FLOP;
-  StateLogic.addScoringEvent(state, ep.id, "wonWeek", TOUR_STAR);
   let out: string | undefined;
   let partner: string | undefined;
   if (n === 1) {
@@ -186,8 +191,24 @@ export function scriptEpisode(state: LeagueState, n: number) {
   } else {
     out = others.find(ordinary) ?? mine.find(ordinary);
   }
-  for (const id of [out, partner]) if (id) StateLogic.addScoringEvent(state, ep.id, "bottomTwo", id);
-  if (out) StateLogic.addElimination(state, ep.id, out, "Went home");
+  return { winner: TOUR_STAR, bottom: [out, partner].filter((id): id is string => !!id), out };
+}
+
+/** Episode `n` airs, with planEpisode's results written straight in (the player path's episodes). */
+export function scriptEpisode(state: LeagueState, n: number) {
+  const ep = episode(state, n);
+  if (!ep || StateLogic.episodeHasResults(ep)) return;
+  const plan = planEpisode(state, n);
+  StateLogic.addScoringEvent(state, ep.id, "wonWeek", plan.winner);
+  for (const id of plan.bottom) StateLogic.addScoringEvent(state, ep.id, "bottomTwo", id);
+  if (plan.out) StateLogic.addElimination(state, ep.id, plan.out, "Went home");
+  closeEpisode(state, n);
+}
+
+/** Lineups lock, and the next episode opens with the computer players' lineups in. */
+export function closeEpisode(state: LeagueState, n: number) {
+  const ep = episode(state, n);
+  if (!ep) return;
   ep.lineupsLocked = true;
   if (n < TOUR_EPISODES) {
     StateLogic.ensureEpisodeNumber(state, n + 1, false);

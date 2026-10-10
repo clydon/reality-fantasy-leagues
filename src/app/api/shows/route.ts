@@ -11,6 +11,9 @@ import { pool } from "@/lib/server/db";
 // Seasons come nested rather than as a second request, because every consumer needs the pairing:
 // the Season picker's options depend on which Show is selected.
 //
+// `resultsBy` says whose job each season's results are: an admin's, pushed into every league, or each
+// league's commissioner's (so the Episodes list can tell a commissioner when one needs results applied).
+//
 // `curated` (no creator: added by an admin) and `mine` let the create-league flow offer a non-admin
 // only the curated shows plus their own researched ones, so test shows stay out of everyone else's
 // way. The list itself isn't filtered: a member of a league on someone else's researched show still
@@ -29,7 +32,8 @@ export const GET = apiRoute(async (req) => {
                   'status', ss.status,
                   'castSize', ss.cast_size,
                   'premiereDate', ss.premiere_date,
-                  'finaleDate', ss.finale_date
+                  'finaleDate', ss.finale_date,
+                  'resultsBy', ss.results_by
                 ) ORDER BY ss.season_number DESC
               ) FILTER (WHERE ss.id IS NOT NULL),
               '[]'

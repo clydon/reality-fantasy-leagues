@@ -10,6 +10,8 @@ import { cn } from "cn";
 import { useHiddenResults } from "@/components/results-in-banner";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { banksLine, predictionsRight } from "@/lib/game/classic-view";
+import { useResultsDue, useStagedCount } from "@/lib/episode-results";
+import { CaptionPlate } from "@/components/ui/caption-plate";
 import { CatchUpPanel } from "./catch-up-panel";
 import { airsInLabel, episodeDate, episodeExits, episodeStatus, hiddenBefore, useNowMinute } from "./episode-status";
 
@@ -33,6 +35,7 @@ export function EpisodesTab() {
       {/* In a catch-up league this is where the next episode gets revealed. Renders nothing for a
           league that isn't catching up. */}
       <CatchUpPanel state={state} />
+      <ResultsDuePlate />
       {sorted.length === 0 ? (
         <p className="text-base text-muted-foreground">No episodes yet. They appear here as the season airs.</p>
       ) : (
@@ -55,6 +58,26 @@ export function EpisodesTab() {
         </Link>
       )}
     </>
+  );
+}
+
+// A commissioner whose league applies its own results (a league-decided season): the episode that's
+// aired without them, as the screen's one "now". "Results are in" once research has staged some.
+function ResultsDuePlate() {
+  const now = useNowMinute();
+  const due = useResultsDue(now);
+  const staged = useStagedCount(due);
+  if (!due) return null;
+  return (
+    <div className="mb-4" data-tour="results-check">
+      <CaptionPlate
+        tag={`Ep ${due.number}`}
+        title={staged ? "Results are in" : "Fill in the results"}
+        subtitle={staged ? `${staged} to check, then apply` : "Research it, then apply it"}
+        action={staged ? "Check" : "Research"}
+        href={`/episodes/${due.number}/research`}
+      />
+    </div>
   );
 }
 

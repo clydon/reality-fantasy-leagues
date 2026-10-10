@@ -4,8 +4,8 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useIsAuthenticated, useLeagueStore } from "@/lib/store";
 import { useReportModalStore } from "@/lib/report-modal-store";
-import { useTourStore, useTourStep } from "@/lib/tour/tour-store";
-import { PLAYER_TOUR, type TourCtx } from "@/lib/tour/steps";
+import { useTourStore, useTourStep, type TourKind } from "@/lib/tour/tour-store";
+import { tourSteps, type TourCtx } from "@/lib/tour/steps";
 import { cn } from "cn";
 
 // The guided tour's host (docs/PLAN-guided-tour.md, "The host plate"): the only new UI the tour adds.
@@ -17,6 +17,9 @@ import { cn } from "cn";
 // each step. It sizes the space it takes (--tour-h), which lifts sticky confirm bars above it.
 export function TourHost() {
   const stepIndex = useTourStore((s) => s.step);
+  const kind = useTourStore((s) => s.kind);
+  const created = useTourStore((s) => s.created);
+  const copied = useTourStore((s) => s.copied);
   const step = useTourStep();
   const goTo = useTourStore((s) => s.goTo);
   const stop = useTourStore((s) => s.stop);
@@ -24,14 +27,15 @@ export function TourHost() {
   const state = useLeagueStore((s) => s.state);
   const full = useLeagueStore((s) => s.fullState);
   const seen = useLeagueStore((s) => s.membership?.resultsSeenThrough ?? 0);
-  const ctx: TourCtx = { state, full, pathname, seen };
+  const ctx: TourCtx = { state, full, pathname, seen, tour: { created, copied } };
+  const steps = tourSteps(kind);
 
   // A step ends on what it did to the league (or where it took you); several can end at once.
   const doneNow = step ? step.done(ctx) : false;
   useEffect(() => {
     if (stepIndex === null || !doneNow) return;
     let i = stepIndex + 1;
-    while (i < PLAYER_TOUR.length - 1 && PLAYER_TOUR[i].done(ctx)) i++;
+    while (i < steps.length - 1 && steps[i].done(ctx)) i++;
     goTo(i);
     // ctx is rebuilt every render; doneNow is what changes.
   }, [doneNow, stepIndex]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -46,16 +50,40 @@ export function TourHost() {
   return (
     <>
       <Spotlight targets={targets} look={look} />
-      <HostPlate key={`${step.id}:${onRoute}`} progress={step.progress} line={line} ending={ending} onSkip={stop} />
+      <HostPlate
+        key={`${kind}:${step.id}:${onRoute}`}
+        kind={kind}
+        progress={step.progress}
+        line={line}
+        ending={ending}
+        // The create-a-league flow has no tab bar: the plate sits at the foot of the screen.
+        fullscreen={pathname === "/new-league"}
+        onSkip={stop}
+      />
     </>
   );
 }
 
 // ---------- the plate ----------
 
-function HostPlate({ progress, line, ending, onSkip }: { progress: string; line: string; ending: boolean; onSkip: () => void }) {
+function HostPlate({
+  kind,
+  progress,
+  line,
+  ending,
+  fullscreen,
+  onSkip,
+}: {
+  kind: TourKind;
+  progress: string;
+  line: string;
+  ending: boolean;
+  fullscreen: boolean;
+  onSkip: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const startTour = useTourStore((s) => s.start);
   const isAuthenticated = useIsAuthenticated();
   const openReport = useReportModalStore((s) => s.openModal);
   const enterMockMode = useLeagueStore((s) => s.useMock);
@@ -94,6 +122,12 @@ function HostPlate({ progress, line, ending, onSkip }: { progress: string; line:
     router.push("/account");
   }
 
+  // The player's end card leads on to the commissioner's tour, which starts by creating a league.
+  function commissionerTour() {
+    startTour("commissioner");
+    router.push("/new-league");
+  }
+
   return (
     <div
       ref={ref}
@@ -101,7 +135,10 @@ function HostPlate({ progress, line, ending, onSkip }: { progress: string; line:
       role="region"
       aria-label="Tour"
       data-tour-host
-      className="fixed inset-x-3 bottom-[calc(var(--tabbar-base)+8px)] z-[91] mx-auto max-w-[480px] outline-none data-[dock=top]:bottom-auto data-[dock=top]:top-[calc(env(safe-area-inset-top,0px)+12px)] nav:inset-x-auto nav:bottom-6 nav:right-6 nav:w-[420px]"
+      className={cn(
+        "fixed inset-x-3 z-[91] mx-auto max-w-[480px] outline-none data-[dock=top]:bottom-auto data-[dock=top]:top-[calc(env(safe-area-inset-top,0px)+12px)] nav:inset-x-auto nav:bottom-6 nav:right-6 nav:w-[420px]",
+        fullscreen ? "bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]" : "bottom-[calc(var(--tabbar-base)+8px)]",
+      )}
     >
       <div className="flex h-9 items-stretch">
         {/* Chyron while there's a tap to make; on the end card "Start a league" is the one yellow. */}
@@ -133,7 +170,9 @@ function HostPlate({ progress, line, ending, onSkip }: { progress: string; line:
         {ending && (
           <div className="mt-3 flex flex-col gap-2">
             <p className="text-[15px] leading-snug text-plate-muted">
-              Every week is the same: set your lineup, reveal, see where you stand.
+              {kind === "commissioner"
+                ? "Every week: results come in, you check them and apply them. Everything else runs itself."
+                : "Every week is the same: set your lineup, reveal, see where you stand."}
             </p>
             <div className="mt-1 flex gap-2">
               <button
@@ -151,14 +190,27 @@ function HostPlate({ progress, line, ending, onSkip }: { progress: string; line:
                 Look around
               </button>
             </div>
-            {isAuthenticated && (
-              <button
-                type="button"
-                onClick={openReport}
-                className="self-start py-2 text-[15px] font-semibold text-plate-foreground underline underline-offset-4 hover:text-plate-muted"
-              >
-                Anything unclear? Tell us
-              </button>
+            {(kind === "player" || isAuthenticated) && (
+              <div className="flex flex-wrap gap-x-5">
+                {kind === "player" && (
+                  <button
+                    type="button"
+                    onClick={commissionerTour}
+                    className="min-h-11 py-2 text-[15px] font-semibold text-plate-foreground underline underline-offset-4 hover:text-plate-muted"
+                  >
+                    Commissioner tour
+                  </button>
+                )}
+                {isAuthenticated && (
+                  <button
+                    type="button"
+                    onClick={openReport}
+                    className="min-h-11 py-2 text-[15px] font-semibold text-plate-foreground underline underline-offset-4 hover:text-plate-muted"
+                  >
+                    Anything unclear?
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -209,7 +261,7 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
       // A sheet rising from the bottom (the Reveal question) would sit under the plate: while one is
       // open the plate moves to the top, so the sheet's own words stay readable.
       const plate = document.querySelector<HTMLElement>("[data-tour-host]");
-      const dock = document.querySelector('[role="dialog"]') ? "top" : "bottom";
+      const dock = document.querySelector('[role="dialog"], [role="alertdialog"]') ? "top" : "bottom";
       if (plate && plate.dataset.dock !== dock) plate.dataset.dock = dock;
       holesRef.current?.setAttribute("d", shown.map(rounded).join(" "));
       ringRef.current?.setAttribute("d", shown.slice(0, tap.length).map(rounded).join(" "));

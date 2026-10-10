@@ -26,6 +26,7 @@ import { ProposePrediction } from "./propose-prediction";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
 import { EpisodeChanges, EpisodeRecap } from "./episode-recap";
 import { EpisodeEditor } from "./episode-editor";
+import { useResultsAreMine, useResultsSource } from "@/lib/episode-results";
 import { airsInLabel, episodeDate, episodeExits, episodeStatus, hiddenBefore, ownersLine, useNowMinute } from "./episode-status";
 
 // One episode's own page, /episodes/N (docs/PLAN-ux-redesign.md, 2e; the canvas's "Episode 3 reveal"
@@ -164,6 +165,10 @@ function ReadView({
   onEdit?: () => void;
 }) {
   const me = useMyPlayerId();
+  // The commissioner of a league-decided season applies results from research: the page for it.
+  const resultsMine = useResultsAreMine();
+  const resultsSource = useResultsSource();
+  const researchable = resultsMine && !!resultsSource;
   const exits = episodeExits(state, ep);
   const inPlay = StateLogic.inPlay(state, ep.number);
   const type = StateLogic.getLeagueType(state);
@@ -192,9 +197,19 @@ function ReadView({
               ? `${airsInLabel(Date.parse(ep.airsAt), now)}. Results show up here once it has.`
               : "Nothing recorded for this episode yet."}
           </p>
+          {onEdit && status !== "upcoming" && researchable && (
+            <CaptionPlate
+              className="self-stretch"
+              tag={`Ep ${ep.number}`}
+              title="Results from research"
+              subtitle="Check what it found, then apply it"
+              action="Open"
+              href={`/episodes/${ep.number}/research`}
+            />
+          )}
           {onEdit && status !== "upcoming" && (
-            <Button className="max-nav:min-h-11" onClick={onEdit}>
-              Enter results
+            <Button variant={researchable ? "secondary" : "default"} className="max-nav:min-h-11" onClick={onEdit}>
+              {researchable ? "Enter them by hand" : "Enter results"}
             </Button>
           )}
         </div>

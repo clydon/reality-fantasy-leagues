@@ -11,13 +11,25 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
-## Guided tour, phase 1 (player path) built 2026-10-10
+## Guided tour: player path (phase 1) and commissioner path (phase 2) built 2026-10-10
 
 "Take a Tour" on the login screen now plays a 3-minute guided tour on a made-up Active Roster season,
 *Rise & Fall* (bakers, two computer players, two scripted episodes), with a host plate and spotlight.
-Details, file map and deviations: `docs/PLAN-guided-tour.md` → "Built: phase 1". End-to-end check:
-`node docs/ux-baseline/scripts/tour.js <outDir>`. Next phase: the commissioner path, the step log table
+Its end card leads into the **commissioner tour**: create the league (prefilled, nothing saved), copy
+the code, start the draft, then check and apply Episode 1's results from research. Details, file maps
+and deviations: `docs/PLAN-guided-tour.md` → "Built: phase 1" and "Built: phase 2". End-to-end check
+of both tours: `node docs/ux-baseline/scripts/tour.js <outDir> [--light]`. Next: the step log table
 and the admin funnel.
+
+Built alongside phase 2 (not yet committed or pushed; What's New entry not written, the user approves
+those):
+- **Research (Active Roster scouting) redesigned** to the canvas's Scouting board and **moved into the
+  tab bar** as a fifth slot (Overview, Episodes, Scoreboard, Draft/Lineup, Research, More). DESIGN.md
+  → "Research".
+- **The commissioner's results page**, `/episodes/N/research`: the research-apply flow for
+  league-decided seasons, out of the episode editor's collapsed panel and onto its own page, with a
+  "Results are in" plate on Episodes. DESIGN.md → "Episode results (commissioner)". The public show
+  catalog now returns each season's `resultsBy`. The User Manual doc still describes the old panel.
 
 ## UX redesign in progress: direction A, "Lower Third" (branch `ux-direction-a`, not pushed)
 
@@ -320,7 +332,7 @@ and the admin funnel.
        `lockLine`, `topStarters`, `signed`).
    - **Navigation:** for Active Roster after the draft, the tab bar's 4th slot is **Lineup** (plan
      1e), with the red "!" while your lineup has a slot to fill. Research moves to More, beside
-     Mid-Season. The desktop sidebar has a Lineup row (Active Roster only) with the same badge. Swipe
+     Mid-Season. (Since 2026-10-10 Research is its own fifth tab-bar slot instead; see the top.) The desktop sidebar has a Lineup row (Active Roster only) with the same badge. Swipe
      between linked leagues keeps `/lineup` when the other league has lineups. The alert strip's
      lineup item, and so the lineup reminder push, now open `/lineup` (they opened `/#lineup`).
      The Lineup tab is player-facing: put it in the What's New entry due at merge (the user approves

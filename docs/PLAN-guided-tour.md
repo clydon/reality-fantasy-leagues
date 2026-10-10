@@ -134,7 +134,8 @@ results is the commissioner's weekly job, so the tour builds to it. Same rules a
 
 ## Built: phase 1, the player path (2026-10-10)
 
-Commissioner path, step log table and admin funnel are left for a later phase.
+The commissioner path is built too (phase 2, below). The step log table and admin funnel are left
+for a later phase.
 
 - **The season:** `src/lib/tour/rise-and-fall.ts`. Client-side only (no demo-season row, no
   migration): a data-only format (`rise-and-fall`, two events, carried as `settings.showFormatData`)
@@ -188,3 +189,61 @@ Commissioner path, step log table and admin funnel are left for a later phase.
 - **Check:** `node docs/ux-baseline/scripts/tour.js <outDir> [--light]` plays it end to end at
   390×844, logged out. It fails on a missing target, a tap the spotlight let through, a confirm bar
   under the plate, overflow, or a console or HTTP error.
+
+## Built: phase 2, the commissioner path (2026-10-10)
+
+The plan's path, all of it: create a league, copy the invite, start the draft, results in: check and
+apply, end card. Plus Research, which the player path left to this one.
+
+| # | Where | Host line | Tap |
+|---|---|---|---|
+| 1 | `/new-league`, step 3 (prefilled) | "Your league, filled in for you. Create it." | Create league |
+| 2 | Step 4 | "Friends join with this code. Copy it." | Copy |
+| 3 | Step 4 | "Ben and Kat are computer players. Go to the draft." | Go to the draft |
+| 4 | Draft, before | "Everyone's in. Start the draft." | Start draft now, then the confirm |
+| 5 | Draft | "You play too. Pick 3: tap one, then Draft." | ×3 |
+| 6 | Episodes → results page | "Episode 1 aired, and its results are in." → "Research found these. Check them, then apply." | Results are in plate → Apply |
+| 7 | Episode 1 | "Applied. Research ranks every baker by points. Tap it." | Research tab |
+| End | Research | "That's the commissioner's week." **Start a league** · *Look around* | — |
+
+- **Where it starts:** the player's end card ("Commissioner tour", under its two buttons), More →
+  "Commissioner tour" (2 min) on a phone, and the sidebar's account menu on desktop. Each starts it
+  on `/new-league`; its league doesn't exist until step 1 makes it.
+- **Create a league, locally:** `create-league-flow.tsx` decides on arrival whether it's the tour's
+  (`useTourStore`: commissioner kind, league not created) and then opens on step 3 with *Rise &
+  Fall*, Active Roster and the name filled in, no back to steps 1–2. Create league calls the tour
+  store's `create()`, which loads `buildCommissionerState()` as a commissioner (`startTour`'s new
+  `role`); step 4 shows code RISE24, Copy works (and marks the step), Share copies, and the invite
+  field and Add a computer player are replaced by one line: nothing is sent. Skipping part-way
+  doesn't turn it into a real create. AuthGate now mounts the host on `/new-league` (not on the
+  reveal); the plate sits at the foot of the screen there and the flow's footer grows by `--tour-h`.
+- **The league and its week:** `src/lib/tour/commissioner.ts`. The draft starts closed
+  (`draftForceStarted` false); Ben and Kat are already in as computer players. Once it's done
+  everyone's lineup goes in on its own (lineups were the player's tour) and Episode 1 airs: its
+  results are **staged** from the same script as the player path (`planEpisode`, split out of
+  `scriptEpisode`), as research would find them: who went home and Clive's win from wiki and research,
+  the bottom two's other half from one source at low confidence, so there's something to check.
+  Applying runs the engine's own import steps, the ones the server's apply route uses.
+- **"Check and approve" is the real commissioner job now, not a tour invention.** On a league-decided
+  season (`show_seasons.results_by = 'leagues'`) each commissioner applies results from research.
+  That flow was a collapsed panel inside the episode editor; it's now its own page,
+  `/episodes/N/research` (`episode-results-page.tsx`, the canvas's "Fill the gap"), fed by
+  `lib/episode-results.ts` (live: the research routes; the tour: its staged results). The public
+  show catalog now carries each season's `resultsBy`, so a live commissioner on a league-decided
+  season gets the same "Results are in" plate on Episodes the tour shows. `episode-research-panel.tsx`
+  and `review-bits.tsx` (its last user) are gone.
+- **Research** (the scouting tab) was redesigned to the canvas's Scouting board and is now a fifth
+  tab-bar slot for Active Roster at every phase; it left the More sheet. See DESIGN.md, "Research".
+- **Also:** the confirm dialog is an `alertdialog` with a `confirm-accept` target, and the host
+  docks at the top while one is open. The nav trail treats arriving on the current page's parent as
+  a step back up (a finished results page replaces itself with its episode).
+- **Tests:** `tests/tour-commissioner.test.js` (staged, not written; apply all; an unticked result
+  stays out).
+- **Check:** `node docs/ux-baseline/scripts/tour.js <outDir> [--light] [--player-only]` now plays the
+  player path, then the commissioner path from its end card, then Research (a castaway's sheet, Free
+  agents, one team, the options). It also fails on a tapped bar under the plate or a clipped tab
+  label. Passed dark and light at 390×844, 2026-10-10. Research and the results page were also
+  checked read-only on `UX AR S51` (real Survivor data; POSTs blocked) at 390 and 1280.
+- **Not done:** the step log and admin funnel (phase 3); the confirm dialog itself is still the old
+  style; no local league is on a league-decided season, so the live "Results are in" plate was only
+  seen in the tour.

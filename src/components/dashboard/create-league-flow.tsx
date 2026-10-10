@@ -14,6 +14,9 @@ import { CaptionPlate } from "@/components/ui/caption-plate";
 import { PlainButton } from "@/components/draft/draft-ui";
 import { Chip, Field, PrimaryButton, TextSheet, fieldCls } from "@/components/setup/settings-ui";
 import { m, AnimatePresence } from "@/components/motion";
+import { useTourStore } from "@/lib/tour/tour-store";
+import { TOUR_JOIN_CODE, buildCommissionerState } from "@/lib/tour/commissioner";
+import { TOUR_LEAGUE_NAME, TOUR_SHOW_NAME, TOUR_TERMS } from "@/lib/tour/rise-and-fall";
 import { cn } from "cn";
 import { ResearchShowFlow } from "./research-show-flow";
 
@@ -33,6 +36,10 @@ import { ResearchShowFlow } from "./research-show-flow";
 //
 // The store isn't switched to the new league until the person leaves step 4: switching shows the boot
 // overlay, which would unmount this flow mid-invite. Step 4 talks to the API by league id instead.
+//
+// The commissioner's guided tour (docs/PLAN-guided-tour.md) plays it locally: it opens on step 3 with
+// *Rise & Fall* already chosen and named, Create league loads the tour's league into the store
+// (nothing is saved, so no boot overlay), and step 4's code copies but invites nobody.
 
 // The order the type cards appear in. StateLogic.LEAGUE_TYPES is keyed for strategy lookup, not display.
 const TYPE_ORDER = ["classic-draft", "active-roster", "pickem"] as const;
@@ -61,8 +68,13 @@ export function CreateLeagueFlow() {
   const isSuperAdmin = useIsSuperAdmin();
   const switchLeague = useLeagueStore((s) => s.switchLeague);
   const setLeagues = useLeagueStore((s) => s.setLeagues);
+  // Decided once, on arrival: skipping the tour part-way doesn't turn this into a real create.
+  const [tour] = useState(() => {
+    const t = useTourStore.getState();
+    return t.step !== null && t.kind === "commissioner" && !t.created;
+  });
 
-  const [step, setStep] = useState<Step>(1);
+  const [step, setStep] = useState<Step>(tour ? 3 : 1);
   const [dir, setDir] = useState(1);
   // Step 1
   const [showSlug, setShowSlug] = useState<string | null>(null);
@@ -73,9 +85,9 @@ export function CreateLeagueFlow() {
   const [researching, setResearching] = useState(false);
   const seasonRef = useRef<HTMLElement>(null);
   // Step 2
-  const [typeId, setTypeId] = useState<string | null>(null);
+  const [typeId, setTypeId] = useState<string | null>(tour ? "active-roster" : null);
   // Step 3
-  const [name, setName] = useState("");
+  const [name, setName] = useState(tour ? TOUR_LEAGUE_NAME : "");
   const [draftWhen, setDraftWhen] = useState<"self" | "time">("self");
   const [draftDate, setDraftDate] = useState("");
   const [draftTime, setDraftTime] = useState("20:00");
@@ -98,7 +110,7 @@ export function CreateLeagueFlow() {
   // Shows a user researched for themselves (test shows included) are theirs alone; an admin sees all.
   const shows = (catalog?.shows ?? []).filter((s) => isSuperAdmin || s.curated !== false || s.mine);
   const show = shows.find((s) => s.slug === showSlug) ?? null;
-  const terms = termsFrom(show);
+  const terms = termsFrom(tour ? { name: TOUR_SHOW_NAME, castaway_term: TOUR_TERMS.castaway, tribe_term: TOUR_TERMS.tribe } : show);
   const catalogSeason = show?.seasons.find((s) => s.seasonNumber === season) ?? null;
   const catchingUp = catchUpChoice ?? catalogSeason?.status === "completed";
   const leagueType = typeId ? StateLogic.LEAGUE_TYPES[typeId] : null;
@@ -107,10 +119,11 @@ export function CreateLeagueFlow() {
   // What a new league of this type starts with (roster shape, ownership), from the real defaults
   // rather than a copy of them.
   const preview = useMemo(() => {
+    if (tour) return buildCommissionerState();
     const s = StateLogic.defaultState();
     if (typeId) StateLogic.updateSettings(s, "leagueTypeId", typeId);
     return s;
-  }, [typeId]);
+  }, [typeId, tour]);
 
   function go(next: Step) {
     setDir(next > step ? 1 : -1);
@@ -137,14 +150,22 @@ export function CreateLeagueFlow() {
   const draftAt = hasDraft && draftWhen === "time" && draftDate ? new Date(`${draftDate}T${draftTime || "20:00"}`) : null;
   const draftInPast = !!draftAt && draftAt.getTime() <= openedAt;
 
-  const canNext =
-    step === 1
+  const canNext = tour
+    ? !!name.trim()
+    : step === 1
       ? !!show && season != null && !researching
       : step === 2
         ? !!leagueType
         : !!name.trim() && !(hasDraft && draftWhen === "time" && (!draftDate || draftInPast));
 
   async function create() {
+    if (tour) {
+      useTourStore.getState().create();
+      setCreated({ id: "tour", name: name.trim() || TOUR_LEAGUE_NAME, joinCode: TOUR_JOIN_CODE });
+      setLeagueState(useLeagueStore.getState().fullState);
+      go(4);
+      return;
+    }
     const trimmed = name.trim();
     if (!canNext || !showSlug || !typeId || season == null) return;
     if (draftAt && draftAt.getTime() <= Date.now()) {
@@ -188,6 +209,11 @@ export function CreateLeagueFlow() {
   // the navigation starts alongside it rather than after.
   async function enter(to: string) {
     if (!created) return;
+    // The tour's league is already the one loaded.
+    if (tour) {
+      router.push(to);
+      return;
+    }
     setBusy(true);
     try {
       const me = await api.me();
@@ -203,10 +229,10 @@ export function CreateLeagueFlow() {
 
   function close() {
     if (created) enter("/");
-    else router.push("/dashboard");
+    else router.push(tour ? "/" : "/dashboard");
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !tour) {
     return (
       <div className="mx-auto flex max-w-[560px] flex-col gap-4 px-4 py-10">
         <p className="text-base">Sign in to create a league.</p>
@@ -221,7 +247,7 @@ export function CreateLeagueFlow() {
     <div className="mx-auto flex min-h-dvh w-full max-w-[560px] flex-col">
       <header className="sticky top-0 z-10 bg-background pt-[env(safe-area-inset-top)]">
         <div className="flex items-center gap-1 py-2.5 pl-1 pr-4">
-          {step === 2 || step === 3 ? (
+          {(step === 2 || step === 3) && !tour ? (
             <IconButton label="Back" onClick={() => go((step - 1) as Step)}>
               <ChevronLeft className="size-6" strokeWidth={2.2} />
             </IconButton>
@@ -457,14 +483,16 @@ export function CreateLeagueFlow() {
             )}
 
             {step === 4 && created && (
-              <InviteStep league={created} state={leagueState} hasDraft={hasDraft} draftAt={draftAt} onState={setLeagueState} />
+              <InviteStep league={created} state={leagueState} hasDraft={hasDraft} draftAt={draftAt} onState={setLeagueState} tour={tour} />
             )}
           </m.div>
         </AnimatePresence>
       </main>
 
       {!(step === 1 && researching) && (
-        <footer className="sticky bottom-0 z-10 border-t border-border bg-background px-4 pb-[calc(20px+env(safe-area-inset-bottom,0px))] pt-3">
+        // While the tour's host is on it sits at the foot of the screen: the footer grows by its height
+        // (--tour-h) so the button stays above it.
+        <footer className="sticky bottom-0 z-10 border-t border-border bg-background px-4 pb-[calc(20px+env(safe-area-inset-bottom,0px)+var(--tour-h,0px))] pt-3">
           {error && (
             <p role="alert" className="mb-2.5 text-sm font-semibold text-live">
               {error}
@@ -478,9 +506,11 @@ export function CreateLeagueFlow() {
           {step === 3 && (
             <>
               <p className="mb-2.5 text-center text-[13px] text-muted-foreground">You&rsquo;ll be the commissioner and the first player.</p>
-              <PrimaryButton className="min-h-[52px] w-full text-base" disabled={!canNext || busy} onClick={create}>
-                {busy ? "Creating…" : "Create league"}
-              </PrimaryButton>
+              <div data-tour="create-league">
+                <PrimaryButton className="min-h-[52px] w-full text-base" disabled={!canNext || busy} onClick={create}>
+                  {busy ? "Creating…" : "Create league"}
+                </PrimaryButton>
+              </div>
             </>
           )}
           {step === 4 && (
@@ -489,6 +519,7 @@ export function CreateLeagueFlow() {
               type="button"
               disabled={busy}
               onClick={() => enter(hasDraft ? "/draft" : "/")}
+              data-tour="invite-enter"
               className="min-h-[52px] w-full rounded-[3px] bg-foreground px-5 text-base font-bold text-background transition-[filter] hover:brightness-[0.94] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:opacity-50"
             >
               {busy ? "Opening…" : hasDraft ? "Go to the draft" : "Go to your league"}
@@ -507,13 +538,17 @@ function InviteStep({
   hasDraft,
   draftAt,
   onState,
+  tour,
 }: {
   league: { id: string; name: string; joinCode: string };
   state: LeagueState | null;
   hasDraft: boolean;
   draftAt: Date | null;
   onState: (s: LeagueState) => void;
+  /** The commissioner's tour: the code copies, but nobody is invited or added. */
+  tour?: boolean;
 }) {
+  const markCopied = useTourStore((s) => s.markCopied);
   const [copied, setCopied] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [sending, setSending] = useState(false);
@@ -525,6 +560,7 @@ function InviteStep({
   const bots = players.filter((p) => p.automated).length;
 
   async function copy() {
+    if (tour) markCopied();
     try {
       await navigator.clipboard.writeText(league.joinCode);
       setCopied(true);
@@ -536,7 +572,7 @@ function InviteStep({
 
   async function share() {
     const text = `Join ${league.name}: use code ${league.joinCode} at ${window.location.origin}`;
-    if (!navigator.share) return copy();
+    if (tour || !navigator.share) return copy();
     try {
       await navigator.share({ text });
     } catch {
@@ -603,12 +639,15 @@ function InviteStep({
           <Share className="size-5" strokeWidth={2.2} aria-hidden />
           Share invite
         </PrimaryButton>
-        <PlainButton className="min-h-[52px] flex-1" onClick={copy}>
+        <PlainButton className="min-h-[52px] flex-1" onClick={copy} tour="invite-copy">
           {copied ? <Check className="size-[18px]" strokeWidth={2.4} aria-hidden /> : <Copy className="size-[18px]" strokeWidth={2.2} aria-hidden />}
           {copied ? "Copied" : "Copy"}
         </PlainButton>
       </div>
 
+      {tour ? (
+        <p className="-mt-2 text-sm text-muted-foreground">On the tour nothing is sent, and the code joins nothing.</p>
+      ) : (
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -636,6 +675,7 @@ function InviteStep({
           </div>
         </Field>
       </form>
+      )}
 
       {note && <p className={cn("-mt-2 text-sm", note.error ? "font-semibold text-live" : "text-muted-foreground")}>{note.text}</p>}
 
@@ -657,10 +697,12 @@ function InviteStep({
             </div>
           ))}
         </div>
-        <PlainButton className="mt-2" onClick={() => setAddingBot(true)}>
-          <Plus className="size-[18px]" strokeWidth={2.2} aria-hidden />
-          Add a computer player
-        </PlainButton>
+        {!tour && (
+          <PlainButton className="mt-2" onClick={() => setAddingBot(true)}>
+            <Plus className="size-[18px]" strokeWidth={2.2} aria-hidden />
+            Add a computer player
+          </PlainButton>
+        )}
       </section>
 
       {addingBot && (

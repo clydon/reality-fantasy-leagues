@@ -57,8 +57,8 @@ Last updated 2026-10-05.
   (`SpoilerLogic`, the results-in reveal gate, catch-up mode) the rest of the app is built around.
   Any future "skip the effort" feature for players, not just commissioners, should stay retrospective
   (season recaps, shareable cards) rather than touching an in-progress decision.
-- **A guided onboarding tour / coachmarks:** backburnered. Too many moving parts; it would go stale
-  fast.
+- **A guided onboarding tour / coachmarks:** revived 2026-10-10 as a scripted mock-mode season; see
+  `docs/PLAN-guided-tour.md` (which answers the staleness concern).
 - **A notification bell/inbox:** the action bar already lists everything actionable, and a bell
   would mostly repeat it. Revisit only if people ask for "what did I miss" history.
 - **"Survived the episode" points:** skipped. It's a baseline everyone earns, so not much signal.

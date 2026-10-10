@@ -209,6 +209,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <div className="min-h-dvh bg-background">
         <ConfirmDialog />
+        {/* The commissioner's tour opens on creating a league. Not the reveal: that's the broadcast,
+            and the tour's host waits for it to finish. */}
+        {pathname === "/new-league" && <TourHost />}
         {children}
       </div>
     );

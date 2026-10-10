@@ -18,6 +18,8 @@ export interface TourCtx {
   pathname: string;
   /** The last episode the viewer has revealed. */
   seen: number;
+  /** The commissioner's tour: whether its league is created yet and its code copied. */
+  tour: { created: boolean; copied: boolean };
 }
 
 export interface TourStep {
@@ -136,3 +138,82 @@ export const PLAYER_TOUR: TourStep[] = [
     end: true,
   },
 ];
+
+// The commissioner's path (docs/PLAN-guided-tour.md, "Commissioner path"): set the league up, start
+// the draft, then the weekly job -- results come in from research, and you check and apply them.
+// Research (who's scoring) closes it, since it's where everyone, commissioner or not, scouts.
+export const COMMISSIONER_TOUR: TourStep[] = [
+  {
+    id: "create",
+    progress: "Setup",
+    route: at("/new-league"),
+    line: () => "Your league, filled in for you. Create it.",
+    targets: ["create-league"],
+    done: (c) => c.tour.created,
+  },
+  {
+    id: "invite",
+    progress: "Setup",
+    route: at("/new-league"),
+    line: () => "Friends join with this code. Copy it.",
+    targets: ["invite-copy"],
+    done: (c) => c.tour.copied,
+  },
+  {
+    id: "to-draft",
+    progress: "Setup",
+    route: at("/new-league"),
+    line: () => "Ben and Kat are computer players. Go to the draft.",
+    targets: ["invite-enter"],
+    done: (c) => c.pathname === "/draft",
+  },
+  {
+    id: "start-draft",
+    progress: "Draft",
+    route: at("/draft"),
+    line: () => "Everyone's in. Start the draft.",
+    targets: ["draft-start", "confirm-accept"],
+    nav: { targets: ["tab-draft"] },
+    done: (c) => StateLogic.isDraftStarted(c.full),
+  },
+  {
+    id: "draft",
+    progress: "Draft",
+    route: at("/draft"),
+    line: () => "You play too. Pick 3: tap one, then Draft.",
+    targets: ["picker-tiles", "picker-confirm"],
+    nav: { targets: ["tab-draft"] },
+    done: (c) => draftDone(c.full),
+  },
+  {
+    id: "results",
+    progress: "Episode 1",
+    route: at("/episodes/1/research"),
+    line: () => "Research found these. Check them, then apply.",
+    targets: ["results-apply"],
+    look: ["results-list"],
+    nav: { line: () => "Episode 1 aired, and its results are in.", targets: ["tab-episodes", "results-check"] },
+    done: (c) => hasResults(c.full, 1),
+  },
+  {
+    id: "research",
+    progress: "Episode 1",
+    line: () => "Applied. Research ranks every baker by points. Tap it.",
+    targets: ["tab-research"],
+    done: (c) => c.pathname === "/research",
+  },
+  {
+    id: "end",
+    progress: "Done",
+    route: at("/research"),
+    line: () => "That's the commissioner's week.",
+    targets: [],
+    nav: { targets: ["tab-research"] },
+    done: () => false,
+    end: true,
+  },
+];
+
+export function tourSteps(kind: "player" | "commissioner"): TourStep[] {
+  return kind === "commissioner" ? COMMISSIONER_TOUR : PLAYER_TOUR;
+}

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import type { Episode, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore } from "@/lib/store";
@@ -13,7 +15,7 @@ import { Select } from "@/components/ui/select";
 import { confirm } from "@/lib/confirm-store";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { EpisodeChanges, EpisodeRecap } from "./episode-recap";
-import { EpisodeResearchPanel } from "./episode-research-panel";
+import { useResultsSource } from "@/lib/episode-results";
 
 // A commissioner's editing of one episode's results (docs/PLAN-ux-redesign.md, 2e): what's recorded,
 // each with its own Undo, then a form per kind of result, then research to fill gaps. Behind "Edit
@@ -210,8 +212,8 @@ export function EpisodeEditor({ ep, state, onDone }: { ep: Episode; state: Leagu
       )}
 
       {/* Paste-and-apply episode research, for a league no admin is researching (and a quick way to
-          pull in what another league on the season already found). */}
-      <EpisodeResearchPanel ep={ep} state={state} />
+          pull in what another league on the season already found): its own page now. */}
+      <ResearchLink number={ep.number} />
 
       <Form title="Episode number" hint="Only if this episode was numbered wrong.">
         <div>
@@ -226,6 +228,24 @@ export function EpisodeEditor({ ep, state, onDone }: { ep: Episode; state: Leagu
         </div>
       </Form>
     </div>
+  );
+}
+
+// Research needs the database's shared cache: a demo league has none (the tour scripts its own).
+function ResearchLink({ number }: { number: number }) {
+  const source = useResultsSource();
+  if (!source) return null;
+  return (
+    <Link
+      href={`/episodes/${number}/research`}
+      className="flex min-h-[60px] items-center gap-3 border-t border-border py-2 outline-none hover:bg-accent/40 focus-visible:bg-accent"
+    >
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-base font-bold">Fill gaps with research</span>
+        <span className="text-[13px] text-muted-foreground">Check what research found, then apply it</span>
+      </span>
+      <ChevronRight className="size-5 shrink-0 text-muted-foreground" strokeWidth={2.2} aria-hidden />
+    </Link>
   );
 }
 

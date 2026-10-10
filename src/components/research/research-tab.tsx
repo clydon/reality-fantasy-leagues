@@ -1,24 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import type { Castaway, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore } from "@/lib/store";
 import { useShowTerms } from "@/lib/use-show-terms";
+import { useHeaderAction } from "@/lib/header-action-store";
+import { signed } from "@/lib/game/lineup-view";
 import { CastawayAvatar } from "@/components/castaway-avatar";
-import { Badge } from "@/components/ui/badge";
-import { Select } from "@/components/ui/select";
+import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
+import { MoreButton, ToggleRow } from "@/components/setup/settings-ui";
 import { cn } from "cn";
-import { isKnockedOut } from "@/lib/game/selectors";
 
-// Active Roster's scouting page: every castaway ranked by the points they've actually scored, over a
-// chosen window of recent episodes -- who's worth fielding, who's worth picking up. A castaway's OWN
-// points (every event attributed to them), not any owner's cut of them, same as the board's badge.
+// Active Roster's scouting page (the canvas's "A · Draft, scouting & mid-season": Scouting): every
+// castaway ranked by the points they've actually scored over a window of recent episodes -- who's
+// worth starting, who's worth picking up. A castaway's OWN points (every event attributed to them),
+// not any owner's cut of them.
 //
-// Filters are per-browser conveniences (localStorage), not league state.
+// One screen, top to bottom: the window (a segmented control), who to show (Everyone / Free agents /
+// Mine / one team), the ranking as hairline rows with a bar per episode, then one line naming free
+// agents who score like starters. Tapping a row opens its episodes in a sheet. The rarer options --
+// rank per episode, hide who's out, count episodes before the league started -- sit behind the page's
+// ⋯ (in the header on a phone).
+//
+// The view is a per-browser convenience (localStorage), not league state. Preseason isn't remembered:
+// each visit starts on what counts in this league.
 
-type Window = "season" | "3" | "5" | "1";
-type Sort = "points" | "avg" | "last";
+type Window = "season" | "5" | "3" | "1";
+type Who = "all" | "free" | "mine" | `team:${string}`;
 const PREFS_KEY = "rfl.research.prefs";
 const WINDOWS: [Window, string][] = [
   ["season", "Season"],
@@ -27,30 +37,35 @@ const WINDOWS: [Window, string][] = [
   ["1", "Last ep"],
 ];
 
+interface EpisodeLine {
+  n: number;
+  points: number;
+  /** Still in the game for it. */
+  played: boolean;
+  events: { label: string; points: number }[];
+}
+
 interface Row {
   c: Castaway;
   points: number;
   played: number;
   avg: number;
-  lastPoints: number;
-  perEpisode: { n: number; points: number; played: boolean }[];
-  byType: { label: string; count: number; points: number }[];
+  perEpisode: EpisodeLine[];
 }
 
 export function ResearchTab() {
   const state = useLeagueStore((s) => s.state);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const terms = useShowTerms();
+  const setHeaderAction = useHeaderAction((s) => s.set);
   const [window, setWindow] = useState<Window>("season");
-  const [includeOwned, setIncludeOwned] = useState(true);
-  // One player's team only ("" = everyone). Overrides "Include owned" -- a team is all owned.
-  const [team, setTeam] = useState("");
+  const [who, setWho] = useState<Who>("all");
+  const [perEpisode, setPerEpisode] = useState(false);
   const [hideOut, setHideOut] = useState(false);
-  // Episodes before the league's start episode: scored for nobody, but still how a castaway played.
-  // Off by default -- only what counts in this league -- and not remembered: each visit starts there.
   const [includePreseason, setIncludePreseason] = useState(false);
-  const [sort, setSort] = useState<Sort>("points");
-  const [open, setOpen] = useState<string | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [teamsOpen, setTeamsOpen] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -58,9 +73,9 @@ export function ResearchTab() {
       if (saved) {
         /* eslint-disable react-hooks/set-state-in-effect -- one-time load from browser storage */
         if (WINDOWS.some(([w]) => w === saved.window)) setWindow(saved.window);
-        if (typeof saved.includeOwned === "boolean") setIncludeOwned(saved.includeOwned);
+        if (saved.who === "all" || saved.who === "free" || saved.who === "mine") setWho(saved.who);
         if (typeof saved.hideOut === "boolean") setHideOut(saved.hideOut);
-        if (["points", "avg", "last"].includes(saved.sort)) setSort(saved.sort);
+        if (typeof saved.perEpisode === "boolean") setPerEpisode(saved.perEpisode);
         /* eslint-enable react-hooks/set-state-in-effect */
       }
     } catch {
@@ -69,238 +84,346 @@ export function ResearchTab() {
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ window, includeOwned, hideOut, sort }));
+      // One team isn't remembered: next visit, that player may have left.
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ window, who: who.startsWith("team:") ? "all" : who, hideOut, perEpisode }));
     } catch {
       /* not remembered this time */
     }
-  }, [window, includeOwned, hideOut, sort]);
+  }, [window, who, hideOut, perEpisode]);
+
+  // The page's options in the phone header's ⋯, like the finished Draft's.
+  useEffect(() => {
+    setHeaderAction({ label: "Research options", onClick: () => setOptionsOpen(true) });
+    return () => setHeaderAction(null);
+  }, [setHeaderAction]);
 
   const startEp = StateLogic.startEpisode(state);
-  const { rows, episodeNumbers } = useMemo(
-    () => buildRows(state, window, includePreseason || startEp <= 1),
-    [state, window, includePreseason, startEp]
-  );
+  const preseason = includePreseason || startEp <= 1;
+  const aired = useMemo(() => airedEpisodes(state, preseason), [state, preseason]);
+  // Only windows shorter than what's aired: "Last 5" of three episodes is just the season.
+  const windows = WINDOWS.filter(([w]) => w === "season" || Number(w) < aired.length);
+  const shownWindow = windows.some(([w]) => w === window) ? window : "season";
+  const rows = useMemo(() => buildRows(state, aired, shownWindow), [state, aired, shownWindow]);
 
   if (!StateLogic.getLeagueType(state).hasActiveRoster) {
     return (
       <>
-        <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Research</h2>
-        <p className="text-sm text-muted-foreground">Research is for Active Roster leagues.</p>
+        <h2 className="type-caption mb-4 text-[28px] max-nav:hidden">Research</h2>
+        <p className="text-base text-muted-foreground">Research is for Active Roster leagues.</p>
       </>
     );
   }
 
+  const players = state.players.filter((p) => !p.disabled && p.active !== false);
+  const team = who.startsWith("team:") ? players.find((p) => p.id === who.slice(5)) ?? null : null;
+  const mine = (c: Castaway) => !!myPlayerId && c.ownerIds.includes(myPlayerId);
+  const free = (c: Castaway) => c.ownerIds.length === 0;
+  const score = (r: Row) => (perEpisode ? r.avg : r.points);
   const shown = rows
-    .filter((r) => (team ? r.c.ownerIds.includes(team) : includeOwned || r.c.ownerIds.length === 0 || r.c.ownerIds.includes(myPlayerId ?? "")))
+    .filter((r) => (who === "free" ? free(r.c) : who === "mine" ? mine(r.c) : team ? r.c.ownerIds.includes(team.id) : true))
     .filter((r) => !hideOut || r.c.status !== "eliminated")
-    .sort((a, b) => {
-      const key = (r: Row) => (sort === "avg" ? r.avg : sort === "last" ? r.lastPoints : r.points);
-      return key(b) - key(a) || b.points - a.points || a.c.name.localeCompare(b.c.name);
-    });
+    .sort((a, b) => score(b) - score(a) || b.points - a.points || a.c.name.localeCompare(b.c.name));
+  const epNumbers = rows[0]?.perEpisode.map((e) => e.n) ?? [];
+  const range = epNumbers.length === 0 ? null : epNumbers.length === 1 ? `Ep ${epNumbers[0]}` : `Ep ${epNumbers[0]}–${epNumbers[epNumbers.length - 1]}`;
   const maxBar = Math.max(1, ...rows.flatMap((r) => r.perEpisode.map((e) => Math.abs(e.points))));
-  const windowLabel =
-    episodeNumbers.length === 0
-      ? "no episodes scored yet"
-      : episodeNumbers.length === 1
-        ? `episode ${episodeNumbers[0]}`
-        : `episodes ${episodeNumbers[0]}–${episodeNumbers[episodeNumbers.length - 1]}`;
+  const bars = epNumbers.length >= 2;
 
-  return (
+  // Who's on your bench this week, for "Yours · bench".
+  const ep = StateLogic.currentEpisode(state);
+  const myLineup: string[] = ep && myPlayerId ? (StateLogic.activeRosterLineupFor(state, ep.id, myPlayerId) as string[]) : [];
+  const ownerLine = (c: Castaway): ReactNode => {
+    if (c.status === "eliminated") {
+      const exit = state.episodes.find((e) => e.events.some((x) => x.castawayId === c.id));
+      return exit ? `Out · Episode ${exit.number}` : "Out";
+    }
+    if (free(c)) return <span className="font-semibold text-good">Free agent</span>;
+    // "bench" only once you've started someone: before that, nobody's on it yet.
+    const yours = myLineup.length > 0 && !myLineup.includes(c.id) ? "Yours · bench" : "Yours";
+    return c.ownerIds
+      .map((id) => (id === myPlayerId ? yours : StateLogic.getPlayer(state, id)?.name))
+      .filter(Boolean)
+      .join(", ");
+  };
+  const steals = who === "all" || who === "free" ? freeAgentSteals(state, rows) : [];
+  const open = openId ? rows.find((r) => r.c.id === openId) ?? null : null;
+
+  const options = (
     <>
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight max-nav:hidden">Research</h2>
-
-      <div className="mb-3 rounded-lg border border-border bg-card p-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex overflow-hidden rounded-md border border-border">
-            {WINDOWS.map(([w, label]) => (
-              <button
-                key={w}
-                className={cn(
-                  "px-2.5 py-1 text-xs font-semibold",
-                  window === w ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-secondary"
-                )}
-                onClick={() => setWindow(w)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <Select size="sm" value={team} onChange={(e) => setTeam(e.target.value)} title="Show one player's team">
-            <option value="">All teams</option>
-            {state.players
-              .filter((p) => !p.disabled)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.id === myPlayerId ? `Your team (${p.name})` : `${p.name}'s team`}
-                </option>
-              ))}
-          </Select>
-          <Select size="sm" value={sort} onChange={(e) => setSort(e.target.value as Sort)} title="Sort by">
-            <option value="points">Most points</option>
-            <option value="avg">Best per episode</option>
-            <option value="last">Best last episode</option>
-          </Select>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <label className={cn("flex items-center gap-1.5", team && "opacity-50")}>
-            <input type="checkbox" checked={includeOwned || !!team} disabled={!!team} onChange={(e) => setIncludeOwned(e.target.checked)} />
-            Include owned {terms.castaways}
-          </label>
-          <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={hideOut} onChange={(e) => setHideOut(e.target.checked)} />
-            Hide eliminated
-          </label>
-          {/* Only where there's a preseason: a league that started after episode 1. */}
-          {startEp > 1 && (
-            <label className="flex items-center gap-1.5">
-              <input type="checkbox" checked={includePreseason} onChange={(e) => setIncludePreseason(e.target.checked)} />
-              Include {startEp === 2 ? "episode 1" : `episodes 1–${startEp - 1}`} (before the league started)
-            </label>
-          )}
-          <span className="ml-auto">Scoring {windowLabel}</span>
-        </div>
-      </div>
-
-      {shown.length === 0 ? (
-        <p className="text-sm italic text-muted-foreground">
-          {includeOwned || team ? `No ${terms.castaways} match.` : `Every ${terms.castaway} is owned — tick "Include owned" to see them.`}
-        </p>
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-          {shown.map((r, i) => {
-            const owners = r.c.ownerIds.map((id) => StateLogic.getPlayer(state, id)).filter((p): p is NonNullable<typeof p> => !!p);
-            const tribe = r.c.tribeId ? StateLogic.Core.getTribe(state, r.c.tribeId) : null;
-            const out = isKnockedOut(state, r.c);
-            const isOpen = open === r.c.id;
-            return (
-              <div key={r.c.id} className="border-t border-border first:border-t-0">
-                <button className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-secondary/50" onClick={() => setOpen(isOpen ? null : r.c.id)}>
-                  <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
-                  <CastawayAvatar
-                    castaway={r.c}
-                    expandable
-                    className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold",
-                      out && "opacity-40 grayscale"
-                    )}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className={cn("truncate text-sm font-semibold", out && "text-muted-foreground line-through decoration-1")}>{r.c.name}</div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                      {tribe && (
-                        <span className="rounded px-1.5 py-px text-[0.6rem] font-bold uppercase text-white" style={{ background: tribe.color }}>
-                          {tribe.name}
-                        </span>
-                      )}
-                      {owners.length > 0 ? (
-                        owners.map((o) => (
-                          <Badge key={o.id} className="h-4 px-1.5 text-[0.6rem] text-white" style={{ background: o.color }}>
-                            {o.id === myPlayerId ? "You" : o.name}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-[0.65rem] font-semibold text-good">Free agent</span>
-                      )}
-                    </div>
-                  </div>
-                  <Sparkbars perEpisode={r.perEpisode} max={maxBar} />
-                  <div className="w-12 shrink-0 text-right">
-                    <div className="font-mono text-base font-bold leading-tight">{sort === "avg" ? r.avg.toFixed(1) : sort === "last" ? r.lastPoints : r.points}</div>
-                    <div className="text-[0.6rem] text-muted-foreground">
-                      {sort === "avg" ? `${r.points} pts` : sort === "last" ? "last ep" : `${r.avg.toFixed(1)}/ep`}
-                    </div>
-                  </div>
-                </button>
-                {isOpen && (
-                  <div className="bg-secondary/40 px-3 py-2 text-xs">
-                    {r.byType.length === 0 ? (
-                      <span className="italic text-muted-foreground">No scoring events in this window.</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {r.byType.map((t) => (
-                          <span key={t.label} className="inline-flex items-center gap-1 rounded bg-card px-1.5 py-0.5">
-                            {t.label}
-                            {t.count > 1 && <span className="text-muted-foreground">×{t.count}</span>}
-                            <span className="font-mono font-bold">{t.points >= 0 ? `+${t.points}` : t.points}</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-1.5 flex flex-wrap gap-x-3 text-muted-foreground">
-                      {r.perEpisode.map((e) => (
-                        <span key={e.n}>
-                          Ep {e.n}: <b className="text-foreground">{e.played ? e.points : "—"}</b>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+      <ToggleRow label="Rank by points per episode" hint="Fairer to someone who joined late or sat out" checked={perEpisode} onChange={setPerEpisode} />
+      <ToggleRow label={`Hide ${terms.castaways} who are out`} checked={hideOut} onChange={setHideOut} />
+      {/* Only where there's a preseason: a league that started after episode 1. */}
+      {startEp > 1 && (
+        <ToggleRow
+          label={`Include ${startEp === 2 ? "episode 1" : `episodes 1–${startEp - 1}`}`}
+          hint="Before this league started. Scored for nobody, but it's still how they played."
+          checked={includePreseason}
+          onChange={setIncludePreseason}
+        />
       )}
     </>
   );
-}
 
-// One small bar per episode in the window: how much they scored each week, at a glance.
-function Sparkbars({ perEpisode, max }: { perEpisode: Row["perEpisode"]; max: number }) {
-  if (perEpisode.length < 2) return null;
   return (
-    <div className="flex h-7 shrink-0 items-end gap-px max-[380px]:hidden" aria-hidden>
-      {perEpisode.map((e) => (
-        <span
-          key={e.n}
-          className={cn("w-1.5 rounded-sm", !e.played ? "bg-border" : e.points > 0 ? "bg-primary" : "bg-muted-foreground/30")}
-          style={{ height: `${e.played ? Math.max(8, (Math.abs(e.points) / max) * 100) : 8}%` }}
-          title={`Ep ${e.n}: ${e.played ? e.points : "out"}`}
-        />
-      ))}
+    <div className="flex flex-col gap-3">
+      <div className="flex min-h-11 items-center gap-3 max-nav:hidden">
+        <h2 className="type-caption flex-1 text-[28px]">Research</h2>
+        <MoreButton label="Research options" onClick={() => setOptionsOpen(true)} />
+      </div>
+
+      {windows.length > 1 && (
+        <div role="tablist" aria-label="Which episodes" className="flex rounded-[3px] bg-card p-[3px]">
+          {windows.map(([w, label]) => (
+            <button
+              key={w}
+              role="tab"
+              aria-selected={shownWindow === w}
+              className={cn(
+                "min-h-10 flex-1 rounded-[2px] text-sm font-semibold",
+                shownWindow === w ? "bg-foreground font-bold text-background" : "text-foreground hover:bg-muted"
+              )}
+              onClick={() => setWindow(w)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div role="group" aria-label="Whose" className="flex flex-wrap gap-2">
+        <FilterChip on={who === "all"} onClick={() => setWho("all")}>
+          Everyone
+        </FilterChip>
+        <FilterChip on={who === "free"} onClick={() => setWho("free")}>
+          Free agents
+        </FilterChip>
+        {myPlayerId && (
+          <FilterChip on={who === "mine"} onClick={() => setWho("mine")}>
+            Mine
+          </FilterChip>
+        )}
+        {players.some((p) => p.id !== myPlayerId) && (
+          <FilterChip on={!!team} onClick={() => setTeamsOpen(true)}>
+            <span className="max-w-[96px] truncate">{team ? team.name : "Team"}</span>
+            <ChevronDown className="size-4" strokeWidth={2.4} aria-hidden />
+          </FilterChip>
+        )}
+      </div>
+
+      {epNumbers.length === 0 ? (
+        <p className="border-t border-border pt-3 text-base text-muted-foreground">
+          Nothing scored yet. The ranking fills in as episodes are revealed.
+        </p>
+      ) : shown.length === 0 ? (
+        <p className="border-t border-border pt-3 text-base text-muted-foreground">
+          {who === "free" ? `Every ${terms.castaway} is on someone's roster.` : `No ${terms.castaways} here.`}
+        </p>
+      ) : (
+        <div data-tour="research-list">
+          <div className="flex min-h-[30px] items-center gap-3 text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">
+            <span className="w-5 shrink-0" />
+            <span className="flex-1">{terms.castaway}</span>
+            {bars && <span className="shrink-0 text-center">{range}</span>}
+            <span className="w-11 shrink-0 text-right">{perEpisode ? "Avg" : "Pts"}</span>
+          </div>
+          <ol className="border-b border-border">
+            {shown.map((r, i) => {
+              const out = r.c.status === "eliminated";
+              return (
+                <li key={r.c.id} className="border-t border-border">
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(r.c.id)}
+                    className={cn("flex min-h-[58px] w-full items-center gap-3 py-2 text-left outline-none focus-visible:bg-accent", out && "opacity-55")}
+                  >
+                    <span className="type-num w-5 shrink-0 text-[18px] text-muted-foreground">{i + 1}</span>
+                    <CastawayAvatar
+                      castaway={r.c}
+                      className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[2px] bg-muted text-xs font-bold text-muted-foreground [&_img]:object-top"
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="truncate text-base font-semibold">{r.c.name}</span>
+                      <span className="truncate text-[13px] text-muted-foreground">{ownerLine(r.c)}</span>
+                    </span>
+                    {bars && <Sparkbars perEpisode={r.perEpisode} max={maxBar} />}
+                    <span className="type-num w-11 shrink-0 text-right text-[22px]">{perEpisode ? fmtAvg(r.avg) : r.points}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
+      {steals.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {listNames(steals.map((c) => c.name))} {steals.length === 1 ? `is a free agent` : `are free agents`} scoring like{" "}
+          {steals.length === 1 ? "a starter" : "starters"}.
+        </p>
+      )}
+
+      {/* Each toggle applies as it's flipped, so the sheet closes with Done, not Cancel. */}
+      <BottomSheet open={optionsOpen} onOpenChange={setOptionsOpen} title="Research" hideCancel>
+        <div className="flex flex-col [&>*]:border-t [&>*]:border-border">{options}</div>
+        <button
+          type="button"
+          onClick={() => setOptionsOpen(false)}
+          className="mt-3 min-h-12 rounded-[3px] border border-border bg-secondary text-[15px] font-bold text-foreground"
+        >
+          Done
+        </button>
+      </BottomSheet>
+
+      <BottomSheet open={teamsOpen} onOpenChange={setTeamsOpen} title="Show one team">
+        {players
+          .filter((p) => p.id !== myPlayerId)
+          .map((p) => (
+            <SheetAction
+              key={p.id}
+              detail={team?.id === p.id ? "Showing" : undefined}
+              onClick={() => {
+                setWho(`team:${p.id}`);
+                setTeamsOpen(false);
+              }}
+            >
+              <span className="flex items-center gap-3">
+                <span className="size-3 shrink-0 rounded-[3px]" style={{ background: p.color }} aria-hidden />
+                {p.name}&rsquo;s team
+              </span>
+            </SheetAction>
+          ))}
+      </BottomSheet>
+
+      <BottomSheet
+        open={!!open}
+        onOpenChange={(o) => !o && setOpenId(null)}
+        title={open?.c.name ?? ""}
+        description={open ? ownerLine(open.c) : undefined}
+      >
+        {open && <CastawayEpisodes row={open} />}
+      </BottomSheet>
     </div>
   );
 }
 
-function buildRows(state: LeagueState, window: Window, includePreseason: boolean): { rows: Row[]; episodeNumbers: number[] } {
-  const defs = StateLogic.formatOf(state).events;
-  // Episodes that have happened: anything with results recorded and revealed to this league --
-  // including ones before the league's start episode. Those don't score for anyone, but they're
-  // still how a castaway has played, which is what scouting is for.
-  const aired = [...state.episodes]
+// A castaway's window, one hairline row per episode: what they did and what it was worth.
+function CastawayEpisodes({ row }: { row: Row }) {
+  return (
+    <div className="flex flex-col">
+      <p className="pb-2 text-sm text-muted-foreground">
+        <b className="type-num mr-1 text-[22px] text-foreground">{row.points}</b>
+        {row.played === 1 ? "in 1 episode" : `in ${row.played} episodes · ${fmtAvg(row.avg)} per episode`}
+      </p>
+      <ol className="flex flex-col border-b border-border">
+        {[...row.perEpisode].reverse().map((e) => (
+          <li key={e.n} className="flex min-h-[52px] items-center gap-3 border-t border-border py-2">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-base font-semibold">Episode {e.n}</span>
+              <span className="text-[13px] text-muted-foreground">
+                {!e.played
+                  ? "Out of the game"
+                  : e.events.length
+                    ? e.events.map((x) => `${x.label} ${signed(x.points)}`).join(" · ")
+                    : "Nothing that scores"}
+              </span>
+            </span>
+            <span className={cn("type-num shrink-0 text-[22px]", !e.played && "text-muted-foreground")}>{e.played ? signed(e.points) : "–"}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function FilterChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onClick}
+      className={cn(
+        "flex min-h-10 items-center gap-1.5 rounded-[3px] border px-3 text-sm",
+        on ? "border-foreground bg-foreground font-bold text-background" : "border-input font-semibold text-foreground hover:bg-accent"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+// One small bar per episode in the window: how much they scored each week, at a glance. Teal for a
+// week that scored, muted for one that didn't, a stub once they're out.
+function Sparkbars({ perEpisode, max }: { perEpisode: EpisodeLine[]; max: number }) {
+  return (
+    <span className="flex h-[26px] shrink-0 items-end gap-[3px]" aria-hidden>
+      {perEpisode.slice(-6).map((e) => (
+        <span
+          key={e.n}
+          className={cn("w-2 rounded-[1px]", !e.played ? "bg-border" : e.points > 0 ? "bg-good" : "bg-muted-foreground/35")}
+          style={{ height: `${e.played && e.points !== 0 ? Math.max(18, (Math.abs(e.points) / max) * 100) : 12}%` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** Episodes revealed to this viewer that have results, oldest first -- optionally including ones
+ *  before the league's start episode, which score for nobody but are still how a castaway played. */
+function airedEpisodes(state: LeagueState, includePreseason: boolean) {
+  return [...state.episodes]
     .filter((ep) => StateLogic.RevealLogic.isRevealed(state, ep.number))
     .filter((ep) => includePreseason || StateLogic.inPlay(state, ep.number))
     .filter((ep) => ep.events.length > 0 || StateLogic.ActiveRosterLogic.episodeEvents(state, ep).length > 0)
     .sort((a, b) => a.number - b.number);
+}
+
+function buildRows(state: LeagueState, aired: LeagueState["episodes"], window: Window): Row[] {
+  const defs = StateLogic.formatOf(state).events;
+  const label = (type: string) => defs.find((d) => d.id === type)?.label ?? type;
   const inWindow = window === "season" ? aired : aired.slice(-Number(window));
-  const lastEp = aired[aired.length - 1];
 
   // The episode each castaway left in (they played it, then no more).
   const exitEp: Record<string, number> = {};
   for (const ep of state.episodes) for (const ev of ep.events) exitEp[ev.castawayId] = Math.min(exitEp[ev.castawayId] ?? Infinity, ep.number);
 
-  const rows = state.castaways.map((c) => {
-    const perEpisode = inWindow.map((ep) => ({ n: ep.number, points: 0, played: !(exitEp[c.id] < ep.number) }));
-    const counts: Record<string, number> = {};
-    let lastPoints = 0;
-    inWindow.forEach((ep, i) => {
+  return state.castaways.map((c) => {
+    const perEpisode: EpisodeLine[] = inWindow.map((ep) => {
+      const line: EpisodeLine = { n: ep.number, points: 0, played: !(exitEp[c.id] < ep.number), events: [] };
       for (const sev of StateLogic.ActiveRosterLogic.episodeEvents(state, ep)) {
         if (sev.castawayId !== c.id) continue;
         const pts = StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
-        perEpisode[i].points = StateLogic.roundPoints(perEpisode[i].points + pts);
-        counts[sev.type] = (counts[sev.type] || 0) + 1;
+        line.points = StateLogic.roundPoints(line.points + pts);
+        // An event this league scores at 0 is noise in the breakdown.
+        if (pts !== 0) line.events.push({ label: label(sev.type), points: pts });
       }
+      return line;
     });
-    if (lastEp) {
-      for (const sev of StateLogic.ActiveRosterLogic.episodeEvents(state, lastEp)) {
-        if (sev.castawayId === c.id) lastPoints = StateLogic.roundPoints(lastPoints + StateLogic.ActiveRosterLogic.pointsFor(state, sev.type));
-      }
-    }
     const points = StateLogic.roundPoints(perEpisode.reduce((s, e) => s + e.points, 0));
     const played = perEpisode.filter((e) => e.played).length;
-    const byType = defs
-      .filter((d) => counts[d.id] > 0)
-      .map((d) => ({ label: d.label, count: counts[d.id], points: StateLogic.roundPoints(counts[d.id] * StateLogic.ActiveRosterLogic.pointsFor(state, d.id)) }));
-    return { c, points, played, avg: played ? points / played : 0, lastPoints, perEpisode, byType };
+    return { c, points, played, avg: played ? points / played : 0, perEpisode };
   });
-  return { rows, episodeNumbers: inWindow.map((ep) => ep.number) };
+}
+
+/** Free agents still in the game who'd make the league's starting lineups on points: at least as many
+ *  as the weakest of the top N owned castaways, N being every team's starting slots together. */
+function freeAgentSteals(state: LeagueState, rows: Row[]): Castaway[] {
+  const slots = (state.settings.activeSlots ?? 0) * state.players.filter((p) => !p.disabled && p.active !== false).length;
+  const owned = rows
+    .filter((r) => r.c.ownerIds.length > 0 && r.c.status !== "eliminated")
+    .map((r) => r.points)
+    .sort((a, b) => b - a);
+  if (!slots || owned.length === 0) return [];
+  const bar = owned[Math.min(slots, owned.length) - 1];
+  return rows
+    .filter((r) => r.c.ownerIds.length === 0 && r.c.status !== "eliminated" && r.points > 0 && r.points >= bar)
+    .sort((a, b) => b.points - a.points)
+    .slice(0, 3)
+    .map((r) => r.c);
+}
+
+function fmtAvg(n: number) {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+function listNames(names: string[]) {
+  return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }

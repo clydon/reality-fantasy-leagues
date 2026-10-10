@@ -290,6 +290,7 @@ export function PlainButton({
   disabled,
   children,
   className,
+  tour,
 }: {
   onClick?: () => void;
   href?: string;
@@ -297,6 +298,8 @@ export function PlainButton({
   disabled?: boolean;
   children: ReactNode;
   className?: string;
+  /** A `data-tour` name, for the guided tour to light it. */
+  tour?: string;
 }) {
   const cls = cn(
     "flex min-h-12 items-center justify-center gap-1.5 rounded-[3px] border px-4 text-[15px] font-bold transition-colors focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:opacity-40",
@@ -305,13 +308,13 @@ export function PlainButton({
   );
   if (href) {
     return (
-      <Link href={href} className={cls}>
+      <Link href={href} className={cls} data-tour={tour}>
         {children}
       </Link>
     );
   }
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className={cls}>
+    <button type="button" onClick={onClick} disabled={disabled} className={cls} data-tour={tour}>
       {children}
     </button>
   );

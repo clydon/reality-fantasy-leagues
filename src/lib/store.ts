@@ -109,10 +109,11 @@ interface LeagueStore {
   setDemoCommissionerView: (value: boolean) => void;
   // The guided tour's league (docs/PLAN-guided-tour.md, src/lib/tour/): mock state like the demo, but
   // played forward as a member rather than browsed as a commissioner -- so it keeps spoiler protection
-  // (the tour's reveals are real reveals) and has no commissioner powers. Stays true after the tour
-  // is skipped or finished: the league is still the tour's, and still plays by the same rules.
+  // (the tour's reveals are real reveals) and commissioner powers only on the commissioner's tour,
+  // where you run the league. Stays true after the tour is skipped or finished: the league is still
+  // the tour's, and still plays by the same rules.
   touring: boolean;
-  startTour: (state: LeagueState, leagueName: string, playerId: string) => void;
+  startTour: (state: LeagueState, leagueName: string, playerId: string, role?: "member" | "commissioner") => void;
   loadLive: (
     leagueId: string,
     state: LeagueState,
@@ -169,8 +170,8 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
   touring: false,
   // Keeps identity: a signed-in user taking the tour previews it (demoPreview) and gets their real
   // league back the same way as from the demo season.
-  startTour: (state, leagueName, playerId) => {
-    const membership: Membership = { role: "member", playerId, resultsSeenThrough: 0 };
+  startTour: (state, leagueName, playerId, role = "member") => {
+    const membership: Membership = { role, playerId, resultsSeenThrough: 0 };
     set({
       mode: "mock",
       state: spoilerView(state, membership),
@@ -439,7 +440,7 @@ function spoilerView(state: LeagueState, membership: Membership | null): LeagueS
 export function useCanManage(): boolean {
   return useLeagueStore((s) => {
     if (s.mode !== "mock") return s.membership?.role === "commissioner";
-    if (s.touring) return false;
+    if (s.touring) return s.membership?.role === "commissioner";
     if (s.demoSeasonData) return s.demoCommissionerView;
     return true;
   });

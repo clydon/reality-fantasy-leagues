@@ -56,6 +56,7 @@ export function StartDraftButton({ state, blind }: { state: LeagueState; blind?:
     <button
       type="button"
       onClick={start}
+      data-tour="draft-start"
       className="min-h-12 w-full rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line nav:w-auto nav:self-start"
     >
       Start draft now

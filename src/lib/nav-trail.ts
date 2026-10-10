@@ -45,6 +45,8 @@ const TOP_TITLES: Record<string, string> = {
 /** The structural parent of a page under another, or null for a top-level page. */
 export function parentOf(pathname: string): { href: string; label: string } | null {
   if (/^\/episodes\/\d+$/.test(pathname) || pathname === "/cast") return { href: "/episodes", label: "Episodes" };
+  const results = /^\/episodes\/(\d+)\/research$/.exec(pathname);
+  if (results) return { href: `/episodes/${results[1]}`, label: `Episode ${results[1]}` };
   if (/^\/scoreboard\/[^/]+$/.test(pathname)) return { href: "/scoreboard", label: "Scoreboard" };
   if (pathname === "/draft/board") return { href: "/draft", label: "Draft" };
   if (pathname === "/setup/rules/edit") return { href: "/setup/rules", label: "Scoring & rules" };
@@ -62,6 +64,8 @@ export function pageTitle(
   if (TOP_TITLES[pathname]) return TOP_TITLES[pathname];
   const ep = /^\/episodes\/(\d+)$/.exec(pathname);
   if (ep) return `Episode ${ep[1]}`;
+  const results = /^\/episodes\/(\d+)\/research$/.exec(pathname);
+  if (results) return `Episode ${results[1]} results`;
   if (pathname === "/cast") return "The cast";
   if (pathname === "/draft/board") return "Draft board";
   // /scoreboard/lines is the commissioner's episode lines, not a player.
@@ -89,6 +93,10 @@ export function nextTrail(trail: string[], pathname: string): string[] {
   if (!parentOf(pathname)) return [pathname];
   if (trail.at(-1) === pathname) return trail;
   if (trail.at(-2) === pathname) return trail.slice(0, -1);
+  // Arriving on the current page's parent is a step back up, even when nobody came from there: a
+  // finished sub-page (an episode's results, once applied) replaces itself with the page above it.
+  const last = trail.at(-1);
+  if (last && parentOf(last)?.href === pathname) return [...trail.slice(0, -1), pathname];
   return [...trail, pathname].slice(-MAX);
 }
 

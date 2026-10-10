@@ -730,7 +730,7 @@ export interface CatalogShow {
   curated?: boolean;
   /** Researched by the signed-in user. */
   mine?: boolean;
-  seasons: Pick<ShowSeason, "seasonNumber" | "name" | "status" | "castSize" | "premiereDate" | "finaleDate">[];
+  seasons: Pick<ShowSeason, "seasonNumber" | "name" | "status" | "castSize" | "premiereDate" | "finaleDate" | "resultsBy">[];
 }
 
 // A reviewed-but-unapplied suggestion from the wiki connector (db/wiki-sync.js), as the League

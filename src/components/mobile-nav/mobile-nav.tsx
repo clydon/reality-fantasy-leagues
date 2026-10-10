@@ -209,11 +209,13 @@ export function MobileNav() {
   const draftUrgent = !!(turn && !turn.isComplete && myPlayerId && turn.playerId === myPlayerId) || notifications.some((n) => n.tab === "/draft");
   const midBadge = midseasonBadge(state, myPlayerId);
   const midSeasonSlot = hasMidSeason ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon } : null;
-  // Active Roster puts Research where Chat would go; chat stays one tap away on the top bar's icon.
+  // Active Roster gets a fifth slot, Research (who's scoring), at every phase: it's where you decide
+  // who to start and who to pick up, so it isn't buried in More. Chat stays one tap away on the top
+  // bar's icon.
   const hasActiveRoster = StateLogic.getLeagueType(state).hasActiveRoster;
   // After the draft Active Roster's slot is the Lineup (docs/PLAN-ux-redesign.md, 1e: slot 4 follows
   // the season phase) -- setting it is the weekly job -- flagged while your lineup has a slot to
-  // fill. Research and Mid-Season move to the More sheet.
+  // fill. Mid-Season moves to the More sheet.
   const lineupSlot = hasActiveRoster && draftComplete;
   // Eliminator Pool has no draft: its slot is the weekly Pick, flagged while yours is still to make.
   // Chat (which used to take the slot) stays one tap away on the top bar's icon.
@@ -223,9 +225,7 @@ export function MobileNav() {
     : pickSlot
     ? { href: "/pick", label: "Pick", icon: PickIcon, urgent: myPickDue(state, myPlayerId) ? true : null }
     : !hasRoster || (draftComplete && !midSeasonSlot)
-      ? hasActiveRoster
-        ? { href: "/research", label: "Research", icon: ResearchIcon, urgent: null }
-        : { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
+      ? { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
       : draftComplete
         ? { ...midSeasonSlot!, urgent: midBadge?.urgent ?? null }
         : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
@@ -236,6 +236,7 @@ export function MobileNav() {
     { href: "/episodes", label: "Episodes", icon: EpisodesIcon },
     { href: "/scoreboard", label: "Scoreboard", icon: TrophyIcon },
     fourth,
+    ...(hasActiveRoster ? [{ href: "/research", label: "Research", icon: ResearchIcon }] : []),
   ];
   // No league and not previewing: the only two places worth going are the join/create screen and
   // the demo season (the latter is a state change, not a route -- hence the null href below).
@@ -260,6 +261,13 @@ export function MobileNav() {
     setSheetOpen(false);
     startTour();
     router.push("/");
+  }
+
+  // The commissioner's tour starts by creating its league.
+  function takeCommissionerTour() {
+    setSheetOpen(false);
+    startTour("commissioner");
+    router.push("/new-league");
   }
 
   function go(href: string) {
@@ -545,9 +553,6 @@ export function MobileNav() {
               tour="more-midseason"
             />
           )}
-          {hasSeason && hasActiveRoster && fourth.href !== "/research" && (
-            <MoreRow icon={ResearchIcon} label="Research" onClick={() => go("/research")} />
-          )}
           {hasSeason && (
             <MoreRow icon={GearIcon} label="League Settings" value={joinCode ? `Code ${joinCode}` : undefined} dot={commishWaiting} onClick={() => go("/setup")} />
           )}
@@ -591,6 +596,7 @@ export function MobileNav() {
           )}
           {/* Picking one replaces the view with demo data, the same as the sidebar's Demo season. */}
           <MoreRow icon={SparklesIcon} label={touring ? "Replay the tour" : "Take the tour"} value="3 min" onClick={takeTour} />
+          <MoreRow icon={SparklesIcon} label="Commissioner tour" value="2 min" onClick={takeCommissionerTour} />
           <MoreRow icon={EpisodesIcon} label="Demo season" onClick={() => go("")} />
           {isSuperAdmin && <MoreRow icon={ShieldIcon} label="Admin" value="Shows, users, results" onClick={() => go("/admin")} />}
           <MoreRow

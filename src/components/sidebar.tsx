@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronsUpDown, MoreHorizontal } from "lucide-react";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
-import { useTourStore } from "@/lib/tour/tour-store";
+import { useTourStore, type TourKind } from "@/lib/tour/tour-store";
 import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
@@ -124,7 +124,7 @@ export function Sidebar() {
             <NavRow href="/dashboard" label="My Leagues" icon={OverviewIcon} active={pathname === "/dashboard" || pathname === "/"} />
             {/* The one way into the demo season for someone who has no league of their own. */}
             <NavRow label="Demo Season" icon={EpisodesIcon} onClick={openDemoPicker} />
-            <NavRow label="Take the tour" icon={SparklesIcon} onClick={takeTour} />
+            <NavRow label="Take the tour" icon={SparklesIcon} onClick={() => takeTour()} />
           </>
         )}
       </nav>
@@ -267,9 +267,10 @@ function AdminRow({ active }: { active: boolean }) {
 function useTakeTour() {
   const router = useRouter();
   const start = useTourStore((s) => s.start);
-  return () => {
-    start();
-    router.push("/");
+  return (kind: TourKind = "player") => {
+    start(kind);
+    // The commissioner's tour starts by creating its league.
+    router.push(kind === "commissioner" ? "/new-league" : "/");
   };
 }
 
@@ -348,6 +349,15 @@ function AccountRow() {
                 }}
               >
                 {touring ? "Replay the tour" : "Take the tour"}
+              </MenuRow>
+              <MenuRow
+                icon={SparklesIcon}
+                onClick={() => {
+                  close();
+                  takeTour("commissioner");
+                }}
+              >
+                Commissioner tour
               </MenuRow>
               <div className="my-1.5 h-px bg-border" />
               <MenuRow icon={LogoutIcon} danger onClick={logOut}>
