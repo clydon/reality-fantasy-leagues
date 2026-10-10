@@ -158,7 +158,8 @@ function ScoredDetail({ ep, state }: { ep: Episode; state: LeagueState }) {
     if (!pick) return me ? <>You didn&rsquo;t pick</> : null;
     const name = StateLogic.getCastaway(state, pick.castawayId)?.name ?? "Your pick";
     const out = ep.events.some((e) => e.castawayId === pick.castawayId);
-    return <>{out ? `Your pick, ${name}, went home` : `Your pick, ${name}, survived`}</>;
+    const streak = me ? StateLogic.pickEmHistory(state, me).rows.find((r) => r.episode === ep.number)?.streak : undefined;
+    return <>{out ? `Your pick, ${name}, went home` : `Your pick, ${name}, survived${streak ? ` · streak ${streak}` : ""}`}</>;
   }
   const exits = episodeExits(state, ep);
   const banks = exits.map((x) => banksLine(state, x.c, me));

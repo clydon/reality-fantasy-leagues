@@ -64,7 +64,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
    pass.
 2. Redesign the remaining screens one at a time against the canvas: ~~Episodes~~, ~~Draft~~,
    ~~League Settings~~, ~~Create a league~~, ~~Overview & Scoreboard (commissioner)~~, ~~Spoilers &
-   reveal~~, ~~Active Roster~~, ~~Classic~~, then Eliminator Pool; admin last.
+   reveal~~, ~~Active Roster~~, ~~Classic~~, ~~Eliminator Pool~~; admin last (next).
    - **Episodes done 2026-10-09** (plan 2e): `episodes-tab.tsx` is a status list (one row per
      episode: date + one status; Reveal on the earliest hidden one). Each episode has its own page,
      `src/app/episodes/[number]/page.tsx` -> `episode-detail.tsx`: read view by default (who left as
@@ -387,6 +387,49 @@ explained to a commissioner") rather than re-deriving it from source each time.
      Team unhidden, then the league state and layout restored from a snapshot (checked identical). Also
      `UX D Done` (Pickups: the out castaway banks nobody), `UX AR S51` for the Latest Episode change,
      390 light and 1280 dark. No console errors, no horizontal overflow, `npm test` 247/247.
+   - **Eliminator Pool done 2026-10-10** (canvas page "A · Eliminator Pool": Pool-Home, Pool-Pick,
+     Pool-Reveal; Pool-Scoreboard was already covered by the Scoreboard work). Shared helpers are in
+     `lib/game/pool-view.ts` (`pickWindow`, `myPickDue`, `pickSlots`, `episodePicks`, `nameList`).
+   - **New Pick page** at `/pick` (`pick/pick-page.tsx`). It shows when picks close (in the viewer's
+     zone; "Open until Episode N is revealed" in a catch-up league, whose episodes have no air time),
+     "Who survives Episode N?" with who's used and why, the tribe filter, and everyone still in as 4-up
+     cast tiles. Used ones are dimmed with "Used Ep 1" / "Last pick · Ep 2" (CastTile gained a
+     `detail` prop). **Select, then confirm** in the sticky bar ("Lock in Rob"; with a pick saved it
+     names it and the button reads "Locked in" until another tile is chosen). Closed or results
+     hidden: read-only / Reveal first.
+   - **Navigation:** the Pool's tab bar fourth slot is **Pick** (it was Chat; chat stays on the header
+     icon), with the red "!" while your pick is due. The sidebar has a Pick row (Pool only) with the
+     same badge; swipe keeps `/pick` between Pool leagues. The alert strip's pick item, and so the
+     pick reminder push, now open `/pick` (they opened `/#pickem-grid`). Player-facing: put it in the
+     What's New entry due at merge (the user approves those).
+   - **Overview** (`overview/pickem-pick-grid.tsx`, still the `pickGrid` section): the pick grid is
+     gone from Overview. In its place: your current streak as a big number with "In a row" and where
+     it leaves you ("Tied for 1st with Josie", "Your best is 4", "Everyone's level"); **Your picks**
+     (the last few as faces with a survived tick or went-home cross, then this week's pick or a dashed
+     "+" slot to /pick; "All picks" goes to your Scoreboard page); **Episode N picks** (Picked / Not
+     yet chips; what others picked shows only once it airs, as before). The streak number is bone,
+     not chyron, because the alert strip already holds the screen's yellow.
+   - **Your Team / Your Pick is no longer shown for Eliminator Pool** (`overview-layout.ts`:
+     `yourTeam` is Classic only now; its Admin label is "Your Team (Classic)", and `pickGrid`'s is
+     "Your Pick & Streak (Eliminator Pool)"). **The saved Pool layout puts Standings, Season Status and
+     Latest Episode before the pick section** in the local DB (production probably too). To match the
+     canvas, move it up in Admin → Overview layouts (the user's call).
+   - **Episode page** (Pool, scored): your pick as the reveal's vote-out card ("Your pick survived" /
+     "went home", the streak it leaves you on or the one it ended), the Out plate for that same person
+     left out; then "Everyone else's picks" (face, "Josie picked Patt", "Streak 3" / "Streak ends at
+     2", Safe / Out / Missed). An Episodes row says "Your pick, Alex Moore, survived · streak 1".
+   - Not done: a commissioner can't make a pick for someone else (they never could). The closed state
+     of the Pick page (an aired episode without results) and a missed pick ("No pick", "Missed") were
+     only checked in code: catch-up episodes never "air", and the computer player always picks. In
+     light mode the Overview pick section has no card around it, unlike its neighbours (light pass).
+   - Verified at 390×844 dark with `docs/ux-baseline/scripts/pool-flow.js` on a throwaway "UX Pool
+     CU" league (Survivor 49 catch-up, made with `create-flow.js POOL=1`; deleted after). Checked: the
+     Episode 1 pick round trip (server-checked, the tab badge clearing); results hidden (Overview,
+     Pick and the episode page leak nothing); the reveal's Pool beat, seen in a browser for the first
+     time ("Your pick survived" and, on Episode 2, "went home · You drop to 2nd"); the episode pages,
+     Episodes and Overview after both outcomes; used tiles on Episode 3. Plus 1280 dark and 390 light,
+     and the tab bar on `UX AR S51` (Lineup) and `UX Baseline S51` (Chat) for regressions. No console
+     errors, no horizontal overflow, `npm test` 247/247. No test data left behind.
 3. Light mode pass.
 4. Then merge and push.
 
@@ -394,8 +437,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
 - The impeccable skill's launcher (`~/.claude/skills/impeccable/scripts/impeccable`) downloads and
   runs a prebuilt binary. This session didn't run it and used the skill's documented fallback
   (reading PRODUCT.md directly). Whether to run it is the user's call.
-- `src/components/overview/pickem-pick-grid.tsx:65` has a pre-existing lint error (`Date.now()`
-  during render), not introduced by this work.
+- The old `pickem-pick-grid.tsx` lint error (`Date.now()` during render) went with the Pool rewrite.
 - Test data in the local DB: league `UX AR S51` (Active Roster, used to check the build) and the
   baseline league `UX Baseline S51`, both owned by the throwaway `uxbaseline` account; see
   `docs/ux-baseline/README.md`.

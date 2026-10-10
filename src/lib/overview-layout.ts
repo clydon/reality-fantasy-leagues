@@ -24,10 +24,10 @@ export const OVERVIEW_SECTION_LABELS: Record<OverviewSectionId, string> = {
   leagueScoring: "League Scoring (Active Roster)",
   notifications: "Notifications",
   sideBets: "Predictions",
-  pickGrid: "Weekly Pick (Eliminator Pool)",
+  pickGrid: "Your Pick & Streak (Eliminator Pool)",
   lineupGrid: "Starting This Week (Active Roster)",
   standings: "Standings",
-  yourTeam: "Your Team / Your Pick",
+  yourTeam: "Your Team (Classic)",
   lastWeek: "Last Week (Active Roster)",
   latestEpisode: "Latest Episode",
   yourLine: "Your Episode Line (Active Roster)",
@@ -100,8 +100,9 @@ export function isOverviewSectionEligible(id: OverviewSectionId, state: LeagueSt
     // used to carry for it is on your Scoreboard page now.
     case "lastWeek":
       return leagueType.hasActiveRoster;
+    // Classic only: Eliminator Pool's picks are its pickGrid section.
     case "yourTeam":
-      return !leagueType.hasActiveRoster;
+      return !leagueType.hasActiveRoster && !leagueType.hasWeeklyPicks;
     case "board":
       return draftComplete;
     default:
@@ -125,7 +126,7 @@ export function isOverviewSectionForType(id: OverviewSectionId, typeId: Overview
     case "lastWeek":
       return activeRoster;
     case "yourTeam":
-      return !activeRoster;
+      return !activeRoster && !picks;
     default:
       return true;
   }

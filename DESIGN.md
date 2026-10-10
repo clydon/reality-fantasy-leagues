@@ -333,7 +333,7 @@ Row actions in a sheet from the bottom (`bottom-sheet.tsx`), replacing rows of b
 
 ### Cast Tile and Confirm Bar (pickers)
 Every picker (draft, blind draft, replenish, swap) works the same way, in `src/components/draft/draft-ui.tsx`: tap a tile to select it, then confirm in a bar. Nothing happens on a single tap.
-- **Cast tile:** a white plate with the photo on top (fixed height on phones, square from `sm` up), the first name in 15px condensed caps, and the tribe as a small colour square plus name. Selected to add: 3px chyron outline with a chyron tick badge. Selected to drop: the same in live red with a cross. Unavailable: muted fill, greyed photo. Four across on a phone (three for the roomier mid-season grids).
+- **Cast tile:** a white plate with the photo on top (fixed height on phones, square from `sm` up), the first name in 15px condensed caps, and the tribe as a small colour square plus name. Selected to add: 3px chyron outline with a chyron tick badge. Selected to drop: the same in live red with a cross. Unavailable: muted fill, greyed photo, and optionally a line saying why in place of the tribe ("Used Ep 1"). Four across on a phone (three for the roomier mid-season grids).
 - **Confirm bar:** sticky at the bottom of its picker, sitting on `--tabbar-h` so it clears the mobile tab bar; full bleed on phones, a bordered bar on desktop. A small muted line (the pick, who it's for), the selection's name in 22px condensed caps, and one chyron button that names the action ("Draft Jelly", "Give to Sam", "Lock in", "Swap"), disabled until there's something to confirm.
 - **Turn pills:** the order strip. Your turns are bone-white like the You badge; the current turn has a 3px chyron underline; finished turns are struck through.
 
@@ -382,6 +382,12 @@ Classic scores by who's still standing, so its screens lead with faces and place
 - **Episode page:** the Out plate says where they finished; then a small plate per owner who scored, "+3" in a tag of **the player's own colour** (`colourTag` picks plate ink or white for it) and "Andrew banks 3"; then "Called it" (good tone) when your prediction paid. **Boot order** follows: everyone out so far as 52px greyed faces with their place in live red (this episode's ringed), then "19 castaways still in, 2 of yours among them" with the number in 28px condensed.
 - **Episodes list:** a Classic row's detail is who banked what and whether your prediction paid ("You bank 1 · your prediction was right, +2"); under the list, "19 of 21 castaways still in the game".
 
+### Eliminator Pool: the pick and the streak
+The Pool is one pick a week and a streak, so its screens lead with those two things.
+- **Pick page** (`/pick`, `pick/pick-page.tsx`, the tab bar's fourth slot): a muted line with a clock (when picks close; "Open until Episode 3 is revealed" in a catch-up league), "Who survives Episode 3?" with one muted sentence on who's used and why, the tribe filter, and everyone still in as cast tiles four across. Used ones are dimmed with "Used Ep 1" (or "Last pick · Ep 2") in place of the tribe line. Tap a tile, then **Lock in Rob** in the confirm bar; with a pick saved, the bar names it and says it can change until it airs.
+- **Overview:** the streak as a 104px condensed number (bone, not chyron: the alert strip owns the yellow) beside "In a row" and one muted line on where it leaves you ("Tied for 1st with Josie"). Then **Your picks**: 64px faces, oldest first, with a teal tick (survived) or live-red cross (went home, face greyed) on the corner, and this week's slot as a dashed square with a plus. Then **Episode N picks**: one 48px row per player, a Picked (teal) or Not yet (muted) chip; nobody else's pick shows until the episode airs.
+- **Episode page:** your pick as the reveal's vote-out card (230px photo, a good or live tag "Your pick survived" / "went home", the name and the streak on a white plate); the Out plate for the same person is left out. Then everyone else's pick as 64px rows: face (greyed if out), "Josie picked Patt", "Streak 3" or "Streak ends at 2", and a Safe / Out / Missed chip.
+
 ### Spoiler gate and the reveal
 Results a player hasn't chosen to see stay out of every screen until they do.
 - **The question:** every Reveal opens one bottom sheet, "Reveal Episode 3?", one sentence on what
@@ -400,7 +406,7 @@ Results a player hasn't chosen to see stay out of every screen until they do.
   number stays the only yellow. Beats fade and slide up over 300ms, only when motion is allowed.
 
 ### Navigation
-Mobile: a header with the page's name in 22px condensed caps and the league name in 12px above it, chat on the right; a fixed bottom tab bar. Its fourth slot follows the league and the season's phase: Draft until the draft is done, then Lineup (Active Roster), Mid-Season or Chat; Research and anything else displaced go in More. Desktop (880px+): a Night Rail sidebar. The current tab is marked in chyron.
+Mobile: a header with the page's name in 22px condensed caps and the league name in 12px above it, chat on the right; a fixed bottom tab bar. Its fourth slot follows the league and the season's phase: Draft until the draft is done, then Lineup (Active Roster), Mid-Season or Chat; Eliminator Pool has no draft, so its slot is always Pick, badged while your pick is due (Chat is on the header); Research and anything else displaced go in More. Desktop (880px+): a Night Rail sidebar. The current tab is marked in chyron.
 
 ## Do's and Don'ts
 

@@ -1,228 +1,230 @@
 "use client";
 
+import Link from "next/link";
+import { Check, Plus, X } from "lucide-react";
 import type { Episode, LeagueState, Player } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { useLeagueStore, useMyPlayerId } from "@/lib/store";
-import { useMutate } from "@/lib/use-mutate";
-import { api } from "@/lib/api";
+import { useMyPlayerId } from "@/lib/store";
+import { pickSlots, pickWindow, type PickSlot } from "@/lib/game/pool-view";
 import { CastawayAvatar } from "@/components/castaway-avatar";
-import { XMarkIcon } from "@/components/icons";
-import { useShowTerms } from "@/lib/use-show-terms";
-import { cn } from "cn";
 import { RevealFirst, useHiddenResults } from "@/components/results-in-banner";
-import { Chip } from "./cast-by-tribe";
+import { SectionHead } from "@/components/draft/draft-ui";
+import { ordinal, poolKey, rankLabels } from "@/components/scoreboard/scoreboard-tab";
+import { cn } from "cn";
 
-// Pick'em: YOUR pick for the upcoming episode, plus (above it) who ELSE in the league has picked --
-// a nudge for stragglers, without giving away what they picked. Everyone's full pick history lives
-// on the Episodes tab; this is the one thing each player does every week, so it sits on Overview.
-//
-// Status rows: a grey "?" square once someone's locked in a pick (hidden -- the point is knowing
-// WHO'S set, not what they went with, same trust model as Active Roster's hideStartersUntilLock),
-// an empty dashed square if they haven't, revealed as the actual pick once the episode airs or its
-// eliminations are logged -- matching the lock PickEmLogic.setPick itself enforces.
-//
-// Each card in the pick-it grid below is one of:
-//   your pick     -- highlighted
-//   available     -- tap to pick
-//   used          -- grayed, with the episode you picked them in: already picked this cycle (no one
-//                    twice until you've picked everyone still in the game), or last time (never back
-//                    to back). See PickEmLogic.eligibility for both rules.
-//   eliminated    -- a big X
-// Grouped by current tribe (biggest group first, same ordering as BoardGrid/CastByTribe) so a long
-// cast is easier to scan than one flat grid.
+// Eliminator Pool on Overview (the canvas's "A · Eliminator Pool": Pool-Home). The pick itself is
+// made on its own page (/pick, the tab bar's Pick); here is where it leaves you:
+//   your streak     -- the one number this league type is about, and where it puts you
+//   your picks      -- the last few, each survived or went home, then this week's (or an open slot)
+//   this week       -- who else has picked, without giving away what they picked until it airs
+//                      (the same lock PickEmLogic.setPick enforces)
 export function PickEmPickGrid({ state }: { state: LeagueState }) {
-  const terms = useShowTerms();
-  const leagueId = useLeagueStore((s) => s.leagueId);
-  const myPlayerId = useMyPlayerId();
-  const { hidden: hiddenResults } = useHiddenResults();
-  const mutate = useMutate();
-
-  if (!myPlayerId) return null;
-  if (hiddenResults.length > 0) {
-    // Still show the picks for the first unrevealed episode -- locked before it aired, so nothing in
-    // them gives a result away, and otherwise you'd have no idea who you went with.
-    const lockedEp = hiddenResults[0];
-    return (
-      <>
-        <RevealFirst what="make your next pick" />
-        <div className="section-shell">
-          <h3 className="mb-3 section-title">
-            Picks for episode {lockedEp.number}
-          </h3>
-          <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
-            {state.players
-              .filter((p) => p.active !== false)
-              .map((p) => (
-                <PickStatusRow key={p.id} state={state} player={p} isMe={p.id === myPlayerId} ep={lockedEp} open={false} />
-              ))}
-          </div>
-        </div>
-      </>
-    );
-  }
-  const ep = StateLogic.pickEmUpcomingEpisode(state);
-  const history = StateLogic.pickEmHistory(state, myPlayerId);
-  const aired = !!ep && !!ep.airsAt && Date.now() >= Date.parse(ep.airsAt);
-  const decided = !!ep && ep.events.length > 0;
-  const closed = !ep || decided;
-  const open = !!ep && !aired && !decided;
-  const eligibility = ep ? StateLogic.pickEmEligibility(state, ep.id, myPlayerId) : { available: [], blocked: {} };
-  const myPick = ep ? StateLogic.pickEmPickFor(state, ep.id, myPlayerId) : null;
+  const me = useMyPlayerId();
+  const { hidden } = useHiddenResults();
+  const { ep, open } = pickWindow(state);
   const players = state.players.filter((p) => p.active !== false);
 
-  async function pick(castawayId: string) {
-    if (!ep || closed || !myPlayerId) return;
-    await mutate(
-      (s) => StateLogic.setPickEmPick(s, ep.id, myPlayerId, castawayId),
-      () => api.setPickEmPick(leagueId!, ep.id, myPlayerId, castawayId)
+  if (hidden.length > 0) {
+    // The picks for the first unrevealed episode were locked before it aired, so nothing in them
+    // gives a result away -- and otherwise you'd have no idea who you went with.
+    const lockedEp = hidden[0];
+    return (
+      <section className="flex flex-col gap-3 sm:col-span-2">
+        <RevealFirst what="make your next pick" />
+        <WhoPicked state={state} ep={lockedEp} players={players} me={me} open={false} />
+      </section>
     );
   }
 
-  const groups = [{ id: null as string | null, name: "Unassigned", color: "#4a5245" }, ...state.tribes]
-    .map((g) => ({ g, members: state.castaways.filter((c) => (c.tribeId || null) === g.id) }))
-    .filter((x) => x.members.length > 0)
-    .sort((a, b) => b.members.length - a.members.length);
+  return (
+    <section className="flex flex-col gap-5 sm:col-span-2">
+      {me && <Streak state={state} me={me} />}
+      {me && <YourPicks state={state} me={me} ep={ep} open={open} />}
+      {ep && <WhoPicked state={state} ep={ep} players={players} me={me} open={open} />}
+    </section>
+  );
+}
+
+// "3 in a row", and where that leaves you. The league ranks by longest streak (poolKey), so that's
+// the standing quoted; the big number is the streak you're on now.
+function Streak({ state, me }: { state: LeagueState; me: string }) {
+  const history = StateLogic.pickEmHistory(state, me);
+  const settled = history.rows.filter((r) => r.correct !== null);
+  if (settled.length === 0) return null;
+  const scores = StateLogic.computeScores(state);
+  const ranks = rankLabels(scores, poolKey);
+  const i = scores.findIndex((r) => r.playerId === me);
+  const rank = ranks[i];
+  const level = ranks.every((r) => r === ranks[0]);
+  const tiedWith = scores.filter((r, j) => j !== i && ranks[j] === rank).map((r) => r.name);
+  const place = rank ? ordinal(parseInt(rank.replace("T", ""), 10)) : null;
+
+  const now = history.currentStreak;
+  const lastRow = settled[settled.length - 1];
+  const lines = [
+    now > 0
+      ? now === settled.length
+        ? "Every pick has survived so far."
+        : `Your last ${now === 1 ? "pick" : `${now} picks`} survived.`
+      : lastRow.castawayId
+        ? `Your Episode ${lastRow.episode} pick went home.`
+        : `No pick for Episode ${lastRow.episode}.`,
+    history.longestStreak > now && `Your best is ${history.longestStreak}.`,
+    place &&
+      (level
+        ? "Everyone's level."
+        : tiedWith.length === 1
+          ? `Tied for ${place} with ${tiedWith[0]}.`
+          : tiedWith.length > 1
+            ? `Tied for ${place}.`
+            : `${place} in the league.`),
+  ].filter(Boolean);
 
   return (
-    <div id="pickem-grid" className="scroll-mt-20 section-shell">
-      <div className="mb-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="section-title">
-          {ep ? `Your pick for episode ${ep.number}` : "Your pick"}
-        </h3>
-        <span className="ml-auto text-xs text-muted-foreground">
-          Streak <b className="text-foreground">{history.currentStreak}</b> · Longest{" "}
-          <b className="text-foreground">{history.longestStreak}</b> · {history.total} pts
-        </span>
-      </div>
-      <p className="mb-3 text-xs text-muted-foreground">
-        {!ep
-          ? "There's no episode to pick for yet."
-          : closed
-          ? "Picks are closed — this episode's results are in."
-          : myPick
-            ? `Picked ${StateLogic.getCastaway(state, myPick.castawayId)?.name ?? "?"} to survive. Tap another to change it.`
-            : `Pick a ${terms.castaway} you think survives this episode. No repeats until you've picked everyone still in, and never the same one twice in a row.`}
-      </p>
-      {ep && (
-        <div className="mb-4 flex flex-col divide-y divide-border rounded-lg border border-border">
-          {players.map((p) => (
-            <PickStatusRow key={p.id} state={state} player={p} isMe={p.id === myPlayerId} ep={ep} open={open} />
-          ))}
-        </div>
-      )}
-      <div className="flex flex-col gap-4">
-        {groups.map(({ g, members }) => (
-          <div key={g.id ?? "unassigned"}>
-            {state.tribes.length > 0 && (
-              <h4 className="mb-2 text-[0.65rem] font-bold uppercase tracking-wide" style={{ color: g.color }}>
-                {g.name}
-              </h4>
-            )}
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-2.5">
-              {members.map((c) => {
-                const out = c.status === "eliminated";
-                const mine = myPick?.castawayId === c.id;
-                const used = eligibility.blocked[c.id];
-                const canPick = !closed && !out && !mine && eligibility.available.includes(c.id);
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    disabled={!canPick}
-                    onClick={() => pick(c.id)}
-                    title={
-                      out
-                        ? `${c.name} is out`
-                        : used
-                          ? used.reason === "backToBack"
-                            ? `Your last pick (episode ${used.episode}) -- not twice in a row`
-                            : `Already picked this cycle (episode ${used.episode})`
-                          : undefined
-                    }
-                    className={cn(
-                      "relative flex flex-col items-center gap-1.5 rounded-lg border-2 bg-card p-2 text-center transition-colors",
-                      mine ? "border-primary bg-primary/5" : "border-border",
-                      canPick && "cursor-pointer hover:border-primary",
-                      (used || out) && !mine && "opacity-45"
-                    )}
-                  >
-                    <div className="relative h-11 w-11">
-                      <CastawayAvatar
-                        castaway={c}
-                        className="flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-xs font-bold"
-                      />
-                      {out && (
-                        <div
-                          className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-black/10"
-                          aria-hidden
-                        >
-                          <XMarkIcon className="h-7 w-7 text-destructive drop-shadow-[0_1px_2px_rgba(0,0,0,.4)]" />
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-xs font-medium leading-tight">{c.name}</span>
-                    {mine && (
-                      <span className="rounded bg-primary px-1.5 py-px text-[0.6rem] font-bold text-primary-foreground">Your pick</span>
-                    )}
-                    {used && !out && !mine && (
-                      <span className="rounded bg-muted-foreground px-1.5 py-px text-[0.6rem] font-bold text-white">
-                        Ep. {used.episode}
-                        {used.reason === "backToBack" ? " · last" : ""}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="flex items-center gap-[18px]">
+      <span className="type-num text-[104px] leading-[0.8]">{now}</span>
+      <span className="flex min-w-0 flex-col gap-1.5">
+        <span className="type-caption text-[30px]">In a row</span>
+        <span className="text-[15px] leading-snug text-muted-foreground">{lines.join(" ")}</span>
+      </span>
     </div>
   );
 }
 
-function PickStatusRow({
-  state,
-  player,
-  isMe,
-  ep,
-  open,
-}: {
-  state: LeagueState;
-  player: Player;
-  isMe: boolean;
-  ep: Episode;
-  open: boolean;
-}) {
-  const pk = StateLogic.pickEmPickFor(state, ep.id, player.id);
-  const castaway = pk ? StateLogic.getCastaway(state, pk.castawayId) : null;
-  const set = !!pk;
-  const hidden = open && !isMe;
-
+// The last few picks, oldest first, then this week's: your pick (tap to change it while it's open)
+// or an open slot to make one.
+function YourPicks({ state, me, ep, open }: { state: LeagueState; me: string; ep: Episode | null; open: boolean }) {
+  const slots = pickSlots(state, me);
+  const hasThisWeek = !!ep && slots.some((s) => s.episode === ep.number);
+  const shown = slots.slice(-(hasThisWeek ? 5 : 4));
+  if (shown.length === 0 && !ep) return null;
   return (
-    <div className="flex items-center gap-3 px-3 py-2 first:pt-2.5 last:pb-2.5">
-      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: player.color }} />
-      <span className={cn("min-w-0 flex-1 truncate text-sm font-bold", isMe && "underline decoration-2 underline-offset-2")}>
-        {player.name}
-      </span>
-      <span className={cn("shrink-0 text-[0.7rem] font-semibold", set ? "text-good" : "text-amber-600")}>
-        {set ? "Set ✓" : "Not set"}
-      </span>
-      {hidden ? (
-        <div
+    <section className="flex flex-col gap-2.5">
+      <SectionHead
+        aside={
+          slots.some((s) => s.correct !== null) && (
+            <Link href={`/scoreboard/${encodeURIComponent(me)}`} className="flex min-h-11 items-center text-sm font-semibold text-primary hover:underline">
+              All picks
+            </Link>
+          )
+        }
+      >
+        Your picks
+      </SectionHead>
+      <ol className="grid grid-cols-5 gap-2 sm:grid-cols-[repeat(5,80px)] sm:gap-3">
+        {shown.map((s) => (
+          <PickItem key={s.episode} slot={s} href={open && ep?.number === s.episode ? "/pick" : undefined} />
+        ))}
+        {ep && !hasThisWeek && (
+          <li className="flex min-w-0 flex-col items-center gap-1">
+            {open ? (
+              <Link
+                href="/pick"
+                aria-label={`Make your Episode ${ep.number} pick`}
+                className="flex size-16 items-center justify-center rounded-[3px] border-2 border-dashed border-foreground/70 text-foreground hover:bg-accent"
+              >
+                <Plus className="size-6" strokeWidth={2.4} aria-hidden />
+              </Link>
+            ) : (
+              <span className="size-16 rounded-[3px] border-2 border-dashed border-border" aria-hidden />
+            )}
+            <span className="text-[13px] font-semibold">Ep {ep.number}</span>
+            <span className="text-xs text-muted-foreground">{open ? "Open" : "No pick"}</span>
+          </li>
+        )}
+      </ol>
+    </section>
+  );
+}
+
+function PickItem({ slot, href }: { slot: PickSlot; href?: string }) {
+  const { castaway: c, correct } = slot;
+  const face = c ? (
+    <span className="relative inline-flex size-16">
+      <CastawayAvatar
+        castaway={c}
+        className={cn(
+          "flex size-16 items-center justify-center overflow-hidden rounded-[3px] bg-muted text-xs font-bold text-muted-foreground [&_img]:object-top",
+          correct === false && "grayscale brightness-[.6]",
+        )}
+      />
+      {correct !== null && (
+        <span
           className={cn(
-            "flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border-2 font-bold text-muted-foreground",
-            set ? "border-border bg-muted" : "border-dashed border-border"
+            "absolute -bottom-1.5 -right-1.5 flex size-[22px] items-center justify-center rounded-full",
+            correct ? "bg-good text-[#0e2b27]" : "bg-live text-live-foreground",
           )}
-          title={set ? "Hidden until the episode airs" : "Hasn't picked yet"}
+          aria-hidden
         >
-          {set ? "?" : ""}
-        </div>
-      ) : castaway ? (
-        <Chip state={state} castaway={castaway} ring={player.color} large />
-      ) : (
-        <div className="h-14 w-14 shrink-0 rounded-lg border-2 border-dashed border-border" title="No pick" />
+          {correct ? <Check className="size-3.5" strokeWidth={3} /> : <X className="size-3.5" strokeWidth={3} />}
+        </span>
       )}
-    </div>
+    </span>
+  ) : (
+    <span className="flex size-16 items-center justify-center rounded-[3px] border-2 border-dashed border-border text-muted-foreground" aria-hidden>
+      &ndash;
+    </span>
+  );
+  const label = c ? c.name.split(" ")[0] : "No pick";
+  const status = correct === null ? (href ? "Change" : "Locked in") : correct ? "Survived" : c ? "Went home" : "Missed";
+  return (
+    <li className="flex min-w-0 flex-col items-center gap-1" aria-label={`Episode ${slot.episode}: ${c ? c.name : "no pick"}, ${status.toLowerCase()}`}>
+      {href ? (
+        <Link href={href} className="rounded-[3px] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron">
+          {face}
+        </Link>
+      ) : (
+        face
+      )}
+      <span className="w-full truncate text-center text-[13px] font-semibold">{label}</span>
+      <span className="text-xs text-muted-foreground">Ep {slot.episode}</span>
+    </li>
+  );
+}
+
+// Who's picked for this week. While it's open only "Picked" or "Not yet" (what they picked shows once
+// it airs); after that, each one's pick.
+function WhoPicked({ state, ep, players, me, open }: { state: LeagueState; ep: Episode; players: Player[]; me: string | null; open: boolean }) {
+  const ordered = [...players.filter((p) => p.id === me), ...players.filter((p) => p.id !== me)];
+  const picked = players.filter((p) => StateLogic.pickEmPickFor(state, ep.id, p.id)).length;
+  return (
+    <section className="flex flex-col gap-1">
+      <SectionHead aside={<span className="pb-1.5 text-[13px] text-muted-foreground">{picked} of {players.length} picked</span>}>
+        Episode {ep.number} picks
+      </SectionHead>
+      <div className="flex flex-col border-b border-border">
+        {ordered.map((p) => {
+          const pk = StateLogic.pickEmPickFor(state, ep.id, p.id);
+          const c = pk ? StateLogic.getCastaway(state, pk.castawayId) : null;
+          const showPick = !!c && (!open || p.id === me);
+          return (
+            <div key={p.id} className="flex min-h-12 items-center gap-3 border-t border-border py-1.5">
+              <span className="size-2.5 shrink-0 rounded-full" style={{ background: p.color }} aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-base font-semibold">
+                {p.id === me ? "You" : p.name}
+                {showPick && <span className="font-normal text-muted-foreground"> &middot; {c!.name}</span>}
+              </span>
+              {showPick && (
+                <CastawayAvatar
+                  castaway={c!}
+                  className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-[2px] bg-muted text-[10px] font-bold text-muted-foreground [&_img]:object-top"
+                />
+              )}
+              {open && (
+                <span
+                  className={cn(
+                    "shrink-0 rounded-[2px] px-1.5 py-px text-[11px] font-bold uppercase tracking-wide",
+                    pk ? "bg-good text-[#0e2b27]" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {pk ? "Picked" : "Not yet"}
+                </span>
+              )}
+              {!open && !pk && <span className="shrink-0 text-[13px] text-muted-foreground">No pick</span>}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

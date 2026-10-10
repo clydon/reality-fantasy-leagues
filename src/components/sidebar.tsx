@@ -11,6 +11,7 @@ import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { midseasonBadge } from "@/lib/game/selectors";
 import { myLineupDue } from "@/lib/game/lineup-view";
+import { myPickDue } from "@/lib/game/pool-view";
 import { logOut } from "@/lib/auth-client";
 import { LeagueSwitcher } from "@/components/league-switcher";
 import { ThemePicker } from "@/components/theme-picker";
@@ -28,6 +29,7 @@ const TABS = [
   { href: "/draft", label: "Draft" },
   { href: "/episodes", label: "Episodes" },
   { href: "/lineup", label: "Lineup" },
+  { href: "/pick", label: "Pick" },
   { href: "/mid-season", label: "Mid-Season" },
   { href: "/scoreboard", label: "Scoreboard" },
   { href: "/research", label: "Research" },
@@ -75,7 +77,8 @@ export function Sidebar() {
     (t) =>
       !((t.href === "/draft" || t.href === "/mid-season") && !hasRoster) &&
       !(t.href === "/mid-season" && !hasMidSeason) &&
-      !((t.href === "/research" || t.href === "/lineup") && !hasActiveRoster)
+      !((t.href === "/research" || t.href === "/lineup") && !hasActiveRoster) &&
+      !(t.href === "/pick" && !StateLogic.getLeagueType(state).hasWeeklyPicks)
   );
 
   // Port of exitDemoMode() -- see auth-gate.tsx's handleExitDemo for why this always means "show
@@ -94,6 +97,7 @@ export function Sidebar() {
   function badgeFor(href: string): { label: string; urgent: boolean } | null {
     if (href === "/mid-season") return midseasonBadge(state, myPlayerId);
     if (href === "/lineup" && myLineupDue(state, myPlayerId)) return { label: "!", urgent: true };
+    if (href === "/pick" && myPickDue(state, myPlayerId)) return { label: "!", urgent: true };
     if (href === "/chat" && chatUnread > 0) return { label: chatUnread > 9 ? "9+" : String(chatUnread), urgent: true };
     const count = notifications.filter((n) => n.tab === href).length;
     return count > 0 ? { label: count > 9 ? "9+" : String(count), urgent: true } : null;

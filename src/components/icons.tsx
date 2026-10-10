@@ -43,6 +43,16 @@ export function LineupIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+// Eliminator Pool's weekly pick: a target (the canvas's tab icon).
+export function PickIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...common} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1" />
+    </svg>
+  );
+}
 export function MoonIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...common} {...props}>

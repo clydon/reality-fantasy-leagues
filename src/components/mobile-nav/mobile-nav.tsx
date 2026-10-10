@@ -11,6 +11,7 @@ import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { myLineupDue } from "@/lib/game/lineup-view";
+import { myPickDue } from "@/lib/game/pool-view";
 import { logOut } from "@/lib/auth-client";
 import { cn } from "cn";
 import { midseasonBadge } from "@/lib/game/selectors";
@@ -31,6 +32,7 @@ import {
   ChatIcon,
   ResearchIcon,
   LineupIcon,
+  PickIcon,
   MoonIcon,
   ChevronDownIcon,
   GearIcon,
@@ -181,8 +183,13 @@ export function MobileNav() {
   // the season phase) -- setting it is the weekly job -- flagged while your lineup has a slot to
   // fill. Research and Mid-Season move to the More sheet.
   const lineupSlot = hasActiveRoster && draftComplete;
+  // Eliminator Pool has no draft: its slot is the weekly Pick, flagged while yours is still to make.
+  // Chat (which used to take the slot) stays one tap away on the top bar's icon.
+  const pickSlot = !!StateLogic.getLeagueType(state).hasWeeklyPicks;
   const fourth = lineupSlot
     ? { href: "/lineup", label: "Lineup", icon: LineupIcon, urgent: myLineupDue(state, myPlayerId) ? true : null }
+    : pickSlot
+    ? { href: "/pick", label: "Pick", icon: PickIcon, urgent: myPickDue(state, myPlayerId) ? true : null }
     : !hasRoster || (draftComplete && !midSeasonSlot)
       ? hasActiveRoster
         ? { href: "/research", label: "Research", icon: ResearchIcon, urgent: null }
@@ -215,6 +222,7 @@ export function MobileNav() {
     "/mid-season": "Mid-Season",
     "/research": "Research",
     "/lineup": "Lineup",
+    "/pick": "Pick",
     "/chat": "Chat",
     "/setup": "League Settings",
     "/admin": "Admin",

@@ -18,6 +18,7 @@ import { castawayPhotoSrc, isKnockedOut } from "@/lib/game/selectors";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { finishedPlace, ordinal } from "@/components/scoreboard/scoreboard-tab";
 import { bootOrderThrough, episodeBanks, predictionsRight } from "@/lib/game/classic-view";
+import { episodePicks } from "@/lib/game/pool-view";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
 import { EpisodeBetRow } from "./episode-bet-row";
@@ -171,6 +172,11 @@ function ReadView({
   const classic = type.hasRoster && !type.hasActiveRoster;
   const banks = classic && inPlay ? episodeBanks(state, ep) : [];
   const called = predictionsRight(state, ep, me);
+  // Eliminator Pool (the canvas's Pool "Episode 3" board): how your pick did, then everyone's.
+  const pool = !!type.hasWeeklyPicks && inPlay;
+  // When your pick is who went home, the card above already says so: no second plate for them.
+  const myPickOut = pool && me ? (ep.picks || []).find((p) => p.playerId === me)?.castawayId : undefined;
+  const exitPlates = exits.filter(({ c }) => c.id !== myPickOut);
 
   return (
     <>
@@ -189,9 +195,10 @@ function ReadView({
         </div>
       ) : (
         <>
-          {exits.length > 0 && (
+          {pool && <YourPickResult state={state} ep={ep} />}
+          {exitPlates.length > 0 && (
             <div className="flex flex-col gap-3">
-              {exits.map(({ ev, c }) => (
+              {exitPlates.map(({ ev, c }) => (
                 <CaptionPlate
                   key={c.id}
                   tone="live"
@@ -236,6 +243,7 @@ function ReadView({
             </div>
           )}
           {classic && inPlay && <BootOrder state={state} ep={ep} />}
+          {pool && <EveryonesPicks state={state} ep={ep} />}
           <Section title="What happened">
             <EpisodeRecap ep={ep} state={state} showExits={false} />
             <EpisodeChanges ep={ep} state={state} />
@@ -256,7 +264,7 @@ function ReadView({
       )}
 
       {/* Before the league's start episode there's nothing to field -- it's history. Eliminator Pool
-          picks are made on Overview only (see pickem-pick-grid.tsx), never here. */}
+          picks are made on the Pick page (pick/pick-page.tsx), never here. */}
       {inPlay && type.hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
     </>
   );
@@ -308,6 +316,99 @@ function BootOrder({ state, ep }: { state: LeagueState; ep: Episode }) {
           {terms.castaways} still in{yours ? `, ${yours}` : ""}
         </span>
       </p>
+    </section>
+  );
+}
+
+// Your pick for a decided episode: the photo full width with how it went on a caption across its foot
+// (the reveal's vote-out card, in good or live tone), and the streak it leaves you on.
+function YourPickResult({ state, ep }: { state: LeagueState; ep: Episode }) {
+  const me = useMyPlayerId();
+  const mine = episodePicks(state, ep).find((r) => r.player.id === me);
+  if (!mine) return null;
+  const { castaway: c, correct, streak, ended } = mine;
+  if (!c) {
+    return (
+      <CaptionPlate
+        tone="quiet"
+        tag="No pick"
+        title="You didn't pick"
+        subtitle={ended > 0 ? `Your streak ends at ${ended}` : "No streak this week"}
+      />
+    );
+  }
+  const photo = castawayPhotoSrc(c.photoUrl);
+  const caption = (
+    <>
+      <span
+        className={cn(
+          "type-caption px-3 py-[3px] text-[15px] tracking-[0.05em]",
+          correct ? "bg-good text-[#0e2b27]" : "bg-live text-live-foreground",
+        )}
+      >
+        {correct ? "Your pick survived" : "Your pick went home"}
+      </span>
+      <span className="flex max-w-full flex-col gap-[3px] bg-plate py-2 pl-3 pr-3.5 text-plate-foreground shadow-[0_8px_20px_rgba(0,0,0,0.35)]">
+        <span className="type-caption text-[30px] font-black leading-[0.95]">{c.name}</span>
+        <span className="text-[13px] text-plate-muted">
+          {correct ? `Your streak is now ${streak}` : ended > 0 ? `Your streak ends at ${ended}` : "Back to zero"}
+        </span>
+      </span>
+    </>
+  );
+  if (!photo) return <div className="flex flex-col items-start">{caption}</div>;
+  return (
+    <figure className="relative m-0 h-[230px] overflow-hidden rounded-[3px] bg-card">
+      {/* eslint-disable-next-line @next/next/no-img-element -- cast photos are plain files under /photos, any size */}
+      <img src={photo} alt="" className={cn("size-full object-cover [object-position:center_15%]", !correct && "grayscale")} />
+      <figcaption className="absolute bottom-3.5 left-0 right-7 flex flex-col items-start">{caption}</figcaption>
+    </figure>
+  );
+}
+
+// Everyone else's pick for the episode: who they went with, the streak it left them on (or the one
+// it ended), and Safe or Out.
+function EveryonesPicks({ state, ep }: { state: LeagueState; ep: Episode }) {
+  const me = useMyPlayerId();
+  const rows = episodePicks(state, ep).filter((r) => r.player.id !== me);
+  if (rows.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-1">
+      <h3 className="section-title">{me ? "Everyone else's picks" : "Everyone's picks"}</h3>
+      <div className="flex flex-col border-b border-border">
+        {rows.map(({ player, castaway: c, correct, streak, ended }) => (
+          <div key={player.id} className="flex min-h-16 items-center gap-3 border-t border-border py-2">
+            {c ? (
+              <CastawayAvatar
+                castaway={c}
+                className={cn(
+                  "flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-[2px] bg-muted text-[11px] font-bold text-muted-foreground [&_img]:object-top",
+                  !correct && "grayscale brightness-[.6]",
+                )}
+              />
+            ) : (
+              <span className="size-11 shrink-0 rounded-[2px] border-2 border-dashed border-border" aria-hidden />
+            )}
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="truncate text-base font-semibold">
+                {player.name}{" "}
+                <span className="font-normal text-muted-foreground">{c ? `picked ${c.name.split(" ")[0]}` : "didn't pick"}</span>
+              </span>
+              <span className="text-[13px] text-muted-foreground">
+                {correct ? `Streak ${streak}` : ended > 0 ? `Streak ends at ${ended}` : "No streak"}
+              </span>
+            </span>
+            <span
+              className={cn(
+                "shrink-0 rounded-[2px] px-1.5 py-px text-[11px] font-bold uppercase tracking-wide",
+                correct ? "bg-good text-[#0e2b27]" : c ? "bg-live text-live-foreground" : "bg-muted text-muted-foreground",
+              )}
+            >
+              {correct ? "Safe" : c ? "Out" : "Missed"}
+            </span>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

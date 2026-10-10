@@ -17,7 +17,7 @@ function isBetSettled(bet) {
 // nobody's blocked).
 //
 // Each check mirrors the UI that resolves it, so an item disappears as soon as the thing is done:
-// draft-board/blind-draft-panel, mid-season, lineup/lineup-page, pickem-pick-grid,
+// draft-board/blind-draft-panel, mid-season, lineup/lineup-page, pick/pick-page,
 // side-bets-section. `episode` is the episode number a weekly item is for (reminders key on it).
 function actionItems(state, playerId) {
   const me = state.players.find((p) => p.id === playerId);
@@ -78,7 +78,7 @@ function actionItems(state, playerId) {
       !StateLogic.pickEmPickFor(state, ep.id, playerId) &&
       StateLogic.pickEmEligibility(state, ep.id, playerId).available.length > 0
     ) {
-      items.push({ kind: "pick", text: `Make your episode ${ep.number} pick`, href: "/#pickem-grid", episode: ep.number });
+      items.push({ kind: "pick", text: `Make your episode ${ep.number} pick`, href: "/pick", episode: ep.number });
     }
   }
 

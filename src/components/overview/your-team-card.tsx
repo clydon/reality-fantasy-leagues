@@ -9,15 +9,15 @@ import { finishedPlace, ordinal } from "@/components/scoreboard/scoreboard-tab";
 import { teamOrder } from "@/lib/game/classic-view";
 import { isKnockedOut } from "@/lib/game/selectors";
 import { cn } from "cn";
-import { DashCard, DashLink } from "./dash-card";
+import { DashCard } from "./dash-card";
 
 // Second card on Overview, right after Standings -- "what do I personally have in this league,
 // right now." Shape depends on the league type, same way the rest of Overview already branches:
-//   pickem          -- no roster at all, so this is just your current weekly pick, one line.
 //   classic-draft   -- your team as name plates (the canvas's Classic Home): who's still in, and
 //                      for each one out, when they went, where they finished and what they banked.
 // Active Roster doesn't show it (overview-layout.ts): its lineup is "Starting this week", last week is
-// a caption plate, and the season detail is on your Scoreboard page.
+// a caption plate, and the season detail is on your Scoreboard page. Nor does Eliminator Pool, which
+// has no team: its picks are the pick section (pickem-pick-grid.tsx).
 export function YourTeamCard({ state }: { state: LeagueState }) {
   const myPlayerId = useMyPlayerId();
   const terms = useShowTerms();
@@ -25,27 +25,7 @@ export function YourTeamCard({ state }: { state: LeagueState }) {
 
   if (!myPlayerId) return null;
 
-  if (leagueType.hasWeeklyPicks) {
-    const ep = StateLogic.pickEmUpcomingEpisode(state);
-    const myPick = ep ? StateLogic.pickEmPickFor(state, ep.id, myPlayerId) : null;
-    const pickedName = myPick ? StateLogic.getCastaway(state, myPick.castawayId)?.name : null;
-    return (
-      <DashCard title="Your Pick" wide>
-        <p className="text-sm">
-          {ep ? (
-            <>
-              Your Episode {ep.number} Pick to Survive: <b>{pickedName ?? "Not picked yet"}</b>
-            </>
-          ) : (
-            "There's no episode to pick for yet."
-          )}
-        </p>
-        <DashLink href="#pickem-grid">Change your pick ↓</DashLink>
-      </DashCard>
-    );
-  }
-
-  if (!leagueType.hasRoster || leagueType.hasActiveRoster) return null;
+  if (!leagueType.hasRoster || leagueType.hasActiveRoster || leagueType.hasWeeklyPicks) return null;
 
   const roster = teamOrder(state.castaways.filter((c) => c.ownerIds.includes(myPlayerId)));
 

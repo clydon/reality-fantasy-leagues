@@ -52,10 +52,13 @@ export function CastTile({
   dim,
   onClick,
   disabled,
+  detail,
 }: {
   castaway: Castaway;
   /** The short name shown on the tile (see shortNames). */
   label: string;
+  /** Replaces the tribe line under the name (e.g. "Used Ep 1"). */
+  detail?: ReactNode;
   state: LeagueState;
   photoHeight?: number;
   mark?: "add" | "drop";
@@ -77,9 +80,13 @@ export function CastTile({
       <span className="flex min-w-0 flex-col gap-0.5 px-[7px] pb-1.5 pt-[5px]">
         <span className="type-caption truncate text-[15px]">{label}</span>
         <span className={cn("flex min-h-[14px] min-w-0 items-center gap-1 text-[11px]", dim ? "text-muted-foreground" : "text-plate-muted")}>
-          {tribe && <span className="size-2 shrink-0 rounded-[1px]" style={{ background: tribe.color }} aria-hidden />}
-          <span className="truncate">{tribe?.name}</span>
-          <RoleBadge state={state} castawayId={castaway.id} />
+          {detail ?? (
+            <>
+              {tribe && <span className="size-2 shrink-0 rounded-[1px]" style={{ background: tribe.color }} aria-hidden />}
+              <span className="truncate">{tribe?.name}</span>
+              <RoleBadge state={state} castawayId={castaway.id} />
+            </>
+          )}
         </span>
       </span>
       {mark && (
