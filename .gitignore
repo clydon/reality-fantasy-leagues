@@ -45,3 +45,8 @@ next-env.d.ts
 
 # Playwright MCP browser logs and page snapshots (local tooling)
 /.playwright-mcp/
+
+# Impeccable scratch: decision sketches, question-page state, review screenshots
+.impeccable/mocks/
+.impeccable/questions/
+.impeccable/review/

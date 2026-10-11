@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { requestPasswordReset } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Field, FrontDoor, FrontDoorTitle, SubmitButton } from "@/components/auth/front-door";
+import { BackToSignIn } from "@/components/auth/back-to-sign-in";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -25,39 +24,41 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[360px]">
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Reset password</h2>
-      <div className="rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
-        {sent ? (
-          <p className="text-sm">
-            If an account exists for <b>{email}</b>, a reset link has been sent. In local dev with no email provider
-            configured, check the server console instead (see <code className="rounded bg-secondary px-1 py-0.5">src/lib/auth.ts</code>).
+    <FrontDoor
+      aside={<BackToSignIn />}
+      title={
+        <FrontDoorTitle
+          detail={
+            sent
+              ? undefined
+              : "Enter your account’s email and we’ll send you a link to set a new one."
+          }
+        >
+          {sent ? "Check your email" : "Forgot your password?"}
+        </FrontDoorTitle>
+      }
+    >
+      {sent ? (
+        <div className="text-base">
+          <p>
+            If an account uses <b className="break-all">{email}</b>, a reset link is on its way. It can take a minute or two.
           </p>
-        ) : (
-          <form onSubmit={submit} className="flex flex-col gap-2">
-            <p className="mb-1 text-sm text-muted-foreground">
-              Enter your account email and we&rsquo;ll send a reset link. Signed up with only a username? Ask the site
-              admin for a temporary password instead.
+          {process.env.NODE_ENV === "development" && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Local dev with no email provider: the link is in the server console (see{" "}
+              <code className="rounded bg-secondary px-1 py-0.5">src/lib/auth.ts</code>).
             </p>
-            <Input
-              placeholder="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              required
-            />
-            <Button type="submit" disabled={loading}>
-              {loading ? "Sending…" : "Send reset link"}
-            </Button>
-          </form>
-        )}
-      </div>
-      <p className="mt-2.5 text-center text-xs text-muted-foreground">
-        <Link href="/account" className="font-semibold text-chyron-line hover:underline">
-          Back to sign in
-        </Link>
-      </p>
-    </div>
+          )}
+        </div>
+      ) : (
+        <form onSubmit={submit}>
+          <Field label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+          <p className="mt-3 text-sm text-muted-foreground">
+            Signed up with only a username? Ask the site admin for a temporary password instead.
+          </p>
+          <SubmitButton disabled={loading}>{loading ? "Sending…" : "Send reset link"}</SubmitButton>
+        </form>
+      )}
+    </FrontDoor>
   );
 }

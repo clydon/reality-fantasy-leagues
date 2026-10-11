@@ -1,14 +1,13 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { resetPassword } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Field, FormError, FrontDoor, FrontDoorTitle, SubmitButton } from "@/components/auth/front-door";
+import { BackToSignIn } from "@/components/auth/back-to-sign-in";
 
-function ResetPasswordForm() {
-  const router = useRouter();
+function ResetPassword() {
   const token = useSearchParams().get("token");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -31,53 +30,54 @@ function ResetPasswordForm() {
     }
   }
 
-  if (!token) {
-    return <p className="text-sm text-destructive">This reset link is missing its token — use the link from your email directly.</p>;
-  }
-
-  if (done) {
-    return (
-      <div>
-        <p className="mb-3 text-sm text-good">Password updated.</p>
-        <Button onClick={() => router.push("/account")}>Sign in</Button>
-      </div>
-    );
-  }
+  const title = !token ? "This link is incomplete" : done ? "Password updated" : "Set a new password";
+  const detail = !token
+    ? "It’s missing part of its address. Open the link from your email directly, or ask for a new one."
+    : done
+      ? "Sign in with your new password."
+      : undefined;
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-2">
-      <p className="mb-1 text-sm text-muted-foreground">Choose a new password (8+ characters).</p>
-      <Input
-        placeholder="New password"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        autoComplete="new-password"
-        minLength={8}
-        required
-      />
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" disabled={loading}>
-        {loading ? "Saving…" : "Set new password"}
-      </Button>
-    </form>
+    <FrontDoor aside={<BackToSignIn />} title={<FrontDoorTitle detail={detail}>{title}</FrontDoorTitle>}>
+      {!token ? (
+        // A link styled as the sheet's action: there is nothing to submit here.
+        <Link
+          href="/forgot-password"
+          className="type-caption flex h-[52px] w-full items-center justify-center rounded-[3px] bg-chyron text-[22px] text-chyron-foreground hover:brightness-[1.06]"
+        >
+          Get a new link
+        </Link>
+      ) : done ? (
+        <Link
+          href="/"
+          className="type-caption flex h-[52px] w-full items-center justify-center rounded-[3px] bg-chyron text-[22px] text-chyron-foreground hover:brightness-[1.06]"
+        >
+          Sign in
+        </Link>
+      ) : (
+        <form onSubmit={submit}>
+          <Field
+            label="New password"
+            hint="(8 or more characters)"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+            required
+          />
+          {error && <FormError>{error}</FormError>}
+          <SubmitButton disabled={loading}>{loading ? "Saving…" : "Set new password"}</SubmitButton>
+        </form>
+      )}
+    </FrontDoor>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <div className="mx-auto max-w-[360px]">
-      <h2 className="mb-[18px] text-2xl font-bold tracking-tight">Set a new password</h2>
-      <div className="rounded-lg border border-border bg-card p-[18px_20px] shadow-sm">
-        <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
-          <ResetPasswordForm />
-        </Suspense>
-      </div>
-      <p className="mt-2.5 text-center text-xs text-muted-foreground">
-        <Link href="/account" className="font-semibold text-chyron-line hover:underline">
-          Back to sign in
-        </Link>
-      </p>
-    </div>
+    <Suspense fallback={<div className="min-h-dvh bg-background" />}>
+      <ResetPassword />
+    </Suspense>
   );
 }

@@ -192,8 +192,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     window.location.href = "/";
   }
 
+  // Forgot / reset password bring their own full-screen layout (auth/front-door.tsx).
   if (BARE_ROUTES.includes(pathname)) {
-    return <div className="min-h-screen bg-background px-4 py-10">{children}</div>;
+    return children;
   }
 
   // One loading screen for both "we don't know who you are yet" and "a league is on its way".
@@ -205,15 +206,19 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <BootOverlay />;
   }
 
-  // Signing up is how you get a session, so /account has to render before there is one -- but only
-  // then. Once signed in it goes through the shell below like any other page, which is what gives
-  // a brand-new account a way off it (it used to be a dead end with no navigation at all).
-  if (pathname === "/account" && !entered) {
-    return <div className="min-h-screen bg-background px-4 py-10">{children}</div>;
-  }
-
+  // Signed out, every route is the front door. /account is where "Create an account" links go, so
+  // there it opens on that side. Once signed in /account goes through the shell below like any other
+  // page, which is what gives a brand-new account a way off it.
   if (!entered) {
-    return <LoginScreen onLogin={handleLogin} onSkip={handleSkip} error={error} loading={status === "loading"} />;
+    return (
+      <LoginScreen
+        onLogin={handleLogin}
+        onSkip={handleSkip}
+        error={error}
+        loading={status === "loading"}
+        initialMode={pathname === "/account" ? "signup" : "signin"}
+      />
+    );
   }
 
   if (isFullscreen(pathname)) {

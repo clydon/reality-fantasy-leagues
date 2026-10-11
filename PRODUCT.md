@@ -55,7 +55,7 @@ Supporting differences, all confirmed:
 
 ## Brand Commitments
 
-- **Name: undecided.** The app manifest says "Reality Fantasy Leagues"; the logo and login still say "Survivor Fantasy Engine" with a torch. Neither name nor the torch logo is binding yet. Future work should not lock in either without a decision.
+- **Name: undecided, leaning "LeagueCrafter"** (2026-10-11; leaguecreator.com was taken). The front door shows LeagueCrafter as type (`src/components/auth/wordmark.tsx`, one constant). The app manifest still says "Reality Fantasy Leagues", and the Dashboard banner still says "Survivor Fantasy Engine" with a torch. None of these is binding yet, and there's no logo or icon art. Future work should not lock in a name without a decision.
 - No other brand assets, voice guide or identity constraints have been confirmed.
 
 ## Evidence on Hand
