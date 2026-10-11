@@ -5,8 +5,8 @@ import { formatFor } from "@/lib/game/formats/index.js";
 // The guided tour's season (docs/PLAN-guided-tour.md, "The show"): *Rise & Fall*, a made-up baking
 // competition. Ten bakers -- four hapless amateurs, four ordinary bakers, a professional and a
 // world-renowned master -- you and two computer players, Active Roster with a roster of three (two
-// starters, one bench). Clive, the master, is the best baker and wins every week, whoever has him;
-// Gus, the most hopeless amateur, is the worst, and is in the bottom two every week until he goes home.
+// starters, one bench). Clive, the master, and Jo, the professional, are the best bakers and both win
+// every week, whoever has them; Gus, the most hopeless amateur, is the worst, and is in the bottom two every week until he goes home.
 //
 // Headshots (public/photos/tour/<key>.jpg) are cropped from an illustrated cast sheet the user
 // supplied for the tour.
@@ -19,7 +19,7 @@ import { formatFor } from "@/lib/game/formats/index.js";
 
 export const TOUR_SHOW_ID = "rise-and-fall";
 export const TOUR_SHOW_NAME = "Rise & Fall";
-export const TOUR_LEAGUE_NAME = "Rise & Fall";
+export const TOUR_LEAGUE_NAME = "Bake-Off Champions";
 export const TOUR_TERMS = { castaway: "Baker", tribe: "Team" };
 export const TOUR_EPISODES = 2;
 
@@ -74,6 +74,10 @@ const BAKERS: { key: string; name: string }[] = [
 const bakerId = (key: string) => `tour_c_${key}`;
 /** The best baker: wins every week. */
 export const TOUR_STAR = bakerId("clive");
+/** The professional: wins every week too, alongside Clive. */
+export const TOUR_PRO = bakerId("jo");
+/** Who wins the week, every week. */
+export const TOUR_WINNERS = [TOUR_STAR, TOUR_PRO];
 /** The worst: bottom two every week he's still in. */
 export const TOUR_FLOP = bakerId("gus");
 // Ben knows a master when he sees one: if you don't take Clive first, he does. Ivy is last on both
@@ -162,14 +166,14 @@ export function afterDraft(state: LeagueState) {
 
 /** Who wins the week, who's in the bottom two and who goes home in episode `n` (see scriptEpisode). */
 export interface EpisodePlan {
-  winner: string;
+  winners: string[];
   bottom: string[];
   out?: string;
 }
 
 /**
- * What happens in episode `n`, from who's starting. Clive wins the week every time, whoever has him
- * (it counts only if they started him). Gus is in the bottom two every week he's still in.
+ * What happens in episode `n`, from who's starting. Clive and Jo win the week every time, whoever has
+ * them (it counts only if they were started). Gus is in the bottom two every week he's still in.
  *  1. The other bottom-two spot is one of YOUR starters, and your starter goes home -- Gus, if you
  *     started him -- so you always have a spot to fill with a pickup.
  *  2. The other bottom-two spot is someone else's starter, and Gus goes home if he's still in (else
@@ -179,7 +183,7 @@ export function planEpisode(state: LeagueState, n: number): EpisodePlan {
   const inGame = (id: string) => StateLogic.getCastaway(state, id)?.status === "active";
   const mine = lineupOf(state, n, TOUR_ME);
   const others = [...lineupOf(state, n, TOUR_KAT), ...lineupOf(state, n, TOUR_BEN)];
-  const ordinary = (id: string) => id !== TOUR_STAR && id !== TOUR_FLOP;
+  const ordinary = (id: string) => !TOUR_WINNERS.includes(id) && id !== TOUR_FLOP;
   let out: string | undefined;
   let partner: string | undefined;
   if (n === 1) {
@@ -191,7 +195,7 @@ export function planEpisode(state: LeagueState, n: number): EpisodePlan {
   } else {
     out = others.find(ordinary) ?? mine.find(ordinary);
   }
-  return { winner: TOUR_STAR, bottom: [out, partner].filter((id): id is string => !!id), out };
+  return { winners: TOUR_WINNERS.filter(inGame), bottom: [out, partner].filter((id): id is string => !!id), out };
 }
 
 /** Episode `n` airs, with planEpisode's results written straight in (the player path's episodes). */
@@ -199,7 +203,7 @@ export function scriptEpisode(state: LeagueState, n: number) {
   const ep = episode(state, n);
   if (!ep || StateLogic.episodeHasResults(ep)) return;
   const plan = planEpisode(state, n);
-  StateLogic.addScoringEvent(state, ep.id, "wonWeek", plan.winner);
+  for (const id of plan.winners) StateLogic.addScoringEvent(state, ep.id, "wonWeek", id);
   for (const id of plan.bottom) StateLogic.addScoringEvent(state, ep.id, "bottomTwo", id);
   if (plan.out) StateLogic.addElimination(state, ep.id, plan.out, "Went home");
   closeEpisode(state, n);
@@ -244,10 +248,13 @@ export function benLine(state: LeagueState): string {
   return "Rough week. Somebody keep Gus away from the oven 🙄";
 }
 
-/** Who has Clive, and whether they started him, in episode `n` -- for the host's line after a reveal. */
-export function starIn(state: LeagueState, n: number): { owner: string | null; started: boolean } {
-  const owner = StateLogic.getCastaway(state, TOUR_STAR)?.ownerIds[0] ?? null;
-  return { owner, started: !!owner && lineupOf(state, n, owner).includes(TOUR_STAR) };
+/** Each week's winners in episode `n`: who has them and whether they were started -- for the host's
+ *  line after a reveal. */
+export function winnersIn(state: LeagueState, n: number): { name: string; owner: string | null; started: boolean }[] {
+  return TOUR_WINNERS.map((id) => {
+    const owner = StateLogic.getCastaway(state, id)?.ownerIds[0] ?? null;
+    return { name: StateLogic.getCastaway(state, id)?.name ?? id, owner, started: !!owner && lineupOf(state, n, owner).includes(id) };
+  });
 }
 
 /** The free agent you'll be picking up (Ivy, unless you drafted her). */

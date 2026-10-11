@@ -31,11 +31,11 @@ function aired() {
 
 const item = (d) => ({ kind: d.kind, castawayName: d.castawayName, method: d.method, eventType: d.eventType });
 
-test("Episode 1 is staged, not written: a winner, the bottom two and who went home", () => {
+test("Episode 1 is staged, not written: the winners, the bottom two and who went home", () => {
   const { s, staged } = aired();
   assert.ok(!S.episodeHasResults(ep(s, 1)), "nothing is in the league until it's applied");
   assert.ok(ep(s, 1).lineupsLocked, "the episode has aired");
-  assert.deepEqual(staged.filter((d) => d.eventType === "wonWeek").map((d) => d.castawayName), ["Clive"]);
+  assert.deepEqual(staged.filter((d) => d.eventType === "wonWeek").map((d) => d.castawayName), ["Clive", "Jo"]);
   assert.equal(staged.filter((d) => d.eventType === "bottomTwo").length, 2);
   assert.equal(staged.filter((d) => d.kind === "elimination").length, 1);
   assert.ok(staged.some((d) => d.confidence === "low"), "one result is worth checking");
@@ -48,7 +48,7 @@ test("applying everything scores it like the player's tour, and opens Episode 2"
   const { s, staged } = aired();
   const r = C.applyTourResults(s, 1, staged.map(item));
   assert.equal(r.eliminations.length, 1);
-  assert.equal(r.events.length, 3);
+  assert.equal(r.events.length, 4);
   assert.ok(S.episodeHasResults(ep(s, 1)));
   assert.equal(S.getCastaway(s, T.TOUR_STAR).status, "active");
   assert.equal(s.castaways.filter((c) => c.status === "eliminated").length, 1);

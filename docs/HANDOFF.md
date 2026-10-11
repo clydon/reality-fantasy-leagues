@@ -11,6 +11,18 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Late joiners ("ghosts") built 2026-10-11
+
+Someone joining an underway league picks an episode to start from, drafts from the cast as it stood
+then, and plays one episode at a time ("Have you watched episode N?" before each reveal), or jumps to
+the latest. They're invisible to the league until the commissioner adds them (Players & invites →
+Late joiners). On by default. Everything (model, spoiler guarantee, UX, limits, what was verified):
+`docs/PLAN-late-joiners.md`. Announced in What's New (release 2026-10-11, with Research's tab and the tour).
+
+The guided tour got a welcome card, six "Getting around" cards (one per tab), a plain-words `detail`
+under each host line (collapses on first tap), Jo as a second weekly winner, and the league renamed
+"Bake-Off Champions": `docs/PLAN-guided-tour.md` → "Changed 2026-10-11".
+
 ## Guided tour: player path (phase 1) and commissioner path (phase 2) built 2026-10-10
 
 "Take a Tour" on the login screen now plays a 3-minute guided tour on a made-up Active Roster season,

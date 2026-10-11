@@ -49,7 +49,7 @@ people, no image rights.
 
 | # | Where | Host line | Tap |
 |---|---|---|---|
-| 1 | Overview: League Scoring card | "Winner +3. Bottom two −1. That's it. Tap Draft." | Draft tab |
+| 1 | Overview: League Scoring card | "Your bakers earn you points. Tap Draft to pick them." (changed 2026-10-11: the scoring rules now sit in the detail) | Draft tab |
 | 2 | Draft tab | "Pick 3 bakers." | ×3 (computer players pick instantly) |
 | 3 | Lineup tab | "Only starters score. Bench one." | Bench |
 | 4 | Episodes tab | "Episode 1 aired. Reveal it." | Reveal |
@@ -145,7 +145,8 @@ for a later phase.
 - **The cast (changed by the user, 2026-10-10):** ten bakers from an illustrated cast sheet the user
   supplied, cropped to headshots (`public/photos/tour/<key>.jpg`, the sheet's number badges and
   labels left out): Ana, Gus, Ivy and Bruno are amateurs, Emma, Finn, Hana and Dev ordinary bakers,
-  Jo a professional, Clive world-renowned. **Clive, the best, wins every week whoever has him. Gus,
+  Jo a professional, Clive world-renowned. **Clive and Jo, the best two, both win every week whoever
+  has them (Jo added 2026-10-11). Gus,
   the worst, is in the bottom two every week until he goes home.** `scriptEpisode()`: in Episode 1
   the other bottom-two spot is one of your starters, and that starter goes home (Gus, if you started
   him), so the pickup step always has a spot to fill. In Episode 2 Gus goes home if he's still in.
@@ -247,3 +248,23 @@ apply, end card. Plus Research, which the player path left to this one.
 - **Not done:** the step log and admin funnel (phase 3); the confirm dialog itself is still the old
   style; no local league is on a league-decided season, so the live "Results are in" plate was only
   seen in the tour.
+
+## Changed 2026-10-11
+
+- **The host explains.** Each step can carry a `detail` (steps.ts): a sentence or two under the line,
+  in plain words, on what the step means (people read the terse lines and asked "what does that
+  mean?"). It shows when the step arrives and collapses on the first tap outside the plate (on
+  click, not pointerdown, so the tap isn't moved out from under the finger); "What does this mean?"
+  brings it back. Kept to about two lines at 390px so the plate doesn't bury the target.
+- **Jo wins every week too**, alongside Clive (`TOUR_WINNERS`); Jo is never in the bottom two. Ben
+  takes Jo second, so drafting Clive no longer puts you top.
+- **The league is called "Bake-Off Champions"** (the show is still *Rise & Fall*).
+- **A welcome card opens the player tour** (`welcome`, with a `cta` button on the plate): it names the
+  league type and says to watch for (and tap) what's highlighted. The rules step's line is now "Your
+  bakers earn you points. Tap Draft to pick them.", with the scoring in its detail.
+- **Getting around** follows the welcome: six cards (`GETTING_AROUND` in steps.ts), one per tab, each
+  lit with Next on the plate; the last, More, names Mid-Season, League Settings, What's new, the tours
+  and the header's chat. Look-only targets now get a dashed ring (tappable ones keep the solid one).
+- **Spotlight hit-test:** a target counts as on top if any of a 3x3 spread of points is, not just its
+  middle. The sticky confirm bar covering the middle of the tile grid had made the whole grid
+  untappable once the plate grew.

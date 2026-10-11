@@ -41,7 +41,7 @@ export function stageResults(state: LeagueState, n: number): StagedResearchDecis
   });
   const rows: StagedResearchDecision[] = [];
   if (plan.out) rows.push(row(rows.length, { kind: "elimination", castawayName: name(plan.out), method: "Went home" }));
-  rows.push(row(rows.length, { kind: "event", castawayName: name(plan.winner), eventType: "wonWeek" }));
+  plan.winners.forEach((id) => rows.push(row(rows.length, { kind: "event", castawayName: name(id), eventType: "wonWeek" })));
   plan.bottom.forEach((id) =>
     rows.push(
       row(rows.length, {

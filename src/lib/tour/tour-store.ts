@@ -94,7 +94,7 @@ function seedChat() {
   const players = useLeagueStore.getState().fullState.players;
   useChatStore.setState({
     messages: [
-      { id: "tour_1", user_id: null, author_name: "System", type: "system", text: "Welcome to the Rise & Fall league chat.", created_at: at(30), edited_at: null, reactions: {} },
+      { id: "tour_1", user_id: null, author_name: "System", type: "system", text: `Welcome to the ${TOUR_LEAGUE_NAME} chat.`, created_at: at(30), edited_at: null, reactions: {} },
       { id: "tour_2", user_id: TOUR_KAT, author_name: "Kat", type: "message", text: "good luck all, may your sponges rise 🧁", created_at: at(25), edited_at: null, reactions: {} },
     ],
     reads: players.map((p) => ({ userId: p.id, playerId: p.id, lastReadAt: at(25) })),

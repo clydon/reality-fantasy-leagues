@@ -1,5 +1,5 @@
 // The guided tour's scripted season (src/lib/tour/rise-and-fall.ts, docs/PLAN-guided-tour.md): it
-// starts undrafted, the computer players draft instantly, Clive wins every week whoever has him, and
+// starts undrafted, the computer players draft instantly, Clive and Jo win every week whoever has them, and
 // Gus is in the bottom two every week he's still in. Plays it through, under the real rules, for the
 // drafts and lineups that change what happens. Run with `npm test`.
 const test = require("node:test");
@@ -30,7 +30,7 @@ function playThrough(choose, start = (mine) => mine.slice(0, 2)) {
   assert.ok(S.setActiveRosterLineup(s, ep(s, 1).id, T.TOUR_ME, starters), "two starters is a valid lineup");
 
   T.scriptEpisode(s, 1);
-  assert.deepEqual(events(s, 1, "wonWeek"), [T.TOUR_STAR], "Clive wins Episode 1");
+  assert.deepEqual(events(s, 1, "wonWeek"), T.TOUR_WINNERS, "Clive and Jo win Episode 1");
   assert.ok(events(s, 1, "bottomTwo").includes(T.TOUR_FLOP), "Gus is in the bottom two");
   assert.equal(events(s, 1, "bottomTwo").length, 2);
   const out1 = s.castaways.filter((c) => c.status === "eliminated");
@@ -48,31 +48,33 @@ function playThrough(choose, start = (mine) => mine.slice(0, 2)) {
 
   const gusIn = S.getCastaway(s, T.TOUR_FLOP).status === "active";
   T.scriptEpisode(s, 2);
-  assert.deepEqual(events(s, 2, "wonWeek"), [T.TOUR_STAR], "Clive wins Episode 2");
+  assert.deepEqual(events(s, 2, "wonWeek"), T.TOUR_WINNERS, "Clive and Jo win Episode 2");
   if (gusIn) {
     assert.ok(events(s, 2, "bottomTwo").includes(T.TOUR_FLOP), "Gus is in the bottom two again");
     assert.equal(S.getCastaway(s, T.TOUR_FLOP).status, "eliminated", "and goes home");
   }
   assert.equal(S.getCastaway(s, T.TOUR_STAR).status, "active", "Clive never goes home");
+  assert.equal(S.getCastaway(s, T.TOUR_PRO).status, "active", "Jo never goes home");
+  assert.ok(!events(s, 1, "bottomTwo").includes(T.TOUR_PRO) && !events(s, 2, "bottomTwo").includes(T.TOUR_PRO), "Jo is never in the bottom two");
   return { s, free, mine };
 }
 
 test("drafting the first baker each time: Ben gets Clive and finishes top", () => {
   const { s, free } = playThrough((fa) => fa[0]);
   assert.equal(free, "Ivy", "Ivy is the one left over");
-  assert.deepEqual(T.starIn(s, 1), { owner: T.TOUR_BEN, started: true });
+  assert.deepEqual(T.winnersIn(s, 1)[0], { name: "Clive", owner: T.TOUR_BEN, started: true });
   assert.match(T.benLine(s), /Top of the table/);
 });
 
 test("drafting and starting Clive: he scores for you both weeks", () => {
   const { s } = playThrough(byName("Clive"), (mine) => [T.TOUR_STAR, mine.find((id) => id !== T.TOUR_STAR)]);
-  assert.deepEqual(T.starIn(s, 1), { owner: T.TOUR_ME, started: true });
+  assert.deepEqual(T.winnersIn(s, 1)[0], { name: "Clive", owner: T.TOUR_ME, started: true });
   assert.ok(total(s, T.TOUR_ME) >= 5, "+3 twice, less a bottom two");
 });
 
 test("drafting Clive but benching him: the bench lesson", () => {
   const { s } = playThrough(byName("Clive"), (mine) => mine.filter((id) => id !== T.TOUR_STAR));
-  assert.deepEqual(T.starIn(s, 1), { owner: T.TOUR_ME, started: false });
+  assert.deepEqual(T.winnersIn(s, 1)[0], { name: "Clive", owner: T.TOUR_ME, started: false });
   assert.ok(total(s, T.TOUR_ME) <= 2, "his Episode 1 win didn't count");
 });
 

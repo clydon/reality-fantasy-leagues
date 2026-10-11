@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useIsAuthenticated, useLeagueStore } from "@/lib/store";
 import { useReportModalStore } from "@/lib/report-modal-store";
@@ -43,6 +43,8 @@ export function TourHost() {
   if (!step || stepIndex === null) return null;
   const onRoute = !step.route || step.route(pathname);
   const line = (onRoute ? step.line : (step.nav?.line ?? step.line))(ctx);
+  const detailOf = onRoute || !step.nav ? step.detail : step.nav.detail;
+  const detail = detailOf ? detailOf(ctx) : null;
   const targets = onRoute ? step.targets : (step.nav?.targets ?? []);
   const look = onRoute ? (step.look ?? []) : [];
   const ending = !!step.end && onRoute;
@@ -55,7 +57,10 @@ export function TourHost() {
         kind={kind}
         progress={step.progress}
         line={line}
+        detail={detail}
         ending={ending}
+        cta={onRoute ? (step.cta ?? null) : null}
+        onNext={() => goTo(stepIndex + 1)}
         // The create-a-league flow has no tab bar: the plate sits at the foot of the screen.
         fullscreen={pathname === "/new-league"}
         onSkip={stop}
@@ -70,19 +75,38 @@ function HostPlate({
   kind,
   progress,
   line,
+  detail,
   ending,
+  cta,
+  onNext,
   fullscreen,
   onSkip,
 }: {
   kind: TourKind;
   progress: string;
   line: string;
+  detail: string | null;
   ending: boolean;
+  cta: string | null;
+  onNext: () => void;
   fullscreen: boolean;
   onSkip: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  // The detail is read when a step arrives, then gets out of the way: the first tap outside the plate
+  // means they've started the step, and the room it took goes back to the screen. On click, not
+  // pointerdown -- shrinking mid-tap moves what was tapped. "What does this mean?" brings it back.
+  // Each step remounts the plate (keyed), so every step opens with its detail showing.
+  const [explained, setExplained] = useState(true);
+  useEffect(() => {
+    if (!detail) return;
+    const away = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setExplained(false);
+    };
+    document.addEventListener("click", away);
+    return () => document.removeEventListener("click", away);
+  }, [detail]);
   const startTour = useTourStore((s) => s.start);
   const isAuthenticated = useIsAuthenticated();
   const openReport = useReportModalStore((s) => s.openModal);
@@ -164,9 +188,38 @@ function HostPlate({
         </span>
       </div>
       <div className="rounded-b-[3px] bg-plate px-3.5 pb-3 pt-2.5 text-plate-foreground shadow-plate">
-        <p aria-live="polite" className="tour-wipe type-caption text-balance text-[22px] leading-[1.05]">
-          {line}
-        </p>
+        <div aria-live="polite">
+          <p className="tour-wipe type-caption text-balance text-[22px] leading-[1.05]">{line}</p>
+          {detail && (
+            <div
+              className="grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none"
+              style={{ gridTemplateRows: explained ? "1fr" : "0fr" }}
+            >
+              <p className="overflow-hidden text-pretty text-[15px] leading-snug text-plate-muted" aria-hidden={!explained}>
+                <span className="block pt-1.5">{detail}</span>
+              </p>
+            </div>
+          )}
+          {cta && (
+            <button
+              type="button"
+              onClick={onNext}
+              className="mt-3 min-h-12 w-full rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
+            >
+              {cta}
+            </button>
+          )}
+          {detail && !explained && (
+            <button
+              type="button"
+              aria-expanded={false}
+              onClick={() => setExplained(true)}
+              className="-mb-2.5 flex min-h-10 items-center text-[15px] font-semibold text-plate-muted underline underline-offset-4 outline-none hover:text-plate-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
+            >
+              What does this mean?
+            </button>
+          )}
+        </div>
         {ending && (
           <div className="mt-3 flex flex-col gap-2">
             <p className="text-[15px] leading-snug text-plate-muted">
@@ -232,6 +285,7 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const holesRef = useRef<SVGPathElement>(null);
   const ringRef = useRef<SVGPathElement>(null);
+  const lookRingRef = useRef<SVGPathElement>(null);
   const tappable = useRef<Element[]>([]);
   const active = useRef(false);
   const key = [...targets, "|", ...look].join(" ");
@@ -265,6 +319,8 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
       if (plate && plate.dataset.dock !== dock) plate.dataset.dock = dock;
       holesRef.current?.setAttribute("d", shown.map(rounded).join(" "));
       ringRef.current?.setAttribute("d", shown.slice(0, tap.length).map(rounded).join(" "));
+      // Lit to look at, not tap: a dashed ring, so it still stands out (the tab bar's cards).
+      lookRingRef.current?.setAttribute("d", shown.slice(tap.length).map(rounded).join(" "));
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -306,6 +362,7 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
       </defs>
       <rect width="100%" height="100%" mask="url(#tour-spotlight)" className="fill-(--scrim)" />
       <path ref={ringRef} fill="none" strokeWidth={2} className="stroke-plate" />
+      <path ref={lookRingRef} fill="none" strokeWidth={2} strokeDasharray="5 4" className="stroke-plate" />
     </svg>
   );
 }
@@ -323,11 +380,17 @@ function visible(names: string[]): { el: Element; box: Box }[] {
       const x1 = Math.min(W, r.right);
       const y1 = Math.min(H, r.bottom);
       if (x1 - x0 < 4 || y1 - y0 < 4) continue;
-      // On top where it shows? The first thing under its middle that isn't the host plate.
-      const hit = document
-        .elementsFromPoint((x0 + x1) / 2, (y0 + y1) / 2)
-        .find((h) => !h.closest("[data-tour-host]") && !(h instanceof SVGElement && h.closest("svg[aria-hidden]")));
-      if (!hit || !(el.contains(hit) || hit.contains(el))) continue;
+      // On top where it shows? The first thing (not the host plate) under its middle -- or, when a
+      // sticky bar covers the middle of a tall target like the draft's tile grid, under any of a 3x3
+      // spread of points across it.
+      const onTop = (fx: number, fy: number) => {
+        const hit = document
+          .elementsFromPoint(x0 + (x1 - x0) * fx, y0 + (y1 - y0) * fy)
+          .find((h) => !h.closest("[data-tour-host]") && !(h instanceof SVGElement && h.closest("svg[aria-hidden]")));
+        return !!hit && (el.contains(hit) || hit.contains(el));
+      };
+      const spread = [0.5, 0.15, 0.85];
+      if (!spread.some((fy) => spread.some((fx) => onTop(fx, fy)))) continue;
       out.push({ el, box: { x: x0 - PAD, y: y0 - PAD, w: x1 - x0 + PAD * 2, h: y1 - y0 + PAD * 2 } });
     }
   }
