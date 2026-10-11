@@ -346,7 +346,7 @@ Direction A's signature, in `src/components/ui/caption-plate.tsx`, for the momen
 - **Variants built from it:** the alert strip (`action-bar.tsx`), the reveal prompt and "reveal first" (`results-in-banner.tsx`), Last Week, who left (episode page and Overview), and Classic's "banks" plate with a player-coloured tag.
 
 ### Alert Strip
-The caption plate as the app's to-do list (`action-bar.tsx`). Chyron tag names the kind of thing ("Your pick", "Lineup", "Invite"), the plate gives the message and the league. Controls inside the plate are 44px square, divided by faint plate-muted lines; an invite's "Join" is a small chyron button, "Decline" an outlined one.
+The caption plate as the app's to-do list (`action-bar.tsx`). Chyron tag names the kind of thing ("Your pick", "Lineup", "Invite"), the plate gives the message and the league. **The message gets the width:** its title wraps to two lines (an invite's, which carries the league's name, to three) and never truncates mid-message, so the strip grows taller rather than cutting text. An item with two answers (an invite's Join / Decline, the notifications nudge's Turn on / Not now) puts them on their own line under the message: a small chyron button and an outlined one, wrapping at 320px. With more than one item, the pager is a single 48px column, "1/3" over "Next", divided by a faint plate-muted line; it cycles round.
 
 ### Buttons
 - **Shape:** slightly rounded (6px). Still the ported shape from the old app; plate-embedded buttons are 3px.
