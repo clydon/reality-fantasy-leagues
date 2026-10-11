@@ -1,9 +1,10 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { pool } from "./db";
-import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName, leftOutOfBroadcasts } from "./push-targets";
+import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName } from "./push-targets";
 import { splitBySpoilerProtection } from "./results-seen";
 import { groupLeagueIds, groupMemberUserIds } from "./league-groups";
+import { outOfGroupChat } from "./late-join";
 
 // One function per pushable event, so each route's trigger is a single line and all the "who gets
 // this, and what does it say" decisions live together in one reviewable place.
@@ -175,12 +176,9 @@ export function notifyChat(leagueId: string, authorUserId: string, authorName: s
 async function chatAudience(leagueId: string, authorUserId: string) {
   const { rows: st } = await pool.query("SELECT state FROM leagues WHERE id=$1", [leagueId]);
   const state = st[0]?.state as LeagueState | undefined;
-  // Late joiners have no chat (it's the league's conversation, and the league can't see them).
-  const { rows: late } = await pool.query(
-    "SELECT m.user_id, m.player_id, l.state FROM league_memberships m JOIN leagues l ON l.id = m.league_id WHERE m.league_id = ANY($1::uuid[])",
-    [await groupLeagueIds(leagueId)]
-  );
-  const hidden = new Set(late.filter((r) => leftOutOfBroadcasts(r.state, r.player_id)).map((r) => r.user_id as string));
+  // Late joiners have no chat (it's the league's conversation, and the league can't see them) -- unless
+  // they're an ordinary player in another linked league, and in the conversation through that one.
+  const hidden = await outOfGroupChat(await groupLeagueIds(leagueId));
   const userIds = (await groupMemberUserIds(leagueId, authorUserId)).filter((id) => !hidden.has(id));
   if (!state || !userIds.length) return { plain: userIds, guarded: [], episode: null };
   const { immediate } = await splitBySpoilerProtection(userIds);

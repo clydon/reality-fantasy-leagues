@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
-import { outOfChat } from "@/lib/server/late-join";
-import StateLogic from "@/lib/game/state-logic.js";
+import { outOfChat, outOfGroupChat } from "@/lib/server/late-join";
 import { pool, HttpError } from "@/lib/server/db";
 import { withReactions } from "@/lib/server/chat";
 import { notifyChat } from "@/lib/server/push-events";
@@ -43,10 +42,9 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
       GROUP BY m.user_id`,
     [ids, leagueId]
   );
-  // Nobody in the league reads as a late joiner they can't see (StateLogic.GhostLogic).
-  const { rows: st } = await pool.query("SELECT state FROM leagues WHERE id=$1", [leagueId]);
-  const ghosts = new Set(StateLogic.GhostLogic.ghosts(st[0]?.state ?? { players: [] }).map((p) => p.id));
-  const visibleReads = reads.filter((r) => !ghosts.has(r.playerId));
+  // Nobody reads as a late joiner the league can't see, in this league or any linked one (late-join.ts).
+  const out = await outOfGroupChat(ids);
+  const visibleReads = reads.filter((r) => !out.has(r.userId));
   return NextResponse.json({ messages: await withReactions(rows), reads: visibleReads });
 });
 

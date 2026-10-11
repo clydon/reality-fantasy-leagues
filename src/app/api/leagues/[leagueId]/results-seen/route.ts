@@ -6,6 +6,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { markResultsSeen } from "@/lib/server/results-seen";
 import { groupLeagueIds } from "@/lib/server/league-groups";
+import { catchingUpIn } from "@/lib/server/late-join";
 
 // "Results are in! -- Reveal": body { through: n } -- this member has now seen results through
 // episode n (StateLogic.SpoilerLogic). Forward only.
@@ -52,7 +53,10 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     });
     if (StateLogic.getPlayer(current, playerId)?.ghost) return NextResponse.json({ ok: true });
   } else {
-    for (const id of await groupLeagueIds(leagueId)) await markResultsSeen(user.id, id, n);
+    // A linked league where they're a late joiner still catching up keeps its own mark (late-join.ts).
+    const ids = await groupLeagueIds(leagueId);
+    const skip = await catchingUpIn(user.id, ids);
+    for (const id of ids) if (!skip.has(id)) await markResultsSeen(user.id, id, n);
   }
 
   if (before !== null && n > before) {

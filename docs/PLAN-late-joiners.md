@@ -137,3 +137,21 @@ difference:
 - **Open question (Classic fairness):** Classic scores finishing position, and a late joiner drafts
   only from who's still in, so they can't hold an early boot and will tend to out-score anyone who
   drafted on day one. Fine while they're a ghost; matters once a commissioner adds them. Not decided.
+
+## Linked leagues (fixed and verified 2026-10-11)
+
+Linked leagues share one reveal and one chat (league-groups.ts), which crossed the late joiner's line:
+
+- **A reveal elsewhere no longer moves their mark.** Someone who's an ordinary player in league A and a
+  late joiner catching up in linked league B: revealing episode 6 in A used to set B's mark to 6 too,
+  skipping their catch-up. results-seen now leaves out any linked league where they're catching up
+  (`catchingUpIn`, late-join.ts); only their own reveal in B moves B's mark.
+- **The shared chat.** "Read by" now leaves out anyone who's a late joiner in every linked league
+  they're in (`outOfGroupChat`), not just the league being viewed; a late joiner's chat read is skipped,
+  so they never get a chat_reads row. Chat pushes use the same rule, so someone who's a late joiner in
+  B but an ordinary player in A still hears A's conversation (they read it through A).
+- Accepting a linked league's invites ("Accept all") joins through joinLeague, so an underway league
+  makes a late joiner as usual; each league's catch-up is its own.
+- Verified against the dev server and the local database with two linked copies of "S49 Active
+  Roster" and throwaway accounts (one mixed, one ghost only), torn down after. With the fixes out,
+  five checks fail (B's mark jumped to 6); with them in, all pass.

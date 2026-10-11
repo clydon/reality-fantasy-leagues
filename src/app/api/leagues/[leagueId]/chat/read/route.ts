@@ -3,12 +3,15 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole, requireSession, isImpersonating } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
 import { groupLeagueIds } from "@/lib/server/league-groups";
+import { outOfChat } from "@/lib/server/late-join";
 
 // Records that the caller has read chat up to `at` (the newest message they've seen). Only ever moves
 // forward, and never past now, so a stale or skewed client clock can't un-read or pre-read anything.
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
-  const { user } = await requireLeagueRole(req, leagueId, "member");
+  const { user, membership } = await requireLeagueRole(req, leagueId, "member");
+  // A late joiner has no chat here (late-join.ts): nothing to mark, and no "Read by" to appear in.
+  if (await outOfChat(leagueId, membership.playerId)) return NextResponse.json({ ok: true, skipped: "late joiner" });
   // An admin viewing as this person mustn't mark their chat read for them (or for everyone else's
   // "Read by").
   if (isImpersonating(await requireSession(req))) return NextResponse.json({ ok: true, skipped: "impersonating" });
