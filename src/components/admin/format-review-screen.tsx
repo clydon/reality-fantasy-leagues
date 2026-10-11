@@ -1195,8 +1195,10 @@ export function FormatReviewScreen({
         ? "Unsaved changes. Approving saves them too."
         : "Nothing goes live until you approve.";
 
+  // overflow-wrap here (and on each sheet, which portals out of this tree): a pasted answer can carry
+  // a long URL with nowhere to break, and it must wrap rather than push the page sideways.
   return (
-    <div className="flex flex-1 flex-col gap-7">
+    <div className="flex min-w-0 flex-1 flex-col gap-7 [overflow-wrap:anywhere]">
       {!inPage && (
         <div className="flex items-center gap-2">
           <h3 className="type-caption min-w-0 flex-1 truncate text-[24px]">{current.name}</h3>
@@ -1474,7 +1476,7 @@ export function FormatReviewScreen({
 
       {openRule && (
         <BottomSheet open onOpenChange={(o) => !o && setOpen(null)} title="Rule" hideCancel>
-          <div className="flex flex-col gap-4 border-t border-border pt-3">
+          <div className="flex flex-col gap-4 border-t border-border pt-3 [overflow-wrap:anywhere]">
             <RuleLine
               sentence={openRule.sentence}
               problems={openRule.problems}
@@ -1591,7 +1593,7 @@ function EventSheet({
 
   return (
     <BottomSheet open onOpenChange={(o) => !o && close()} title={ev.label || "Event"} description={ev.tier === "C" ? "Patchy reporting" : undefined} hideCancel>
-      <div className="flex flex-col gap-5 border-t border-border pt-4">
+      <div className="flex flex-col gap-5 border-t border-border pt-4 [overflow-wrap:anywhere]">
         {(ev.problems.length > 0 || ev.warnings.length > 0) && <Notes problems={ev.problems} warnings={ev.warnings.filter((w) => !w.startsWith("tier C"))} />}
         {ev.why && <p className="text-[15px] leading-snug text-muted-foreground">{ev.why}</p>}
         <div className="grid grid-cols-[1fr_96px] gap-3">
@@ -1678,7 +1680,7 @@ function QuestionSheet({
 
   return (
     <BottomSheet open onOpenChange={(o) => !o && close()} title="Question" description={q.key} hideCancel>
-      <div className="flex flex-col gap-5 border-t border-border pt-4">
+      <div className="flex flex-col gap-5 border-t border-border pt-4 [overflow-wrap:anywhere]">
         {(q.problems.length > 0 || q.warnings.length > 0) && <Notes problems={q.problems} warnings={q.warnings.filter((w) => !w.startsWith("tier C"))} />}
         <Field label="What research answers" htmlFor="q-text" hint="About each person, each episode.">
           <textarea id="q-text" rows={2} className={cn(fieldCls, "min-h-[72px] resize-y py-3 leading-snug")} value={question} onChange={(e) => setQuestion(e.target.value)} />

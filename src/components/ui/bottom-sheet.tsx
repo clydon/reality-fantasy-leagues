@@ -37,7 +37,8 @@ export function BottomSheet({
           style={{ paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))" }}
         >
           <span className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/40" aria-hidden />
-          <div className="mb-1 flex items-baseline gap-2.5">
+          {/* A title can be user text (a pasted event name with a URL in it): it wraps, never widens the sheet. */}
+          <div className="mb-1 flex min-w-0 items-baseline gap-2.5 [overflow-wrap:anywhere]">
             <Dialog.Title className="type-caption text-[22px]">{title}</Dialog.Title>
             {description && <Dialog.Description className="text-[13px] text-muted-foreground">{description}</Dialog.Description>}
           </div>
