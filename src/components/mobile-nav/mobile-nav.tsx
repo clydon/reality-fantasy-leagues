@@ -50,6 +50,7 @@ import { commissionerItems } from "@/lib/game/commissioner-items";
 import { useHeaderAction } from "@/lib/header-action-store";
 import { useShowCatalog, useShowTerms } from "@/lib/use-show-terms";
 import { publicMediaSrc } from "@/lib/game/selectors";
+import { artStyleVars } from "@/lib/show-art-style";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
 // / <nav class="mobile-bottombar"> / <div class="mobile-more-sheet">, populated by
@@ -177,7 +178,8 @@ export function MobileNav() {
   // The league's show art for Overview's header (catalog shows.art_url), unless it failed to load.
   const { data: catalog } = useShowCatalog();
   const [artFailed, setArtFailed] = useState<string | null>(null);
-  const showArt = publicMediaSrc(catalog?.shows.find((sh) => sh.slug === state.settings.showId)?.art_url);
+  const leagueShow = catalog?.shows.find((sh) => sh.slug === state.settings.showId);
+  const showArt = publicMediaSrc(leagueShow?.art_url);
   const artSrc = pathname === "/" && mode === "live" && showArt && showArt !== artFailed ? showArt : null;
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -322,11 +324,12 @@ export function MobileNav() {
     <>
       {/* Overview only: the show's key art, faded, behind the header and the opener plate
           (docs/PLAN-ux-declutter.md, decision 8; the canvas's "A2 · Header art"). A texture, not a
-          picture: greyscale, low strength, dimmed toward the name and gone before the first section
-          (.show-art in globals.css). It sits at the top of the page under everything, so it scrolls
-          away with it. A show without art gets the plain ground. */}
+          picture by default: greyscale, low strength, dimmed toward the name and gone before the first
+          section (.show-art in globals.css); an admin can give a show more color, strength or a
+          different crop (shows.art_style). It sits at the top of the page under everything, so it
+          scrolls away with it. A show without art gets the plain ground. */}
       {artSrc && (
-        <div aria-hidden className="show-art pointer-events-none absolute inset-x-0 top-0 -z-10 hidden h-[170px] max-nav:block">
+        <div aria-hidden className="show-art pointer-events-none absolute inset-x-0 top-0 -z-10 hidden h-[170px] max-nav:block" style={artStyleVars(leagueShow?.art_style)}>
           {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
           <img src={artSrc} alt="" onError={() => setArtFailed(artSrc)} />
         </div>

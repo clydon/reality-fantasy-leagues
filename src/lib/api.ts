@@ -1,5 +1,6 @@
 import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal, SeasonRuleChange, SeasonRuleChangeWithReview, EpisodeResearchPanel, ResearchApplySummary, LeagueRuleset } from "@/lib/game/types";
 import type { FormatData } from "@/lib/game/formats/index";
+import type { ArtStyle } from "@/lib/show-art-style";
 import type { SeasonCheck } from "@/lib/game/formats/season-check";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 import type { ActionItem } from "@/lib/game/action-items.js";
@@ -635,6 +636,7 @@ export const api = {
       researchDomains: string;
       format: string;
       artUrl: string;
+      artStyle: ArtStyle | null;
       archived: boolean;
     }>
   ) =>

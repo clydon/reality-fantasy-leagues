@@ -115,9 +115,9 @@
   --quiet-tag: #16141d;
   --quiet-tag-foreground: #ffffff;
   /* The show's art behind Overview's header (.show-art): washed out on Studio, the name's side
-     lightened most. */
+     lightened most. How much color comes through is the show's own (--art-grey, set inline). */
   --art-opacity: 0.3;
-  --art-filter: grayscale(1) contrast(0.8) brightness(1.2);
+  --art-filter: contrast(0.8) brightness(1.2);
   --art-side: linear-gradient(90deg, rgba(236, 235, 241, 0.8) 0%, rgba(236, 235, 241, 0.3) 68%, rgba(236, 235, 241, 0) 100%);
 
   /* ---- depth: only plates, sheets, sticky bars and popovers float ---- */
@@ -182,7 +182,7 @@
   --quiet-tag: #2a2633;
   --quiet-tag-foreground: #f4f2f8;
   --art-opacity: 0.4;
-  --art-filter: grayscale(1) contrast(1.15) brightness(0.9);
+  --art-filter: contrast(1.15) brightness(0.9);
   --art-side: linear-gradient(90deg, rgba(22, 20, 29, 0.72) 0%, rgba(22, 20, 29, 0.25) 68%, rgba(22, 20, 29, 0) 100%);
 
   --plate-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
@@ -302,9 +302,11 @@
   }
 }
 
-/* The show's key art behind Overview's mobile header (mobile-nav.tsx): greyscale at low strength,
-   dimmed toward the league name, faded into the ground before the first section. The league name
-   stays 7:1 or better over it in both modes. */
+/* The show's key art behind Overview's mobile header (show-art.tsx): greyscale at low strength by
+   default, dimmed toward the league name, faded into the ground before the first section. At the
+   default look the league name stays 7:1 or better over it in both modes. A show's own look
+   (shows.art_style, set in the admin's Show settings) sets the --art-grey/strength/zoom/pos vars
+   inline: how much color, how strong, and the crop. */
 .show-art {
   overflow: hidden;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 36%, transparent 100%);
@@ -316,9 +318,11 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 40%;
-  filter: var(--art-filter);
-  opacity: var(--art-opacity);
+  object-position: var(--art-pos, 50% 40%);
+  transform: scale(var(--art-zoom, 1));
+  transform-origin: var(--art-pos, 50% 40%);
+  filter: grayscale(var(--art-grey, 1)) var(--art-filter);
+  opacity: min(1, calc(var(--art-opacity) * var(--art-strength, 1)));
 }
 .show-art::after {
   content: "";

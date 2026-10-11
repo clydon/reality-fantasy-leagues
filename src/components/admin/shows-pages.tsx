@@ -14,6 +14,8 @@ import { PlainButton } from "@/components/draft/draft-ui";
 import { ActButton, AdminPage, Notice, Row, Rows, Section, count, errorText, seasonName, useAdminShows } from "./admin-ui";
 import { DangerZone } from "./season-setup";
 import { cn } from "cn";
+import { publicMediaSrc } from "@/lib/game/selectors";
+import { ART_STYLE_RANGES, artStyleVars, cleanArtStyle, resolveArtStyle, type ArtStyle } from "@/lib/show-art-style";
 
 // Shows and seasons (docs/PLAN-ux-redesign.md 3b): a list of shows, then a page per show listing its
 // seasons, each of which opens to its own page. Everything set once about a show -- what it calls
@@ -360,7 +362,9 @@ export function ShowSettingsPage({ showId }: { showId: string }) {
 
       {/* Normally worked out on their own -- the endpoint from the first season's URL, the heading from the
           term above -- so they're only here for the wiki that doesn't fit. */}
-      <MoreOptions label="Connector and art">
+      <ArtSection show={show} busy={busy} onSave={save} />
+
+      <MoreOptions label="Connector">
         <div className="flex flex-col gap-5">
           <Field label="Wiki API" htmlFor="show-api" hint="Blank works it out from the first season's wiki page.">
             <input id="show-api" className={fieldCls} placeholder="Automatic" defaultValue={show.wiki_api_url ?? ""} disabled={busy} onBlur={blur("wikiApiUrl", show.wiki_api_url)} />
@@ -377,9 +381,6 @@ export function ShowSettingsPage({ showId }: { showId: string }) {
               disabled={busy}
               onBlur={blur("researchDomains", (show.research_domains ?? []).join(", "))}
             />
-          </Field>
-          <Field label="Art" htmlFor="show-art" hint="The show's tile in New league. A link, or a path to a file in public/show-art/. Blank shows its name.">
-            <input id="show-art" className={fieldCls} placeholder="None" defaultValue={show.art_url ?? ""} disabled={busy} onBlur={blur("artUrl", show.art_url)} />
           </Field>
         </div>
       </MoreOptions>
@@ -398,5 +399,101 @@ export function ShowSettingsPage({ showId }: { showId: string }) {
         <p className="text-[13px] leading-snug text-muted-foreground">Archiving hides it from the show picker and keeps its leagues working. Deleting removes it and every season.</p>
       </DangerZone>
     </AdminPage>
+  );
+}
+
+// The show's art: its tile in New league, and the texture behind Overview's header. The preview is
+// that header at phone width, so the sliders show what a player will see (.show-art in globals.css).
+// Changes stay local until Save, so dragging doesn't write on every step.
+const ART_SLIDERS: { key: keyof ArtStyle; label: string; show: (v: number) => string }[] = [
+  { key: "color", label: "Color", show: (v) => (v === 0 ? "Greyscale" : `${Math.round(v * 100)}%`) },
+  { key: "strength", label: "Strength", show: (v) => `${v.toFixed(1)}×` },
+  { key: "zoom", label: "Zoom", show: (v) => `${v.toFixed(2)}×` },
+  { key: "x", label: "Left – right", show: (v) => `${Math.round(v)}%` },
+  { key: "y", label: "Top – bottom", show: (v) => `${Math.round(v)}%` },
+];
+
+function ArtSection({ show, busy, onSave }: { show: AdminShow; busy: boolean; onSave: (changes: Parameters<typeof api.adminUpdateShow>[1], done?: string) => Promise<void> }) {
+  const saved = resolveArtStyle(show.art_style);
+  const [draft, setDraft] = useState(saved);
+  const [failed, setFailed] = useState<string | null>(null);
+  const src = publicMediaSrc(show.art_url);
+  const dirty = (Object.keys(saved) as (keyof ArtStyle)[]).some((k) => saved[k] !== draft[k]);
+  const isDefault = cleanArtStyle(draft) === null;
+
+  return (
+    <Section title="Art">
+      <div className="flex flex-col gap-5">
+        <Field label="Image" htmlFor="show-art" hint="The show's tile in New league and the backdrop on its leagues' Overview. A link, or a path to a file in public/show-art/. Blank shows its name.">
+          <input
+            id="show-art"
+            className={fieldCls}
+            placeholder="None"
+            defaultValue={show.art_url ?? ""}
+            disabled={busy}
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v !== (show.art_url ?? "")) onSave({ artUrl: v });
+            }}
+          />
+        </Field>
+        {src && (
+          <>
+            <div
+              aria-label="Preview of the Overview header"
+              className="relative h-[170px] w-full max-w-[390px] overflow-hidden rounded-lg border border-border bg-background"
+            >
+              <div aria-hidden className="show-art pointer-events-none absolute inset-0" style={artStyleVars(draft)}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
+                <img src={src} alt="" onError={() => setFailed(src)} />
+              </div>
+              <p className="type-caption relative truncate px-4 py-3 text-[26px] leading-none">League name</p>
+              {failed === src && <p className="relative px-4 text-[13px] text-muted-foreground">That image didn&rsquo;t load.</p>}
+            </div>
+            <div className="flex max-w-[390px] flex-col gap-3">
+              {ART_SLIDERS.map(({ key, label, show: fmt }) => {
+                const range = ART_STYLE_RANGES[key];
+                return (
+                  <label key={key} className="flex flex-col gap-1">
+                    <span className="flex justify-between text-sm">
+                      <span className="font-semibold">{label}</span>
+                      <span className="tabular-nums text-muted-foreground">{fmt(draft[key])}</span>
+                    </span>
+                    <input
+                      type="range"
+                      className="h-8 w-full accent-[var(--chyron-line)]"
+                      min={range.min}
+                      max={range.max}
+                      step={range.step}
+                      value={draft[key]}
+                      disabled={busy}
+                      onChange={(e) => setDraft((d) => ({ ...d, [key]: Number(e.target.value) }))}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+            <p className="-mt-2 text-[13px] leading-snug text-muted-foreground">
+              More color or strength makes the league name harder to read over busy art. Check the preview in light and dark.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <ActButton tone="chyron" disabled={busy || !dirty} onClick={() => onSave({ artStyle: cleanArtStyle(draft) }, "Art look saved.")} className="min-h-12">
+                Save look
+              </ActButton>
+              {dirty && (
+                <PlainButton disabled={busy} onClick={() => setDraft(saved)}>
+                  Undo changes
+                </PlainButton>
+              )}
+              {!isDefault && (
+                <PlainButton disabled={busy} onClick={() => setDraft(resolveArtStyle(null))}>
+                  Back to default
+                </PlainButton>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </Section>
   );
 }

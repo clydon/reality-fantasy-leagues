@@ -22,7 +22,7 @@ export const GET = apiRoute(async (req) => {
   const user = await requireAuth(req);
 
   const { rows } = await pool.query(
-    `SELECT s.slug, s.name, s.castaway_term, s.tribe_term, s.art_url,
+    `SELECT s.slug, s.name, s.castaway_term, s.tribe_term, s.art_url, s.art_style,
             s.created_by IS NULL AS curated, COALESCE(s.created_by = $1, false) AS mine,
             COALESCE(
               json_agg(

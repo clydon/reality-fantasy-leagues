@@ -3,6 +3,7 @@
 // note at its top) so these are a best-effort description of its actual shape, not a source of
 // truth generated from it.
 import type { FormatData, SeasonChange } from "./formats/index";
+import type { ArtStyle } from "@/lib/show-art-style";
 // Season rule changes as the admin API returns them (db/season-rule-changes.js).
 export type { SeasonRuleChange, SeasonRuleChangeStatus, SeasonRuleChangeWithReview } from "@db/season-rule-changes";
 import type { Proposal, Review, ReviewNote } from "./formats/proposal";
@@ -442,6 +443,8 @@ export interface AdminShow {
   format_data?: FormatData | null;
   /** Tile image (migration 0051); null falls back to the per-format emoji. */
   art_url: string | null;
+  /** How the art looks behind Overview's header (migration 0056); null is the default look. */
+  art_style?: ArtStyle | null;
   archived: boolean;
   created_at: string;
   league_count: number;
@@ -742,6 +745,8 @@ export interface CatalogShow {
   tribe_term: string;
   /** Tile image (migration 0051); null falls back to a plain tile with the show's name. */
   art_url: string | null;
+  /** How the art looks behind Overview's header (migration 0056); null is the default look. */
+  art_style?: ArtStyle | null;
   /** Added by an admin rather than researched by a user (shows.created_by is null). */
   curated?: boolean;
   /** Researched by the signed-in user. */

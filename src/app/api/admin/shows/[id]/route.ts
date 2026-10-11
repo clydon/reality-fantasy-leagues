@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { pushShowFormat } from "@/lib/server/show-formats";
+import { cleanArtStyle } from "@/lib/show-art-style";
 
 type RouteParams = { id: string };
 
@@ -25,6 +26,8 @@ const EDITABLE: Record<string, string> = {
   // Tile image (migration 0051); same free-text-URL convention as a castaway's Photo URL. Empty
   // clears it back to the per-format emoji fallback.
   artUrl: "art_url",
+  // How the art looks behind Overview's header (migration 0056); null goes back to the default look.
+  artStyle: "art_style",
   archived: "archived",
 };
 
@@ -72,6 +75,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     let value = body[key];
     if (key === "archived") value = !!value;
     else if (key === "researchDomains") value = parseDomains(value);
+    else if (key === "artStyle") value = cleanArtStyle(value);
     else if (typeof value === "string") value = value.trim() || null;
     // Terminology has a sensible default rather than being nullable -- an empty term would render as
     // a blank word in the UI. The default is the show's rules' own (Castaway, Challenger…).
