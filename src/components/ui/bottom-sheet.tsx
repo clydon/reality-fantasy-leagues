@@ -17,6 +17,7 @@ export function BottomSheet({
   title,
   description,
   hideCancel,
+  footer,
   children,
 }: {
   open: boolean;
@@ -26,6 +27,8 @@ export function BottomSheet({
   description?: ReactNode;
   /** For a sheet that brings its own pair of buttons (e.g. "Not yet" / "Reveal"). */
   hideCancel?: boolean;
+  /** Stays put under the scrolling content, above Cancel (the league menu's New league / Join). */
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -44,6 +47,7 @@ export function BottomSheet({
           </div>
           {/* A tall sheet (an editor) scrolls inside itself; the handle, title and Cancel stay put. */}
           <div className="-mx-4 flex min-h-0 flex-col overflow-y-auto overscroll-contain px-4">{children}</div>
+          {footer && <div className="pt-4">{footer}</div>}
           {!hideCancel && (
             <Dialog.Close className="mt-3 min-h-12 rounded-[3px] border border-border bg-secondary text-[15px] font-bold text-foreground">
               Cancel

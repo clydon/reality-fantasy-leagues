@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ReplayBug, useLateJoin } from "@/components/late-join/replay-bug";
 import Link from "next/link";
-import { useClickOutside } from "@/lib/use-click-outside";
 import { usePathname, useRouter } from "next/navigation";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
 import { useReportModalStore } from "@/lib/report-modal-store";
@@ -15,7 +14,8 @@ import { myPickDue } from "@/lib/game/pool-view";
 import { logOut } from "@/lib/auth-client";
 import { cn } from "cn";
 import { midseasonBadge } from "@/lib/game/selectors";
-import { LeagueMenu } from "@/components/league-menu";
+import { LeagueMenu, LeagueMenuActions } from "@/components/league-menu";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
 import { ThemePicker } from "@/components/theme-picker";
 import {
@@ -139,8 +139,6 @@ export function MobileNav() {
     if (delta > 70) closeSheet();
   }
   const [leagueMenuOpen, setLeagueMenuOpen] = useState(false);
-  const leagueMenuRef = useRef<HTMLDivElement>(null);
-  useClickOutside(leagueMenuRef, leagueMenuOpen, () => setLeagueMenuOpen(false));
   const pathname = usePathname();
   const router = useRouter();
   const state = useLeagueStore((s) => s.state);
@@ -351,7 +349,7 @@ export function MobileNav() {
           {/* No logo (docs/PLAN-ux-declutter.md). A page under another backs up to where you came from,
               named; any other titled page leaves the left column empty. */}
           {pageTitle && <div className="flex min-w-0 items-center">{back && <BackLink target={back} variant="header" />}</div>}
-          <div ref={leagueMenuRef} className={cn("relative min-w-0", !pageTitle && "flex-1")}>
+          <div className={cn("relative min-w-0", !pageTitle && "flex-1")}>
             <button
               className={cn("flex w-full min-w-0 items-center gap-1 py-0.5 text-foreground", pageTitle ? "justify-center" : "justify-start")}
               onPointerDown={(e) => e.stopPropagation()}
@@ -380,24 +378,6 @@ export function MobileNav() {
                 </>
               )}
             </button>
-            {leagueMenuOpen && (
-              <div
-                className={cn(
-                  "absolute top-full z-20 mt-1 max-h-[60vh] w-[min(85vw,320px)] overflow-y-auto rounded-lg border border-border bg-card p-1.5 shadow-md",
-                  pageTitle ? "left-1/2 -translate-x-1/2" : "left-0",
-                )}
-              >
-                <LeagueMenu
-                  leagues={leagues}
-                  leagueId={leagueId}
-                  onSelect={handleSelectLeague}
-                  onJoinOrCreate={() => {
-                    setLeagueMenuOpen(false);
-                    router.push("/dashboard");
-                  }}
-                />
-              </div>
-            )}
           </div>
           {headerAction ? (
             // A page's own actions (header-action-store.ts), in chat's place while that page is open.
@@ -429,6 +409,26 @@ export function MobileNav() {
           )}
         </div>
       </header>
+
+      {/* The league menu: a bottom sheet like every other choice on a phone, not a dropdown. */}
+      <BottomSheet
+        open={leagueMenuOpen}
+        onOpenChange={setLeagueMenuOpen}
+        title="Your leagues"
+        hideCancel
+        footer={
+          <LeagueMenuActions
+            onGo={(href) => {
+              setLeagueMenuOpen(false);
+              router.push(href);
+            }}
+          />
+        }
+      >
+        <div className="-mx-4">
+          <LeagueMenu leagues={leagues} leagueId={leagueId} onSelect={handleSelectLeague} />
+        </div>
+      </BottomSheet>
 
       {/* translateZ(0): its own compositing layer. Android Chrome sometimes skipped painting this
           fixed bar until a scroll or an animation forced a repaint -- seen on the season-complete

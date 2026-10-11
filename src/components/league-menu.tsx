@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { Check, Crown, Link2, Plus, Star } from "lucide-react";
 import type { LeagueSummary } from "@/lib/store";
 import { useShowCatalog } from "@/lib/use-show-terms";
-import { Badge } from "@/components/ui/badge";
-import { ChevronDownIcon, CrownIcon } from "@/components/icons";
+import { PlainButton } from "@/components/draft/draft-ui";
 import { cn } from "cn";
 
-// Type badge and show name per row, both derived from /api/me's own league list (which also
-// arrives already sorted) -- no per-league fetch, so nothing re-sorts or pops in after open.
+// Type and show name per row, both derived from /api/me's own league list (which also arrives
+// already sorted) -- no per-league fetch, so nothing re-sorts or pops in after open.
 export function useLeagueTypeBadges(leagues: LeagueSummary[]) {
   const { data: catalog } = useShowCatalog();
   const types = Object.fromEntries(leagues.map((l) => [l.id, l.type]));
@@ -23,10 +22,10 @@ type Entry =
   | { kind: "group"; id: string; name: string; leagues: LeagueSummary[] };
 
 /**
- * /api/me's league list as the dropdown shows it: a linked group (0040, named in 0047) is one entry
+ * /api/me's league list as the menu shows it: a linked group (0040, named in 0047) is one entry
  * holding its leagues, which the server already sends next to each other and in the group's order.
- * A group you're in only one league of isn't worth a row of its own, so that league stands alone
- * (with the group's name under it).
+ * A group you're in only one league of isn't worth a section of its own, so that league stands alone
+ * (with the group's name in its detail line).
  */
 export function groupLeagues(leagues: LeagueSummary[]): Entry[] {
   const entries: Entry[] = [];
@@ -42,126 +41,118 @@ export function groupLeagues(leagues: LeagueSummary[]): Entry[] {
 }
 
 /**
- * The league dropdown's contents, shared by the desktop sidebar's LeagueSwitcher and MobileNav's
- * top-bar menu. Groups start closed except the one holding the open league, and tapping a group only
- * opens or closes it -- the menu remounts each time it opens, so that resets with it. When the whole
- * menu would be one group (someone whose linked leagues are their only leagues), it's a fixed heading
- * over its leagues instead: a group row there would only add a tap.
+ * The league menu's list, shared by the mobile header's sheet and the desktop sidebar's plate. Rows
+ * are the app's index rows (60px, name over a muted line, hairlines). Leagues on their own come first
+ * in the server's order, unheaded (the menu's title covers them); each linked group follows as its own
+ * section under a small caps heading, all open, so every league is one tap. The open league sits on the raised fill with a chyron-line tick.
  */
 export function LeagueMenu({
   leagues,
   leagueId,
   onSelect,
-  onJoinOrCreate,
 }: {
   leagues: LeagueSummary[];
   leagueId: string | null;
   onSelect: (id: string) => void;
-  onJoinOrCreate: () => void;
 }) {
   const { types, showNames } = useLeagueTypeBadges(leagues);
   const entries = groupLeagues(leagues);
-  const currentGroup = leagues.find((l) => l.id === leagueId)?.group?.id ?? null;
-  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(currentGroup ? [currentGroup] : []));
-  const onlyGroup = entries.length === 1 && entries[0].kind === "group";
+  const solo = entries.flatMap((e) => (e.kind === "league" ? [e] : []));
+  const groups = entries.flatMap((e) => (e.kind === "group" ? [e] : []));
 
-  function toggle(id: string) {
-    setOpenGroups((s) => {
-      const next = new Set(s);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function leagueRow(l: LeagueSummary, opts: { groupName?: string | null; inGroup?: boolean } = {}) {
+  function row(l: LeagueSummary, opts: { groupName?: string | null; inGroup?: boolean } = {}) {
+    const current = l.id === leagueId;
+    // The league a linked group opens on; only worth saying inside the group.
     const favorite = opts.inGroup && l.landOn === l.id;
+    const detail = [
+      !opts.inGroup && showNames[l.id],
+      types[l.id],
+      opts.groupName && `Linked · ${opts.groupName}`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
     return (
       <button
         key={l.id}
-        className={cn(
-          "flex w-full flex-col items-start gap-0.5 rounded-md px-2.5 py-1.5 text-left hover:bg-secondary",
-          l.id === leagueId && "bg-secondary"
-        )}
+        type="button"
+        aria-current={current ? "true" : undefined}
         onClick={() => onSelect(l.id)}
+        className={cn(
+          "flex min-h-[60px] w-full items-center gap-3 border-t border-border px-4 py-2 text-left outline-none transition-colors focus-visible:bg-accent",
+          current ? "bg-secondary" : "hover:bg-accent/40",
+        )}
       >
-        <span className="flex w-full items-center gap-1.5">
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{l.name}</span>
-          {favorite && (
-            <span className="shrink-0 text-xs text-chyron-line" title="The league the app opens on">
-              ★
-            </span>
-          )}
-          {!opts.inGroup && showNames[l.id] && (
-            <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">{showNames[l.id]}</span>
-          )}
-        </span>
-        {(types[l.id] || l.role === "commissioner" || opts.groupName) && (
-          <span className="flex flex-wrap items-center gap-1">
-            {types[l.id] && (
-              <Badge variant="secondary" className="text-[0.65rem]">
-                {types[l.id]}
-              </Badge>
-            )}
-            {l.role === "commissioner" && (
-              <span className="flex items-center gap-0.5 text-xs text-amber-600">
-                <CrownIcon className="h-3 w-3 shrink-0" />
-                Commissioner
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex min-w-0 items-center gap-1.5 text-base font-semibold text-foreground">
+            <span className="truncate">{l.name}</span>
+            {favorite && (
+              <span className="flex shrink-0 text-muted-foreground" title="The league this group opens on">
+                <Star className="size-3.5 fill-current" aria-hidden />
+                <span className="sr-only">(opens first)</span>
               </span>
             )}
-            {opts.groupName && <span className="text-xs text-muted-foreground">Linked · {opts.groupName}</span>}
           </span>
-        )}
+          {(detail || l.role === "commissioner") && (
+            <span className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
+              {l.role === "commissioner" && (
+                <span className="flex shrink-0" title="You're the commissioner">
+                  <Crown className="size-3.5" strokeWidth={2.2} aria-hidden />
+                  <span className="sr-only">Commissioner{detail ? "," : ""}</span>
+                </span>
+              )}
+              <span className="truncate">{detail}</span>
+            </span>
+          )}
+        </span>
+        {current && <Check className="size-5 shrink-0 text-chyron-line" strokeWidth={2.6} aria-label="Open now" />}
       </button>
     );
   }
 
   return (
-    <>
-      {entries.map((e) => {
-        if (e.kind === "league") return leagueRow(e.league, { groupName: e.groupName });
-        const open = onlyGroup || openGroups.has(e.id);
-        const showName = showNames[e.leagues[0].id];
-        const commissioner = e.leagues.some((l) => l.role === "commissioner");
-        return (
-          <div key={e.id}>
-            {onlyGroup ? (
-              <div className="flex items-center gap-1.5 px-2.5 pb-1 pt-1.5 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
-                <span className="min-w-0 flex-1 truncate">{e.name}</span>
-              </div>
-            ) : (
-              <button
-                className="flex w-full flex-col items-start gap-0.5 rounded-md px-2.5 py-1.5 text-left hover:bg-secondary"
-                aria-expanded={open}
-                onClick={() => toggle(e.id)}
-              >
-                <span className="flex w-full items-center gap-1.5">
-                  <ChevronDownIcon
-                    className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">{e.name}</span>
-                  {showName && <span className="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground">{showName}</span>}
-                </span>
-                <span className="flex items-center gap-1 pl-5 text-xs text-muted-foreground">
-                  {e.leagues.length} leagues
-                  {commissioner && <CrownIcon className="h-3 w-3 shrink-0 text-amber-600" />}
-                </span>
-              </button>
-            )}
-            {open && (
-              <div className={cn("flex flex-col", !onlyGroup && "mb-1 ml-4 border-l border-border pl-1.5")}>
-                {e.leagues.map((l) => leagueRow(l, { inGroup: true }))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-      <button
-        className="mt-1 flex w-full items-center rounded-md border-t border-border px-2.5 pb-1 pt-2 text-left text-sm font-semibold text-chyron-line hover:bg-secondary"
-        onClick={onJoinOrCreate}
-      >
-        + Join or create a league
-      </button>
-    </>
+    <div className="flex flex-col">
+      {solo.length > 0 && (
+        <section className="border-b border-border">
+          {solo.map((e) => row(e.league, { groupName: e.groupName }))}
+        </section>
+      )}
+      {groups.map((g) => (
+        <section key={g.id} className="border-b border-border" aria-label={`${g.name}, linked leagues`}>
+          <SectionHeading aside={`${g.leagues.length} linked · one chat`} icon>
+            {g.name}
+          </SectionHeading>
+          {g.leagues.map((l) => row(l, { inGroup: true }))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function SectionHeading({ children, aside, icon }: { children: React.ReactNode; aside?: string; icon?: boolean }) {
+  return (
+    // The aside drops under the name when they don't fit side by side (the desktop rail).
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-4 pb-2 pt-4 text-muted-foreground">
+      <span className="flex min-w-0 max-w-full items-center gap-1.5">
+        {icon && <Link2 className="size-4 shrink-0" strokeWidth={2.2} aria-hidden />}
+        <h3 className="type-caption min-w-0 truncate text-[14px] tracking-[0.04em]">{children}</h3>
+      </span>
+      {aside && <span className="ml-auto shrink-0 text-[13px]">{aside}</span>}
+    </div>
+  );
+}
+
+/** The menu's two ways into another league, the same pair My Leagues offers. Neither is chyron: the
+ *  menu's job is switching, and a yellow button here would be the screen's second "now". */
+export function LeagueMenuActions({ onGo }: { onGo: (href: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2.5">
+      <PlainButton className="min-w-[140px] flex-1" onClick={() => onGo("/new-league")}>
+        <Plus className="size-[18px]" strokeWidth={2.4} aria-hidden />
+        New league
+      </PlainButton>
+      <PlainButton className="min-w-[140px] flex-1" onClick={() => onGo("/dashboard?join=1")}>
+        Join with a code
+      </PlainButton>
+    </div>
   );
 }

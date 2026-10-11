@@ -32,6 +32,12 @@ export function Dashboard() {
   const [busy, setBusy] = useState<string | null>(null); // which action is in flight
   const [error, setError] = useState<string | null>(null);
 
+  // The league menu's "Join with a code" lands here as ?join=1, with the code field already open.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read once from the URL after hydration
+    if (new URLSearchParams(window.location.search).has("join")) setJoining(true);
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;

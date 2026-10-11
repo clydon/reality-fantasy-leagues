@@ -18,7 +18,7 @@ import { commissionerItems } from "@/lib/game/commissioner-items";
 import { logOut, useSession } from "@/lib/auth-client";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useClickOutside } from "@/lib/use-click-outside";
-import { LeagueMenu } from "@/components/league-menu";
+import { LeagueMenu, LeagueMenuActions } from "@/components/league-menu";
 import { ThemePicker } from "@/components/theme-picker";
 import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useAdminWaiting } from "@/components/admin/admin-shell";
@@ -185,22 +185,28 @@ function LeaguePlate() {
         {body}
       </button>
       {open && (
-        <div className="absolute inset-x-0 top-full z-30 mt-1.5 max-h-[60vh] overflow-y-auto rounded-[4px] border border-border bg-card p-1.5 shadow-sheet">
-          <LeagueMenu
-            leagues={leagues}
-            leagueId={leagueId}
-            onSelect={async (id) => {
-              setOpen(false);
-              if (id === leagueId) return;
-              await switchLeague(id);
-              // Always land on Overview: the page you were on may not exist in the other league.
-              router.push("/");
-            }}
-            onJoinOrCreate={() => {
-              setOpen(false);
-              router.push("/dashboard");
-            }}
-          />
+        <div className="absolute inset-x-0 top-full z-30 mt-1.5 flex max-h-[70vh] flex-col overflow-hidden rounded-[4px] border border-border bg-card shadow-plate">
+          <div className="min-h-0 overflow-y-auto overscroll-contain">
+            <LeagueMenu
+              leagues={leagues}
+              leagueId={leagueId}
+              onSelect={async (id) => {
+                setOpen(false);
+                if (id === leagueId) return;
+                await switchLeague(id);
+                // Always land on Overview: the page you were on may not exist in the other league.
+                router.push("/");
+              }}
+            />
+          </div>
+          <div className="p-3">
+            <LeagueMenuActions
+              onGo={(href) => {
+                setOpen(false);
+                router.push(href);
+              }}
+            />
+          </div>
         </div>
       )}
     </div>
