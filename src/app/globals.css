@@ -374,18 +374,6 @@
   .confetti-piece { display: none; }
 }
 
-/* "What's New" popup (whats-new-modal.tsx): a quick pop-in, so it lands like news. */
-@keyframes whats-new-pop {
-  0% { transform: scale(0.92) translateY(8px); opacity: 0; }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
-}
-.whats-new-pop {
-  animation: whats-new-pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
-}
-@media (prefers-reduced-motion: reduce) {
-  .whats-new-pop { animation: none; }
-}
-
 /* Chat (chat-tab.tsx): a message that arrives while the page is open rises into place, and a
    reaction chip pops in when it first appears. Nothing on first load, nothing under reduced motion. */
 @keyframes chat-in {

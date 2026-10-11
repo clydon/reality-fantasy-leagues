@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { cn } from "cn";
 
@@ -18,6 +18,7 @@ export function BottomSheet({
   description,
   hideCancel,
   footer,
+  focusSheet,
   children,
 }: {
   open: boolean;
@@ -29,13 +30,19 @@ export function BottomSheet({
   hideCancel?: boolean;
   /** Stays put under the scrolling content, above Cancel (the league menu's New league / Join). */
   footer?: ReactNode;
+  /** Focus the sheet itself on open, not its first button: for a sheet that opens on its own (What's
+   *  New), where a ring on its first link would look like a selection nobody made. */
+  focusSheet?: boolean;
   children: ReactNode;
 }) {
+  const popupRef = useRef<HTMLDivElement>(null);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-[80] bg-(--scrim) transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
+          ref={popupRef}
+          initialFocus={focusSheet ? popupRef : undefined}
           className="fixed inset-x-0 bottom-0 z-[81] mx-auto flex max-h-[92dvh] max-w-[480px] flex-col rounded-t-[14px] bg-card px-4 pt-2 text-foreground shadow-sheet outline-none transition-transform duration-200 ease-out data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
           style={{ paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))" }}
         >

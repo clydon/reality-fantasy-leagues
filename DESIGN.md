@@ -452,6 +452,9 @@ Results a player hasn't chosen to see stay out of every screen until they do.
   140px chyron number with one or two muted lines. The last beat's button is a white plate, so the
   number stays the only yellow. Beats fade and slide up over 300ms, only when motion is allowed.
 
+### What's New
+A bottom sheet (`whats-new-modal.tsx`), once per release per account and from More / the account menu. "What's new" as the sheet title with the release date beside it ("Every update" for the full list). Each item is a hairline row: the title in 16px semibold, its detail right under it in 15px muted (always shown, never behind a tap), and a "Show me ›" in chyron-line when it links somewhere. The full list groups by day under 14px condensed caps dates, older than a week folded behind "See older releases". Footer: **All updates** (outlined) and **Let's go!** (chyron, wider), or one outlined Done in the full list. It focuses the sheet, not its first link, since it opens on its own. No emoji: the titles carry it.
+
 ### Chat
 One conversation per set of linked leagues (`/chat`, `chat/chat-tab.tsx`), flat on the ground like every other page.
 - **Messages** run in groups: one author, nothing in between, under ten minutes apart. The first of a group has the author's colour dot, name (13px bold) and time; the rest are just bubbles 4px apart. Other people's bubbles are Night Panel; **yours sit on the right in the "You" fill** (`bg-foreground`: bone on Night, ink on Studio), never chyron. 4px corners, 16px text, 85% wide at most.

@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useIsAuthenticated, useIsPreviewingDemo, useLeagueStore } from "@/lib/store";
 import { LATEST_RELEASE_ID, RELEASES, unseenItems, type WhatsNewItem } from "@/lib/whats-new";
-import { Button } from "@/components/ui/button";
-import { ChevronDownIcon } from "@/components/icons";
+import { ChevronRight } from "lucide-react";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { cn } from "cn";
 import { create } from "zustand";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
@@ -58,7 +58,6 @@ export function WhatsNewModal() {
   // What this player hasn't seen yet (every release since the one they last dismissed); null = closed.
   const [unseen, setUnseen] = useState<WhatsNewItem[] | null>(null);
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [showOlder, setShowOlder] = useState(false);
   const mode = useWhatsNewPreview((s) => s.mode);
   const hide = useWhatsNewPreview((s) => s.hide);
@@ -87,13 +86,16 @@ export function WhatsNewModal() {
     };
   }, [isAuthenticated, previewingDemo, impersonating]);
 
-  if (!mode && !unseen) return null;
+  // What the sheet shows stays put while it slides away: closing clears `mode`, and without this the
+  // content would swap to the popup's (or empty) mid-animation.
+  const [view, setView] = useState<"popup" | "preview" | "all">("popup");
+  if (mode && mode !== view) setView(mode);
+  const open = !!mode || !!unseen;
 
   function dismiss() {
     const wasMode = mode;
     hide();
     setUnseen(null);
-    setShowOlder(false);
     // A preview isn't the real thing; the popup or the full list is -- it's been seen.
     // The menus' "2 new" (useWhatsNewCount) reads the same settings, so it clears too.
     if (wasMode !== "preview" && isAuthenticated)
@@ -125,42 +127,29 @@ export function WhatsNewModal() {
   const recent = RELEASES.filter((r) => r.date >= cutoff);
   const older = RELEASES.filter((r) => r.date < cutoff);
 
+  // The rundown: one hairline row per item, its detail right under it. They're short, so nothing hides
+  // behind a tap.
   const list = (items: WhatsNewItem[]) => (
-    <ul className="flex flex-col divide-y divide-border">
-      {items.map((it) =>
-        it.detail ? (
-          <li key={it.title}>
+    <ul className="flex flex-col">
+      {items.map((it) => (
+        <li key={it.title} className="flex flex-col gap-1 border-t border-border py-3">
+          <span className="text-base font-semibold leading-snug text-foreground">{it.title}</span>
+          {it.detail && <p className="text-[15px] leading-snug text-muted-foreground">{it.detail}</p>}
+          {it.link && (
             <button
-              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm font-semibold"
-              aria-expanded={expanded === it.title}
-              onClick={() => setExpanded(expanded === it.title ? null : it.title)}
+              type="button"
+              className="-mb-1 flex min-h-11 items-center gap-0.5 self-start text-[15px] font-bold text-chyron-line"
+              onClick={() => follow(it.link!)}
             >
-              <span className="w-6 shrink-0 text-center text-lg" aria-hidden>
-                {it.icon}
-              </span>
-              <span className="min-w-0 flex-1">{it.title}</span>
-              <ChevronDownIcon
-                className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", expanded === it.title && "rotate-180")}
-              />
+              {it.link.label}
+              <ChevronRight className="size-[18px]" strokeWidth={2.4} aria-hidden />
             </button>
-            {expanded === it.title && <p className="pb-2.5 pl-[2.875rem] pr-3 text-sm text-muted-foreground">{it.detail}</p>}
-            {it.link && (
-              <button className="-mt-1 pb-2.5 pl-[2.875rem] text-sm font-semibold text-chyron-line" onClick={() => follow(it.link!)}>
-                {it.link.label} &rsaquo;
-              </button>
-            )}
-          </li>
-        ) : (
-          <li key={it.title} className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-semibold">
-            <span className="w-6 shrink-0 text-center text-lg" aria-hidden>
-              {it.icon}
-            </span>
-            {it.title}
-          </li>
-        )
-      )}
+          )}
+        </li>
+      ))}
     </ul>
   );
+  const dayLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
   // One heading per day: several releases on the same day read as one.
   const dated = (releases: typeof RELEASES) => {
     const days: { date: string; items: WhatsNewItem[] }[] = [];
@@ -170,58 +159,67 @@ export function WhatsNewModal() {
       else days.push({ date: r.date, items: [...r.items] });
     }
     return days.map((d) => (
-      <div key={d.date}>
-        <div className="px-3 pb-0.5 pt-2.5 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
-          {new Date(`${d.date}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
-        </div>
+      <section key={d.date} className="border-b border-border">
+        <h4 className="type-caption pb-2 pt-4 text-[14px] tracking-[0.04em] text-muted-foreground">{dayLabel(d.date)}</h4>
         {list(d.items)}
-      </div>
+      </section>
     ));
   };
 
+  const items = view === "preview" ? RELEASES[0].items : (unseen ?? []);
+  const outlined =
+    "min-h-12 flex-1 rounded-[3px] border border-input bg-card text-[15px] font-bold text-foreground hover:bg-muted focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line";
+
   return (
-    <div className="fixed inset-0 z-[1900] flex items-center justify-center bg-black/50 p-4" onClick={(e) => e.target === e.currentTarget && dismiss()}>
-      <div
-        role="dialog"
-        aria-labelledby="whats-new-title"
-        className="whats-new-pop flex max-h-[85vh] w-full max-w-[440px] flex-col overflow-hidden rounded-xl bg-card shadow-xl"
-      >
-        {/* A chyron bar up top: new features should feel like news. */}
-        <div className="bg-chyron px-5 pb-4 pt-5 text-chyron-foreground">
-          <h3 id="whats-new-title" className="flex items-center gap-2 text-xl font-bold">
-            <span aria-hidden>✨</span> What&rsquo;s new
-          </h3>
-          <p className="mt-0.5 text-sm text-chyron-foreground/75">{mode === "all" ? "Everything that's changed" : "Fresh in this update"}</p>
-        </div>
-        <div className="overflow-y-auto px-2 py-1">
-          {mode === "all" ? (
-            <>
-              {dated(recent)}
-              {older.length > 0 &&
-                (showOlder ? (
-                  dated(older)
-                ) : (
-                  <button className="w-full px-3 py-3 text-left text-sm font-semibold text-chyron-line" onClick={() => setShowOlder(true)}>
-                    See older releases ({older.length})
-                  </button>
-                ))}
-            </>
-          ) : (
-            list(mode === "preview" ? RELEASES[0].items : (unseen ?? []))
-          )}
-        </div>
-        <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-3">
-          {/* Where every update lives, for a popup that only showed the new ones. */}
-          {mode !== "all" ? (
-            <button className="text-sm text-muted-foreground underline-offset-2 hover:underline" onClick={() => follow({ label: "", to: "whatsNewMenu" })}>
-              See all updates
+    <BottomSheet
+      open={open}
+      onOpenChange={(o) => !o && dismiss()}
+      title="What’s new"
+      description={view === "all" ? "Every update" : dayLabel(RELEASES[0].date)}
+      hideCancel
+      focusSheet
+      footer={
+        view === "all" ? (
+          <button type="button" className={cn(outlined, "w-full")} onClick={dismiss}>
+            Done
+          </button>
+        ) : (
+          <div className="flex gap-2.5">
+            {/* Where every update lives, for a popup that only showed the new ones. */}
+            <button type="button" className={outlined} onClick={() => follow({ label: "", to: "whatsNewMenu" })}>
+              All updates
             </button>
-          ) : (
-            <span />
-          )}
-          <Button onClick={dismiss}>{mode === "all" ? "Close" : "Let’s go!"}</Button>
-        </div>
-      </div>
-    </div>
+            <button
+              type="button"
+              onClick={dismiss}
+              className="min-h-12 flex-[1.4] rounded-[3px] bg-chyron text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
+            >
+              Let&rsquo;s go!
+            </button>
+          </div>
+        )
+      }
+    >
+      {view === "all" ? (
+        <>
+          {dated(recent)}
+          {older.length > 0 &&
+            (showOlder ? (
+              dated(older)
+            ) : (
+              <button
+                type="button"
+                className="flex min-h-12 items-center gap-0.5 text-[15px] font-bold text-chyron-line"
+                onClick={() => setShowOlder(true)}
+              >
+                See older releases ({older.length})
+                <ChevronRight className="size-[18px]" strokeWidth={2.4} aria-hidden />
+              </button>
+            ))}
+        </>
+      ) : (
+        <div className="border-b border-border">{list(items)}</div>
+      )}
+    </BottomSheet>
   );
 }
