@@ -163,3 +163,74 @@ test("pickups made after the ghost's mark are undone in their view", () => {
   assert.deepEqual(StateLogic.getCastaway(v, "d").ownerIds, ["p2"]);
   assert.equal(v.midSeason.log.length, 0);
 });
+
+// ---------- Classic and Eliminator Pool ----------
+// The same season (E out in 1, D in 2, C in 3, episode 4 still to come), as the other league types.
+
+function asType(leagueTypeId, extra) {
+  const s = makeState();
+  s.settings.leagueTypeId = leagueTypeId;
+  Object.assign(s.settings, extra || {});
+  s.episodes.forEach((ep) => {
+    ep.lineups = {};
+    ep.scoringEvents = [];
+  });
+  return s;
+}
+
+test("Classic: a late joiner drafts a full team from who was left, and scores their placements", () => {
+  const s = asType("classic-draft", { teamSize: 2 });
+  const id = joinGhost(s);
+  assert.equal(GhostLogic.isGhost(StateLogic.getPlayer(s, id)), true);
+  assert.equal(GhostLogic.teamSize(s), 2);
+  // Starting at 3: E and D are gone; C (out in 3) is still in the pool, as is A, whom Ann owns.
+  assert.deepEqual(GhostLogic.draftPool(s, 3).sort(), ["a", "b", "c", "f"]);
+  assert.match(GhostLogic.begin(s, id, 3, ["a"]), /Pick 2/);
+  assert.equal(GhostLogic.begin(s, id, 3, ["a", "c"]), null);
+  assert.deepEqual(StateLogic.getCastaway(s, "a").ownerIds.sort(), ["p1", id].sort(), "A stays Ann's too");
+  // Classic scores a castaway's placement once they're out: C went third.
+  const row = StateLogic.computeScores(s).find((r) => r.playerId === id);
+  assert.equal(row.locked, 3);
+  // The league's own Classic moves still see A and C as Ann's and Bo's, not free.
+  assert.ok(!StateLogic.freeAgents(s).some((c) => c.id === "a"));
+  // Their copy ends at their week, and the rest of the league can't see them.
+  const v = GhostLogic.viewFor(s, id, 2);
+  assert.deepEqual(v.episodes.map((e) => e.number), [1, 2, 3]);
+  assert.equal(StateLogic.getCastaway(v, "c").status, "active", "C is still in, as far as they know");
+  assert.ok(!GhostLogic.viewFor(s, "p1", null).players.some((p) => p.id === id));
+});
+
+test("Eliminator Pool: no draft, and a pick for their week lands on the real episode", () => {
+  const s = asType("pickem");
+  const id = joinGhost(s);
+  assert.equal(GhostLogic.teamSize(s), 0);
+  assert.equal(GhostLogic.begin(s, id, 2, []), null, "nothing to draft");
+  // Week 2 as they see it: D (out in 2) and C (out in 3) are still in the game.
+  const err = GhostLogic.applyAs(s, id, 1, "ep2", (v) => {
+    const { available } = StateLogic.PickEmLogic.eligibility(v, "ep2", id);
+    assert.deepEqual(available.sort(), ["a", "b", "c", "d", "f"]);
+    StateLogic.setPickEmPick(v, "ep2", id, "d");
+  });
+  assert.equal(err, null);
+  assert.deepEqual(StateLogic.PickEmLogic.pickFor(s, "ep2", id), { playerId: id, castawayId: "d" });
+  assert.match(GhostLogic.applyAs(s, id, 1, "ep3", () => {}), /ahead of you/);
+});
+
+test("Eliminator Pool: the pick rules follow their own picks, and their season starts at their episode", () => {
+  const s = asType("pickem");
+  const id = joinGhost(s);
+  GhostLogic.begin(s, id, 2, []);
+  GhostLogic.applyAs(s, id, 1, "ep2", (v) => StateLogic.setPickEmPick(v, "ep2", id, "a"));
+  // Revealed 2; now on 3. A was their last pick, so it's blocked; D went home in 2.
+  GhostLogic.applyAs(s, id, 2, "ep3", (v) => {
+    const { available, blocked } = StateLogic.PickEmLogic.eligibility(v, "ep3", id);
+    assert.deepEqual(available.sort(), ["b", "c", "f"]);
+    assert.equal(blocked.a.reason, "backToBack");
+  });
+  GhostLogic.applyAs(s, id, 2, "ep3", (v) => StateLogic.setPickEmPick(v, "ep3", id, "b"));
+  // Episode 1 was before they joined: history starts at 2, so it isn't a missed pick.
+  const { rows, currentStreak } = StateLogic.PickEmLogic.history(s, id);
+  assert.deepEqual(rows.map((r) => r.episode), [2, 3]);
+  assert.ok(rows.every((r) => r.correct === true), "A and B both survived their episodes");
+  assert.equal(currentStreak, 2, "a streak of two, not broken by an episode before they joined");
+});

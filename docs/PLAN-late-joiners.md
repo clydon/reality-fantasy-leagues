@@ -109,7 +109,7 @@ difference:
 
 ## Verified
 
-- `tests/late-joiners.test.js` (11 tests): joining makes a ghost; the setting off restores the old
+- `tests/late-joiners.test.js` (14 tests; Classic and Eliminator Pool added 2026-10-11): joining makes a ghost; the setting off restores the old
   seat; draft pool as of the start; begin's validation; ownership kept through the league's own moves;
   others' view strips the ghost; the ghost's view ends at their week with that week open; `applyAs`
   accepts their week and refuses others; scoring from their start; caught up and convert; pickups
@@ -122,3 +122,18 @@ difference:
   commissioner's scoreboard has no ghost, Players lists them → jump to 13 → no longer catching up →
   Add to the league → the league sees them. Scripts: the session scratchpad (`lj-setup.js`,
   `lj-browser.js`, `lj-teardown.js`), not kept in the repo.
+
+## Classic and Eliminator Pool (verified 2026-10-11)
+
+- Unit tests: Classic drafts a full team from who was left and scores their placements; Eliminator
+  Pool skips the draft, its pick lands on the real episode, the cycle and back-to-back rules follow
+  only their own picks (checked against who was still in at their week), and their streak starts at
+  their start episode.
+- End to end at 390x844 on copies of "Last Survivor Standing" (Classic) and "Avoid Elimination
+  Streak" (Eliminator Pool), throwaway accounts `ljtcomm` / `ljtghost`, torn down after: join by code
+  -> start at 2 (and draft, Classic) -> Episodes ends at 2 -> pick for 2 lands (Pool) -> sees self on
+  the scoreboard -> "Have you watched" -> reveal -> caught up -> commissioner's scoreboard has no
+  ghost -> Add to the league -> the league sees them. No page or server errors.
+- **Open question (Classic fairness):** Classic scores finishing position, and a late joiner drafts
+  only from who's still in, so they can't hold an early boot and will tend to out-score anyone who
+  drafted on day one. Fine while they're a ghost; matters once a commissioner adds them. Not decided.
