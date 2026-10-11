@@ -22,6 +22,12 @@ function isBetSettled(bet) {
 function actionItems(state, playerId) {
   const me = state.players.find((p) => p.id === playerId);
   if (!me || me.disabled || me.active === false) return [];
+  // A late joiner (StateLogic.GhostLogic): first, choose where to start. While catching up, nothing
+  // here -- these checks read the league's real latest episode, which is ahead of them (a reminder
+  // about it would be a spoiler); their week lives on their own screens instead.
+  const G = StateLogic.GhostLogic;
+  if (G.needsStart(state, playerId)) return [{ kind: "lateJoin", text: "Choose where to start", href: "/late-join" }];
+  if (G.isCatchingUp(state, playerId)) return [];
   const type = StateLogic.getLeagueType(state);
   const items = [];
 

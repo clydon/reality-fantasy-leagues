@@ -27,7 +27,7 @@ import { cn } from "cn";
 export function LineupPage() {
   const state = useLeagueStore((s) => s.state);
   const myPlayerId = useMyPlayerId();
-  const { hidden } = useHiddenResults();
+  const { blocksChoices } = useHiddenResults();
   const hasRoster = !!myPlayerId && state.castaways.some((c) => c.ownerIds.includes(myPlayerId));
   const [view, setView] = useState<"mine" | "everyone">(hasRoster ? "mine" : "everyone");
   const shownView = hasRoster ? view : "everyone";
@@ -80,7 +80,7 @@ export function LineupPage() {
         </div>
       )}
 
-      {hidden.length > 0 ? (
+      {blocksChoices ? (
         <RevealFirst what={shownView === "mine" ? "set your next lineup" : "see this week's lineups"} />
       ) : !ep ? (
         <p className="text-base text-muted-foreground">There&rsquo;s no episode to set a lineup for yet.</p>

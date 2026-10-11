@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
+import { outOfChat } from "@/lib/server/late-join";
+import StateLogic from "@/lib/game/state-logic.js";
 import { pool, HttpError } from "@/lib/server/db";
 import { withReactions } from "@/lib/server/chat";
 import { notifyChat } from "@/lib/server/push-events";
@@ -12,7 +14,9 @@ import { groupLeagueIds } from "@/lib/server/league-groups";
 // revealed episode 9", the results-seen route).
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
-  await requireLeagueRole(req, leagueId, "member");
+  const { membership } = await requireLeagueRole(req, leagueId, "member");
+  // Late joiners have no chat until they're caught up and in the league (late-join.ts).
+  if (await outOfChat(leagueId, membership.playerId)) return NextResponse.json({ messages: [], reads: [] });
   const ids = await groupLeagueIds(leagueId);
 
   // The newest 300, oldest first.
@@ -39,13 +43,18 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
       GROUP BY m.user_id`,
     [ids, leagueId]
   );
-  return NextResponse.json({ messages: await withReactions(rows), reads });
+  // Nobody in the league reads as a late joiner they can't see (StateLogic.GhostLogic).
+  const { rows: st } = await pool.query("SELECT state FROM leagues WHERE id=$1", [leagueId]);
+  const ghosts = new Set(StateLogic.GhostLogic.ghosts(st[0]?.state ?? { players: [] }).map((p) => p.id));
+  const visibleReads = reads.filter((r) => !ghosts.has(r.playerId));
+  return NextResponse.json({ messages: await withReactions(rows), reads: visibleReads });
 });
 
 // Pushes everyone else in the league (one notification per league, kept up to date).
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
-  const { user } = await requireLeagueRole(req, leagueId, "member");
+  const { user, membership } = await requireLeagueRole(req, leagueId, "member");
+  if (await outOfChat(leagueId, membership.playerId)) throw new HttpError(403, "Chat opens once you're in the league");
   const { text: rawText } = (await req.json().catch(() => ({}))) as { text?: string };
   const text = (rawText || "").trim();
   if (!text) throw new HttpError(400, "Message text required");

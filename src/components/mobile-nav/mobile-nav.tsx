@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ReplayBug, useLateJoin } from "@/components/late-join/replay-bug";
 import Link from "next/link";
 import { useClickOutside } from "@/lib/use-click-outside";
 import { usePathname, useRouter } from "next/navigation";
@@ -145,6 +146,7 @@ export function MobileNav() {
   const mode = useLeagueStore((s) => s.mode);
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
+  const lateJoin = useLateJoin();
   const leagues = useLeagueStore((s) => s.leagues);
   const switchLeague = useLeagueStore((s) => s.switchLeague);
   const isSuperAdmin = useIsSuperAdmin();
@@ -403,6 +405,9 @@ export function MobileNav() {
             >
               <MoreHorizontal className="size-[22px]" strokeWidth={2.2} aria-hidden />
             </button>
+          ) : lateJoin ? (
+            // A late joiner has no chat yet (GhostLogic): their REPLAY / OFF AIR bug stands in its place.
+            <ReplayBug />
           ) : (
             <Link
               href="/chat"

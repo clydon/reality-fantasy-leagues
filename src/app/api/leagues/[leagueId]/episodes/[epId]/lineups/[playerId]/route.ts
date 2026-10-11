@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { catchingUpMark } from "@/lib/server/late-join";
 
 // Active Roster only: set which of a player's castaways are ACTIVE for this episode. A member sets
 // their own; the commissioner can set anyone's, same shape as the bet-prediction and pick'em routes.
@@ -20,10 +21,17 @@ export const PUT = apiRoute(
       throw new HttpError(403, "You can only set your own lineup");
     }
 
-    const state = await withLeagueLock(leagueId, (s) => {
-      const problem = StateLogic.ActiveRosterLogic.validateLineup(s, epId, playerId, castawayIds);
+    const state = await withLeagueLock(leagueId, async (s) => {
+      // A late joiner catching up (StateLogic.GhostLogic): their week, as they see the league.
+      const mark = await catchingUpMark(leagueId, s, playerId);
+      const problem =
+        mark === null
+          ? StateLogic.ActiveRosterLogic.validateLineup(s, epId, playerId, castawayIds)
+          : StateLogic.GhostLogic.applyAs(s, playerId, mark, epId, (v) =>
+              StateLogic.ActiveRosterLogic.validateLineup(v, epId, playerId, castawayIds) ?? StateLogic.setActiveRosterLineup(v, epId, playerId, castawayIds)
+            );
       if (problem) throw new HttpError(400, problem);
-      StateLogic.setActiveRosterLineup(s, epId, playerId, castawayIds);
+      if (mark === null) StateLogic.setActiveRosterLineup(s, epId, playerId, castawayIds);
     });
     return NextResponse.json(state);
   }

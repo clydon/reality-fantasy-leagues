@@ -19,11 +19,11 @@ import { cn } from "cn";
 // Who else has picked this week is a chip on each Standings row (standings-card.tsx).
 export function PickEmPickGrid({ state }: { state: LeagueState }) {
   const me = useMyPlayerId();
-  const { hidden } = useHiddenResults();
+  const { hidden, blocksChoices } = useHiddenResults();
   const { ep, open } = pickWindow(state);
   const players = state.players.filter((p) => p.active !== false);
 
-  if (hidden.length > 0) {
+  if (blocksChoices) {
     // The picks for the first unrevealed episode were locked before it aired, so nothing in them
     // gives a result away -- and otherwise you'd have no idea who you went with.
     const lockedEp = hidden[0];

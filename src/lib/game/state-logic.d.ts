@@ -1,7 +1,7 @@
 // Ambient typing for state-logic.js (forked from the live app -- see the provenance comment at
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
-import type { LeagueState, ScoreRow, DraftTurn, Player, Castaway, Tribe, Bet, Episode, ReplenishTurn, PickEmPick, ScoringEvent, EpisodeProposalPayload } from "./types";
+import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, ReplenishTurn, PickEmPick, ScoringEvent, EpisodeProposalPayload } from "./types";
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
 
 /** One question in guided first-time setup, in the order it should be asked. */
@@ -137,6 +137,31 @@ declare const StateLogic: {
     chatWindow(state: LeagueState, seenThrough: number | null | undefined, now?: number): { episode: number; since: string } | null;
     /** A copy with later episodes' results taken out (or `state` itself when nothing is hidden). */
     viewThrough(state: LeagueState, seenThrough: number | null | undefined): LeagueState;
+  };
+  /** Late joiners (docs/PLAN-late-joiners.md): invisible to the league, playing from their own start. */
+  GhostLogic: {
+    isGhost(p: Player | null | undefined): boolean;
+    lateJoinOf(state: LeagueState, playerId: string | null | undefined): LateJoin | null;
+    isCatchingUp(state: LeagueState, playerId: string | null | undefined): boolean;
+    /** Still has to choose a start episode (and draft) before playing. */
+    needsStart(state: LeagueState, playerId: string | null | undefined): boolean;
+    startFor(state: LeagueState, playerId: string): number;
+    isUnderway(state: LeagueState): boolean;
+    /** Late joining is on unless the commissioner switched it off. */
+    allowed(state: LeagueState): boolean;
+    startChoices(state: LeagueState): number[];
+    /** Castaway ids still in the game before episode `start`. */
+    draftPool(state: LeagueState, start: number): string[];
+    teamSize(state: LeagueState): number;
+    /** A reason on refusal, else null. */
+    begin(state: LeagueState, playerId: string, start: number, castawayIds: string[]): string | null;
+    markCaughtUp(state: LeagueState, playerId: string, seenThrough: number): void;
+    convert(state: LeagueState, playerId: string): boolean;
+    /** The league as one viewer may see it; `full` keeps their week's results for the reveal. */
+    viewFor(state: LeagueState, viewerId: string | null, seenThrough: number | null | undefined, opts?: { full?: boolean }): LeagueState;
+    ghosts(state: LeagueState): Player[];
+    /** Runs a late joiner's own move against their view; a reason on refusal, else null. */
+    applyAs(state: LeagueState, playerId: string, seenThrough: number, epId: string, fn: (view: LeagueState) => unknown): string | null;
   };
   RevealLogic: {
     revealedThrough(state: LeagueState): number | null;

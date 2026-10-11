@@ -8,6 +8,8 @@ import { useNotificationsStore } from "@/lib/notifications-store";
 import { useChatStore } from "@/lib/chat-store";
 import { api } from "@/lib/api";
 import { isBetSettled } from "@/lib/game/selectors";
+import StateLogic from "@/lib/game/state-logic.js";
+import type { LeagueState } from "@/lib/game/types";
 
 // Port of pollForNotifications() (public/app.js): every 15s while a real league is loaded,
 // re-fetch its state and diff against what changed to decide what's actually worth surfacing --
@@ -57,11 +59,13 @@ export function useLeaguePoll() {
 
   useEffect(() => {
     if (!data) return;
-    const fresh = data.state;
+    // What this viewer may see of it (StateLogic.GhostLogic): no late joiners they can't see, and for a
+    // late joiner catching up, nothing past their week -- the diffs below must not announce either.
+    const fresh = StateLogic.GhostLogic.viewFor(data.state, myPlayerId, data.membership.resultsSeenThrough, { full: true }) as LeagueState;
 
     const blindSig = JSON.stringify(fresh.blindDraft ?? null);
     if (lastBlindSig.current !== null && lastBlindSig.current !== blindSig) {
-      setState(fresh);
+      setState(data.state);
     }
     lastBlindSig.current = blindSig;
 
@@ -95,9 +99,9 @@ export function useLeaguePoll() {
     knownPlayers.current = { leagueId: leagueId ?? "", ids: new Set(activeIds) };
 
     // Only the midSeason slice is synced, not the whole state -- see setMidSeason's comment.
-    setMidSeason(fresh.midSeason);
+    setMidSeason(data.state.midSeason);
     // Lineups too, so the Board's starters keep up with everyone's picks.
-    syncLineups(fresh);
+    syncLineups(data.state);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 }

@@ -7,7 +7,8 @@ Last updated 2026-10-05.
 
 ## Open: needs design or a decision first
 
-1. **Members joining a started league** (from feedback #10/#31). Today they just appear in
+1. ~~**Members joining a started league**~~ **Built 2026-10-11 as late joiners** (`docs/PLAN-late-joiners.md`);
+   the notes below are kept for history. (from feedback #10/#31). Today they just appear in
    standings, and after a commissioner "activates" them there's no defined path.
    - Can an activated member draft? Should there be a starting-points adjustment?
    - Should it vary by league type or ownership (Classic draft / Active Roster / Eliminator Pool;

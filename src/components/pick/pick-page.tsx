@@ -22,7 +22,7 @@ import { RevealFirst, useHiddenResults } from "@/components/results-in-banner";
 export function PickPage() {
   const state = useLeagueStore((s) => s.state);
   const myPlayerId = useMyPlayerId();
-  const { hidden } = useHiddenResults();
+  const { blocksChoices } = useHiddenResults();
   const { ep } = pickWindow(state);
 
   if (!StateLogic.getLeagueType(state).hasWeeklyPicks) {
@@ -42,7 +42,7 @@ export function PickPage() {
         <h2 className="type-caption flex-1 text-[28px]">Pick</h2>
         {ep && <span className="text-sm text-muted-foreground">Episode {ep.number}</span>}
       </div>
-      {hidden.length > 0 ? (
+      {blocksChoices ? (
         <RevealFirst what="make your next pick" />
       ) : !ep ? (
         <p className="text-base text-muted-foreground">There&rsquo;s no episode to pick for yet.</p>

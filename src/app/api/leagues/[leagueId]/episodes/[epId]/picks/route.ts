@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { catchingUpMark } from "@/lib/server/late-join";
 
 // Pick'em only: sets (or replaces) the caller's own weekly pick for this episode. Same
 // self-or-commissioner permission shape as the classic-draft bet-prediction routes this is
@@ -21,8 +22,12 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   }
   if (!playerId || !castawayId) throw new HttpError(400, "playerId and castawayId required");
 
-  const state = await withLeagueLock(leagueId, (s) => {
-    StateLogic.setPickEmPick(s, epId, playerId, castawayId);
+  const state = await withLeagueLock(leagueId, async (s) => {
+    // A late joiner catching up (StateLogic.GhostLogic): their week, as they see the league.
+    const mark = await catchingUpMark(leagueId, s, playerId);
+    if (mark === null) return StateLogic.setPickEmPick(s, epId, playerId, castawayId);
+    const problem = StateLogic.GhostLogic.applyAs(s, playerId, mark, epId, (v) => StateLogic.setPickEmPick(v, epId, playerId, castawayId));
+    if (problem) throw new HttpError(400, problem);
   });
   return NextResponse.json(state);
 });

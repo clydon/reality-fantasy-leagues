@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { refuseWhileCatchingUp } from "@/lib/server/late-join";
 
 // Port of SurvivorDraft's server/routes/episodes.js POST /:epId/bets/:betId/predictions -- any
 // member can add their own guess; commissioner/super-admin can add on anyone's behalf.
@@ -16,6 +17,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   if (!playerId || !guess) throw new HttpError(400, "playerId and guess required");
 
   const state = await withLeagueLock(leagueId, (s) => {
+    refuseWhileCatchingUp(s, playerId, "Predictions");
     StateLogic.addBetPrediction(s, epId, betId, playerId, guess);
   });
   return NextResponse.json(state);

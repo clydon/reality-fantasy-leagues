@@ -20,6 +20,19 @@ export interface Player {
   automated?: boolean;
   /** How sharp a computer player plays (bot-logic.js's LEVELS); absent means "solid". */
   botLevel?: "casual" | "solid" | "sharp";
+  /** A late joiner the league can't see yet (StateLogic.GhostLogic); cleared when the commissioner adds them. */
+  ghost?: boolean;
+  /** A late joiner's own season (StateLogic.GhostLogic). Kept after they're added to the league. */
+  lateJoin?: LateJoin;
+}
+
+export interface LateJoin {
+  /** The episode they chose to start from; null until they've chosen (and drafted). */
+  startEpisode: number | null;
+  /** True while they're behind the latest results and playing one episode at a time. */
+  catchingUp: boolean;
+  /** Their spoiler mark, mirrored here by the server so a commissioner can see how far along they are. */
+  seenThrough?: number | null;
 }
 
 export interface Tribe {
@@ -200,6 +213,9 @@ export interface LeagueSettings {
    * episodes 1..n. Absent on every league that predates it, which reads as null.
    */
   revealedThroughEpisode?: number | null;
+  /** Late joiners play from an episode of their choosing, unseen until added (StateLogic.GhostLogic).
+   *  Absent means on; only an explicit false switches it off. */
+  allowLateJoiners?: boolean;
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
    * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode.

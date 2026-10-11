@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { refuseWhileCatchingUp } from "@/lib/server/late-join";
 
 // Port of SurvivorDraft's server/routes/finale.js PATCH /predictions/:playerId/winner -- same
 // own-pick-or-commissioner rule as the top-3 route.
@@ -15,6 +16,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
   const { value } = (await req.json().catch(() => ({}))) as { value?: string | null };
 
   const state = await withLeagueLock(leagueId, (s) => {
+    refuseWhileCatchingUp(s, playerId, "Finale predictions");
     StateLogic.setFinaleWinnerPick(s, playerId, value ?? null);
   });
   return NextResponse.json(state);

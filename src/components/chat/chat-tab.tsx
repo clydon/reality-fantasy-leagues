@@ -10,6 +10,8 @@ import { ChatMessageRow, ChatAuthor } from "./chat-message-row";
 import { ActButton } from "@/components/admin/admin-ui";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useHiddenResults } from "@/components/results-in-banner";
+import { useLateJoin } from "@/components/late-join/replay-bug";
+import { CaptionPlate } from "@/components/ui/caption-plate";
 import { cn } from "cn";
 
 // Port of renderChat() (public/app.js). Polls every 5s while mounted, matching the live app's
@@ -23,6 +25,7 @@ import { cn } from "cn";
 // (bone on Night, ink on Studio), never chyron, so yellow keeps meaning "now". A day changing is a
 // small caps divider. Everything you can do to a message is in its sheet (chat-message-row.tsx).
 export function ChatTab() {
+  const lateJoin = useLateJoin();
   const state = useLeagueStore((s) => s.state);
   const mode = useLeagueStore((s) => s.mode);
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -149,6 +152,23 @@ export function ChatTab() {
       new Date(next.created_at).getTime() - new Date(m.created_at).getTime() >= 10 * 60_000;
     return { m, newDay, continues, runEnds };
   });
+
+  // A late joiner has no chat yet (StateLogic.GhostLogic): the league can't see them, and while
+  // they're catching up the conversation is ahead of them. The server sends nothing either.
+  if (lateJoin) {
+    return (
+      <CaptionPlate
+        tag={lateJoin.catchingUp ? "Replay" : "Off air"}
+        tone="quiet"
+        title="Chat opens later"
+        subtitle={
+          lateJoin.catchingUp
+            ? "The league is talking about episodes you haven't seen. It opens when you're caught up and in the league."
+            : "It opens once your commissioner adds you to the league."
+        }
+      />
+    );
+  }
 
   return (
     // Sized to the space actually visible (useFitToVisible): down to the tab bar, or to just above the

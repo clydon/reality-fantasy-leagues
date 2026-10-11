@@ -16,10 +16,10 @@ import { RevealFirst, useHiddenResults } from "@/components/results-in-banner";
 // it isn't set, so this doesn't repeat it.
 export function StartingThisWeek({ state }: { state: LeagueState }) {
   const myPlayerId = useMyPlayerId();
-  const { hidden } = useHiddenResults();
+  const { blocksChoices } = useHiddenResults();
 
   if (!myPlayerId) return null;
-  if (hidden.length > 0) return <RevealFirst what="set your next lineup" />;
+  if (blocksChoices) return <RevealFirst what="set your next lineup" />;
   const roster = state.castaways.filter((c) => c.ownerIds.includes(myPlayerId));
   const ep = StateLogic.currentEpisode(state);
   if (roster.length === 0 || !ep) return null;

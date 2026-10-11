@@ -1,7 +1,7 @@
 // Types for action-items.js (plain CommonJS so db/reminders.js can require it under bare node).
 import type { LeagueState } from "./types";
 
-export type ActionKind = "notifications" | "invite" | "draftTurn" | "blindDraft" | "midSeasonTurn" | "lineup" | "pick" | "prediction";
+export type ActionKind = "notifications" | "invite" | "lateJoin" | "draftTurn" | "blindDraft" | "midSeasonTurn" | "lineup" | "pick" | "prediction";
 
 export interface ActionItem {
   kind: ActionKind;

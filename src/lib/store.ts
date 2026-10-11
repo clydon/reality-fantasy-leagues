@@ -41,9 +41,16 @@ interface LeagueStore {
   // banner, the action bar). Identical outside live mode.
   state: LeagueState;
   fullState: LeagueState;
+  // The league exactly as the server sent it. Only for what must see everyone, late joiners
+  // included (a commissioner's Players page); every screen reads `state`, and anything that must
+  // see past spoilers reads `fullState` -- which still leaves out other people's late joiners
+  // (StateLogic.GhostLogic), and for a late joiner catching up, ends at their week.
+  rawState: LeagueState;
   // Spoiler protection: this member has now seen results through episode n -- shows them, and
   // records it on the server.
-  markResultsSeen: (n: number) => void;
+  // opts.jump: a late joiner skipping straight to the latest episode (GhostLogic) -- the one way their
+  // mark may move by more than one.
+  markResultsSeen: (n: number, opts?: { jump?: boolean }) => void;
   leagueId: string | null;
   leagueName: string | null;
   membership: Membership | null;
@@ -151,8 +158,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
   entered: false,
   setEntered: (entered) => set({ entered }),
   mode: "mock",
-  state: buildMockSeasonState(),
-  fullState: buildMockSeasonState(),
+  ...mockState(buildMockSeasonState()),
   leagueId: null,
   leagueName: null,
   membership: null,
@@ -174,8 +180,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
     const membership: Membership = { role, playerId, resultsSeenThrough: 0 };
     set({
       mode: "mock",
-      state: spoilerView(state, membership),
-      fullState: state,
+      ...views(state, membership),
       leagueId: null,
       leagueName,
       membership,
@@ -270,8 +275,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
     set({
       mode: "live",
       leagueId,
-      state: spoilerView(state, membership),
-      fullState: state,
+      ...views(state, membership),
       leagueName,
       membership,
       userId,
@@ -300,8 +304,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
     set({
       mode: "live",
       leagueId: league.id,
-      state: spoilerView(state, membership),
-      fullState: state,
+      ...views(state, membership),
       leagueName: league.name,
       membership,
       playerAccounts,
@@ -316,8 +319,7 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
       set({
         mode: "live",
         leagueId: league.id,
-        state: spoilerView(state, membership),
-        fullState: state,
+        ...views(state, membership),
         leagueName: league.name,
         membership,
         playerAccounts,
@@ -332,7 +334,14 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
       set({ loadingLeague: false });
     }
   },
-  setMidSeason: (midSeason) => set({ state: { ...get().state, midSeason }, fullState: { ...get().fullState, midSeason } }),
+  // A late joiner catching up sees the league's rounds as they stood at their week, so a live
+  // round's patch would be a spoiler for them: skipped (their view refreshes on their next reveal).
+  setMidSeason: (midSeason) => {
+    const { rawState, membership } = get();
+    if (viewerCatchingUp(rawState, membership)) return;
+    const raw = { ...rawState, midSeason };
+    set(spoilersOn(get()) ? views(raw, membership) : mockState(raw));
+  },
   syncLineups: (fresh) => {
     const byId = new Map(fresh.episodes.map((e) => [e.id, e]));
     const patch = (st: LeagueState): LeagueState => ({
@@ -342,7 +351,9 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
         return f ? { ...ep, lineups: f.lineups, lineupsLocked: f.lineupsLocked, airsAt: f.airsAt } : ep;
       }),
     });
-    set({ state: patch(get().state), fullState: patch(get().fullState) });
+    if (viewerCatchingUp(get().rawState, get().membership)) return; // their week has no air time
+    const raw = patch(get().rawState);
+    set(spoilersOn(get()) ? views(raw, get().membership) : mockState(raw));
   },
   clearLeague: () =>
     set({
@@ -363,16 +374,24 @@ const leagueStore = createStore<LeagueStore>()((set, get) => ({
   // Mock-mode mutators (StateLogic.*) mutate `state` in place, same as the live app; spreading it
   // into a new top-level object is what actually triggers Zustand/React to notice the change.
   setState: (state) => {
-    const full = { ...state };
-    set({ fullState: full, state: spoilersOn(get()) ? spoilerView(full, get().membership) : full });
+    const raw = { ...state };
+    set(spoilersOn(get()) ? views(raw, get().membership) : mockState(raw));
   },
-  markResultsSeen: (n) => {
-    const { membership, fullState, leagueId, mode } = get();
+  markResultsSeen: (n, opts) => {
+    const { membership, rawState, leagueId, mode } = get();
     const seen = membership?.resultsSeenThrough;
     if (!membership || seen === null || seen === undefined || n <= seen) return;
     const next = { ...membership, resultsSeenThrough: n };
-    set({ membership: next, state: spoilerView(fullState, next) });
-    if (mode === "live" && leagueId) api.markResultsSeen(leagueId, n).catch(() => {});
+    set({ membership: next, ...views(rawState, next) });
+    if (mode === "live" && leagueId) {
+      // A late joiner's reveal moves them on to their next week (or out of catching up): reload the
+      // league so their view follows what the server recorded.
+      const late = viewerCatchingUp(rawState, membership);
+      api
+        .markResultsSeen(leagueId, n, opts?.jump)
+        .then(() => (late ? api.leagueState(leagueId).then((res) => get().setState(res.state)) : undefined))
+        .catch(() => {});
+    }
   },
 }));
 
@@ -388,8 +407,8 @@ export function useSpoilersOn(): boolean {
 }
 
 // Demo/mock data: nothing is held back, so what's shown and the real thing are one object.
-function mockState(state: LeagueState): { state: LeagueState; fullState: LeagueState } {
-  return { state, fullState: state };
+function mockState(state: LeagueState): { state: LeagueState; fullState: LeagueState; rawState: LeagueState } {
+  return { state, fullState: state, rawState: state };
 }
 
 // The one league store, read through useLeagueStore -- which first checks for a LeagueStoreContext
@@ -416,17 +435,26 @@ export function makePeekStore(res: Awaited<ReturnType<typeof api.leagueState>>):
     ...leagueStore.getState(),
     leagueId: res.league.id,
     leagueName: res.league.name,
-    state: spoilerView(res.state, res.membership),
-    fullState: res.state,
+    ...views(res.state, res.membership),
     membership: res.membership,
     playerAccounts: res.playerAccounts,
   }));
 }
 
-// The viewer's copy of a live league: results after their "seen through" mark held back.
-function spoilerView(state: LeagueState, membership: Membership | null): LeagueState {
-  const seen = membership?.resultsSeenThrough;
-  return seen === null || seen === undefined ? state : StateLogic.SpoilerLogic.viewThrough(state, seen);
+// The viewer's copies of a live league (StateLogic.GhostLogic.viewFor): other people's late joiners
+// left out, and results after their "seen through" mark held back.
+function views(raw: LeagueState, membership: Membership | null) {
+  const me = membership?.playerId ?? null;
+  const seen = membership?.resultsSeenThrough ?? null;
+  return {
+    rawState: raw,
+    fullState: StateLogic.GhostLogic.viewFor(raw, me, seen, { full: true }) as LeagueState,
+    state: StateLogic.GhostLogic.viewFor(raw, me, seen) as LeagueState,
+  };
+}
+
+function viewerCatchingUp(raw: LeagueState, membership: Membership | null): boolean {
+  return !!membership?.playerId && StateLogic.GhostLogic.isCatchingUp(raw, membership.playerId);
 }
 
 // Proper selector hooks (not getState() snapshots) so components re-render when mode/membership

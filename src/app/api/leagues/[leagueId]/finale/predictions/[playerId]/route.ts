@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { refuseWhileCatchingUp } from "@/lib/server/late-join";
 
 // Port of SurvivorDraft's server/routes/finale.js PATCH /predictions/:playerId -- a member can
 // only set their own prediction; commissioner/super-admin can set anyone's.
@@ -16,6 +17,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
   if (typeof idx !== "number") throw new HttpError(400, "idx required");
 
   const state = await withLeagueLock(leagueId, (s) => {
+    refuseWhileCatchingUp(s, playerId, "Finale predictions");
     StateLogic.setFinalePick(s, playerId, idx, value ?? null);
   });
   return NextResponse.json(state);

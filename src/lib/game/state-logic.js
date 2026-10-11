@@ -136,6 +136,21 @@ function currentEpisode(state){
 // Core.ownersOf (which looks it up by id) would be pointless indirection -- see the ownership
 // comment in Core for which call sites are expected to use the helpers instead.
 function ownerListOf(c){ return (c && c.ownerIds) || []; }
+function leagueGhostOwners(state, c){ const g = ghostIdSet(state); return ownerListOf(c).filter(id => g.has(id)); }
+
+// Late joiners (GhostLogic, docs/PLAN-late-joiners.md): a ghost's team lives in ownerIds like anyone
+// else's, but it's private -- the rest of the league never sees it -- so it must never take a castaway
+// off the board for them. Exclusivity ("is this castaway free?") asks about the league's own players
+// only; scoring and "is this mine?" keep reading ownerListOf as before.
+function isGhost(p){ return !!(p && p.ghost); }
+function ghostIdSet(state){ return new Set((state.players || []).filter(isGhost).map(p => p.id)); }
+function leagueOwnersOf(state, c){
+  const ghosts = ghostIdSet(state);
+  return ownerListOf(c).filter(id => !ghosts.has(id));
+}
+// Taking part in the league's shared mechanics: draft order, blind-draft lock-ins, pickup and swap
+// rounds. Ghosts play their own season alongside, so they're left out of all of these.
+function inLeagueRotation(p){ return !!p && !p.disabled && p.active !== false && !isGhost(p); }
 
 // The castaways a player originally drafted, whatever happened to them since. Derived rather than
 // stored: every acquisition that ISN'T the draft (replenish, trade) is written to midSeason.log with
@@ -259,7 +274,8 @@ class Core {
   // playerId clears ownership entirely (used by undraft and by replenish/trade drops).
   static setOwner(state, castawayId, playerId){
     const c = Core.getCastaway(state, castawayId);
-    if(c) c.ownerIds = playerId ? [playerId] : [];
+    // A ghost's private ownership survives the league's own moves (see leagueOwnersOf).
+    if(c) c.ownerIds = [...leagueGhostOwners(state, c), ...(playerId ? [playerId] : [])];
   }
   // Shared-mode primitives: add/remove a single owner without disturbing the others.
   static addOwner(state, castawayId, playerId){
@@ -363,7 +379,7 @@ class SnakeDraftStrategy {
   // RosterLogic.activatePlayer() folds them in -- otherwise they'd silently re-enter the snake rotation.
   static syncOrder(state){
     state.draftOrder = state.draftOrder.filter(pid => Core.getPlayer(state, pid));
-    state.players.forEach(p=>{ if(p.active !== false && !state.draftOrder.includes(p.id)) state.draftOrder.push(p.id); });
+    state.players.forEach(p=>{ if(p.active !== false && !isGhost(p) && !state.draftOrder.includes(p.id)) state.draftOrder.push(p.id); });
   }
   // Snake draft turn: round 0 goes draftOrder[0..N-1], round 1 goes reversed, etc.
   static currentTurn(state){
@@ -408,7 +424,7 @@ class SnakeDraftStrategy {
   static pick(state, castawayId){
     const turn = SnakeDraftStrategy.currentTurn(state);
     const c = Core.getCastaway(state, castawayId);
-    if(!turn || turn.isComplete || !c || ownerListOf(c).length) return;
+    if(!turn || turn.isComplete || !c || leagueOwnersOf(state, c).length) return;
     Core.setOwner(state, castawayId, turn.playerId);
     c.acquiredVia = 'draft';
     state.draftPicksMade++;
@@ -469,7 +485,7 @@ class BlindDraftLogic {
   // concluded, not yet activated) and disabled ones (player left or was removed) -- a disabled
   // seat can never lock in, so counting it would deadlock the draft for everyone else forever.
   static eligiblePlayers(state){
-    return state.players.filter(p => p.active !== false && !p.disabled);
+    return state.players.filter(inLeagueRotation);
   }
   static isRevealed(state){ return !!(state.blindDraft && state.blindDraft.revealedAt); }
   static lockedPlayerIds(state){ return (state.blindDraft && state.blindDraft.lockedPlayerIds) || []; }
@@ -1002,7 +1018,8 @@ class PickEmLogic {
     const rows = [];
     let current = 0, longest = 0, total = 0;
     // Episodes before the league started are history, not missed picks (settings.startEpisode).
-    [...state.episodes].filter(ep => inPlay(state, ep.number)).sort((a,b) => a.number - b.number).forEach(ep => {
+    // A late joiner's season starts at their own episode (GhostLogic.startFor).
+    [...state.episodes].filter(ep => ep.number >= GhostLogic.startFor(state, playerId)).sort((a,b) => a.number - b.number).forEach(ep => {
       const pick = (ep.picks||[]).find(pk => pk.playerId === playerId) || null;
       if(!PickEmLogic.decided(ep)){
         if(pick) rows.push({ episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick.castawayId, correct: null, points: 0, streak: current });
@@ -1205,7 +1222,7 @@ class RosterLogic {
   // Both of these are EXCLUSIVE-ownership concepts and stay that way: in a shared-ownership league
   // nothing is ever removed from availability (every pick offers the full cast every time), so
   // there is no such thing as a free agent. Shared-mode draft/roster UI simply doesn't call these.
-  static freeAgents(state){ return state.castaways.filter(c=>ownerListOf(c).length===0 && c.status==='active'); }
+  static freeAgents(state){ return state.castaways.filter(c=>leagueOwnersOf(state, c).length===0 && c.status==='active'); }
   static activeOwnedCount(state, playerId){ return state.castaways.filter(c=>ownerListOf(c).includes(playerId) && c.status==='active').length; }
   static totalCastCount(state){ return state.castaways.length; }
 
@@ -1219,8 +1236,13 @@ class RosterLogic {
     const newPlayer = { id:Core.uid('p'), name, color: PALETTE[state.players.length % PALETTE.length], disabled:false, active:true };
     if(opts && opts.automated) newPlayer.automated = true;
     const turn = DraftLogic.currentTurn(state); // reflects players/draftOrder BEFORE this one is added
+    const late = !newPlayer.automated && GhostLogic.allowed(state) && GhostLogic.isUnderway(state);
     state.players.push(newPlayer);
-    if(turn && turn.isComplete){
+    if(late){
+      // A late joiner: invisible to the league, and they choose where to start (GhostLogic).
+      newPlayer.ghost = true;
+      newPlayer.lateJoin = { startEpisode: null, catchingUp: true };
+    }else if(turn && turn.isComplete){
       newPlayer.active = false;
     }else{
       state.draftOrder.push(newPlayer.id);
@@ -1235,7 +1257,7 @@ class RosterLogic {
     if(!p) return null;
     (castawayIds||[]).forEach(cid=>{
       const c = Core.getCastaway(state, cid);
-      if(c && ownerListOf(c).length===0){ Core.setOwner(state, cid, playerId); c.acquiredVia = 'draft'; }
+      if(c && leagueOwnersOf(state, c).length===0){ Core.setOwner(state, cid, playerId); c.acquiredVia = 'draft'; }
     });
     p.active = true;
     if(!state.draftOrder.includes(playerId)) state.draftOrder.push(playerId);
@@ -1587,6 +1609,7 @@ class RosterLogic {
     // revealedThroughEpisode decides what a league is allowed to SEE, so a junk value must not
     // quietly become a number that lets more through than the commissioner picked. See RevealLogic.
     if(field === 'revealedThroughEpisode') value = RevealLogic.normalize(value);
+    if(field === 'allowLateJoiners') value = value !== false;
     // Switching ownership moves every point value still at the OLD mode's default to the new mode's
     // default; anything a commissioner set by hand stays exactly as they set it.
     if(field === 'ownershipMode' && value !== state.settings.ownershipMode && state.settings.eventPoints){
@@ -1643,7 +1666,7 @@ class MidSeasonLogic {
   static availableFor(state, playerId){
     return state.castaways.filter(c => c.status === 'active' && (MidSeasonLogic.isShared(state)
       ? !ownerListOf(c).includes(playerId)
-      : ownerListOf(c).length === 0));
+      : leagueOwnersOf(state, c).length === 0));
   }
   static isAvailableFor(state, castawayId, playerId){
     return MidSeasonLogic.availableFor(state, playerId).some(c => c.id === castawayId);
@@ -1651,13 +1674,13 @@ class MidSeasonLogic {
   // Reverse draft order: last pick in the draft gets first dibs. A shared (blind) draft has no pick
   // order, so the player list stands in for it.
   static reverseDraftOrder(state){
-    const active = state.players.filter(p => !p.disabled && p.active !== false).map(p => p.id);
+    const active = state.players.filter(inLeagueRotation).map(p => p.id);
     const drafted = (state.draftOrder || []).filter(id => active.includes(id));
     const base = drafted.length ? [...drafted, ...active.filter(id => !drafted.includes(id))] : active;
     return [...base].reverse();
   }
   static priorityList(state){
-    const active = state.players.filter(p => !p.disabled && p.active !== false).map(p => p.id);
+    const active = state.players.filter(inLeagueRotation).map(p => p.id);
     const saved = ((state.midSeason && state.midSeason.priority) || []).filter(id => active.includes(id));
     const fresh = MidSeasonLogic.reverseDraftOrder(state).filter(id => !saved.includes(id));
     return [...saved, ...fresh];
@@ -1834,7 +1857,7 @@ class TradeLogic {
       if(!w.due) return false;
       state.midSeason.lastSwapAfterEpisode = w.afterEpisode;
     }
-    const active = state.players.filter(p => !p.disabled && p.active !== false).map(p => p.id);
+    const active = state.players.filter(inLeagueRotation).map(p => p.id);
     const order = MidSeasonLogic.order(state, active);
     state.midSeason.trade = { queue: order.map(id=>({playerId:id})), index:0 };
     return true;
@@ -2357,6 +2380,198 @@ class SpoilerLogic {
   }
 }
 
+// ---------- GhostLogic: late joiners, playing the season from their own start (docs/PLAN-late-joiners.md) ----------
+// Someone who joins a league that's already underway, when its commissioner allows late joiners
+// (settings.allowLateJoiners). They pick an episode to start from, draft a team from the cast as it
+// stood then, and play forward one episode at a time: picks or a lineup for "this week", then reveal
+// that week's results, then the next. Or they jump straight to the latest episode.
+//
+// Two flags on the player, independent on purpose:
+//   ghost: true      -- invisible. The rest of the league never sees them (GhostLogic.viewFor strips
+//                       them from everyone else's copy); their team is private, so it takes nothing
+//                       off the board (leagueOwnersOf) and they sit out the draft order, blind-draft
+//                       lock-ins and pickup/swap rounds (inLeagueRotation). Cleared by the
+//                       commissioner converting them; some ghosts are never converted, and that's fine.
+//   lateJoin: { startEpisode, catchingUp }
+//                    -- their own season. startEpisode is null until they've chosen one (and drafted);
+//                       catchingUp is true while their "seen through" mark (league_memberships.
+//                       results_seen_through) is behind the latest episode with results. Kept after
+//                       a conversion, so a converted player still catches up safely.
+//
+// The spoiler guarantee while catching up lives in viewFor: their copy of the league ENDS at the
+// episode after their mark. Nothing later exists for them -- no results, no titles, no episode
+// numbers past it, no pickups made since -- and that one episode has no air time, so its lineups and
+// picks are open as if it airs tonight. The ordinary reveal can therefore only ever reveal that one
+// episode, and the server holds the same line (results-seen refuses to move a catching-up mark by more
+// than one unless they asked to jump). Their moves are validated against that same copy (applyAs).
+class GhostLogic {
+  static isGhost(p){ return isGhost(p); }
+  static lateJoinOf(state, playerId){
+    const p = Core.getPlayer(state, playerId);
+    return p && p.lateJoin ? p.lateJoin : null;
+  }
+  static isCatchingUp(state, playerId){
+    const lj = GhostLogic.lateJoinOf(state, playerId);
+    return !!(lj && lj.catchingUp);
+  }
+  // Whether they still have to pick a start episode (and draft) before they can play.
+  static needsStart(state, playerId){
+    const lj = GhostLogic.lateJoinOf(state, playerId);
+    return !!lj && !Number.isInteger(lj.startEpisode);
+  }
+  // The episode a player's own season starts at: the league's, or a late joiner's own (later) one.
+  static startFor(state, playerId){
+    const lj = GhostLogic.lateJoinOf(state, playerId);
+    const own = lj && Number.isInteger(lj.startEpisode) ? lj.startEpisode : 1;
+    return Math.max(startEpisode(state), own);
+  }
+  // A league is underway -- too late to just slot in -- once its draft is done or an episode has results.
+  static isUnderway(state){
+    const turn = DraftLogic.currentTurn(state);
+    return !!(turn && turn.isComplete) || SpoilerLogic.latestWithResults(state) > 0;
+  }
+  // On unless a commissioner switched it off (absent = on, so it covers every league that predates it).
+  static allowed(state){ return !(state.settings && state.settings.allowLateJoiners === false); }
+  // The episodes a late joiner may start at: the league's first through the one after the latest with
+  // results (starting there means joining live, nothing to catch up on).
+  static startChoices(state){
+    const latest = SpoilerLogic.latestWithResults(state);
+    const out = [];
+    for(let n = startEpisode(state); n <= latest + 1; n++) out.push(n);
+    return out;
+  }
+  // The cast a late joiner starting at `start` drafts from: everyone still in the game before that
+  // episode, whoever in the league owns them (a ghost's team is private, so nothing is taken).
+  static draftPool(state, start){
+    const before = SpoilerLogic.viewThrough(state, Math.max(0, start - 1));
+    return before.castaways.filter(c => c.status === 'active').map(c => c.id);
+  }
+  // How many they draft: the league's roster size, or none for a league type with no draft.
+  static teamSize(state){
+    return getLeagueType(state).draftStrategy === NoDraftStrategy ? 0 : rosterSize(state);
+  }
+  // Starts a late joiner's season: their start episode and their team. Returns a reason on refusal.
+  static begin(state, playerId, start, castawayIds){
+    const p = Core.getPlayer(state, playerId);
+    if(!p || !p.lateJoin) return 'Not a late joiner';
+    if(Number.isInteger(p.lateJoin.startEpisode)) return 'Already started';
+    if(!GhostLogic.startChoices(state).includes(start)) return 'Pick an episode from the list';
+    const ids = Array.isArray(castawayIds) ? castawayIds : [];
+    const need = GhostLogic.teamSize(state);
+    const pool = GhostLogic.draftPool(state, start);
+    if(new Set(ids).size !== ids.length) return 'Same pick listed twice';
+    if(ids.some(id => !pool.includes(id))) return 'Pick from who was still in the game';
+    // Late in a season there may be fewer left than a full roster; take everyone then.
+    if(ids.length !== Math.min(need, pool.length)) return 'Pick ' + Math.min(need, pool.length);
+    ids.forEach(id => Core.addOwner(state, id, playerId));
+    p.lateJoin.startEpisode = start;
+    p.lateJoin.catchingUp = start - 1 < SpoilerLogic.latestWithResults(state);
+    return null;
+  }
+  // Their mark reached the latest results (or they jumped there): from now on they play live.
+  static markCaughtUp(state, playerId, seenThrough){
+    const lj = GhostLogic.lateJoinOf(state, playerId);
+    if(lj && lj.catchingUp && seenThrough >= SpoilerLogic.latestWithResults(state)) lj.catchingUp = false;
+  }
+  // The commissioner brings a ghost into the league: visible to everyone, in the draft order for
+  // pickup/swap rounds. Their team and points come with them. In an exclusive-ownership league a
+  // castaway they share with someone stays shared -- the one place exclusivity bends.
+  static convert(state, playerId){
+    const p = Core.getPlayer(state, playerId);
+    if(!p || !p.ghost) return false;
+    delete p.ghost;
+    p.active = true;
+    if(!state.draftOrder.includes(playerId)) state.draftOrder.push(playerId);
+    return true;
+  }
+
+  // The league as one viewer may see it. `viewerId` is their player (null for none); `seenThrough`
+  // their spoiler mark (null = sees everything). Never mutates `state`.
+  //   - Everyone: every ghost but themselves taken out, as if they'd never joined.
+  //   - A late joiner catching up: the league ends at the episode after their mark (see the class note).
+  //   - Then the usual spoiler view (SpoilerLogic.viewThrough) at their mark.
+  // opts.full: the copy the reveal works from instead (the client's fullState) -- the same, except
+  // their week's results are still in it, so the reveal has something to show. Never later ones.
+  static viewFor(state, viewerId, seenThrough, opts){
+    const full = !!(opts && opts.full);
+    const others = new Set((state.players || []).filter(p => isGhost(p) && p.id !== viewerId).map(p => p.id));
+    const catchingUp = GhostLogic.isCatchingUp(state, viewerId) && Number.isInteger(seenThrough);
+    if(!others.size && !catchingUp) return full ? state : SpoilerLogic.viewThrough(state, seenThrough);
+    let s = JSON.parse(JSON.stringify(state));
+    if(others.size) GhostLogic.stripPlayers(s, others);
+    if(catchingUp || !full) s = SpoilerLogic.viewThrough(s, full ? seenThrough + 1 : seenThrough);
+    if(catchingUp) GhostLogic.rewindTo(s, seenThrough);
+    return s;
+  }
+  // The late joiners a commissioner manages (Players & invites), from the real state.
+  static ghosts(state){ return (state.players || []).filter(p => isGhost(p) && !p.disabled); }
+  static stripPlayers(s, ids){
+    const keep = id => !ids.has(id);
+    s.players = s.players.filter(p => keep(p.id));
+    s.draftOrder = (s.draftOrder || []).filter(keep);
+    s.castaways.forEach(c => {
+      c.ownerIds = ownerListOf(c).filter(keep);
+      if(c.formerOwnerId && !keep(c.formerOwnerId)) c.formerOwnerId = null;
+    });
+    s.episodes.forEach(ep => {
+      ids.forEach(id => { if(ep.lineups) delete ep.lineups[id]; });
+      ep.picks = (ep.picks || []).filter(pk => keep(pk.playerId));
+      (ep.bets || []).forEach(b => { b.predictions = (b.predictions || []).filter(pr => keep(pr.playerId)); });
+    });
+    s.finalePredictions = (s.finalePredictions || []).filter(fp => keep(fp.playerId));
+    if(s.midSeason){
+      if(s.midSeason.log) s.midSeason.log = s.midSeason.log.filter(tx => keep(tx.playerId));
+      if(s.midSeason.priority) s.midSeason.priority = s.midSeason.priority.filter(keep);
+    }
+  }
+  // Ends a (spoiler-trimmed) copy at episode seen+1, which plays as though it airs tonight.
+  static rewindTo(s, seen){
+    const now = seen + 1;
+    // A league in catch-up mode (RevealLogic) is somewhere ahead of them; to them it's simply live at
+    // their week -- its pointer would say how far the season has run.
+    if(s.settings) s.settings.revealedThroughEpisode = null;
+    s.episodes = s.episodes.filter(ep => ep.number <= now);
+    s.episodes.forEach(ep => {
+      if(ep.number < now) return;
+      delete ep.airsAt;
+      ep.lineupsLocked = false;
+      // A title can give the episode away ("The Blindside"); the number is enough.
+      ep.title = null; ep.airDate = null;
+    });
+    // Pickups and swaps made after their mark: undone, newest first. A pickup says someone left.
+    const ms = s.midSeason;
+    if(ms){
+      const later = (ms.log || []).filter(tx => Number.isInteger(tx.episode) && tx.episode > seen);
+      [...later].reverse().forEach(tx => {
+        const added = Core.getCastaway(s, tx.addedCastawayId);
+        if(added) added.ownerIds = ownerListOf(added).filter(id => id !== tx.playerId);
+        const dropped = tx.droppedCastawayId && Core.getCastaway(s, tx.droppedCastawayId);
+        if(dropped && !ownerListOf(dropped).includes(tx.playerId)) dropped.ownerIds = [...ownerListOf(dropped), tx.playerId];
+      });
+      ms.log = (ms.log || []).filter(tx => !later.includes(tx));
+      // A round open now was opened by results they haven't seen.
+      ms.replenish = null; ms.trade = null;
+    }
+  }
+  // Runs one of a late joiner's own moves (a lineup, a pick) against the league as THEY see it, then
+  // copies just their part of the episode back. That's what makes their week's lineup open when the
+  // real episode aired long ago, and their eligibility follow the cast as it stood then.
+  static applyAs(state, playerId, seenThrough, epId, fn){
+    const view = GhostLogic.viewFor(state, playerId, seenThrough);
+    const vEp = view.episodes.find(e => e.id === epId);
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!vEp || !ep) return 'That episode is ahead of you';
+    if(vEp.number !== seenThrough + 1) return 'Only this week’s episode is open';
+    const result = fn(view);
+    if(vEp.lineups && Object.prototype.hasOwnProperty.call(vEp.lineups, playerId)){
+      ep.lineups = ep.lineups || {};
+      ep.lineups[playerId] = vEp.lineups[playerId];
+    }
+    ep.picks = [...(ep.picks || []).filter(pk => pk.playerId !== playerId), ...(vEp.picks || []).filter(pk => pk.playerId === playerId)];
+    return typeof result === 'string' ? result : null;
+  }
+}
+
 // ---------- RuleChangeLogic: a commissioner's say over season rule changes ----------
 // docs/PLAN-season-rule-changes.md. An admin approves a change for a whole season; every league on it
 // is OFFERED it (settings.seasonRuleChanges, server-written), and a league scores only what its
@@ -2606,6 +2821,9 @@ class Migrations {
         // nothing past that, so a league formed in week 4 can still play episode 1 as though it
         // were airing tonight. 0 is the starting line.
         revealedThroughEpisode: null,
+        // Late joiners (GhostLogic): someone joining once the league is underway plays the season
+        // from an episode of their choosing, unseen by the league until the commissioner adds them.
+        allowLateJoiners: true,
         // Optional mid-season mechanics, both OFF until a commissioner turns them on -- plenty of
         // leagues never run either. Gated together with the league type's own capability; see
         // replenishAvailable/tradeAvailable above.
@@ -2765,7 +2983,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, RevealLogic, SpoilerLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy
 };
 

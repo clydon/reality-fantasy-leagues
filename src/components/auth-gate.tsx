@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { signInWithIdentifier } from "@/lib/auth-client";
@@ -25,6 +25,8 @@ import { WhatsNewModal } from "@/components/whats-new-modal";
 import { rememberedLeague, reloadedLeague } from "@/lib/last-league";
 import { Button } from "@/components/ui/button";
 import { ResultsInBanner, RevealSheet } from "@/components/results-in-banner";
+import { CatchUpSheet, ReplayBug } from "@/components/late-join/replay-bug";
+import StateLogic from "@/lib/game/state-logic.js";
 import { LeagueSwipe } from "@/components/league-swipe";
 import { AdminMobileChrome, AdminSidebar, isAdminRoute } from "@/components/admin/admin-shell";
 import { useRecordNavTrail } from "@/lib/nav-trail";
@@ -43,7 +45,8 @@ const LEAGUELESS_ROUTES = ["/dashboard", "/reports", "/account"];
 // Full-screen flows: signed in, but no sidebar, tab bar or alert strip. The page brings its own
 // header and its own way out (the create-league flow, docs/PLAN-ux-redesign.md 2a; the reveal,
 // /reveal/N, which mustn't sit under an alert strip or a tab bar that could give results away).
-const FULLSCREEN_ROUTES = ["/new-league", "/reveal"];
+// /late-join: a late joiner choosing where to start (late-join-flow.tsx).
+const FULLSCREEN_ROUTES = ["/new-league", "/reveal", "/late-join"];
 const isFullscreen = (pathname: string) => FULLSCREEN_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
 
 // Owns the same top-level branch the live app's boot()/renderLoginScreen() do: either the login
@@ -79,6 +82,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("checking");
   const [error, setError] = useState<string | null>(null);
   const [signedInUsername, setSignedInUsername] = useState<string | null>(null);
+  const router = useRouter();
+  // A late joiner who hasn't chosen where to start has nothing to play yet (StateLogic.GhostLogic):
+  // every league page sends them to /late-join until they have.
+  const needsStart = useLeagueStore((s) => s.mode === "live" && StateLogic.GhostLogic.needsStart(s.rawState, s.membership?.playerId));
+  const toLateJoin = entered && needsStart && !isFullscreen(pathname) && !LEAGUELESS_ROUTES.includes(pathname) && !isAdminRoute(pathname);
+  useEffect(() => {
+    if (toLateJoin) router.replace("/late-join");
+  }, [toLateJoin, router]);
 
   // Internally gated on mode === 'live' (see use-league-poll.ts) -- safe to call unconditionally
   // here regardless of auth state, matching the Rules of Hooks.
@@ -283,6 +294,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <DemoSeasonPicker />
       <ConfirmDialog />
       <RevealSheet />
+      <CatchUpSheet />
       <WhatsNewModal />
       <TourHost />
       {/* Phones only -- desktop browsers have their own install affordance (an icon in the address
@@ -309,6 +321,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
           )}
           {/* Anything due in any of your leagues, on every page (renders nothing when there's none). */}
           {/* The tour holds back the alert strip and the reveal prompt: its host says what's next. */}
+          {/* Desktop's REPLAY bug; on a phone it's in the top bar (mobile-nav.tsx). */}
+          <ReplayBug variant="page" className="mb-4 max-nav:hidden" />
           {!tourRunning && <ResultsInBanner />}
           {!tourRunning && <ActionBar />}
           {flash && (

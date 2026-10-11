@@ -1,4 +1,6 @@
 import { after } from "next/server";
+import StateLogic from "@/lib/game/state-logic.js";
+import type { LeagueState } from "@/lib/game/types";
 import { pool } from "./db";
 import { sendPush, type NotificationType, type PushMessage } from "./push-core";
 
@@ -17,9 +19,24 @@ export async function userIdsForPlayers(leagueId: string, playerIds: (string | n
 }
 
 /** Everyone in the league, optionally minus the person who caused the event. */
-export async function leagueMemberUserIds(leagueId: string, except?: string | null): Promise<string[]> {
-  const { rows } = await pool.query("SELECT user_id FROM league_memberships WHERE league_id=$1", [leagueId]);
-  return rows.map((r) => r.user_id).filter((id) => id !== except);
+// Late joiners (StateLogic.GhostLogic) hear nothing the league broadcasts while they're catching up
+// (any of it could be a spoiler), and nothing about the league's own goings-on while it can't see them
+// (a ghost). opts.ghosts: include ghosts who have caught up -- episode results are theirs to hear too.
+export async function leagueMemberUserIds(leagueId: string, except?: string | null, opts?: { ghosts?: boolean }): Promise<string[]> {
+  const { rows } = await pool.query(
+    "SELECT m.user_id, m.player_id, l.state FROM league_memberships m JOIN leagues l ON l.id = m.league_id WHERE m.league_id=$1",
+    [leagueId]
+  );
+  return rows
+    .filter((r) => r.user_id !== except && !leftOutOfBroadcasts(r.state, r.player_id, !!opts?.ghosts))
+    .map((r) => r.user_id);
+}
+
+/** Whether a broadcast skips this member (see leagueMemberUserIds). */
+export function leftOutOfBroadcasts(state: LeagueState | null, playerId: string | null, ghostsIncluded = false): boolean {
+  if (!state || !playerId) return false;
+  if (StateLogic.GhostLogic.isCatchingUp(state, playerId)) return true;
+  return !ghostsIncluded && StateLogic.GhostLogic.isGhost(StateLogic.getPlayer(state, playerId));
 }
 
 export async function leagueName(leagueId: string): Promise<string> {

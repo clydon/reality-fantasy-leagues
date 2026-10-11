@@ -1,7 +1,7 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { pool } from "./db";
-import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName } from "./push-targets";
+import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName, leftOutOfBroadcasts } from "./push-targets";
 import { splitBySpoilerProtection } from "./results-seen";
 import { groupLeagueIds, groupMemberUserIds } from "./league-groups";
 
@@ -84,7 +84,7 @@ export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId:
   if (!ep || !ep.events.length) return;
   // Looked up inside each after() callback (not here, before the write commits), once, shared by both.
   let split: ReturnType<typeof splitBySpoilerProtection> | null = null;
-  const audience = () => (split ??= leagueMemberUserIds(leagueId, actorUserId).then(splitBySpoilerProtection));
+  const audience = () => (split ??= leagueMemberUserIds(leagueId, actorUserId, { ghosts: true }).then(splitBySpoilerProtection));
   const tag = `episode-${leagueId}-${ep.number}`;
   notifyAfter("episodeResults", async () => {
     const outs = ep.events
@@ -173,9 +173,15 @@ export function notifyChat(leagueId: string, authorUserId: string, authorName: s
 // group (a reveal is a reveal in every linked league); never loaded yet means the latest with results,
 // what their first load will set it to.
 async function chatAudience(leagueId: string, authorUserId: string) {
-  const userIds = await groupMemberUserIds(leagueId, authorUserId);
   const { rows: st } = await pool.query("SELECT state FROM leagues WHERE id=$1", [leagueId]);
   const state = st[0]?.state as LeagueState | undefined;
+  // Late joiners have no chat (it's the league's conversation, and the league can't see them).
+  const { rows: late } = await pool.query(
+    "SELECT m.user_id, m.player_id, l.state FROM league_memberships m JOIN leagues l ON l.id = m.league_id WHERE m.league_id = ANY($1::uuid[])",
+    [await groupLeagueIds(leagueId)]
+  );
+  const hidden = new Set(late.filter((r) => leftOutOfBroadcasts(r.state, r.player_id)).map((r) => r.user_id as string));
+  const userIds = (await groupMemberUserIds(leagueId, authorUserId)).filter((id) => !hidden.has(id));
   if (!state || !userIds.length) return { plain: userIds, guarded: [], episode: null };
   const { immediate } = await splitBySpoilerProtection(userIds);
   const { rows } = await pool.query(
@@ -208,6 +214,26 @@ export function notifyMemberJoined(leagueId: string, joinerUserId: string, joine
       message: {
         title: returning ? "Welcome back" : "New league member",
         body: `${joinerName} ${returning ? "rejoined" : "joined"} ${await leagueName(leagueId)}.`,
+        url: link("/setup/players", leagueId),
+        tag: `joined-${leagueId}`,
+      },
+    };
+  });
+}
+
+/**
+ * A late joiner chose where to start (StateLogic.GhostLogic): the commissioners, who are the only ones
+ * who can see them, hear about it -- with a link to where they'd add them to the league.
+ */
+export function notifyLateJoinerStarted(leagueId: string, name: string, startEpisode: number) {
+  notifyAfter("memberJoined", async () => {
+    const { rows } = await pool.query("SELECT user_id FROM league_memberships WHERE league_id=$1 AND role='commissioner'", [leagueId]);
+    if (!rows.length) return null;
+    return {
+      userIds: rows.map((r) => r.user_id as string),
+      message: {
+        title: "A late joiner started",
+        body: `${name} is playing ${await leagueName(leagueId)} from episode ${startEpisode}, out of sight until you add them.`,
         url: link("/setup/players", leagueId),
         tag: `joined-${leagueId}`,
       },

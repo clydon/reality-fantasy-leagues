@@ -101,8 +101,14 @@ export const api = {
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "PUT", body: JSON.stringify(changes) }),
   unlinkLeague: (leagueId: string) => localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "DELETE" }),
   // Spoiler protection: this member has now seen results through episode `through`.
-  markResultsSeen: (leagueId: string, through: number) =>
-    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/results-seen`, { method: "POST", body: JSON.stringify({ through }) }),
+  // `jump`: a late joiner skipping to the latest episode, the one way their mark moves by more than one.
+  markResultsSeen: (leagueId: string, through: number, jump?: boolean) =>
+    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/results-seen`, { method: "POST", body: JSON.stringify({ through, jump: !!jump }) }),
+  // Late joiners (StateLogic.GhostLogic): choose a start episode and draft; and a commissioner adding one.
+  beginLateJoin: (leagueId: string, startEpisode: number, castawayIds: string[]) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/late-join`, { method: "POST", body: JSON.stringify({ startEpisode, castawayIds }) }),
+  convertLateJoiner: (leagueId: string, id: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}/convert`, { method: "POST" }),
   getMySettings: () => localFetch<MySettings>("/api/me/settings"),
   // Only the fields sent change.
   setMySettings: (changes: { showResultsImmediately?: boolean; whatsNewSeen?: string }) =>

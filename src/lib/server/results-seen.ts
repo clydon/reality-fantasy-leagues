@@ -18,12 +18,17 @@ export async function showsResultsImmediately(userId: string): Promise<boolean> 
  * this feature on never hides what someone has already seen -- only what arrives afterwards.
  */
 export async function resultsSeenThrough(userId: string, leagueId: string, state: LeagueState): Promise<number | null> {
-  if (await showsResultsImmediately(userId)) return null;
-  const { rows } = await pool.query("SELECT results_seen_through FROM league_memberships WHERE league_id=$1 AND user_id=$2", [
+  const { rows } = await pool.query("SELECT results_seen_through, player_id FROM league_memberships WHERE league_id=$1 AND user_id=$2", [
     leagueId,
     userId,
   ]);
   if (!rows.length) return null;
+  // A late joiner (StateLogic.GhostLogic) always has a mark, whatever their account setting: "show
+  // results immediately" would hand them the whole season they're catching up on. Until they've
+  // chosen where to start, that's nothing at all.
+  const late = StateLogic.GhostLogic.lateJoinOf(state, rows[0].player_id);
+  if (late) return late.startEpisode === null ? 0 : rows[0].results_seen_through ?? late.startEpisode - 1;
+  if (await showsResultsImmediately(userId)) return null;
   if (rows[0].results_seen_through !== null) return rows[0].results_seen_through;
   const latest = StateLogic.SpoilerLogic.latestWithResults(state);
   await pool.query("UPDATE league_memberships SET results_seen_through=$3 WHERE league_id=$1 AND user_id=$2", [leagueId, userId, latest]);
