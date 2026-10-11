@@ -3,13 +3,16 @@
 What's open, newest thinking first. **Decided against** and **done** are kept below so a later
 session doesn't re-propose them. Context for everything here is in `docs/HANDOFF.md`.
 
-Last updated 2026-10-05.
+Last updated 2026-10-11.
 
 ## Open: needs design or a decision first
 
 1. ~~**Members joining a started league**~~ **Built 2026-10-11 as late joiners** (`docs/PLAN-late-joiners.md`);
-   the notes below are kept for history. (from feedback #10/#31). Today they just appear in
-   standings, and after a commissioner "activates" them there's no defined path.
+   the notes below are kept for history. **Deferred (user, 2026-10-11): Classic fairness.**
+   Classic scores how far each pick lasts, and a late joiner drafts only from who's still in, so they
+   can't hold an early boot and tend to out-score day-one drafters once a commissioner adds them. Not
+   urgent: late joiners are hidden (ghosts) by default. Options in `docs/PLAN-late-joiners.md`.
+   History (from feedback #10/#31): before this, they just appeared in standings, and after a commissioner "activates" them there's no defined path.
    - Can an activated member draft? Should there be a starting-points adjustment?
    - Should it vary by league type or ownership (Classic draft / Active Roster / Eliminator Pool;
      shared vs exclusive)?
