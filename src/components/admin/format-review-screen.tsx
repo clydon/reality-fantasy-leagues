@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRight, CircleAlert, Plus, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type { AdminShow, Proposal, StoredFormat } from "@/lib/game/types";
 import { reviewProposal, camelId } from "@/lib/game/formats/proposal.js";
@@ -11,8 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
+import { Chip, Field, LockedValue, MoreOptions, PrimaryButton, RowList, TextSheet, ToggleRow, fieldCls } from "@/components/setup/settings-ui";
 import { confirm } from "@/lib/confirm-store";
-import { m, AnimatePresence } from "@/components/motion";
+import { ActButton, Notice, Rows, Section, Segmented, StickyBar, count } from "./admin-ui";
 import { cn } from "cn";
 
 // The row pieces (RuleLine, Notes, TierChip, CategorySelect, ...) are exported for the season "check
@@ -40,6 +43,13 @@ export const QUESTION_TYPES = ["answer", "integer", "string", "stringList", "enu
 
 const isRuleObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const humanize = (k: string) => k.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase());
+
+// The quiet text buttons inside a rule's editor ("Edit", "And…"): 44px tall for a thumb, muted until hovered.
+const LINK_BTN =
+  "inline-flex min-h-11 shrink-0 items-center gap-1 rounded-[3px] px-2 text-[13px] font-semibold text-muted-foreground hover:bg-accent/60 hover:text-foreground focus-visible:outline-3 focus-visible:outline-chyron-line";
+// A rule field's label over its control, so long labels and dropdowns both get the full width on a phone.
+const FIELD_ROW = "flex flex-col gap-1";
+const FIELD_LABEL = "text-[13px] font-semibold text-muted-foreground";
 
 // ---------- condition editing: "when { answer, is/isNot/equals/greaterThan/present }", and a flat
 // "all" list of those -- the shape almost every rule's `when` actually uses. Mirrors rules.js's own
@@ -125,7 +135,7 @@ function LeafEditor({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <Select
-        size="sm"
+        className="min-w-0 max-w-full"
         value={leaf.answer}
         onChange={(e) => {
           if (e.target.value === "__new__") {
@@ -203,8 +213,13 @@ function LeafEditor({
         <Input size="sm" className="w-28" value={String(leaf.value ?? "")} onChange={(e) => onChange({ ...leaf, value: e.target.value })} />
       )}
       {removable && (
-        <button className="text-muted-foreground hover:text-foreground" title="Remove this condition" onClick={onRemove}>
-          ×
+        <button
+          type="button"
+          className="flex size-11 shrink-0 items-center justify-center rounded-[3px] text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="Remove this condition"
+          onClick={onRemove}
+        >
+          <X className="size-[18px]" strokeWidth={2.2} aria-hidden />
         </button>
       )}
     </div>
@@ -235,20 +250,20 @@ function ConditionEditor({
     return (
       <div className="flex flex-col gap-1">
         {leaves === null && (
-          <p className="text-[0.65rem] italic text-muted-foreground">
-            Combines &ldquo;any&rdquo;/&ldquo;not&rdquo;, or nests further than this editor covers -- raw JSON for just this condition:
+          <p className="text-[13px] leading-snug text-muted-foreground">
+            This condition combines &ldquo;any&rdquo; or &ldquo;not&rdquo;, or nests further than the dropdowns cover. Here it is as JSON:
           </p>
         )}
         <Textarea
           rows={5}
           defaultValue={JSON.stringify(value, null, 2)}
           onChange={(e) => setText(e.target.value)}
-          className="font-mono text-[0.7rem]"
+          className="font-mono text-[13px]"
         />
-        {err && <p className="text-[0.65rem] font-semibold text-destructive">{err}</p>}
+        {err && <p className="text-[13px] font-semibold text-destructive">{err}</p>}
         <div>
           <Button
-            size="xs"
+            size="sm"
             onClick={() => {
               try {
                 onChange(JSON.parse(text || JSON.stringify(value)));
@@ -299,18 +314,20 @@ function ConditionEditor({
           onCreateQuestion={onCreateQuestion}
         />
       ))}
-      <div className="flex items-center gap-2">
-        <button className="text-[0.65rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={addLeaf}>
-          + and…
+      <div className="flex items-center gap-1">
+        <button type="button" className={LINK_BTN} onClick={addLeaf}>
+          <Plus className="size-4" strokeWidth={2.4} aria-hidden />
+          And…
         </button>
         <button
-          className="text-[0.65rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          type="button"
+          className={LINK_BTN}
           onClick={() => {
             setText(JSON.stringify(value, null, 2));
             setJsonMode(true);
           }}
         >
-          edit as JSON
+          Edit as JSON
         </button>
       </div>
     </div>
@@ -366,7 +383,7 @@ function EventSelect({
 }) {
   return (
     <Select
-      size="sm"
+      className="min-w-0 max-w-full"
       value={value}
       onChange={(e) => {
         if (e.target.value === "__new__") {
@@ -454,14 +471,14 @@ function RuleFields({
   const showWhenExit = "whenExit" in rule;
   const whenExitList = Array.isArray(rule.whenExit) ? (rule.whenExit as unknown[]) : rule.whenExit ? [rule.whenExit] : [];
   return (
-    <div className="mt-1 flex flex-col gap-1.5 rounded border border-dashed border-border bg-secondary/40 p-1.5">
+    <div className="mt-2 flex flex-col gap-3 rounded-[4px] bg-muted/50 p-3 text-[15px]">
       {/* Built-ins that look across people (who voted for whom, a role on either side) -- switching
           drops params the new one doesn't share by name, so re-pick those below after switching. */}
       {builtInOptions.length > 0 && (
-        <label className="flex items-center gap-1.5">
-          <span className="w-24 shrink-0 text-muted-foreground">Built-in</span>
-          <Select size="sm" value={builtIn && typeof rule.builtIn === "string" ? rule.builtIn : ""} onChange={(e) => onReplace(switchBuiltIn(rule, e.target.value))}>
-            <option value="">(none -- a plain condition rule)</option>
+        <label className={FIELD_ROW}>
+          <span className={FIELD_LABEL}>Built-in</span>
+          <Select className="min-w-0 max-w-full" value={builtIn && typeof rule.builtIn === "string" ? rule.builtIn : ""} onChange={(e) => onReplace(switchBuiltIn(rule, e.target.value))}>
+            <option value="">None: a plain condition</option>
             {builtInOptions.map(([name]) => (
               <option key={name} value={name}>
                 {name}
@@ -471,12 +488,14 @@ function RuleFields({
         </label>
       )}
       {showWhenExit && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="w-24 shrink-0 text-muted-foreground">Follows leaving by</span>
+        <div className={FIELD_ROW}>
+          <span className={FIELD_LABEL}>Follows leaving by</span>
+          <div className="flex flex-wrap gap-x-4">
           {exitMethods.map((m) => (
-            <label key={m} className="flex items-center gap-1">
+            <label key={m} className="flex min-h-11 items-center gap-2">
               <input
                 type="checkbox"
+                className="size-5 accent-[var(--chyron)]"
                 checked={whenExitList.includes(m)}
                 onChange={(e) => {
                   const next = e.target.checked ? [...whenExitList, m] : whenExitList.filter((x) => x !== m);
@@ -486,12 +505,13 @@ function RuleFields({
               {m}
             </label>
           ))}
+          </div>
         </div>
       )}
       {showWhen && (
-        <div className="flex items-start gap-1.5">
-          <span className="w-24 shrink-0 text-muted-foreground">When</span>
-          <div className="flex-1">
+        <div className={FIELD_ROW}>
+          <span className={FIELD_LABEL}>When</span>
+          <div className="min-w-0">
             <ConditionEditor value={rule.when} fields={conditionFields} exitMethods={exitMethods} onChange={(v) => onSet("when", v)} onCreateQuestion={onCreateQuestion} />
           </div>
         </div>
@@ -499,12 +519,12 @@ function RuleFields({
       {params.map(([key, spec]) => {
         const value = rule[key];
         return (
-          <label key={key} className="flex items-center gap-1.5">
-            <span className="w-24 shrink-0 text-muted-foreground">{humanize(key)}</span>
+          <label key={key} className={FIELD_ROW}>
+            <span className={FIELD_LABEL}>{humanize(key)}</span>
             {spec.type === "event" ? (
               <EventSelect value={typeof value === "string" ? value : ""} events={events} onChange={(v) => onSet(key, v)} onCreate={onCreateEvent} />
             ) : spec.type === "exitMethod" ? (
-              <Select size="sm" value={typeof value === "string" ? value : ""} onChange={(e) => onSet(key, e.target.value)}>
+              <Select className="min-w-0 max-w-full" value={typeof value === "string" ? value : ""} onChange={(e) => onSet(key, e.target.value)}>
                 <option value="">Choose an exit method…</option>
                 {exitMethods.map((m) => (
                   <option key={m} value={m}>
@@ -514,7 +534,7 @@ function RuleFields({
               </Select>
             ) : spec.type === "field" ? (
               <Select
-                size="sm"
+                className="min-w-0 max-w-full"
                 value={typeof value === "string" ? value : ""}
                 onChange={(e) => {
                   if (e.target.value === "__new__") {
@@ -534,11 +554,11 @@ function RuleFields({
                 {onCreateQuestion && <option value="__new__">+ New question…</option>}
               </Select>
             ) : spec.type === "condition" ? (
-              <div className="flex-1">
+              <div className="min-w-0">
                 <ConditionEditor value={value} fields={conditionFields} exitMethods={exitMethods} onChange={(v) => onSet(key, v)} onCreateQuestion={onCreateQuestion} />
               </div>
             ) : (
-              <span className="text-[0.65rem] italic text-muted-foreground">use &ldquo;edit&rdquo; above for this one</span>
+              <span className="text-[13px] text-muted-foreground">Use &ldquo;Edit as raw JSON&rdquo; below for this one.</span>
             )}
           </label>
         );
@@ -551,8 +571,8 @@ export function TierChip({ tier }: { tier: "A" | "B" | "C" | null }) {
   if (!tier) return null;
   return (
     <Badge
-      variant={tier === "C" ? "destructive" : "outline"}
-      className="h-4 text-[0.6rem]"
+      variant="outline"
+      className={cn("h-4 text-[11px]", tier === "C" && "border-accent-2/60 text-accent-2")}
       title={
         tier === "A"
           ? "Stated plainly every episode"
@@ -620,21 +640,24 @@ export function RuleLine({
   const hasAward = !!ruleObj && typeof ruleObj.award === "string" && !builtIn;
   const open = problems.length > 0 || manuallyOpen;
   return (
-    <div>
-      <div className="flex items-start gap-1.5">
-        <span className="flex-1 text-[0.8rem] font-medium text-foreground">{sentence}</span>
+    <div className="text-[15px]">
+      <div className="flex items-start gap-1">
+        <span className="min-w-0 flex-1 pt-2.5 font-semibold leading-snug text-foreground">{sentence}</span>
         {problems.length > 0 && (
           <button
-            className="shrink-0 font-semibold text-destructive underline-offset-2 hover:underline"
+            type="button"
+            className={cn(LINK_BTN, "text-destructive hover:text-destructive")}
             title="Drop this one rule. The event stays and can still be scored by hand or by another rule."
             onClick={onRemove}
           >
-            remove
+            Remove
           </button>
         )}
-        <button className="shrink-0 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={() => setManuallyOpen((v) => !v)}>
-          {open ? "hide" : "edit"}
-        </button>
+        {problems.length === 0 && (
+          <button type="button" aria-expanded={open} className={LINK_BTN} onClick={() => setManuallyOpen((v) => !v)}>
+            {open ? "Done" : "Edit"}
+          </button>
+        )}
       </div>
       <Notes problems={problems} warnings={[]} />
       {open && ruleObj && (
@@ -654,27 +677,28 @@ export function RuleLine({
             onCreateQuestion={onCreateQuestion}
           />
           <button
-            className="mt-0.5 text-[0.65rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            type="button"
+            className={cn(LINK_BTN, "mt-1")}
             onClick={() => {
               setText(JSON.stringify(rule, null, 2));
               setErr(null);
               setJsonOpen((v) => !v);
             }}
           >
-            {jsonOpen ? "hide raw JSON" : "edit as raw JSON"}
+            {jsonOpen ? "Hide raw JSON" : "Edit as raw JSON"}
           </button>
           {jsonOpen && (
-            <div className="mt-1 rounded border border-dashed border-border bg-secondary/40 p-1.5">
+            <div className="mt-1 rounded-[4px] bg-muted/50 p-3">
               <Textarea
                 rows={Math.min(14, text.split("\n").length + 1)}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                className="font-mono text-[0.7rem]"
+                className="font-mono text-[13px]"
               />
-              {err && <p className="mt-1 font-semibold text-destructive">{err}</p>}
+              {err && <p className="mt-1 text-[13px] font-semibold text-destructive">{err}</p>}
               <Button
-                size="xs"
-                className="mt-1"
+                size="sm"
+                className="mt-2"
                 onClick={() => {
                   try {
                     onApply(JSON.parse(text));
@@ -697,10 +721,11 @@ export function RuleLine({
 export function Notes({ problems, warnings }: { problems: string[]; warnings: string[] }) {
   if (!problems.length && !warnings.length) return null;
   return (
-    <ul className="mt-1 flex flex-col gap-0.5 text-[0.7rem]">
+    <ul className="mt-1 flex flex-col gap-1 text-[13px] leading-snug">
       {problems.map((p) => (
-        <li key={p} className="font-semibold text-destructive">
-          ! {p}
+        <li key={p} className="flex items-start gap-1.5 font-semibold text-destructive">
+          <CircleAlert className="mt-px size-4 shrink-0" strokeWidth={2.2} aria-hidden />
+          {p}
         </li>
       ))}
       {warnings.map((w) => (
@@ -712,6 +737,92 @@ export function Notes({ problems, warnings }: { problems: string[]; warnings: st
   );
 }
 
+// What a row on this screen opens: one event, one question, or one rule no event row shows.
+type Target = { kind: "event"; id: string } | { kind: "question"; key: string } | { kind: "rule"; at: string };
+
+// How a question's type reads to someone who isn't a developer.
+const TYPE_LABELS: Record<string, string> = {
+  answer: "Yes or no",
+  integer: "A number",
+  string: "A name or word",
+  stringList: "A list of names",
+  enum: "One of a set",
+};
+const TIER_OPTIONS = [
+  ["A", "Every episode"],
+  ["B", "Worked out"],
+  ["C", "Patchy"],
+] as const;
+const TIER_HINTS: Record<string, string> = {
+  A: "Recaps state it plainly every episode.",
+  B: "Worked out from other answers, not reported directly.",
+  C: "Reported often but not always, so some weeks it may be missed.",
+};
+
+// "When won daily is yes → Won Daily Challenge" on Won Daily Challenge's own row: the arrow and the
+// name repeat the row's title, so the row keeps just the condition.
+function withoutAward(sentence: string, label: string): string {
+  const tail = ` → ${label}`;
+  return label && sentence.endsWith(tail) ? sentence.slice(0, -tail.length) : sentence;
+}
+
+function pointsText(n: unknown): string {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "?";
+  if (n === 0) return "0";
+  return n > 0 ? `+${n}` : `−${Math.abs(n)}`;
+}
+
+/** A tappable review row: what it is, a line or two about it, a value on the right. */
+function ReviewRow({
+  title,
+  detail,
+  flags,
+  value,
+  onClick,
+}: {
+  title: ReactNode;
+  detail?: ReactNode;
+  flags?: ReactNode;
+  value?: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-[60px] w-full items-center gap-3 py-3 text-left outline-none hover:bg-accent/40 focus-visible:bg-accent"
+    >
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-base font-semibold leading-snug">{title}</span>
+        {/* Built-ins' sentences run long; the row gives two lines and the sheet has the whole rule. */}
+        {detail && <span className="line-clamp-2 text-[13px] leading-snug text-muted-foreground">{detail}</span>}
+        {flags}
+      </span>
+      {value}
+      <ChevronRight className="size-5 shrink-0 text-muted-foreground" strokeWidth={2.2} aria-hidden />
+    </button>
+  );
+}
+
+/** The small status words under a row, joined by dots: a problem in red, patchy reporting in gold. */
+function Flags({ items }: { items: { text: string; tone?: "bad" | "warn" }[] }) {
+  if (!items.length) return null;
+  return (
+    <span className="flex flex-wrap items-center gap-x-1.5 text-[13px] leading-snug">
+      {items.map((f, i) => (
+        <span key={f.text} className="flex items-center gap-1.5">
+          {i > 0 && <span className="text-muted-foreground" aria-hidden>·</span>}
+          <span className={cn(f.tone === "bad" ? "font-semibold text-destructive" : f.tone === "warn" ? "font-semibold text-accent-2" : "text-muted-foreground")}>
+            {f.text}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+const sheetSelectCls = cn(fieldCls, "appearance-auto pr-2");
+
 export function FormatReviewScreen({
   format,
   onClose,
@@ -720,6 +831,7 @@ export function FormatReviewScreen({
   approveFn = (id, body) => api.adminApproveFormat(id, body),
   allowExisting = true,
   onShowCreated,
+  inPage = false,
 }: {
   format: StoredFormat;
   onClose: () => void;
@@ -735,24 +847,26 @@ export function FormatReviewScreen({
   // Admin -- that's the one boundary the whole self-serve feature rests on (see
   // src/app/api/formats/[id]/create-show/route.ts).
   allowExisting?: boolean;
-  // Fired after a successful "Approve & create show", so a caller like the create-league wizard can
+  // Fired after a successful approve-and-create, so a caller like the create-league wizard can
   // move on with the new show.
   onShowCreated?: (show: { id: string; slug: string; name: string }) => void;
+  // true on Admin's own format page (AdminPage gives the title, Back, and a tab bar to sit above):
+  // no title row or Close here, and the actions go in a sticky bar. false inside another flow (the
+  // create-league wizard), which has its own sticky footer, so the actions sit at the end instead.
+  inPage?: boolean;
 }) {
   const [current, setCurrent] = useState(format);
   const [proposal, setProposal] = useState<Proposal>(format.proposal);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [pickingShow, setPickingShow] = useState(false);
+  const [open, setOpen] = useState<Target | null>(null);
+  const [adding, setAdding] = useState<"event" | "question" | null>(null);
+  const [approving, setApproving] = useState(false);
   const [pickedShowId, setPickedShowId] = useState("");
 
-  // Rule editing: the inline edits above only ever touch an event's label/points/category -- a
-  // built-in's params, conditions and awards aren't a row anything here edits one field at a time
-  // (that's the rule-list/flowchart editor PLAN-scoring-rules-as-data.md reserves for later). Until
-  // that exists, a raw-JSON editor for just the `rules` block is the one way to fix a rule mistake
-  // (a bad built-in param, a type mismatch) without leaving the app and re-pasting from scratch --
-  // it still goes through the same `proposal` state, so `reviewProposal` re-validates it live.
+  // The raw-JSON editor for the whole `rules` block: the last resort for a shape no row's controls
+  // cover. It goes through the same `proposal` state, so `reviewProposal` re-validates it live.
   const [rulesEditorOpen, setRulesEditorOpen] = useState(false);
   const [rulesText, setRulesText] = useState("");
   const [rulesTextError, setRulesTextError] = useState<string | null>(null);
@@ -788,13 +902,8 @@ export function FormatReviewScreen({
   );
 
   const review = useMemo(() => reviewProposal(proposal, { id: current.id }), [proposal, current.id]);
+  const dirty = useMemo(() => JSON.stringify(proposal) !== JSON.stringify(current.proposal), [proposal, current.proposal]);
 
-  // A problem's `at` names the row it's about (`events[id]`, `rules.research[2]`, ...), and review
-  // already attaches an event/question/exit/otherRule row's OWN problems to it -- but a rule that
-  // awards a shown event (so it isn't in otherRules) still carries its own problems at its own `at`
-  // (`rules.research[i]`), which no row would otherwise surface. Attribute those to the event row
-  // whose sentence they belong to, and catch anything left over so no problem is ever silently hidden
-  // behind just the bottom count.
   const problemsForAt = (at: string) => review.problems.filter((p) => p.at === at).map((p) => p.message);
   // Shared option lists for RuleFields' dropdowns -- every real event, exit method and question in
   // the format as it stands right now (including ones just added or renamed this session).
@@ -809,18 +918,34 @@ export function FormatReviewScreen({
     onCreateQuestion: addQuestion,
   };
   const categoryOptions = review.categories.map((g) => g.label);
-  const shownAts = useMemo(() => {
-    const s = new Set<string>();
-    for (const g of review.categories) for (const ev of g.events) {
-      s.add(`events[${ev.id}]`);
-      for (const r of ev.rules) s.add(r.at);
+  const allEvents = review.categories.flatMap((g) => g.events);
+  type ReviewEvent = (typeof allEvents)[number];
+  type ReviewQuestion = (typeof review.questions)[number];
+
+  // Every problem names the row it's about (`events[id]`, `questions[key]`, `rules.research[2]`...).
+  // A rule that awards a shown event belongs to that event's row; anything else gets its own rule
+  // row; `exits[...]` and `format` have no row to open, so they're just read.
+  function targetFor(at: string): Target | null {
+    let m = /^events\[(.+)\]$/.exec(at);
+    if (m && allEvents.some((e) => e.id === m![1])) return { kind: "event", id: m[1] };
+    m = /^questions\[(.+)\]$/.exec(at);
+    if (m && review.questions.some((q) => q.key === m![1])) return { kind: "question", key: m[1] };
+    if (ruleAtPath(at)) {
+      const owner = allEvents.find((e) => e.rules.some((r) => r.at === at));
+      if (owner) return { kind: "event", id: owner.id };
+      if (review.otherRules.some((r) => r.at === at)) return { kind: "rule", at };
     }
-    for (const q of review.questions) s.add(`questions[${q.key}]`);
-    for (const x of review.exits) s.add(`exits[${x.name}]`);
-    for (const r of review.otherRules) s.add(r.at);
-    return s;
-  }, [review]);
-  const leftoverProblems = review.problems.filter((p) => !shownAts.has(p.at));
+    return null;
+  }
+  function nameFor(at: string): string {
+    const t = targetFor(at);
+    if (t?.kind === "event") return allEvents.find((e) => e.id === t.id)?.label || t.id;
+    if (t?.kind === "question") return review.questions.find((q) => q.key === t.key)?.question || t.key;
+    if (t?.kind === "rule") return review.otherRules.find((r) => r.at === at)?.sentence ?? "A rule";
+    const x = /^exits\[(.+)\]$/.exec(at);
+    if (x) return `Leaving by ${x[1]}`;
+    return "The format";
+  }
 
   function getRule(at: string): unknown {
     const loc = ruleAtPath(at);
@@ -859,12 +984,14 @@ export function FormatReviewScreen({
   }
 
   // Same, with no award -- for a rule that only stages a fact (like Survivor's `exiled`) rather than
-  // scoring a shown event.
+  // scoring a shown event. Opens straight away, so the new row isn't left for the admin to find.
   function addOtherRule() {
+    const index = Array.isArray(proposal.rules?.research) ? proposal.rules!.research!.length : 0;
     setProposal((p) => ({
       ...p,
       rules: { ...(p.rules ?? {}), research: [...(Array.isArray(p.rules?.research) ? p.rules!.research! : []), { when: { answer: "", is: "yes" } }] },
     }));
+    setOpen({ kind: "rule", at: `rules.research[${index}]` });
   }
 
   function updateEvent(id: string, patch: Partial<{ label: string; points: number; category: string }>) {
@@ -874,14 +1001,7 @@ export function FormatReviewScreen({
     }));
   }
 
-  function updateQuestionType(key: string, type: string) {
-    setProposal((p) => ({
-      ...p,
-      questions: (p.questions ?? []).map((q) => (effectiveQuestionKey(q) === key ? { ...q, type } : q)),
-    }));
-  }
-
-  function updateQuestion(key: string, patch: Partial<{ question: string; note: string; tier: string }>) {
+  function updateQuestion(key: string, patch: Partial<{ question: string; note: string; tier: string; type: string }>) {
     setProposal((p) => ({
       ...p,
       questions: (p.questions ?? []).map((q) => (effectiveQuestionKey(q) === key ? { ...q, ...patch } : q)),
@@ -889,15 +1009,14 @@ export function FormatReviewScreen({
   }
 
   // Not pre-checked against the rules that read it -- reviewProposal already raises "a rule reads a
-  // missing question" as a problem on save/approve, the same way every other dangling reference here is
-  // already caught (see removeRule, which lets an event end up with zero rules too).
+  // missing question" as a problem, the same way every other dangling reference here is caught.
   function removeQuestion(key: string) {
     setProposal((p) => ({ ...p, questions: (p.questions ?? []).filter((q) => effectiveQuestionKey(q) !== key) }));
   }
 
-  // For a rule param with no valid event to point at (a built-in's "otherwise", say) -- a new, bare
-  // event right from that param's dropdown, rather than making the admin scroll up and invent one by
-  // hand first. Starts at 0 points: tracked, not yet scored, same as the prompt tells the chat itself.
+  // A new, bare event: from "Add an event", or from a rule param with no valid event to point at (a
+  // built-in's "otherwise", say). Starts at 0 points: tracked, not yet scored, same as the prompt
+  // tells the chat itself.
   function addEvent(label: string): string {
     const base = camelId(label) || "newEvent";
     const taken = new Set((proposal.events ?? []).map((e) => effectiveEventId(e)));
@@ -970,7 +1089,7 @@ export function FormatReviewScreen({
   }
 
   const approved = current.status === "approved";
-  const showsQuery = useQuery({ queryKey: ["admin-shows-picker"], queryFn: () => api.adminListShows(), enabled: pickingShow && allowExisting });
+  const showsQuery = useQuery({ queryKey: ["admin-shows-picker"], queryFn: () => api.adminListShows(), enabled: approving && allowExisting });
   const shows: AdminShow[] = showsQuery.data?.shows ?? [];
   const pickedShow = shows.find((s) => s.id === pickedShowId);
 
@@ -984,8 +1103,16 @@ export function FormatReviewScreen({
     return run(doApprove, successNote, true);
   }
 
+  async function approveAsNewShow() {
+    setApproving(false);
+    const res = await saveThenApprove(() => approveFn(current.id, { createShow: true, domains: [...domainsChecked] }), "Approved and created the show.");
+    if (res?.show) onShowCreated?.(res.show);
+  }
+
   async function useForExistingShow() {
     if (!pickedShow) return;
+    // The sheet closes first: the confirm is its own dialog, and two stacked ones fight over focus.
+    setApproving(false);
     const ok = await confirm(
       `Switch ${pickedShow.name} to ${current.name} rules? Its ${pickedShow.league_count} league${pickedShow.league_count === 1 ? "" : "s"} switch too. ` +
         `Results already recorded keep their current wording.`,
@@ -996,409 +1123,590 @@ export function FormatReviewScreen({
       () => approveFn(current.id, { showId: pickedShow.id, domains: [...domainsChecked] }),
       `${current.name} now powers ${pickedShow.name}.`
     );
-    setPickingShow(false);
   }
 
+  const problemCount = review.problems.length;
+  // One row per thing to fix, not per message: an event awarded twice also trips "no event in the
+  // catalog" on each rule, and that's one fix, not three. The row's own message leads (it's the
+  // cause); the rest are counted.
+  const problemGroups = (() => {
+    const groups: { key: string; at: string; target: Target | null; messages: string[] }[] = [];
+    for (const p of review.problems) {
+      const target = targetFor(p.at);
+      const key = target ? JSON.stringify(target) : p.at;
+      let g = groups.find((x) => x.key === key);
+      if (!g) groups.push((g = { key, at: p.at, target, messages: [] }));
+      if (p.at === `events[${target?.kind === "event" ? target.id : ""}]`) g.messages.unshift(p.message);
+      else g.messages.push(p.message);
+    }
+    return groups;
+  })();
+  const eventCount = allEvents.length;
+  const counts = [count(eventCount, "scoring event"), count(review.questions.length, "question"), count(review.exits.length, "way to leave", "ways to leave")].join(" · ");
+
+  function eventFlags(ev: ReviewEvent) {
+    const n = ev.problems.length + ev.rules.reduce((sum, r) => sum + problemsForAt(r.at).length, 0);
+    const items: { text: string; tone?: "bad" | "warn" }[] = [];
+    if (n) items.push({ text: count(n, "problem"), tone: "bad" });
+    if (ev.tier === "C") items.push({ text: "Patchy reporting", tone: "warn" });
+    if (ev.implied) items.push({ text: "Automatic" });
+    if (!ev.rules.length) items.push({ text: "Only added by hand" });
+    return items;
+  }
+  function questionFlags(q: ReviewQuestion) {
+    const items: { text: string; tone?: "bad" | "warn" }[] = [];
+    if (q.problems.length) items.push({ text: count(q.problems.length, "problem"), tone: "bad" });
+    items.push({ text: q.type === "enum" && q.values?.length ? `One of: ${q.values.join(", ")}` : (TYPE_LABELS[q.type] ?? q.type) });
+    if (q.tier === "C") items.push({ text: "Patchy reporting", tone: "warn" });
+    if (q.warnings.some((w) => w.startsWith("no rule reads it"))) items.push({ text: "Not scored" });
+    return items;
+  }
+
+  const openEvent = open?.kind === "event" ? allEvents.find((e) => e.id === open.id) : undefined;
+  const openQuestion = open?.kind === "question" ? review.questions.find((q) => q.key === open.key) : undefined;
+  const openRule = open?.kind === "rule" ? review.otherRules.find((r) => r.at === open.at) : undefined;
+
+  const actions = approved ? (
+    <ActButton tone="chyron" disabled={busy || !dirty || problemCount > 0} onClick={() => run(() => saveFn(current.id, proposal), "Saved.", true)} className="min-h-12">
+      {busy ? "Saving…" : "Save changes"}
+    </ActButton>
+  ) : (
+    <>
+      <ActButton disabled={busy || !dirty} onClick={() => run(() => saveFn(current.id, proposal), "Saved.", true)} className="min-h-12">
+        Save
+      </ActButton>
+      <ActButton
+        tone="chyron"
+        disabled={busy || problemCount > 0}
+        onClick={() => (allowExisting ? setApproving(true) : approveAsNewShow())}
+        className="min-h-12"
+      >
+        {busy ? "Working…" : allowExisting ? "Approve" : "Approve and add"}
+      </ActButton>
+    </>
+  );
+  const barNote = problemCount
+    ? `Fix ${count(problemCount, "problem")} to ${approved ? "save" : "approve"}.`
+    : approved
+      ? dirty
+        ? "Saving updates every show and league on these rules."
+        : "No changes yet."
+      : dirty
+        ? "Unsaved changes. Approving saves them too."
+        : "Nothing goes live until you approve.";
+
   return (
-    <div className="mt-2 rounded-md border border-border bg-card p-3 text-xs">
-      <div className="flex flex-wrap items-center gap-2">
-        <h4 className="text-sm font-bold">{current.name}</h4>
-        <Badge variant={approved ? "default" : "secondary"}>{approved ? "Approved" : "Draft"}</Badge>
-        <span className="text-muted-foreground">v{current.version}</span>
-        {!rulesEditorOpen && (
-          <Button
-            variant="secondary"
-            size="xs"
-            className="ml-auto"
-            title="Edit every rule at once -- for a problem attached to one rule (further down), use the edit link on that rule's own line instead"
-            onClick={openRulesEditor}
-          >
-            Edit all rules
-          </Button>
+    <div className="flex flex-1 flex-col gap-7">
+      {!inPage && (
+        <div className="flex items-center gap-2">
+          <h3 className="type-caption min-w-0 flex-1 truncate text-[24px]">{current.name}</h3>
+          {approved ? <Chip>Approved</Chip> : <Chip>Draft</Chip>}
+          <ActButton onClick={onClose}>Close</ActButton>
+        </div>
+      )}
+
+      {/* The verdict first, the way an episode's results open on their coverage: can this be approved,
+          and if not, exactly what's in the way, each one a row that opens what it's about. */}
+      <section className="flex flex-col gap-1 rounded-[4px] bg-card p-4" aria-live="polite">
+        <p className="text-base font-bold leading-snug">
+          {problemCount
+            ? `${count(problemCount, "problem")} to fix before ${approved ? "saving" : "approving"}.`
+            : approved
+              ? "These rules are live."
+              : "Ready to approve. Nothing needs fixing."}
+        </p>
+        <p className="text-[13px] leading-snug text-muted-foreground">
+          {counts}. {problemCount ? "Tap one to fix it." : "Tap any row to change it."}
+        </p>
+        {problemCount > 0 && (
+          <ul className="-mb-2 mt-2 flex flex-col border-t border-border [&>li+li]:border-t [&>li+li]:border-border">
+            {problemGroups.map((g) => {
+              const t = g.target;
+              const body = (
+                <>
+                  <CircleAlert className="mt-0.5 size-[18px] shrink-0 text-destructive" strokeWidth={2.2} aria-hidden />
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-[15px] font-semibold leading-snug">{nameFor(g.at)}</span>
+                    <span className="text-[13px] leading-snug text-muted-foreground">
+                      {g.messages[0]}
+                      {g.messages.length > 1 && ` · and ${g.messages.length - 1} more`}
+                    </span>
+                  </span>
+                </>
+              );
+              return (
+                <li key={g.key}>
+                  {t ? (
+                    <button type="button" onClick={() => setOpen(t)} className="flex min-h-[52px] w-full items-start gap-2.5 py-2.5 text-left outline-none hover:bg-accent/40 focus-visible:bg-accent">
+                      {body}
+                      <ChevronRight className="mt-0.5 size-5 shrink-0 text-muted-foreground" strokeWidth={2.2} aria-hidden />
+                    </button>
+                  ) : (
+                    <div className="flex min-h-[52px] items-start gap-2.5 py-2.5">{body}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         )}
-        <Button variant="secondary" size="xs" className={rulesEditorOpen ? "ml-auto" : ""} onClick={onClose}>
-          Close
-        </Button>
-      </div>
+      </section>
 
       {review.repairs.length > 0 && (
-        <div className="mt-2 rounded border border-dashed border-border bg-secondary/40 p-1.5">
-          <p className="font-semibold">Repaired while reading the answer:</p>
-          <ul className="mt-0.5 flex flex-col gap-0.5 text-muted-foreground">
+        <MoreOptions label={`Tidied ${count(review.repairs.length, "thing")} in the answer`}>
+          <ul className="-mt-2 flex flex-col gap-1.5 text-[13px] leading-snug text-muted-foreground">
             {review.repairs.map((r, i) => (
               <li key={i}>
-                <code className="font-mono text-[0.65rem]">{r.at}</code>: {r.message}
+                <span className="font-semibold text-foreground">{nameFor(r.at)}</span>: {r.message}
               </li>
             ))}
           </ul>
-        </div>
+        </MoreOptions>
       )}
 
-      {leftoverProblems.length > 0 && (
-        <div className="mt-2 rounded border border-destructive/40 bg-destructive/5 p-1.5">
-          <p className="font-semibold text-destructive">Other problems:</p>
-          <ul className="mt-0.5 flex flex-col gap-0.5">
-            {leftoverProblems.map((p, i) => (
-              <li key={i}>
-                <code className="font-mono text-[0.65rem] text-muted-foreground">{p.at}</code>: {p.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {rulesEditorOpen && (
-        <div className="mt-2 rounded border border-dashed border-border bg-secondary/40 p-1.5">
-          <p className="mb-1">
-            Raw <code className="font-mono text-[0.65rem]">rules.research</code> / <code className="font-mono text-[0.65rem]">rules.implied</code> --
-            a built-in&rsquo;s params, conditions and awards aren&rsquo;t a row the screen edits one field at a time yet. Fix the
-            problem above and Apply; the review recomputes as soon as you do.
-          </p>
-          <Textarea rows={16} value={rulesText} onChange={(e) => setRulesText(e.target.value)} className="font-mono text-[0.7rem]" />
-          {rulesTextError && <p className="mt-1 font-semibold text-destructive">{rulesTextError}</p>}
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <Button size="xs" onClick={applyRulesText}>
-              Apply
-            </Button>
-            <Button variant="secondary" size="xs" onClick={() => setRulesEditorOpen(false)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Events, grouped by category like Active Roster Settings groups them. */}
-      <div className="mt-3 flex flex-col gap-3">
-        <AnimatePresence>
-          {review.categories.map((g, gi) => (
-            <div key={g.label}>
-              <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">{g.label}</div>
-              <div className="flex flex-col gap-1.5">
-                {g.events.map((ev, ei) => {
-                  const allProblems = [...ev.problems, ...ev.rules.flatMap((r) => problemsForAt(r.at))];
-                  return (
-                  <m.div
+      <Section title="Scoring" aside={<span className="text-[13px] text-muted-foreground">{count(eventCount, "event")}</span>}>
+        <div className="flex flex-col gap-4">
+          {review.categories.map((g) => (
+            <div key={g.label} className="flex flex-col">
+              <h4 className="type-caption pb-1.5 text-[15px] tracking-[0.04em] text-muted-foreground">{g.label}</h4>
+              <Rows>
+                {g.events.map((ev) => (
+                  <ReviewRow
                     key={ev.id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: Math.min(gi * 0.04 + ei * 0.02, 0.3), duration: 0.16 }}
-                    className={cn("rounded-md border px-2.5 py-1.5", allProblems.length ? "border-destructive/40" : "border-border")}
-                  >
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <TierChip tier={ev.tier} />
-                      {ev.implied && (
-                        <span className="text-[0.65rem] text-muted-foreground" title="Scored automatically from how they left -- can't be added by hand">
-                          (automatic)
-                        </span>
-                      )}
-                      <Input
-                        size="sm"
-                        className="min-w-[140px] flex-1"
-                        defaultValue={ev.label}
-                        disabled={ev.implied}
-                        onBlur={(e) => {
-                          const v = e.target.value.trim();
-                          if (v && v !== ev.label) updateEvent(ev.id, { label: v });
-                        }}
-                      />
-                      <Input
-                        size="sm"
-                        type="number"
-                        step="0.5"
-                        className="w-16"
-                        title="Points"
-                        defaultValue={ev.points}
-                        onBlur={(e) => {
-                          const n = parseFloat(e.target.value);
-                          if (Number.isFinite(n) && n !== ev.points) updateEvent(ev.id, { points: n });
-                        }}
-                      />
-                      <CategorySelect value={ev.category} categories={categoryOptions} onChange={(v) => updateEvent(ev.id, { category: v })} />
-                    </div>
-                    {/* The event's OWN problem (e.g. "awarded by both a research rule and an exit
-                        rule") is the one to read first: it's the actual cause, and fixing it (usually
-                        by removing one rule below) clears the per-rule "no event in the catalog"
-                        messages those rules show too -- same root cause, not separate problems. A
-                        callout box, not a plain red line, so it visibly points at what's below rather
-                        than reading as one more alert mixed in with everything else. */}
-                    {ev.problems.length > 0 && (
-                      <div className="mt-1 rounded border border-destructive/40 bg-destructive/5 p-1.5 text-[0.7rem]">
-                        {ev.problems.map((p) => (
-                          <p key={p} className="font-semibold text-destructive">
-                            ! {p} -- see the rules below
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                    {ev.warnings.length > 0 && <Notes problems={[]} warnings={ev.warnings} />}
-                    {ev.why && <p className="mt-0.5 text-[0.7rem] italic text-muted-foreground">{ev.why}</p>}
-                    {ev.rules.length > 0 && (
-                      // More than one rule awarding the same event is exactly the confusing case
-                      // (two rules fighting over one award): give each its own card so it's obvious
-                      // where one ends and the next begins. One rule stays a plain line -- no need for
-                      // a box around the common case.
-                      <ul className={cn("mt-1 flex flex-col text-[0.7rem] text-muted-foreground", ev.rules.length > 1 ? "gap-1.5" : "gap-1")}>
-                        {ev.rules.map((r) => (
-                          <li key={r.at} className={cn(ev.rules.length > 1 && "rounded-md border border-border bg-card px-2 py-1.5")}>
-                            <RuleLine
-                              sentence={r.sentence}
-                              problems={problemsForAt(r.at)}
-                              rule={getRule(r.at)}
-                              onApply={(next) => setRule(r.at, next)}
-                              onRemove={() => removeRule(r.at)}
-                              context={ruleAtPath(r.at)?.list ?? "research"}
-                              {...ruleFieldProps}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <button
-                      className="mt-1 text-[0.65rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                      onClick={() => addRuleForEvent(ev.id)}
-                    >
-                      + Add rule
-                    </button>
-                  </m.div>
-                  );
-                })}
-              </div>
+                    title={ev.label || <span className="text-muted-foreground">No name</span>}
+                    detail={
+                      ev.rules.length
+                        ? `${withoutAward(ev.rules[0].sentence, ev.label)}${ev.rules.length > 1 ? ` · and ${count(ev.rules.length - 1, "more rule")}` : ""}`
+                        : undefined
+                    }
+                    flags={<Flags items={eventFlags(ev)} />}
+                    value={
+                      <span className={cn("type-num shrink-0 text-[24px]", ev.points === 0 && "text-muted-foreground")} aria-label={`${ev.points} points`}>
+                        {pointsText(ev.points)}
+                      </span>
+                    }
+                    onClick={() => setOpen({ kind: "event", id: ev.id })}
+                  />
+                ))}
+              </Rows>
             </div>
           ))}
-        </AnimatePresence>
-      </div>
-
-      <div className="mt-3">
-        <div className="mb-1 flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
-          <span>Other rules</span>
-          <button className="font-normal normal-case text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={addOtherRule}>
-            + Add rule
-          </button>
         </div>
-        {review.otherRules.length > 0 && (
-          <ul className="flex flex-col gap-1">
+        <ActButton onClick={() => setAdding("event")} className="mt-1 self-start">
+          <Plus className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          Add an event
+        </ActButton>
+      </Section>
+
+      {review.otherRules.length > 0 && (
+        <Section title="Other rules">
+          <p className="-mt-1 text-[13px] leading-snug text-muted-foreground">These don&rsquo;t award an event on their own.</p>
+          <Rows>
             {review.otherRules.map((r) => (
-              <div key={r.at} className="rounded-md border border-border px-2.5 py-1.5">
-                <RuleLine
-                  sentence={r.sentence}
-                  problems={r.problems}
-                  rule={getRule(r.at)}
-                  onApply={(next) => setRule(r.at, next)}
-                  onRemove={() => removeRule(r.at)}
-                  context={ruleAtPath(r.at)?.list ?? "research"}
-                  {...ruleFieldProps}
-                />
-              </div>
+              <ReviewRow
+                key={r.at}
+                title={r.sentence}
+                flags={<Flags items={r.problems.length ? [{ text: count(r.problems.length, "problem"), tone: "bad" }] : []} />}
+                onClick={() => setOpen({ kind: "rule", at: r.at })}
+              />
             ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Questions: asked every episode. Editable like the events above -- label, note, tier and type;
-          removing one a rule still reads is deliberately not pre-blocked here, same as removeRule --
-          reviewProposal already raises that as a problem on save/approve. */}
-      <div className="mt-3">
-        <div className="mb-1 flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
-          <span>Questions research answers</span>
-          <button
-            className="font-normal normal-case text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            onClick={() => {
-              const label = window.prompt('What does research answer about each person, each episode? (e.g. "did they sit out of a challenge")');
-              if (label && label.trim()) addQuestion(label.trim());
-            }}
-          >
-            + Add question
-          </button>
-        </div>
-        <ul className="flex flex-col gap-1">
-          {review.questions.map((q) => (
-            <li key={q.key} className={cn("rounded-md border px-2.5 py-1.5", q.problems.length ? "border-destructive/40" : "border-border")}>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Select
-                  size="sm"
-                  className="w-14"
-                  value={q.tier ?? ""}
-                  title="A: stated plainly every episode · B: worked out from other answers · C: reported often but not always"
-                  onChange={(e) => updateQuestion(q.key, { tier: e.target.value })}
-                >
-                  <option value="">tier?</option>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                </Select>
-                <code className="font-mono text-[0.7rem]">{q.key}</code>
-                <Input
-                  size="sm"
-                  className="min-w-[160px] flex-1"
-                  defaultValue={q.question}
-                  onBlur={(e) => {
-                    const v = e.target.value.trim();
-                    if (v && v !== q.question) updateQuestion(q.key, { question: v });
-                  }}
-                />
-                <Select size="sm" value={q.type} onChange={(e) => updateQuestionType(q.key, e.target.value)}>
-                  {QUESTION_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </Select>
-                <Input
-                  size="sm"
-                  className="w-28"
-                  placeholder="note"
-                  defaultValue={q.note}
-                  onBlur={(e) => {
-                    const v = e.target.value.trim();
-                    if (v !== q.note) updateQuestion(q.key, { note: v });
-                  }}
-                />
-                <button className="text-muted-foreground underline-offset-2 hover:text-destructive hover:underline" onClick={() => removeQuestion(q.key)}>
-                  remove
-                </button>
-              </div>
-              <Notes problems={q.problems} warnings={q.warnings} />
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Exit methods: read-only -- how someone leaves comes from the chat's answer, not edited here. */}
-      <div className="mt-3">
-        <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Exit methods</div>
-        <ul className="flex flex-wrap gap-1.5">
-          {review.exits.map((x) => (
-            <li key={x.name} className="rounded-md border border-border px-2 py-1">
-              <b>{x.name}</b> <span className="text-muted-foreground">({x.kind})</span>
-              <Notes problems={[]} warnings={x.warnings} />
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {review.notTrackable.length > 0 && (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">
-            Not reliably trackable ({review.notTrackable.length})
-          </summary>
-          <ul className="mt-1 flex flex-col gap-0.5 text-muted-foreground">
-            {review.notTrackable.map((t, i) => (
-              <li key={i}>
-                <b>{t.fact}</b>{t.why ? ` — ${t.why}` : ""}
-              </li>
-            ))}
-          </ul>
-        </details>
+          </Rows>
+        </Section>
       )}
+
+      <Section title="What research answers">
+        <p className="-mt-1 text-[13px] leading-snug text-muted-foreground">Asked about each person, each episode.</p>
+        <Rows>
+          {review.questions.map((q) => (
+            <ReviewRow
+              key={q.key}
+              title={q.question || <span className="text-muted-foreground">No question</span>}
+              flags={<Flags items={questionFlags(q)} />}
+              onClick={() => setOpen({ kind: "question", key: q.key })}
+            />
+          ))}
+        </Rows>
+        <ActButton onClick={() => setAdding("question")} className="mt-1 self-start">
+          <Plus className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          Add a question
+        </ActButton>
+      </Section>
+
+      {/* Read-only: how someone leaves comes from the chat's answer, not edited here. */}
+      <Section title="Ways to leave">
+        <Rows>
+          {review.exits.map((x) => (
+            <div key={x.name} className="flex min-h-12 items-center gap-3 py-2.5">
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-base font-semibold">{x.name}</span>
+                {(x.meaning || x.warnings.length > 0) && (
+                  <span className="text-[13px] leading-snug text-muted-foreground">
+                    {[x.meaning, x.warnings.some((w) => w.startsWith("leaving this way scores nothing")) ? "Scores nothing" : ""].filter(Boolean).join(" · ")}
+                  </span>
+                )}
+              </span>
+              {x.kind !== "out" && <Chip>{x.kind === "winner" ? "Winner" : "Finalist"}</Chip>}
+            </div>
+          ))}
+        </Rows>
+      </Section>
 
       {review.flagged.length > 0 && (
-        <div className="mt-3 flex flex-col gap-1.5">
-          <div className="text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Flagged -- needs a developer</div>
-          {review.flagged.map((f) => (
-            <div key={f.name} className="rounded-md border border-dashed border-destructive/40 bg-destructive/5 p-1.5">
-              <p>
-                <b>{f.name}</b> — {f.what}
-              </p>
-              {f.whyCode && <p className="text-muted-foreground">Why it needs code: {f.whyCode}</p>}
-              {f.findings && <p className="text-muted-foreground">{f.findings}</p>}
-              <p className="mt-0.5 font-semibold">Approving doesn&rsquo;t add this -- it&rsquo;s left out of the format.</p>
-            </div>
-          ))}
-        </div>
+        <Section title="Needs a developer">
+          <p className="-mt-1 text-[13px] leading-snug text-muted-foreground">Approving leaves these out of the rules.</p>
+          <Rows>
+            {review.flagged.map((f) => (
+              <div key={f.name} className="flex flex-col gap-1 py-3">
+                <span className="text-base font-semibold">{f.name}</span>
+                <span className="text-[15px] leading-snug">{f.what}</span>
+                {f.whyCode && <span className="text-[13px] leading-snug text-muted-foreground">Why it needs code: {f.whyCode}</span>}
+                {f.findings && <span className="text-[13px] leading-snug text-muted-foreground">{f.findings}</span>}
+              </div>
+            ))}
+          </Rows>
+        </Section>
       )}
 
       {review.domains.length > 0 && (
-        <div className="mt-3">
-          <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide text-muted-foreground">Research sites to add</div>
-          <div className="flex flex-wrap gap-2.5">
+        <Section title="Research sites">
+          <p className="-mt-1 text-[13px] leading-snug text-muted-foreground">Ticked sites are added to what research searches when you approve.</p>
+          <RowList>
             {review.domains.map((d) => (
-              <label key={d.domain} className="flex items-center gap-1" title={d.why}>
-                <input type="checkbox" checked={domainsChecked.has(d.domain)} onChange={() => toggleDomain(d.domain)} />
-                {d.domain}
-              </label>
+              <ToggleRow key={d.domain} label={d.domain} hint={d.why || undefined} checked={domainsChecked.has(d.domain)} onChange={() => toggleDomain(d.domain)} />
             ))}
-          </div>
-        </div>
+          </RowList>
+        </Section>
       )}
 
-      {note && <p className="mt-2 font-semibold text-good">{note}</p>}
-      {error && <p className="mt-2 font-semibold text-destructive">{error}</p>}
-
-      <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
-        <Button
-          size="xs"
-          disabled={busy || (approved && review.problems.length > 0)}
-          title={approved && review.problems.length > 0 ? "An approved format has to stay valid -- fix the problems first" : undefined}
-          onClick={() => run(() => saveFn(current.id, proposal), "Saved.", true)}
-        >
-          {approved ? "Save changes" : "Save as draft"}
-        </Button>
-        {!approved && (
-          <>
-            <Button
-              variant="secondary"
-              size="xs"
-              disabled={busy || review.problems.length > 0}
-              title={review.problems.length > 0 ? "Fix every problem first" : undefined}
-              onClick={async () => {
-                const res = await saveThenApprove(
-                  () => approveFn(current.id, { createShow: true, domains: [...domainsChecked] }),
-                  "Approved and created the show."
-                );
-                if (res?.show) onShowCreated?.(res.show);
-              }}
-            >
-              Approve &amp; create show
-            </Button>
-            {allowExisting && (
-              <Button variant="secondary" size="xs" disabled={busy || review.problems.length > 0} onClick={() => setPickingShow((v) => !v)}>
-                Use for an existing show
-              </Button>
-            )}
-          </>
+      <div className="flex flex-col gap-1">
+        {review.notTrackable.length > 0 && (
+          <MoreOptions label={`Left out: not reliably reported (${review.notTrackable.length})`}>
+            <ul className="-mt-2 flex flex-col gap-1.5 text-[15px] leading-snug">
+              {review.notTrackable.map((t, i) => (
+                <li key={i}>
+                  <span className="font-semibold">{t.fact}</span>
+                  {t.why && <span className="text-muted-foreground"> · {t.why}</span>}
+                </li>
+              ))}
+            </ul>
+          </MoreOptions>
         )}
+        <MoreOptions label="Advanced">
+          <div className="-mt-2 flex flex-col gap-3">
+            {!rulesEditorOpen ? (
+              <div className="flex flex-wrap gap-2">
+                <ActButton onClick={openRulesEditor}>Edit every rule as JSON</ActButton>
+                <ActButton onClick={addOtherRule}>
+                  <Plus className="size-[18px]" strokeWidth={2.4} aria-hidden />
+                  Add a rule with no event
+                </ActButton>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <p className="text-[13px] leading-snug text-muted-foreground">
+                  The whole <code className="font-mono">rules</code> block, research and implied. Apply, and the review above checks it again straight away.
+                </p>
+                <Textarea rows={16} value={rulesText} onChange={(e) => setRulesText(e.target.value)} className="font-mono text-[13px]" />
+                {rulesTextError && <Notice tone="bad">{rulesTextError}</Notice>}
+                <div className="flex gap-2">
+                  <ActButton tone="chyron" onClick={applyRulesText}>
+                    Apply
+                  </ActButton>
+                  <ActButton onClick={() => setRulesEditorOpen(false)}>Cancel</ActButton>
+                </div>
+              </div>
+            )}
+          </div>
+        </MoreOptions>
       </div>
-      {/* Named, not just counted: a bare count gives no way to tell whether it's the same problem
-          still unresolved or a different one further up the screen. */}
-      {review.problems.length > 0 && (
-        <div className="mt-1.5 rounded border border-destructive/40 bg-destructive/5 p-1.5 text-[0.7rem]">
-          <p className="font-semibold text-destructive">
-            {review.problems.length} problem{review.problems.length === 1 ? "" : "s"} to fix before approving:
-          </p>
-          <ul className="mt-0.5 flex flex-col gap-0.5">
-            {review.problems.map((p, i) => (
-              <li key={i}>
-                <code className="font-mono text-[0.65rem] text-muted-foreground">{p.at}</code>: {p.message}
-              </li>
-            ))}
-          </ul>
+
+      {note && <Notice>{note}</Notice>}
+      {error && <Notice tone="bad">{error}</Notice>}
+
+      {inPage ? (
+        <StickyBar note={barNote}>{actions}</StickyBar>
+      ) : (
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-[13px] leading-snug text-muted-foreground">{barNote}</p>
+          <div className="flex flex-wrap gap-2">{actions}</div>
         </div>
       )}
 
-      {pickingShow && (
-        <div className="mt-2 flex items-center gap-1.5 rounded border border-dashed border-border bg-secondary/40 p-1.5">
-          {showsQuery.isLoading ? (
-            <span className="italic text-muted-foreground">Loading shows…</span>
-          ) : (
-            <>
-              <Select size="sm" value={pickedShowId} onChange={(e) => setPickedShowId(e.target.value)}>
-                <option value="">Choose a show…</option>
-                {shows.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-              <Button size="xs" disabled={busy || !pickedShowId} onClick={useForExistingShow}>
-                Switch
-              </Button>
-              <Button variant="secondary" size="xs" disabled={busy} onClick={() => setPickingShow(false)}>
-                Cancel
-              </Button>
-            </>
+      {openEvent && (
+        <EventSheet
+          key={openEvent.id}
+          ev={openEvent}
+          categories={categoryOptions}
+          onClose={() => setOpen(null)}
+          onSave={(patch) => updateEvent(openEvent.id, patch)}
+          onCategory={(c) => updateEvent(openEvent.id, { category: c })}
+          onAddRule={() => addRuleForEvent(openEvent.id)}
+          renderRule={(r) => (
+            <RuleLine
+              sentence={r.sentence}
+              problems={problemsForAt(r.at)}
+              rule={getRule(r.at)}
+              onApply={(next) => setRule(r.at, next)}
+              onRemove={() => removeRule(r.at)}
+              context={ruleAtPath(r.at)?.list ?? "research"}
+              {...ruleFieldProps}
+            />
           )}
-        </div>
+        />
+      )}
+
+      {openQuestion && (
+        <QuestionSheet
+          key={openQuestion.key}
+          q={openQuestion}
+          onClose={() => setOpen(null)}
+          onSave={(patch) => updateQuestion(openQuestion.key, patch)}
+          onRemove={async () => {
+            const ok = await confirm(`Remove "${openQuestion.question || openQuestion.key}"? Research stops asking it, and any rule that reads it becomes a problem to fix.`, {
+              danger: true,
+              confirmLabel: "Remove",
+            });
+            if (!ok) return;
+            removeQuestion(openQuestion.key);
+            setOpen(null);
+          }}
+        />
+      )}
+
+      {openRule && (
+        <BottomSheet open onOpenChange={(o) => !o && setOpen(null)} title="Rule" hideCancel>
+          <div className="flex flex-col gap-4 border-t border-border pt-3">
+            <RuleLine
+              sentence={openRule.sentence}
+              problems={openRule.problems}
+              rule={getRule(openRule.at)}
+              onApply={(next) => setRule(openRule.at, next)}
+              onRemove={() => {
+                removeRule(openRule.at);
+                setOpen(null);
+              }}
+              context={ruleAtPath(openRule.at)?.list ?? "research"}
+              {...ruleFieldProps}
+            />
+            <PrimaryButton onClick={() => setOpen(null)}>Done</PrimaryButton>
+          </div>
+        </BottomSheet>
+      )}
+
+      {adding === "event" && (
+        <TextSheet
+          title="New event"
+          label="What happens"
+          help="It starts at 0 points under Other. Set its points and how it scores next."
+          submit="Add event"
+          onClose={() => setAdding(null)}
+          onSubmit={(label) => {
+            const id = addEvent(label);
+            setAdding(null);
+            setOpen({ kind: "event", id });
+          }}
+        />
+      )}
+      {adding === "question" && (
+        <TextSheet
+          title="New question"
+          label="What research answers"
+          help='About each person, each episode. For example, "Did they sit out of a challenge?"'
+          submit="Add question"
+          onClose={() => setAdding(null)}
+          onSubmit={(label) => {
+            const key = addQuestion(label);
+            setAdding(null);
+            setOpen({ kind: "question", key });
+          }}
+        />
+      )}
+
+      {approving && (
+        <BottomSheet open onOpenChange={(o) => !o && setApproving(false)} title={`Approve ${current.name}`}>
+          <SheetAction onClick={approveAsNewShow} detail="Recommended">
+            Create it as a new show
+          </SheetAction>
+          <div className="flex flex-col gap-2 border-t border-border py-3">
+            <label htmlFor="approve-existing" className="text-base font-semibold">
+              Or use it for a show you already have
+            </label>
+            {showsQuery.isLoading ? (
+              <p className="text-[13px] text-muted-foreground">Loading shows…</p>
+            ) : (
+              <>
+                <select id="approve-existing" className={sheetSelectCls} value={pickedShowId} onChange={(e) => setPickedShowId(e.target.value)}>
+                  <option value="">Choose a show…</option>
+                  {shows.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[13px] leading-snug text-muted-foreground">Its leagues switch to these rules. Results already recorded keep their wording.</p>
+                <ActButton disabled={busy || !pickedShow} onClick={useForExistingShow} className="min-h-12">
+                  {pickedShow ? `Switch ${pickedShow.name}` : "Switch"}
+                </ActButton>
+              </>
+            )}
+          </div>
+        </BottomSheet>
       )}
     </div>
+  );
+}
+
+// One event, opened from its row. Name and points are typed into local state and saved when the sheet
+// closes (an id repaired from a bad chat id follows its label, so saving per keystroke could move the
+// row out from under the sheet); the group and the rules apply as they change.
+function EventSheet({
+  ev,
+  categories,
+  onClose,
+  onSave,
+  onCategory,
+  onAddRule,
+  renderRule,
+}: {
+  ev: { id: string; label: string; points: number; category: string; tier: string | null; why: string; implied: boolean; problems: string[]; warnings: string[]; rules: { at: string; sentence: string }[] };
+  categories: string[];
+  onClose: () => void;
+  onSave: (patch: Partial<{ label: string; points: number }>) => void;
+  onCategory: (c: string) => void;
+  onAddRule: () => void;
+  renderRule: (r: { at: string; sentence: string }) => ReactNode;
+}) {
+  const [label, setLabel] = useState(ev.label);
+  const [points, setPoints] = useState(Number.isFinite(ev.points) ? String(ev.points) : "");
+  const options = categories.includes(ev.category) ? categories : [ev.category, ...categories];
+
+  function close() {
+    const patch: Partial<{ label: string; points: number }> = {};
+    const l = label.trim();
+    if (l && l !== ev.label && !ev.implied) patch.label = l;
+    const n = parseFloat(points);
+    if (Number.isFinite(n) && n !== ev.points) patch.points = n;
+    if (Object.keys(patch).length) onSave(patch);
+    onClose();
+  }
+
+  return (
+    <BottomSheet open onOpenChange={(o) => !o && close()} title={ev.label || "Event"} description={ev.tier === "C" ? "Patchy reporting" : undefined} hideCancel>
+      <div className="flex flex-col gap-5 border-t border-border pt-4">
+        {(ev.problems.length > 0 || ev.warnings.length > 0) && <Notes problems={ev.problems} warnings={ev.warnings.filter((w) => !w.startsWith("tier C"))} />}
+        {ev.why && <p className="text-[15px] leading-snug text-muted-foreground">{ev.why}</p>}
+        <div className="grid grid-cols-[1fr_96px] gap-3">
+          {ev.implied ? (
+            <LockedValue label="Name" value={ev.label} />
+          ) : (
+            <Field label="Name" htmlFor="ev-label">
+              <input id="ev-label" className={fieldCls} value={label} onChange={(e) => setLabel(e.target.value)} />
+            </Field>
+          )}
+          <Field label="Points" htmlFor="ev-points">
+            <input id="ev-points" className={cn(fieldCls, "type-num text-[22px]")} type="number" inputMode="decimal" step="0.5" value={points} onChange={(e) => setPoints(e.target.value)} />
+          </Field>
+        </div>
+        <Field label="Group" htmlFor="ev-group">
+          <select
+            id="ev-group"
+            className={sheetSelectCls}
+            value={ev.category}
+            onChange={(e) => {
+              if (e.target.value === "__new__") {
+                const v = window.prompt("New group name:");
+                if (v && v.trim()) onCategory(v.trim());
+                return;
+              }
+              onCategory(e.target.value);
+            }}
+          >
+            {options.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+            <option value="__new__">New group…</option>
+          </select>
+        </Field>
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-semibold">How it scores</span>
+          {ev.implied && <p className="text-[13px] leading-snug text-muted-foreground">Automatic, from how they left. It can&rsquo;t be added by hand.</p>}
+          {ev.rules.length ? (
+            <ul className="flex flex-col border-b border-border [&>li]:border-t [&>li]:border-border [&>li]:py-1">
+              {ev.rules.map((r) => (
+                <li key={r.at}>{renderRule(r)}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[13px] leading-snug text-muted-foreground">No rule scores it yet, so it can only be added by hand.</p>
+          )}
+          <button type="button" className={cn(LINK_BTN, "self-start")} onClick={onAddRule}>
+            <Plus className="size-4" strokeWidth={2.4} aria-hidden />
+            Add a rule
+          </button>
+        </div>
+        <PrimaryButton onClick={close}>Done</PrimaryButton>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// One question research answers, opened from its row. Same save-on-close as EventSheet for the text;
+// type and tier apply as they're picked.
+function QuestionSheet({
+  q,
+  onClose,
+  onSave,
+  onRemove,
+}: {
+  q: { key: string; type: string; question: string; note: string; tier: string | null; where: string; problems: string[]; warnings: string[] };
+  onClose: () => void;
+  onSave: (patch: Partial<{ question: string; note: string; tier: string; type: string }>) => void;
+  onRemove: () => void;
+}) {
+  const [question, setQuestion] = useState(q.question);
+  const [noteText, setNoteText] = useState(q.note);
+
+  function close() {
+    const patch: Partial<{ question: string; note: string }> = {};
+    const v = question.trim();
+    if (v && v !== q.question) patch.question = v;
+    if (noteText.trim() !== q.note) patch.note = noteText.trim();
+    if (Object.keys(patch).length) onSave(patch);
+    onClose();
+  }
+
+  return (
+    <BottomSheet open onOpenChange={(o) => !o && close()} title="Question" description={q.key} hideCancel>
+      <div className="flex flex-col gap-5 border-t border-border pt-4">
+        {(q.problems.length > 0 || q.warnings.length > 0) && <Notes problems={q.problems} warnings={q.warnings.filter((w) => !w.startsWith("tier C"))} />}
+        <Field label="What research answers" htmlFor="q-text" hint="About each person, each episode.">
+          <textarea id="q-text" rows={2} className={cn(fieldCls, "min-h-[72px] resize-y py-3 leading-snug")} value={question} onChange={(e) => setQuestion(e.target.value)} />
+        </Field>
+        <Field label="Answer" htmlFor="q-type">
+          <select id="q-type" className={sheetSelectCls} value={q.type} onChange={(e) => onSave({ type: e.target.value })}>
+            {!QUESTION_TYPES.includes(q.type) && <option value={q.type}>{q.type || "Choose…"}</option>}
+            {QUESTION_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {TYPE_LABELS[t] ?? t}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold">How reliably it&rsquo;s reported</span>
+          <Segmented label="How reliably it's reported" value={(q.tier ?? "") as "A" | "B" | "C"} options={TIER_OPTIONS} onChange={(t) => onSave({ tier: t })} />
+          <p className="text-[13px] leading-snug text-muted-foreground">{q.tier ? TIER_HINTS[q.tier] : "Pick one before approving."}</p>
+          {q.where && <p className="text-[13px] leading-snug text-muted-foreground">Where it&rsquo;s reported: {q.where}</p>}
+        </div>
+        <Field label="When the answer is yes" htmlFor="q-note" hint="A short phrase, 1 to 4 words, e.g. “at risk”. Research also searches for it.">
+          <input id="q-note" className={fieldCls} value={noteText} onChange={(e) => setNoteText(e.target.value)} />
+        </Field>
+        <PrimaryButton onClick={close}>Done</PrimaryButton>
+        <SheetAction danger onClick={onRemove}>
+          Remove question
+        </SheetAction>
+      </div>
+    </BottomSheet>
   );
 }

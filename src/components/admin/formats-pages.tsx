@@ -141,25 +141,22 @@ export function FormatPage({ formatId }: { formatId: string }) {
       title={format.name}
       subtitle={`${format.status === "draft" ? "Draft, not approved yet" : `Approved · version ${format.version}`} · ${usedLine}`}
       back={back}
-      wide
     >
-      {/* The editor's insides predate the redesign; its dropdowns would otherwise run off a phone. */}
-      <div className="min-w-0 [&_select]:min-w-0 [&_select]:max-w-full">
-        <FormatReviewScreen
-          format={format}
-          onClose={() => router.push(back.href)}
-          onChanged={async () => {
-            await queryClient.invalidateQueries({
-              queryKey: ["admin-format", formatId],
-            });
-            await queryClient.invalidateQueries({
-              queryKey: ["admin-formats"],
-            });
-            await queryClient.invalidateQueries({ queryKey: ["admin-shows"] });
-          }}
-          onShowCreated={(show) => router.push(`/admin/shows/${show.id}`)}
-        />
-      </div>
+      <FormatReviewScreen
+        inPage
+        format={format}
+        onClose={() => router.push(back.href)}
+        onChanged={async () => {
+          await queryClient.invalidateQueries({
+            queryKey: ["admin-format", formatId],
+          });
+          await queryClient.invalidateQueries({
+            queryKey: ["admin-formats"],
+          });
+          await queryClient.invalidateQueries({ queryKey: ["admin-shows"] });
+        }}
+        onShowCreated={(show) => router.push(`/admin/shows/${show.id}`)}
+      />
     </AdminPage>
   );
 }
