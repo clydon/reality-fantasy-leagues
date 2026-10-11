@@ -73,12 +73,19 @@ function winnersDetail(s: LeagueState): string {
 }
 
 // Getting around: one card per tab, lit to be looked at, with Next on the plate. On desktop the sidebar
-// has no `data-tour` targets, so there the host talks and nothing is lit.
+// has no `data-tour` targets, so there the host talks and nothing is lit. The league name up top gets a
+// card of its own, right after Overview (where it's the page's title): it's how you change leagues.
 const TABS: { tab: string; line: string; detail: string }[] = [
   {
     tab: "tab-overview",
     line: "Overview: your league at a glance.",
     detail: "What needs doing, the standings and how last week went, all on one page.",
+  },
+  {
+    tab: "header-league",
+    line: "In more than one league? Tap the league name to switch.",
+    detail:
+      "Every league you're in is in that menu. Linked leagues, on the same season with one shared chat, are a swipe apart too: swipe left or right on any page.",
   },
   {
     tab: "tab-episodes",

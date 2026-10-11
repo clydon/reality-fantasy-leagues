@@ -133,6 +133,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ identifier, playerId }),
     }),
+  // The same invite, to this league and every linked league you're in. `invite` is this league's,
+  // null when they were already in it or invited; the rest say where it went and where it didn't.
+  sendGroupInvite: (leagueId: string, identifier: string) =>
+    localFetch<{
+      invite: LeagueInvite | null;
+      sent: { league_id: string; league_name: string }[];
+      skipped: { league_id: string; league_name: string; reason: string }[];
+    }>(`/api/leagues/${leagueId}/invites`, {
+      method: "POST",
+      body: JSON.stringify({ identifier, allLinked: true }),
+    }),
   listLeagueInvites: (leagueId: string) => localFetch<{ invites: LeagueInvite[] }>(`/api/leagues/${leagueId}/invites`),
   revokeInvite: (leagueId: string, inviteId: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/invites/${inviteId}`, { method: "DELETE" }),

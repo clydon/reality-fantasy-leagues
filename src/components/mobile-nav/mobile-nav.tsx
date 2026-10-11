@@ -355,6 +355,7 @@ export function MobileNav() {
               onClick={toggleLeagueMenu}
               disabled={mode === "mock" || leagues.length === 0}
               aria-label={pageTitle ? undefined : "Switch league"}
+              data-tour="header-league"
             >
               {pageTitle ? (
                 // Direction A: every page names itself. The league name moves up to a small line above

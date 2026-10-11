@@ -88,6 +88,26 @@ export function Dashboard() {
     });
   }
 
+  // One tap for a stack of invites (inviting someone to every linked league sends one each). Joins
+  // them in turn, so one that fails -- a league that's since gone -- doesn't stop the rest, then opens
+  // the first league joined.
+  function handleAcceptAll() {
+    run("accept-all", async () => {
+      const joined: { id: string; name: string }[] = [];
+      const failed: MyInvite[] = [];
+      for (const inv of invites) {
+        try {
+          joined.push((await api.acceptInvite(inv.id)).league);
+        } catch {
+          failed.push(inv);
+        }
+      }
+      setInvites(failed);
+      if (failed.length) setError(`Couldn't join ${failed.map((i) => i.league_name).join(", ")}. Try again.`);
+      if (joined.length) await enterLeague(joined[0].id, `You joined ${joined.map((l) => l.name).join(", ")}!`);
+    });
+  }
+
   function handleDecline(invite: MyInvite) {
     run(`decline-${invite.id}`, async () => {
       await api.declineInvite(invite.id);
@@ -128,7 +148,14 @@ export function Dashboard() {
 
       {invites.length > 0 && (
         <section className="flex flex-col gap-2">
-          <h3 className="type-caption text-[22px]">You&rsquo;re invited</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="type-caption flex-1 text-[22px]">You&rsquo;re invited</h3>
+            {invites.length > 1 && (
+              <PrimaryButton className="min-h-11 px-4" disabled={!!busy} onClick={handleAcceptAll}>
+                {busy === "accept-all" ? "Joining…" : `Accept all ${invites.length}`}
+              </PrimaryButton>
+            )}
+          </div>
           <div className="flex flex-col border-b border-border [&>*]:border-t [&>*]:border-border">
             {invites.map((inv) => (
               <div key={inv.id} className="flex min-h-[60px] flex-wrap items-center gap-2 py-2">

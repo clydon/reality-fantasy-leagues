@@ -5,13 +5,17 @@ import type { LeagueInvite } from "@/lib/game/types";
 import { useLeagueStore } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
-import { Chip, Field, MoreButton, PrimaryButton, fieldCls } from "./settings-ui";
+import { useLinkedOrder } from "@/components/league-swipe";
+import { Chip, Field, MoreButton, PrimaryButton, ToggleRow, fieldCls } from "./settings-ui";
 
 // The invite half of League Settings > Players & invites (the canvas's "Settings-Players"): an invite
 // field, then one row per invite with its status and a ⋯ sheet for Revoke. Any member can invite, not
 // just the commissioner -- so this deliberately doesn't gate on useCanManage(). Revoking a pending
 // invite is limited to whoever sent it, or the commissioner (enforced server-side too). Live-only:
 // invites live in their own table, there's nothing to invite anyone to in demo mode.
+//
+// In a linked league (league-groups.ts) a switch, on by default, sends the same invite to every linked
+// league you're in: the same friends usually play all of them.
 export function InvitesSection() {
   const mode = useLeagueStore((s) => s.mode);
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -23,6 +27,11 @@ export function InvitesSection() {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sheetFor, setSheetFor] = useState<LeagueInvite | null>(null);
+  const leagues = useLeagueStore((s) => s.leagues);
+  const { ids: linkedIds } = useLinkedOrder();
+  const otherLinked = linkedIds.filter((id) => id !== leagueId).map((id) => leagues.find((l) => l.id === id)?.name ?? "");
+  const [allLinked, setAllLinked] = useState(true);
+  const [sentNote, setSentNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode !== "live" || !leagueId) return;
@@ -46,9 +55,23 @@ export function InvitesSection() {
     if (!trimmed) return;
     setSending(true);
     setError(null);
+    setSentNote(null);
     try {
-      const { invite } = await api.sendInvite(leagueId!, trimmed);
-      setInvites((list) => [invite, ...list]);
+      if (otherLinked.length && allLinked) {
+        const { invite, sent, skipped } = await api.sendGroupInvite(leagueId!, trimmed);
+        if (invite) setInvites((list) => [invite, ...list]);
+        setSentNote(
+          [
+            `Invited to ${listOf(sent.map((s) => s.league_name))}.`,
+            skipped.length ? `Not ${listOf(skipped.map((s) => s.league_name))}: already in or invited.` : "",
+          ]
+            .filter(Boolean)
+            .join(" ")
+        );
+      } else {
+        const { invite } = await api.sendInvite(leagueId!, trimmed);
+        setInvites((list) => [invite, ...list]);
+      }
       setIdentifier("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not send the invite.");
@@ -96,6 +119,15 @@ export function InvitesSection() {
           </div>
         </Field>
       </form>
+      {otherLinked.length > 0 && (
+        <ToggleRow
+          label={`Invite to all ${otherLinked.length + 1} linked leagues`}
+          hint={`Also sends it for ${listOf(otherLinked)}.`}
+          checked={allLinked}
+          onChange={setAllLinked}
+        />
+      )}
+      {sentNote && <p className="text-sm text-muted-foreground">{sentNote}</p>}
       {error && <p className="text-sm font-semibold text-live">{error}</p>}
       {invites.length > 0 && (
         <div className="flex flex-col gap-1.5">
@@ -130,4 +162,9 @@ export function InvitesSection() {
       )}
     </div>
   );
+}
+
+/** "A", "A and B", "A, B and C". */
+function listOf(names: string[]): string {
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : (names[0] ?? "");
 }

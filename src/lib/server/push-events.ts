@@ -242,21 +242,27 @@ export function notifyLateJoinerStarted(leagueId: string, name: string, startEpi
 }
 
 /** Invited to a league: reaches the invitee only if the identifier matches an existing account. */
-export function notifyInvite(leagueId: string, identifier: string, inviterName: string) {
+// One push however many leagues it's for: inviting someone to every linked league sends a single
+// "invited you to A, B and C", not one per league.
+export function notifyInvite(leagueIds: string | string[], identifier: string, inviterName: string) {
+  const ids = Array.isArray(leagueIds) ? leagueIds : [leagueIds];
+  if (!ids.length) return;
   notifyAfter("invite", async () => {
     const { rows } = await pool.query(
       `SELECT id FROM "user" WHERE lower(username)=lower($1) OR lower(email)=lower($1)`,
       [identifier]
     );
     if (!rows.length) return null;
+    const names = await Promise.all(ids.map((id) => leagueName(id)));
+    const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
     return {
       userIds: rows.map((r) => r.id),
       message: {
-        title: "League invite",
-        body: `${inviterName} invited you to ${await leagueName(leagueId)}.`,
+        title: ids.length > 1 ? "League invites" : "League invite",
+        body: `${inviterName} invited you to ${list}.`,
         // Pending invites are shown on the Dashboard, not inside a league.
         url: "/dashboard",
-        tag: `invite-${leagueId}`,
+        tag: `invite-${ids[0]}`,
       },
     };
   });

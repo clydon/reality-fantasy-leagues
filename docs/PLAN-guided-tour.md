@@ -262,9 +262,10 @@ apply, end card. Plus Research, which the player path left to this one.
 - **A welcome card opens the player tour** (`welcome`, with a `cta` button on the plate): it names the
   league type and says to watch for (and tap) what's highlighted. The rules step's line is now "Your
   bakers earn you points. Tap Draft to pick them.", with the scoring in its detail.
-- **Getting around** follows the welcome: six cards (`GETTING_AROUND` in steps.ts), one per tab, each
+- **Getting around** follows the welcome: seven cards (`GETTING_AROUND` in steps.ts), one per tab, each
   lit with Next on the plate; the last, More, names Mid-Season, League Settings, What's new, the tours
-  and the header's chat. Look-only targets now get a dashed ring (tappable ones keep the solid one).
+  and the header's chat. The second lights the league name in the header (`header-league`): tap it to
+  switch leagues, and linked leagues are a sideways swipe apart. Look-only targets now get a dashed ring (tappable ones keep the solid one).
 - **Spotlight hit-test:** a target counts as on top if any of a 3x3 spread of points is, not just its
   middle. The sticky confirm bar covering the middle of the tile grid had made the whole grid
   untappable once the plate grew.
