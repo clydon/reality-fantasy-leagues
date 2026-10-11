@@ -10,16 +10,30 @@ import { Wordmark } from "./wordmark";
 // a show's cold open: the wordmark on a top bar, a title card filling the upper part of the screen,
 // and the form in a sheet rising from the bottom, like every other sheet in the app. The sheet is in
 // the page's flow rather than fixed, so a phone keyboard scrolls the focused field into view instead
-// of covering it. Wide screens keep the same column, capped at the bottom sheet's 480px.
-export function FrontDoor({ aside, title, children }: { aside?: ReactNode; title: ReactNode; children: ReactNode }) {
+// of covering it. Wide screens keep the same column, capped at the bottom sheet's 480px. A `backdrop`
+// (the show roll's art) fills everything above the sheet, behind the top bar and the title card.
+export function FrontDoor({
+  aside,
+  title,
+  backdrop,
+  children,
+}: {
+  aside?: ReactNode;
+  title: ReactNode;
+  backdrop?: ReactNode;
+  children: ReactNode;
+}) {
   const reduce = useReducedMotion();
   return (
     <div className="flex min-h-dvh flex-col bg-background">
-      <header className="mx-auto flex w-full max-w-[480px] items-center justify-between gap-3 px-4 pt-[max(env(safe-area-inset-top),12px)]">
-        <Wordmark />
-        {aside}
-      </header>
-      <section className="mx-auto flex w-full max-w-[480px] flex-1 flex-col justify-center px-4 py-10">{title}</section>
+      <div className="relative isolate flex flex-1 flex-col">
+        {backdrop && <div className="absolute inset-0 -z-10 overflow-hidden">{backdrop}</div>}
+        <header className="mx-auto flex w-full max-w-[480px] items-center justify-between gap-3 px-4 pt-[max(env(safe-area-inset-top),12px)]">
+          <Wordmark />
+          {aside}
+        </header>
+        <section className="mx-auto flex w-full max-w-[480px] flex-1 flex-col justify-center px-4 py-10">{title}</section>
+      </div>
       <m.div
         initial={reduce ? false : { y: 28, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}

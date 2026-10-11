@@ -256,8 +256,21 @@ apply, end card. Plus Research, which the player path left to this one.
   mean?"). It shows when the step arrives and collapses on the first tap outside the plate (on
   click, not pointerdown, so the tap isn't moved out from under the finger); "What does this mean?"
   brings it back. Kept to about two lines at 390px so the plate doesn't bury the target.
-- **Jo wins every week too**, alongside Clive (`TOUR_WINNERS`); Jo is never in the bottom two. Ben
-  takes Jo second, so drafting Clive no longer puts you top.
+- **One star wins each week, never both** (changed again by the user, same day): Clive wins Episode
+  1 and Jo Episode 2 (`weekWinner`; the other, if that one's gone home). **The computer players never
+  draft Clive or Jo** while anyone else is left: both are last on their lists, after Ivy. Draft both
+  and Ivy is the pickup; draft one and the other is; draft neither and a computer player has to take
+  one. Start both in Episode 1 and Jo (who didn't win) is the starter who goes home, so Clive wins
+  Episode 2 as well. The host's lines name the week's winner ("Clive won the week", "Jo won the
+  finale"). Your lineup on the commissioner's tour ranks best-first (`BEST`), not by Ben's list.
+- **"What does this mean?" works.** Its click re-rendered the plate before the document's tap-away
+  listener ran, so the button was already gone and read as a tap outside; the listener now checks
+  the event's path. **A picker's confirm bar is lit without a ring** (`RINGLESS` in tour-host.tsx),
+  and the tiles' ring stops where the bar starts, instead of two rings crossing.
+- **Front door art:** the show roll fades in each show's admin-chosen art behind the title card as
+  its name comes up (`ShowRollArt`, the `.show-art` look plus `.show-art-door`, a notch quieter),
+  and out on "Your show". Read from the public `/api/shows/art` (curated, unarchived shows with art).
+  Roll names match catalog names loosely ("The Traitors (US)" is The Traitors).
 - **The league is called "Bake-Off Champions"** (the show is still *Rise & Fall*).
 - **A welcome card opens the player tour** (`welcome`, with a `cta` button on the plate): it names the
   league type and says to watch for (and tap) what's highlighted. The rules step's line is now "Your

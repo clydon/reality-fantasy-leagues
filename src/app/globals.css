@@ -330,6 +330,11 @@
   inset: 0;
   background: var(--art-side);
 }
+/* The front door's show roll (show-roll.tsx) reuses it behind the title card, a notch quieter and
+   capped: it's a backdrop under a headline and a paragraph, not a header's texture strip. */
+.show-art-door img {
+  opacity: min(0.5, calc(var(--art-opacity) * var(--art-strength, 1) * 0.8));
+}
 
 /* Port of SurvivorDraft's boot overlay (public/styles.css) -- a pulsing app icon + three bouncing
    dots, for AuthGate's own initial-load/league-switch screen (boot-overlay.tsx) instead of the bare

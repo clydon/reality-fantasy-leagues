@@ -1,6 +1,6 @@
 // The guided tour's scripted season (src/lib/tour/rise-and-fall.ts, docs/PLAN-guided-tour.md): it
-// starts undrafted, the computer players draft instantly, Clive and Jo win every week whoever has them, and
-// Gus is in the bottom two every week he's still in. Plays it through, under the real rules, for the
+// starts undrafted, the computer players draft instantly (leaving Clive and Jo to you), Clive wins
+// Episode 1 and Jo Episode 2 whoever has them, and Gus is in the bottom two every week he's still in. Plays it through, under the real rules, for the
 // drafts and lineups that change what happens. Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -24,13 +24,18 @@ function playThrough(choose, start = (mine) => mine.slice(0, 2)) {
     T.botsDraft(s);
   }
   T.afterDraft(s);
+  const bots = s.castaways.filter((c) => c.ownerIds.includes(T.TOUR_BEN) || c.ownerIds.includes(T.TOUR_KAT)).map((c) => c.id);
+  const mineAtDraft = s.castaways.filter((c) => c.ownerIds.includes(T.TOUR_ME)).map((c) => c.id);
+  if (mineAtDraft.some((id) => id === T.TOUR_STAR || id === T.TOUR_PRO)) {
+    assert.ok(!bots.includes(T.TOUR_STAR) && !bots.includes(T.TOUR_PRO), "the computer players leave Clive and Jo alone");
+  }
   const mine = s.castaways.filter((c) => c.ownerIds.includes(T.TOUR_ME)).map((c) => c.id);
   assert.equal(mine.length, 3);
   const starters = start(mine);
   assert.ok(S.setActiveRosterLineup(s, ep(s, 1).id, T.TOUR_ME, starters), "two starters is a valid lineup");
 
   T.scriptEpisode(s, 1);
-  assert.deepEqual(events(s, 1, "wonWeek"), T.TOUR_WINNERS, "Clive and Jo win Episode 1");
+  assert.deepEqual(events(s, 1, "wonWeek"), [T.TOUR_STAR], "Clive alone wins Episode 1");
   assert.ok(events(s, 1, "bottomTwo").includes(T.TOUR_FLOP), "Gus is in the bottom two");
   assert.equal(events(s, 1, "bottomTwo").length, 2);
   const out1 = s.castaways.filter((c) => c.status === "eliminated");
@@ -47,34 +52,56 @@ function playThrough(choose, start = (mine) => mine.slice(0, 2)) {
   assert.equal(S.activeRosterLineupFor(s, ep(s, 2).id, T.TOUR_ME).length, 2, "the pickup starts in the open slot");
 
   const gusIn = S.getCastaway(s, T.TOUR_FLOP).status === "active";
+  const joIn = S.getCastaway(s, T.TOUR_PRO).status === "active";
   T.scriptEpisode(s, 2);
-  assert.deepEqual(events(s, 2, "wonWeek"), T.TOUR_WINNERS, "Clive and Jo win Episode 2");
+  assert.deepEqual(events(s, 2, "wonWeek"), [joIn ? T.TOUR_PRO : T.TOUR_STAR], "Jo alone wins Episode 2 (Clive, if Jo went home)");
   if (gusIn) {
     assert.ok(events(s, 2, "bottomTwo").includes(T.TOUR_FLOP), "Gus is in the bottom two again");
     assert.equal(S.getCastaway(s, T.TOUR_FLOP).status, "eliminated", "and goes home");
   }
   assert.equal(S.getCastaway(s, T.TOUR_STAR).status, "active", "Clive never goes home");
-  assert.equal(S.getCastaway(s, T.TOUR_PRO).status, "active", "Jo never goes home");
-  assert.ok(!events(s, 1, "bottomTwo").includes(T.TOUR_PRO) && !events(s, 2, "bottomTwo").includes(T.TOUR_PRO), "Jo is never in the bottom two");
+  assert.ok(!events(s, 1, "bottomTwo").includes(T.TOUR_STAR) && !events(s, 2, "bottomTwo").includes(T.TOUR_STAR), "Clive is never in the bottom two");
+  assert.ok(!events(s, 2, "bottomTwo").includes(T.TOUR_PRO), "Jo is only ever in the bottom two when you start both stars");
   return { s, free, mine };
 }
 
-test("drafting the first baker each time: Ben gets Clive and finishes top", () => {
+test("drafting the first baker each time: Clive wins from your bench, and Jo is left to pick up", () => {
   const { s, free } = playThrough((fa) => fa[0]);
-  assert.equal(free, "Ivy", "Ivy is the one left over");
-  assert.deepEqual(T.winnersIn(s, 1)[0], { name: "Clive", owner: T.TOUR_BEN, started: true });
-  assert.match(T.benLine(s), /Top of the table/);
+  assert.equal(free, "Jo", "the computer players left Jo undrafted");
+  assert.deepEqual(T.winnerIn(s, 1), { name: "Clive", owner: T.TOUR_ME, started: false });
+  assert.deepEqual(T.winnerIn(s, 2), { name: "Jo", owner: T.TOUR_ME, started: true });
+});
+
+test("drafting both stars: Ivy is the one left over", () => {
+  const stars = (fa) => fa.find((c) => c.name === "Clive") ?? fa.find((c) => c.name === "Jo") ?? fa[0];
+  const { free } = playThrough(stars, (mine) => [T.TOUR_STAR, mine.find((id) => id !== T.TOUR_STAR && id !== T.TOUR_PRO)]);
+  assert.equal(free, "Ivy");
+});
+
+test("drafting and starting both stars: the one who didn't win goes home", () => {
+  const stars = (fa) => fa.find((c) => c.name === "Clive") ?? fa.find((c) => c.name === "Jo") ?? fa[0];
+  const { s } = playThrough(stars, () => [T.TOUR_STAR, T.TOUR_PRO]);
+  assert.equal(S.getCastaway(s, T.TOUR_PRO).exitEpisodeId, ep(s, 1).id);
+  assert.deepEqual(events(s, 2, "wonWeek"), [T.TOUR_STAR], "so Clive wins Episode 2 too");
+});
+
+test("drafting neither star: the computer players have to take one, and the other is left over", () => {
+  const plain = (fa) => fa.find((c) => !["Clive", "Jo"].includes(c.name));
+  const { s, free } = playThrough(plain);
+  assert.ok(["Clive", "Jo"].includes(free));
+  const botStars = [T.TOUR_STAR, T.TOUR_PRO].filter((id) => [T.TOUR_BEN, T.TOUR_KAT].includes(S.getCastaway(s, id).ownerIds[0]));
+  assert.equal(botStars.length, 1, "one star went to a computer player");
 });
 
 test("drafting and starting Clive: he scores for you both weeks", () => {
   const { s } = playThrough(byName("Clive"), (mine) => [T.TOUR_STAR, mine.find((id) => id !== T.TOUR_STAR)]);
-  assert.deepEqual(T.winnersIn(s, 1)[0], { name: "Clive", owner: T.TOUR_ME, started: true });
-  assert.ok(total(s, T.TOUR_ME) >= 5, "+3 twice, less a bottom two");
+  assert.deepEqual(T.winnerIn(s, 1), { name: "Clive", owner: T.TOUR_ME, started: true });
+  assert.ok(total(s, T.TOUR_ME) >= 2, "+3 in Episode 1, less a bottom two");
 });
 
 test("drafting Clive but benching him: the bench lesson", () => {
   const { s } = playThrough(byName("Clive"), (mine) => mine.filter((id) => id !== T.TOUR_STAR));
-  assert.deepEqual(T.winnersIn(s, 1)[0], { name: "Clive", owner: T.TOUR_ME, started: false });
+  assert.deepEqual(T.winnerIn(s, 1), { name: "Clive", owner: T.TOUR_ME, started: false });
   assert.ok(total(s, T.TOUR_ME) <= 2, "his Episode 1 win didn't count");
 });
 

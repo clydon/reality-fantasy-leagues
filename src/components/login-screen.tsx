@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Play } from "lucide-react";
 import { cn } from "cn";
 import { Field, FORM_ERROR_ID, FormError, FrontDoor, SubmitButton } from "@/components/auth/front-door";
-import { ShowRoll } from "@/components/auth/show-roll";
+import { ShowRoll, ShowRollArt, useShowRoll } from "@/components/auth/show-roll";
 import { SignUpForm } from "@/components/auth/sign-up-form";
 
 // The front door: what the whole app falls back to without a session. One screen for signing in and
@@ -32,6 +32,7 @@ export function LoginScreen({
   const [mode, setMode] = useState<Mode>(initialMode);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const show = useShowRoll();
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,6 +52,7 @@ export function LoginScreen({
 
   return (
     <FrontDoor
+      backdrop={<ShowRollArt name={show} />}
       aside={
         <button
           type="button"
@@ -65,7 +67,7 @@ export function LoginScreen({
       }
       title={
         <>
-          <ShowRoll />
+          <ShowRoll name={show} />
           <p className="mt-5 max-w-[34ch] text-base text-muted-foreground">
             Draft the cast with your group, score what happens each week, and see results only when you&rsquo;ve
             watched.

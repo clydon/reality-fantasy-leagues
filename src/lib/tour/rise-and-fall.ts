@@ -5,8 +5,10 @@ import { formatFor } from "@/lib/game/formats/index.js";
 // The guided tour's season (docs/PLAN-guided-tour.md, "The show"): *Rise & Fall*, a made-up baking
 // competition. Ten bakers -- four hapless amateurs, four ordinary bakers, a professional and a
 // world-renowned master -- you and two computer players, Active Roster with a roster of three (two
-// starters, one bench). Clive, the master, and Jo, the professional, are the best bakers and both win
-// every week, whoever has them; Gus, the most hopeless amateur, is the worst, and is in the bottom two every week until he goes home.
+// starters, one bench). Clive, the master, and Jo, the professional, are the best bakers: one of them
+// wins each week (never both), whoever has them, and the computer players never draft either while
+// there's anyone else left. Gus, the most hopeless amateur, is the worst, and is in the bottom two
+// every week until he goes home.
 //
 // Headshots (public/photos/tour/<key>.jpg) are cropped from an illustrated cast sheet the user
 // supplied for the tour.
@@ -72,20 +74,22 @@ const BAKERS: { key: string; name: string }[] = [
   { key: "jo", name: "Jo" },
 ];
 const bakerId = (key: string) => `tour_c_${key}`;
-/** The best baker: wins every week. */
+/** The best baker: wins Episode 1. */
 export const TOUR_STAR = bakerId("clive");
-/** The professional: wins every week too, alongside Clive. */
+/** The professional: wins Episode 2. */
 export const TOUR_PRO = bakerId("jo");
-/** Who wins the week, every week. */
-export const TOUR_WINNERS = [TOUR_STAR, TOUR_PRO];
+const STARS = [TOUR_STAR, TOUR_PRO];
 /** The worst: bottom two every week he's still in. */
 export const TOUR_FLOP = bakerId("gus");
-// Ben knows a master when he sees one: if you don't take Clive first, he does. Ivy is last on both
-// lists, so she's the one left over for the pickup -- unless you draft her yourself.
+// The computer players leave Clive and Jo to you: both are last on their lists, after Ivy, so Ivy is
+// the one left over for the pickup when you draft both (and a star is, when you don't). They only take
+// one when nobody else is left -- you drafted neither.
 const BOT_PREFERENCE: Record<string, string[]> = {
-  [TOUR_BEN]: ["clive", "jo", "dev", "hana", "emma", "finn", "ana", "bruno", "gus", "ivy"].map(bakerId),
-  [TOUR_KAT]: ["jo", "dev", "hana", "finn", "emma", "bruno", "gus", "ana", "clive", "ivy"].map(bakerId),
+  [TOUR_BEN]: ["dev", "hana", "emma", "finn", "ana", "bruno", "gus", "ivy", "clive", "jo"].map(bakerId),
+  [TOUR_KAT]: ["dev", "hana", "finn", "emma", "bruno", "gus", "ana", "ivy", "jo", "clive"].map(bakerId),
 };
+// Best first, for whoever's lineup is set for them (the computer players, and you on the commissioner's tour).
+const BEST = ["clive", "jo", "dev", "hana", "emma", "finn", "ana", "bruno", "gus", "ivy"].map(bakerId);
 
 /** The tour league before anyone has drafted: the draft open with you on the clock, Episode 1 ahead. */
 export function buildTourState(): LeagueState {
@@ -147,14 +151,12 @@ export const lineupOf = (state: LeagueState, n: number, playerId: string) => {
 const rosterOf = (state: LeagueState, playerId: string) =>
   state.castaways.filter((c) => c.ownerIds.includes(playerId) && c.status === "active").map((c) => c.id);
 
-/** The computer players (and, on the commissioner's tour, you) start their two favourites still in. */
+/** The computer players (and, on the commissioner's tour, you) start their two best still in. */
 export function botLineups(state: LeagueState, n: number, ids: string[] = [TOUR_BEN, TOUR_KAT]) {
   const ep = episode(state, n);
   if (!ep) return;
   for (const id of ids) {
-    // Ben's list is the one that knows a master: it ranks your roster on the commissioner's tour.
-    const rank = (c: string) => (BOT_PREFERENCE[id] ?? BOT_PREFERENCE[TOUR_BEN]).indexOf(c);
-    const best = rosterOf(state, id).sort((a, b) => rank(a) - rank(b)).slice(0, 2);
+    const best = rosterOf(state, id).sort((a, b) => BEST.indexOf(a) - BEST.indexOf(b)).slice(0, 2);
     StateLogic.setActiveRosterLineup(state, ep.id, id, best);
   }
 }
@@ -171,11 +173,19 @@ export interface EpisodePlan {
   out?: string;
 }
 
+/** Who wins episode `n`: Clive in Episode 1, Jo in Episode 2 -- or the other, if that one's gone home. */
+export function weekWinner(state: LeagueState, n: number): string | undefined {
+  const order = n % 2 === 1 ? STARS : [...STARS].reverse();
+  return order.find((id) => StateLogic.getCastaway(state, id)?.status === "active");
+}
+
 /**
- * What happens in episode `n`, from who's starting. Clive and Jo win the week every time, whoever has
- * them (it counts only if they were started). Gus is in the bottom two every week he's still in.
+ * What happens in episode `n`, from who's starting. One of Clive and Jo wins the week (weekWinner),
+ * whoever has them -- it counts only if they were started. Gus is in the bottom two every week he's
+ * still in.
  *  1. The other bottom-two spot is one of YOUR starters, and your starter goes home -- Gus, if you
- *     started him -- so you always have a spot to fill with a pickup.
+ *     started him; the star who didn't win, if you started both -- so you always have a spot to fill
+ *     with a pickup.
  *  2. The other bottom-two spot is someone else's starter, and Gus goes home if he's still in (else
  *     that other baker does).
  */
@@ -183,11 +193,12 @@ export function planEpisode(state: LeagueState, n: number): EpisodePlan {
   const inGame = (id: string) => StateLogic.getCastaway(state, id)?.status === "active";
   const mine = lineupOf(state, n, TOUR_ME);
   const others = [...lineupOf(state, n, TOUR_KAT), ...lineupOf(state, n, TOUR_BEN)];
-  const ordinary = (id: string) => !TOUR_WINNERS.includes(id) && id !== TOUR_FLOP;
+  const winner = weekWinner(state, n);
+  const ordinary = (id: string) => !STARS.includes(id) && id !== TOUR_FLOP;
   let out: string | undefined;
   let partner: string | undefined;
   if (n === 1) {
-    out = mine.includes(TOUR_FLOP) ? TOUR_FLOP : (mine.find(ordinary) ?? mine[0]);
+    out = mine.includes(TOUR_FLOP) ? TOUR_FLOP : (mine.find(ordinary) ?? mine.find((id) => id !== winner) ?? mine[0]);
     partner = out === TOUR_FLOP ? others.find(ordinary) : TOUR_FLOP;
   } else if (inGame(TOUR_FLOP)) {
     out = TOUR_FLOP;
@@ -195,7 +206,7 @@ export function planEpisode(state: LeagueState, n: number): EpisodePlan {
   } else {
     out = others.find(ordinary) ?? mine.find(ordinary);
   }
-  return { winners: TOUR_WINNERS.filter(inGame), bottom: [out, partner].filter((id): id is string => !!id), out };
+  return { winners: winner ? [winner] : [], bottom: [out, partner].filter((id): id is string => !!id), out };
 }
 
 /** Episode `n` airs, with planEpisode's results written straight in (the player path's episodes). */
@@ -248,16 +259,17 @@ export function benLine(state: LeagueState): string {
   return "Rough week. Somebody keep Gus away from the oven 🙄";
 }
 
-/** Each week's winners in episode `n`: who has them and whether they were started -- for the host's
- *  line after a reveal. */
-export function winnersIn(state: LeagueState, n: number): { name: string; owner: string | null; started: boolean }[] {
-  return TOUR_WINNERS.map((id) => {
-    const owner = StateLogic.getCastaway(state, id)?.ownerIds[0] ?? null;
-    return { name: StateLogic.getCastaway(state, id)?.name ?? id, owner, started: !!owner && lineupOf(state, n, owner).includes(id) };
-  });
+/** Episode `n`'s winner: who has them and whether they were started -- for the host's line after a
+ *  reveal. Null only if both stars had gone home, which the script never does. */
+export function winnerIn(state: LeagueState, n: number): { name: string; owner: string | null; started: boolean } | null {
+  const id = weekWinner(state, n);
+  if (!id) return null;
+  const c = StateLogic.getCastaway(state, id);
+  const owner = c?.ownerIds[0] ?? null;
+  return { name: c?.name ?? id, owner, started: !!owner && lineupOf(state, n, owner).includes(id) };
 }
 
-/** The free agent you'll be picking up (Ivy, unless you drafted her). */
+/** The free agent you'll be picking up (Ivy, unless you drafted her or left a star undrafted). */
 export function pickupName(state: LeagueState): string | null {
   return StateLogic.freeAgents(state).find((c) => c.status === "active")?.name ?? null;
 }

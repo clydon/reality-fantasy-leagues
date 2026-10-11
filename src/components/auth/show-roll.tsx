@@ -3,19 +3,28 @@
 import { useEffect, useState } from "react";
 import { Tv } from "lucide-react";
 import { AnimatePresence, m, useReducedMotion } from "@/components/motion";
+import { api } from "@/lib/api";
+import { publicMediaSrc } from "@/lib/game/selectors";
+import { artStyleVars, type ArtStyle } from "@/lib/show-art-style";
+import { cn } from "cn";
 
 // The front door's title card: "Turn [a show] into a league." The show's name sits on a caption
 // plate and rolls through shows people play, landing on "Your show" and staying there, so the
 // point (any show) is the last thing it says and nothing moves while someone is typing. Under
-// reduced motion it just says "Your show". Show names are text only: no network art (PRODUCT.md).
-// Only competition shows research handles today; non-competition formats are still planned.
+// reduced motion it just says "Your show". Only competition shows research handles today;
+// non-competition formats are still planned.
+//
+// Behind it, ShowRollArt fades in the art an admin chose for each show as its name comes up (a
+// show without art leaves the plain ground), and fades out on "Your show". useShowRoll is the one
+// clock both read.
 const SHOWS = ["Survivor", "The Traitors", "Big Brother", "The Challenge", "Love Island", "Drag Race"];
 const LAST = "Your show";
 const STEP_MS = 1500;
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-export function ShowRoll() {
+/** The show the roll is on right now. */
+export function useShowRoll(): string {
   const reduce = useReducedMotion();
   const [i, setI] = useState(0);
   const names = [...SHOWS, LAST];
@@ -27,8 +36,10 @@ export function ShowRoll() {
     return () => clearTimeout(t);
   }, [i, reduce, done]);
 
-  const name = reduce ? LAST : names[i];
+  return reduce ? LAST : names[i];
+}
 
+export function ShowRoll({ name }: { name: string }) {
   return (
     <>
       <h1 className="sr-only">Turn any TV show into a fantasy league.</h1>
@@ -56,5 +67,63 @@ export function ShowRoll() {
         <div>Into a league.</div>
       </div>
     </>
+  );
+}
+
+type Art = { src: string; style: ArtStyle | null };
+
+// A catalog name matches a roll name loosely: "The Traitors (US)" is The Traitors, "RuPaul's Drag
+// Race" is Drag Race.
+const norm = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\(.*?\)/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/** The roll's backdrop: each show's art, all loaded up front and crossfaded, so a name never waits on
+ *  its picture. The same look as Overview's header art (.show-art), each show's own style included. */
+export function ShowRollArt({ name }: { name: string }) {
+  const [art, setArt] = useState<Record<string, Art>>({});
+  const [failed, setFailed] = useState<string[]>([]);
+
+  useEffect(() => {
+    let live = true;
+    api
+      .showArt()
+      .then(({ shows }) => {
+        const out: Record<string, Art> = {};
+        for (const roll of SHOWS) {
+          const hit = shows.find((s) => norm(s.name) === norm(roll)) ?? shows.find((s) => norm(s.name).includes(norm(roll)));
+          const src = publicMediaSrc(hit?.artUrl);
+          if (hit && src) out[roll] = { src, style: hit.artStyle };
+        }
+        if (live) setArt(out);
+      })
+      // No art is the plain ground: nothing to say.
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const shown = Object.entries(art).filter(([roll]) => !failed.includes(roll));
+  if (!shown.length) return null;
+  return (
+    <div aria-hidden className="show-art show-art-door pointer-events-none absolute inset-0">
+      {shown.map(([roll, a]) => (
+        <div
+          key={roll}
+          style={artStyleVars(a.style)}
+          className={cn(
+            "absolute inset-0 transition-[opacity,transform] duration-700 ease-out motion-reduce:transition-none",
+            roll === name ? "scale-100 opacity-100" : "scale-[1.04] opacity-0",
+          )}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
+          <img src={a.src} alt="" onError={() => setFailed((f) => [...f, roll])} />
+        </div>
+      ))}
+    </div>
   );
 }

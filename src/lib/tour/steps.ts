@@ -1,6 +1,6 @@
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
-import { TOUR_ME, pickupName, winnersIn } from "./rise-and-fall";
+import { TOUR_ME, pickupName, winnerIn } from "./rise-and-fall";
 
 // The player path (docs/PLAN-guided-tour.md, "Player path"): one host line and one tap per step, no
 // Next buttons. A step ends on what the tap DID to the league or where it took you (drafted, lineup
@@ -58,18 +58,16 @@ const draftDone = (s: LeagueState) => !!StateLogic.currentDraftTurn(s)?.isComple
 const myLineup = (s: LeagueState, n: number) => ep(s, n)?.lineups?.[TOUR_ME] ?? [];
 const pickedUp = (s: LeagueState) => s.castaways.some((c) => c.ownerIds.includes(TOUR_ME) && c.acquiredVia === "replenish");
 
-// Clive and Jo win every week (rise-and-fall.ts); what that meant for you depends on who drafted them
-// and whether they were started -- the bench lesson, when one was on yours.
-function winnersDetail(s: LeagueState): string {
-  const nameOf = (id: string | null) => s.players.find((p) => p.id === id)?.name;
-  return winnersIn(s, 1)
-    .map((w) => {
-      if (w.owner === TOUR_ME) return w.started ? `${w.name} scored +3 for you.` : `${w.name} won from your bench, so it didn't count.`;
-      const who = nameOf(w.owner);
-      if (!who) return `Nobody had ${w.name}.`;
-      return w.started ? `${w.name} scored +3 for ${who}.` : `${w.name} was on ${who}'s bench: no points.`;
-    })
-    .join(" ");
+// Clive or Jo wins each week (rise-and-fall.ts); what that meant for you depends on who drafted them
+// and whether they were started -- the bench lesson, when the winner was on yours.
+const winnerName = (s: LeagueState, n: number) => winnerIn(s, n)?.name ?? "Clive";
+function winnerDetail(s: LeagueState): string {
+  const w = winnerIn(s, 1);
+  if (!w) return "";
+  if (w.owner === TOUR_ME) return w.started ? `${w.name} scored +3 for you.` : `${w.name} won from your bench, so it didn't count.`;
+  const who = s.players.find((p) => p.id === w.owner)?.name;
+  if (!who) return `Nobody had ${w.name}.`;
+  return w.started ? `${w.name} scored +3 for ${who}.` : `${w.name} was on ${who}'s bench: no points.`;
 }
 
 // Getting around: one card per tab, lit to be looked at, with Next on the plate. On desktop the sidebar
@@ -178,8 +176,8 @@ export const PLAYER_TOUR: TourStep[] = [
   {
     id: "standings",
     progress: "Episode 1 of 2",
-    line: () => "Clive and Jo won the week. Tap Scoreboard.",
-    detail: (c) => winnersDetail(c.full),
+    line: (c) => `${winnerName(c.full, 1)} won the week. Tap Scoreboard.`,
+    detail: (c) => winnerDetail(c.full),
     targets: ["tab-scoreboard"],
     done: (c) => c.pathname.startsWith("/scoreboard"),
   },
@@ -223,7 +221,7 @@ export const PLAYER_TOUR: TourStep[] = [
     line: () => "That's the whole season.",
     targets: [],
     nav: {
-      line: () => "Clive and Jo win again. See the final standings.",
+      line: (c) => `${winnerName(c.full, 2)} won the finale. See the final standings.`,
       detail: () => "That was the last episode. The scoreboard shows who won the league.",
       targets: ["tab-scoreboard"],
     },

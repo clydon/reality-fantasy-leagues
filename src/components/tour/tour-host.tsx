@@ -101,8 +101,10 @@ function HostPlate({
   const [explained, setExplained] = useState(true);
   useEffect(() => {
     if (!detail) return;
+    // The path, not the target: by the time this runs React has already re-rendered, and "What does
+    // this mean?" (the target) is gone from the plate, so it would read as a tap outside.
     const away = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setExplained(false);
+      if (ref.current && !e.composedPath().includes(ref.current)) setExplained(false);
     };
     document.addEventListener("click", away);
     return () => document.removeEventListener("click", away);
@@ -277,6 +279,9 @@ function HostPlate({
 type Box = { x: number; y: number; w: number; h: number };
 const PAD = 6;
 const RADIUS = 6;
+// Lit and tappable, but without a ring of their own: a picker's sticky confirm bar spans the screen
+// and sits over the tiles' lower edge, so a ring there just crosses the tiles' ring.
+const RINGLESS = new Set(["picker-confirm"]);
 
 // Lit targets are found by `data-tour` each frame, so they follow scrolling, sheets sliding up and
 // pages swapping. A target counts only where it's actually on top (not under a sheet or off screen);
@@ -304,7 +309,10 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
       const tap = visible(targets);
       const seen = visible(look);
       tappable.current = tap.map((t) => t.el);
-      const want = [...tap, ...seen].map((t) => t.box);
+      // Ringed first, then ringless, then look-only: the paths below slice by these counts.
+      const bare = tap.filter((t) => RINGLESS.has(t.name)).map((t) => t.box);
+      const ringed = tap.filter((t) => !RINGLESS.has(t.name)).map((t) => clipUnder(t.box, bare));
+      const want = [...ringed, ...bare, ...seen.map((t) => t.box)];
       active.current = want.length > 0;
       // Glide from the last spotlight to the next, unless motion is reduced or the count changed.
       shown =
@@ -318,7 +326,7 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
       const dock = document.querySelector('[role="dialog"], [role="alertdialog"]') ? "top" : "bottom";
       if (plate && plate.dataset.dock !== dock) plate.dataset.dock = dock;
       holesRef.current?.setAttribute("d", shown.map(rounded).join(" "));
-      ringRef.current?.setAttribute("d", shown.slice(0, tap.length).map(rounded).join(" "));
+      ringRef.current?.setAttribute("d", shown.slice(0, ringed.length).map(rounded).join(" "));
       // Lit to look at, not tap: a dashed ring, so it still stands out (the tab bar's cards).
       lookRingRef.current?.setAttribute("d", shown.slice(tap.length).map(rounded).join(" "));
       frame = requestAnimationFrame(tick);
@@ -368,8 +376,8 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
 }
 
 /** Each element carrying one of these `data-tour` names that's on screen and not covered. */
-function visible(names: string[]): { el: Element; box: Box }[] {
-  const out: { el: Element; box: Box }[] = [];
+function visible(names: string[]): { name: string; el: Element; box: Box }[] {
+  const out: { name: string; el: Element; box: Box }[] = [];
   const W = window.innerWidth;
   const H = window.innerHeight;
   for (const name of names) {
@@ -391,10 +399,20 @@ function visible(names: string[]): { el: Element; box: Box }[] {
       };
       const spread = [0.5, 0.15, 0.85];
       if (!spread.some((fy) => spread.some((fx) => onTop(fx, fy)))) continue;
-      out.push({ el, box: { x: x0 - PAD, y: y0 - PAD, w: x1 - x0 + PAD * 2, h: y1 - y0 + PAD * 2 } });
+      out.push({ name, el, box: { x: x0 - PAD, y: y0 - PAD, w: x1 - x0 + PAD * 2, h: y1 - y0 + PAD * 2 } });
     }
   }
   return out;
+}
+
+/** A box cut off where a ringless bar starts across its lower part, so its ring stops above the bar. */
+function clipUnder(b: Box, bars: Box[]): Box {
+  let h = b.h;
+  for (const bar of bars) {
+    const across = bar.x < b.x + b.w && bar.x + bar.w > b.x;
+    if (across && bar.y > b.y + 24 && bar.y < b.y + h) h = bar.y - b.y;
+  }
+  return h === b.h ? b : { ...b, h };
 }
 
 const lerp = (a: Box, b: Box, t: number): Box => {

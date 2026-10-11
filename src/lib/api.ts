@@ -526,6 +526,8 @@ export const api = {
   // Show/season catalog. The plain /api/shows read is commissioner-facing (the Show and Season
   // pickers in League Settings); everything under /api/admin/* is super-admin catalog management.
   listShows: () => localFetch<{ shows: CatalogShow[] }>("/api/shows"),
+  // The curated shows' art for the front door's show roll -- public, no auth.
+  showArt: () => localFetch<{ shows: { name: string; artUrl: string; artStyle: ArtStyle | null }[] }>("/api/shows/art"),
 
   // Demo Season picker catalog (db/migrations/0026_demo_seasons_generic.sql) -- public, no auth, so a
   // logged-out visitor can try a real season before they have an account.

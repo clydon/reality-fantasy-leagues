@@ -20,8 +20,10 @@ Late joiners). On by default. Everything (model, spoiler guarantee, UX, limits, 
 `docs/PLAN-late-joiners.md`. Announced in What's New (release 2026-10-11, with Research's tab and the tour).
 
 The guided tour got a welcome card, six "Getting around" cards (one per tab), a plain-words `detail`
-under each host line (collapses on first tap), Jo as a second weekly winner, and the league renamed
-"Bake-Off Champions": `docs/PLAN-guided-tour.md` → "Changed 2026-10-11".
+under each host line (collapses on first tap), and the league renamed "Bake-Off Champions". Later the
+same day: Clive wins Episode 1 and Jo Episode 2 (never both), the computer players leave both to you,
+"What does this mean?" works, and the front door fades each show's art in behind the show roll:
+`docs/PLAN-guided-tour.md` → "Changed 2026-10-11".
 
 ## Guided tour: player path (phase 1) and commissioner path (phase 2) built 2026-10-10
 
