@@ -20,6 +20,28 @@ export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: WhatsNewRelease[] = [
   {
+    id: "2026-10-11",
+    date: "2026-10-11",
+    items: [
+      {
+        icon: "⏪",
+        title: "Friends can join after the season starts",
+        detail: "Someone who joins late picks an episode to start from, drafts a team, and catches up one episode at a time without spoilers. Your commissioner adds them to the league when they're ready.",
+      },
+      {
+        icon: "🔎",
+        title: "Research has its own tab",
+        detail: "See how every cast member is scoring, who's still a free agent and who's on each team, right from the tab bar.",
+      },
+      {
+        icon: "🧭",
+        title: "Take the tour",
+        detail: "A three-minute walk through a season on a made-up baking show, as a player or as a commissioner. It's under More.",
+        link: { label: "Show me", to: "whatsNewMenu" },
+      },
+    ],
+  },
+  {
     id: "2026-10-10",
     date: "2026-10-10",
     items: [
