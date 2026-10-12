@@ -20,6 +20,17 @@ export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: WhatsNewRelease[] = [
   {
+    id: "2026-10-11b",
+    date: "2026-10-11",
+    items: [
+      {
+        icon: "🎮",
+        title: "Try a practice round",
+        detail: "Play a 2-minute practice game with your league's real cast and rules, against computer players, with made-up results. Find it at the end of \"How this league works\", or in More.",
+      },
+    ],
+  },
+  {
     id: "2026-10-11",
     date: "2026-10-11",
     items: [
