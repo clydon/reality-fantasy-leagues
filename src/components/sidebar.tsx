@@ -39,7 +39,9 @@ import {
   SparklesIcon,
   TrophyIcon,
   UserIcon,
+  InfoIcon,
 } from "@/components/icons";
+import { useExplainerStore } from "@/lib/explainer-store";
 import { cn } from "cn";
 
 type Icon = ComponentType<{ className?: string }>;
@@ -291,6 +293,8 @@ function AccountRow() {
   const touring = useLeagueStore((s) => s.touring);
   const openReportModal = useReportModalStore((s) => s.openModal);
   const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
+  const showExplainer = useExplainerStore((s) => s.show);
+  const hasLeague = useLeagueStore((s) => !!s.leagueId);
   const { data: session } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -345,6 +349,17 @@ function AccountRow() {
                   }}
                 >
                   Demo season
+                </MenuRow>
+              )}
+              {mode === "live" && hasLeague && (
+                <MenuRow
+                  icon={InfoIcon}
+                  onClick={() => {
+                    close();
+                    showExplainer(true);
+                  }}
+                >
+                  How this league works
                 </MenuRow>
               )}
               <MenuRow

@@ -22,6 +22,7 @@ import { Dashboard } from "@/components/dashboard/dashboard";
 import { useLeaguePoll } from "@/lib/use-league-poll";
 import { ActionBar } from "@/components/action-bar";
 import { WhatsNewModal } from "@/components/whats-new-modal";
+import { LeagueExplainer } from "@/components/explainer/league-explainer";
 import { rememberedLeague, reloadedLeague } from "@/lib/last-league";
 import { Button } from "@/components/ui/button";
 import { ResultsInBanner, RevealSheet } from "@/components/results-in-banner";
@@ -228,6 +229,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
         {/* The commissioner's tour opens on creating a league. Not the reveal: that's the broadcast,
             and the tour's host waits for it to finish. */}
         {pathname === "/new-league" && <TourHost />}
+        {/* A late joiner meets "How this league works" here, in front of where they start. */}
+        {pathname === "/late-join" && <LeagueExplainer />}
         {children}
       </div>
     );
@@ -301,6 +304,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       <RevealSheet />
       <CatchUpSheet />
       <WhatsNewModal />
+      <LeagueExplainer />
       <TourHost />
       {/* Phones only -- desktop browsers have their own install affordance (an icon in the address
           bar) that doesn't need this app repeating it. See install-hint.tsx's own comment on why

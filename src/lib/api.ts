@@ -103,6 +103,7 @@ export const api = {
   unlinkLeague: (leagueId: string) => localFetch<{ ok: true }>(`/api/leagues/${leagueId}/link`, { method: "DELETE" }),
   // Spoiler protection: this member has now seen results through episode `through`.
   // `jump`: a late joiner skipping to the latest episode, the one way their mark moves by more than one.
+  markExplainerSeen: (leagueId: string) => localFetch<{ ok: true }>(`/api/leagues/${leagueId}/explainer-seen`, { method: "POST" }),
   markResultsSeen: (leagueId: string, through: number, jump?: boolean) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/results-seen`, { method: "POST", body: JSON.stringify({ through, jump: !!jump }) }),
   // Late joiners (StateLogic.GhostLogic): choose a start episode and draft; and a commissioner adding one.

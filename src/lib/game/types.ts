@@ -288,6 +288,9 @@ export interface Membership {
   /** Spoiler protection: the last episode whose results this member has revealed. Null = sees
    *  everything (opted out, or not a member). See StateLogic.SpoilerLogic. */
   resultsSeenThrough?: number | null;
+  /** "How this league works" has been finished or skipped once (docs/PLAN-league-explainer.md).
+   *  Only an explicit false opens it by itself. */
+  explainerSeen?: boolean;
 }
 
 export interface ReplenishTurn {

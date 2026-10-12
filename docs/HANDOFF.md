@@ -11,6 +11,13 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## "How this league works" built 2026-10-11 (uncommitted)
+
+A recap-style card sequence shown once after joining a league (and from More), playing a made-up
+episode of that league; for late joiners it ends by recommending where to start. Details and the
+calls made on the plan's open questions: `docs/PLAN-league-explainer.md` -> "As built". Waiting on the
+user: review, commit, and a What's New entry.
+
 ## Late joiners ("ghosts") built 2026-10-11
 
 Someone joining an underway league picks an episode to start from, drafts from the cast as it stood

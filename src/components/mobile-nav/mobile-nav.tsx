@@ -37,7 +37,9 @@ import {
   GearIcon,
   UserIcon,
   SparklesIcon,
+  InfoIcon,
 } from "@/components/icons";
+import { useExplainerStore } from "@/lib/explainer-store";
 import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
 import { useTourRunning, useTourStep, useTourStore } from "@/lib/tour/tour-store";
@@ -66,6 +68,7 @@ import { artStyleVars } from "@/lib/show-art-style";
 export function MobileNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
+  const showExplainer = useExplainerStore((s) => s.show);
   // Opened from elsewhere too (the What's New "Show me" link).
   const moreRequests = useMoreSheetRequest((s) => s.requests);
   useEffect(() => {
@@ -560,6 +563,17 @@ export function MobileNav() {
               urgent={!!midBadge?.urgent}
               onClick={() => go(midSeasonSlot.href)}
               tour="more-midseason"
+            />
+          )}
+          {hasSeason && mode === "live" && (
+            <MoreRow
+              icon={InfoIcon}
+              label="How this league works"
+              value="1 min"
+              onClick={() => {
+                closeSheet();
+                showExplainer(true);
+              }}
             />
           )}
           {hasSeason && (

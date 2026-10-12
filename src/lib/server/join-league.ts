@@ -61,11 +61,11 @@ export async function joinLeague(
     }
 
     await client.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), league.id]);
-    await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1,$2,$3,'member')", [
-      league.id,
-      user.id,
-      playerId,
-    ]);
+    // "How this league works" opens once for someone new to it; reclaiming your own old seat isn't.
+    await client.query(
+      "INSERT INTO league_memberships (league_id, user_id, player_id, role, explainer_seen_at) VALUES ($1,$2,$3,'member',$4)",
+      [league.id, user.id, playerId, disabledOwn ? new Date() : null]
+    );
     if (afterJoin) await afterJoin(client);
     await client.query("COMMIT");
     // After the commit, per notifyAfter's rule. Named as the league shows them (their player).

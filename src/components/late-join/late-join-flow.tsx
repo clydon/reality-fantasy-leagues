@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, X } from "lucide-react";
+import { Check, ChevronLeft, X } from "lucide-react";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
 import { useLeagueStore } from "@/lib/store";
+import { confirm } from "@/lib/confirm-store";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { CastTile, TileGrid, shortNames, useTribeFilter } from "@/components/draft/draft-ui";
 import { PrimaryButton } from "@/components/setup/settings-ui";
@@ -16,7 +17,11 @@ import { cn } from "cn";
 // A late joiner's way in (StateLogic.GhostLogic, docs/PLAN-late-joiners.md), full screen at
 // /late-join. AuthGate sends them here until they've started.
 //
-//   1. Where to start: an episode number, nothing more -- titles can give an episode away.
+//   1. What have you watched: the season as a strip of episode numbers (never titles -- a title can
+//      give an episode away). Tapping the last one you've finished marks everything up to it watched,
+//      and you start right after it. One answer, so there's no second number to get off by one.
+//      Starting later than that is a separate, deliberate step ("Start somewhere else"), and the only
+//      way to see results you haven't watched -- with a confirm that names them.
 //   2. Draft (league types with a draft): a team from the cast as it stood before that episode.
 //
 // Then the league opens on their start episode as if it airs tonight.
@@ -36,17 +41,26 @@ export function LateJoinFlow() {
   const setState = useLeagueStore((s) => s.setState);
   const terms = useShowTerms();
 
-  const choices = StateLogic.GhostLogic.startChoices(raw);
+  const choices = StateLogic.GhostLogic.startChoices(raw) as number[];
   const live = choices[choices.length - 1];
+  const latest = live - 1;
   const teamSize = StateLogic.GhostLogic.teamSize(raw);
   const hasDraft = teamSize > 0;
 
   const [step, setStep] = useState<1 | 2>(1);
   const [dir, setDir] = useState(1);
-  const [start, setStart] = useState<number | null>(null);
+  // The last episode they've finished (0 = none yet). Null until they answer: nothing is guessed.
+  const [watched, setWatched] = useState<number | null>(null);
+  // "Start somewhere else": a start they chose over the one their answer gives.
+  const [elsewhere, setElsewhere] = useState(false);
+  const [override, setOverride] = useState<number | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Right after what they've watched -- or the league's own first episode, if it starts later.
+  const natural = watched === null ? null : (choices.find((n) => n >= watched + 1) ?? live);
+  const start = override ?? natural;
 
   // The cast as it stood before their start episode: who's still in, in the groups they were in then.
   const before = useMemo(
@@ -69,10 +83,33 @@ export function LateJoinFlow() {
   }, [needed, busy, router]);
   if (!needed) return null;
 
+  // Episodes their start would show them that they haven't watched.
+  // Only a start they chose over their answer can do that: the league's own later first episode can't.
+  const spoiled = override !== null && watched !== null && override - 1 > watched ? { a: watched + 1, b: override - 1 } : null;
+  const spoiledText = spoiled ? (spoiled.a === spoiled.b ? `episode ${spoiled.a}` : `episodes ${spoiled.a} to ${spoiled.b}`) : "";
+
+  // Said plainly, once, before it happens.
+  async function spoilsOk() {
+    if (!spoiled || start === null) return true;
+    return confirm(`Starting at episode ${start} shows you the results of ${spoiledText}, which you haven't watched. You can't undo this.`, {
+      title: "See results you haven't watched?",
+      confirmLabel: `Start at episode ${start}`,
+      cancelLabel: "Go back",
+      danger: true,
+    });
+  }
+
   const go = (next: 1 | 2) => {
     setDir(next > step ? 1 : -1);
     setStep(next);
     setError(null);
+  };
+
+  const answer = (w: number) => {
+    setWatched(w);
+    setOverride(null);
+    setElsewhere(false);
+    setPicked([]);
   };
 
   const toggle = (id: string) =>
@@ -80,6 +117,7 @@ export function LateJoinFlow() {
 
   async function begin() {
     if (start === null || !leagueId) return;
+    if (!hasDraft && !(await spoilsOk())) return;
     setBusy(true);
     setError(null);
     try {
@@ -97,6 +135,19 @@ export function LateJoinFlow() {
 
   const canNext = step === 1 ? start !== null : picked.length === need;
   const last = step === 2 || !hasDraft;
+
+  // The answer, read back in a sentence: what they said, and what happens because of it.
+  const saidWatched =
+    watched === null
+      ? null
+      : watched === 0
+        ? "You haven't watched any yet."
+        : watched === latest
+          ? `You've watched all ${latest}.`
+          : watched === 1
+            ? "You've watched episode 1."
+            : `You've watched episodes 1 to ${watched}.`;
+  const startsAt = start === null ? null : start === live ? "You'll join live, with the league." : `You'll start at episode ${start}.`;
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[560px] flex-col">
@@ -136,51 +187,34 @@ export function LateJoinFlow() {
             className="flex flex-col"
           >
             {step === 1 ? (
-              <>
-                <h1 className="type-caption text-[30px] leading-none">Where do you start?</h1>
-                <p className="mt-2.5 text-[15px] leading-snug text-muted-foreground">
-                  Pick the episode after the last one you&rsquo;ve watched. You&rsquo;ll play it as if it airs tonight: make your picks, watch
-                  it, then reveal it. One episode at a time until you&rsquo;re caught up.
-                </p>
-                <div role="radiogroup" aria-label="Start episode" className="mt-5 flex flex-col">
-                  {choices.map((n) => {
-                    const on = start === n;
-                    const note = n === choices[0] ? "From the start" : n === live ? "Live, with the league" : null;
-                    return (
-                      <button
-                        key={n}
-                        type="button"
-                        role="radio"
-                        aria-checked={on}
-                        onClick={() => {
-                          setStart(n);
-                          setPicked([]);
-                        }}
-                        className={cn(
-                          "flex min-h-14 items-center gap-4 border-b border-border px-1 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line",
-                          on && "bg-plate text-plate-foreground",
-                        )}
-                      >
-                        <span className={cn("type-caption type-num w-12 shrink-0 text-right text-[30px] leading-none", !on && "text-muted-foreground")}>
-                          {n}
-                        </span>
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="type-caption text-[17px]">Episode {n}</span>
-                          {note && <span className={cn("text-[13px]", on ? "text-plate-muted" : "text-muted-foreground")}>{note}</span>}
-                        </span>
-                        {on && (
-                          <span className="type-caption shrink-0 bg-chyron px-2.5 py-1 text-[13px] text-chyron-foreground" aria-hidden>
-                            Start here
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="mt-4 text-[13px] leading-snug text-muted-foreground">
-                  The rest of the league won&rsquo;t see you until your commissioner adds you. Episodes before your start don&rsquo;t score for you.
-                </p>
-              </>
+              elsewhere && watched !== null ? (
+                <StartElsewhere
+                  choices={choices}
+                  live={live}
+                  watched={watched}
+                  start={start}
+                  onPick={(n) => setOverride(n === natural ? null : n)}
+                  onBack={() => {
+                    setOverride(null);
+                    setElsewhere(false);
+                  }}
+                />
+              ) : (
+                <>
+                  <h1 className="type-caption text-balance text-[30px] leading-none">Which episodes have you watched?</h1>
+                  <p className="mt-2.5 text-pretty text-[16px] leading-snug">
+                    Tap the last one you&rsquo;ve finished. You&rsquo;ll start right after it.
+                  </p>
+                  <p className="mt-2 text-pretty text-[14px] leading-snug text-muted-foreground">
+                    <b className="font-semibold text-foreground">Not sure? Pick fewer.</b> Rewatching costs nothing; picking too many shows you
+                    results you haven&rsquo;t seen.
+                  </p>
+                  <SeasonStrip latest={latest} watched={watched} start={start} live={live} onAnswer={answer} />
+                  <p className="mt-5 text-[13px] leading-snug text-muted-foreground">
+                    The rest of the league won&rsquo;t see you until your commissioner adds you. Episodes before your start don&rsquo;t score for you.
+                  </p>
+                </>
+              )
             ) : (
               <>
                 <h1 className="type-caption text-[30px] leading-none">Draft your team</h1>
@@ -213,22 +247,231 @@ export function LateJoinFlow() {
         </AnimatePresence>
       </main>
 
-      <footer className="sticky bottom-0 z-10 border-t border-border bg-background px-4 pb-[calc(20px+env(safe-area-inset-bottom,0px))] pt-3">
+      <footer className="sticky bottom-0 z-10 border-t border-border bg-background px-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] pt-3">
         {error && (
           <p role="alert" className="mb-2.5 text-sm font-semibold text-live">
             {error}
           </p>
+        )}
+        {step === 1 && (
+          <div className="mb-3 min-h-[42px] text-[15px] leading-snug" aria-live="polite">
+            {watched === null ? (
+              <p className="text-muted-foreground">Tap the last episode you&rsquo;ve finished.</p>
+            ) : (
+              <>
+                <p className="text-muted-foreground">{saidWatched}</p>
+                <p className="font-semibold">
+                  {startsAt}
+                  {spoiled && <span className="font-normal text-live"> That shows you the results of {spoiledText}.</span>}
+                  {!override && natural !== null && natural - 1 > watched && natural !== live && (
+                    <span className="font-normal text-muted-foreground"> This league starts there.</span>
+                  )}
+                </p>
+              </>
+            )}
+          </div>
         )}
         {step === 2 && (
           <p className="mb-2 text-sm text-muted-foreground" aria-live="polite">
             {picked.length} of {need} picked
           </p>
         )}
-        <PrimaryButton className="min-h-[52px] w-full text-base" disabled={!canNext || busy} onClick={last ? begin : () => go(2)}>
-          {busy ? "Starting…" : last ? (start === live ? "Join live" : `Start at episode ${start ?? ""}`) : "Next: draft your team"}
+        <PrimaryButton
+          className="min-h-[52px] w-full text-base"
+          disabled={!canNext || busy}
+          onClick={last ? begin : async () => (await spoilsOk()) && go(2)}
+        >
+          {busy
+            ? "Starting…"
+            : step === 1 && start === null
+              ? "Choose an episode"
+              : !last
+                ? "Next: draft your team"
+                : start === live
+                  ? "Join live"
+                  : `Start at episode ${start}`}
         </PrimaryButton>
+        {step === 1 && watched !== null && !elsewhere && natural !== live && (
+          <button
+            type="button"
+            onClick={() => setElsewhere(true)}
+            className="mx-auto mt-1 flex min-h-11 items-center px-3 text-[15px] font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-3 focus-visible:outline-chyron-line"
+          >
+            Start somewhere else
+          </button>
+        )}
       </footer>
     </div>
+  );
+}
+
+// The season as a strip: "None yet", each aired episode, and the latest as "All N". Tapping a row
+// answers "I've finished up to here": the rows up to it fill in as watched along a track, and the next
+// one carries the "You start here" tag.
+function SeasonStrip({
+  latest,
+  watched,
+  start,
+  live,
+  onAnswer,
+}: {
+  latest: number;
+  watched: number | null;
+  start: number | null;
+  live: number;
+  onAnswer: (w: number) => void;
+}) {
+  const rows = Array.from({ length: latest + 1 }, (_, i) => i);
+  const filled = (i: number) => watched !== null && i >= 1 && i <= watched;
+  return (
+    <div role="radiogroup" aria-label="The last episode you've finished" className="mt-5 flex flex-col">
+      {rows.map((i) => {
+        const on = watched === i;
+        const startsHere = start !== null && start === i && start !== live;
+        const label = i === 0 ? "None yet" : i === latest ? `All ${latest}` : `Episode ${i}`;
+        const sub = i === latest ? "Up to date · join live" : null;
+        const aria =
+          i === 0
+            ? "None yet. Start at episode 1"
+            : i === latest
+              ? `All ${latest}, up to date. Join live`
+              : `Watched through episode ${i}. Start at episode ${i + 1}`;
+        return (
+          <button
+            key={i}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            aria-label={aria}
+            onClick={() => onAnswer(i)}
+            className={cn(
+              "group relative flex min-h-14 items-center gap-3 rounded-[3px] pr-3 text-left outline-none transition-colors focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-chyron-line",
+              on ? "bg-plate text-plate-foreground shadow-plate" : "hover:bg-accent/50",
+            )}
+          >
+            {/* The track: a line through the rows they've watched, a dot per row. */}
+            <span aria-hidden className="relative flex w-10 shrink-0 justify-center self-stretch">
+              {i > 0 && (
+                <span
+                  className={cn(
+                    "absolute left-1/2 top-0 h-1/2 w-[2px] -translate-x-1/2",
+                    filled(i) && filled(i - 1) ? (on ? "bg-plate-foreground" : "bg-foreground") : "bg-border",
+                  )}
+                />
+              )}
+              {i < latest && (
+                <span
+                  className={cn(
+                    "absolute bottom-0 left-1/2 h-1/2 w-[2px] -translate-x-1/2",
+                    filled(i) && filled(i + 1) ? (on ? "bg-plate-foreground" : "bg-foreground") : "bg-border",
+                  )}
+                />
+              )}
+              <span
+                className={cn(
+                  "relative my-auto rounded-full transition-all duration-200",
+                  filled(i) || (on && i === 0)
+                    ? cn("size-3", on ? "bg-plate-foreground" : "bg-foreground")
+                    : startsHere
+                      ? "size-3.5 border-[3px] border-chyron-line bg-background"
+                      : "size-2.5 border-2 border-input bg-background",
+                )}
+              />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col py-2">
+              <span className={cn("type-caption text-[19px] leading-tight", !on && !filled(i) && !startsHere && "text-muted-foreground")}>
+                {label}
+              </span>
+              {sub && <span className={cn("text-[13px]", on ? "text-plate-muted" : "text-muted-foreground")}>{sub}</span>}
+            </span>
+            {filled(i) && (
+              <span className={cn("flex shrink-0 items-center gap-1 text-[13px] font-semibold", on ? "text-plate-muted" : "text-muted-foreground")}>
+                <Check className="size-4" strokeWidth={2.8} aria-hidden />
+                Watched
+              </span>
+            )}
+            {startsHere && (
+              <span className="type-caption shrink-0 bg-chyron px-2.5 py-1 text-[13px] tracking-[0.04em] text-chyron-foreground" aria-hidden>
+                You start here
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// The deliberate way to start past what you've watched: every start the league allows, the ones
+// you've watched marked, and the cost said on the row before you choose it.
+function StartElsewhere({
+  choices,
+  live,
+  watched,
+  start,
+  onPick,
+  onBack,
+}: {
+  choices: number[];
+  live: number;
+  watched: number;
+  start: number | null;
+  onPick: (n: number) => void;
+  onBack: () => void;
+}) {
+  return (
+    <>
+      <h1 className="type-caption text-balance text-[30px] leading-none">Where do you want to start?</h1>
+      <p className="mt-2.5 text-pretty text-[16px] leading-snug">
+        Starting after episode {watched + 1} shows you results you haven&rsquo;t watched.
+      </p>
+      <button
+        type="button"
+        onClick={onBack}
+        className="mt-1 flex min-h-11 items-center gap-1 self-start text-[15px] font-semibold text-chyron-line underline-offset-4 hover:underline focus-visible:outline-3 focus-visible:outline-chyron-line"
+      >
+        <ChevronLeft className="size-4" strokeWidth={2.6} aria-hidden />
+        Back to what I&rsquo;ve watched
+      </button>
+      <div role="radiogroup" aria-label="Start episode" className="mt-3 flex flex-col">
+        {choices.map((n) => {
+          const on = start === n;
+          const seen = n <= watched;
+          const spoils = n - 1 > watched;
+          const label = n === live ? "Join live" : `Episode ${n}`;
+          const sub = seen
+            ? "Watched already"
+            : !spoils
+              ? "The first one you haven't watched"
+              : n - 1 === watched + 1
+                ? `Shows you episode ${watched + 1}`
+                : `Shows you episodes ${watched + 1} to ${n - 1}`;
+          return (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onPick(n)}
+              className={cn(
+                "flex min-h-14 items-center gap-3 border-b border-border px-3 text-left outline-none focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-chyron-line",
+                on && "rounded-[3px] border-transparent bg-plate text-plate-foreground shadow-plate",
+              )}
+            >
+              <span className="flex min-w-0 flex-1 flex-col py-2">
+                <span className={cn("type-caption text-[19px] leading-tight", !on && seen && "text-muted-foreground")}>{label}</span>
+                <span className={cn("text-[13px]", on ? "text-plate-muted" : spoils ? "text-live" : "text-muted-foreground")}>{sub}</span>
+              </span>
+              {on && (
+                <span className="type-caption shrink-0 bg-chyron px-2.5 py-1 text-[13px] tracking-[0.04em] text-chyron-foreground" aria-hidden>
+                  You start here
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

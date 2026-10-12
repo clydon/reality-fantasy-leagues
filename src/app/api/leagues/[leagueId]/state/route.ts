@@ -20,6 +20,16 @@ function turns(state: LeagueState) {
   return { draft, midSeason };
 }
 
+// "How this league works" (docs/PLAN-league-explainer.md): false until this member has finished or
+// skipped it once. A super-admin with no membership has nothing to be shown.
+async function explainerSeen(userId: string, leagueId: string): Promise<boolean> {
+  const { rows } = await pool.query("SELECT explainer_seen_at FROM league_memberships WHERE league_id=$1 AND user_id=$2", [
+    leagueId,
+    userId,
+  ]);
+  return !rows.length || rows[0].explainer_seen_at !== null;
+}
+
 // Port of SurvivorDraft's server/routes/leagueState.js GET / -- what AuthGate's loadFirstLeague
 // and the league switcher both fetch on entering a league.
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
@@ -58,7 +68,11 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   return NextResponse.json({
     league: { id: league.id, name: league.name },
     // Plus this member's spoiler-protection mark: results after it are held back on their screen.
-    membership: { ...membership, resultsSeenThrough: await resultsSeenThrough(user.id, leagueId, league.state) },
+    membership: {
+      ...membership,
+      resultsSeenThrough: await resultsSeenThrough(user.id, leagueId, league.state),
+      explainerSeen: await explainerSeen(user.id, leagueId),
+    },
     state: league.state,
     playerAccounts: accountsRes.rows,
   });
