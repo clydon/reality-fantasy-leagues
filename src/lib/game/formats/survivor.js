@@ -555,15 +555,16 @@ const data = {
   // Exits that mean reaching the end, not being knocked out: shown as finishers, never dimmed as out.
   endgameExitMethods: ['Lost Final Tribal (Jury Vote)', 'Sole Survivor'],
   events,
-  // Groups for the League Scoring table (overview/league-scoring-card.tsx), in this order. Every event above
+  // Groups for the League Scoring table (overview/league-scoring-card.tsx), in this order -- also the
+  // order a castaway's events read in Research and its episode tags: idols, then wins, then Tribal. Every event above
   // belongs to exactly one; anything left out would land in a trailing "Other".
   eventCategories: [
+    { id: 'advantages', label: 'Idols & Advantages', events: ['idolFound', 'idolPlayed', 'learnedOfAdvantage', 'advantageTargeted'] },
     { id: 'challenges', label: 'Challenges', events: ['individualImmunity', 'challengeRunnerUp', 'challengeThird', 'tribeImmunity', 'rewardWin', 'chosenForReward', 'satOut'] },
     { id: 'tribal', label: 'Tribal Council', events: ['votesNegated', 'survivedVotes', 'votedWithMajority', 'zeroVotesSafe', 'votedAgainstMajority', 'votedOut'] },
-    { id: 'advantages', label: 'Idols & Advantages', events: ['idolFound', 'idolPlayed', 'learnedOfAdvantage', 'advantageTargeted'] },
     { id: 'twists', label: 'Journeys & Exile', events: ['wentOnJourney', 'wentToExile'] },
-    { id: 'leaving', label: 'Leaving the game', events: ['medevac', 'quit'] },
     { id: 'endgame', label: 'Endgame', events: ['finalist', 'juryVote', 'soleSurvivor', 'wonFireMaking', 'lostFireMaking', 'zeroJuryVotes'] },
+    { id: 'leaving', label: 'Leaving the game', events: ['medevac', 'quit'] },
   ],
   // An episode's headline wins, at the top of its Recap (episode-recap.tsx). Both are won as a tribe
   // before the merge (anyone brought along by a twist is chosenForReward, not a winner), so a tribe

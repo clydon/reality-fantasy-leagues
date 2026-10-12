@@ -305,12 +305,14 @@ export function ResearchTab() {
   );
 }
 
-// A castaway's window in two reads. Habits first: each thing that scored for them, with one square
-// per episode they played (filled when it happened) and how often -- "voted with the majority 5 of
-// 6" at a glance. Then the episodes, newest first, each event its own tag instead of a run-on line.
+// A castaway's window in two reads. Habits first: each thing that scored for them, how many times and
+// in which episodes -- "voted with the majority 4 times" at a glance. Deliberately no "out of": not
+// every episode is a chance (no Tribal after an immunity win), and that can't be known for every show.
+// Then the episodes, newest first, each event its own tag instead of a run-on line.
 function CastawayEpisodes({ row }: { row: Row }) {
+  const state = useLeagueStore((s) => s.state);
   const played = row.perEpisode.filter((e) => e.played);
-  const habits = habitsOf(played);
+  const habits = habitsOf(played, eventRank(state));
   return (
     <div className="flex flex-col gap-5">
       <p className="text-sm text-muted-foreground">
@@ -319,32 +321,16 @@ function CastawayEpisodes({ row }: { row: Row }) {
       </p>
 
       {habits.length > 0 && played.length > 1 && (
-        <section aria-label="How often">
-          <h3 className="type-caption pb-1.5 text-[17px]">How often</h3>
+        <section aria-label="What they do">
+          <h3 className="type-caption pb-1.5 text-[17px]">What they do</h3>
           <ul className="flex flex-col border-b border-border">
-            {habits.map((h) => (
-              <li key={h.type} className="flex items-center gap-3 border-t border-border py-2.5">
-                <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <span className="flex items-baseline gap-2">
-                    <span className="truncate text-[15px] font-semibold">{h.label}</span>
-                    <span className="shrink-0 text-[13px] text-muted-foreground">
-                      {h.hits === played.length ? "every episode" : `${h.hits} of ${played.length}`}
-                    </span>
-                  </span>
-                  <span className="flex flex-wrap gap-[3px]" aria-label={`Episodes ${h.eps.join(", ")}`}>
-                    {played.map((e) => {
-                      const hit = h.eps.includes(e.n);
-                      return (
-                        <span
-                          key={e.n}
-                          title={`Episode ${e.n}`}
-                          className={cn(
-                            "h-3 w-[14px] rounded-[1px]",
-                            !hit ? "bg-foreground/15" : h.points < 0 ? "bg-destructive" : "bg-good"
-                          )}
-                        />
-                      );
-                    })}
+            {habits.map((h, i) => (
+              // A little more room where one scoring group ends and the next begins.
+              <li key={h.type} className={cn("flex items-center gap-3 border-t border-border py-2.5", i > 0 && group(h.rank) !== group(habits[i - 1].rank) && "mt-3")}>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="text-[15px] font-semibold">{h.label}</span>
+                  <span className="text-[13px] text-muted-foreground">
+                    {h.hits === 1 ? "Once" : `${h.hits} times`} · {h.eps.length === 1 ? "Episode" : "Episodes"} {[...h.eps].sort((x, y) => x - y).join(", ")}
                   </span>
                 </span>
                 <span className={cn("type-num w-12 shrink-0 text-right text-[19px]", h.points < 0 && "text-destructive")}>{signed(h.points)}</span>
@@ -365,9 +351,9 @@ function CastawayEpisodes({ row }: { row: Row }) {
                   <span className="text-[13px] leading-6 text-muted-foreground">Out of the game</span>
                 ) : e.events.length ? (
                   e.events.map((x, i) => (
-                    <span key={i} className="inline-flex h-6 items-center gap-1.5 rounded-[2px] bg-muted px-2 text-[13px] font-semibold">
+                    <span key={i} className="rounded-[2px] bg-muted px-2 py-1 text-[13px] leading-[1.3] font-semibold">
                       {x.label}
-                      <span className={cn("type-num", x.points < 0 ? "text-destructive" : "text-good")}>{signed(x.points)}</span>
+                      <span className={cn("type-num ml-1.5 whitespace-nowrap", x.points < 0 ? "text-destructive" : "text-good")}>{signed(x.points)}</span>
                     </span>
                   ))
                 ) : (
@@ -384,12 +370,13 @@ function CastawayEpisodes({ row }: { row: Row }) {
 }
 
 /** Each scoring event across the episodes a castaway played: in how many, which, and its points
- *  together. Most frequent first. */
-function habitsOf(played: EpisodeLine[]) {
-  const by = new Map<string, { type: string; label: string; eps: number[]; hits: number; points: number }>();
+ *  together. In the show's own order (eventRank), the same for every castaway, so two are easy to
+ *  compare. */
+function habitsOf(played: EpisodeLine[], rank: (type: string) => number) {
+  const by = new Map<string, { type: string; label: string; rank: number; eps: number[]; hits: number; points: number }>();
   for (const e of played)
     for (const x of e.events) {
-      const h = by.get(x.type) ?? { type: x.type, label: x.label, eps: [], hits: 0, points: 0 };
+      const h = by.get(x.type) ?? { type: x.type, label: x.label, rank: rank(x.type), eps: [], hits: 0, points: 0 };
       if (!h.eps.includes(e.n)) {
         h.eps.push(e.n);
         h.hits++;
@@ -397,8 +384,21 @@ function habitsOf(played: EpisodeLine[]) {
       h.points = StateLogic.roundPoints(h.points + x.points);
       by.set(x.type, h);
     }
-  return [...by.values()].sort((a, b) => b.hits - a.hits || Math.abs(b.points) - Math.abs(a.points));
+  return [...by.values()].sort((a, b) => a.rank - b.rank);
 }
+
+/** Where an event sits in the show's scoring groups (format.eventCategories, the League Scoring
+ *  table's order): group * 1000 + its place in the group. Events in no group come last. */
+function eventRank(state: LeagueState) {
+  const f = StateLogic.formatOf(state);
+  const cats: { events: string[] }[] = f.eventCategories ?? [];
+  const order = new Map<string, number>();
+  cats.forEach((c, g) => c.events.forEach((id, k) => order.set(id, g * 1000 + k)));
+  const fallback = (type: string) => 999_000 + Math.max(0, f.events.findIndex((d: { id: string }) => d.id === type));
+  return (type: string) => order.get(type) ?? fallback(type);
+}
+
+const group = (rank: number) => Math.floor(rank / 1000);
 
 function FilterChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
   return (
@@ -446,6 +446,7 @@ function buildRows(state: LeagueState, aired: LeagueState["episodes"], window: W
   const defs = StateLogic.formatOf(state).events;
   const label = (type: string) => defs.find((d) => d.id === type)?.label ?? type;
   const inWindow = window === "season" ? aired : aired.slice(-Number(window));
+  const rank = eventRank(state);
 
   // The episode each castaway left in (they played it, then no more).
   const exitEp: Record<string, number> = {};
@@ -461,6 +462,8 @@ function buildRows(state: LeagueState, aired: LeagueState["episodes"], window: W
         // An event this league scores at 0 is noise in the breakdown.
         if (pts !== 0) line.events.push({ type: sev.type, label: label(sev.type), points: pts });
       }
+      // In the show's own order (its scoring groups), so an episode reads the same way every week.
+      line.events.sort((a, b) => rank(a.type) - rank(b.type));
       return line;
     });
     const points = StateLogic.roundPoints(perEpisode.reduce((s, e) => s + e.points, 0));
