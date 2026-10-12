@@ -35,12 +35,15 @@ export function ActionBar() {
   const setLeagues = useLeagueStore((s) => s.setLeagues);
   const setFlash = useLeagueStore((s) => s.setFlash);
   const isAuthenticated = useIsAuthenticated();
+  const leagues = useLeagueStore((s) => s.leagues);
   const previewingDemo = useIsPreviewingDemo();
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
   // "Turn on notifications", last in the list, for a device that could get push but doesn't
   // (notify-nudge.ts decides, including the snooze after a dismissal).
-  const [nudge, setNudge] = useState(false);
+  const [nudgeAllowed, setNudge] = useState(false);
+  // Not before the first league: there's nothing to be reminded about yet.
+  const nudge = nudgeAllowed && leagues.length > 0;
   const live = mode === "live" && !!leagueId;
   // Signed in with no league yet still fetches: invites are exactly what that person needs to see.
   const enabled = isAuthenticated && !previewingDemo;

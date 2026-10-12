@@ -336,29 +336,30 @@
   opacity: min(0.5, calc(var(--art-opacity) * var(--art-strength, 1) * 0.8));
 }
 
-/* Port of SurvivorDraft's boot overlay (public/styles.css) -- a pulsing app icon + three bouncing
-   dots, for AuthGate's own initial-load/league-switch screen (boot-overlay.tsx) instead of the bare
-   "Loading…" text it had. Plain keyframes rather than Tailwind's animate-* utilities since those
-   don't cover a staggered per-dot delay without three near-duplicate arbitrary-value classes. */
-@keyframes boot-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.8; }
-  50% { transform: scale(1.045); opacity: 1; }
+/* AuthGate's loading mark (boot-overlay.tsx), one 2.4s loop: the plate wipes in from the left, the
+   tag drops onto it with a little settle, a light sweep crosses the plate while it holds, then both
+   clear upward together. Ease-out-expo on the way in, a quick ease-in on the way out. */
+@keyframes boot-plate {
+  0% { clip-path: inset(0 100% 0 0); opacity: 1; transform: none; }
+  22%, 82% { clip-path: inset(0 0 0 0); opacity: 1; transform: none; }
+  100% { clip-path: inset(0 0 0 0); opacity: 0; transform: translateY(-3px); }
 }
-@keyframes boot-dot {
-  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
-  40% { opacity: 1; transform: translateY(-4px); }
+@keyframes boot-tag {
+  0%, 12% { opacity: 0; transform: translate(-6px, 0); }
+  30% { opacity: 1; transform: translate(0.4px, 0); }
+  36%, 82% { opacity: 1; transform: translate(0, 0); }
+  100% { opacity: 0; transform: translateY(-3px); }
 }
-.boot-overlay-logo {
-  animation: boot-pulse 1.8s ease-in-out infinite;
+@keyframes boot-sweep {
+  0%, 38% { transform: translateX(4px); }
+  70%, 100% { transform: translateX(34px); }
 }
-.boot-overlay-dot {
-  animation: boot-dot 1.2s ease-in-out infinite;
-}
+.boot-plate { animation: boot-plate 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite; }
+.boot-tag { animation: boot-tag 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite; }
+.boot-sweep { animation: boot-sweep 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .boot-overlay-logo,
-  .boot-overlay-dot {
-    animation: none;
-  }
+  .boot-plate, .boot-tag, .boot-sweep { animation: none; }
+  .boot-sweep { display: none; }
 }
 /* Season results card's confetti (season-results-card.tsx): each piece flies out from the card's
    top-centre along its own --dx/--dy, spinning, then falls and fades. Played once on mount. */

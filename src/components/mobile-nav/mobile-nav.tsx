@@ -376,7 +376,12 @@ export function MobileNav() {
               ) : (
                 // Overview: the league name is the page's title, left-aligned like the canvas's A2 pages.
                 <>
-                  <SwipeTitle name={mode === "mock" ? (leagueName ?? "Demo Mode") : (leagueName ?? "")} className="type-caption truncate text-[26px] leading-none" align="start" />
+                  <SwipeTitle
+                    // Signed in with no league yet, this page is My Leagues, not the demo.
+                    name={isAuthenticated && leagues.length === 0 ? "My Leagues" : mode === "mock" ? (leagueName ?? "Demo Mode") : (leagueName ?? "")}
+                    className="type-caption truncate text-[26px] leading-none"
+                    align="start"
+                  />
                   {mode !== "mock" && (
                     <ChevronDownIcon className={cn("h-[18px] w-[18px] shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
                   )}

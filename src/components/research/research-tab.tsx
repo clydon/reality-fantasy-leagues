@@ -42,7 +42,7 @@ interface EpisodeLine {
   points: number;
   /** Still in the game for it. */
   played: boolean;
-  events: { label: string; points: number }[];
+  events: { type: string; label: string; points: number }[];
 }
 
 interface Row {
@@ -305,33 +305,99 @@ export function ResearchTab() {
   );
 }
 
-// A castaway's window, one hairline row per episode: what they did and what it was worth.
+// A castaway's window in two reads. Habits first: each thing that scored for them, with one square
+// per episode they played (filled when it happened) and how often -- "voted with the majority 5 of
+// 6" at a glance. Then the episodes, newest first, each event its own tag instead of a run-on line.
 function CastawayEpisodes({ row }: { row: Row }) {
+  const played = row.perEpisode.filter((e) => e.played);
+  const habits = habitsOf(played);
   return (
-    <div className="flex flex-col">
-      <p className="pb-2 text-sm text-muted-foreground">
+    <div className="flex flex-col gap-5">
+      <p className="text-sm text-muted-foreground">
         <b className="type-num mr-1 text-[22px] text-foreground">{row.points}</b>
         {row.played === 1 ? "in 1 episode" : `in ${row.played} episodes · ${fmtAvg(row.avg)} per episode`}
       </p>
-      <ol className="flex flex-col border-b border-border">
-        {[...row.perEpisode].reverse().map((e) => (
-          <li key={e.n} className="flex min-h-[52px] items-center gap-3 border-t border-border py-2">
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="text-base font-semibold">Episode {e.n}</span>
-              <span className="text-[13px] text-muted-foreground">
-                {!e.played
-                  ? "Out of the game"
-                  : e.events.length
-                    ? e.events.map((x) => `${x.label} ${signed(x.points)}`).join(" · ")
-                    : "Nothing that scores"}
+
+      {habits.length > 0 && played.length > 1 && (
+        <section aria-label="How often">
+          <h3 className="type-caption pb-1.5 text-[17px]">How often</h3>
+          <ul className="flex flex-col border-b border-border">
+            {habits.map((h) => (
+              <li key={h.type} className="flex items-center gap-3 border-t border-border py-2.5">
+                <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <span className="flex items-baseline gap-2">
+                    <span className="truncate text-[15px] font-semibold">{h.label}</span>
+                    <span className="shrink-0 text-[13px] text-muted-foreground">
+                      {h.hits === played.length ? "every episode" : `${h.hits} of ${played.length}`}
+                    </span>
+                  </span>
+                  <span className="flex flex-wrap gap-[3px]" aria-label={`Episodes ${h.eps.join(", ")}`}>
+                    {played.map((e) => {
+                      const hit = h.eps.includes(e.n);
+                      return (
+                        <span
+                          key={e.n}
+                          title={`Episode ${e.n}`}
+                          className={cn(
+                            "h-3 w-[14px] rounded-[1px]",
+                            !hit ? "bg-foreground/15" : h.points < 0 ? "bg-destructive" : "bg-good"
+                          )}
+                        />
+                      );
+                    })}
+                  </span>
+                </span>
+                <span className={cn("type-num w-12 shrink-0 text-right text-[19px]", h.points < 0 && "text-destructive")}>{signed(h.points)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section aria-label="By episode">
+        <h3 className="type-caption pb-1.5 text-[17px]">By episode</h3>
+        <ol className="flex flex-col border-b border-border">
+          {[...row.perEpisode].reverse().map((e) => (
+            <li key={e.n} className="flex items-start gap-3 border-t border-border py-2.5">
+              <span className="type-num w-9 shrink-0 pt-0.5 text-[15px] text-muted-foreground">Ep {e.n}</span>
+              <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+                {!e.played ? (
+                  <span className="text-[13px] leading-6 text-muted-foreground">Out of the game</span>
+                ) : e.events.length ? (
+                  e.events.map((x, i) => (
+                    <span key={i} className="inline-flex h-6 items-center gap-1.5 rounded-[2px] bg-muted px-2 text-[13px] font-semibold">
+                      {x.label}
+                      <span className={cn("type-num", x.points < 0 ? "text-destructive" : "text-good")}>{signed(x.points)}</span>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[13px] leading-6 text-muted-foreground">Nothing that scores</span>
+                )}
               </span>
-            </span>
-            <span className={cn("type-num shrink-0 text-[22px]", !e.played && "text-muted-foreground")}>{e.played ? signed(e.points) : "–"}</span>
-          </li>
-        ))}
-      </ol>
+              <span className={cn("type-num w-12 shrink-0 text-right text-[22px]", !e.played && "text-muted-foreground")}>{e.played ? signed(e.points) : "–"}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
     </div>
   );
+}
+
+/** Each scoring event across the episodes a castaway played: in how many, which, and its points
+ *  together. Most frequent first. */
+function habitsOf(played: EpisodeLine[]) {
+  const by = new Map<string, { type: string; label: string; eps: number[]; hits: number; points: number }>();
+  for (const e of played)
+    for (const x of e.events) {
+      const h = by.get(x.type) ?? { type: x.type, label: x.label, eps: [], hits: 0, points: 0 };
+      if (!h.eps.includes(e.n)) {
+        h.eps.push(e.n);
+        h.hits++;
+      }
+      h.points = StateLogic.roundPoints(h.points + x.points);
+      by.set(x.type, h);
+    }
+  return [...by.values()].sort((a, b) => b.hits - a.hits || Math.abs(b.points) - Math.abs(a.points));
 }
 
 function FilterChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
@@ -393,7 +459,7 @@ function buildRows(state: LeagueState, aired: LeagueState["episodes"], window: W
         const pts = StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
         line.points = StateLogic.roundPoints(line.points + pts);
         // An event this league scores at 0 is noise in the breakdown.
-        if (pts !== 0) line.events.push({ label: label(sev.type), points: pts });
+        if (pts !== 0) line.events.push({ type: sev.type, label: label(sev.type), points: pts });
       }
       return line;
     });

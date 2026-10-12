@@ -44,12 +44,15 @@ export const metadata: Metadata = {
 
 // viewportFit "cover" is what makes env(safe-area-inset-*) non-zero on notched iPhones -- the mobile
 // nav and main padding already use those insets but got 0 without it. themeColor tints the Android
-// status bar / browser chrome to match the manifest.
+// status bar / browser chrome to each theme's ground (the studio-ground and night-ground tokens).
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#cc5b39",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ecebf1" },
+    { media: "(prefers-color-scheme: dark)", color: "#16141d" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
