@@ -8,7 +8,7 @@ import { publicMediaSrc } from "@/lib/game/selectors";
 import { artStyleVars, type ArtStyle } from "@/lib/show-art-style";
 import { cn } from "cn";
 
-// The front door's title card: "Turn [a show] into a league." The show's name sits on a caption
+// The front door's title card: "Turn [a show] into a game." The show's name sits on a caption
 // plate and rolls through shows people play, landing on "Your show" and staying there, so the
 // point (any show) is the last thing it says and nothing moves while someone is typing. Under
 // reduced motion it just says "Your show". Only competition shows research handles today;
@@ -42,7 +42,7 @@ export function useShowRoll(): string {
 export function ShowRoll({ name }: { name: string }) {
   return (
     <>
-      <h1 className="sr-only">Turn any TV show into a fantasy league.</h1>
+      <h1 className="sr-only">Turn any TV show into a game.</h1>
       <div aria-hidden className="type-caption text-[clamp(44px,12.5vw,60px)] leading-[0.95]">
         <div>Turn</div>
         <m.div layout transition={{ layout: { duration: 0.35, ease: EASE } }} className="my-2.5 flex h-[1.4em] w-fit max-w-full items-stretch rounded-[3px] shadow-plate">
@@ -64,7 +64,7 @@ export function ShowRoll({ name }: { name: string }) {
             </AnimatePresence>
           </span>
         </m.div>
-        <div>Into a league.</div>
+        <div>Into a game.</div>
       </div>
     </>
   );

@@ -23,21 +23,21 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Reality Fantasy Leagues",
+  title: "Game Your Show",
   description: "Draft, score and trash-talk your reality TV fantasy league.",
   // iOS ignores most of the web manifest: without these it won't launch full-screen from the home
   // screen, and it would use a screenshot of the page instead of the icon.
   appleWebApp: {
     capable: true,
-    title: "Fantasy Leagues",
+    title: "Game Your Show",
     // "default" = a light status bar with dark text, content starting below it. Not
     // "black-translucent": that draws WHITE status-bar text over the page, which on this app's cream
     // background would make the clock and battery all but invisible.
     statusBarStyle: "default",
   },
-  // No `icons` here on purpose: src/app/icon.png and src/app/apple-icon.png are Next's own file
-  // conventions and generate the <link rel="icon"> / <link rel="apple-touch-icon"> tags with the
-  // right type and sizes. They replaced the framework's default favicon.ico, which was still
+  // No `icons` here on purpose: src/app/icon1.png (32px), icon2.png (16px) and apple-icon.png are
+  // Next's own file conventions and generate the <link rel="icon"> / <link rel="apple-touch-icon">
+  // tags with the right type and sizes. They replaced the framework's default favicon.ico, which was still
   // Vercel's triangle -- deleting that file is what actually stops it being served, since a
   // favicon.ico in app/ wins over everything else.
 };

@@ -6,11 +6,14 @@ import type { MetadataRoute } from "next";
 //
 // Colours match globals.css: background_color is the splash-screen fill while the app boots and
 // theme_color tints the Android status bar and task switcher. Both are the night ground, the icon's
-// own field, so the splash is one dark screen with the lower-third mark on it.
+// own field, so the splash is one dark screen with the mark on it.
+//
+// short_name is the full name: iOS cuts home-screen labels at about 12 characters ("Game Your S…"),
+// and no shorter name has been chosen yet (PRODUCT.md, Brand Commitments).
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Reality Fantasy Leagues",
-    short_name: "Fantasy Leagues",
+    name: "Game Your Show",
+    short_name: "Game Your Show",
     description: "Draft, score and trash-talk your reality TV fantasy league.",
     id: "/",
     start_url: "/",
@@ -21,7 +24,7 @@ export default function manifest(): MetadataRoute.Manifest {
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      // Padded to the central 80% safe zone so Android's circle/squircle crops never clip the torch.
+      // Padded to the central 80% safe zone so Android's circle/squircle crops never clip the stacked mark.
       { src: "/icons/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };

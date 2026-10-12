@@ -9,7 +9,7 @@ related_targets: ["src/components/account/account-panel.tsx","src/app/forgot-pas
 
 Scope: the signed-out screen (`/` and `/account` before a session) plus forgot/reset password. Mode: Operate, with one line of pitch. A proper home screen that explains the app is planned separately.
 
-Audience: strangers arriving from a friend's invite or a link, and returning players signing in on a phone. Job: sign in, create an account, or take the 3-minute tour. Constraints: no invented claims (users, reviews, affiliation); show names appear as text only, no network art. Name: LeagueCrafter (user leaning, 2026-10-11, leaguecreator.com was taken; not final), set as type so it can change.
+Audience: strangers arriving from a friend's invite or a link, and returning players signing in on a phone. Job: sign in, create an account, or take the 3-minute tour. Constraints: no invented claims (users, reviews, affiliation); show names appear as text only, no network art. Name: Game Your Show (decided 2026-10-12); the wordmark is logo direction C, "Insert", in its in-app colourway (PRODUCT.md, Brand Commitments).
 
 ## Direction contract
 

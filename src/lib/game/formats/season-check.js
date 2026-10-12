@@ -132,7 +132,7 @@ function buildCheckPrompt({ showName, seasonLabel, wikiUrl, data, airedThrough, 
     '',
     JSON.stringify(CHECK_SHAPE, null, 1),
     '',
-    'Paste the JSON back into Reality Fantasy Leagues\' "Check for rule changes" box.',
+    'Paste the JSON back into Game Your Show\'s "Check for rule changes" box.',
   ].filter((l) => l !== null);
   return lines.filter((l, i) => l !== '' || lines[i - 1] !== '').join('\n').replace(/^\n+/, '');
 }

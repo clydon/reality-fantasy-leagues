@@ -149,7 +149,7 @@ function buildProposalPrompt({ showName, wikiUrl, terms, seasons } = {}) {
     '',
     JSON.stringify(PROPOSAL_SHAPE, null, 1),
     '',
-    'Paste the JSON back into Reality Fantasy Leagues\' "Research a new show" box.',
+    'Paste the JSON back into Game Your Show\'s "Research a new show" box.',
   ];
   return lines.filter((l, i) => l !== '' || lines[i - 1] !== '').join('\n').replace(/^\n+/, '');
 }

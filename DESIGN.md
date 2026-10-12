@@ -1,6 +1,6 @@
 ---
-name: Reality Fantasy Leagues
-description: Fantasy leagues for any TV show, styled as the on-screen graphics reality TV runs.
+name: Game Your Show
+description: Games for any TV show, styled as the on-screen graphics reality TV runs.
 colors:
   night-ground: "#16141d"
   night-panel: "#221f2c"
@@ -210,7 +210,7 @@ components:
     padding: "1px 6px"
 ---
 
-# Design System: Reality Fantasy Leagues
+# Design System: Game Your Show
 
 <!-- Scope: both modes are direction A ("Lower Third"): the same components, type and shapes on two
      grounds. Unprefixed colour tokens above are dark mode ("Night", the `.dark` block in
@@ -382,8 +382,8 @@ A multi-step task gets the whole screen, with no tab bar or sidebar (`/new-leagu
 
 ### Front door (signed out)
 Without a session every route is the front door (`login-screen.tsx`, `auth/front-door.tsx`): sign in and create account on one screen, opening on Sign in at `/` and on Create account at `/account`. Forgot and reset password use the same shell. No tab bar, sidebar or alert strip.
-- **Cold open:** a top bar with the wordmark (`auth/wordmark.tsx`, the name set as condensed caps, "League" in foreground and the rest muted, after a small tag-over-plate mark; never chyron) and the page's one secondary way out on the right ("Take the tour", "Tour" under 360px; "‹ Sign in" on forgot/reset). Then a title card in 44–60px condensed caps filling the space above the sheet.
-- **Show roll** (`auth/show-roll.tsx`): "Turn [plate] into a league." The plate has a quiet tag with a TV icon. Its show name rolls up through shows people play every 1.5s, then lands on "Your show" and stays there, so nothing moves while someone types. Under reduced motion it reads "Your show" from the start. Screen readers get one static h1. Show names only, no network art.
+- **Cold open:** a top bar with the wordmark (`auth/wordmark.tsx`, 26px tall: GAME SHOW in outlined condensed caps with YOUR on a slanted wedge between them, the in-app colourway of the logo in PRODUCT.md's Brand Commitments; the wedge is a `foreground` fill with YOUR knocked out in `background`, like the You badge, never chyron) and the page's one secondary way out on the right ("Take the tour", "Tour" under 360px; "‹ Sign in" on forgot/reset). Then a title card in 44–60px condensed caps filling the space above the sheet.
+- **Show roll** (`auth/show-roll.tsx`): "Turn [plate] into a game." The plate has a quiet tag with a TV icon. Its show name rolls up through shows people play every 1.5s, then lands on "Your show" and stays there, so nothing moves while someone types. Under reduced motion it reads "Your show" from the start. Screen readers get one static h1. Show names only, no network art.
 - **The sheet:** Night Panel, 14px top corners, sheet shadow, rising 28px on load. It sits in the page flow, not fixed, so a phone keyboard scrolls the field into view. No grab handle, because it can't be dragged. Capped at 480px and centred on wide screens. Inside: the two-way switch (tabs, the You fill on the chosen side, arrow keys move between them), labelled 48px fields (label above, a hint muted beside it, password with a show/hide eye), errors in red above the action, and one full-width 52px chyron button in 22px condensed caps. That button is the screen's only yellow fill.
 
 ### Section (Overview)

@@ -9,7 +9,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { MyInvite } from "@/lib/game/types";
 import { api, ApiError } from "@/lib/api";
 import { useLeagueStore, useIsAuthenticated } from "@/lib/store";
-import { BrandLogo } from "@/components/brand-logo";
+import { Wordmark } from "@/components/auth/wordmark";
 import { PlainButton } from "@/components/draft/draft-ui";
 import { Chip, PrimaryButton, fieldCls } from "@/components/setup/settings-ui";
 import { CaptionPlate } from "@/components/ui/caption-plate";
@@ -139,7 +139,7 @@ export function Dashboard() {
   if (!isAuthenticated) {
     return (
       <div className="mx-auto flex w-full max-w-[480px] flex-col gap-4 pb-16">
-        <BrandLogo kind="banner" className="mx-auto block h-auto w-full max-w-[360px]" priority />
+        <Wordmark className="mx-auto" />
         <p className="text-base">Sign in to join or create a league.</p>
         <PrimaryButton onClick={handleShowLogin}>Sign in</PrimaryButton>
       </div>

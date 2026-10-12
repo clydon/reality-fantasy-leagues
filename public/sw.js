@@ -12,7 +12,7 @@
 // when one is tapped -- see the push/notificationclick handlers at the bottom.
 //
 // Bump VERSION when this file's behaviour, offline.html or the precached icons change.
-const VERSION = "v2";
+const VERSION = "v3";
 const CACHE = `rfl-offline-${VERSION}`;
 const PRECACHE = ["/offline.html", "/icons/icon-192.png"];
 
@@ -47,7 +47,7 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "Reality Fantasy Leagues";
+  const title = data.title || "Game Your Show";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",

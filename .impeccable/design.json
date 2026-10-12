@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-10-10T18:00:00Z",
-  "title": "Design System: Reality Fantasy Leagues",
+  "title": "Design System: Game Your Show",
   "extensions": {
     "colorMeta": {
       "night-ground": { "role": "neutral", "displayName": "Night Ground", "canonical": "#16141d", "tonalRamp": ["#0b0a0f", "#16141d", "#221f2c", "#3a3548", "#5c566d", "#837d94", "#b3aec2", "#e4e1ec"] },

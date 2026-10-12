@@ -51,12 +51,16 @@ Supporting differences, all confirmed:
 - **Accounts:** one account system (username, with admin roles) for everything. No other login.
 - **Technical:** an existing Next.js codebase with its own backend and Postgres database. It must not depend on the legacy SurvivorDraft server.
 - **Planned:** more game types; automated (paid) research; research prompts that handle non-competition and scripted shows.
-- **Undecided:** the product name (see Brand Commitments); pricing and what exactly the paid tier includes beyond scheduled automatic research.
+- **Undecided:** a shorter home-screen name (see Brand Commitments); pricing and what exactly the paid tier includes beyond scheduled automatic research.
 
 ## Brand Commitments
 
-- **Name: undecided, leaning "LeagueCrafter"** (2026-10-11; leaguecreator.com was taken). The front door shows LeagueCrafter as type (`src/components/auth/wordmark.tsx`, one constant). The app manifest still says "Reality Fantasy Leagues", and the Dashboard banner still says "Survivor Fantasy Engine" with a torch. None of these is binding yet, and there's no logo or icon art. Future work should not lock in a name without a decision.
-- No other brand assets, voice guide or identity constraints have been confirmed.
+- **Name: Game Your Show** (decided 2026-10-12; gameyourshow.com is owned). It replaces the working names "Reality Fantasy Leagues" and "LeagueCrafter". Brand copy leads with making a game out of any show, not with fantasy leagues. Only the repo name and its history still carry the old names.
+- **Logo: direction C, "Insert"** (chosen 2026-10-12). GAME SHOW in Archivo condensed caps (width 62, weight 800, outlined so it never waits on a font), with YOUR inserted on a slanted chyron wedge: any show becomes your own game show. Two colourways:
+  - **Brand** (app icon, marketing): bone or ink letters, the wedge in chyron with YOUR in ink. The app icon stacks GAME / YOUR / SHOW on Night ground (#16141d) in both modes; the favicon is a G on the wedge.
+  - **In-app** (the front door's wordmark, `src/components/auth/wordmark.tsx`): the wedge is a `foreground` fill with YOUR knocked out in `background`, like the You badge, so it inverts with the theme and the screen's one yellow stays its action (the One Chyron Rule).
+- **Name in the app:** `PRODUCT_NAME` in `wordmark.tsx`, the manifest (`src/app/manifest.ts`, name and short_name both "Game Your Show") and the root layout's metadata. iOS cuts the home-screen label to "Game Your S…"; a shorter short_name is still undecided.
+- No voice guide or other identity constraints have been confirmed. The tagline "Pick a show. Make it a game. Bring your friends." is proposed, not confirmed.
 
 ## Evidence on Hand
 

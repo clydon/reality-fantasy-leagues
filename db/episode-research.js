@@ -1559,7 +1559,7 @@ function buildPastePrompt(ctx, bets, { structured = false, pasteBack = null } = 
         "",
         JSON.stringify(pasteSkeleton(ctx, bets), null, 2),
         "",
-        pasteBack || "Paste the JSON back into Reality Fantasy Leagues' \"Paste research notes\" box with \"Structured (JSON)\" ticked.",
+        pasteBack || "Paste the JSON back into Game Your Show's \"Paste research notes\" box with \"Structured (JSON)\" ticked.",
       ]
     : [
         "Answer in plain prose or bullet points, one section per person, in the order given -- not JSON,",
@@ -1570,7 +1570,7 @@ function buildPastePrompt(ctx, bets, { structured = false, pasteBack = null } = 
         "Then, for EACH person, cover every one of these (say \"no\" or \"not reported\" rather than skipping one):",
         ...proseChecklist(ctx.format),
         "",
-        "Paste your whole answer back into Reality Fantasy Leagues' \"Paste research notes\" box for this episode.",
+        "Paste your whole answer back into Game Your Show's \"Paste research notes\" box for this episode.",
       ];
   return system + "\n\n" + user + "\n\n" + closing.join("\n");
 }
@@ -1757,7 +1757,7 @@ async function leagueResearchStatus(pool, leagueId, episodeNumber) {
   const prompt = buildPastePrompt({ ...ctx, castNames: coverage.needsAsking }, bets, {
     structured: true,
     // The commissioner's panel (episode-research-panel.tsx), not the admin one: no "Structured" tick box there.
-    pasteBack: "Paste the JSON back into Reality Fantasy Leagues' \"Research this episode\" box for this episode.",
+    pasteBack: "Paste the JSON back into Game Your Show's \"Research this episode\" box for this episode.",
   });
   return { ctx, coverage, prompt, betCount: bets.length };
 }

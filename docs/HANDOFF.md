@@ -77,8 +77,8 @@ those):
 
 - `PRODUCT.md` (repo root): product truth captured with the impeccable skill's `init`. Users,
   positioning ("any show can become a league", free copy/paste research, paid automation later),
-  league types, principles. Open decisions recorded there: **the product name** ("Reality Fantasy
-  Leagues" vs "Survivor Fantasy Engine"; neither, nor the torch logo, is binding) and pricing.
+  league types, principles. Open decisions recorded there: a shorter home-screen name and pricing. The name
+  **Game Your Show** and its logo (direction C, "Insert") were decided 2026-10-12; see Brand Commitments.
 - `docs/PLAN-ux-redesign.md`: the mobile-first UX review and plan (problems per screen, wireframes,
   ranked shortlist). The app is **mobile-first** for players and commissioners; admin is
   desktop-first but must work at 390px.

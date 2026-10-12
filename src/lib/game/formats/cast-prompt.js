@@ -56,7 +56,7 @@ function buildCastPrompt(format, { seasonName, showName } = {}) {
     '',
     JSON.stringify(shape, null, 1),
     '',
-    'Paste the JSON back into Reality Fantasy Leagues\' "Import a cast" box.',
+    'Paste the JSON back into Game Your Show\'s "Import a cast" box.',
   ];
   return lines.filter((l) => l !== null).join('\n');
 }
