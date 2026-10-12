@@ -965,7 +965,10 @@ export interface ScoreRow {
   playerId: string;
   name: string;
   color: string;
+  /** The league type's core score. Classic: every owned castaway's points so far (still in included). */
   locked: number;
+  /** Classic only: the part of `locked` from castaways already out (final, can't change). */
+  banked?: number;
   bonus: number;
   finale: number;
   total: number;

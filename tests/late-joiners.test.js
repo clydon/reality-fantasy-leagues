@@ -188,9 +188,10 @@ test("Classic: a late joiner drafts a full team from who was left, and scores th
   assert.match(GhostLogic.begin(s, id, 3, ["a"]), /Pick 2/);
   assert.equal(GhostLogic.begin(s, id, 3, ["a", "c"]), null);
   assert.deepEqual(StateLogic.getCastaway(s, "a").ownerIds.sort(), ["p1", id].sort(), "A stays Ann's too");
-  // Classic scores a castaway's placement once they're out: C went third.
+  // Classic counts live: C went third and keeps 3; A, still in after three exits, has 4 so far.
   const row = StateLogic.computeScores(s).find((r) => r.playerId === id);
-  assert.equal(row.locked, 3);
+  assert.equal(row.locked, 7);
+  assert.equal(row.banked, 3);
   // The league's own Classic moves still see A and C as Ann's and Bo's, not free.
   assert.ok(!StateLogic.freeAgents(s).some((c) => c.id === "a"));
   // Their copy ends at their week, and the rest of the league can't see them.

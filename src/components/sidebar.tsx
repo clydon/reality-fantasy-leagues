@@ -7,6 +7,7 @@ import { ChevronsUpDown, MoreHorizontal } from "lucide-react";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
 import { useTourStore, type TourKind } from "@/lib/tour/tour-store";
+import { usePracticeRound } from "@/lib/tour/use-practice-round";
 import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
@@ -294,6 +295,7 @@ function AccountRow() {
   const openReportModal = useReportModalStore((s) => s.openModal);
   const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
   const showExplainer = useExplainerStore((s) => s.show);
+  const practice = usePracticeRound();
   const hasLeague = useLeagueStore((s) => !!s.leagueId);
   const { data: session } = useSession();
   const [open, setOpen] = useState(false);
@@ -360,6 +362,17 @@ function AccountRow() {
                   }}
                 >
                   How this league works
+                </MenuRow>
+              )}
+              {hasLeague && practice.available && (
+                <MenuRow
+                  icon={DraftIcon}
+                  onClick={() => {
+                    close();
+                    practice.start();
+                  }}
+                >
+                  Practice round
                 </MenuRow>
               )}
               <MenuRow

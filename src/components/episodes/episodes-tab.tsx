@@ -9,7 +9,7 @@ import { episodePlayerPoints } from "@/lib/game/active-roster-rows";
 import { cn } from "cn";
 import { useHiddenResults } from "@/components/results-in-banner";
 import { useShowTerms } from "@/lib/use-show-terms";
-import { banksLine, predictionsRight } from "@/lib/game/classic-view";
+import { episodeGains, predictionsRight } from "@/lib/game/classic-view";
 import { useResultsDue, useStagedCount } from "@/lib/episode-results";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { CatchUpPanel } from "./catch-up-panel";
@@ -171,7 +171,7 @@ function ScoredHeadline({ ep, state }: { ep: Episode; state: LeagueState }) {
 }
 
 // What it meant for you: your starters' points (Active Roster), whether your pick survived
-// (Eliminator Pool), or who banked points for whoever went and whether your prediction paid (Classic).
+// (Eliminator Pool), or what your team earned and whether your prediction paid (Classic).
 function ScoredDetail({ ep, state }: { ep: Episode; state: LeagueState }) {
   const me = useMyPlayerId();
   const type = StateLogic.getLeagueType(state);
@@ -193,14 +193,16 @@ function ScoredDetail({ ep, state }: { ep: Episode; state: LeagueState }) {
     const streak = me ? StateLogic.pickEmHistory(state, me).rows.find((r) => r.episode === ep.number)?.streak : undefined;
     return <>{out ? `Your pick, ${name}, went home` : `Your pick, ${name}, survived${streak ? ` · streak ${streak}` : ""}`}</>;
   }
-  const exits = episodeExits(state, ep);
-  const banks = exits.map((x) => banksLine(state, x.c, me));
+  const gains = episodeGains(state, ep);
+  const mine = gains.find((g) => g.player.id === me);
+  const top = gains[0];
   const { right, points } = predictionsRight(state, ep, me);
   const parts = [
-    ...banks.filter(Boolean),
+    mine && `you +${mine.points}`,
+    top && top.player.id !== me && top.points > 0 && `${top.player.name} +${top.points}`,
     right.length > 0 && `${right.length === 1 ? "your prediction was" : `${right.length} predictions`} right, +${points}`,
   ].filter(Boolean);
-  if (parts.length === 0) return exits.length === 1 ? <>{`Nobody had ${exits[0].c.name.split(" ")[0]}`}</> : null;
+  if (parts.length === 0) return null;
   return <>{parts.join(" · ").replace(/^./, (ch) => ch.toUpperCase())}</>;
 }
 

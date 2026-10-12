@@ -46,6 +46,10 @@ export interface TourStep {
   end?: boolean;
   /** A card with nothing to tap on the page: this button on the plate moves the tour on. */
   cta?: string;
+  /** An episode airing (the practice round): the plate counts down to its results. */
+  onAir?: boolean;
+  /** The end card's line under the headline; the tour's own when absent. */
+  note?: string;
 }
 
 const at = (path: string) => (p: string) => p === path;

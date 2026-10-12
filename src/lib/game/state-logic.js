@@ -292,13 +292,26 @@ class Core {
 }
 
 // ---------- EliminationOrderScoringStrategy: the 'classic-draft' league type's scoring ----------
-// Points = sum of your own eliminated castaways' placementOrder, plus an optional side-bet bonus
-// layer and an optional finale-prediction layer. A future league type (e.g. weekly pick'em) would
-// almost certainly need an entirely different formula here -- see LEAGUE_TYPES below.
+// A castaway earns 1 point, plus 1 for every elimination they outlast, counted as it happens: out
+// 4th = 4, the winner of 18 = 18, still in after k eliminations = k + 1 so far. Final totals are
+// exactly the old "sum of placementOrder" (an eliminated castaway's placementOrder IS 1 + the
+// eliminations before theirs); counting live just stops a mid-season table ranking whoever lost
+// someone early first. Plus an optional side-bet bonus layer and an optional finale-prediction layer.
+// `locked` is every owned castaway's points so far; `banked` is the part from castaways already out.
 class EliminationOrderScoringStrategy {
+  /** One castaway's Classic points so far, on whatever (spoiler-trimmed) state the viewer sees. */
+  static castawayPoints(state, c){
+    if(c.status==='eliminated') return typeof c.placementOrder==='number' ? c.placementOrder : 0;
+    return EliminationOrderScoringStrategy.stillInPoints(state);
+  }
+  /** What every castaway still in has earned so far: 1 + the eliminations they've outlasted. */
+  static stillInPoints(state){
+    return state.castaways.filter(x=>x.status==='eliminated' && typeof x.placementOrder==='number').length + 1;
+  }
   static compute(state){
     const results = {};
-    state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
+    state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, banked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
+    const stillInPoints = EliminationOrderScoringStrategy.stillInPoints(state);
     // Per-player, via Core.ownedCastawayIds rather than a single scalar owner per castaway, so a
     // castaway with several owners (shared-ownership league types) contributes its placement to
     // each of them. In exclusive-ownership leagues every castaway has at most one owner, so this
@@ -307,8 +320,10 @@ class EliminationOrderScoringStrategy {
       Core.ownedCastawayIds(state, p.id).forEach(cid=>{
         const c = Core.getCastaway(state, cid);
         results[p.id].roster.push(c);
-        if(c.status==='eliminated' && typeof c.placementOrder==='number'){
-          results[p.id].locked += c.placementOrder;
+        if(c.status==='eliminated'){
+          if(typeof c.placementOrder==='number'){ results[p.id].locked += c.placementOrder; results[p.id].banked += c.placementOrder; }
+        } else {
+          results[p.id].locked += stillInPoints;
         }
       });
     });

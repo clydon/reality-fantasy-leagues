@@ -11,7 +11,25 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
-## "How this league works" built 2026-10-11 (uncommitted)
+## Next up, decided 2026-10-11 (in this order)
+
+1. **Built 2026-10-11, awaiting review/commit.** `docs/PLAN-classic-live-scoring.md`: Classic standings count points as castaways outlast each
+   other (a mid-season leaderboard currently ranks a player who lost someone early first).
+2. **Built 2026-10-11, awaiting review/commit.** `docs/PLAN-linked-late-join.md`: one "Which episodes have you watched?" answer per linked group,
+   and one shared catch-up.
+3. **Built 2026-10-11, awaiting review/commit.** `docs/PLAN-practice-round.md`: the guided tour, run on the joined league's own cast and rules.
+
+## Practice round built 2026-10-11 (not committed)
+
+The guided tour's host on a throwaway copy of the league you're in: its cast before episode 1, its
+rules and words, two computer players, random results, nothing saved. Offered on "How this league
+works"'s last card (a late joiner's, before the start question) and in More, for Active Roster, Classic
+and Eliminator Pool. "Back to {league}" restores the real league on the page you left. Files, scripts,
+the calls made and what was verified: `docs/PLAN-practice-round.md` -> "As built". End-to-end check:
+`node docs/ux-baseline/scripts/practice.js <outDir>`. Waiting on the user: review, commit, and a What's
+New entry.
+
+## "How this league works" built 2026-10-11 (committed c493b01)
 
 A recap-style card sequence shown once after joining a league (and from More), playing a made-up
 episode of that league; for late joiners it ends by recommending where to start. Details and the

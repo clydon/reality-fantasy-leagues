@@ -18,7 +18,7 @@ export interface Sample {
   team: SampleCastaway[];
   /** Classic: the made-up boot ladder, first out first. */
   ladder: SampleCastaway[];
-  /** Classic: points each of your sample team scores (their place in the made-up ladder). */
+  /** Classic: points each of your sample team ends on (their place in the made-up ladder: 1 + everyone they outlast). */
   placements: { castaway: SampleCastaway; points: number }[];
   /** Active Roster: a made-up episode's events, starters' first, then one benched. */
   starters: { castaway: SampleCastaway; events: SampleEvent[] }[];

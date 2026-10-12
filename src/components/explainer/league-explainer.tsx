@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ArrowRight, Check, ChevronLeft, Link2, Shuffle, X } from "lucide-react";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { useLeagueStore, useIsPreviewingDemo } from "@/lib/store";
 import { useTourRunning } from "@/lib/tour/tour-store";
 import { buildTourState } from "@/lib/tour/rise-and-fall";
+import { usePracticeRound } from "@/lib/tour/use-practice-round";
 import { useShowCatalog, useShowTerms, type ShowTerms } from "@/lib/use-show-terms";
 import { useExplainerStore } from "@/lib/explainer-store";
 import { buildSample, topEvents, type Sample, type SampleCastaway } from "@/lib/explainer-sample";
@@ -28,6 +29,9 @@ import { cn } from "cn";
 //
 // One card, one idea: a visual up top, the host plate with the one line at the bottom, Next in thumb
 // reach. Swipe works too; Esc skips.
+//
+// The last card offers the practice round (docs/PLAN-practice-round.md) under its button, for a league
+// whose game type has one: a late joiner's before the start question, which it comes back to.
 
 export function LeagueExplainer() {
   const open = useExplainerStore((s) => s.open);
@@ -67,6 +71,8 @@ type Card = {
 
 function Explainer() {
   const router = useRouter();
+  const pathname = usePathname();
+  const practice = usePracticeRound();
   const raw = useLeagueStore((s) => s.rawState);
   const view = useLeagueStore((s) => s.state);
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -152,6 +158,11 @@ function Explainer() {
   }
   // A late joiner who skips lands on the same "Which episodes have you watched?" step, under these cards.
   const skip = finish;
+  // The practice round ends back where this card's own button would have gone (or, from More, here).
+  function practise() {
+    finish();
+    practice.start(replay ? pathname : ghost ? "/late-join" : draftDone ? "/" : "/draft");
+  }
 
   // ---------- the cards ----------
   const cards: Card[] = [];
@@ -181,8 +192,8 @@ function Explainer() {
     cards.push({
       id: "ladder",
       fake: true,
-      title: `Your ${t.castaways} score points based on how long they last.`,
-      detail: `The last one left scores the most. In this league, the winner earns ${pool.length} points and the first out earns 1.`,
+      title: `Your ${t.castaways} earn a point each time someone else goes home.`,
+      detail: `The longer they last, the more they earn. The winner of ${pool.length} ends on ${pool.length}.`,
       visual: <Ladder sample={sample} size={pool.length} onShuffle={shuffle} />,
     });
     if (settings.bonusEnabled) {
@@ -428,6 +439,15 @@ function Explainer() {
             {c.cta ?? "Next"}
             {!c.cta && <ArrowRight className="size-[18px]" strokeWidth={2.4} aria-hidden />}
           </button>
+          {i === cards.length - 1 && practice.available && (
+            <button
+              type="button"
+              onClick={practise}
+              className="mt-1 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-muted-foreground underline underline-offset-4 outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-chyron-line"
+            >
+              {replay ? "Try a practice round" : "Try a practice round first"} · 2 min
+            </button>
+          )}
         </footer>
       </div>
     </div>
@@ -613,35 +633,47 @@ function Standings({ total, rivals, delay }: { total: number; rivals: { name: st
 }
 
 function Ladder({ sample, size, onShuffle }: { sample: Sample; size: number; onShuffle: () => void }) {
-  // The ladder from the top: the winner, your team where they placed, the first out. Gaps between are
-  // squeezed to a dotted rule so a 24-strong cast still fits a phone.
-  const yours = new Set(sample.team.map((c) => c.id));
-  const winner = sample.ladder[sample.ladder.length - 1];
-  const first = sample.ladder[0];
-  const rows = [
-    { c: winner, place: size },
-    ...sample.placements.filter((p) => p.castaway.id !== winner.id && p.castaway.id !== first.id).map((p) => ({ c: p.castaway, place: p.points })),
-    { c: first, place: 1 },
+  // Your sample team's points at three moments of the made-up season: each climbs by 1 per elimination
+  // while they're in (1 + everyone they've outlasted) and stops where they went out. The last column is
+  // the finish, the same numbers the old "place in the boot order" gave.
+  const moments = [
+    { label: "Ep 1", k: 1 },
+    { label: "Midway", k: Math.max(2, Math.floor(size / 2)) },
+    { label: "Finale", k: size },
   ];
+  // After k eliminations a castaway who finished `final` (went out k = final) has min(k + 1, final).
+  const at = (final: number, k: number) => ({ n: Math.min(k + 1, final), out: final <= k && final < size });
   return (
     <div>
-      <Heading>The finish, last one left at the top</Heading>
+      <Heading>Your team as the season goes</Heading>
+      <div className="flex h-6 items-center gap-2 px-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+        <span className="flex-1" />
+        {moments.map((m) => (
+          <span key={m.label} className="w-14 text-center">
+            {m.label}
+          </span>
+        ))}
+      </div>
       <ol className="flex flex-col">
-        {rows.map((r, n) => {
-          const gap = n > 0 && rows[n - 1].place - r.place > 1;
-          const mine = yours.has(r.c.id);
-          return (
-            <In key={r.c.id} n={n}>
-              {gap && <li aria-hidden className="mx-auto my-0.5 h-3 w-px border-l border-dashed border-border" />}
-              <li className={cn("flex h-11 items-center gap-3 px-2", mine ? "rounded-[3px] bg-secondary" : "opacity-70")}>
-                <span className="type-caption type-num w-7 text-right text-[17px] text-muted-foreground">{r.place}</span>
-                <Avatar c={r.c} size="sm" />
-                <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{r.c.name}</span>
-                {mine && <span className="type-caption type-num text-[20px]">+{r.place}</span>}
-              </li>
-            </In>
-          );
-        })}
+        {sample.placements.map((p, n) => (
+          <In key={p.castaway.id} n={n}>
+            <li className="flex h-12 items-center gap-2 border-t border-border px-2">
+              <Avatar c={p.castaway} size="sm" />
+              <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{firstName(p.castaway.name)}</span>
+              {moments.map((m) => {
+                const v = at(p.points, m.k);
+                // The episode they went out is the one that shows "Out"; after it, their final, greyed.
+                const justOut = v.out && (m.k === moments[0].k || at(p.points, moments[moments.indexOf(m) - 1].k).out === false);
+                return (
+                  <span key={m.label} className="flex w-14 items-center justify-center gap-1">
+                    {justOut && <span className="rounded-[2px] bg-live px-1 text-[9px] font-extrabold uppercase text-live-foreground">Out</span>}
+                    <span className={cn("type-num text-[20px]", v.out && !justOut && "text-muted-foreground")}>{v.n}</span>
+                  </span>
+                );
+              })}
+            </li>
+          </In>
+        ))}
       </ol>
       <Standings total={sample.total} rivals={sample.rivals} delay={600} />
       <ShuffleLink onShuffle={onShuffle} />

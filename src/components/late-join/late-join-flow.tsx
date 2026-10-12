@@ -25,6 +25,10 @@ import { cn } from "cn";
 //   2. Draft (league types with a draft): a team from the cast as it stood before that episode.
 //
 // Then the league opens on their start episode as if it airs tonight.
+//
+// Linked leagues (docs/PLAN-linked-late-join.md): how far they've watched is a fact about them and the
+// season, so step 1 is asked once for every linked league they still have to start, and drafts follow
+// one per league with a draft. Already playing a linked league? Its mark is the answer, prefilled.
 
 const STEP_VARIANTS = {
   enter: (dir: number) => ({ opacity: 0, x: dir * 24 }),
@@ -44,17 +48,27 @@ export function LateJoinFlow() {
   const choices = StateLogic.GhostLogic.startChoices(raw) as number[];
   const live = choices[choices.length - 1];
   const latest = live - 1;
-  const teamSize = StateLogic.GhostLogic.teamSize(raw);
-  const hasDraft = teamSize > 0;
 
-  const [step, setStep] = useState<1 | 2>(1);
+  // The linked group: the other leagues this answer starts (with their own state, for their drafts),
+  // and the answer they've already given in one they're playing. Null until loaded.
+  const [group, setGroup] = useState<{ others: GroupLeague[]; prior: { name: string; mark: number } | null } | null>(null);
+  const [done, setDone] = useState<string[]>([]);
+  const leagues: GroupLeague[] = useMemo(
+    () => (leagueId ? [{ id: leagueId, name: leagueName ?? "", raw }, ...(group?.others ?? [])] : []),
+    [leagueId, leagueName, raw, group],
+  );
+  const drafts = leagues.filter((l) => StateLogic.GhostLogic.teamSize(l.raw) > 0);
+  const hasDraft = drafts.length > 0;
+  const steps = 1 + drafts.length;
+
+  const [step, setStep] = useState(1);
   const [dir, setDir] = useState(1);
   // The last episode they've finished (0 = none yet). Null until they answer: nothing is guessed.
   const [watched, setWatched] = useState<number | null>(null);
   // "Start somewhere else": a start they chose over the one their answer gives.
   const [elsewhere, setElsewhere] = useState(false);
   const [override, setOverride] = useState<number | null>(null);
-  const [picked, setPicked] = useState<string[]>([]);
+  const [picks, setPicks] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,26 +76,55 @@ export function LateJoinFlow() {
   const natural = watched === null ? null : (choices.find((n) => n >= watched + 1) ?? live);
   const start = override ?? natural;
 
+  const draft = step > 1 ? drafts[step - 2] : null;
+  const draftStart = draft && start !== null ? startIn(draft.raw, start) : null;
   // The cast as it stood before their start episode: who's still in, in the groups they were in then.
   const before = useMemo(
-    () => (start === null ? null : (StateLogic.SpoilerLogic.viewThrough(raw, Math.max(0, start - 1)) as LeagueState)),
-    [raw, start],
+    () => (!draft || draftStart === null ? null : (StateLogic.SpoilerLogic.viewThrough(draft.raw, Math.max(0, draftStart - 1)) as LeagueState)),
+    [draft, draftStart],
   );
   const pool = useMemo(() => {
-    if (!before || start === null) return [];
-    const ids = new Set(StateLogic.GhostLogic.draftPool(raw, start));
+    if (!before || !draft || draftStart === null) return [];
+    const ids = new Set(StateLogic.GhostLogic.draftPool(draft.raw, draftStart));
     return before.castaways.filter((c) => ids.has(c.id)).sort((a, b) => a.name.localeCompare(b.name));
-  }, [before, raw, start]);
-  const need = Math.min(teamSize, pool.length);
+  }, [before, draft, draftStart]);
+  const need = draft ? needFor(draft.raw, draftStart) : 0;
+  const picked = (draft && picks[draft.id]) || [];
   const names = useMemo(() => shortNames(pool), [pool]);
   const { shown, chips } = useTribeFilter(pool, before ?? raw);
 
   const needed = !!me && StateLogic.GhostLogic.needsStart(raw, me);
+
+  useEffect(() => {
+    if (!leagueId || !needed) return;
+    let gone = false;
+    (async () => {
+      let others: GroupLeague[] = [];
+      let prior: { name: string; mark: number } | null = null;
+      try {
+        const { leagues: all } = await api.lateJoinGroup(leagueId);
+        const pending = all.filter((l) => l.pending && l.id !== leagueId);
+        others = await Promise.all(pending.map(async (l) => ({ id: l.id, name: l.name, raw: (await api.leagueState(l.id)).state })));
+        // Already playing more than one? The least they've watched: never assume more.
+        for (const l of all) if (!l.pending && l.mark !== null && (!prior || l.mark < prior.mark)) prior = { name: l.name, mark: l.mark };
+      } catch {
+        // Just this league, asked as before.
+      }
+      if (gone) return;
+      setGroup({ others, prior });
+      if (prior) setWatched(Math.min(prior.mark, latest));
+    })();
+    return () => {
+      gone = true;
+    };
+    // Loaded once per league: the answer is theirs to change after that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leagueId, needed]);
   // Nothing to choose (already started, or not a late joiner): back to the league.
   useEffect(() => {
     if (!needed && !busy) router.replace("/");
   }, [needed, busy, router]);
-  if (!needed) return null;
+  if (!needed || !group) return null;
 
   // Episodes their start would show them that they haven't watched.
   // Only a start they chose over their answer can do that: the league's own later first episode can't.
@@ -99,7 +142,7 @@ export function LateJoinFlow() {
     });
   }
 
-  const go = (next: 1 | 2) => {
+  const go = (next: number) => {
     setDir(next > step ? 1 : -1);
     setStep(next);
     setError(null);
@@ -109,11 +152,14 @@ export function LateJoinFlow() {
     setWatched(w);
     setOverride(null);
     setElsewhere(false);
-    setPicked([]);
+    setPicks({});
   };
 
-  const toggle = (id: string) =>
-    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length < need ? [...p, id] : p));
+  const toggle = (id: string) => {
+    if (!draft) return;
+    const p = picked;
+    setPicks({ ...picks, [draft.id]: p.includes(id) ? p.filter((x) => x !== id) : p.length < need ? [...p, id] : p });
+  };
 
   async function begin() {
     if (start === null || !leagueId) return;
@@ -121,7 +167,13 @@ export function LateJoinFlow() {
     setBusy(true);
     setError(null);
     try {
-      await api.beginLateJoin(leagueId, start, hasDraft ? picked : []);
+      // Every league this answer starts, this one first; one that failed before is tried again,
+      // one that already started isn't.
+      for (const l of leagues) {
+        if (done.includes(l.id)) continue;
+        await api.beginLateJoin(l.id, startIn(l.raw, start), picks[l.id] ?? []);
+        setDone((d) => [...d, l.id]);
+      }
       // The whole league again, with their new mark: the view opens on their start episode.
       const res = await api.leagueState(leagueId);
       useLeagueStore.setState({ membership: res.membership });
@@ -134,7 +186,10 @@ export function LateJoinFlow() {
   }
 
   const canNext = step === 1 ? start !== null : picked.length === need;
-  const last = step === 2 || !hasDraft;
+  const last = step === steps;
+  const others = group.others;
+  // Their answer, reused from a linked league they're playing, untouched so far.
+  const reused = group.prior && !override && watched === Math.min(group.prior.mark, latest) ? group.prior : null;
 
   // The answer, read back in a sentence: what they said, and what happens because of it.
   const saidWatched =
@@ -153,8 +208,8 @@ export function LateJoinFlow() {
     <div className="mx-auto flex min-h-dvh w-full max-w-[560px] flex-col">
       <header className="sticky top-0 z-10 bg-background pt-[env(safe-area-inset-top)]">
         <div className="flex items-center gap-1 py-2.5 pl-1 pr-4">
-          {step === 2 ? (
-            <IconButton label="Back" onClick={() => go(1)}>
+          {step > 1 ? (
+            <IconButton label="Back" onClick={() => go(step - 1)}>
               <ChevronLeft className="size-6" strokeWidth={2.2} />
             </IconButton>
           ) : (
@@ -162,12 +217,16 @@ export function LateJoinFlow() {
               <X className="size-[22px]" strokeWidth={2.2} />
             </IconButton>
           )}
-          <span className="min-w-0 flex-1 truncate text-base font-semibold">{leagueName}</span>
-          {hasDraft && <span className="text-sm text-muted-foreground">{step} of 2</span>}
+          <span className="min-w-0 flex-1 truncate text-base font-semibold">{draft?.name ?? leagueName}</span>
+          {hasDraft && (
+            <span className="text-sm text-muted-foreground">
+              {step} of {steps}
+            </span>
+          )}
         </div>
         {hasDraft && (
           <div className="flex gap-1.5 px-4" aria-hidden>
-            {[1, 2].map((n) => (
+            {Array.from({ length: steps }, (_, i) => i + 1).map((n) => (
               <span key={n} className={cn("h-1 flex-1 rounded-full", n <= step ? "bg-chyron-line" : "bg-input")} />
             ))}
           </div>
@@ -205,6 +264,11 @@ export function LateJoinFlow() {
                   <p className="mt-2.5 text-pretty text-[16px] leading-snug">
                     Tap the last one you&rsquo;ve finished. You&rsquo;ll start right after it.
                   </p>
+                  {others.length > 0 && (
+                    <p className="mt-2 text-pretty text-[15px] font-semibold leading-snug">
+                      This sets where you start in all {others.length + 1} linked leagues: {leagues.map((l) => l.name).join(", ")}.
+                    </p>
+                  )}
                   <p className="mt-2 text-pretty text-[14px] leading-snug text-muted-foreground">
                     <b className="font-semibold text-foreground">Not sure? Pick fewer.</b> Rewatching costs nothing; picking too many shows you
                     results you haven&rsquo;t seen.
@@ -217,9 +281,15 @@ export function LateJoinFlow() {
               )
             ) : (
               <>
+                {leagues.length > 1 && (
+                  <p className="type-caption mb-2 truncate text-[14px] tracking-[0.04em] text-muted-foreground">
+                    {drafts.length > 1 ? `Draft ${step - 1} of ${drafts.length} · ` : ""}
+                    {draft?.name}
+                  </p>
+                )}
                 <h1 className="type-caption text-[30px] leading-none">Draft your team</h1>
                 <p className="mt-2.5 text-[15px] leading-snug text-muted-foreground">
-                  Pick {need} from the {terms.castaways} still in before episode {start}. Your team is your own: anyone can be on it,
+                  Pick {need} from the {terms.castaways} still in before episode {draftStart}. Your team is your own: anyone can be on it,
                   whoever else has them.
                 </p>
                 {chips && <div className="mt-4">{chips}</div>}
@@ -232,7 +302,7 @@ export function LateJoinFlow() {
                           key={c.id}
                           castaway={c}
                           label={names.get(c.id) ?? c.name}
-                          state={before ?? raw}
+                          state={before ?? draft?.raw ?? raw}
                           mark={on ? "add" : undefined}
                           dim={!on && picked.length >= need}
                           onClick={() => toggle(c.id)}
@@ -257,6 +327,13 @@ export function LateJoinFlow() {
           <div className="mb-3 min-h-[42px] text-[15px] leading-snug" aria-live="polite">
             {watched === null ? (
               <p className="text-muted-foreground">Tap the last episode you&rsquo;ve finished.</p>
+            ) : reused ? (
+              <p>
+                <span className="text-muted-foreground">
+                  Same as in {reused.name}: {saidWatched ? saidWatched.charAt(0).toLowerCase() + saidWatched.slice(1, -1) : ""}.
+                </span>{" "}
+                <span className="font-semibold">{startsAt}</span>
+              </p>
             ) : (
               <>
                 <p className="text-muted-foreground">{saidWatched}</p>
@@ -279,14 +356,16 @@ export function LateJoinFlow() {
         <PrimaryButton
           className="min-h-[52px] w-full text-base"
           disabled={!canNext || busy}
-          onClick={last ? begin : async () => (await spoilsOk()) && go(2)}
+          onClick={last ? begin : async () => (step > 1 || (await spoilsOk())) && go(step + 1)}
         >
           {busy
             ? "Starting…"
             : step === 1 && start === null
               ? "Choose an episode"
               : !last
-                ? "Next: draft your team"
+                ? drafts.length > 1
+                  ? `Next: draft for ${drafts[step - 1].name}`
+                  : "Next: draft your team"
                 : start === live
                   ? "Join live"
                   : `Start at episode ${start}`}
@@ -303,6 +382,25 @@ export function LateJoinFlow() {
       </footer>
     </div>
   );
+}
+
+interface GroupLeague {
+  id: string;
+  name: string;
+  raw: LeagueState;
+}
+
+// Where an answer starts them in one league: the same episode, unless that league's own first episode
+// is later (it starts there) or it hasn't reached it (they join it live).
+function startIn(raw: LeagueState, start: number): number {
+  const choices = StateLogic.GhostLogic.startChoices(raw) as number[];
+  return choices.find((n) => n >= start) ?? choices[choices.length - 1];
+}
+
+// How many they draft there: the roster, or everyone left late in a season.
+function needFor(raw: LeagueState, start: number | null): number {
+  if (start === null) return 0;
+  return Math.min(StateLogic.GhostLogic.teamSize(raw), StateLogic.GhostLogic.draftPool(raw, start).length);
 }
 
 // The season as a strip: "None yet", each aired episode, and the latest as "All N". Tapping a row

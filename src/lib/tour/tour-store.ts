@@ -19,7 +19,8 @@ import {
   startPickups,
 } from "./rise-and-fall";
 import { buildCommissionerState, stageResults } from "./commissioner";
-import { tourSteps } from "./steps";
+import { tourSteps, type TourStep } from "./steps";
+import { AIR_MS, PRACTICE_ME, airEpisode, directPractice } from "./practice";
 
 // Which step of the guided tour is showing (null: no tour running). The steps themselves are
 // steps.ts; the host plate that shows them is components/tour/tour-host.tsx; the league they run on is
@@ -29,7 +30,24 @@ import { tourSteps } from "./steps";
 // invite, start the draft, check and apply results; commissioner.ts). The commissioner's league
 // doesn't exist until its first step creates it, so that one starts on /new-league over whatever was
 // showing.
-export type TourKind = "player" | "commissioner";
+//
+// And the practice round (docs/PLAN-practice-round.md, practice.ts): the same host on a throwaway copy
+// of the league you're in. The real league is put aside while it runs and comes back, untouched, when
+// it ends or is skipped -- on the page you left.
+export type TourKind = "player" | "commissioner" | "practice";
+
+type LeagueSlice = Partial<ReturnType<typeof useLeagueStore.getState>>;
+
+export interface PracticeRun {
+  leagueName: string;
+  /** Where "Back to {league}" goes: the page it was started from (the draft, the start question, Overview). */
+  returnTo: string;
+  steps: TourStep[];
+  /** Never sent home in practice: the real season's early exits. */
+  avoid: string[];
+  /** The real league as it was loaded, to put back. */
+  restore: LeagueSlice;
+}
 
 interface TourStore {
   kind: TourKind;
@@ -40,6 +58,8 @@ interface TourStore {
   copied: boolean;
   /** Commissioner's tour: each episode's results as research staged them, waiting to be applied. */
   staged: Record<number, StagedResearchDecision[]>;
+  /** The practice round running, or null. */
+  practice: PracticeRun | null;
   /** The player's tour loads its league at once; the commissioner's waits for create(). */
   start: (kind?: TourKind) => void;
   /** Commissioner's tour: the prefilled league is created (locally: nothing is saved). */
@@ -48,15 +68,38 @@ interface TourStore {
   goTo: (step: number) => void;
   /** Skip or finish: the host leaves; the league stays to play with. */
   stop: () => void;
+  /** The practice round on `state`, a copy of the loaded league. */
+  startPractice: (run: Omit<PracticeRun, "restore">, state: LeagueState) => void;
+  /** Ends the practice round and puts the real league back. Returns where to go. */
+  leavePractice: () => string | null;
 }
 
-export const useTourStore = create<TourStore>((set) => ({
+// Everything startTour replaces, so leaving the practice round can put it all back.
+const SLICE = [
+  "mode", "state", "fullState", "rawState", "leagueId", "leagueName", "membership", "playerAccounts", "flash",
+  "demoPreview", "demoSeasonData", "demoLeagueTypeId", "demoEpisodeCursor", "demoCommissionerView", "touring",
+] as const;
+
+// The practice round's clock: an episode airs for AIR_MS, then its results are in.
+let airTimer: ReturnType<typeof setTimeout> | null = null;
+let airing: number | null = null;
+function stopAiring() {
+  if (airTimer) clearTimeout(airTimer);
+  airTimer = null;
+  airing = null;
+}
+
+export const useTourStore = create<TourStore>((set, get) => ({
   kind: "player",
   step: null,
   created: false,
   copied: false,
   staged: {},
+  practice: null,
   start: (kind = "player") => {
+    // Taking a tour from inside a practice round drops it: the tour's league replaces both.
+    stopAiring();
+    set({ practice: null });
     if (kind === "player") {
       useLeagueStore.getState().startTour(buildTourState(), TOUR_LEAGUE_NAME, TOUR_ME);
       seedChat();
@@ -71,11 +114,32 @@ export const useTourStore = create<TourStore>((set) => ({
   markCopied: () => set({ copied: true }),
   goTo: (step) => set({ step }),
   stop: () => set({ step: null }),
+  startPractice: (run, state) => {
+    stopAiring();
+    const now = useLeagueStore.getState();
+    const restore = Object.fromEntries(SLICE.map((k) => [k, now[k]])) as LeagueSlice;
+    // The kind first: loading the league wakes the director, which must already know whose league it is.
+    set({ kind: "practice", step: 0, created: false, copied: false, staged: {}, practice: { ...run, restore } });
+    useLeagueStore.getState().startTour(state, run.leagueName, PRACTICE_ME);
+  },
+  leavePractice: () => {
+    const run = get().practice;
+    stopAiring();
+    set({ step: null, kind: "player", practice: null });
+    if (!run) return null;
+    useLeagueStore.setState(run.restore);
+    return run.returnTo;
+  },
 }));
+
+/** The steps of the tour running: the practice round's are built for its league. */
+export function stepsOf(s: Pick<TourStore, "kind" | "practice">): TourStep[] {
+  return s.kind === "practice" ? (s.practice?.steps ?? []) : tourSteps(s.kind);
+}
 
 /** The step showing now, or null. */
 export function useTourStep() {
-  return useTourStore((s) => (s.step === null ? null : (tourSteps(s.kind)[s.step] ?? null)));
+  return useTourStore((s) => (s.step === null ? null : (stepsOf(s)[s.step] ?? null)));
 }
 
 /** True while the commissioner's tour is about to create its league: /new-league plays it locally. */
@@ -190,6 +254,23 @@ export function useTourDirector() {
       if (!st.touring) return;
       const full = st.fullState;
       const tour = useTourStore.getState();
+      if (tour.kind === "practice") {
+        if (!tour.practice) return;
+        const { changed, air } = directPractice(full);
+        if (changed) st.setState(full);
+        if (air !== null && airing !== air) {
+          airing = air;
+          const avoid = tour.practice.avoid;
+          airTimer = setTimeout(() => {
+            airTimer = null;
+            const now = useLeagueStore.getState();
+            if (!now.touring || !useTourStore.getState().practice) return;
+            airEpisode(now.fullState, air, avoid);
+            now.setState(now.fullState);
+          }, AIR_MS);
+        }
+        return;
+      }
       // The commissioner's league is the one loaded once it's created; until then, whatever was
       // showing (the player's tour league, say) sits still.
       if (tour.kind === "commissioner") {

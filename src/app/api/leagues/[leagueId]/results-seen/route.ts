@@ -5,8 +5,7 @@ import { pool, HttpError, withLeagueLock } from "@/lib/server/db";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { markResultsSeen } from "@/lib/server/results-seen";
-import { groupLeagueIds } from "@/lib/server/league-groups";
-import { catchingUpIn } from "@/lib/server/late-join";
+import { revealAcrossGroup } from "@/lib/server/late-join";
 
 // "Results are in! -- Reveal": body { through: n } -- this member has now seen results through
 // episode n (StateLogic.SpoilerLogic). Forward only.
@@ -17,8 +16,9 @@ import { catchingUpIn } from "@/lib/server/late-join";
 //
 // A late joiner catching up (StateLogic.GhostLogic) moves one episode per reveal -- the server holds
 // that line too, so nothing (a stale tab, a double tap) can carry them past the week they've watched.
-// `jump: true` is the one exception: their deliberate "jump to the latest episode". Their reveal stays
-// in this league (their season is their own) and says nothing in chat (the league can't see them).
+// `jump: true` is the one exception: their deliberate "jump to the latest episode". Their reveal says
+// nothing in chat (the league can't see them). It does move their other linked leagues at the same
+// mark: one catch-up per group (revealAcrossGroup, docs/PLAN-linked-late-join.md).
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
   const { user, membership } = await requireLeagueRole(req, leagueId, "member");
@@ -51,12 +51,12 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
       const lj = StateLogic.GhostLogic.lateJoinOf(s, playerId);
       if (lj) lj.seenThrough = n;
     });
+    await revealAcrossGroup(user.id, leagueId, seen, n, late.catchingUp && jump === true);
     if (StateLogic.getPlayer(current, playerId)?.ghost) return NextResponse.json({ ok: true });
   } else {
-    // A linked league where they're a late joiner still catching up keeps its own mark (late-join.ts).
-    const ids = await groupLeagueIds(leagueId);
-    const skip = await catchingUpIn(user.id, ids);
-    for (const id of ids) if (!skip.has(id)) await markResultsSeen(user.id, id, n);
+    await markResultsSeen(user.id, leagueId, n);
+    // Their other linked leagues; one they're catching up in follows only when in step (late-join.ts).
+    await revealAcrossGroup(user.id, leagueId, before, n, false);
   }
 
   if (before !== null && n > before) {

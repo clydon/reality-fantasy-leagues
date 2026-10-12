@@ -15,12 +15,13 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { MoreButton } from "@/components/setup/settings-ui";
 import { cn } from "cn";
 import { YourSeason } from "./your-season";
+import { castawayPoints, standingLine } from "@/lib/game/classic-view";
 
 // The Scoreboard (docs/PLAN-ux-redesign.md, 2f; the canvas's "Standings" boards): one compact list in
 // the shape of each league type's scoring, every row opening that player's own page
 // (/scoreboard/[player], player-score-page.tsx) with the detail -- roster, episodes, picks,
 // predictions -- that used to sit in disclosures under every row.
-//   Classic: each team's faces, the ones out greyed with where they finished.
+//   Classic: each team's faces with their points so far, the ones out greyed with what they ended on.
 //   Active Roster: a table of the last few episodes, the week's best score marked.
 //   Eliminator Pool: streak, best and points, then everyone's settled picks.
 export function ScoreboardTab() {
@@ -145,7 +146,6 @@ function ClassicBoard({ state, scores }: { state: LeagueState; scores: ScoreRow[
       <div className="flex flex-col border-b border-border">
         {scores.map((r, i) => {
           const team = [...r.roster].sort((a, b) => Number(a.status === "eliminated") - Number(b.status === "eliminated"));
-          const standing = team.filter((c) => c.status !== "eliminated").length;
           const extra = [bonus && r.bonus !== 0 && `predictions +${r.bonus}`, r.finale !== 0 && `finale +${r.finale}`].filter(Boolean);
           const size = team.length > 5 ? "size-9" : "size-[50px]";
           return (
@@ -158,7 +158,7 @@ function ClassicBoard({ state, scores }: { state: LeagueState; scores: ScoreRow[
                     {r.playerId === me && <YouBadge />}
                   </span>
                   <span className="text-[13px] text-muted-foreground">
-                    {team.length === 0 ? "No team yet" : standing === team.length ? `All ${team.length} standing` : `${standing} of ${team.length} standing`}
+                    {standingLine(team) ?? "No team yet"}
                     {extra.length > 0 && ` · ${extra.join(" · ")}`}
                   </span>
                 </span>
@@ -171,7 +171,11 @@ function ClassicBoard({ state, scores }: { state: LeagueState; scores: ScoreRow[
                     const out = c.status === "eliminated";
                     const place = out ? finishedPlace(state, c) : null;
                     return (
-                      <span key={c.id} className="flex w-[54px] flex-col items-center gap-0.5">
+                      <span
+                        key={c.id}
+                        className="flex w-[54px] flex-col items-center gap-0.5"
+                        title={out ? `${c.name}: finished ${place ? ordinal(place) : ""}, final ${castawayPoints(state, c)}` : `${c.name}: still earning`}
+                      >
                         <CastawayAvatar
                           castaway={c}
                           className={cn(
@@ -180,11 +184,7 @@ function ClassicBoard({ state, scores }: { state: LeagueState; scores: ScoreRow[
                             out && "grayscale brightness-[.6]"
                           )}
                         />
-                        {out ? (
-                          <span className="type-num text-[15px] text-live">{place ? ordinal(place) : "Out"}</span>
-                        ) : (
-                          <span className="text-[11px] font-bold uppercase text-good">In</span>
-                        )}
+                        <span className={cn("type-num text-[15px]", out ? "text-live" : "text-good")}>{castawayPoints(state, c)}</span>
                         <span className="w-full truncate text-center text-[11px] text-muted-foreground">{c.name.split(" ")[0]}</span>
                       </span>
                     );

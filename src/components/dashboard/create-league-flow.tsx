@@ -871,7 +871,7 @@ function typeCopy(id: string, castaway: string, castaways: string): { lead: stri
     };
   return {
     lead: "Draft a team. Last one standing wins.",
-    detail: `Snake-draft your ${castaways}. They score by finishing place, so the longer they last, the more you get.`,
+    detail: `Snake-draft your ${castaways}. They earn a point each time someone else goes home, so the longer they last, the more you get.`,
   };
 }
 

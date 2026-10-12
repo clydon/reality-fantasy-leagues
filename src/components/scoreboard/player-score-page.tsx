@@ -2,6 +2,7 @@
 
 import type { Castaway, LeagueState, ScoreRow } from "@/lib/game/types";
 import { useLeagueStore, useMyPlayerId } from "@/lib/store";
+import { castawayPoints } from "@/lib/game/classic-view";
 import StateLogic from "@/lib/game/state-logic.js";
 import { playerBetRows } from "@/lib/game/bet-rows";
 import { playerPickRows } from "@/lib/game/pickem-rows";
@@ -41,7 +42,7 @@ function PlayerView({ state, scores, i }: { state: LeagueState; scores: ScoreRow
   const place = `${rank.startsWith("T") ? "Tied " : ""}${ordinal(Number(rank.replace("T", "")))} of ${scores.length}`;
   const latest = ar ? latestScoredEpisode(state) : null;
   const sources = [
-    !pool && [ar ? "Lineups" : "Boot order", r.locked],
+    !pool && [ar ? "Lineups" : "Castaways", r.locked],
     state.settings.bonusEnabled && r.bonus !== 0 && ["Predictions", r.bonus],
     r.finale !== 0 && ["Finale", r.finale],
   ].filter((x): x is [string, number] => !!x);
@@ -110,7 +111,20 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /** A castaway as a row: photo, name, and where they stand; `lead` goes before the photo (an episode). */
-function CastRow({ c, detail, out, lead }: { c: Castaway; detail: React.ReactNode; out?: boolean; lead?: React.ReactNode }) {
+function CastRow({
+  c,
+  detail,
+  out,
+  lead,
+  points,
+}: {
+  c: Castaway;
+  detail: React.ReactNode;
+  out?: boolean;
+  lead?: React.ReactNode;
+  /** Classic: points so far (still in) or final (out). */
+  points?: { n: number; final: boolean };
+}) {
   return (
     <div className="flex min-h-[60px] items-center gap-3 border-t border-border py-2">
       {lead}
@@ -123,6 +137,12 @@ function CastRow({ c, detail, out, lead }: { c: Castaway; detail: React.ReactNod
         <span className={cn("truncate text-base font-semibold", out && "text-muted-foreground")}>{c.name}</span>
         <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">{detail}</span>
       </span>
+      {points && (
+        <span className="flex shrink-0 flex-col items-end">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{points.final ? "Final" : "So far"}</span>
+          <span className={cn("type-num text-[24px] leading-none", out && "text-muted-foreground")}>{points.n}</span>
+        </span>
+      )}
     </div>
   );
 }
@@ -150,6 +170,7 @@ function Team({ state, r }: { state: LeagueState; r: ScoreRow }) {
                 <CastRow
                   key={c.id}
                   c={c}
+                  points={{ n: castawayPoints(state, c), final: false }}
                   detail={
                     <>
                       {t && (
@@ -157,7 +178,7 @@ function Team({ state, r }: { state: LeagueState; r: ScoreRow }) {
                           {t.name}
                         </span>
                       )}
-                      Still in
+                      Still earning
                     </>
                   }
                 />
@@ -171,13 +192,14 @@ function Team({ state, r }: { state: LeagueState; r: ScoreRow }) {
                   key={c.id}
                   c={c}
                   out={c.exitMethod !== winner}
+                  points={{ n: castawayPoints(state, c), final: true }}
                   detail={
                     c.exitMethod === winner ? (
                       <Chip tone="chyron">{winner}</Chip>
                     ) : (
                       <>
                         <Chip tone="live">Out</Chip>
-                        {[ep && `Episode ${ep}`, place && `finished ${ordinal(place)}`, c.placementOrder && `+${c.placementOrder}`].filter(Boolean).join(" · ")}
+                        {[ep && `Episode ${ep}`, place && `finished ${ordinal(place)}`].filter(Boolean).join(" · ")}
                       </>
                     )
                   }

@@ -129,6 +129,12 @@ declare const StateLogic: {
     /** The event ids it took back, or null if it wasn't adopted. */
     remove(state: LeagueState, id: string): string[] | null;
   };
+  /** Classic scoring: 1 point per castaway, plus 1 for every elimination they outlast. */
+  EliminationOrderScoringStrategy: {
+    castawayPoints(state: LeagueState, c: Castaway): number;
+    stillInPoints(state: LeagueState): number;
+    compute(state: LeagueState): ScoreRow[];
+  };
   /** One viewer's held-back results: the league as of the last episode they've revealed. */
   SpoilerLogic: {
     hiddenEpisodes(state: LeagueState, seenThrough: number | null | undefined): Episode[];

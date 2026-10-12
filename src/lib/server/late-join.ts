@@ -1,6 +1,8 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
-import { pool, HttpError } from "./db";
+import { pool, HttpError, withLeagueLock } from "./db";
+import { groupLeagueIds, groupOrder } from "./league-groups";
+import { markResultsSeen, resultsSeenThrough } from "./results-seen";
 import { leftOutOfBroadcasts } from "./push-targets";
 
 // Late joiners' server half (StateLogic.GhostLogic, docs/PLAN-late-joiners.md).
@@ -28,16 +30,75 @@ export function refuseWhileCatchingUp(state: LeagueState, playerId: string | nul
 }
 
 /**
- * Linked leagues (league-groups.ts) share one reveal: revealing in one moves this person's mark in
- * every linked league they're in. Except where they're a late joiner still catching up -- there their
- * mark is their week, and only their own reveal there may move it. The linked leagues it must skip.
+ * Linked leagues (league-groups.ts) share one reveal, and a late joiner's leagues in one group share
+ * one catch-up (docs/PLAN-linked-late-join.md): how far someone has watched is a fact about them and
+ * the season, not about a league. After this person's reveal in `fromLeagueId` moved their mark from
+ * `prev` to `n`, the same reveal in every other linked league they're in:
+ *   - where they're catching up: only if that league was at the same mark (in step) -- one episode at
+ *     a time, or to its latest on a jump. A league they're catching up in at a different mark keeps
+ *     its own, so a reveal elsewhere can never carry them past the week they've watched.
+ *   - where they haven't chosen a start yet: nothing (the late-join step asks them).
+ *   - anywhere else: forward to n, as linked leagues always have.
  */
-export async function catchingUpIn(userId: string, leagueIds: string[]): Promise<Set<string>> {
+export async function revealAcrossGroup(userId: string, fromLeagueId: string, prev: number | null, n: number, jump: boolean) {
+  const ids = (await groupLeagueIds(fromLeagueId)).filter((id) => id !== fromLeagueId);
+  if (!ids.length) return;
   const { rows } = await pool.query(
-    "SELECT l.id, l.state, m.player_id FROM league_memberships m JOIN leagues l ON l.id = m.league_id WHERE m.user_id = $1 AND l.id = ANY($2::uuid[])",
-    [userId, leagueIds]
+    "SELECT l.id, l.state, m.player_id, m.results_seen_through FROM league_memberships m JOIN leagues l ON l.id = m.league_id WHERE m.user_id = $1 AND l.id = ANY($2::uuid[])",
+    [userId, ids]
   );
-  return new Set(rows.filter((r) => StateLogic.GhostLogic.isCatchingUp(r.state, r.player_id)).map((r) => r.id as string));
+  for (const r of rows) {
+    const id = r.id as string;
+    const playerId = r.player_id as string | null;
+    const late = playerId ? StateLogic.GhostLogic.lateJoinOf(r.state, playerId) : null;
+    if (late && late.startEpisode === null) continue;
+    if (!late || !late.catchingUp || !playerId) {
+      await markResultsSeen(userId, id, n);
+      continue;
+    }
+    const seen: number = r.results_seen_through ?? (late.startEpisode as number) - 1;
+    if (prev === null || seen !== prev) continue;
+    const latest = StateLogic.SpoilerLogic.latestWithResults(r.state);
+    const to = jump ? latest : Math.min(n, latest);
+    if (to <= seen) continue;
+    await markResultsSeen(userId, id, to);
+    await withLeagueLock(id, (s) => {
+      StateLogic.GhostLogic.markCaughtUp(s, playerId, to);
+      const lj = StateLogic.GhostLogic.lateJoinOf(s, playerId);
+      if (lj) lj.seenThrough = to;
+    });
+  }
+}
+
+export interface LateJoinGroupLeague {
+  id: string;
+  name: string;
+  /** Still to choose where they start (and draft). */
+  pending: boolean;
+  /** Where they've watched to here, once they're playing it: the answer the step reuses. */
+  mark: number | null;
+}
+
+/**
+ * The late-join step's group: every linked league this person is in, in the group's order. One
+ * "Which episodes have you watched?" answer covers all the pending ones.
+ */
+export async function lateJoinGroup(userId: string, leagueId: string): Promise<LateJoinGroupLeague[]> {
+  const { ids } = await groupOrder(leagueId);
+  const { rows } = await pool.query(
+    "SELECT l.id, l.name, l.state, m.player_id FROM league_memberships m JOIN leagues l ON l.id = m.league_id WHERE m.user_id = $1 AND l.id = ANY($2::uuid[])",
+    [userId, ids]
+  );
+  const out: LateJoinGroupLeague[] = [];
+  for (const id of ids) {
+    const r = rows.find((x) => x.id === id);
+    if (!r) continue;
+    const pending = !!r.player_id && StateLogic.GhostLogic.needsStart(r.state, r.player_id);
+    const seen = pending ? null : await resultsSeenThrough(userId, id, r.state);
+    const mark = pending ? null : (seen ?? StateLogic.SpoilerLogic.latestWithResults(r.state));
+    out.push({ id, name: r.name, pending, mark });
+  }
+  return out;
 }
 
 /**

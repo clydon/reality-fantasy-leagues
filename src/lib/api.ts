@@ -107,6 +107,9 @@ export const api = {
   markResultsSeen: (leagueId: string, through: number, jump?: boolean) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/results-seen`, { method: "POST", body: JSON.stringify({ through, jump: !!jump }) }),
   // Late joiners (StateLogic.GhostLogic): choose a start episode and draft; and a commissioner adding one.
+  // The linked leagues one "Which episodes have you watched?" answer covers (late-join.ts lateJoinGroup).
+  lateJoinGroup: (leagueId: string) =>
+    localFetch<{ leagues: { id: string; name: string; pending: boolean; mark: number | null }[] }>(`/api/leagues/${leagueId}/late-join`),
   beginLateJoin: (leagueId: string, startEpisode: number, castawayIds: string[]) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/late-join`, { method: "POST", body: JSON.stringify({ startEpisode, castawayIds }) }),
   convertLateJoiner: (leagueId: string, id: string) =>

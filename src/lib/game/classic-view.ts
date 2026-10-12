@@ -3,8 +3,9 @@ import StateLogic from "./state-logic.js";
 
 // What Classic's screens (Overview's Standings and Your Team, the Episodes list, an episode's page)
 // read about a team and the boot order, so they agree with each other and with the scoring
-// (EliminationOrderScoringStrategy): a castaway who goes out scores their place in the boot order
-// for whoever owns them, and a right prediction pays its points when somebody else guessed too.
+// (EliminationOrderScoringStrategy): a castaway earns 1 point plus 1 for every elimination they
+// outlast, counted as it happens (so whoever goes out keeps their place in the boot order), and a
+// right prediction pays its points when somebody else guessed too.
 // Everything reads the viewer's spoiler-trimmed state, so none of it can run ahead of their reveal.
 
 /** A team in the order it's shown: still in first (by name), then who's out, most recent first. */
@@ -14,29 +15,72 @@ export function teamOrder(roster: Castaway[]): Castaway[] {
   return [...inGame, ...out];
 }
 
-/** "2 of 3 standing", "All 3 standing", or null for an empty team. */
+/** "3 still in", "2 still in · 1 out", "All 3 out", or null for an empty team. */
 export function standingLine(roster: Castaway[]): string | null {
   if (roster.length === 0) return null;
   const standing = roster.filter((c) => c.status !== "eliminated").length;
-  return standing === roster.length ? `All ${roster.length} standing` : `${standing} of ${roster.length} standing`;
+  const out = roster.length - standing;
+  if (standing === 0) return `All ${out} out`;
+  return out ? `${standing} still in · ${out} out` : `${standing} still in`;
 }
 
-/** Who scored from this episode's exits: each owner of each castaway who went, and their place. */
-export function episodeBanks(state: LeagueState, ep: Episode): { player: Player; castaway: Castaway; points: number }[] {
-  const out: { player: Player; castaway: Castaway; points: number }[] = [];
-  ep.events.forEach((ev) => {
-    const c = StateLogic.getCastaway(state, ev.castawayId);
-    if (!c || typeof c.placementOrder !== "number") return;
-    c.ownerIds.forEach((id) => {
-      const player = StateLogic.getPlayer(state, id);
-      if (player) out.push({ player, castaway: c, points: c.placementOrder! });
-    });
+/** A castaway's Classic points so far: 1 + every elimination they've outlasted (final once out). */
+export function castawayPoints(state: LeagueState, c: Castaway): number {
+  return StateLogic.EliminationOrderScoringStrategy.castawayPoints(state, c);
+}
+
+export interface EpisodeGain {
+  player: Player;
+  /** What this player's team earned from this episode. */
+  points: number;
+  /** Their castaways still in after it, each up by `each`. */
+  stillIn: number;
+  each: number;
+  /** Theirs who went out in it, with where they ended. */
+  out: { castaway: Castaway; final: number }[];
+}
+
+/**
+ * What each team earned from one episode: every castaway still in afterwards gains 1 per elimination
+ * in it, and one who went out keeps 1 for each of that episode's exits they outlasted. Teams that
+ * earned nothing and lost nobody are left out; biggest gain first.
+ */
+export function episodeGains(state: LeagueState, ep: Episode): EpisodeGain[] {
+  const before = StateLogic.SpoilerLogic.viewThrough(state, ep.number - 1);
+  const after = StateLogic.SpoilerLogic.viewThrough(state, ep.number);
+  const each = ep.events.filter((ev) => StateLogic.getCastaway(after, ev.castawayId)?.status === "eliminated").length;
+  const gains: EpisodeGain[] = [];
+  state.players.forEach((player) => {
+    let points = 0;
+    let stillIn = 0;
+    const out: EpisodeGain["out"] = [];
+    state.castaways
+      .filter((c) => c.ownerIds.includes(player.id))
+      .forEach((c) => {
+        const a = StateLogic.getCastaway(after, c.id);
+        const b = StateLogic.getCastaway(before, c.id);
+        if (!a || !b || b.status === "eliminated") return;
+        points += castawayPoints(after, a) - castawayPoints(before, b);
+        if (a.status === "eliminated") out.push({ castaway: a, final: castawayPoints(after, a) });
+        else stillIn++;
+      });
+    if (points > 0 || out.length) gains.push({ player, points, stillIn, each, out });
   });
-  return out;
+  return gains.sort((a, b) => b.points - a.points);
 }
 
-/** "You bank 3", "Sam banks 3", "Sam and Josie bank 3" -- who scored from one castaway going out. */
-export function banksLine(state: LeagueState, c: Castaway, me: string | null): string | null {
+/** "3 still in, +1 each · Kim out, ends on 4" -- how a team's episode gain came about. */
+export function gainDetail(g: EpisodeGain): string {
+  return [
+    g.stillIn > 0 && `${g.stillIn} still in, +${g.each} each`,
+    ...g.out.map((o) => `${o.castaway.name.split(" ")[0]} out, ends on ${o.final}`),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** "You keep 3", "Sam keeps 3", "Sam and Josie keep 3" -- where one castaway's points stop. */
+export function keepsLine(state: LeagueState, c: Castaway, me: string | null): string | null {
   if (typeof c.placementOrder !== "number") return null;
   const names = c.ownerIds
     .map((id) => (id === me ? "You" : StateLogic.getPlayer(state, id)?.name))
@@ -44,7 +88,7 @@ export function banksLine(state: LeagueState, c: Castaway, me: string | null): s
     .sort((a, b) => Number(b === "You") - Number(a === "You"));
   if (names.length === 0) return null;
   const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-  return `${who} ${names.length === 1 && who !== "You" ? "banks" : "bank"} ${c.placementOrder}`;
+  return `${who} ${names.length === 1 && who !== "You" ? "keeps" : "keep"} ${c.placementOrder}`;
 }
 
 /** This player's predictions on this episode that were right and paid (the scoring's own rule). */

@@ -4,8 +4,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useIsAuthenticated, useLeagueStore } from "@/lib/store";
 import { useReportModalStore } from "@/lib/report-modal-store";
-import { useTourStore, useTourStep, type TourKind } from "@/lib/tour/tour-store";
-import { tourSteps, type TourCtx } from "@/lib/tour/steps";
+import { stepsOf, useTourStore, useTourStep, type TourKind } from "@/lib/tour/tour-store";
+import type { TourCtx } from "@/lib/tour/steps";
+import { AIR_MS } from "@/lib/tour/practice";
+import { m, useReducedMotion } from "@/components/motion";
 import { cn } from "cn";
 
 // The guided tour's host (docs/PLAN-guided-tour.md, "The host plate"): the only new UI the tour adds.
@@ -15,6 +17,9 @@ import { cn } from "cn";
 //
 // The plate is the screen's announcer, so its line is an aria-live region and focus moves to it on
 // each step. It sizes the space it takes (--tour-h), which lifts sticky confirm bars above it.
+//
+// In the practice round (docs/PLAN-practice-round.md) the strip carries a red MADE-UP RESULTS tag
+// throughout, Skip leaves for the real league, and the end card's one button goes back to it.
 export function TourHost() {
   const stepIndex = useTourStore((s) => s.step);
   const kind = useTourStore((s) => s.kind);
@@ -23,12 +28,15 @@ export function TourHost() {
   const step = useTourStep();
   const goTo = useTourStore((s) => s.goTo);
   const stop = useTourStore((s) => s.stop);
+  const practice = useTourStore((s) => s.practice);
+  const leavePractice = useTourStore((s) => s.leavePractice);
+  const router = useRouter();
   const pathname = usePathname();
   const state = useLeagueStore((s) => s.state);
   const full = useLeagueStore((s) => s.fullState);
   const seen = useLeagueStore((s) => s.membership?.resultsSeenThrough ?? 0);
   const ctx: TourCtx = { state, full, pathname, seen, tour: { created, copied } };
-  const steps = tourSteps(kind);
+  const steps = stepsOf({ kind, practice });
 
   // A step ends on what it did to the league (or where it took you); several can end at once.
   const doneNow = step ? step.done(ctx) : false;
@@ -48,6 +56,11 @@ export function TourHost() {
   const targets = onRoute ? step.targets : (step.nav?.targets ?? []);
   const look = onRoute ? (step.look ?? []) : [];
   const ending = !!step.end && onRoute;
+  // Leaving the practice round puts the real league back, on the page it was started from.
+  const leave = () => {
+    const to = leavePractice();
+    if (to) router.push(to);
+  };
 
   return (
     <>
@@ -63,7 +76,10 @@ export function TourHost() {
         onNext={() => goTo(stepIndex + 1)}
         // The create-a-league flow has no tab bar: the plate sits at the foot of the screen.
         fullscreen={pathname === "/new-league"}
-        onSkip={stop}
+        onSkip={practice ? leave : stop}
+        practiceOf={practice?.leagueName ?? null}
+        onAir={!!step.onAir}
+        note={step.note ?? null}
       />
     </>
   );
@@ -81,6 +97,9 @@ function HostPlate({
   onNext,
   fullscreen,
   onSkip,
+  practiceOf,
+  onAir,
+  note,
 }: {
   kind: TourKind;
   progress: string;
@@ -91,8 +110,14 @@ function HostPlate({
   onNext: () => void;
   fullscreen: boolean;
   onSkip: () => void;
+  /** The practice round's league name; null on the tours. */
+  practiceOf: string | null;
+  /** An episode airing: a bar fills while its results are on the way. */
+  onAir: boolean;
+  note: string | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
   const router = useRouter();
   // The detail is read when a step arrives, then gets out of the way: the first tap outside the plate
   // means they've started the step, and the room it took goes back to the screen. On click, not
@@ -176,15 +201,21 @@ function HostPlate({
         >
           Host
         </span>
+        {practiceOf && (
+          // On every step: nothing that happens here is real.
+          <span className="type-caption -ml-2.5 flex shrink-0 items-center bg-live pl-4 pr-4 text-[14px] tracking-[0.04em] text-live-foreground [clip-path:polygon(10px_0,100%_0,calc(100%-10px)_100%,0_100%)]">
+            Made-up results
+          </span>
+        )}
         <span className="-ml-2.5 flex min-w-0 flex-1 items-center justify-between gap-3 bg-quiet-tag pl-4 pr-1 text-quiet-tag-foreground">
           <span className="type-caption truncate text-[15px] tracking-[0.06em]">{progress}</span>
           {!ending && (
             <button
               type="button"
               onClick={onSkip}
-              className="-my-1 flex min-h-11 items-center px-3 text-[15px] font-semibold underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-chyron-line"
+              className="-my-1 flex min-h-11 shrink-0 items-center px-3 text-[15px] font-semibold underline-offset-4 outline-none hover:underline focus-visible:underline focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-chyron-line"
             >
-              Skip tour
+              {practiceOf ? "Leave" : "Skip tour"}
             </button>
           )}
         </span>
@@ -211,6 +242,17 @@ function HostPlate({
               {cta}
             </button>
           )}
+          {onAir && (
+            // The episode's running time, compressed: when it fills, the results are in.
+            <div className="mt-3 h-1 overflow-hidden rounded-full bg-plate-foreground/15" aria-hidden>
+              <m.div
+                className="h-full origin-left bg-live"
+                initial={{ scaleX: reduced ? 1 : 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: reduced ? 0 : AIR_MS / 1000, ease: "linear" }}
+              />
+            </div>
+          )}
           {detail && !explained && (
             <button
               type="button"
@@ -222,7 +264,28 @@ function HostPlate({
             </button>
           )}
         </div>
-        {ending && (
+        {ending && practiceOf && (
+          <div className="mt-3 flex flex-col gap-2">
+            {note && <p className="text-[15px] leading-snug text-plate-muted">{note}</p>}
+            <button
+              type="button"
+              onClick={onSkip}
+              className="mt-1 min-h-12 w-full rounded-[3px] bg-chyron px-4 text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
+            >
+              Back to {practiceOf}
+            </button>
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={openReport}
+                className="min-h-11 self-start py-2 text-[15px] font-semibold text-plate-foreground underline underline-offset-4 hover:text-plate-muted"
+              >
+                Anything unclear?
+              </button>
+            )}
+          </div>
+        )}
+        {ending && !practiceOf && (
           <div className="mt-3 flex flex-col gap-2">
             <p className="text-[15px] leading-snug text-plate-muted">
               {kind === "commissioner"
@@ -332,8 +395,20 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
+    // A small target low on the page (a guess field under Overview's standings) would be lit under the
+    // plate: once per step, the page scrolls it up to just above. Never one in a fixed bar (the tabs),
+    // nor a tall one like a tile grid, which the plate always overlaps.
+    const nudge = window.setTimeout(() => {
+      const plate = document.querySelector("[data-tour-host]")?.getBoundingClientRect();
+      const el = targets.map((name) => document.querySelector(`[data-tour~="${name}"]`)).find((x) => !!x);
+      if (!plate || !el || pinned(el)) return;
+      const r = el.getBoundingClientRect();
+      if (r.height > window.innerHeight * 0.4 || r.bottom <= plate.top - 8) return;
+      window.scrollBy({ top: r.bottom - plate.top + 24, behavior: reduced ? "auto" : "smooth" });
+    }, 300);
     return () => {
       cancelAnimationFrame(frame);
+      clearTimeout(nudge);
       active.current = false;
     };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -403,6 +478,15 @@ function visible(names: string[]): { name: string; el: Element; box: Box }[] {
     }
   }
   return out;
+}
+
+/** Whether the element sits in a fixed or sticky bar, which scrolling the page doesn't move. */
+function pinned(el: Element): boolean {
+  for (let n: Element | null = el; n && n !== document.body; n = n.parentElement) {
+    const pos = getComputedStyle(n).position;
+    if (pos === "fixed" || pos === "sticky") return true;
+  }
+  return false;
 }
 
 /** A box cut off where a ringless bar starts across its lower part, so its ring stops above the bar. */

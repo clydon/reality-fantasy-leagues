@@ -4,6 +4,15 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { notifyLateJoinerStarted } from "@/lib/server/push-events";
+import { lateJoinGroup } from "@/lib/server/late-join";
+
+// The step's linked group (docs/PLAN-linked-late-join.md): one answer for every linked league they
+// still have to start, prefilled from one they're already playing.
+export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
+  const { leagueId } = await params;
+  const { user } = await requireLeagueRole(req, leagueId, "member");
+  return NextResponse.json({ leagues: await lateJoinGroup(user.id, leagueId) });
+});
 
 // A late joiner starts their season (StateLogic.GhostLogic.begin): body { startEpisode, castawayIds }.
 // Their own seat only. Their spoiler mark goes to the episode before their start, so the league as

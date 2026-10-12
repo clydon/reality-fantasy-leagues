@@ -6,7 +6,7 @@ import { useMyPlayerId } from "@/lib/store";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { finishedPlace, ordinal } from "@/components/scoreboard/scoreboard-tab";
-import { teamOrder } from "@/lib/game/classic-view";
+import { castawayPoints, teamOrder } from "@/lib/game/classic-view";
 import { isKnockedOut } from "@/lib/game/selectors";
 import { cn } from "cn";
 import { DashCard } from "./dash-card";
@@ -14,7 +14,8 @@ import { DashCard } from "./dash-card";
 // Second card on Overview, right after Standings -- "what do I personally have in this league,
 // right now." Shape depends on the league type, same way the rest of Overview already branches:
 //   classic-draft   -- your team as name plates (the canvas's Classic Home): who's still in, and
-//                      for each one out, when they went, where they finished and what they banked.
+//                      for each one out, when they went and where they finished; every plate carries
+//                      its points so far (still earning) or final.
 // Active Roster doesn't show it (overview-layout.ts): its lineup is "Starting this week", last week is
 // a caption plate, and the season detail is on your Scoreboard page. Nor does Eliminator Pool, which
 // has no team: its picks are the pick section (pickem-pick-grid.tsx).
@@ -62,7 +63,7 @@ function TeamPlate({ state, c }: { state: LeagueState; c: Castaway }) {
     detail = (
       <>
         {tribe && chip("text-white", tribe.name, { background: tribe.color })}
-        Still in
+        Still earning
       </>
     );
   } else if (!knocked) {
@@ -70,7 +71,7 @@ function TeamPlate({ state, c }: { state: LeagueState; c: Castaway }) {
     detail = (
       <>
         {chip(c.exitMethod === winner ? "bg-chyron text-chyron-foreground" : "bg-good text-good-foreground", c.exitMethod ?? "Finalist")}
-        {[place && `finished ${ordinal(place)}`, c.placementOrder && `+${c.placementOrder}`].filter(Boolean).join(" · ")}
+        {place && `finished ${ordinal(place)}`}
       </>
     );
   } else {
@@ -78,7 +79,7 @@ function TeamPlate({ state, c }: { state: LeagueState; c: Castaway }) {
       <>
         {chip("bg-live text-live-foreground", "Out")}
         <span className="truncate">
-          {[ep && `Episode ${ep}`, place && `finished ${ordinal(place)}`, c.placementOrder && `+${c.placementOrder}`].filter(Boolean).join(" · ")}
+          {[ep && `Episode ${ep}`, place && `finished ${ordinal(place)}`].filter(Boolean).join(" · ")}
         </span>
       </>
     );
@@ -101,6 +102,18 @@ function TeamPlate({ state, c }: { state: LeagueState; c: Castaway }) {
       >
         <span className={cn("type-caption truncate text-[21px]", knocked && "text-foreground/80")}>{c.name}</span>
         <span className={cn("flex min-w-0 items-center gap-1.5 text-[12px]", knocked ? "text-muted-foreground" : "text-plate-muted")}>{detail}</span>
+      </span>
+      {/* Points so far, climbing while they're in; final once they're out. */}
+      <span
+        className={cn(
+          "flex w-[52px] shrink-0 flex-col items-center justify-center",
+          knocked ? "bg-muted text-foreground/80" : "bg-plate text-plate-foreground",
+        )}
+      >
+        <span className={cn("text-[10px] font-bold uppercase tracking-wide", knocked ? "text-muted-foreground" : "text-plate-muted")}>
+          {c.status === "eliminated" ? "Final" : "So far"}
+        </span>
+        <span className="type-num text-[24px] leading-none">{castawayPoints(state, c)}</span>
       </span>
     </div>
   );

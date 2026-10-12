@@ -93,7 +93,7 @@ function SettingsList({ state }: { state: LeagueState }) {
         .join(" · ")
     : type.hasWeeklyPicks
       ? `${s.pickemCorrectPoints} point${s.pickemCorrectPoints === 1 ? "" : "s"} per correct pick`
-      : `By finishing place · ${StateLogic.rosterSize(state)} per team`;
+      : `A point per elimination outlasted · ${StateLogic.rosterSize(state)} per team`;
 
   const midSeason = type.supportsReplenish || type.supportsTrade;
   const midLine =

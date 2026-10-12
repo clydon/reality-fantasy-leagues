@@ -10,6 +10,7 @@ import { sortByTribe } from "@/lib/game/sort-by-tribe";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
+import { lockInBlind } from "@/lib/tour/practice";
 import { Select } from "@/components/ui/select";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { cn } from "cn";
@@ -25,11 +26,12 @@ import { CastPreview, NotStartedPlate, StartDraftButton } from "./snake-draft";
 // whole new state back", but a blind submission's contents never enter league state at all (see
 // src/lib/server/blind-draft.ts), so there's nothing for mock mode to mutate locally and the errors
 // here are real, user-facing validation messages rather than the generic alert() useMutate does.
-// Shared mode can't be reached in mock mode anyway (the demo league is exclusive), so a mock branch
-// would be dead code.
+// The one mock league that reaches it is the practice round's (docs/PLAN-practice-round.md), where
+// locking in reveals at once: the computer players lock in alongside you (practice.ts, lockInBlind).
 export function BlindDraftPanel({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
+  const mode = useLeagueStore((s) => s.mode);
   const setState = useLeagueStore((s) => s.setState);
   const canManage = useCanManage();
   const myPlayerId = useMyPlayerId();
@@ -78,6 +80,13 @@ export function BlindDraftPanel({ state }: { state: LeagueState }) {
   }
 
   async function lockIn() {
+    if (mode === "mock" && actingPlayerId) {
+      const full = useLeagueStore.getState().fullState;
+      lockInBlind(full, actingPlayerId, selected);
+      setState(full);
+      setSelected([]);
+      return;
+    }
     if (!leagueId || !actingPlayerId) return;
     setBusy(true);
     setError(null);

@@ -205,8 +205,8 @@ export function RulesPage() {
             </span>
           ) : (
             <span className="text-muted-foreground">
-              Teams score by finishing place: each of your {showTerms.castaways} scores the place they finish in when they leave, so the
-              first one out is worth 1, the next 2, and so on. The longer they last, the more they&rsquo;re worth.
+              Each of your {showTerms.castaways} earns 1 point, plus 1 every time someone else goes home. The longer they last, the
+              more they earn: the first one out ends on 1, the winner on {state.castaways.length || "the cast size"}.
             </span>
           )}
         </p>

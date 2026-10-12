@@ -10,7 +10,7 @@ import { classicKey, leads, poolKey, rankLabels } from "@/components/scoreboard/
 import { latestScoredEpisode } from "@/lib/game/episode-team-summary";
 import { teamEpisodeBreakdown } from "@/lib/game/team-episode-breakdown";
 import { signed } from "@/lib/game/lineup-view";
-import { standingLine, teamOrder } from "@/lib/game/classic-view";
+import { castawayPoints, standingLine, teamOrder } from "@/lib/game/classic-view";
 import { finishedPlace } from "@/components/scoreboard/scoreboard-tab";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { isKnockedOut } from "@/lib/game/selectors";
@@ -121,8 +121,8 @@ function YouBadge() {
   return <span className="shrink-0 rounded-[2px] bg-foreground px-1.5 py-px text-[11px] font-bold uppercase tracking-wide text-background">You</span>;
 }
 
-// A Classic team as small faces: still in first, then who's out (greyed, with the place they finished
-// in the corner; a winner or finalist keeps their colour). Wraps for a big roster.
+// A Classic team as small faces: still in first, then who's out (greyed, with the points they ended
+// on in the corner; a winner or finalist keeps their colour). Wraps for a big roster.
 function TeamFaces({ state, roster }: { state: LeagueState; roster: Castaway[] }) {
   return (
     <span className="flex flex-wrap gap-1.5">
@@ -130,8 +130,9 @@ function TeamFaces({ state, roster }: { state: LeagueState; roster: Castaway[] }
         const out = c.status === "eliminated";
         const knocked = isKnockedOut(state, c);
         const place = out ? finishedPlace(state, c) : null;
+        const final = out ? castawayPoints(state, c) : null;
         return (
-          <span key={c.id} className="relative" title={place ? `${c.name}, finished ${place}` : c.name}>
+          <span key={c.id} className="relative" title={place ? `${c.name}, finished ${place}, final ${final}` : `${c.name}, still earning`}>
             <CastawayAvatar
               castaway={c}
               className={cn(
@@ -139,14 +140,14 @@ function TeamFaces({ state, roster }: { state: LeagueState; roster: Castaway[] }
                 knocked && "grayscale brightness-[.6]",
               )}
             />
-            {place !== null && (
+            {final !== null && (
               <span
                 className={cn(
                   "absolute -bottom-[3px] -right-[3px] rounded-[2px] px-[3px] text-[9px] font-extrabold leading-[1.35] tabular-nums",
                   knocked ? "bg-live text-live-foreground" : "bg-good text-good-foreground",
                 )}
               >
-                {place}
+                {final}
               </span>
             )}
           </span>

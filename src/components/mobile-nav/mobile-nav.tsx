@@ -43,6 +43,7 @@ import { useExplainerStore } from "@/lib/explainer-store";
 import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useMoreSheetRequest } from "@/lib/more-sheet";
 import { useTourRunning, useTourStep, useTourStore } from "@/lib/tour/tour-store";
+import { usePracticeRound } from "@/lib/tour/use-practice-round";
 import { SwipeTitle } from "@/components/league-swipe";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 import { BackLink } from "@/components/back-link";
@@ -170,6 +171,7 @@ export function MobileNav() {
   const tourStep = useTourStep();
   const startTour = useTourStore((s) => s.start);
   const touring = useLeagueStore((s) => s.touring);
+  const practice = usePracticeRound();
   const tourAllows = (target: string) => !tourRunning || !!tourStep?.nav?.targets.includes(target) || !!tourStep?.targets.includes(target);
   const whatsNewCount = useWhatsNewCount();
   const joinCode = leagues.find((l) => l.id === leagueId)?.join_code;
@@ -573,6 +575,17 @@ export function MobileNav() {
               onClick={() => {
                 closeSheet();
                 showExplainer(true);
+              }}
+            />
+          )}
+          {hasSeason && practice.available && (
+            <MoreRow
+              icon={DraftIcon}
+              label="Practice round"
+              value="2 min"
+              onClick={() => {
+                setSheetOpen(false);
+                practice.start();
               }}
             />
           )}

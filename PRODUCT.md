@@ -42,7 +42,7 @@ Supporting differences, all confirmed:
 
 - **Shows:** Survivor, The Traitors, The Challenge, Dancing with the Stars, plus self-serve researched shows ("+ Add it"). Each show names its own people and groups (castaways and tribes on Survivor, for example); copy must use the show's own terms, not Survivor's.
 - **League types:**
-  - *Classic:* snake-draft a team; castaways score their place in the boot order; optional predictions.
+  - *Classic:* snake-draft a team; each castaway earns 1 point plus 1 per elimination they outlast, counted live (so they end on their place in the boot order); optional predictions.
   - *Active Roster:* draft a roster (active slots plus bench), set a lineup each episode before it locks at airtime; only starters' events score.
   - *Eliminator Pool:* no draft; each episode every player picks one contestant they think survives; no repeats until everyone still in has been used, never the same pick twice in a row; ranked by longest streak, then total correct.
 - **Ownership:** exclusive (snake draft) or shared (blind draft: everyone picks privately, all picks reveal together, a contestant can be on several teams).

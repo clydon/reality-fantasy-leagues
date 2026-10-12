@@ -74,6 +74,7 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
       {needsOneMore && <p className="text-[13px] text-muted-foreground">One more guess and it pays out.</p>}
       {canGuessThis && (
         <form
+          data-tour="bet-guess"
           className="mt-1 flex gap-2 sm:max-w-[480px]"
           onSubmit={(e) => {
             e.preventDefault();

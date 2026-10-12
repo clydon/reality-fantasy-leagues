@@ -17,7 +17,7 @@ import { useHiddenResults } from "@/components/results-in-banner";
 import { castawayPhotoSrc, isKnockedOut } from "@/lib/game/selectors";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { finishedPlace, ordinal } from "@/components/scoreboard/scoreboard-tab";
-import { bootOrderThrough, episodeBanks, predictionsRight } from "@/lib/game/classic-view";
+import { bootOrderThrough, episodeGains, gainDetail, predictionsRight } from "@/lib/game/classic-view";
 import { episodePicks } from "@/lib/game/pool-view";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
@@ -177,10 +177,10 @@ function ReadView({
   // has results -- the same window Overview's old "Propose a Prediction" box had.
   const canPropose =
     state.settings.bonusEnabled && !!me && (status === "upcoming" || status === "waiting") && StateLogic.currentEpisode(state)?.id === ep.id;
-  // Classic scores by boot order (the canvas's Classic "Episode 3" board): where each one finished,
-  // who banked it, and the boot order so far.
+  // Classic (the canvas's Classic "Episode 3" board): where each one finished, what every team earned
+  // (+1 per elimination for each castaway still in), and the boot order so far.
   const classic = type.hasRoster && !type.hasActiveRoster;
-  const banks = classic && inPlay ? episodeBanks(state, ep) : [];
+  const gains = classic && inPlay ? episodeGains(state, ep) : [];
   const called = predictionsRight(state, ep, me);
   // Eliminator Pool (the canvas's Pool "Episode 3" board): how your pick did, then everyone's.
   const pool = !!type.hasWeeklyPicks && inPlay;
@@ -236,17 +236,17 @@ function ReadView({
               ))}
             </div>
           )}
-          {(banks.length > 0 || called.right.length > 0) && (
+          {(gains.length > 0 || called.right.length > 0) && (
             <div className="flex flex-col gap-3">
               {/* Each owner's points, the tag in their own colour (a tag, never a fill). */}
-              {banks.map(({ player, castaway, points }) => (
+              {gains.map((g) => (
                 <CaptionPlate
-                  key={`${player.id}-${castaway.id}`}
+                  key={g.player.id}
                   size="sm"
-                  tag={`+${points}`}
-                  tagStyle={colourTag(player.color)}
-                  title={player.id === me ? `You bank ${points}` : `${player.name} banks ${points}`}
-                  subtitle={`${castaway.name.split(" ")[0]} was on ${player.id === me ? "your" : "their"} team`}
+                  tag={`+${g.points}`}
+                  tagStyle={colourTag(g.player.color)}
+                  title={g.player.id === me ? `You earn ${g.points}` : `${g.player.name} earns ${g.points}`}
+                  subtitle={gainDetail(g)}
                 />
               ))}
               {called.right.length > 0 && (

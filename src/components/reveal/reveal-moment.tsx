@@ -284,7 +284,8 @@ function names(list: string[]) {
 }
 
 // What it meant for you: your starters' points (Active Roster), your pick and streak (Eliminator
-// Pool), or the points your team banked (Classic) -- then where that leaves you.
+// Pool), or what your team earned (Classic: +1 per elimination for each castaway still in) -- then
+// where that leaves you.
 function youBeat(before: LeagueState, after: LeagueState, eps: LeagueState["episodes"], me: string | null): YouBeat {
   const type = StateLogic.getLeagueType(after);
   const pool = !!type.hasWeeklyPicks;
@@ -328,7 +329,10 @@ function youBeat(before: LeagueState, after: LeagueState, eps: LeagueState["epis
     title = "You scored";
     hero = fmt(StateLogic.roundPoints(mineA.total - (mineB?.total ?? 0)));
     const standing = mineA.roster.filter((c) => c.status !== "eliminated").length;
-    if (mineA.roster.length) lines.push(`${standing} of ${mineA.roster.length} still in.`);
+    const exits = eps.reduce((n, ep) => n + ep.events.length, 0);
+    if (mineA.roster.length && standing > 0 && exits > 0)
+      lines.push(`${standing} still in, +${exits} each${standing < mineA.roster.length ? ` · ${mineA.roster.length - standing} out` : ""}.`);
+    else if (mineA.roster.length) lines.push(`${standing} of ${mineA.roster.length} still in.`);
   }
 
   if (rowsA.length > 1) {

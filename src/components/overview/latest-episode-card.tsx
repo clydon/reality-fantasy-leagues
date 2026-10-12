@@ -4,7 +4,7 @@ import type { Episode, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { castawayPhotoSrc } from "@/lib/game/selectors";
-import { banksLine } from "@/lib/game/classic-view";
+import { keepsLine } from "@/lib/game/classic-view";
 import { finishedPlace, ordinal } from "@/components/scoreboard/scoreboard-tab";
 import { useMyPlayerId } from "@/lib/store";
 import { latestScoredEpisode } from "@/lib/game/episode-team-summary";
@@ -16,7 +16,7 @@ import { DashAside, DashCard } from "./dash-card";
 
 // The latest episode with results (docs/PLAN-ux-declutter.md): "Episode N" with Recap on the heading
 // line, then who left, each as an "Out" caption plate (the episode page's). Classic says where each
-// finished and who banked the points, since that's its whole score. Active Roster adds your own week
+// finished and whose points stop there, since that's its whole score. Active Roster adds your own week
 // as a second plate -- what you scored and what sat on your bench; every team's points are Standings'
 // +N column and the Scoreboard. The episode is the latest that SCORED for Active Roster, not just the
 // latest with an exit; state is already spoiler-trimmed, so it's only ever one this viewer has revealed.
@@ -51,7 +51,7 @@ export function LatestEpisodeCard({ state }: { state: LeagueState }) {
               image={castawayPhotoSrc(c.photoUrl) ?? undefined}
               title={c.name}
               subtitle={
-                classic ? [place && `Finished ${ordinal(place)}`, banksLine(state, c, me)].filter(Boolean).join(" · ") : ev.method
+                classic ? [place && `Finished ${ordinal(place)}`, keepsLine(state, c, me)].filter(Boolean).join(" · ") : ev.method
               }
             />
           );
