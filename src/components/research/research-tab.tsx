@@ -65,6 +65,9 @@ export function ResearchTab() {
   const [includePreseason, setIncludePreseason] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [teamsOpen, setTeamsOpen] = useState(false);
+  // Rank by one scoring rule (an event id) instead of points. Not remembered: rules differ by show.
+  const [rankBy, setRankBy] = useState<string | null>(null);
+  const [rankOpen, setRankOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -118,14 +121,24 @@ export function ResearchTab() {
   const team = who.startsWith("team:") ? players.find((p) => p.id === who.slice(5)) ?? null : null;
   const mine = (c: Castaway) => !!myPlayerId && c.ownerIds.includes(myPlayerId);
   const free = (c: Castaway) => c.ownerIds.length === 0;
-  const score = (r: Row) => (perEpisode ? r.avg : r.points);
+  // The rules that happened at least once in this window, in the show's own order -- what you can
+  // rank by. A rule that's gone from the window drops you back to points.
+  const rank = eventRank(state);
+  const rules = [...new Map(rows.flatMap((r) => r.perEpisode.flatMap((e) => e.events.map((x) => [x.type, x] as const)))).values()]
+    .sort((a, b) => rank(a.type) - rank(b.type));
+  const rule = rankBy ? rules.find((x) => x.type === rankBy) ?? null : null;
+  // Under a rule, each episode's "points" is how many times it happened, so the bars and the column
+  // both show that rule alone.
+  const lines = (r: Row) => (rule ? r.perEpisode.map((e) => ({ ...e, points: e.events.filter((x) => x.type === rule.type).length })) : r.perEpisode);
+  const times = (r: Row) => lines(r).reduce((n, e) => n + e.points, 0);
+  const score = (r: Row) => (rule ? times(r) : perEpisode ? r.avg : r.points);
   const shown = rows
     .filter((r) => (who === "free" ? free(r.c) : who === "mine" ? mine(r.c) : team ? r.c.ownerIds.includes(team.id) : true))
     .filter((r) => !hideOut || r.c.status !== "eliminated")
     .sort((a, b) => score(b) - score(a) || b.points - a.points || a.c.name.localeCompare(b.c.name));
   const epNumbers = rows[0]?.perEpisode.map((e) => e.n) ?? [];
   const range = epNumbers.length === 0 ? null : epNumbers.length === 1 ? `Ep ${epNumbers[0]}` : `Ep ${epNumbers[0]}–${epNumbers[epNumbers.length - 1]}`;
-  const maxBar = Math.max(1, ...rows.flatMap((r) => r.perEpisode.map((e) => Math.abs(e.points))));
+  const maxBar = Math.max(1, ...rows.flatMap((r) => lines(r).map((e) => Math.abs(e.points))));
   const bars = epNumbers.length >= 2;
 
   // Who's on your bench this week, for "Yours · bench".
@@ -219,11 +232,21 @@ export function ResearchTab() {
         </p>
       ) : (
         <div data-tour="research-list">
-          <div className="flex min-h-[30px] items-center gap-3 text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">
-            <span className="w-5 shrink-0" />
-            <span className="flex-1">{terms.castaway}</span>
+          {/* The header is the ranking control: what the right-hand column counts, tap to change it. */}
+          <div className="flex min-h-11 items-center gap-3 text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">
+            <button
+              type="button"
+              onClick={() => setRankOpen(true)}
+              className="-ml-1 flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-[2px] px-1 text-left uppercase outline-none hover:text-foreground focus-visible:bg-accent"
+            >
+              <span className="shrink-0">Ranked by</span>
+              <span className={cn("truncate normal-case tracking-normal text-[13px]", rule ? "text-chyron-line" : "text-foreground")}>
+                {rule ? rule.label : perEpisode ? "Points per episode" : "Points"}
+              </span>
+              <ChevronDown className="size-4 shrink-0" strokeWidth={2.4} aria-hidden />
+            </button>
             {bars && <span className="shrink-0 text-center">{range}</span>}
-            <span className="w-11 shrink-0 text-right">{perEpisode ? "Avg" : "Pts"}</span>
+            <span className="w-11 shrink-0 text-right">{rule ? "Times" : perEpisode ? "Avg" : "Pts"}</span>
           </div>
           <ol className="border-b border-border">
             {shown.map((r, i) => {
@@ -244,8 +267,8 @@ export function ResearchTab() {
                       <span className="truncate text-base font-semibold">{r.c.name}</span>
                       <span className="truncate text-[13px] text-muted-foreground">{ownerLine(r.c)}</span>
                     </span>
-                    {bars && <Sparkbars perEpisode={r.perEpisode} max={maxBar} />}
-                    <span className="type-num w-11 shrink-0 text-right text-[22px]">{perEpisode ? fmtAvg(r.avg) : r.points}</span>
+                    {bars && <Sparkbars perEpisode={lines(r)} max={maxBar} bad={!!rule && rule.points < 0} />}
+                    <span className="type-num w-11 shrink-0 text-right text-[22px]">{rule ? times(r) : perEpisode ? fmtAvg(r.avg) : r.points}</span>
                   </button>
                 </li>
               );
@@ -271,6 +294,30 @@ export function ResearchTab() {
         >
           Done
         </button>
+      </BottomSheet>
+
+      <BottomSheet open={rankOpen} onOpenChange={setRankOpen} title="Rank by">
+        <SheetAction
+          detail={!rule ? "Showing" : undefined}
+          onClick={() => {
+            setRankBy(null);
+            setRankOpen(false);
+          }}
+        >
+          {perEpisode ? "Points per episode" : "Points"}
+        </SheetAction>
+        {rules.map((x) => (
+          <SheetAction
+            key={x.type}
+            detail={rule?.type === x.type ? "Showing" : undefined}
+            onClick={() => {
+              setRankBy(x.type);
+              setRankOpen(false);
+            }}
+          >
+            {x.label}
+          </SheetAction>
+        ))}
       </BottomSheet>
 
       <BottomSheet open={teamsOpen} onOpenChange={setTeamsOpen} title="Show one team">
@@ -417,14 +464,15 @@ function FilterChip({ on, onClick, children }: { on: boolean; onClick: () => voi
 }
 
 // One small bar per episode in the window: how much they scored each week, at a glance. Teal for a
-// week that scored, muted for one that didn't, a stub once they're out.
-function Sparkbars({ perEpisode, max }: { perEpisode: EpisodeLine[]; max: number }) {
+// week that scored (red when ranking by a rule that costs points), muted for one that didn't, a
+// stub once they're out.
+function Sparkbars({ perEpisode, max, bad }: { perEpisode: EpisodeLine[]; max: number; bad?: boolean }) {
   return (
     <span className="flex h-[26px] shrink-0 items-end gap-[3px]" aria-hidden>
       {perEpisode.slice(-6).map((e) => (
         <span
           key={e.n}
-          className={cn("w-2 rounded-[1px]", !e.played ? "bg-border" : e.points > 0 ? "bg-good" : "bg-muted-foreground/35")}
+          className={cn("w-2 rounded-[1px]", !e.played ? "bg-border" : e.points > 0 ? (bad ? "bg-destructive" : "bg-good") : "bg-muted-foreground/35")}
           style={{ height: `${e.played && e.points !== 0 ? Math.max(18, (Math.abs(e.points) / max) * 100) : 12}%` }}
         />
       ))}
