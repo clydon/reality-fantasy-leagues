@@ -22,9 +22,32 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "700"],
 });
 
+const DESCRIPTION = "Draft, score and trash-talk your reality TV fantasy league.";
+
 export const metadata: Metadata = {
-  title: "Game Your Show",
-  description: "Draft, score and trash-talk your reality TV fantasy league.",
+  // Resolves relative URLs below (and the opengraph-image.tsx route) against the real domain --
+  // without it, metadata generated during a Vercel preview build would bake in the preview host.
+  metadataBase: new URL("https://gameyourshow.com"),
+  title: {
+    default: "Game Your Show",
+    template: "%s · Game Your Show",
+  },
+  description: DESCRIPTION,
+  keywords: ["reality TV fantasy league", "fantasy draft", "Survivor fantasy league", "reality TV game"],
+  openGraph: {
+    title: "Game Your Show",
+    description: DESCRIPTION,
+    url: "/",
+    siteName: "Game Your Show",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Game Your Show",
+    description: DESCRIPTION,
+    site: "@gameyourshow",
+    creator: "@gameyourshow",
+  },
   // iOS ignores most of the web manifest: without these it won't launch full-screen from the home
   // screen, and it would use a screenshot of the page instead of the icon.
   appleWebApp: {
