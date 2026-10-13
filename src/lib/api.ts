@@ -41,7 +41,7 @@ async function localFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export interface MeResponse {
-  user: { id: string; username: string; isSuperAdmin: boolean };
+  user: { id: string; username: string; isSuperAdmin: boolean; approved: boolean };
   // Already sorted for display by the server -- see /api/me.
   // landOn: the league the app opens on in this one's place -- its linked group's favorite, or null.
   // group: its linked group and that group's name (already defaulted to show + season), or null.
@@ -379,6 +379,7 @@ export const api = {
   adminUpdateUser: (userId: string, changes: { username?: string; email?: string }) =>
     localFetch<{ user: AdminUser }>(`/api/admin/users/${userId}`, { method: "PATCH", body: JSON.stringify(changes) }),
   adminDeleteUser: (userId: string) => localFetch<{ ok: true }>(`/api/admin/users/${userId}`, { method: "DELETE" }),
+  adminApproveUser: (userId: string) => localFetch<{ user: AdminUser }>(`/api/admin/users/${userId}/approve`, { method: "POST" }),
   // Response body isn't used (the impersonation cookie swap is the whole point); the caller does
   // a full reload right after, same as stopImpersonating.
   adminImpersonate: (userId: string) => localFetch<unknown>(`/api/admin/users/${userId}/impersonate`, { method: "POST" }),

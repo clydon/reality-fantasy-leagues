@@ -891,6 +891,8 @@ export interface AdminUser {
   username: string | null;
   email: string;
   isSuperAdmin: boolean;
+  // Early access gate (db/migrations/0058_user_approval.sql).
+  approved: boolean;
   createdAt: string;
   // Newest Better Auth session row's createdAt -- null if they've never signed in (or every
   // session has since been cleaned up).

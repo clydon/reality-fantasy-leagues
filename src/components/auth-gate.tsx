@@ -5,13 +5,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { signInWithIdentifier } from "@/lib/auth-client";
+import { logOut, signInWithIdentifier } from "@/lib/auth-client";
 import { useLeagueStore, useIsPreviewingDemo, useIsAuthenticated } from "@/lib/store";
 import { useTourDirector, useTourRunning, useTourStore } from "@/lib/tour/tour-store";
 import { TourHost } from "@/components/tour/tour-host";
 import { DemoBar } from "@/components/demo-bar";
 import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
+import { PendingApprovalScreen } from "@/components/pending-approval-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 import { ReportModal } from "@/components/report-modal";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -83,6 +84,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("checking");
   const [error, setError] = useState<string | null>(null);
   const [signedInUsername, setSignedInUsername] = useState<string | null>(null);
+  // Early access gate (db/migrations/0058_user_approval.sql) -- true until loadFirstLeague says
+  // otherwise, so signing out (which never set it) can't itself be mistaken for "pending".
+  const [approved, setApproved] = useState(true);
   const router = useRouter();
   // A late joiner who hasn't chosen where to start has nothing to play yet (StateLogic.GhostLogic):
   // every league page sends them to /late-join until they have.
@@ -106,8 +110,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     // shows the Dashboard (join/create/invites) rather than demo data.
     setIdentity(me.user.id, me.user.isSuperAdmin, me.impersonating);
     setSignedInUsername(me.user.username);
+    setApproved(me.user.approved);
     setLeagues(me.leagues);
-    if (me.leagues.length > 0) {
+    // A pending account has no leagues to load and shouldn't be let past the check below anyway.
+    if (me.user.approved && me.leagues.length > 0) {
       // A push notification link carries ?league=<id> (see push-events.ts), so tapping "your turn to
       // draft" opens THAT league rather than whichever one happens to be first. Honoured only if
       // it's one of the user's own leagues; otherwise fall back to the first as before.
@@ -220,6 +226,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
         initialMode={pathname === "/account" ? "signup" : "signin"}
       />
     );
+  }
+
+  if (!approved) {
+    return <PendingApprovalScreen onSignOut={logOut} />;
   }
 
   if (isFullscreen(pathname)) {

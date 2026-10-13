@@ -2,7 +2,14 @@ import type { AdminUser } from "@/lib/game/types";
 import { pool } from "./db";
 
 export function toAdminUser(
-  u: { id: string; email: string; createdAt: Date | string; username?: string | null; role?: string | null },
+  u: {
+    id: string;
+    email: string;
+    createdAt: Date | string;
+    username?: string | null;
+    role?: string | null;
+    approved?: boolean;
+  },
   lastLoginAt: string | null = null
 ): AdminUser {
   return {
@@ -10,6 +17,7 @@ export function toAdminUser(
     username: u.username ?? null,
     email: u.email,
     isSuperAdmin: u.role === "admin",
+    approved: u.approved !== false,
     createdAt: typeof u.createdAt === "string" ? u.createdAt : u.createdAt.toISOString(),
     lastLoginAt,
   };

@@ -25,6 +25,7 @@ interface AdminStore {
   // Resolves true only if the account was actually deleted (both confirms accepted).
   deleteUser: (userId: string, username: string) => Promise<boolean>;
   updateUser: (userId: string, changes: { username?: string; email?: string }) => Promise<void>;
+  approveUser: (userId: string) => Promise<void>;
   deleteLeague: (leagueId: string, name: string) => Promise<void>;
   linkMembership: (playerId: string, userId: string, role: "member" | "commissioner") => Promise<void>;
   unlinkMembership: (membershipId: string) => Promise<void>;
@@ -91,6 +92,11 @@ export const useAdminStore = create<AdminStore>((set, get) => ({
   // validation failures so the edit modal can show the message inline.
   async updateUser(userId, changes) {
     const { user } = await api.adminUpdateUser(userId, changes);
+    set({ users: get().users.map((u) => (u.id === userId ? user : u)) });
+  },
+
+  async approveUser(userId) {
+    const { user } = await api.adminApproveUser(userId);
     set({ users: get().users.map((u) => (u.id === userId ? user : u)) });
   },
 

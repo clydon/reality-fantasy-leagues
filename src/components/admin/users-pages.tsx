@@ -60,7 +60,7 @@ export function TempPassword() {
 export function UsersPage() {
   useAdminLists();
   const router = useRouter();
-  const { users, loaded, createUser, impersonateUser } = useAdminStore();
+  const { users, loaded, createUser, impersonateUser, approveUser } = useAdminStore();
   const myUserId = useLeagueStore((s) => s.userId);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<Sort>("name");
@@ -107,6 +107,7 @@ export function UsersPage() {
                   <span className="truncate">{u.username || <span className="font-normal italic text-muted-foreground">no username</span>}</span>
                   {u.isSuperAdmin && <Chip>Admin</Chip>}
                   {u.id === myUserId && <Chip>You</Chip>}
+                  {!u.approved && <Chip>Pending</Chip>}
                 </>
               }
               detail={
@@ -128,6 +129,17 @@ export function UsersPage() {
 
       {menu && (
         <BottomSheet open onOpenChange={(o) => !o && setMenu(null)} title={label(menu)} description={realEmail(menu.email) ?? undefined}>
+          {!menu.approved && (
+            <SheetAction
+              onClick={() => {
+                setMenu(null);
+                approveUser(menu.id).catch((e) => setError(errorText(e, "Couldn't approve that account.")));
+              }}
+              detail="Gives them access to the app on their next login"
+            >
+              Approve
+            </SheetAction>
+          )}
           <SheetAction onClick={() => router.push(`/admin/users/${menu.id}`)}>Edit</SheetAction>
           {menu.id !== myUserId && (
             <SheetAction
@@ -169,7 +181,7 @@ type UserLeague = Awaited<ReturnType<typeof api.adminUserLeagues>>["leagues"][nu
 export function UserPage({ userId }: { userId: string }) {
   useAdminLists();
   const router = useRouter();
-  const { users, loaded, updateUser, resetPassword, deleteUser, impersonateUser } = useAdminStore();
+  const { users, loaded, updateUser, resetPassword, deleteUser, impersonateUser, approveUser } = useAdminStore();
   const myUserId = useLeagueStore((s) => s.userId);
   const user = users.find((u) => u.id === userId);
   const [leagues, setLeagues] = useState<UserLeague[] | null>(null);
@@ -226,6 +238,19 @@ export function UserPage({ userId }: { userId: string }) {
     >
       {error && <Notice tone="bad">{error}</Notice>}
       {note && <Notice>{note}</Notice>}
+
+      {!user.approved && (
+        <Notice tone="bad">
+          Pending early access approval.{" "}
+          <button
+            type="button"
+            className="font-semibold underline"
+            onClick={() => approveUser(user.id).catch((e) => setError(errorText(e, "Couldn't approve that account.")))}
+          >
+            Approve now
+          </button>
+        </Notice>
+      )}
 
       <Profile key={user.id} user={user} onSave={(changes) => updateUser(user.id, changes)} />
 

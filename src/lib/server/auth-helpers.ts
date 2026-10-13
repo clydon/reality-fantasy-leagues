@@ -22,6 +22,13 @@ export function isSuperAdminUser(user: SessionUser): boolean {
   return (user as { role?: string | null }).role === "admin";
 }
 
+// Early access gate (db/migrations/0058_user_approval.sql). Only `=== false` blocks -- missing/
+// undefined fails open rather than locking someone out over a field that should always be a real
+// boolean once the additionalFields config (auth.ts) and migration are both in place.
+export function isApprovedUser(user: SessionUser): boolean {
+  return (user as { approved?: boolean }).approved !== false;
+}
+
 // Every one of these is a direct port of SurvivorDraft's server/auth.js, adapted from Express's
 // req/res/next model to Next.js Route Handlers: no req.user to attach to, so each helper takes
 // the incoming Request and returns what it needs (or throws HttpError, caught by apiRoute() in
@@ -61,7 +68,12 @@ export function isImpersonating(session: Session): boolean {
 }
 
 export async function requireAuth(req: Request): Promise<SessionUser> {
-  return (await requireSession(req)).user;
+  const user = (await requireSession(req)).user;
+  // requireSession alone (used directly by /api/me) stays open to a pending account, so the
+  // client can read `approved: false` and show the pending screen; everything built on top of
+  // requireAuth -- every league/admin action -- is where early access actually blocks them.
+  if (!isSuperAdminUser(user) && !isApprovedUser(user)) throw new HttpError(403, "Pending approval");
+  return user;
 }
 
 export async function requireSuperAdmin(req: Request): Promise<SessionUser> {

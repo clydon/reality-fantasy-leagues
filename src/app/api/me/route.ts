@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
-import { requireSession } from "@/lib/server/auth-helpers";
+import { isApprovedUser, requireSession } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
 import { groupDisplayName } from "@/lib/server/league-groups";
 import StateLogic from "@/lib/game/state-logic.js";
@@ -78,6 +78,9 @@ export const GET = apiRoute(async (req) => {
       id: user.id,
       username: (user as { username?: string | null }).username,
       isSuperAdmin: (user as { role?: string | null }).role === "admin",
+      // Early access gate (db/migrations/0058_user_approval.sql) -- auth-gate.tsx shows the
+      // pending screen instead of the app shell when this is false.
+      approved: isApprovedUser(user),
     },
     leagues,
     // Better Auth's admin plugin marks impersonation on the session row (impersonatedBy), not
