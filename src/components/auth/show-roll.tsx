@@ -15,8 +15,10 @@ import { cn } from "cn";
 // non-competition formats are still planned.
 //
 // Behind it, ShowRollArt fades in the art an admin chose for each show as its name comes up (a
-// show without art leaves the plain ground), and fades out on "Your show". useShowRoll is the one
-// clock both read.
+// show without art leaves the plain ground). On "Your show" the art comes back as a wall: every
+// show's poster tiled at an angle, dimmed and drifting slowly upward, so the last word lands on all
+// of them rather than an empty ground. One cell in it is no poster but a standby monitor saying
+// "Your show": the one slot not yet on air, placed once, so it never repeats in view. useShowRoll is the one clock both read.
 const SHOWS = ["Survivor", "The Traitors", "Big Brother", "The Challenge", "Love Island", "Drag Race"];
 const LAST = "Your show";
 const STEP_MS = 1500;
@@ -124,6 +126,26 @@ export function ShowRollArt({ name }: { name: string }) {
           <img src={a.src} alt="" onError={() => setFailed((f) => [...f, roll])} />
         </div>
       ))}
+      <div className={cn("show-wall", name === LAST && "show-wall-on")}>
+        <div className="show-wall-track">
+          <div className="show-wall-tile show-wall-yours">
+            <b>Your show</b>
+            <em>Standby</em>
+          </div>
+          {Array.from({ length: WALL_TILES }, (_, i) => {
+            const [roll, a] = shown[(i * 5) % shown.length];
+            return (
+              <div key={i} style={artStyleVars(a.style)} className="show-wall-tile">
+                {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
+                <img src={a.src} alt="" onError={() => setFailed((f) => (f.includes(roll) ? f : [...f, roll]))} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
+
+// Enough tiles to cover a phone or a desktop at the wall's angle, with room to drift.
+const WALL_TILES = 96;

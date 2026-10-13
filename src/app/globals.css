@@ -335,6 +335,73 @@
 .show-art-door img {
   opacity: min(0.5, calc(var(--art-opacity) * var(--art-strength, 1) * 0.8));
 }
+/* Its last beat, on "Your show": every show's poster tiled at an angle, dimmed, drifting slowly up.
+   Still under reduced motion. Fixed columns (4 on phones, 12 wider) so the posters always overrun the
+   screen, and the standby card has one known cell that stays in view across the whole drift. */
+.show-wall {
+  position: absolute;
+  inset: -30% -25%;
+  transform: rotate(-8deg);
+  opacity: 0;
+  transition: opacity 1s ease-out;
+}
+.show-wall-on { opacity: 0.65; }
+.show-wall-track {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+@media (min-width: 768px) {
+  .show-wall-track { grid-template-columns: repeat(12, 1fr); }
+}
+.show-wall-on .show-wall-track { animation: show-wall-drift 90s linear infinite alternate; }
+.show-wall-tile {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: 3px;
+  overflow: hidden;
+}
+/* The standby card: the one cell that isn't on air yet. Opaque over the dimmed posters so it reads
+   as a lit monitor; its tag blinks once the wall is up. */
+.show-wall-yours {
+  grid-area: 3 / 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--quiet-tag);
+  box-shadow: inset 0 0 0 3px var(--chyron), 0 0 40px rgb(255 197 49 / 0.35);
+}
+@media (min-width: 768px) {
+  .show-wall-yours { grid-area: 3 / 9; }
+}
+.show-wall-yours b {
+  font-weight: 800;
+  font-stretch: 62%;
+  text-transform: uppercase;
+  color: var(--chyron);
+  font-size: 22px;
+  line-height: 1;
+}
+.show-wall-yours em {
+  font: 600 10px/1 var(--font-mono, monospace);
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chyron-foreground);
+  background: var(--chyron);
+  padding: 3px 6px;
+  border-radius: 2px;
+}
+.show-wall-on .show-wall-yours em { animation: show-wall-standby 1.6s ease-in-out infinite; }
+@keyframes show-wall-standby { 50% { opacity: 0.35; } }
+/* A fixed distance, not a percentage: phones stack twice the rows, and the card must stay in view. */
+@keyframes show-wall-drift { to { transform: translateY(-180px); } }
+@media (prefers-reduced-motion: reduce) {
+  .show-wall-on .show-wall-track,
+  .show-wall-on .show-wall-yours em { animation: none; }
+}
 
 /* AuthGate's loading mark (boot-overlay.tsx), one 2.4s loop: the plate wipes in from the left, the
    tag drops onto it with a little settle, a light sweep crosses the plate while it holds, then both
