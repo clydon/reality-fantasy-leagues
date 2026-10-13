@@ -129,7 +129,7 @@ export function ShowRollArt({ name }: { name: string }) {
       <div className={cn("show-wall", name === LAST && "show-wall-on")}>
         <div className="show-wall-track">
           <div className="show-wall-tile show-wall-yours">
-            <b>Your show</b>
+            <b>Your show here</b>
             <em>Standby</em>
           </div>
           {Array.from({ length: WALL_TILES }, (_, i) => {
