@@ -20,6 +20,11 @@ export const auth = betterAuth({
   }),
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
+  trustedOrigins: [
+    "https://gameyourshow.com",
+    "https://www.gameyourshow.com",
+    "https://reality-fantasy-leagues.vercel.app",
+  ],
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
