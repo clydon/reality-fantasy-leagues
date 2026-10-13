@@ -10,6 +10,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/", "/admin/", "/dashboard", "/account", "/setup/"],
     },
-    sitemap: "https://gameyourshow.com/sitemap.xml",
+    sitemap: "https://www.gameyourshow.com/sitemap.xml",
   };
 }

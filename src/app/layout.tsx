@@ -27,7 +27,9 @@ const DESCRIPTION = "Draft, score and trash-talk your reality TV fantasy league.
 export const metadata: Metadata = {
   // Resolves relative URLs below (and the opengraph-image.tsx route) against the real domain --
   // without it, metadata generated during a Vercel preview build would bake in the preview host.
-  metadataBase: new URL("https://gameyourshow.com"),
+  // www, not the bare apex: gameyourshow.com 308s to www.gameyourshow.com (Vercel's own redirect,
+  // see trustedOrigins in auth.ts), so the canonical host has to be the one that doesn't redirect.
+  metadataBase: new URL("https://www.gameyourshow.com"),
   title: {
     default: "Game Your Show",
     template: "%s · Game Your Show",
