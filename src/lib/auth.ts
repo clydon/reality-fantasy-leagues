@@ -35,12 +35,23 @@ export const auth = betterAuth({
       approved: { type: "boolean", defaultValue: false, input: false },
     },
   },
+  // A username-only account (no real email -- see no-email.ts) has nothing to verify and could
+  // never satisfy requireEmailVerification below, so it's created pre-verified. Applies to every
+  // creation path (signup, admin-created users) since this runs at the adapter level.
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => ({ data: { ...user, emailVerified: isPlaceholderEmail(user.email) } }),
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
-    // No email-verification requirement in this POC -- see README. Real production use should
-    // turn this on once a real transactional-email provider is wired in.
-    requireEmailVerification: false,
+    // Real transactional email is wired up now (Resend) -- see sendVerificationEmail below and
+    // db/migrations/0059_backfill_email_verified.sql, which grandfathers in every account that
+    // existed before this was turned on.
+    requireEmailVerification: true,
     async sendResetPassword({ user, url }) {
       // A username-only account has no real address to send to (see no-email.ts).
       if (isPlaceholderEmail(user.email)) return;
@@ -48,6 +59,22 @@ export const auth = betterAuth({
         to: user.email,
         subject: "Reset your password",
         text: `Reset your password: ${url}\n\nIf you didn't request this, ignore this email.`,
+      });
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    // Defaults to off: without it, clicking the emailed link verifies the account but leaves them
+    // right back at the sign-in form with no session, which reads as the link having done nothing.
+    autoSignInAfterVerification: true,
+    async sendVerificationEmail({ user, url }) {
+      // Pre-verified by the databaseHooks above -- this shouldn't fire for one, but matches
+      // sendResetPassword's own guard rather than assuming that always holds.
+      if (isPlaceholderEmail(user.email)) return;
+      await sendAuthEmail({
+        to: user.email,
+        subject: "Verify your email",
+        text: `Verify your email to finish creating your account: ${url}\n\nIf you didn't request this, ignore this email.`,
       });
     },
   },

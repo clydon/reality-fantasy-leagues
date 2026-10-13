@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signUp } from "@/lib/auth-client";
+import { signInWithIdentifier, signUp } from "@/lib/auth-client";
 import { placeholderEmail } from "@/lib/no-email";
 import { Field, FORM_ERROR_ID, FormError, SubmitButton } from "./front-door";
 
@@ -15,6 +15,7 @@ export function SignUpForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkEmail, setCheckEmail] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,6 +40,22 @@ export function SignUpForm() {
         setError(result.error.message || "Something went wrong.");
         return;
       }
+      // requireEmailVerification (auth.ts) means a real-email signup gets no session until they
+      // click the link. Better Auth skips auto-sign-in for EVERY signup once that's on, though,
+      // even a username-only one that databaseHooks (auth.ts) already marked verified at creation
+      // -- its emailVerified:true says it doesn't need to wait, so sign it in explicitly rather
+      // than bounce it back to a blank sign-in form with no session and no explanation either.
+      if (!result.data.user.emailVerified) {
+        setCheckEmail(true);
+        return;
+      }
+      if (!result.data.token) {
+        const signedIn = await signInWithIdentifier(u || em, password);
+        if (signedIn.error) {
+          setError(signedIn.error.message || "Account created, but couldn't sign you in -- try signing in.");
+          return;
+        }
+      }
       // Deliberately a full load, not router.refresh(): AuthGate decides between the front door
       // and the app shell once, on mount, from its own session check (see auth-gate.tsx). Without
       // this the new account would sit on a page rendered for a signed-out visitor.
@@ -52,6 +69,15 @@ export function SignUpForm() {
   }
 
   const invalid = error ? { "aria-invalid": true, "aria-describedby": FORM_ERROR_ID } : {};
+
+  if (checkEmail) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Check <strong className="text-foreground">{email.trim()}</strong> for a link to verify your account. Once
+        you click it you&rsquo;ll be signed in.
+      </p>
+    );
+  }
 
   return (
     <form onSubmit={submit}>

@@ -5,6 +5,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin } from "@/lib/server/auth-helpers";
 import { HttpError } from "@/lib/server/db";
 import { toAdminUser, lastLoginByUserId } from "@/lib/server/admin-users";
+import { placeholderEmail } from "@/lib/no-email";
 
 // Port of SurvivorDraft's server/routes/admin.js GET/POST /users -- now backed by Better Auth's
 // admin plugin (auth.api.listUsers/createUser) instead of raw SQL against a custom users table.
@@ -16,9 +17,10 @@ export const GET = apiRoute(async (req) => {
 });
 
 // Better Auth's admin plugin requires a real email to create a user; SurvivorDraft's original
-// flow only ever collected a username. Synthesizes a non-deliverable placeholder email (.invalid
-// is reserved by RFC 2606 for exactly this) so the create-by-username-only UX still works --
-// known limitation, not a real account-recovery email until the admin sets a real one later.
+// flow only ever collected a username. Uses the same placeholder-email convention as a
+// username-only signup (no-email.ts) -- same reserved .invalid domain, recognized by
+// isPlaceholderEmail() so it's exempted from requireEmailVerification (auth.ts) instead of
+// permanently locking the account out with no real inbox to verify.
 export const POST = apiRoute(async (req) => {
   await requireSuperAdmin(req);
   const { username } = (await req.json().catch(() => ({}))) as { username?: string };
@@ -28,7 +30,7 @@ export const POST = apiRoute(async (req) => {
 
   const result = await auth.api.createUser({
     body: {
-      email: `${trimmed}@placeholder.invalid`,
+      email: placeholderEmail(trimmed),
       name: trimmed,
       password: tempPassword,
       data: { username: trimmed, displayUsername: trimmed },

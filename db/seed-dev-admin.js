@@ -39,8 +39,10 @@ async function seed(pool) {
     } else {
       userId = genId();
       await client.query(
+        // true: a dev seed shouldn't get locked out by requireEmailVerification (auth.ts) --
+        // there's no inbox to click a link in during a local setup.
         `INSERT INTO "user" (id, name, email, "emailVerified", username, "displayUsername", role, "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, false, $4, $2, 'admin', now(), now())`,
+         VALUES ($1, $2, $3, true, $4, $2, 'admin', now(), now())`,
         [userId, USERNAME, EMAIL, username]
       );
     }
