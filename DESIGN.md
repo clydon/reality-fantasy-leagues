@@ -420,6 +420,17 @@ Setting a lineup is the weekly job, so it has its own page and tab (`/lineup`, `
   chip, then their starters as 44px faces, "?" squares when hidden, dashed squares for open slots.
 - **Starting this week** on Overview is the read-only version of the tiles with a Change link, the
   bench as 32px round faces. Locked with nobody in it, it says "No starters for Episode N" instead of dashed slots (on Lineup too). Your week is a small good-tone "You" plate under the latest episode's Out plates ("+8 last week", what sat on your bench).
+- **Episode page:** how the league did leads, "What happened" comes last. Under the Out plates, a
+  good-tone "You" plate ("+6 · tied 2nd of 3", then what sat on your bench or who led your lineup),
+  then **This episode**: every player as a 60px row ranked by what their lineup scored (rank, dot,
+  name, the top two scorers in 13px muted, a 26px number, a chevron). Your row is lifted like the
+  standings row and starts open; any row opens to its starters and scoring bench. Before scoring, the
+  rows just say who's starting, with no number. The commissioner's lock and event log sit in a
+  collapsed "Commissioner tools" at the foot of the page.
+- **What happened** (episode page, every type): hairline rows with a 92px muted label (Reward,
+  Immunity) and tribe chips in the tribe's own colour (`colourTag` ink) or small face chips. Roles and
+  tribe moves are grouped, one row per destination ("→ Dina" chip, then first names), never one row
+  per person. Who left isn't repeated: the Out plates already say it.
 - **Your season** (Scoreboard): two-up night-panel cards (4px corners), a muted label, a 40px face,
   the first name and a 20px condensed number; points left on the bench are muted.
 

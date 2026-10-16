@@ -6,6 +6,8 @@ import type { ReactNode } from "react";
 import StateLogic from "@/lib/game/state-logic.js";
 import { episodeRecapWins } from "@/lib/game/episode-recap";
 import { CastawayStatCard } from "@/components/castaway-stat-card";
+import { CastawayAvatar } from "@/components/castaway-avatar";
+import { colourTag } from "@/components/ui/caption-plate";
 import { Button } from "@/components/ui/button";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
@@ -106,6 +108,76 @@ export function EpisodeRecap({
             )
           )
         )}
+    </div>
+  );
+}
+
+// The episode page's read view of what happened, kept short so it never buries how the league did
+// (it sits at the foot of the page): one line per headline win, a tribe as a single chip in its own
+// colour and anyone winning alone as a small face; then secret roles and tribe moves grouped by
+// where they went ("→ Dina  Cristian, Danny, Eric"), so a swap is a few lines, not one row per person.
+// Who left isn't here: the Out plates at the top of the page already say. The edit mode keeps the
+// full cards and per-person rows above, since it needs an Undo on each.
+export function EpisodeHappenings({ ep, state }: { ep: Episode; state: LeagueState }) {
+  const wins = episodeRecapWins(state, ep);
+  const roles = ep.roles || [];
+  const groups = ep.groups || [];
+  if (wins.length === 0 && roles.length === 0 && groups.length === 0) return null;
+  const first = (id: string) => StateLogic.getCastaway(state, id)?.name.split(" ")[0] ?? "?";
+
+  const byRole = new Map<string, string[]>();
+  for (const r of roles) byRole.set(r.role, [...(byRole.get(r.role) ?? []), r.castawayId]);
+  // Insertion order keeps the tribes in the order the moves were recorded; on their own goes last.
+  const byTribe = new Map<string, string[]>();
+  for (const g of groups) byTribe.set(g.tribeId ?? "", [...(byTribe.get(g.tribeId ?? "") ?? []), g.castawayId]);
+  const tribeKeys = [...byTribe.keys()].sort((a, b) => Number(a === "") - Number(b === ""));
+
+  const tag = "type-caption inline-flex min-h-6 shrink-0 items-center rounded-[2px] px-1.5 text-[13px] leading-none";
+  const row = (key: string, label: ReactNode, body: ReactNode) => (
+    <div key={key} className="flex min-h-11 items-start gap-3 border-t border-border py-2.5 first:border-t-0">
+      <div className="flex min-h-6 w-[92px] shrink-0 items-center text-[13px] font-semibold text-muted-foreground">{label}</div>
+      <div className="flex min-h-6 min-w-0 flex-1 flex-wrap items-center gap-1.5">{body}</div>
+    </div>
+  );
+  const names = (ids: string[]) => <span className="text-[15px] leading-snug">{ids.map(first).join(", ")}</span>;
+
+  return (
+    <div className="flex flex-col border-y border-border">
+      {wins.map((w) =>
+        row(
+          `w-${w.label}`,
+          w.label,
+          <>
+            {w.tribes.map(({ tribe }) => (
+              <span key={tribe.id} className={tag} style={colourTag(tribe.color)}>
+                {tribe.name}
+              </span>
+            ))}
+            {w.castaways.map((c) => (
+              <span key={c.id} className="inline-flex items-center gap-1.5 rounded-[2px] bg-muted py-0.5 pl-0.5 pr-2 text-[14px] font-semibold">
+                <CastawayAvatar
+                  castaway={c}
+                  className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-[2px] bg-secondary text-[9px] font-bold text-muted-foreground [&_img]:object-top"
+                />
+                {c.name.split(" ")[0]}
+              </span>
+            ))}
+          </>
+        )
+      )}
+      {[...byRole].map(([role, ids]) =>
+        row(`r-${role}`, <span className={cn(tag, "bg-foreground text-background")}>{role}</span>, names(ids))
+      )}
+      {tribeKeys.map((tid) => {
+        const tribe = tid ? StateLogic.Core.getTribe(state, tid) : null;
+        return row(
+          `g-${tid}`,
+          <span className={tag} style={colourTag(tribe?.color ?? "#4a4558")}>
+            → {tribe?.name ?? "On their own"}
+          </span>,
+          names(byTribe.get(tid)!)
+        );
+      })}
     </div>
   );
 }

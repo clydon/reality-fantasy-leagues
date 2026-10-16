@@ -22,16 +22,17 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { cn } from "cn";
 import { EpisodeBetRow } from "./episode-bet-row";
 import { ProposePrediction } from "./propose-prediction";
-import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
-import { EpisodeChanges, EpisodeRecap } from "./episode-recap";
+import { EpisodeActiveRosterSection, EpisodeActiveRosterTools } from "./episode-active-roster-section";
+import { EpisodeHappenings } from "./episode-recap";
 import { EpisodeEditor } from "./episode-editor";
 import { useResearchable, useResultsDue } from "@/lib/episode-results";
 import { ResultsTask } from "./results-task";
 import { airsInLabel, episodeDate, episodeExits, episodeStatus, hiddenBefore, ownersLine, useNowMinute } from "./episode-status";
 
 // One episode's own page, /episodes/N (docs/PLAN-ux-redesign.md, 2e; the canvas's "Episode 3 reveal"
-// boards). Opens on what happened -- who went home as caption plates, the episode's wins, any role or
-// tribe changes, predictions, lineups -- and a commissioner's editing sits behind ⋯ → Edit results.
+// boards). Opens on who went home as caption plates, then how you and the league did (your result,
+// then everyone's: lineups, team points or picks), predictions, and last a short "What happened" --
+// the episode's wins and any role or tribe changes. A commissioner's editing sits behind ⋯ → Edit results.
 // Results the viewer hasn't revealed stay behind the reveal, as everywhere else.
 export function EpisodeDetail({ number }: { number: number }) {
   const state = useLeagueStore((s) => s.state);
@@ -275,12 +276,10 @@ function ReadView({
               )}
             </div>
           )}
+          {/* How the league did comes first, every type: your result, then everyone's. */}
+          {inPlay && type.hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
           {classic && inPlay && <BootOrder state={state} ep={ep} />}
           {pool && <EveryonesPicks state={state} ep={ep} />}
-          <Section title="What happened">
-            <EpisodeRecap ep={ep} state={state} showExits={false} />
-            <EpisodeChanges ep={ep} state={state} />
-          </Section>
         </>
       )}
 
@@ -300,8 +299,18 @@ function ReadView({
       )}
 
       {/* Before the league's start episode there's nothing to field -- it's history. Eliminator Pool
-          picks are made on the Pick page (pick/pick-page.tsx), never here. */}
-      {inPlay && type.hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
+          picks are made on the Pick page (pick/pick-page.tsx), never here. A scored episode shows its
+          lineups up top, as the episode's leaderboard. */}
+      {status !== "scored" && inPlay && type.hasActiveRoster && <EpisodeActiveRosterSection ep={ep} state={state} />}
+
+      {/* The story of the episode, short and last: who left is already in the Out plates up top. */}
+      {status === "scored" && (
+        <Section title="What happened">
+          <EpisodeHappenings ep={ep} state={state} />
+        </Section>
+      )}
+
+      {onEdit && inPlay && type.hasActiveRoster && <EpisodeActiveRosterTools ep={ep} state={state} />}
     </>
   );
 }
