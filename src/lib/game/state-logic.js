@@ -2110,11 +2110,16 @@ class WaiverLogic {
   // The next episode is airing (or its results are in): any pickup still owed is filled automatically,
   // in waiver order, so nobody plays a castaway short. Classic: a free agent at random (hashUnit, so
   // fixed); Active Roster: the free agent with the most points. Nobody left at all: it stays empty.
+  // Only after a real free agency, though: a week that processes and closes at the same moment (the
+  // next episode's results were already in -- e.g. the first week a league ever had, opened late) gave
+  // nobody a chance to choose, so what's owed carries over to the next week's claims instead.
   static close(state, now){
     const p = WaiverLogic.current(state);
     if(!p) return null;
-    if(p.phase === 'processed' && WaiverLogic.enabled(state)){
-      const meta = { via: 'auto', periodId: p.id, episode: p.episode, at: new Date(now || Date.now()).toISOString() };
+    const at = now || Date.now();
+    const hadFreeAgency = !!p.run && Date.parse(p.run.at) < at;
+    if(p.phase === 'processed' && hadFreeAgency && WaiverLogic.enabled(state)){
+      const meta = { via: 'auto', periodId: p.id, episode: p.episode, at: new Date(at).toISOString() };
       MidSeasonLogic.order(state, WaiverLogic.rotation(state)).forEach(pid => {
         for(let n = 0; n < 50; n++){
           const owed = WaiverLogic.pickupsOwed(state, pid);

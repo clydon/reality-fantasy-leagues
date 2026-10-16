@@ -8,6 +8,11 @@
 //
 // Writes <outDir>/<player>-<path>-<width>[-dark].png (full page). Defaults to /episodes/4. The zt_
 // user gets show_results_immediately, so nothing waits behind the reveal. Prints any page errors.
+// --spoilers: keep spoiler protection on (the seat's own "seen through" mark), as most players see it.
+// --watch=<seconds>: stay on each page that long from the moment it starts loading, printing every
+// navigation and /api request, then a count -- a page stuck reloading in a loop shows up as a stream.
+// --linked: also lend the same account's seats in the league's linked leagues (leagues.group_id), so the
+// swipe between them -- and its hidden neighbour pages -- is there as that player has it.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const { Pool } = require("pg");
 const { open } = require("./browser");
@@ -20,6 +25,9 @@ const ZT_PASS = process.env.ZT_PASS || "zt-pass-12345";
   if (!out) throw new Error("usage: view-as.js <leagueId> <playerName> <outDir> [width] [--dark] [--path=…]");
   const width = parseInt(w, 10);
   const dark = flags.includes("--dark");
+  const spoilers = flags.includes("--spoilers");
+  const linked = flags.includes("--linked");
+  const watch = Number((flags.find((f) => f.startsWith("--watch=")) || "=0").split("=")[1]) || 0;
   const paths = flags.filter((f) => f.startsWith("--path=")).map((f) => f.slice(7));
   if (!paths.length) paths.push("/episodes/4");
 
@@ -36,13 +44,22 @@ const ZT_PASS = process.env.ZT_PASS || "zt-pass-12345";
   if (clash.length) throw new Error(`${ZT_USER} already holds a seat in this league: a previous run didn't clean up`);
 
   await pool.query(
-    `INSERT INTO user_settings (user_id, show_results_immediately) VALUES ($1, true)
-     ON CONFLICT (user_id) DO UPDATE SET show_results_immediately = true`,
-    [ztId]
+    `INSERT INTO user_settings (user_id, show_results_immediately) VALUES ($1, $2)
+     ON CONFLICT (user_id) DO UPDATE SET show_results_immediately = $2`,
+    [ztId, !spoilers]
   );
   // Lend the seat (or, for a seat nobody holds, add a membership that's removed after).
   if (mem.length) await pool.query(`UPDATE league_memberships SET user_id=$1 WHERE id=$2`, [ztId, mem[0].id]);
   else await pool.query(`INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1,$2,$3,'member')`, [leagueId, ztId, player.id]);
+  // The same account's other seats in this league's group, lent too (put back in the same `finally`).
+  const others = linked && mem.length
+    ? (await pool.query(
+        `SELECT m.id FROM league_memberships m JOIN leagues l ON l.id=m.league_id
+          WHERE m.user_id=$1 AND l.id<>$2 AND l.group_id IS NOT NULL AND l.group_id=(SELECT group_id FROM leagues WHERE id=$2)`,
+        [mem[0].user_id, leagueId]
+      )).rows.map((r) => r.id)
+    : [];
+  if (others.length) await pool.query(`UPDATE league_memberships SET user_id=$1 WHERE id=ANY($2)`, [ztId, others]);
   try {
     const { page, errors, BASE, close } = await open({ user: ZT_USER, pass: ZT_PASS, width });
     await page.addInitScript((t) => {
@@ -50,8 +67,20 @@ const ZT_PASS = process.env.ZT_PASS || "zt-pass-12345";
       localStorage.setItem("rfl.notifyNudge", JSON.stringify({ dismissals: 1, until: Date.now() + 864e5 }));
     }, dark ? "dark" : "light");
     for (const href of paths) {
-      await page.goto(`${BASE}${href}${href.includes("?") ? "&" : "?"}league=${leagueId}`, { waitUntil: "networkidle" });
-      await page.waitForTimeout(900);
+      // Watched from before the load: a loop can start as soon as the page (and its neighbours) render.
+      let n = 0;
+      const t0 = Date.now();
+      const tag = () => `${((Date.now() - t0) / 1000).toFixed(1)}s`;
+      const onReq = (r) => { if (r.url().includes("/api/")) { n++; console.log(`  ${tag()} ${r.method()} ${r.url().replace(BASE, "")}`); } };
+      const onNav = (f) => { if (f === page.mainFrame()) { n++; console.log(`  ${tag()} navigated ${f.url().replace(BASE, "")}`); } };
+      if (watch) { page.on("request", onReq); page.on("framenavigated", onNav); }
+      await page.goto(`${BASE}${href}${href.includes("?") ? "&" : "?"}league=${leagueId}`, { waitUntil: watch ? "domcontentloaded" : "networkidle" });
+      await page.waitForTimeout(watch ? watch * 1000 : 900);
+      if (watch) {
+        page.off("request", onReq);
+        page.off("framenavigated", onNav);
+        console.log(`watch ${href}: ${n} requests/navigations in ${watch}s (from the load)`);
+      }
       const name = `${playerName}-${href.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "home"}-${width}${dark ? "-dark" : ""}`;
       // Grow the viewport to the page instead of a fullPage capture, which smears fixed bars (the tab
       // bar, a closed bottom sheet) into the middle; then put it back for the next page.
@@ -65,6 +94,7 @@ const ZT_PASS = process.env.ZT_PASS || "zt-pass-12345";
     if (errors.length) console.log("errors:", errors.slice(0, 5));
     await close();
   } finally {
+    if (others.length) await pool.query(`UPDATE league_memberships SET user_id=$1 WHERE id=ANY($2)`, [mem[0].user_id, others]);
     if (mem.length) await pool.query(`UPDATE league_memberships SET user_id=$1 WHERE id=$2`, [mem[0].user_id, mem[0].id]);
     else await pool.query(`DELETE FROM league_memberships WHERE league_id=$1 AND user_id=$2`, [leagueId, ztId]);
     await pool.end();

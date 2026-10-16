@@ -214,6 +214,20 @@ test("a pickup still unfilled at airtime is assigned, the same way every time", 
   assert.deepEqual(W.periods(s)[0].autoFills, [auto.id]);
 });
 
+test("a week that processes and closes at once auto-fills nothing: what's owed carries to the next week", () => {
+  // Episode 4's results were already in when the week processed (no free agency at all), as in a
+  // league whose first waiver week opened after the next episode had aired.
+  const s = afterEpisode3({ airs: false });
+  S.addElimination(s, "ep4", "d1", "Voted Out");
+  W.process(s, {}, { now: T0 + HOUR });
+  W.close(s, T0 + HOUR);
+  assert.equal(W.periods(s)[0].autoFills.length, 0);
+  assert.ok(!(s.midSeason.log || []).some((tx) => tx.via === "auto"));
+  W.open(s, T0 + HOUR);
+  assert.equal(W.pickupsOwed(s, "sam").count, 1, "Sam still claims for Jelly");
+  assert.equal(W.pickupsOwed(s, "dee").count, 1);
+});
+
 test("a pickup can be filled in free agency instead", () => {
   const s = afterEpisode3();
   W.process(s, { sam: claim(s, "sam", { pickupIds: ["rob"] }) }, { now: T0 });
