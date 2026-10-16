@@ -1061,6 +1061,24 @@ async function stageSeasonEpisodes(pool, ctx, extraction, opts = {}) {
     items.push({ episode: g.episode, postMerge, kind: "group", name: g.name, method: g.group, eventType: "", confidence: "low" });
   }
 
+  // Nothing for an episode that hasn't aired. Wiki pages carry rows for upcoming episodes
+  // (placeholders, leaks, the model filling in a blank row), and the research route already refuses
+  // unaired episodes for the same reason. Filtered here, on the finished list, so roles and group
+  // changes (read off other tables) are caught too; only when the air time is known. Anything
+  // already pending for those episodes is withdrawn by stageDecisions, since this read no longer
+  // proposes it.
+  const airsAt = await require("./auto-research.js").airTimesOf(pool, seasonId);
+  const now = Date.now();
+  const unaired = [...new Set(items.map((it) => it.episode))].filter((n) => {
+    const air = airsAt(n);
+    return air && air.getTime() > now;
+  });
+  if (unaired.length) {
+    const before = items.length;
+    items.splice(0, items.length, ...items.filter((it) => !unaired.includes(it.episode)));
+    console.log(`[wiki-sync]   note: dropped ${before - items.length} result(s) for episode(s) ${unaired.join(", ")}, which haven't aired yet`);
+  }
+
   // Named in the result rather than buried in the console: results nobody will ever see unless the
   // cast (or the wiki) is fixed.
   const unmatched = checked.unmatched
@@ -1072,7 +1090,8 @@ async function stageSeasonEpisodes(pool, ctx, extraction, opts = {}) {
   const counts =
     `${items.length} results across ${c.episodes} episodes ` +
     `(${c.eliminations} eliminations; ${c.events} events, ${c.lowConfidence} low-confidence)` +
-    (unmatched.length ? ` — ${unmatched.length} couldn't be matched to the cast: ${unmatched.join(", ")}` : "");
+    (unmatched.length ? ` — ${unmatched.length} couldn't be matched to the cast: ${unmatched.join(", ")}` : "") +
+    (unaired.length ? ` — skipped episode${unaired.length === 1 ? "" : "s"} ${unaired.join(", ")} (not aired yet)` : "");
   console.log(`[wiki-sync]   ${counts}`);
   if (opts.dry) {
     return { summary: `${counts} — dry run, nothing staged`, inserted: 0, updated: 0, withdrawn: 0, unmatched, dropped: checked.dropped };
@@ -1368,12 +1387,15 @@ async function runAll(pool, opts) {
   let failures = 0;
   // Required here, not at the top: auto-research.js pulls in air-schedule.js, which the per-season
   // admin path doesn't need.
-  const { seasonIsLive } = require("./auto-research.js");
+  const { seasonRunsAutomatically } = require("./auto-research.js");
   for (const { showSlug, season, leagues: members } of groups.values()) {
-    // Only seasons still airing: a finished (or not-airing) season has nothing new, and re-reading it
-    // is a wasted model call whenever its wiki page gets an unrelated edit. Manual pulls still work.
-    if (!(await seasonIsLive(pool, showSlug, Number(season)))) {
-      console.log(`\n[wiki-sync] skipping ${showSlug} season ${season}: not airing, or past its finale`);
+    // Only seasons with auto-research on and still airing. The toggle is the admin's one switch for
+    // anything that runs unasked -- this used to check only "airing", so a season with auto-research
+    // off still got nightly wiki results to review. A finished season has nothing new either, and
+    // re-reading it is a wasted model call whenever its wiki page gets an unrelated edit. Manual
+    // pulls still work.
+    if (!(await seasonRunsAutomatically(pool, showSlug, Number(season)))) {
+      console.log(`\n[wiki-sync] skipping ${showSlug} season ${season}: auto-research off, not airing, or past its finale`);
       continue;
     }
     console.log(`\n[wiki-sync] === ${showSlug} season ${season} (${members.length} league(s)) ===`);

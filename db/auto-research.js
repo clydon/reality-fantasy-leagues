@@ -72,11 +72,23 @@ async function seasonIsLive(pool, showSlug, seasonNumber, now) {
   return !!season && isSeasonLive(season, now);
 }
 
+/** Whether the nightly wiki sync may read a season: auto-research on AND still live. The one toggle
+ * covers everything that runs unasked -- with it off, nothing is read or staged without a button. */
+async function seasonRunsAutomatically(pool, showSlug, seasonNumber, now) {
+  const [season] = await loadSeasons(pool, "s.slug = $1 AND ss.season_number = $2", [showSlug, seasonNumber]);
+  return !!season && !!season.auto_research && isSeasonLive(season, now);
+}
+
 /** When episode n of a season airs (null when unknown) -- the research route's "has it aired?" check. */
 async function episodeAirsAt(pool, seasonId, n) {
+  return (await airTimesOf(pool, seasonId))(n);
+}
+
+/** The same check for many episodes of one season: loads the schedule once, returns n => Date|null. */
+async function airTimesOf(pool, seasonId) {
   const [season] = await loadSeasons(pool, "ss.id = $1", [seasonId]);
-  if (!season) return null;
-  return Air.episodeAirTime(season.schedule, n, season.wikiAirDates);
+  if (!season) return () => null;
+  return (n) => Air.episodeAirTime(season.schedule, n, season.wikiAirDates);
 }
 
 /** The season's known episode count (0029), or null when nobody has set one. */
@@ -165,4 +177,4 @@ if (require.main === module) {
     .finally(() => pool.end());
 }
 
-module.exports = { loadSeasons, dueEpisodes, runDue, episodeAirsAt, episodeCountOf, isSeasonLive, seasonIsLive, RETRY_AFTER_MS, MAX_ATTEMPTS };
+module.exports = { loadSeasons, dueEpisodes, runDue, episodeAirsAt, airTimesOf, episodeCountOf, isSeasonLive, seasonIsLive, seasonRunsAutomatically, RETRY_AFTER_MS, MAX_ATTEMPTS };

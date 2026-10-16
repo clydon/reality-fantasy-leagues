@@ -372,7 +372,7 @@ export function ShowSettingsPage({ showId }: { showId: string }) {
           <Field label="Cast section heading" htmlFor="show-heading" hint={`Blank looks for "${plural(show.castaway_term)}".`}>
             <input id="show-heading" className={fieldCls} placeholder="Automatic" defaultValue={show.cast_section_heading ?? ""} disabled={busy} onBlur={blur("castSectionHeading", show.cast_section_heading)} />
           </Field>
-          <Field label="Research sites" htmlFor="show-sites" hint="Web research only searches these. Fewer, trusted sites give better answers for fewer tokens. Blank: the wiki plus a couple of recap sites.">
+          <Field label="Research sites" htmlFor="show-sites" hint="Web research checks these first, then searches wider if they don't settle something. Blank: the wiki plus a couple of recap sites.">
             <input
               id="show-sites"
               className={fieldCls}

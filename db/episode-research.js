@@ -165,8 +165,10 @@ function buildPrompt({ showName, season, episodeNumber, castNames, terms, domain
     ...castNames.map((n, i) => `${i + 1}. ${n}`),
     "",
     ...format.research.searchHint,
-    // Anthropic enforces this list (allowed_domains on its search tool); for the others it's advice.
-    ...(domains.length ? ["", `Use these sites: ${domains.join(", ")}.`] : []),
+    // Where to look FIRST, not a fence: the search tool isn't restricted to these (see searchToolFor).
+    ...(domains.length
+      ? ["", `Start with these trusted sites: ${domains.join(", ")}. If they don't settle something, search anywhere else that covers this episode.`]
+      : []),
     "Two or three good pages are enough -- don't keep searching once the episode is covered.",
     ...betLines(bets),
   ].join("\n");
@@ -432,20 +434,22 @@ function strictSchema(node) {
 // The models an admin may pick for research (Admin > Shows & Seasons). Cheapest first.
 const RESEARCH_MODELS = ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-5"];
 
-// Five searches, not twelve: with the search restricted to trusted sites (below), a handful of
-// queries finds the recap and the wiki page, and every search both costs a fee and pours its results
-// into the context as input tokens -- the biggest share of a research call's cost.
-const MAX_SEARCHES = 5;
+// Eight searches, not twelve: the prompt points at the trusted sites first, so a handful of queries
+// usually finds the recap, with a few to spare for going wider when those don't settle something.
+// Every search both costs a fee and pours its results into the context as input tokens -- the
+// biggest share of a research call's cost.
+const MAX_SEARCHES = 8;
 
 // The search tool depends on the model generation: web_search_20260209 (dynamic filtering) is for
 // Opus/Sonnet 4.6 and later; Haiku 4.5 only has the basic variant. The dynamic variant runs code
 // execution internally, which is why code_execution must NOT also be declared.
 function searchToolFor(model, domains) {
   const type = model === "claude-haiku-4-5" ? "web_search_20250305" : "web_search_20260209";
-  const tool = { type, name: "web_search", max_uses: MAX_SEARCHES };
-  // Trusted sites only (shows.research_domains). Fewer, better pages -- and cheaper ones.
-  if (domains && domains.length) tool.allowed_domains = domains;
-  return tool;
+  // No allowed_domains: the show's trusted sites (shows.research_domains) are named in the prompt as
+  // where to start, but a hard restriction left gaps the model could see how to fill and wasn't
+  // allowed to. `domains` stays in the signature for the providers' call shape.
+  void domains;
+  return { type, name: "web_search", max_uses: MAX_SEARCHES };
 }
 const SEARCH_TOOL = searchToolFor("claude-opus-5", null); // kept for callers that inspect the default
 
