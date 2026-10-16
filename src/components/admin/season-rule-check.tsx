@@ -62,12 +62,15 @@ export function SeasonRules({
   seasonLabel,
   castApproved,
   locked,
+  startCheck = false,
   Row,
 }: {
   seasonId: string;
   seasonLabel: string;
   castApproved: boolean;
   locked: boolean;
+  /** Open the check straight away (research's rules tripwire links here with ?check=1). */
+  startCheck?: boolean;
   /** SeasonCard's own step row, so this one reads like its neighbours. */
   Row: Row;
 }) {
@@ -77,7 +80,7 @@ export function SeasonRules({
     queryFn: () => api.adminRuleChanges(seasonId),
     enabled: castApproved,
   });
-  const [checking, setChecking] = useState(false);
+  const [checking, setChecking] = useState(startCheck && castApproved && !locked);
   const [openId, setOpenId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);

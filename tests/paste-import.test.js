@@ -52,6 +52,8 @@ function allowedResult(format, item) {
   if (item.kind === "elimination") return format.exitMethods.includes(item.method) && item.eventType === "";
   if (item.kind === "exiled") return item.eventType === "";
   if (item.kind === "role") return !!item.method && item.eventType === "";
+  // A group move (newGroup): only on a format with groups, named.
+  if (item.kind === "group") return format.hasGroups && !!item.method && item.eventType === "";
   return false;
 }
 

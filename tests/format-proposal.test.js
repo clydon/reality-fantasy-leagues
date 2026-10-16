@@ -169,7 +169,9 @@ test("an approved proposal runs through research and scoring end to end", () => 
   }
   for (const dialect of ["strict", "gemini"]) {
     const item = R.jsonSchemaFor(R.researchSchemaFor(format, false), dialect).properties.castaways.items;
-    assert.deepEqual(Object.keys(item.properties), data.research.checklist.map((f) => f.key), dialect);
+    // ...plus the group move every grouped format is asked (db/episode-research.js researchSchemaFor).
+    const keys = data.research.checklist.map((f) => f.key).concat(data.hasGroups ? ["newGroup"] : []);
+    assert.deepEqual(Object.keys(item.properties), keys, dialect);
   }
 
   const skel = R.pasteSkeleton(ctx, []);

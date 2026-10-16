@@ -58,6 +58,8 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
       done(await fn());
       await refetch();
       await queryClient.invalidateQueries({ queryKey: ["season-decisions", seasonId] });
+      // A rules note from this research marks the Rules tab (season-frame.tsx).
+      await queryClient.invalidateQueries({ queryKey: ["season-rule-changes", seasonId] });
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -141,7 +143,7 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
             detail="Free · any AI chat with web search"
             trailing={
               aired ? (
-                <ActButton tone={pending === 0 && !pasting ? "chyron" : "plain"} disabled={!!working} onClick={() => setPasting((v) => !v)}>
+                <ActButton tone={pending === 0 && !pasting && !research?.payload.rulesNote ? "chyron" : "plain"} disabled={!!working} onClick={() => setPasting((v) => !v)}>
                   {pasting ? "Cancel" : "Start"}
                 </ActButton>
               ) : undefined
@@ -155,7 +157,7 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
       {working === "research" && <Notice tone="quiet">Working through the checklist, tens of seconds. Leave this open.</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}
       {note && <Notice>{note}</Notice>}
-      {research && <ResearchResult research={research} busy={!!working} onForce={() => doResearch(true)} forceCost={estimate("research", models.research)} />}
+      {research && <ResearchResult research={research} busy={!!working} onForce={() => doResearch(true)} forceCost={estimate("research", models.research)} rulesHref={`${base}/rules?check=1`} />}
 
       {!aired && <Notice tone="quiet">Nothing to gather until it airs.</Notice>}
       <p className="text-[13px] leading-snug text-muted-foreground">

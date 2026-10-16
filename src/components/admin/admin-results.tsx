@@ -6,6 +6,7 @@ import type { LeagueDecisionSync, ModelUsage, ResearchCastaway, SeasonResearchRe
 import { AI_MODELS, costOf, formatCost } from "@/lib/ai-cost";
 import { formatFor, withChanges } from "@/lib/game/formats/index.js";
 import { useShowPaidAi, useShowSpoilers } from "@/lib/paid-ai-store";
+import { CaptionPlate } from "@/components/ui/caption-plate";
 import { ActButton, Cost, count } from "./admin-ui";
 import { cn } from "cn";
 
@@ -34,7 +35,51 @@ const box = "flex flex-col gap-1.5 rounded-[3px] bg-card px-3.5 py-3 text-sm";
  * items now); the full checklist is behind a toggle, and lists every castaway, including the ones
  * nothing was found for -- telling "asked, nothing found" apart from "never asked" is the point.
  */
-export function ResearchResult({ research, busy, onForce, forceCost }: { research: SeasonResearchResult; busy: boolean; onForce: () => void; forceCost: string }) {
+// Research's rules tripwire (db/episode-research.js rulesNote): something new about how the season is
+// played. Up front, not in Details, with the one thing to do about it -- the rule check is a separate
+// prompt, and a note nobody acts on means the checklist quietly stops matching the show.
+// The alert strip's shape (a caption plate with a chyron tag), so it reads as a to-do, not a notice.
+// The tag is its one yellow: after research the review button below is usually the other "now".
+export function RulesTripwire({ note, href }: { note: string; href: string }) {
+  const showSpoilers = useShowSpoilers();
+  return (
+    <div role="alert" className="flex flex-col gap-2">
+      {/* The chevron alone is the action, so the title still fits a 320px phone. */}
+      <CaptionPlate
+        tag="New"
+        title="Rules changed?"
+        subtitle="Research spotted something"
+        action={<span className="sr-only">Check the rules</span>}
+        href={href}
+      />
+      <p className="text-[13px] leading-snug text-muted-foreground">
+        {showSpoilers ? (
+          <>
+            <span className="text-foreground">{note}</span>{" "}
+          </>
+        ) : (
+          "What research found stays hidden until you tick “Show episode results”. "
+        )}
+        Check before the next episode. If the rules did change, research this episode again afterwards so the new questions get asked.
+      </p>
+    </div>
+  );
+}
+
+export function ResearchResult({
+  research,
+  busy,
+  onForce,
+  forceCost,
+  rulesHref,
+}: {
+  research: SeasonResearchResult;
+  busy: boolean;
+  onForce: () => void;
+  forceCost: string;
+  /** Where the rules tripwire's button goes; no button (and no callout) without one. */
+  rulesHref?: string;
+}) {
   const [open, setOpen] = useState(false);
   const showPaid = useShowPaidAi();
   const showSpoilers = useShowSpoilers();
@@ -45,120 +90,123 @@ export function ResearchResult({ research, busy, onForce, forceCost }: { researc
   const newItems = research.decisions?.inserted ?? 0;
 
   return (
-    <div className={box} role="status">
-      <p>
-        <b>{research.cached ? "Already researched, reused." : "Researched."}</b> {noted.length} of {counts.castaways} had something to note;{" "}
-        {newItems ? `${count(newItems, "new result")} to review.` : "nothing new to review."}{" "}
-        {provenance.pasteMode === "json" ? (
-          <Cost title="Pasted as JSON and read directly; nothing was sent to a model">Free.</Cost>
-        ) : (
-          <SpentNote model={provenance.model} usage={provenance.usage} cached={research.cached} />
-        )}
-      </p>
-      {provenance.domainsBlocked?.length ? (
-        <p className="text-muted-foreground">
-          {provenance.domainsBlocked.join(", ")} block{provenance.domainsBlocked.length === 1 ? "s" : ""} Anthropic&rsquo;s search, so{" "}
-          {provenance.domainsBlocked.length === 1 ? "it was" : "they were"} skipped. Remove {provenance.domainsBlocked.length === 1 ? "it" : "them"} from the
-          show&rsquo;s research sites.
+    <>
+      {payload.rulesNote && rulesHref && <RulesTripwire note={payload.rulesNote} href={rulesHref} />}
+      <div className={box} role="status">
+        <p>
+          <b>{research.cached ? "Already researched, reused." : "Researched."}</b> {noted.length} of {counts.castaways} had something to note;{" "}
+          {newItems ? `${count(newItems, "new result")} to review.` : "nothing new to review."}{" "}
+          {provenance.pasteMode === "json" ? (
+            <Cost title="Pasted as JSON and read directly; nothing was sent to a model">Free.</Cost>
+          ) : (
+            <SpentNote model={provenance.model} usage={provenance.usage} cached={research.cached} />
+          )}
         </p>
-      ) : null}
-      {problems.length > 0 &&
-        (showSpoilers ? (
-          <ul className="text-destructive">
-            {problems.map((p) => (
-              <li key={p}>{p}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-destructive">{count(problems.length, "answer")} to double-check. Show names to see them.</p>
-        ))}
-      <span className="flex flex-wrap items-center gap-2">
-        {/* The details are the episode's events, by name: off-limits with spoilers off. */}
-        {showSpoilers && (
-          <ActButton onClick={() => setOpen((v) => !v)}>
-            <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} strokeWidth={2.4} aria-hidden />
-            {open ? "Hide details" : "Details"}
-          </ActButton>
-        )}
-        {showPaid && (
-          <>
-            <ActButton disabled={busy} onClick={onForce}>
-              Research again
-            </ActButton>
-            <Cost>{forceCost}</Cost>
-          </>
-        )}
-      </span>
-      {open && showSpoilers && (
-        <div className="flex flex-col gap-2 border-t border-border pt-2">
-          <p>{payload.summary}</p>
-          {payload.rulesNote && (
-            <p>
-              <b>Rules note:</b> {payload.rulesNote} <span className="text-muted-foreground">See the season&rsquo;s Rules tab.</span>
-            </p>
-          )}
-          <ul className="flex flex-col gap-1">
-            {noted.map((c) => (
-              <li key={c.name} className="flex flex-wrap items-baseline gap-1.5">
-                <span
-                  className={cn(
-                    "rounded-[2px] px-1 text-[10px] font-bold uppercase tracking-wide",
-                    c.confidence === "high" ? "bg-good/20 text-good" : c.confidence === "medium" ? "bg-muted text-muted-foreground" : "bg-chyron/20 text-chyron-line",
-                  )}
-                >
-                  {c.confidence}
-                </span>
-                <b>{c.name}</b>
-                <span>{notesFor(c).join("; ")}</span>
-                {c.sources.length ? (
-                  <span className="text-muted-foreground">
-                    {c.sources.map((url, i) => (
-                      <a key={url} href={url} target="_blank" rel="noreferrer" className="ml-1 underline underline-offset-2" title={url}>
-                        [{i + 1}]
-                      </a>
-                    ))}
-                  </span>
-                ) : (
-                  <span className="font-semibold text-destructive">no source</span>
-                )}
-              </li>
-            ))}
-          </ul>
-          {provenance.castSkipped?.length ? (
-            <p className="text-muted-foreground">
-              <b>Not asked (already out):</b> {provenance.castSkipped.join(", ")}
-            </p>
-          ) : null}
-          {quiet.length > 0 && (
-            <p className="text-muted-foreground">
-              <b>Asked, nothing found:</b> {quiet.map((c) => c.name).join(", ")}
-            </p>
-          )}
-          {(payload.betAnswers || []).length > 0 && (
-            <div>
-              <b>Predictions settled</b> <span className="text-muted-foreground">(shown to commissioners when they grade)</span>
-              <ul className="ml-4 list-disc">
-                {(payload.betAnswers || []).map((b) => (
-                  <li key={b.question}>
-                    {b.question}: <b>{b.answer ?? "couldn’t tell"}</b>
-                    {b.answer && <span className="text-muted-foreground"> ({b.confidence})</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground">
-            {counts.sourced} sourced · {counts.lowConfidence} low confidence · {counts.unknowns} unknown ·{" "}
-            {provenance.provider === "paste"
-              ? provenance.pasteMode === "json"
-                ? "pasted JSON"
-                : "pasted notes, structured"
-              : `${provenance.pagesRead.length} pages read`}
-            {provenance.model ? ` · ${modelLabel(provenance.model)}` : ""}
+        {provenance.domainsBlocked?.length ? (
+          <p className="text-muted-foreground">
+            {provenance.domainsBlocked.join(", ")} block{provenance.domainsBlocked.length === 1 ? "s" : ""} Anthropic&rsquo;s search, so{" "}
+            {provenance.domainsBlocked.length === 1 ? "it was" : "they were"} skipped. Remove {provenance.domainsBlocked.length === 1 ? "it" : "them"} from the
+            show&rsquo;s research sites.
           </p>
-        </div>
-      )}
-    </div>
+        ) : null}
+        {problems.length > 0 &&
+          (showSpoilers ? (
+            <ul className="text-destructive">
+              {problems.map((p) => (
+                <li key={p}>{p}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-destructive">{count(problems.length, "answer")} to double-check. Show names to see them.</p>
+          ))}
+        <span className="flex flex-wrap items-center gap-2">
+          {/* The details are the episode's events, by name: off-limits with spoilers off. */}
+          {showSpoilers && (
+            <ActButton onClick={() => setOpen((v) => !v)}>
+              <ChevronRight className={cn("size-4 transition-transform", open && "rotate-90")} strokeWidth={2.4} aria-hidden />
+              {open ? "Hide details" : "Details"}
+            </ActButton>
+          )}
+          {showPaid && (
+            <>
+              <ActButton disabled={busy} onClick={onForce}>
+                Research again
+              </ActButton>
+              <Cost>{forceCost}</Cost>
+            </>
+          )}
+        </span>
+        {open && showSpoilers && (
+          <div className="flex flex-col gap-2 border-t border-border pt-2">
+            <p>{payload.summary}</p>
+            {payload.rulesNote && (
+              <p>
+                <b>Rules note:</b> {payload.rulesNote} <span className="text-muted-foreground">See the season&rsquo;s Rules tab.</span>
+              </p>
+            )}
+            <ul className="flex flex-col gap-1">
+              {noted.map((c) => (
+                <li key={c.name} className="flex flex-wrap items-baseline gap-1.5">
+                  <span
+                    className={cn(
+                      "rounded-[2px] px-1 text-[10px] font-bold uppercase tracking-wide",
+                      c.confidence === "high" ? "bg-good/20 text-good" : c.confidence === "medium" ? "bg-muted text-muted-foreground" : "bg-chyron/20 text-chyron-line",
+                    )}
+                  >
+                    {c.confidence}
+                  </span>
+                  <b>{c.name}</b>
+                  <span>{notesFor(c).join("; ")}</span>
+                  {c.sources.length ? (
+                    <span className="text-muted-foreground">
+                      {c.sources.map((url, i) => (
+                        <a key={url} href={url} target="_blank" rel="noreferrer" className="ml-1 underline underline-offset-2" title={url}>
+                          [{i + 1}]
+                        </a>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="font-semibold text-destructive">no source</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {provenance.castSkipped?.length ? (
+              <p className="text-muted-foreground">
+                <b>Not asked (already out):</b> {provenance.castSkipped.join(", ")}
+              </p>
+            ) : null}
+            {quiet.length > 0 && (
+              <p className="text-muted-foreground">
+                <b>Asked, nothing found:</b> {quiet.map((c) => c.name).join(", ")}
+              </p>
+            )}
+            {(payload.betAnswers || []).length > 0 && (
+              <div>
+                <b>Predictions settled</b> <span className="text-muted-foreground">(shown to commissioners when they grade)</span>
+                <ul className="ml-4 list-disc">
+                  {(payload.betAnswers || []).map((b) => (
+                    <li key={b.question}>
+                      {b.question}: <b>{b.answer ?? "couldn’t tell"}</b>
+                      {b.answer && <span className="text-muted-foreground"> ({b.confidence})</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {counts.sourced} sourced · {counts.lowConfidence} low confidence · {counts.unknowns} unknown ·{" "}
+              {provenance.provider === "paste"
+                ? provenance.pasteMode === "json"
+                  ? "pasted JSON"
+                  : "pasted notes, structured"
+                : `${provenance.pagesRead.length} pages read`}
+              {provenance.model ? ` · ${modelLabel(provenance.model)}` : ""}
+            </p>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 

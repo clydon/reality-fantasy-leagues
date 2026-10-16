@@ -76,19 +76,37 @@ const Answer = z.enum(["yes", "no", "unknown"]);
 // changed how it's played this season (docs/PLAN-season-rule-changes.md). A non-empty one shows on the
 // season's Rules row in Admin as the cue to run "check for rule changes"; nothing else reads it, and it
 // never scores. Its wording is the whole design -- see RULES_NOTE.
+//
+// Group changes and the merge are every grouped format's too, asked here rather than in each format's
+// checklist. They used to come only from the wiki's tables; since that read was retired (cast only),
+// research is their one source, so one paste covers a swap episode without a second prompt.
 function researchSchemaFor(format, withBets = false) {
+  const group = ((format.terms && format.terms.tribe) || "tribe").toLowerCase();
+  let entry = format.research.checklistSchema(z, Answer);
+  if (format.hasGroups) entry = entry.extend({ newGroup: z.string().nullable().describe(newGroupText(group)) });
   return z.object({
     episodeTitle: z.string().nullable(),
     airDate: z.string().nullable().describe("As printed on the source, e.g. 'March 5, 2026'."),
     summary: z.string().describe("Two or three sentences on what happened this episode, for a human reviewer to orient on."),
     ...format.research.episodeFields(z, Answer),
+    ...(format.hasMerge ? { merged: Answer.describe(mergedText(group)) } : {}),
     rulesNote: z.string().nullable().describe(RULES_NOTE),
     castaways: z
-      .array(format.research.checklistSchema(z, Answer))
+      .array(entry)
       .describe("EXACTLY ONE ENTRY PER CASTAWAY in the list you were sent, in that same order, including anyone nothing happened to."),
     ...(withBets ? { betAnswers: BetAnswers } : {}),
   });
 }
+
+const newGroupText = (group) =>
+  `Only if their ${group} CHANGED in this episode -- a swap, a re-division into new ${group}s, a ${group} ` +
+  `dissolved, or the merge: the ${group} they are on at the END of this episode, exactly as the show names ` +
+  `it (the merged ${group}'s name at the merge). Compare against the ${group} shown next to their name in ` +
+  `the list you were sent. Null if they are still on that ${group}.`;
+
+const mergedText = (group) =>
+  `Is the game merged by the end of this episode -- the ${group}s have become one group, in this episode ` +
+  `or an earlier one? 'yes' from the merge episode on.`;
 
 // Worded against noise above all: a note that fires every week ("someone found an idol!") would teach
 // the admin to ignore the Rules row, which is worse than no flag. So it asks only about the GAME's
@@ -137,7 +155,10 @@ const BetAnswers = z
 // Provider-neutral on purpose: it says "search" and never names a tool, because the three providers
 // expose search as three different mechanisms (a server tool, a grounding flag, a search parameter)
 // and none of them needs to be told what its own search is called.
-function buildPrompt({ showName, season, episodeNumber, castNames, terms, domains = [], format, bets = [] }) {
+function buildPrompt({ showName, season, episodeNumber, castNames, castGroups = {}, terms, domains = [], format, bets = [] }) {
+  const group = String(terms.tribe || "tribe").toLowerCase();
+  const groupOf = (n) => (format.hasGroups && castGroups[n] ? castGroups[n] : null);
+  const anyGroups = castNames.some(groupOf);
   const system = [
     `You research reality-TV episodes and answer a fixed checklist about every ${terms.castaway} still in the game.`,
     "",
@@ -162,8 +183,19 @@ function buildPrompt({ showName, season, episodeNumber, castNames, terms, domain
     "",
     `Research what happened in this episode and fill in the checklist for each of these ${castNames.length} ${terms.castaways}:`,
     "",
-    ...castNames.map((n, i) => `${i + 1}. ${n}`),
+    ...castNames.map((n, i) => `${i + 1}. ${n}` + (groupOf(n) ? ` -- ${groupOf(n)}` : "")),
     "",
+    ...(anyGroups
+      ? [
+          `The ${group} after each name is the one they were on going INTO this episode, as far as we know.`,
+          `If ${group}s were swapped, re-divided, dissolved or merged in this episode, give each person's new`,
+          `${group} in newGroup -- that is the only place a ${group} change is recorded, so don't leave it in`,
+          "notableTwist alone.",
+          "",
+        ]
+      : format.hasGroups
+        ? [`If ${group}s were swapped, re-divided, dissolved or merged in this episode, give each person's new ${group} in newGroup.`, ""]
+        : []),
     ...format.research.searchHint,
     // Where to look FIRST, not a fence: the search tool isn't restricted to these (see searchToolFor).
     ...(domains.length
@@ -967,6 +999,12 @@ function validateResearch(parsed, castNames, terms, format, opts = {}) {
       problems.push(`${entry.name}: an exit method on someone who didn't leave (ignored)`);
       entry.exitMethod = null;
     }
+    // A "new" group that's the one they went in on isn't a move: models restate it rather than null it.
+    if (typeof entry.newGroup === "string") {
+      const now = entry.newGroup.trim();
+      const before = opts.groups && opts.groups[castNames.find((n) => n.toLowerCase() === String(entry.name).trim().toLowerCase())];
+      entry.newGroup = now && !(before && before.trim().toLowerCase() === now.toLowerCase()) ? now : null;
+    }
     problems.push(...format.research.entryProblems(entry));
     // The rule the whole design rests on: a positive claim with nothing behind it.
     const claims = format.research.claims.filter((k) => entry[k] === "yes");
@@ -1016,6 +1054,37 @@ async function catalogEntry(pool, showSlug, season, label) {
   // ...and the season's approved rule changes, which contextFrom layers on by episode.
   rows[0].rule_changes = await SeasonRuleChanges.approvedChanges(pool, rows[0].season_id);
   return rows[0];
+}
+
+// Each person's group going INTO this episode, by name: their starting group, then the latest group
+// move from an earlier episode that nobody rejected (accepted, or still pending -- a swap staged last
+// week and not yet reviewed is still the best guess). Shown next to each name in the prompt so a swap
+// episode is noticed and answered against something. A league with no staged cast reads its own state.
+async function groupsGoingInto(pool, seasonId, episodeNumber, league = null) {
+  const out = {};
+  if (league) {
+    const state = league.state || {};
+    const tribeName = new Map((state.tribes || []).map((t) => [t.id, t.name]));
+    const before = [...(state.episodes || [])].filter((e) => e.number < episodeNumber).sort((a, b) => a.number - b.number);
+    for (const c of state.castaways || []) {
+      let id = c.startTribeId !== undefined ? c.startTribeId : c.tribeId;
+      for (const e of before) for (const g of e.groups || []) if (g.castawayId === c.id) id = g.tribeId;
+      if (c.name) out[c.name] = (id && tribeName.get(id)) || null;
+    }
+    return out;
+  }
+  if (!seasonId) return out;
+  const { rows: cast } = await pool.query("SELECT name, tribe_name FROM season_cast WHERE season_id=$1", [seasonId]);
+  for (const r of cast) out[r.name] = r.tribe_name || null;
+  const { rows: moves } = await pool.query(
+    `SELECT castaway_name, COALESCE(applied->>'method', method) AS grp
+       FROM season_decisions
+      WHERE season_id=$1 AND kind='group' AND status <> 'rejected' AND episode_number < $2
+      ORDER BY episode_number, created_at`,
+    [seasonId, episodeNumber]
+  );
+  for (const m of moves) out[m.castaway_name] = m.grp || null;
+  return out;
 }
 
 async function stagedCastNames(pool, seasonId) {
@@ -1120,7 +1189,8 @@ async function resolveSeasonResearchContext(pool, showSlug, season, episodeNumbe
     );
   }
   const { active, skipped } = await stillInGame(pool, entry.show_id, season, episodeNumber, castNames);
-  return contextFrom(entry, showSlug, season, episodeNumber, active, "season", skipped);
+  const castGroups = await groupsGoingInto(pool, entry.season_id, episodeNumber);
+  return { ...contextFrom(entry, showSlug, season, episodeNumber, active, "season", skipped), castGroups };
 }
 
 async function resolveResearchContext(pool, leagueId, episodeNumber) {
@@ -1151,7 +1221,8 @@ async function resolveResearchContext(pool, leagueId, episodeNumber) {
     );
   }
   const { active, skipped } = await stillInGame(pool, entry.show_id, season, episodeNumber, castNames);
-  return { league, ...contextFrom(entry, showSlug, season, episodeNumber, active, castFrom, skipped) };
+  const castGroups = await groupsGoingInto(pool, entry.season_id, episodeNumber, castFrom === "league" ? league : null);
+  return { league, ...contextFrom(entry, showSlug, season, episodeNumber, active, castFrom, skipped), castGroups };
 }
 
 // ---------- side bets ----------
@@ -1408,6 +1479,9 @@ function itemsFromChecklist(entry, format, payload, episode) {
     // formats/survivor.js impliedEvents). Absent for anyone else, and from formats that don't ask.
     if (Number.isInteger(entry.juryVotesReceived)) items[items.length - 1].juryVotes = entry.juryVotesReceived;
   }
+  // A group move (a swap, a new tribe, the merge), staged exactly as the wiki's were: method is the
+  // group's name. validateResearch already nulled one that just repeats the group they went in on.
+  if (format.hasGroups && typeof entry.newGroup === "string" && entry.newGroup.trim()) add("group", "", entry.newGroup.trim());
   format.research.items(entry, add, ctx);
   return items;
 }
@@ -1445,7 +1519,8 @@ async function stageResearchDecisions(pool, run, opts = {}) {
     "SELECT bool_or(post_merge) AS post_merge FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND from_wiki",
     [seasonId, run.episodeNumber]
   );
-  const postMerge = !!(merge[0] && merge[0].post_merge);
+  // Research answers it itself now (`merged`); a wiki-staged flag from before that is still honoured.
+  const postMerge = (run.payload && run.payload.merged === "yes") || !!(merge[0] && merge[0].post_merge);
   const items = candidatesFor(run.payload, run.format, run.episodeNumber).map((c) => ({
     episode: run.episodeNumber,
     postMerge,
@@ -1822,7 +1897,7 @@ async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
   }
   if (bets.length) parsed.betAnswers = betAnswersFrom(parsed, bets);
 
-  const review = validateResearch(parsed, ctx.castNames, ctx.terms, ctx.format, { partial: !!opts.merge });
+  const review = validateResearch(parsed, ctx.castNames, ctx.terms, ctx.format, { partial: !!opts.merge, groups: ctx.castGroups });
   review.problems.unshift(...(parsed.repairs || []));
   for (const problem of review.problems) console.log(`[research] ! ${problem}`);
   if (review.fatal.length) {
@@ -1888,7 +1963,7 @@ async function runFor(pool, ctx, opts) {
 
   const cached = await cachedResearch(pool, ctx.showId, ctx.season, episodeNumber, ctx.format.id, opts);
   if (cached) {
-    const review = validateResearch(cached.payload, ctx.castNames, ctx.terms, ctx.format);
+    const review = validateResearch(cached.payload, ctx.castNames, ctx.terms, ctx.format, { groups: ctx.castGroups });
     // `id` matters even on a cache hit: staging needs a research_id to file decisions against, and
     // re-staging a cached episode must not require paying for the search again.
     return { ...ctx, ...review, payload: cached.payload, provenance: cached.provenance, cached: true, id: cached.id };
@@ -1912,7 +1987,7 @@ async function runFor(pool, ctx, opts) {
   // Stored with the bets' own wording (the model answered by number), for the suggested-answer route.
   if (bets.length) out.parsed.betAnswers = betAnswersFrom(out.parsed, bets);
 
-  const review = validateResearch(out.parsed, ctx.castNames, ctx.terms, ctx.format);
+  const review = validateResearch(out.parsed, ctx.castNames, ctx.terms, ctx.format, { groups: ctx.castGroups });
   // Answers that strayed outside a fixed list and were set to its catch-all (validateLeniently).
   review.problems.unshift(...(out.parsed.repairs || []));
   for (const problem of review.problems) console.log(`[research] ! ${problem}`);

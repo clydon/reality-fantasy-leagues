@@ -88,8 +88,9 @@ async function stageDecisions(pool, seasonId, items, source, refId, scope = {}) 
            -- count) -- syncLeagueDecisions then tops up the leagues' elimination with it.
            jury_votes    = CASE WHEN season_decisions.status = 'pending' THEN COALESCE(EXCLUDED.jury_votes, season_decisions.jury_votes)
                                 ELSE COALESCE(season_decisions.jury_votes, EXCLUDED.jury_votes) END,
-           -- Only the wiki knows merge status; research leaves whatever is there.
-           post_merge    = CASE WHEN season_decisions.status = 'pending' AND EXCLUDED.from_wiki THEN EXCLUDED.post_merge ELSE season_decisions.post_merge END,
+           -- Merge status: the wiki's read wins while it's pending; research (which asks "merged") can
+           -- only turn it on, so an episode it couldn't place doesn't undo what the wiki said.
+           post_merge    = CASE WHEN season_decisions.status = 'pending' AND (EXCLUDED.from_wiki OR EXCLUDED.post_merge) THEN EXCLUDED.post_merge ELSE season_decisions.post_merge END,
            confidence    = CASE WHEN season_decisions.status = 'pending'
                                  AND $14::int > (CASE season_decisions.confidence WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END)
                                 THEN EXCLUDED.confidence ELSE season_decisions.confidence END

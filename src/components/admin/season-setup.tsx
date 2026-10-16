@@ -322,7 +322,7 @@ export function DangerZone({ children }: { children: ReactNode }) {
 // The Rules tab: the season's "check for rule changes" (docs/PLAN-season-rule-changes.md), for when a
 // show changes how it's played partway through. Never in the way of episodes. Its insides are still the
 // pre-redesign review screen.
-export function SeasonRulesPage({ seasonId }: { seasonId: string }) {
+export function SeasonRulesPage({ seasonId, startCheck = false }: { seasonId: string; startCheck?: boolean }) {
   return (
     <SeasonFrame seasonId={seasonId}>
       {({ show, season }) => (
@@ -331,6 +331,7 @@ export function SeasonRulesPage({ seasonId }: { seasonId: string }) {
           seasonLabel={`${show.name} ${season.name || `season ${season.seasonNumber}`}`}
           castApproved={!!season.castApprovedAt}
           locked={false}
+          startCheck={startCheck}
           Row={RulesStatus}
         />
       )}

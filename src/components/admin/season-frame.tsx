@@ -34,6 +34,13 @@ export function SeasonFrame({
   const pathname = usePathname();
   const { show, season, isLoading, refetch } = useAdminSeason(seasonId);
   const cast = useSeasonCast(seasonId);
+  // Research's rules notes and undecided rule changes, shared with the Rules tab's own query: either
+  // means something about how the season is played needs a look, so the tab says so from anywhere.
+  const rules = useQuery({
+    queryKey: ["season-rule-changes", seasonId],
+    queryFn: () => api.adminRuleChanges(seasonId),
+    enabled: !!season?.castApprovedAt,
+  });
   if (isLoading) return <p className="text-muted-foreground">Loading…</p>;
   if (!show || !season) {
     return (
@@ -47,7 +54,7 @@ export function SeasonFrame({
   const tabs = [
     { href: base, label: "Episodes" },
     { href: `${base}/cast`, label: "Cast", done: approved },
-    { href: `${base}/rules`, label: "Rules" },
+    { href: `${base}/rules`, label: "Rules", attention: (rules.data?.flags.length ?? 0) + (rules.data?.changes.filter((c) => c.status === "draft").length ?? 0) },
     { href: `${base}/setup`, label: "Setup" },
   ];
   const leagues = cast.data?.leagueCount;
@@ -68,6 +75,13 @@ export function SeasonFrame({
               )}
             >
               {t.label}
+              {/* The "needs you" dot, as on League Settings rows; in the tab's ink when it's the chosen one. */}
+              {!!t.attention && (
+                <>
+                  <span className={cn("size-2 rounded-full", on ? "bg-background" : "bg-chyron-line")} aria-hidden />
+                  <span className="sr-only">({t.attention} to check)</span>
+                </>
+              )}
               {t.done && <Check className={cn("size-4", on ? "text-background" : "text-good")} strokeWidth={2.6} aria-label="approved" />}
             </Link>
           );
