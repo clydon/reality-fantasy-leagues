@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useLeagueStore, useIsAuthenticated, useIsPreviewingDemo } from "@/lib/store";
+import { useLeagueStore, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { actionItems, type ActionItem } from "@/lib/game/action-items.js";
 import { ChevronRight } from "lucide-react";
@@ -31,6 +31,10 @@ export function ActionBar() {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
+  // A late joiner catching up gets alerts for their own week, which their mark says where it is.
+  const seenThrough = useLeagueStore((s) => s.membership?.resultsSeenThrough ?? null);
+  // A commissioner also gets the league's own to-do: an aired episode's results to fill in.
+  const commissioner = useCanManage();
   const switchLeague = useLeagueStore((s) => s.switchLeague);
   const setLeagues = useLeagueStore((s) => s.setLeagues);
   const setFlash = useLeagueStore((s) => s.setFlash);
@@ -69,12 +73,15 @@ export function ActionBar() {
 
   const here: Item[] =
     (live || demo) && myPlayerId
-      ? actionItems(state, myPlayerId).map((it) => ({ ...it, leagueId: hereId, leagueName: leagueName ?? "Demo season" }))
+      ? actionItems(state, myPlayerId, seenThrough, { commissioner }).map((it) => ({ ...it, leagueId: hereId, leagueName: leagueName ?? "Demo season" }))
       : [];
   const fetched = enabled ? (data?.items ?? []) : [];
   // Nothing that points at the page you're already on (your pick on /pick, your lineup on /lineup):
-  // the page itself is the to-do. An item for a section of a page (/#predictions) still shows.
-  const onThisPage = (it: Item) => !it.href.includes("#") && it.href === pathname;
+  // the page itself is the to-do. An item for a section of a page (/#predictions) still shows. The
+  // commissioner's results are Episodes' own lead (week.tsx) and the episode page's, so the strip
+  // leaves them to those pages.
+  const onThisPage = (it: Item) =>
+    (!it.href.includes("#") && it.href === pathname) || (it.kind === "results" && pathname.startsWith("/episodes"));
   const items = [
     ...fetched.filter((it) => it.kind === "invite"),
     ...here.filter((it) => !onThisPage(it)),
@@ -152,6 +159,7 @@ export function ActionBar() {
     pick: "Pick",
     prediction: "Predict",
     lateJoin: "Start",
+    results: "Results",
   };
   const plateBtn = "flex min-h-11 min-w-11 items-center justify-center bg-plate text-plate-foreground hover:bg-[#f1eff6]";
   const title = "type-caption line-clamp-2 text-[19px] leading-[1.05] [overflow-wrap:anywhere] [text-wrap:pretty]";

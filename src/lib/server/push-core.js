@@ -21,6 +21,8 @@ const NOTIFICATION_TYPES = [
     sample: { title: "You're up for a swap", body: "Let your commissioner know your swap in Sample League." } },
   { id: "reminder", label: "Reminders before an episode", description: "A day and two hours before an episode airs, if your lineup, pick or a prediction is still open.",
     sample: { title: "Sample League: episode 9 airs in about 2 hours", body: "Set your episode 9 lineup (1 empty slot)" } },
+  { id: "resultsDue", label: "Results to fill in", description: "Commissioners: the morning after an episode airs, if its results still aren't in.",
+    sample: { title: "Sample League: episode 9 needs its results", body: "Nothing's in yet. Copy the question into any AI chat, paste its answer back, then apply." } },
   { id: "episodeResults", label: "Episode results", description: "When an elimination is logged for your league.",
     sample: { title: "Episode 9 results", body: "Results are in · Sample League" } },
   { id: "newBet", label: "New predictions", description: "When someone proposes a prediction you can guess on.",

@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueries } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { useLinkedOrder } from "@/components/league-swipe";
 import type { Castaway, LeagueState, ScoreRow } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useSpoilersOn } from "@/lib/store";
@@ -19,6 +22,10 @@ import { cn } from "cn";
 // on" bumper, then the episode's wins as caption plates, then each person who left as a full vote-out
 // card, then what it meant for you. Tap anywhere for the next beat; Skip goes straight to the recap
 // (the episode's own page).
+//
+// Linked leagues (league-groups.ts) share one reveal: it marks every one of them seen, so it plays what
+// it meant for you in each -- one "you" beat per league, the league's name quiet and its type a step
+// louder above it -- rather than only the league you opened it from.
 //
 // Reached only from the "Reveal Episode 3?" sheet (results-in-banner.tsx). Opening this page is what
 // marks the results seen -- so it's full screen (AuthGate's FULLSCREEN_ROUTES), with no alert strip or
@@ -48,12 +55,35 @@ export function RevealMoment({ through: asked }: { through: number }) {
     else markResultsSeen(through);
   }, [through, markResultsSeen, router]);
 
-  const beats = useMemo(() => (through < 1 ? [] : buildBeats(fullState, from, through, me)), [fullState, from, through, me]);
+  // The other leagues in this one's group, fetched fresh (the same cache the swipe peeks use).
+  const leagueId = useLeagueStore((s) => s.leagueId);
+  const { ids } = useLinkedOrder();
+  const otherIds = ids.filter((id) => id !== leagueId);
+  const fetched = useQueries({
+    queries: otherIds.map((id) => ({ queryKey: ["league-peek", id], queryFn: () => api.leagueState(id), staleTime: 30_000 })),
+  });
+  const waiting = fetched.some((q) => q.isPending);
+  const linked = otherIds.length > 0;
+
+  const beats = useMemo(() => {
+    if (through < 1) return [];
+    const others = fetched.flatMap((q) => {
+      const res = q.data;
+      if (!res) return [];
+      const mine = res.membership?.playerId ?? null;
+      const full = StateLogic.GhostLogic.viewFor(res.state, mine, res.membership?.resultsSeenThrough ?? null, { full: true }) as LeagueState;
+      return [{ name: res.league.name, state: full, me: mine }];
+    });
+    return buildBeats(fullState, from, through, me, linked ? { name: leagueName ?? "", others } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `fetched` is a new array every render; `waiting` is when its data lands
+  }, [fullState, from, through, me, linked, leagueName, waiting]);
   const [step, setStep] = useState(0);
   if (through < 1) return null;
 
-  const beat = beats[step];
-  const last = step === beats.length - 1;
+  // A group's other leagues still loading: the bumper plays, the rest waits so the beats never shift.
+  const ready = !waiting;
+  const beat = (ready ? beats[step] : beats[0]) ?? beats[0];
+  const last = ready && step === beats.length - 1;
   const recap = `/episodes/${through}`;
   // Plates already shown for this beat's episode stay on screen above it, smaller, like a broadcast
   // stacking its lower thirds.
@@ -69,14 +99,14 @@ export function RevealMoment({ through: asked }: { through: number }) {
         className="absolute inset-0 z-0 cursor-pointer outline-none focus-visible:outline-3 focus-visible:-outline-offset-4 focus-visible:outline-chyron-line disabled:cursor-default"
         aria-label={last ? "The reveal is over" : "Show the next result"}
         disabled={last}
-        onClick={() => setStep((s) => Math.min(s + 1, beats.length - 1))}
+        onClick={() => ready && setStep((s) => Math.min(s + 1, beats.length - 1))}
       />
       <div
         className="pointer-events-none relative z-[1] mx-auto flex w-full max-w-[480px] flex-1 flex-col"
         style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <header className="flex items-center justify-between gap-3 px-4">
-          <span className="truncate py-3 text-sm font-bold text-muted-foreground">{leagueName}</span>
+          <span className="truncate py-3 text-sm font-bold text-muted-foreground">{linked ? showName : leagueName}</span>
           {!last && (
             <Link href={recap} className="pointer-events-auto -mr-2 px-2 py-3 text-sm font-bold text-foreground hover:underline">
               Skip
@@ -113,6 +143,14 @@ export function RevealMoment({ through: asked }: { through: number }) {
 
           {beat.kind === "you" && (
             <div className="flex flex-1 flex-col items-start justify-center gap-3 px-6">
+              {beat.league && (
+                <span className="flex max-w-full items-center gap-2">
+                  <span className="type-caption shrink-0 rounded-[3px] border border-input px-2 py-[3px] text-[15px] tracking-[0.05em] text-foreground">
+                    {beat.league.type}
+                  </span>
+                  <span className="truncate text-[13px] text-muted-foreground">{beat.league.name}</span>
+                </span>
+              )}
               <span className="type-caption text-[30px]">{beat.title}</span>
               {beat.hero !== null && <span className="type-num text-[140px] leading-[0.8] text-chyron-line">{beat.hero}</span>}
               {beat.heroLabel && <span className="type-caption text-[19px] text-muted-foreground">{beat.heroLabel}</span>}
@@ -121,6 +159,8 @@ export function RevealMoment({ through: asked }: { through: number }) {
                   {l}
                 </span>
               ))}
+              {last && (
+                <>
               <Link
                 href={recap}
                 className="pointer-events-auto mt-2.5 flex min-h-12 items-center rounded-[3px] bg-plate px-5 text-[15px] font-bold text-plate-foreground transition-[filter] hover:brightness-[0.94] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
@@ -130,6 +170,8 @@ export function RevealMoment({ through: asked }: { through: number }) {
               <Link href="/" className="pointer-events-auto -ml-1 px-1 py-3 text-sm font-semibold text-muted-foreground hover:text-foreground">
                 Go to Overview
               </Link>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -152,7 +194,7 @@ type Win = { key: string; tag: string; tagStyle?: CSSProperties; title: string; 
 /** One challenge: everyone who won it, together (two tribes winning immunity is one beat, not two). */
 type WinBeat = { kind: "win"; ep: number; key: string; plates: Win[] };
 type ExitBeat = { kind: "exit"; ep: number; key: string; c: Castaway; method: string; detail: string };
-type YouBeat = { kind: "you"; title: string; hero: string | null; heroLabel?: string; lines: string[] };
+type YouBeat = { kind: "you"; title: string; hero: string | null; heroLabel?: string; lines: string[]; league?: { name: string; type: string } };
 type Beat = { kind: "bumper" } | WinBeat | ExitBeat | YouBeat;
 
 function WinPlate({ win, small }: { win: Win; small?: boolean }) {
@@ -213,13 +255,13 @@ function firstName(c: Castaway) {
   return c.name.split(" ")[0];
 }
 
-function buildBeats(fullState: LeagueState, from: number, through: number, me: string | null): Beat[] {
+type Linked = { name: string; others: { name: string; state: LeagueState; me: string | null }[] };
+
+function buildBeats(fullState: LeagueState, from: number, through: number, me: string | null, linked: Linked | null): Beat[] {
   // The league as this viewer saw it before the reveal, and as they'll see it after.
   const before = StateLogic.SpoilerLogic.viewThrough(fullState, from - 1) as LeagueState;
   const after = StateLogic.SpoilerLogic.viewThrough(fullState, through) as LeagueState;
-  const eps = after.episodes
-    .filter((e) => e.number >= from && e.number <= through && StateLogic.episodeHasResults(e))
-    .sort((a, b) => a.number - b.number);
+  const eps = episodesIn(after, from, through);
   const mine = (c: Castaway) => !!me && c.ownerIds.includes(me);
 
   const beats: Beat[] = [{ kind: "bumper" }];
@@ -267,8 +309,22 @@ function buildBeats(fullState: LeagueState, from: number, through: number, me: s
       });
     }
   }
-  beats.push(youBeat(before, after, eps, me));
+  const tag = (st: LeagueState, name: string) => ({ name, type: StateLogic.getLeagueType(st).name as string });
+  const mineBeat = youBeat(before, after, eps, me);
+  beats.push(linked ? { ...mineBeat, league: tag(after, linked.name) } : mineBeat);
+  // The rest of the group, in its order: each as that league's own numbers (its scoring, its pick).
+  for (const o of linked?.others ?? []) {
+    const b = StateLogic.SpoilerLogic.viewThrough(o.state, from - 1) as LeagueState;
+    const a = StateLogic.SpoilerLogic.viewThrough(o.state, through) as LeagueState;
+    beats.push({ ...youBeat(b, a, episodesIn(a, from, through), o.me), league: tag(a, o.name) });
+  }
   return beats;
+}
+
+function episodesIn(state: LeagueState, from: number, through: number) {
+  return state.episodes
+    .filter((e) => e.number >= from && e.number <= through && StateLogic.episodeHasResults(e))
+    .sort((a, b) => a.number - b.number);
 }
 
 const fmt = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : "0");

@@ -25,7 +25,7 @@ export const GET = apiRoute(async (req) => {
     [user.id]
   );
   const { rows } = await pool.query(
-    `SELECT l.id, l.name, l.state, m.player_id FROM league_memberships m
+    `SELECT l.id, l.name, l.state, m.player_id, m.role, m.results_seen_through FROM league_memberships m
      JOIN leagues l ON l.id = m.league_id WHERE m.user_id=$1
      ORDER BY l.name`,
     [user.id]
@@ -46,7 +46,10 @@ export const GET = apiRoute(async (req) => {
     if (!r.player_id) continue;
     try {
       await stampAirTimes(pool, r.state);
-      leagueItems.push(...actionItems(r.state, r.player_id).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })));
+      // A late joiner who hasn't revealed anything yet is at the episode before their start (as in late-join.ts).
+      const late = r.state.players?.find((p: { id: string }) => p.id === r.player_id)?.lateJoin;
+      const seen = r.results_seen_through ?? (Number.isInteger(late?.startEpisode) ? late.startEpisode - 1 : null);
+      leagueItems.push(...actionItems(r.state, r.player_id, seen, { commissioner: r.role === "commissioner" }).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })));
     } catch (e) {
       console.error(`[actions] league ${r.id}:`, e);
     }

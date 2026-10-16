@@ -5,14 +5,14 @@ import type { Episode, EpisodeResearchPanel, LeagueState, ResearchApplySummary }
 import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
 import { useCanManage, useLeagueStore } from "@/lib/store";
-import { useShowCatalog } from "@/lib/use-show-terms";
 import { useTourStore } from "@/lib/tour/tour-store";
 import { applyTourResults, tourPanel } from "@/lib/tour/commissioner";
 
 // Where a commissioner's episode results come from (docs/PLAN-episode-research-compiled-cache.md):
 // research staged once per season, then each commissioner checks it and applies it to their own
-// league. That's the weekly job on a league-decided season (show_seasons.results_by = 'leagues'); on
-// an admin-decided one results arrive on their own and nobody here applies anything.
+// league. Filling in results is every commissioner's weekly job by default -- an admin on an
+// admin-decided season (or, one day, paid automation) may simply get there first, and then nothing is
+// due. Research needs the league's show and season; without them results are entered by hand.
 //
 // One shape, two sources: a live league talks to the research routes; the commissioner's guided tour
 // serves its scripted Episode 1 (tour/commissioner.ts) through the same page.
@@ -63,31 +63,39 @@ export function useResultsSource(): ResultsSource | null {
   return null;
 }
 
-/** Whether this league's results are its commissioner's to apply: a league-decided season it's linked
- *  to, or the commissioner's tour. */
-export function useResultsAreMine(): boolean {
-  const state = useLeagueStore((s) => s.state);
+/** Whether this commissioner can fill in results from research (the copy-and-paste page): a live
+ *  league with a show and season to ask about, or the commissioner's tour. Otherwise it's by hand. */
+export function useResearchable(): boolean {
+  const settings = useLeagueStore((s) => s.state.settings);
   const mode = useLeagueStore((s) => s.mode);
   const touring = useLeagueStore((s) => s.touring);
   const tourKind = useTourStore((s) => s.kind);
-  const { data } = useShowCatalog();
   if (touring) return tourKind === "commissioner";
-  if (mode !== "live" || state.settings.wikiSeason == null) return false;
-  const season = data?.shows.find((s) => s.slug === state.settings.showId)?.seasons.find((s) => s.seasonNumber === state.settings.wikiSeason);
-  return season?.resultsBy === "leagues";
+  return mode === "live" && !!settings.showId && settings.wikiSeason != null;
+}
+
+/** Where this commissioner fills in an episode's results: research, else the episode's own page. */
+export function useResultsHref(ep: Episode | null): string | null {
+  const researchable = useResearchable();
+  if (!ep) return null;
+  return researchable ? `/episodes/${ep.number}/research` : `/episodes/${ep.number}`;
 }
 
 /** The episode a commissioner should fill in next: the earliest one in play that has aired (or has no
- *  schedule) and has no results yet. Null for anyone else, or when nothing's waiting. `now` is
- *  episode-status.ts's useNowMinute (null before the client has a clock). */
+ *  schedule) and has no results yet -- the alert strip's rule (action-items.js resultsDueEpisode), plus
+ *  unscheduled leagues, whose episodes never say they've aired. Null for anyone else, in a catching-up
+ *  league (results come with the reveal), or when nothing's waiting. `now` is episode-status.ts's
+ *  useNowMinute (null before the client has a clock). */
 export function useResultsDue(now: number | null): Episode | null {
   const state = useLeagueStore((s) => s.state);
   const canManage = useCanManage();
-  const mine = useResultsAreMine();
+  const mode = useLeagueStore((s) => s.mode);
   const touring = useLeagueStore((s) => s.touring);
+  const tourKind = useTourStore((s) => s.kind);
   // The tour's episodes have no schedule: one "airs" when its results are staged.
   const tourStaged = useTourStore((s) => s.staged);
-  if (!canManage || !mine || now === null) return null;
+  const mine = touring ? tourKind === "commissioner" : mode === "live";
+  if (!canManage || !mine || now === null || StateLogic.RevealLogic.isCatchingUp(state)) return null;
   return (
     [...state.episodes]
       .sort((a, b) => a.number - b.number)
@@ -102,8 +110,9 @@ export function useResultsDue(now: number | null): Episode | null {
   );
 }
 
-/** How many of an episode's staged results aren't in the league yet (null while unknown). */
-export function useStagedCount(ep: Episode | null): number | null {
+/** Where an episode's research stands for this league: how many staged results aren't in it yet, and
+ *  whether there's still anyone to ask about (a question to copy). Null while unknown. */
+export function useResearchProgress(ep: Episode | null): { staged: number; toAsk: boolean } | null {
   const source = useResultsSource();
   const touring = useLeagueStore((s) => s.touring);
   const tourStaged = useTourStore((s) => (ep ? s.staged[ep.number] : undefined));
@@ -115,6 +124,11 @@ export function useStagedCount(ep: Episode | null): number | null {
     staleTime: 60 * 1000,
   });
   if (!ep) return null;
-  if (touring) return tourStaged ? tourStaged.length : 0;
-  return data ? data.staged.filter((d) => !d.inLeague && d.status !== "rejected").length : null;
+  if (touring) return { staged: tourStaged ? tourStaged.length : 0, toAsk: false };
+  return data ? { staged: data.staged.filter((d) => !d.inLeague && d.status !== "rejected").length, toAsk: !!data.prompt } : null;
+}
+
+/** How many of an episode's staged results aren't in the league yet (null while unknown). */
+export function useStagedCount(ep: Episode | null): number | null {
+  return useResearchProgress(ep)?.staged ?? null;
 }

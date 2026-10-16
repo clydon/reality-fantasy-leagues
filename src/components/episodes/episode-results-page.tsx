@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, CircleCheck } from "lucide-react";
 import type { Castaway, Episode, EpisodeResearchPanel as Panel, LeagueState, StagedResearchDecision } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { ApiError } from "@/lib/api";
@@ -12,9 +12,8 @@ import { useResultsSource } from "@/lib/episode-results";
 import { PageBackLink } from "@/components/back-link";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
-import { ActButton, CopyButton, Step } from "@/components/admin/admin-ui";
+import { ActButton, CopyButton, StepNum } from "@/components/admin/admin-ui";
 import { Field, MoreButton, fieldCls } from "@/components/setup/settings-ui";
-import { SectionHead } from "@/components/draft/draft-ui";
 import { cn } from "cn";
 
 // A commissioner's episode results, /episodes/N/research (the canvas's commissioner "Fill the gap"
@@ -22,11 +21,13 @@ import { cn } from "cn";
 // job: research is staged once for the season, and each commissioner checks what it found and applies
 // it to their own league.
 //
-// Top to bottom: how much of the episode research has covered; when someone still needs asking, the
-// two free copy-and-paste steps (any AI chat with web search); then **What research found**, grouped
-// by what happened, each result a row you tick (or untick) with a ⋯ to correct who or what; anything
-// already in the league folded away; and Apply in a sticky bar. Pasting adds to the shared research
-// (no league changes); only Apply touches this league.
+// Numbered steps, the current one's number in chyron: 1 Copy the question, 2 Paste its answer (both
+// free: any AI chat with web search), 3 Check and apply. When research already covers everyone -- the
+// wiki, an admin or another league on the season got there first -- the first two are one done line
+// and the page opens on checking. That step is **what research found**, grouped by what happened,
+// each result a row you tick (or untick) with a ⋯ to correct who or what; anything already in the
+// league folded away; and Apply in a sticky bar. Pasting adds to the shared research (no league
+// changes); only Apply touches this league.
 //
 // Replaces the episode editor's old "Fill gaps with research" panel. The guided tour's commissioner
 // path plays its scripted Episode 1 through this same page (lib/episode-results.ts).
@@ -190,117 +191,140 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
     });
   const fixRow = fixing ? rows.find((r) => r.id === fixing) ?? null : null;
   const c = panel.coverage;
+  // Which step is "now": copy until something's pasted, then paste, then check.
+  const current = panel.prompt ? (answer.trim() ? 2 : 1) : 3;
 
   return (
     <>
-      <div className="flex flex-col gap-1.5 rounded-[4px] bg-card px-4 py-3.5">
-        <span className="text-base font-bold">{coverageLine(panel, terms.castaways)}</span>
-        <span className="text-sm leading-snug text-muted-foreground">
-          {!c.researched || c.needsAsking.length === 0
-            ? c.researched
-              ? "Check each result, untick anything that's wrong, then apply."
-              : "Ask any AI chat with web search, then paste its answer here. It's free."
-            : `Still to ask about: ${c.needsAsking.join(", ")}. Ask any AI chat with web search, then paste its answer here. It's free.`}
-        </span>
-      </div>
+      <p className="text-[15px] leading-snug text-muted-foreground">
+        {panel.prompt
+          ? "Ask any AI chat with web search what happened, paste its answer here, then check it and apply. It's free."
+          : "Research is in. Check what it found, untick anything that's wrong, then apply."}
+      </p>
 
-      {panel.prompt && (
-        <ol className="flex flex-col gap-3.5">
-          <Step n={1} on={!answer.trim()} label="Copy the question">
-            <CopyButton text={panel.prompt} tone={answer.trim() ? "plain" : "chyron"} />
-          </Step>
-          <Step n={2} on={!!answer.trim()} label={<label htmlFor="research-answer">Paste the answer</label>}>
-            <textarea
-              id="research-answer"
-              rows={4}
-              className={cn(fieldCls, "min-h-[96px] resize-y py-3 font-mono text-sm")}
-              placeholder="Paste what the chat wrote back"
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-            />
-            <ActButton tone={answer.trim() ? "chyron" : "plain"} disabled={busy || !answer.trim()} onClick={submit} className="self-start">
-              {busy ? "Reading…" : "Add to research"}
-            </ActButton>
-            <span className="text-[13px] text-muted-foreground">Shared with other leagues on this season. It changes yours only when you apply it.</span>
-          </Step>
-        </ol>
-      )}
-
-      {problems.length > 0 && (
-        <ul className="list-disc pl-5 text-sm text-muted-foreground">
-          {problems.map((p, i) => (
-            <li key={i}>{p}</li>
-          ))}
-        </ul>
-      )}
-
-      <section className="flex flex-col" data-tour="results-list">
-        <SectionHead
-          aside={open.length > 0 && <span className="pb-1.5 text-[13px] text-muted-foreground">{toApply} of {open.length} ticked</span>}
-        >
-          What research found
-        </SectionHead>
-        {groups.length === 0 ? (
-          <p className="border-t border-border py-3 text-base text-muted-foreground">
-            {applied.length > 0 ? "Everything research found is in your league." : c.researched ? "Research found nothing to score for this episode." : "Nothing yet."}
-          </p>
-        ) : (
-          groups.map((g) => (
-            <div key={g.key} className="flex flex-col">
-              <h4 className="type-caption pb-1 pt-3 text-[17px] tracking-[0.03em] text-muted-foreground">{g.title}</h4>
-              <ul className="flex flex-col border-b border-border">
-                {g.rows.map((r) => (
-                  <ResultRow
-                    key={r.id}
-                    row={r}
-                    castaway={castaway(r.castawayName)}
-                    onToggle={() => edit(r.id, { keep: !r.keep })}
-                    onFix={() => setFixing(r.id)}
-                  />
-                ))}
-              </ul>
-            </div>
-          ))
-        )}
-        {applied.length > 0 && (
+      <ol className="flex flex-col gap-6">
+        {panel.prompt ? (
           <>
-            <button
-              type="button"
-              aria-expanded={showApplied}
-              onClick={() => setShowOpened((o) => !o)}
-              className="flex min-h-[52px] items-center justify-between border-b border-border text-[15px] text-muted-foreground"
-            >
-              {applied.length} already in your league
-              <ChevronDown className={cn("size-[18px] transition-transform", showApplied && "rotate-180")} strokeWidth={2.2} aria-hidden />
-            </button>
-            {showApplied && (
-              <ul className="flex flex-col border-b border-border">
-                {applied.map((r) => (
-                  <li
-                    key={r.id}
-                    className={cn("flex min-h-[52px] items-center gap-3 border-t border-border py-1.5 first:border-t-0", r.status !== "rejected" && "opacity-60")}
-                  >
-                    <Face castaway={castaway(r.castawayName)} name={r.castawayName} />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-base font-semibold">{r.castawayName}</span>
-                      {r.status === "rejected" ? (
-                        <span className="text-[13px] font-semibold text-live">Flagged as wrong by an admin. Check it on the episode.</span>
-                      ) : (
-                        <span className="truncate text-[13px] text-muted-foreground">{groupTitle(r)}</span>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <StepRow n={1} on={current === 1} label="Copy the question">
+              <span className="text-sm leading-snug text-muted-foreground">{askLine(panel, terms.castaways)}</span>
+              <CopyButton text={panel.prompt} label="Copy the question" tone={current === 1 ? "chyron" : "plain"} />
+              <span className="text-[13px] text-muted-foreground">Paste it into ChatGPT, Claude, Gemini: any chat that can search the web.</span>
+            </StepRow>
+            <StepRow n={2} on={current === 2} label={<label htmlFor="research-answer">Paste its answer</label>}>
+              <textarea
+                id="research-answer"
+                rows={4}
+                className={cn(fieldCls, "min-h-[96px] resize-y py-3 font-mono text-sm")}
+                placeholder="Paste what the chat wrote back"
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+              />
+              <ActButton tone={current === 2 ? "chyron" : "plain"} disabled={busy || !answer.trim()} onClick={submit} className="self-start">
+                {busy ? "Reading…" : "Read the answer"}
+              </ActButton>
+              <span className="text-[13px] text-muted-foreground">
+                Shared with other leagues on this season. It changes yours only when you apply it.
+              </span>
+              {problems.length > 0 && (
+                <ul className="list-disc pl-5 text-sm text-muted-foreground">
+                  {problems.map((p, i) => (
+                    <li key={i}>{p}</li>
+                  ))}
+                </ul>
+              )}
+            </StepRow>
           </>
+        ) : (
+          <li className="flex items-center gap-3">
+            <CircleCheck className="size-[30px] shrink-0 text-good" strokeWidth={2} aria-hidden />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-[15px] font-semibold">Research answered everything</span>
+              <span className="text-[13px] text-muted-foreground">Nothing to copy or paste for this episode.</span>
+            </span>
+          </li>
         )}
-      </section>
+
+        <StepRow
+          n={panel.prompt ? 3 : 1}
+          on={current === 3 && open.length > 0}
+          label="Check and apply"
+          aside={open.length > 0 && <span className="text-[13px] text-muted-foreground">{toApply} of {open.length} ticked</span>}
+        >
+          <section className="flex flex-col" data-tour="results-list">
+            {groups.length === 0 ? (
+              <p className="border-t border-border py-3 text-base text-muted-foreground">
+                {applied.length > 0
+                  ? "Everything research found is in your league."
+                  : c.researched
+                    ? "Research found nothing to score for this episode."
+                    : "Nothing yet. What the chat found shows up here once you paste its answer."}
+              </p>
+            ) : (
+              groups.map((g) => (
+                <div key={g.key} className="flex flex-col">
+                  <h4 className="type-caption pb-1 pt-3 text-[17px] tracking-[0.03em] text-muted-foreground">{g.title}</h4>
+                  <ul className="flex flex-col border-b border-border">
+                    {g.rows.map((r) => (
+                      <ResultRow
+                        key={r.id}
+                        row={r}
+                        castaway={castaway(r.castawayName)}
+                        onToggle={() => edit(r.id, { keep: !r.keep })}
+                        onFix={() => setFixing(r.id)}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ))
+            )}
+            {applied.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  aria-expanded={showApplied}
+                  onClick={() => setShowOpened((o) => !o)}
+                  className="flex min-h-[52px] items-center justify-between border-b border-border text-[15px] text-muted-foreground"
+                >
+                  {applied.length} already in your league
+                  <ChevronDown className={cn("size-[18px] transition-transform", showApplied && "rotate-180")} strokeWidth={2.2} aria-hidden />
+                </button>
+                {showApplied && (
+                  <ul className="flex flex-col border-b border-border">
+                    {applied.map((r) => (
+                      <li
+                        key={r.id}
+                        className={cn("flex min-h-[52px] items-center gap-3 border-t border-border py-1.5 first:border-t-0", r.status !== "rejected" && "opacity-60")}
+                      >
+                        <Face castaway={castaway(r.castawayName)} name={r.castawayName} />
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate text-base font-semibold">{r.castawayName}</span>
+                          {r.status === "rejected" ? (
+                            <span className="text-[13px] font-semibold text-live">Flagged as wrong by an admin. Check it on the episode.</span>
+                          ) : (
+                            <span className="truncate text-[13px] text-muted-foreground">{groupTitle(r)}</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </section>
+          {/* Before checking is the step at hand, Apply waits at the end of the list, outlined: what's
+              been found can go in now, but the sticky yellow bar is for once it's all been asked. */}
+          {open.length > 0 && current !== 3 && (
+            <ActButton onClick={apply} disabled={busy || toApply === 0} className="self-start">
+              {busy ? "Applying…" : toApply === 0 ? "Tick a result to apply it" : `Apply ${toApply} found so far`}
+            </ActButton>
+          )}
+        </StepRow>
+      </ol>
 
       {error && <p className="font-semibold text-live">{error}</p>}
       {note && <p className="text-sm text-muted-foreground">{note}</p>}
 
-      {open.length > 0 && (
+      {open.length > 0 && current === 3 && (
         <div
           className="sticky bottom-[var(--tabbar-h)] z-40 -mx-4 mt-auto flex flex-col gap-2 border-t border-input bg-card px-4 py-3 shadow-bar nav:mx-0 nav:rounded-[3px] nav:border"
           data-tour="results-apply"
@@ -451,15 +475,29 @@ function FixFields({ row: r, state, onChange }: { row: Row; state: LeagueState; 
   );
 }
 
-// The coverage summary the page leads with -- whether there's anything to paste at all.
-function coverageLine(p: Panel, people: string): string {
+// One numbered step: the number (chyron while it's the step to do now), its label with an optional
+// aside on the same line, and whatever it needs underneath.
+function StepRow({ n, on, label, aside, children }: { n: number; on?: boolean; label: React.ReactNode; aside?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <li className="flex gap-3">
+      <StepNum n={n} on={on} />
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+        <span className="flex items-baseline justify-between gap-3 pt-1">
+          <span className="text-base font-semibold">{label}</span>
+          {aside}
+        </span>
+        {children}
+      </div>
+    </li>
+  );
+}
+
+// Who the question asks about: everyone, or only those research hasn't settled yet.
+function askLine(p: Panel, people: string): string {
   const c = p.coverage;
-  if (!c.researched) return `Not researched yet. The question asks about all ${c.total} ${people}.`;
-  if (!c.needsAsking.length) return "Results are in. Research answered everything.";
-  const parts = [`${c.covered.length} of ${c.total} answered`];
-  if (c.missing.length) parts.push(`${c.missing.length} missing`);
-  if (c.lowConfidence.length) parts.push(`${c.lowConfidence.length} unsure`);
-  return parts.join(", ") + ".";
+  if (!c.researched) return `It asks what happened to all ${c.total} ${people} this episode.`;
+  const unsure = c.lowConfidence.length ? `, ${c.lowConfidence.length} unsure` : "";
+  return `Research has ${c.covered.length} of ${c.total}${unsure}. It asks only about the rest: ${c.needsAsking.join(", ")}.`;
 }
 
 function kindLabel(kind: StagedResearchDecision["kind"]): string {

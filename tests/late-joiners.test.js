@@ -235,3 +235,17 @@ test("Eliminator Pool: the pick rules follow their own picks, and their season s
   assert.ok(rows.every((r) => r.correct === true), "A and B both survived their episodes");
   assert.equal(currentStreak, 2, "a streak of two, not broken by an episode before they joined");
 });
+
+test("the action bar warns a catching-up player about their own week, and goes quiet once it's set", () => {
+  const { actionItems } = require("../src/lib/game/action-items.js");
+  const s = makeState();
+  const id = joinGhost(s);
+  GhostLogic.begin(s, id, 2, ["a", "f"]);
+  // Episode 2 is theirs (mark 1), though the league is three episodes in: an empty lineup is due.
+  const due = actionItems(s, id, 1);
+  assert.deepEqual(due.map((i) => [i.kind, i.episode]), [["lineup", 2]]);
+  // Without their mark (the reminder job) there is nothing: those checks would read the real latest episode.
+  assert.deepEqual(actionItems(s, id), []);
+  GhostLogic.applyAs(s, id, 1, "ep2", (v) => StateLogic.setActiveRosterLineup(v, "ep2", id, ["f"]));
+  assert.deepEqual(actionItems(s, id, 1), []);
+});

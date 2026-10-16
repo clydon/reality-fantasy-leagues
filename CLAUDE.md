@@ -20,3 +20,9 @@ what's waiting on the user). Also check for a `docs/PLAN-*.md` file describing
 in-flight feature work before assuming something is undesigned — one may already exist with a
 concrete plan, routes, and schema ready to execute against.
 
+
+## Testing: build for reuse
+
+Browser checks and fixtures live in `scripts/dev-test/` (see its scripts' header comments: headless browser helper, linked-league fixture, reveal check). Look there before writing a new test setup, and reuse or extend what exists.
+
+When you write a test, script or fixture for a check, design it to be reusable: parameterize it (width, league type, episode), key any DB rows on a `zt-` prefix with an `up`/`down` pair so it cleans up after itself, and put it in `scripts/dev-test/` with a header comment saying what it needs and how to run it. If a one-off really is one-off, say so rather than leaving it half-reusable. Never touch real accounts or leagues from a test.

@@ -199,16 +199,21 @@ function Progress({ status }: { status: LateJoinStatus }) {
   );
 }
 
-/** Whether the viewer's choice for this week (a lineup or a pick) is still missing, for the reveal's warning. */
-export function weekChoiceMissing(state: LeagueState, me: string, episode: number): "lineup" | "pick" | null {
+/** Which of the viewer's choices for this week are still missing, for the reveal's warning. A league can
+ *  have both (an Active Roster lineup and an Eliminator Pool pick). */
+export function weekChoicesMissing(state: LeagueState, me: string, episode: number): ("lineup" | "pick")[] {
   const ep = state.episodes.find((e) => e.number === episode);
-  if (!ep) return null;
+  if (!ep) return [];
   const type = StateLogic.getLeagueType(state);
+  const out: ("lineup" | "pick")[] = [];
   if (type.hasActiveRoster) {
-    const owned = state.castaways.filter((c) => c.ownerIds.includes(me) && c.status !== "eliminated").length;
-    const need = Math.min(StateLogic.ActiveRosterLogic.activeSlots(state), owned);
-    return StateLogic.activeRosterLineupFor(state, ep.id, me).length < need ? "lineup" : null;
+    const available = state.castaways.filter((c) => c.ownerIds.includes(me) && c.status !== "eliminated");
+    const fielded = StateLogic.activeRosterLineupFor(state, ep.id, me).filter((id: string) => available.some((c) => c.id === id));
+    if (fielded.length < Math.min(StateLogic.ActiveRosterLogic.activeSlots(state), available.length)) out.push("lineup");
   }
-  if (type.id === "pickem") return StateLogic.pickEmPickFor(state, ep.id, me) ? null : "pick";
-  return null;
+  // Only if there's someone left to pick, the same test as the alert strip.
+  if (type.hasWeeklyPicks && !StateLogic.pickEmPickFor(state, ep.id, me) && StateLogic.pickEmEligibility(state, ep.id, me).available.length > 0) {
+    out.push("pick");
+  }
+  return out;
 }

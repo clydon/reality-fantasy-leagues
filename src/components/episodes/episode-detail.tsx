@@ -10,7 +10,6 @@ import { useLeagueStore, useCanManage, useMyPlayerId } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { confirm } from "@/lib/confirm-store";
-import { Button } from "@/components/ui/button";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { CaptionPlate, colourTag } from "@/components/ui/caption-plate";
 import { useHiddenResults } from "@/components/results-in-banner";
@@ -26,7 +25,8 @@ import { ProposePrediction } from "./propose-prediction";
 import { EpisodeActiveRosterSection } from "./episode-active-roster-section";
 import { EpisodeChanges, EpisodeRecap } from "./episode-recap";
 import { EpisodeEditor } from "./episode-editor";
-import { useResultsAreMine, useResultsSource } from "@/lib/episode-results";
+import { useResearchable, useResultsDue } from "@/lib/episode-results";
+import { ResultsTask } from "./results-task";
 import { airsInLabel, episodeDate, episodeExits, episodeStatus, hiddenBefore, ownersLine, useNowMinute } from "./episode-status";
 
 // One episode's own page, /episodes/N (docs/PLAN-ux-redesign.md, 2e; the canvas's "Episode 3 reveal"
@@ -165,10 +165,9 @@ function ReadView({
   onEdit?: () => void;
 }) {
   const me = useMyPlayerId();
-  // The commissioner of a league-decided season applies results from research: the page for it.
-  const resultsMine = useResultsAreMine();
-  const resultsSource = useResultsSource();
-  const researchable = resultsMine && !!resultsSource;
+  // A commissioner fills in results, from research where the league has a season to ask about.
+  const researchable = useResearchable();
+  const due = useResultsDue(now);
   const exits = episodeExits(state, ep);
   const inPlay = StateLogic.inPlay(state, ep.number);
   const type = StateLogic.getLeagueType(state);
@@ -192,25 +191,39 @@ function ReadView({
     <>
       {status !== "scored" ? (
         <div className="flex flex-col items-start gap-3">
-          <p className="text-base text-muted-foreground">
-            {status === "upcoming" && ep.airsAt && now !== null
-              ? `${airsInLabel(Date.parse(ep.airsAt), now)}. Results show up here once it has.`
-              : "Nothing recorded for this episode yet."}
-          </p>
-          {onEdit && status !== "upcoming" && researchable && (
-            <CaptionPlate
-              className="self-stretch"
-              tag={`Ep ${ep.number}`}
-              title="Results from research"
-              subtitle="Check what it found, then apply it"
-              action="Open"
-              href={`/episodes/${ep.number}/research`}
-            />
+          {!(onEdit && status !== "upcoming") && (
+            <p className="text-base text-muted-foreground">
+              {status === "upcoming" && ep.airsAt && now !== null
+                ? `${airsInLabel(Date.parse(ep.airsAt), now)}. Results show up here once it has.`
+                : "Nothing recorded for this episode yet. Results show up here once they're in."}
+            </p>
           )}
+          {/* The commissioner's job, as on Episodes: research first where there's a season to ask about,
+              with entering them by hand the fallback underneath. */}
           {onEdit && status !== "upcoming" && (
-            <Button variant={researchable ? "secondary" : "default"} className="max-nav:min-h-11" onClick={onEdit}>
-              {researchable ? "Enter them by hand" : "Enter results"}
-            </Button>
+            <div className="flex flex-col gap-1 self-stretch">
+              {due?.id === ep.id || !researchable ? (
+                <ResultsTask ep={ep} onEnterByHand={onEdit} />
+              ) : (
+                <CaptionPlate
+                  tone="quiet"
+                  tag="Commish"
+                  title="Results from research"
+                  subtitle="Check what it found, then apply it"
+                  action="Open"
+                  href={`/episodes/${ep.number}/research`}
+                />
+              )}
+              {researchable && (
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="-mb-2 min-h-11 self-start text-sm font-semibold text-chyron-line hover:underline"
+                >
+                  Or enter them by hand
+                </button>
+              )}
+            </div>
           )}
         </div>
       ) : (

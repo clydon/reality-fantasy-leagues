@@ -11,6 +11,34 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Episodes tab + the commissioner's results job, built 2026-10-16 (not committed)
+
+Filling in an episode's results is now every commissioner's job by default (any league, not just
+league-decided seasons; an admin or, later, paid automation may get there first, then nothing is due):
+- **Rule:** `resultsDueEpisode` in `src/lib/game/action-items.js` (aired, in play, nothing recorded; never
+  in a catch-up league). Feeds the alert strip ("Results" item, commissioners only, hidden on /episodes*),
+  the Episodes tab and a new push: `db/reminders.js` `remindResults`, the morning after airtime (9am season
+  time, at least 6h after; once; new notification type `resultsDue` in `push-core.js`).
+- **Episodes tab** (`episodes-tab.tsx`, new `week.tsx`): "This week" (the commissioner's task plate,
+  `results-task.tsx`, then "Your week": lineup / pick / team / predictions rows + "3 of 4 lineups set"),
+  "Last time" / "New results" (reveal or recap), then "All episodes" with later episodes folded.
+- **Results page** (`episode-results-page.tsx`): numbered steps 1 Copy the question, 2 Paste its answer,
+  3 Check and apply; Apply turns yellow only on step 3. The episode page uses the same task plate with
+  "Or enter them by hand" under it; leagues with no season go straight to entering by hand.
+- Tests: `tests/results-due.test.js`, three new cases in `tests/reminders.test.js`. Fixture and shots:
+  `scripts/dev-test/results-fixture.js`, `scripts/dev-test/check-episodes.js`.
+- Not done: DESIGN.md's Episodes/Results sections need the new layout written in; What's New entry
+  (user approves); the User Manual doc still describes the old path.
+
+## Rulebooks: Admin > Shows redesign, planned 2026-10-16 (not started)
+
+A season-owned "rulebook" replaces formats, rulesets and rule changes, edited as six blocks of plain
+questions that compile to today's engine data; covers competitions, series, talk shows and live events.
+- Design (why, decisions, vocabulary, every editor question): `docs/PLAN-admin-shows-rulebooks.md`
+- **Build from:** `docs/PLAN-rulebooks-implementation.md` (core logic → DB → API → every UI screen, 9
+  phases with "done when", testing ideas T-10…T-72). Phase 1 is safe to start: no DB or scoring change.
+- Clickable mockup: https://claude.ai/artifact/N9fyawYRUfgCJVuUtK9yuE (use its Phone toggle).
+
 ## Next up, decided 2026-10-11 (in this order)
 
 1. **Built 2026-10-11, awaiting review/commit.** `docs/PLAN-classic-live-scoring.md`: Classic standings count points as castaways outlast each

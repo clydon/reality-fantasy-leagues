@@ -6,7 +6,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore, useSpoilersOn } from "@/lib/store";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
-import { useLateJoin, weekChoiceMissing } from "@/components/late-join/replay-bug";
+import { useLateJoin, weekChoicesMissing } from "@/components/late-join/replay-bug";
 
 // Spoiler protection's one control: new episode results are held back from each member
 // (StateLogic.SpoilerLogic) until they choose to see them. The prompt is only there once there's
@@ -108,7 +108,12 @@ export function RevealSheet() {
   const state = useLeagueStore((s) => s.state);
   const me = useLeagueStore((s) => s.membership?.playerId ?? null);
   const replay = !!late?.catchingUp && open;
-  const missing = replay && me ? weekChoiceMissing(state, me, through!) : null;
+  const missing = replay && me ? weekChoicesMissing(state, me, through!) : [];
+  const names = missing.map((m) => (m === "lineup" ? "lineup" : "Eliminator Pool pick"));
+  const go = (m: "lineup" | "pick") => {
+    close();
+    router.push(m === "lineup" ? "/lineup" : "/pick");
+  };
 
   return (
     <BottomSheet open={open} onOpenChange={(o) => !o && close()} title={replay ? `Have you watched ${which}?` : `Reveal ${which}?`} hideCancel>
@@ -118,9 +123,9 @@ export function RevealSheet() {
             Revealing shows who went home, what everyone scored and the standings after it. If you haven&rsquo;t watched it yet, it will be
             spoiled, and you can&rsquo;t hide it again.
           </p>
-          {missing && (
+          {missing.length > 0 && (
             <p className="font-semibold text-foreground">
-              You haven&rsquo;t set your {missing} for {which}. Once it&rsquo;s revealed, it&rsquo;s too late to.
+              You haven&rsquo;t set your {names.join(" or your ")} for {which}. Once it&rsquo;s revealed, it&rsquo;s too late to.
             </p>
           )}
           <p>Then you&rsquo;re on to episode {through! + 1}.</p>
@@ -129,6 +134,20 @@ export function RevealSheet() {
         <p className="mb-4 text-[15px] leading-snug text-muted-foreground">
           You&rsquo;ll see who went home, what everyone scored and the new standings. You can&rsquo;t hide {first === through ? "it" : "them"} again.
         </p>
+      )}
+      {missing.length > 0 && (
+        <div className="mb-2.5 flex flex-col gap-2.5">
+          {missing.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => go(m)}
+              className="min-h-12 rounded-[3px] bg-chyron text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
+            >
+              {m === "lineup" ? "Set my lineup" : "Make my pick"}
+            </button>
+          ))}
+        </div>
       )}
       <div className="flex gap-2.5">
         <button
@@ -147,9 +166,13 @@ export function RevealSheet() {
             close();
             router.push(`/reveal/${n}`);
           }}
-          className="min-h-12 flex-[1.4] rounded-[3px] bg-chyron text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
+          className={
+            missing.length > 0
+              ? "min-h-12 flex-[1.4] rounded-[3px] border border-live px-3 text-[15px] font-bold text-live hover:bg-live/10 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
+              : "min-h-12 flex-[1.4] rounded-[3px] bg-chyron text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
+          }
         >
-          {replay ? "I've watched it" : "Reveal"}
+          {missing.length > 0 ? "Reveal anyway" : replay ? "I've watched it" : "Reveal"}
         </button>
       </div>
     </BottomSheet>

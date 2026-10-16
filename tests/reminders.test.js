@@ -79,3 +79,29 @@ test("auto-research timing: N hours after it airs takes over from the weekly slo
   assert.equal(Air.nextResearchSlot(aired, weekly).getTime(), Air.zonedToUtc("2026-10-01", "12:00", "America/New_York").getTime());
   assert.equal(Air.nextResearchSlot(aired, { airTz: "America/New_York" }), null);
 });
+
+// The commissioner's results nudge (the morning after an episode airs with nothing recorded).
+const EP2_MORNING = Air.zonedToUtc("2026-10-01", "09:00", "America/New_York");
+
+test("results: the morning after it airs with nothing recorded, the commissioner gets one push", async () => {
+  const pool = fakePool(league());
+  assert.equal((await runReminders(pool, { now: new Date(EP2_MORNING.getTime() - HOUR) })).sent, 0);
+  assert.equal((await runReminders(pool, { now: new Date(EP2_MORNING.getTime() + HOUR) })).sent, 1);
+  assert.ok(pool.logged.has("u1|L1|2"), [...pool.logged].join(", "));
+  assert.equal((await runReminders(pool, { now: new Date(EP2_MORNING.getTime() + 2 * HOUR) })).sent, 0);
+});
+
+test("results: nothing once results are in, or once that day is over", async () => {
+  const done = league();
+  done.episodes[1].events = [{ castawayId: "c", method: "Voted Out" }];
+  assert.equal((await runReminders(fakePool(done), { now: new Date(EP2_MORNING.getTime() + HOUR) })).sent, 0);
+  assert.equal((await runReminders(fakePool(league()), { now: new Date(EP2_MORNING.getTime() + 13 * HOUR) })).sent, 0);
+});
+
+test("results: the morning after is 9am at least six hours after airtime", () => {
+  const { morningAfter } = require("../db/reminders.js");
+  const tz = "America/New_York";
+  assert.equal(morningAfter(Air.zonedToUtc("2026-09-30", "20:00", tz), tz).getTime(), Air.zonedToUtc("2026-10-01", "09:00", tz).getTime());
+  assert.equal(morningAfter(Air.zonedToUtc("2026-10-01", "05:00", tz), tz).getTime(), Air.zonedToUtc("2026-10-02", "09:00", tz).getTime());
+  assert.equal(morningAfter(Air.zonedToUtc("2026-10-01", "01:00", tz), tz).getTime(), Air.zonedToUtc("2026-10-01", "09:00", tz).getTime());
+});
