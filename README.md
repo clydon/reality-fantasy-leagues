@@ -944,7 +944,6 @@ for each league's commissioner to confirm. Both phases of Feature D in
 `docs/PLAN-league-types-and-wiki-connector.md` are built:
 
     node db/wiki-sync.js cast <leagueId>       # the season's cast and starting groups
-    node db/wiki-sync.js episodes <leagueId>   # per-episode eliminations + Active Roster events
     node db/wiki-sync.js <command> <leagueId> --dry   # extract and print, write nothing
 
 **Nothing is ever applied automatically.** `db/wiki-sync.js` writes to `season_cast` (staged, for
@@ -1262,7 +1261,8 @@ silently inherit). Leagues on the season keep their own cast, episodes and score
 
 #### Details
 
-Every season row in the admin catalog has **Pull cast** and **Pull episodes** buttons
+Every season row in the admin catalog has a **Pull cast** button (episode results are no longer read
+from the wiki; see the per-episode import section below)
 (`POST /api/admin/seasons/:id/sync` → `runForSeason` in `db/wiki-sync.js`), so a super-admin can run
 the connector for one season without waiting for the nightly job or reaching for a shell.
 
@@ -1377,7 +1377,13 @@ importing 22 contestants into a league that still holds the old 21-name Survivor
 leagues start empty (see "Guided first-time setup" above); an existing one needs those 21 removed, or a
 super-admin reset.
 
-### Per-episode import (phase 2): `node db/wiki-sync.js episodes <leagueId>`
+### Per-episode import (phase 2) — RETIRED 2026-10-15
+
+> **Removed.** The wiki is cast-only now. Reading episode results off the wiki (immunity and reward
+> wins inferred from rowspan grids, footnotes, placeholder rows for unaired episodes) was the least
+> reliable input in the app; episode results come from web research (`db/episode-research.js`) and
+> the paste path. The format definitions' `wiki` episode sections and `validateEpisodes` are dormant
+> until cleared out. What follows is kept as history.
 
 The other half of Feature D: who left each episode and how, plus the Active Roster event log. It reuses
 every piece built for the Traitors fix — section finding and transclusion following are exactly what

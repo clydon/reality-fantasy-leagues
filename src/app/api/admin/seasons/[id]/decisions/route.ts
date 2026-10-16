@@ -5,7 +5,6 @@ import { pool, HttpError } from "@/lib/server/db";
 import { leagueCountForSeason, seasonCastRefs } from "@/lib/server/season-decisions";
 import { inLeague } from "@/lib/server/episode-research-apply";
 import type { LeagueState } from "@/lib/game/types";
-import { stageCachedSeasonEpisodes } from "@db/wiki-sync.js";
 import { stageCachedSeasonResearch } from "@db/episode-research.js";
 import { formatDataFor } from "@db/show-formats.js";
 import { approvedChanges } from "@db/season-rule-changes.js";
@@ -13,8 +12,8 @@ import { approvedChanges } from "@db/season-rule-changes.js";
 // Every episode decision for one season (db/migrations/0019), decided or not -- the admin's review
 // list and the long-term record of what was decided, by whom and when. Super-admin only.
 //
-// A season read before decisions moved here has results cached but no decisions yet; the first look
-// stages them from those caches (no wiki read, no search, nothing charged) so the review isn't empty.
+// A season researched before decisions moved here has results cached but no decisions yet; the first
+// look stages them from that cache (no search, nothing charged) so the review isn't empty.
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
   await requireSuperAdmin(req);
@@ -29,7 +28,6 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: stri
   const { rows: any } = await pool.query("SELECT 1 FROM season_decisions WHERE season_id=$1 LIMIT 1", [id]);
   if (!any.length) {
     try {
-      await stageCachedSeasonEpisodes(pool, id);
       await stageCachedSeasonResearch(pool, id);
     } catch {
       // No cast yet, or a cache that no longer validates: an empty list is the honest answer.

@@ -4,17 +4,17 @@ import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { runForSeason, WIKI_MODELS } from "@db/wiki-sync.js";
 
-// On-demand wiki pull for one catalog season -- what the "Pull cast" / "Pull episodes" buttons on
-// each season row in Admin > Shows & Seasons call. Super-admin only, like the rest of the catalog.
+// On-demand wiki pull for one catalog season -- what the "Pull cast" button on each season row in
+// Admin > Shows & Seasons calls. The wiki is cast-only now: episode results come from research. Super-admin only, like the rest of the catalog.
 //
 // Scoped to a SEASON because that's the unit the work has: the wiki is read once for everyone
 // playing it, and the row an admin is looking at here IS a season.
 //
 // Nothing is applied to any league by this. Same contract as the nightly job: a cast pull stages the
-// cast for approval, an episodes pull stages season decisions for review (db/migrations/0019).
+// cast for approval.
 //
-// The connector reads the wiki and then calls Claude, so this is a slow route by nature -- a cast
-// pull is a few seconds, a full season of episodes can be a couple of minutes. maxDuration is set to
+// The connector reads the wiki and then calls Claude, so this is a slow route by nature -- a few
+// seconds, longer for a big cast. maxDuration is set to
 // the platform's long-running ceiling rather than left at the default for that reason. An extraction
 // that is cut off is never filed, and nothing is cached until it completes, so a timeout costs the
 // model call and nothing else: clicking again re-runs it cleanly.
@@ -27,7 +27,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
 
   const body = (await req.json().catch(() => ({}))) as { kind?: string; force?: boolean; model?: string };
   const kind = String(body.kind);
-  if (kind !== "cast" && kind !== "episodes") throw new HttpError(400, 'kind must be "cast" or "episodes"');
+  if (kind !== "cast") throw new HttpError(400, 'kind must be "cast" -- episode results come from research now');
 
   const { rows } = await pool.query(
     `SELECT ss.season_number, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id=$1`,

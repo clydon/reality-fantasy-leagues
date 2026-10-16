@@ -697,7 +697,7 @@ export const api = {
     localFetch<{ ok: true; leaguesAffected: number }>(`/api/admin/seasons/${id}`, { method: "DELETE" }),
   // On-demand wiki pull for one season. Slow by nature (it reads the wiki, then runs an LLM
   // extraction) -- callers show a pending state rather than assuming this returns quickly.
-  adminSyncSeason: (id: string, kind: "cast" | "episodes", force = false, model?: string) =>
+  adminSyncSeason: (id: string, kind: "cast", force = false, model?: string) =>
     localFetch<WikiSeasonSyncResult>(`/api/admin/seasons/${id}/sync`, {
       method: "POST",
       body: JSON.stringify({ kind, force, model }),

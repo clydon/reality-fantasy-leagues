@@ -2,21 +2,20 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, CalendarClock, Sparkles } from "lucide-react";
-import type { ShowSeason, WikiSeasonSyncResult } from "@/lib/game/types";
+import { useQuery } from "@tanstack/react-query";
+import { CalendarClock, Sparkles } from "lucide-react";
+import type { ShowSeason } from "@/lib/game/types";
 import { api } from "@/lib/api";
-import { estimate } from "@/lib/ai-cost";
-import { useAiModels, useShowPaidAi } from "@/lib/paid-ai-store";
+import { useShowPaidAi } from "@/lib/paid-ai-store";
 import { airLine, autoResearchNote, episodeRows, scheduleLine } from "@/lib/admin-season";
 import { useNowMinute } from "@/components/episodes/episode-status";
-import { ActButton, Cost, Notice, Row, Rows, Section, count, errorText } from "./admin-ui";
-import { PullResult, modelLabel } from "./admin-results";
+import { ActButton, Notice, Row, Rows, Section, count, errorText } from "./admin-ui";
+import { modelLabel } from "./admin-results";
 import { SeasonFrame } from "./season-frame";
 import { cn } from "cn";
 
 // A season's Episodes tab (docs/PLAN-ux-redesign.md 3b): how the season airs and whether research runs
-// on its own, as one-line summaries; where the wiki's results stand, with the pull; then one row per
+// on its own, as one-line summaries; then one row per
 // episode with its date, one status and one action. Everything else about an episode -- research,
 // pasting, clearing it -- is on that episode's own page, and reviewing its results on the review page.
 
@@ -25,14 +24,10 @@ export function SeasonEpisodes({ seasonId }: { seasonId: string }) {
 }
 
 function EpisodesTab({ season, refetch }: { season: ShowSeason; refetch: () => unknown }) {
-  const queryClient = useQueryClient();
   const { data } = useQuery({ queryKey: ["season-decisions", season.id], queryFn: () => api.adminListDecisions(season.id) });
   const nowMs = useNowMinute();
   const showPaid = useShowPaidAi();
-  const models = useAiModels();
   const [showAll, setShowAll] = useState(false);
-  const [working, setWorking] = useState(false);
-  const [pull, setPull] = useState<WikiSeasonSyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingAuto, setSavingAuto] = useState(false);
 
@@ -42,23 +37,7 @@ function EpisodesTab({ season, refetch }: { season: ShowSeason; refetch: () => u
   // 5): nothing is pushed, so they don't wait on an approved cast. An admin-decided one does: results
   // are matched to people by name, and before approval there are no names in any league to match.
   const open = approved || curator;
-  const hasWiki = !!season.wikiPageTitle;
   const base = `/admin/seasons/${season.id}`;
-
-  async function pullEpisodes(force = false) {
-    setWorking(true);
-    setError(null);
-    setPull(null);
-    try {
-      setPull(await api.adminSyncSeason(season.id, "episodes", force, models.wiki));
-      await refetch();
-      await queryClient.invalidateQueries({ queryKey: ["season-decisions", season.id] });
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setWorking(false);
-    }
-  }
 
   // Auto-research spends on a schedule, not a click, so hiding paid actions can't just hide it: one
   // that's already on keeps charging. With paid actions hidden it can only be switched off here.
@@ -130,47 +109,16 @@ function EpisodesTab({ season, refetch }: { season: ShowSeason; refetch: () => u
             ) : undefined
           }
         />
-        {/* Only an admin-decided season is read from a wiki; a league-decided one (self-serve, made by a
-            league's cast entry or research) has nothing for the connector to do. */}
-        {(hasWiki || !curator) && (
-          <Row
-            icon={BookOpen}
-            title="Wiki"
-            detail={
-              !hasWiki
-                ? "No wiki page yet. Add it in Setup so the connector has something to read."
-                : season.wikiEpisodesThrough
-                  ? `Results through episode ${season.wikiEpisodesThrough}`
-                  : "No results pulled yet"
-            }
-            trailing={
-              open && showPaid && hasWiki ? (
-                <span className="flex items-center gap-2">
-                  <Cost title={`Typical cost with ${modelLabel(models.wiki)}. Free when the wiki hasn't changed since the last pull.`}>
-                    {estimate("episodes", models.wiki)}
-                  </Cost>
-                  <ActButton disabled={working} onClick={() => pullEpisodes()}>
-                    {working ? "Pulling…" : "Pull results"}
-                  </ActButton>
-                </span>
-              ) : !hasWiki ? (
-                <ActButton href={`${base}/setup`}>Add</ActButton>
-              ) : undefined
-            }
-          />
-        )}
       </Rows>
 
-      {working && <Notice tone="quiet">Reading the wiki. A season of results can take a couple of minutes; leave this open.</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}
-      {pull && <PullResult result={pull} busy={working} onForce={() => pullEpisodes(true)} forceCost={estimate("episodes", models.wiki)} />}
 
       {open && (
         <Section title="Episodes" aside={rows.length > 0 && <span className="pb-1 text-sm text-muted-foreground">{count(rows.length, "episode")}</span>}>
           {!data || !now ? (
             <p className="text-muted-foreground">Loading…</p>
           ) : rows.length === 0 ? (
-            <p className="text-muted-foreground">No episodes yet. Set the schedule, or pull results from the wiki.</p>
+            <p className="text-muted-foreground">No episodes yet. Set the schedule so the list knows when they air.</p>
           ) : (
             <Rows>
               {shown.map((row) => {

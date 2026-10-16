@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, ClipboardPaste, Search } from "lucide-react";
-import type { SeasonResearchResult, WikiSeasonSyncResult } from "@/lib/game/types";
+import { ClipboardPaste, Search } from "lucide-react";
+import type { SeasonResearchResult } from "@/lib/game/types";
 import { api } from "@/lib/api";
 import { estimate } from "@/lib/ai-cost";
 import { useAiModels, useShowPaidAi } from "@/lib/paid-ai-store";
@@ -13,10 +13,10 @@ import { useNowMinute } from "@/components/episodes/episode-status";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { fieldCls } from "@/components/setup/settings-ui";
 import { ActButton, AdminPage, Cost, CopyButton, Notice, Row, Rows, Section, Segmented, Step, StickyBar, count, errorText, seasonShort, useAdminSeason } from "./admin-ui";
-import { PullResult, ResearchResult, modelLabel } from "./admin-results";
+import { ResearchResult, modelLabel } from "./admin-results";
 import { cn } from "cn";
 
-// One episode's sources (the canvas's Admin-Episode): where its results come from -- the wiki, paid web
+// One episode's sources (the canvas's Admin-Episode): where its results come from -- paid web
 // research, or the free paste path (copy a prompt into any AI chat with web search, paste the answer
 // back) -- each with where it stands and its one action. Whatever any of them finds joins the review
 // list; nothing reaches a league until it's accepted there. Clearing the episode is in the ⋯ sheet.
@@ -28,8 +28,7 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
   const nowMs = useNowMinute();
   const showPaid = useShowPaidAi();
   const models = useAiModels();
-  const [working, setWorking] = useState<"wiki" | "research" | "clear" | null>(null);
-  const [pull, setPull] = useState<WikiSeasonSyncResult | null>(null);
+  const [working, setWorking] = useState<"research" | "clear" | null>(null);
   const [research, setResearch] = useState<SeasonResearchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -44,19 +43,16 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
   const row = now && data ? episodeRows(season, data.decisions, now).find((r) => r.n === episode) : undefined;
   const decisions = row?.decisions ?? data?.decisions.filter((d) => d.episode_number === episode) ?? [];
   const pending = decisions.filter((d) => d.status === "pending").length;
-  const fromWiki = decisions.filter((d) => d.from_wiki).length;
   const aired = row ? row.aired || !row.airsAt : true;
   const researched = (season.researchedEpisodes ?? []).includes(episode);
-  const hasWiki = !!season.wikiPageTitle;
   const curator = season.resultsBy === "leagues";
   const auto = row && now ? autoResearchNote(season, row, now) : null;
   const hasData = researched || decisions.length > 0 || episode <= (season.wikiEpisodesThrough ?? 0);
 
-  async function act<T>(kind: "wiki" | "research" | "clear", fn: () => Promise<T>, done: (r: T) => void) {
+  async function act<T>(kind: "research" | "clear", fn: () => Promise<T>, done: (r: T) => void) {
     setWorking(kind);
     setError(null);
     setNote(null);
-    setPull(null);
     setResearch(null);
     try {
       done(await fn());
@@ -69,7 +65,6 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
     }
   }
 
-  const pullWiki = (force = false) => act("wiki", () => api.adminSyncSeason(seasonId, "episodes", force, models.wiki), setPull);
   const doResearch = (force = false) => act("research", () => api.adminResearchEpisode(seasonId, episode, { force, model: models.research }), setResearch);
   // The free path: notes from the admin's own web-searching chat, not this app's paid search (see
   // db/episode-research.js's "manual / paste import" section). Same result shape as a searched run.
@@ -119,31 +114,6 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
 
       <Section title="Sources">
         <Rows>
-          {(hasWiki || !curator) && (
-            <Row
-              icon={BookOpen}
-              title="Wiki"
-              detail={
-                !hasWiki
-                  ? "No wiki page for this season yet"
-                  : fromWiki
-                    ? `${count(fromWiki, "result")} from the wiki`
-                    : (season.wikiEpisodesThrough ?? 0) >= episode
-                      ? "Read, nothing for this episode"
-                      : "Not pulled yet"
-              }
-              trailing={
-                showPaid && hasWiki && aired ? (
-                  <span className="flex items-center gap-2">
-                    <Cost title="Reads the whole season's page. Free when it hasn't changed.">{estimate("episodes", models.wiki)}</Cost>
-                    <ActButton disabled={!!working} onClick={() => pullWiki()}>
-                      {working === "wiki" ? "Pulling…" : fromWiki ? "Pull again" : "Pull"}
-                    </ActButton>
-                  </span>
-                ) : undefined
-              }
-            />
-          )}
           <Row
             icon={Search}
             title="Research"
@@ -182,11 +152,9 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
 
       {pasting && <PastePanel seasonId={seasonId} episode={episode} busy={!!working} onSubmit={doPaste} />}
 
-      {working === "wiki" && <Notice tone="quiet">Reading the wiki. A season of results can take a couple of minutes; leave this open.</Notice>}
       {working === "research" && <Notice tone="quiet">Working through the checklist, tens of seconds. Leave this open.</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}
       {note && <Notice>{note}</Notice>}
-      {pull && <PullResult result={pull} busy={!!working} onForce={() => pullWiki(true)} forceCost={estimate("episodes", models.wiki)} />}
       {research && <ResearchResult research={research} busy={!!working} onForce={() => doResearch(true)} forceCost={estimate("research", models.research)} />}
 
       {!aired && <Notice tone="quiet">Nothing to gather until it airs.</Notice>}

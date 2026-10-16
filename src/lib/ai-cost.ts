@@ -38,9 +38,8 @@ export function formatCost(usd: number): string {
 
 // Typical token counts per action, measured roughly off real runs of a Survivor season. Research's
 // input is mostly the pages its searches pull in, which is why it dwarfs the checklist itself.
-const TYPICAL: Record<"cast" | "episodes" | "research" | "pasteResearch", ModelUsage> = {
+const TYPICAL: Record<"cast" | "research" | "pasteResearch", ModelUsage> = {
   cast: { input_tokens: 20_000, output_tokens: 3_000 },
-  episodes: { input_tokens: 60_000, output_tokens: 12_000 },
   research: { input_tokens: 50_000, output_tokens: 6_000, web_search_requests: 5 },
   // The paste-import path (db/episode-research.js's researchFromPaste): one structuring call over
   // whatever was pasted, no search tool at all -- input is the pasted notes themselves, not fetched

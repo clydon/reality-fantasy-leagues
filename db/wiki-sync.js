@@ -1,7 +1,9 @@
-// Wiki connector: fetches a season's data from survivor.fandom.com, has Claude extract it into a
-// strict schema, validates it against the season's cast, and stages it for an ADMIN to review once
-// for the whole season (the cast in season_cast, 0011; episode results in season_decisions, 0019).
-// Nothing reaches a league until an admin accepts it -- see src/lib/server/season-decisions.ts.
+// Wiki connector: fetches a season's CAST from its wiki page, has Claude extract it into a strict
+// schema, validates it, and stages it in season_cast (0011) for an ADMIN to review once for the
+// whole season. Nothing reaches a league until an admin approves it.
+//
+// Cast only. Episode results used to be read here too (into season_decisions, 0019), but that read
+// was the least reliable input in the app; they come from web research now (db/episode-research.js).
 //
 // Plain CommonJS, same shape as db/migrate.js and db/seed-dev-admin.js, with TWO callers:
 //
@@ -9,13 +11,12 @@
 //      app has no persistent server process, so recurring runs are scheduled externally --
 //      .github/workflows/wiki-sync.yml, or Windows Task Scheduler locally.
 //   2. `runForSeason`, imported by the admin route POST /api/admin/seasons/:id/sync, which is what
-//      the per-season Pull buttons in Admin > Shows & Seasons call. Nothing in here may import
+//      the per-season Pull cast button in Admin > Shows & Seasons calls. Nothing in here may import
 //      anything Next-specific, for the same reason push-core.js may not: the CLI has to keep
 //      running under bare `node`.
 //
 //   node db/wiki-sync.js all                       # every season any league tracks, read once each
 //   node db/wiki-sync.js cast <leagueId>           # import the cast list for the league's season
-//   node db/wiki-sync.js episodes <leagueId>       # import per-episode eliminations + scoring events
 //   node db/wiki-sync.js <command> [id] --dry      # extract and print, write nothing
 //   node db/wiki-sync.js <command> [id] --force    # re-read even if the wiki hasn't changed
 //
@@ -30,18 +31,6 @@
 // `wiki_extractions` keyed by (show, season), and stage the result for admin review. Cache hits are
 // decided by wiki REVISION ID, not by age: an unchanged season costs nothing to re-run, a changed one
 // is re-read immediately.
-//
-// `episodes` produces one reviewable DECISION per result (season_decisions), not one big payload:
-// each elimination, scoring event and exile is accepted, rejected or corrected on its own, in
-// Admin > Shows & Seasons. The two halves it reads differ a lot in trustworthiness -- eliminations and exit
-// methods come off a well-structured column, while immunity/reward wins and zero-vote-safes are
-// inference over a rowspan-heavy grid and footnote markers -- and that difference now rides on each
-// item's own `confidence` rather than splitting the run into two all-or-nothing proposals. One model
-// call either way, because it needs both tables in front of it: eliminations come from the vote
-// table, immunity from the episode guide.
-//
-// `cast` still files a whole-list proposal (wiki_proposals, kind='cast') -- a season's cast arrives
-// once, with no per-episode axis to review it along.
 //
 // ---------------------------------------------------------------------------------------------
 // WHAT THE INVESTIGATION FOUND, and why this is shaped the way it is (full notes in the plan doc):
@@ -458,22 +447,6 @@ async function extractCast(sectionWikitext, terms, model, format) {
       sectionWikitext,
   });
   return { cast: parsed, usage };
-}
-
-// Per-episode extraction, worded and shaped by the show's format (format.wiki). max_tokens is higher
-// than cast's because the output scales with episodes x people -- a full post-merge Survivor season
-// runs to roughly a hundred events, most of them zero-votes-safes.
-async function extractEpisodes(wikitext, terms, model, format) {
-  const prompt = format.wiki.episodesPrompt(terms);
-  const { parsed, usage } = await callModel({
-    model: model || MODEL,
-    schema: format.wiki.episodesSchema(z),
-    schemaName: "episodes",
-    maxTokens: 32000,
-    system: prompt.system,
-    user: prompt.user + "\n\n" + wikitext,
-  });
-  return { episodes: parsed, usage };
 }
 
 // ---------- validation ----------
@@ -927,184 +900,6 @@ async function stageSeasonCast(pool, ctx, extraction, opts) {
   return { filed: added > 0, staged: added, total, seasonId, summary };
 }
 
-// ---------- per-episode import (phase 2) ----------
-// SEASON-scoped half: reads the vote grid AND the episode guide in one model call (it needs both --
-// who left comes from the vote table's terminal cells and the guide's Finish column, while immunity
-// and reward wins are only in the guide).
-async function extractEpisodesForSeason(pool, ctx, opts) {
-  const { page, apiUrl, terms, showSlug, season, showId, format } = ctx;
-  const { voteSections, guideSections } = format.wiki;
-
-  const votes = await sectionWithTables(page, voteSections, apiUrl);
-  const guide = await sectionWithTables(page, guideSections, apiUrl);
-  if (!votes && !guide) {
-    throw new Error(
-      sectionNotFound("per-episode", page, [...voteSections, ...guideSections]) +
-        "\nThis command needs a voting table, an episode guide, or both."
-    );
-  }
-  if (!votes) console.log(`[wiki-sync] ${format.wiki.missingVotesNote}`);
-  if (!guide) console.log(`[wiki-sync] ${format.wiki.missingGuideNote}`);
-
-  // Sections a format wants read before the tables (The Challenge: the season's own ==Format==, since
-  // its rules change every season, and ==Episodes== for titles and air dates). First, so the model
-  // knows the rules before it reads the results. Their templates count towards the cache's revision
-  // check like any other page read.
-  const context = [];
-  for (const name of format.wiki.contextSections || []) {
-    const found = await sectionWithTables(page, [name], apiUrl);
-    if (found) context.push(found);
-  }
-
-  const parts = context.map((c) => c.text);
-  if (guide) parts.push(guide.text);
-  if (votes) parts.push(votes.text);
-  const combined = parts.join("\n\n");
-  const readPages = [...context.flatMap((c) => c.pages), ...(guide ? guide.pages : []), ...(votes ? votes.pages : [])];
-  const provenance = baseProvenance(showSlug, season, page, apiUrl, readPages, {
-    sections: [...context.map((c) => c.title), guide && guide.title, votes && votes.title].filter(Boolean),
-    // The format shaped the read (its schema and prompt), so a read made under another one -- or an
-    // older version of this one -- can't be reused. See cachedExtraction.
-    format: format.id,
-    formatVersion: format.wiki.version || 1,
-  });
-
-  const reusable = await cachedExtraction(pool, showId, season, "episodes", provenance, opts);
-  if (reusable) return reusable;
-
-  console.log(
-    `[wiki-sync] sections: ${[guide && guide.title, votes && votes.title].filter(Boolean).join(" + ")} ` +
-      `-> ${combined.length} chars across ${readPages.length + 1} page(s)`
-  );
-  const { episodes, usage } = await extractEpisodes(combined, terms, opts.model, format);
-  logUsage(usage);
-  // What this read actually cost to make, for the admin panel's cost line.
-  provenance.model = usage.model;
-  provenance.usage = {
-    input_tokens: usage.input_tokens,
-    output_tokens: usage.output_tokens,
-    cache_read_input_tokens: usage.cache_read_input_tokens || 0,
-    cache_creation_input_tokens: usage.cache_creation_input_tokens || 0,
-  };
-  return storeExtraction(pool, showId, season, "episodes", episodes, provenance, opts);
-}
-
-// SEASON-scoped half for episode results: resolve the extraction against the season's own cast and
-// stage each elimination / scoring event / exile as a SEASON decision (db/migrations/0019) for an
-// admin to decide once. Nothing reaches a league from here -- accepting a decision is what does, via
-// src/lib/server/season-decisions.ts.
-//
-// The three kinds come from two halves of `checked`, which are NOT equally trustworthy -- eliminations
-// and exiles are read off stated columns, scoring events are inference over a rowspan-heavy grid and
-// footnote markers. That difference rides on each decision's own `confidence`.
-async function stageSeasonEpisodes(pool, ctx, extraction, opts = {}) {
-  const seasonId = await decisions.seasonIdFor(pool, ctx.showId, ctx.season);
-  if (!seasonId) {
-    throw new Error(`${ctx.showSlug} season ${ctx.season} isn't in the catalog -- add it in Admin > Shows & Seasons first.`);
-  }
-  // Names resolve against the season's cast, so with no cast every name would fail. Say that rather
-  // than reporting dozens of unmatched names.
-  const castState = await decisions.seasonCastState(pool, seasonId);
-  if (!castState.castaways.length) {
-    throw new Error(
-      `No ${ctx.terms.castaways} for this season yet -- pull and approve the cast first; results are matched to it by name.`
-    );
-  }
-
-  // A read can claim episodes the season never had (a misread results table once produced 60 for a
-  // 19-episode season). With the season's real length known (0029), anything past it is dropped here,
-  // before validation, and said so -- never staged for review.
-  const { rows: countRows } = await pool.query("SELECT episode_count FROM show_seasons WHERE id=$1", [seasonId]);
-  const episodeCount = countRows.length ? countRows[0].episode_count : null;
-  let payload = extraction.payload;
-  if (episodeCount && (payload.episodes || []).some((e) => e && e.number > episodeCount)) {
-    const beyond = payload.episodes.filter((e) => e && e.number > episodeCount).length;
-    console.log(`[wiki-sync]   note: dropped ${beyond} episode(s) past this season's ${episodeCount}`);
-    payload = { ...payload, episodes: payload.episodes.filter((e) => !(e && e.number > episodeCount)) };
-  }
-
-  const checked = validateEpisodes(payload, castState, ctx.terms, ctx.format);
-  if (payload !== extraction.payload) {
-    checked.problems.unshift(`the wiki read listed episodes past this season's ${episodeCount} -- those were ignored`);
-  }
-  checked.problems.forEach((p) => console.log(`[wiki-sync]   note: ${p}`));
-  if (checked.fatal.length) {
-    throw new Error(`failed validation, nothing staged:\n    - ${checked.fatal.join("\n    - ")}`);
-  }
-
-  // One flat list of decisions, from both halves of the validated result. `exiled` rides along on the
-  // eliminations half (it comes off the same read) but is its own kind -- it records a fact and
-  // scores nothing, see EpisodeLogic.addExiled.
-  const items = [];
-  for (const ep of checked.eliminations.episodes) {
-    for (const el of ep.eliminations) {
-      items.push({ episode: ep.number, postMerge: ep.postMerge, kind: "elimination", name: el.name, method: el.method, eventType: "", confidence: "high" });
-    }
-    for (const name of ep.exiled || []) {
-      items.push({ episode: ep.number, postMerge: ep.postMerge, kind: "exiled", name, method: "", eventType: "", confidence: "high" });
-    }
-  }
-  for (const ep of checked.scoringEvents.episodes) {
-    for (const ev of ep.events) {
-      items.push({ episode: ep.number, postMerge: ep.postMerge, kind: "event", name: ev.name, method: "", eventType: ev.type, confidence: ev.confidence });
-    }
-  }
-  // Roles read off a stated column (the Contestants table's Faction), so as trustworthy as an exit.
-  for (const r of checked.roles) {
-    items.push({ episode: r.episode, postMerge: false, kind: "role", name: r.name, method: r.role, eventType: "", confidence: "high" });
-  }
-  // Group changes: the new group's name in `method`, "" for playing as an individual. Worked out from
-  // spans and colour cells rather than read off one column, so reviewed as inferred.
-  const merge = checked.eliminations.mergeEpisode;
-  for (const g of checked.groups) {
-    const postMerge = Number.isInteger(merge) && g.episode >= merge;
-    items.push({ episode: g.episode, postMerge, kind: "group", name: g.name, method: g.group, eventType: "", confidence: "low" });
-  }
-
-  // Nothing for an episode that hasn't aired. Wiki pages carry rows for upcoming episodes
-  // (placeholders, leaks, the model filling in a blank row), and the research route already refuses
-  // unaired episodes for the same reason. Filtered here, on the finished list, so roles and group
-  // changes (read off other tables) are caught too; only when the air time is known. Anything
-  // already pending for those episodes is withdrawn by stageDecisions, since this read no longer
-  // proposes it.
-  const airsAt = await require("./auto-research.js").airTimesOf(pool, seasonId);
-  const now = Date.now();
-  const unaired = [...new Set(items.map((it) => it.episode))].filter((n) => {
-    const air = airsAt(n);
-    return air && air.getTime() > now;
-  });
-  if (unaired.length) {
-    const before = items.length;
-    items.splice(0, items.length, ...items.filter((it) => !unaired.includes(it.episode)));
-    console.log(`[wiki-sync]   note: dropped ${before - items.length} result(s) for episode(s) ${unaired.join(", ")}, which haven't aired yet`);
-  }
-
-  // Named in the result rather than buried in the console: results nobody will ever see unless the
-  // cast (or the wiki) is fixed.
-  const unmatched = checked.unmatched
-    .map((u) => (u.match(/^"([^"]+)"/) || [])[1])
-    .filter(Boolean)
-    .filter((name, i, all) => all.indexOf(name) === i);
-
-  const c = checked.counts;
-  const counts =
-    `${items.length} results across ${c.episodes} episodes ` +
-    `(${c.eliminations} eliminations; ${c.events} events, ${c.lowConfidence} low-confidence)` +
-    (unmatched.length ? ` — ${unmatched.length} couldn't be matched to the cast: ${unmatched.join(", ")}` : "") +
-    (unaired.length ? ` — skipped episode${unaired.length === 1 ? "" : "s"} ${unaired.join(", ")} (not aired yet)` : "");
-  console.log(`[wiki-sync]   ${counts}`);
-  if (opts.dry) {
-    return { summary: `${counts} — dry run, nothing staged`, inserted: 0, updated: 0, withdrawn: 0, unmatched, dropped: checked.dropped };
-  }
-
-  const r = await decisions.stageDecisions(pool, seasonId, items, "wiki", extraction.id);
-  const summary =
-    `${counts} — ${r.inserted} new to review` +
-    (r.withdrawn ? `, ${r.withdrawn} withdrawn (no longer on the wiki)` : "");
-  console.log(`[wiki-sync]   ${summary}`);
-  return { summary, ...r, unmatched, dropped: checked.dropped };
-}
-
 // ---------- shared helpers ----------
 function sectionNotFound(what, page, candidates) {
   const found = listHeadings(page.wikitext).map((h) => h.title);
@@ -1207,7 +1002,13 @@ async function fileProposal(pool, leagueId, kind, payload, provenance) {
 }
 
 // ---------- main ----------
-const EXTRACTORS = { cast: extractCastForSeason, episodes: extractEpisodesForSeason };
+// Cast only. The wiki used to be read for episode results too, but that read -- immunity and reward
+// wins inferred from rowspan-heavy grids, footnote markers, placeholder rows for episodes that hadn't
+// aired -- was the least reliable input in the app, and web research (db/episode-research.js) covers
+// the same ground with sources. The cast table is the one well-structured thing on a season page,
+// and the only place cast photos come from. validateEpisodes and the formats' `wiki` episode
+// sections are dormant until they're cleared out.
+const EXTRACTORS = { cast: extractCastForSeason };
 
 // Everything needed to read one season, derived from the catalog rather than from any league --
 // which is the whole reason this is its own function now. Two leagues on the same season resolve to
@@ -1292,35 +1093,10 @@ async function runForLeague(pool, command, leagueId, opts) {
   // `cast <leagueId>` now stages that league's SEASON for admin review rather than filing a
   // proposal for this one league -- the cast stopped being per-league in db/migrations/0011. The
   // command keeps taking a league id because a league is still how you say which season you mean.
-  if (command === "cast") await stageSeasonCast(pool, ctx, extraction, opts);
-  else await stageSeasonEpisodes(pool, ctx, extraction, opts);
+  await stageSeasonCast(pool, ctx, extraction, opts);
 }
 
-/**
- * Re-stages a season's episode decisions from the extraction already cached for it -- no wiki read,
- * no model call. For a season whose results were read before decisions moved to the season
- * (db/migrations/0019), so its review isn't empty until someone pays to pull again. Null when
- * nothing is cached.
- */
-async function stageCachedSeasonEpisodes(pool, seasonId) {
-  const { rows } = await pool.query(
-    `SELECT we.id, we.payload, we.provenance, s.id AS show_id, s.slug, s.castaway_term, s.tribe_term, s.format, ss.season_number
-       FROM show_seasons ss
-       JOIN shows s ON s.id = ss.show_id
-       JOIN wiki_extractions we ON we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
-      WHERE ss.id = $1`,
-    [seasonId]
-  );
-  if (!rows.length) return null;
-  const row = rows[0];
-  // The format the read was made under, which is what its payload's shape follows, with the season's
-  // approved rule changes (as resolveSeasonContext reads it).
-  const format = await SeasonRuleChanges.seasonFormat(pool, seasonId, { formatId: row.provenance.format || row.format });
-  const ctx = { showId: row.show_id, showSlug: row.slug, season: row.season_number, terms: termsFor(row).terms, format };
-  return stageSeasonEpisodes(pool, ctx, { id: row.id, payload: row.payload, provenance: row.provenance, cached: true });
-}
-
-// One SEASON, one kind -- what the admin catalog's per-season "Pull cast"/"Pull episodes" buttons
+// One SEASON, one kind -- what the admin catalog's per-season "Pull cast" button
 // call (POST /api/admin/seasons/:id/sync). This is `all` narrowed to a single season rather than
 // `runForLeague` widened: the catalog row an admin clicks IS a (show, season), and the expensive
 // half of the work is already season-scoped, so the natural unit here is the season -- extract once
@@ -1348,15 +1124,8 @@ async function runForSeason(pool, showSlug, season, kind, opts = {}) {
 
   // The cast is staged once for the season and reviewed by an admin (see stageSeasonCast); approving
   // it is what reaches the leagues.
-  if (kind === "cast") {
-    const staged = await stageSeasonCast(pool, ctx, extraction, opts);
-    return { kind, showSlug, season, ...provenance, staged, leagues: [] };
-  }
-
-  // Episode results are staged once for the season too, for an admin to decide (db/migrations/0019);
-  // accepting them is what reaches the leagues.
-  const decisionsStaged = await stageSeasonEpisodes(pool, ctx, extraction, opts);
-  return { kind, showSlug, season, ...provenance, staged: null, decisions: decisionsStaged, leagues: [] };
+  const staged = await stageSeasonCast(pool, ctx, extraction, opts);
+  return { kind, showSlug, season, ...provenance, staged, leagues: [] };
 }
 
 // The batch job (see .github/workflows/wiki-sync.yml). Reads each season ONCE and fans it out to
@@ -1408,26 +1177,13 @@ async function runAll(pool, opts) {
       failures++;
       continue;
     }
-    for (const kind of ["cast", "episodes"]) {
-      let extraction;
-      try {
-        extraction = await EXTRACTORS[kind](pool, ctx, opts);
-      } catch (e) {
-        // A season with no vote table yet (or no cast section) shouldn't stop the other kind, or the
-        // other seasons -- an unaired season legitimately has nothing to read yet.
-        console.error(`[wiki-sync] ${showSlug} season ${season} ${kind}: ${e.message}`);
-        failures++;
-        continue;
-      }
-      // Both kinds are season data, staged once for an admin to review -- see stageSeasonCast and
-      // stageSeasonEpisodes. Nothing here touches a league.
-      try {
-        if (kind === "cast") await stageSeasonCast(pool, ctx, extraction, opts);
-        else await stageSeasonEpisodes(pool, ctx, extraction, opts);
-      } catch (e) {
-        console.error(`[wiki-sync] ${showSlug} season ${season} ${kind}: ${e.message}`);
-        failures++;
-      }
+    // The cast, staged once for an admin to review (see stageSeasonCast); nothing here touches a
+    // league. A season with no cast section yet shouldn't stop the other seasons.
+    try {
+      await stageSeasonCast(pool, ctx, await extractCastForSeason(pool, ctx, opts), opts);
+    } catch (e) {
+      console.error(`[wiki-sync] ${showSlug} season ${season} cast: ${e.message}`);
+      failures++;
     }
   }
   console.log(failures ? `\n[wiki-sync] done, with ${failures} failure(s) above.` : "\n[wiki-sync] done.");
@@ -1443,7 +1199,7 @@ if (require.main === module) {
   if (!usable) {
     console.error(
       "usage: node db/wiki-sync.js all [--force] [--dry]\n" +
-        "       node db/wiki-sync.js <cast|episodes> <leagueId> [--force] [--dry]"
+        "       node db/wiki-sync.js cast <leagueId> [--force] [--dry]"
     );
     process.exitCode = 1;
   } else {
@@ -1463,8 +1219,6 @@ module.exports = {
   runForLeague,
   runForSeason,
   stageSeasonCast,
-  stageSeasonEpisodes,
-  stageCachedSeasonEpisodes,
   sameRevisions,
   fetchWikitext,
   findSection,

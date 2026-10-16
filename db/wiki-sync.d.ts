@@ -5,7 +5,7 @@
 // Only runForSeason is declared, because only runForSeason is imported from TypeScript -- everything
 // else in that module is CLI/test surface and typing it here would be typing it for nobody.
 import type { Pool } from "pg";
-import type { DecisionStageResult, WikiSeasonSyncResult } from "@/lib/game/types";
+import type { WikiSeasonSyncResult } from "@/lib/game/types";
 
 export interface WikiSyncOptions {
   /** Re-read the wiki even if its revision ids haven't changed since the cached extraction. */
@@ -25,19 +25,14 @@ export interface WikiSyncOptions {
 export const WIKI_MODELS: string[];
 
 /**
- * Reads one (show, season) from the wiki once -- cache-aware, keyed on wiki revision ids -- then
- * stages the result for admin review (the cast into season_cast, episode results into
- * season_decisions). Throws if the season can't be read (no catalog entry, no wiki endpoint, no such
- * section, a model/API failure) or, for episodes, has no cast to match names against.
+ * Reads one (show, season)'s cast from the wiki once -- cache-aware, keyed on wiki revision ids --
+ * then stages it into season_cast for admin review. Throws if the season can't be read (no catalog
+ * entry, no wiki endpoint, no such section, a model/API failure).
  */
 export function runForSeason(
   pool: Pool,
   showSlug: string,
   season: number,
-  kind: "cast" | "episodes",
+  kind: "cast",
   opts?: WikiSyncOptions
 ): Promise<WikiSeasonSyncResult>;
-
-/** Re-stages a season's episode decisions from its cached extraction (no wiki read, no model call).
- * Resolves to null when nothing is cached. */
-export function stageCachedSeasonEpisodes(pool: Pool, seasonId: string): Promise<DecisionStageResult | null>;

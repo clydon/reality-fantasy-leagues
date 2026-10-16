@@ -467,22 +467,18 @@ export interface SeasonCastMember {
 // db/wiki-sync.js's runForSeason). The expensive half is season-scoped, so the result is reported
 // the same way: one read of the wiki, then a line per league that tracks this season.
 export interface WikiSeasonSyncResult {
-  kind: "cast" | "episodes";
+  kind: "cast";
   showSlug: string;
   season: number;
   /** True when the wiki hadn't changed since the last read, so no model call was made. */
   cached: boolean;
   /** Every page the extraction saw, transcluded templates included. */
   pages: { title: string; revisionId: number | null }[];
-  /**
-   * One entry per league tracking this season, for an episodes pull. Always empty for a cast pull:
-   * a cast is staged once for the season and reviewed by an admin, never fanned out (see `staged`).
-   */
+  /** Always empty: a cast is staged once for the season and reviewed by an admin, never fanned out
+   * (see `staged`). */
   leagues: { id: string; name: string; ok: boolean; summary?: string; error?: string }[];
-  /** Cast pulls only: what staging did, for the review panel to report. */
+  /** What staging did, for the review panel to report. */
   staged?: { filed: boolean; staged: number; total: number; summary: string } | null;
-  /** Episode pulls only: what was staged as season decisions for review. */
-  decisions?: DecisionStageResult;
   /** The model that read the wiki; null on a cache hit (nothing was called). */
   model?: string | null;
   /** Tokens that read cost; null on a cache hit. */

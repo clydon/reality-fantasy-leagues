@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
-import type { LeagueDecisionSync, ModelUsage, ResearchCastaway, SeasonResearchResult, WikiSeasonSyncResult } from "@/lib/game/types";
+import type { LeagueDecisionSync, ModelUsage, ResearchCastaway, SeasonResearchResult } from "@/lib/game/types";
 import { AI_MODELS, costOf, formatCost } from "@/lib/ai-cost";
 import { formatFor, withChanges } from "@/lib/game/formats/index.js";
 import { useShowPaidAi, useShowSpoilers } from "@/lib/paid-ai-store";
@@ -28,49 +28,6 @@ export function SpentNote({ model, usage, cached }: { model?: string | null; usa
 }
 
 const box = "flex flex-col gap-1.5 rounded-[3px] bg-card px-3.5 py-3 text-sm";
-
-/** One line of outcome for an episodes pull; any failure always visible, never behind a click. */
-export function PullResult({ result, busy, onForce, forceCost }: { result: WikiSeasonSyncResult; busy: boolean; onForce: () => void; forceCost: string }) {
-  const d = result.decisions;
-  const showPaid = useShowPaidAi();
-  const showSpoilers = useShowSpoilers();
-  return (
-    <div className={box} role="status">
-      <p>
-        {result.cached ? "The wiki hasn't changed since the last read." : "Read fresh from the wiki."}{" "}
-        {d && (d.inserted ? `${count(d.inserted, "new result")} to review.` : "Nothing new to review.")}
-        {d?.withdrawn ? ` ${d.withdrawn} withdrawn (no longer on the wiki).` : ""}{" "}
-        <SpentNote model={result.model} usage={result.usage} cached={result.cached} />
-      </p>
-      {d?.unmatched?.length ? (
-        <p className="text-destructive">
-          {showSpoilers ? (
-            <>Couldn&rsquo;t match to the cast, so dropped: {d.unmatched.join(", ")}. Fix the name in the cast, then pull again.</>
-          ) : (
-            <>{count(d.unmatched.length, "result")} couldn&rsquo;t be matched to the cast. Show names to see which.</>
-          )}
-        </p>
-      ) : null}
-      {d?.dropped?.length ? (
-        <p className="text-muted-foreground">
-          {showSpoilers
-            ? `Thrown out as impossible: ${d.dropped.map((x) => `${x.name} (ep ${x.episode}: ${x.why})`).join("; ")}.`
-            : `${d.dropped.length} thrown out as impossible.`}
-        </p>
-      ) : null}
-      {/* The only way past the revision-id cache: offered only when the cache was hit, the one case
-          where pulling again would otherwise do nothing. */}
-      {result.cached && showPaid && (
-        <span className="flex items-center gap-2">
-          <ActButton disabled={busy} onClick={onForce}>
-            Read it again anyway
-          </ActButton>
-          <Cost>{forceCost}</Cost>
-        </span>
-      )}
-    </div>
-  );
-}
 
 /**
  * What one episode's research found. The summary says what happened to the RESULTS (they're review
