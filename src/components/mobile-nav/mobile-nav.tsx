@@ -212,8 +212,8 @@ export function MobileNav() {
   // nothing to demote into the More sheet.
   const draftUrgent = !!(turn && !turn.isComplete && myPlayerId && turn.playerId === myPlayerId) || notifications.some((n) => n.tab === "/draft");
   // Waivers (docs/PLAN-midseason-waivers.md), when the commissioner turned Pickups or Add/drops on (the
-  // same gate the desktop sidebar uses): the 4th slot after the draft in Classic; in Active Roster,
-  // inside Research, which carries its "needs you" mark.
+  // same gate the desktop sidebar uses): the 4th slot after the draft in Classic; in Active Roster, a
+  // row in the More sheet, with a dot on More while a pickup is yours to claim.
   const waivers = StateLogic.WaiverLogic.enabled(state);
   const waiversMark = waivers ? waiversBadge(state, myPlayerId) : null;
   const waiversSlot = waivers ? { href: waiversBase(state), label: "Waivers", icon: ShuffleIcon } : null;
@@ -239,13 +239,16 @@ export function MobileNav() {
           { ...waiversSlot!, urgent: waiversMark?.urgent ? true : null }
         : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
   const demoted = !hasRoster ? null : draftComplete ? { href: "/draft", label: "Draft", icon: DraftIcon } : waiversSlot;
+  // Waivers sit in the More sheet (Active Roster after the draft, anyone before it): More carries a dot
+  // while a pickup there is yours to claim.
+  const moreWaiting = hasSeason && !!waiversMark?.urgent && ((lineupSlot && !!waiversSlot) || demoted === waiversSlot);
 
   const leagueTabs: { href: string; label: string; icon: typeof OverviewIcon; urgent?: boolean | null }[] = [
     { href: "/", label: "Overview", icon: OverviewIcon },
     { href: "/episodes", label: "Episodes", icon: EpisodesIcon },
     { href: "/scoreboard", label: "Scoreboard", icon: TrophyIcon },
     fourth,
-    ...(hasActiveRoster ? [{ href: "/research", label: "Research", icon: ResearchIcon, urgent: waiversMark?.urgent ? true : null }] : []),
+    ...(hasActiveRoster ? [{ href: "/research", label: "Research", icon: ResearchIcon }] : []),
   ];
   // No league and not previewing: the only two places worth going are the join/create screen and
   // the demo season (the latter is a state change, not a route -- hence the null href below).
@@ -490,6 +493,9 @@ export function MobileNav() {
         >
           <span className="relative inline-flex">
             <MoreIcon className="h-[21px] w-[21px]" />
+            {moreWaiting && tourAllows("tab-more") && (
+              <span className="absolute -right-1 -top-0.5 size-2 rounded-full bg-destructive ring-2 ring-panel-menu" aria-label="Needs attention" />
+            )}
           </span>
           <span className="text-[0.63rem] font-semibold">More</span>
         </button>
@@ -563,6 +569,7 @@ export function MobileNav() {
               icon={waiversSlot.icon}
               label={waiversSlot.label}
               value={waiversMark?.label}
+              urgent={!!waiversMark?.urgent}
               onClick={() => go(waiversSlot.href)}
               tour="more-waivers"
             />

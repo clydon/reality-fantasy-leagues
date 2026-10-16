@@ -25,8 +25,8 @@ first, then add/drops), then free agency until airtime. Design: the "Mid-Season 
 - Tests: `tests/waivers.test.js`; `scripts/dev-test/waivers-fixture.js` + `check-waivers.js` (34 API
   checks against the dev server); `api()` in `scripts/dev-test/browser.js`.
 - **Phase 2, the UI, built the same day** (not committed): every board on the canvas but the alerts (11),
-  in `src/components/waivers/`; Classic at `/waivers` (Mid-Season's slot), Active Roster inside Research
-  (`/research/waivers`). Shared leagues show no order or ranking. File map, calls and what was verified:
+  in `src/components/waivers/`; `/waivers` for every league type (Classic: Mid-Season's slot; Active Roster:
+  a row in the phone's More sheet, which carries a dot when a claim is yours; old `/research/waivers` links redirect). Shared leagues show no order or ranking. File map, calls and what was verified:
   the plan's "As built: phase 2". Browser check: `node scripts/dev-test/check-waivers-ui.js <outDir> [390] [--dark]`.
 - **Phase 3, pushes and the clock job, built the same day** (not committed): `src/lib/server/waiver-pushes.js`
   (who hears what), "Waivers processed" sent by whoever processed the week (`withLeagueLock` or the new

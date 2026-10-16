@@ -52,9 +52,9 @@ function resultsHref(state, ep) {
   return showId && wikiSeason != null ? `/episodes/${ep.number}/research` : `/episodes/${ep.number}`;
 }
 
-// Where this league's Waivers pages live: Active Roster folds them into Research (its tab bar is full).
-function waiversHref(state) {
-  return StateLogic.getLeagueType(state).hasActiveRoster ? "/research/waivers" : "/waivers";
+// Where Waivers live, for every league type (Active Roster once kept them under Research).
+function waiversHref() {
+  return "/waivers";
 }
 
 function resultsItem(state, ep) {

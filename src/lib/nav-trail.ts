@@ -49,8 +49,7 @@ export function parentOf(pathname: string): { href: string; label: string } | nu
   if (results) return { href: `/episodes/${results[1]}`, label: `Episode ${results[1]}` };
   if (/^\/scoreboard\/[^/]+$/.test(pathname)) return { href: "/scoreboard", label: "Scoreboard" };
   if (pathname === "/draft/board") return { href: "/draft", label: "Draft" };
-  // Waivers (docs/PLAN-midseason-waivers.md): a tab in Classic, inside Research in Active Roster.
-  if (pathname === "/research/waivers") return { href: "/research", label: "Research" };
+  // Waivers (docs/PLAN-midseason-waivers.md): a tab in Classic, in the More sheet in Active Roster.
   const waivers = /^(\/waivers|\/research\/waivers)\/.+$/.exec(pathname);
   if (waivers) return { href: waivers[1], label: "Waivers" };
   if (pathname === "/setup/rules/edit") return { href: "/setup/rules", label: "Scoring & rules" };

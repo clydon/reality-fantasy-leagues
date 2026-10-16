@@ -35,5 +35,5 @@ export function resultsDueEpisode(state: LeagueState, now?: number): Episode | n
 /** Where a commissioner fills in an episode's results: research when the league has a season, else by hand. */
 export function resultsHref(state: LeagueState, ep: Episode): string;
 
-/** Where this league's Waivers pages live: /waivers, or /research/waivers for Active Roster. */
-export function waiversHref(state: LeagueState): "/waivers" | "/research/waivers";
+/** Where this league's Waivers pages live: /waivers (Active Roster's old /research/waivers redirects there). */
+export function waiversHref(state: LeagueState): "/waivers";

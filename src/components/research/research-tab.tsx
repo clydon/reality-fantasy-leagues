@@ -12,7 +12,6 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { MoreButton, ToggleRow } from "@/components/setup/settings-ui";
 import { cn } from "cn";
-import { ResearchWaivers } from "@/components/waivers/research-waivers";
 
 // Active Roster's scouting page (the canvas's "A · Draft, scouting & mid-season": Scouting): every
 // castaway ranked by the points they've actually scored over a window of recent episodes -- who's
@@ -183,9 +182,6 @@ export function ResearchTab() {
         <h2 className="type-caption flex-1 text-[28px]">Research</h2>
         <MoreButton label="Research options" onClick={() => setOptionsOpen(true)} />
       </div>
-
-      {/* Waivers live here in Active Roster (its tab bar is full): docs/PLAN-midseason-waivers.md. */}
-      <ResearchWaivers />
 
       {windows.length > 1 && (
         <div role="tablist" aria-label="Which episodes" className="flex rounded-[3px] bg-card p-[3px]">

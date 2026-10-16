@@ -197,15 +197,15 @@ export const PLAYER_TOUR: TourStep[] = [
   {
     id: "pickup",
     progress: "Episode 2 of 2",
-    route: at("/research/waivers/pickup"),
+    route: at("/waivers/pickup"),
     line: (c) => `Claim ${pickupName(c.full) ?? "a free agent"}. Tap, then confirm.`,
     detail: () =>
       "Claims are private, and everyone's process at once the day before the next episode. Here they process right away.",
     targets: ["picker-tiles", "picker-confirm"],
     nav: {
-      line: () => "A baker went home. Claim a replacement in Research.",
+      line: () => "A baker went home. Claim a replacement in Waivers, under More.",
       detail: () => "When one of yours goes home, you claim one nobody drafted, if your commissioner has turned pickups on.",
-      targets: ["tab-research", "waivers-pickup"],
+      targets: ["tab-more", "more-waivers", "waivers-pickup"],
     },
     done: (c) => pickedUp(c.full),
   },

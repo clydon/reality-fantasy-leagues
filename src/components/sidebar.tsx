@@ -85,15 +85,14 @@ export function Sidebar() {
   const hasSeason = mode === "live" || isPreviewingDemo;
 
   // Only the pages this league has: Draft is a roster concept; Waivers (docs/PLAN-midseason-waivers.md)
-  // only when the commissioner turned Pickups or Add/drops on, and not in Active Roster, which keeps them
-  // inside Research, as on phones, so Research carries the mark instead; Lineup and Research are Active
-  // Roster's; Pick is Eliminator Pool's.
+  // only when the commissioner turned Pickups or Add/drops on; Lineup and Research are Active Roster's;
+  // Pick is Eliminator Pool's.
   const type = StateLogic.getLeagueType(state);
   const waivers = StateLogic.WaiverLogic.enabled(state);
   const tabs = TABS.filter(
     (t) =>
       !(t.href === "/draft" && !type.hasRoster) &&
-      !(t.href === "/waivers" && (!waivers || type.hasActiveRoster)) &&
+      !(t.href === "/waivers" && !waivers) &&
       !((t.href === "/research" || t.href === "/lineup") && !type.hasActiveRoster) &&
       !(t.href === "/pick" && !type.hasWeeklyPicks),
   );
@@ -102,7 +101,7 @@ export function Sidebar() {
   // own pending notifications), chat's unread count as a quiet chip, and a chyron dot on League
   // Settings while a commissioner to-do waits there.
   function badgeFor(href: string): Badge | null {
-    if (href === "/waivers" || (href === "/research" && waivers)) {
+    if (href === "/waivers") {
       const b = waiversBadge(state, myPlayerId);
       return b?.urgent ? { kind: "urgent", label: b.label } : null;
     }

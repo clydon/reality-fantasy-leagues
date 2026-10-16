@@ -35,7 +35,7 @@ export function addSlots(state: LeagueState): number {
 }
 
 /** Where this league's waiver pages live: Active Roster folds them into Research (the tab bar is full). */
-export function waiversBase(state: LeagueState): "/waivers" | "/research/waivers" {
+export function waiversBase(state: LeagueState): "/waivers" {
   return waiversHref(state);
 }
 

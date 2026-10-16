@@ -8,8 +8,9 @@
 // later ones), then writes <outDir>/<phase>-<league>-<who>-<page>-<n>.png,
 // phone-sized shots down the page (Studio unless --dark):
 //   comm    Kim, the commissioner: the board (with Commissioner tools), League Settings › Waivers
-//   player  Sam, owed a pickup: the board (and its How waivers work sheet), the pickup and add/drop
-//           pickers (the pickup picker tapped, then saved), free agency, a past week's results; Research
+//   player  Sam, owed a pickup: Overview's More tab and sheet (phones), the board (and its How waivers
+//           work sheet), the pickup and add/drop pickers (the pickup picker tapped, then saved), free
+//           agency, a past week's results; Research
 //   comm    ...and (open phase) the Claim for sheet, then Nudge tapped for Josie
 //   all     Overview first, every phase (phase 3): the alert strip's pickup item, the waivers status
 //           plate, and once processed the "You got…" plate under the episode's Out plates
@@ -26,7 +27,7 @@ const PASS = fixture.PASSWORD;
 const USERS = { comm: "zt_wcomm", player: "zt_wplayer", late: "zt_wlate" };
 
 function pagesFor(phase, league, who) {
-  const base = league === "roster" ? "/research/waivers" : "/waivers";
+  const base = "/waivers";
   const out = [["overview", "/"], ["board", base]];
   if (who === "comm") out.push(["settings", "/setup/waivers"]);
   if (who === "player") {
@@ -78,6 +79,18 @@ async function shoot(page, file) {
             await page.waitForTimeout(900);
             const file = `${out}/${phase}-${league}-${who}-${name}`;
             await shoot(page, file);
+            // The phone's More sheet from Overview: Waivers' row (Active Roster keeps it there), and the dot
+            // on More while a claim is yours. -more-tab is the closed bar, -more the sheet.
+            if (name === "overview" && who === "player" && width < 880) {
+              // What's new, if it's up, sits over the tab bar.
+              const go = page.locator("button", { hasText: /Let.s go!/ });
+              if (await go.count()) await go.first().click();
+              await page.waitForTimeout(400);
+              await page.locator('[data-tour="tab-more"]').screenshot({ path: `${file}-more-tab.png` });
+              await page.locator('[data-tour="tab-more"]').click();
+              await page.waitForTimeout(500);
+              await page.screenshot({ path: `${file}-more.png` });
+            }
             // The pickup picker with two free agents tapped (one, shared), then saved: back on the board,
             // which now says the claims are in.
             if (name === "pickup" && phase === "open") {
@@ -128,8 +141,7 @@ async function shoot(page, file) {
               `UPDATE league_memberships SET results_seen_through=3 WHERE league_id=$1 AND user_id=(SELECT id FROM "user" WHERE username=$2)`,
               [leagueId, USERS.late]
             );
-            const base = league === "roster" ? "/research/waivers" : "/waivers";
-            await page.goto(`${BASE}${base}/free-agency?league=${leagueId}`, { waitUntil: "networkidle" });
+            await page.goto(`${BASE}/waivers/free-agency?league=${leagueId}`, { waitUntil: "networkidle" });
             await page.waitForTimeout(900);
             await shoot(page, `${out}/${phase}-${league}-late-fa`);
             await page.getByRole("button", { name: /^Drop / }).first().click();
