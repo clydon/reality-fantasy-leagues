@@ -89,6 +89,22 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
     );
   }
 
+  // Bad data that was already accepted: everything for the episode goes, and what leagues were given
+  // from it is taken back out (the route rejects and syncs before deleting). Then research it afresh.
+  async function clearEverything() {
+    setMenu(false);
+    const decided = decisions.filter((d) => d.status !== "pending").length;
+    const ok = await confirm(
+      `Clear everything for episode ${episode}? This removes its research and all ${count(decisions.length, "result")}, including ${count(decided, "accepted or rejected result")}. ` +
+        "Anything accepted is taken back out of every league on this season. Leagues that fill in their own results keep what they applied. You can't undo this.",
+      { danger: true, confirmLabel: "Clear everything" },
+    );
+    if (!ok) return;
+    act("clear", () => api.adminDiscardResearch(seasonId, episode, "everything"), (r) =>
+      setNote(r.leaguesUndone ? `Cleared, and taken back out of ${count(r.leaguesUndone, "league")}.` : "Cleared."),
+    );
+  }
+
   // Research run before the episode aired is about an earlier one. Throws away only that.
   async function discardResearch() {
     setMenu(false);
@@ -183,6 +199,11 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
         <SheetAction danger onClick={clearEpisode}>
           Clear episode data
         </SheetAction>
+        {decisions.some((d) => d.status !== "pending") && (
+          <SheetAction danger onClick={clearEverything}>
+            Clear everything, including accepted
+          </SheetAction>
+        )}
       </BottomSheet>
     </AdminPage>
   );

@@ -117,7 +117,13 @@ const researchRules = [
   { when: { any: [yes('wonIndividualReward'), yes('wonTribeReward')] }, award: 'rewardWin' },
   { when: yes('foundAdvantage'), award: 'idolFound' },
   { when: yes('playedAdvantage'), award: 'idolPlayed' },
-  { when: { all: [yes('attendedTribal'), { answer: 'votesReceived', equals: 0 }] }, award: 'zeroVotesSafe' },
+  // Safe means at the vote and not voted for: never a tribe immunity winner (pre-merge, they don't go)
+  // and never whoever left. episodeProblems below also clears an attendance the rest of the episode
+  // contradicts, since this is the event a wrong "attended" turns into points.
+  {
+    when: { all: [yes('attendedTribal'), { answer: 'votesReceived', equals: 0 }, notYes('wonTribeImmunity'), notYes('leftTheGame')] },
+    award: 'zeroVotesSafe',
+  },
   // Survived, not eliminated THIS episode: someone voted out with votes against them was voted out,
   // not "safe despite votes".
   { when: { all: [{ answer: 'votesReceived', greaterThan: 0 }, notYes('leftTheGame')] }, award: 'survivedVotes' },
@@ -329,7 +335,13 @@ const checklist = [
   },
 
   // --- tribal council ---
-  { key: 'attendedTribal', type: 'answer', description: "Did they attend Tribal Council this episode?" },
+  {
+    key: 'attendedTribal', type: 'answer',
+    description:
+      "Were they AT Tribal Council this episode, as one of the people voting? Before the merge only the " +
+      "tribe(s) that lost immunity go: everyone on a tribe that won immunity did NOT attend ('no'), and " +
+      "neither did anyone away from camp for it. 'unknown' if the sources don't say which tribe went.",
+  },
   {
     key: 'votesReceived', type: 'integer', nullable: true,
     description:
@@ -481,6 +493,40 @@ function researchEntryProblems(entry) {
   return problems;
 }
 
+// The answers checked against each other across the cast -- the mistakes that score points for the
+// wrong people (zeroVotesSafe for a tribe that never went to Tribal). Repairs only to "unknown"/null,
+// which stages nothing, and says what it did; a contradiction it can't settle is just reported.
+function researchEpisodeProblems(payload) {
+  const problems = [];
+  const cast = (payload && payload.castaways) || [];
+  const attendees = () => cast.filter((c) => c.attendedTribal === "yes");
+  if (payload.tribalCouncilHeld === "no" && attendees().length) {
+    for (const c of attendees()) Object.assign(c, { attendedTribal: "no", votesReceived: null });
+    problems.push("No Tribal Council this episode, but some people were marked as attending it (cleared)");
+  }
+  for (const c of attendees()) {
+    if (c.wonTribeImmunity === "yes") {
+      Object.assign(c, { attendedTribal: "unknown" });
+      problems.push(`${c.name}: marked as at Tribal, but on the tribe that won immunity (attendance cleared to unknown)`);
+    }
+  }
+  // A real vote puts votes on someone. Everyone at Tribal on zero means the counts weren't found (or
+  // there was no vote), not that they were all safe.
+  const at = attendees();
+  if (at.length && at.every((c) => c.votesReceived === 0) && !cast.some((c) => Number(c.votesReceived) > 0)) {
+    for (const c of at) c.votesReceived = null;
+    problems.push(`Everyone at Tribal was given zero votes, so the vote counts look missing (cleared, nobody marked safe)`);
+  }
+  // Votes against people should roughly match the people who voted. Only reported: revotes, extra
+  // votes and idols all make honest counts differ.
+  const voters = attendees().filter((c) => c.votedFor).length;
+  const against = cast.reduce((n, c) => n + (Number.isInteger(c.votesReceived) ? c.votesReceived : 0), 0);
+  if (voters && against && against !== voters) {
+    problems.push(`${against} votes counted against people, but ${voters} people at Tribal are recorded voting: check who attended`);
+  }
+  return problems;
+}
+
 // Positive claims that need a source behind them.
 const researchClaims = [
   "leftTheGame", "wonIndividualImmunity", "wonIndividualReward", "foundAdvantage", "playedAdvantage", "satOutOfChallenge",
@@ -612,6 +658,7 @@ module.exports = defineFormat(data, {
   },
   research: {
     entryProblems: researchEntryProblems,
+    episodeProblems: researchEpisodeProblems,
     notes: researchNotes,
     sentences: researchSentences,
   },

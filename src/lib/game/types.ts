@@ -528,6 +528,11 @@ export interface EpisodeResearch {
   /** Research's flag that the show may have changed how it's played (docs/PLAN-season-rule-changes.md):
    *  one sentence, or null -- which is the normal answer. */
   rulesNote?: string | null;
+  /** Grouped formats: whether the game has merged by the end of the episode. */
+  merged?: "yes" | "no" | "unknown";
+  /** Every page research read, with the dates the page shows (as printed; ISO when it gave a time).
+   *  The record of how soon after airing recaps appear. Absent on research from before it was asked. */
+  sourcesRead?: { url: string; published: string | null; updated: string | null }[];
   castaways: ResearchCastaway[];
   /** The leagues' open side bets this research settled (absent when it wasn't asked any). */
   betAnswers?: BetAnswer[];

@@ -723,9 +723,9 @@ export const api = {
     }),
   // Throw away one episode's research and the undecided results it staged (e.g. run before it aired).
   // scope "all" clears the whole episode: its undecided wiki results and cached wiki read too.
-  adminDiscardResearch: (seasonId: string, episode: number, scope: "research" | "all" = "research") =>
-    localFetch<{ ok: true; removedResults: number; decidedKept: number }>(
-      `/api/admin/seasons/${seasonId}/research?episode=${episode}${scope === "all" ? "&scope=all" : ""}`, {
+  adminDiscardResearch: (seasonId: string, episode: number, scope: "research" | "all" | "everything" = "research") =>
+    localFetch<{ ok: true; removedResults: number; decidedKept: number; leaguesUndone?: number }>(
+      `/api/admin/seasons/${seasonId}/research?episode=${episode}${scope === "research" ? "" : `&scope=${scope}`}`, {
       method: "DELETE",
     }),
   // `ids` narrows it to those rows (one scoring event's group); omitted, every pending row.

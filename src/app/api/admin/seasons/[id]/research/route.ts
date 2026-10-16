@@ -7,6 +7,7 @@ import { episodeAirsAt, episodeCountOf } from "@db/auto-research.js";
 import { formatInTz } from "@/lib/game/air-schedule.js";
 import { formatDataFor } from "@db/show-formats.js";
 import { approvedChanges } from "@db/season-rule-changes.js";
+import { syncSeasonLeagues } from "@/lib/server/season-decisions";
 
 // On-demand episode research for one catalog season -- what the "Research ep N" button on each
 // season row in Admin > Shows & Seasons calls. Super-admin only, like the rest of the catalog.
@@ -135,24 +136,45 @@ const PROVIDERS = ["anthropic", "gemini", "grok"];
 // that decision is history, and undoing it is a separate, deliberate click.
 export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
-  await requireSuperAdmin(req);
+  const user = await requireSuperAdmin(req);
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
   const search = new URL(req.url).searchParams;
   const episode = Number(search.get("episode"));
   if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode must be a positive whole number");
   // scope=all: clear the episode entirely -- also its undecided wiki results and its entry in the
   // cached wiki read (so a re-pull reads it fresh instead of restaging the bad version).
-  const all = search.get("scope") === "all";
+  // scope=everything: all of that AND the results already decided, taken back out of every league --
+  // for bad data that was accepted. A league's record of what it was given is deleted with the row
+  // (ON DELETE CASCADE), so the accepted rows are rejected and the leagues synced FIRST: that undoes
+  // exactly what each league received, the same as an admin rejecting them one by one.
+  const scope = search.get("scope");
+  const everything = scope === "everything";
+  const all = scope === "all" || everything;
 
   const { rows } = await pool.query("SELECT show_id, season_number FROM show_seasons WHERE id=$1", [id]);
   if (!rows.length) throw new HttpError(404, "Season not found");
   const { show_id: showId, season_number: season } = rows[0];
 
+  let leaguesUndone = 0;
+  if (everything) {
+    const { rowCount } = await pool.query(
+      `UPDATE season_decisions SET status='rejected', decided_at=now(), decided_by=$3
+        WHERE season_id=$1 AND episode_number=$2 AND status='accepted'`,
+      [id, episode, user.id]
+    );
+    if (rowCount) {
+      const synced = await syncSeasonLeagues(id, user.id);
+      leaguesUndone = synced.filter((l) => l.undone > 0).length;
+    }
+  }
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const { rowCount: removed } = await client.query(
-      all
+      everything
+        ? `DELETE FROM season_decisions WHERE season_id=$1 AND episode_number=$2`
+        : all
         ? `DELETE FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND status='pending'`
         : `DELETE FROM season_decisions
             WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND from_research AND NOT from_wiki`,
@@ -189,7 +211,7 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ id: s
       "SELECT count(*)::int AS n FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND status<>'pending'",
       [id, episode]
     );
-    return NextResponse.json({ ok: true, removedResults: removed ?? 0, decidedKept: decided[0].n });
+    return NextResponse.json({ ok: true, removedResults: removed ?? 0, decidedKept: decided[0].n, leaguesUndone });
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;

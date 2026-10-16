@@ -40,6 +40,14 @@ const box = "flex flex-col gap-1.5 rounded-[3px] bg-card px-3.5 py-3 text-sm";
 // prompt, and a note nobody acts on means the checklist quietly stops matching the show.
 // The alert strip's shape (a caption plate with a chyron tag), so it reads as a to-do, not a notice.
 // The tag is its one yellow: after research the review button below is usually the other "now".
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 export function RulesTripwire({ note, href }: { note: string; href: string }) {
   const showSpoilers = useShowSpoilers();
   return (
@@ -171,7 +179,25 @@ export function ResearchResult({
                 </li>
               ))}
             </ul>
-            {provenance.castSkipped?.length ? (
+            {payload.sourcesRead?.length ? (
+            <div>
+              <b>Pages read</b>
+              <ul className="ml-4 list-disc">
+                {payload.sourcesRead.map((s) => (
+                  <li key={s.url}>
+                    <a href={s.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                      {hostOf(s.url)}
+                    </a>{" "}
+                    <span className="text-muted-foreground">
+                      {s.published ? `published ${s.published}` : "no date shown"}
+                      {s.updated && s.updated !== s.published ? `, updated ${s.updated}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {provenance.castSkipped?.length ? (
               <p className="text-muted-foreground">
                 <b>Not asked (already out):</b> {provenance.castSkipped.join(", ")}
               </p>

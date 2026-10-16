@@ -91,6 +91,7 @@ function researchSchemaFor(format, withBets = false) {
     ...format.research.episodeFields(z, Answer),
     ...(format.hasMerge ? { merged: Answer.describe(mergedText(group)) } : {}),
     rulesNote: z.string().nullable().describe(RULES_NOTE),
+    sourcesRead: SourcesRead,
     castaways: z
       .array(entry)
       .describe("EXACTLY ONE ENTRY PER CASTAWAY in the list you were sent, in that same order, including anyone nothing happened to."),
@@ -102,11 +103,31 @@ const newGroupText = (group) =>
   `Only if their ${group} CHANGED in this episode -- a swap, a re-division into new ${group}s, a ${group} ` +
   `dissolved, or the merge: the ${group} they are on at the END of this episode, exactly as the show names ` +
   `it (the merged ${group}'s name at the merge). Compare against the ${group} shown next to their name in ` +
-  `the list you were sent. Null if they are still on that ${group}.`;
+  `the list you were sent. Null if they are still on that ${group}. Someone who moved and then left the ` +
+  `game in this same episode (swapped, then voted out) still moved: give the ${group} they left from.`;
 
 const mergedText = (group) =>
   `Is the game merged by the end of this episode -- the ${group}s have become one group, in this episode ` +
   `or an earlier one? 'yes' from the merge episode on.`;
+
+// Every page read for the episode with its own dates, as the page shows them. Not used to score: it's
+// the record of how soon after airing recaps appear (and get corrected), to learn when research is
+// worth running for a show.
+const SourcesRead = z
+  .array(
+    z.object({
+      url: z.string(),
+      published: z
+        .string()
+        .nullable()
+        .describe(
+          "When the page says it was first published, as precisely as it shows: ISO 8601 with time and timezone " +
+            "if shown ('2026-10-15T09:12:00-04:00'), else just the date ('2026-10-15'). Null if it shows none."
+        ),
+      updated: z.string().nullable().describe("When the page says it was last updated, the same way. Null if it shows none."),
+    })
+  )
+  .describe("Every article or page you read for this episode, once each, with the dates the page itself shows.");
 
 // Worded against noise above all: a note that fires every week ("someone found an idol!") would teach
 // the admin to ignore the Rules row, which is worse than no flag. So it asks only about the GAME's
@@ -326,9 +347,20 @@ function parseJsonAnswer(text, schema, label) {
   try {
     raw = JSON.parse(cleaned);
   } catch (e) {
-    throw new Error(`${label}: the model's answer wasn't valid JSON (${e.message}).`);
+    // Chat UIs' copy buttons sometimes escape Markdown characters ("\[", "\_", "\*"). A backslash before
+    // anything but a real JSON escape can't be meant, so drop it and try once more. Pairs are read left
+    // to right, so a genuine "\\" stays a backslash.
+    try {
+      raw = JSON.parse(unescapeMarkdown(cleaned));
+    } catch {
+      throw new Error(`${label}: the model's answer wasn't valid JSON (${e.message}).`);
+    }
   }
   return validateLeniently(raw, schema, label);
+}
+
+function unescapeMarkdown(text) {
+  return text.replace(/\\(.)/gs, (pair, ch) => ('"\\/bfnrtu'.includes(ch) ? pair : ch));
 }
 
 // A value outside one of the checklist's fixed lists -- an exit method the show's rules don't have
@@ -1013,6 +1045,10 @@ function validateResearch(parsed, castNames, terms, format, opts = {}) {
     }
   }
 
+  // Checks across the whole cast (formats/define.js episodeProblems), after the per-person ones.
+  if (format.research.episodeProblems) problems.push(...format.research.episodeProblems(parsed));
+  problems.push(...tribalGroupProblems(parsed, castNames, format, opts.groups));
+
   const answered = [...byName.values()];
   const counts = {
     castaways: answered.length,
@@ -1021,6 +1057,33 @@ function validateResearch(parsed, castNames, terms, format, opts = {}) {
     sourced: answered.filter((e) => e.sources && e.sources.length).length,
   };
   return { entries: answered, problems, fatal, counts };
+}
+
+// Before the merge, one Tribal is one group's: someone there whose group (after this episode's moves)
+// isn't the others' is most likely a missed move -- a swapped castaway voted out the same night, whose
+// move a chat leaves out because they're gone. The move is filled in, so it stages as a group change the
+// reviewer can reject, and reported. Only where the format has groups and the answers say who attended.
+function tribalGroupProblems(parsed, castNames, format, groups) {
+  if (!format.hasGroups || !groups || (parsed && parsed.merged === "yes")) return [];
+  const asked = (name) => castNames.find((n) => n.toLowerCase() === String(name || "").trim().toLowerCase());
+  const at = ((parsed && parsed.castaways) || [])
+    .filter((c) => c.attendedTribal === "yes")
+    .map((c) => ({ entry: c, name: c.name, group: (typeof c.newGroup === "string" && c.newGroup.trim()) || groups[asked(c.name)] || null }))
+    .filter((c) => c.group);
+  if (at.length < 3) return [];
+  const counts = new Map();
+  for (const c of at) counts.set(c.group.toLowerCase(), (counts.get(c.group.toLowerCase()) || 0) + 1);
+  const [top, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  // Two groups at Tribal in anything like equal numbers is a joint Tribal, not a missed move: only a
+  // clear majority (4 of 5, say) is one tribe's Tribal with someone left off.
+  if (n < at.length * 0.75) return [];
+  const tribe = at.find((c) => c.group.toLowerCase() === top).group;
+  return at
+    .filter((c) => c.group.toLowerCase() !== top)
+    .map((c) => {
+      c.entry.newGroup = tribe;
+      return `${c.name} was at ${tribe}'s Tribal but was still on ${c.group}: added a move to ${tribe} (reject it in review if that's wrong)`;
+    });
 }
 
 // ---------- who to ask about ----------
@@ -1374,6 +1437,13 @@ function mergeResearchPayload(stored, incoming, { fill = false } = {}) {
   const payload = { ...stored };
   for (const [key, value] of Object.entries(incoming)) {
     if (key === "castaways" || key === "betAnswers") continue;
+    // Pages read are pooled across runs, by URL, the newer run's dates winning.
+    if (key === "sourcesRead") {
+      const byUrl = new Map();
+      for (const src of [...(stored.sourcesRead || []), ...(value || [])]) if (src && src.url) byUrl.set(src.url, src);
+      payload.sourcesRead = [...byUrl.values()];
+      continue;
+    }
     const empty = value == null || value === "unknown";
     if (!empty || stored[key] == null) payload[key] = value;
   }
@@ -1686,7 +1756,9 @@ function buildPastePrompt(ctx, bets, { structured = false, pasteBack = null } = 
         "Answer in plain prose or bullet points, one section per person, in the order given -- not JSON,",
         "not a table. Say plainly when you don't know something rather than guessing.",
         "",
-        "Start with the episode's title, air date and a two- or three-sentence summary. Then one line,",
+        "Start with the episode's title, air date and a two- or three-sentence summary. List every page you",
+        "read with the date it says it was published (and last updated, if it says), with the time if shown.",
+        "Then one line,",
         `"Rules note:", answering this: ${RULES_NOTE.replace(/\bNull\b/g, "None")}`,
         "Then, for EACH person, cover every one of these (say \"no\" or \"not reported\" rather than skipping one):",
         ...proseChecklist(ctx.format),

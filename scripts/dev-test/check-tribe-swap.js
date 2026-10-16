@@ -5,6 +5,7 @@
 //   - the answer's newGroup stages one tribe move per person who changed (none for someone who stayed)
 //   - accepting the episode gives the league a third tribe and puts everyone on the right one,
 //     including the person voted out that episode
+//   - "clear everything" for the episode takes it all back out: starting tribes, nobody out, no rows
 //
 //   node scripts/dev-test/check-tribe-swap.js up
 //   node scripts/dev-test/check-tribe-swap.js run          (needs `up` + npm run dev)
@@ -133,6 +134,19 @@ async function run(pool) {
     check(!wrong.length, wrong.length ? `on the wrong tribe: ${wrong.map((w) => w[0]).join(", ")}` : "everyone on their new tribe");
     const cal = state.castaways.find((c) => c.name === BOOTED);
     check(cal.status === "eliminated" && tribeName.get(cal.tribeId) === "Savu", `${BOOTED} out, last on Savu`);
+
+    // Clear everything (the episode page's last resort for accepted bad data): the league goes back to
+    // how it was before episode 4 -- starting tribes, nobody out -- and the episode has no rows left.
+    const cleared = await api("delete", `/api/admin/seasons/${seasonId}/research?episode=4&scope=everything`);
+    check(cleared.leaguesUndone === 1, `clear everything: taken back out of ${cleared.leaguesUndone} league(s)`);
+    const { rows: after } = await pool.query(`SELECT state FROM leagues WHERE slug=$1`, [SLUG]);
+    const s2 = after[0].state;
+    const name2 = new Map(s2.tribes.map((t) => [t.id, t.name]));
+    const moved = CAST.filter(([n, start]) => name2.get(s2.castaways.find((c) => c.name === n).tribeId) !== start);
+    check(!moved.length, moved.length ? `still moved after clearing: ${moved.map((m) => m[0]).join(", ")}` : "everyone back on their starting tribe");
+    check(s2.castaways.every((c) => c.status === "active"), "nobody out after clearing");
+    const { rows: left } = await pool.query(`SELECT count(*)::int n FROM season_decisions WHERE season_id=$1 AND episode_number=4`, [seasonId]);
+    check(left[0].n === 0, `episode 4 rows left: ${left[0].n}`);
   } finally {
     await close();
   }

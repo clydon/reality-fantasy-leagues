@@ -28,10 +28,13 @@ const WIKI_CODE = ['episodesSchema', 'episodesPrompt', 'rejectEvent', 'derivedEv
 const WIKI_ORDER = ['version', 'voteSections', 'guideSections', 'contextSections', 'missingVotesNote', 'missingGuideNote', 'castNote', 'eventTypes', 'episodesSchema', 'episodesPrompt', 'rejectEvent', 'derivedEvents', 'roles', 'routineEliminations'];
 const RESEARCH_DATA = ['checklist', 'episodeFields', 'searchHint', 'claims'];
 const RESEARCH_CODE = ['entryProblems', 'notes', 'sentences'];
+// Code a format MAY supply: episodeProblems(payload) checks answers against each other across the whole
+// cast (who attended Tribal against who won immunity, say), repairing what it must and reporting it.
+const RESEARCH_OPTIONAL_CODE = ['episodeProblems'];
 const ROLES_DATA = ['default', 'values'];
 const ROLES_CODE = ['roleFor'];
 // Keys research's episode-level answer already has (db/episode-research.js researchSchemaFor).
-const EPISODE_RESERVED = ['episodeTitle', 'airDate', 'summary', 'rulesNote', 'castaways', 'betAnswers'];
+const EPISODE_RESERVED = ['episodeTitle', 'airDate', 'summary', 'rulesNote', 'castaways', 'betAnswers', 'merged', 'sourcesRead'];
 
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
 const isTextList = (v, { empty = true } = {}) => Array.isArray(v) && (empty || v.length > 0) && v.every(isText);
@@ -181,7 +184,7 @@ function defineFormat(data, code) {
   if (problems.length) throw new Error(`format ${data && data.id}: ${problems.join('; ')}`);
   for (const k of Object.keys(code)) if (!CODE_KEYS.includes(k)) throw new Error(`format ${data.id}: code can't supply "${k}"`);
   checkCode(code.wiki, WIKI_CODE, `format ${data.id} wiki`);
-  checkCode(code.research, RESEARCH_CODE, `format ${data.id} research`);
+  checkCode(code.research, [...RESEARCH_CODE, ...RESEARCH_OPTIONAL_CODE], `format ${data.id} research`);
   checkCode(code.roles, ROLES_CODE, `format ${data.id} roles`);
   for (const k of ['episodesSchema', 'episodesPrompt', 'rejectEvent']) {
     if (!code.wiki || !code.wiki[k]) throw new Error(`format ${data.id}: wiki.${k} is missing`);
@@ -203,7 +206,7 @@ function defineFormat(data, code) {
     impliedEvents: data.rules.implied.length ? impliedEventsFrom(data.rules.implied, data) : undefined,
     roles: data.roles && ordered([...ROLES_DATA, ...ROLES_CODE], data.roles, code.roles),
     wiki: ordered(WIKI_ORDER, data.wiki, code.wiki),
-    research: ordered(['checklistSchema', 'episodeFields', 'searchHint', 'entryProblems', 'claims', 'items', 'notes', 'sentences'], research, code.research),
+    research: ordered(['checklistSchema', 'episodeFields', 'searchHint', 'entryProblems', 'episodeProblems', 'claims', 'items', 'notes', 'sentences'], research, code.research),
   });
   if (!format.roles) delete format.roles;
   if (!format.impliedEvents) delete format.impliedEvents;
