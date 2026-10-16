@@ -154,12 +154,12 @@ export function ActionBar() {
     notifications: "Alerts",
     draftTurn: "Your pick",
     blindDraft: "Draft",
-    midSeasonTurn: "Your turn",
     lineup: "Lineup",
     pick: "Pick",
     prediction: "Predict",
     lateJoin: "Start",
     results: "Results",
+    pickup: "Pickup",
   };
   const plateBtn = "flex min-h-11 min-w-11 items-center justify-center bg-plate text-plate-foreground hover:bg-[#f1eff6]";
   const title = "type-caption line-clamp-2 text-[19px] leading-[1.05] [overflow-wrap:anywhere] [text-wrap:pretty]";
@@ -207,9 +207,13 @@ export function ActionBar() {
           ) : (
             <button className="flex min-w-0 flex-1 items-center gap-2 py-2.5 pl-3 pr-2 text-left hover:bg-[#f1eff6]" onClick={() => open(item)}>
               <span className="min-w-0 flex-1">
-                <span className={title}>{item.text}</span>
+                <span className={title}>
+                  {item.text}
+                  {item.by ? ` by ${byWhen(item.by)}` : ""}
+                </span>
                 <span className={cn("mt-0.5 block truncate text-[13px] text-plate-muted", item.leagueId !== hereId && "font-semibold text-plate-foreground")}>
                   {item.leagueId === hereId ? item.leagueName : `in ${item.leagueName}`}
+                  {item.detail ? ` · ${item.detail}` : ""}
                 </span>
               </span>
               <ChevronRight className="size-[18px] shrink-0" strokeWidth={2.4} aria-hidden />
@@ -232,4 +236,13 @@ export function ActionBar() {
       {statusPlate}
     </>
   );
+}
+
+/** A pickup's deadline in the viewer's own time: "Tue 8 PM" this week, else "Oct 21, 8 PM". */
+function byWhen(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: d.getMinutes() ? "2-digit" : undefined });
+  const day = Math.abs(d.getTime() - Date.now()) < 6 * 86_400_000 ? d.toLocaleDateString([], { weekday: "short" }) : d.toLocaleDateString([], { month: "short", day: "numeric" }) + ",";
+  return `${day} ${time}`;
 }

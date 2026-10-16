@@ -12,7 +12,7 @@ import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
-import { midseasonBadge } from "@/lib/game/selectors";
+import { waiversBadge } from "@/lib/game/selectors";
 import { myLineupDue } from "@/lib/game/lineup-view";
 import { myPickDue } from "@/lib/game/pool-view";
 import { commissionerItems } from "@/lib/game/commissioner-items";
@@ -60,7 +60,7 @@ const TABS: { href: string; label: string; icon: Icon }[] = [
   { href: "/lineup", label: "Lineup", icon: LineupIcon },
   { href: "/pick", label: "Pick", icon: PickIcon },
   { href: "/draft", label: "Draft", icon: DraftIcon },
-  { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon },
+  { href: "/waivers", label: "Waivers", icon: ShuffleIcon },
   { href: "/research", label: "Research", icon: ResearchIcon },
   { href: "/chat", label: "Chat", icon: ChatIcon },
   { href: "/setup", label: "League Settings", icon: GearIcon },
@@ -84,26 +84,27 @@ export function Sidebar() {
   // views onto the demo season they didn't ask for -- so they get the two rows below instead.
   const hasSeason = mode === "live" || isPreviewingDemo;
 
-  // Only the pages this league has: Draft and Mid-Season are roster concepts (and Mid-Season only
-  // when the commissioner turned Pickups or Swap on -- the route would refuse otherwise); Lineup and
-  // Research are Active Roster's; Pick is Eliminator Pool's.
+  // Only the pages this league has: Draft is a roster concept; Waivers (docs/PLAN-midseason-waivers.md)
+  // only when the commissioner turned Pickups or Add/drops on, and not in Active Roster, which keeps them
+  // inside Research, as on phones, so Research carries the mark instead; Lineup and Research are Active
+  // Roster's; Pick is Eliminator Pool's.
   const type = StateLogic.getLeagueType(state);
-  const hasMidSeason = StateLogic.replenishAvailable(state) || StateLogic.tradeAvailable(state);
+  const waivers = StateLogic.WaiverLogic.enabled(state);
   const tabs = TABS.filter(
     (t) =>
-      !((t.href === "/draft" || t.href === "/mid-season") && !type.hasRoster) &&
-      !(t.href === "/mid-season" && !hasMidSeason) &&
+      !(t.href === "/draft" && !type.hasRoster) &&
+      !(t.href === "/waivers" && (!waivers || type.hasActiveRoster)) &&
       !((t.href === "/research" || t.href === "/lineup") && !type.hasActiveRoster) &&
       !(t.href === "/pick" && !type.hasWeeklyPicks),
   );
 
-  // The tab bar's badges: a "needs you" mark on Lineup, Pick and Mid-Season (and any page with its
+  // The tab bar's badges: a "needs you" mark on Lineup, Pick and Waivers (and any page with its
   // own pending notifications), chat's unread count as a quiet chip, and a chyron dot on League
   // Settings while a commissioner to-do waits there.
   function badgeFor(href: string): Badge | null {
-    if (href === "/mid-season") {
-      const b = midseasonBadge(state, myPlayerId);
-      return b ? { kind: "urgent", label: b.label } : null;
+    if (href === "/waivers" || (href === "/research" && waivers)) {
+      const b = waiversBadge(state, myPlayerId);
+      return b?.urgent ? { kind: "urgent", label: b.label } : null;
     }
     if (href === "/lineup" && myLineupDue(state, myPlayerId)) return { kind: "urgent", label: "!" };
     if (href === "/pick" && myPickDue(state, myPlayerId)) return { kind: "urgent", label: "!" };

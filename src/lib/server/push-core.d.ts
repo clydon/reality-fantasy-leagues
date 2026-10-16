@@ -3,8 +3,10 @@ import type { Pool } from "pg";
 
 export type NotificationType =
   | "draftTurn"
-  | "midSeasonTurn"
+  | "waivers"
+  | "waiverReminder"
   | "reminder"
+  | "resultsDue"
   | "episodeResults"
   | "newBet"
   | "betResult"

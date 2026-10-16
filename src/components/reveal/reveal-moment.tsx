@@ -16,6 +16,8 @@ import { castawayPhotoSrc } from "@/lib/game/selectors";
 import { episodeExits, ownersLine } from "@/components/episodes/episode-status";
 import { episodesLabel } from "@/components/results-in-banner";
 import { CaptionPlate } from "@/components/ui/caption-plate";
+import { shortNames } from "@/components/draft/draft-ui";
+import { andList, waiversBase, when } from "@/components/waivers/waivers-model";
 import { cn } from "cn";
 
 // The reveal, one beat at a time (the canvas's "A · Spoilers & reveal" → Reveal-Moment): a "previously
@@ -38,6 +40,7 @@ export function RevealMoment({ through: asked }: { through: number }) {
   const leagueName = useLeagueStore((s) => s.leagueName);
   const seen = useLeagueStore((s) => s.membership?.resultsSeenThrough);
   const me = useLeagueStore((s) => s.membership?.playerId ?? null);
+  const touring = useLeagueStore((s) => s.touring);
   const markResultsSeen = useLeagueStore((s) => s.markResultsSeen);
   const showName = useShowTerms().showName ?? leagueName ?? "";
 
@@ -74,9 +77,11 @@ export function RevealMoment({ through: asked }: { through: number }) {
       const full = StateLogic.GhostLogic.viewFor(res.state, mine, res.membership?.resultsSeenThrough ?? null, { full: true }) as LeagueState;
       return [{ name: res.league.name, state: full, me: mine }];
     });
-    return buildBeats(fullState, from, through, me, linked ? { name: leagueName ?? "", others } : null);
+    const all = buildBeats(fullState, from, through, me, linked ? { name: leagueName ?? "", others } : null);
+    // The guided tour takes you to waivers itself, after the scoreboard and chat: "Your move" would skip ahead.
+    return touring ? all.filter((b) => b.kind !== "move") : all;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `fetched` is a new array every render; `waiting` is when its data lands
-  }, [fullState, from, through, me, linked, leagueName, waiting]);
+  }, [fullState, from, through, me, linked, leagueName, waiting, touring]);
   const [step, setStep] = useState(0);
   if (through < 1) return null;
 
@@ -141,6 +146,28 @@ export function RevealMoment({ through: asked }: { through: number }) {
             </div>
           )}
 
+          {beat.kind === "move" && (
+            <div className="flex flex-1 flex-col justify-center gap-[18px] px-4 pb-6">
+              {beat.recap.map((r) => (
+                <CaptionPlate key={r.key} size="sm" tone={r.tone} tag={r.tag} title={r.title} className="opacity-75" />
+              ))}
+              <span className="type-caption mt-4 text-[64px] leading-[0.9]">Your move</span>
+              <CaptionPlate tag={beat.tag} image={beat.image} title={beat.title} subtitle={beat.subtitle} className="min-h-[68px]" />
+              <p className="text-base leading-normal">{beat.lede}</p>
+              <div className="pointer-events-auto mt-2.5 flex flex-col gap-2.5">
+                <Link
+                  href={beat.href}
+                  className="type-caption flex min-h-[52px] items-center justify-center rounded-[3px] bg-plate px-5 text-[20px] text-plate-foreground shadow-plate transition-[filter] hover:brightness-[0.94] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
+                >
+                  {beat.cta}
+                </Link>
+                <Link href={recap} className="flex min-h-11 items-center justify-center text-[15px] font-semibold text-muted-foreground hover:text-foreground">
+                  Later
+                </Link>
+              </div>
+            </div>
+          )}
+
           {beat.kind === "you" && (
             <div className="flex flex-1 flex-col items-start justify-center gap-3 px-6">
               {beat.league && (
@@ -195,7 +222,20 @@ type Win = { key: string; tag: string; tagStyle?: CSSProperties; title: string; 
 type WinBeat = { kind: "win"; ep: number; key: string; plates: Win[] };
 type ExitBeat = { kind: "exit"; ep: number; key: string; c: Castaway; method: string; detail: string };
 type YouBeat = { kind: "you"; title: string; hero: string | null; heroLabel?: string; lines: string[]; league?: { name: string; type: string } };
-type Beat = { kind: "bumper" } | WinBeat | ExitBeat | YouBeat;
+/** Waivers' last beat (docs/PLAN-midseason-waivers.md, the canvas's board 12): what's yours to do now. */
+type MoveBeat = {
+  kind: "move";
+  tag: string;
+  title: string;
+  subtitle: string;
+  image?: string;
+  lede: string;
+  href: string;
+  cta: string;
+  /** What came before, small: your castaways who left, and your score. */
+  recap: { key: string; tone: "live" | "quiet"; tag: string; title: string }[];
+};
+type Beat = { kind: "bumper" } | WinBeat | ExitBeat | YouBeat | MoveBeat;
 
 function WinPlate({ win, small }: { win: Win; small?: boolean }) {
   return (
@@ -262,10 +302,14 @@ function buildBeats(fullState: LeagueState, from: number, through: number, me: s
   const before = StateLogic.SpoilerLogic.viewThrough(fullState, from - 1) as LeagueState;
   const after = StateLogic.SpoilerLogic.viewThrough(fullState, through) as LeagueState;
   const eps = episodesIn(after, from, through);
-  const mine = (c: Castaway) => !!me && c.ownerIds.includes(me);
+  // Whose a castaway was is read as of just before their episode: a pickup made since (waivers may have
+  // processed before this viewer revealed) takes the one who left off your roster in "after".
+  let asOf = before;
+  const mine = (c: Castaway) => !!me && (StateLogic.getCastaway(asOf, c.id) ?? c).ownerIds.includes(me);
 
   const beats: Beat[] = [{ kind: "bumper" }];
   for (const ep of eps) {
+    asOf = ep.number === from ? before : (StateLogic.SpoilerLogic.viewThrough(fullState, ep.number - 1) as LeagueState);
     for (const w of episodeRecapWins(after, ep)) {
       const what = `Wins ${w.label.toLowerCase()}`;
       const plates: Win[] = [];
@@ -302,7 +346,7 @@ function buildBeats(fullState: LeagueState, from: number, through: number, me: s
         detail: [
           tribe?.name,
           typeof ev.juryVotes === "number" && `${ev.juryVotes} jury vote${ev.juryVotes === 1 ? "" : "s"}`,
-          ownersLine(after, c, me),
+          ownersLine(asOf, c, me),
         ]
           .filter(Boolean)
           .join(" · "),
@@ -318,6 +362,8 @@ function buildBeats(fullState: LeagueState, from: number, through: number, me: s
     const a = StateLogic.SpoilerLogic.viewThrough(o.state, through) as LeagueState;
     beats.push({ ...youBeat(b, a, episodesIn(a, from, through), o.me), league: tag(a, o.name) });
   }
+  const move = moveBeat(after, through, me, beats, mineBeat);
+  if (move) beats.push(move);
   return beats;
 }
 
@@ -412,4 +458,95 @@ function youBeat(before: LeagueState, after: LeagueState, eps: LeagueState["epis
     }
   }
   return { kind: "you", title, hero, heroLabel, lines };
+}
+
+// Waivers opened by the episode just revealed, and something of yours to do in them: a pickup you're
+// owed (claims, or free agency once they've processed), else an add/drop week. Nothing to do, no beat.
+function moveBeat(after: LeagueState, through: number, me: string | null, beats: Beat[], you: YouBeat): MoveBeat | null {
+  const W = StateLogic.WaiverLogic;
+  if (!me || !W.enabled(after)) return null;
+  const p = W.current(after);
+  if (!p || p.hidden || p.episode !== through) return null;
+  const player = StateLogic.getPlayer(after, me);
+  if (!player || player.disabled || player.active === false || player.ghost) return null;
+  const base = waiversBase(after);
+  const now = Date.now();
+  const fa = W.freeAgencyOn(after);
+  const activeRoster = !!StateLogic.getLeagueType(after).hasActiveRoster;
+  const owed = W.pickupsOwed(after, me);
+  const names = shortNames(after.castaways);
+  const name = (id: string) => names.get(id) ?? "?";
+  const losses = owed.lossIds.map((id) => StateLogic.getCastaway(after, id)).filter((c): c is Castaway => !!c);
+  const next = through + 1;
+  const day = p.processAt ? new Date(p.processAt).toLocaleDateString(undefined, { weekday: "long" }) : null;
+  const addDrop = p.addDrop && StateLogic.tradeAvailable(after) && !W.addDropUsed(after, p, me);
+  const recap: MoveBeat["recap"] = [
+    ...beats.flatMap((b) =>
+      b.kind === "exit" && b.ep === through && losses.some((c) => c.id === b.c.id) ? [{ key: b.key, tone: "live" as const, tag: b.method, title: b.c.name }] : [],
+    ),
+    { key: "you", tone: "quiet", tag: "You", title: [you.title, you.hero].filter(Boolean).join(" ") },
+  ];
+  const pickupTitle = activeRoster ? `Down to ${StateLogic.MidSeasonLogic.inGameCount(after, me)} still in` : `Replace ${andList(losses.map((c) => name(c.id)))}`;
+  const image = losses[0] ? castawayPhotoSrc(losses[0].photoUrl) ?? undefined : undefined;
+
+  if (p.phase === "open") {
+    const then = fa ? ` Then free agency runs until Episode ${next}.` : "";
+    const settle = `Nothing is decided until ${day ? `${day} night` : "waivers process"}, when every claim processes at once.${then}`;
+    if (owed.count) {
+      return {
+        kind: "move",
+        tag: "Pickup",
+        title: pickupTitle,
+        subtitle:
+          after.settings.ownershipMode === "shared"
+            ? `Choose who by ${when(p.processAt, now)}`
+            : `Claim up to ${W.maxPickupClaims(owed.count)} free agents by ${when(p.processAt, now)}`,
+        image,
+        lede: `${addDrop ? "Add/drops are open too, if you want one. " : ""}${settle}`,
+        href: `${base}/pickup`,
+        cta: "Make my claims",
+        recap,
+      };
+    }
+    if (addDrop) {
+      return {
+        kind: "move",
+        tag: "Add/drop",
+        title: "Add/drops are open",
+        subtitle: `Optional · claims by ${when(p.processAt, now)}`,
+        lede: `Drop one still in and add a free agent, if you want to. ${settle}`,
+        href: `${base}/add-drop`,
+        cta: "Make a claim",
+        recap,
+      };
+    }
+    return null;
+  }
+  if (!fa) return null;
+  if (owed.count) {
+    return {
+      kind: "move",
+      tag: "Pickup",
+      title: pickupTitle,
+      subtitle: "Waivers have processed · choose from free agency",
+      image,
+      lede: `Anyone still free is first come, first served until Episode ${next} airs. Still nobody by then and one is assigned, so you're never short.`,
+      href: `${base}/free-agency`,
+      cta: "Choose now",
+      recap,
+    };
+  }
+  if (addDrop) {
+    return {
+      kind: "move",
+      tag: "Add/drop",
+      title: "Your add/drop is open",
+      subtitle: `In free agency until Episode ${next} airs`,
+      lede: "Waivers have processed, but this week's add/drop is still yours, first come, first served.",
+      href: `${base}/free-agency`,
+      cta: "See free agents",
+      recap,
+    };
+  }
+  return null;
 }

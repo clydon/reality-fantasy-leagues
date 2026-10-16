@@ -186,7 +186,7 @@ function buildCastaways(
 }
 
 // A working example of Replenish and Swap in action, not just the toggle turned on -- an actual past
-// transaction to look at in Roster detail's former-roster row and the Mid-Season tab's history.
+// transaction to look at in Roster detail's former-roster row and Waivers' transactions.
 // There's no real-season basis for which specific players would make which specific roster moves
 // (this is league management, not a researched fact about the season), so -- same category as the
 // synthetic bets/events elsewhere in this file -- this deterministically picks one plausible
@@ -337,9 +337,8 @@ function emptyMidSeasonAndDraft(draftOrder: string[], draftPicksMade: number, lo
   return {
     finalePredictions: [],
     finaleActual: { top3: [], winner: null },
-    // `replenish`/`trade` (the IN-PROGRESS-round state) stay null -- simulateMidSeasonMoves already
-    // resolved its moves, there's no live turn to show. `log` is the completed history of them.
-    midSeason: { replenish: null, trade: null, log },
+    // `log`: the pickups and add/drops simulateMidSeasonMoves already made (Transactions).
+    midSeason: { log },
     draftOrder,
     draftPicksMade,
     draftForceStarted: true,
@@ -598,7 +597,6 @@ function buildActiveRosterDemo(data: DemoSeasonData, throughEpisode: number): Le
   let priority = [...data.players].reverse().map((p) => p.key);
   const bump = (playerKey: string) => (priority = [...priority.filter((k) => k !== playerKey), playerKey]);
   const moves: DemoMove[] = [];
-  let lastSwapAfterEpisode = 0;
 
   for (let e = 1; e <= lastEp; e++) {
     const ep = episodes[e - 1];
@@ -609,8 +607,7 @@ function buildActiveRosterDemo(data: DemoSeasonData, throughEpisode: number): Le
       ep.lineups[pid(p.key)] = ranked.slice(0, ACTIVE_ROSTER_ACTIVE_SLOTS).map(cid);
     }
     if (e >= data.episodeCount) {
-      // Nothing to replenish or swap for after the finale; a window that falls here has passed.
-      if (e % AR_SWAP_EVERY === 0) lastSwapAfterEpisode = e;
+      // Nothing to replenish or swap for after the finale.
       continue;
     }
     // The cursor's episode is "this week" (its lineups are still open), so what gets decided after it
@@ -642,7 +639,6 @@ function buildActiveRosterDemo(data: DemoSeasonData, throughEpisode: number): Le
 
     // Scheduled swap window.
     if (e % AR_SWAP_EVERY === 0) {
-      lastSwapAfterEpisode = e;
       for (const playerKey of [...priority]) {
         const roster = rosters.get(playerKey)!;
         const worst = roster
@@ -681,7 +677,7 @@ function buildActiveRosterDemo(data: DemoSeasonData, throughEpisode: number): Le
     castaways,
     episodes: shownEpisodes,
     ...emptyMidSeasonAndDraft(players.map((p) => p.id), players.length * rosterSize, log),
-    midSeason: { replenish: null, trade: null, log, priority: priority.map(pid), lastSwapAfterEpisode },
+    midSeason: { log, priority: priority.map(pid) },
     blindDraft: { lockedPlayerIds: players.map((p) => p.id), revealedAt: new Date(2026, 0, 1).toISOString() },
     settings: {
       ...baseSettings(data, "active-roster", rosterSize),

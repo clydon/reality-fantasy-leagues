@@ -14,6 +14,7 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { ActButton, CopyButton, StepNum } from "@/components/admin/admin-ui";
 import { Field, MoreButton, fieldCls } from "@/components/setup/settings-ui";
+import { applyOpensWaivers, useNow } from "@/components/waivers/waivers-model";
 import { cn } from "cn";
 
 // A commissioner's episode results, /episodes/N/research (the canvas's commissioner "Fill the gap"
@@ -56,6 +57,7 @@ export function EpisodeResultsPage({ number }: { number: number }) {
 }
 
 function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
+  const now = useNow();
   const router = useRouter();
   const source = useResultsSource();
   const setState = useLeagueStore((s) => s.setState);
@@ -177,6 +179,8 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
   const open = rows.filter((r) => !r.inLeague);
   const applied = rows.filter((r) => r.inLeague);
   const toApply = open.filter((r) => r.keep).length;
+  // Applying opens this week's waivers, in a league on them: say so, so it's never a surprise.
+  const waiverLine = applyOpensWaivers(state, ep.number, now);
   // An admin flagged something this league already has: worth a look, so it doesn't stay folded away.
   const flagged = applied.some((r) => r.status === "rejected");
   const showApplied = showOpened || flagged;
@@ -369,6 +373,7 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
           className="sticky bottom-[var(--tabbar-h)] z-40 -mx-4 mt-auto flex flex-col gap-2 border-t border-input bg-card px-4 py-3 shadow-bar nav:mx-0 nav:rounded-[3px] nav:border"
           data-tour="results-apply"
         >
+          {waiverLine && <p className="text-[13px] leading-snug text-muted-foreground">{waiverLine}</p>}
           <button
             type="button"
             disabled={busy || toApply === 0}

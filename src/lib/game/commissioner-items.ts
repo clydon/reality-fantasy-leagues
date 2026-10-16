@@ -55,35 +55,5 @@ export function commissionerItems(state: LeagueState): CommissionerItem[] {
     });
   }
 
-  const turn = StateLogic.currentDraftTurn(state);
-  const drafted = !!(turn && turn.isComplete);
-  const idle = !state.midSeason.replenish && !state.midSeason.trade;
-  if (type.hasRoster && drafted && idle) {
-    // Pickups are due when starting a round would find someone to pick (the same check the start
-    // button runs), tried on a copy.
-    if (StateLogic.replenishAvailable(state) && StateLogic.startReplenish(structuredClone(state))) {
-      const owed = state.players.filter((p) => StateLogic.replenishNeed(state, p.id) > 0).map((p) => p.name);
-      items.push({
-        id: "pickups",
-        title: "Pickups are due",
-        detail: type.hasActiveRoster && owed.length ? `Owed: ${owed.join(", ")}` : "Eliminated players can be replaced",
-        action: "Start",
-        href: "/mid-season",
-      });
-    }
-    if (type.hasActiveRoster && StateLogic.tradeAvailable(state)) {
-      const w = StateLogic.swapWindow(state);
-      if (w.due) {
-        items.push({
-          id: "swap",
-          title: "Swap window is open",
-          detail: `After episode ${w.afterEpisode}`,
-          action: "Start",
-          href: "/mid-season",
-        });
-      }
-    }
-  }
-
   return items;
 }

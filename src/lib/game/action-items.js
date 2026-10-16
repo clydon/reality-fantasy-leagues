@@ -52,6 +52,11 @@ function resultsHref(state, ep) {
   return showId && wikiSeason != null ? `/episodes/${ep.number}/research` : `/episodes/${ep.number}`;
 }
 
+// Where this league's Waivers pages live: Active Roster folds them into Research (its tab bar is full).
+function waiversHref(state) {
+  return StateLogic.getLeagueType(state).hasActiveRoster ? "/research/waivers" : "/waivers";
+}
+
 function resultsItem(state, ep) {
   return { kind: "results", text: `Fill in episode ${ep.number}'s results`, href: resultsHref(state, ep), episode: ep.number };
 }
@@ -70,7 +75,39 @@ function playerItems(state, playerId, seenThrough) {
     const view = G.viewFor(state, playerId, seenThrough);
     return liveItems(view, playerId).filter((it) => it.kind === "lineup" || it.kind === "pick");
   }
-  return liveItems(state, playerId);
+  return [...liveItems(state, playerId), ...waiverItems(state, playerId, seenThrough)];
+}
+
+// Waivers (docs/PLAN-midseason-waivers.md): only a pickup you owe, the one claim that isn't optional --
+// while waivers are open and you've no claim in, then in free agency while it's still unfilled. Add/drops
+// never make an item. A pickup says one of yours left, so nothing until you've revealed the week's
+// episode (`seenThrough` null: you see results as they come). `by` is the deadline, for the strip to
+// put in the viewer's own time ("Replace Jelly by Tue 8 PM"); `detail` follows the league's name.
+function waiverItems(state, playerId, seenThrough) {
+  const W = StateLogic.WaiverLogic;
+  const p = W.enabled(state) ? W.current(state) : null;
+  if (!p || (Number.isInteger(seenThrough) && seenThrough < p.episode)) return [];
+  const owed = W.pickupsOwed(state, playerId);
+  if (!owed.count) return [];
+  const names = owed.lossIds.map((id) => (StateLogic.getCastaway(state, id)?.name ?? "").split(" ")[0]).filter(Boolean);
+  const text = names.length > 1 ? `Replace ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : `Replace ${names[0] ?? "your castaway"}`;
+  const base = waiversHref(state);
+  if (p.phase === "open") {
+    if (p.claimsIn.includes(playerId)) return [];
+    const shared = state.settings.ownershipMode === "shared";
+    return [
+      {
+        kind: "pickup",
+        text,
+        href: `${base}/pickup`,
+        by: p.hold ? p.closesAt : p.processAt,
+        detail: shared ? "choose who you want" : `claim up to ${W.maxPickupClaims(owed.count)}`,
+        episode: p.episode,
+      },
+    ];
+  }
+  if (!W.freeAgencyOn(state)) return [];
+  return [{ kind: "pickup", text, href: `${base}/free-agency`, by: p.closesAt, detail: "free agency · first come", episode: p.episode }];
 }
 
 // The checks themselves, on whichever copy of the league the player is playing in.
@@ -91,15 +128,6 @@ function liveItems(state, playerId) {
         items.push({ kind: "draftTurn", text: "It's your turn to draft", href: "/draft" });
       }
     }
-  }
-
-  // Mid-season: your turn in a running pickup (replenish) or swap round.
-  const rep = StateLogic.currentReplenishTurn(state);
-  const repMine = !!(rep && !rep.isComplete && rep.playerId === playerId);
-  const trade = state.midSeason && state.midSeason.trade;
-  const tradeTurn = trade && trade.index < trade.queue.length ? trade.queue[trade.index].playerId : null;
-  if (repMine || tradeTurn === playerId) {
-    items.push({ kind: "midSeasonTurn", text: repMine ? "It's your turn to pick up a replacement" : "It's your turn to swap", href: "/mid-season" });
   }
 
   // Active Roster: this episode's lineup has open slots you could fill.
@@ -155,4 +183,4 @@ function liveItems(state, playerId) {
   return items;
 }
 
-module.exports = { actionItems, resultsDueEpisode, resultsHref };
+module.exports = { actionItems, resultsDueEpisode, resultsHref, waiversHref };

@@ -10,7 +10,7 @@
 // Every function takes `state` as its first argument instead of closing over a global.
 //
 // Organized as one class per game-logic domain (Core, ScoringLogic, DraftLogic, RosterLogic,
-// ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, Migrations). This is
+// MidSeasonLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, Migrations). This is
 // deliberately still ONE FILE, not one-file-per-class: the browser loads this via a plain
 // <script> tag with no bundler, so a real multi-file split would need either `require()` (which
 // doesn't exist in that context) or a generated/concatenated bundle (which creates an ongoing
@@ -22,7 +22,7 @@
 //
 // Adding a new game-logic feature: add a static method to the relevant class below (or a new
 // class for a genuinely new domain), then add its alias in the `return {...}` block at the
-// bottom. Cross-domain calls are plain `OtherClass.method(state, ...)` — see ReplenishLogic
+// bottom. Cross-domain calls are plain `OtherClass.method(state, ...)` — see MidSeasonLogic
 // calling ScoringLogic, or RosterLogic calling DraftLogic, for the existing pattern.
 //
 // League types: DraftLogic and ScoringLogic below are thin dispatchers, not the real
@@ -43,7 +43,7 @@
 // pick/undo) and/or EliminationOrderScoringStrategy (compute) -- or reuse NoDraftStrategy as-is if
 // the new type has no draft either -- register it under a new LEAGUE_TYPES key, and set
 // supportsReplenish/supportsTrade/supportsFinalePredictions/hasRoster/hasWeeklyPicks for whether
-// those features apply to it. ReplenishLogic/TradeLogic deliberately are NOT behind this dispatch
+// those features apply to it. MidSeasonLogic/WaiverLogic deliberately are NOT behind this dispatch
 // yet -- they're mid-season features of the current league type, gated by those three support
 // flags, not an independently-varying axis on their own. A "weekly pick'em" league (no persistent
 // roster, no turn-based picks at all) almost certainly won't fit the DraftStrategy shape above --
@@ -112,10 +112,10 @@ function inPlay(state, episodeNumber){ return episodeNumber >= startEpisode(stat
 function hasAired(ep, now){ return !!(ep && ep.airsAt) && (now || Date.now()) >= Date.parse(ep.airsAt); }
 
 // The most recent in-play episode that has actually aired/been logged (EpisodeLogic.hasResults) --
-// what a Replenish or Swap made "now" is really tied to: the episode whose results just created the
+// what a pickup or add/drop made "now" is really tied to: the episode whose results just created the
 // opening (an elimination) or window (an active-roster upgrade), not some future episode number that
 // may not even exist yet. Null before anything has happened. Used to stamp MidSeasonLogEntry.episode
-// (ReplenishLogic.assign / TradeLogic.swap) so the transaction history can show "Episode N" instead
+// (MidSeasonLogic.log) so the transaction history can show "Episode N" instead
 // of a bare timestamp.
 function lastCompletedEpisode(state){
   const played = [...state.episodes].filter(e => inPlay(state, e.number) && EpisodeLogic.hasResults(e)).sort((a,b) => b.number - a.number);
@@ -1155,8 +1155,8 @@ const SHOWS = {
 //   an independent choice: exclusive means snake, shared means blind-with-reveal.
 // - supportsReplenish/supportsTrade -> false. Both are free-agent mechanics, and shared mode has no
 //   free agents (nothing is ever removed from availability). Left on, they'd be live buttons that
-//   silently accomplish nothing: ReplenishLogic.assign and TradeLogic.swap both refuse a castaway
-//   that already has an owner, and in shared mode every castaway does. A shared-mode replenish
+//   silently accomplish nothing: a pickup or add/drop takes only a castaway nobody owns, and in
+//   shared mode every castaway is owned. A shared-mode replenish
 //   COULD instead mean "add any still-active castaway" -- that's a real design question this plan
 //   doesn't answer, so it's left out rather than guessed at.
 //
@@ -1205,7 +1205,7 @@ function rosterSize(state){
 //      no free agents. Not the commissioner's call, it just doesn't mean anything there.
 //   2. CHOICE -- the commissioner turned it on (settings.replenishEnabled / tradeEnabled). Both
 //      default OFF: they're optional mid-season mechanics, not something every league runs.
-// Everything that shows or starts a round asks through here rather than reading either half on its
+// Everything that shows or opens waivers asks through here rather than reading either half on its
 // own, so the UI can't offer a round the route would refuse (or vice versa).
 function replenishAvailable(state){
   return !!getLeagueType(state).supportsReplenish && (state.settings && state.settings.replenishEnabled === true);
@@ -1662,20 +1662,33 @@ class RosterLogic {
 }
 
 // ---------- MidSeasonLogic: who may add whom, and in what order ----------
-// Shared by Replenish and Swap.
+// The moves waivers (WaiverLogic) are made of: pickups and add/drops.
 //
 // WHO IS AVAILABLE. Exclusive ownership: anyone still in the game that nobody owns (a free agent).
 // Shared ownership has no free agents -- nobody is ever taken off the board -- so there it's anyone
 // still in the game who isn't already on THIS player's roster. Same moves, one rule per mode.
 //
-// PRIORITY (settings.replenishOrderBy), for who goes first in a round:
-//   'rolling'     -- the default. Starts in reverse draft order; whoever actually makes a move goes to
-//                    the back, and the list carries over from round to round (a rolling waiver list:
-//                    being patient keeps you near the front).
-//   'leastPoints' -- standings, fewest points first, recomputed every round (a catch-up reset).
+// WAIVER ORDER (settings.replenishOrderBy):
+//   'rolling'     -- the default. Starts in reverse draft order; whoever's claim goes through goes to
+//                    the back, and the list carries over from week to week (being patient keeps you
+//                    near the front). WaiverLogic.process writes it.
+//   'leastPoints' -- standings, fewest points first, recomputed every week (a catch-up reset).
 //   'mostPoints'  -- standings, most points first (the old default; rewards a strong draft).
 // Order only decides anything when two players want the same castaway, which happens in exclusive
-// leagues. In a shared league everyone can add the same person, so it just orders the queue.
+// leagues. In a shared league everyone can add the same person, so it just orders the run.
+// The castaway fields a pickup or add/drop overwrites (MidSeasonLogic.applyPickup/applyAddDrop), kept
+// on its log entry as they were -- only the keys the castaway had, so undoing it puts back exactly what
+// was there: a key it didn't have is removed again, even after the state's trip through JSON.
+const ADDED_KEYS = ['acquiredVia'];
+const DROPPED_KEYS = ['replenishClaimed', 'formerOwnerId', 'departedVia'];
+function fieldsOf(c, keys){
+  const out = {};
+  keys.forEach(k => { if(Object.prototype.hasOwnProperty.call(c, k)) out[k] = c[k]; });
+  return out;
+}
+function restoreFields(c, was, keys){
+  keys.forEach(k => { if(was && Object.prototype.hasOwnProperty.call(was, k)) c[k] = was[k]; else delete c[k]; });
+}
 class MidSeasonLogic {
   static isShared(state){ return !!(state.settings && state.settings.ownershipMode === 'shared'); }
   static availableFor(state, playerId){
@@ -1713,14 +1726,6 @@ class MidSeasonLogic {
     const tiebreak = MidSeasonLogic.reverseDraftOrder(state);
     return [...playerIds].sort((a,b) => dir * (scoreOf(a) - scoreOf(b)) || tiebreak.indexOf(a) - tiebreak.indexOf(b));
   }
-  // After a real move (not a skip) on a rolling list, that player goes to the back.
-  static usedPriority(state, playerId){
-    if((state.settings.replenishOrderBy || 'rolling') !== 'rolling') return;
-    const list = MidSeasonLogic.priorityList(state).filter(id => id !== playerId);
-    list.push(playerId);
-    state.midSeason.priority = list;
-  }
-
   // ---- Active Roster's replenish threshold ----
   // settings.replenishAt: a roster down to this many castaways still in the game may replenish back
   // up to one more than it (default: one fewer than the active slots, i.e. the moment you can no
@@ -1744,8 +1749,8 @@ class MidSeasonLogic {
     return inGame <= at ? (at + 1) - inGame : 0;
   }
 
-  // ---- Active Roster's swap schedule ----
-  // settings.swapEvery: a swap window opens after every Nth episode the league plays (default 3).
+  // ---- The add/drop schedule ----
+  // settings.swapEvery: an add/drop week comes after every Nth episode the league plays (default 3).
   // Weekly is too often: it turns the league into chasing whoever won immunity last week, and makes
   // the draft matter less. Every three episodes is four or five windows in a normal season -- enough
   // to fix a bad pick or react to the merge.
@@ -1753,155 +1758,438 @@ class MidSeasonLogic {
     const n = Number(state.settings && state.settings.swapEvery);
     return Number.isInteger(n) && n >= 1 ? n : 3;
   }
-  /** { due, afterEpisode, nextAfterEpisode } -- whether a swap window is open now, and the next one. */
-  static swapWindow(state){
-    const every = MidSeasonLogic.swapEvery(state);
-    const start = startEpisode(state);
-    const last = lastCompletedEpisode(state);
-    const done = (state.midSeason && state.midSeason.lastSwapAfterEpisode) || 0;
-    const windowAt = k => start - 1 + k * every;
-    let latest = null;
-    if(last !== null){
-      const k = Math.floor((last - start + 1) / every);
-      if(k >= 1) latest = windowAt(k);
-    }
-    const due = latest !== null && latest > done && !MidSeasonLogic.seasonOver(state);
-    const nextAfterEpisode = due ? latest : windowAt((latest === null ? 0 : Math.floor((latest - start + 1) / every)) + 1);
-    return { due, afterEpisode: due ? latest : null, nextAfterEpisode };
-  }
-}
-
-// ---------- ReplenishLogic ----------
-class ReplenishLogic {
-  static start(state){
-    const scores = ScoringLogic.compute(state);
-    const scoreOf = playerId => (scores.find(s=>s.playerId===playerId)||{total:0}).total;
-    const winnerMethod = formatOf(state).winnerExitMethod;
-    const activeRoster = getLeagueType(state).hasActiveRoster;
-    const counts = state.players.map(p=>{
-      const losses = state.castaways.filter(c=> ownerListOf(c).includes(p.id) && c.status==='eliminated' && !c.replenishClaimed && c.exitMethod!==winnerMethod);
-      if(!activeRoster) return {playerId:p.id, losses, picks: losses.length, score: scoreOf(p.id)};
-      // Active Roster: only a roster down to the threshold is owed picks, and only enough to get back
-      // above it. Each pick releases one of their eliminated castaways (oldest first) when they have
-      // one, so a roster never grows past its size.
-      const picks = MidSeasonLogic.replenishNeed(state, p.id);
-      const oldestFirst = [...losses].sort((a,b) => (a.placementOrder||0) - (b.placementOrder||0));
-      return {playerId:p.id, losses: oldestFirst.slice(0, picks), picks, score: scoreOf(p.id)};
-    }).filter(x=>x.picks>0);
-    if(counts.length===0) return false;
-    // Order among them: the league's priority rule (see MidSeasonLogic).
-    const ranked = MidSeasonLogic.order(state, counts.map(x=>x.playerId));
-    counts.sort((a,b)=> ranked.indexOf(a.playerId) - ranked.indexOf(b.playerId));
-    // Build one pick PER TURN in snake order across players -- not everyone's whole allotment
-    // consecutively -- so someone owed 2+ picks can't claim the top 2 free agents before anyone
-    // else gets a turn. Direction reverses each round exactly like the original draft, same reason:
-    // whoever picks last in a round shouldn't also always pick last (or first) in every round.
-    const order = counts.map(x=>x.playerId);
-    const lossIdsByPlayer = {};
-    const scoreByPlayer = {};
-    const picksByPlayer = {};
-    counts.forEach(x=>{ lossIdsByPlayer[x.playerId] = x.losses.map(c=>c.id); scoreByPlayer[x.playerId] = x.score; picksByPlayer[x.playerId] = x.picks; });
-    const maxPicks = Math.max(...counts.map(x=>x.picks));
-    const sequence = [];
-    for(let round=0; round<maxPicks; round++){
-      const roundOrder = round % 2 === 0 ? order : [...order].reverse();
-      roundOrder.forEach(playerId=>{
-        if(picksByPlayer[playerId] > round) sequence.push({playerId, scoreAtStart: scoreByPlayer[playerId]});
-      });
-    }
-    // lossIdsByPlayer entries are only marked replenishClaimed as each pick is actually assigned
-    // (see ReplenishLogic.assign), so canceling mid-round never burns an unused credit.
-    state.midSeason.replenish = { sequence, index:0, lossIdsByPlayer };
-    return true;
-  }
-  // Mirrors DraftLogic.currentTurn's shape (playerId/personalPickNumber/overallPickNumber/isComplete)
-  // so the UI can reuse the same turn-banner treatment as the original draft.
-  static currentTurn(state){
-    const r = state.midSeason.replenish;
-    if(!r) return null;
-    if(r.index >= r.sequence.length) return { isComplete:true };
-    const turn = r.sequence[r.index];
-    const personalPickNumber = r.sequence.slice(0, r.index).filter(t=>t.playerId===turn.playerId).length + 1;
-    return { isComplete:false, playerId: turn.playerId, personalPickNumber, overallPickNumber: r.index+1, scoreAtStart: turn.scoreAtStart };
-  }
-  static assign(state, castawayId){
-    const r = state.midSeason.replenish;
-    if(!r || r.index>=r.sequence.length) return;
-    const c = Core.getCastaway(state, castawayId);
-    const turn = r.sequence[r.index];
-    if(!c || !MidSeasonLogic.isAvailableFor(state, castawayId, turn.playerId)) return;
+  // ---- The moves themselves, written in one place ----
+  // A pickup: the free agent joins, and the loss it replaces leaves this player's roster (its points
+  // stop counting; formerOwnerId/departedVia keep the history for the Scoreboard). An add/drop: one
+  // still in the game leaves (their points go with them), a free agent joins. Each appends one
+  // MidSeasonLogEntry, with `prev` -- the castaway fields it overwrote -- so revert() can undo it
+  // exactly. `extra` lands on the entry too (waivers' via/periodId/episode/at). Callers validate first.
+  static applyPickup(state, playerId, addId, lossId, extra){
+    const add = Core.getCastaway(state, addId);
+    const lost = lossId ? Core.getCastaway(state, lossId) : null;
     const shared = MidSeasonLogic.isShared(state);
-    if(shared) Core.addOwner(state, castawayId, turn.playerId);
-    else Core.setOwner(state, castawayId, turn.playerId);
-    c.acquiredVia = 'replenish';
-    const lossIds = r.lossIdsByPlayer[turn.playerId] || [];
-    const lossId = lossIds.pop();
-    const lostCastaway = lossId ? Core.getCastaway(state, lossId) : null;
-    if(lostCastaway){
-      lostCastaway.replenishClaimed = true;
-      // The replenish pick replaces this slot, so its points no longer count for this player —
-      // but formerOwnerId/departedVia keep the history so the Scoreboard can still show it.
+    const prev = { added: fieldsOf(add, ADDED_KEYS), dropped: lost ? fieldsOf(lost, DROPPED_KEYS) : null };
+    if(shared) Core.addOwner(state, addId, playerId);
+    else Core.setOwner(state, addId, playerId);
+    add.acquiredVia = 'replenish';
+    if(lost){
+      lost.replenishClaimed = true;
       // formerOwnerId stays a single id (history display only, not scoring).
-      lostCastaway.formerOwnerId = turn.playerId;
-      lostCastaway.departedVia = 'replenish';
+      lost.formerOwnerId = playerId;
+      lost.departedVia = 'replenish';
       // Shared: only this player lets go; anyone else who owns them keeps them.
-      if(shared) Core.removeOwner(state, lostCastaway.id, turn.playerId);
-      else Core.setOwner(state, lostCastaway.id, null);
+      if(shared) Core.removeOwner(state, lost.id, playerId);
+      else Core.setOwner(state, lost.id, null);
     }
-    MidSeasonLogic.usedPriority(state, turn.playerId);
+    return MidSeasonLogic.log(state, { type:'replenish', playerId, addedCastawayId: addId, droppedCastawayId: lost ? lost.id : null, prev, ...extra });
+  }
+  static applyAddDrop(state, playerId, dropId, addId, extra){
+    const drop = Core.getCastaway(state, dropId), add = Core.getCastaway(state, addId);
+    const prev = { added: fieldsOf(add, ADDED_KEYS), dropped: fieldsOf(drop, DROPPED_KEYS) };
+    drop.formerOwnerId = playerId;
+    drop.departedVia = 'trade';
+    Core.removeOwner(state, dropId, playerId);
+    if(MidSeasonLogic.isShared(state)) Core.addOwner(state, addId, playerId);
+    else Core.setOwner(state, addId, playerId);
+    add.acquiredVia = 'trade';
+    return MidSeasonLogic.log(state, { type:'trade', playerId, addedCastawayId: addId, droppedCastawayId: dropId, prev, ...extra });
+  }
+  static log(state, entry){
     // `|| []`: league rows are read from Postgres without migrateLeagueState, so a league that
     // predates the log (and 0008's backfill) has no array to push onto yet.
-    (state.midSeason.log = state.midSeason.log || []).push({
-      id: Core.uid('tx'), type:'replenish', playerId: turn.playerId,
-      addedCastawayId: castawayId, droppedCastawayId: lostCastaway ? lostCastaway.id : null,
-      at: new Date().toISOString(), episode: lastCompletedEpisode(state)
-    });
-    r.index++;
+    const tx = { id: Core.uid('tx'), at: new Date().toISOString(), episode: lastCompletedEpisode(state), ...entry };
+    (state.midSeason.log = state.midSeason.log || []).push(tx);
+    return tx;
   }
-  static cancel(state){ state.midSeason.replenish=null; }
+  // Undoes one logged move (several: newest first). Used by Undo last waiver run and by the spoiler
+  // views, which take back moves from episodes the viewer hasn't seen. Entries from before `prev` was
+  // recorded get their ownership back and lose the departure marks the move made.
+  static revert(state, tx){
+    const added = Core.getCastaway(state, tx.addedCastawayId);
+    if(added){
+      Core.removeOwner(state, added.id, tx.playerId);
+      if(tx.prev) restoreFields(added, tx.prev.added, ADDED_KEYS);
+    }
+    const dropped = tx.droppedCastawayId ? Core.getCastaway(state, tx.droppedCastawayId) : null;
+    if(dropped){
+      Core.addOwner(state, dropped.id, tx.playerId);
+      const was = tx.prev && tx.prev.dropped;
+      if(was) restoreFields(dropped, was, DROPPED_KEYS);
+      else {
+        if(tx.type === 'replenish') dropped.replenishClaimed = false;
+        dropped.formerOwnerId = null;
+        dropped.departedVia = null;
+      }
+    }
+  }
 }
 
-// ---------- TradeLogic ----------
-class TradeLogic {
-  // Active Roster runs swaps on a schedule (MidSeasonLogic.swapWindow): a round can only start while
-  // a window is open, and starting it closes that window. Returns false when there's no window.
-  static start(state){
-    const activeRoster = getLeagueType(state).hasActiveRoster;
-    if(activeRoster){
-      const w = MidSeasonLogic.swapWindow(state);
-      if(!w.due) return false;
-      state.midSeason.lastSwapAfterEpisode = w.afterEpisode;
+// ---------- WaiverLogic: mid-season moves as waivers (docs/PLAN-midseason-waivers.md) ----------
+// Private, ranked claims made while waivers are open, all processed at once in waiver order (pickups
+// first, then add/drops), then free agency -- first come, first served -- until the next episode airs.
+// Replaced the live one-at-a-time Pickups and Swap rounds (2026-10-16); every league with pickups or
+// add/drops on runs waivers.
+//
+// The CLAIMS never enter `state`: they're private, and state is returned wholesale by every route (the
+// reasoning is db/migrations/0060's, the same as blind draft's). So process() takes them as an argument,
+// and the server (src/lib/server/waivers.js) reads them from waiver_claims. What state holds is public:
+// each waiver week (midSeason.waivers.periods), who has claims in, and once processed, every outcome
+// and why.
+//
+// The clock is passed in (`now`, ms). due() says which step is waiting -- open, process, close or
+// cancel -- and the server runs it under the league lock, lazily, on any write or load.
+const HOUR_MS = 3600 * 1000;
+const WAIVER_HOURS = [12, 24, 48];
+// FNV-1a scaled to [0, 1): the "random" free agent an unfilled pickup gets, fixed per week and player
+// so processing the same state twice can never give two answers.
+function hashUnit(text){
+  let h = 0x811c9dc5;
+  for(let i = 0; i < text.length; i++){ h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h / 0x100000000;
+}
+const uniqIds = v => Array.isArray(v) ? [...new Set(v.filter(x => typeof x === 'string' && x))] : [];
+class WaiverLogic {
+  static enabled(state){
+    return replenishAvailable(state) || tradeAvailable(state);
+  }
+  static processHours(state){
+    const n = Number(state.settings && state.settings.waiverProcessHours);
+    return WAIVER_HOURS.includes(n) ? n : 24;
+  }
+  static freeAgencyOn(state){ return !(state.settings && state.settings.freeAgencyEnabled === false); }
+  static rolling(state){ return (state.settings.replenishOrderBy || 'rolling') === 'rolling'; }
+  static periods(state){ return (state.midSeason && state.midSeason.waivers && state.midSeason.waivers.periods) || []; }
+  /** The waiver week still running (open or in free agency), or null. */
+  static current(state){
+    const ps = WaiverLogic.periods(state);
+    const p = ps[ps.length - 1];
+    return p && p.phase !== 'closed' ? p : null;
+  }
+  static rotation(state){ return state.players.filter(inLeagueRotation).map(p => p.id); }
+  // After every `swapEvery` episodes of the league's own season.
+  static isAddDropEpisode(state, n){
+    if(!tradeAvailable(state) || !Number.isInteger(n)) return false;
+    const k = n - startEpisode(state) + 1;
+    return k >= 1 && k % MidSeasonLogic.swapEvery(state) === 0;
+  }
+  // { count, lossIds }: how many pickups this player is owed now, and the losses they'd replace, oldest
+  // first. Classic: one per castaway of theirs out of the game (not the winner) and not yet replaced.
+  // Active Roster: only once down to replenishAt still in, and only back up to one more (replenishNeed).
+  static pickupsOwed(state, playerId){
+    const none = { count: 0, lossIds: [] };
+    if(!replenishAvailable(state) || MidSeasonLogic.seasonOver(state)) return none;
+    if(!inLeagueRotation(Core.getPlayer(state, playerId))) return none;
+    const winnerMethod = formatOf(state).winnerExitMethod;
+    const losses = state.castaways
+      .filter(c => ownerListOf(c).includes(playerId) && c.status === 'eliminated' && !c.replenishClaimed && c.exitMethod !== winnerMethod)
+      .sort((a,b) => (a.placementOrder || 0) - (b.placementOrder || 0))
+      .map(c => c.id);
+    if(getLeagueType(state).hasActiveRoster){
+      const count = MidSeasonLogic.replenishNeed(state, playerId);
+      return { count, lossIds: losses.slice(0, count) };
     }
-    const active = state.players.filter(inLeagueRotation).map(p => p.id);
-    const order = MidSeasonLogic.order(state, active);
-    state.midSeason.trade = { queue: order.map(id=>({playerId:id})), index:0 };
-    return true;
+    return { count: losses.length, lossIds: losses };
   }
-  static swap(state, dropId, addId){
-    const t = state.midSeason.trade;
-    if(!t || t.index>=t.queue.length) return;
-    const turn = t.queue[t.index];
-    const drop = Core.getCastaway(state, dropId), add = Core.getCastaway(state, addId);
-    // Both halves or neither: a swap that could only drop (or only add) isn't the swap asked for.
-    const canDrop = drop && Core.isOwnedBy(state, dropId, turn.playerId) && drop.status==='active';
-    const canAdd = add && MidSeasonLogic.isAvailableFor(state, addId, turn.playerId);
-    if(!canDrop || !canAdd) return;
-    drop.formerOwnerId = turn.playerId;
-    drop.departedVia = 'trade';
-    Core.removeOwner(state, dropId, turn.playerId);
-    if(MidSeasonLogic.isShared(state)) Core.addOwner(state, addId, turn.playerId);
-    else Core.setOwner(state, addId, turn.playerId);
-    add.acquiredVia = 'trade';
-    MidSeasonLogic.usedPriority(state, turn.playerId);
-    (state.midSeason.log = state.midSeason.log || []).push({
-      id: Core.uid('tx'), type:'trade', playerId: turn.playerId,
-      addedCastawayId: addId, droppedCastawayId: dropId,
-      at: new Date().toISOString(), episode: lastCompletedEpisode(state)
+  /** Up to 3 ranked pickup claims; owed more than one, two spare beyond what's owed. */
+  static maxPickupClaims(owed){ return owed > 0 ? owed + 2 : 0; }
+  // A swap from the old live rounds after the same episode counts too (no periodId), so a league that
+  // switched to waivers mid-window can't swap twice.
+  static addDropUsed(state, period, playerId){
+    return ((state.midSeason && state.midSeason.log) || []).some(tx => tx.type === 'trade' && tx.playerId === playerId
+      && (tx.periodId === period.id || (!tx.periodId && tx.episode === period.episode)));
+  }
+
+  // ---- The clock ----
+  // processAt: waiverProcessHours before the next episode airs (or, results having come late, halfway
+  // between opening and airtime); closesAt: when it airs. With no air time to go by (no schedule, a
+  // catch-up league, or it already aired): processAt is waiverProcessHours after opening, and closesAt
+  // is null -- free agency then runs until the next episode's results arrive.
+  static schedule(state, period){
+    const H = WaiverLogic.processHours(state) * HOUR_MS;
+    const opened = Date.parse(period.openedAt);
+    const next = state.episodes.find(e => e.number === period.episode + 1);
+    const airs = next && next.airsAt ? Date.parse(next.airsAt) : NaN;
+    if(Number.isFinite(airs) && airs > opened){
+      const at = airs - H >= opened ? airs - H : opened + (airs - opened) / 2;
+      return { processAt: new Date(at).toISOString(), closesAt: new Date(airs).toISOString() };
+    }
+    return { processAt: new Date(opened + H).toISOString(), closesAt: null };
+  }
+  // Air times are stamped fresh on every read and write, so the running week's times follow them.
+  static refresh(state){
+    const p = WaiverLogic.current(state);
+    if(!p) return;
+    const s = WaiverLogic.schedule(state, p);
+    if(p.phase === 'open') p.processAt = s.processAt;
+    p.closesAt = s.closesAt;
+  }
+  /** The step waiting at `now`: 'open' | 'process' | 'close' | 'cancel' | null. */
+  static due(state, now){
+    const cur = WaiverLogic.current(state);
+    const last = lastCompletedEpisode(state);
+    if(cur){
+      if(!WaiverLogic.enabled(state)) return 'close';
+      // A later episode's results are in: this week is over, whatever the clock says.
+      const later = last !== null && last > cur.episode;
+      const { closesAt } = WaiverLogic.schedule(state, cur);
+      const closing = later || (!!closesAt && now >= Date.parse(closesAt));
+      if(cur.phase === 'open'){
+        const ep = state.episodes.find(e => e.number === cur.episode);
+        if(!later && !EpisodeLogic.hasResults(ep)) return 'cancel';
+        const { processAt } = WaiverLogic.schedule(state, cur);
+        return closing || (!cur.hold && now >= Date.parse(processAt)) ? 'process' : null;
+      }
+      return closing ? 'close' : null;
+    }
+    if(!WaiverLogic.enabled(state) || last === null || MidSeasonLogic.seasonOver(state)) return null;
+    const ps = WaiverLogic.periods(state);
+    const prev = ps[ps.length - 1];
+    if(prev && prev.episode >= last) return null;
+    // Every week while pickups are on, owed or not: a week that only opened when someone lost a
+    // castaway would say someone had. Add/drops alone open only their own weeks.
+    if(!replenishAvailable(state) && !WaiverLogic.isAddDropEpisode(state, last)) return null;
+    return 'open';
+  }
+  static open(state, now){
+    const n = lastCompletedEpisode(state);
+    if(!state.midSeason.waivers) state.midSeason.waivers = { periods: [] };
+    const p = {
+      id: Core.uid('wv'), episode: n, openedAt: new Date(now).toISOString(), processAt: null, closesAt: null,
+      phase: 'open', addDrop: WaiverLogic.isAddDropEpisode(state, n), claimsIn: [], run: null, autoFills: []
+    };
+    Object.assign(p, WaiverLogic.schedule(state, p));
+    state.midSeason.waivers.periods.push(p);
+    return p;
+  }
+  // The results that opened it were taken back (entered by mistake): the week never happened.
+  static cancel(state){
+    const p = WaiverLogic.current(state);
+    if(!p || p.phase !== 'open') return null;
+    state.midSeason.waivers.periods = WaiverLogic.periods(state).filter(x => x !== p);
+    return p;
+  }
+  static setClaimsIn(state, period, playerIds){ period.claimsIn = [...playerIds]; }
+
+  // ---- Claims ----
+  // Normalizes one player's claim against the league as it stands: { claim } or { error }. An empty
+  // claim (nothing asked for) is valid; the server deletes the row then.
+  static checkClaim(state, period, playerId, input){
+    if(!period || period.phase !== 'open') return { error: 'Claims are closed for this week' };
+    if(!inLeagueRotation(Core.getPlayer(state, playerId))) return { error: 'Not in this league’s waivers' };
+    const pickupIds = uniqIds(input && input.pickupIds);
+    const addIds = uniqIds(input && input.addIds);
+    const dropId = input && typeof input.dropId === 'string' && input.dropId ? input.dropId : null;
+    const free = new Set(MidSeasonLogic.availableFor(state, playerId).map(c => c.id));
+    if(pickupIds.length){
+      const owed = WaiverLogic.pickupsOwed(state, playerId).count;
+      if(!owed) return { error: 'You don’t have a pickup this week' };
+      const max = WaiverLogic.maxPickupClaims(owed);
+      if(pickupIds.length > max) return { error: `Claim up to ${max}` };
+      if(pickupIds.some(id => !free.has(id))) return { error: 'Claim free agents only' };
+    }
+    if(dropId || addIds.length){
+      if(!period.addDrop) return { error: 'No add/drops this week' };
+      if(WaiverLogic.addDropUsed(state, period, playerId)) return { error: 'You’ve made this week’s add/drop' };
+      if(!dropId) return { error: 'Choose who to drop' };
+      if(!addIds.length) return { error: 'Choose who to add' };
+      const drop = Core.getCastaway(state, dropId);
+      if(!drop || drop.status !== 'active' || !Core.isOwnedBy(state, dropId, playerId)) return { error: 'Drop someone still on your team' };
+      if(addIds.length > 3) return { error: 'Claim up to 3' };
+      if(addIds.some(id => !free.has(id))) return { error: 'Claim free agents only' };
+    }
+    return { claim: { pickupIds, dropId, addIds } };
+  }
+  static isEmptyClaim(claim){ return !claim || (!claim.pickupIds.length && !claim.dropId && !claim.addIds.length); }
+
+  // ---- Processing ----
+  // Runs every claim at once. claimsByPlayer: { playerId: { pickupIds, dropId, addIds } } (a player with
+  // no row has no claim). The order is frozen at the start: pickups first, a round at a time (everyone's
+  // first owed, then second...), then add/drops, each player getting their first choice still free. A
+  // castaway taken by anyone's pickup is gone for every add/drop; one just dropped can't be added until
+  // free agency. Rolling waivers: everyone whose claim went through goes to the back, in their order.
+  // Returns the run (also stored on the week), or null when there's no open week.
+  static process(state, claimsByPlayer, opts){
+    const p = WaiverLogic.current(state);
+    if(!p || p.phase !== 'open') return null;
+    const at = new Date((opts && opts.now) || Date.now()).toISOString();
+    const meta = { via: 'waivers', periodId: p.id, episode: p.episode, at };
+    const claimOf = id => (claimsByPlayer && claimsByPlayer[id]) || null;
+    const orderBefore = MidSeasonLogic.order(state, WaiverLogic.rotation(state));
+    const results = [];
+    const movers = new Set();
+    const takenBy = {};
+    const justDropped = new Set();
+    // Exclusive: one dropped in the run waits for free agency. Shared: someone else dropping them changes
+    // nothing for you, so they're as available as ever.
+    const shared = MidSeasonLogic.isShared(state);
+    const free = (id, pid) => (shared || !justDropped.has(id)) && MidSeasonLogic.isAvailableFor(state, id, pid);
+    const passed = (pid, id, kind) => {
+      const t = takenBy[id];
+      if(t && t.playerId === pid) return { castawayId: id, reason: 'yours' };
+      if(t) return { castawayId: id, reason: t.kind === 'pickup' && kind === 'addDrop' ? 'pickupFirst' : 'ahead', byPlayerId: t.playerId };
+      return { castawayId: id, reason: 'gone' };
+    };
+
+    const owed = {};
+    orderBefore.forEach(pid => { owed[pid] = WaiverLogic.pickupsOwed(state, pid).count; });
+    const rounds = Math.max(0, ...orderBefore.map(pid => owed[pid]));
+    const cursor = {};
+    for(let round = 0; round < rounds; round++){
+      orderBefore.forEach(pid => {
+        if(owed[pid] <= round) return;
+        const list = (claimOf(pid) && claimOf(pid).pickupIds) || [];
+        const r = { playerId: pid, kind: 'pickup', outcome: 'missed', passed: [] };
+        results.push(r);
+        if(!list.length){ r.outcome = 'noClaim'; return; }
+        let i = cursor[pid] || 0;
+        for(; i < list.length && !free(list[i], pid); i++) r.passed.push(passed(pid, list[i], 'pickup'));
+        cursor[pid] = i + 1;
+        if(i >= list.length) return;
+        const tx = MidSeasonLogic.applyPickup(state, pid, list[i], WaiverLogic.pickupsOwed(state, pid).lossIds[0] || null, meta);
+        takenBy[list[i]] = { playerId: pid, kind: 'pickup' };
+        Object.assign(r, { outcome: 'got', castawayId: list[i], droppedCastawayId: tx.droppedCastawayId, choice: i + 1, txId: tx.id });
+        movers.add(pid);
+      });
+    }
+
+    if(p.addDrop){
+      orderBefore.forEach(pid => {
+        const c = claimOf(pid);
+        const r = { playerId: pid, kind: 'addDrop', outcome: 'missed', passed: [] };
+        results.push(r);
+        if(!c){ r.outcome = 'noClaim'; return; }
+        if(!c.dropId || !(c.addIds || []).length){ r.outcome = 'skipped'; return; }
+        const drop = Core.getCastaway(state, c.dropId);
+        if(!drop || drop.status !== 'active' || !Core.isOwnedBy(state, c.dropId, pid)){ r.dropGone = true; return; }
+        const i = c.addIds.findIndex(id => free(id, pid));
+        c.addIds.slice(0, i < 0 ? c.addIds.length : i).forEach(id => r.passed.push(passed(pid, id, 'addDrop')));
+        if(i < 0) return;
+        const tx = MidSeasonLogic.applyAddDrop(state, pid, c.dropId, c.addIds[i], meta);
+        takenBy[c.addIds[i]] = { playerId: pid, kind: 'addDrop' };
+        justDropped.add(c.dropId);
+        Object.assign(r, { outcome: 'got', castawayId: c.addIds[i], droppedCastawayId: c.dropId, choice: i + 1, txId: tx.id });
+        movers.add(pid);
+      });
+    }
+
+    const orderAfter = WaiverLogic.rolling(state)
+      ? [...orderBefore.filter(id => !movers.has(id)), ...orderBefore.filter(id => movers.has(id))]
+      : MidSeasonLogic.order(state, WaiverLogic.rotation(state));
+    if(WaiverLogic.rolling(state)) state.midSeason.priority = orderAfter;
+    p.run = { at, by: (opts && opts.by) || 'schedule', orderBefore, orderAfter, results };
+    p.phase = 'processed';
+    delete p.hold;
+    return p.run;
+  }
+
+  // ---- Free agency ----
+  // Instant, first come, first served, and it never touches the waiver order. No dropId: fills a pickup
+  // you're owed. With one: the week's add/drop, if you haven't made it. A reason on refusal, else null.
+  static freeAgencyMove(state, playerId, addId, dropId, now){
+    const p = WaiverLogic.current(state);
+    if(!p || p.phase !== 'processed') return 'Free agency isn’t open';
+    if(!WaiverLogic.freeAgencyOn(state)) return 'This league has no free agency';
+    if(!inLeagueRotation(Core.getPlayer(state, playerId))) return 'Not in this league’s waivers';
+    if(!addId || !MidSeasonLogic.isAvailableFor(state, addId, playerId)) return 'They’re not a free agent any more';
+    const meta = { via: 'freeAgency', periodId: p.id, episode: p.episode, at: new Date(now || Date.now()).toISOString() };
+    if(!dropId){
+      const owed = WaiverLogic.pickupsOwed(state, playerId);
+      if(!owed.count) return 'Choose who to drop';
+      MidSeasonLogic.applyPickup(state, playerId, addId, owed.lossIds[0] || null, meta);
+      return null;
+    }
+    if(!p.addDrop) return 'No add/drops this week';
+    if(WaiverLogic.addDropUsed(state, p, playerId)) return 'You’ve made this week’s add/drop';
+    const drop = Core.getCastaway(state, dropId);
+    if(!drop || drop.status !== 'active' || !Core.isOwnedBy(state, dropId, playerId)) return 'Drop someone still on your team';
+    MidSeasonLogic.applyAddDrop(state, playerId, dropId, addId, meta);
+    return null;
+  }
+
+  // ---- Closing ----
+  // The next episode is airing (or its results are in): any pickup still owed is filled automatically,
+  // in waiver order, so nobody plays a castaway short. Classic: a free agent at random (hashUnit, so
+  // fixed); Active Roster: the free agent with the most points. Nobody left at all: it stays empty.
+  static close(state, now){
+    const p = WaiverLogic.current(state);
+    if(!p) return null;
+    if(p.phase === 'processed' && WaiverLogic.enabled(state)){
+      const meta = { via: 'auto', periodId: p.id, episode: p.episode, at: new Date(now || Date.now()).toISOString() };
+      MidSeasonLogic.order(state, WaiverLogic.rotation(state)).forEach(pid => {
+        for(let n = 0; n < 50; n++){
+          const owed = WaiverLogic.pickupsOwed(state, pid);
+          const pick = owed.count ? WaiverLogic.autoPick(state, p, pid, n) : null;
+          if(!pick) break;
+          p.autoFills.push(MidSeasonLogic.applyPickup(state, pid, pick, owed.lossIds[0] || null, meta).id);
+        }
+      });
+    }
+    p.phase = 'closed';
+    return p;
+  }
+  static autoPick(state, period, playerId, n){
+    const pool = MidSeasonLogic.availableFor(state, playerId).map(c => c.id).sort();
+    if(!pool.length) return null;
+    if(getLeagueType(state).hasActiveRoster){
+      const pts = {};
+      pool.forEach(id => { pts[id] = WaiverLogic.castawayPoints(state, id); });
+      return [...pool].sort((a,b) => pts[b] - pts[a] || hashUnit(period.id + a) - hashUnit(period.id + b))[0];
+    }
+    return pool[Math.floor(hashUnit(`${period.id}|${playerId}|${n}`) * pool.length)];
+  }
+  /** Active Roster: a castaway's points so far, from every in-play episode's events. */
+  static castawayPoints(state, castawayId){
+    let total = 0;
+    state.episodes.forEach(ep => {
+      if(!inPlay(state, ep.number)) return;
+      ActiveRosterLogic.episodeEvents(state, ep).forEach(ev => {
+        if(ev.castawayId === castawayId) total += ActiveRosterLogic.pointsFor(state, ev.type);
+      });
     });
-    t.index++;
+    return roundPoints(total);
   }
-  static skip(state){ const t=state.midSeason.trade; if(!t) return; t.index++; }
-  static cancel(state){ state.midSeason.trade=null; }
+
+  // ---- Commissioner: Undo last waiver run ----
+  // While free agency is still open: every move of the week (the run's and free agency's) is taken
+  // back, newest first, the waiver order is put back, and claims reopen. The week is then held: it
+  // processes on Process now, or at the latest when the next episode airs. A reason on refusal.
+  static undo(state){
+    const p = WaiverLogic.current(state);
+    if(!p || p.phase !== 'processed' || !p.run) return 'There’s no waiver run to undo';
+    const log = state.midSeason.log || [];
+    log.filter(tx => tx.periodId === p.id).reverse().forEach(tx => MidSeasonLogic.revert(state, tx));
+    state.midSeason.log = log.filter(tx => tx.periodId !== p.id);
+    if(WaiverLogic.rolling(state)) state.midSeason.priority = p.run.orderBefore;
+    p.run = null;
+    p.phase = 'open';
+    p.hold = true;
+    p.autoFills = [];
+    return null;
+  }
+
+  // ---- Spoilers ----
+  // One viewer's copy (SpoilerLogic.viewThrough) as of their mark: every move from an episode they
+  // haven't revealed is taken back (a pickup says someone left), the waiver order is put back to before
+  // the first such run, and those weeks keep only their existence and times -- no claims in, no run.
+  // Mutates `s`, which must be a copy.
+  static redact(s, seenThrough){
+    if(!Number.isInteger(seenThrough) || !s.midSeason) return;
+    const ms = s.midSeason;
+    const later = (ms.log || []).filter(tx => Number.isInteger(tx.episode) && tx.episode > seenThrough);
+    [...later].reverse().forEach(tx => MidSeasonLogic.revert(s, tx));
+    if(later.length) ms.log = ms.log.filter(tx => !later.includes(tx));
+    let restored = false;
+    WaiverLogic.periods(s).forEach(p => {
+      if(p.episode <= seenThrough) return;
+      if(p.run && !restored && WaiverLogic.rolling(s)){ ms.priority = p.run.orderBefore; restored = true; }
+      p.hidden = true;
+      p.claimsIn = [];
+      // Who was nudged hints at who has a pickup to make.
+      delete p.nudged;
+      p.run = null;
+      p.autoFills = [];
+    });
+  }
 }
 
 // ---------- EpisodeLogic: episodes + eliminations ----------
@@ -2388,6 +2676,8 @@ class SpoilerLogic {
       }
       GroupLogic.recompute(s, c.id);
     });
+    // Pickups and add/drops since their mark, and those weeks' waivers (docs/PLAN-midseason-waivers.md).
+    WaiverLogic.redact(s, seenThrough);
     // The finale's real answers only exist once the winner is out; hidden, they'd spoil the finale.
     const winnerMethod = formatOf(s).winnerExitMethod;
     if(!s.castaways.some(c => c.exitMethod === winnerMethod)) s.finaleActual = { top3: [null, null, null], winner: null };
@@ -2405,7 +2695,7 @@ class SpoilerLogic {
 //   ghost: true      -- invisible. The rest of the league never sees them (GhostLogic.viewFor strips
 //                       them from everyone else's copy); their team is private, so it takes nothing
 //                       off the board (leagueOwnersOf) and they sit out the draft order, blind-draft
-//                       lock-ins and pickup/swap rounds (inLeagueRotation). Cleared by the
+//                       lock-ins and waivers (inLeagueRotation). Cleared by the
 //                       commissioner converting them; some ghosts are never converted, and that's fine.
 //   lateJoin: { startEpisode, catchingUp }
 //                    -- their own season. startEpisode is null until they've chosen one (and drafted);
@@ -2488,8 +2778,7 @@ class GhostLogic {
     const lj = GhostLogic.lateJoinOf(state, playerId);
     if(lj && lj.catchingUp && seenThrough >= SpoilerLogic.latestWithResults(state)) lj.catchingUp = false;
   }
-  // The commissioner brings a ghost into the league: visible to everyone, in the draft order for
-  // pickup/swap rounds. Their team and points come with them. In an exclusive-ownership league a
+  // The commissioner brings a ghost into the league: visible to everyone, in the waiver order. Their team and points come with them. In an exclusive-ownership league a
   // castaway they share with someone stays shared -- the one place exclusivity bends.
   static convert(state, playerId){
     const p = Core.getPlayer(state, playerId);
@@ -2557,15 +2846,10 @@ class GhostLogic {
     const ms = s.midSeason;
     if(ms){
       const later = (ms.log || []).filter(tx => Number.isInteger(tx.episode) && tx.episode > seen);
-      [...later].reverse().forEach(tx => {
-        const added = Core.getCastaway(s, tx.addedCastawayId);
-        if(added) added.ownerIds = ownerListOf(added).filter(id => id !== tx.playerId);
-        const dropped = tx.droppedCastawayId && Core.getCastaway(s, tx.droppedCastawayId);
-        if(dropped && !ownerListOf(dropped).includes(tx.playerId)) dropped.ownerIds = [...ownerListOf(dropped), tx.playerId];
-      });
+      [...later].reverse().forEach(tx => MidSeasonLogic.revert(s, tx));
       ms.log = (ms.log || []).filter(tx => !later.includes(tx));
-      // A round open now was opened by results they haven't seen.
-      ms.replenish = null; ms.trade = null;
+      // A later waiver week was opened by results they haven't seen.
+      if(ms.waivers) ms.waivers.periods = WaiverLogic.periods(s).filter(p => p.episode <= seen);
     }
   }
   // Runs one of a late joiner's own moves (a lineup, a pick) against the league as THEY see it, then
@@ -2797,7 +3081,7 @@ class Migrations {
       episodes: [],
       finalePredictions: [],
       finaleActual: { top3: [], winner: null },
-      midSeason: { replenish:null, trade:null, log:[] },
+      midSeason: { log:[] },
       draftOrder: players.map(p=>p.id),
       draftPicksMade: 0,
       draftForceStarted: false,
@@ -2877,7 +3161,7 @@ class Migrations {
       if(!Array.isArray(c.ownerIds)) c.ownerIds = c.ownerId ? [c.ownerId] : [];
       delete c.ownerId;
     });
-    if(!s.midSeason) s.midSeason = {replenish:null, trade:null, log:[]};
+    if(!s.midSeason) s.midSeason = {log:[]};
     if(!Array.isArray(s.midSeason.log)) s.midSeason.log = [];
     if(!s.finalePredictions) s.finalePredictions = [];
     if(!s.finaleActual) s.finaleActual = {top3:[], winner:null};
@@ -2966,9 +3250,7 @@ return {
   applyScoringEventsImport: EpisodeLogic.applyScoringEventsImport,
   updateSettings: RosterLogic.updateSettings,
   reorderDraft: DraftLogic.reorder, moveDraftOrder: DraftLogic.move, draftToCurrentTurn: DraftLogic.pick, undraft: DraftLogic.undo,
-  startReplenish: ReplenishLogic.start, currentReplenishTurn: ReplenishLogic.currentTurn, replenishAssign: ReplenishLogic.assign, cancelReplenish: ReplenishLogic.cancel,
-  startTrade: TradeLogic.start, tradeSwap: TradeLogic.swap, tradeSkip: TradeLogic.skip, cancelTrade: TradeLogic.cancel,
-  MidSeasonLogic, availableFor: MidSeasonLogic.availableFor, swapWindow: MidSeasonLogic.swapWindow, replenishNeed: MidSeasonLogic.replenishNeed,
+  MidSeasonLogic, availableFor: MidSeasonLogic.availableFor, replenishNeed: MidSeasonLogic.replenishNeed,
   addEpisode: EpisodeLogic.add, removeEpisode: EpisodeLogic.remove, updateEpisode: EpisodeLogic.update,
   renumberPlacements: EpisodeLogic.renumberPlacements, addElimination: EpisodeLogic.addElimination, removeElimination: EpisodeLogic.removeElimination,
   setJuryVotes: EpisodeLogic.setJuryVotes,
@@ -2998,7 +3280,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, ReplenishLogic, TradeLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy
 };
 

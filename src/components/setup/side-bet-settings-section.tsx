@@ -8,7 +8,7 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { Field, GroupHead, LockedValue, ReadOnlyNote, RowList, SettingsPage, StepperRow, ToggleRow, fieldCls } from "./settings-ui";
 
 // League Settings > Predictions: the weekly predictions (side bets) and, for league types that have
-// them (supportsFinalePredictions, the same flag Mid-Season checks), finale predictions, each as a
+// them (supportsFinalePredictions, the same flag the Waivers page checks), finale predictions, each as a
 // toggle row with its points underneath. bonusEnabled is a master on/off for the whole predictions
 // system, both scoring and visibility (ScoringLogic.compute's `if(state.settings.bonusEnabled)`).
 export function PredictionsPage() {

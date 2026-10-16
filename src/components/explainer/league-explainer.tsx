@@ -229,13 +229,10 @@ function Explainer() {
         fake: true,
         title: pickups
           ? `If one of your ${t.castaways} goes home, you can pick up a replacement.`
-          : `Every ${settings.swapEvery ?? 3} episodes, you can swap one of your ${t.castaways} for someone new.`,
-        detail:
-          pickups && swaps
-            ? `Pickups open after an elimination, and every ${settings.swapEvery ?? 3} episodes there's a swap window. Either way, you choose from ${from}.`
-            : pickups
-              ? `Pickups open after an elimination, and you choose from ${from}.`
-              : `You choose from ${from}.`,
+          : `Every ${settings.swapEvery ?? 3} episodes, you can drop one of your ${t.castaways} for someone new.`,
+        detail: pickups
+          ? `After each episode, waivers open: claim from ${from} in private, ranked, and every claim processes at once the day before the next episode.${swaps ? ` Every ${settings.swapEvery ?? 3} episodes you can add/drop too.` : ""}`
+          : `Then waivers open: claim from ${from} in private, ranked, and every claim processes at once the day before the next episode.`,
         visual: sample.pickup ? <PickupCard out={sample.pickup.out} replacement={sample.pickup.in} gone={pickups} /> : null,
       });
     }

@@ -1,5 +1,5 @@
 // Computer players: seats a commissioner adds with "Computer player" ticked (player.automated). They
-// draft, set lineups, make Eliminator Pool picks, take replenish/swap turns and fill in finale picks
+// draft, set lineups, make Eliminator Pool picks, make waiver claims and fill in finale picks
 // on their own, in every show and league type, using only what the league itself knows -- what each
 // castaway has done in episodes with results (scored by the show's own catalog), who's been in the
 // firing line, tribe numbers, who's holding an idol, a known Traitor. Nothing clever: the bar
@@ -23,7 +23,7 @@ const StateLogic = require("./state-logic.js");
 
 const {
   Core, DraftLogic, BlindDraftLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
-  ReplenishLogic, TradeLogic, EpisodeLogic, FinaleLogic, getLeagueType, rosterSize, inPlay, hasAired,
+  EpisodeLogic, FinaleLogic, getLeagueType, rosterSize, inPlay, hasAired,
   currentEpisode, finalePredictionsAvailable,
 } = StateLogic;
 
@@ -290,44 +290,30 @@ function eliminatorPicks(state) {
   return made;
 }
 
-function replenishTurns(state) {
-  let made = 0;
-  for (let guard = 0; guard < 200; guard++) {
-    const turn = state.midSeason && state.midSeason.replenish ? ReplenishLogic.currentTurn(state) : null;
-    if (!turn || turn.isComplete || !isBot(Core.getPlayer(state, turn.playerId))) break;
-    const candidates = MidSeasonLogic.availableFor(state, turn.playerId).map((c) => c.id);
-    const best = ranked(state, turn.playerId, candidates, "value")[0];
-    if (!best) break; // nobody left to take: the commissioner sorts it out, same as for a person
-    const before = state.midSeason.replenish.index;
-    ReplenishLogic.assign(state, best);
-    if (state.midSeason.replenish.index === before) break;
-    made++;
-  }
-  return made;
-}
-
-// A swap only when it's clearly better: the best castaway on offer has to beat the bot's weakest by a
-// real margin (its level's `swap`), or it passes. Swapping for a coin-flip improvement is how you lose
+// A bot's claim for a waiver week (docs/PLAN-midseason-waivers.md), made when the week processes:
+// claims live outside `state` (they're private), so the server asks for this rather than run() making
+// it. Pickups are the best free agents on offer, and an add/drop only when the best clearly beats its
+// weakest by a real margin (its level's `swap`): swapping for a coin-flip improvement is how you lose
 // the person who was about to have a big week.
-function tradeTurns(state) {
-  let made = 0;
-  for (let guard = 0; guard < 200; guard++) {
-    const t = state.midSeason && state.midSeason.trade;
-    if (!t || t.index >= t.queue.length) break;
-    const pid = t.queue[t.index].playerId;
-    if (!isBot(Core.getPlayer(state, pid))) break;
-    const level = levelOf(state, pid);
+function waiverClaim(state, playerId, period) {
+  const W = StateLogic.WaiverLogic;
+  const offered = MidSeasonLogic.availableFor(state, playerId).map((c) => c.id);
+  const owed = W.pickupsOwed(state, playerId).count;
+  const pickupIds = owed ? ranked(state, playerId, offered, "value").slice(0, W.maxPickupClaims(owed)) : [];
+  let dropId = null;
+  let addIds = [];
+  if (period && period.addDrop) {
+    const level = levelOf(state, playerId);
     const r = ratings(state, level);
-    const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid)).map((c) => c.id);
-    const offered = MidSeasonLogic.availableFor(state, pid).map((c) => c.id);
-    const worst = ranked(state, pid, mine, "value").slice(-1)[0];
-    const best = ranked(state, pid, offered, "value")[0];
-    const before = t.index;
-    if (worst && best && r[best].value - r[worst].value > level.swap) TradeLogic.swap(state, worst, best);
-    if (state.midSeason.trade && state.midSeason.trade.index === before) TradeLogic.skip(state);
-    made++;
+    const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(playerId)).map((c) => c.id);
+    const worst = ranked(state, playerId, mine, "value").slice(-1)[0];
+    const better = worst ? ranked(state, playerId, offered, "value").filter((id) => r[id].value - r[worst].value > level.swap) : [];
+    if (better.length) {
+      dropId = worst;
+      addIds = better.slice(0, 3);
+    }
   }
-  return made;
+  return { pickupIds, dropId, addIds };
 }
 
 // Finale picks, once there's something to go on: after the merge, or with ten or fewer left. Set once
@@ -353,13 +339,12 @@ function finalePicks(state) {
 }
 
 // Every move any bot has waiting, applied to `state` in place. Returns how many it made (0 = nothing
-// to do). Repeats until quiet, because one move can open another: a replenish pick changes what the
-// best lineup is.
+// to do). Repeats until quiet, because one move can open another: a finished draft opens lineups.
 function run(state) {
   if (!botIds(state).length) return 0;
   let total = 0;
   for (let pass = 0; pass < 5; pass++) {
-    const made = snakeDraft(state) + replenishTurns(state) + tradeTurns(state) + lineups(state) + eliminatorPicks(state) + finalePicks(state);
+    const made = snakeDraft(state) + lineups(state) + eliminatorPicks(state) + finalePicks(state);
     total += made;
     if (!made) break;
   }
@@ -372,4 +357,4 @@ function hasWork(state) {
   return blindSubmissions(state).length > 0 || run(structuredClone(state)) > 0;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, blindSubmissions };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, blindSubmissions, waiverClaim };

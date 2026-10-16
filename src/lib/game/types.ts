@@ -203,12 +203,16 @@ export interface LeagueSettings {
   replenishOrderBy: "rolling" | "mostPoints" | "leastPoints";
   /** Active Roster: a roster down to this many castaways still in the game may replenish (default activeSlots - 1). */
   replenishAt?: number | null;
-  /** Active Roster: a swap window opens after every Nth episode (default 3). */
+  /** Add/drop weeks come after every Nth episode (default 3). */
   swapEvery?: number | null;
   // Optional mid-season mechanics, both default false. Gated together with the league type's own
   // capability -- see replenishAvailable/tradeAvailable in state-logic.js.
   replenishEnabled: boolean;
   tradeEnabled: boolean;
+  /** Waivers process this many hours before the next episode airs: 12, 24 (default) or 48. */
+  waiverProcessHours?: number;
+  /** Free agency between processing and airtime; on unless false. */
+  freeAgencyEnabled?: boolean;
   /**
    * Catch-up mode (StateLogic.RevealLogic): null = live, an integer = this league may only see
    * episodes 1..n. Absent on every league that predates it, which reads as null.
@@ -291,19 +295,6 @@ export interface Membership {
   /** "How this league works" has been finished or skipped once (docs/PLAN-league-explainer.md).
    *  Only an explicit false opens it by itself. */
   explainerSeen?: boolean;
-}
-
-export interface ReplenishTurn {
-  isComplete: boolean;
-  playerId?: string;
-  personalPickNumber?: number;
-  overallPickNumber?: number;
-  scoreAtStart?: number;
-}
-
-export interface TradeState {
-  queue: { playerId: string }[];
-  index: number;
 }
 
 // The PUBLIC half of a blind draft: who has locked in (for the "waiting on N players" UI) and
@@ -848,8 +839,8 @@ export interface BlindDraftState {
   revealedAt: string | null;
 }
 
-// A completed replenish assignment or trade swap, for the visual history shown under each
-// panel -- ReplenishLogic.assign/TradeLogic.swap append one of these, never mutate/remove them.
+// A completed pickup (replenish) or add/drop (trade): Transactions. MidSeasonLogic.applyPickup /
+// applyAddDrop append one of these; only Undo last waiver run and the spoiler views take one back.
 export interface MidSeasonLogEntry {
   id: string;
   type: "replenish" | "trade";
@@ -861,6 +852,81 @@ export interface MidSeasonLogEntry {
    * lastCompletedEpisode) -- what the move is really tied to, not a raw timestamp. Null/absent on
    * entries from before this existed, or if nothing had aired yet. */
   episode?: number | null;
+  /** Waivers (docs/PLAN-midseason-waivers.md): how it was made -- processed claims, free agency, or
+   * assigned when a pickup was still unfilled at airtime. Absent on live-round moves. */
+  via?: "waivers" | "freeAgency" | "auto";
+  /** The waiver week it belongs to. */
+  periodId?: string;
+  /** The castaway fields the move overwrote, as they were (only keys they had), so it can be undone
+   * exactly (MidSeasonLogic.revert). */
+  prev?: {
+    added: { acquiredVia?: string | null };
+    dropped: { replenishClaimed?: boolean; formerOwnerId?: string | null; departedVia?: string | null } | null;
+  };
+}
+
+/** Why a claim further up someone's list didn't go through. */
+export interface WaiverPass {
+  castawayId: string;
+  /** ahead: someone higher in the waiver order took them; pickupFirst: a pickup did (pickups go before
+   * add/drops); yours: your own pickup landed them; gone: not a free agent by then. */
+  reason: "ahead" | "pickupFirst" | "yours" | "gone";
+  byPlayerId?: string;
+}
+
+/** One player's pickup or add/drop in a waiver run, and why it went the way it did. */
+export interface WaiverResult {
+  playerId: string;
+  kind: "pickup" | "addDrop";
+  /** noClaim: nothing in by the deadline; skipped: claims in, but no add/drop this week. */
+  outcome: "got" | "missed" | "noClaim" | "skipped";
+  castawayId?: string;
+  droppedCastawayId?: string | null;
+  /** Which of their claims it was, 1-based. */
+  choice?: number;
+  passed: WaiverPass[];
+  txId?: string;
+  /** The add/drop's drop wasn't theirs or still in the game by then. */
+  dropGone?: boolean;
+}
+
+export interface WaiverRun {
+  at: string;
+  by: "schedule" | "commissioner";
+  orderBefore: string[];
+  orderAfter: string[];
+  results: WaiverResult[];
+}
+
+/** One waiver week (StateLogic.WaiverLogic): opened by an episode's results, closed when the next airs. */
+export interface WaiverPeriod {
+  id: string;
+  /** The episode whose results opened it. */
+  episode: number;
+  openedAt: string;
+  processAt: string | null;
+  /** When free agency ends (the next episode airs); null = when the next episode's results arrive. */
+  closesAt: string | null;
+  phase: "open" | "processed" | "closed";
+  addDrop: boolean;
+  /** After Undo last waiver run: no scheduled processing (Process now, or at airtime). */
+  hold?: boolean;
+  /** Who has a claim saved: the public mirror of the private waiver_claims table. */
+  claimsIn: string[];
+  /** Who the commissioner has nudged this week (one Nudge each). */
+  nudged?: string[];
+  run: WaiverRun | null;
+  /** Log entry ids of pickups assigned automatically at close. */
+  autoFills: string[];
+  /** Set on a viewer's copy only: an episode they haven't revealed opened it, so it's blanked. */
+  hidden?: boolean;
+}
+
+/** One player's private claim (never in league state; GET /waivers returns your own). */
+export interface WaiverClaim {
+  pickupIds: string[];
+  dropId: string | null;
+  addIds: string[];
 }
 
 export interface LeagueState {
@@ -871,13 +937,11 @@ export interface LeagueState {
   finalePredictions: FinalePrediction[];
   finaleActual: { top3: (string | null)[]; winner: string | null };
   midSeason: {
-    replenish: { sequence: unknown[]; index: number } | null;
-    trade: TradeState | null;
     log: MidSeasonLogEntry[];
-    /** The rolling priority list (player ids, first = first dibs). Absent until a move is made. */
+    /** The rolling waiver order (player ids, first = first dibs). Absent until a week processes. */
     priority?: string[];
-    /** Active Roster: the episode whose swap window was last used. */
-    lastSwapAfterEpisode?: number;
+    /** Waivers: every waiver week, oldest first. */
+    waivers?: { periods: WaiverPeriod[] };
   };
   draftOrder: string[];
   draftPicksMade: number;

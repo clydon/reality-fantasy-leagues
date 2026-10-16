@@ -1,6 +1,7 @@
 import type { Castaway, LeagueState, Player } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { formatFor } from "@/lib/game/formats/index.js";
+import { mockClaimsFor } from "@/lib/mock-claims";
 
 // The guided tour's season (docs/PLAN-guided-tour.md, "The show"): *Rise & Fall*, a made-up baking
 // competition. Ten bakers -- four hapless amateurs, four ordinary bakers, a professional and a
@@ -231,16 +232,20 @@ export function closeEpisode(state: LeagueState, n: number) {
   }
 }
 
-/** Results in and seen: anyone owed a pickup gets a round, with you first. */
-export function startPickups(state: LeagueState) {
-  if (!state.midSeason.replenish) StateLogic.startReplenish(state);
+/** Results in and seen: waivers open, with a pickup yours to claim. */
+export function openWaivers(state: LeagueState) {
+  if (!StateLogic.WaiverLogic.current(state)) StateLogic.WaiverLogic.open(state, Date.now());
 }
 
-/** Your pickup's done: close the round and start them next week in the slot that opened. */
+/** Your claim's in: waivers process at once (the tour doesn't wait for the day before Episode 2). */
+export function processWaivers(state: LeagueState) {
+  const W = StateLogic.WaiverLogic;
+  const week = W.current(state);
+  if (week && week.phase === "open") W.process(state, mockClaimsFor(week.id), { now: Date.now() });
+}
+
+/** Your pickup's in: start them next week in the slot that opened. */
 export function afterPickup(state: LeagueState) {
-  const turn = StateLogic.currentReplenishTurn(state);
-  if (turn && !turn.isComplete) return;
-  state.midSeason.replenish = null;
   const ep = episode(state, 2);
   if (!ep) return;
   const current = lineupOf(state, 2, TOUR_ME).filter((id) => rosterOf(state, TOUR_ME).includes(id));

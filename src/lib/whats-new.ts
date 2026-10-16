@@ -20,6 +20,18 @@ export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: WhatsNewRelease[] = [
   {
+    id: "2026-10-16",
+    date: "2026-10-16",
+    items: [
+      {
+        icon: "🔄",
+        title: "Pickups are now waivers: no more waiting your turn",
+        detail:
+          "When you're owed a pickup, choose it in private: anyone still in the game who isn't already yours. Everyone's choices go through at once the day before the next episode. Swaps are now called add/drops.",
+      },
+    ],
+  },
+  {
     id: "2026-10-11b",
     date: "2026-10-11",
     items: [
@@ -65,11 +77,6 @@ export const RELEASES: WhatsNewRelease[] = [
         icon: "🎬",
         title: "Reveal results one moment at a time",
         detail: "When you're ready, tap through each challenge, who went home, then how your team did.",
-      },
-      {
-        icon: "🔄",
-        title: "Make your own pickups and swaps",
-        detail: "When your commissioner opens a round, make your pick or swap on your turn. Replenish is now called Pickups.",
       },
     ],
   },

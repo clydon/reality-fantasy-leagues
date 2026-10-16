@@ -113,7 +113,7 @@ const TABS: { tab: string; line: string; detail: string }[] = [
     tab: "tab-more",
     line: "More: everything else.",
     detail:
-      "Mid-Season for pickups and swaps, League Settings for the rules and invite code, What's new, and these tours. Chat is the bubble at the top.",
+      "Waivers for pickups, League Settings for the rules and invite code, What's new, and these tours. Chat is the bubble at the top.",
   },
 ];
 const GETTING_AROUND: TourStep[] = TABS.map((t, i) => ({
@@ -197,14 +197,15 @@ export const PLAYER_TOUR: TourStep[] = [
   {
     id: "pickup",
     progress: "Episode 2 of 2",
-    route: at("/mid-season"),
-    line: (c) => `Pick up ${pickupName(c.full) ?? "a free agent"}. Tap, then confirm.`,
-    detail: () => "Fill the open spot with a baker nobody drafted. Pickups and swaps are optional: some leagues have them, some don't.",
+    route: at("/research/waivers/pickup"),
+    line: (c) => `Claim ${pickupName(c.full) ?? "a free agent"}. Tap, then confirm.`,
+    detail: () =>
+      "Claims are private, and everyone's process at once the day before the next episode. Here they process right away.",
     targets: ["picker-tiles", "picker-confirm"],
     nav: {
-      line: () => "A baker went home. You can fill your open spot under More.",
-      detail: () => "When one of your bakers goes home, you can pick up one nobody drafted, if your commissioner has turned pickups on.",
-      targets: ["tab-more", "more-midseason"],
+      line: () => "A baker went home. Claim a replacement in Research.",
+      detail: () => "When one of yours goes home, you claim one nobody drafted, if your commissioner has turned pickups on.",
+      targets: ["tab-research", "waivers-pickup"],
     },
     done: (c) => pickedUp(c.full),
   },

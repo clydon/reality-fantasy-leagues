@@ -45,4 +45,33 @@ async function open({ user, pass, width = 390, height = 844 } = {}) {
   return { page, errors, BASE, close: () => browser.close() };
 }
 
-module.exports = { open, BASE };
+// The API as one signed-in user, without a browser: for checks that only need the routes (claims,
+// moves, refusals). `call` resolves { status, body } and never throws on an HTTP error, so a check can
+// assert a refusal as easily as a success.
+//
+//   const { api } = require("./browser");
+//   const sam = await api({ user: "zt_wplayer", pass: "zt-pass-12345" });
+//   const { status, body } = await sam.call("PUT", `/api/leagues/${id}/waivers/claims`, { pickupIds: [] });
+async function api({ user, pass }) {
+  const r = await fetch(BASE + "/api/auth/sign-in/username", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: BASE },
+    body: JSON.stringify({ username: user, password: pass }),
+  });
+  if (!r.ok) throw new Error(`sign-in as ${user} failed: ${r.status} ${await r.text()}`);
+  const cookie = r.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  async function call(method, url, body) {
+    const res = await fetch(BASE + url, {
+      method,
+      headers: { cookie, origin: BASE, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const text = await res.text();
+    let parsed = text;
+    try { parsed = JSON.parse(text); } catch { /* not JSON: keep the text */ }
+    return { status: res.status, body: parsed };
+  }
+  return { user, call };
+}
+
+module.exports = { open, api, BASE };

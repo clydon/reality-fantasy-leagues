@@ -96,18 +96,6 @@ function SettingsList({ state }: { state: LeagueState }) {
       : `A point per elimination outlasted · ${StateLogic.rosterSize(state)} per team`;
 
   const midSeason = type.supportsReplenish || type.supportsTrade;
-  const midLine =
-    [
-      StateLogic.replenishAvailable(state) ? "Pickups on" : null,
-      StateLogic.tradeAvailable(state)
-        ? type.hasActiveRoster
-          ? `Swap every ${StateLogic.MidSeasonLogic.swapEvery(state)} episodes`
-          : "Swap on"
-        : null,
-    ]
-      .filter(Boolean)
-      .join(" · ") || "Off";
-
   const predLine = [
     s.bonusEnabled ? "Predictions on" : "Predictions off",
     type.supportsFinalePredictions ? (s.finalePredictionsEnabled ? "finale on" : "finale off") : null,
@@ -140,13 +128,21 @@ function SettingsList({ state }: { state: LeagueState }) {
         />
       )}
       <IndexRow href="/setup/rules" icon={Calculator} title="Scoring & rules" value={rulesLine} alert={pendingChanges > 0} />
-      {midSeason && s.ownershipMode !== "shared" && (
+      {/* Pickups and add/drops, run as waivers (docs/PLAN-midseason-waivers.md), shared ownership included. */}
+      {midSeason && (
         <IndexRow
-          href="/setup/pickups"
+          href="/setup/waivers"
           icon={ArrowLeftRight}
-          title="Swaps & pickups"
-          value={midLine}
-          alert={todo.has("pickups") || todo.has("swap")}
+          title="Waivers"
+          value={
+            [
+              StateLogic.replenishAvailable(state) ? "Pickups" : null,
+              StateLogic.tradeAvailable(state) ? `add/drops every ${StateLogic.MidSeasonLogic.swapEvery(state)}` : null,
+            ]
+              .filter(Boolean)
+              .join(", ")
+              .replace(/^a/, "A") || "Off"
+          }
         />
       )}
       <IndexRow href="/setup/predictions" icon={Target} title="Predictions" value={predLine} />

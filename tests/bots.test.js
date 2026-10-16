@@ -109,7 +109,7 @@ test("blind draft: a full, valid submission per bot, nothing once it's locked", 
   assert.deepEqual(Bots.blindSubmissions(s), []);
 });
 
-test("swaps: a sharp bot takes a clearly better castaway, a casual one keeps its own", () => {
+test("add/drops: a sharp bot claims a clearly better castaway, a casual one keeps its own", () => {
   for (const [level, expectSwap] of [["sharp", true], ["casual", false]]) {
     const s = league("active-roster", { tradeEnabled: true, swapEvery: 1 });
     StateLogic.getPlayer(s, "bot").botLevel = level;
@@ -122,12 +122,11 @@ test("swaps: a sharp bot takes a clearly better castaway, a casual one keeps its
     StateLogic.addScoringEvent(s, ep.id, "survivedVotes", "a3");
     StateLogic.addElimination(s, ep.id, "a4", "Voted Out");
     StateLogic.ensureNextEpisode(s);
-    assert.ok(StateLogic.startTrade(s));
-    // Put the bot first in the queue.
-    s.midSeason.trade.queue.sort((x) => (x.playerId === "bot" ? -1 : 1));
-    Bots.run(s);
-    assert.equal(owned(s, "bot").includes("b4"), expectSwap, level);
-    assert.equal(s.midSeason.trade.queue[s.midSeason.trade.index].playerId, "p1", "passes the turn on either way");
+    const week = StateLogic.WaiverLogic.open(s, Date.now());
+    assert.ok(week.addDrop);
+    const claim = Bots.waiverClaim(s, "bot", week);
+    assert.equal(claim.addIds.includes("b4"), expectSwap, level);
+    assert.equal(!!claim.dropId, expectSwap, `${level}: drops only when it adds`);
   }
 });
 

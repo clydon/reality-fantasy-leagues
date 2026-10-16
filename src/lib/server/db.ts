@@ -4,6 +4,9 @@ import type { LeagueState } from "@/lib/game/types";
 import { HttpError } from "./http-error";
 import { stampAirTimes } from "./air-times";
 import { runBots } from "./bots";
+import { syncWaivers } from "./waivers";
+import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiver-pushes";
+import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
 // matching how SurvivorDraft's server/db.js bundles the same three together.
@@ -37,14 +40,32 @@ export async function withLeagueLock(
     const state: LeagueState = rows[0].state;
     // Air times first: whether a lineup or pick is still open depends on them (air-times.ts).
     await stampAirTimes(client, state);
+    const waiversBefore = waiverSnapshot(state);
+    // Then the waiver clock, so the mutation sees the week as it stands now: a claim saved after its
+    // week processed is refused rather than slipped in (waivers.js).
+    await syncWaivers(client, leagueId, state);
     await mutatorFn(state, client);
     // Every write leaves the league with an episode to play next (bets and picks always have
     // somewhere to go; nobody creates episodes by hand). See EpisodeLogic.ensureNextEpisode.
     StateLogic.ensureNextEpisode(state);
+    // And again after: results the mutation just applied open (or close) a waiver week.
+    await syncWaivers(client, leagueId, state);
     // Then any computer player's move this opened up (a turn, a new episode's lineup). See bots.ts.
     await runBots(client, leagueId, state);
     await client.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), leagueId]);
     await client.query("COMMIT");
+    // A waiver week that processed here -- its time came (lazily, on this write or a load), or the
+    // commissioner's Process now -- is announced once it's committed (waiver-pushes.js). The hourly job
+    // announces the ones it processes itself, so each week is announced by whoever processed it.
+    const processed = justProcessed(waiversBefore, state);
+    if (processed) {
+      const send = () => sendProcessed(pool, leagueId, state, processed);
+      try {
+        after(send);
+      } catch {
+        void send(); // outside a request (never expected): send anyway, it never throws
+      }
+    }
     return state;
   } catch (e) {
     await client.query("ROLLBACK");

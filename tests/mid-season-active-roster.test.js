@@ -1,8 +1,9 @@
-// Active Roster replenish (the "down to X" threshold), scheduled swaps, the rolling reverse-draft
-// priority list, and how both work under shared vs exclusive ownership. Run with `npm test`.
+// Active Roster pickups (the "down to X" threshold), add/drop weeks, the rolling reverse-draft waiver
+// order, and how they work under shared vs exclusive ownership, run as waivers. Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const S = require("../src/lib/game/state-logic.js");
+const W = S.WaiverLogic;
 
 // Three players (draft order a, b, c), 3 active + 2 bench, 18 castaways. Each player owns five.
 // `shared` gives b and c an overlap, as a blind draft would.
@@ -56,66 +57,73 @@ test("replenish threshold: owed picks only once down to X in the game, and only 
   assert.equal(S.replenishNeed(s, "b"), 0);
   const generous = league({ eliminated: ["c1", "c2"], settings: { replenishAt: 3 } });
   assert.equal(S.replenishNeed(generous, "a"), 1, "a commissioner can set a higher X");
-  assert.equal(S.startReplenish(league()), false, "nobody's down to X: nothing to start");
+  assert.ok(["a", "b", "c"].every((p) => W.pickupsOwed(league(), p).count === 0), "nobody's down to X: nobody's owed one");
 });
 
-test("a shared replenish adds without taking the castaway from anyone else, and releases one loss", () => {
-  const s = league({ eliminated: ["c1", "c2", "c3"] });
-  assert.equal(S.startReplenish(s), true);
-  assert.equal(S.currentReplenishTurn(s).playerId, "a");
-  S.replenishAssign(s, "c8"); // b's castaway
+// A waiver week after the latest episode with results, its claims processed at once.
+function runWeek(s, claims) {
+  const p = W.open(s, Date.parse("2026-03-01T00:00:00Z"));
+  for (const c of Object.values(claims)) Object.assign(c, { pickupIds: c.pickupIds ?? [], dropId: c.dropId ?? null, addIds: c.addIds ?? [] });
+  W.process(s, claims, { now: Date.parse("2026-03-02T00:00:00Z") });
+  return p;
+}
+
+test("a shared pickup adds without taking the castaway from anyone else, and releases one loss", () => {
+  const s = league({ eliminated: ["c1", "c2", "c3"], completedThrough: 1 });
+  runWeek(s, { a: { pickupIds: ["c8"] } }); // b's castaway
   assert.deepEqual(owners(s, "c8"), ["a", "b"]);
   assert.equal(S.MidSeasonLogic.inGameCount(s, "a"), 3);
   assert.equal(s.castaways.filter((c) => c.ownerIds.includes("a")).length, 5, "roster size unchanged: a loss was released");
-  assert.ok(S.currentReplenishTurn(s).isComplete);
 });
 
-test("an exclusive replenish can't take someone else's castaway", () => {
-  const s = league({ shared: false, eliminated: ["c1", "c2", "c3"] });
-  S.startReplenish(s);
-  S.replenishAssign(s, "c8");
-  assert.deepEqual(owners(s, "c8"), ["b"]);
-  assert.equal(S.currentReplenishTurn(s).isComplete, false, "the turn wasn't used up");
+test("an exclusive pickup can't claim someone else's castaway", () => {
+  const s = league({ shared: false, eliminated: ["c1", "c2", "c3"], completedThrough: 1 });
+  const p = W.open(s, Date.now());
+  assert.equal(W.checkClaim(s, p, "a", { pickupIds: ["c8"] }).error, "Claim free agents only");
+  assert.deepEqual(W.checkClaim(s, p, "a", { pickupIds: ["c16"] }).claim.pickupIds, ["c16"]);
 });
 
-test("rolling priority: starts in reverse draft order, and whoever moves goes to the back", () => {
+test("rolling waiver order: starts in reverse draft order, and whoever's claim goes through goes to the back", () => {
   const s = league({ completedThrough: 3 });
   assert.deepEqual(S.MidSeasonLogic.priorityList(s), ["c", "b", "a"]);
-  assert.equal(S.startTrade(s), true);
-  assert.deepEqual(s.midSeason.trade.queue.map((q) => q.playerId), ["c", "b", "a"]);
-  S.tradeSwap(s, "c11", "c1"); // c swaps
-  S.tradeSkip(s); // b passes
-  assert.deepEqual(S.MidSeasonLogic.priorityList(s), ["b", "a", "c"], "c used it and went to the back; b kept its place");
+  runWeek(s, { c: { dropId: "c11", addIds: ["c1"] } }); // c's add/drop; b and a make none
+  assert.deepEqual(S.MidSeasonLogic.priorityList(s), ["b", "a", "c"], "c's went through and went to the back; b kept its place");
 });
 
-test("standings priority: fewest points first, recomputed each round", () => {
+test("standings order: fewest points first, recomputed each week", () => {
   const s = league({ completedThrough: 3, settings: { replenishOrderBy: "leastPoints" } });
   // Give 'c' points: its active castaway scores in episode 1.
   s.episodes[0].lineups = { c: ["c11"] };
   s.episodes[0].scoringEvents = [{ id: "x", type: "individualImmunity", castawayId: "c11" }];
-  S.startTrade(s);
-  assert.equal(s.midSeason.trade.queue[2].playerId, "c", "the leader goes last");
+  assert.equal(S.MidSeasonLogic.order(s, ["a", "b", "c"])[2], "c", "the leader goes last");
 });
 
-test("swap windows: every 3 episodes by default, one round per window", () => {
-  const s = league({ completedThrough: 2 });
-  assert.equal(S.swapWindow(s).due, false);
-  assert.equal(S.swapWindow(s).nextAfterEpisode, 3);
-  assert.equal(S.startTrade(s), false, "no window yet");
-  const open = league({ completedThrough: 3 });
-  assert.deepEqual(S.swapWindow(open), { due: true, afterEpisode: 3, nextAfterEpisode: 3 });
-  assert.equal(S.startTrade(open), true);
-  assert.equal(S.swapWindow(open).due, false, "starting a round uses the window");
-  assert.equal(S.swapWindow(open).nextAfterEpisode, 6);
-  const later = league({ completedThrough: 7, settings: { swapEvery: 2 } });
-  assert.deepEqual(S.swapWindow(later), { due: true, afterEpisode: 6, nextAfterEpisode: 6 });
+test("add/drop weeks: every 3 episodes by default, or every swapEvery", () => {
+  const s = league();
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7].map((n) => W.isAddDropEpisode(s, n)), [false, false, true, false, false, true, false]);
+  const every2 = league({ settings: { swapEvery: 2 } });
+  assert.deepEqual([5, 6, 7].map((n) => W.isAddDropEpisode(every2, n)), [false, true, false]);
+  assert.equal(W.open(league({ completedThrough: 3 }), Date.now()).addDrop, true);
+  assert.equal(W.open(league({ completedThrough: 2, settings: { tradeEnabled: false } }), Date.now()).addDrop, false);
 });
 
-test("a swap needs both halves: nothing happens if the add isn't available", () => {
+test("an add/drop claim needs both halves, and the add has to be free", () => {
   const s = league({ shared: false, completedThrough: 3 });
-  S.startTrade(s);
-  const before = JSON.stringify(s.castaways);
-  S.tradeSwap(s, "c11", "c1"); // c1 belongs to a: not available in exclusive
-  assert.equal(JSON.stringify(s.castaways), before);
-  assert.equal(s.midSeason.trade.index, 0, "still c's turn");
+  const p = W.open(s, Date.now());
+  assert.equal(W.checkClaim(s, p, "c", { addIds: ["c16"] }).error, "Choose who to drop");
+  assert.equal(W.checkClaim(s, p, "c", { dropId: "c11" }).error, "Choose who to add");
+  assert.equal(W.checkClaim(s, p, "c", { dropId: "c11", addIds: ["c1"] }).error, "Claim free agents only", "c1 is a's");
+});
+
+test("switching over mid-window: a swap from the old live rounds after that episode uses the week's add/drop", () => {
+  const s = league({ completedThrough: 3 });
+  // What a live round's swap left in the log: no waiver week, the episode it followed.
+  s.midSeason.log.push({ id: "tx_old", type: "trade", playerId: "c", addedCastawayId: "c1", droppedCastawayId: "c11", episode: 3, at: "2026-02-28T00:00:00Z" });
+  const p = W.open(s, Date.now());
+  assert.equal(W.addDropUsed(s, p, "c"), true);
+  assert.equal(W.addDropUsed(s, p, "b"), false);
+  assert.equal(W.checkClaim(s, p, "c", { dropId: "c12", addIds: ["c2"] }).error, "You’ve made this week’s add/drop");
+  const earlier = { ...s.midSeason.log[0], id: "tx_older", playerId: "b", episode: 2 };
+  s.midSeason.log.push(earlier);
+  assert.equal(W.addDropUsed(s, p, "b"), false, "a swap after an earlier episode doesn't count");
 });

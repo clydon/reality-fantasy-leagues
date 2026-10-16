@@ -49,6 +49,7 @@ export function CastTile({
   state,
   photoHeight = 70,
   mark,
+  rank,
   dim,
   onClick,
   disabled,
@@ -62,6 +63,8 @@ export function CastTile({
   state: LeagueState;
   photoHeight?: number;
   mark?: "add" | "drop";
+  /** A ranked claim (waivers): its place in the list, as a numbered chyron badge. */
+  rank?: number;
   /** Greyed: can't be picked right now (taken, or the roster's full). */
   dim?: boolean;
   onClick?: () => void;
@@ -89,6 +92,11 @@ export function CastTile({
           )}
         </span>
       </span>
+      {rank !== undefined && (
+        <span className="type-num absolute right-1 top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-chyron px-1.5 text-[15px] text-chyron-foreground" aria-hidden>
+          {rank}
+        </span>
+      )}
       {mark && (
         <span
           className={cn(
@@ -107,7 +115,7 @@ export function CastTile({
     // photo keeps a portrait-friendly ratio instead of cropping to a strip of forehead.
     "relative flex min-w-0 flex-col overflow-hidden rounded-[3px] text-left [&>div:first-child]:h-[var(--photo-h)] sm:[&>div:first-child]:aspect-square sm:[&>div:first-child]:h-auto",
     dim ? "bg-muted text-muted-foreground opacity-75" : "bg-plate text-plate-foreground",
-    mark === "add" && "outline-3 outline-offset-2 outline-chyron-line",
+    (mark === "add" || rank !== undefined) && "outline-3 outline-offset-2 outline-chyron-line",
     mark === "drop" && "outline-3 outline-offset-2 outline-live",
   );
   const style = { "--photo-h": `${photoHeight}px` } as React.CSSProperties;
@@ -123,8 +131,8 @@ export function CastTile({
       type="button"
       className={cn(cls, "focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:cursor-default")}
       style={style}
-      aria-pressed={!!mark}
-      aria-label={castaway.name}
+      aria-pressed={!!mark || rank !== undefined}
+      aria-label={rank !== undefined ? `${castaway.name}, choice ${rank}` : castaway.name}
       disabled={disabled}
       onClick={onClick}
     >

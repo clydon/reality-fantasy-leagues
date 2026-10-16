@@ -1,7 +1,7 @@
 // Ambient typing for state-logic.js (forked from the live app -- see the provenance comment at
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
-import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, ReplenishTurn, PickEmPick, ScoringEvent, EpisodeProposalPayload } from "./types";
+import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim } from "./types";
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
 
 /** One question in guided first-time setup, in the order it should be asked. */
@@ -134,6 +134,39 @@ declare const StateLogic: {
     castawayPoints(state: LeagueState, c: Castaway): number;
     stillInPoints(state: LeagueState): number;
     compute(state: LeagueState): ScoreRow[];
+  };
+  /** Mid-season waivers (docs/PLAN-midseason-waivers.md). Claims never enter state: process() takes them. */
+  WaiverLogic: {
+    enabled(state: LeagueState): boolean;
+    processHours(state: LeagueState): number;
+    freeAgencyOn(state: LeagueState): boolean;
+    periods(state: LeagueState): WaiverPeriod[];
+    /** The week still running (open or in free agency), or null. */
+    current(state: LeagueState): WaiverPeriod | null;
+    /** Player ids in waivers: active seats, not late joiners still catching up. */
+    rotation(state: LeagueState): string[];
+    isAddDropEpisode(state: LeagueState, episode: number): boolean;
+    pickupsOwed(state: LeagueState, playerId: string): { count: number; lossIds: string[] };
+    maxPickupClaims(owed: number): number;
+    addDropUsed(state: LeagueState, period: WaiverPeriod, playerId: string): boolean;
+    schedule(state: LeagueState, period: WaiverPeriod): { processAt: string; closesAt: string | null };
+    refresh(state: LeagueState): void;
+    /** The step waiting at `now` (ms). */
+    due(state: LeagueState, now: number): "open" | "process" | "close" | "cancel" | null;
+    open(state: LeagueState, now: number): WaiverPeriod;
+    cancel(state: LeagueState): WaiverPeriod | null;
+    setClaimsIn(state: LeagueState, period: WaiverPeriod, playerIds: string[]): void;
+    checkClaim(state: LeagueState, period: WaiverPeriod | null, playerId: string, input: unknown): { claim: WaiverClaim; error?: undefined } | { error: string; claim?: undefined };
+    isEmptyClaim(claim: WaiverClaim | null | undefined): boolean;
+    process(state: LeagueState, claimsByPlayer: Record<string, WaiverClaim>, opts?: { now?: number; by?: "schedule" | "commissioner" }): WaiverRun | null;
+    /** A reason on refusal, else null. */
+    freeAgencyMove(state: LeagueState, playerId: string, addId: string, dropId: string | null | undefined, now?: number): string | null;
+    close(state: LeagueState, now?: number): WaiverPeriod | null;
+    castawayPoints(state: LeagueState, castawayId: string): number;
+    /** A reason on refusal, else null. */
+    undo(state: LeagueState): string | null;
+    /** Blanks what a viewer's copy mustn't show from episodes after their mark (mutates the copy). */
+    redact(state: LeagueState, seenThrough: number | null | undefined): void;
   };
   /** One viewer's held-back results: the league as of the last episode they've revealed. */
   SpoilerLogic: {
@@ -386,28 +419,23 @@ declare const StateLogic: {
   nextPlacementOrder(state: LeagueState): number;
   updateBet(state: LeagueState, epId: string, betId: string, field: string, value: unknown): void;
   removeBetPrediction(state: LeagueState, epId: string, betId: string, predId: string): void;
-  startReplenish(state: LeagueState): boolean;
-  currentReplenishTurn(state: LeagueState): ReplenishTurn | null;
-  replenishAssign(state: LeagueState, castawayId: string): void;
-  cancelReplenish(state: LeagueState): void;
-  /** False when Active Roster has no swap window open. */
-  startTrade(state: LeagueState): boolean;
-  /** Who this player may add in a replenish or swap: free agents (exclusive) or anyone still in the game not already theirs (shared). */
+  /** Who this player may add in a pickup or add/drop: free agents (exclusive) or anyone still in the game not already theirs (shared). */
   availableFor(state: LeagueState, playerId: string): Castaway[];
-  /** Active Roster swap schedule: whether a window is open now, and when the next one is. */
-  swapWindow(state: LeagueState): { due: boolean; afterEpisode: number | null; nextAfterEpisode: number };
   /** Active Roster: how many replenish picks this player is owed right now. */
   replenishNeed(state: LeagueState, playerId: string): number;
   MidSeasonLogic: {
+    applyPickup(state: LeagueState, playerId: string, addId: string, lossId: string | null, extra?: Partial<MidSeasonLogEntry>): MidSeasonLogEntry;
+    applyAddDrop(state: LeagueState, playerId: string, dropId: string, addId: string, extra?: Partial<MidSeasonLogEntry>): MidSeasonLogEntry;
+    /** Undoes one logged move (several: newest first). */
+    revert(state: LeagueState, tx: MidSeasonLogEntry): void;
     replenishAt(state: LeagueState): number;
     swapEvery(state: LeagueState): number;
     inGameCount(state: LeagueState, playerId: string): number;
+    /** Nobody left in the game: no more pickups or add/drops. */
+    seasonOver(state: LeagueState): boolean;
     priorityList(state: LeagueState): string[];
     order(state: LeagueState, playerIds: string[]): string[];
   };
-  tradeSwap(state: LeagueState, dropId: string, addId: string): void;
-  tradeSkip(state: LeagueState): void;
-  cancelTrade(state: LeagueState): void;
   setFinalePick(state: LeagueState, playerId: string, idx: number, value: string | null): void;
   setFinaleWinnerPick(state: LeagueState, playerId: string, value: string | null): void;
   setActualTop3(state: LeagueState, idx: number, value: string | null): void;

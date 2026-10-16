@@ -5,6 +5,7 @@ import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName } from 
 import { splitBySpoilerProtection } from "./results-seen";
 import { groupLeagueIds, groupMemberUserIds } from "./league-groups";
 import { outOfGroupChat } from "./late-join";
+import { nudgeMessage, resultsLine } from "./waiver-pushes";
 
 // One function per pushable event, so each route's trigger is a single line and all the "who gets
 // this, and what does it say" decisions live together in one reviewable place.
@@ -43,42 +44,13 @@ export function notifyDraftTurn(leagueId: string, state: LeagueState, actorUserI
   });
 }
 
-/** A replenish or swap round started or advanced: tell the player who's now up. */
-export function notifyMidSeasonTurn(leagueId: string, state: LeagueState, actorUserId: string | null) {
-  notifyAfter("midSeasonTurn", async () => {
-    let playerId: string | undefined;
-    let title = "";
-    let body = "";
-    const r = StateLogic.currentReplenishTurn(state);
-    const t = state.midSeason.trade;
-    if (r && !r.isComplete && r.playerId) {
-      playerId = r.playerId;
-      title = "Your turn for a pickup";
-      body = "Pick up a replacement";
-    } else if (t && t.index < t.queue.length) {
-      playerId = t.queue[t.index].playerId;
-      title = "Your turn to swap";
-      body = "Make your swap, or skip it,";
-    }
-    if (!playerId) return null;
-    const userIds = (await userIdsForPlayers(leagueId, [playerId])).filter((id) => id !== actorUserId);
-    if (!userIds.length) return null;
-    return {
-      userIds,
-      message: {
-        title,
-        body: `${body} in ${await leagueName(leagueId)}.`,
-        url: link("/mid-season", leagueId),
-        tag: `midseason-${leagueId}`,
-      },
-    };
-  });
-}
-
 /**
  * Someone was eliminated. Spoiler protection (results-seen.ts) splits the audience: anyone who opted
  * out gets who went home, listing everyone out so far this episode so repeat boots collapse; everyone
  * else only hears that results are in -- the names wait for them to tap Reveal in the app.
+ *
+ * In a waivers league both end with when the week these results opened processes ("Waivers process Tue
+ * 8:00 PM EDT."): every week, to everyone, so it says nothing about who left.
  */
 export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId: string, actorUserId: string | null) {
   const ep = state.episodes.find((e) => e.id === epId);
@@ -86,6 +58,8 @@ export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId:
   // Looked up inside each after() callback (not here, before the write commits), once, shared by both.
   let split: ReturnType<typeof splitBySpoilerProtection> | null = null;
   const audience = () => (split ??= leagueMemberUserIds(leagueId, actorUserId, { ghosts: true }).then(splitBySpoilerProtection));
+  let waivers: Promise<string> | null = null;
+  const waiverLine = () => (waivers ??= resultsLine(pool, state, ep.number));
   const tag = `episode-${leagueId}-${ep.number}`;
   notifyAfter("episodeResults", async () => {
     const outs = ep.events
@@ -97,13 +71,34 @@ export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId:
       .join(", ");
     return {
       userIds: (await audience()).immediate,
-      message: { title: `Episode ${ep.number} results`, body: truncate(`${outs} · ${await leagueName(leagueId)}`), url: link("/episodes", leagueId), tag },
+      message: {
+        title: `Episode ${ep.number} results`,
+        body: truncate(`${outs} · ${await leagueName(leagueId)}`) + ((await waiverLine()) ? `.${await waiverLine()}` : ""),
+        url: link("/episodes", leagueId),
+        tag,
+      },
     };
   });
   notifyAfter("episodeResults", async () => ({
     userIds: (await audience()).protectedIds,
-    message: { title: "Results are in!", body: `Episode ${ep.number} · ${await leagueName(leagueId)} — open the app when you're ready.`, url: link("/", leagueId), tag },
+    message: {
+      title: "Results are in!",
+      body: `Episode ${ep.number} · ${await leagueName(leagueId)} — open the app when you're ready.${await waiverLine()}`,
+      url: link("/", leagueId),
+      tag,
+    },
   }));
+}
+
+/**
+ * The commissioner's Nudge on the Waivers page: one push to that player, worded for what they may know
+ * (waiver-pushes.js nudgeMessage). False when they have no account to reach.
+ */
+export async function notifyWaiverNudge(leagueId: string, state: LeagueState, playerId: string, byName: string): Promise<boolean> {
+  const target = await nudgeMessage(pool, leagueId, state, playerId, byName);
+  if (!target) return false;
+  notifyAfter("waiverReminder", async () => target);
+  return true;
 }
 
 /** A side bet was proposed: everyone but the proposer can now guess. */

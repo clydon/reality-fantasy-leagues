@@ -8,6 +8,8 @@ const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
 const T = jiti("../src/lib/tour/rise-and-fall.ts");
 const S = require("../src/lib/game/state-logic.js");
+// Through the alias, as rise-and-fall.ts imports it: one module, one set of claims.
+const Claims = jiti("@/lib/mock-claims");
 
 const total = (s, id) => S.computeScores(s).find((r) => r.playerId === id).total;
 const ep = (s, n) => s.episodes.find((e) => e.number === n);
@@ -44,11 +46,18 @@ function playThrough(choose, start = (mine) => mine.slice(0, 2)) {
 
   const free = T.pickupName(s);
   assert.ok(free, "there's someone to pick up");
-  T.startPickups(s);
-  assert.equal(S.currentReplenishTurn(s).playerId, T.TOUR_ME, "only you are owed a pickup");
-  S.replenishAssign(s, S.freeAgents(s).find((c) => c.status === "active").id);
+  T.openWaivers(s);
+  const week = S.WaiverLogic.current(s);
+  assert.ok(week && week.phase === "open", "waivers open");
+  assert.deepEqual(s.players.filter((p) => S.WaiverLogic.pickupsOwed(s, p.id).count).map((p) => p.id), [T.TOUR_ME], "only you are owed a pickup");
+  // Your claim, as the pickup picker saves it in the tour (useMyClaim's mock half).
+  const want = S.freeAgents(s).find((c) => c.status === "active").id;
+  Claims.setMockClaim(week.id, T.TOUR_ME, { pickupIds: [want], dropId: null, addIds: [] });
+  S.WaiverLogic.setClaimsIn(s, week, [T.TOUR_ME]);
+  T.processWaivers(s);
+  assert.equal(week.phase, "processed", "they process at once");
+  assert.deepEqual(S.getCastaway(s, want).ownerIds, [T.TOUR_ME], "you got who you claimed");
   T.afterPickup(s);
-  assert.equal(s.midSeason.replenish, null, "the round closes after your pickup");
   assert.equal(S.activeRosterLineupFor(s, ep(s, 2).id, T.TOUR_ME).length, 2, "the pickup starts in the open slot");
 
   const gusIn = S.getCastaway(s, T.TOUR_FLOP).status === "active";

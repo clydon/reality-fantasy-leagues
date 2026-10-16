@@ -32,7 +32,7 @@ const TOP_TITLES: Record<string, string> = {
   "/episodes": "Episodes",
   "/scoreboard": "Scoreboard",
   "/draft": "Draft",
-  "/mid-season": "Mid-Season",
+  "/waivers": "Waivers",
   "/research": "Research",
   "/lineup": "Lineup",
   "/pick": "Pick",
@@ -49,6 +49,10 @@ export function parentOf(pathname: string): { href: string; label: string } | nu
   if (results) return { href: `/episodes/${results[1]}`, label: `Episode ${results[1]}` };
   if (/^\/scoreboard\/[^/]+$/.test(pathname)) return { href: "/scoreboard", label: "Scoreboard" };
   if (pathname === "/draft/board") return { href: "/draft", label: "Draft" };
+  // Waivers (docs/PLAN-midseason-waivers.md): a tab in Classic, inside Research in Active Roster.
+  if (pathname === "/research/waivers") return { href: "/research", label: "Research" };
+  const waivers = /^(\/waivers|\/research\/waivers)\/.+$/.exec(pathname);
+  if (waivers) return { href: waivers[1], label: "Waivers" };
   if (pathname === "/setup/rules/edit") return { href: "/setup/rules", label: "Scoring & rules" };
   if (/^\/setup\/[^/]+$/.test(pathname)) return { href: "/setup", label: "League Settings" };
   return null;
@@ -68,6 +72,11 @@ export function pageTitle(
   if (results) return `Episode ${results[1]} results`;
   if (pathname === "/cast") return "The cast";
   if (pathname === "/draft/board") return "Draft board";
+  const waiverPage = /^(?:\/research)?\/waivers(?:\/(pickup|add-drop|free-agency|results\/(\d+)))?$/.exec(pathname);
+  if (waiverPage) {
+    if (waiverPage[2]) return `Episode ${waiverPage[2]} waivers`;
+    return { pickup: "Pickup", "add-drop": "Add/drop", "free-agency": "Free agency" }[waiverPage[1] ?? ""] ?? "Waivers";
+  }
   // /scoreboard/lines is the commissioner's episode lines, not a player.
   if (pathname === "/scoreboard/lines") return "Episode lines";
   const player = /^\/scoreboard\/([^/]+)$/.exec(pathname);
@@ -78,7 +87,7 @@ export function pageTitle(
     "/setup/lineups": "Lineups",
     "/setup/rules": "Scoring & rules",
     "/setup/rules/edit": "Edit rules",
-    "/setup/pickups": "Swaps & pickups",
+    "/setup/waivers": "Waivers",
     "/setup/predictions": "Predictions",
     "/setup/cast": `${ctx.tribes} & ${ctx.castaways}`,
     "/setup/linked": "Linked leagues",

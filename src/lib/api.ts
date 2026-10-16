@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal, SeasonRuleChange, SeasonRuleChangeWithReview, EpisodeResearchPanel, ResearchApplySummary, LeagueRuleset } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal, SeasonRuleChange, SeasonRuleChangeWithReview, EpisodeResearchPanel, ResearchApplySummary, LeagueRuleset, WaiverClaim } from "@/lib/game/types";
 import type { FormatData } from "@/lib/game/formats/index";
 import type { ArtStyle } from "@/lib/show-art-style";
 import type { SeasonCheck } from "@/lib/game/formats/season-check";
@@ -297,24 +297,26 @@ export const api = {
       method: "DELETE",
     }),
 
-  startReplenish: (leagueId: string) =>
-    localFetch<LeagueState>(`/api/leagues/${leagueId}/replenish/start`, { method: "POST" }),
-  replenishAssign: (leagueId: string, castawayId: string) =>
-    localFetch<LeagueState>(`/api/leagues/${leagueId}/replenish/assign`, {
-      method: "POST",
-      body: JSON.stringify({ castawayId }),
+  // Mid-season waivers (docs/PLAN-midseason-waivers.md). Claims are private and live outside state, so
+  // your own comes back from its own read; saving returns the league with "who has claims in" updated.
+  // `playerId` on a write: the commissioner acting for someone. A save may carry one part (the pickup
+  // list, or the add/drop): the part left out keeps what's saved (waivers.js saveClaim).
+  getWaiverClaim: (leagueId: string) =>
+    localFetch<{ periodId: string | null; claim: WaiverClaim | null; hidden: boolean }>(`/api/leagues/${leagueId}/waivers`),
+  saveWaiverClaim: (leagueId: string, claim: Partial<WaiverClaim>, playerId?: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/claims`, {
+      method: "PUT",
+      body: JSON.stringify({ ...claim, playerId }),
     }),
-  cancelReplenish: (leagueId: string) =>
-    localFetch<LeagueState>(`/api/leagues/${leagueId}/replenish/cancel`, { method: "POST" }),
-
-  startTrade: (leagueId: string) => localFetch<LeagueState>(`/api/leagues/${leagueId}/trade/start`, { method: "POST" }),
-  tradeSwap: (leagueId: string, dropId: string, addId: string) =>
-    localFetch<LeagueState>(`/api/leagues/${leagueId}/trade/swap`, {
+  freeAgencyMove: (leagueId: string, addId: string, dropId?: string | null, playerId?: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/free-agency`, {
       method: "POST",
-      body: JSON.stringify({ dropId, addId }),
+      body: JSON.stringify({ addId, dropId: dropId ?? null, playerId }),
     }),
-  tradeSkip: (leagueId: string) => localFetch<LeagueState>(`/api/leagues/${leagueId}/trade/skip`, { method: "POST" }),
-  cancelTrade: (leagueId: string) => localFetch<LeagueState>(`/api/leagues/${leagueId}/trade/cancel`, { method: "POST" }),
+  processWaivers: (leagueId: string) => localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/process`, { method: "POST" }),
+  undoWaiverRun: (leagueId: string) => localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/undo`, { method: "POST" }),
+  nudgeWaivers: (leagueId: string, playerId: string) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/nudge`, { method: "POST", body: JSON.stringify({ playerId }) }),
 
   setFinalePick: (leagueId: string, playerId: string, idx: number, value: string | null) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/finale/predictions/${playerId}`, {

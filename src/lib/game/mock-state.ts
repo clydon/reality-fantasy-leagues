@@ -153,13 +153,11 @@ export function buildMockSeasonState(): LeagueState {
       { playerId: joey.id, top3: [byName("rizo"), byName("aubry"), byName("jonathan")], winner: byName("aubry") },
     ],
     finaleActual: { top3: [byName("aubry"), byName("jonathan"), byName("joe")], winner: byName("aubry") },
-    // The finished rounds that the castaways' acquiredVia/departedVia fields above already imply,
-    // recorded as log entries so the Mid-Season panels show their history. Genevieve is swapped
+    // The pickups and add/drops that the castaways' acquiredVia/departedVia fields above already imply,
+    // recorded as log entries so Transactions show their history. Genevieve is dropped
     // while still active (before her Ep 6 exit); the replenish comes after Ep 6, once Q, Mike and
     // Charlie were all out.
     midSeason: {
-      replenish: null,
-      trade: null,
       log: [
         { id: "demo_tx1", type: "trade" as const, playerId: connie.id, addedCastawayId: byName("jonathan"), droppedCastawayId: byName("genevieve"), at: "2026-03-26T03:00:00.000Z" },
         { id: "demo_tx2", type: "replenish" as const, playerId: connie.id, addedCastawayId: byName("rick"), droppedCastawayId: byName("q"), at: "2026-04-02T03:00:00.000Z" },
@@ -176,7 +174,7 @@ export function buildMockSeasonState(): LeagueState {
       teamSize: 3,
       bonusEnabled: true,
       replenishOrderBy: "mostPoints",
-      // The demo season shows off a completed replenish/swap history, so both are on here.
+      // The demo season shows off a completed pickup and add/drop history, so both are on here.
       replenishEnabled: true,
       tradeEnabled: true,
       defaultBetPoints: 1,

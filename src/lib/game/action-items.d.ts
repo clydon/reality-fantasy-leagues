@@ -1,7 +1,7 @@
 // Types for action-items.js (plain CommonJS so db/reminders.js can require it under bare node).
 import type { Episode, LeagueState } from "./types";
 
-export type ActionKind = "notifications" | "invite" | "lateJoin" | "draftTurn" | "blindDraft" | "midSeasonTurn" | "lineup" | "pick" | "prediction" | "results";
+export type ActionKind = "notifications" | "invite" | "lateJoin" | "draftTurn" | "blindDraft" | "lineup" | "pick" | "prediction" | "results" | "pickup";
 
 export interface ActionItem {
   kind: ActionKind;
@@ -11,6 +11,10 @@ export interface ActionItem {
   href: string;
   /** Weekly items (lineup, pick, prediction, results): the episode number it's for. */
   episode?: number;
+  /** "pickup": the deadline (ISO), shown in the viewer's own time ("by Tue 8 PM"); null when there's none. */
+  by?: string | null;
+  /** "pickup": a few words after the league's name ("claim up to 3"). */
+  detail?: string;
   /** "invite" only (from /api/me/actions, not actionItems): which invite, and who sent it. */
   inviteId?: string;
   invitedBy?: string | null;
@@ -30,3 +34,6 @@ export function resultsDueEpisode(state: LeagueState, now?: number): Episode | n
 
 /** Where a commissioner fills in an episode's results: research when the league has a season, else by hand. */
 export function resultsHref(state: LeagueState, ep: Episode): string;
+
+/** Where this league's Waivers pages live: /waivers, or /research/waivers for Active Roster. */
+export function waiversHref(state: LeagueState): "/waivers" | "/research/waivers";

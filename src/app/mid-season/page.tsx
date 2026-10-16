@@ -1,5 +1,5 @@
-import { MidSeasonTab } from "@/components/mid-season/mid-season-tab";
+import { MidSeasonRedirect } from "@/components/waivers/waivers-route";
 
 export default function MidSeasonPage() {
-  return <MidSeasonTab />;
+  return <MidSeasonRedirect />;
 }

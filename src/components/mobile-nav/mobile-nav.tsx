@@ -13,7 +13,8 @@ import { myLineupDue } from "@/lib/game/lineup-view";
 import { myPickDue } from "@/lib/game/pool-view";
 import { logOut } from "@/lib/auth-client";
 import { cn } from "cn";
-import { midseasonBadge } from "@/lib/game/selectors";
+import { waiversBadge } from "@/lib/game/selectors";
+import { waiversBase } from "@/components/waivers/waivers-model";
 import { LeagueMenu, LeagueMenuActions } from "@/components/league-menu";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
@@ -196,10 +197,6 @@ export function MobileNav() {
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
   const hasRoster = StateLogic.getLeagueType(state).hasRoster;
-  // Same gate the desktop sidebar uses: Mid-Season only exists when the league type supports
-  // replenish/trade AND the commissioner turned one on. Without it there's no round to promote
-  // into the 4th slot or demote into the More sheet -- see sidebar.tsx's note.
-  const hasMidSeason = StateLogic.replenishAvailable(state) || StateLogic.tradeAvailable(state);
   // Whether there's a season to browse at all -- a real league, or the demo one someone stepped
   // into deliberately. Mirrors sidebar.tsx's `hasSeason`, and for the same reason: a signed-in user
   // with no league would otherwise get a tab bar of views onto demo data they never asked for.
@@ -209,20 +206,24 @@ export function MobileNav() {
   // turn/pick, muted when a round is merely active. Draft's badge also folds in the same
   // "it's your turn to draft" signal the Notifications banner uses (notifications tagged '/draft').
   // Not in the original (predates this repo's second league type): a league type with no roster
-  // at all (pickem) has neither Draft nor Mid-Season to show here, so the slot promotes Chat
+  // at all (pickem) has neither Draft nor Waivers to show here, so the slot promotes Chat
   // instead (already reachable via the header icon too, but worth the always-visible bottom-bar
   // spot given it's now this league type's only "other players' activity" surface) and there's
   // nothing to demote into the More sheet.
   const draftUrgent = !!(turn && !turn.isComplete && myPlayerId && turn.playerId === myPlayerId) || notifications.some((n) => n.tab === "/draft");
-  const midBadge = midseasonBadge(state, myPlayerId);
-  const midSeasonSlot = hasMidSeason ? { href: "/mid-season", label: "Mid-Season", icon: ShuffleIcon } : null;
+  // Waivers (docs/PLAN-midseason-waivers.md), when the commissioner turned Pickups or Add/drops on (the
+  // same gate the desktop sidebar uses): the 4th slot after the draft in Classic; in Active Roster,
+  // inside Research, which carries its "needs you" mark.
+  const waivers = StateLogic.WaiverLogic.enabled(state);
+  const waiversMark = waivers ? waiversBadge(state, myPlayerId) : null;
+  const waiversSlot = waivers ? { href: waiversBase(state), label: "Waivers", icon: ShuffleIcon } : null;
   // Active Roster gets a fifth slot, Research (who's scoring), at every phase: it's where you decide
   // who to start and who to pick up, so it isn't buried in More. Chat stays one tap away on the top
   // bar's icon.
   const hasActiveRoster = StateLogic.getLeagueType(state).hasActiveRoster;
   // After the draft Active Roster's slot is the Lineup (docs/PLAN-ux-redesign.md, 1e: slot 4 follows
   // the season phase) -- setting it is the weekly job -- flagged while your lineup has a slot to
-  // fill. Mid-Season moves to the More sheet.
+  // fill. Waivers move to the More sheet.
   const lineupSlot = hasActiveRoster && draftComplete;
   // Eliminator Pool has no draft: its slot is the weekly Pick, flagged while yours is still to make.
   // Chat (which used to take the slot) stays one tap away on the top bar's icon.
@@ -231,19 +232,20 @@ export function MobileNav() {
     ? { href: "/lineup", label: "Lineup", icon: LineupIcon, urgent: myLineupDue(state, myPlayerId) ? true : null }
     : pickSlot
     ? { href: "/pick", label: "Pick", icon: PickIcon, urgent: myPickDue(state, myPlayerId) ? true : null }
-    : !hasRoster || (draftComplete && !midSeasonSlot)
+    : !hasRoster || (draftComplete && !waiversSlot)
       ? { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
       : draftComplete
-        ? { ...midSeasonSlot!, urgent: midBadge?.urgent ?? null }
+        ? // Waivers are open most weeks: marked only when a pickup's yours to claim, never just "open".
+          { ...waiversSlot!, urgent: waiversMark?.urgent ? true : null }
         : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
-  const demoted = !hasRoster ? null : draftComplete ? { href: "/draft", label: "Draft", icon: DraftIcon } : midSeasonSlot;
+  const demoted = !hasRoster ? null : draftComplete ? { href: "/draft", label: "Draft", icon: DraftIcon } : waiversSlot;
 
   const leagueTabs: { href: string; label: string; icon: typeof OverviewIcon; urgent?: boolean | null }[] = [
     { href: "/", label: "Overview", icon: OverviewIcon },
     { href: "/episodes", label: "Episodes", icon: EpisodesIcon },
     { href: "/scoreboard", label: "Scoreboard", icon: TrophyIcon },
     fourth,
-    ...(hasActiveRoster ? [{ href: "/research", label: "Research", icon: ResearchIcon }] : []),
+    ...(hasActiveRoster ? [{ href: "/research", label: "Research", icon: ResearchIcon, urgent: waiversMark?.urgent ? true : null }] : []),
   ];
   // No league and not previewing: the only two places worth going are the join/create screen and
   // the demo season (the latter is a state change, not a route -- hence the null href below).
@@ -488,12 +490,6 @@ export function MobileNav() {
         >
           <span className="relative inline-flex">
             <MoreIcon className="h-[21px] w-[21px]" />
-            {/* Mid-Season lives in here for Active Roster, so its "your turn" alert does too. */}
-            {lineupSlot && midSeasonSlot && midBadge?.urgent && tourAllows("tab-more") && (
-              <span className="absolute -right-2 -top-1 flex h-[15px] w-[15px] items-center justify-center rounded-full bg-destructive text-[0.62rem] font-bold text-white">
-                !
-              </span>
-            )}
           </span>
           <span className="text-[0.63rem] font-semibold">More</span>
         </button>
@@ -557,19 +553,18 @@ export function MobileNav() {
             <MoreRow
               icon={demoted.icon}
               label={demoted.label}
-              value={demoted.href === "/draft" ? "Done" : midBadge?.label}
-              urgent={demoted.href !== "/draft" && !!midBadge?.urgent}
+              value={demoted.href === "/draft" ? "Done" : waiversMark?.label}
+              urgent={demoted.href !== "/draft" && !!waiversMark?.urgent}
               onClick={() => go(demoted.href)}
             />
           )}
-          {hasSeason && lineupSlot && midSeasonSlot && (
+          {hasSeason && lineupSlot && waiversSlot && (
             <MoreRow
-              icon={midSeasonSlot.icon}
-              label="Mid-Season"
-              value={midBadge?.label}
-              urgent={!!midBadge?.urgent}
-              onClick={() => go(midSeasonSlot.href)}
-              tour="more-midseason"
+              icon={waiversSlot.icon}
+              label={waiversSlot.label}
+              value={waiversMark?.label}
+              onClick={() => go(waiversSlot.href)}
+              tour="more-waivers"
             />
           )}
           {hasSeason && mode === "live" && (

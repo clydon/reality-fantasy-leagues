@@ -11,6 +11,43 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Mid-season waivers: phases 1–4 built 2026-10-16 (not committed); every league is on waivers
+
+Pickups and Swap become **Waivers**: private ranked claims, processed at once in waiver order (pickups
+first, then add/drops), then free agency until airtime. Design: the "Mid-Season Moves" canvas
+(https://claude.ai/artifact/374Ha1KqK45HdbQR1ftcpk). Plan, rules, data model and phases:
+`docs/PLAN-midseason-waivers.md` (its "As built: phase 1" has the file map and the calls made).
+- Built: `WaiverLogic` in state-logic.js, the private `waiver_claims` table (0060, applied locally),
+  `src/lib/server/waivers.js` (claims, the lazy clock in `withLeagueLock`/GET state, Process now), the
+  `/waivers` routes, bot claims, and spoiler redaction (which also fixes live rounds' pickups showing to
+  players who haven't revealed). Behind `settings.midSeasonMode: 'waivers'`: no league changes until
+  it's switched on.
+- Tests: `tests/waivers.test.js`; `scripts/dev-test/waivers-fixture.js` + `check-waivers.js` (34 API
+  checks against the dev server); `api()` in `scripts/dev-test/browser.js`.
+- **Phase 2, the UI, built the same day** (not committed): every board on the canvas but the alerts (11),
+  in `src/components/waivers/`; Classic at `/waivers` (Mid-Season's slot), Active Roster inside Research
+  (`/research/waivers`). Shared leagues show no order or ranking. File map, calls and what was verified:
+  the plan's "As built: phase 2". Browser check: `node scripts/dev-test/check-waivers-ui.js <outDir> [390] [--dark]`.
+- **Phase 3, pushes and the clock job, built the same day** (not committed): `src/lib/server/waiver-pushes.js`
+  (who hears what), "Waivers processed" sent by whoever processed the week (`withLeagueLock` or the new
+  hourly `db/waivers.js`, a workflow step after reminders), 6h-before reminders, the results push's
+  "Waivers process …" line, Nudge (`/waivers/nudge`), two new notification types (`waivers`,
+  `waiverReminder`), the alert strip's pickup item, Overview's status plate and "You got …" plate. Calls and
+  checks: the plan's "As built: phase 3". New checks: `tests/waiver-pushes.test.js`,
+  `scripts/dev-test/check-waivers-alerts.js`; `check-waivers-ui.js` now shoots Overview too.
+- Production, when this ships: the workflow's new step uses the same secrets as reminders.js (nothing new
+  to set).
+- Waiting on the user: a standalone Waivers tab for Active Roster (Episodes + Lineup merged) or keep it in
+  Research (canvas board 14); in shared leagues, should pickups wait for processing or be instant.
+- **Phase 4, built the same day** (not committed): waivers are the only mode. Live rounds are deleted (engine,
+  routes, panels, bots' turns, the `midSeasonTurn` push, Swaps & pickups settings); `settings.midSeasonMode` is gone.
+  `db/migrations/0061_waivers_for_every_league.sql` (applied locally; production on deploy) closes any open round.
+  The guided tour's pickup is now a waiver claim. Details and calls: the plan's "As built: phase 4".
+- Waiting on the user: the What's New draft (release `2026-10-16` in `src/lib/whats-new.ts`, uncommitted; it also
+  deletes the 2026-10-10 "Make your own pickups and swaps" item, now wrong).
+- **Phase 5 done 2026-10-16:** DESIGN.md has a "Waivers (mid-season moves)" section and the picker/status-plate/navigation lines
+  say waivers; the User Manual doc's Replenish/Swap lines now describe waivers (its Episodes/results text is still the old path).
+
 ## Episodes tab + the commissioner's results job, built 2026-10-16 (not committed)
 
 Filling in an episode's results is now every commissioner's job by default (any league, not just

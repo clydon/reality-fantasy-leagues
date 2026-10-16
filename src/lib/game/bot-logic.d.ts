@@ -1,5 +1,5 @@
 // Types for bot-logic.js (plain CommonJS, like action-items.js).
-import type { LeagueState, Player } from "./types";
+import type { LeagueState, Player, WaiverClaim, WaiverPeriod } from "./types";
 
 export interface BotRating {
   /** How likely they are to survive the next vote. */
@@ -28,3 +28,5 @@ export function run(state: LeagueState): number;
 export function hasWork(state: LeagueState): boolean;
 /** What each bot would lock in for an open blind draft that's waiting on it. */
 export function blindSubmissions(state: LeagueState): { playerId: string; castawayIds: string[] }[];
+/** What a bot claims for a waiver week, asked for when the week processes (claims live outside state). */
+export function waiverClaim(state: LeagueState, playerId: string, period: WaiverPeriod | null): WaiverClaim;

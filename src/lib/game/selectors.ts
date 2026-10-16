@@ -81,20 +81,16 @@ function stripWikiRevisionSuffix(raw: string): string {
 const MEDAL_EMOJI: Record<string, string> = { gold: "🥇", silver: "🥈", bronze: "🥉" };
 export { MEDAL_EMOJI };
 
-// Port of computeMidseasonBadge() (public/app.js): "Your Turn" only when it's genuinely this
-// player's own turn up next, never just because a viewer *can* act on it (commissioner powers
-// aside) -- that principle is deliberate, see docs/HANDOFF.md. Everyone else sees a quieter
-// "Active" badge. Replenish takes priority over Swap if somehow both are active, matching their
-// listed order on the Mid-Season panel itself.
-export function midseasonBadge(state: LeagueState, myPlayerId: string | null): { label: string; urgent: boolean } | null {
-  const replenishTurn = state.midSeason.replenish ? StateLogic.currentReplenishTurn(state) : null;
-  const trade = state.midSeason.trade;
-  let turnPlayerId: string | undefined;
-  if (replenishTurn && !replenishTurn.isComplete) turnPlayerId = replenishTurn.playerId;
-  else if (trade && trade.index < trade.queue.length) turnPlayerId = trade.queue[trade.index].playerId;
-  else return null;
-  const isYourTurn = !!myPlayerId && turnPlayerId === myPlayerId;
-  return isYourTurn ? { label: "Your Turn", urgent: true } : { label: "Active", urgent: false };
+// Waivers' tab mark (docs/PLAN-midseason-waivers.md): "needs you" only for a pickup you owe -- the
+// one claim that isn't optional -- while you have no claim in, or once waivers have processed and it's
+// still unfilled. Read from the viewer's own copy, so a week they haven't revealed never flags.
+export function waiversBadge(state: LeagueState, myPlayerId: string | null): { label: string; urgent: boolean } | null {
+  const W = StateLogic.WaiverLogic;
+  const p = W.enabled(state) ? W.current(state) : null;
+  if (!p || p.hidden) return null;
+  const owed = myPlayerId ? W.pickupsOwed(state, myPlayerId).count : 0;
+  if (p.phase === "open") return owed && !p.claimsIn.includes(myPlayerId!) ? { label: "Pickup", urgent: true } : { label: "Open", urgent: false };
+  return owed && W.freeAgencyOn(state) ? { label: "Pickup", urgent: true } : { label: "Free agency", urgent: false };
 }
 
 export function medalFor(state: LeagueState, placementOrder: number | undefined): "gold" | "silver" | "bronze" | null {

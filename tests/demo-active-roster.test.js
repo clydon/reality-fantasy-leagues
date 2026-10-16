@@ -57,5 +57,5 @@ test("the players don't move in lockstep, and the season's end owes nothing", ()
   assert.ok(new Set(totals).size > 1, `everyone tied: ${totals}`);
   assert.ok(end.midSeason.log.length > 0, "some roster moves happened");
   for (const p of end.players) assert.equal(S.replenishNeed(end, p.id), 0);
-  assert.equal(S.swapWindow(end).due, false);
+  assert.equal(S.WaiverLogic.due(end, Date.now()), null, "no waiver week to open");
 });

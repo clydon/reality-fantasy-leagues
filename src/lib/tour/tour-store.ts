@@ -16,7 +16,8 @@ import {
   botsDraft,
   buildTourState,
   scriptEpisode,
-  startPickups,
+  openWaivers,
+  processWaivers,
 } from "./rise-and-fall";
 import { buildCommissionerState, stageResults } from "./commissioner";
 import { tourSteps, type TourStep } from "./steps";
@@ -228,19 +229,29 @@ function direct(s: LeagueState, seen: number): boolean {
     return true;
   }
   if (seen < 1) return false;
+  const W = StateLogic.WaiverLogic;
+  const week = W.current(s);
   const pickedUp = s.castaways.some((c) => c.ownerIds.includes(TOUR_ME) && c.acquiredVia === "replenish");
   if (!pickedUp) {
-    if (s.midSeason.replenish || StateLogic.replenishNeed(s, TOUR_ME) === 0) return false;
-    startPickups(s);
-    gloat(s);
-    return true;
+    if (!week) {
+      if (StateLogic.replenishNeed(s, TOUR_ME) === 0) return false;
+      openWaivers(s);
+      gloat(s);
+      return true;
+    }
+    // Your claim's in: waivers process.
+    if (week.phase === "open" && week.claimsIn.includes(TOUR_ME)) {
+      processWaivers(s);
+      return true;
+    }
+    return false;
   }
-  if (s.midSeason.replenish && !StateLogic.currentReplenishTurn(s)?.isComplete) return false;
   const ep2 = episode(s, 2);
-  if (s.midSeason.replenish || (ep2 && !StateLogic.episodeHasResults(ep2))) {
-    // Your pickup's in: Episode 2 airs.
+  if (ep2 && !StateLogic.episodeHasResults(ep2)) {
+    // Your pickup's in: Episode 2 airs, and its results close the week.
     afterPickup(s);
     scriptEpisode(s, 2);
+    W.close(s, Date.now());
     return true;
   }
   return false;

@@ -13,6 +13,7 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { EyeOff, Lock } from "lucide-react";
 import { episodesLabel, useHiddenResults } from "@/components/results-in-banner";
 import { DashAside, DashCard } from "./dash-card";
+import { andList, isShared, periodFor, resultWhy, useCastNames, useWaiversBase } from "@/components/waivers/waivers-model";
 
 // The latest episode with results (docs/PLAN-ux-declutter.md): "Episode N" with Recap on the heading
 // line, then who left, each as an "Out" caption plate (the episode page's). Classic says where each
@@ -57,8 +58,52 @@ export function LatestEpisodeCard({ state }: { state: LeagueState }) {
           );
         })}
         {activeRoster && <YourWeekPlate state={state} ep={latestEp} />}
+        <YourWaiversPlate state={state} n={latestEp.number} />
       </div>
     </DashCard>
+  );
+}
+
+// Waivers (the canvas's board 11, "Overview, after"): once the week this episode opened has processed,
+// what your claims came to, until the next episode takes the card. Only claims you made: a week you sat
+// out says nothing here. Every outcome and why is on the week's results page.
+function YourWaiversPlate({ state, n }: { state: LeagueState; n: number }) {
+  const me = useMyPlayerId();
+  const name = useCastNames(state);
+  const base = useWaiversBase();
+  const period = periodFor(state, n);
+  if (!me || !period?.run) return null;
+  const mine = period.run.results.filter((r) => r.playerId === me && (r.outcome === "got" || r.outcome === "missed"));
+  if (!mine.length) return null;
+  const href = `${base}/results/${n}`;
+  const more = <span className="sr-only">See everyone&rsquo;s</span>;
+  const got = mine.filter((r) => r.outcome === "got" && r.castawayId);
+  if (!got.length) {
+    return <CaptionPlate size="sm" tone="quiet" tag="Waivers" title="Your claim missed" subtitle={resultWhy(state, mine[0], me, name)} action={more} href={href} />;
+  }
+  const first = StateLogic.getCastaway(state, got[0].castawayId!);
+  // Shared ownership: nothing could be lost to anyone, so which choice it was says nothing.
+  const firsts = got.every((r) => (r.choice ?? 1) === 1);
+  const choices = isShared(state)
+    ? null
+    : firsts
+      ? got.length === 1
+        ? "1st choice"
+        : got.length === 2
+          ? "Both 1st choices"
+          : "All 1st choices"
+      : got.map((r) => `${ordinal(r.choice ?? 1)} choice`).join(", ");
+  return (
+    <CaptionPlate
+      size="sm"
+      tone="good"
+      tag="Waivers"
+      image={(first && castawayPhotoSrc(first.photoUrl)) ?? undefined}
+      title={`You got ${andList(got.map((r) => name(r.castawayId)))}`}
+      subtitle={choices ? `${choices} · see everyone’s` : "See everyone’s"}
+      action={more}
+      href={href}
+    />
   );
 }
 

@@ -4,6 +4,7 @@ import { commissionerItems } from "./commissioner-items";
 import { ordinal } from "./selectors";
 import { pickWindow } from "./pool-view";
 import { lineupStatus } from "./lineup-view";
+import { waiversHref } from "./action-items.js";
 
 export interface StatusPlate {
   tag: string;
@@ -76,15 +77,8 @@ export function statusPlate(
     }
   }
 
-  const rep = state.midSeason.replenish;
-  if (rep && rep.index < rep.sequence.length) {
-    const seq = rep.sequence as { playerId: string }[];
-    return roundTurn("Pickups", seq[rep.index]?.playerId, seq[rep.index + 1]?.playerId, me, name);
-  }
-  const trade = state.midSeason.trade;
-  if (trade && trade.index < trade.queue.length) {
-    return roundTurn("Swap", trade.queue[trade.index]?.playerId, trade.queue[trade.index + 1]?.playerId, me, name);
-  }
+  const waivers = me ? waiverPlate(state, me) : null;
+  if (waivers) return waivers;
 
   if (R.isCatchingUp(state)) {
     return { tag: `Ep ${R.nextEpisode(state)}`, title: "Up next", detail: "Revealed once everyone's watched" };
@@ -142,20 +136,46 @@ const SHORT_DETAIL: Record<string, string> = {
   reveal: "Once everyone has watched",
 };
 
-function roundTurn(
-  tag: string,
-  current: string | undefined,
-  next: string | undefined,
-  me: string | null,
-  name: (id: string | undefined) => string,
-): StatusPlate {
-  return {
-    tag,
-    title: `${name(current)}'s turn`,
-    detail: next ? (next === me ? "Then you" : `Then ${name(next)}`) : "Last turn of the round",
-    action: "Watch",
-    href: "/mid-season",
-  };
+// Waivers (docs/PLAN-midseason-waivers.md; the canvas's board 11), when the week has something of yours
+// in it but nothing owed: a pickup you owe with no claim in is the alert strip's (action-items.js), so
+// this never adds yellow. Your claim is in; an add/drop week's optional claim; free agency with your
+// add/drop unused. A week you can't claim anything in says nothing here. Reads the viewer's copy, where a
+// week from an unrevealed episode is hidden -- and a hidden result already took the plate away above.
+function waiverPlate(state: LeagueState, me: string): StatusPlate | null {
+  const W = StateLogic.WaiverLogic;
+  const p = W.enabled(state) ? W.current(state) : null;
+  if (!p || p.hidden || !W.rotation(state).includes(me)) return null;
+  const href = waiversHref(state);
+  const at = (iso: string | null) => (iso ? shortWhen(Date.parse(iso)) : null);
+  if (p.phase === "open") {
+    const processes = p.hold ? null : at(p.processAt);
+    if (p.claimsIn.includes(me)) {
+      const rotation = state.players.filter((pl) => W.rotation(state).includes(pl.id));
+      const inCount = rotation.filter((pl) => pl.automated || p.claimsIn.includes(pl.id)).length;
+      return {
+        tag: "Waivers",
+        title: processes ? `Waivers process ${processes}` : "Waivers are on hold",
+        detail: `Your claim is in · ${inCount} of ${rotation.length} in`,
+        action: "Waivers",
+        href,
+      };
+    }
+    if (p.addDrop && !W.pickupsOwed(state, me).count) {
+      return { tag: "Add/drop", title: "Add/drops are open", detail: processes ? `Optional · waivers ${processes}` : "Optional", action: "Waivers", href };
+    }
+    return null;
+  }
+  if (p.addDrop && W.freeAgencyOn(state) && !W.addDropUsed(state, p, me) && !W.pickupsOwed(state, me).count) {
+    const until = at(p.closesAt);
+    return {
+      tag: "FA",
+      title: until ? `Free agency until ${until}` : "Free agency is open",
+      detail: "Your add/drop is unused · first come",
+      action: "Free agency",
+      href: `${href}/free-agency`,
+    };
+  }
+  return null;
 }
 
 // Who picks after the current turn in a snake draft (the order reverses each round).

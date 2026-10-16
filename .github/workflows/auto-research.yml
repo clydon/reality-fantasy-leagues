@@ -1,6 +1,7 @@
 # Scheduled episode research (db/auto-research.js), then episode reminders (db/reminders.js): about a
 # day and two hours before an episode airs, a push to anyone whose lineup, pick or a prediction for it
-# is still open. Reminders need the push keys below; without them the step runs and sends nothing.
+# is still open. Then the waiver clock (db/waivers.js): mid-season waiver weeks processed on time, and
+# their reminders. Both need the push keys below; without them the steps run and send nothing.
 #
 # Scheduled episode research (db/auto-research.js). Each season with auto-research switched on in
 # Admin > Shows & Seasons has its own weekly slot ("Thursdays at noon Eastern"); this job runs hourly
@@ -57,3 +58,14 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
         run: node db/reminders.js
+
+      # Mid-season waivers' clock (docs/PLAN-midseason-waivers.md): processes the weeks whose time has
+      # come in leagues nobody has loaded since, announces them, and sends the reminders six hours before.
+      - name: Run waivers.js
+        if: ${{ !cancelled() }}
+        env:
+          AUTH_DATABASE_URL: ${{ secrets.AUTH_DATABASE_URL }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: node db/waivers.js

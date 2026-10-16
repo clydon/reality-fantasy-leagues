@@ -72,7 +72,7 @@ export function EpisodeEditor({ ep, state, onDone }: { ep: Episode; state: Leagu
     const c = StateLogic.getCastaway(state, castawayId);
     if (
       c?.replenishClaimed &&
-      !(await confirm("This loss was already used in a pickup round. Undoing it will NOT take back the pickup already made. Continue?"))
+      !(await confirm("This loss was already replaced by a pickup. Undoing it will NOT take back the pickup. Continue?"))
     )
       return;
     await mutate(
