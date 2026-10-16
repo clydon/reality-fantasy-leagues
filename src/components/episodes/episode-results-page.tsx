@@ -108,12 +108,29 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
   if (!source) return <p className="text-base text-muted-foreground">Research needs a real league. This one&rsquo;s a demo.</p>;
   if (!panel) return error ? <p className="font-semibold text-live">{error}</p> : <p className="text-base text-muted-foreground">Loading…</p>;
 
+  // Research again: the question for everyone, whose answer fills gaps in what's saved (another chat
+  // or model may find what the first missed; the first may have run before the recaps were out).
+  async function askAgain(on: boolean) {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    setProblems([]);
+    setAnswer("");
+    try {
+      show(await source!.load(ep, on));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't load the question.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit() {
     setBusy(true);
     setError(null);
     setNote(null);
     try {
-      const p = await source!.submit(ep, answer);
+      const p = await source!.submit(ep, answer, !!panel?.again);
       show(p);
       setProblems(p.problems ?? []);
       setAnswer("");
@@ -197,10 +214,26 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
   return (
     <>
       <p className="text-[15px] leading-snug text-muted-foreground">
-        {panel.prompt
-          ? "Ask any AI chat with web search what happened, paste its answer here, then check it and apply. It's free."
-          : "Research is in. Check what it found, untick anything that's wrong, then apply."}
+        {panel.again
+          ? "Ask again (another chat or model, or later once more recaps are out) and paste its answer. What it finds fills the gaps in what's saved."
+          : panel.prompt
+            ? "Ask any AI chat with web search what happened, paste its answer here, then check it and apply. It's free."
+            : "Research is in. Check what it found, untick anything that's wrong, then apply."}
       </p>
+
+      {/* Notes on the last paste (unsourced claims, a second pass disagreeing with the first), up here
+          rather than in the paste step: that step is gone once research answers everyone, and these are
+          worth reading before applying. */}
+      {problems.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <p className="text-[15px] font-semibold">Worth a check before you apply</p>
+          <ul className="list-disc pl-5 text-sm leading-snug text-muted-foreground">
+            {problems.map((p, i) => (
+              <li key={i}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <ol className="flex flex-col gap-6">
         {panel.prompt ? (
@@ -209,6 +242,17 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
               <span className="text-sm leading-snug text-muted-foreground">{askLine(panel, terms.castaways)}</span>
               <CopyButton text={panel.prompt} label="Copy the question" tone={current === 1 ? "chyron" : "plain"} />
               <span className="text-[13px] text-muted-foreground">Paste it into ChatGPT, Claude, Gemini: any chat that can search the web.</span>
+              {panel.again ? (
+                <AgainLink disabled={busy} onClick={() => askAgain(false)}>
+                  Cancel, keep what&rsquo;s saved
+                </AgainLink>
+              ) : (
+                c.researched && (
+                  <AgainLink disabled={busy} onClick={() => askAgain(true)}>
+                    Ask about everyone instead
+                  </AgainLink>
+                )
+              )}
             </StepRow>
             <StepRow n={2} on={current === 2} label={<label htmlFor="research-answer">Paste its answer</label>}>
               <textarea
@@ -225,22 +269,18 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
               <span className="text-[13px] text-muted-foreground">
                 Shared with other leagues on this season. It changes yours only when you apply it.
               </span>
-              {problems.length > 0 && (
-                <ul className="list-disc pl-5 text-sm text-muted-foreground">
-                  {problems.map((p, i) => (
-                    <li key={i}>{p}</li>
-                  ))}
-                </ul>
-              )}
             </StepRow>
           </>
         ) : (
           <li className="flex items-center gap-3">
             <CircleCheck className="size-[30px] shrink-0 text-good" strokeWidth={2} aria-hidden />
-            <span className="flex flex-col gap-0.5">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="text-[15px] font-semibold">Research answered everything</span>
-              <span className="text-[13px] text-muted-foreground">Nothing to copy or paste for this episode.</span>
+              <span className="text-[13px] text-muted-foreground">Missing something, or researched too early? Ask again to fill the gaps.</span>
             </span>
+            <ActButton disabled={busy} onClick={() => askAgain(true)}>
+              Research again
+            </ActButton>
           </li>
         )}
 
@@ -477,6 +517,20 @@ function FixFields({ row: r, state, onChange }: { row: Row; state: LeagueState; 
 
 // One numbered step: the number (chyron while it's the step to do now), its label with an optional
 // aside on the same line, and whatever it needs underneath.
+// The quiet switch between the narrowed question and everyone-again, under step 1.
+function AgainLink({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="self-start text-[13px] font-semibold text-chyron-line underline-offset-2 hover:underline disabled:opacity-45"
+    >
+      {children}
+    </button>
+  );
+}
+
 function StepRow({ n, on, label, aside, children }: { n: number; on?: boolean; label: React.ReactNode; aside?: React.ReactNode; children?: React.ReactNode }) {
   return (
     <li className="flex gap-3">
@@ -495,6 +549,7 @@ function StepRow({ n, on, label, aside, children }: { n: number; on?: boolean; l
 // Who the question asks about: everyone, or only those research hasn't settled yet.
 function askLine(p: Panel, people: string): string {
   const c = p.coverage;
+  if (p.again) return `It asks about all ${c.total} ${people} again. A "no" never quietly erases a result already found: you'll see where they disagree.`;
   if (!c.researched) return `It asks what happened to all ${c.total} ${people} this episode.`;
   const unsure = c.lowConfidence.length ? `, ${c.lowConfidence.length} unsure` : "";
   return `Research has ${c.covered.length} of ${c.total}${unsure}. It asks only about the rest: ${c.needsAsking.join(", ")}.`;

@@ -26,8 +26,9 @@ export interface ApplyItem {
 }
 
 export interface ResultsSource {
-  load: (ep: Episode) => Promise<EpisodeResearchPanel>;
-  submit: (ep: Episode, notes: string) => Promise<EpisodeResearchPanel>;
+  /** `again`: the question asks about everyone, to research the episode again and fill gaps. */
+  load: (ep: Episode, again?: boolean) => Promise<EpisodeResearchPanel>;
+  submit: (ep: Episode, notes: string, again?: boolean) => Promise<EpisodeResearchPanel>;
   apply: (ep: Episode, items: ApplyItem[]) => Promise<{ state: LeagueState; applied: ResearchApplySummary }>;
 }
 
@@ -38,8 +39,8 @@ export function useResultsSource(): ResultsSource | null {
   const leagueId = useLeagueStore((s) => s.leagueId);
   if (mode === "live" && leagueId) {
     return {
-      load: (ep) => api.episodeResearch(leagueId, ep.id),
-      submit: (ep, notes) => api.submitEpisodeResearch(leagueId, ep.id, notes),
+      load: (ep, again) => api.episodeResearch(leagueId, ep.id, again),
+      submit: (ep, notes, again) => api.submitEpisodeResearch(leagueId, ep.id, notes, again),
       apply: (ep, items) =>
         api.applyEpisodeResearch(
           leagueId,

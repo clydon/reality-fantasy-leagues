@@ -471,12 +471,12 @@ export const api = {
   // A commissioner's episode research (docs/PLAN-episode-research-compiled-cache.md): the panel (coverage,
   // narrowed prompt, what's staged), a pasted answer into the shared cache, and applying staged rows to
   // this league only.
-  episodeResearch: (leagueId: string, epId: string) =>
-    localFetch<EpisodeResearchPanel>(`/api/leagues/${leagueId}/episodes/${epId}/research`),
-  submitEpisodeResearch: (leagueId: string, epId: string, notes: string) =>
+  episodeResearch: (leagueId: string, epId: string, again = false) =>
+    localFetch<EpisodeResearchPanel>(`/api/leagues/${leagueId}/episodes/${epId}/research${again ? "?again=1" : ""}`),
+  submitEpisodeResearch: (leagueId: string, epId: string, notes: string, again = false) =>
     localFetch<EpisodeResearchPanel>(`/api/leagues/${leagueId}/episodes/${epId}/research`, {
       method: "POST",
-      body: JSON.stringify({ notes }),
+      body: JSON.stringify({ notes, again }),
     }),
   applyEpisodeResearch: (
     leagueId: string,

@@ -588,6 +588,8 @@ export interface EpisodeResearchPanel {
   coverage: ResearchCoverage;
   /** The JSON paste prompt narrowed to coverage.needsAsking; null when nobody needs asking. */
   prompt: string | null;
+  /** The prompt asks about everyone again (research again, to fill gaps), not just who's unsettled. */
+  again?: boolean;
   betCount: number;
   staged: StagedResearchDecision[];
   /** POST only: non-fatal notes on the paste (unsourced claims, repaired values). */

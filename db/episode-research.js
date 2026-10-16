@@ -1336,10 +1336,15 @@ async function cachedResearch(pool, showId, season, episodeNumber, formatId, opt
 //   - Episode-level answers are the new run's, except where it had nothing (null / "unknown") and
 //     the stored ones did. Side-bet answers are merged by question, the new run's winning.
 //
+//
+// `fill`: a SECOND full pass (a commissioner's "research again": another model, or the first pass was
+// too early), merged field by field instead of entry by entry -- see fillEntry.
+//
 // Answers to another format's checklist don't merge with this one's (see cachedResearch): the new
 // run's payload is returned as-is. Pure, so it's tested without a database.
-function mergeResearchPayload(stored, incoming) {
-  if (!stored || !Array.isArray(stored.castaways)) return { payload: incoming, kept: [], replaced: [], added: [] };
+function mergeResearchPayload(stored, incoming, { fill = false } = {}) {
+  if (!stored || !Array.isArray(stored.castaways)) return { payload: incoming, kept: [], replaced: [], added: [], disagreements: [] };
+  const disagreements = [];
   const castaways = stored.castaways.map((c) => ({ ...c }));
   const roster = { castaways: castaways.map((c, i) => ({ id: String(i), name: c.name })) };
   const kept = new Set(castaways.map((c) => c.name));
@@ -1355,7 +1360,12 @@ function mergeResearchPayload(stored, incoming) {
     const i = Number(castaway.id);
     const was = castaways[i];
     kept.delete(was.name);
-    if ((CONFIDENCE_RANK[entry.confidence] || 0) >= (CONFIDENCE_RANK[was.confidence] || 0)) {
+    if (fill) {
+      const filled = fillEntry(was, entry);
+      castaways[i] = filled.entry;
+      disagreements.push(...filled.disagreements);
+      replaced.push(was.name);
+    } else if ((CONFIDENCE_RANK[entry.confidence] || 0) >= (CONFIDENCE_RANK[was.confidence] || 0)) {
       castaways[i] = { ...entry, name: was.name };
       replaced.push(was.name);
     }
@@ -1373,7 +1383,39 @@ function mergeResearchPayload(stored, incoming) {
     for (const a of [...(stored.betAnswers || []), ...(incoming.betAnswers || [])]) byQuestion.set(betKey(a.question), a);
     payload.betAnswers = [...byQuestion.values()];
   }
-  return { payload, kept: [...kept], replaced, added };
+  return { payload, kept: [...kept], replaced, added, disagreements };
+}
+
+// One person's two passes, field by field. A pass that couldn't tell ("unknown", null, empty) never
+// erases one that could, and otherwise the later pass wins -- research run too early says "no" or
+// "unknown" about what hadn't been reported yet. The one exception: a later "no" doesn't silently erase
+// an earlier "yes". Two passes disagreeing about whether something happened is the reviewer's call, so
+// the "yes" is kept (it stages a result they can untick) and the disagreement is reported. Sources are
+// pooled, and the confidence is the better of the two. The stored spelling of the name is kept.
+function fillEntry(was, now) {
+  const out = { ...was };
+  const disagreements = [];
+  const empty = (v) => v == null || v === "unknown" || v === "" || (Array.isArray(v) && !v.length);
+  for (const [key, value] of Object.entries(now)) {
+    if (key === "name") continue;
+    if (key === "sources") {
+      out.sources = [...new Set([...(was.sources || []), ...(value || [])])];
+      continue;
+    }
+    if (key === "confidence") {
+      if ((CONFIDENCE_RANK[value] || 0) > (CONFIDENCE_RANK[was.confidence] || 0)) out.confidence = value;
+      continue;
+    }
+    if (empty(value)) continue;
+    if (was[key] === "yes" && value === "no") {
+      // The checklist key in words ("foundAdvantage" -> "found advantage"): it's read by a commissioner.
+      const what = key.replace(/([A-Z])/g, " $1").toLowerCase();
+      disagreements.push(`${was.name}: the first research said yes to "${what}", this one says no. Kept as yes; untick it below if it's wrong.`);
+      continue;
+    }
+    out[key] = value;
+  }
+  return { entry: out, disagreements };
 }
 
 const CONFIDENCE_RANK = { low: 1, medium: 2, high: 3 };
@@ -1387,7 +1429,7 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
     console.log("[research] --dry: nothing written");
     return { id: null, payload, provenance, cached: false };
   }
-  if (opts.merge) return storeMergedResearch(pool, ctx, payload, provenance);
+  if (opts.merge) return storeMergedResearch(pool, ctx, payload, provenance, { fill: !!opts.fill });
   const { rows } = await pool.query(
     `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance)
      VALUES ($1,$2,$3,$4::jsonb,$5::jsonb)
@@ -1402,7 +1444,7 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
 // Read, merge and write under one lock on the episode's key, so two leagues pasting the same episode
 // at once can't each merge into the same old copy and have the second write drop the first's answers.
 // (An advisory lock rather than FOR UPDATE: the first paste for an episode has no row yet to lock.)
-async function storeMergedResearch(pool, ctx, payload, provenance) {
+async function storeMergedResearch(pool, ctx, payload, provenance, mergeOpts = {}) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -1412,7 +1454,7 @@ async function storeMergedResearch(pool, ctx, payload, provenance) {
       [ctx.showId, ctx.season, ctx.episodeNumber]
     );
     const sameFormat = prior.length && ((prior[0].provenance && prior[0].provenance.format) || Formats.DEFAULT_FORMAT) === provenance.format;
-    const merged = mergeResearchPayload(sameFormat ? prior[0].payload : null, payload);
+    const merged = mergeResearchPayload(sameFormat ? prior[0].payload : null, payload, mergeOpts);
     const fullProvenance = {
       ...provenance,
       // Whose answers this row now holds besides this run's, for a reviewer reading it later.
@@ -1825,20 +1867,24 @@ async function ensureSeasonRow(pool, ctx) {
  * already settle, and -- if anyone's left -- the paste prompt narrowed to just them. Read-only: no model
  * call, nothing written, and no season row created (a league only gets one when it actually stages).
  */
-async function leagueResearchStatus(pool, leagueId, episodeNumber) {
+// `opts.again`: the prompt asks about EVERYONE still in, however much the stored answers settle -- a
+// second pass to fill gaps (another model; or the first was run before the recaps were out).
+async function leagueResearchStatus(pool, leagueId, episodeNumber, opts = {}) {
   requireEpisodeNumber(episodeNumber);
   const ctx = await resolveResearchContext(pool, leagueId, episodeNumber);
   const coverage = researchCoverage(await storedResearchFor(pool, ctx), ctx.castNames, ctx.format.id);
-  if (!coverage.needsAsking.length) return { ctx, coverage, prompt: null, betCount: 0 };
+  const again = !!opts.again && coverage.researched;
+  const asking = again ? ctx.castNames : coverage.needsAsking;
+  if (!asking.length) return { ctx, coverage, prompt: null, betCount: 0, again: false };
   const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
   // The league path is JSON-only: a prose paste is structured by a model call on the site's own key,
   // which is an admin's call to make, not every commissioner's.
-  const prompt = buildPastePrompt({ ...ctx, castNames: coverage.needsAsking }, bets, {
+  const prompt = buildPastePrompt({ ...ctx, castNames: asking }, bets, {
     structured: true,
     // The commissioner's panel (episode-research-panel.tsx), not the admin one: no "Structured" tick box there.
     pasteBack: "Paste the JSON back into Game Your Show's \"Research this episode\" box for this episode.",
   });
-  return { ctx, coverage, prompt, betCount: bets.length };
+  return { ctx, coverage, prompt, betCount: bets.length, again };
 }
 
 /**
@@ -1852,12 +1898,14 @@ async function researchFromPasteForLeague(pool, leagueId, episodeNumber, notes, 
   const trimmed = requireNotes(notes);
   const ctx = await resolveResearchContext(pool, leagueId, episodeNumber);
   const coverage = researchCoverage(await storedResearchFor(pool, ctx), ctx.castNames, ctx.format.id);
-  if (!coverage.needsAsking.length) {
+  // `opts.again`: the answer to leagueResearchStatus's everyone-again prompt, filled in field by field.
+  const again = !!opts.again && coverage.researched;
+  if (!again && !coverage.needsAsking.length) {
     throw new Error(`Episode ${episodeNumber} is already researched for everyone in this league — there's nothing to paste, just review it.`);
   }
   const seasonId = await ensureSeasonRow(pool, ctx);
-  const asked = { ...ctx, seasonId, castNames: coverage.needsAsking };
-  const run = await pastedRun(pool, asked, episodeNumber, trimmed, { ...opts, structured: true, merge: true });
+  const asked = { ...ctx, seasonId, castNames: again ? ctx.castNames : coverage.needsAsking };
+  const run = await pastedRun(pool, asked, episodeNumber, trimmed, { ...opts, structured: true, merge: true, fill: again });
   return { ...run, coverage };
 }
 
@@ -1952,6 +2000,8 @@ async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
     }
   }
 
+  // A second pass that contradicts the first on whether something happened: the reviewer decides.
+  if (stored.merged && stored.merged.disagreements && stored.merged.disagreements.length) review.problems.push(...stored.merged.disagreements);
   const result = { ...ctx, ...review, payload, provenance: stored.provenance, cached: false, id: stored.id, merged: stored.merged || null };
   return { ...result, decisions: await stageResearchDecisions(pool, result, opts) };
 }

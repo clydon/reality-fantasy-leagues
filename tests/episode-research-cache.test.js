@@ -281,6 +281,71 @@ test("league path: fully covered -- no prompt, and a paste is refused rather tha
   await assert.rejects(R.researchFromPasteForLeague(pool, "league-b", 1, chatAnswer(CAST)), /already researched for everyone/);
 });
 
+test("merge, fill (research again): unknowns never erase, later answers win, a later no keeps an earlier yes and says so", () => {
+  const stored = {
+    castaways: [
+      entry("Ada Lovelace", "medium", { foundAdvantage: "yes", wonTribeImmunity: "unknown", votesReceived: null, newGroup: "Dina" }),
+      entry("Grace Hopper", "high", { satOutOfChallenge: "no", playedAdvantage: "unknown" }),
+    ],
+  };
+  const { payload, disagreements } = R.mergeResearchPayload(
+    stored,
+    {
+      castaways: [
+        { name: "Ada", confidence: "low", sources: ["https://second.example"], foundAdvantage: "no", wonTribeImmunity: "yes", votesReceived: 2, newGroup: null },
+        { name: "Grace Hopper", confidence: "high", sources: [], satOutOfChallenge: "yes", playedAdvantage: "unknown" },
+      ],
+    },
+    { fill: true }
+  );
+  const [ada, grace] = payload.castaways;
+  assert.equal(ada.name, "Ada Lovelace", "the stored spelling stays");
+  assert.equal(ada.foundAdvantage, "yes", "a later no doesn't silently erase an earlier yes");
+  assert.equal(ada.wonTribeImmunity, "yes", "a gap is filled");
+  assert.equal(ada.votesReceived, 2);
+  assert.equal(ada.newGroup, "Dina", "a pass that saw no move doesn't undo one");
+  assert.equal(ada.confidence, "medium", "the better confidence of the two");
+  assert.deepEqual(ada.sources, ["https://example.com", "https://second.example"]);
+  assert.equal(grace.satOutOfChallenge, "yes", "an earlier no (too early) is replaced by a later yes");
+  assert.equal(grace.playedAdvantage, "unknown");
+  assert.equal(disagreements.length, 1);
+  assert.match(disagreements[0], /Ada Lovelace: .*"found advantage"/);
+});
+
+test("league path, research again: fully covered still offers everyone, and the answer fills gaps instead of replacing", async () => {
+  const { db, pool } = selfServeWorld();
+  await R.researchFromPasteForLeague(
+    pool,
+    "league-a",
+    1,
+    chatAnswer(CAST, { "Ada Lovelace": { leftTheGame: "yes", exitMethod: "Voted Out" }, "Grace Hopper": { foundAdvantage: "yes" } })
+  );
+  const plain = await R.leagueResearchStatus(pool, "league-b", 1);
+  assert.equal(plain.prompt, null);
+  const again = await R.leagueResearchStatus(pool, "league-b", 1, { again: true });
+  assert.equal(again.again, true);
+  for (const n of ["Ada", "Grace Hopper", "Alan Turing", "Katherine Johnson"]) assert.ok(again.prompt.includes(n), `again asks about ${n}`);
+
+  // A second model: finds Alan's immunity win the first missed, says Grace found nothing, and is
+  // unsure about Ada's exit.
+  const second = ["Ada", "Grace Hopper", "Alan Turing", "Katherine Johnson"];
+  const run = await R.researchFromPasteForLeague(
+    pool,
+    "league-b",
+    1,
+    chatAnswer(second, { Ada: { leftTheGame: "unknown" }, "Grace Hopper": { foundAdvantage: "no" }, "Alan Turing": { wonIndividualImmunity: "yes" } }),
+    { again: true }
+  );
+  const row = db.research[0].payload.castaways;
+  assert.equal(row.length, 4, "still one entry per person, under league A's spellings");
+  assert.equal(row[0].leftTheGame, "yes", "Ada's exit survived the unsure second pass");
+  assert.equal(row[1].foundAdvantage, "yes", "Grace's find is kept…");
+  assert.ok(run.problems.some((p) => /Grace Hopper: .*"found advantage"/.test(p)), "…and the disagreement is reported");
+  assert.equal(row[2].wonIndividualImmunity, "yes", "the gap is filled");
+  assert.ok(db.decisions.some((d) => d.castaway_name === "Alan Turing" && d.kind === "event"), "the new find is staged");
+  assert.ok(db.decisions.some((d) => d.castaway_name === "Ada Lovelace" && d.kind === "elimination"), "the first pass's results stay staged");
+});
+
 test("league path: an empty league roster is a clear error (cast first), not an empty checklist", async () => {
   const { db, pool } = selfServeWorld();
   db.leagues[0].state.castaways = [];

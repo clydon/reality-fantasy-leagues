@@ -95,29 +95,35 @@ export function researchFromPaste(
 
 /**
  * The commissioner panel's read: coverage for one episode of the league's season and, unless everyone
- * is settled, the JSON paste prompt narrowed to just who isn't. Read-only.
+ * is settled, the JSON paste prompt narrowed to just who isn't. `again` (once there's research): the
+ * prompt asks about everyone, for a second pass that fills gaps. Read-only.
  */
 export function leagueResearchStatus(
   pool: Pool,
   leagueId: string,
-  episodeNumber: number
+  episodeNumber: number,
+  opts?: { again?: boolean }
 ): Promise<{
   ctx: { showId: string; showSlug: string; showName: string; season: number; seasonId: string | null; castNames: string[] };
   coverage: ResearchCoverage;
   prompt: string | null;
   betCount: number;
+  /** The prompt is the everyone-again one. */
+  again: boolean;
 }>;
 
 /**
  * researchFromPaste for one league: JSON only, asked only about who the stored answers don't settle,
  * merged into them rather than replacing them, and staged as season decisions. Creates the season's
- * catalog row if the league's season had none. Throws if everyone is already settled.
+ * catalog row if the league's season had none. Throws if everyone is already settled -- unless `again`,
+ * the answer to the everyone-again prompt, which is filled into the stored answers field by field.
  */
 export function researchFromPasteForLeague(
   pool: Pool,
   leagueId: string,
   episodeNumber: number,
-  notes: string
+  notes: string,
+  opts?: { again?: boolean }
 ): Promise<EpisodeResearchRun & { coverage: ResearchCoverage }>;
 
 /**

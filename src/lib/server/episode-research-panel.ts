@@ -21,10 +21,15 @@ export function researchableEpisode(state: LeagueState, epId: string): Episode {
 // What the commissioner's per-episode research panel shows (docs/PLAN-episode-research-compiled-cache.md,
 // piece 6): coverage first, then the prompt if anyone's left to ask about, then everything staged for
 // the episode from any source -- each marked with whether it's already in this league.
-export async function episodeResearchPanel(leagueId: string, state: LeagueState, episodeNumber: number): Promise<EpisodeResearchPanel> {
+export async function episodeResearchPanel(
+  leagueId: string,
+  state: LeagueState,
+  episodeNumber: number,
+  opts: { again?: boolean } = {}
+): Promise<EpisodeResearchPanel> {
   let status;
   try {
-    status = await leagueResearchStatus(pool, leagueId, episodeNumber);
+    status = await leagueResearchStatus(pool, leagueId, episodeNumber, opts);
   } catch (e) {
     // The research layer's errors are written for the person who clicked ("set the show and season
     // first", "enter the cast first") -- passed through, as the admin research route does.
@@ -46,6 +51,7 @@ export async function episodeResearchPanel(leagueId: string, state: LeagueState,
     season: status.ctx.season,
     coverage: status.coverage,
     prompt: status.prompt,
+    again: status.again,
     betCount: status.betCount,
     staged: staged.map((d) => ({
       ...d,

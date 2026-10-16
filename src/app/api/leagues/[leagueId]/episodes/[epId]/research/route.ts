@@ -10,7 +10,8 @@ import { episodeResearchPanel, researchableEpisode } from "@/lib/server/episode-
 //
 //   GET  -- the panel: who this episode's stored research already settles, the paste prompt narrowed to
 //           who it doesn't (none if nobody), and everything staged for the episode. Writes nothing.
-//   POST -- `{ notes }`: the chat's JSON answer to that prompt. Merged into the episode's stored
+//           `?again=1`: the prompt asks about everyone, to research the episode again and fill gaps.
+//   POST -- `{ notes, again? }`: the chat's JSON answer to that prompt. Merged into the episode's stored
 //           research and staged as season decisions -- the shared cache, which the next league on the
 //           season reads. Changes NO league: applying is .../research/apply, this league's own step.
 //
@@ -27,20 +28,21 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   await requireLeagueRole(req, leagueId, "commissioner");
   const state = await leagueState(leagueId);
   const ep = researchableEpisode(state, epId);
-  return NextResponse.json(await episodeResearchPanel(leagueId, state, ep.number));
+  const again = new URL(req.url).searchParams.get("again") === "1";
+  return NextResponse.json(await episodeResearchPanel(leagueId, state, ep.number, { again }));
 });
 
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string }> }) => {
   const { leagueId, epId } = await params;
   await requireLeagueRole(req, leagueId, "commissioner");
-  const { notes } = (await req.json().catch(() => ({}))) as { notes?: unknown };
+  const { notes, again } = (await req.json().catch(() => ({}))) as { notes?: unknown; again?: unknown };
   if (typeof notes !== "string" || !notes.trim()) throw new HttpError(400, "Paste the chat's answer first.");
   const state = await leagueState(leagueId);
   const ep = researchableEpisode(state, epId);
 
   let problems: string[] = [];
   try {
-    const run = await researchFromPasteForLeague(pool, leagueId, ep.number, notes);
+    const run = await researchFromPasteForLeague(pool, leagueId, ep.number, notes, { again: again === true });
     problems = run.problems;
   } catch (e) {
     throw new HttpError(400, e instanceof Error ? e.message : "That answer couldn't be read.");
