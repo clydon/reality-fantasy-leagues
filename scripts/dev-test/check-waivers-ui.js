@@ -144,6 +144,10 @@ async function shoot(page, file) {
             await page.goto(`${BASE}/waivers/free-agency?league=${leagueId}`, { waitUntil: "networkidle" });
             await page.waitForTimeout(900);
             await shoot(page, `${out}/${phase}-${league}-late-fa`);
+            // What's new, if it's up, sits over the tiles.
+            const go = page.locator("button", { hasText: /Let.s go!/ });
+            if (await go.count()) await go.first().click();
+            await page.waitForTimeout(400);
             await page.getByRole("button", { name: /^Drop / }).first().click();
             await page.locator('[data-tour="picker-tiles"] button').first().click();
             await page.waitForTimeout(200);

@@ -62,8 +62,9 @@ function opened(settings) {
 }
 const claim = (s, pid, c) => W.checkClaim(s, W.current(s), pid, c).claim;
 
-// Sam revealed (and got Rob, then Maggie on the add/drop); Kim revealed (wanted Rob, Sam was ahead on
-// the pickup); Josie hasn't revealed Episode 3; Dee revealed and did nothing; Andrew is a computer.
+// Sam revealed (wanted Rob, but Kim is ahead in waiver order and replacements get no priority: Ori,
+// then Maggie on the swap); Kim revealed (got Rob); Josie hasn't revealed Episode 3; Dee revealed and
+// did nothing; Andrew is a computer.
 const PEOPLE = [
   { userId: "u-sam", playerId: "sam", seen: 3 },
   { userId: "u-kim", playerId: "kim", seen: Infinity },
@@ -84,11 +85,11 @@ function processedCanvas() {
 test("processed: names to those who've revealed, the same words to those who haven't, nothing for a quiet week", () => {
   const { s } = processedCanvas();
   const msgs = Object.fromEntries(WP.processedMessages(s, W.current(s), "Couch Crew", PEOPLE).map((m) => [m.userId, m.message]));
-  assert.equal(msgs["u-sam"].title, "You got Rob and Maggie");
+  assert.equal(msgs["u-sam"].title, "You got Ori and Maggie");
   assert.equal(msgs["u-sam"].body, "Couch Crew: waivers processed. Free agency is open until Episode 4 airs.");
   assert.equal(msgs["u-sam"].url, "/waivers/results/3");
-  // Kim's add/drop moved on from Rob (Sam's pickup took him) to Patt.
-  assert.equal(msgs["u-kim"].title, "You got Patt");
+  // Kim is ahead of Sam, and a replacement no longer goes first: Kim gets Rob.
+  assert.equal(msgs["u-kim"].title, "You got Rob");
   // Josie: no names, no "owed", the same as anyone who hasn't revealed.
   assert.equal(msgs["u-josie"].title, "Waivers processed");
   assert.equal(msgs["u-josie"].body, "Couch Crew: reveal Episode 3 to see every move.");

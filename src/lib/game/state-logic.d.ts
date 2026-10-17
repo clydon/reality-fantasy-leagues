@@ -1,7 +1,7 @@
 // Ambient typing for state-logic.js (forked from the live app -- see the provenance comment at
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
-import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim } from "./types";
+import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation } from "./types";
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
 
 /** One question in guided first-time setup, in the order it should be asked. */
@@ -135,30 +135,90 @@ declare const StateLogic: {
     stillInPoints(state: LeagueState): number;
     compute(state: LeagueState): ScoreRow[];
   };
-  /** Mid-season waivers (docs/PLAN-midseason-waivers.md). Claims never enter state: process() takes them. */
+  /**
+   * Mid-season waivers (docs/PLAN-midseason-waivers.md, docs/PLAN-waivers-v2.md). Claims never enter
+   * state: process() takes them. A claim is ranked "add X, drop Y" pairs; the pre-v2 shape
+   * { pickupIds, dropId, addIds } is still accepted for one release.
+   */
   WaiverLogic: {
+    /** The league type has mid-season moves at all (not Eliminator Pool or shared Classic). */
+    supported(state: LeagueState): boolean;
+    legacyConfig(state: LeagueState): { replaceRule: ReplaceRule; waiverWindows: WaiverWindows };
+    normalizeWindows(state: LeagueState, w: Partial<WaiverWindows> | null | undefined): WaiverWindows;
+    /** The league's waiver settings, read from the v2 keys or (not yet backfilled) the pre-v2 switches. */
+    config(state: LeagueState): { replaceRule: ReplaceRule; waiverWindows: WaiverWindows; waiverFeel: WaiverFeel; autoFill: boolean };
+    replaceRule(state: LeagueState): ReplaceRule;
+    windows(state: LeagueState): WaiverWindows;
+    autoFillOn(state: LeagueState): boolean;
+    /** Replacements run after every episode (always / whenShort). */
+    weekly(state: LeagueState): boolean;
     enabled(state: LeagueState): boolean;
     processHours(state: LeagueState): number;
     freeAgencyOn(state: LeagueState): boolean;
+    rolling(state: LeagueState): boolean;
+    /** whenShort's N. */
+    shortAt(state: LeagueState): number;
+    backfill(state: LeagueState): void;
+    mirrorLegacy(state: LeagueState): void;
+    /** True when `field` was a waiver setting (and it's been applied). */
+    updateSetting(state: LeagueState, field: string, value: unknown): boolean;
+    /** Pure: good settings for a league's shape (null: no waivers for it). */
+    recommend(input: {
+      C: number;
+      T: number;
+      R: number;
+      S?: number;
+      E?: number;
+      start?: number;
+      shared?: boolean;
+      type: string;
+      feel?: WaiverFeel;
+    }): WaiverRecommendation | null;
+    recommendFor(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number }): WaiverRecommendation | null;
+    applyRecommendation(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number }): boolean;
+    isRecommended(state: LeagueState, opts?: { episodes?: number; castSize?: number }): boolean;
     periods(state: LeagueState): WaiverPeriod[];
     /** The week still running (open or in free agency), or null. */
     current(state: LeagueState): WaiverPeriod | null;
     /** Player ids in waivers: active seats, not late joiners still catching up. */
     rotation(state: LeagueState): string[];
+    isWindowEpisode(state: LeagueState, episode: number): boolean;
+    /** A window with swaps opens after this episode (pre-v2's add/drop week). */
     isAddDropEpisode(state: LeagueState, episode: number): boolean;
-    pickupsOwed(state: LeagueState, playerId: string): { count: number; lossIds: string[] };
-    maxPickupClaims(owed: number): number;
+    nextWindowEpisode(state: LeagueState, after: number, total?: number): number | null;
+    isWindow(period: WaiverPeriod | null | undefined): boolean;
+    swapsAllowed(period: WaiverPeriod | null | undefined): number;
+    swapsMade(state: LeagueState, period: WaiverPeriod, playerId: string): number;
+    swapsLeft(state: LeagueState, period: WaiverPeriod | null | undefined, playerId: string): number;
     addDropUsed(state: LeagueState, period: WaiverPeriod, playerId: string): boolean;
+    /** How many this player may replace in `period`; lossIds: the oldest that many; outIds: every loss a claim may name. */
+    replacementsOwed(state: LeagueState, playerId: string, period: WaiverPeriod | null | undefined): { count: number; lossIds: string[]; outIds: string[] };
+    /** replacementsOwed in the week running now (pre-v2 name). */
+    pickupsOwed(state: LeagueState, playerId: string): { count: number; lossIds: string[]; outIds: string[] };
+    maxPickupClaims(owed: number): number;
     schedule(state: LeagueState, period: WaiverPeriod): { processAt: string; closesAt: string | null };
     refresh(state: LeagueState): void;
     /** The step waiting at `now` (ms). */
     due(state: LeagueState, now: number): "open" | "process" | "close" | "cancel" | null;
-    open(state: LeagueState, now: number): WaiverPeriod;
+    open(state: LeagueState, now: number, opts?: { window?: boolean; swaps?: number; by?: "commissioner" }): WaiverPeriod;
     cancel(state: LeagueState): WaiverPeriod | null;
     setClaimsIn(state: LeagueState, period: WaiverPeriod, playerIds: string[]): void;
+    /** The commissioner's Open a waiver window: `swaps` each, or null to turn it off. */
+    openWindow(state: LeagueState, swaps: number | null, now?: number): { period: WaiverPeriod; closed?: boolean; error?: undefined } | { error: string; period?: undefined };
+    pairsOf(state: LeagueState, period: WaiverPeriod | null, playerId: string, input: unknown): { pairs: WaiverPair[]; legacy: boolean };
+    pairProblem(
+      state: LeagueState,
+      period: WaiverPeriod,
+      playerId: string,
+      pair: WaiverPair,
+      owed: { count: number; outIds: string[] },
+      swapsLeft: number
+    ): string | null;
+    claimOf(state: LeagueState, pairs: WaiverPair[]): WaiverClaim;
     checkClaim(state: LeagueState, period: WaiverPeriod | null, playerId: string, input: unknown): { claim: WaiverClaim; error?: undefined } | { error: string; claim?: undefined };
-    isEmptyClaim(claim: WaiverClaim | null | undefined): boolean;
-    process(state: LeagueState, claimsByPlayer: Record<string, WaiverClaim>, opts?: { now?: number; by?: "schedule" | "commissioner" }): WaiverRun | null;
+    isEmptyClaim(claim: Partial<WaiverClaim> | null | undefined): boolean;
+    trimClaim(state: LeagueState, period: WaiverPeriod, playerId: string, claim: unknown): { claim: WaiverClaim; removed: number };
+    process(state: LeagueState, claimsByPlayer: Record<string, Partial<WaiverClaim>>, opts?: { now?: number; by?: "schedule" | "commissioner" }): WaiverRun | null;
     /** A reason on refusal, else null. */
     freeAgencyMove(state: LeagueState, playerId: string, addId: string, dropId: string | null | undefined, now?: number): string | null;
     close(state: LeagueState, now?: number): WaiverPeriod | null;

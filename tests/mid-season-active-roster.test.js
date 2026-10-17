@@ -122,7 +122,7 @@ test("switching over mid-window: a swap from the old live rounds after that epis
   const p = W.open(s, Date.now());
   assert.equal(W.addDropUsed(s, p, "c"), true);
   assert.equal(W.addDropUsed(s, p, "b"), false);
-  assert.equal(W.checkClaim(s, p, "c", { dropId: "c12", addIds: ["c2"] }).error, "You’ve made this week’s add/drop");
+  assert.equal(W.checkClaim(s, p, "c", { dropId: "c12", addIds: ["c2"] }).error, "You’ve used this window’s swaps");
   const earlier = { ...s.midSeason.log[0], id: "tx_older", playerId: "b", episode: 2 };
   s.midSeason.log.push(earlier);
   assert.equal(W.addDropUsed(s, p, "b"), false, "a swap after an earlier episode doesn't count");

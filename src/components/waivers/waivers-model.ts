@@ -195,7 +195,7 @@ export function freeAgencyUntil(state: LeagueState, period: WaiverPeriod, now: n
 
 // ---- Your claim (private; GET /waivers) ----
 
-const EMPTY: WaiverClaim = { pickupIds: [], dropId: null, addIds: [] };
+const EMPTY: WaiverClaim = { pairs: [], pickupIds: [], dropId: null, addIds: [] };
 
 /**
  * The viewer's own claim for the open week. Claims never enter league state, so this is its own
@@ -243,7 +243,9 @@ export function useMyClaim(period: WaiverPeriod | null) {
     const full = useLeagueStore.getState().fullState;
     const p = W.current(full);
     if (!p || p.id !== period?.id || !playerId) return "Claims are closed for this week";
-    const checked = W.checkClaim(full, p, playerId, { ...(mockClaim(p.id, playerId) ?? EMPTY), ...part });
+    // By part, in the pre-v2 shape: the saved claim's pairs would otherwise win over the part being saved.
+    const { pickupIds, dropId, addIds } = mockClaim(p.id, playerId) ?? EMPTY;
+    const checked = W.checkClaim(full, p, playerId, { pickupIds, dropId, addIds, ...part });
     if (checked.error !== undefined) return checked.error;
     const empty = W.isEmptyClaim(checked.claim);
     setMockClaim(p.id, playerId, empty ? null : checked.claim);

@@ -314,6 +314,9 @@ export const api = {
       body: JSON.stringify({ addId, dropId: dropId ?? null, playerId }),
     }),
   processWaivers: (leagueId: string) => localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/process`, { method: "POST" }),
+  /** Open a waiver window with `swaps` each (or change it); null turns it off (docs/PLAN-waivers-v2.md). */
+  openWaiverWindow: (leagueId: string, swaps: number | null) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/window`, { method: "POST", body: JSON.stringify({ swaps }) }),
   undoWaiverRun: (leagueId: string) => localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/undo`, { method: "POST" }),
   nudgeWaivers: (leagueId: string, playerId: string) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/nudge`, { method: "POST", body: JSON.stringify({ playerId }) }),

@@ -124,9 +124,9 @@ test("add/drops: a sharp bot claims a clearly better castaway, a casual one keep
     StateLogic.ensureNextEpisode(s);
     const week = StateLogic.WaiverLogic.open(s, Date.now());
     assert.ok(week.addDrop);
-    const claim = Bots.waiverClaim(s, "bot", week);
-    assert.equal(claim.addIds.includes("b4"), expectSwap, level);
-    assert.equal(!!claim.dropId, expectSwap, `${level}: drops only when it adds`);
+    const swaps = Bots.waiverClaim(s, "bot", week).pairs.filter((x) => StateLogic.getCastaway(s, x.dropId).status === "active");
+    assert.equal(swaps.some((x) => x.addId === "b4"), expectSwap, level);
+    assert.equal(swaps.length > 0, expectSwap, `${level}: drops only when it adds`);
   }
 });
 

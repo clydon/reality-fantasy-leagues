@@ -11,6 +11,26 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Waivers v2: engine committed (not pushed), UI design picked 2026-10-16; next: build phase 2
+
+One claim type (ranked "add X, drop Y" pairs), replacement rules (`replaceRule`), waiver windows
+(`waiverWindows`), `autoFill`, the commissioner's Open a waiver window, and `WaiverLogic.recommend()`.
+Plan: `docs/PLAN-waivers-v2.md`; its "As built: phase 1" has the file map, the calls made (the pre-v2 API
+kept working for the phase-2 screens; Add/drops off backfills to 0 swaps; a worked example that doesn't
+match its formula) and what was verified. `db/migrations/0063_waivers_v2.sql` is applied locally (0062 was
+applied with it); production gets it on deploy. Checks: `tests/waivers.test.js`;
+`node scripts/dev-test/check-waivers.js` (78, uses `waivers-fixture.js up --scenarios`).
+- **Committed locally, not pushed** (the user's call: hold the engine until the UI ships). `tsc`/eslint/
+  `npm test` were not re-run before this commit; run them first thing.
+- **Phase 2 design picked:** the plan's "Phase 2: picked design" is the spec (settings 1A, claims 2A + a
+  shared-ownership variant, Open a waiver window 3B, the quiet-week "When moves happen" strip, the new
+  words), drawn on the canvas https://claude.ai/artifact/KEsHGXFXjsDeuWe65JWZZz. **Four decisions are
+  still open there** (auto-fill default, shared pickups instant or not, grouping claims by spot, Classic's
+  "Only when short"): ask before building those parts.
+- **Done alongside, its own commit:** the caption tag's edge now meets its plate on one straight diagonal
+  everywhere (`tag-cut` / `tag-tuck` in `globals.css`; DESIGN.md → Shapes). Browser-checked at 390px, both
+  modes, on the waivers pages; the tour host strip and the front door's show roll weren't looked at.
+
 ## Mid-season waivers: phases 1–4 built 2026-10-16 (not committed); every league is on waivers
 
 Pickups and Swap become **Waivers**: private ranked claims, processed at once in waiver order (pickups

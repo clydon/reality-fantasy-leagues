@@ -290,30 +290,37 @@ function eliminatorPicks(state) {
   return made;
 }
 
-// A bot's claim for a waiver week (docs/PLAN-midseason-waivers.md), made when the week processes:
-// claims live outside `state` (they're private), so the server asks for this rather than run() making
-// it. Pickups are the best free agents on offer, and an add/drop only when the best clearly beats its
-// weakest by a real margin (its level's `swap`): swapping for a coin-flip improvement is how you lose
-// the person who was about to have a big week.
+// A bot's claim for a waiver week (docs/PLAN-midseason-waivers.md, PLAN-waivers-v2.md), made when the
+// week processes: claims live outside `state` (they're private), so the server asks for this rather
+// than run() making it. Ranked pairs, as anyone's: replacements are the best free agents on offer, each
+// for any loss it could replace; a swap only drops one of its weakest still in for a free agent who
+// clearly beats them by a real margin (its level's `swap`): swapping for a coin-flip improvement is how
+// you lose the person who was about to have a big week. Kept within the week's limit on adds.
 function waiverClaim(state, playerId, period) {
   const W = StateLogic.WaiverLogic;
   const offered = MidSeasonLogic.availableFor(state, playerId).map((c) => c.id);
-  const owed = W.pickupsOwed(state, playerId).count;
-  const pickupIds = owed ? ranked(state, playerId, offered, "value").slice(0, W.maxPickupClaims(owed)) : [];
-  let dropId = null;
-  let addIds = [];
-  if (period && period.addDrop) {
+  const owed = W.replacementsOwed(state, playerId, period);
+  const swapsLeft = W.swapsLeft(state, period, playerId);
+  const cap = owed.count + swapsLeft + 2;
+  const pairs = [];
+  const adds = new Set();
+  const push = (addId, dropId) => {
+    if (!adds.has(addId) && adds.size >= cap) return;
+    adds.add(addId);
+    pairs.push({ addId, dropId });
+  };
+  if (owed.count) ranked(state, playerId, offered, "value").slice(0, owed.count + 2).forEach((a) => owed.outIds.forEach((d) => push(a, d)));
+  if (swapsLeft > 0) {
     const level = levelOf(state, playerId);
     const r = ratings(state, level);
     const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(playerId)).map((c) => c.id);
-    const worst = ranked(state, playerId, mine, "value").slice(-1)[0];
-    const better = worst ? ranked(state, playerId, offered, "value").filter((id) => r[id].value - r[worst].value > level.swap) : [];
-    if (better.length) {
-      dropId = worst;
-      addIds = better.slice(0, 3);
-    }
+    const best = ranked(state, playerId, offered, "value");
+    ranked(state, playerId, mine, "value")
+      .reverse()
+      .slice(0, swapsLeft)
+      .forEach((drop) => best.filter((id) => r[id].value - r[drop].value > level.swap).slice(0, 3).forEach((a) => push(a, drop)));
   }
-  return { pickupIds, dropId, addIds };
+  return { pairs };
 }
 
 // Finale picks, once there's something to go on: after the merge, or with ten or fewer left. Set once

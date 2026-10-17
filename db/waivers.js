@@ -12,8 +12,8 @@
 // sendProcessed). Reminders go out at most once each (reminder_log), so running this more often only
 // makes it more punctual.
 //
-// Only leagues with Pickups or Add/drops on (WaiverLogic.enabled decides the rest). Air times are stamped from the catalog
-// as the app stamps them (src/lib/server/air-times.ts); a league with no season, or catching up, has
+// Only leagues whose waivers could do anything (the clock, WaiverLogic.due, decides the rest). Air
+// times are stamped from the catalog as the app stamps them (src/lib/server/air-times.ts); a league with no season, or catching up, has
 // none, and its weeks run on hours since opening instead (WaiverLogic.schedule).
 require("dotenv").config({ path: ".env.local", quiet: true });
 const { Pool } = require("pg");
@@ -39,8 +39,16 @@ async function runWaivers(pool, opts = {}) {
   const now = opts.now || Date.now();
   const log = opts.log || ((line) => console.log(`[waivers] ${line}`));
   const seasons = new Map((await loadSeasons(pool, "TRUE")).map((s) => [`${s.slug}|${s.season_number}`, s]));
+  // Every league whose waivers could do anything (WaiverLogic.enabled, coarsely; the clock in
+  // stepLeague decides the rest): replacements on, swaps in its windows, or a week still running (a
+  // window the commissioner opened in a league that's otherwise off). The pre-v2 switches too, for any league the
+  // backfill (0063) hasn't reached.
   const { rows } = await pool.query(
-    "SELECT id FROM leagues WHERE state->'settings'->>'replenishEnabled' = 'true' OR state->'settings'->>'tradeEnabled' = 'true'"
+    `SELECT id FROM leagues WHERE
+       COALESCE(state->'settings'->>'replaceRule', 'never') <> 'never'
+       OR COALESCE((state->'settings'->'waiverWindows'->>'swaps')::int, 0) > 0
+       OR state->'settings'->>'replenishEnabled' = 'true' OR state->'settings'->>'tradeEnabled' = 'true'
+       OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(state->'midSeason'->'waivers'->'periods', '[]'::jsonb)) p WHERE p->>'phase' <> 'closed')`
   );
   // opts.leagueIds: only these (the dev test bank's, scripts/dev-test/check-waivers-alerts.js).
   const only = opts.leagueIds ? new Set(opts.leagueIds) : null;

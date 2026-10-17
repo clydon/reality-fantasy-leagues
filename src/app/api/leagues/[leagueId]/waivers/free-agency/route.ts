@@ -6,8 +6,9 @@ import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { requireWaivers, waiverActor } from "@/lib/server/waiver-actor";
 
 // A free-agency move (docs/PLAN-midseason-waivers.md): after waivers process, until the next episode
-// airs. Instant, first come, first served, and it never changes the waiver order. Body { addId } fills
-// a pickup you're owed; { addId, dropId } is the week's add/drop. `playerId`: the commissioner acting
+// airs. Instant, first come, first served, and it never changes the waiver order. Body { addId, dropId }:
+// dropping someone out of the game replaces them, someone still in is a swap (docs/PLAN-waivers-v2.md).
+// { addId } alone (pre-v2, one release) replaces your oldest loss. `playerId`: the commissioner acting
 // for someone. Two people tapping the same free agent serialize on the league lock: the second is told
 // they've gone.
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {

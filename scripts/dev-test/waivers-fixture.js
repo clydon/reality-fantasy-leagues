@@ -1,16 +1,29 @@
-// Dev-only test bank: a league in a mid-season waiver week (docs/PLAN-midseason-waivers.md), at any
-// point in it -- for checking the waiver routes (check-waivers.js) and, from phase 2, the Waivers page.
+// Dev-only test bank: a league in a mid-season waiver week (docs/PLAN-midseason-waivers.md,
+// docs/PLAN-waivers-v2.md), at any point in it -- for checking the waiver routes (check-waivers.js) and
+// the Waivers page (check-waivers-ui.js).
 //
-//   node scripts/dev-test/waivers-fixture.js up [--phase=open|claimed|processed|idle] [--airs-in=HOURS]
+//   node scripts/dev-test/waivers-fixture.js up [--phase=open|claimed|processed|idle] [--airs-in=HOURS] [--scenarios]
 //   node scripts/dev-test/waivers-fixture.js down
 //
-// The design canvas's Couch Crew, after Episode 3 (Jelly is out, so Sam is owed a pickup; Episode 3 is
-// an add/drop week). A throwaway season (Survivor 991, "zt-waivers", airing weekly, Episode 4 airing
-// --airs-in hours from now, default 30, so waivers process in about 6) and two unlinked leagues on it,
-// both on waivers with Pickups and Add/drops on:
-//   zt-wv-classic  "Waivers Classic"  Classic, exclusive ownership (contested claims, free agents)
+// The design canvas's Couch Crew, after Episode 3 (Jelly is out, so Sam can replace her; Episode 3 opens
+// a waiver window). A throwaway season (Survivor 991, "zt-waivers", airing weekly, Episode 4 airing
+// --airs-in hours from now, default 30, so waivers process in about 6) and two unlinked leagues on it:
+//   zt-wv-classic  "Waivers Classic"  Classic, exclusive ownership (contested claims, free agents).
+//                                     Fantasy football: Replace them, a window every 3 episodes, 1 swap
 //   zt-wv-roster   "Waivers Roster"   Active Roster, shared ownership (2 active + 1 bench; Sam is down
-//                                     to 1 still in, so owed one)
+//                                     to 1 still in). Early losses cost you: Only when short (down to 1),
+//                                     a window every 3 episodes, 1 swap
+// --scenarios adds a league per remaining v2 setting the plan says must be reachable ("Must be
+// configurable"), same seats and teams, each left as the clock leaves it after Episode 3 whatever the
+// --phase (check-waivers.js drives them):
+//   zt-wv-short    Active Roster shared, Only when short (down to 1); Lewis is out too, so Josie is down
+//                  to 2 -- enough for a lineup, so nothing to replace (the bench isn't refilled)
+//   zt-wv-everyx   Classic, Only in waiver windows, every 3 episodes, 0 swaps (replace, but only every X)
+//   zt-wv-rebuild  Classic, Only in waiver windows, Manual only, Whole team (3) swaps: the merge rebuild,
+//                  nothing open until the commissioner opens a window
+//   zt-wv-manual   Active Roster shared, Only when short, Manual only, 1 swap: the commissioner decides
+//                  when (a plain replacement week is open; Open a waiver window makes it one)
+//   zt-wv-swaps    Classic, Don't replace, a window every episode, 1 swap
 // Five seats in each, in waiver order Kim, Sam, Andrew, Josie, Dee. Three are people, all password
 // zt-pass-12345:
 //   zt_wcomm    Kim, the commissioner, seen through episode 3
@@ -22,6 +35,9 @@
 //                      Patt), and Kim's add/drop (Mike for Rob, then Ori)
 //   --phase=processed  ...and processed by the commissioner: free agency is open
 //   --phase=idle       ...and Episode 4 has aired: the week is closed, the next opens with its results
+//
+// The base leagues' settings are written in v2 keys; their phases' claims are sent in the pre-v2 shape
+// (the phase-2 screens still send it), which the server turns into pairs.
 //
 // Every row is keyed on the "zt-wv-" slug prefix, the "zt-waivers" season name and the zt_w usernames,
 // so `down` can't touch real data. Never run against a real database.
@@ -57,9 +73,18 @@ const TEAMS = {
 const FREE = ["Rob", "Maggie", "Ori", "Patt", "Aaliyah", "Linnea"];
 const OUT = [["Ana", 1], ["Devin", 2], ["Jelly", 3]];
 const TRIBES = [["Blue", "#5089c9"], ["Orange", "#f2804b"], ["Teal", "#35b5a5"]];
+const every3 = { schedule: "every", every: 3, swaps: 1 };
+// [slug, name, type, { shared, settings, out: extra [castaway, episode] eliminations }]
 const LEAGUES = [
-  ["zt-wv-classic", "Waivers Classic", "classic-draft"],
-  ["zt-wv-roster", "Waivers Roster", "active-roster"],
+  ["zt-wv-classic", "Waivers Classic", "classic-draft", { settings: { replaceRule: "always", waiverWindows: every3 } }],
+  ["zt-wv-roster", "Waivers Roster", "active-roster", { settings: { replaceRule: "whenShort", replenishAt: 1, waiverWindows: every3 } }],
+];
+const SCENARIOS = [
+  ["zt-wv-short", "Waivers Short", "active-roster", { settings: { replaceRule: "whenShort", replenishAt: 1, waiverWindows: every3 }, out: [["Lewis", 3]] }],
+  ["zt-wv-everyx", "Waivers Every 3", "classic-draft", { settings: { replaceRule: "windows", waiverWindows: { schedule: "every", every: 3, swaps: 0 } } }],
+  ["zt-wv-rebuild", "Waivers Rebuild", "classic-draft", { settings: { replaceRule: "windows", waiverWindows: { schedule: "manual", every: 3, swaps: 3 } } }],
+  ["zt-wv-manual", "Waivers Manual", "active-roster", { settings: { replaceRule: "whenShort", replenishAt: 1, waiverWindows: { schedule: "manual", every: 3, swaps: 1 } } }],
+  ["zt-wv-swaps", "Waivers Swaps", "classic-draft", { settings: { replaceRule: "never", waiverWindows: { schedule: "everyEpisode", every: 3, swaps: 1 } } }],
 ];
 const PHASES = ["open", "claimed", "processed", "idle"];
 const id = () => Array.from(crypto.randomBytes(24), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
@@ -75,7 +100,7 @@ function local(instant) {
   return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
 }
 
-function buildState(type) {
+function buildState(type, opts = {}) {
   const roster = type === "active-roster";
   const players = SEATS.map(([name, username]) => ({
     id: "p-" + name.toLowerCase(), name, color: "#888", active: true, disabled: false,
@@ -91,6 +116,7 @@ function buildState(type) {
       replenishEnabled: true, tradeEnabled: true, swapEvery: 3, replenishOrderBy: "rolling",
       waiverProcessHours: 24,
       ...(roster ? { activeSlots: 2, benchSlots: 1 } : { teamSize: 3 }),
+      ...opts.settings,
     },
     players,
     // Reverse draft order is the waiver order: Kim, Sam, Andrew, Josie, Dee.
@@ -105,9 +131,11 @@ function buildState(type) {
       id: `ep${i + 1}`, number: i + 1, events: [], scoringEvents: [], bets: [], picks: [], lineups: {},
     })),
   });
+  // The v2 settings above win; the pre-v2 switches follow them (as a settings save would leave them).
+  S.WaiverLogic.mirrorLegacy(state);
   state.draftPicksMade = 15;
   // Active Roster: Sam down to one still in (Jelly and Kilby both out in episode 3), and a few points.
-  const out = roster ? [...OUT, ["Kilby", 3]] : OUT;
+  const out = [...(roster ? [...OUT, ["Kilby", 3]] : OUT), ...(opts.out || [])];
   out.forEach(([name, ep]) => S.addElimination(state, `ep${ep}`, slugId(name), "Voted Out"));
   if (roster) {
     const ev = S.formatOf(state).events.find((e) => S.ActiveRosterLogic.pointsFor(state, e.id) > 0);
@@ -164,8 +192,10 @@ async function up(pool, args = []) {
   }
 
   const made = [];
-  for (const [slug, name, type] of LEAGUES) {
-    const state = buildState(type);
+  const scenarios = args.includes("--scenarios");
+  for (const [slug, name, type, opts] of [...LEAGUES, ...(scenarios ? SCENARIOS : [])]) {
+    const scenario = !LEAGUES.some((l) => l[0] === slug);
+    const state = buildState(type, opts);
     const { rows } = await pool.query(
       `INSERT INTO leagues (name, slug, join_code, state, created_by) VALUES ($1,$2,$3,'{}'::jsonb,$4) RETURNING id`,
       [name, slug, ("WV" + slug.slice(6, 10)).toUpperCase().padEnd(6, "Z"), userIds.zt_wcomm]
@@ -184,13 +214,13 @@ async function up(pool, args = []) {
       await client.query("BEGIN");
       await stampAirTimes(client, state);
       await Waivers.syncWaivers(client, leagueId, state, now - 20 * 3600e3); // opened yesterday afternoon
-      if (phase !== "open") {
+      if (phase !== "open" && !scenario) {
         for (const [playerId, make] of Object.entries(CLAIMS)) {
           const saved = await Waivers.saveClaim(client, leagueId, state, playerId, make(type === "active-roster"), userIds.zt_wcomm);
           if (saved.error) throw new Error(`${slug} ${playerId}: ${saved.error}`);
         }
       }
-      if (phase === "processed" || phase === "idle") {
+      if ((phase === "processed" || phase === "idle") && !scenario) {
         const refused = await Waivers.processNow(client, leagueId, state, now);
         if (refused) throw new Error(refused);
       }
@@ -216,7 +246,7 @@ async function up(pool, args = []) {
 if (require.main === module) {
   const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL });
   const [cmd, ...args] = process.argv.slice(2);
-  (cmd === "up" ? up(pool, args) : cmd === "down" ? down(pool).then(() => console.log("[zt] down")) : Promise.reject(new Error("usage: up [--phase=…] [--airs-in=H] | down")))
+  (cmd === "up" ? up(pool, args) : cmd === "down" ? down(pool).then(() => console.log("[zt] down")) : Promise.reject(new Error("usage: up [--phase=…] [--airs-in=H] [--scenarios] | down")))
     .catch((e) => { console.error(e); process.exitCode = 1; })
     .finally(() => pool.end());
 }

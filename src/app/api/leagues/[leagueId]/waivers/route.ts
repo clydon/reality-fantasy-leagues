@@ -7,7 +7,8 @@ import { pool, HttpError } from "@/lib/server/db";
 import { readOwnClaim } from "@/lib/server/waivers";
 import { resultsSeenThrough } from "@/lib/server/results-seen";
 
-// Mid-season waivers (docs/PLAN-midseason-waivers.md): your own claim for the week that's open. Claims
+// Mid-season waivers (docs/PLAN-midseason-waivers.md, PLAN-waivers-v2.md): your own claim for the week
+// that's open, as ranked pairs (and, for one release, the pre-v2 pickupIds/dropId/addIds view). Claims
 // live outside league state (db/migrations/0060), so reading yours back takes its own request, the
 // same as a blind-draft lock. Never anyone else's, the commissioner included -- who has claims in is
 // public, in state (period.claimsIn). Held back until you've revealed the week's episode: a claim the
@@ -22,6 +23,6 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   if (!period || !membership.playerId) return NextResponse.json({ periodId: period?.id ?? null, claim: null, hidden: false });
   const seen = await resultsSeenThrough(user.id, leagueId, state);
   if (seen !== null && seen < period.episode) return NextResponse.json({ periodId: period.id, claim: null, hidden: true });
-  const claim = await readOwnClaim(pool, leagueId, period.id, membership.playerId);
+  const claim = await readOwnClaim(pool, leagueId, period.id, membership.playerId, state);
   return NextResponse.json({ periodId: period.id, claim, hidden: false });
 });

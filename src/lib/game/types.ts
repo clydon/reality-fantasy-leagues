@@ -201,12 +201,22 @@ export interface LeagueSettings {
   bonusEnabled: boolean;
   /** Mid-season priority: "rolling" reverse-draft waiver list (default), or standings each round. */
   replenishOrderBy: "rolling" | "mostPoints" | "leastPoints";
-  /** Active Roster: a roster down to this many castaways still in the game may replenish (default activeSlots - 1). */
+  /** replaceRule "whenShort"'s N: replace once down to this many still in (default starting spots - 1; Classic: roster - 1). */
   replenishAt?: number | null;
-  /** Add/drop weeks come after every Nth episode (default 3). */
+  // Waivers v2 (docs/PLAN-waivers-v2.md; StateLogic.WaiverLogic.config). Backfilled from the pre-v2
+  // switches below by migrateLeagueState and db/migrations/0063.
+  /** When a castaway of yours is voted out: replace them after any episode, only when short, only in waiver windows, or never. */
+  replaceRule?: ReplaceRule;
+  /** When waiver windows open on their own, and how many swaps each allows (0 = replacements only; up to roster size). */
+  waiverWindows?: WaiverWindows;
+  /** Casual · Balanced · Competitive: which recommendation the league started from (WaiverLogic.recommend). */
+  waiverFeel?: WaiverFeel;
+  /** Replacements still owed at airtime are filled automatically; on unless false. */
+  autoFill?: boolean;
+  /** Pre-v2: add/drop weeks after every Nth episode. Kept in step with waiverWindows for one release. */
   swapEvery?: number | null;
-  // Optional mid-season mechanics, both default false. Gated together with the league type's own
-  // capability -- see replenishAvailable/tradeAvailable in state-logic.js.
+  // Pre-v2 switches, kept in step with replaceRule/waiverWindows for one release (WaiverLogic.mirrorLegacy).
+  // Ask whether they happen through replenishAvailable/tradeAvailable in state-logic.js.
   replenishEnabled: boolean;
   tradeEnabled: boolean;
   /** Waivers process this many hours before the next episode airs: 12, 24 (default) or 48. */
@@ -865,16 +875,29 @@ export interface MidSeasonLogEntry {
   };
 }
 
+export type ReplaceRule = "always" | "whenShort" | "windows" | "never";
+export type WaiverFeel = "casual" | "balanced" | "competitive";
+export interface WaiverWindows {
+  schedule: "everyEpisode" | "every" | "manual";
+  /** With schedule "every": a window after every this many episodes (2 or more). */
+  every: number;
+  /** Swaps each player may make per window: 0 up to the roster size ("Whole team"). */
+  swaps: number;
+}
+
 /** Why a claim further up someone's list didn't go through. */
 export interface WaiverPass {
   castawayId: string;
-  /** ahead: someone higher in the waiver order took them; pickupFirst: a pickup did (pickups go before
-   * add/drops); yours: your own pickup landed them; gone: not a free agent by then. */
+  /** ahead: someone higher in the waiver order took them; yours: your own earlier claim landed them;
+   * gone: not a free agent by then; pickupFirst: pre-v2 runs only (pickups went before add/drops). */
   reason: "ahead" | "pickupFirst" | "yours" | "gone";
   byPlayerId?: string;
 }
 
-/** One player's pickup or add/drop in a waiver run, and why it went the way it did. */
+/**
+ * One move (or one that didn't happen) in a waiver run, and why. kind "pickup" is a replacement (the drop
+ * was out of the game), "addDrop" a swap (still in): the names are pre-v2's.
+ */
 export interface WaiverResult {
   playerId: string;
   kind: "pickup" | "addDrop";
@@ -882,8 +905,10 @@ export interface WaiverResult {
   outcome: "got" | "missed" | "noClaim" | "skipped";
   castawayId?: string;
   droppedCastawayId?: string | null;
-  /** Which of their claims it was, 1-based. */
+  /** Which choice it was among their pairs for the same drop, 1-based. */
   choice?: number;
+  /** The round of the run it went through in (everyone's first pair, then everyone's next...). */
+  round?: number;
   passed: WaiverPass[];
   txId?: string;
   /** The add/drop's drop wasn't theirs or still in the game by then. */
@@ -908,6 +933,15 @@ export interface WaiverPeriod {
   /** When free agency ends (the next episode airs); null = when the next episode's results arrive. */
   closesAt: string | null;
   phase: "open" | "processed" | "closed";
+  /** A waiver window: swaps allowed (see swaps), and replacements under replaceRule "windows". */
+  window?: boolean;
+  /** Swaps each player may make this week (0 outside a window). */
+  swaps?: number;
+  /** The commissioner opened or changed this window (Open a waiver window). */
+  openedBy?: "commissioner";
+  /** The commissioner turned the window off and nothing else ran this week: closed without a run. */
+  turnedOff?: boolean;
+  /** Pre-v2: whether it allows swaps (swaps > 0). Kept in step for one release. */
   addDrop: boolean;
   /** After Undo last waiver run: no scheduled processing (Process now, or at airtime). */
   hold?: boolean;
@@ -922,12 +956,44 @@ export interface WaiverPeriod {
   hidden?: boolean;
 }
 
-/** One player's private claim (never in league state; GET /waivers returns your own). */
+/** "Add X, drop Y": one ranked line of a claim. Dropping someone out of the game replaces them; still in, swaps them. */
+export interface WaiverPair {
+  addId: string;
+  dropId: string;
+}
+
+/**
+ * One player's private claim (never in league state; GET /waivers returns your own): ranked pairs, and
+ * for one release the pre-v2 view of them (pickupIds: the replacements' adds; dropId/addIds: the first
+ * swap's drop and its adds).
+ */
 export interface WaiverClaim {
+  pairs: WaiverPair[];
   pickupIds: string[];
   dropId: string | null;
   addIds: string[];
 }
+
+/** WaiverLogic.recommend's answer: settings to write, or why the teams can't be drafted from the cast. */
+export type WaiverRecommendation =
+  | {
+      feasible: true;
+      /** Free agents per drafted spot, minus one (the plan's s). */
+      s: number;
+      /** Undrafted castaways at the start (exclusive); null when shared. */
+      freeAgents: number | null;
+      settings: {
+        replaceRule: ReplaceRule;
+        replenishAt: number;
+        waiverWindows: WaiverWindows;
+        waiverProcessHours: number;
+        replenishOrderBy: "rolling" | "leastPoints";
+        freeAgencyEnabled: boolean;
+        autoFill: boolean;
+        waiverFeel: WaiverFeel;
+      };
+    }
+  | { feasible: false; need: number; have: number };
 
 export interface LeagueState {
   players: Player[];
