@@ -1,4 +1,4 @@
-// Dev-only test bank: what Up next leaves out, and what you can wave away. Needs npm run dev.
+// Dev-only test bank: what Up next leaves out, and that it can't be waved away. Needs npm run dev.
 //
 //   node scripts/dev-test/check-up-next-scope.js <outDir> [width] [--dark] [--keep]
 //
@@ -6,8 +6,8 @@
 //   1. The control room only holds the open game's and its linked games' commissioner jobs. up-next-fixture.js
 //      with `unlink`: Pool leaves the "Couch Crew" group but the tester still runs it, with a results job due.
 //      Classic's Overview must not list Pool's job; Pool's own Overview must.
-//   2. "All set" can be dismissed. The fixture with --clear --member (nothing to do anywhere): Classic's Overview
-//      shows "All set"; its x hides it, a reload keeps it hidden, and Active Roster's still shows.
+//   2. "All set" has no dismiss. The fixture with --clear --member (nothing to do anywhere): Classic's Overview
+//      shows "All set", with no x (it was tried and taken out: it says where things stand, so it stays).
 //   3. Page text doesn't select (body user-select none), but a text box does.
 // Writes <outDir>/scope-<step>-<width>[-dark].png. Takes the fixture down at the end unless --keep. All zt-*.
 require("dotenv").config({ path: ".env.local", quiet: true });
@@ -78,22 +78,15 @@ const world = require("./up-next-fixture");
       await s.close();
     }
 
-    // 2 and 3. "All set" dismissed; text selection.
+    // 2 and 3. "All set" stays; text selection.
     {
-      const { classic, roster } = await world.up(pool, { clear: true, member: true });
+      const { classic } = await world.up(pool, { clear: true, member: true });
       const s = await session();
       console.log("\n2. All set");
       await s.go(classic);
       check((await s.allSet().count()) > 0, "Classic shows All set");
       await s.page.locator("[data-up-next]").screenshot({ path: `${out}/scope-allset-${suffix}.png` }).catch(() => {});
-      await s.allSet().locator("button[aria-label=Dismiss]").click();
-      await s.page.waitForTimeout(300);
-      check((await s.allSet().count()) === 0, "the x hides it");
-      await s.page.screenshot({ path: `${out}/scope-allset-gone-${suffix}.png` });
-      await s.go(classic);
-      check((await s.allSet().count()) === 0, "still hidden after a reload");
-      await s.go(roster);
-      check((await s.allSet().count()) > 0, "Active Roster's own All set still shows");
+      check((await s.allSet().locator("button[aria-label=Dismiss]").count()) === 0, "it has no dismiss");
 
       console.log("\n3. text selection");
       const sel = await s.page.evaluate(() => {

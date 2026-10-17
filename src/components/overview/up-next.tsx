@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import { useLeagueStore, useMyPlayerId } from "@/lib/store";
 import { byDue, type ActionItem } from "@/lib/game/action-items.js";
@@ -61,45 +61,6 @@ function useChangeCount(sig: string, scope: string, counts: (prev: string, next:
 /** A count only counts when it goes down: a move done. Going up is data arriving (other leagues' moves are fetched). */
 const fewer = (prev: string, next: string) => Number(next) < Number(prev);
 
-// "All set" can be waved away: per device and per game, until what it says changes (the next thing this
-// game asks of you, or a move turning up in another game). A move here always shows; only the quiet plate goes.
-// Kept in memory too, so a dismissal holds for the visit where storage is blocked.
-const ALL_SET_KEY = "rfl.allSetDismissed";
-let allSetRaw: string | null = null;
-const allSetListeners = new Set<() => void>();
-function allSetSnapshot(): string {
-  if (allSetRaw === null) {
-    try {
-      allSetRaw = localStorage.getItem(ALL_SET_KEY) ?? "";
-    } catch {
-      allSetRaw = "";
-    }
-  }
-  return allSetRaw;
-}
-function subscribeAllSet(cb: () => void) {
-  allSetListeners.add(cb);
-  return () => void allSetListeners.delete(cb);
-}
-function parseAllSet(raw: string): Record<string, string> {
-  try {
-    const s = JSON.parse(raw || "null");
-    if (s && typeof s === "object") return s;
-  } catch {
-    /* fall through */
-  }
-  return {};
-}
-function dismissAllSetFor(id: string, sig: string) {
-  allSetRaw = JSON.stringify({ ...parseAllSet(allSetSnapshot()), [id]: sig });
-  try {
-    localStorage.setItem(ALL_SET_KEY, allSetRaw);
-  } catch {
-    /* not remembered past this visit */
-  }
-  allSetListeners.forEach((cb) => cb());
-}
-
 // Up next (docs/PLAN-league-tabs.md), Overview's opener in the alert strip's place:
 //
 // - **The control room** first, when you run a league with a job waiting (the results, a draft to
@@ -113,7 +74,6 @@ function dismissAllSetFor(id: string, sig: string) {
 //   you under it (lib/game/status-plate.ts: the draft's time, who's on the clock, "4 of 5 claims in",
 //   when the next episode airs), still with the count when other games need you. That line is Overview's
 //   alone (`quiet`); on any other page a quiet game shows nothing, unless another game needs you.
-//   Its x waves it away until what it says changes (ALL_SET_KEY below).
 //
 // It's on every page of the app but Team / Lineup when a waiver banner leads them (their own plate says
 // it) -- the alert strip (action-bar.tsx) decides where, and what the page itself already shows.
@@ -152,9 +112,6 @@ export function UpNext({
   const pathname = usePathname();
   const [movesOpen, setMovesOpen] = useState(false);
   const [jobsOpen, setJobsOpen] = useState(false);
-  // The server has no localStorage: it renders nothing dismissed, and the client catches up after hydrating.
-  const dismissedRaw = useSyncExternalStore(subscribeAllSet, allSetSnapshot, () => "");
-  const dismissed = useMemo(() => parseAllSet(dismissedRaw), [dismissedRaw]);
 
   // A game in your linked group goes by its chip's name ("Pool"); any other league by its own.
   const gameName = (id: string, name: string) => group?.games.find((g) => g.id === id)?.label ?? name;
@@ -182,14 +139,7 @@ export function UpNext({
     </li>
   );
 
-  // What the quiet plate says, minus anything that ticks by on its own (the detail's "in 3 days").
-  const quietSig = [next ? `${next.tag}|${next.title}` : "", ...rest.map((it) => `${it.leagueId}:${it.kind}`)].join("|");
-  const allSetHidden = !top && dismissed[hereId] === quietSig;
-  const quietShown = !top && !allSetHidden && !!(next || rest.length);
-  function dismissAllSet() {
-    setMovesOpen(false);
-    dismissAllSetFor(hereId, quietSig);
-  }
+  const quietShown = !top && !!(next || rest.length);
   // Scoped to the page too: this stays mounted from page to page, and a plate that differs because the page
   // dropped a move that points at itself is arriving, not changing.
   const scope = `${hereId}|${pathname}`;
@@ -269,12 +219,10 @@ export function UpNext({
         <PlateText title={top.text} subtitle={when ? when.plate : top.detail} soon={!!when?.soon} />
       </Plate>
     );
-  } else if (allSetHidden) {
-    plate = null;
   } else if (next) {
     // The status plate's own words, under "Nothing to do": its tag and title say what comes, its detail when.
     plate = (
-      <Plate tone="quiet" tag="All set" count={count} cue={plateCue} slide={slid > 0} href={next.href} label={next.action} onDismiss={dismissAllSet}>
+      <Plate tone="quiet" tag="All set" count={count} cue={plateCue} slide={slid > 0} href={next.href} label={next.action}>
         <PlateText title={`Nothing to do in ${hereGame}`} subtitle={[`${STATE_NOW.test(next.title) ? "" : "Next: "}${next.tag}`, next.title, next.detail].filter(Boolean).join(" · ")} wrap />
       </Plate>
     );
@@ -282,7 +230,7 @@ export function UpNext({
     const first = rest[0];
     const when = whenFor(first, now);
     plate = (
-      <Plate tone="quiet" tag="All set" count={count} cue={plateCue} slide={slid > 0} onDismiss={dismissAllSet}>
+      <Plate tone="quiet" tag="All set" count={count} cue={plateCue} slide={slid > 0}>
         <PlateText title={`Nothing to do in ${hereGame}`} subtitle={`Next: ${gameName(first.leagueId, first.leagueName)}${when ? ` · ${when.row}` : ""}`} wrap />
       </Plate>
     );
@@ -293,7 +241,7 @@ export function UpNext({
     <div className="mb-4" data-up-next>
       {control}
       {plate}
-      {movesOpen && rest.length > 0 && !allSetHidden && (
+      {movesOpen && rest.length > 0 && (
         <ul className="mt-1">
           {rest.map((it, i) =>
             row(`${it.leagueId}:${it.kind}:${i}`, it.leagueId === hereId ? "Here" : gameName(it.leagueId, it.leagueName), it.text, whenFor(it, now), () => go(it.leagueId, it.href), i),
@@ -317,7 +265,6 @@ function Plate({
   onClick,
   href,
   label,
-  onDismiss,
   children,
 }: {
   tag: string;
@@ -331,8 +278,6 @@ function Plate({
   href?: string;
   /** Screen readers' word for a linked plate ("Waivers"); the chevron says it to the eye. */
   label?: string;
-  /** A close at the plate's right end ("All set" only: a move to make isn't yours to wave away). */
-  onDismiss?: () => void;
   children: ReactNode;
 }) {
   const body = (
@@ -374,16 +319,6 @@ function Plate({
           <div className={cls}>{body}</div>
         )}
         {count}
-        {onDismiss && (
-          <button
-            type="button"
-            onClick={onDismiss}
-            aria-label="Dismiss"
-            className={cn("flex min-h-11 w-11 shrink-0 items-center justify-center border-l border-plate-muted/20 text-plate-muted hover:bg-[#f1eff6] hover:text-plate-foreground active:bg-[#f1eff6]", FOCUS_PLATE)}
-          >
-            <X className="size-[18px]" strokeWidth={2.4} aria-hidden />
-          </button>
-        )}
       </div>
     </div>
   );
