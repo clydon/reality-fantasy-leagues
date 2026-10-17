@@ -440,7 +440,7 @@ function Explainer() {
               onClick={practise}
               className="mt-1 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-muted-foreground underline underline-offset-4 outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-chyron-line"
             >
-              {replay ? "Try a practice round" : "Try a practice round first"} · 2 min
+              {replay ? "Try a practice round" : "Try a practice round first"} · 3 min
             </button>
           )}
         </footer>

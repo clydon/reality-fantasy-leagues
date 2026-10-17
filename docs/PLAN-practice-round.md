@@ -14,12 +14,12 @@ rules sequence.
 |---|---|---|
 | Job | Watch: the rules | Do: a practice episode |
 | Who | Every joiner, every league | Offered to everyone |
-| Length | ~1 min | ~2 min, hands-on |
+| Length | ~1 min | ~3 min, hands-on |
 
 ## Offer
 
 - Everyone, every league (no first-timer rule): on the explainer's end card, under the primary ("Go to
-  the draft"), a plain link "Try a practice round first · 2 min". Also More -> "Practice round", next to
+  the draft"), a plain link "Try a practice round first · 3 min". Also More -> "Practice round", next to
   "How this league works", for the open league.
 - Late joiners get the same offer before the start question; the practice round returns them to
   "Which episodes have you watched?", so that decision stays last.

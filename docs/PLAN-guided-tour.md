@@ -6,7 +6,7 @@ backburnered" (its staleness concern is answered under **Staying fresh** below).
 
 ## Goal
 
-Prove in about 3 minutes that one episode night is easy. Doubles as a diagnostic: **if a step can't
+Prove in about 3 minutes (built: the player tour runs about 5) that one episode night is easy. Doubles as a diagnostic: **if a step can't
 be explained in one host line (about 12 words), the screen is the problem, not the tour.** Log it on
 a "simplify this screen" list instead of writing a longer line.
 
@@ -208,7 +208,7 @@ apply, end card. Plus Research, which the player path left to this one.
 | End | Research | "That's the commissioner's week." **Start a league** · *Look around* | — |
 
 - **Where it starts:** the player's end card ("Commissioner tour", under its two buttons), More →
-  "Commissioner tour" (2 min) on a phone, and the sidebar's account menu on desktop. Each starts it
+  "Commissioner tour" (10 min) on a phone, and the sidebar's account menu on desktop. Each starts it
   on `/new-league`; its league doesn't exist until step 1 makes it.
 - **Create a league, locally:** `create-league-flow.tsx` decides on arrival whether it's the tour's
   (`useTourStore`: commissioner kind, league not created) and then opens on step 3 with *Rise &

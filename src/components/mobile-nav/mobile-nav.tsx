@@ -559,7 +559,7 @@ export function MobileNav() {
             <MoreRow
               icon={DraftIcon}
               label="Practice round"
-              value="2 min"
+              value="3 min"
               onClick={() => {
                 setSheetOpen(false);
                 practice.start();
@@ -608,8 +608,8 @@ export function MobileNav() {
             </div>
           )}
           {/* Picking one replaces the view with demo data, the same as the sidebar's Demo season. */}
-          <MoreRow icon={SparklesIcon} label={touring ? "Replay the tour" : "Take the tour"} value="3 min" onClick={takeTour} />
-          <MoreRow icon={SparklesIcon} label="Commissioner tour" value="2 min" onClick={takeCommissionerTour} />
+          <MoreRow icon={SparklesIcon} label={touring ? "Replay the tour" : "Take the tour"} value="5 min" onClick={takeTour} />
+          <MoreRow icon={SparklesIcon} label="Commissioner tour" value="10 min" onClick={takeCommissionerTour} />
           <MoreRow icon={EpisodesIcon} label="Demo season" onClick={() => go("")} />
           {isSuperAdmin && <MoreRow icon={ShieldIcon} label="Admin" value="Shows, users, results" onClick={() => go("/admin")} />}
           <MoreRow
