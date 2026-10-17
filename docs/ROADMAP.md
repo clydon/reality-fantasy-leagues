@@ -316,12 +316,7 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
   - Also considered and explicitly rejected for v1 of the *compiled-research* item above (not this
     one): confidence decay on commissioner override, cross-league disagreement feeding back into the
     shared store's confidence, and auto-flipping the stored answer on reviewer consensus. All cut as
-    too much machinery for what the dispute-inbox approach solves more simply and more honestly (a
-    real person with real stakes flags it, rather than an algorithm inferring trust from override
-    counts).
-
-## Model guidance (unchanged from `PLAN-rollout-order.md`)
-
+    too much machinery for what the dispute-inbox t 
 - Pattern-following UI/wiring work (confetti extension, rule-list editor once the data model is
   settled) → Sonnet.
 - Judgment-heavy design work, or anything where getting it wrong silently corrupts data (the

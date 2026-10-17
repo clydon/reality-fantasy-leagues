@@ -20,6 +20,23 @@ export type WhatsNewRelease = { id: string; date: string; items: WhatsNewItem[] 
 
 export const RELEASES: WhatsNewRelease[] = [
   {
+    id: "2026-10-16b",
+    date: "2026-10-16",
+    items: [
+      {
+        icon: "🔁",
+        title: "Replace or swap, right from your team",
+        detail:
+          "On Waivers, tap Replace on anyone who's out or Swap on anyone still in. Pick your first choice and any backups, ranked by points or anything they've done. You get one for each.",
+      },
+      {
+        icon: "🪟",
+        title: "Waiver windows",
+        detail: "Your commissioner can open a waiver window any week, like after the merge, so everyone can replace who's out or swap who's still in.",
+      },
+    ],
+  },
+  {
     id: "2026-10-16",
     date: "2026-10-16",
     items: [
@@ -27,7 +44,7 @@ export const RELEASES: WhatsNewRelease[] = [
         icon: "🔄",
         title: "Pickups are now waivers: no more waiting your turn",
         detail:
-          "When you're owed a pickup, choose it in private: anyone still in the game who isn't already yours. Everyone's choices go through at once the day before the next episode. Swaps are now called add/drops.",
+          "When you're owed a pickup, choose it in private: anyone still in the game who isn't already yours. Everyone's choices go through at once the day before the next episode.",
       },
     ],
   },
