@@ -25,6 +25,8 @@ export function TourHost() {
   const kind = useTourStore((s) => s.kind);
   const created = useTourStore((s) => s.created);
   const copied = useTourStore((s) => s.copied);
+  const did = useTourStore((s) => s.did);
+  const staged = useTourStore((s) => s.staged);
   const step = useTourStep();
   const goTo = useTourStore((s) => s.goTo);
   const stop = useTourStore((s) => s.stop);
@@ -35,7 +37,7 @@ export function TourHost() {
   const state = useLeagueStore((s) => s.state);
   const full = useLeagueStore((s) => s.fullState);
   const seen = useLeagueStore((s) => s.membership?.resultsSeenThrough ?? 0);
-  const ctx: TourCtx = { state, full, pathname, seen, tour: { created, copied } };
+  const ctx: TourCtx = { state, full, pathname, seen, tour: { created, copied, did, staged } };
   const steps = stepsOf({ kind, practice });
 
   // A step ends on what it did to the league (or where it took you); several can end at once.
@@ -73,7 +75,11 @@ export function TourHost() {
         detail={detail}
         ending={ending}
         cta={onRoute ? (step.cta ?? null) : null}
-        onNext={() => goTo(stepIndex + 1)}
+        onNext={() => {
+          if (step.ctaMark) useTourStore.getState().mark(step.ctaMark);
+          const to = step.ctaTo ? steps.findIndex((x) => x.id === step.ctaTo) : -1;
+          goTo(to >= 0 ? to : stepIndex + 1);
+        }}
         // The create-a-league flow has no tab bar: the plate sits at the foot of the screen.
         fullscreen={pathname === "/new-league"}
         onSkip={practice ? leave : stop}
@@ -289,7 +295,7 @@ function HostPlate({
           <div className="mt-3 flex flex-col gap-2">
             <p className="text-[15px] leading-snug text-plate-muted">
               {kind === "commissioner"
-                ? "Every week: results come in, you check them and apply them. Everything else runs itself."
+                ? "Every week: copy the question, paste the answer, check it, apply. Everything else runs itself."
                 : "Every week is the same: set your lineup, reveal, see where you stand."}
             </p>
             <div className="mt-1 flex gap-2">
@@ -367,6 +373,10 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let shown: Box[] = [];
     let frame = 0;
+    let lastDock = -1000;
+    // Each step starts with the plate at the bottom.
+    const first = document.querySelector<HTMLElement>("[data-tour-host]");
+    if (first) delete first.dataset.dock;
 
     const tick = () => {
       const tap = visible(targets);
@@ -374,8 +384,11 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
       tappable.current = tap.map((t) => t.el);
       // Ringed first, then ringless, then look-only: the paths below slice by these counts.
       const bare = tap.filter((t) => RINGLESS.has(t.name)).map((t) => t.box);
-      const ringed = tap.filter((t) => !RINGLESS.has(t.name)).map((t) => clipUnder(t.box, bare));
-      const want = [...ringed, ...bare, ...seen.map((t) => t.box)];
+      // Lit targets that touch or overlap share one ring (a sheet's stepper and its Done button, a
+      // season card and the Next bar), so outlines never cross each other.
+      const ringed = mergeBoxes(tap.filter((t) => !RINGLESS.has(t.name)).map((t) => clipUnder(t.box, bare)));
+      const looked = mergeBoxes(seen.map((t) => t.box));
+      const want = [...ringed, ...bare, ...looked];
       active.current = want.length > 0;
       // Glide from the last spotlight to the next, unless motion is reduced or the count changed.
       shown =
@@ -383,32 +396,61 @@ function Spotlight({ targets, look }: { targets: string[]; look: string[] }) {
           ? want.map((b, i) => lerp(shown[i], b, 0.3))
           : want;
       if (svgRef.current) svgRef.current.style.opacity = shown.length ? "1" : "0";
-      // A sheet rising from the bottom (the Reveal question) would sit under the plate: while one is
-      // open the plate moves to the top, so the sheet's own words stay readable.
+      // The plate keeps clear of what's lit. A sheet rising from the bottom (the Reveal question)
+      // would sit under it, so with one open the plate goes to the top; otherwise it sits at the
+      // bottom unless something lit is under it, and then it moves to the other edge. At most one move
+      // every half second, and it stays put until the step changes, so a target between the two can't make it flicker.
       const plate = document.querySelector<HTMLElement>("[data-tour-host]");
-      const dock = document.querySelector('[role="dialog"], [role="alertdialog"]') ? "top" : "bottom";
-      if (plate && plate.dataset.dock !== dock) plate.dataset.dock = dock;
+      if (plate) {
+        const sheet = !!document.querySelector('[role="dialog"], [role="alertdialog"]');
+        const now = performance.now();
+        const cur = plate.dataset.dock === "top" ? "top" : "bottom";
+        let dock = sheet ? "top" : cur;
+        if (!sheet && now - lastDock > 500) {
+          const r = plate.getBoundingClientRect();
+          // Sticky confirm bars (the ringless ones) ride above the plate by design, so they don't count.
+          const covered = [...ringed, ...looked].some(
+            (b) =>
+              b.h < window.innerHeight * 0.45 &&
+              Math.min(b.x + b.w, r.right) - Math.max(b.x, r.left) > 10 &&
+              Math.min(b.y + b.h, r.bottom) - Math.max(b.y, r.top) > 10
+          );
+          if (covered) dock = cur === "bottom" ? "top" : "bottom";
+        }
+        if (dock !== cur) {
+          plate.dataset.dock = dock;
+          lastDock = now;
+        }
+      }
       holesRef.current?.setAttribute("d", shown.map(rounded).join(" "));
       ringRef.current?.setAttribute("d", shown.slice(0, ringed.length).map(rounded).join(" "));
       // Lit to look at, not tap: a dashed ring, so it still stands out (the tab bar's cards).
-      lookRingRef.current?.setAttribute("d", shown.slice(tap.length).map(rounded).join(" "));
+      lookRingRef.current?.setAttribute("d", shown.slice(ringed.length + bare.length).map(rounded).join(" "));
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
-    // A small target low on the page (a guess field under Overview's standings) would be lit under the
-    // plate: once per step, the page scrolls it up to just above. Never one in a fixed bar (the tabs),
-    // nor a tall one like a tile grid, which the plate always overlaps.
-    const nudge = window.setTimeout(() => {
-      const plate = document.querySelector("[data-tour-host]")?.getBoundingClientRect();
-      const el = targets.map((name) => document.querySelector(`[data-tour~="${name}"]`)).find((x) => !!x);
+    // Once the step has settled, the page scrolls what's lit into the clear band between the header
+    // and the plate -- twice, since a page can still be laying out. Never one in a fixed bar (the tabs).
+    const bring = () => {
+      const plate = document.querySelector<HTMLElement>("[data-tour-host]");
+      const el = [...targets, ...look].map((name) => document.querySelector(`[data-tour~="${name}"]`)).find((x) => !!x);
       if (!plate || !el || pinned(el)) return;
+      const p = plate.getBoundingClientRect();
+      const tabs = document.querySelector("[data-mobile-tabbar]")?.getBoundingClientRect();
+      const floor = tabs && tabs.top > window.innerHeight / 2 ? tabs.top : window.innerHeight;
+      const top = p.top < window.innerHeight / 2 ? p.bottom + 12 : 72;
+      const bottom = p.top < window.innerHeight / 2 ? floor - 12 : p.top - 12;
       const r = el.getBoundingClientRect();
-      if (r.height > window.innerHeight * 0.4 || r.bottom <= plate.top - 8) return;
-      window.scrollBy({ top: r.bottom - plate.top + 24, behavior: reduced ? "auto" : "smooth" });
-    }, 300);
+      if (r.top >= top && r.bottom <= bottom) return;
+      const delta = r.height > bottom - top ? r.top - top : r.top < top ? r.top - top : r.bottom - bottom;
+      window.scrollBy({ top: delta, behavior: reduced ? "auto" : "smooth" });
+    };
+    const nudge = window.setTimeout(bring, 350);
+    const nudge2 = window.setTimeout(bring, 900);
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(nudge);
+      clearTimeout(nudge2);
       active.current = false;
     };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -474,7 +516,15 @@ function visible(names: string[]): { name: string; el: Element; box: Box }[] {
       };
       const spread = [0.5, 0.15, 0.85];
       if (!spread.some((fy) => spread.some((fx) => onTop(fx, fy)))) continue;
-      out.push({ name, el, box: { x: x0 - PAD, y: y0 - PAD, w: x1 - x0 + PAD * 2, h: y1 - y0 + PAD * 2 } });
+      // A lit region that runs under a bottom bar of the page's own (the create flow's footer, the tab
+      // bar) stops at the bar, so the ring doesn't light something the step isn't about.
+      let bottom = y1;
+      for (const bar of document.querySelectorAll("footer, [data-mobile-tabbar]")) {
+        if (bar.contains(el) || el.contains(bar)) continue;
+        const b = bar.getBoundingClientRect();
+        if (b.top > H / 2 && b.top > y0 + 24 && b.top < bottom && b.left < x1 && b.right > x0) bottom = b.top;
+      }
+      out.push({ name, el, box: { x: x0 - PAD, y: y0 - PAD, w: x1 - x0 + PAD * 2, h: bottom - y0 + (bottom === y1 ? PAD * 2 : PAD) } });
     }
   }
   return out;
@@ -487,6 +537,25 @@ function pinned(el: Element): boolean {
     if (pos === "fixed" || pos === "sticky") return true;
   }
   return false;
+}
+
+/** Boxes that touch or overlap, merged into the one box around them. */
+function mergeBoxes(boxes: Box[]): Box[] {
+  const out = boxes.map((b) => ({ ...b }));
+  for (let i = 0; i < out.length; i++) {
+    for (let j = i + 1; j < out.length; j++) {
+      const a = out[i];
+      const b = out[j];
+      if (a.x <= b.x + b.w + 2 && b.x <= a.x + a.w + 2 && a.y <= b.y + b.h + 2 && b.y <= a.y + a.h + 2) {
+        const x = Math.min(a.x, b.x);
+        const y = Math.min(a.y, b.y);
+        out[i] = { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+        out.splice(j, 1);
+        j = i;
+      }
+    }
+  }
+  return out;
 }
 
 /** A box cut off where a ringless bar starts across its lower part, so its ring stops above the bar. */

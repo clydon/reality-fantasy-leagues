@@ -6,7 +6,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
 import { useCanManage, useLeagueStore } from "@/lib/store";
 import { useTourStore } from "@/lib/tour/tour-store";
-import { applyTourResults, tourPanel } from "@/lib/tour/commissioner";
+import { applyTourResults, stageResults, tourPanel } from "@/lib/tour/commissioner";
 
 // Where a commissioner's episode results come from (docs/PLAN-episode-research-compiled-cache.md):
 // research staged once per season, then each commissioner checks it and applies it to their own
@@ -52,8 +52,13 @@ export function useResultsSource(): ResultsSource | null {
   if (touring) {
     const full = () => useLeagueStore.getState().fullState;
     return {
-      load: async (ep) => tourPanel(full(), ep.number, useTourStore.getState().staged[ep.number] ?? []),
-      submit: async (ep) => tourPanel(full(), ep.number, useTourStore.getState().staged[ep.number] ?? []),
+      load: async (ep) => tourPanel(full(), ep.number, useTourStore.getState().staged[ep.number]),
+      // Reading the pasted answer is what "finds" the results: they're staged, and only applying scores them.
+      submit: async (ep) => {
+        const t = useTourStore.getState();
+        useTourStore.setState({ staged: { ...t.staged, [ep.number]: t.staged[ep.number] ?? stageResults(ep.number) } });
+        return tourPanel(full(), ep.number, useTourStore.getState().staged[ep.number]);
+      },
       apply: async (ep, items) => {
         const state = full();
         const applied = applyTourResults(state, ep.number, items);
@@ -93,8 +98,6 @@ export function useResultsDue(now: number | null): Episode | null {
   const mode = useLeagueStore((s) => s.mode);
   const touring = useLeagueStore((s) => s.touring);
   const tourKind = useTourStore((s) => s.kind);
-  // The tour's episodes have no schedule: one "airs" when its results are staged.
-  const tourStaged = useTourStore((s) => s.staged);
   const mine = touring ? tourKind === "commissioner" : mode === "live";
   if (!canManage || !mine || now === null || StateLogic.RevealLogic.isCatchingUp(state)) return null;
   return (
@@ -106,7 +109,8 @@ export function useResultsDue(now: number | null): Episode | null {
           !ep.resultsHidden &&
           !StateLogic.episodeHasResults(ep) &&
           !(ep.airsAt && Date.parse(ep.airsAt) > now) &&
-          (!touring || !!tourStaged[ep.number])
+          // The tour's episodes have no schedule: one "airs" when everyone's lineup has locked.
+          (!touring || ep.lineupsLocked)
       ) ?? null
   );
 }
@@ -125,7 +129,7 @@ export function useResearchProgress(ep: Episode | null): { staged: number; toAsk
     staleTime: 60 * 1000,
   });
   if (!ep) return null;
-  if (touring) return { staged: tourStaged ? tourStaged.length : 0, toAsk: false };
+  if (touring) return { staged: tourStaged ? tourStaged.length : 0, toAsk: !tourStaged };
   return data ? { staged: data.staged.filter((d) => !d.inLeague && d.status !== "rejected").length, toAsk: !!data.prompt } : null;
 }
 

@@ -11,6 +11,10 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Commissioner tour rebuilt on Survivor 51, 2026-10-17 (not committed)
+
+See [PLAN-commissioner-tour.md](PLAN-commissioner-tour.md): copy/paste everywhere with a Paste/Clear button, show import, cast import, points, waivers, draft types, results. Check: `scripts/dev-test/check-commissioner-tour.js`.
+
 ## League tabs redesign: designed 2026-10-17, steps 1–7 built (not committed)
 
 [PLAN-league-tabs.md](PLAN-league-tabs.md): the same six tabs in every game (Overview · Episodes ·

@@ -4,9 +4,12 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import type { StoredFormat } from "@/lib/game/types";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ActButton, CopyButton } from "@/components/admin/admin-ui";
+import { PasteBar } from "@/components/paste-bar";
+import { useTourSample } from "@/lib/tour/samples";
+import { tourMark } from "@/lib/tour/tour-store";
 
 // Step 1 of "Research a new show" (docs/PLAN-stage-3-format-proposals.md step 3): build the free
 // copy/paste prompt from a show name and a few optional hints, then parse whatever a web-searching
@@ -17,6 +20,7 @@ export function FormatResearchPanel({
   onCancel,
   promptFn = api.adminFormatPrompt,
   createFn = api.adminCreateFormat,
+  tour,
 }: {
   onCreated: (format: StoredFormat) => void;
   onCancel: () => void;
@@ -24,15 +28,17 @@ export function FormatResearchPanel({
   // scoped to the signed-in user instead of requiring super-admin.
   promptFn?: typeof api.adminFormatPrompt;
   createFn?: typeof api.adminCreateFormat;
+  /** The commissioner's guided tour: the show's name is filled in, and Paste fills in a ready-made answer. */
+  tour?: boolean;
 }) {
-  const [name, setName] = useState("");
+  const tourSample = useTourSample("format");
+  const [name, setName] = useState(tour ? "Survivor" : "");
   const [wiki, setWiki] = useState("");
   const [castaway, setCastaway] = useState("");
   const [tribe, setTribe] = useState("");
   const [seasons, setSeasons] = useState("");
   const [built, setBuilt] = useState(false);
   const [answer, setAnswer] = useState("");
-  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,17 +48,6 @@ export function FormatResearchPanel({
     queryFn: () => promptFn(q),
     enabled: built && !!q.name,
   });
-
-  async function copyPrompt() {
-    if (!data?.prompt) return;
-    try {
-      await navigator.clipboard.writeText(data.prompt);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard blocked (permissions, non-HTTPS) -- the prompt's still selectable below */
-    }
-  }
 
   async function submit() {
     if (!answer.trim()) return;
@@ -93,12 +88,12 @@ export function FormatResearchPanel({
             <Input size="sm" className="min-w-[160px] flex-1" placeholder="Seasons to check (optional)" value={seasons} onChange={(e) => setSeasons(e.target.value)} />
           </div>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <Button size="xs" disabled={!name.trim()} onClick={() => setBuilt(true)}>
-              Build prompt
-            </Button>
-            <Button variant="secondary" size="xs" onClick={onCancel}>
-              Cancel
-            </Button>
+            <span data-tour="add-build">
+              <ActButton tone="chyron" disabled={!name.trim()} onClick={() => { setBuilt(true); tourMark("add-built"); }}>
+                Build prompt
+              </ActButton>
+            </span>
+            <ActButton onClick={onCancel}>Cancel</ActButton>
           </div>
         </>
       ) : (
@@ -110,10 +105,8 @@ export function FormatResearchPanel({
           {promptError && <p className="font-semibold text-destructive">{promptError instanceof ApiError ? promptError.message : "Couldn't build the prompt."}</p>}
           {data && (
             <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1.5">
-                <Button variant="secondary" size="xs" onClick={copyPrompt}>
-                  {copied ? "Copied!" : "Copy prompt"}
-                </Button>
+              <div className="flex items-center gap-2.5">
+                <CopyButton text={data.prompt} label="Copy prompt" tone="chyron" tourId="add-copy" />
                 <button className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={() => setBuilt(false)}>
                   ← edit inputs
                 </button>
@@ -121,8 +114,12 @@ export function FormatResearchPanel({
               <Textarea readOnly rows={4} value={data.prompt} className="font-mono text-[0.65rem] text-muted-foreground" />
             </div>
           )}
-          <label className="mt-1.5 flex flex-col gap-1">
+          <div className="mt-2 flex flex-col gap-1.5">
             <span className="font-semibold">Paste the answer here</span>
+            <PasteBar value={answer} onChange={setAnswer} sample={tourSample} tourId="add-paste" />
+          </div>
+          <label className="mt-1.5 flex flex-col gap-1">
+            <span className="sr-only">The answer</span>
             <Textarea
               rows={8}
               value={answer}
@@ -132,12 +129,14 @@ export function FormatResearchPanel({
             />
           </label>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <Button size="xs" disabled={busy || !answer.trim()} onClick={submit}>
-              {busy ? "Creating…" : "Create draft"}
-            </Button>
-            <Button variant="secondary" size="xs" disabled={busy} onClick={onCancel}>
+            <span data-tour="add-create">
+              <ActButton tone="chyron" disabled={busy || !answer.trim()} onClick={submit}>
+                {busy ? "Creating…" : "Create draft"}
+              </ActButton>
+            </span>
+            <ActButton disabled={busy} onClick={onCancel}>
               Cancel
-            </Button>
+            </ActButton>
           </div>
           {error && <p className="mt-1 font-semibold text-destructive">{error}</p>}
         </>

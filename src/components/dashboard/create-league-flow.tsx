@@ -14,9 +14,8 @@ import { CaptionPlate } from "@/components/ui/caption-plate";
 import { PlainButton } from "@/components/draft/draft-ui";
 import { Chip, Field, PrimaryButton, TextSheet, fieldCls } from "@/components/setup/settings-ui";
 import { m, AnimatePresence } from "@/components/motion";
-import { useTourStore } from "@/lib/tour/tour-store";
-import { TOUR_JOIN_CODE, buildCommissionerState } from "@/lib/tour/commissioner";
-import { TOUR_LEAGUE_NAME, TOUR_SHOW_NAME, TOUR_TERMS } from "@/lib/tour/rise-and-fall";
+import { tourMark, useTourStore } from "@/lib/tour/tour-store";
+import { COMM_LEAGUE_NAME, TOUR_CATALOG, TOUR_JOIN_CODE, buildCommissionerState } from "@/lib/tour/commissioner";
 import { cn } from "cn";
 import { ResearchShowFlow } from "./research-show-flow";
 import { WizardWaivers, recommendation, type RosterFix, type WizardWaiverChoice } from "./wizard-waivers";
@@ -39,9 +38,9 @@ import { WizardWaivers, recommendation, type RosterFix, type WizardWaiverChoice 
 // The store isn't switched to the new league until the person leaves step 4: switching shows the boot
 // overlay, which would unmount this flow mid-invite. Step 4 talks to the API by league id instead.
 //
-// The commissioner's guided tour (docs/PLAN-guided-tour.md) plays it locally: it opens on step 3 with
-// *Rise & Fall* already chosen and named, Create league loads the tour's league into the store
-// (nothing is saved, so no boot overlay), and step 4's code copies but invites nobody.
+// The commissioner's guided tour (docs/PLAN-commissioner-tour.md) plays it locally, from step 1, on a
+// catalog of just Survivor: Create league loads the tour's league into the store (nothing is saved, so
+// no boot overlay), and step 4's code copies but invites nobody.
 
 // The order the type cards appear in. StateLogic.LEAGUE_TYPES is keyed for strategy lookup, not display.
 const TYPE_ORDER = ["classic-draft", "active-roster", "pickem"] as const;
@@ -76,7 +75,7 @@ export function CreateLeagueFlow() {
     return t.step !== null && t.kind === "commissioner" && !t.created;
   });
 
-  const [step, setStep] = useState<Step>(tour ? 3 : 1);
+  const [step, setStep] = useState<Step>(1);
   const [dir, setDir] = useState(1);
   // Step 1
   const [showSlug, setShowSlug] = useState<string | null>(null);
@@ -87,9 +86,9 @@ export function CreateLeagueFlow() {
   const [researching, setResearching] = useState(false);
   const seasonRef = useRef<HTMLElement>(null);
   // Step 2
-  const [typeId, setTypeId] = useState<string | null>(tour ? "active-roster" : null);
+  const [typeId, setTypeId] = useState<string | null>(null);
   // Step 3
-  const [name, setName] = useState(tour ? TOUR_LEAGUE_NAME : "");
+  const [name, setName] = useState(tour ? COMM_LEAGUE_NAME : "");
   const [waivers, setWaivers] = useState<WizardWaiverChoice>({ teams: 4, feel: "balanced", custom: null });
   // What step 3's "doesn't fit" offers change about the league's shape: shared ownership, a smaller roster.
   const [shape, setShape] = useState<{ shared: boolean; smaller: boolean }>({ shared: false, smaller: false });
@@ -113,9 +112,11 @@ export function CreateLeagueFlow() {
     enabled: isAuthenticated,
   });
   // Shows a user researched for themselves (test shows included) are theirs alone; an admin sees all.
-  const shows = (catalog?.shows ?? []).filter((s) => isSuperAdmin || s.curated !== false || s.mine);
+  // The tour pretends Survivor isn't listed: it appears once the tour has researched and approved it.
+  const tourAdded = useTourStore((s) => !!s.did["add-approved"] || !!s.did["add-skipped"]);
+  const shows = tour ? (tourAdded ? TOUR_CATALOG : []) : (catalog?.shows ?? []).filter((s) => isSuperAdmin || s.curated !== false || s.mine);
   const show = shows.find((s) => s.slug === showSlug) ?? null;
-  const terms = termsFrom(tour ? { name: TOUR_SHOW_NAME, castaway_term: TOUR_TERMS.castaway, tribe_term: TOUR_TERMS.tribe } : show);
+  const terms = termsFrom(show);
   const catalogSeason = show?.seasons.find((s) => s.seasonNumber === season) ?? null;
   const catchingUp = catchUpChoice ?? catalogSeason?.status === "completed";
   const leagueType = typeId ? StateLogic.LEAGUE_TYPES[typeId] : null;
@@ -132,7 +133,7 @@ export function CreateLeagueFlow() {
   }, [typeId, tour, shape]);
   // Waivers suit the number of teams, and the cast they're drafted from (docs/PLAN-waivers-v2.md).
   const castSize = catalogSeason?.castSize ?? null;
-  const waiverRec = hasDraft && !tour ? recommendation(preview, castSize, waivers.teams, waivers.feel) : null;
+  const waiverRec = hasDraft ? recommendation(preview, castSize, waivers.teams, waivers.feel) : null;
   const doesntFit = !!waiverRec && !waiverRec.feasible && castSize !== null;
   function fix(f: RosterFix) {
     if (f.kind === "pickem") setTypeId("pickem");
@@ -142,12 +143,14 @@ export function CreateLeagueFlow() {
   function go(next: Step) {
     setDir(next > step ? 1 : -1);
     setStep(next);
+    tourMark(`create-step-${next}`);
     setError(null);
     window.scrollTo(0, 0);
   }
 
   function pickShow(s: CatalogShow) {
     setShowSlug(s.slug);
+    tourMark("create-show");
     const lead = leadSeason(s);
     setSeason(lead?.seasonNumber ?? null);
     setTypingSeason(!lead);
@@ -156,6 +159,7 @@ export function CreateLeagueFlow() {
   }
 
   function pickSeason(n: number | null) {
+    if (n != null) tourMark("create-season");
     setSeason(n);
     setCatchUpChoice(null);
   }
@@ -164,9 +168,8 @@ export function CreateLeagueFlow() {
   const draftAt = hasDraft && draftWhen === "time" && draftDate ? new Date(`${draftDate}T${draftTime || "20:00"}`) : null;
   const draftInPast = !!draftAt && draftAt.getTime() <= openedAt;
 
-  const canNext = tour
-    ? !!name.trim()
-    : step === 1
+  const canNext =
+    step === 1
       ? !!show && season != null && !researching
       : step === 2
         ? !!leagueType
@@ -174,8 +177,8 @@ export function CreateLeagueFlow() {
 
   async function create() {
     if (tour) {
-      useTourStore.getState().create();
-      setCreated({ id: "tour", name: name.trim() || TOUR_LEAGUE_NAME, joinCode: TOUR_JOIN_CODE });
+      useTourStore.getState().create(name.trim() || COMM_LEAGUE_NAME);
+      setCreated({ id: "tour", name: name.trim() || COMM_LEAGUE_NAME, joinCode: TOUR_JOIN_CODE });
       setLeagueState(useLeagueStore.getState().fullState);
       go(4);
       return;
@@ -314,7 +317,13 @@ export function CreateLeagueFlow() {
                   <div className="flex flex-col gap-3">
                     <p className="text-[15px] text-muted-foreground">Research your show&rsquo;s rules, then approve them to add it.</p>
                     <ResearchShowFlow
+                      tour={tour}
                       onCreated={(s) => {
+                        // The tour only practises the research: back to the list, nothing added.
+                        if (tour) {
+                          setResearching(false);
+                          return;
+                        }
                         // The catalog is cached for 10 minutes; without this the new show isn't in it.
                         queryClient.invalidateQueries({ queryKey: ["shows-catalog"] });
                         setShowSlug(s.slug);
@@ -329,14 +338,18 @@ export function CreateLeagueFlow() {
                 ) : (
                   <>
                     <div className="flex flex-col gap-2.5">
-                      {!catalog && <p className="text-sm text-muted-foreground">Loading shows…</p>}
+                      {tour ? shows.length === 0 && <p className="text-sm text-muted-foreground">No shows added yet.</p> : !catalog && <p className="text-sm text-muted-foreground">Loading shows…</p>}
                       {shows.map((s) => (
                         <ShowTile key={s.slug} show={s} selected={s.slug === showSlug} onSelect={() => pickShow(s)} />
                       ))}
                     </div>
                     <button
                       type="button"
-                      onClick={() => setResearching(true)}
+                      onClick={() => {
+                        setResearching(true);
+                        tourMark("add-open");
+                      }}
+                      data-tour="show-add"
                       className="min-h-11 self-start text-[15px] font-semibold text-muted-foreground underline underline-offset-4 hover:text-foreground"
                     >
                       My show isn&rsquo;t here
@@ -356,6 +369,7 @@ export function CreateLeagueFlow() {
                                 }}
                                 title={`Season ${s.seasonNumber}`}
                                 detail={seasonDetail(s, terms.castaways)}
+                                tourId={`season-${s.seasonNumber}`}
                                 compact
                               />
                             ))}
@@ -428,6 +442,7 @@ export function CreateLeagueFlow() {
                         title={StateLogic.LEAGUE_TYPES[id].name}
                         lead={copy.lead}
                         detail={copy.detail}
+                        tourId={`type-${id}`}
                       />
                     );
                   })}
@@ -444,7 +459,7 @@ export function CreateLeagueFlow() {
                 }}
               >
                 {heading(hasDraft ? "Name it and set the draft" : "Name your league")}
-                <Field label="League name" htmlFor="nl-name">
+                <Field label="League name" htmlFor="nl-name" tourId="create-name">
                   <input
                     id="nl-name"
                     className={fieldCls}
@@ -455,7 +470,7 @@ export function CreateLeagueFlow() {
                   />
                 </Field>
                 {hasDraft && (
-                  <fieldset className="flex flex-col gap-2.5">
+                  <fieldset className="flex flex-col gap-2.5" data-tour="create-draft">
                     <legend className="mb-1.5 text-sm font-semibold">When&rsquo;s the draft?</legend>
                     <RadioCard
                       name="draft-when"
@@ -496,7 +511,7 @@ export function CreateLeagueFlow() {
                   </fieldset>
                 )}
                 {hasDraft && (
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-1.5" data-tour="create-teams">
                     <span className="text-sm font-semibold">{leagueType?.hasActiveRoster ? "Lineup" : "Teams"}</span>
                     <div className="flex flex-col gap-0.5 rounded-[3px] bg-card px-3.5 py-3">
                       <span className="text-[15px] font-semibold">{rosterLine(preview, terms.castaways)}</span>
@@ -509,7 +524,11 @@ export function CreateLeagueFlow() {
                     </div>
                   </div>
                 )}
-                {waiverRec && <WizardWaivers preview={preview} castSize={castSize} value={waivers} onChange={setWaivers} onFix={fix} castaways={terms.castaways} />}
+                {waiverRec && (
+                  <div data-tour="create-waivers">
+                    <WizardWaivers preview={preview} castSize={castSize} value={waivers} onChange={setWaivers} onFix={fix} castaways={terms.castaways} />
+                  </div>
+                )}
                 {/* Lets the keyboard's Go/Done key submit; the visible button is in the footer. */}
                 <button type="submit" hidden />
               </form>
@@ -532,9 +551,11 @@ export function CreateLeagueFlow() {
             </p>
           )}
           {step < 3 && (
-            <PrimaryButton className="min-h-[52px] w-full text-base" disabled={!canNext} onClick={() => go((step + 1) as Step)}>
-              Next
-            </PrimaryButton>
+            <div data-tour="create-next">
+              <PrimaryButton className="min-h-[52px] w-full text-base" disabled={!canNext} onClick={() => go((step + 1) as Step)}>
+                Next
+              </PrimaryButton>
+            </div>
           )}
           {step === 3 && (
             <>
@@ -551,11 +572,11 @@ export function CreateLeagueFlow() {
             <button
               type="button"
               disabled={busy}
-              onClick={() => enter(hasDraft ? "/draft" : "/")}
+              onClick={() => enter(tour ? "/setup" : hasDraft ? "/draft" : "/")}
               data-tour="invite-enter"
               className="min-h-[52px] w-full rounded-[3px] bg-foreground px-5 text-base font-bold text-background transition-[filter] hover:brightness-[0.94] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:opacity-50"
             >
-              {busy ? "Opening…" : hasDraft ? "Go to the draft" : "Go to your league"}
+              {busy ? "Opening…" : tour ? "Open League Settings" : hasDraft ? "Go to the draft" : "Go to your league"}
             </button>
           )}
         </footer>
@@ -712,7 +733,7 @@ function InviteStep({
 
       {note && <p className={cn("-mt-2 text-sm", note.error ? "font-semibold text-live" : "text-muted-foreground")}>{note.text}</p>}
 
-      <section className="flex flex-col gap-1.5">
+      <section className="flex flex-col gap-1.5" data-tour="invite-players">
         <h2 className="type-caption text-[24px] leading-none">Players</h2>
         <div className="mt-1.5 flex flex-col border-b border-border [&>*]:border-t [&>*]:border-border">
           {players.map((p, i) => (
@@ -779,6 +800,7 @@ function ShowTile({ show, selected, onSelect }: { show: CatalogShow; selected: b
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
+      data-tour={`show-${show.slug}`}
       className={cn(
         "relative flex w-full overflow-hidden rounded-[3px] px-3 text-left transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line",
         // Key art gets the canvas's 84px; a plain tile only needs room for the name.
@@ -827,6 +849,7 @@ function OptionCard({
   lead,
   detail,
   compact,
+  tourId,
 }: {
   selected: boolean;
   onClick: () => void;
@@ -834,12 +857,14 @@ function OptionCard({
   lead?: string;
   detail?: string;
   compact?: boolean;
+  tourId?: string;
 }) {
   return (
     <button
       type="button"
       aria-pressed={selected}
       onClick={onClick}
+      data-tour={tourId}
       className={cn(
         "flex w-full flex-col gap-1.5 rounded-[3px] px-4 py-3.5 text-left focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line",
         selected ? "bg-plate text-plate-foreground outline-3 outline-offset-2 outline-chyron-line" : "border border-input bg-card text-foreground hover:bg-secondary"

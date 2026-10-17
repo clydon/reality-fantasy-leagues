@@ -29,6 +29,7 @@ export function BackLink({
         router.back();
       }}
       aria-label={`Back to ${target.label}`}
+      data-tour="back"
       className={cn(
         "inline-flex min-h-11 min-w-0 items-center font-semibold text-muted-foreground transition-colors hover:text-foreground active:text-foreground",
         variant === "header" ? "-my-1.5 -ml-2 max-w-full gap-0 pr-1 text-[15px]" : "-ml-1 gap-0.5 self-start pr-2 text-sm",

@@ -18,6 +18,8 @@ import { rotation, timeLeft, useCastNames, useWaiversBase, when } from "./waiver
 import { latestEpisode, windowLine } from "./waivers-words";
 import { SwapCounter, SwitchRow } from "./waiver-controls";
 import { claimHref } from "./claim-screen";
+import { tourMark } from "@/lib/tour/tour-store";
+import { mockClaimsFor } from "@/lib/mock-claims";
 
 // The commissioner's part of the Waivers page (the canvas's board 10; docs/PLAN-waivers-v2.md "3B").
 // Nothing to start or end: while claims are open, Process now, Nudge and a claim for anyone; once
@@ -152,12 +154,15 @@ export function OpenWindowSheet({
       () => api.openWaiverWindow(leagueId!, swaps, replaceOn),
     );
     setBusy(false);
-    if (ok) onOpenChange(false);
+    if (ok) {
+      tourMark("window-opened");
+      onOpenChange(false);
+    }
   }
 
   return (
     <BottomSheet open={open} onOpenChange={onOpenChange} title={editing ? "Change waiver window" : "Open a waiver window"} hideCancel>
-      <div className="flex flex-col">
+      <div className="flex flex-col" data-tour="window-options">
         <p className="-mt-0.5 pb-1 text-[13px] text-muted-foreground">
           After Episode {episode} · claims due {when(due, now)}
         </p>
@@ -200,6 +205,7 @@ export function OpenWindowSheet({
           <button
             type="button"
             onClick={submit}
+            data-tour="window-go"
             disabled={!any || busy}
             className="min-h-[52px] rounded-[6px] bg-chyron text-[15px] font-bold text-chyron-foreground transition-[filter] hover:brightness-[1.06] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line disabled:opacity-40"
           >
@@ -231,9 +237,16 @@ export function CommissionerTools({ state, period, now }: { state: LeagueState; 
         <span className="font-semibold leading-[1.3]">Open a waiver window</span>
         <span className="text-[13px] leading-[1.35] text-muted-foreground">Let everyone replace who&rsquo;s out or swap who&rsquo;s still in, this week.</span>
       </span>
-      <PlainButton onClick={() => setOpening(true)} className="nav:self-start">
-        Open a waiver window
-      </PlainButton>
+      <div data-tour="window-open" className="flex flex-col nav:self-start">
+        <PlainButton
+          onClick={() => {
+            setOpening(true);
+            tourMark("window-sheet-open");
+          }}
+        >
+          Open a waiver window
+        </PlainButton>
+      </div>
       <OpenWindowSheet key={String(opening)} state={state} period={period} open={opening} onOpenChange={setOpening} now={now} />
     </div>
   );
@@ -241,11 +254,16 @@ export function CommissionerTools({ state, period, now }: { state: LeagueState; 
   async function processNow() {
     if (!(await confirm("Process every claim that's in now, and open free agency early? Anyone without a claim in misses this week's waivers.", { confirmLabel: "Process now" }))) return;
     setBusy(true);
-    await mutate(
-      () => {},
+    // (A league with no server behind it, the guided tour, processes right here.)
+    const ok = await mutate(
+      (s) => {
+        const wk = W.current(s);
+        if (wk && wk.phase === "open") W.process(s, mockClaimsFor(wk.id), { now: Date.now() });
+      },
       () => api.processWaivers(leagueId!),
     );
     setBusy(false);
+    if (ok) tourMark("window-processed");
   }
   // One push to them, worded for what they may know (they might not have revealed the episode yet).
   async function nudge(p: Player) {
@@ -298,11 +316,13 @@ export function CommissionerTools({ state, period, now }: { state: LeagueState; 
                   : `Then free agency ${period.closesAt ? `until Episode ${n} airs` : `until Episode ${n}'s results`}${timeLeft(period.processAt, now) ? ` · ${timeLeft(period.processAt, now)}` : ""}`}
               </span>
             </span>
-            <PlainButton onClick={processNow} disabled={busy} className="nav:self-start">
-              Process now
-            </PlainButton>
+            <div data-tour="waivers-process" className="flex flex-col nav:self-start">
+              <PlainButton onClick={processNow} disabled={busy}>
+                Process now
+              </PlainButton>
+            </div>
           </div>
-          <div className="flex flex-col gap-0.5 border-b border-border py-3">
+          <div className="flex flex-col gap-0.5 border-b border-border py-3" data-tour="window-claims">
             <span className="font-semibold leading-[1.3]">
               Claims in: {inCount} of {players.length}
             </span>

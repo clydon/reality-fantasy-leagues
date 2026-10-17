@@ -11,6 +11,7 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { NotInThisLeague, ReadOnlyNote, SettingsPage, Stepper } from "@/components/setup/settings-ui";
 import { cn } from "cn";
+import { tourMark } from "@/lib/tour/tour-store";
 import { RulesSheet } from "./rules-sheet";
 import { FeelCard, Segmented, SwapCounter, SwitchRow } from "./waiver-controls";
 import { ORDER_LABEL, deadlineLabel, latestEpisode, nextWindow, ruleRows, shapeBullets } from "./waivers-words";
@@ -98,7 +99,7 @@ export function WaiversSettingsPage() {
         />
       )}
 
-      <section className="flex flex-col">
+      <section className="flex flex-col" data-tour="waiver-rules">
         <h2 className="type-caption mb-1 text-[24px]">When someone&rsquo;s voted out</h2>
         <div role="radiogroup" aria-label="When someone's voted out" className="flex flex-col">
           {ruleRows(state, shortAt).map((r) => (
@@ -109,7 +110,10 @@ export function WaiversSettingsPage() {
               on={c.replaceRule === r.rule}
               suggested={recSettings?.replaceRule === r.rule}
               disabled={ro}
-              onPick={() => update("replaceRule", r.rule as ReplaceRule)}
+              onPick={() => {
+                update("replaceRule", r.rule as ReplaceRule);
+                tourMark("waiver-rule");
+              }}
             >
               {r.rule === "whenShort" && c.replaceRule === "whenShort" && canManage && (
                 <span className="flex items-center justify-between gap-3 pb-1 pl-9">
@@ -122,7 +126,7 @@ export function WaiversSettingsPage() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3.5">
+      <section className="flex flex-col gap-3.5" data-tour="waiver-windows">
         <div className="flex flex-col gap-1">
           <h2 className="type-caption text-[24px]">Waiver windows</h2>
           <p className="text-[13px] leading-[1.4] text-muted-foreground">When players can swap someone still in. Swapped castaways take their points with them.</p>

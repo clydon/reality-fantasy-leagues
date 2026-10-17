@@ -204,6 +204,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
       ) : (
         <Field
           label="Ownership"
+          tourId="ownership"
           htmlFor="ls-ownership"
           hint={
             state.settings.ownershipMode === "shared"

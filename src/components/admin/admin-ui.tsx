@@ -8,6 +8,7 @@ import { Check, ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type { AdminShow, ShowSeason } from "@/lib/game/types";
 import { MoreButton } from "@/components/setup/settings-ui";
+import { tourMark } from "@/lib/tour/tour-store";
 import { cn } from "cn";
 
 // Shared pieces for the admin area (docs/PLAN-ux-redesign.md 3a-3g; the canvas's "A · Admin" page).
@@ -259,23 +260,40 @@ export function Step({ n, on, label, children }: { n: number; on?: boolean; labe
 }
 
 /** Copies text, saying so for two seconds. A blocked clipboard leaves the text selectable wherever it's shown. */
-export function CopyButton({ text, label = "Copy prompt", tone = "chyron", disabled }: { text: string | undefined; label?: string; tone?: "chyron" | "plain"; disabled?: boolean }) {
+export function CopyButton({
+  text,
+  label = "Copy prompt",
+  tone = "chyron",
+  disabled,
+  tourId,
+}: {
+  text: string | undefined;
+  label?: string;
+  tone?: "chyron" | "plain";
+  disabled?: boolean;
+  /** The guided tour's name for this button: lit as a target, and noted as done once it copies. */
+  tourId?: string;
+}) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
-      /* clipboard blocked (permissions, non-HTTPS) */
+      /* clipboard blocked (permissions, non-HTTPS): the tour carries on, since nothing is pasted anywhere */
+      if (!tourId) return;
     }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    if (tourId) tourMark(tourId);
   }
   return (
-    <ActButton tone={tone} onClick={copy} disabled={disabled || !text} className="self-start">
-      {copied ? <Check className="size-[18px]" strokeWidth={2.4} aria-hidden /> : <Copy className="size-[18px]" strokeWidth={2.2} aria-hidden />}
-      {copied ? "Copied" : label}
-    </ActButton>
+    <span className="self-start" data-tour={tourId}>
+      <ActButton tone={tone} onClick={copy} disabled={disabled || !text}>
+        {copied ? <Check className="size-[18px]" strokeWidth={2.4} aria-hidden /> : <Copy className="size-[18px]" strokeWidth={2.2} aria-hidden />}
+        {copied ? "Copied" : label}
+      </ActButton>
+    </span>
   );
 }
 

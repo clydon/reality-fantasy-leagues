@@ -13,8 +13,12 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { ChevronDownIcon } from "@/components/icons";
+import { X as XIcon } from "lucide-react";
 import { cn } from "cn";
 import { seasonCastApi, useSeasonCastMode } from "@/lib/season-cast-api";
+import { PasteBar } from "@/components/paste-bar";
+import { useTourSample } from "@/lib/tour/samples";
+import { tourMark } from "@/lib/tour/tour-store";
 
 // "Import a cast" (docs/PLAN-cast-import-prompt.md): copy a research prompt into any web-searching
 // chat, paste its JSON back, review one row per person, confirm. Same shape as "Research a new show"
@@ -44,6 +48,7 @@ export function CastImportSection({ state }: { state: LeagueState }) {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const { mode: cast, refresh } = useSeasonCastMode();
+  const tourSample = useTourSample("cast");
   const [tribesPublic, setTribesPublic] = useState<boolean | null>(null);
 
   // The league's format with the show's own words for its people and groups.
@@ -62,11 +67,13 @@ export function CastImportSection({ state }: { state: LeagueState }) {
   async function copyPrompt() {
     try {
       await navigator.clipboard.writeText(prompt);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       /* clipboard blocked -- the prompt's still selectable below */
+      if (!tourSample) return;
     }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    tourMark("cast-copy");
   }
 
   function review() {
@@ -74,6 +81,7 @@ export function CastImportSection({ state }: { state: LeagueState }) {
     setNote(null);
     try {
       setParsed(parseCastImport(answer, format));
+      tourMark("cast-reviewed");
     } catch (e) {
       setError(e instanceof Error ? e.message : "That couldn't be read.");
     }
@@ -133,6 +141,7 @@ export function CastImportSection({ state }: { state: LeagueState }) {
       );
       setParsed(null);
       setAnswer("");
+      tourMark("cast-imported");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "The import didn't work.");
     } finally {
@@ -142,7 +151,15 @@ export function CastImportSection({ state }: { state: LeagueState }) {
 
   return (
     <section className="flex flex-col border-y border-border">
-      <button className="flex min-h-[56px] w-full items-center justify-between gap-2 text-left" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button
+        className="flex min-h-[56px] w-full items-center justify-between gap-2 text-left"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen((o) => !o);
+          tourMark("cast-opened");
+        }}
+        data-tour="cast-import-toggle"
+      >
         <span className="flex flex-col gap-0.5">
           <span className="text-base font-semibold">Import a cast</span>
           <span className="text-[13px] text-muted-foreground">Fill everyone in at once from an AI chat&rsquo;s answer</span>
@@ -161,13 +178,19 @@ export function CastImportSection({ state }: { state: LeagueState }) {
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
                 <Input size="sm" className="min-w-[160px] flex-1" placeholder="Season, e.g. Season 50" value={season} onChange={(e) => setSeason(e.target.value)} />
-                <Button variant="secondary" size="xs" onClick={copyPrompt}>
-                  {copied ? "Copied!" : "Copy prompt"}
-                </Button>
+                <span data-tour="cast-copy">
+                  <Button variant="secondary" size="xs" onClick={copyPrompt}>
+                    {copied ? "Copied!" : "Copy prompt"}
+                  </Button>
+                </span>
               </div>
               <Textarea readOnly rows={4} value={prompt} className="font-mono text-[0.65rem] text-muted-foreground" />
-              <label className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1.5">
                 <span className="font-semibold">Paste the answer here</span>
+                <PasteBar value={answer} onChange={setAnswer} sample={tourSample} tourId="cast-paste" />
+              </div>
+              <label className="flex flex-col gap-1">
+                <span className="sr-only">The answer</span>
                 <Textarea
                   rows={6}
                   value={answer}
@@ -176,7 +199,7 @@ export function CastImportSection({ state }: { state: LeagueState }) {
                   className="font-mono text-[0.7rem]"
                 />
               </label>
-              <div>
+              <div data-tour="cast-review" className="self-start">
                 <Button size="xs" disabled={!answer.trim()} onClick={review}>
                   Review
                 </Button>
@@ -208,11 +231,11 @@ export function CastImportSection({ state }: { state: LeagueState }) {
                         castaway={{ name: c.name || "?", photoUrl: c.photoUrl }}
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary text-[0.6rem] font-bold text-muted-foreground"
                       />
-                      <Input size="sm" className="min-w-[120px] flex-1" value={c.name} onChange={(e) => edit(i, { name: e.target.value })} />
+                      <Input size="sm" className="min-w-[100px] flex-1" aria-label="Name" value={c.name} onChange={(e) => edit(i, { name: e.target.value })} />
                       {format.hasGroups && (
                         <Input
                           size="sm"
-                          className="w-[110px]"
+                          className="w-[96px]"
                           placeholder={terms.Tribe}
                           value={c.startingGroup ?? ""}
                           onChange={(e) => edit(i, { startingGroup: e.target.value })}
@@ -227,9 +250,12 @@ export function CastImportSection({ state }: { state: LeagueState }) {
                           ))}
                         </Select>
                       )}
-                      <Input size="sm" className="min-w-[140px] flex-1" placeholder="Photo URL" value={c.photoUrl} onChange={(e) => edit(i, { photoUrl: e.target.value })} />
-                      <Button variant="secondary" size="xs" onClick={() => drop(i)}>
-                        Remove
+                      {/* A photo that's there needs no field: the face is the check. Without one, ask for it. */}
+                      {!c.photoUrl && (
+                        <Input size="sm" className="min-w-[140px] flex-1" placeholder="Photo URL (optional)" value={c.photoUrl} onChange={(e) => edit(i, { photoUrl: e.target.value })} />
+                      )}
+                      <Button variant="secondary" size="xs" className="size-9 shrink-0 p-0" onClick={() => drop(i)} aria-label={`Remove ${c.name || "this row"}`}>
+                        <XIcon className="size-4" strokeWidth={2.4} aria-hidden />
                       </Button>
                       {(c.problems.length > 0 || already) && (
                         <span className={cn("basis-full", c.problems.length ? "font-semibold text-destructive" : "text-muted-foreground")}>
@@ -253,11 +279,14 @@ export function CastImportSection({ state }: { state: LeagueState }) {
                   </label>
                 </div>
               )}
-              <div className="flex items-center gap-1.5">
-                <Button size="xs" disabled={busy || importable.length === 0 || (askTribes && tribesPublic === null)} onClick={confirmImport}>
-                  {busy ? "Importing…" : `Import ${importable.length}`}
-                </Button>
-                <Button variant="secondary" size="xs" disabled={busy} onClick={() => setParsed(null)}>
+              {/* Pinned above the tab bar: with a whole cast to check, Import is never a long scroll away. */}
+              <div className="sticky bottom-[var(--tabbar-h,0px)] z-30 -mx-4 flex items-center gap-2 border-t border-input bg-card px-4 py-3 shadow-bar nav:mx-0 nav:rounded-[3px] nav:border">
+                <span data-tour="cast-import-go" className="flex flex-1 flex-col">
+                  <Button className="min-h-11" disabled={busy || importable.length === 0 || (askTribes && tribesPublic === null)} onClick={confirmImport}>
+                    {busy ? "Importing…" : `Import ${importable.length}`}
+                  </Button>
+                </span>
+                <Button className="min-h-11" variant="secondary" disabled={busy} onClick={() => setParsed(null)}>
                   Back
                 </Button>
               </div>

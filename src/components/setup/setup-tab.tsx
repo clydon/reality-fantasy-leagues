@@ -104,6 +104,7 @@ function SettingsList({ state }: { state: LeagueState }) {
     .join(" · ");
 
   return (
+    <div data-tour="settings-list">
     <RowList>
       <IndexRow
         href="/setup/players"
@@ -154,6 +155,7 @@ function SettingsList({ state }: { state: LeagueState }) {
       )}
       <IndexRow href="/setup/backup" icon={Download} title="Backup" value="Download or restore this league" />
     </RowList>
+    </div>
   );
 }
 

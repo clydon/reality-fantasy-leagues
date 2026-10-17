@@ -12,14 +12,13 @@ import {
   afterDraft,
   benLine,
   afterPickup,
-  botLineups,
   botsDraft,
   buildTourState,
   scriptEpisode,
   openWaivers,
   processWaivers,
 } from "./rise-and-fall";
-import { buildCommissionerState, stageResults } from "./commissioner";
+import { COMM_LEAGUE_NAME, botsDraftSurvivor, buildCommissionerState, setAllLineups } from "./commissioner";
 import { tourSteps, type TourStep } from "./steps";
 import { AIR_MS, PRACTICE_ME, airEpisode, directPractice } from "./practice";
 
@@ -57,6 +56,9 @@ interface TourStore {
   created: boolean;
   /** Commissioner's tour: the join code was copied or shared. */
   copied: boolean;
+  /** Commissioner's tour: things the commissioner has done so far (picked the show, pasted a cast...),
+   *  by name. Steps end on these, set by the screens themselves (`tourMark`). */
+  did: Record<string, true>;
   /** Commissioner's tour: each episode's results as research staged them, waiting to be applied. */
   staged: Record<number, StagedResearchDecision[]>;
   /** The practice round running, or null. */
@@ -64,8 +66,10 @@ interface TourStore {
   /** The player's tour loads its league at once; the commissioner's waits for create(). */
   start: (kind?: TourKind) => void;
   /** Commissioner's tour: the prefilled league is created (locally: nothing is saved). */
-  create: () => void;
+  create: (leagueName?: string) => void;
   markCopied: () => void;
+  /** Commissioner's tour: records that something was done. */
+  mark: (key: string) => void;
   goTo: (step: number) => void;
   /** Skip or finish: the host leaves; the league stays to play with. */
   stop: () => void;
@@ -95,6 +99,7 @@ export const useTourStore = create<TourStore>((set, get) => ({
   step: null,
   created: false,
   copied: false,
+  did: {},
   staged: {},
   practice: null,
   start: (kind = "player") => {
@@ -105,14 +110,15 @@ export const useTourStore = create<TourStore>((set, get) => ({
       useLeagueStore.getState().startTour(buildTourState(), TOUR_LEAGUE_NAME, TOUR_ME);
       seedChat();
     }
-    set({ kind, step: 0, created: false, copied: false, staged: {} });
+    set({ kind, step: 0, created: false, copied: false, did: {}, staged: {} });
   },
-  create: () => {
-    useLeagueStore.getState().startTour(buildCommissionerState(), TOUR_LEAGUE_NAME, TOUR_ME, "commissioner");
-    seedChat();
+  create: (leagueName = COMM_LEAGUE_NAME) => {
+    useLeagueStore.getState().startTour(buildCommissionerState(), leagueName, TOUR_ME, "commissioner");
+    seedChat(leagueName);
     set({ created: true });
   },
   markCopied: () => set({ copied: true }),
+  mark: (key) => set((s) => (s.did[key] ? s : { did: { ...s.did, [key]: true } })),
   goTo: (step) => set({ step }),
   stop: () => set({ step: null }),
   startPractice: (run, state) => {
@@ -120,7 +126,7 @@ export const useTourStore = create<TourStore>((set, get) => ({
     const now = useLeagueStore.getState();
     const restore = Object.fromEntries(SLICE.map((k) => [k, now[k]])) as LeagueSlice;
     // The kind first: loading the league wakes the director, which must already know whose league it is.
-    set({ kind: "practice", step: 0, created: false, copied: false, staged: {}, practice: { ...run, restore } });
+    set({ kind: "practice", step: 0, created: false, copied: false, did: {}, staged: {}, practice: { ...run, restore } });
     useLeagueStore.getState().startTour(state, run.leagueName, PRACTICE_ME);
   },
   leavePractice: () => {
@@ -134,6 +140,12 @@ export const useTourStore = create<TourStore>((set, get) => ({
 }));
 
 /** The steps of the tour running: the practice round's are built for its league. */
+/** Records a commissioner-tour action from a screen. Does nothing outside that tour. */
+export function tourMark(key: string) {
+  const t = useTourStore.getState();
+  if (t.step !== null && t.kind === "commissioner") t.mark(key);
+}
+
 export function stepsOf(s: Pick<TourStore, "kind" | "practice">): TourStep[] {
   return s.kind === "practice" ? (s.practice?.steps ?? []) : tourSteps(s.kind);
 }
@@ -155,11 +167,11 @@ export function useTourRunning() {
 
 const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
 
-function seedChat() {
+function seedChat(leagueName: string = TOUR_LEAGUE_NAME) {
   const players = useLeagueStore.getState().fullState.players;
   useChatStore.setState({
     messages: [
-      { id: "tour_1", user_id: null, author_name: "System", type: "system", text: `Welcome to the ${TOUR_LEAGUE_NAME} chat.`, created_at: at(30), edited_at: null, reactions: {} },
+      { id: "tour_1", user_id: null, author_name: "System", type: "system", text: `Welcome to the ${leagueName} chat.`, created_at: at(30), edited_at: null, reactions: {} },
       { id: "tour_2", user_id: TOUR_KAT, author_name: "Kat", type: "message", text: "good luck all, may your sponges rise 🧁", created_at: at(25), edited_at: null, reactions: {} },
     ],
     reads: players.map((p) => ({ userId: p.id, playerId: p.id, lastReadAt: at(25) })),
@@ -183,25 +195,35 @@ function gloat(s: LeagueState) {
 
 const episode = (s: LeagueState, n: number) => s.episodes.find((e) => e.number === n);
 
-// The commissioner's league: you start the draft, the computer players pick in turn, everyone's
-// Episode 1 lineup goes in on its own (lineups were the player's tour), and when it airs its results
-// are staged for you to check -- not written.
+// The commissioner's league: you start the draft, Ben and Kat pick in turn, and when it's done
+// everyone's Episode 1 lineup goes in on its own (lineups were the player's tour) and the episode
+// airs -- its results are yours to fetch: nothing is staged until you paste research's answer.
 function directCommissioner(s: LeagueState): boolean {
+  // With the cast in, the league's waivers take the Balanced suggestion (a real create writes it at the
+  // start, from the season's cast size; this league had no cast to size it by).
+  const tour = useTourStore.getState();
+  if (tour.did["cast-imported"] && !tour.did["waivers-seeded"]) {
+    tour.mark("waivers-seeded");
+    StateLogic.updateSettings(s, "expectedTeams", 3);
+    StateLogic.updateSettings(s, "waiverRecommendation", "balanced");
+    return true;
+  }
   if (!StateLogic.isDraftStarted(s)) return false;
   const turn = StateLogic.currentDraftTurn(s);
   if (turn && !turn.isComplete && turn.playerId !== TOUR_ME) {
-    botsDraft(s);
+    botsDraftSurvivor(s);
     return true;
   }
   const ep1 = episode(s, 1);
   if (!turn?.isComplete || !ep1) return false;
-  if (!ep1.lineups?.[TOUR_BEN]) {
-    botLineups(s, 1, [TOUR_ME, TOUR_BEN, TOUR_KAT]);
+  if (!ep1.lineupsLocked && !StateLogic.episodeHasResults(ep1)) {
+    setAllLineups(s, 1);
     return true;
   }
-  const tour = useTourStore.getState();
-  if (!StateLogic.episodeHasResults(ep1) && !tour.staged[1]) {
-    useTourStore.setState({ staged: { ...tour.staged, 1: stageResults(s, 1) } });
+  // Once the waiver window you opened has processed, Episode 2 airs.
+  if (useTourStore.getState().did["window-processed"] && StateLogic.episodeHasResults(ep1) && !episode(s, 2)) {
+    StateLogic.ensureEpisodeNumber(s, 2, false);
+    setAllLineups(s, 2);
     return true;
   }
   return false;
@@ -291,6 +313,12 @@ export function useTourDirector() {
       if (direct(full, st.membership?.resultsSeenThrough ?? 0)) st.setState(full);
     };
     run();
-    return useLeagueStore.subscribe(run);
+    // The commissioner's tour also reacts to what you've done (`did`), not only to the league.
+    const offLeague = useLeagueStore.subscribe(run);
+    const offTour = useTourStore.subscribe(run);
+    return () => {
+      offLeague();
+      offTour();
+    };
   }, []);
 }

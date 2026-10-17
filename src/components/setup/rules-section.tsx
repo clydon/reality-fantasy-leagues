@@ -19,6 +19,7 @@ import { ruleSentencesFor } from "@/components/admin/format-rules-view";
 import { PlainButton } from "@/components/draft/draft-ui";
 import { ChevronRight, Minus, Plus } from "lucide-react";
 import { cn } from "cn";
+import { tourMark } from "@/lib/tour/tour-store";
 import { LeagueRulesetEditor } from "./league-ruleset-editor";
 import { RuleChangesSection } from "./rule-changes-section";
 import { Chip, MoreButton, NotInThisLeague, PrimaryButton, ReadOnlyNote, SettingsPage, StepperRow } from "./settings-ui";
@@ -210,7 +211,11 @@ export function RulesPage() {
             </span>
           )}
         </p>
-        {hasMenu && <MoreButton label="Rules actions" onClick={() => setMenuOpen(true)} className="-mr-2 -mt-1.5" />}
+        {hasMenu && (
+          <span data-tour="rules-menu" className="-mr-2 -mt-1.5">
+            <MoreButton label="Rules actions" onClick={() => setMenuOpen(true)} />
+          </span>
+        )}
       </div>
 
       {type.hasWeeklyPicks && (
@@ -276,7 +281,11 @@ export function RulesPage() {
                   <button
                     key={ev.id}
                     type="button"
-                    onClick={() => setOpenEvent(ev.id)}
+                    onClick={() => {
+                      setOpenEvent(ev.id);
+                      tourMark("rule-sheet");
+                    }}
+                    data-tour={ev.id === shownGroups[0]?.events[0]?.id ? "rule-first" : undefined}
                     className="flex min-h-[50px] items-center gap-3 border-t border-border text-left outline-none hover:bg-accent/40 focus-visible:bg-accent"
                   >
                     <span className="flex min-w-0 flex-1 items-center gap-2 text-[15px]">
@@ -390,7 +399,7 @@ function EventSheet({
     >
       <div className="flex flex-col gap-4 border-t border-border pt-4">
         {points !== null && (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5" data-tour="rule-points">
             <span className="text-sm font-semibold">Points</span>
             {editable ? (
               <div className="flex items-center gap-3">
@@ -448,9 +457,11 @@ function EventSheet({
           )}
         </div>
         {editable && (
-          <PrimaryButton disabled={!valid} onClick={() => onSave(value)}>
-            Done
-          </PrimaryButton>
+          <div data-tour="rule-done" className="flex flex-col">
+            <PrimaryButton disabled={!valid} onClick={() => onSave(value)}>
+              Done
+            </PrimaryButton>
+          </div>
         )}
       </div>
     </BottomSheet>

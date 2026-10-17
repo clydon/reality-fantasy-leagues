@@ -14,6 +14,8 @@ import { PageBackLink } from "@/components/back-link";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { ActButton, CopyButton, StepNum } from "@/components/admin/admin-ui";
+import { PasteBar } from "@/components/paste-bar";
+import { useTourSample } from "@/lib/tour/samples";
 import { Field, MoreButton, fieldCls } from "@/components/setup/settings-ui";
 import { applyOpensWaivers, useNow } from "@/components/waivers/waivers-model";
 import { cn } from "cn";
@@ -74,6 +76,7 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
   const [problems, setProblems] = useState<string[]>([]);
   const [fixing, setFixing] = useState<string | null>(null);
   const [showOpened, setShowOpened] = useState(false);
+  const tourSample = useTourSample("results");
 
   // The staged spelling, resolved to this league's own where it matches someone, so the correction
   // sheet starts on the right person.
@@ -247,7 +250,7 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
           <>
             <StepRow n={1} on={current === 1} label="Copy the question">
               <span className="text-sm leading-snug text-muted-foreground">{askLine(panel, terms.castaways)}</span>
-              <CopyButton text={panel.prompt} label="Copy the question" tone={current === 1 ? "chyron" : "plain"} />
+              <CopyButton text={panel.prompt} label="Copy the question" tone={current === 1 ? "chyron" : "plain"} tourId={`results-copy-${ep.number}`} />
               <span className="text-[13px] text-muted-foreground">Paste it into ChatGPT, Claude, Gemini: any chat that can search the web.</span>
               {panel.again ? (
                 <AgainLink disabled={busy} onClick={() => askAgain(false)}>
@@ -262,17 +265,20 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
               )}
             </StepRow>
             <StepRow n={2} on={current === 2} label={<label htmlFor="research-answer">Paste its answer</label>}>
+              <PasteBar value={answer} onChange={setAnswer} sample={tourSample ? () => tourSample(ep.number) : undefined} tourId={`results-paste-${ep.number}`} tone={current === 2 ? "chyron" : "plain"} disabled={busy} />
               <textarea
                 id="research-answer"
                 rows={4}
                 className={cn(fieldCls, "min-h-[96px] resize-y py-3 font-mono text-sm")}
-                placeholder="Paste what the chat wrote back"
+                placeholder="Or paste what the chat wrote back here"
                 value={answer}
                 onChange={(e) => setAnswer(e.target.value)}
               />
-              <ActButton tone={current === 2 ? "chyron" : "plain"} disabled={busy || !answer.trim()} onClick={submit} className="self-start">
-                {busy ? "Reading…" : "Read the answer"}
-              </ActButton>
+              <span className="self-start" data-tour="results-read">
+                <ActButton tone={current === 2 ? "chyron" : "plain"} disabled={busy || !answer.trim()} onClick={submit}>
+                  {busy ? "Reading…" : "Read the answer"}
+                </ActButton>
+              </span>
               <span className="text-[13px] text-muted-foreground">
                 Shared with other leagues on this season. It changes yours only when you apply it.
               </span>

@@ -90,7 +90,11 @@ export function IndexRow({
   alert?: boolean;
 }) {
   return (
-    <Link href={href} className="flex min-h-[60px] items-center gap-3 py-2 outline-none hover:bg-accent/40 focus-visible:bg-accent">
+    <Link
+      href={href}
+      data-tour={`setup-${href.split("/").pop()}`}
+      className="flex min-h-[60px] items-center gap-3 py-2 outline-none hover:bg-accent/40 focus-visible:bg-accent"
+    >
       <Icon className="size-[22px] shrink-0 text-muted-foreground" strokeWidth={2} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex items-center gap-2 text-base font-semibold">
@@ -234,9 +238,9 @@ export function StepperRow({
 }
 
 /** A labelled full-width field: label above, the control, a line of help below. */
-export function Field({ label, htmlFor, hint, children }: { label: ReactNode; htmlFor?: string; hint?: ReactNode; children: ReactNode }) {
+export function Field({ label, htmlFor, hint, children, tourId }: { label: ReactNode; htmlFor?: string; hint?: ReactNode; children: ReactNode; tourId?: string }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5" data-tour={tourId}>
       <label htmlFor={htmlFor} className="text-sm font-semibold">
         {label}
       </label>
@@ -295,6 +299,7 @@ export function MoreOptions({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
+        data-tour="more-options"
         className="flex min-h-11 items-center gap-1.5 self-start text-[15px] font-semibold text-muted-foreground hover:text-foreground"
       >
         <ChevronRight className={cn("size-5 transition-transform", open && "rotate-90")} strokeWidth={2.2} aria-hidden />

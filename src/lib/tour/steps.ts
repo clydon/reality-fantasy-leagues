@@ -1,6 +1,7 @@
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { TOUR_ME, pickupName, winnerIn } from "./rise-and-fall";
+import { COMMISSIONER_TOUR } from "./commissioner-steps";
 
 // The player path (docs/PLAN-guided-tour.md, "Player path"): one host line and one tap per step, no
 // Next buttons. A step ends on what the tap DID to the league or where it took you (drafted, lineup
@@ -20,7 +21,7 @@ export interface TourCtx {
   /** The last episode the viewer has revealed. */
   seen: number;
   /** The commissioner's tour: whether its league is created yet and its code copied. */
-  tour: { created: boolean; copied: boolean };
+  tour: { created: boolean; copied: boolean; did: Record<string, true>; staged: Record<number, unknown> };
 }
 
 export interface TourStep {
@@ -46,6 +47,10 @@ export interface TourStep {
   end?: boolean;
   /** A card with nothing to tap on the page: this button on the plate moves the tour on. */
   cta?: string;
+  /** The step the `cta` button jumps to, instead of the next one (a part of the tour you can skip). */
+  ctaTo?: string;
+  /** A `did` key the `cta` button records as it moves on. */
+  ctaMark?: string;
   /** An episode airing (the practice round): the plate counts down to its results. */
   onAir?: boolean;
   /** The end card's line under the headline; the tour's own when absent. */
@@ -232,92 +237,6 @@ export const PLAYER_TOUR: TourStep[] = [
       detail: () => "That was the last episode. The scoreboard shows who won the league.",
       targets: ["tab-scoreboard"],
     },
-    done: () => false,
-    end: true,
-  },
-];
-
-// The commissioner's path (docs/PLAN-guided-tour.md, "Commissioner path"): set the league up, start
-// the draft, then the weekly job -- results come in from research, and you check and apply them.
-// Research (who's scoring) closes it, since it's where everyone, commissioner or not, scouts.
-export const COMMISSIONER_TOUR: TourStep[] = [
-  {
-    id: "create",
-    progress: "Setup",
-    route: at("/new-league"),
-    line: () => "Your league, filled in for you. Create it.",
-    detail: () => "Commissioners pick the show, the game and the rules. It's filled in here; nothing is saved.",
-    targets: ["create-league"],
-    done: (c) => c.tour.created,
-  },
-  {
-    id: "invite",
-    progress: "Setup",
-    route: at("/new-league"),
-    line: () => "Friends join with this code. Copy it.",
-    detail: () => "Send it in a text or a group chat. Friends enter it in the app to join.",
-    targets: ["invite-copy"],
-    done: (c) => c.tour.copied,
-  },
-  {
-    id: "to-draft",
-    progress: "Setup",
-    route: at("/new-league"),
-    line: () => "Ben and Kat are computer players. Go to the draft.",
-    detail: () => "In a real league your friends would be here. Ben and Kat are standing in.",
-    targets: ["invite-enter"],
-    done: (c) => c.pathname === "/draft",
-  },
-  {
-    id: "start-draft",
-    progress: "Draft",
-    route: at("/draft"),
-    line: () => "Everyone's in. Start the draft.",
-    detail: () => "Only the commissioner can start it. Then everyone picks in turn, in this order.",
-    targets: ["draft-start", "confirm-accept"],
-    nav: { targets: ["tab-draft"] },
-    done: (c) => StateLogic.isDraftStarted(c.full),
-  },
-  {
-    id: "draft",
-    progress: "Draft",
-    route: at("/draft"),
-    line: () => "You play too. Pick 3: tap one, then Draft.",
-    detail: () => "Commissioners get a team like everyone else. Ben and Kat pick right after you.",
-    targets: ["picker-tiles", "picker-confirm"],
-    nav: { targets: ["tab-draft"] },
-    done: (c) => draftDone(c.full),
-  },
-  {
-    id: "results",
-    progress: "Episode 1",
-    route: at("/episodes/1/research"),
-    line: () => "Research found these. Check them, then apply.",
-    detail: () => "The app looked up what happened. Check it; nothing scores until you apply.",
-    targets: ["results-apply"],
-    look: ["results-list"],
-    nav: {
-      line: () => "Episode 1 aired, and its results are in.",
-      detail: () => "Your weekly job: check what research found, then apply it to update everyone's points.",
-      targets: ["tab-episodes", "results-check"],
-    },
-    done: (c) => hasResults(c.full, 1),
-  },
-  {
-    id: "research",
-    progress: "Episode 1",
-    line: () => "Applied. Research ranks every baker by points. Tap it.",
-    detail: () => "Scores just updated for everyone. Research helps players plan lineups and replacements.",
-    targets: ["tab-research"],
-    done: (c) => c.pathname === "/research",
-  },
-  {
-    id: "end",
-    progress: "Done",
-    route: at("/research"),
-    line: () => "That's the commissioner's week.",
-    targets: [],
-    nav: { targets: ["tab-research"] },
     done: () => false,
     end: true,
   },
