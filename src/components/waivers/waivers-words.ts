@@ -1,5 +1,6 @@
-import type { LeagueState, ReplaceRule, WaiverFeel, WaiverPeriod, WaiverWindows } from "@/lib/game/types";
+import type { LeagueState, ReplaceRule, WaiverFeel, WaiverWindows } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
+import { swapPhrase, windowLine } from "@/lib/game/waiver-words.js";
 
 // The words waivers speak in (docs/PLAN-waivers-v2.md "Phase 2: picked design" -> Words), in one place
 // so the Waivers page, its settings, the rules sheet and the create wizard never say a rule two ways.
@@ -25,10 +26,8 @@ export function swapsLabel(n: number, roster: number): string {
   return n <= 0 ? "None" : n >= roster ? "All" : String(n);
 }
 
-/** "Swap 1" / "Swap up to 2" / "Swap any": what a window allows, with no names. */
-export function swapPhrase(n: number, roster: number): string {
-  return n <= 0 ? "" : n >= roster ? "Swap any" : n === 1 ? "Swap 1" : `Swap up to ${n}`;
-}
+/** "Swap 1" / "Swap up to 2" / "Swap any": what a window allows, with no names (waiver-words.js). */
+export { swapPhrase };
 
 /** The claim deadline, as the settings say it: "1 day before". */
 export function deadlineLabel(hours: number): string {
@@ -155,9 +154,6 @@ export function ruleAnswers(state: LeagueState): { out: string; swap: string; or
   return { out, swap, order };
 }
 
-/** What a waiver window allows, with no names (the sheet's preview, the push, the commissioner's plate). */
-export function windowLine(state: LeagueState, period: Pick<WaiverPeriod, "swaps" | "replace" | "window">): string {
-  const R = StateLogic.rosterSize(state);
-  const replaces = StateLogic.WaiverLogic.windowReplaces(state, period as WaiverPeriod);
-  return [replaces ? "Replace who's out" : "", swapPhrase(period.swaps ?? 0, R)].filter(Boolean).join(" · ");
-}
+/** What a waiver window allows, with no names: the sheet's preview, the commissioner's plate and the
+ *  "Waiver window open" push all use waiver-words.js's one line. */
+export { windowLine };

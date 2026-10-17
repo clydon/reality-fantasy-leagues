@@ -1,8 +1,9 @@
 # Waivers v2: one claim type, replacement rules, waiver windows, smart defaults
 
 **Status:** planned 2026-10-16; phase 1 (engine) built and committed (not pushed) 2026-10-16, see "As built:
-phase 1". Phase 2 (the UI) built and committed (not pushed) 2026-10-16, see "As built: phase 2". Next: phase 3
-(the new pushes; What's New is drafted, waiting on the user). Builds on mid-season waivers
+phase 1". Phase 2 (the UI) built and committed (not pushed) 2026-10-16, see "As built: phase 2". Phase 3 (the
+window pushes) built and committed (not pushed) 2026-10-16, see "As built: phase 3". What's New is drafted,
+waiting on the user; the User Manual doc still says pickups. Builds on mid-season waivers
 ([PLAN-midseason-waivers.md](PLAN-midseason-waivers.md), shipped 2026-10-16); read that first for the
 week, the clock, free agency, spoilers and privacy, which this keeps unchanged.
 
@@ -219,7 +220,7 @@ Last Survivor Standing → Only in waiver windows + Manual only; Weekly Start/Be
   `freeAgencyMove`, `close` (+ `autoFill`), `openWindow`, `due()` honouring the schedule and rule.
   `Bots.waiverClaim` returns pairs.
 - Pushes: "Waiver window open: up to N swaps by <processAt>" to the rotation; trimmed-claim notices.
-  No names.
+  No names. (Built with the sheet's own line as the title: see "As built: phase 3".)
 
 ## Must be configurable: the user's scenarios
 
@@ -545,6 +546,59 @@ and the plate colour under the whole strip (`globals.css`, DESIGN.md → Shapes)
 - **Not done here (phase 3):** the "Waiver window open" push and trimmed-claim notices; existing push copy now says replace/swap. The User Manual doc still describes pickups. Pre-v2 API (`pickupsOwed`, `addDrop`, the legacy claim shape) still accepted for one release.
 
 **Verified:** `tsc` and `eslint src` clean; `npm test` 346/347 (the known `status-plate.test.js` "before the draft"). `check-waivers.js` 85/85 (new: the window's replace switch, Claim for by spot). `check-waivers-alerts.js` passes. `check-waivers-ui.js` all four phases at 390px in Night and Studio, no page errors; it now also shoots the picker (tapped, saved, the grip sheet), a swap picker, the merge-rebuild league's quiet strip and the Open a waiver window sheet (off/None, then All) through to the open window, Settings with Casual tapped, and the create wizard (card, Competitive, 8 teams that don't fit). The guided tour (`docs/ux-baseline/scripts/tour.js --player-only`) runs end to end through the new picker.
+
+## As built: phase 3 (2026-10-16, committed, not pushed)
+
+| Piece | Where |
+|---|---|
+| The window's no-names line: one copy for the sheet's preview, the commissioner's plate and the push | `src/lib/game/waiver-words.js` (`windowLine`, `swapPhrase`; plain CommonJS, + `.d.ts`); `waivers-words.ts` re-exports both |
+| Who hears what when a window opens, changes or turns off | `src/lib/server/waiver-pushes.js` `windowSnapshot`, `windowMessages`, `sendWindow` |
+| Sent once the commissioner's change commits | `POST waivers/window` takes `windowSnapshot` inside the lock, then `notifyWaiverWindow` (`push-events.ts`, via `after()`) with `openWindow`'s `trimmed` |
+
+**What each person reads.** Every message has type `waivers` and tag `waivers-<league>`, so a later one
+replaces the earlier one on the phone. Each links to the Waivers page.
+
+| When | Who | Title · body |
+|---|---|---|
+| Opened | the rotation, revealed | **Waiver window open: Replace who's out · Swap up to 2** · "Couch Crew: optional · claims due Mon 8:00 PM EDT." |
+| Opened | the rotation, not revealed | same title · "Couch Crew: claims due Mon 8:00 PM EDT. Reveal Episode 3 first to make yours." |
+| Changed (the line or the deadline moved) | the rotation | same title with the new line · "Couch Crew: changed · claims due …" |
+| Changed, and their claim lost pairs | that player | **Your claim changed** · "Couch Crew: the waiver window changed, so claims it no longer allows came out. Check yours before Mon 8:00 PM EDT." |
+| Turned off | the rotation | **Waiver window off** · "…your commissioner turned it off. No swaps this week." (the week goes on for replacements) or "Nothing to claim this week." (the week ended) |
+| Turned off, and they had a claim | that player | **Your swaps came out** / **Your claims came out** · "…the waiver window was turned off, so your swaps / claims came out." |
+
+**Calls made while building:**
+- **The title is the sheet's preview line, word for word,** not "up to N swaps by <processAt>". The
+  deadline goes in the body, in the season's time zone like every other waiver push. The line moved to
+  plain JS so the push can't drift from what the commissioner saw under "Players get".
+- **Everyone in the rotation hears it, revealed or not.** The line names nobody and says nothing about
+  who left: "Replace who's out" shows whenever the window allows replacements, whether or not anyone is
+  out. So it's safe to send before a reveal. Someone who hasn't revealed is told to reveal first, as the
+  reminders do.
+- **The commissioner who made the change hears nothing** (push-events' rule). A computer player, or a
+  seat with no account, has nobody to tell.
+- **A change that leaves the line and the deadline as they were tells nobody** (e.g. Save on an
+  unchanged sheet). A trimmed player gets their notice instead of the window line, never both.
+- **Turning a window off tells the rotation too.** The plan named only the trimmed owners, but the
+  rotation was told the window opened, so they hear it's off. This only happens when the week was a
+  window before; a plain week has nothing to turn off.
+- **Type `waivers`, no new notification type.** Its label in Account settings is now "Waivers", and its
+  description now mentions windows. The reminder type's description and its Test sample now say
+  "someone to replace" / "Claims due", as the real reminder does.
+- Not done: the User Manual doc still describes pickups. Scheduled windows (every episode / every X) get
+  no "window open" push of their own; the results push's "Waivers process …" line already covers them.
+
+**Verified:**
+- `tests/waiver-pushes.test.js` 14/14. Five are new:
+  - opening tells the rotation with no names, gives the reveal-first body to those who haven't revealed, skips the commissioner, and uses the same line as `waivers-words.ts`;
+  - a no-op change tells nobody, and a real one says "changed";
+  - a trimmed claim's owner gets "Your claim changed";
+  - turning off works both when the week goes on and when it ends;
+  - `sendWindow` sends one push each and never throws.
+- `npm test` 351/352. The one failure is the known `status-plate.test.js` "before the draft".
+- `check-waivers-alerts.js`: all pass. Its new section drives the real route on `zt-wv-rebuild`: open the window, open the same window again (nobody told), turn replacements off (trims Sam's claim), turn it off (the week ends). Each push is checked as `sendWindow` would send it (dry, from the same before/after state), since the fixture's people have no devices.
+- `check-waivers-ui.js --only=rebuild` at 390px: the sheet's preview and the open window's plate are unchanged.
+- `tsc` and eslint clean.
 
 ## Open questions
 

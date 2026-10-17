@@ -3,6 +3,8 @@
 **Status:** planned 2026-10-16; phase 1 (the engine: claims storage, processing, free agency, spoiler
 redaction, fixtures), phase 2 (the UI), phase 3 (pushes, the hourly job, Nudge, alerts) and phase 4
 (every league on waivers, live rounds deleted) built 2026-10-16, not committed. Phase 5 (docs) not started.
+**Superseded in part by waivers v2:** one claim type, replacement rules and waiver windows are in
+[PLAN-waivers-v2.md](PLAN-waivers-v2.md); read it for anything about claims, replacements or swaps.
 **Design:** the "Mid-Season Moves" canvas, https://claude.ai/artifact/374Ha1KqK45HdbQR1ftcpk (14 phone
 boards: a week of waivers as a player; rules, settings and the commissioner; alerts, the reveal and
 Active Roster). Decided 2026-10-16.

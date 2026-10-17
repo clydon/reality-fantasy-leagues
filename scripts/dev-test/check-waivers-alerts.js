@@ -14,6 +14,11 @@
 //     five hours before processing it reminds Sam (no claim) and Josie (not revealed), once each, and
 //     names nothing to Josie; after processing time it processes the week, writes it, and announces it,
 //     with no names for Josie; an hour later it does nothing
+// Then (waivers v2, docs/PLAN-waivers-v2.md phase 3) it brings the fixture up again with --scenarios and,
+// in zt-wv-rebuild (manual windows), has Kim open a waiver window, change it so Sam's claim is trimmed,
+// and turn it off, through the real route; after each, what "Waiver window open" / "Your claim changed" /
+// "Waiver window off" would say to whom (waiver-pushes.js sendWindow, dry, fed the state before and
+// after): the rotation but Kim, no names, Josie told to reveal first, a no-op change telling nobody.
 // Pushes go nowhere (the fixture's people have no devices); what each would say is in the job's log.
 // Prints each check; exits 1 if any fail. Takes the fixture down afterwards unless --keep.
 require("dotenv").config({ path: ".env.local", quiet: true });
@@ -22,6 +27,7 @@ const S = require("../../src/lib/game/state-logic.js");
 const { api } = require("./browser");
 const fixture = require("./waivers-fixture");
 const { runWaivers } = require("../../db/waivers.js");
+const WP = require("../../src/lib/server/waiver-pushes.js");
 
 const c = fixture.slugId;
 let failed = 0;
@@ -98,12 +104,64 @@ async function main() {
     check("job: Josie hears 'Waivers processed', no names", /Waivers processed: .*reveal Episode 3/.test(josieLine || "") && !/Rob|Jelly|Maggie/.test(josieLine || ""), lines);
     job = await runWaivers(pool, { now: processAt + HOUR, leagueIds: ids, log: () => {} });
     check("job: an hour later, nothing new", job.steps === 0 && job.announced === 0, job);
+
+    await windowChecks(pool);
   } finally {
     if (!process.argv.includes("--keep")) await fixture.down(pool);
     await pool.end();
   }
   console.log(failed ? `\n${failed} check(s) failed` : "\nall checks passed");
   process.exit(failed ? 1 : 0);
+}
+
+// ---- Waivers v2: the "Waiver window open" push and trimmed-claim notices ----
+
+async function windowChecks(pool) {
+  const made = await fixture.up(pool, ["--phase=open", "--airs-in=30", "--scenarios"]);
+  const leagueId = made.find((m) => m.slug === "zt-wv-rebuild").leagueId;
+  const [kim, sam] = await Promise.all(["zt_wcomm", "zt_wplayer"].map((user) => api({ user, pass: fixture.PASSWORD })));
+  const [kimId, samId, josieId] = await Promise.all(["zt_wcomm", "zt_wplayer", "zt_wlate"].map((u) => userId(pool, u)));
+  const L = `/api/leagues/${leagueId}`;
+  const pair = (add, drop) => ({ addId: c(add), dropId: c(drop) });
+  const state = async () => (await kim.call("GET", `${L}/state`)).body.state;
+  const samPairs = async () => ((await sam.call("GET", `${L}/waivers`)).body.claim?.pairs || []).length;
+
+  // One commissioner change through the route, then what its push says, from the same before/after.
+  async function change(body, trimmedFrom) {
+    const before = WP.windowSnapshot(await state());
+    const samBefore = trimmedFrom ? await samPairs() : 0;
+    const r = await kim.call("POST", `${L}/waivers/window`, body);
+    const after = r.body;
+    const trimmed = trimmedFrom && (await samPairs()) < samBefore ? ["p-sam"] : [];
+    const lines = [];
+    const p = S.WaiverLogic.periods(after).slice(-1)[0];
+    await WP.sendWindow(pool, leagueId, after, before, p.id, trimmed, { actorUserId: kimId, dry: true, log: (l) => lines.push(l) });
+    const to = (id) => lines.find((l) => l.startsWith(`(dry) ${id} -- `)) || "";
+    return { r, p, lines, to, trimmed };
+  }
+
+  let x = await change({ swaps: 1, replace: true });
+  check("window: Kim opens one (replace + 1 swap)", x.r.status === 200 && x.p.window && x.p.swaps === 1 && x.p.replace === true, x.p);
+  check("window push: Sam hears the sheet's line", /^\(dry\) \S+ -- Waiver window open: Replace who's out · Swap 1: Waivers Rebuild: optional · claims due /.test(x.to(samId)), x.lines);
+  check("window push: Josie hears it too, told to reveal first", /Waiver window open: Replace who's out · Swap 1: .*Reveal Episode 3 first/.test(x.to(josieId)), x.lines);
+  check("window push: not Kim, who opened it", !x.to(kimId), x.lines);
+  check("window push: no names", !x.lines.some((l) => /Jelly|Rob|Maggie|Kilby|Mike/.test(l)), x.lines);
+
+  x = await change({ swaps: 1, replace: true });
+  check("window push: the same window again tells nobody", x.r.status === 200 && x.lines.length === 0, x.lines);
+
+  let r = await sam.call("PUT", `${L}/waivers/claims`, { pairs: [pair("Rob", "Jelly"), pair("Maggie", "Kilby")] });
+  check("Sam claims Rob for Jelly and Maggie for Kilby", r.status === 200 && (await samPairs()) === 2, r);
+  x = await change({ swaps: 1, replace: false }, true);
+  check("window: replacements off trims Sam's claim to the swap", x.r.status === 200 && x.trimmed.length === 1 && (await samPairs()) === 1, { trimmed: x.trimmed, pairs: await samPairs() });
+  check("window push: Sam hears his claim changed", /Your claim changed: Waivers Rebuild: the waiver window changed, so claims it no longer allows came out\. Check yours before /.test(x.to(samId)), x.lines);
+  check("window push: Josie hears the new line", /Waiver window open: Swap 1: Waivers Rebuild: claims due/.test(x.to(josieId)), x.lines);
+
+  x = await change({ swaps: null }, true);
+  check("window: turned off, the week ends (manual, nothing else to run)", x.r.status === 200 && x.p.phase === "closed" && x.p.turnedOff, x.p);
+  check("window push: Sam's claims came out", /Your claims came out: Waivers Rebuild: the waiver window was turned off/.test(x.to(samId)), x.lines);
+  check("window push: Josie hears it's off", /Waiver window off: Waivers Rebuild: your commissioner turned it off\. Nothing to claim this week\./.test(x.to(josieId)), x.lines);
+  check("window push: still not Kim", !x.to(kimId), x.lines);
 }
 
 async function userId(pool, username) {

@@ -17,10 +17,10 @@ const webpush = require("web-push");
 const NOTIFICATION_TYPES = [
   { id: "draftTurn", label: "It's your turn to draft", description: "When the draft starts or reaches your pick.",
     sample: { title: "You're on the clock", body: "It's your turn to draft in Sample League." } },
-  { id: "waivers", label: "Waivers processed", description: "Who you got when waivers process, or that a pickup is still yours to make.",
+  { id: "waivers", label: "Waivers", description: "Who you got when waivers process, or that you still have someone to replace. And when your commissioner opens a waiver window.",
     sample: { title: "You got Rob and Maggie", body: "Sample League: waivers processed. Free agency is open until Episode 4 airs." } },
-  { id: "waiverReminder", label: "Waiver reminders", description: "Six hours before waivers process, if you owe a pickup with no claim in or haven't revealed the episode yet. And your commissioner's nudges.",
-    sample: { title: "Waivers process at 8:00 PM EDT", body: "Sample League: you have a pickup to claim." } },
+  { id: "waiverReminder", label: "Waiver reminders", description: "Six hours before claims are due, if you have someone to replace with no claim in or haven't revealed the episode yet. And your commissioner's nudges.",
+    sample: { title: "Claims due at 8:00 PM EDT", body: "Sample League: you have someone to replace." } },
   { id: "reminder", label: "Reminders before an episode", description: "A day and two hours before an episode airs, if your lineup, pick or a prediction is still open.",
     sample: { title: "Sample League: episode 9 airs in about 2 hours", body: "Set your episode 9 lineup (1 empty slot)" } },
   { id: "resultsDue", label: "Results to fill in", description: "Commissioners: the morning after an episode airs, if its results still aren't in.",

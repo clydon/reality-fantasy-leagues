@@ -1,6 +1,8 @@
 // Every push mid-season waivers send (docs/PLAN-midseason-waivers.md, phase 3; the canvas's board 11),
 // in one place: who hears what when a week processes, the reminders six hours before it does, a
-// commissioner's Nudge, and the line the results push gains when results open a week.
+// commissioner's Nudge, the line the results push gains when results open a week, and (waivers v2,
+// docs/PLAN-waivers-v2.md phase 3) "Waiver window open" when the commissioner opens, changes or turns
+// off a window, with a notice to anyone whose claim it trimmed.
 //
 // Plain CommonJS, like waivers.js beside it: withLeagueLock (db.ts) sends "Waivers processed" when a
 // week processes during a request (lazily, or on Process now), and the hourly job (db/waivers.js) when
@@ -17,6 +19,8 @@ const StateLogic = require("../game/state-logic.js");
 const { waiversHref } = require("../game/action-items.js");
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
 const { sendPush } = require("./push-core.js");
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
+const { windowLine } = require("../game/waiver-words.js");
 
 const W = StateLogic.WaiverLogic;
 const HOUR = 3600 * 1000;
@@ -260,6 +264,84 @@ async function nudgeMessage(db, leagueId, state, playerId, byName) {
   };
 }
 
+// ---- Open a waiver window ----
+
+/** The running week as a window, before the commissioner's change: { id, line, processAt }, or null
+ *  when no window is open (so whatever happens next is news). */
+function windowSnapshot(state) {
+  const p = W.current(state);
+  if (!p || p.phase !== "open" || !W.isWindow(p)) return null;
+  return { id: p.id, line: windowLine(state, p), processAt: p.processAt || null };
+}
+
+/**
+ * One message per member after the commissioner opened, changed or turned off a waiver window, or
+ * none for them. Everyone in the rotation hears the window's line, the same no-names words the sheet
+ * previewed ("Waiver window open: Replace who's out · Swap up to 2"), whatever they've revealed:
+ * someone who hasn't is told to reveal the episode first, nothing more. A change that leaves the line
+ * and the deadline as they were tells nobody. Anyone whose claim lost pairs (`trimmed`) hears that
+ * instead. Turning a window off tells the rotation it's off, if it was a window. The commissioner who
+ * did it (`opts.actorUserId`) hears nothing.
+ */
+function windowMessages(state, before, period, name, people, trimmed, tz, opts = {}) {
+  const n = period.episode;
+  const url = waiversHref(state);
+  const cut = new Set(trimmed || []);
+  const timed = period.phase === "open" && !period.hold && period.processAt;
+  const due = timed ? `claims due ${clock(period.processAt, tz)}` : "claims are open";
+  const on = period.phase === "open" && W.isWindow(period);
+  const line = on ? windowLine(state, period) : "";
+  const changed = !!before && before.id === period.id;
+  const same = on && changed && before.line === line && before.processAt === (period.processAt || null);
+  const closed = period.phase === "closed";
+  const out = [];
+  for (const m of people) {
+    if (opts.actorUserId && m.userId === opts.actorUserId) continue;
+    let title;
+    let body;
+    if (on && cut.has(m.playerId)) {
+      title = "Your claim changed";
+      body = `${name}: the waiver window changed, so claims it no longer allows came out. Check yours${timed ? ` before ${clock(period.processAt, tz)}` : ""}.`;
+    } else if (!on && cut.has(m.playerId)) {
+      title = closed ? "Your claims came out" : "Your swaps came out";
+      body = `${name}: the waiver window was turned off, so your ${closed ? "claims" : "swaps"} came out.`;
+    } else if (on && !same) {
+      title = line ? `Waiver window open: ${line}` : "Waiver window open";
+      body = m.seen < n
+        ? `${name}: ${due}. Reveal Episode ${n} first to make yours.`
+        : `${name}: ${changed ? "changed" : "optional"} · ${due}.`;
+    } else if (!on && before) {
+      title = "Waiver window off";
+      body = `${name}: your commissioner turned it off. ${closed ? "Nothing to claim this week." : "No swaps this week."}`;
+    } else continue;
+    out.push({ userId: m.userId, message: { title, body, url } });
+  }
+  return out;
+}
+
+/**
+ * Sends windowMessages for the week `periodId` once the commissioner's change has committed. `before`
+ * is windowSnapshot from before it; `trimmed`, waivers.js openWindow's. Never throws; resolves to how
+ * many were sent.
+ */
+async function sendWindow(db, leagueId, state, before, periodId, trimmed, opts = {}) {
+  try {
+    const period = W.periods(state).find((p) => p.id === periodId);
+    if (!period) return 0;
+    const [name, people, tz] = await Promise.all([leagueName(db, leagueId), members(db, leagueId, state), seasonTz(db, state)]);
+    const msgs = windowMessages(state, before, period, name, people, trimmed, tz, opts);
+    for (const { userId, message } of msgs) {
+      const full = { ...message, url: link(message.url, leagueId), tag: `waivers-${leagueId}` };
+      if (opts.log) opts.log(`${opts.dry ? "(dry) " : ""}${userId} -- ${full.title}: ${full.body}`);
+      if (!opts.dry) await sendPush(db, [userId], "waivers", full);
+    }
+    return msgs.length;
+  } catch (e) {
+    console.error(`[waivers] window push for ${leagueId} failed:`, e && e.message);
+    return 0;
+  }
+}
+
 // ---- The results push's extra line ----
 
 /** " Waivers process Tue 8:00 PM EDT." when episode `n`'s results opened this week, else "". It goes
@@ -279,6 +361,9 @@ module.exports = {
   sendProcessed,
   remindWaivers,
   nudgeMessage,
+  windowSnapshot,
+  windowMessages,
+  sendWindow,
   resultsLine,
   REMIND_BEFORE,
 };

@@ -5,7 +5,8 @@ import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName } from 
 import { splitBySpoilerProtection } from "./results-seen";
 import { groupLeagueIds, groupMemberUserIds } from "./league-groups";
 import { outOfGroupChat } from "./late-join";
-import { nudgeMessage, resultsLine } from "./waiver-pushes";
+import { after } from "next/server";
+import { nudgeMessage, resultsLine, sendWindow, type WindowSnapshot } from "./waiver-pushes";
 
 // One function per pushable event, so each route's trigger is a single line and all the "who gets
 // this, and what does it say" decisions live together in one reviewable place.
@@ -99,6 +100,15 @@ export async function notifyWaiverNudge(leagueId: string, state: LeagueState, pl
   if (!target) return false;
   notifyAfter("waiverReminder", async () => target);
   return true;
+}
+
+/**
+ * The commissioner opened, changed or turned off a waiver window: the rotation hears the window's
+ * no-names line, anyone whose claim it trimmed hears that instead (waiver-pushes.js windowMessages).
+ * `before` is windowSnapshot from inside the lock, before the change.
+ */
+export function notifyWaiverWindow(leagueId: string, state: LeagueState, before: WindowSnapshot | null, periodId: string, trimmed: string[], actorUserId: string | null) {
+  after(() => sendWindow(pool, leagueId, state, before, periodId, trimmed, { actorUserId }));
 }
 
 /** A side bet was proposed: everyone but the proposer can now guess. */

@@ -55,6 +55,34 @@ export function nudgeMessage(
   playerId: string,
   byName: string
 ): Promise<{ userIds: string[]; message: PushMessage } | null>;
+/** The running week as a window before the commissioner's change, or null when none is open. */
+export interface WindowSnapshot {
+  id: string;
+  line: string;
+  processAt: string | null;
+}
+export function windowSnapshot(state: LeagueState): WindowSnapshot | null;
+/** "Waiver window open" / "Your claim changed" / "Waiver window off", one message per member it's for. */
+export function windowMessages(
+  state: LeagueState,
+  before: WindowSnapshot | null,
+  period: WaiverPeriod,
+  leagueName: string,
+  people: WaiverMember[],
+  trimmed: string[],
+  tz: string,
+  opts?: { actorUserId?: string | null }
+): { userId: string; message: PushMessage }[];
+/** Sends windowMessages after a commissioner's Open a waiver window. Never throws; resolves to how many were sent. */
+export function sendWindow(
+  db: Db,
+  leagueId: string,
+  state: LeagueState,
+  before: WindowSnapshot | null,
+  periodId: string,
+  trimmed: string[],
+  opts?: { actorUserId?: string | null; dry?: boolean; log?: (line: string) => void }
+): Promise<number>;
 /** " Waivers process Tue 8:00 PM EDT." when episode n's results opened this week, else "". */
 export function resultsLine(db: Db, state: LeagueState, n: number): Promise<string>;
 export const REMIND_BEFORE: number;

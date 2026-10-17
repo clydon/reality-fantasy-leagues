@@ -33,7 +33,7 @@ function league(settings = {}) {
   const s = S.migrateLeagueState({
     settings: {
       leagueTypeId: "classic-draft", showFormat: "survivor", ownershipMode: "exclusive",
-      replenishEnabled: true, tradeEnabled: true, swapEvery: 3, startEpisode: 1, replenishOrderBy: "rolling",
+      teamSize: 3, replenishEnabled: true, tradeEnabled: true, swapEvery: 3, startEpisode: 1, replenishOrderBy: "rolling",
       ...settings,
     },
     players: Object.keys(TEAMS).map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1), color: "#000", active: true })),
@@ -272,4 +272,98 @@ test("the spoiler view drops who was nudged", () => {
   W.current(s).nudged = ["sam"];
   const view = S.SpoilerLogic.viewThrough(s, 2);
   assert.equal(W.periods(view)[0].nudged, undefined);
+});
+
+// ---- Waivers v2, phase 3: Open a waiver window (docs/PLAN-waivers-v2.md) ----
+
+// Kim is the commissioner: she opened it, so she hears nothing.
+const TZ = "America/New_York";
+const byUser = (msgs) => Object.fromEntries(msgs.map((m) => [m.userId, m.message]));
+const NAMES = /Rob|Maggie|Ori|Patt|Jelly|Kilby|Mike|Lewis/;
+function manual(settings = {}) {
+  return league({ replaceRule: "windows", waiverWindows: { schedule: "manual", every: 3, swaps: 0 }, ...settings });
+}
+
+test("window open: the sheet's line to the rotation, no names, reveal first if you haven't, not the commissioner", () => {
+  const s = manual();
+  const before = WP.windowSnapshot(s);
+  assert.equal(before, null, "no window yet");
+  const { period } = W.openWindow(s, 2, T0, { replace: true });
+  const line = require("../src/lib/game/waiver-words.js").windowLine(s, period);
+  assert.equal(line, "Replace who's out · Swap up to 2");
+  const msgs = byUser(WP.windowMessages(s, before, period, "Couch Crew", PEOPLE, [], TZ, { actorUserId: "u-kim" }));
+  assert.deepEqual(Object.keys(msgs).sort(), ["u-dee", "u-josie", "u-sam"]);
+  assert.equal(msgs["u-sam"].title, "Waiver window open: Replace who's out · Swap up to 2");
+  assert.equal(msgs["u-sam"].body, "Couch Crew: optional · claims due Mon 8:00 PM EDT.");
+  assert.equal(msgs["u-sam"].url, "/waivers");
+  assert.equal(msgs["u-josie"].title, msgs["u-sam"].title, "the same line, revealed or not");
+  assert.equal(msgs["u-josie"].body, "Couch Crew: claims due Mon 8:00 PM EDT. Reveal Episode 3 first to make yours.");
+  assert.doesNotMatch(JSON.stringify(msgs), NAMES);
+  // The sheet (and the commissioner's plate) say it the same way: waivers-words.ts re-exports this line.
+  assert.equal(jiti("../src/components/waivers/waivers-words.ts").windowLine(s, period), line);
+});
+
+test("window changed: told again only if the line or the deadline moved", () => {
+  const s = manual();
+  W.openWindow(s, 2, T0);
+  let before = WP.windowSnapshot(s);
+  let { period } = W.openWindow(s, 2, T0 + HOUR);
+  assert.deepEqual(WP.windowMessages(s, before, period, "Couch Crew", PEOPLE, [], TZ), [], "nothing changed, nobody told");
+  before = WP.windowSnapshot(s);
+  ({ period } = W.openWindow(s, 3, T0 + HOUR));
+  const msgs = byUser(WP.windowMessages(s, before, period, "Couch Crew", PEOPLE, [], TZ));
+  assert.equal(msgs["u-dee"].title, "Waiver window open: Replace who's out · Swap any");
+  assert.equal(msgs["u-dee"].body, "Couch Crew: changed · claims due Mon 8:00 PM EDT.");
+});
+
+test("trimmed claims: their owners hear their claim changed instead, and nothing names a castaway", () => {
+  const s = manual();
+  const { period } = W.openWindow(s, 1, T0, { replace: true });
+  const sam = claim(s, "sam", { pairs: [{ addId: "rob", dropId: "jelly" }, { addId: "maggie", dropId: "kilby" }] });
+  const before = WP.windowSnapshot(s);
+  W.openWindow(s, 1, T0 + HOUR, { replace: false });
+  const t = W.trimClaim(s, period, "sam", sam);
+  assert.equal(t.removed, 1, "the replacement came out");
+  const msgs = byUser(WP.windowMessages(s, before, period, "Couch Crew", PEOPLE, ["sam"], TZ));
+  assert.equal(msgs["u-sam"].title, "Your claim changed");
+  assert.equal(msgs["u-sam"].body, "Couch Crew: the waiver window changed, so claims it no longer allows came out. Check yours before Mon 8:00 PM EDT.");
+  assert.equal(msgs["u-dee"].title, "Waiver window open: Swap 1");
+  assert.doesNotMatch(JSON.stringify(msgs), NAMES);
+});
+
+test("turned off: the rotation hears it's off; a trimmed claim's owner hears theirs came out", () => {
+  // Replacements every week: the week goes on, only the swaps go.
+  const s = opened();
+  const p = W.current(s);
+  assert.equal(W.isWindow(p), true);
+  let before = WP.windowSnapshot(s);
+  W.openWindow(s, null, T0 + HOUR);
+  let msgs = byUser(WP.windowMessages(s, before, p, "Couch Crew", PEOPLE, ["dee"], TZ, { actorUserId: "u-kim" }));
+  assert.deepEqual([msgs["u-dee"].title, msgs["u-dee"].body], ["Your swaps came out", "Couch Crew: the waiver window was turned off, so your swaps came out."]);
+  assert.deepEqual([msgs["u-sam"].title, msgs["u-sam"].body], ["Waiver window off", "Couch Crew: your commissioner turned it off. No swaps this week."]);
+  assert.equal(msgs["u-kim"], undefined);
+
+  // Nothing else to run: the week ends, and so does every claim.
+  const m = manual();
+  W.openWindow(m, 2, T0);
+  before = WP.windowSnapshot(m);
+  const r = W.openWindow(m, null, T0 + HOUR);
+  assert.equal(r.closed, true);
+  msgs = byUser(WP.windowMessages(m, before, r.period, "Couch Crew", PEOPLE, ["sam"], TZ));
+  assert.equal(msgs["u-sam"].title, "Your claims came out");
+  assert.equal(msgs["u-dee"].body, "Couch Crew: your commissioner turned it off. Nothing to claim this week.");
+
+  // A plain week (never a window) has nothing to turn off, and its changes tell nobody.
+  assert.deepEqual(WP.windowMessages(m, null, r.period, "Couch Crew", PEOPLE, [], TZ), []);
+});
+
+test("sendWindow: one push each, to the right people, linked to the league; never throws", async () => {
+  const s = manual();
+  const { period } = W.openWindow(s, 2, T0, { replace: true });
+  const lines = [];
+  const sent = await WP.sendWindow(fakePool(s), "L1", s, null, period.id, [], { actorUserId: "u-kim", log: (l) => lines.push(l) });
+  assert.equal(sent, 3);
+  assert.ok(lines.some((l) => l === "u-josie -- Waiver window open: Replace who's out · Swap up to 2: Couch Crew: claims due Mon 8:00 PM EDT. Reveal Episode 3 first to make yours."));
+  assert.ok(!lines.some((l) => l.startsWith("u-kim ")));
+  assert.equal(await WP.sendWindow({ query: async () => { throw new Error("down"); } }, "L1", s, null, period.id, []), 0);
 });
