@@ -139,7 +139,7 @@ function PickGrid({ state, ep, playerId }: { state: LeagueState; ep: Episode; pl
               state={state}
               mark={chosen === c.id ? "add" : undefined}
               dim={!!used}
-              detail={used ? (used.reason === "backToBack" ? `Last pick · Ep ${used.episode}` : `Used Ep ${used.episode}`) : undefined}
+              detail={used ? (used.reason === "backToBack" ? `Last pick · Ep\u00a0${used.episode}` : `Used Ep\u00a0${used.episode}`) : undefined}
               disabled={!open || !!used}
               onClick={() => setSelected(selected === c.id ? null : c.id)}
             />

@@ -463,11 +463,13 @@
 /* Chat (chat-tab.tsx): a message that arrives while the page is open rises into place, and a
    reaction chip pops in when it first appears. Nothing on first load, nothing under reduced motion. */
 @keyframes chat-in {
-  0% { transform: translateY(10px); opacity: 0; }
+  0% { transform: translateY(var(--rise, 10px)); opacity: 0; }
   100% { transform: translateY(0); opacity: 1; }
 }
+/* --rise and --dur let other surfaces borrow it smaller and quicker: Up next's plate text and count
+   (6px, 160ms), its "+N more" rows (dropping in from above: -6px, staggered with animation-delay). */
 .chat-in {
-  animation: chat-in 0.22s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  animation: chat-in var(--dur, 0.22s) cubic-bezier(0.2, 0.8, 0.3, 1) both;
 }
 @keyframes chat-pop {
   0% { transform: scale(0.6); opacity: 0; }
@@ -477,9 +479,30 @@
 .chat-pop {
   animation: chat-pop 0.2s ease-out both;
 }
+/* A tab bar "!" that turns up while you're looking (mobile-nav.tsx): grows in without overshoot, since
+   a bounce isn't this brand. Not on first paint, not when it clears. */
+@keyframes badge-in {
+  0% { transform: scale(0.7); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.badge-in {
+  animation: badge-in 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* Up next's "All set" (up-next.tsx): when the last move clears, the quiet tag slides in from behind the
+   plate's left edge, like a broadcast tag landing. The plate clips it (overflow-hidden), so it's a plain
+   translate. Once per clear. */
+@keyframes tag-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(0); }
+}
+.tag-slide {
+  animation: tag-slide 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
 @media (prefers-reduced-motion: reduce) {
   .chat-in,
-  .chat-pop { animation: none; }
+  .chat-pop,
+  .badge-in,
+  .tag-slide { animation: none; }
 }
 /* The reaction picker (emoji-picker-react) on our tokens, so it sits in the sheet like the rest. */
 .chat-sheet .EmojiPickerReact {

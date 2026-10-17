@@ -17,6 +17,7 @@
 // Research, Pick -- printing what each shows. Up next is on all of them (the count and the control room too), except:
 // Team / Lineup when a waiver banner leads them, Episodes for this league's own results job (its lead), and a to-do
 // that points at the page you're on. The quiet "Nothing to do in X / Next: ..." plate is Overview's alone.
+// --focus: Tabs through Up next and prints each stop's focus outline (keyboard ring check).
 //
 // Walks: each game's Overview (prints the control room, the plate and the count), opens "+N more" on Classic
 // (prints the rows), taps the Active Roster row (should land on its Lineup) and, as commissioner, taps the
@@ -26,20 +27,8 @@ require("dotenv").config({ path: ".env.local", quiet: true });
 const { Pool } = require("pg");
 const { open } = require("./browser");
 const fixture = require("./linked-fixture");
-const S = require("../../src/lib/game/state-logic.js");
 
-const SEASON_NAME = "zt-up-next";
-const HOUR = 3_600_000;
-
-// A weekly season whose episode 7 airs at `at` (UTC): premiere six weeks before, same time of day.
-function seasonFor(at) {
-  const d = new Date(at.getTime() - 42 * 24 * HOUR);
-  return { premiere: d.toISOString().slice(0, 10), time: at.toISOString().slice(11, 16) };
-}
-
-async function seasonsDown(pool) {
-  await pool.query(`DELETE FROM show_seasons WHERE name = $1`, [SEASON_NAME]);
-}
+const world = require("./up-next-fixture");
 
 (async () => {
   const [out, w = "390", ...flags] = process.argv.slice(2);
@@ -52,58 +41,7 @@ async function seasonsDown(pool) {
   const suffix = `${width}${dark ? "-dark" : ""}${member ? "-member" : ""}${clear ? "-clear" : ""}`;
   const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL });
   try {
-    const [classic, roster, pickem] = await fixture.up(pool, { groupName: "Couch Crew" });
-    await seasonsDown(pool);
-    const { rows: show } = await pool.query(`SELECT id FROM shows WHERE slug = 'survivor'`);
-    const now = Date.now();
-    const plan = [
-      [classic, 99, new Date(now + 30 * HOUR)],
-      [roster, 98, new Date(now + 3 * HOUR)],
-      [pickem, 97, new Date(now + (clear ? 50 : -2) * HOUR)],
-    ];
-    for (const [league, season, at] of plan) {
-      const { premiere, time } = seasonFor(at);
-      await pool.query(
-        `INSERT INTO show_seasons (show_id, season_number, name, status, premiere_date, air_time, air_tz) VALUES ($1,$2,$3,'airing',$4,$5,'UTC')`,
-        [show[0].id, season, SEASON_NAME, premiere, time]
-      );
-      const { rows } = await pool.query(`SELECT state FROM leagues WHERE id = $1`, [league.leagueId]);
-      const state = rows[0].state;
-      state.settings.wikiSeason = season;
-      const me = state.players[0].id;
-      const ep7 = state.episodes.find((e) => e.number === 7);
-      if (league === classic && !clear) {
-        state.settings.bonusEnabled = true;
-        S.addBet(state, ep7.id, "Who wins immunity?", 1, me);
-      }
-      if (league === roster) {
-        // Explicitly empty: with none set, last week's lineup carries over.
-        ep7.lineups = { ...ep7.lineups, [me]: [] };
-        if (clear) {
-          const mine = state.castaways.filter((c) => c.ownerIds.includes(me) && c.status !== "eliminated").map((c) => c.id);
-          S.setActiveRosterLineup(state, ep7.id, me, mine.slice(0, S.ActiveRosterLogic.activeSlots(state)));
-        }
-      }
-      if (league === pickem && clear) {
-        const { available } = S.pickEmEligibility(state, ep7.id, me);
-        if (available.length) S.setPickEmPick(state, ep7.id, me, available[0]);
-      }
-      // Waivers off, so the fixture's week owes nobody a replacement.
-      if (clear) Object.assign(state.settings, { replaceRule: "never", waiverWindows: { schedule: "manual", every: 3, swaps: 0 } });
-      await pool.query(`UPDATE leagues SET state = $2 WHERE id = $1`, [league.leagueId, JSON.stringify(state)]);
-      await pool.query(`UPDATE league_memberships SET results_seen_through = $2, role = $3 WHERE league_id = $1`, [
-        league.leagueId,
-        seen,
-        member ? "member" : "commissioner",
-      ]);
-    }
-    const { LATEST_RELEASE_ID } = require("jiti")(__filename)("../../src/lib/whats-new.ts");
-    await pool.query(
-      `INSERT INTO user_settings (user_id, whats_new_seen) SELECT id, $2 FROM "user" WHERE username=$1
-       ON CONFLICT (user_id) DO UPDATE SET whats_new_seen = $2`,
-      [fixture.USERNAME, LATEST_RELEASE_ID]
-    );
-
+    const { classic, roster, pickem } = await world.up(pool, { clear, member, seen });
     const { page, errors, BASE, close } = await open({ user: fixture.USERNAME, pass: fixture.PASSWORD, width });
     await page.addInitScript((t) => {
       localStorage.setItem("rfl.theme", t);
@@ -178,6 +116,27 @@ async function seasonsDown(pool) {
         await report("control-room-tap");
       }
     }
+    if (flags.includes("--focus")) {
+      // Keyboard: Tab through Up next on Classic's Overview; every stop must draw a visible focus ring (an
+      // inset outline: the plates clip their own overflow). Prints each stop's outline and shoots the first.
+      await go(classic);
+      await page.evaluate(() => { window.scrollTo(0, 0); document.activeElement?.blur(); });
+      let stops = 0;
+      for (let i = 0; i < 40 && stops < 6; i++) {
+        await page.keyboard.press("Tab");
+        const at = await page.evaluate(() => {
+          const el = document.activeElement;
+          if (!el || !el.closest("[data-up-next]")) return null;
+          const cs = getComputedStyle(el);
+          return { what: (el.innerText || "").split("\n").join(" / ").slice(0, 40), outline: `${cs.outlineStyle} ${cs.outlineWidth} ${cs.outlineColor}` };
+        });
+        if (!at) continue;
+        stops++;
+        console.log(`  focus ${stops}: ${at.what}  ->  ${at.outline}`);
+        if (stops === 1) await page.locator("[data-up-next]").screenshot({ path: `${out}/upnext-focus-${suffix}.png` });
+      }
+      if (!stops) console.log("  focus: no stop inside Up next");
+    }
     if (flags.includes("--pages")) {
       const tour = [
         [classic, "/team", "classic-team"],
@@ -197,10 +156,7 @@ async function seasonsDown(pool) {
     if (errors.length) console.log("\nerrors:", errors.slice(0, 5));
     await close();
   } finally {
-    if (!flags.includes("--keep")) {
-      await fixture.down(pool);
-      await seasonsDown(pool);
-    }
+    if (!flags.includes("--keep")) await world.down(pool);
     await pool.end();
   }
 })().catch((e) => {

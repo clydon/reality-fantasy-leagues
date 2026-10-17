@@ -119,6 +119,18 @@ export function MobileNav() {
   const seenThrough = useLeagueStore((s) => s.membership?.resultsSeenThrough ?? null);
   const mode = useLeagueStore((s) => s.mode);
   const leagueId = useLeagueStore((s) => s.leagueId);
+  // A tab's "!" grows in only when it turns up while you're looking: not on first paint, not while the
+  // league is still loading in. Per league: switching games swaps the tab bar's "!"s in, and that isn't one turning up.
+  const [badges, setBadges] = useState({ id: leagueId, ready: false });
+  if (badges.id !== leagueId) setBadges({ id: leagueId, ready: false });
+  useEffect(() => {
+    const t = window.setTimeout(() => setBadges((b) => (b.id === leagueId ? { ...b, ready: true } : b)), 1500);
+    return () => window.clearTimeout(t);
+  }, [leagueId]);
+  const badgesSettled = badges.ready;
+  // The tapped tab lights at once (a route can take a moment on a phone); the real page takes over when it lands.
+  const [tapped, setTapped] = useState<{ from: string; href: string } | null>(null);
+  if (tapped && tapped.from !== pathname) setTapped(null);
   const leagueName = useLeagueStore((s) => s.leagueName);
   const lateJoin = useLateJoin();
   const leagues = useLeagueStore((s) => s.leagues);
@@ -412,12 +424,13 @@ export function MobileNav() {
         style={{ paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))" }}
       >
         {tabs.map((tab) => {
-          const active =
+          const onPage =
             pathname === tab.href ||
             (!!tab.href && tab.href !== "/" && pathname.startsWith(`${tab.href}/`)) ||
             !!tab.also?.some((h) => pathname === h || pathname.startsWith(`${h}/`)) ||
             // The Cast page lives under Episodes, where it's linked from.
             (tab.href === "/episodes" && pathname === "/cast");
+          const active = tapped ? tab.href === tapped.href : onPage;
           const Icon = tab.icon;
           const tourId = `tab-${tab.label.toLowerCase()}`;
           const urgent = tourAllows(tourId) ? tab.urgent : null;
@@ -425,20 +438,22 @@ export function MobileNav() {
             <button
               key={tab.href}
               data-tour={tourId}
-              className={cn("relative flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground", active && "text-chyron-line")}
-              onClick={() => go(tab.href)}
+              className={cn("relative flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground active:opacity-60", active && "text-chyron-line")}
+              onClick={() => {
+                if (tab.href) setTapped({ from: pathname, href: tab.href });
+                go(tab.href);
+              }}
             >
               <span className="relative inline-flex">
                 <Icon className="h-[21px] w-[21px]" />
                 {urgent != null && (
-                  <span
+                  <TabBadge
+                    pop={badgesSettled}
                     className={cn(
                       "absolute -right-2 -top-1 flex h-[15px] w-[15px] items-center justify-center rounded-full text-[0.62rem] font-bold text-white",
                       urgent ? "bg-destructive" : "bg-accent-2"
                     )}
-                  >
-                    !
-                  </span>
+                  />
                 )}
               </span>
               <span className="text-[0.63rem] font-semibold">{tab.label}</span>
@@ -446,7 +461,7 @@ export function MobileNav() {
           );
         })}
         <button
-          className="flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground"
+          className="flex flex-1 flex-col items-center gap-[3px] px-0.5 py-1.5 pb-[5px] text-muted-foreground active:opacity-60"
           onClick={() => setSheetOpen(true)}
           data-tour="tab-more"
         >
@@ -460,7 +475,7 @@ export function MobileNav() {
       <div
         ref={scrimRef}
         className={cn(
-          "fixed inset-0 z-[70] bg-black/40 transition-opacity",
+          "fixed inset-0 z-[70] bg-black/40 transition-opacity duration-200",
           sheetOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={closeSheet}
@@ -471,7 +486,7 @@ export function MobileNav() {
         // overscroll-contain: a downward pull at the top is the close gesture, not the browser's
         // pull-to-refresh or a scroll of the page behind.
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[71] max-h-[85vh] overflow-y-auto overscroll-contain rounded-t-[14px] bg-card px-4 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] pt-2 shadow-sheet transition-transform",
+          "fixed inset-x-0 bottom-0 z-[71] max-h-[85vh] overflow-y-auto overscroll-contain rounded-t-[14px] bg-card px-4 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] pt-2 shadow-sheet transition-transform duration-200 ease-out motion-reduce:transition-none",
           sheetOpen ? "translate-y-0" : "translate-y-full"
         )}
       >
@@ -591,6 +606,12 @@ export function MobileNav() {
       </div>
     </>
   );
+}
+
+/** The tab bar's "!": plays `badge-in` if it mounted after the bar settled, i.e. it appeared while you watched. */
+function TabBadge({ pop, className }: { pop: boolean; className: string }) {
+  const [play] = useState(pop); // decided when it appears; a re-render never replays it
+  return <span className={cn(className, play && "badge-in")}>!</span>;
 }
 
 function MoreRow({

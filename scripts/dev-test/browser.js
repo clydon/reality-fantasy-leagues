@@ -5,12 +5,16 @@
 //   const { open } = require("./browser");
 //   const { page, close } = await open({ user: "zt_tester", pass: "zt-pass-12345", width: 390, height: 844 });
 //
+// `motion: "on" | "off" | "reduce"` (or MOTION=...) and `watch: true` (or MOTION_WATCH=1) control and record
+// animation in the page: see motion.js. Default on, as users see it.
+//
 // `BASE` (default http://localhost:3000) is the dev server; start it with `npm run dev` first.
 const fs = require("fs");
 const path = require("path");
 
 const LOCAL = process.env.LOCALAPPDATA;
 const BASE = process.env.BASE || "http://localhost:3000";
+const motionTools = require("./motion");
 
 function findPlaywright() {
   const npx = path.join(LOCAL, "npm-cache", "_npx");
@@ -31,9 +35,16 @@ function findChrome() {
   throw new Error("no Chromium under " + root);
 }
 
-async function open({ user, pass, width = 390, height = 844 } = {}) {
+async function open({ user, pass, width = 390, height = 844, motion = process.env.MOTION || "on", watch = !!process.env.MOTION_WATCH } = {}) {
   const browser = await findPlaywright().chromium.launch({ executablePath: findChrome() });
-  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, hasTouch: true, isMobile: width < 600 });
+  const context = await browser.newContext({
+    viewport: { width, height },
+    deviceScaleFactor: 2,
+    hasTouch: true,
+    isMobile: width < 600,
+    reducedMotion: motion === "reduce" ? "reduce" : "no-preference",
+  });
+  await motionTools.install(context, { mode: motion, watch });
   if (user) {
     const r = await context.request.post(BASE + "/api/auth/sign-in/username", { data: { username: user, password: pass }, headers: { origin: BASE } });
     if (!r.ok()) throw new Error("sign-in failed: " + r.status() + " " + (await r.text()));
@@ -42,7 +53,7 @@ async function open({ user, pass, width = 390, height = 844 } = {}) {
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
-  return { page, errors, BASE, close: () => browser.close() };
+  return { page, errors, BASE, close: () => browser.close(), settle: () => motionTools.settle(page), motion: motionTools.motionApi(page) };
 }
 
 // The API as one signed-in user, without a browser: for checks that only need the routes (claims,

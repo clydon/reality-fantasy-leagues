@@ -11,6 +11,9 @@ import { useSheetSwipe } from "@/components/ui/use-sheet-swipe";
 // focus is trapped, Escape and a backdrop tap close it, and the page behind is inert.
 //
 // On a desktop-width screen it's the same panel, capped in width and anchored to the bottom centre.
+//
+// Motion: 200ms ease-out up and down, the same as a swipe-down's finish and the More sheet's (mobile-nav.tsx).
+// Under reduced motion it doesn't slide: it's there, and the scrim still fades.
 
 export function BottomSheet({
   open,
@@ -49,7 +52,7 @@ export function BottomSheet({
           ref={popupRef}
           initialFocus={focusSheet ? popupRef : undefined}
           {...swipe}
-          className="fixed inset-x-0 bottom-0 z-[81] mx-auto flex max-h-[92dvh] max-w-[480px] flex-col rounded-t-[14px] bg-card px-4 pt-2 text-foreground shadow-sheet outline-none transition-transform duration-200 ease-out data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
+          className="fixed inset-x-0 bottom-0 z-[81] mx-auto flex max-h-[92dvh] max-w-[480px] flex-col rounded-t-[14px] bg-card px-4 pt-2 text-foreground shadow-sheet outline-none transition-transform duration-200 ease-out motion-reduce:transition-none data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
           style={{ paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))" }}
         >
           {/* The grab handle: a swipe down from here closes the sheet even when its content is scrolled.

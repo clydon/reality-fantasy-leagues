@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useLeagueStore, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
@@ -93,6 +93,14 @@ export function ActionBar() {
     (live || demo) && myPlayerId
       ? actionItems(state, myPlayerId, seenThrough, { commissioner }).map((it) => ({ ...it, leagueId: hereId, leagueName: leagueName ?? "Demo season" }))
       : [];
+  // "All set" (up-next.tsx) plays when this game's last move of yours clears while the app is open, and once
+  // per clear: counted here, where the unfiltered list lives (Up next drops a move that points at the page
+  // you're on, so it can't tell your lineup being set from your lineup being on screen), and kept across pages.
+  const myTodo = here.some((it) => (it.who ?? "you") === "you");
+  const [clears, setClears] = useState({ id: hereId, had: myTodo, n: 0, played: 0 });
+  if (clears.id !== hereId) setClears({ id: hereId, had: myTodo, n: 0, played: 0 });
+  else if ((live || demo) && clears.had !== myTodo) setClears({ ...clears, had: myTodo, n: clears.had ? clears.n + 1 : clears.n });
+  const markAllSet = useCallback((n: number) => setClears((c) => (c.played === n ? c : { ...c, played: n })), []);
   const fetched = enabled ? (data?.items ?? []) : [];
   // Nothing that points at the page you're already on (your pick on /pick, your lineup on /lineup, League
   // Settings' own job on /setup/league): the page itself is the to-do. An item for a section of a page
@@ -131,7 +139,7 @@ export function ActionBar() {
   const item = items[i];
   // Team / Lineup's waiver banner says what Up next would (and the page is the to-do), so nothing here.
   const upNext = bannerHere ? null : (
-    <UpNext here={hereMine} others={others} jobs={jobs} hereId={hereId} hereName={leagueName ?? "Demo season"} quiet={overview} go={(id, href) => open({ leagueId: id, href } as Item)} />
+    <UpNext here={hereMine} others={others} jobs={jobs} hereId={hereId} hereName={leagueName ?? "Demo season"} quiet={overview} go={(id, href) => open({ leagueId: id, href } as Item)} allSetCue={clears.n > clears.played ? clears.n : 0} onAllSet={markAllSet} />
   );
   if ((!enabled && !demo) || !item || bannerHere) return upNext;
 

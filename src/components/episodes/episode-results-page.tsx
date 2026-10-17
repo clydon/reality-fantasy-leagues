@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, CircleCheck } from "lucide-react";
 import type { Castaway, Episode, EpisodeResearchPanel as Panel, LeagueState, StagedResearchDecision } from "@/lib/game/types";
@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api";
 import { useCanManage, useLeagueStore } from "@/lib/store";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useResultsSource } from "@/lib/episode-results";
+import { noteApplied } from "@/lib/applied-results-store";
 import { PageBackLink } from "@/components/back-link";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
@@ -160,6 +161,8 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
       const a = res.applied;
       const extra = [...a.skipped, ...a.unresolved.map((n) => `${n} (not in this league)`)];
       if (extra.length === 0) {
+        // The episode's page opens with a plate saying how many went in (applied-results-store.ts).
+        noteApplied(ep.number, a.eliminations.length + a.events.length + a.other.length);
         // Everything landed: the episode's own page shows it.
         // Replaced, not pushed: back from the episode goes to Episodes, not to this finished page.
         router.replace(`/episodes/${ep.number}`);
@@ -366,7 +369,11 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
       </ol>
 
       {error && <p className="font-semibold text-live">{error}</p>}
-      {note && <p className="text-sm text-muted-foreground">{note}</p>}
+      {note && (
+        <p key={note} className="chat-in text-sm text-muted-foreground" style={{ "--rise": "6px", "--dur": "160ms" } as CSSProperties}>
+          {note}
+        </p>
+      )}
 
       {open.length > 0 && current === 3 && (
         <div

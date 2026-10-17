@@ -30,7 +30,7 @@ step 7 (the light touches, decided by the user: the plan's "As built: step 7"): 
 (own waiver banner) with Episodes keeping its results lead; the status plate's rules now say "Nothing to do in Pool ·
 Next: …"; "Team" link on Overview's Your team; header art kept, contrast fixed and measured (`check-header-art.js`).
 Decided against: the Episodes "The cast" → Research link and removing /cast.
-Step 8 done: tour, DESIGN.md and the User Manual doc updated. Still open: the What's New entry (release 2026-10-17, three items drafted in conversation, not yet approved or added to `src/lib/whats-new.ts`). Next planned: an impeccable animate + delight pass. Open for the user: Up next's quiet "Next: …" line
+Step 8 done: tour, DESIGN.md and the User Manual doc updated. Still open: the What's New entry (release 2026-10-17, three items drafted in conversation, not yet approved or added to `src/lib/whats-new.ts`). The impeccable animate + delight pass is built (uncommitted): DESIGN.md → "Motion"; `scripts/dev-test/check-motion.js` (+ `motion.js`, `up-next-fixture.js`). Open for the user: Up next's quiet "Next: …" line
 shows on Overview only (a quiet game shows nothing on other pages); say if it should be everywhere.
 
 ## Waivers v2: engine, UI and window pushes committed and pushed 2026-10-16

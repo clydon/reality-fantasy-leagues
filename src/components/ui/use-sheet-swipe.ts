@@ -89,14 +89,16 @@ export function useSheetSwipe({
     }
     // Finish the slide from where the finger let go, then close; the inline styles are dropped after
     // it (a sheet that stays mounted is parked off-screen by its own classes by then).
-    sheet.style.transition = `transform ${SLIDE_MS}ms ease-out`;
+    // Reduced motion: the finger already moved it; the rest of the slide is skipped.
+    const ms = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : SLIDE_MS;
+    sheet.style.transition = `transform ${ms}ms ease-out`;
     sheet.style.transform = "translateY(100%)";
     if (scrimRef?.current) {
-      scrimRef.current.style.transition = `opacity ${SLIDE_MS}ms`;
+      scrimRef.current.style.transition = `opacity ${ms}ms`;
       scrimRef.current.style.opacity = "0";
     }
     onClose();
-    window.setTimeout(reset, SLIDE_MS + 50);
+    window.setTimeout(reset, ms + 50);
   }
 
   return { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel: reset };

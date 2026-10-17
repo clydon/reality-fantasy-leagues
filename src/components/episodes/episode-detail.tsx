@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { PageBackLink } from "@/components/back-link";
@@ -27,6 +27,7 @@ import { EpisodeHappenings } from "./episode-recap";
 import { EpisodeEditor } from "./episode-editor";
 import { useResearchable, useResultsDue } from "@/lib/episode-results";
 import { ResultsTask } from "./results-task";
+import { clearApplied, peekApplied } from "@/lib/applied-results-store";
 import { airsInLabel, episodeDate, episodeExits, episodeStatus, hiddenBefore, ownersLine, useNowMinute } from "./episode-status";
 
 // One episode's own page, /episodes/N (docs/PLAN-ux-redesign.md, 2e; the canvas's "Episode 3 reveal"
@@ -58,6 +59,12 @@ function EpisodeView({ ep, state }: { ep: Episode; state: LeagueState }) {
   const now = useNowMinute();
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Just applied from the results page: confirm it once (a reload or a later visit shows nothing). Held in
+  // state and cleared from the store on mount, so it survives a re-render but not leaving the page.
+  const [justApplied] = useState(() => peekApplied(ep.number));
+  useEffect(() => {
+    clearApplied();
+  }, []);
 
   const status = episodeStatus(ep, now);
   const blockedBy = hiddenBefore(state, ep);
@@ -111,6 +118,16 @@ function EpisodeView({ ep, state }: { ep: Episode; state: LeagueState }) {
           )}
         </div>
       </div>
+
+      {justApplied != null && justApplied > 0 && !editing && (
+        <CaptionPlate
+          className="chat-in"
+          tone="quiet"
+          tag="Applied"
+          title={`${justApplied} result${justApplied === 1 ? "" : "s"} in your league`}
+          subtitle="Standings moved. Players reveal when ready."
+        />
+      )}
 
       {status.kind === "hidden" && blockedBy === null ? (
         <CaptionPlate

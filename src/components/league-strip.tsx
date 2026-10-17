@@ -91,8 +91,12 @@ export function LeagueStrip({ className, wrap }: { className?: string; /** Label
   // Following a finger, no animation; settling, a tap, or a swipe let go, it slides.
   const following = dragging && progress !== 0;
   const w = `((100% - ${(n - 1) * GAP}px) / ${n})`;
-  const left = `(${pos} * (${w} + ${GAP}px))`;
-  const slide = following ? "transition-none" : "transition-[left,clip-path] duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.3,1)] motion-reduce:transition-none";
+  // Only transform moves (it used to animate `left` and `clip-path`, which lay the strip out again on every
+  // frame). The pill is `w` wide, so one of its own widths plus a gap is exactly the step to the next chip;
+  // the ink labels sit in a layer as wide as the whole strip and are carried back by the same distance, so
+  // they stay put while the pill passes over them. Both layers share one transition, so the two cancel at
+  // every frame, mid-swipe included.
+  const slide = following ? "transition-none" : "transition-transform duration-[220ms] ease-[cubic-bezier(0.2,0.8,0.3,1)] motion-reduce:transition-none";
   const cols = { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`, gap: GAP };
 
   async function choose(id: string) {
@@ -133,22 +137,22 @@ export function LeagueStrip({ className, wrap }: { className?: string; /** Label
           </button>
         ))}
         {/* The open game: a You-fill pill over its chip, and the same labels again in the fill's ink, cut
-            to the pill -- so mid-swipe each chip reads right on either side of the pill's edge. */}
-        <span
-          aria-hidden
-          className={cn("pointer-events-none absolute inset-y-0 rounded-[3px] bg-foreground", slide)}
-          style={{ left: `calc(${left})`, width: `calc(${w})` }}
-        />
+            to the pill (it clips them) -- so mid-swipe each chip reads right on either side of the pill's edge. */}
         <div
           aria-hidden
-          className={cn("pointer-events-none absolute inset-0 grid font-semibold text-background", slide)}
-          style={{ ...cols, clipPath: `inset(0 calc(100% - ${left} - ${w}) 0 calc(${left}) round 3px)` }}
+          className={cn("pointer-events-none absolute inset-y-0 left-0 overflow-hidden rounded-[3px] bg-foreground", slide)}
+          style={{ width: `calc(${w})`, transform: `translateX(calc(${pos} * (100% + ${GAP}px)))` }}
         >
-          {games.map((g, i) => (
-            <span key={g.id} className={cn(chip, "border border-transparent")}>
-              {label(g, i)}
-            </span>
-          ))}
+          <div
+            className={cn("absolute inset-y-0 left-0 grid font-semibold text-background", slide)}
+            style={{ ...cols, width: `calc(${n} * 100% + ${(n - 1) * GAP}px)`, transform: `translateX(calc(${-pos} * (100% + ${GAP}px) / ${n}))` }}
+          >
+            {games.map((g, i) => (
+              <span key={g.id} className={cn(chip, "border border-transparent")}>
+                {label(g, i)}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>
