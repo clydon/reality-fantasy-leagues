@@ -12,7 +12,7 @@ import { confirm } from "@/lib/confirm-store";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { Chip, Field, MoreButton, PrimaryButton, TextSheet, fieldCls } from "@/components/setup/settings-ui";
 import { PlainButton } from "@/components/draft/draft-ui";
-import { ActButton, AdminPage, CopyButton, Notice, Row, Rows, Section, count, errorText, shortDate } from "./admin-ui";
+import { ActButton, AdminPage, CopyButton, Notice, Row, Rows, Section, count, errorText, shortDate, shortDateTime } from "./admin-ui";
 import { DangerZone } from "./season-setup";
 import { cn } from "cn";
 
@@ -112,7 +112,7 @@ export function UsersPage() {
               }
               detail={
                 <span className="block truncate">
-                  {realEmail(u.email) ?? "No email"} · {u.lastLoginAt ? `active ${shortDate(u.lastLoginAt)}` : "never signed in"}
+                  {realEmail(u.email) ?? "No email"} · {u.lastLoginAt ? `active ${shortDateTime(u.lastLoginAt)}` : "never signed in"}
                 </span>
               }
               trailing={<MoreButton label={`${label(u)}: actions`} onClick={() => setMenu(u)} />}
@@ -232,7 +232,7 @@ export function UserPage({ userId }: { userId: string }) {
   return (
     <AdminPage
       title={label}
-      subtitle={[user.isSuperAdmin && "Site admin", `joined ${shortDate(user.createdAt)}`, user.lastLoginAt ? `active ${shortDate(user.lastLoginAt)}` : "never signed in"].filter(Boolean).join(" · ")}
+      subtitle={[user.isSuperAdmin && "Site admin", `joined ${shortDate(user.createdAt)}`, user.lastLoginAt ? `active ${shortDateTime(user.lastLoginAt)}` : "never signed in"].filter(Boolean).join(" · ")}
       back={{ href: "/admin/users", label: "Users" }}
       actions={isSelf ? undefined : { label: "Account actions", onClick: () => setMenu(true) }}
     >

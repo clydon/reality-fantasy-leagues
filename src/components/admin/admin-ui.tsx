@@ -345,6 +345,12 @@ export function shortDate(iso: string | Date): string {
   return d.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
 }
 
+/** shortDate plus a 12-hour time: "Oct 16, 3:42 PM". */
+export function shortDateTime(iso: string | Date): string {
+  const time = new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return `${shortDate(iso)}, ${time}`;
+}
+
 /** "3 results", "1 result". */
 export function count(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
