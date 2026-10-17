@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
@@ -20,6 +22,8 @@ import { FEEL_LABEL, ORDER_LABEL, deadlineWords, swapPhrase } from "./waivers-wo
 // place (the strip would only repeat it), and a Waivers section under the team: the way in to the
 // Waivers page (unchanged), When moves happen, and "How it works here", the league's settings in
 // plain words, only the ones it has on. With waivers off, neither shows and Team is just your team.
+// The banner doesn't open Waivers itself: it scrolls down to the way in and lights it, so players learn
+// where Waivers lives instead of being carried past it every week.
 
 type Name = (id: string | null | undefined) => string;
 
@@ -84,8 +88,35 @@ export function teamBanner(state: LeagueState, me: string | null, now: number, n
   return null;
 }
 
-/** Team's banner, in the alert strip's slot. Tapping it opens Waivers. */
+// The banner tells the way in to light up with this event (the two are siblings in slot-page.tsx).
+const POINT = "rfl:point-at-waivers";
+
+/** Scrolls the way in to mid-screen, then lights it once it's fully in view (straight away if it already
+ *  is). False when there's no way in on the page, so the caller can open Waivers instead. */
+function pointAtWayIn(): boolean {
+  const el = document.querySelector<HTMLElement>('[data-tour="team-waivers"]');
+  if (!el) return false;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+  let done = false;
+  const light = () => {
+    if (done) return;
+    done = true;
+    io.disconnect();
+    clearTimeout(fallback);
+    el.focus({ preventScroll: true });
+    window.dispatchEvent(new Event(POINT));
+  };
+  // The margins keep the header and the phone's tab bar out of "in view".
+  const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && light(), { threshold: 1, rootMargin: "-64px 0px -96px 0px" });
+  io.observe(el);
+  const fallback = setTimeout(light, 1200);
+  return true;
+}
+
+/** Team's banner, in the alert strip's slot. Tapping it points at the way in below (pointAtWayIn). */
 export function TeamWaiverBanner() {
+  const router = useRouter();
   const state = useLeagueStore((s) => s.state);
   const me = useLeagueStore((s) => s.membership?.playerId ?? null);
   const now = useNow();
@@ -100,8 +131,9 @@ export function TeamWaiverBanner() {
       tone={b.tone}
       title={b.title}
       subtitle={b.subtitle}
-      action={<span className="sr-only">Open Waivers</span>}
-      href="/waivers"
+      action={<span className="sr-only">Show Waivers below</span>}
+      actionPoints="down"
+      onClick={() => pointAtWayIn() || router.push("/waivers")}
     />
   );
 }
@@ -147,11 +179,24 @@ function WayIn({ state, me, now }: { state: LeagueState; me: string | null; now:
     value = `Replace ${w.owed.count} · free agency until ${p.closesAt ? when(p.closesAt, now) : `Episode ${p.episode + 1}'s results`}`;
   }
   const open = !!value;
+  // Bumped each time the banner points here; the ring is keyed on it so a second tap replays it. It sits
+  // on the button's own border, not outside it: the page clips at its gutter.
+  const [lit, setLit] = useState(0);
+  useEffect(() => {
+    const on = () => setLit((n) => n + 1);
+    window.addEventListener(POINT, on);
+    return () => window.removeEventListener(POINT, on);
+  }, []);
+  useEffect(() => {
+    if (!lit) return;
+    const t = setTimeout(() => setLit(0), 2600);
+    return () => clearTimeout(t);
+  }, [lit]);
   return (
     <Link
       href="/waivers"
       data-tour="team-waivers"
-      className="flex min-h-[60px] items-center gap-3 rounded-md border border-border bg-card px-3.5 py-2.5 text-foreground outline-none transition-colors hover:bg-secondary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
+      className="relative flex min-h-[60px] items-center gap-3 rounded-md border border-border bg-card px-3.5 py-2.5 text-foreground outline-none transition-colors hover:bg-secondary focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line"
     >
       <ShuffleIcon className="size-[22px] shrink-0 text-muted-foreground" />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -164,6 +209,9 @@ function WayIn({ state, me, now }: { state: LeagueState; me: string | null; now:
         </span>
       </span>
       <ChevronRight className="size-5 shrink-0 text-muted-foreground" strokeWidth={2.2} aria-hidden />
+      {lit > 0 && (
+        <span key={lit} aria-hidden className="way-in-lit pointer-events-none absolute -inset-px rounded-md border-[3px] border-chyron-line" />
+      )}
     </Link>
   );
 }

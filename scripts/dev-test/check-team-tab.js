@@ -2,13 +2,15 @@
 // step 2) in every waiver setting waivers-fixture.js can make. Needs npm run dev.
 //
 //   node scripts/dev-test/check-team-tab.js <outDir> [width] [--dark] [--phase=open|claimed|processed|idle]
-//                                           [--who=player,late,comm] [--keep]
+//                                           [--who=player,late,comm] [--tap] [--keep]
 //
 // Brings waivers-fixture.js up with --scenarios at the phase (default open), then for each person and
 // each zt-wv-* league opens slot 4 (/team: it draws Lineup in an Active Roster league) and writes
 // <outDir>/<phase>-<league>-<who>[-dark].png, the whole page. Prints what each page says -- the banner
 // (tag · title · subtitle, or "no banner"), the way in, and How it works here's rows -- so a setting's
-// rows coming and going can be read without opening every picture. Prints page errors. Takes the
+// rows coming and going can be read without opening every picture. --tap also taps each banner and checks
+// it stays on the page, scrolls the way in into view, focuses it and rings it (gone again ~2.6s later),
+// writing <name>-tap.png of the screen mid-ring. Prints page errors. Takes the
 // fixture down at the end unless --keep. Nothing here touches a real league: it's all zt-wv-*.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const { Pool } = require("pg");
@@ -40,7 +42,7 @@ const USERS = { comm: "zt_wcomm", player: "zt_wplayer", late: "zt_wlate" };
         if (await go.count()) await go.first().click().catch(() => {});
         const said = await page.evaluate(() => {
           const main = document.querySelector("main") || document.body;
-          const banner = [...main.querySelectorAll('a[href^="/waivers"]')].find((a) => a.querySelector(".tag-cut"));
+          const banner = [...main.querySelectorAll("button")].find((b) => b.querySelector(".tag-cut") && /Show Waivers below/.test(b.textContent));
           const way = main.querySelector('[data-tour="team-waivers"]');
           const rows = [...main.querySelectorAll("dl > div")].map((d) => [...d.children].map((x) => x.innerText.replace(/\n+/g, " / ")).join(": "));
           return {
@@ -57,6 +59,23 @@ const USERS = { comm: "zt_wcomm", player: "zt_wplayer", late: "zt_wlate" };
         await page.waitForTimeout(300);
         await page.screenshot({ path: `${out}/${name}.png` });
         await page.setViewportSize({ width, height: 844 });
+        if (flags.includes("--tap") && said.banner !== "no banner") {
+          await page.evaluate(() => window.scrollTo(0, 0));
+          const before = new URL(page.url()).pathname;
+          await page.locator("main button", { hasText: "Show Waivers below" }).first().click();
+          await page.waitForTimeout(900);
+          const tap = await page.evaluate(() => {
+            const way = document.querySelector('[data-tour="team-waivers"]');
+            const r = way.getBoundingClientRect();
+            return { inView: r.top >= 0 && r.bottom <= innerHeight, ring: !!way.querySelector(".way-in-lit"), focused: document.activeElement === way };
+          });
+          await page.screenshot({ path: `${out}/${name}-tap.png` });
+          await page.waitForTimeout(2000);
+          const gone = await page.evaluate(() => !document.querySelector(".way-in-lit"));
+          const after = new URL(page.url()).pathname;
+          const ok = after === before && tap.inView && tap.ring && tap.focused && gone;
+          console.log(`  tap: ${ok ? "ok" : "FAIL"} (stayed on ${after === before ? before : `-> ${after}`}, in view ${tap.inView}, ring ${tap.ring}, focused ${tap.focused}, ring gone ${gone})`);
+        }
       }
       if (errors.length) console.log("errors:", errors.slice(0, 5));
       await close();

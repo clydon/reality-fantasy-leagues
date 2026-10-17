@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "cn";
 
 // Direction A's signature element (docs/PLAN-ux-redesign.md, "Lower Third"): a broadcast caption.
@@ -41,6 +41,7 @@ export function CaptionPlate({
   subtitle,
   action,
   actionTone,
+  actionPoints = "right",
   href,
   onClick,
   size = "md",
@@ -61,6 +62,8 @@ export function CaptionPlate({
   action?: ReactNode;
   /** "chyron": the action is the screen's "now" (Reveal), a yellow block at the plate's end. */
   actionTone?: "chyron";
+  /** "down": the action points further down this page (Team's waiver banner), not to another page. */
+  actionPoints?: "right" | "down";
   href?: string;
   onClick?: () => void;
   size?: "md" | "sm";
@@ -106,7 +109,11 @@ export function CaptionPlate({
           )}
         >
           {action}
-          <ChevronRight className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          {actionPoints === "down" ? (
+            <ChevronDown className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          ) : (
+            <ChevronRight className="size-[18px]" strokeWidth={2.4} aria-hidden />
+          )}
         </span>
       )}
     </>
