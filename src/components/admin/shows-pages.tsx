@@ -424,7 +424,7 @@ function ArtSection({ show, busy, onSave }: { show: AdminShow; busy: boolean; on
   return (
     <Section title="Art">
       <div className="flex flex-col gap-5">
-        <Field label="Image" htmlFor="show-art" hint="The show's tile in New league and the backdrop on its leagues' Overview. A link, or a path to a file in public/show-art/. Blank shows its name.">
+        <Field label="Image" htmlFor="show-art" hint="The show's tile in New league and the backdrop behind its leagues' header. A link, or a path to a file in public/show-art/. Blank shows its name.">
           <input
             id="show-art"
             className={fieldCls}

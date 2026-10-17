@@ -112,13 +112,15 @@ export function ActionBar() {
   const overview = pathname === "/" && (live || demo);
   const hereMine = here.filter((it) => !onThisPage(it));
   // The commissioner's jobs, for Up next's control room: this league's results and its own to-dos
-  // (commissioner-items.ts, from the viewer's trimmed state) first, then every other league you run.
+  // (commissioner-items.ts, from the viewer's trimmed state) first, then the linked games' you run.
   const job = (it: { leagueId: string; leagueName: string; title?: string; text?: string; href: string }): Job => ({
     leagueId: it.leagueId,
     leagueName: it.leagueName,
     title: (it.title ?? it.text) as string,
     href: it.href,
   });
+  // Only the game you're in and the games linked to it: a league you run elsewhere waits until you open it.
+  const inGroup = (it: { leagueId: string }) => it.leagueId === hereId || !!group?.games.some((g) => g.id === it.leagueId);
   const jobs: Job[] = [
     ...hereMine.filter((it) => it.who === "commish").map(job),
     ...(commissioner && (live || demo)
@@ -127,8 +129,8 @@ export function ActionBar() {
           .filter((it) => !onThisPage(it))
           .map(job)
       : []),
-    ...others.filter((it) => it.who === "commish").map(job),
-    ...(enabled ? (data?.commish ?? []) : []).filter((it) => it.leagueId !== leagueId).map(job),
+    ...others.filter((it) => it.who === "commish" && inGroup(it)).map(job),
+    ...(enabled ? (data?.commish ?? []) : []).filter((it) => it.leagueId !== leagueId && inGroup(it)).map(job),
   ];
   const nudgeItem = { kind: "notifications" as const, text: "Turn on notifications", href: "/account", leagueId: "", leagueName: "Get reminders before each episode" };
   const items = [

@@ -12,7 +12,8 @@
 //
 // clear: the lineup set, no prediction, Pool's episode 7 still to air with a pick in, waivers off (nothing to do
 // anywhere but the commissioner's jobs). member: the tester plays in all three but runs none. seen: the tester's
-// reveal mark (default 6 = everything revealed; 4 hides episodes 5-6). Also marks What's New read. All zt-*:
+// reveal mark (default 6 = everything revealed; 4 hides episodes 5-6). unlink: Pool leaves the group, so it's a
+// league the tester runs on its own (its results job is then outside Classic's group). Also marks What's New read. All zt-*:
 // `down` takes the group and the seasons away. Never run against a real database.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fixture = require("./linked-fixture");
@@ -32,7 +33,7 @@ async function seasonsDown(pool) {
 }
 
 
-async function up(pool, { clear = false, member = false, seen = 6 } = {}) {
+async function up(pool, { clear = false, member = false, seen = 6, unlink = false } = {}) {
   const [classic, roster, pickem] = await fixture.up(pool, { groupName: "Couch Crew" });
     await seasonsDown(pool);
     const { rows: show } = await pool.query(`SELECT id FROM shows WHERE slug = 'survivor'`);
@@ -84,6 +85,8 @@ async function up(pool, { clear = false, member = false, seen = 6 } = {}) {
        ON CONFLICT (user_id) DO UPDATE SET whats_new_seen = $2`,
       [fixture.USERNAME, LATEST_RELEASE_ID]
     );
+
+  if (unlink) await pool.query(`UPDATE leagues SET group_id = NULL, group_position = NULL WHERE id = $1`, [pickem.leagueId]);
 
   return { classic, roster, pickem };
 }

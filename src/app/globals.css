@@ -117,11 +117,14 @@
      raised fill would melt into the white plate beside it. */
   --quiet-tag: #16141d;
   --quiet-tag-foreground: #ffffff;
-  /* The show's art behind Overview's header (.show-art): washed out on Studio, the name's side
+  /* The show's art behind a league page's header (.show-art): washed out on Studio, the name's side
      lightened most. How much color comes through is the show's own (--art-grey, set inline). */
   --art-opacity: 0.3;
   --art-filter: contrast(0.8) brightness(1.2);
   --art-side: linear-gradient(90deg, rgba(236, 235, 241, 0.9) 0%, rgba(236, 235, 241, 0.85) 38%, rgba(236, 235, 241, 0.3) 68%, rgba(236, 235, 241, 0) 100%);
+  /* A titled page centres its name and may have a back on the left, so there all but the right edge
+     is lightened (.show-art-middle). */
+  --art-middle: linear-gradient(90deg, rgba(236, 235, 241, 0.85) 0%, rgba(236, 235, 241, 0.88) 22%, rgba(236, 235, 241, 0.88) 78%, rgba(236, 235, 241, 0.35) 100%);
 
   /* ---- depth: only plates, sheets, sticky bars and popovers float ---- */
   --plate-shadow: 0 1px 2px rgba(22, 20, 29, 0.1), 0 4px 14px rgba(22, 20, 29, 0.14);
@@ -188,6 +191,7 @@
   --art-opacity: 0.4;
   --art-filter: contrast(1.15) brightness(0.9);
   --art-side: linear-gradient(90deg, rgba(22, 20, 29, 0.92) 0%, rgba(22, 20, 29, 0.88) 38%, rgba(22, 20, 29, 0.3) 68%, rgba(22, 20, 29, 0) 100%);
+  --art-middle: linear-gradient(90deg, rgba(22, 20, 29, 0.85) 0%, rgba(22, 20, 29, 0.9) 22%, rgba(22, 20, 29, 0.9) 78%, rgba(22, 20, 29, 0.35) 100%);
 
   --plate-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
   --sheet-shadow: 0 -12px 30px rgba(0, 0, 0, 0.45);
@@ -314,13 +318,25 @@
        Android pushed the fixed tab bar off-screen). clip, not hidden: it doesn't create a scroll
        container, so sticky headers keep working. */
     overflow-x: clip;
+    /* An app, not a document: a long press or a drag doesn't select the page's text. Things worth
+       copying have a copy button (the join code, a chat message). */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  /* Text boxes still select (iOS Safari won't even type into an input that inherits none). */
+  input,
+  textarea,
+  select,
+  [contenteditable]:not([contenteditable="false"]) {
+    -webkit-user-select: text;
+    user-select: text;
   }
   html {
     @apply font-sans;
   }
 }
 
-/* The show's key art behind Overview's mobile header (show-art.tsx): greyscale at low strength by
+/* The show's key art behind a league page's mobile header (mobile-nav.tsx): greyscale at low strength by
    default, dimmed toward the league name, faded into the ground before the first section. At the
    default look the league name stays 7:1 or better over it in both modes. A show's own look
    (shows.art_style, set in the admin's Show settings) sets the --art-grey/strength/zoom/pos vars
@@ -347,6 +363,9 @@
   position: absolute;
   inset: 0;
   background: var(--art-side);
+}
+.show-art-middle::after {
+  background: var(--art-middle);
 }
 /* The front door's show roll (show-roll.tsx) reuses it behind the title card, a notch quieter and
    capped: it's a backdrop under a headline and a paragraph, not a header's texture strip. */

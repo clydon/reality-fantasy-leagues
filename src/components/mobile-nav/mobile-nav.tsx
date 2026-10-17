@@ -161,12 +161,13 @@ export function MobileNav() {
   const activeSeats = state.players.filter((p) => !p.disabled).length;
   // League Settings' rows carry the commissioner's to-dos as dots; this one says there's one inside.
   const commishWaiting = canManage && commissionerItems(state).length > 0;
-  // The league's show art for Overview's header (catalog shows.art_url), unless it failed to load.
+  // The league's show art behind the header on every league page (catalog shows.art_url), unless it
+  // failed to load.
   const { data: catalog } = useShowCatalog();
   const [artFailed, setArtFailed] = useState<string | null>(null);
   const leagueShow = catalog?.shows.find((sh) => sh.slug === state.settings.showId);
   const showArt = publicMediaSrc(leagueShow?.art_url);
-  const artSrc = pathname === "/" && mode === "live" && showArt && showArt !== artFailed ? showArt : null;
+  const artSrc = isLeaguePage(pathname) && mode === "live" && showArt && showArt !== artFailed ? showArt : null;
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     if (!artSrc) return;
@@ -175,6 +176,8 @@ export function MobileNav() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [artSrc]);
+  // Over the art the bar is clear and its quiet text takes the ink, until the page scrolls under it.
+  const overArt = !!artSrc && !scrolled;
 
   const turn = StateLogic.currentDraftTurn(state);
   const draftComplete = !!(turn && turn.isComplete);
@@ -289,14 +292,19 @@ export function MobileNav() {
 
   return (
     <>
-      {/* Overview only: the show's key art, faded, behind the header and the opener plate
+      {/* Every league page: the show's key art, faded, behind the header and the page's top
           (docs/PLAN-ux-declutter.md, decision 8; the canvas's "A2 · Header art"). A texture, not a
-          picture by default: greyscale, low strength, dimmed toward the name and gone before the first
-          section (.show-art in globals.css); an admin can give a show more color, strength or a
-          different crop (shows.art_style). It sits at the top of the page under everything, so it
-          scrolls away with it. A show without art gets the plain ground. */}
+          picture by default: greyscale, low strength, dimmed toward the name (the left on Overview, the
+          middle under a centred page title) and gone before the first section (.show-art in
+          globals.css); an admin can give a show more color, strength or a different crop
+          (shows.art_style). It sits at the top of the page under everything, so it scrolls away with
+          it. A show without art gets the plain ground. */}
       {artSrc && (
-        <div aria-hidden className="show-art pointer-events-none absolute inset-x-0 top-0 -z-10 hidden h-[170px] max-nav:block" style={artStyleVars(leagueShow?.art_style)}>
+        <div
+          aria-hidden
+          className={cn("show-art pointer-events-none absolute inset-x-0 top-0 -z-10 hidden h-[170px] max-nav:block", pageTitle && "show-art-middle")}
+          style={artStyleVars(leagueShow?.art_style)}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
           <img src={artSrc} alt="" onError={() => setArtFailed(artSrc)} />
         </div>
@@ -305,7 +313,7 @@ export function MobileNav() {
         className={cn(
           "sticky top-[env(safe-area-inset-top,0px)] z-[55] hidden border-b transition-colors max-nav:block",
           // Over the art the bar is clear until the page scrolls under it.
-          artSrc && !scrolled ? "border-transparent bg-transparent" : "border-border bg-panel-menu",
+          overArt ? "border-transparent bg-transparent" : "border-border bg-panel-menu",
         )}
       >
         <div
@@ -317,7 +325,12 @@ export function MobileNav() {
         >
           {/* No logo (docs/PLAN-ux-declutter.md). A page under another backs up to where you came from,
               named; any other titled page leaves the left column empty. */}
-          {pageTitle && <div className="flex min-w-0 items-center">{back && <BackLink target={back} variant="header" />}</div>}
+          {pageTitle && (
+            <div className="flex min-w-0 items-center">
+              {/* Over the art the back needs the ink, like the league line above the title. */}
+              {back && <BackLink target={back} variant="header" className={cn(overArt && "text-foreground")} />}
+            </div>
+          )}
           <div className={cn("relative min-w-0", !pageTitle && "flex-1")}>
             <button
               className={cn("flex w-full min-w-0 items-center gap-1 py-0.5 text-foreground", pageTitle ? "justify-center" : "justify-start")}
@@ -331,7 +344,7 @@ export function MobileNav() {
                 // Direction A: every page names itself. The league (or group) name moves up to a small
                 // line above the title -- still the switcher.
                 <span className="flex min-w-0 flex-col items-center gap-0.5">
-                  <span className="flex min-w-0 max-w-full items-center gap-0.5 text-[12px] font-semibold text-muted-foreground">
+                  <span className={cn("flex min-w-0 max-w-full items-center gap-0.5 text-[12px] font-semibold", overArt ? "text-foreground" : "text-muted-foreground")}>
                     <span className="truncate">{headerName}</span>
                     {mode !== "mock" && <ChevronDownIcon className={cn("h-3.5 w-3.5 shrink-0 transition-transform", leagueMenuOpen && "rotate-180")} />}
                   </span>
@@ -347,7 +360,7 @@ export function MobileNav() {
                       {isAuthenticated && leagues.length === 0 ? "My Leagues" : headerName}
                     </span>
                     {mode !== "mock" && (
-                      <ChevronDownIcon className={cn("h-[18px] w-[18px] shrink-0 transition-transform", artSrc && !scrolled ? "text-foreground" : "text-muted-foreground", leagueMenuOpen && "rotate-180")} />
+                      <ChevronDownIcon className={cn("h-[18px] w-[18px] shrink-0 transition-transform", overArt ? "text-foreground" : "text-muted-foreground", leagueMenuOpen && "rotate-180")} />
                     )}
                   </span>
                   {group && (
@@ -355,7 +368,7 @@ export function MobileNav() {
                       text={group.games[group.index].detail}
                       textFor={(id) => group.games.find((g) => g.id === id)?.detail ?? ""}
                       // Over the art it needs the ink: muted grey can't reach 7:1 on a picture (check-header-art.js).
-                      className={cn("truncate text-[12px] font-semibold", artSrc && !scrolled ? "text-foreground" : "text-muted-foreground")}
+                      className={cn("truncate text-[12px] font-semibold", overArt ? "text-foreground" : "text-muted-foreground")}
                       align="start"
                     />
                   )}
@@ -371,7 +384,10 @@ export function MobileNav() {
               onClick={headerAction.onClick}
               className="-my-1.5 -mr-2 flex h-11 w-11 shrink-0 items-center justify-center justify-self-end text-foreground"
             >
-              <MoreHorizontal className="size-[22px]" strokeWidth={2.2} aria-hidden />
+              {/* Over the art it sits on chat's disc, so it reads whatever's behind it. */}
+              <span className={cn("flex h-[34px] w-[34px] items-center justify-center rounded-full", overArt && "bg-background/80")}>
+                <MoreHorizontal className="size-[22px]" strokeWidth={2.2} aria-hidden />
+              </span>
             </button>
           ) : lateJoin ? (
             // A late joiner has no chat yet (GhostLogic): their REPLAY / OFF AIR bug stands in its place.
@@ -379,7 +395,7 @@ export function MobileNav() {
           ) : (
             <Link
               href="/chat"
-              className={cn("relative flex h-[34px] w-[34px] shrink-0 items-center justify-center justify-self-end rounded-full text-foreground", artSrc && !scrolled && "bg-background/80")}
+              className={cn("relative flex h-[34px] w-[34px] shrink-0 items-center justify-center justify-self-end rounded-full text-foreground", overArt && "bg-background/80")}
               aria-label="Chat"
               data-tour="header-chat"
             >

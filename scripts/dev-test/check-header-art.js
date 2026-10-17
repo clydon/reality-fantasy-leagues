@@ -1,9 +1,9 @@
-// Dev-only test bank: contrast of Overview's header text over the show's key art (docs/PLAN-league-tabs.md,
+// Dev-only test bank: contrast of a league page's header text over the show's key art (docs/PLAN-league-tabs.md,
 // step 7, light touch 5). Needs npm run dev, and network for the show's art_url (the art is a remote image).
 //
-//   node scripts/dev-test/check-header-art.js <outDir> [width] [--dark] [--name="Couch Crew"] [--show=survivor] [--keep]
+//   node scripts/dev-test/check-header-art.js <outDir> [width] [--dark] [--name="Couch Crew"] [--show=survivor] [--path=/episodes] [--keep]
 //
-// Brings linked-fixture.js up (so the league strip is in the header), opens Overview as its zt_tester, hides
+// Brings linked-fixture.js up (so the league strip is in the header), opens Overview (or --path) as its zt_tester, hides
 // the header's text, screenshots what's behind it, and measures every piece of text and every icon against the
 // pixels under it: the worst pixel's WCAG contrast ratio and the 5th-percentile pixel's. The design system wants
 // 7:1 for text over art (DESIGN.md). Prints one line per piece and FAIL under 7:1 (icons: under 3:1); writes
@@ -18,12 +18,14 @@ const fixture = require("./linked-fixture");
 
 (async () => {
   const [out, w = "390", ...flags] = process.argv.slice(2);
-  if (!out) throw new Error('usage: check-header-art.js <outDir> [width] [--dark] [--name="Couch Crew"] [--show=survivor] [--keep]');
+  if (!out) throw new Error('usage: check-header-art.js <outDir> [width] [--dark] [--name="Couch Crew"] [--show=survivor] [--path=/episodes] [--keep]');
   const width = parseInt(w, 10);
   const dark = flags.includes("--dark");
   const groupName = (flags.find((f) => f.startsWith("--name=")) || "").slice(7) || "Couch Crew";
   const show = (flags.find((f) => f.startsWith("--show=")) || "").slice(7) || null;
-  const suffix = `${width}${dark ? "-dark" : ""}${show ? `-${show}` : ""}`;
+  // The leading slash is optional: Git Bash rewrites a bare "/episodes" into a Windows path.
+  const path = "/" + (flags.find((f) => f.startsWith("--path=")) || "").slice(7).replace(/^\/+/, "");
+  const suffix = `${width}${dark ? "-dark" : ""}${show ? `-${show}` : ""}${path === "/" ? "" : path.replace(/\//g, "-")}`;
   const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL });
   let failed = false;
   try {
@@ -50,6 +52,10 @@ const fixture = require("./linked-fixture");
     await page.waitForTimeout(1500);
     const go = page.locator("button", { hasText: /Let.s go!/ });
     if (await go.count()) await go.first().click().catch(() => {});
+    if (path !== "/") {
+      await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(800);
+    }
     await page.waitForSelector(".show-art img", { timeout: 8000 }).catch(() => {});
     await page.waitForTimeout(800);
     const hasArt = await page.evaluate(() => {
@@ -149,7 +155,7 @@ const fixture = require("./linked-fixture");
       { shot, items }
     );
 
-    console.log(`\nheader over ${hasArt ? "art" : "(no art)"} at ${width}px ${dark ? "dark" : "light"}:`);
+    console.log(`\n${path} header over ${hasArt ? "art" : "(no art)"} at ${width}px ${dark ? "dark" : "light"}:`);
     for (const r of results) {
       const need = r.kind === "icon" ? 3 : 7;
       const bad = r.worst < need;
