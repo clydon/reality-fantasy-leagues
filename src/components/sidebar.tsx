@@ -159,10 +159,10 @@ function LeaguePlate() {
   const switchable = mode === "live" && leagues.length > 0;
   const body = (
     <>
-      <span className="type-caption flex shrink-0 items-center bg-quiet-tag pl-2.5 pr-4 text-[13px] tracking-[0.04em] text-quiet-tag-foreground [clip-path:polygon(0_0,100%_0,84%_100%,0_100%)]">
+      <span className="type-caption tag-cut flex shrink-0 items-center bg-quiet-tag pl-2.5 pr-4 text-[13px] tracking-[0.04em] text-quiet-tag-foreground">
         {season != null ? `S${season}` : "League"}
       </span>
-      <span className="-ml-2.5 flex min-w-0 flex-1 flex-col justify-center gap-0.5 bg-plate py-[7px] pl-2.5 pr-1 text-left text-plate-foreground">
+      <span className="tag-tuck flex min-w-0 flex-1 flex-col justify-center gap-0.5 bg-plate py-[7px] pl-2.5 pr-1 text-left text-plate-foreground">
         <span className="type-caption line-clamp-2 text-[18px] leading-none">{mode === "live" ? leagueName : "Demo season"}</span>
         <span className="truncate text-[12px] text-plate-muted">{[terms.showName, typeName(state)].filter(Boolean).join(" · ")}</span>
       </span>
@@ -173,7 +173,7 @@ function LeaguePlate() {
       )}
     </>
   );
-  const cls = "flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] shadow-plate";
+  const cls = "isolate flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate shadow-plate";
 
   if (!switchable) return <div className={cls}>{body}</div>;
   return (

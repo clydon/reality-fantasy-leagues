@@ -74,7 +74,7 @@ export function CaptionPlate({
       )}
       <span
         className={cn(
-          "type-caption flex shrink-0 items-center pl-3 pr-5 tracking-[0.04em] [clip-path:polygon(0_0,100%_0,84%_100%,0_100%)]",
+          "type-caption tag-cut flex shrink-0 items-center pl-3 pr-5 tracking-[0.04em]",
           size === "sm" ? "text-[13px]" : "text-[15px]",
           TONES[tone],
         )}
@@ -82,7 +82,7 @@ export function CaptionPlate({
       >
         {tag}
       </span>
-      <span className="-ml-2.5 flex min-w-0 flex-1 flex-col justify-center gap-0.5 bg-plate px-3 py-2 text-plate-foreground">
+      <span className="tag-tuck flex min-w-0 flex-1 flex-col justify-center gap-0.5 bg-plate px-3 py-2 text-plate-foreground">
         <span className={cn("type-caption truncate", size === "sm" ? "text-[19px]" : "text-[22px]")}>{title}</span>
         {subtitle && <span className="truncate text-[13px] text-plate-muted">{subtitle}</span>}
       </span>
@@ -100,7 +100,9 @@ export function CaptionPlate({
     </>
   );
   const cls = cn(
-    "flex w-full items-stretch overflow-hidden rounded-[3px] text-left shadow-plate",
+    // The plate colour under the whole strip: the tag's edge antialiases against the same white all the
+    // way along, so a strip at a half-pixel position has no step where the plate starts.
+    "isolate flex w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left shadow-plate",
     size === "sm" ? "min-h-[52px]" : "min-h-[60px]",
     (href || onClick) && "transition-[filter] hover:brightness-[1.04] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-chyron-line",
     className,

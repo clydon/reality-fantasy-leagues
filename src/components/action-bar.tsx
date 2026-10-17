@@ -176,11 +176,11 @@ export function ActionBar() {
 
   return (
     <>
-      <div role="status" className="mb-4 flex min-h-[56px] items-stretch overflow-hidden rounded-[3px] shadow-plate">
-        <span className="type-caption flex shrink-0 items-center bg-chyron pl-3 pr-5 text-[14px] tracking-[0.04em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,84%_100%,0_100%)]">
+      <div role="status" className="isolate mb-4 flex min-h-[56px] items-stretch overflow-hidden rounded-[3px] bg-plate shadow-plate">
+        <span className="type-caption tag-cut flex shrink-0 items-center bg-chyron pl-3 pr-5 text-[14px] tracking-[0.04em] text-chyron-foreground">
           {TAGS[item.kind] ?? "Now"}
         </span>
-        <div className="-ml-2.5 flex min-w-0 flex-1 items-stretch bg-plate text-plate-foreground">
+        <div className="tag-tuck flex min-w-0 flex-1 items-stretch bg-plate text-plate-foreground">
           {item.kind === "invite" || item.kind === "notifications" ? (
             <div className="flex min-w-0 flex-1 flex-col gap-2 py-2.5 pl-3 pr-2">
               <span className="min-w-0">

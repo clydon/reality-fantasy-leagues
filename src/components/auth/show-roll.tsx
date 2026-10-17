@@ -47,11 +47,11 @@ export function ShowRoll({ name }: { name: string }) {
       <h1 className="sr-only">Turn any TV show into a game.</h1>
       <div aria-hidden className="type-caption text-[clamp(44px,12.5vw,60px)] leading-[0.95]">
         <div>Turn</div>
-        <m.div layout transition={{ layout: { duration: 0.35, ease: EASE } }} className="my-2.5 flex h-[1.4em] w-fit max-w-full items-stretch rounded-[3px] shadow-plate">
-          <m.span layout="position" className="relative z-10 flex shrink-0 items-center bg-quiet-tag pr-[22px] pl-3 text-quiet-tag-foreground [clip-path:polygon(0_0,100%_0,84%_100%,0_100%)]">
+        <m.div layout transition={{ layout: { duration: 0.35, ease: EASE } }} className="isolate my-2.5 flex h-[1.4em] w-fit [--tag-slant:0.2em] max-w-full items-stretch rounded-[3px] shadow-plate">
+          <m.span layout="position" className="tag-cut flex shrink-0 items-center bg-quiet-tag pr-[22px] pl-3 text-quiet-tag-foreground">
             <Tv className="size-[0.42em]" strokeWidth={2.4} />
           </m.span>
-          <span className="relative -ml-2.5 flex min-w-0 items-center overflow-hidden rounded-r-[3px] bg-plate pr-4 pl-5 text-plate-foreground">
+          <span className="tag-tuck relative flex min-w-0 items-center overflow-hidden rounded-r-[3px] bg-plate pr-4 pl-5 text-plate-foreground">
             <AnimatePresence mode="popLayout" initial={false}>
               <m.span
                 key={name}

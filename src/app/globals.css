@@ -278,6 +278,20 @@
   letter-spacing: 0.01em;
   line-height: 1;
 }
+/* The caption tag's angled end, and the piece that tucks under it (caption-plate.tsx, the alert
+   strip, the sidebar's league plate, the tour host, the front door's show roll). The slant is a
+   fixed length, not a share of the tag's width, and the next piece tucks under by exactly that
+   length with the tag on top, so the two always meet on one straight diagonal whatever the tag says.
+   (84% of the width over a 10px tuck put a vertical step and a sliver of ground in the edge of any
+   tag wider than about 62px.) A shorter strip sets --tag-slant on the parent. */
+@utility tag-cut {
+  position: relative;
+  z-index: 1;
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--tag-slant, 14px)) 100%, 0 100%);
+}
+@utility tag-tuck {
+  margin-left: calc(-1 * var(--tag-slant, 14px));
+}
 /* Scores and ranks: condensed, tabular, so columns of numbers line up. */
 @utility type-num {
   font-stretch: 62%;

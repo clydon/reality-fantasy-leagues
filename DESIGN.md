@@ -333,7 +333,7 @@ Flat by default. Sections have no box, border or shadow; depth comes from tone (
 
 ## Shapes
 
-Broadcast graphics are hard-edged, so nearly everything is square: 3px on plates, strips and the buttons inside them, 4px as the dark theme's base radius (shadcn `--radius`), 2px on badges. The signature shape is the caption tag's angled right edge (`clip-path: polygon(0 0, 100% 0, 84% 100%, 0 100%)`), which the white plate tucks under by 10px. The one soft shape is the bottom sheet's 14px top corners, because it's a phone-native surface, not a graphic. Round shapes are only for dots (player colours), the sheet's grab handle and avatar-style icons.
+Broadcast graphics are hard-edged, so nearly everything is square: 3px on plates, strips and the buttons inside them, 4px as the dark theme's base radius (shadcn `--radius`), 2px on badges. The signature shape is the caption tag's angled right edge: a fixed slant (`tag-cut`, `--tag-slant`, 14px on plates), with the next piece tucked under it by exactly that length (`tag-tuck`) and the plate colour under the whole strip, so tag and plate always meet on one straight diagonal whatever the tag says (globals.css). The one soft shape is the bottom sheet's 14px top corners, because it's a phone-native surface, not a graphic. Round shapes are only for dots (player colours), the sheet's grab handle and avatar-style icons.
 
 ## Components
 

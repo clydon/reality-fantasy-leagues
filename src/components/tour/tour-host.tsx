@@ -191,11 +191,11 @@ function HostPlate({
         fullscreen ? "bottom-[calc(env(safe-area-inset-bottom,0px)+12px)]" : "bottom-[calc(var(--tabbar-base)+8px)]",
       )}
     >
-      <div className="flex h-9 items-stretch">
+      <div className="isolate flex h-9 items-stretch [--tag-slant:10px]">
         {/* Chyron while there's a tap to make; on the end card "Start a league" is the one yellow. */}
         <span
           className={cn(
-            "type-caption flex items-center pl-3 pr-5 text-[15px] tracking-[0.04em] [clip-path:polygon(0_0,100%_0,84%_100%,0_100%)]",
+            "type-caption tag-cut flex items-center pl-3 pr-5 text-[15px] tracking-[0.04em]",
             ending ? "bg-plate text-plate-foreground" : "bg-chyron text-chyron-foreground",
           )}
         >
@@ -203,11 +203,11 @@ function HostPlate({
         </span>
         {practiceOf && (
           // On every step: nothing that happens here is real.
-          <span className="type-caption -ml-2.5 flex shrink-0 items-center bg-live pl-4 pr-4 text-[14px] tracking-[0.04em] text-live-foreground [clip-path:polygon(10px_0,100%_0,calc(100%-10px)_100%,0_100%)]">
+          <span className="type-caption tag-tuck relative z-[1] flex shrink-0 items-center bg-live pl-4 pr-4 text-[14px] tracking-[0.04em] text-live-foreground [clip-path:polygon(var(--tag-slant)_0,100%_0,calc(100%-var(--tag-slant))_100%,0_100%)]">
             Made-up results
           </span>
         )}
-        <span className="-ml-2.5 flex min-w-0 flex-1 items-center justify-between gap-3 bg-quiet-tag pl-4 pr-1 text-quiet-tag-foreground">
+        <span className="tag-tuck flex min-w-0 flex-1 items-center justify-between gap-3 bg-quiet-tag pl-4 pr-1 text-quiet-tag-foreground">
           <span className="type-caption truncate text-[15px] tracking-[0.06em]">{progress}</span>
           {!ending && (
             <button

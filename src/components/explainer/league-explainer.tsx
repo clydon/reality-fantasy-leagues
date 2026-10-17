@@ -796,11 +796,11 @@ function OnePick({ castaway }: { castaway: SampleCastaway }) {
     <div className="flex flex-col items-center">
       <In n={0} className="flex flex-col items-center">
         <Avatar c={castaway} size="lg" />
-        <div className="mt-3 flex h-9 items-stretch">
-          <span className="type-caption flex items-center bg-quiet-tag pl-2.5 pr-4 text-[14px] tracking-[0.04em] text-quiet-tag-foreground [clip-path:polygon(0_0,100%_0,calc(100%-8px)_100%,0_100%)]">
+        <div className="isolate mt-3 flex h-9 items-stretch bg-plate [--tag-slant:8px]">
+          <span className="type-caption tag-cut flex items-center bg-quiet-tag pl-2.5 pr-4 text-[14px] tracking-[0.04em] text-quiet-tag-foreground">
             Your pick
           </span>
-          <span className="type-caption -ml-1.5 flex items-center bg-plate pl-3 pr-3 text-[18px] text-plate-foreground">{castaway.name}</span>
+          <span className="type-caption tag-tuck flex items-center bg-plate pl-3 pr-3 text-[18px] text-plate-foreground">{castaway.name}</span>
         </div>
       </In>
     </div>
