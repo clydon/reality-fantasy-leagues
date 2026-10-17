@@ -175,7 +175,7 @@ export function YourTeam({
                   )}
                 </span>
                 <span className="truncate text-[13px] text-muted-foreground">
-                  {pick ? (joins ? `Joins your team ${joins}` : "Joins your team when claims are due") : out ? `Their ${pts} pts stay` : `${pts} pts`}
+                  {pick ? (joins ? `Joins your team ${joins}` : "Joins your team when claims are due") : out ? `Their ${pts} pts stay${!replaceable && w.owed.lossIds.length ? " · no replacement yet" : ""}` : `${pts} pts`}
                 </span>
               </span>
               {action && (

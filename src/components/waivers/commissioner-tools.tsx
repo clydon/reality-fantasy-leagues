@@ -38,7 +38,8 @@ function canOpenWindow(state: LeagueState, period: WaiverPeriod | null): boolean
 }
 
 /** "WAIVER WINDOW OPEN / Replace who's out · Swap any · due Tue 8:05 PM", with Change and Turn off. */
-export function WindowControl({ state, period, now }: { state: LeagueState; period: WaiverPeriod; now: number }) {
+/** `compact`: a one-line strip (under the commissioner's own claim plate, which already says what's open); else its own plate. */
+export function WindowControl({ state, period, now, compact = false }: { state: LeagueState; period: WaiverPeriod; now: number; compact?: boolean }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mutate = useMutate();
   const [editing, setEditing] = useState(false);
@@ -60,6 +61,26 @@ export function WindowControl({ state, period, now }: { state: LeagueState; peri
     );
     setBusy(false);
   }
+  const sheet = <OpenWindowSheet key={String(editing)} state={state} period={period} open={editing} onOpenChange={setEditing} now={now} />;
+  if (compact) {
+    return (
+      <div className="flex items-center justify-between gap-3 border-y border-border py-2.5">
+        <span className="flex min-w-0 flex-col">
+          <span className="text-sm font-semibold">You opened this window</span>
+          <span className="truncate text-[13px] text-muted-foreground">{line || "Open"}</span>
+        </span>
+        <span className="flex shrink-0 gap-1.5">
+          <button type="button" onClick={() => setEditing(true)} disabled={busy} className="min-h-11 rounded-[6px] border border-input px-3 text-sm font-bold hover:bg-secondary disabled:opacity-50">
+            Change
+          </button>
+          <button type="button" onClick={turnOff} disabled={busy} className="min-h-11 rounded-[6px] border border-input px-3 text-sm font-bold text-live hover:bg-secondary disabled:opacity-50">
+            Turn off
+          </button>
+        </span>
+        {sheet}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-2.5">
       <CaptionPlate tone="quiet" tag="Window" size="sm" title="Waiver window open" subtitle={`${line ? `${line} · ` : ""}due ${when(period.processAt, now)}`} />
@@ -72,7 +93,7 @@ export function WindowControl({ state, period, now }: { state: LeagueState; peri
         </PlainButton>
       </div>
       {/* Remounted on each open, so it starts from the window as it stands. */}
-      <OpenWindowSheet key={String(editing)} state={state} period={period} open={editing} onOpenChange={setEditing} now={now} />
+      {sheet}
     </div>
   );
 }

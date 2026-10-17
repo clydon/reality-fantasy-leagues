@@ -17,7 +17,8 @@ import { latestEpisode, swapPhrase } from "./waivers-words";
 type Cell = "open" | "short" | "none" | "decides";
 const COLUMNS = 10;
 
-export function WhenMovesHappen({ state }: { state: LeagueState }) {
+/** `compact`: under an action (claims open, processed, hidden): the lanes and legend, without the sentence. */
+export function WhenMovesHappen({ state, compact = false }: { state: LeagueState; compact?: boolean }) {
   const W = StateLogic.WaiverLogic;
   const rule = W.replaceRule(state);
   const w = W.windows(state);
@@ -112,8 +113,8 @@ export function WhenMovesHappen({ state }: { state: LeagueState }) {
             {c}
           </span>
         ))}
-        {lane(replace, "Replace", replace.includes("decides") ? "When your commissioner opens one" : undefined)}
-        {lane(swap, "Swap", replace.includes("decides") ? undefined : "When your commissioner opens one")}
+        {lane(replace, "Replace", replace.includes("decides") ? "Commissioner opens one" : undefined)}
+        {lane(swap, "Swap", replace.includes("decides") ? undefined : "Commissioner opens one")}
         <span />
         {cols.map((c) => (
           <span key={c} className="h-[3px] self-center rounded-[1px]" style={c === latest ? { background: "var(--chyron-line)" } : undefined} />
@@ -128,7 +129,7 @@ export function WhenMovesHappen({ state }: { state: LeagueState }) {
           </span>
         ))}
       </div>
-      <p className="pt-1 text-sm leading-[1.45]">{summary}</p>
+      {!compact && <p className="pt-1 text-sm leading-[1.45]">{summary}</p>}
     </section>
   );
 }

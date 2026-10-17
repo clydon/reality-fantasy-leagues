@@ -47,7 +47,7 @@ export function WaiversBoard() {
   return (
     <div className="flex flex-col gap-[26px]">
       <h2 className="type-caption -mb-3 text-[28px] max-nav:hidden">Waivers</h2>
-      {canManage && period && w.stage === "open" && StateLogic.WaiverLogic.isWindow(period) && <WindowControl state={state} period={period} now={now} />}
+      {canManage && period && w.stage === "open" && StateLogic.WaiverLogic.isWindow(period) && !(w.todo && me) && <WindowControl state={state} period={period} now={now} />}
       {w.stage === "hidden" && period && <HiddenWeek state={state} period={period} me={me} now={now} />}
       {w.stage === "open" && period && (w.todo && me ? (
         <>
@@ -66,12 +66,14 @@ export function WaiversBoard() {
             <YourClaims state={state} period={period} me={me} w={w} claim={claim} save={save} now={now} />
           )}
           {!claim.pairs.length && !isShared(state) && <Note className="-mt-3 text-[13px]">Tap Replace or Swap to make a claim.</Note>}
+          {canManage && StateLogic.WaiverLogic.isWindow(period) && <WindowControl state={state} period={period} now={now} compact />}
         </>
       ) : (
         <Quiet state={state} me={me} />
       ))}
       {w.stage === "processed" && period && <ProcessedWeek state={state} period={period} me={me} now={now} w={w} />}
       {w.stage === "none" && <Quiet state={state} me={me} />}
+      {w.stage !== "none" && !(w.stage === "open" && !(w.todo && me)) && <WhenMovesHappen state={state} compact />}
       <PastWaivers state={state} joined={w.stage === "processed" && StateLogic.WaiverLogic.freeAgencyOn(state) && !w.todo} />
       {w.stage !== "hidden" && (
         <div className="-mt-4 flex justify-end">
