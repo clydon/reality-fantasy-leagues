@@ -1,7 +1,8 @@
 # Waivers v2: one claim type, replacement rules, waiver windows, smart defaults
 
 **Status:** planned 2026-10-16; phase 1 (engine) built and committed (not pushed) 2026-10-16, see "As built:
-phase 1". Phase 2's design picked 2026-10-16 ("Phase 2: picked design"); build it next. Builds on mid-season waivers
+phase 1". Phase 2 (the UI) built and committed (not pushed) 2026-10-16, see "As built: phase 2". Next: phase 3
+(the new pushes; What's New is drafted, waiting on the user). Builds on mid-season waivers
 ([PLAN-midseason-waivers.md](PLAN-midseason-waivers.md), shipped 2026-10-16); read that first for the
 week, the clock, free agency, spoilers and privacy, which this keeps unchanged.
 
@@ -483,7 +484,17 @@ waiver windows"), then **When moves happen**: a Replace lane and a Swap lane ove
 - A legend with only the swatches used, one plain sentence, then Free agency and Past waivers rows.
 - The other weeks' top lines are on the canvas's "The top line in other weeks" board.
 
-### Decisions still open (ask the user)
+### Decisions (asked 2026-10-16, answered)
+
+1. **Auto-fill: on for Casual only.** Balanced and Competitive leave a missed replacement unfilled.
+2. **Shared pickups: at the deadline**, as mocked ("Joins your team Tue 8:05 PM", Change until then).
+3. **Group by spot**, as mocked: replacement groups (oldest loss first), then the swap group; no way to
+   put a swap first (the rare contested-swap-behind-a-safe-replacement case loses out; accepted).
+4. **Hide "Only when short" for Classic.** With N = roster − 1 it's the same as Replace right away, so
+   wherever recommend() would land on it for Classic it says Replace right away (`always`). No behaviour
+   changes.
+
+What was asked:
 
 1. **Auto-fill default.** The user asked for it off by default; `recommend()` turns it on for Casual and
    Balanced. The mock has it on for Casual only.
@@ -499,6 +510,41 @@ waiver windows"), then **When moves happen**: a Replace lane and a Swap lane ove
 The caption tag's edge (every tag + plate in the app) now meets its plate on one straight diagonal: a
 fixed slant (`tag-cut` / `tag-tuck`, `--tag-slant`) instead of 84% of the tag's width over a 10px tuck,
 and the plate colour under the whole strip (`globals.css`, DESIGN.md → Shapes). Mocks use the same.
+
+## As built: phase 2 (2026-10-16, committed, not pushed)
+
+| Piece | Where |
+|---|---|
+| Every waiver sentence (rule rows, the card's bullets, the three rules answers, a window's no-names line) | `src/components/waivers/waivers-words.ts` |
+| The claim screen: plates (open, quiet weeks), Your team, Your claims grouped by spot with the drag grip | `claim-screen.tsx` |
+| The page: claims open, processed, quiet, not revealed; Past waivers; How waivers work at its foot | `waivers-board.tsx` |
+| One-spot picker (`/waivers/claim?drop=&for=`), `/waivers/pickup` (the first replacement: old links, pushes, the tour), free agency with `?drop=` | `claim-pickers.tsx`, `src/app/waivers/*` (and `research/waivers/*` redirects); `/waivers/add-drop` lands on the board |
+| When moves happen (the quiet-week strip) | `when-moves-happen.tsx` |
+| Open a waiver window (3B), the window plate's Change / Turn off, Claim for by spot | `commissioner-tools.tsx` |
+| Settings 1A: Suggested card, rule rows, windows, timing sheets, Auto-fill | `waivers-settings.tsx`, controls in `waiver-controls.tsx` |
+| The rules sheet: three answers, then "Each week" | `rules-sheet.tsx` |
+| Create wizard: "How many teams?", the card, "doesn't fit" fixes, Change | `src/components/dashboard/wizard-waivers.tsx`, `create-league-flow.tsx` |
+| Research's ranking, shared with the picker | `src/components/research/research-rows.tsx` (Research uses it too, same markup) |
+| New words elsewhere | reveal's "Your move", Overview's status plate, alert strip (`Replace` tag; links to the picker), tab badge, League Settings' index line, league explainer, tour copy, push copy |
+
+**Engine and server added for phase 2** (`tests/waivers.test.js`, 36):
+- **Decision 4:** Classic reads and saves "Only when short" as `always`; `recommend()`'s Classic ladder is always · windows · never (Last Survivor Standing: Casual = Replace right away, Balanced = Wait for a window, Competitive = No replacements).
+- **Decision 1:** `recommend()` sets `autoFill` for Casual only.
+- **A window's own say on replacements:** `WaiverPeriod.replace` (set by `openWindow(state, swaps, now, { replace })`, cleared when the window's turned off); `replacementsOwed` and `windowReplaces` honour it. A window allowing nothing (0 swaps, replace off) is refused. Route: `POST waivers/window { swaps, replace? }`. The sheet only shows the toggle where the rule makes replacements wait for windows or never happen (under always / only when short they happen anyway).
+- **Decision 3, grouping:** `groupPairs` (replacement groups oldest loss first, then the swaps) and `setSpot` (one spot's ranked adds, the rest kept; a swap keeps its place). Claim for sends `PUT claims { playerId, spot: { dropId, addIds } }`, merged server-side, so the commissioner never needs the rest of the claim (phase 1's open item).
+- **The wizard's team count:** `settings.expectedTeams`; `teamsFor()` uses it until the draft starts. Applying the suggestion before then sets `settings.waiverFit`; `refit()` (run by the server's waiver clock under the league lock) re-applies it for the real team count once the draft starts, unless a waiver setting was changed by hand (which clears `waiverFit`). Applying the suggestion to a league with no cast yet uses the season's `cast_size` (settings route).
+
+**Calls made while building:**
+- **Decision 2** (shared pickups at the deadline) needed no engine change: claims already process at the deadline.
+- **"Swaps allowed"** shows swaps left (All for a whole-team window). The plate says "Swap 1" / "Swap up to 2" / "Swap any".
+- **Replacement groups exist per castaway you may replace now** (`lossIds`), so under "Only when short" with more losses than you're owed, only the oldest ones get Replace.
+- **Free agents are capped** by the claim's real limit (different free agents across every spot ≤ owed + swaps left + 2); the picker says so if you hit it.
+- **The processed page** is a plate, one line of why, then Free agency and Past waivers rows; the full run is on the results page (no inline list).
+- **Classic's points** on team rows and picker tiles are its outlasting points (`EliminationOrderScoringStrategy.castawayPoints`); Active Roster's are events. "RANKED BY" ranks by any scoring rule recorded in the window.
+- **The wizard's "Change"** opens a sheet of the three settings on a copy; created leagues then get them after the suggestion (and so aren't re-fitted).
+- **Not done here (phase 3):** the "Waiver window open" push and trimmed-claim notices; existing push copy now says replace/swap. The User Manual doc still describes pickups. Pre-v2 API (`pickupsOwed`, `addDrop`, the legacy claim shape) still accepted for one release.
+
+**Verified:** `tsc` and `eslint src` clean; `npm test` 346/347 (the known `status-plate.test.js` "before the draft"). `check-waivers.js` 85/85 (new: the window's replace switch, Claim for by spot). `check-waivers-alerts.js` passes. `check-waivers-ui.js` all four phases at 390px in Night and Studio, no page errors; it now also shoots the picker (tapped, saved, the grip sheet), a swap picker, the merge-rebuild league's quiet strip and the Open a waiver window sheet (off/None, then All) through to the open window, Settings with Casual tapped, and the create wizard (card, Competitive, 8 teams that don't fit). The guided tour (`docs/ux-baseline/scripts/tour.js --player-only`) runs end to end through the new picker.
 
 ## Open questions
 

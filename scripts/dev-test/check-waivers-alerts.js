@@ -47,7 +47,7 @@ async function main() {
     let r = await sam.call("GET", "/api/me/actions");
     const pickup = (r.body.items || []).find((it) => it.kind === "pickup" && it.leagueId === classic);
     let st = (await sam.call("GET", `${L}/state`)).body.state;
-    check("alert: Sam's pickup item", pickup?.text === "Replace Jelly" && pickup?.href === "/waivers/pickup" && pickup?.detail === "claim up to 3", r.body.items);
+    check("alert: Sam's pickup item", pickup?.text === "Replace Jelly" && pickup?.href === `/waivers/claim?drop=${c("Jelly")}` && pickup?.detail === "first choice, then backups", r.body.items);
     check("alert: due by processing time", pickup?.by === week(st).processAt, { by: pickup?.by, processAt: week(st).processAt });
     r = await josie.call("GET", "/api/me/actions");
     check("alert: nothing for Josie, who hasn't revealed", !(r.body.items || []).some((it) => it.kind === "pickup"), r.body.items);
@@ -72,11 +72,11 @@ async function main() {
     const samRem = lines.find((l) => l.startsWith(`${samId} `));
     const josieRem = lines.find((l) => l.startsWith(`${josieId} `));
     check("job 6h out: nothing processed", job.steps === 0, job);
-    check("job 6h out: Sam is told he has a pickup to claim", /you have a pickup to claim/.test(samRem || ""), lines);
+    check("job 6h out: Sam is told there's someone to replace", /you have someone to replace/.test(samRem || ""), lines);
     check("job 6h out: Josie is told to reveal first, no names", /reveal Episode 3 before then/.test(josieRem || "") && !/Jelly|Rob/.test(josieRem || ""), lines);
     lines = [];
     job = await runWaivers(pool, { now: processAt - 4 * HOUR, leagueIds: ids, log: (l) => lines.push(l) });
-    check("job: no reminder twice", !lines.some((l) => l.includes(" -- Waivers process at")), lines);
+    check("job: no reminder twice", !lines.some((l) => l.includes(" -- Claims due at")), lines);
 
     // Sam's claim goes in: the alert goes.
     r = await sam.call("PUT", `${L}/waivers/claims`, { pickupIds: [c("Rob"), c("Maggie")] });

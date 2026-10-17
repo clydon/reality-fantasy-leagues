@@ -213,6 +213,10 @@ export interface LeagueSettings {
   waiverFeel?: WaiverFeel;
   /** Replacements still owed at airtime are filled automatically; on unless false. */
   autoFill?: boolean;
+  /** How many teams the commissioner expected when creating the league: the waiver suggestion's count until the draft starts. */
+  expectedTeams?: number;
+  /** On the suggestion worked out for expectedTeams: fitted to the real count when the draft starts (WaiverLogic.refit). */
+  waiverFit?: boolean;
   /** Pre-v2: add/drop weeks after every Nth episode. Kept in step with waiverWindows for one release. */
   swapEvery?: number | null;
   // Pre-v2 switches, kept in step with replaceRule/waiverWindows for one release (WaiverLogic.mirrorLegacy).
@@ -937,6 +941,8 @@ export interface WaiverPeriod {
   window?: boolean;
   /** Swaps each player may make this week (0 outside a window). */
   swaps?: number;
+  /** This window's own say on replacements (Open a waiver window's toggle); unset: the league's rule decides. */
+  replace?: boolean;
   /** The commissioner opened or changed this window (Open a waiver window). */
   openedBy?: "commissioner";
   /** The commissioner turned the window off and nothing else ran this week: closed without a run. */

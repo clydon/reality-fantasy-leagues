@@ -19,13 +19,15 @@ import { TOUR_JOIN_CODE, buildCommissionerState } from "@/lib/tour/commissioner"
 import { TOUR_LEAGUE_NAME, TOUR_SHOW_NAME, TOUR_TERMS } from "@/lib/tour/rise-and-fall";
 import { cn } from "cn";
 import { ResearchShowFlow } from "./research-show-flow";
+import { WizardWaivers, recommendation, type RosterFix, type WizardWaiverChoice } from "./wizard-waivers";
 
 // Create a league as a full-screen, four-step flow (docs/PLAN-ux-redesign.md 2a; the canvas's
 // "A · Create a league", Create-1 to Create-4), at /new-league with no app shell around it:
 //
 //   1. Show and season. A finished season defaults to catch-up results, and says so in one line.
 //   2. How to play: the three league types.
-//   3. Name it, and (for a league with a draft) when the draft is. Create league.
+//   3. Name it, and (for a league with a draft) when the draft is, how many teams, and waivers
+//      (docs/PLAN-waivers-v2.md: a suggestion to suit that many teams). Create league.
 //   4. Invite: the join code with Share, invite by username or email, add a computer player, then
 //      into the league.
 //
@@ -88,6 +90,9 @@ export function CreateLeagueFlow() {
   const [typeId, setTypeId] = useState<string | null>(tour ? "active-roster" : null);
   // Step 3
   const [name, setName] = useState(tour ? TOUR_LEAGUE_NAME : "");
+  const [waivers, setWaivers] = useState<WizardWaiverChoice>({ teams: 4, feel: "balanced", custom: null });
+  // What step 3's "doesn't fit" offers change about the league's shape: shared ownership, a smaller roster.
+  const [shape, setShape] = useState<{ shared: boolean; smaller: boolean }>({ shared: false, smaller: false });
   const [draftWhen, setDraftWhen] = useState<"self" | "time">("self");
   const [draftDate, setDraftDate] = useState("");
   const [draftTime, setDraftTime] = useState("20:00");
@@ -122,8 +127,17 @@ export function CreateLeagueFlow() {
     if (tour) return buildCommissionerState();
     const s = StateLogic.defaultState();
     if (typeId) StateLogic.updateSettings(s, "leagueTypeId", typeId);
+    rosterChanges(s, shape).forEach(([field, value]) => StateLogic.updateSettings(s, field, value));
     return s;
-  }, [typeId, tour]);
+  }, [typeId, tour, shape]);
+  // Waivers suit the number of teams, and the cast they're drafted from (docs/PLAN-waivers-v2.md).
+  const castSize = catalogSeason?.castSize ?? null;
+  const waiverRec = hasDraft && !tour ? recommendation(preview, castSize, waivers.teams, waivers.feel) : null;
+  const doesntFit = !!waiverRec && !waiverRec.feasible && castSize !== null;
+  function fix(f: RosterFix) {
+    if (f.kind === "pickem") setTypeId("pickem");
+    else setShape((x) => ({ ...x, [f.kind]: true }));
+  }
 
   function go(next: Step) {
     setDir(next > step ? 1 : -1);
@@ -156,7 +170,7 @@ export function CreateLeagueFlow() {
       ? !!show && season != null && !researching
       : step === 2
         ? !!leagueType
-        : !!name.trim() && !(hasDraft && draftWhen === "time" && (!draftDate || draftInPast));
+        : !!name.trim() && !(hasDraft && draftWhen === "time" && (!draftDate || draftInPast)) && !doesntFit;
 
   async function create() {
     if (tour) {
@@ -196,6 +210,21 @@ export function CreateLeagueFlow() {
       await set("revealedThroughEpisode", catchingUp ? 0 : null);
       await set("wikiSeason", season);
       await set("draftScheduledAt", draftAt ? draftAt.toISOString() : null);
+      // From the type's defaults (the preview already has them applied).
+      const fresh = StateLogic.defaultState();
+      StateLogic.updateSettings(fresh, "leagueTypeId", typeId);
+      for (const [field, value] of rosterChanges(fresh, shape)) await set(field, value);
+      // Waivers: the suggestion for the teams expected (fitted to the real count when the draft starts),
+      // or the commissioner's own settings from Change.
+      if (waiverRec && waiverRec.feasible) {
+        await set("expectedTeams", waivers.teams);
+        await set("waiverRecommendation", waivers.feel);
+        if (waivers.custom) {
+          await set("replaceRule", waivers.custom.replaceRule);
+          await set("waiverWindows", waivers.custom.waiverWindows);
+          await set("autoFill", waivers.custom.autoFill);
+        }
+      }
       setLeagueState(await set("setupComplete", true));
       go(4);
     } catch (err) {
@@ -392,7 +421,10 @@ export function CreateLeagueFlow() {
                       <OptionCard
                         key={id}
                         selected={typeId === id}
-                        onClick={() => setTypeId(id)}
+                        onClick={() => {
+                          setTypeId(id);
+                          setShape({ shared: false, smaller: false });
+                        }}
                         title={StateLogic.LEAGUE_TYPES[id].name}
                         lead={copy.lead}
                         detail={copy.detail}
@@ -477,6 +509,7 @@ export function CreateLeagueFlow() {
                     </div>
                   </div>
                 )}
+                {waiverRec && <WizardWaivers preview={preview} castSize={castSize} value={waivers} onChange={setWaivers} onFix={fix} castaways={terms.castaways} />}
                 {/* Lets the keyboard's Go/Done key submit; the visible button is in the footer. */}
                 <button type="submit" hidden />
               </form>
@@ -873,6 +906,19 @@ function typeCopy(id: string, castaway: string, castaways: string): { lead: stri
     lead: "Draft a team. Last one standing wins.",
     detail: `Snake-draft your ${castaways}. They earn a point each time someone else goes home, so the longer they last, the more you get.`,
   };
+}
+
+/** The settings step 3's "doesn't fit" fixes change, from the league's defaults: [field, value] pairs. */
+function rosterChanges(state: LeagueState, shape: { shared: boolean; smaller: boolean }): [string, unknown][] {
+  const out: [string, unknown][] = [];
+  if (shape.shared && state.settings.ownershipMode !== "shared") out.push(["ownershipMode", "shared"]);
+  if (shape.smaller) {
+    const s = state.settings;
+    if (!StateLogic.getLeagueType(state).hasActiveRoster) out.push(["teamSize", Math.max(1, s.teamSize - 1)]);
+    else if (s.benchSlots > 0) out.push(["benchSlots", s.benchSlots - 1]);
+    else out.push(["activeSlots", Math.max(1, s.activeSlots - 1)]);
+  }
+  return out;
 }
 
 function rosterLine(state: LeagueState, castaways: string) {

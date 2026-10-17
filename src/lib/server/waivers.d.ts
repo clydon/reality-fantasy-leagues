@@ -32,5 +32,6 @@ export function openWindow(
   leagueId: string,
   state: LeagueState,
   swaps: number | null,
-  now?: number
+  now?: number,
+  opts?: { replace?: boolean }
 ): Promise<{ period: WaiverPeriod; trimmed: string[]; error?: undefined } | { error: string; period?: undefined; trimmed?: undefined }>;

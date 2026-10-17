@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowRight, Check, ChevronLeft, Link2, Shuffle, X } from "lucide-react";
 import StateLogic from "@/lib/game/state-logic.js";
+import { ruleAnswers } from "@/components/waivers/waivers-words";
 import type { LeagueState } from "@/lib/game/types";
 import { api } from "@/lib/api";
 import { useLeagueStore, useIsPreviewingDemo } from "@/lib/store";
@@ -220,19 +221,16 @@ function Explainer() {
       detail: "Set your lineup before each episode airs. After that it's locked until the next one.",
       visual: <EventsCard sample={sample} onShuffle={shuffle} />,
     });
-    const pickups = StateLogic.replenishAvailable(raw);
-    const swaps = StateLogic.tradeAvailable(raw);
+    const pickups = StateLogic.WaiverLogic.replaceRule(raw) !== "never";
+    const swaps = StateLogic.WaiverLogic.windows(raw).swaps > 0;
     const from = shared ? `anyone still in the game who isn't already yours` : `${t.castaways} nobody has drafted`;
+    const rules = ruleAnswers(raw);
     if (pickups || swaps) {
       cards.push({
         id: "pickups",
         fake: true,
-        title: pickups
-          ? `If one of your ${t.castaways} goes home, you can pick up a replacement.`
-          : `Every ${settings.swapEvery ?? 3} episodes, you can drop one of your ${t.castaways} for someone new.`,
-        detail: pickups
-          ? `After each episode, waivers open: claim from ${from} in private, ranked, and every claim processes at once the day before the next episode.${swaps ? ` Every ${settings.swapEvery ?? 3} episodes you can add/drop too.` : ""}`
-          : `Then waivers open: claim from ${from} in private, ranked, and every claim processes at once the day before the next episode.`,
+        title: pickups ? `If one of your ${t.castaways} goes home, you can replace them.` : `You can swap one of your ${t.castaways} for someone new.`,
+        detail: `${pickups ? rules.out : rules.swap} Claim from ${from}, in private; every claim processes at once before the next episode.${pickups && swaps ? ` Swaps: ${rules.swap.charAt(0).toLowerCase()}${rules.swap.slice(1)}` : ""}`,
         visual: sample.pickup ? <PickupCard out={sample.pickup.out} replacement={sample.pickup.in} gone={pickups} /> : null,
       });
     }

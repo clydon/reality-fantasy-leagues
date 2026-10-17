@@ -71,10 +71,10 @@ export function pageTitle(
   if (results) return `Episode ${results[1]} results`;
   if (pathname === "/cast") return "The cast";
   if (pathname === "/draft/board") return "Draft board";
-  const waiverPage = /^(?:\/research)?\/waivers(?:\/(pickup|add-drop|free-agency|results\/(\d+)))?$/.exec(pathname);
+  const waiverPage = /^(?:\/research)?\/waivers(?:\/(claim|pickup|add-drop|free-agency|results\/(\d+)))?$/.exec(pathname);
   if (waiverPage) {
     if (waiverPage[2]) return `Episode ${waiverPage[2]} waivers`;
-    return { pickup: "Pickup", "add-drop": "Add/drop", "free-agency": "Free agency" }[waiverPage[1] ?? ""] ?? "Waivers";
+    return { claim: "Claim", pickup: "Claim", "free-agency": "Free agency" }[waiverPage[1] ?? ""] ?? "Waivers";
   }
   // /scoreboard/lines is the commissioner's episode lines, not a player.
   if (pathname === "/scoreboard/lines") return "Episode lines";

@@ -11,25 +11,28 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
-## Waivers v2: engine committed (not pushed), UI design picked 2026-10-16; next: build phase 2
+## Waivers v2: engine and UI committed (not pushed) 2026-10-16; next: phase 3 (pushes)
 
 One claim type (ranked "add X, drop Y" pairs), replacement rules (`replaceRule`), waiver windows
 (`waiverWindows`), `autoFill`, the commissioner's Open a waiver window, and `WaiverLogic.recommend()`.
-Plan: `docs/PLAN-waivers-v2.md`; its "As built: phase 1" has the file map, the calls made (the pre-v2 API
-kept working for the phase-2 screens; Add/drops off backfills to 0 swaps; a worked example that doesn't
-match its formula) and what was verified. `db/migrations/0063_waivers_v2.sql` is applied locally (0062 was
-applied with it); production gets it on deploy. Checks: `tests/waivers.test.js`;
-`node scripts/dev-test/check-waivers.js` (78, uses `waivers-fixture.js up --scenarios`).
-- **Committed locally, not pushed** (the user's call: hold the engine until the UI ships). `tsc`/eslint/
-  `npm test` were not re-run before this commit; run them first thing.
-- **Phase 2 design picked:** the plan's "Phase 2: picked design" is the spec (settings 1A, claims 2A + a
-  shared-ownership variant, Open a waiver window 3B, the quiet-week "When moves happen" strip, the new
-  words), drawn on the canvas https://claude.ai/artifact/KEsHGXFXjsDeuWe65JWZZz. **Four decisions are
-  still open there** (auto-fill default, shared pickups instant or not, grouping claims by spot, Classic's
-  "Only when short"): ask before building those parts.
-- **Done alongside, its own commit:** the caption tag's edge now meets its plate on one straight diagonal
-  everywhere (`tag-cut` / `tag-tuck` in `globals.css`; DESIGN.md → Shapes). Browser-checked at 390px, both
-  modes, on the waivers pages; the tour host strip and the front door's show roll weren't looked at.
+Plan: `docs/PLAN-waivers-v2.md`: "As built: phase 1" (engine) and "As built: phase 2" (UI: file map, the calls
+made, what was verified). Design: the canvas https://claude.ai/artifact/KEsHGXFXjsDeuWe65JWZZz; DESIGN.md →
+"Waivers (mid-season moves)" now describes v2. `db/migrations/0063_waivers_v2.sql` is applied locally; production
+gets it on deploy.
+- **Committed locally, not pushed** (the user's call: hold until they say). Two commits: the engine (d9cbb0c) and
+  the UI.
+- **The four design decisions, answered 2026-10-16:** auto-fill on for Casual only; shared pickups join at the
+  deadline; claims grouped by spot (replacements first, no way to put a swap first); "Only when short" hidden for
+  Classic (reads as Replace right away). Plus: the create wizard asks "How many teams?" and re-fits the suggestion
+  when the draft starts.
+- **Waiting on the user:** the What's New draft (release `2026-10-16b` in `src/lib/whats-new.ts`, uncommitted; it
+  also trims "Swaps are now called add/drops." from the live 2026-10-16 item, now wrong).
+- **Phase 3, next:** the "Waiver window open" push to the rotation and trimmed-claim notices (`openWindow` already
+  returns who was trimmed). The User Manual doc still says pickups/swaps.
+- Checks: `tests/waivers.test.js` (36); `node scripts/dev-test/check-waivers.js` (85);
+  `check-waivers-alerts.js`; `node scripts/dev-test/check-waivers-ui.js <outDir> [390] [--dark] [--only=classic|roster|rebuild|wizard]`.
+- Existing leagues keep their settings (Last Survivor Standing still reads Replace right away + every 3 + 1 swap)
+  until their commissioner applies the suggestion in League Settings › Waivers.
 
 ## Mid-season waivers: phases 1–4 built 2026-10-16 (not committed); every league is on waivers
 

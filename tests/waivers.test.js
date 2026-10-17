@@ -157,6 +157,17 @@ test("recommend(): the plan's worked examples (C = 18, E = 13)", () => {
   assert.equal(rec({ type: "classic-draft", shared: true, T: 4, R: 3 }), null);
   // Nothing left over: never, manual, no swaps.
   assert.deepEqual(brief(rec({ type: "classic-draft", T: 6, R: 3 })), ["never", 2, { schedule: "manual", every: 3, swaps: 0 }, 24]);
+  // Classic never lands on "only when short" (for it, the same as replace right away): plenty of free
+  // agents (4 × 2 of 18) is one stricter than always, which for Classic is still always.
+  assert.equal(rec({ type: "classic-draft", T: 4, R: 2 }).settings.replaceRule, "always");
+});
+
+test("recommend(): Classic's ladder skips only-when-short; auto-fill is Casual's alone", () => {
+  // Last Survivor Standing (4 × 3 of 18): Casual replaces right away, Balanced waits for a window,
+  // Competitive has none.
+  const lss = (feel) => W.recommend({ C: 18, E: 13, type: "classic-draft", T: 4, R: 3, feel }).settings;
+  assert.deepEqual(["casual", "balanced", "competitive"].map((f) => lss(f).replaceRule), ["always", "windows", "never"]);
+  assert.deepEqual(["casual", "balanced", "competitive"].map((f) => lss(f).autoFill), [true, false, false]);
 });
 
 test("recommend(): Casual and Competitive move it a step", () => {
@@ -167,6 +178,7 @@ test("recommend(): Casual and Competitive move it a step", () => {
   assert.equal(casual.waiverProcessHours, 48);
   assert.equal(casual.replenishOrderBy, "leastPoints");
   assert.equal(casual.autoFill, true);
+  assert.equal(W.recommend(base).settings.autoFill, false, "Balanced: a missed replacement isn't filled");
   const comp = W.recommend({ ...base, feel: "competitive" }).settings;
   assert.equal(comp.replaceRule, "never", "one stricter than windows");
   assert.deepEqual(comp.waiverWindows, { schedule: "every", every: 2, swaps: 1 });
@@ -262,15 +274,20 @@ test("replacement rules: always, only when short, only in windows, never", () =>
   out(always, "jelly", "mike", "k2");
   assert.deepEqual(W.replacementsOwed(always, "sam", null), { count: 1, lossIds: ["jelly"], outIds: ["jelly"] });
   assert.equal(W.replacementsOwed(always, "kim", null).count, 2);
-  // Only when short (Classic: roster 3, so down to 2): Sam (2 left) gets 1, Kim (1 left) gets 2.
-  const short = league({ settings: { replaceRule: "whenShort" } });
+  // Only when short is Active Roster's (a lineup to fill: 2 starting of 3, so down to 1): Sam (2 left)
+  // has enough; Kim (1 left) gets 1, back up to 2, for either loss.
+  const short = league({ type: "active-roster", settings: { replaceRule: "whenShort" } });
   out(short, "jelly", "mike", "k2");
-  assert.equal(W.shortAt(short), 2);
-  assert.equal(W.replacementsOwed(short, "sam", null).count, 1);
-  assert.equal(W.replacementsOwed(short, "kim", null).count, 2);
-  S.updateSettings(short, "replenishAt", 1);
+  assert.equal(W.shortAt(short), 1);
   assert.equal(W.replacementsOwed(short, "sam", null).count, 0, "2 still in is enough");
   assert.deepEqual(W.replacementsOwed(short, "kim", null), { count: 1, lossIds: ["mike"], outIds: ["mike", "k2"] }, "back up to 2, either loss");
+  // Classic has no lineup: "only when short" (roster - 1) is every loss, so it reads, and saves, as always.
+  const classicShort = league({ settings: { replaceRule: "whenShort" } });
+  out(classicShort, "jelly", "mike", "k2");
+  assert.equal(W.replaceRule(classicShort), "always");
+  assert.equal(W.replacementsOwed(classicShort, "kim", null).count, 2);
+  S.updateSettings(classicShort, "replaceRule", "whenShort");
+  assert.equal(classicShort.settings.replaceRule, "always");
   // Only in waiver windows: nothing until a window.
   const win = league({ settings: { replaceRule: "windows", waiverWindows: { schedule: "every", every: 3, swaps: 0 } } });
   out(win, "jelly");
@@ -565,6 +582,76 @@ test("Open a waiver window: any league, even one with waivers off, while it runs
   assert.equal(W.enabled(s), false, "off again afterwards");
   const pickem = league({ type: "pickem" });
   assert.match(W.openWindow(pickem, 1, T0).error, /doesn’t use waivers/);
+});
+
+test("Open a waiver window: its own say on replacements, whatever the rule", () => {
+  // Don't replace, but this window lets those who are out be replaced, with no swaps.
+  const never = league({ settings: { replaceRule: "never", waiverWindows: { schedule: "manual", swaps: 0 } } });
+  S.addElimination(never, "ep3", "jelly", "Voted Out");
+  assert.match(W.openWindow(never, 0, T0, { replace: false }).error, /nothing to claim/);
+  const p = W.openWindow(never, 0, T0, { replace: true }).period;
+  assert.equal(p.replace, true);
+  assert.equal(W.windowReplaces(never, p), true);
+  assert.deepEqual(W.replacementsOwed(never, "sam", p).lossIds, ["jelly"]);
+  // Wait for a window, but this one is swaps only: Jelly waits, and a claim for her is trimmed.
+  const win = league({ settings: { replaceRule: "windows", waiverWindows: { schedule: "manual", swaps: 3 } } });
+  S.addElimination(win, "ep3", "jelly", "Voted Out");
+  const q = W.openWindow(win, 3, T0).period;
+  assert.equal(W.windowReplaces(win, q), true, "left out: the rule decides");
+  const sam = claim(win, "sam", { pairs: [pair("rob", "jelly"), pair("maggie", "kilby")] });
+  W.openWindow(win, 3, T0, { replace: false });
+  assert.equal(W.replacementsOwed(win, "sam", q).count, 0);
+  assert.deepEqual(W.trimClaim(win, q, "sam", sam).claim.pairs, [pair("maggie", "kilby")]);
+  // Turning it off forgets its say.
+  W.openWindow(win, null, T0);
+  assert.equal(q.replace, undefined);
+});
+
+test("claims by spot: replacement groups first (oldest loss first), then the swaps; one spot set at a time", () => {
+  const s = afterEpisode3();
+  S.addElimination(s, "ep3", "kilby", "Voted Out");
+  const p = W.current(s);
+  // Saved out of order: a swap, then Kilby's replacement, then Jelly's.
+  const mixed = [pair("maggie", "s3"), pair("ori", "kilby"), pair("rob", "jelly")];
+  assert.deepEqual(W.groupPairs(s, p, "sam", mixed), [pair("rob", "jelly"), pair("ori", "kilby"), pair("maggie", "s3")]);
+  // Setting Jelly's spot replaces only its pairs; clearing Kilby's drops them.
+  let pairs = W.setSpot(s, p, "sam", mixed, "jelly", ["patt", "rob"]);
+  assert.deepEqual(pairs, [pair("patt", "jelly"), pair("rob", "jelly"), pair("ori", "kilby"), pair("maggie", "s3")]);
+  pairs = W.setSpot(s, p, "sam", pairs, "kilby", []);
+  assert.deepEqual(pairs, [pair("patt", "jelly"), pair("rob", "jelly"), pair("maggie", "s3")]);
+  // A swap keeps its place among the swaps.
+  const t = afterEpisode3();
+  const swaps = [pair("maggie", "lewis"), pair("ori", "jenna")];
+  assert.deepEqual(W.setSpot(t, W.current(t), "josie", swaps, "lewis", ["linnea"]), [pair("linnea", "lewis"), pair("ori", "jenna")]);
+});
+
+test("the suggestion: worked out for the teams given at creation, fitted to the real ones when the draft starts", () => {
+  const s = league();
+  s.draftPicksMade = 0;
+  s.players = s.players.slice(0, 2); // two have joined so far
+  S.updateSettings(s, "expectedTeams", 3);
+  assert.equal(W.teamsFor(s), 3);
+  S.updateSettings(s, "waiverRecommendation", "balanced");
+  assert.equal(s.settings.waiverFit, true);
+  // Three teams of 3 of 23: 14 free agents (s = 1.56), so replace right away.
+  assert.equal(s.settings.replaceRule, "always");
+  // The draft starts with five: 8 free agents (s = 0.53), so wait for a window.
+  s.players = Object.keys(TEAMS).map((id) => ({ id, name: id, color: "#000", active: true }));
+  s.draftPicksMade = 1;
+  assert.equal(W.teamsFor(s), 5);
+  assert.equal(W.refit(s), true);
+  assert.equal(s.settings.replaceRule, "windows");
+  assert.equal(s.settings.waiverFit, undefined);
+  // Touched by hand before the draft: left alone.
+  const t = league();
+  t.draftPicksMade = 0;
+  t.players = t.players.slice(0, 2);
+  S.updateSettings(t, "expectedTeams", 3);
+  S.updateSettings(t, "waiverRecommendation", "balanced");
+  S.updateSettings(t, "autoFill", true);
+  assert.equal(t.settings.waiverFit, undefined);
+  t.draftPicksMade = 1;
+  assert.equal(W.refit(t), false);
 });
 
 test("Undo last waiver run puts everything back exactly, and holds the week until Process now or airtime", () => {

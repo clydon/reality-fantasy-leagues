@@ -113,7 +113,7 @@ const TABS: { tab: string; line: string; detail: string }[] = [
     tab: "tab-more",
     line: "More: everything else.",
     detail:
-      "Waivers for pickups, League Settings for the rules and invite code, What's new, and these tours. Chat is the bubble at the top.",
+      "Waivers for replacements, League Settings for the rules and invite code, What's new, and these tours. Chat is the bubble at the top.",
   },
 ];
 const GETTING_AROUND: TourStep[] = TABS.map((t, i) => ({
@@ -197,14 +197,15 @@ export const PLAYER_TOUR: TourStep[] = [
   {
     id: "pickup",
     progress: "Episode 2 of 2",
-    route: at("/waivers/pickup"),
+    // The picker: /waivers/pickup when the tour sends you, /waivers/claim from the team's Replace.
+    route: (p) => p === "/waivers/pickup" || p === "/waivers/claim",
     line: (c) => `Claim ${pickupName(c.full) ?? "a free agent"}. Tap, then confirm.`,
     detail: () =>
       "Claims are private, and everyone's process at once the day before the next episode. Here they process right away.",
     targets: ["picker-tiles", "picker-confirm"],
     nav: {
       line: () => "A baker went home. Claim a replacement in Waivers, under More.",
-      detail: () => "When one of yours goes home, you claim one nobody drafted, if your commissioner has turned pickups on.",
+      detail: () => "When one of yours goes home, you can replace them with someone nobody drafted.",
       targets: ["tab-more", "more-waivers", "waivers-pickup"],
     },
     done: (c) => pickedUp(c.full),
@@ -305,7 +306,7 @@ export const COMMISSIONER_TOUR: TourStep[] = [
     id: "research",
     progress: "Episode 1",
     line: () => "Applied. Research ranks every baker by points. Tap it.",
-    detail: () => "Scores just updated for everyone. Research helps players plan lineups and pickups.",
+    detail: () => "Scores just updated for everyone. Research helps players plan lineups and replacements.",
     targets: ["tab-research"],
     done: (c) => c.pathname === "/research",
   },

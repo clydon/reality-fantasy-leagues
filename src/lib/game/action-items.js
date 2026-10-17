@@ -78,16 +78,16 @@ function playerItems(state, playerId, seenThrough) {
   return [...liveItems(state, playerId), ...waiverItems(state, playerId, seenThrough)];
 }
 
-// Waivers (docs/PLAN-midseason-waivers.md): only a pickup you owe, the one claim that isn't optional --
-// while waivers are open and you've no claim in, then in free agency while it's still unfilled. Add/drops
-// never make an item. A pickup says one of yours left, so nothing until you've revealed the week's
+// Waivers (docs/PLAN-midseason-waivers.md, PLAN-waivers-v2.md): only someone you can replace, the one
+// claim that isn't optional -- while claims are open and you've no claim in, then in free agency while
+// it's still unfilled. Swaps never make an item. It says one of yours left, so nothing until you've revealed the week's
 // episode (`seenThrough` null: you see results as they come). `by` is the deadline, for the strip to
 // put in the viewer's own time ("Replace Jelly by Tue 8 PM"); `detail` follows the league's name.
 function waiverItems(state, playerId, seenThrough) {
   const W = StateLogic.WaiverLogic;
   const p = W.enabled(state) ? W.current(state) : null;
   if (!p || (Number.isInteger(seenThrough) && seenThrough < p.episode)) return [];
-  const owed = W.pickupsOwed(state, playerId);
+  const owed = W.replacementsOwed(state, playerId, p);
   if (!owed.count) return [];
   const names = owed.lossIds.map((id) => (StateLogic.getCastaway(state, id)?.name ?? "").split(" ")[0]).filter(Boolean);
   const text = names.length > 1 ? `Replace ${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : `Replace ${names[0] ?? "your castaway"}`;
@@ -99,15 +99,15 @@ function waiverItems(state, playerId, seenThrough) {
       {
         kind: "pickup",
         text,
-        href: `${base}/pickup`,
+        href: `${base}/claim?drop=${encodeURIComponent(owed.lossIds[0])}`,
         by: p.hold ? p.closesAt : p.processAt,
-        detail: shared ? "choose who you want" : `claim up to ${W.maxPickupClaims(owed.count)}`,
+        detail: shared ? "pick who you want" : "first choice, then backups",
         episode: p.episode,
       },
     ];
   }
   if (!W.freeAgencyOn(state)) return [];
-  return [{ kind: "pickup", text, href: `${base}/free-agency`, by: p.closesAt, detail: "free agency · first come", episode: p.episode }];
+  return [{ kind: "pickup", text, href: `${base}/free-agency?drop=${encodeURIComponent(owed.lossIds[0])}`, by: p.closesAt, detail: "free agency · first come", episode: p.episode }];
 }
 
 // The checks themselves, on whichever copy of the league the player is playing in.

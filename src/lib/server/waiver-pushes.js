@@ -136,10 +136,14 @@ function processedMessages(state, period, name, people) {
     const mine = period.run.results.filter((r) => r.playerId === m.playerId);
     const got = mine.filter((r) => r.outcome === "got" && r.castawayId);
     const missed = mine.some((r) => r.outcome === "missed");
-    const owed = W.pickupsOwed(state, m.playerId).count;
+    const owed = W.replacementsOwed(state, m.playerId, period).count;
     const until = `Episode ${n + 1} ${period.closesAt ? "airs" : "is in"}`;
-    const fill = W.freeAgencyOn(state) ? `choose one from free agency before ${until}.` : `one is assigned when ${until}.`;
-    const stillOwed = owed ? `You still have a pickup: ${fill}` : "";
+    const fill = W.freeAgencyOn(state)
+      ? `choose from free agency before ${until}.`
+      : W.autoFillOn(state)
+        ? `you get the top free agent when ${until}.`
+        : "no claim, no replacement this week.";
+    const stillOwed = owed ? `You still have someone to replace: ${fill}` : "";
     let title;
     let body;
     if (got.length) {
@@ -149,11 +153,11 @@ function processedMessages(state, period, name, people) {
       title = "Your claim didn’t go through";
       body = `${name}: someone got there first. ${stillOwed || fa}`;
     } else if (owed) {
-      title = "You still have a pickup";
+      title = "You still have someone to replace";
       body = `${name}: waivers processed, ${fill}`;
-    } else if (period.addDrop && fa && !W.addDropUsed(state, period, m.playerId)) {
+    } else if (fa && W.swapsLeft(state, period, m.playerId) > 0) {
       title = "Waivers processed";
-      body = `${name}: ${fa} Your add/drop is still unused.`;
+      body = `${name}: ${fa} Your swap is still unused.`;
     } else continue;
     out.push({ userId: m.userId, message: { title, body: body.trim(), url: `${base}/results/${n}` } });
   }
@@ -200,9 +204,9 @@ async function remindWaivers(db, league, now, opts = {}) {
     if (m.seen < n) {
       kind = "waiverReveal";
       body = `${league.name}: reveal Episode ${n} before then to make any claims.`;
-    } else if (W.pickupsOwed(state, m.playerId).count && !p.claimsIn.includes(m.playerId)) {
+    } else if (W.replacementsOwed(state, m.playerId, p).count && !p.claimsIn.includes(m.playerId)) {
       kind = "waiverPickup";
-      body = `${league.name}: you have a pickup to claim.`;
+      body = `${league.name}: you have someone to replace.`;
     } else continue;
     if (!opts.dry) {
       const { rowCount } = await db.query(
@@ -213,7 +217,7 @@ async function remindWaivers(db, league, now, opts = {}) {
       if (!rowCount) continue;
     }
     const message = {
-      title: `Waivers process at ${clock(p.processAt, tz, false)}`,
+      title: `Claims due at ${clock(p.processAt, tz, false)}`,
       body,
       url: link(kind === "waiverPickup" ? `${waiversHref(state)}/pickup` : waiversHref(state), league.id),
       tag: `waivers-${league.id}`,
@@ -242,13 +246,13 @@ async function nudgeMessage(db, leagueId, state, playerId, byName) {
   const what =
     m[0].seen < n
       ? `Reveal Episode ${n} before then to make any claims.`
-      : W.pickupsOwed(state, playerId).count
-        ? "You have a pickup to claim."
-        : "Add/drops are open, if you want one.";
+      : W.replacementsOwed(state, playerId, p).count
+        ? "You have someone to replace."
+        : "A waiver window is open, if you want to swap.";
   return {
     userIds: m.map((x) => x.userId),
     message: {
-      title: p.hold || !p.processAt ? "Waivers are open" : `Waivers process ${clock(p.processAt, tz)}`,
+      title: p.hold || !p.processAt ? "Waivers are open" : `Claims due ${clock(p.processAt, tz)}`,
       body: `${name}: ${byName} nudged you. ${what}`,
       url: link(waiversHref(state), leagueId),
       tag: `waivers-${leagueId}`,

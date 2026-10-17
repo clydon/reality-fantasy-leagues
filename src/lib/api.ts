@@ -303,7 +303,8 @@ export const api = {
   // list, or the add/drop): the part left out keeps what's saved (waivers.js saveClaim).
   getWaiverClaim: (leagueId: string) =>
     localFetch<{ periodId: string | null; claim: WaiverClaim | null; hidden: boolean }>(`/api/leagues/${leagueId}/waivers`),
-  saveWaiverClaim: (leagueId: string, claim: Partial<WaiverClaim>, playerId?: string) =>
+  /** `{ pairs }` replaces the whole claim; `{ spot }` sets one spot's choices and keeps the rest (Claim for). */
+  saveWaiverClaim: (leagueId: string, claim: Partial<WaiverClaim> | { spot: { dropId: string; addIds: string[] } }, playerId?: string) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/claims`, {
       method: "PUT",
       body: JSON.stringify({ ...claim, playerId }),
@@ -315,8 +316,8 @@ export const api = {
     }),
   processWaivers: (leagueId: string) => localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/process`, { method: "POST" }),
   /** Open a waiver window with `swaps` each (or change it); null turns it off (docs/PLAN-waivers-v2.md). */
-  openWaiverWindow: (leagueId: string, swaps: number | null) =>
-    localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/window`, { method: "POST", body: JSON.stringify({ swaps }) }),
+  openWaiverWindow: (leagueId: string, swaps: number | null, replace?: boolean) =>
+    localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/window`, { method: "POST", body: JSON.stringify({ swaps, replace }) }),
   undoWaiverRun: (leagueId: string) => localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/undo`, { method: "POST" }),
   nudgeWaivers: (leagueId: string, playerId: string) =>
     localFetch<LeagueState>(`/api/leagues/${leagueId}/waivers/nudge`, { method: "POST", body: JSON.stringify({ playerId }) }),

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
+import type { WaiverFeel } from "@/lib/game/types";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
@@ -30,6 +31,17 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
   const state = await withLeagueLock(leagueId, async (s, client) => {
     const seasonBefore = `${s.settings.showId ?? ""}|${s.settings.wikiSeason ?? ""}`;
     StateLogic.updateSettings(s, field, value);
+
+    // Applying the waiver suggestion (the create wizard does, before its season's cast may be approved):
+    // with no cast in the league yet, the season's own cast size stands in (docs/PLAN-waivers-v2.md).
+    if (field === "waiverRecommendation" && s.castaways.length === 0 && s.settings.showId && s.settings.wikiSeason != null) {
+      const { rows } = await client.query(
+        `SELECT ss.cast_size FROM show_seasons ss JOIN shows sh ON sh.id = ss.show_id WHERE sh.slug = $1 AND ss.season_number = $2`,
+        [s.settings.showId, s.settings.wikiSeason]
+      );
+      const castSize = Number(rows[0]?.cast_size);
+      if (castSize > 0) StateLogic.WaiverLogic.applyRecommendation(s, typeof value === "string" ? (value as WaiverFeel) : null, { castSize });
+    }
 
     // The show's format rides along with it, cached so the game logic (which can't read the
     // database) knows the league's rules. Kept in step afterwards by the admin show route.

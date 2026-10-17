@@ -1,12 +1,7 @@
-import { AddDropPicker } from "@/components/waivers/claim-pickers";
-import { WaiversRoute } from "@/components/waivers/waivers-route";
+import { MidSeasonRedirect } from "@/components/waivers/waivers-route";
 
-// docs/PLAN-midseason-waivers.md. `?for=` is the commissioner claiming for someone.
-export default async function Page({ searchParams }: PageProps<"/waivers/add-drop">) {
-  const { for: forId } = await searchParams;
-  return (
-    <WaiversRoute sub="/add-drop">
-      <AddDropPicker forId={typeof forId === "string" ? forId : null} />
-    </WaiversRoute>
-  );
+// Pre-v2's add/drop picker: a swap is now picked from the Waivers page's team (docs/PLAN-waivers-v2.md),
+// so an old link lands there.
+export default function Page() {
+  return <MidSeasonRedirect />;
 }

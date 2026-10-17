@@ -1905,8 +1905,10 @@ class WaiverLogic {
   static config(state){
     const st = state.settings || {};
     const legacy = WaiverLogic.legacyConfig(state);
+    const rule = REPLACE_RULES.includes(st.replaceRule) ? st.replaceRule : legacy.replaceRule;
     return {
-      replaceRule: REPLACE_RULES.includes(st.replaceRule) ? st.replaceRule : legacy.replaceRule,
+      // Classic has no lineup to be short of: "only when short" (N = roster - 1) is replace-every-loss.
+      replaceRule: rule === 'whenShort' && !getLeagueType(state).hasActiveRoster ? 'always' : rule,
       waiverWindows: st.waiverWindows && typeof st.waiverWindows === 'object' ? WaiverLogic.normalizeWindows(state, st.waiverWindows) : legacy.waiverWindows,
       waiverFeel: WAIVER_FEELS.includes(st.waiverFeel) ? st.waiverFeel : 'balanced',
       autoFill: st.autoFill !== false,
@@ -1971,11 +1973,19 @@ class WaiverLogic {
     const st = state.settings;
     const c = WaiverLogic.config(state);
     const w = c.waiverWindows;
+    // A setting changed by hand: the league is no longer on a suggestion to re-fit when the draft starts.
+    if(['replaceRule', 'waiverWindows', 'autoFill', 'replenishAt', 'waiverProcessHours', 'replenishOrderBy', 'freeAgencyEnabled',
+      'replenishEnabled', 'tradeEnabled', 'swapEvery'].includes(field)) delete st.waiverFit;
     switch(field){
       case 'replaceRule':
         if(!REPLACE_RULES.includes(value)) return true;
-        st.replaceRule = value;
+        st.replaceRule = value === 'whenShort' && !getLeagueType(state).hasActiveRoster ? 'always' : value;
         break;
+      case 'expectedTeams': {
+        const n = Math.floor(Number(value));
+        if(Number.isFinite(n) && n >= 1 && n <= 30) st.expectedTeams = n;
+        return true;
+      }
       case 'waiverWindows':
         st.waiverWindows = WaiverLogic.normalizeWindows(state, { ...w, ...(value && typeof value === 'object' ? value : {}) });
         break;
@@ -2035,11 +2045,14 @@ class WaiverLogic {
 
     // Free agents per drafted spot, with about half of everyone gone by the merge.
     const s = C / (T * R) - 1;
-    const step = (r, d) => REPLACE_RULES[Math.min(REPLACE_RULES.length - 1, Math.max(0, REPLACE_RULES.indexOf(r) + d))];
+    const step = (r, d, ladder) => ladder[Math.min(ladder.length - 1, Math.max(0, ladder.indexOf(r) + d))];
     let rule = shared ? 'whenShort' : s >= 1 ? 'always' : s >= 0.3 ? 'whenShort' : s > 0 ? 'windows' : 'never';
-    if(type === 'classic-draft') rule = step(rule, 1);
-    if(feel === 'casual') rule = step(rule, -1);
-    if(feel === 'competitive') rule = step(rule, 1);
+    // Classic: one step stricter (its scoring is about outlasting), on a ladder without "only when
+    // short", which for Classic is replace-every-loss (config()).
+    const ladder = type === 'classic-draft' ? ['always', 'windows', 'never'] : REPLACE_RULES;
+    if(type === 'classic-draft'){ rule = step(rule, 1, REPLACE_RULES); if(rule === 'whenShort') rule = 'always'; }
+    if(feel === 'casual') rule = step(rule, -1, ladder);
+    if(feel === 'competitive') rule = step(rule, 1, ladder);
 
     let waiverWindows;
     if(!shared && s <= 0) waiverWindows = { schedule: 'manual', every: 3, swaps: 0 };
@@ -2059,13 +2072,22 @@ class WaiverLogic {
       settings: {
         replaceRule: rule, replenishAt: Math.max(0, S - 1), waiverWindows, waiverProcessHours,
         replenishOrderBy: feel === 'casual' ? 'leastPoints' : 'rolling', freeAgencyEnabled: true,
-        autoFill: feel !== 'competitive', waiverFeel: feel,
+        // Only Casual fills a missed replacement: elsewhere, no claim in means playing short.
+        autoFill: feel === 'casual', waiverFeel: feel,
       },
     };
   }
   // recommend() for a league as it stands. The cast is everyone still in at the league's first episode;
   // `episodes` (the season's episode count, which only the catalog knows) defaults to the schedule's
   // length, at least 13.
+  // Teams the recommendation is for: everyone in waivers once the draft has started; before then, the
+  // count the commissioner gave when creating the league (settings.expectedTeams), while fewer have joined.
+  static teamsFor(state, opts){
+    if(opts && opts.teams > 0) return opts.teams;
+    const n = WaiverLogic.rotation(state).length || state.players.length;
+    const e = Number(state.settings && state.settings.expectedTeams);
+    return Number.isInteger(e) && e > n && !DraftLogic.isStarted(state) ? e : n;
+  }
   static recommendFor(state, feel, opts){
     const o = opts || {};
     const start = startEpisode(state);
@@ -2074,7 +2096,7 @@ class WaiverLogic {
     const roster = !!getLeagueType(state).hasActiveRoster;
     const R = rosterSize(state);
     return WaiverLogic.recommend({
-      C, T: WaiverLogic.rotation(state).length || state.players.length, R,
+      C, T: WaiverLogic.teamsFor(state, o), R,
       S: roster ? ActiveRosterLogic.activeSlots(state) : R,
       E: o.episodes || Math.max(13, ...state.episodes.map(e => e.number)), start,
       shared: MidSeasonLogic.isShared(state),
@@ -2088,7 +2110,20 @@ class WaiverLogic {
     if(!r || !r.feasible) return false;
     Object.assign(state.settings, r.settings);
     WaiverLogic.mirrorLegacy(state);
+    // Worked out for a team count given at creation: fitted again to the real one when the draft starts.
+    if(!DraftLogic.isStarted(state) && WaiverLogic.teamsFor(state) !== (WaiverLogic.rotation(state).length || state.players.length)) state.settings.waiverFit = true;
+    else delete state.settings.waiverFit;
     return true;
+  }
+  // The draft has started: a league still on the suggestion it got for the team count given at creation
+  // gets the suggestion for the teams it really has. Run by the server's waiver clock (waivers.js
+  // syncWaivers) on every write. True when it changed the settings.
+  static refit(state){
+    const st = state.settings;
+    if(!st || !st.waiverFit || !DraftLogic.isStarted(state)) return false;
+    const still = WaiverLogic.isRecommended(state, { teams: Number(st.expectedTeams) || undefined });
+    delete st.waiverFit;
+    return still ? WaiverLogic.applyRecommendation(state) : false;
   }
   /** Whether the league's settings are its recommendation, for its feel (else the card says "Customized"). */
   static isRecommended(state, opts){
@@ -2142,6 +2177,12 @@ class WaiverLogic {
     return ((state.midSeason && state.midSeason.log) || []).filter(tx => tx.type === 'trade' && tx.playerId === playerId
       && (tx.periodId === period.id || (!tx.periodId && tx.episode === period.episode))).length;
   }
+  /** Whether replacements happen in this week: its own say (a window the commissioner opened), else the rule. */
+  static windowReplaces(state, period){
+    if(WaiverLogic.isWindow(period) && typeof period.replace === 'boolean') return period.replace;
+    const rule = WaiverLogic.replaceRule(state);
+    return rule === 'always' || rule === 'whenShort' || (rule === 'windows' && WaiverLogic.isWindow(period));
+  }
   static swapsLeft(state, period, playerId){
     return period ? Math.max(0, WaiverLogic.swapsAllowed(period) - WaiverLogic.swapsMade(state, period, playerId)) : 0;
   }
@@ -2159,9 +2200,14 @@ class WaiverLogic {
   //   whenShort -- only once down to shortAt() still in, and only back up to one more than that
   //   windows   -- every loss, but only in a window
   //   never     -- none
+  // A window the commissioner opened may say otherwise (period.replace, windowReplaces): on, every loss
+  // can be replaced in it whatever the rule; off, none can.
   static replacementsOwed(state, playerId, period){
     const none = { count: 0, lossIds: [], outIds: [] };
-    const rule = WaiverLogic.replaceRule(state);
+    let rule = WaiverLogic.replaceRule(state);
+    const own = WaiverLogic.isWindow(period) && typeof period.replace === 'boolean' ? period.replace : null;
+    if(own === false) return none;
+    if(own === true && (rule === 'never' || rule === 'windows')) rule = 'always';
     if(rule === 'never' || MidSeasonLogic.seasonOver(state)) return none;
     if(!inLeagueRotation(Core.getPlayer(state, playerId))) return none;
     if(rule === 'windows' && !WaiverLogic.isWindow(period)) return none;
@@ -2249,6 +2295,7 @@ class WaiverLogic {
       phase: 'open', window, swaps, addDrop: swaps > 0, claimsIn: [], run: null, autoFills: []
     };
     if(o.by === 'commissioner') p.openedBy = 'commissioner';
+    if(window && typeof o.replace === 'boolean') p.replace = o.replace;
     Object.assign(p, WaiverLogic.schedule(state, p));
     state.midSeason.waivers.periods.push(p);
     return p;
@@ -2269,10 +2316,15 @@ class WaiverLogic {
   // weekly, else it's over (closed on the spot, `turnedOff`, so the schedule doesn't open it again).
   // Never once the week has processed. { period, closed? } or { error }. The server trims claims that no
   // longer fit (waivers.js openWindow).
-  static openWindow(state, swaps, now){
+  // opts.replace (the sheet's "Replace castaways who are out"): true or false is this window's own say
+  // on replacements (replacementsOwed); left out, the league's rule decides. A window that would allow
+  // nothing -- no swaps, replacements off -- is refused.
+  static openWindow(state, swaps, now, opts){
     if(!WaiverLogic.supported(state)) return { error: 'This league doesn’t use waivers' };
     const R = rosterSize(state);
     if(swaps !== null && !(Number.isInteger(swaps) && swaps >= 0 && swaps <= R)) return { error: `Choose 0 to ${R} swaps` };
+    const replace = opts && typeof opts.replace === 'boolean' ? opts.replace : undefined;
+    if(swaps === 0 && replace === false) return { error: 'Allow replacements or swaps: this window has nothing to claim' };
     const cur = WaiverLogic.current(state);
     const done = 'This episode’s waivers have processed: open a window after the next episode';
     if(cur && cur.phase !== 'open') return { error: done };
@@ -2280,6 +2332,7 @@ class WaiverLogic {
       if(swaps === null){
         if(!WaiverLogic.isWindow(cur)) return { error: 'There’s no waiver window to turn off' };
         Object.assign(cur, { window: false, swaps: 0, addDrop: false, openedBy: 'commissioner' });
+        delete cur.replace;
         if(!WaiverLogic.weekly(state)){
           cur.phase = 'closed';
           cur.turnedOff = true;
@@ -2288,6 +2341,8 @@ class WaiverLogic {
         return { period: cur };
       }
       Object.assign(cur, { window: true, swaps, addDrop: swaps > 0, openedBy: 'commissioner' });
+      if(replace === undefined) delete cur.replace;
+      else cur.replace = replace;
       delete cur.turnedOff;
       return { period: cur };
     }
@@ -2298,7 +2353,7 @@ class WaiverLogic {
     const ps = WaiverLogic.periods(state);
     const prev = ps[ps.length - 1];
     if(prev && prev.episode >= last) return { error: done };
-    return { period: WaiverLogic.open(state, now === undefined ? Date.now() : now, { window: true, swaps, by: 'commissioner' }) };
+    return { period: WaiverLogic.open(state, now === undefined ? Date.now() : now, { window: true, swaps, replace, by: 'commissioner' }) };
   }
 
   // ---- Claims ----
@@ -2387,6 +2442,29 @@ class WaiverLogic {
       if(new Set(parsed.pairs.map(x => x.addId)).size > max) return { error: `Claim up to ${max}` };
     }
     return { claim: WaiverLogic.claimOf(state, parsed.pairs) };
+  }
+  // ---- Claims by spot (PLAN-waivers-v2.md "2A") ----
+  // What a person ranks is one spot at a time: "replacing Patt: Sharonda, then Rob"; "swap: Maggie for
+  // Lewis, then Kilby for Mike". As pairs, in the order processing tries them: each replacement's group
+  // (oldest loss first), then the swaps, each group in its own order. A pair whose drop is out of the
+  // game is a replacement; any other, a swap.
+  static groupPairs(state, period, playerId, pairs){
+    const outIds = WaiverLogic.replacementsOwed(state, playerId, period).outIds;
+    const isOut = id => { const c = Core.getCastaway(state, id); return !!c && c.status !== 'active'; };
+    const reps = pairs.filter(x => isOut(x.dropId));
+    const rank = id => { const i = outIds.indexOf(id); return i < 0 ? outIds.length : i; };
+    const drops = [...new Set(reps.map(x => x.dropId))].sort((a, b) => rank(a) - rank(b));
+    return [...drops.flatMap(d => reps.filter(x => x.dropId === d)), ...pairs.filter(x => !isOut(x.dropId))];
+  }
+  // One spot's choices set (an empty list clears it): every pair dropping `dropId` goes, and its adds,
+  // in order, take their place -- a swap's where its first pair was, else after the other swaps.
+  // Used by the claim screen and by the commissioner's Claim for, which can't see the rest of the claim.
+  static setSpot(state, period, playerId, pairs, dropId, addIds){
+    const fresh = uniqIds(addIds).map(addId => ({ addId, dropId }));
+    const at = pairs.findIndex(x => x.dropId === dropId);
+    const rest = pairs.filter(x => x.dropId !== dropId);
+    const i = at < 0 ? rest.length : at; // nothing before the first of them dropped `dropId`
+    return WaiverLogic.groupPairs(state, period, playerId, [...rest.slice(0, i), ...fresh, ...rest.slice(i)]);
   }
   static isEmptyClaim(claim){
     return !claim || !((claim.pairs || []).length || (claim.pickupIds || []).length || claim.dropId || (claim.addIds || []).length);

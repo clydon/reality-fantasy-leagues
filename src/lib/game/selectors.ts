@@ -81,16 +81,16 @@ function stripWikiRevisionSuffix(raw: string): string {
 const MEDAL_EMOJI: Record<string, string> = { gold: "🥇", silver: "🥈", bronze: "🥉" };
 export { MEDAL_EMOJI };
 
-// Waivers' tab mark (docs/PLAN-midseason-waivers.md): "needs you" only for a pickup you owe -- the
+// Waivers' tab mark (docs/PLAN-midseason-waivers.md): "needs you" only for someone you can replace -- the
 // one claim that isn't optional -- while you have no claim in, or once waivers have processed and it's
 // still unfilled. Read from the viewer's own copy, so a week they haven't revealed never flags.
 export function waiversBadge(state: LeagueState, myPlayerId: string | null): { label: string; urgent: boolean } | null {
   const W = StateLogic.WaiverLogic;
   const p = W.enabled(state) ? W.current(state) : null;
   if (!p || p.hidden) return null;
-  const owed = myPlayerId ? W.pickupsOwed(state, myPlayerId).count : 0;
-  if (p.phase === "open") return owed && !p.claimsIn.includes(myPlayerId!) ? { label: "Pickup", urgent: true } : { label: "Open", urgent: false };
-  return owed && W.freeAgencyOn(state) ? { label: "Pickup", urgent: true } : { label: "Free agency", urgent: false };
+  const owed = myPlayerId ? W.replacementsOwed(state, myPlayerId, p).count : 0;
+  if (p.phase === "open") return owed && !p.claimsIn.includes(myPlayerId!) ? { label: "Replace", urgent: true } : { label: "Open", urgent: false };
+  return owed && W.freeAgencyOn(state) ? { label: "Replace", urgent: true } : { label: "Free agency", urgent: false };
 }
 
 export function medalFor(state: LeagueState, placementOrder: number | undefined): "gold" | "silver" | "bronze" | null {

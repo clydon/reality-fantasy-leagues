@@ -12,6 +12,7 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { MoreButton, ToggleRow } from "@/components/setup/settings-ui";
 import { cn } from "cn";
+import { RankedBy, WINDOWS, WindowTabs, airedEpisodes, buildRows, eventRank, rulesIn, type EpisodeLine, type Row, type Window } from "./research-rows";
 
 // Active Roster's scouting page (the canvas's "A · Draft, scouting & mid-season": Scouting): every
 // castaway ranked by the points they've actually scored over a window of recent episodes -- who's
@@ -27,32 +28,8 @@ import { cn } from "cn";
 // The view is a per-browser convenience (localStorage), not league state. Preseason isn't remembered:
 // each visit starts on what counts in this league.
 
-type Window = "season" | "5" | "3" | "1";
 type Who = "all" | "free" | "mine" | `team:${string}`;
 const PREFS_KEY = "rfl.research.prefs";
-const WINDOWS: [Window, string][] = [
-  ["season", "Season"],
-  ["5", "Last 5"],
-  ["3", "Last 3"],
-  ["1", "Last ep"],
-];
-
-interface EpisodeLine {
-  n: number;
-  points: number;
-  /** Still in the game for it. */
-  played: boolean;
-  events: { type: string; label: string; points: number }[];
-}
-
-interface Row {
-  c: Castaway;
-  points: number;
-  played: number;
-  avg: number;
-  perEpisode: EpisodeLine[];
-}
-
 export function ResearchTab() {
   const state = useLeagueStore((s) => s.state);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
@@ -67,7 +44,6 @@ export function ResearchTab() {
   const [teamsOpen, setTeamsOpen] = useState(false);
   // Rank by one scoring rule (an event id) instead of points. Not remembered: rules differ by show.
   const [rankBy, setRankBy] = useState<string | null>(null);
-  const [rankOpen, setRankOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -123,9 +99,7 @@ export function ResearchTab() {
   const free = (c: Castaway) => c.ownerIds.length === 0;
   // The rules that happened at least once in this window, in the show's own order -- what you can
   // rank by. A rule that's gone from the window drops you back to points.
-  const rank = eventRank(state);
-  const rules = [...new Map(rows.flatMap((r) => r.perEpisode.flatMap((e) => e.events.map((x) => [x.type, x] as const)))).values()]
-    .sort((a, b) => rank(a.type) - rank(b.type));
+  const rules = rulesIn(state, rows);
   const rule = rankBy ? rules.find((x) => x.type === rankBy) ?? null : null;
   // Under a rule, each episode's "points" is how many times it happened, so the bars and the column
   // both show that rule alone.
@@ -183,24 +157,7 @@ export function ResearchTab() {
         <MoreButton label="Research options" onClick={() => setOptionsOpen(true)} />
       </div>
 
-      {windows.length > 1 && (
-        <div role="tablist" aria-label="Which episodes" className="flex rounded-[3px] bg-card p-[3px]">
-          {windows.map(([w, label]) => (
-            <button
-              key={w}
-              role="tab"
-              aria-selected={shownWindow === w}
-              className={cn(
-                "min-h-10 flex-1 rounded-[2px] text-sm font-semibold",
-                shownWindow === w ? "bg-foreground font-bold text-background" : "text-foreground hover:bg-muted"
-              )}
-              onClick={() => setWindow(w)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
+      <WindowTabs windows={windows} value={shownWindow} onChange={setWindow} />
 
       <div role="group" aria-label="Whose" className="flex flex-wrap gap-2">
         <FilterChip on={who === "all"} onClick={() => setWho("all")}>
@@ -234,17 +191,7 @@ export function ResearchTab() {
         <div data-tour="research-list">
           {/* The header is the ranking control: what the right-hand column counts, tap to change it. */}
           <div className="flex min-h-11 items-center gap-3 text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">
-            <button
-              type="button"
-              onClick={() => setRankOpen(true)}
-              className="-ml-1 flex min-h-11 min-w-0 flex-1 items-center gap-1 rounded-[2px] px-1 text-left uppercase outline-none hover:text-foreground focus-visible:bg-accent"
-            >
-              <span className="shrink-0">Ranked by</span>
-              <span className={cn("truncate normal-case tracking-normal text-[13px]", rule ? "text-chyron-line" : "text-foreground")}>
-                {rule ? rule.label : perEpisode ? "Points per episode" : "Points"}
-              </span>
-              <ChevronDown className="size-4 shrink-0" strokeWidth={2.4} aria-hidden />
-            </button>
+            <RankedBy rules={rules} rule={rule} pointsLabel={perEpisode ? "Points per episode" : "Points"} onChange={setRankBy} className="flex-1" />
             {bars && <span className="shrink-0 text-center">{range}</span>}
             <span className="w-11 shrink-0 text-right">{rule ? "Times" : perEpisode ? "Avg" : "Pts"}</span>
           </div>
@@ -296,29 +243,6 @@ export function ResearchTab() {
         </button>
       </BottomSheet>
 
-      <BottomSheet open={rankOpen} onOpenChange={setRankOpen} title="Rank by">
-        <SheetAction
-          detail={!rule ? "Showing" : undefined}
-          onClick={() => {
-            setRankBy(null);
-            setRankOpen(false);
-          }}
-        >
-          {perEpisode ? "Points per episode" : "Points"}
-        </SheetAction>
-        {rules.map((x) => (
-          <SheetAction
-            key={x.type}
-            detail={rule?.type === x.type ? "Showing" : undefined}
-            onClick={() => {
-              setRankBy(x.type);
-              setRankOpen(false);
-            }}
-          >
-            {x.label}
-          </SheetAction>
-        ))}
-      </BottomSheet>
 
       <BottomSheet open={teamsOpen} onOpenChange={setTeamsOpen} title="Show one team">
         {players
@@ -434,16 +358,6 @@ function habitsOf(played: EpisodeLine[], rank: (type: string) => number) {
   return [...by.values()].sort((a, b) => a.rank - b.rank);
 }
 
-/** Where an event sits in the show's scoring groups (format.eventCategories, the League Scoring
- *  table's order): group * 1000 + its place in the group. Events in no group come last. */
-function eventRank(state: LeagueState) {
-  const f = StateLogic.formatOf(state);
-  const cats: { events: string[] }[] = f.eventCategories ?? [];
-  const order = new Map<string, number>();
-  cats.forEach((c, g) => c.events.forEach((id, k) => order.set(id, g * 1000 + k)));
-  const fallback = (type: string) => 999_000 + Math.max(0, f.events.findIndex((d: { id: string }) => d.id === type));
-  return (type: string) => order.get(type) ?? fallback(type);
-}
 
 const group = (rank: number) => Math.floor(rank / 1000);
 
@@ -480,45 +394,7 @@ function Sparkbars({ perEpisode, max, bad }: { perEpisode: EpisodeLine[]; max: n
   );
 }
 
-/** Episodes revealed to this viewer that have results, oldest first -- optionally including ones
- *  before the league's start episode, which score for nobody but are still how a castaway played. */
-function airedEpisodes(state: LeagueState, includePreseason: boolean) {
-  return [...state.episodes]
-    .filter((ep) => StateLogic.RevealLogic.isRevealed(state, ep.number))
-    .filter((ep) => includePreseason || StateLogic.inPlay(state, ep.number))
-    .filter((ep) => ep.events.length > 0 || StateLogic.ActiveRosterLogic.episodeEvents(state, ep).length > 0)
-    .sort((a, b) => a.number - b.number);
-}
 
-function buildRows(state: LeagueState, aired: LeagueState["episodes"], window: Window): Row[] {
-  const defs = StateLogic.formatOf(state).events;
-  const label = (type: string) => defs.find((d) => d.id === type)?.label ?? type;
-  const inWindow = window === "season" ? aired : aired.slice(-Number(window));
-  const rank = eventRank(state);
-
-  // The episode each castaway left in (they played it, then no more).
-  const exitEp: Record<string, number> = {};
-  for (const ep of state.episodes) for (const ev of ep.events) exitEp[ev.castawayId] = Math.min(exitEp[ev.castawayId] ?? Infinity, ep.number);
-
-  return state.castaways.map((c) => {
-    const perEpisode: EpisodeLine[] = inWindow.map((ep) => {
-      const line: EpisodeLine = { n: ep.number, points: 0, played: !(exitEp[c.id] < ep.number), events: [] };
-      for (const sev of StateLogic.ActiveRosterLogic.episodeEvents(state, ep)) {
-        if (sev.castawayId !== c.id) continue;
-        const pts = StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
-        line.points = StateLogic.roundPoints(line.points + pts);
-        // An event this league scores at 0 is noise in the breakdown.
-        if (pts !== 0) line.events.push({ type: sev.type, label: label(sev.type), points: pts });
-      }
-      // In the show's own order (its scoring groups), so an episode reads the same way every week.
-      line.events.sort((a, b) => rank(a.type) - rank(b.type));
-      return line;
-    });
-    const points = StateLogic.roundPoints(perEpisode.reduce((s, e) => s + e.points, 0));
-    const played = perEpisode.filter((e) => e.played).length;
-    return { c, points, played, avg: played ? points / played : 0, perEpisode };
-  });
-}
 
 /** Free agents still in the game who'd make the league's starting lineups on points: at least as many
  *  as the weakest of the top N owned castaways, N being every team's starting slots together. */

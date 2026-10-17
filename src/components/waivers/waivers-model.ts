@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Castaway, LeagueState, MidSeasonLogEntry, Player, WaiverClaim, WaiverPass, WaiverPeriod, WaiverResult } from "@/lib/game/types";
+import type { Castaway, LeagueState, MidSeasonLogEntry, Player, WaiverClaim, WaiverPair, WaiverPass, WaiverPeriod, WaiverResult } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
 import { useLeagueStore } from "@/lib/store";
@@ -24,14 +24,6 @@ export const WAIVERS_ON = (state: LeagueState) => StateLogic.WaiverLogic.enabled
  */
 export function isShared(state: LeagueState): boolean {
   return state.settings.ownershipMode === "shared";
-}
-/** How many a pickup claim lists: ranked choices, or (shared) exactly the ones you'll get. */
-export function pickupSlots(state: LeagueState, owed: number): number {
-  return isShared(state) ? owed : StateLogic.WaiverLogic.maxPickupClaims(owed);
-}
-/** How many adds an add/drop claim lists: three ranked, or (shared) the one. */
-export function addSlots(state: LeagueState): number {
-  return isShared(state) ? 1 : 3;
 }
 
 /** Where this league's waiver pages live: Active Roster folds them into Research (the tab bar is full). */
@@ -58,7 +50,11 @@ export function waiverOrder(state: LeagueState): string[] {
 
 export type WeekStage = "none" | "hidden" | "open" | "processed";
 
-/** The viewer's week: the one still running, else the last one (closed), and what's theirs to do. */
+/**
+ * The viewer's week: the one still running, else the last one (closed), and what's theirs to do in it --
+ * the castaways they may replace (owed), the swaps the week allows and they have left, and whether their
+ * claim is in. Nothing to do in a week they haven't revealed: that would say who left.
+ */
 export function viewerWeek(state: LeagueState, me: string | null) {
   const W = StateLogic.WaiverLogic;
   const period = W.current(state);
@@ -66,11 +62,12 @@ export function viewerWeek(state: LeagueState, me: string | null) {
   const last = periods[periods.length - 1] ?? null;
   const stage: WeekStage = !period ? "none" : period.hidden ? "hidden" : period.phase === "open" ? "open" : "processed";
   const inRotation = !!me && rotation(state).some((p) => p.id === me);
-  const owed = me && inRotation && stage !== "hidden" ? W.pickupsOwed(state, me) : { count: 0, lossIds: [] };
-  const addDropOpen = !!period && period.addDrop && stage !== "hidden";
-  const addDropUsed = !!period && !!me && W.addDropUsed(state, period, me);
+  const live = !!me && inRotation && stage !== "hidden" && !!period;
+  const owed = live ? W.replacementsOwed(state, me!, period) : { count: 0, lossIds: [] as string[], outIds: [] as string[] };
+  const swapsAllowed = live ? W.swapsAllowed(period) : 0;
+  const swapsLeft = live ? W.swapsLeft(state, period, me!) : 0;
   const claimIn = !!period && !!me && period.claimsIn.includes(me);
-  return { period, last, stage, inRotation, owed, addDropOpen, addDropUsed, claimIn };
+  return { period, last, stage, inRotation, owed, swapsAllowed, swapsLeft, claimIn, todo: owed.count > 0 || swapsLeft > 0 };
 }
 
 /** The last week that processed and that the viewer may see, for "All of Episode 3's waivers". */
@@ -82,26 +79,6 @@ export function lastRun(state: LeagueState): WaiverPeriod | null {
 /** The week opened by episode `n`'s results, if the viewer may see it. */
 export function periodFor(state: LeagueState, n: number): WaiverPeriod | null {
   return StateLogic.WaiverLogic.periods(state).find((p) => p.episode === n && !p.hidden) ?? null;
-}
-
-/** The next add/drop week after episode `after` (inclusive of later ones only), or null. */
-export function nextAddDropAfter(state: LeagueState, after: number): number | null {
-  if (!StateLogic.tradeAvailable(state)) return null;
-  const total = state.episodes.length ? Math.max(...state.episodes.map((e) => e.number)) : 0;
-  for (let n = after + 1; n <= Math.max(total, after + StateLogic.MidSeasonLogic.swapEvery(state)); n++) {
-    if (StateLogic.WaiverLogic.isAddDropEpisode(state, n)) return n;
-  }
-  return null;
-}
-
-/** Every add/drop week in the season, for "after Episodes 3, 6, 9 and 12". */
-export function addDropEpisodes(state: LeagueState): number[] {
-  if (!StateLogic.tradeAvailable(state)) return [];
-  const total = state.episodes.length ? Math.max(...state.episodes.map((e) => e.number)) : 0;
-  const out: number[] = [];
-  // Not after the finale: nobody's left to add.
-  for (let n = 1; n < total; n++) if (StateLogic.WaiverLogic.isAddDropEpisode(state, n)) out.push(n);
-  return out;
 }
 
 /** "3, 6, 9 and 12". */
@@ -199,9 +176,10 @@ const EMPTY: WaiverClaim = { pairs: [], pickupIds: [], dropId: null, addIds: [] 
 
 /**
  * The viewer's own claim for the open week. Claims never enter league state, so this is its own
- * request, refetched when "who has claims in" changes. `save` writes one part (the pickup list, or the
- * add/drop) and leaves the other as it was; `playerId` is the commissioner claiming for someone, whose
- * claim this hook never reads. A league with no server (the guided tour) keeps them in memory instead.
+ * request, refetched when "who has claims in" changes. `save({ pairs })` replaces the whole claim (the
+ * viewer knows it); `save({ spot })` sets one spot's ranked choices and keeps the rest, which is what the
+ * commissioner's Claim for sends (`playerId`: whose claim, never read here). A league with no server (the
+ * guided tour) keeps them in memory instead.
  */
 export function useMyClaim(period: WaiverPeriod | null) {
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -224,28 +202,33 @@ export function useMyClaim(period: WaiverPeriod | null) {
       ? (q.data.claim ?? EMPTY)
       : EMPTY;
 
-  async function save(part: Partial<WaiverClaim>, playerId?: string): Promise<string | null> {
-    if (mode === "mock") return saveMock(part, playerId ?? me);
+  async function save(input: ClaimSave, playerId?: string): Promise<string | null> {
+    if (mode === "mock") return saveMock(input, playerId ?? me);
     if (!leagueId) return "No league loaded";
     try {
-      const next = await api.saveWaiverClaim(leagueId, part, playerId);
+      const next = await api.saveWaiverClaim(leagueId, input, playerId);
       setState(next);
-      if (!playerId) qc.setQueryData(key, { periodId: period?.id ?? null, claim: { ...claim, ...part }, hidden: false });
+      // Ours: what we saved is what the server holds now (checked, in processing order).
+      if (!playerId && "pairs" in input) {
+        const p = StateLogic.WaiverLogic.current(next);
+        const pairs = p ? StateLogic.WaiverLogic.groupPairs(next, p, me!, input.pairs) : input.pairs;
+        qc.setQueryData(key, { periodId: period?.id ?? null, claim: StateLogic.WaiverLogic.claimOf(next, pairs), hidden: false });
+      } else if (!playerId) qc.invalidateQueries({ queryKey: key });
       return null;
     } catch (e) {
       return e instanceof Error ? e.message : "Saving didn't work.";
     }
   }
-  // The server's saveClaim, on the league as it really is (not the viewer's copy): checked, merged with
-  // the part not being saved, and "who has claims in" updated.
-  function saveMock(part: Partial<WaiverClaim>, playerId: string | null): string | null {
+  // The server's saveClaim, on the league as it really is (not the viewer's copy): checked, a spot
+  // merged into what's saved, and "who has claims in" updated.
+  function saveMock(input: ClaimSave, playerId: string | null): string | null {
     const W = StateLogic.WaiverLogic;
     const full = useLeagueStore.getState().fullState;
     const p = W.current(full);
     if (!p || p.id !== period?.id || !playerId) return "Claims are closed for this week";
-    // By part, in the pre-v2 shape: the saved claim's pairs would otherwise win over the part being saved.
-    const { pickupIds, dropId, addIds } = mockClaim(p.id, playerId) ?? EMPTY;
-    const checked = W.checkClaim(full, p, playerId, { pickupIds, dropId, addIds, ...part });
+    const saved = mockClaim(p.id, playerId)?.pairs ?? [];
+    const pairs = "spot" in input ? W.setSpot(full, p, playerId, saved, input.spot.dropId, input.spot.addIds) : W.groupPairs(full, p, playerId, input.pairs);
+    const checked = W.checkClaim(full, p, playerId, { pairs });
     if (checked.error !== undefined) return checked.error;
     const empty = W.isEmptyClaim(checked.claim);
     setMockClaim(p.id, playerId, empty ? null : checked.claim);
@@ -256,47 +239,71 @@ export function useMyClaim(period: WaiverPeriod | null) {
   return { claim, loading: live && q.isPending, save };
 }
 
+export type ClaimSave = { pairs: WaiverPair[] } | { spot: { dropId: string; addIds: string[] } };
+
+/** A claim's pairs as the claim screen shows them: a group per replacement (oldest loss first), then the swaps. */
+export function claimGroups(state: LeagueState, period: WaiverPeriod, me: string, pairs: WaiverPair[]) {
+  const W = StateLogic.WaiverLogic;
+  const ordered = W.groupPairs(state, period, me, pairs);
+  const isOut = (id: string) => StateLogic.getCastaway(state, id)?.status !== "active";
+  const reps = ordered.filter((x) => isOut(x.dropId));
+  const drops = [...new Set(reps.map((x) => x.dropId))];
+  return {
+    replacements: drops.map((dropId) => ({ dropId, adds: reps.filter((x) => x.dropId === dropId).map((x) => x.addId) })),
+    swaps: ordered.filter((x) => !isOut(x.dropId)),
+    pairs: ordered,
+  };
+}
+
+/** "you're 3rd in line": the viewer's place in the waiver order, 1-based (0: not in it). */
+export function placeInLine(state: LeagueState, me: string | null): number {
+  return me ? waiverOrder(state).indexOf(me) + 1 : 0;
+}
+
 // ---- Outcomes, in words ----
 
-/** Why a claim further up the list didn't go through: "Kim was ahead", "pickups go first". */
-export function passReason(state: LeagueState, p: WaiverPass, me: string | null, subject: string | null): string {
-  const by = playerName(state, p.byPlayerId, me);
-  if (p.reason === "pickupFirst") return "pickups go first";
-  if (p.reason === "yours") return subject === me ? "your own pickup landed them" : "their own pickup landed them";
-  if (p.reason === "ahead") return p.byPlayerId === me ? "you were ahead" : `${by} was ahead`;
-  return "they'd already gone";
+/** Why someone's choice didn't go: "Josie got Maggie first", "Maggie was already gone". */
+export function passLine(state: LeagueState, p: WaiverPass, me: string | null, name: (id: string) => string): string {
+  if (p.reason === "ahead") return `${capFirst(playerName(state, p.byPlayerId, me, "you"))} got ${name(p.castawayId)} first`;
+  if (p.reason === "yours" || p.reason === "pickupFirst") return `${name(p.castawayId)} came in for another spot`;
+  return `${name(p.castawayId)} was already gone`;
 }
 
-/** One result's line: "Rob, your 1st choice"; "Wanted Rob, but Kim was ahead. Got Ori, 2nd choice." */
+/**
+ * One result as a sentence (the results list, the processed plate's line): "Sharonda for Patt, 2nd
+ * choice. Josie got Rob first." / "Josie got Maggie first, so Lewis stays." / "No claim in."
+ */
 export function resultWhy(state: LeagueState, r: WaiverResult, me: string | null, name: (id: string) => string): string {
-  const mine = r.playerId === me;
-  if (r.outcome === "noClaim") return "No claim by the deadline";
-  if (r.outcome === "skipped") return "Skipped this week";
+  if (r.outcome === "noClaim") return r.kind === "pickup" ? "No claim in" : "No swap";
+  if (r.outcome === "skipped") return "No swap";
   if (r.dropGone) return "Their drop had already left the team";
-  const first = r.passed[0];
-  const wanted = first ? `Wanted ${name(first.castawayId)}, but ${passReason(state, first, me, r.playerId)}.` : "";
+  const why = r.passed[0] ? `${passLine(state, r.passed[0], me, name)}.` : "";
   if (r.outcome === "got" && r.castawayId) {
+    const pair = r.droppedCastawayId ? `${name(r.castawayId)} for ${name(r.droppedCastawayId)}` : name(r.castawayId);
     // Shared: nothing could be lost to anyone, so which choice it was says nothing.
-    if (isShared(state)) return `Got ${name(r.castawayId)}`;
-    const choice = `${ordinal(r.choice ?? 1)} choice`;
-    if (!first) return `${name(r.castawayId)}, ${mine ? "your " : ""}${choice}`;
-    return `${wanted} Got ${name(r.castawayId)}, ${choice}.`;
+    if (isShared(state) || (r.choice ?? 1) === 1) return pair;
+    return `${pair}, ${ordinal(r.choice ?? 1)} choice. ${why}`.trim();
   }
-  return `${wanted || "Nobody on the list was free."} ${r.passed.length > 1 ? "None of the others were free either." : ""}`.trim();
+  // Missed: a swap's drop stays; a replacement is still owed.
+  const stays = r.kind === "addDrop" && r.droppedCastawayId ? `, so ${name(r.droppedCastawayId)} stays` : "";
+  if (why) return `${why.slice(0, -1)}${stays}.`;
+  return r.kind === "addDrop" ? "None of them were free" : "Nobody on the list was free";
 }
 
-/** The transactions (pickups and add/drops) the viewer may see, newest first. */
+const capFirst = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** The moves (replacements and swaps) the viewer may see, newest first. */
 export function transactions(state: LeagueState): MidSeasonLogEntry[] {
   return [...(state.midSeason.log ?? [])].reverse();
 }
 
 export function txLabel(tx: MidSeasonLogEntry): string {
-  const what = tx.type === "trade" ? "Add/drop" : "Pickup";
-  const via = tx.via === "freeAgency" ? " · free agency" : tx.via === "auto" ? " · assigned" : "";
+  const what = tx.type === "trade" ? "Swap" : "Replaced";
+  const via = tx.via === "freeAgency" ? " · free agency" : tx.via === "auto" ? " · auto-filled" : "";
   return typeof tx.episode === "number" ? `${what} after Episode ${tx.episode}${via}` : `${what}${via}`;
 }
 
-/** Who a castaway is to the viewer's team: a loss they're owed a pickup for. */
+/** Castaways by id, skipping any that aren't in the cast. */
 export function lossesOf(state: LeagueState, ids: string[]): Castaway[] {
   return ids.map((id) => StateLogic.getCastaway(state, id)).filter((c): c is Castaway => !!c);
 }
@@ -309,9 +316,9 @@ export function exitEpisode(state: LeagueState, castawayId: string): number | nu
 
 /**
  * What applying episode `n`'s results does to waivers, for the line above the results page's Apply
- * (the canvas's board 10): "Standings update. Waivers open until Tue 8:00 PM, then free agency until
+ * (the canvas's board 10): "Standings update. Claims are due Tue 8:00 PM, then free agency until
  * Episode 4 airs." Null when it doesn't open a week (waivers off, a week already open for it, an
- * episode with neither pickups nor add/drops, or the season over).
+ * episode that opens neither replacements nor a window, or the season over).
  */
 export function applyOpensWaivers(state: LeagueState, n: number, now: number): string | null {
   const W = StateLogic.WaiverLogic;
@@ -319,10 +326,10 @@ export function applyOpensWaivers(state: LeagueState, n: number, now: number): s
   const ps = W.periods(state);
   const last = ps[ps.length - 1];
   if (last && last.episode >= n) return null;
-  if (!StateLogic.replenishAvailable(state) && !W.isAddDropEpisode(state, n)) return null;
+  if (!W.weekly(state) && !W.isWindowEpisode(state, n)) return null;
   const s = W.schedule(state, { episode: n, openedAt: new Date(now).toISOString() } as WaiverPeriod);
   const fa = W.freeAgencyOn(state)
     ? `, then free agency ${s.closesAt ? `until Episode ${n + 1} airs` : `until Episode ${n + 1}'s results`}`
     : "";
-  return `Standings update. Waivers open until ${when(s.processAt, now)}${fa}. Players still reveal when they're ready.`;
+  return `Standings update. Claims are due ${when(s.processAt, now)}${fa}. Players still reveal when they're ready.`;
 }

@@ -174,9 +174,13 @@ declare const StateLogic: {
       type: string;
       feel?: WaiverFeel;
     }): WaiverRecommendation | null;
-    recommendFor(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number }): WaiverRecommendation | null;
-    applyRecommendation(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number }): boolean;
-    isRecommended(state: LeagueState, opts?: { episodes?: number; castSize?: number }): boolean;
+    /** Teams the suggestion is for: the rotation, or before the draft the count given at creation. */
+    teamsFor(state: LeagueState, opts?: { teams?: number }): number;
+    recommendFor(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number; teams?: number }): WaiverRecommendation | null;
+    applyRecommendation(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number; teams?: number }): boolean;
+    /** After the draft starts: re-fits a league still on its creation-time suggestion. */
+    refit(state: LeagueState): boolean;
+    isRecommended(state: LeagueState, opts?: { episodes?: number; castSize?: number; teams?: number }): boolean;
     periods(state: LeagueState): WaiverPeriod[];
     /** The week still running (open or in free agency), or null. */
     current(state: LeagueState): WaiverPeriod | null;
@@ -189,6 +193,8 @@ declare const StateLogic: {
     isWindow(period: WaiverPeriod | null | undefined): boolean;
     swapsAllowed(period: WaiverPeriod | null | undefined): number;
     swapsMade(state: LeagueState, period: WaiverPeriod, playerId: string): number;
+    /** Whether replacements happen in this week (a window's own say, else the rule). */
+    windowReplaces(state: LeagueState, period: WaiverPeriod | null | undefined): boolean;
     swapsLeft(state: LeagueState, period: WaiverPeriod | null | undefined, playerId: string): number;
     addDropUsed(state: LeagueState, period: WaiverPeriod, playerId: string): boolean;
     /** How many this player may replace in `period`; lossIds: the oldest that many; outIds: every loss a claim may name. */
@@ -200,11 +206,11 @@ declare const StateLogic: {
     refresh(state: LeagueState): void;
     /** The step waiting at `now` (ms). */
     due(state: LeagueState, now: number): "open" | "process" | "close" | "cancel" | null;
-    open(state: LeagueState, now: number, opts?: { window?: boolean; swaps?: number; by?: "commissioner" }): WaiverPeriod;
+    open(state: LeagueState, now: number, opts?: { window?: boolean; swaps?: number; replace?: boolean; by?: "commissioner" }): WaiverPeriod;
     cancel(state: LeagueState): WaiverPeriod | null;
     setClaimsIn(state: LeagueState, period: WaiverPeriod, playerIds: string[]): void;
-    /** The commissioner's Open a waiver window: `swaps` each, or null to turn it off. */
-    openWindow(state: LeagueState, swaps: number | null, now?: number): { period: WaiverPeriod; closed?: boolean; error?: undefined } | { error: string; period?: undefined };
+    /** The commissioner's Open a waiver window: `swaps` each, or null to turn it off; `replace` this window's own say on replacements. */
+    openWindow(state: LeagueState, swaps: number | null, now?: number, opts?: { replace?: boolean }): { period: WaiverPeriod; closed?: boolean; error?: undefined } | { error: string; period?: undefined };
     pairsOf(state: LeagueState, period: WaiverPeriod | null, playerId: string, input: unknown): { pairs: WaiverPair[]; legacy: boolean };
     pairProblem(
       state: LeagueState,
@@ -216,6 +222,10 @@ declare const StateLogic: {
     ): string | null;
     claimOf(state: LeagueState, pairs: WaiverPair[]): WaiverClaim;
     checkClaim(state: LeagueState, period: WaiverPeriod | null, playerId: string, input: unknown): { claim: WaiverClaim; error?: undefined } | { error: string; claim?: undefined };
+    /** Pairs in processing order: each replacement's group (oldest loss first), then the swaps. */
+    groupPairs(state: LeagueState, period: WaiverPeriod | null, playerId: string, pairs: WaiverPair[]): WaiverPair[];
+    /** One spot's ranked adds set (empty clears it), the rest of the claim kept. */
+    setSpot(state: LeagueState, period: WaiverPeriod | null, playerId: string, pairs: WaiverPair[], dropId: string, addIds: string[]): WaiverPair[];
     isEmptyClaim(claim: Partial<WaiverClaim> | null | undefined): boolean;
     trimClaim(state: LeagueState, period: WaiverPeriod, playerId: string, claim: unknown): { claim: WaiverClaim; removed: number };
     process(state: LeagueState, claimsByPlayer: Record<string, Partial<WaiverClaim>>, opts?: { now?: number; by?: "schedule" | "commissioner" }): WaiverRun | null;

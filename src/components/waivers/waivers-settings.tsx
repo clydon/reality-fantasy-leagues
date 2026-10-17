@@ -1,27 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
+import type { ReplaceRule, WaiverFeel, WaiverWindows } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { api } from "@/lib/api";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { useShowTerms } from "@/lib/use-show-terms";
-import { Field, LockedValue, NotInThisLeague, ReadOnlyNote, RowList, SettingsPage, StepperRow, ToggleRow, fieldCls } from "@/components/setup/settings-ui";
-import { SectionHead } from "@/components/draft/draft-ui";
+import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
+import { NotInThisLeague, ReadOnlyNote, SettingsPage, Stepper } from "@/components/setup/settings-ui";
 import { cn } from "cn";
 import { RulesSheet } from "./rules-sheet";
-import { addDropEpisodes, andList } from "./waivers-model";
+import { FeelCard, Segmented, SwapCounter, SwitchRow } from "./waiver-controls";
+import { ORDER_LABEL, deadlineLabel, latestEpisode, nextWindow, ruleRows, shapeBullets } from "./waivers-words";
 
-// League Settings › Waivers (the canvas's board 9): what's on, when waivers process, the order and
-// free agency -- then a preview of the week players see, and the "How waivers work" sheet written
-// from these same settings. Replaces Swaps & pickups for a league on waivers.
+// League Settings › Waivers (docs/PLAN-waivers-v2.md "1A"; the "Waivers v2 options" canvas): the
+// Suggested card (Casual · Balanced · Competitive, four bullets the switch rewrites, Apply), then the
+// settings themselves -- when someone's voted out, waiver windows and their swaps, timing and auto-fill
+// -- and a preview of the rules sheet players see. Touching a setting takes the league off the
+// suggestion; the card then offers it again.
 
-const ORDER = {
-  rolling: "Rolling, from reverse draft order",
-  leastPoints: "By standings, fewest points first",
-  mostPoints: "By standings, most points first",
-};
 const HOURS = [12, 24, 48];
+
+/** The Suggested card's numbers: "4 teams of 3 · 6 free agents". */
+export function leagueNumbers(teams: number, roster: number, freeAgents: number | null): string {
+  return `${teams} teams of ${roster}${freeAgents === null ? " · shared cast" : ` · ${freeAgents} free agent${freeAgents === 1 ? "" : "s"}`}`;
+}
 
 export function WaiversSettingsPage() {
   const state = useLeagueStore((s) => s.state);
@@ -29,191 +34,267 @@ export function WaiversSettingsPage() {
   const canManage = useCanManage();
   const mutate = useMutate();
   const terms = useShowTerms();
-  const [preview, setPreview] = useState(false);
   const W = StateLogic.WaiverLogic;
+  const c = W.config(state);
+  const [feel, setFeel] = useState<WaiverFeel>(c.waiverFeel);
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const [sheet, setSheet] = useState<null | "hours" | "order" | "fa">(null);
 
   async function update(field: string, value: unknown) {
+    setBusy(true);
     await mutate(
       (s) => StateLogic.updateSettings(s, field, value),
       () => api.updateLeagueSettings(leagueId!, field, value),
     );
+    setBusy(false);
   }
 
-  const type = StateLogic.getLeagueType(state);
-  if (!type.supportsReplenish && !type.supportsTrade) {
+  if (!W.supported(state)) {
     return (
       <SettingsPage title="Waivers">
-        <NotInThisLeague what="pickups or add/drops" />
+        <NotInThisLeague what="replacements or swaps" />
       </SettingsPage>
     );
   }
-  const activeRoster = !!type.hasActiveRoster;
-  const pickups = StateLogic.replenishAvailable(state);
-  const addDrops = StateLogic.tradeAvailable(state);
-  const anyOn = pickups || addDrops;
-  const every = StateLogic.MidSeasonLogic.swapEvery(state);
-  const weeks = addDropEpisodes(state);
-  const H = W.processHours(state);
-  const fa = W.freeAgencyOn(state);
-  const orderBy = (state.settings.replenishOrderBy || "rolling") as keyof typeof ORDER;
-  const catchUp = Number.isInteger(state.settings.revealedThroughEpisode);
+
+  const activeRoster = !!StateLogic.getLeagueType(state).hasActiveRoster;
   const shared = state.settings.ownershipMode === "shared";
-  const replenishAt = StateLogic.MidSeasonLogic.replenishAt(state);
+  const R = StateLogic.rosterSize(state);
+  const shortAt = W.shortAt(state);
+  const rec = W.recommendFor(state, feel);
+  const recSettings = rec && rec.feasible ? rec.settings : null;
+  const applied = W.isRecommended(state) && c.waiverFeel === feel;
+  const w = c.waiverWindows;
+  const H = W.processHours(state);
+  const orderBy = state.settings.replenishOrderBy || "rolling";
+  const fa = W.freeAgencyOn(state);
+  const latest = latestEpisode(state);
+  const next = nextWindow(state, latest, false);
+  const ro = !canManage || busy;
+  const setWindows = (v: Partial<WaiverWindows>) => update("waiverWindows", v);
 
   return (
     <SettingsPage title="Waivers">
       <ReadOnlyNote />
-      <RowList>
-        {type.supportsReplenish && (
-          <ToggleRow
-            label="Pickups"
-            hint={
-              activeRoster
-                ? `When a roster runs low on ${terms.castaways} still in the game, its owner picks up free agents to fill it again.`
-                : `When one of a player's ${terms.castaways} leaves, they pick up a free agent to replace them.`
-            }
-            checked={state.settings.replenishEnabled}
-            disabled={!canManage}
-            onChange={(v) => update("replenishEnabled", v)}
-          />
-        )}
-        {activeRoster && pickups && (
-          <StepperRow
-            label="Pick up when down to"
-            hint={`${terms.Castaways} still in the game. Default ${Math.max(0, state.settings.activeSlots - 1)}: the moment a team can't fill all ${state.settings.activeSlots} starting spots.`}
-            value={replenishAt}
-            min={0}
-            disabled={!canManage}
-            onChange={(n) => update("replenishAt", n)}
-          />
-        )}
-        {type.supportsTrade && (
-          <ToggleRow
-            label="Add/drops"
-            hint={`Drop one ${terms.castaway} still in and add a free agent. Optional for each player.`}
-            checked={state.settings.tradeEnabled}
-            disabled={!canManage}
-            onChange={(v) => update("tradeEnabled", v)}
-          />
-        )}
-        {addDrops && (
-          <StepperRow
-            label="Add/drops every"
-            hint={`${every === 1 ? "episode" : "episodes"}${weeks.length ? `: after ${andList(weeks.slice(0, 5))}${weeks.length > 5 ? "…" : ""}` : ""}. Default 3: enough to fix a bad pick without chasing every result.`}
-            value={every}
-            min={1}
-            disabled={!canManage}
-            onChange={(n) => update("swapEvery", n)}
-          />
-        )}
-      </RowList>
+      {rec && !rec.feasible && (
+        <p className="rounded-[4px] border border-border bg-card px-3.5 py-3 text-[15px] leading-[1.45]">
+          <b className="font-semibold">
+            {W.teamsFor(state)} teams of {R} needs {rec.need} {terms.castaways}; this season has {rec.have}.
+          </b>{" "}
+          Shared ownership, or smaller teams, would fit.
+        </p>
+      )}
+      {recSettings && (
+        <FeelCard
+          numbers={leagueNumbers(W.teamsFor(state), R, rec && rec.feasible ? rec.freeAgents : null)}
+          feel={feel}
+          onFeel={setFeel}
+          bullets={shapeBullets(recSettings, { classic: !activeRoster, shared, roster: R, shortAt: recSettings.replenishAt ?? shortAt })}
+          applied={applied}
+          onApply={canManage ? () => update("waiverRecommendation", feel) : undefined}
+          busy={busy}
+          disabled={!canManage}
+        />
+      )}
 
-      {anyOn &&
-        (canManage ? (
-          <>
-            <Field
-              label="Waivers process"
-              htmlFor="wv-hours"
-              hint={
-                catchUp
-                  ? `In a catch-up league, waivers process this long after you apply an episode's results, and free agency runs until you unlock the next one.`
-                  : `Waivers open as soon as an episode's results are applied; ${fa ? "free agency runs from processing until the next episode airs" : "nothing changes between processing and airtime"}. A league with no air schedule processes this long after waivers open.`
-              }
+      <section className="flex flex-col">
+        <h2 className="type-caption mb-1 text-[24px]">When someone&rsquo;s voted out</h2>
+        <div role="radiogroup" aria-label="When someone's voted out" className="flex flex-col">
+          {ruleRows(state, shortAt).map((r) => (
+            <RuleRow
+              key={r.rule}
+              title={r.title}
+              detail={r.detail}
+              on={c.replaceRule === r.rule}
+              suggested={recSettings?.replaceRule === r.rule}
+              disabled={ro}
+              onPick={() => update("replaceRule", r.rule as ReplaceRule)}
             >
-              <select id="wv-hours" className={fieldCls} value={H} onChange={(e) => update("waiverProcessHours", Number(e.target.value))}>
-                {HOURS.map((h) => (
-                  <option key={h} value={h}>
-                    {h} hours before the next episode
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {!shared && (
-            <Field
-              label="Waiver order"
-              htmlFor="wv-order"
-              hint={
-                (orderBy === "rolling"
-                  ? "Starts with the draft's last pick; anyone whose claim goes through drops to the back. Or reset every week by standings."
-                  : "Reset every week by the standings. Or rolling: anyone whose claim goes through drops to the back.") +
-                (shared ? " In a shared league nobody's taken off the board, so the order never decides who gets someone." : "")
-              }
-            >
-              <select id="wv-order" className={fieldCls} value={orderBy} onChange={(e) => update("replenishOrderBy", e.target.value)}>
-                {Object.entries(ORDER).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            )}
-            <Field
-              label="Free agency"
-              htmlFor="wv-fa"
-              hint={`First come, first served for anyone still free, including ${terms.castaways} just dropped in waivers.${shared ? "" : " Free-agency moves don't change the waiver order."} Or turn it off: waivers only, and an unfilled pickup is assigned when the episode airs.`}
-            >
-              <select id="wv-fa" className={fieldCls} value={fa ? "on" : "off"} onChange={(e) => update("freeAgencyEnabled", e.target.value === "on")}>
-                <option value="on">Until the episode airs</option>
-                <option value="off">Off: waivers only</option>
-              </select>
-            </Field>
-          </>
-        ) : (
-          <>
-            <LockedValue label="Waivers process" value={`${H} hours before the next episode`} lock={false} />
-            {!shared && <LockedValue label="Waiver order" value={ORDER[orderBy] ?? orderBy} lock={false} />}
-            <LockedValue label="Free agency" value={fa ? "Until the episode airs" : "Off: waivers only"} lock={false} />
-          </>
-        ))}
+              {r.rule === "whenShort" && c.replaceRule === "whenShort" && canManage && (
+                <span className="flex items-center justify-between gap-3 pb-1 pl-9">
+                  <span className="text-[13px] text-muted-foreground">Down to</span>
+                  <Stepper label="Down to" value={shortAt} min={0} max={Math.max(0, R - 1)} onChange={(n) => update("replenishAt", n)} disabled={ro} />
+                </span>
+              )}
+            </RuleRow>
+          ))}
+        </div>
+      </section>
 
-      {anyOn && (
-        <section className="flex flex-col gap-2.5">
-          <SectionHead>What your players see</SectionHead>
-          <div className="flex flex-col gap-3 rounded-[3px] border border-border bg-card p-3.5">
-            <h4 className="type-caption text-[17px]">A normal week</h4>
-            <ol className="flex gap-1">
-              {[
-                [catchUp ? "You unlock" : "You apply", "Waivers open"],
-                ["Until then", "Private claims"],
-                [catchUp ? "Then" : `${H}h before`, "Waivers process"],
-                ...(fa ? [[catchUp ? "Till next" : "Till airtime", "Free agency"]] : [[catchUp ? "Next" : "Airtime", "Episode airs"]]),
-              ].map(([when, what], i) => (
-                <li key={i} className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <span className={cn("h-1 rounded-[1px]", i === 0 ? "bg-chyron-line" : "bg-input")} />
-                  <span className="truncate text-[11px] font-bold uppercase tracking-[0.03em] text-muted-foreground">{when}</span>
-                  <span className="text-[13px] leading-[1.3]">{what}</span>
-                </li>
-              ))}
-            </ol>
-            <p className="text-sm leading-[1.45] text-muted-foreground">
-              Everyone makes private claims. {H === 24 ? "A day" : `${H} hours`} before the episode, {shared ? "every claim processes at once, and everyone gets who they claimed: nobody's taken off the board in this league." : <>{pickups && addDrops ? "pickups process first, then add/drops," : "they process"} in waiver order.</>}
-              {fa ? " Then anyone still free is first come, first served until it airs." : ""}
-            </p>
-            <button
-              type="button"
-              onClick={() => setPreview(true)}
-              className="min-h-11 self-start rounded-[3px] border border-input px-3.5 text-sm font-bold hover:bg-secondary focus-visible:outline-3 focus-visible:outline-chyron-line"
-            >
-              See &ldquo;How waivers work&rdquo;
-            </button>
+      <section className="flex flex-col gap-3.5">
+        <div className="flex flex-col gap-1">
+          <h2 className="type-caption text-[24px]">Waiver windows</h2>
+          <p className="text-[13px] leading-[1.4] text-muted-foreground">When players can swap someone still in. Swapped castaways take their points with them.</p>
+        </div>
+        <Segmented
+          label="When waiver windows open"
+          disabled={ro}
+          value={w.schedule}
+          onChange={(schedule) => setWindows({ schedule })}
+          options={[
+            { value: "everyEpisode", label: "Every episode" },
+            { value: "every", label: `Every ${w.every}` },
+            { value: "manual", label: "You decide" },
+          ]}
+        />
+        {w.schedule === "every" && canManage && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[15px] font-semibold">Episodes between windows</span>
+            <Stepper label="Episodes between windows" value={w.every} min={2} max={6} onChange={(every) => setWindows({ every })} disabled={ro} />
           </div>
-          <p className="text-[13px] leading-snug text-muted-foreground">
-            That&rsquo;s the sheet players see, written from these settings. A change to timing applies to this week&rsquo;s waivers too, if they haven&rsquo;t processed.
-          </p>
-          <RulesSheet open={preview} onOpenChange={setPreview} />
-        </section>
-      )}
+        )}
+        <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+          <span className="flex flex-col gap-0.5">
+            <span className="text-base font-semibold">Swaps each</span>
+            <span className="text-[13px] text-muted-foreground">{w.schedule === "manual" ? "Set when you open one" : next ? `Next window: after Episode ${next}` : "No more this season"}</span>
+          </span>
+          <SwapCounter value={w.swaps} roster={R} onChange={(swaps) => setWindows({ swaps })} disabled={ro} label="Swaps each" />
+        </div>
+      </section>
 
-      {anyOn && canManage && (
-        <section className="flex flex-col gap-2">
-          <SectionHead>Running waivers</SectionHead>
-          <p className="text-[15px] leading-normal text-muted-foreground">
-            Nothing to start or end. While waivers are open, the Waivers page has Process now and a claim for any player; once they&rsquo;ve processed, Undo last
-            waiver run.
-          </p>
-        </section>
-      )}
+      <section className="flex flex-col">
+        <h2 className="type-caption mb-1 text-[24px]">Timing</h2>
+        <ValueRow label="Claim deadline" value={deadlineLabel(H)} onClick={() => setSheet("hours")} disabled={ro} />
+        {!shared && <ValueRow label="Waiver order" value={ORDER_LABEL[orderBy] ?? orderBy} onClick={() => setSheet("order")} disabled={ro} />}
+        <ValueRow label="Free agency" value={fa ? "Until airtime" : "Off"} onClick={() => setSheet("fa")} disabled={ro} />
+        <SwitchRow label="Auto-fill" hint="No claim in? They get the top free agent." checked={c.autoFill} onChange={(v) => update("autoFill", v)} disabled={ro} />
+      </section>
+
+      <button
+        type="button"
+        onClick={() => setPreview(true)}
+        className="-mt-2 flex min-h-11 items-center self-start text-sm font-bold text-chyron-line hover:underline focus-visible:outline-3 focus-visible:outline-chyron-line"
+      >
+        Preview what players see
+      </button>
+      <RulesSheet open={preview} onOpenChange={setPreview} />
+
+      <OptionsSheet
+        open={sheet === "hours"}
+        onClose={() => setSheet(null)}
+        title="Claim deadline"
+        description="Before each episode airs"
+        options={HOURS.map((h) => ({ label: deadlineLabel(h), on: h === H, pick: () => update("waiverProcessHours", h) }))}
+      />
+      <OptionsSheet
+        open={sheet === "order"}
+        onClose={() => setSheet(null)}
+        title="Waiver order"
+        options={Object.entries(ORDER_LABEL).map(([v, label]) => ({
+          label,
+          detail: v === "rolling" ? "Get a free agent, go to the back" : "Reset each week by the standings",
+          on: v === orderBy,
+          pick: () => update("replenishOrderBy", v),
+        }))}
+      />
+      <OptionsSheet
+        open={sheet === "fa"}
+        onClose={() => setSheet(null)}
+        title="Free agency"
+        description="After claims are processed"
+        options={[
+          { label: "Until airtime", detail: "First come, first served", on: fa, pick: () => update("freeAgencyEnabled", true) },
+          { label: "Off", detail: "Claims only", on: !fa, pick: () => update("freeAgencyEnabled", false) },
+        ]}
+      />
     </SettingsPage>
+  );
+}
+
+export function RuleRow({
+  title,
+  detail,
+  on,
+  suggested,
+  disabled,
+  onPick,
+  children,
+}: {
+  title: string;
+  detail: string;
+  on: boolean;
+  suggested?: boolean;
+  disabled?: boolean;
+  onPick: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="border-b border-border">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={on}
+        disabled={disabled}
+        onClick={onPick}
+        className="grid min-h-[60px] w-full grid-cols-[26px_1fr] items-center gap-2.5 py-2.5 text-left outline-none focus-visible:bg-accent disabled:cursor-default"
+      >
+        <span className={cn("flex size-[22px] items-center justify-center rounded-full border-2", on ? "border-chyron-line" : "border-input")} aria-hidden>
+          <span className={cn("size-2.5 rounded-full", on && "bg-chyron-line")} />
+        </span>
+        <span className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-2 text-base font-semibold">
+            {title}
+            {suggested && <SuggestedBadge />}
+          </span>
+          <span className="text-[13px] leading-[1.35] text-muted-foreground">{detail}</span>
+        </span>
+      </button>
+      {children}
+    </div>
+  );
+}
+
+export function SuggestedBadge() {
+  return <span className="rounded-[2px] border border-chyron-line px-1.5 py-px text-[11px] font-bold uppercase tracking-[0.025em] text-chyron-line">Suggested</span>;
+}
+
+function ValueRow({ label, value, onClick, disabled }: { label: string; value: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex min-h-[52px] items-center justify-between gap-3 border-b border-border text-left outline-none focus-visible:bg-accent disabled:cursor-default"
+    >
+      <span className="text-base font-semibold">{label}</span>
+      <span className="flex items-center gap-1 text-sm text-muted-foreground">
+        {value}
+        {!disabled && <ChevronRight className="size-4" strokeWidth={2.2} aria-hidden />}
+      </span>
+    </button>
+  );
+}
+
+function OptionsSheet({
+  open,
+  onClose,
+  title,
+  description,
+  options,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  description?: string;
+  options: { label: string; detail?: string; on: boolean; pick: () => void }[];
+}) {
+  return (
+    <BottomSheet open={open} onOpenChange={(o) => !o && onClose()} title={title} description={description}>
+      <div className="flex flex-col">
+        {options.map((o) => (
+          <SheetAction
+            key={o.label}
+            detail={o.on ? "Chosen" : o.detail}
+            onClick={() => {
+              o.pick();
+              onClose();
+            }}
+          >
+            {o.label}
+          </SheetAction>
+        ))}
+      </div>
+    </BottomSheet>
   );
 }

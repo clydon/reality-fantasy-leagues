@@ -94,17 +94,17 @@ test("processed: names to those who've revealed, the same words to those who hav
   assert.equal(msgs["u-josie"].title, "Waivers processed");
   assert.equal(msgs["u-josie"].body, "Couch Crew: reveal Episode 3 to see every move.");
   assert.doesNotMatch(JSON.stringify(msgs["u-josie"]), /Rob|Maggie|Patt|Jelly|pickup/);
-  // Dee: an add/drop week with free agency, so the unused add/drop is still worth a line.
-  assert.match(msgs["u-dee"].body, /Your add\/drop is still unused/);
+  // Dee: a window with free agency, so the unused swap is still worth a line.
+  assert.match(msgs["u-dee"].body, /Your swap is still unused/);
 
-  // Not an add/drop week: Dee (untouched) hears nothing.
+  // Not a window: Dee (untouched) hears nothing.
   const quiet = opened({ swapEvery: 4 });
   W.process(quiet, {}, { now: PROCESS_AT });
   const q = WP.processedMessages(quiet, W.current(quiet), "Couch Crew", PEOPLE).map((m) => m.userId);
   assert.ok(!q.includes("u-dee"));
   // Sam made no claim and is still owed: told to use free agency.
   const samQ = WP.processedMessages(quiet, W.current(quiet), "Couch Crew", PEOPLE).find((m) => m.userId === "u-sam");
-  assert.equal(samQ.message.title, "You still have a pickup");
+  assert.equal(samQ.message.title, "You still have someone to replace");
   assert.ok(q.includes("u-josie"));
 });
 
@@ -222,13 +222,13 @@ test("--dry changes nothing", async () => {
   assert.equal(pool.logged.size, 0);
 });
 
-test("the alert strip: a pickup you owe with no claim in, never before you've revealed", () => {
+test("the alert strip: someone to replace with no claim in, never before you've revealed", () => {
   const s = opened();
   const [it] = actionItems(s, "sam", 3).filter((x) => x.kind === "pickup");
   assert.equal(it.text, "Replace Jelly");
-  assert.equal(it.href, "/waivers/pickup");
+  assert.equal(it.href, "/waivers/claim?drop=jelly");
   assert.equal(it.by, new Date(PROCESS_AT).toISOString());
-  assert.equal(it.detail, "claim up to 3");
+  assert.equal(it.detail, "first choice, then backups");
   assert.equal(actionItems(s, "sam", 2).filter((x) => x.kind === "pickup").length, 0, "not revealed");
   assert.equal(actionItems(s, "sam", null).filter((x) => x.kind === "pickup").length, 1, "sees results as they come");
   assert.equal(actionItems(s, "kim", 3).filter((x) => x.kind === "pickup").length, 0, "owed nothing");
@@ -239,30 +239,30 @@ test("the alert strip: a pickup you owe with no claim in, never before you've re
   const fa = opened();
   W.process(fa, {}, { now: PROCESS_AT });
   const [f] = actionItems(fa, "sam", 3).filter((x) => x.kind === "pickup");
-  assert.equal(f.href, "/waivers/free-agency");
+  assert.equal(f.href, "/waivers/free-agency?drop=jelly");
   assert.equal(f.by, new Date(EP4_AIRS).toISOString());
 });
 
-test("Overview's status plate: claim in, an add/drop week, free agency with your add/drop unused", () => {
+test("Overview's status plate: claim in, a waiver window, free agency with your swap unused", () => {
   const s = opened();
   W.setClaimsIn(s, W.current(s), ["sam", "kim"]);
   const sam = statusPlate(s, { me: "sam", isCommissioner: false, now: T0 });
   assert.equal(sam.tag, "Waivers");
-  assert.match(sam.title, /^Waivers process /);
+  assert.match(sam.title, /^Claims due /);
   assert.equal(sam.detail, "Your claim is in · 2 of 5 in");
   assert.equal(sam.href, "/waivers");
 
   const dee = statusPlate(s, { me: "dee", isCommissioner: false, now: T0 });
-  assert.equal(dee.tag, "Add/drop");
-  assert.equal(dee.title, "Add/drops are open");
+  assert.equal(dee.tag, "Window");
+  assert.equal(dee.title, "Waiver window open");
 
   W.process(s, {}, { now: PROCESS_AT });
   const fa = statusPlate(s, { me: "dee", isCommissioner: false, now: PROCESS_AT });
   assert.equal(fa.tag, "FA");
-  assert.equal(fa.detail, "Your add/drop is unused · first come");
+  assert.equal(fa.detail, "Your swap is unused · first come");
   assert.equal(fa.href, "/waivers/free-agency");
 
-  // Not an add/drop week, nothing owed, no claim: the usual weekly plate.
+  // Not a window, nothing owed, no claim: the usual weekly plate.
   const quiet = opened({ swapEvery: 4 });
   assert.notEqual(statusPlate(quiet, { me: "dee", isCommissioner: false, now: T0 }).tag, "Waivers");
 });

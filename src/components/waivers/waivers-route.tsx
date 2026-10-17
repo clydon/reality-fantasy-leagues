@@ -28,8 +28,8 @@ export function WaiversRoute({ sub = "", children }: { sub?: string; children: R
   return <>{children}</>;
 }
 
-/** /mid-season, where the old live Pickups/Swap rounds were: kept so old links and pushes still land,
- *  on this league's Waivers page. */
+/** /mid-season, where the old live Pickups/Swap rounds were, and pre-v2's add/drop picker: kept so old
+ *  links and pushes still land, on this league's Waivers page. */
 export function MidSeasonRedirect() {
   const state = useLeagueStore((s) => s.state);
   const router = useRouter();

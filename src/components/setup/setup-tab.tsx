@@ -128,21 +128,13 @@ function SettingsList({ state }: { state: LeagueState }) {
         />
       )}
       <IndexRow href="/setup/rules" icon={Calculator} title="Scoring & rules" value={rulesLine} alert={pendingChanges > 0} />
-      {/* Pickups and add/drops, run as waivers (docs/PLAN-midseason-waivers.md), shared ownership included. */}
+      {/* Replacements and swaps, run as waivers (docs/PLAN-waivers-v2.md), shared ownership included. */}
       {midSeason && (
         <IndexRow
           href="/setup/waivers"
           icon={ArrowLeftRight}
           title="Waivers"
-          value={
-            [
-              StateLogic.replenishAvailable(state) ? "Pickups" : null,
-              StateLogic.tradeAvailable(state) ? `add/drops every ${StateLogic.MidSeasonLogic.swapEvery(state)}` : null,
-            ]
-              .filter(Boolean)
-              .join(", ")
-              .replace(/^a/, "A") || "Off"
-          }
+          value={waiversLine(state)}
         />
       )}
       <IndexRow href="/setup/predictions" icon={Target} title="Predictions" value={predLine} />
@@ -246,4 +238,14 @@ function DangerZone() {
       )}
     </div>
   );
+}
+
+/** League Settings › Waivers in a line: "Wait for a waiver window · you open windows". */
+function waiversLine(state: LeagueState): string {
+  const W = StateLogic.WaiverLogic;
+  if (!W.enabled(state)) return "Off";
+  const rule = { always: "Replace right away", whenShort: "Only when short", windows: "Wait for a waiver window", never: "No replacements" }[W.replaceRule(state)];
+  const w = W.windows(state);
+  const windows = w.schedule === "manual" ? "you open windows" : w.swaps <= 0 && W.replaceRule(state) !== "windows" ? null : w.schedule === "everyEpisode" ? "a window every episode" : `a window every ${w.every}`;
+  return [rule, windows].filter(Boolean).join(" · ");
 }

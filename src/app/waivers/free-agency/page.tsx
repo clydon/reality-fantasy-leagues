@@ -1,12 +1,13 @@
 import { FreeAgencyPicker } from "@/components/waivers/claim-pickers";
 import { WaiversRoute } from "@/components/waivers/waivers-route";
 
-// docs/PLAN-midseason-waivers.md. `?for=` is the commissioner claiming for someone.
+// docs/PLAN-waivers-v2.md. `?drop=` is who goes (Replace or Swap on the Waivers page); `?for=` the
+// commissioner moving for someone.
 export default async function Page({ searchParams }: PageProps<"/waivers/free-agency">) {
-  const { for: forId } = await searchParams;
+  const { for: forId, drop } = await searchParams;
   return (
     <WaiversRoute sub="/free-agency">
-      <FreeAgencyPicker forId={typeof forId === "string" ? forId : null} />
+      <FreeAgencyPicker forId={typeof forId === "string" ? forId : null} dropId={typeof drop === "string" ? drop : null} />
     </WaiversRoute>
   );
 }

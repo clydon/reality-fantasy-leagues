@@ -20,9 +20,10 @@
 //   zt-wv-everyx (Only in waiver windows, every 3, 0 swaps): replacements only, no swaps; turning the
 //     window off ends the week
 //   zt-wv-rebuild (the merge rebuild): nothing until the commissioner opens a Whole team window, then
-//     every loss replaced and every castaway swapped in one run
+//     every loss replaced and every castaway swapped in one run; a window's own say on replacements
+//     (off: swaps only)
 //   zt-wv-manual (Manual only): a plain week becomes a window, changes, and turns off again, trimming
-//     the swap out of a saved claim
+//     the swap out of a saved claim; Claim for sets one spot of a claim and keeps the rest
 //   zt-wv-swaps (Don't replace, every episode, 1 swap): swaps only
 //   - a claim row the old code saved (no pairs) is read as pairs, the same as 0063's SQL makes them
 // Prints each check; exits 1 if any fail. Takes the fixture down afterwards unless --keep.
@@ -222,6 +223,16 @@ async function main() {
     check("rebuild: more swaps than a team has is refused", r.status === 400 && /0 to 3/.test(r.body.error), r);
     r = await kim.call("POST", `${RB}/waivers/window`, { swaps: "3" });
     check("rebuild: swaps must be a number", r.status === 400, r);
+    // Its own say on replacements (the sheet's toggle): off with no swaps is nothing to claim; off with
+    // swaps, Jelly waits. Opened again without it, the rule (wait for a window) decides.
+    r = await kim.call("POST", `${RB}/waivers/window`, { swaps: 0, replace: false });
+    check("rebuild: a window with nothing to claim is refused", r.status === 400 && /nothing to claim/.test(r.body.error), r);
+    r = await kim.call("POST", `${RB}/waivers/window`, { swaps: 3, replace: "no" });
+    check("rebuild: replace must be true or false", r.status === 400, r);
+    r = await kim.call("POST", `${RB}/waivers/window`, { swaps: 3, replace: false });
+    check("rebuild: a swaps-only window", r.status === 200 && week(r.body)?.replace === false, week(r.body));
+    r = await sam.call("PUT", `${RB}/waivers/claims`, { pairs: [pair("Rob", "Jelly")] });
+    check("rebuild: no replacing Jelly in it", r.status === 400 && /replace/.test(r.body.error), r);
     r = await kim.call("POST", `${RB}/waivers/window`, { swaps: 3 });
     const wk = week(r.body);
     check("rebuild: the commissioner opens a Whole team window", r.status === 200 && wk?.phase === "open" && wk?.window && wk?.swaps === 3 && wk?.openedBy === "commissioner", wk);
@@ -255,6 +266,13 @@ async function main() {
     check("manual: turned off, it's a plain week again", r.status === 200 && week(r.body)?.phase === "open" && week(r.body)?.window === false && week(r.body)?.claimsIn.includes("p-sam"), week(r.body));
     r = await sam.call("GET", `${M}/waivers`);
     check("manual: the swap left Sam's claim, the replacement stayed", JSON.stringify(r.body.claim?.pairs) === JSON.stringify([pair("Rob", "Jelly")]), r.body.claim);
+    // Claim for, one spot at a time: Kim sets Sam's replacement for Jelly without seeing the rest.
+    r = await kim.call("PUT", `${M}/waivers/claims`, { playerId: "p-sam", spot: { dropId: c("Jelly"), addIds: [c("Ori"), c("Rob")] } });
+    check("manual: Claim for sets one spot", r.status === 200 && week(r.body)?.claimsIn.includes("p-sam") && !JSON.stringify(r.body).includes('"pairs"'), r.status);
+    r = await sam.call("GET", `${M}/waivers`);
+    check("manual: Sam's spot is the commissioner's choices, in order", JSON.stringify(r.body.claim?.pairs) === JSON.stringify([pair("Ori", "Jelly"), pair("Rob", "Jelly")]), r.body.claim);
+    r = await kim.call("PUT", `${M}/waivers/claims`, { playerId: "p-sam", spot: { dropId: c("Jelly") } });
+    check("manual: a spot needs its adds", r.status === 400, r);
     r = await kim.call("POST", `${M}/waivers/window`, { swaps: null });
     check("manual: nothing to turn off now", r.status === 400 && /no waiver window/.test(r.body.error), r);
 

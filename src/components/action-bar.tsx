@@ -159,7 +159,7 @@ export function ActionBar() {
     prediction: "Predict",
     lateJoin: "Start",
     results: "Results",
-    pickup: "Pickup",
+    pickup: "Replace",
   };
   const plateBtn = "flex min-h-11 min-w-11 items-center justify-center bg-plate text-plate-foreground hover:bg-[#f1eff6]";
   const title = "type-caption line-clamp-2 text-[19px] leading-[1.05] [overflow-wrap:anywhere] [text-wrap:pretty]";

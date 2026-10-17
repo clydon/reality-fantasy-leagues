@@ -460,8 +460,9 @@ function youBeat(before: LeagueState, after: LeagueState, eps: LeagueState["epis
   return { kind: "you", title, hero, heroLabel, lines };
 }
 
-// Waivers opened by the episode just revealed, and something of yours to do in them: a pickup you're
-// owed (claims, or free agency once they've processed), else an add/drop week. Nothing to do, no beat.
+// Waivers opened by the episode just revealed, and something of yours to do in them: someone you can
+// replace (claims, or free agency once they've processed), else a waiver window's swap. Nothing to do,
+// no beat.
 function moveBeat(after: LeagueState, through: number, me: string | null, beats: Beat[], you: YouBeat): MoveBeat | null {
   const W = StateLogic.WaiverLogic;
   if (!me || !W.enabled(after)) return null;
@@ -472,51 +473,48 @@ function moveBeat(after: LeagueState, through: number, me: string | null, beats:
   const base = waiversBase(after);
   const now = Date.now();
   const fa = W.freeAgencyOn(after);
-  const activeRoster = !!StateLogic.getLeagueType(after).hasActiveRoster;
-  const owed = W.pickupsOwed(after, me);
+  const owed = W.replacementsOwed(after, me, p);
   const names = shortNames(after.castaways);
   const name = (id: string) => names.get(id) ?? "?";
   const losses = owed.lossIds.map((id) => StateLogic.getCastaway(after, id)).filter((c): c is Castaway => !!c);
   const next = through + 1;
   const day = p.processAt ? new Date(p.processAt).toLocaleDateString(undefined, { weekday: "long" }) : null;
-  const addDrop = p.addDrop && StateLogic.tradeAvailable(after) && !W.addDropUsed(after, p, me);
+  const swap = W.swapsLeft(after, p, me) > 0;
   const recap: MoveBeat["recap"] = [
     ...beats.flatMap((b) =>
       b.kind === "exit" && b.ep === through && losses.some((c) => c.id === b.c.id) ? [{ key: b.key, tone: "live" as const, tag: b.method, title: b.c.name }] : [],
     ),
     { key: "you", tone: "quiet", tag: "You", title: [you.title, you.hero].filter(Boolean).join(" ") },
   ];
-  const pickupTitle = activeRoster ? `Down to ${StateLogic.MidSeasonLogic.inGameCount(after, me)} still in` : `Replace ${andList(losses.map((c) => name(c.id)))}`;
+  const pickupTitle = `Replace ${andList(losses.map((c) => name(c.id)))}`;
+  const claimHref = losses[0] ? `${base}/claim?drop=${encodeURIComponent(losses[0].id)}` : base;
   const image = losses[0] ? castawayPhotoSrc(losses[0].photoUrl) ?? undefined : undefined;
 
   if (p.phase === "open") {
     const then = fa ? ` Then free agency runs until Episode ${next}.` : "";
-    const settle = `Nothing is decided until ${day ? `${day} night` : "waivers process"}, when every claim processes at once.${then}`;
+    const settle = `Nothing is decided until ${day ? `${day} night` : "claims are due"}, when every claim processes at once.${then}`;
     if (owed.count) {
       return {
         kind: "move",
-        tag: "Pickup",
+        tag: "Replace",
         title: pickupTitle,
-        subtitle:
-          after.settings.ownershipMode === "shared"
-            ? `Choose who by ${when(p.processAt, now)}`
-            : `Claim up to ${W.maxPickupClaims(owed.count)} free agents by ${when(p.processAt, now)}`,
+        subtitle: after.settings.ownershipMode === "shared" ? `Pick who by ${when(p.processAt, now)}` : `Claims due ${when(p.processAt, now)}`,
         image,
-        lede: `${addDrop ? "Add/drops are open too, if you want one. " : ""}${settle}`,
-        href: `${base}/pickup`,
-        cta: "Make my claims",
+        lede: `${swap ? "You can swap someone still in too, if you want. " : ""}${settle}`,
+        href: claimHref,
+        cta: "Make my claim",
         recap,
       };
     }
-    if (addDrop) {
+    if (swap) {
       return {
         kind: "move",
-        tag: "Add/drop",
-        title: "Add/drops are open",
-        subtitle: `Optional · claims by ${when(p.processAt, now)}`,
-        lede: `Drop one still in and add a free agent, if you want to. ${settle}`,
-        href: `${base}/add-drop`,
-        cta: "Make a claim",
+        tag: "Window",
+        title: "Waiver window open",
+        subtitle: `Optional · claims due ${when(p.processAt, now)}`,
+        lede: `Swap one of yours still in for a free agent, if you want. Their points go with them. ${settle}`,
+        href: base,
+        cta: "See my team",
         recap,
       };
     }
@@ -526,23 +524,23 @@ function moveBeat(after: LeagueState, through: number, me: string | null, beats:
   if (owed.count) {
     return {
       kind: "move",
-      tag: "Pickup",
+      tag: "Replace",
       title: pickupTitle,
-      subtitle: "Waivers have processed · choose from free agency",
+      subtitle: "Claims processed · choose from free agency",
       image,
-      lede: `Anyone still free is first come, first served until Episode ${next} airs. Still nobody by then and one is assigned, so you're never short.`,
-      href: `${base}/free-agency`,
+      lede: `Anyone still free is first come, first served until Episode ${next} airs.${W.autoFillOn(after) ? " Still nobody by then and you get the top free agent." : ""}`,
+      href: losses[0] ? `${base}/free-agency?drop=${encodeURIComponent(losses[0].id)}` : `${base}/free-agency`,
       cta: "Choose now",
       recap,
     };
   }
-  if (addDrop) {
+  if (swap) {
     return {
       kind: "move",
-      tag: "Add/drop",
-      title: "Your add/drop is open",
+      tag: "Window",
+      title: "Your swap is still open",
       subtitle: `In free agency until Episode ${next} airs`,
-      lede: "Waivers have processed, but this week's add/drop is still yours, first come, first served.",
+      lede: "Claims have processed, but you can still swap one of yours still in, first come, first served.",
       href: `${base}/free-agency`,
       cta: "See free agents",
       recap,

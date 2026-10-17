@@ -136,10 +136,10 @@ const SHORT_DETAIL: Record<string, string> = {
   reveal: "Once everyone has watched",
 };
 
-// Waivers (docs/PLAN-midseason-waivers.md; the canvas's board 11), when the week has something of yours
-// in it but nothing owed: a pickup you owe with no claim in is the alert strip's (action-items.js), so
-// this never adds yellow. Your claim is in; an add/drop week's optional claim; free agency with your
-// add/drop unused. A week you can't claim anything in says nothing here. Reads the viewer's copy, where a
+// Waivers (docs/PLAN-midseason-waivers.md, PLAN-waivers-v2.md), when the week has something of yours
+// in it but nothing owed: someone to replace with no claim in is the alert strip's (action-items.js), so
+// this never adds yellow. Your claim is in; a waiver window's optional swap; free agency with your swap
+// unused. A week you can't claim anything in says nothing here. Reads the viewer's copy, where a
 // week from an unrevealed episode is hidden -- and a hidden result already took the plate away above.
 function waiverPlate(state: LeagueState, me: string): StatusPlate | null {
   const W = StateLogic.WaiverLogic;
@@ -154,23 +154,23 @@ function waiverPlate(state: LeagueState, me: string): StatusPlate | null {
       const inCount = rotation.filter((pl) => pl.automated || p.claimsIn.includes(pl.id)).length;
       return {
         tag: "Waivers",
-        title: processes ? `Waivers process ${processes}` : "Waivers are on hold",
+        title: processes ? `Claims due ${processes}` : "Claims are on hold",
         detail: `Your claim is in · ${inCount} of ${rotation.length} in`,
         action: "Waivers",
         href,
       };
     }
-    if (p.addDrop && !W.pickupsOwed(state, me).count) {
-      return { tag: "Add/drop", title: "Add/drops are open", detail: processes ? `Optional · waivers ${processes}` : "Optional", action: "Waivers", href };
+    if (W.swapsLeft(state, p, me) > 0 && !W.replacementsOwed(state, me, p).count) {
+      return { tag: "Window", title: "Waiver window open", detail: processes ? `Optional swap · due ${processes}` : "Optional swap", action: "Waivers", href };
     }
     return null;
   }
-  if (p.addDrop && W.freeAgencyOn(state) && !W.addDropUsed(state, p, me) && !W.pickupsOwed(state, me).count) {
+  if (W.freeAgencyOn(state) && W.swapsLeft(state, p, me) > 0 && !W.replacementsOwed(state, me, p).count) {
     const until = at(p.closesAt);
     return {
       tag: "FA",
       title: until ? `Free agency until ${until}` : "Free agency is open",
-      detail: "Your add/drop is unused · first come",
+      detail: "Your swap is unused · first come",
       action: "Free agency",
       href: `${href}/free-agency`,
     };

@@ -93,6 +93,14 @@ async function republish(client, leagueId, state, period) {
 async function saveClaim(client, leagueId, state, playerId, input, userId) {
   const period = W.current(state);
   const has = (k) => !!input && Object.prototype.hasOwnProperty.call(input, k);
+  // `{ spot: { dropId, addIds } }`: one spot's ranked choices, the rest of the saved claim kept
+  // (WaiverLogic.setSpot). The commissioner's Claim for sends this: they never see the rest.
+  if (period && has("spot")) {
+    const spot = input.spot || {};
+    if (typeof spot.dropId !== "string" || !Array.isArray(spot.addIds)) return { error: "Choose who to drop and who to add" };
+    const saved = (await readOwnClaim(client, leagueId, period.id, playerId, state)) || { pairs: [] };
+    input = { pairs: W.setSpot(state, period, playerId, saved.pairs, spot.dropId, spot.addIds) };
+  }
   const legacy = !has("pairs");
   if (period && legacy && (!has("pickupIds") || (!has("dropId") && !has("addIds")))) {
     const saved = (await readOwnClaim(client, leagueId, period.id, playerId, state)) || { pickupIds: [], dropId: null, addIds: [] };
@@ -134,6 +142,9 @@ async function processPeriod(client, leagueId, state, now, by) {
 async function syncWaivers(client, leagueId, state, now) {
   const at = now === undefined ? Date.now() : now;
   const events = [];
+  // A league still on the suggestion for the team count given at creation is fitted to the teams it has
+  // once the draft starts (WaiverLogic.refit), before anything is opened on those settings.
+  W.refit(state);
   // Times first (air times are stamped fresh on every read and write), so a week processed here
   // records the schedule it ran on.
   W.refresh(state);
@@ -171,11 +182,11 @@ async function processNow(client, leagueId, state, now) {
 
 /**
  * The commissioner's Open a waiver window (WaiverLogic.openWindow): `swaps` each, or null to turn the
- * window off. Saved claims that no longer fit are trimmed (a turned-off window takes its swaps with it;
+ * window off; `opts.replace`, the window's own say on replacements. Saved claims that no longer fit are trimmed (a turned-off window takes its swaps with it;
  * a week that ends takes every claim). { period, trimmed: playerIds whose claim lost pairs } or { error }.
  */
-async function openWindow(client, leagueId, state, swaps, now) {
-  const r = W.openWindow(state, swaps, now === undefined ? Date.now() : now);
+async function openWindow(client, leagueId, state, swaps, now, opts) {
+  const r = W.openWindow(state, swaps, now === undefined ? Date.now() : now, opts);
   if (r.error) return { error: r.error };
   const period = r.period;
   const trimmed = [];

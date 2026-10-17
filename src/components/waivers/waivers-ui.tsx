@@ -210,7 +210,7 @@ export function Mini({ c, n, drop }: { c: Castaway | undefined; n?: number; drop
   );
 }
 
-/** Out (faded) → in: a pickup or add/drop as two photos. */
+/** Out (faded) → in: a replacement or swap as two photos. */
 export function Pair({ state, from, to, out }: { state: LeagueState; from: string | null | undefined; to: string | null | undefined; out?: boolean }) {
   const a = from ? StateLogic.getCastaway(state, from) : undefined;
   const b = to ? StateLogic.getCastaway(state, to) : undefined;
@@ -223,7 +223,7 @@ export function Pair({ state, from, to, out }: { state: LeagueState; from: strin
   );
 }
 
-/** Completed pickups and add/drops, newest first. */
+/** Completed replacements and swaps, newest first. */
 export function TxRows({ state, entries, me }: { state: LeagueState; entries: MidSeasonLogEntry[]; me: string | null }) {
   if (!entries.length) return null;
   return (
@@ -248,7 +248,7 @@ export function TxRows({ state, entries, me }: { state: LeagueState; entries: Mi
   );
 }
 
-/** One week's run, as the canvas's Results board: pickups, then add/drops, each in waiver order, and why. */
+/** One week's run, as the canvas's Results board: replacements, then swaps, each in waiver order, and why. */
 export function RunResults({ state, period, me }: { state: LeagueState; period: WaiverPeriod; me: string | null }) {
   const name = useCastNames(state);
   const run = period.run;
@@ -291,17 +291,17 @@ export function RunResults({ state, period, me }: { state: LeagueState; period: 
     <div className="flex flex-col gap-2">
       {pickups.length > 0 && (
         <>
-          <h4 className="type-caption mt-1.5 text-[15px] text-muted-foreground">Pickups</h4>
+          <h4 className="type-caption mt-1.5 text-[15px] text-muted-foreground">Replacements</h4>
           <ol className="border-t border-border">{pickups.map(row)}</ol>
         </>
       )}
       {addDrops.length > 0 && (
         <>
-          <h4 className="type-caption mt-1.5 text-[15px] text-muted-foreground">Add/drops</h4>
+          <h4 className="type-caption mt-1.5 text-[15px] text-muted-foreground">Swaps</h4>
           <ol className="border-t border-border">{addDrops.map(row)}</ol>
         </>
       )}
-      {pickups.length === 0 && addDrops.length === 0 && <Note>Nobody was owed a pickup, and add/drops weren&rsquo;t open.</Note>}
+      {pickups.length === 0 && addDrops.length === 0 && <Note>Nobody could replace or swap anyone this week.</Note>}
     </div>
   );
 }
