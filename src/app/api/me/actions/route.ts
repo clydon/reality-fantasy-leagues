@@ -3,6 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireSession } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
 import { actionItems } from "@/lib/game/action-items.js";
+import { commissionerItems } from "@/lib/game/commissioner-items";
 import { stampAirTimes } from "@/lib/server/air-times";
 import { showsResultsImmediately } from "@/lib/server/results-seen";
 
@@ -10,6 +11,9 @@ import { showsResultsImmediately } from "@/lib/server/results-seen";
 // data (action-bar.tsx), so a lineup or a draft turn due in one league shows while another is open.
 // One query for all of them; actionItems is pure, so this is just a fan-out over league state.
 // Leagues in My Leagues order (alphabetical); items within a league keep actionItems' urgency order.
+// `commish`: the leagues you run's own to-dos (commissioner-items.ts: invite players, schedule the
+// draft, reveal the next episode), for Overview's control room. Kept apart from `items` so the alert
+// strip, the league strip's dots and the reminder job read exactly what they did.
 export const GET = apiRoute(async (req) => {
   const { user } = await requireSession(req);
   // Pending invites first: unanswered, they're the easiest thing in the app to never notice (the
@@ -44,6 +48,7 @@ export const GET = apiRoute(async (req) => {
   // One league's unreadable state costs that league's items, not the whole bar. Air times stamped
   // first, so a lineup or pick whose episode has started isn't still listed as due.
   const leagueItems = [];
+  const commish = [];
   for (const r of rows) {
     if (!r.player_id) continue;
     try {
@@ -59,9 +64,11 @@ export const GET = apiRoute(async (req) => {
           ? null
           : (r.results_seen_through ?? 0);
       leagueItems.push(...actionItems(r.state, r.player_id, seen, { commissioner: r.role === "commissioner" }).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })));
+      // None of these says anything about results, so the full state is safe to read.
+      if (r.role === "commissioner") commish.push(...commissionerItems(r.state).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })));
     } catch (e) {
       console.error(`[actions] league ${r.id}:`, e);
     }
   }
-  return NextResponse.json({ items: [...inviteItems, ...leagueItems] });
+  return NextResponse.json({ items: [...inviteItems, ...leagueItems], commish });
 });

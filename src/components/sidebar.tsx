@@ -12,14 +12,13 @@ import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
-import { waiversBadge } from "@/lib/game/selectors";
-import { myLineupDue } from "@/lib/game/lineup-view";
-import { myPickDue } from "@/lib/game/pool-view";
+import { episodesDue, slotDue, slotFour } from "@/lib/game/league-tabs";
 import { commissionerItems } from "@/lib/game/commissioner-items";
 import { logOut, useSession } from "@/lib/auth-client";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { useClickOutside } from "@/lib/use-click-outside";
 import { LeagueMenu, LeagueMenuActions } from "@/components/league-menu";
+import { LeagueStrip, useLinkedGroup } from "@/components/league-strip";
 import { ThemePicker } from "@/components/theme-picker";
 import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useAdminWaiting } from "@/components/admin/admin-shell";
@@ -36,8 +35,8 @@ import {
   PickIcon,
   ResearchIcon,
   ShieldIcon,
-  ShuffleIcon,
   SparklesIcon,
+  TeamIcon,
   TrophyIcon,
   UserIcon,
   InfoIcon,
@@ -49,23 +48,12 @@ type Icon = ComponentType<{ className?: string }>;
 
 // The desktop sidebar (880px and up), direction A2's "league plate rail" (docs/PLAN-ux-declutter.md,
 // D1). Top: the league as a caption plate, which opens the league menu; no logo. Then the league's
-// pages as 44px rows with the tab bar's icons, in the tab bar's order. At the bottom: Admin for
+// pages as 44px rows with the tab bar's icons, in the tab bar's order (docs/PLAN-league-tabs.md:
+// Overview · Episodes · Scoreboard · slot 4 · Research), then the rows the phone keeps on its header
+// and in More (the finished Draft board, Chat, League Settings). At the bottom: Admin for
 // super-admins, then one account row whose ⋯ opens a menu above it with everything account-level
 // (settings, appearance, What's new, report, demo, log out), instead of a column of yellow links.
 // Mobile chrome is mobile-nav/mobile-nav.tsx, shown below the same breakpoint.
-const TABS: { href: string; label: string; icon: Icon }[] = [
-  { href: "/", label: "Overview", icon: OverviewIcon },
-  { href: "/episodes", label: "Episodes", icon: EpisodesIcon },
-  { href: "/scoreboard", label: "Scoreboard", icon: TrophyIcon },
-  { href: "/lineup", label: "Lineup", icon: LineupIcon },
-  { href: "/pick", label: "Pick", icon: PickIcon },
-  { href: "/draft", label: "Draft", icon: DraftIcon },
-  { href: "/waivers", label: "Waivers", icon: ShuffleIcon },
-  { href: "/research", label: "Research", icon: ResearchIcon },
-  { href: "/chat", label: "Chat", icon: ChatIcon },
-  { href: "/setup", label: "League Settings", icon: GearIcon },
-];
-
 export function Sidebar() {
   const pathname = usePathname();
   const isSuperAdmin = useIsSuperAdmin();
@@ -75,6 +63,8 @@ export function Sidebar() {
   const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
   const takeTour = useTakeTour();
   const state = useLeagueStore((s) => s.state);
+  const fullState = useLeagueStore((s) => s.fullState);
+  const seenThrough = useLeagueStore((s) => s.membership?.resultsSeenThrough ?? null);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
   const notifications = useNotificationsStore((s) => s.notifications);
@@ -84,44 +74,54 @@ export function Sidebar() {
   // views onto the demo season they didn't ask for -- so they get the two rows below instead.
   const hasSeason = mode === "live" || isPreviewingDemo;
 
-  // Only the pages this league has: Draft is a roster concept; Waivers (docs/PLAN-midseason-waivers.md)
-  // only when the commissioner turned Pickups or Add/drops on; Lineup and Research are Active Roster's;
-  // Pick is Eliminator Pool's.
+  // The phone's six tabs, less More: slot 4 is your play (league-tabs.ts). Waivers is reached from Team
+  // and Lineup, so it's no row of its own; while it's open, slot 4 stays lit.
   const type = StateLogic.getLeagueType(state);
-  const waivers = StateLogic.WaiverLogic.enabled(state);
-  const tabs = TABS.filter(
-    (t) =>
-      !(t.href === "/draft" && !type.hasRoster) &&
-      !(t.href === "/waivers" && !waivers) &&
-      !((t.href === "/research" || t.href === "/lineup") && !type.hasActiveRoster) &&
-      !(t.href === "/pick" && !type.hasWeeklyPicks),
-  );
+  const slot = slotFour(state);
+  const slotIcon = { draft: DraftIcon, team: TeamIcon, lineup: LineupIcon, pick: PickIcon }[slot.key];
+  const draftDone = type.hasRoster && slot.key !== "draft";
+  const tabs: { href: string; label: string; icon: Icon; also?: string[] }[] = [
+    { href: "/", label: "Overview", icon: OverviewIcon },
+    { href: "/episodes", label: "Episodes", icon: EpisodesIcon },
+    { href: "/scoreboard", label: "Scoreboard", icon: TrophyIcon },
+    { href: slot.href, label: slot.label, icon: slotIcon, also: slot.key === "team" || slot.key === "lineup" ? ["/waivers"] : [] },
+    { href: "/research", label: "Research", icon: ResearchIcon },
+    ...(draftDone ? [{ href: "/draft", label: "Draft board", icon: DraftIcon }] : []),
+    { href: "/chat", label: "Chat", icon: ChatIcon },
+    { href: "/setup", label: "League Settings", icon: GearIcon },
+  ];
 
-  // The tab bar's badges: a "needs you" mark on Lineup, Pick and Waivers (and any page with its
-  // own pending notifications), chat's unread count as a quiet chip, and a chyron dot on League
+  // The badges: slot 4's "needs you" from the alert strip's list (so they never disagree), Episodes'
+  // for the commissioner's results, chat's unread count as a quiet chip, and a chyron dot on League
   // Settings while a commissioner to-do waits there.
   function badgeFor(href: string): Badge | null {
-    if (href === "/waivers") {
-      const b = waiversBadge(state, myPlayerId);
-      return b?.urgent ? { kind: "urgent", label: b.label } : null;
+    if (href === slot.href) {
+      const due = slotDue(fullState, myPlayerId, seenThrough) || (slot.key === "draft" && notifications.some((n) => n.tab === "/draft"));
+      return due ? { kind: "urgent", label: "!" } : null;
     }
-    if (href === "/lineup" && myLineupDue(state, myPlayerId)) return { kind: "urgent", label: "!" };
-    if (href === "/pick" && myPickDue(state, myPlayerId)) return { kind: "urgent", label: "!" };
+    if (href === "/episodes" && episodesDue(fullState, myPlayerId, canManage)) return { kind: "urgent", label: "!" };
+    if (href === "/draft") return null;
     if (href === "/chat") return chatUnread > 0 ? { kind: "count", label: chatUnread > 9 ? "9+" : String(chatUnread) } : null;
     if (href === "/setup") return canManage && commissionerItems(state).length > 0 ? { kind: "dot" } : null;
     const count = notifications.filter((n) => n.tab === href).length;
     return count > 0 ? { kind: "urgent", label: count > 9 ? "9+" : String(count) } : null;
   }
-  const isActive = (href: string) =>
-    pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)) || (href === "/episodes" && pathname === "/cast");
+  const isActive = (href: string, also: string[] = []) =>
+    [href, ...also].some((h) => pathname === h || (h !== "/" && pathname.startsWith(`${h}/`))) || (href === "/episodes" && pathname === "/cast");
 
   return (
     <aside className="sticky top-0 flex h-screen w-[264px] flex-none flex-col gap-[22px] overflow-y-auto overflow-x-hidden border-r border-border bg-panel-menu p-[20px_14px_14px]">
-      {hasSeason && <LeaguePlate />}
+      {hasSeason && (
+        <div className="flex flex-col gap-2">
+          <LeaguePlate />
+          {/* A linked group's games (docs/PLAN-league-tabs.md); the rail is narrow, so a label may wrap. */}
+          <LeagueStrip wrap />
+        </div>
+      )}
 
       <nav className="flex flex-col gap-0.5">
         {hasSeason ? (
-          tabs.map((tab) => <NavRow key={tab.href} href={tab.href} label={tab.label} icon={tab.icon} active={isActive(tab.href)} badge={badgeFor(tab.href)} />)
+          tabs.map((tab) => <NavRow key={tab.href} href={tab.href} label={tab.label} icon={tab.icon} active={isActive(tab.href, tab.also)} badge={badgeFor(tab.href)} />)
         ) : (
           <>
             <NavRow href="/dashboard" label="My Leagues" icon={OverviewIcon} active={pathname === "/dashboard" || pathname === "/"} />
@@ -141,7 +141,8 @@ export function Sidebar() {
 }
 
 // The league as a caption plate: the season as a quiet tag, the name (up to two lines) and what it
-// is. With leagues to switch between it opens the league menu, just under it.
+// is. In a linked group it's the group's name and the open game; the strip under it switches game.
+// With leagues to switch between it opens the league menu, just under it.
 function LeaguePlate() {
   const router = useRouter();
   const mode = useLeagueStore((s) => s.mode);
@@ -151,6 +152,7 @@ function LeaguePlate() {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const switchLeague = useLeagueStore((s) => s.switchLeague);
   const terms = useShowTerms();
+  const group = useLinkedGroup();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, open, () => setOpen(false));
@@ -163,8 +165,10 @@ function LeaguePlate() {
         {season != null ? `S${season}` : "League"}
       </span>
       <span className="tag-tuck flex min-w-0 flex-1 flex-col justify-center gap-0.5 bg-plate py-[7px] pl-2.5 pr-1 text-left text-plate-foreground">
-        <span className="type-caption line-clamp-2 text-[18px] leading-none">{mode === "live" ? leagueName : "Demo season"}</span>
-        <span className="truncate text-[12px] text-plate-muted">{[terms.showName, typeName(state)].filter(Boolean).join(" · ")}</span>
+        <span className="type-caption line-clamp-2 text-[18px] leading-none">{mode === "live" ? (group?.name ?? leagueName) : "Demo season"}</span>
+        <span className="truncate text-[12px] text-plate-muted">
+          {group ? group.games[group.index].detail : [terms.showName, typeName(state)].filter(Boolean).join(" · ")}
+        </span>
       </span>
       {switchable && (
         <span className="flex shrink-0 items-center bg-plate pr-2 text-plate-foreground">

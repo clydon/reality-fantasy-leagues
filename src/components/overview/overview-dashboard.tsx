@@ -38,7 +38,7 @@ function renderSection(id: OverviewSectionId, state: LeagueState): ReactNode {
     case "standings":
       return <StandingsCard state={state} />;
     case "yourTeam":
-      return <YourTeamCard state={state} />;
+      return <YourTeamCard state={state} link />;
     case "latestEpisode":
       return <LatestEpisodeCard state={state} />;
     case "yourLine":

@@ -8,7 +8,9 @@ const StateLogic = require("../src/lib/game/state-logic.js");
 const { statusPlate } = jiti("../src/lib/game/status-plate.ts");
 
 const DAY = 86_400_000;
-const NOW = Date.parse("2026-10-10T16:00:00Z");
+// The real clock: StateLogic.isDraftStarted compares a scheduled draft with Date.now(), so a fixed date
+// would make "before the draft" go stale.
+const NOW = Date.now();
 
 function league() {
   const s = StateLogic.defaultState();
@@ -29,12 +31,11 @@ test("before the draft: when it is and where you pick", () => {
   assert.equal(p.href, "/draft");
 });
 
-test("a commissioner's blocker outranks the player line", () => {
+test("a commissioner's blocker isn't the plate's: the control room above it has it", () => {
   const s = league();
   const p = statusPlate(s, { me: "p1", isCommissioner: true, now: NOW });
-  assert.equal(p.tag, "Commish");
-  assert.equal(p.title, "Draft not scheduled");
-  assert.equal(statusPlate(s, { me: "p1", isCommissioner: false, now: NOW }).title, "Not scheduled yet");
+  assert.equal(p.tag, "Draft");
+  assert.equal(p.title, "Not scheduled yet");
 });
 
 test("draft running: who's on the clock, and whether you're next", () => {

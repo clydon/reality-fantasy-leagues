@@ -25,11 +25,15 @@ export interface EpisodeLine {
   /** Still in the game for it. */
   played: boolean;
   events: { type: string; label: string; points: number }[];
+  /** Safe moments this episode (see SAFETY_EVENTS), counted even where the league scores them 0. */
+  safe: number;
 }
 
 export interface Row {
   c: Castaway;
   points: number;
+  /** Safe moments across the window. */
+  safety: number;
   played: number;
   avg: number;
   perEpisode: EpisodeLine[];
@@ -59,9 +63,10 @@ export function buildRows(state: LeagueState, aired: LeagueState["episodes"], wi
 
   return state.castaways.map((c) => {
     const perEpisode: EpisodeLine[] = inWindow.map((ep) => {
-      const line: EpisodeLine = { n: ep.number, points: 0, played: !(exitEp[c.id] < ep.number), events: [] };
+      const line: EpisodeLine = { n: ep.number, points: 0, played: !(exitEp[c.id] < ep.number), events: [], safe: 0 };
       for (const sev of StateLogic.ActiveRosterLogic.episodeEvents(state, ep)) {
         if (sev.castawayId !== c.id) continue;
+        if (SAFETY_EVENTS.includes(sev.type)) line.safe++;
         const pts = StateLogic.ActiveRosterLogic.pointsFor(state, sev.type);
         line.points = StateLogic.roundPoints(line.points + pts);
         // An event this league scores at 0 is noise in the breakdown.
@@ -73,8 +78,20 @@ export function buildRows(state: LeagueState, aired: LeagueState["episodes"], wi
     });
     const points = StateLogic.roundPoints(perEpisode.reduce((s, e) => s + e.points, 0));
     const played = perEpisode.filter((e) => e.played).length;
-    return { c, points, played, avg: played ? points / played : 0, perEpisode };
+    const safety = perEpisode.reduce((s, e) => s + e.safe, 0);
+    return { c, points, safety, played, avg: played ? points / played : 0, perEpisode };
   });
+}
+
+/** What keeps someone off the chopping block, for an Eliminator Pool where surviving beats scoring:
+ *  winning individual immunity, Tribal with no votes against, and votes survived. A show whose format
+ *  has none of these has no Safety ranking (hasSafety). */
+export const SAFETY_EVENTS = ["individualImmunity", "zeroVotesSafe", "survivedVotes"];
+export const SAFETY_RULE_ID = "__safety";
+export const SAFETY_RULE: Rule = { type: SAFETY_RULE_ID, label: "Safety", points: 0 };
+export function hasSafety(state: LeagueState): boolean {
+  const defs: { id: string }[] = StateLogic.formatOf(state).events;
+  return SAFETY_EVENTS.some((id) => defs.some((d) => d.id === id));
 }
 
 /** Where an event sits in the show's scoring groups (format.eventCategories, the League Scoring

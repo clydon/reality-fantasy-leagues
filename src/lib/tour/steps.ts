@@ -81,13 +81,13 @@ const TABS: { tab: string; line: string; detail: string }[] = [
   {
     tab: "tab-overview",
     line: "Overview: your league at a glance.",
-    detail: "What needs doing, the standings and how last week went, all on one page.",
+    detail: "Up next puts your most urgent move at the top, then the standings and how last week went.",
   },
   {
     tab: "header-league",
-    line: "In more than one league? Tap the league name to switch.",
+    line: "In more than one league? Tap the name to switch.",
     detail:
-      "Every league you're in is in that menu. Linked leagues, on the same season with one shared chat, are a swipe apart too: swipe left or right on any page.",
+      "Every league you're in is in that menu. Linked leagues share a season and a chat: they show as chips under the header, and a swipe left or right on any page moves between them.",
   },
   {
     tab: "tab-episodes",
@@ -102,18 +102,19 @@ const TABS: { tab: string; line: string; detail: string }[] = [
   {
     tab: "tab-draft",
     line: "Draft now, Lineup later.",
-    detail: "Pick your team here. Once the draft is done, this tab becomes Lineup: who you start each week.",
+    detail:
+      "Pick your team here. Once the draft is done, this tab becomes Lineup: who you start each week, with Waivers below it for replacements.",
   },
   {
     tab: "tab-research",
     line: "Research: how every baker is scoring.",
-    detail: "Points for the whole cast, who's still a free agent and who's on each team.",
+    detail: "Points for the whole cast, who's still a free agent and who's on each team. Every game has it.",
   },
   {
     tab: "tab-more",
-    line: "More: everything else.",
+    line: "More: about the league, and about you.",
     detail:
-      "Waivers for replacements, League Settings for the rules and invite code, What's new, and these tours. Chat is the bubble at the top.",
+      "League Settings for the rules and invite code, How this league works, What's new and these tours. Chat is the bubble at the top.",
   },
 ];
 const GETTING_AROUND: TourStep[] = TABS.map((t, i) => ({
@@ -204,9 +205,9 @@ export const PLAYER_TOUR: TourStep[] = [
       "Claims are private, and everyone's process at once the day before the next episode. Here they process right away.",
     targets: ["picker-tiles", "picker-confirm"],
     nav: {
-      line: () => "A baker went home. Claim a replacement in Waivers, under More.",
+      line: () => "A baker went home. Claim a replacement: Lineup, then Waivers.",
       detail: () => "When one of yours goes home, you can replace them with someone nobody drafted.",
-      targets: ["tab-more", "more-waivers", "waivers-pickup"],
+      targets: ["tab-lineup", "team-waivers", "waivers-pickup"],
     },
     done: (c) => pickedUp(c.full),
   },

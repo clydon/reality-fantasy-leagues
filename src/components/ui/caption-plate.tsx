@@ -44,6 +44,7 @@ export function CaptionPlate({
   href,
   onClick,
   size = "md",
+  wrap = false,
   className,
   "aria-label": ariaLabel,
 }: {
@@ -63,6 +64,9 @@ export function CaptionPlate({
   href?: string;
   onClick?: () => void;
   size?: "md" | "sm";
+  /** The message gets the width: the title to two lines and the subtitle wrapped, never cut
+   *  mid-message (the alert strip's rule). For plates that carry a to-do, like Team's waiver banner. */
+  wrap?: boolean;
   className?: string;
   "aria-label"?: string;
 }) {
@@ -83,8 +87,16 @@ export function CaptionPlate({
         {tag}
       </span>
       <span className="tag-tuck flex min-w-0 flex-1 flex-col justify-center gap-0.5 bg-plate px-3 py-2 text-plate-foreground">
-        <span className={cn("type-caption truncate", size === "sm" ? "text-[19px]" : "text-[22px]")}>{title}</span>
-        {subtitle && <span className="truncate text-[13px] text-plate-muted">{subtitle}</span>}
+        <span
+          className={cn(
+            "type-caption",
+            wrap ? "line-clamp-2 leading-[1.05] [overflow-wrap:anywhere] [text-wrap:pretty]" : "truncate",
+            size === "sm" ? "text-[19px]" : "text-[22px]",
+          )}
+        >
+          {title}
+        </span>
+        {subtitle && <span className={cn("text-[13px] text-plate-muted", wrap ? "leading-[1.3] [text-wrap:pretty]" : "truncate")}>{subtitle}</span>}
       </span>
       {action && (
         <span

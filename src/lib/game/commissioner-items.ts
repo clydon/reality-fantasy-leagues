@@ -10,9 +10,9 @@ export interface CommissionerItem {
   href: string;
 }
 
-// What's waiting on the commissioner in this league (docs/PLAN-ux-declutter.md, decision 4). The first
-// is Overview's status plate (lib/game/status-plate.ts) while nothing else needs them; each also puts a
-// chyron dot on the League Settings row that fixes it (setup-tab.tsx). Only things nobody else can
+// What's waiting on the commissioner in this league (docs/PLAN-ux-declutter.md, decision 4). They're
+// Overview's control room (overview/up-next.tsx, with every other league you run's, via
+// /api/me/actions); each also puts a chyron dot on the League Settings row that fixes it (setup-tab.tsx). Only things nobody else can
 // do: a player's own turns and picks are the alert strip's (action-items.js). Read from the viewer's
 // trimmed state, so nothing here hints at results the commissioner hasn't revealed yet. Pending
 // invites aren't a to-do: they're the Players & invites row's value.

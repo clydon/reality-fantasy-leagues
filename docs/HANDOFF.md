@@ -11,6 +11,28 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## League tabs redesign: designed 2026-10-17, steps 1–7 built (not committed)
+
+[PLAN-league-tabs.md](PLAN-league-tabs.md): the same six tabs in every game (Overview · Episodes ·
+Scoreboard · Team/Lineup/Pick · Research · More), Research for Classic and Pool too, Waivers linked off
+Team/Lineup instead of being a tab or a More row, linked groups under one name with a league strip
+(swipe kept), and "Up next" on Overview (this game's most urgent move, "+N more" for the rest of the
+group, a dark commissioner "control room" strip above it) to fix players missing their to-dos. Mockups
+built from real captures are linked at the top of the plan. Build order is in the plan; the "light
+touches" section needs the user's OK first. Uncommitted: `scripts/dev-test/view-as.js` now marks
+What's New read for the zt_ account (so captures aren't covered).
+Built, uncommitted: step 1 (six tabs, More), step 2 (Team for Classic, the waiver banner and section on Team /
+Lineup), step 3 (group name in the header, the league strip, swipe kept, ▾ menu: the plan's "As built: step 3"),
+step 4 (Up next and the commissioner's control room on Overview: the plan's "As built: step 4").
+step 5 (bottom sheets close with a swipe down: the plan's "As built: step 5").
+step 6 (Pool Research: Open to you / Used / Everyone, Safety ranking: the plan's "As built: step 6").
+step 7 (the light touches, decided by the user: the plan's "As built: step 7"): Up next on every page but Team / Lineup
+(own waiver banner) with Episodes keeping its results lead; the status plate's rules now say "Nothing to do in Pool ·
+Next: …"; "Team" link on Overview's Your team; header art kept, contrast fixed and measured (`check-header-art.js`).
+Decided against: the Episodes "The cast" → Research link and removing /cast.
+Step 8 done: tour, DESIGN.md and the User Manual doc updated. Still open: the What's New entry (release 2026-10-17, three items drafted in conversation, not yet approved or added to `src/lib/whats-new.ts`). Next planned: an impeccable animate + delight pass. Open for the user: Up next's quiet "Next: …" line
+shows on Overview only (a quiet game shows nothing on other pages); say if it should be everywhere.
+
 ## Waivers v2: engine, UI and window pushes committed and pushed 2026-10-16
 
 One claim type (ranked "add X, drop Y" pairs), replacement rules (`replaceRule`), waiver windows

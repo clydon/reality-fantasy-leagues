@@ -9,17 +9,17 @@ import { finishedPlace, ordinal } from "@/components/scoreboard/scoreboard-tab";
 import { castawayPoints, teamOrder } from "@/lib/game/classic-view";
 import { isKnockedOut } from "@/lib/game/selectors";
 import { cn } from "cn";
-import { DashCard } from "./dash-card";
+import { DashAside, DashCard } from "./dash-card";
 
 // Second card on Overview, right after Standings -- "what do I personally have in this league,
 // right now." Shape depends on the league type, same way the rest of Overview already branches:
 //   classic-draft   -- your team as name plates (the canvas's Classic Home): who's still in, and
 //                      for each one out, when they went and where they finished; every plate carries
 //                      its points so far (still earning) or final.
-// Active Roster doesn't show it (overview-layout.ts): its lineup is "Starting this week", last week is
+// `link` (Overview only) adds the section's one heading link, to the Team tab. Active Roster doesn't show it (overview-layout.ts): its lineup is "Starting this week", last week is
 // a caption plate, and the season detail is on your Scoreboard page. Nor does Eliminator Pool, which
 // has no team: its picks are the pick section (pickem-pick-grid.tsx).
-export function YourTeamCard({ state }: { state: LeagueState }) {
+export function YourTeamCard({ state, link }: { state: LeagueState; link?: boolean }) {
   const myPlayerId = useMyPlayerId();
   const terms = useShowTerms();
   const leagueType = StateLogic.getLeagueType(state);
@@ -31,7 +31,7 @@ export function YourTeamCard({ state }: { state: LeagueState }) {
   const roster = teamOrder(state.castaways.filter((c) => c.ownerIds.includes(myPlayerId)));
 
   return (
-    <DashCard title="Your Team" wide>
+    <DashCard title="Your Team" wide aside={link && roster.length > 0 && <DashAside href="/team">Team</DashAside>}>
       {roster.length === 0 ? (
         <p className="text-sm text-muted-foreground">You haven&rsquo;t drafted any {terms.castaways} yet.</p>
       ) : (

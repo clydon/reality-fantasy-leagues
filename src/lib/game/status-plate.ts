@@ -1,6 +1,5 @@
 import type { LeagueState } from "./types";
 import StateLogic from "./state-logic.js";
-import { commissionerItems } from "./commissioner-items";
 import { ordinal } from "./selectors";
 import { pickWindow } from "./pool-view";
 import { lineupStatus } from "./lineup-view";
@@ -14,29 +13,25 @@ export interface StatusPlate {
   href?: string;
 }
 
-// The league's next beat, for the quiet caption plate that opens Overview when the alert strip has
-// nothing for this league (docs/PLAN-ux-declutter.md, "The status plate (O1)"). One plate, chosen by
-// the league's phase, the first that applies. It takes over what Season Status, the catch-up sentence
-// and the commissioner's one blocking item used to say.
+// The league's next beat, for the quiet caption plate that opens Overview when nothing in this league
+// needs you (docs/PLAN-ux-declutter.md, "The status plate (O1)"; drawn by Up next, overview/up-next.tsx,
+// with its count when other games need you). One plate, chosen by the league's phase, the first that
+// applies. It takes over what Season Status and the catch-up sentence used to say.
+//
+// A commissioner's own jobs aren't here: they're the control room's, above it (overview/up-next.tsx).
 //
 // Reads the viewer's trimmed (spoiler-safe) state, like commissionerItems: nothing here may hint at a
 // result they haven't revealed. Null when there's nothing worth a plate, when results are waiting
 // (the reveal prompt has the slot) or when the season's over (its results card leads instead).
 export function statusPlate(
   state: LeagueState,
-  { me, isCommissioner, now }: { me: string | null; isCommissioner: boolean; now: number | null },
+  { me, now }: { me: string | null; now: number | null },
 ): StatusPlate | null {
   const R = StateLogic.RevealLogic;
   if (R.isComplete(state)) return null;
   if (state.episodes.some((e) => e.resultsHidden)) return null;
   const type = StateLogic.getLeagueType(state);
   const name = (id: string | undefined) => (id ? (StateLogic.getPlayer(state, id)?.name ?? "Someone") : "Someone");
-
-  // A commissioner's blocker outranks every player line: the league can't move on without it.
-  if (isCommissioner) {
-    const [item] = commissionerItems(state);
-    if (item) return { tag: "Commish", title: item.title, detail: SHORT_DETAIL[item.id] ?? item.detail, action: item.action, href: item.href };
-  }
 
   if (type.hasRoster && !StateLogic.isDraftStarted(state)) {
     const at = state.settings.draftScheduledAt ? Date.parse(state.settings.draftScheduledAt) : NaN;
@@ -128,13 +123,6 @@ export function statusPlate(
   }
   return { tag: `Ep ${ep.number}`, title: "Up next", detail: leftLine.replace(/^./, (ch) => ch.toUpperCase()) };
 }
-
-// A plate has one short line under its title; League Settings has room for the longer ones.
-const SHORT_DETAIL: Record<string, string> = {
-  players: "A league needs at least two",
-  draft: "Pick a time, or start it yourself",
-  reveal: "Once everyone has watched",
-};
 
 // Waivers (docs/PLAN-midseason-waivers.md, PLAN-waivers-v2.md), when the week has something of yours
 // in it but nothing owed: someone to replace with no claim in is the alert strip's (action-items.js), so

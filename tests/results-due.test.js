@@ -45,7 +45,7 @@ test("nothing due before it airs, with no air time, or in a catching-up league",
 test("only a commissioner gets it, first, pointing at research or the episode by hand", () => {
   assert.ok(!actionItems(league(), "p1", null, { now: NOW }).some((it) => it.kind === "results"));
   const [first] = actionItems(league(), "p1", null, { commissioner: true, now: NOW });
-  assert.deepEqual(first, { kind: "results", text: "Fill in episode 2's results", href: "/episodes/2/research", episode: 2 });
+  assert.deepEqual(first, { kind: "results", text: "Fill in episode 2's results", href: "/episodes/2/research", episode: 2, who: "commish", deadline: null });
   const noSeason = league({ season: false });
   assert.equal(resultsHref(noSeason, noSeason.episodes[1]), "/episodes/2");
 });

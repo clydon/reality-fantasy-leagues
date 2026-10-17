@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { useLeagueStore } from "@/lib/store";
 import { useShowTerms } from "@/lib/use-show-terms";
+import { slotFour } from "@/lib/game/league-tabs";
 
 // Where "back" goes, and what it says (docs/DESIGN.md, Navigation). A page under another (an
 // episode, a player's score, a settings page) backs up to the page you actually came from, named:
@@ -35,6 +36,7 @@ const TOP_TITLES: Record<string, string> = {
   "/waivers": "Waivers",
   "/research": "Research",
   "/lineup": "Lineup",
+  "/team": "Team",
   "/pick": "Pick",
   "/chat": "Chat",
   "/setup": "League Settings",
@@ -42,14 +44,16 @@ const TOP_TITLES: Record<string, string> = {
   "/dashboard": "My Leagues",
 };
 
-/** The structural parent of a page under another, or null for a top-level page. */
-export function parentOf(pathname: string): { href: string; label: string } | null {
+/** The structural parent of a page under another, or null for a top-level page. `slot` is the
+    league's slot-4 tab (league-tabs.ts), which Waivers sits under. */
+export function parentOf(pathname: string, slot?: { href: string; label: string }): { href: string; label: string } | null {
   if (/^\/episodes\/\d+$/.test(pathname) || pathname === "/cast") return { href: "/episodes", label: "Episodes" };
   const results = /^\/episodes\/(\d+)\/research$/.exec(pathname);
   if (results) return { href: `/episodes/${results[1]}`, label: `Episode ${results[1]}` };
   if (/^\/scoreboard\/[^/]+$/.test(pathname)) return { href: "/scoreboard", label: "Scoreboard" };
   if (pathname === "/draft/board") return { href: "/draft", label: "Draft" };
-  // Waivers (docs/PLAN-midseason-waivers.md): a tab in Classic, in the More sheet in Active Roster.
+  // Waivers (docs/PLAN-league-tabs.md): pushed on top of Team (Classic) or Lineup (Active Roster).
+  if (pathname === "/waivers") return slot ? { href: slot.href, label: slot.label } : { href: "/team", label: "Team" };
   const waivers = /^(\/waivers|\/research\/waivers)\/.+$/.exec(pathname);
   if (waivers) return { href: waivers[1], label: "Waivers" };
   if (pathname === "/setup/rules/edit") return { href: "/setup/rules", label: "Scoring & rules" };
@@ -144,9 +148,10 @@ export function useRecordNavTrail() {
 export function useBackTarget(fallback?: { href: string; label: string }): BackTarget | null {
   const pathname = usePathname();
   const trail = useNavTrailStore((s) => s.trail);
-  const players = useLeagueStore((s) => s.state.players);
+  const state = useLeagueStore((s) => s.state);
+  const players = state.players;
   const terms = useShowTerms();
-  const parent = fallback ?? parentOf(pathname);
+  const parent = fallback ?? parentOf(pathname, slotFour(state));
   if (!parent) return null;
   const prev = nextTrail(trail, pathname).at(-2);
   if (prev) {
