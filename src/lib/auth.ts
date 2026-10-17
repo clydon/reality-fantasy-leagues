@@ -25,6 +25,13 @@ export const auth = betterAuth({
     "https://www.gameyourshow.com",
     "https://reality-fantasy-leagues.vercel.app",
   ],
+  // Signed in for 60 days since you last used the app, renewed at most daily (updateAge's default).
+  // The default 7 is about the gap between two episodes: a player who only opens the app on episode
+  // night was signed out about one week in two, and in the installed app that reads as it having
+  // forgotten them. Existing sessions move to the new length on their next request.
+  session: {
+    expiresIn: 60 * 24 * 60 * 60,
+  },
   user: {
     additionalFields: {
       // Early access gate (db/migrations/0058_user_approval.sql): `input: false` keeps a signup

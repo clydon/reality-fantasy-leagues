@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ import { ActionBar } from "@/components/action-bar";
 import { WhatsNewModal } from "@/components/whats-new-modal";
 import { LeagueExplainer } from "@/components/explainer/league-explainer";
 import { rememberedLeague, reloadedLeague } from "@/lib/last-league";
+import { pageToRestore, useRememberPage, type LastPage } from "@/lib/last-page";
 import { Button } from "@/components/ui/button";
 import { ResultsInBanner, RevealSheet } from "@/components/results-in-banner";
 import { CatchUpSheet, ReplayBug } from "@/components/late-join/replay-bug";
@@ -61,6 +62,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   // Where each page's back goes (lib/nav-trail.ts).
   useRecordNavTrail();
+  // Where a relaunch of the installed app picks up (lib/last-page.ts).
+  useRememberPage();
   const queryClient = useQueryClient();
   const mode = useLeagueStore((s) => s.mode);
   const loadLive = useLeagueStore((s) => s.loadLive);
@@ -88,6 +91,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // otherwise, so signing out (which never set it) can't itself be mistaken for "pending".
   const [approved, setApproved] = useState(true);
   const router = useRouter();
+  // The page this launch reopens, if any. Read once (undefined until then): pageToRestore answers once
+  // per launch, and in development the mount effect below runs twice.
+  const restoring = useRef<LastPage | null | undefined>(undefined);
   // A late joiner who hasn't chosen where to start has nothing to play yet (StateLogic.GhostLogic):
   // every league page sends them to /late-join until they have.
   const needsStart = useLeagueStore((s) => s.mode === "live" && StateLogic.GhostLogic.needsStart(s.rawState, s.membership?.playerId));
@@ -112,6 +118,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setSignedInUsername(me.user.username);
     setApproved(me.user.approved);
     setLeagues(me.leagues);
+    const byId = (id: string | null) => me.leagues.find((l) => l.id === id);
+    // Reopening where you left off (lib/last-page.ts) reopens that league too, ahead of the group's
+    // favorite below. Someone else's page, or a league you've since left, goes back to Overview.
+    const restore = restoring.current;
+    const restoredLeague = restore && restore.userId === me.user.id ? byId(restore.leagueId) : undefined;
+    if (restore && restore.path !== "/" && (restore.userId !== me.user.id || (restore.leagueId && !restoredLeague))) router.replace("/");
     // A pending account has no leagues to load and shouldn't be let past the check below anyway.
     if (me.user.approved && me.leagues.length > 0) {
       // A push notification link carries ?league=<id> (see push-events.ts), so tapping "your turn to
@@ -120,9 +132,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
       // Otherwise a reload (pull-to-refresh) stays put; and opening the app goes back to the league
       // last open in this browser -- or, when that one's linked, to its group's favorite (0046).
       const wanted = new URLSearchParams(window.location.search).get("league");
-      const byId = (id: string | null) => me.leagues.find((l) => l.id === id);
       const last = byId(rememberedLeague(me.user.id)) ?? me.leagues[0];
-      const target = byId(wanted) ?? byId(reloadedLeague(me.user.id)) ?? byId(last.landOn) ?? last;
+      const target = byId(wanted) ?? byId(reloadedLeague(me.user.id)) ?? restoredLeague ?? byId(last.landOn) ?? last;
       // The Overview layout is fetched alongside the league so the boot overlay covers both --
       // otherwise Overview briefly renders its cards in the default order, then jumps to the saved
       // one. prefetchQuery never throws, so a failed fetch just falls back to the default order.
@@ -136,11 +147,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Reopening the installed app where you left off (lib/last-page.ts) navigates now, behind the
+    // boot overlay, so the right page is already underneath when it lifts.
+    if (restoring.current === undefined) {
+      restoring.current = pageToRestore();
+      if (restoring.current && restoring.current.path !== "/") router.replace(restoring.current.path);
+    }
     // Silent check for an existing session (e.g. already logged into the live app in this same
     // browser) -- failing this is the normal, expected first-load case, not an error to surface.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadFirstLeague()
-      .catch(() => {})
+      .catch(() => {
+        // Signed out: the front door, and anything after it (signing in, the tour), starts from "/".
+        if (restoring.current && restoring.current.path !== "/") router.replace("/");
+        restoring.current = null;
+      })
       .finally(() => setStatus("idle"));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
