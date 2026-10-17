@@ -1,9 +1,9 @@
 # Waivers v2: one claim type, replacement rules, waiver windows, smart defaults
 
-**Status:** planned 2026-10-16; phase 1 (engine) built and committed (not pushed) 2026-10-16, see "As built:
-phase 1". Phase 2 (the UI) built and committed (not pushed) 2026-10-16, see "As built: phase 2". Phase 3 (the
-window pushes) built and committed (not pushed) 2026-10-16, see "As built: phase 3". What's New is drafted,
-waiting on the user; the User Manual doc still says pickups. Builds on mid-season waivers
+**Status:** planned 2026-10-16; phase 1 (engine) built and pushed 2026-10-16, see "As built:
+phase 1". Phase 2 (the UI) built and pushed 2026-10-16, see "As built: phase 2". Phase 3 (the
+window pushes) built and pushed 2026-10-16, see "As built: phase 3". What's New is drafted,
+waiting on the user; the User Manual doc was updated 2026-10-16. Builds on mid-season waivers
 ([PLAN-midseason-waivers.md](PLAN-midseason-waivers.md), shipped 2026-10-16); read that first for the
 week, the clock, free agency, spoilers and privacy, which this keeps unchanged.
 
@@ -512,7 +512,7 @@ The caption tag's edge (every tag + plate in the app) now meets its plate on one
 fixed slant (`tag-cut` / `tag-tuck`, `--tag-slant`) instead of 84% of the tag's width over a 10px tuck,
 and the plate colour under the whole strip (`globals.css`, DESIGN.md → Shapes). Mocks use the same.
 
-## As built: phase 2 (2026-10-16, committed, not pushed)
+## As built: phase 2 (2026-10-16, committed and pushed)
 
 | Piece | Where |
 |---|---|
@@ -547,7 +547,7 @@ and the plate colour under the whole strip (`globals.css`, DESIGN.md → Shapes)
 
 **Verified:** `tsc` and `eslint src` clean; `npm test` 346/347 (the known `status-plate.test.js` "before the draft"). `check-waivers.js` 85/85 (new: the window's replace switch, Claim for by spot). `check-waivers-alerts.js` passes. `check-waivers-ui.js` all four phases at 390px in Night and Studio, no page errors; it now also shoots the picker (tapped, saved, the grip sheet), a swap picker, the merge-rebuild league's quiet strip and the Open a waiver window sheet (off/None, then All) through to the open window, Settings with Casual tapped, and the create wizard (card, Competitive, 8 teams that don't fit). The guided tour (`docs/ux-baseline/scripts/tour.js --player-only`) runs end to end through the new picker.
 
-## As built: phase 3 (2026-10-16, committed, not pushed)
+## As built: phase 3 (2026-10-16, committed and pushed)
 
 | Piece | Where |
 |---|---|

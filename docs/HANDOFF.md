@@ -11,7 +11,7 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
-## Waivers v2: engine, UI and window pushes committed (not pushed) 2026-10-16
+## Waivers v2: engine, UI and window pushes committed and pushed 2026-10-16
 
 One claim type (ranked "add X, drop Y" pairs), replacement rules (`replaceRule`), waiver windows
 (`waiverWindows`), `autoFill`, the commissioner's Open a waiver window, and `WaiverLogic.recommend()`.
@@ -19,7 +19,7 @@ Plan: `docs/PLAN-waivers-v2.md`: "As built: phase 1" (engine), "As built: phase 
 made, what was verified) and "As built: phase 3" (the window pushes: who reads what). Design: the canvas https://claude.ai/artifact/KEsHGXFXjsDeuWe65JWZZz; DESIGN.md →
 "Waivers (mid-season moves)" now describes v2. `db/migrations/0063_waivers_v2.sql` is applied locally; production
 gets it on deploy.
-- **Committed locally, not pushed** (the user's call: hold until they say). Three commits: the engine (d9cbb0c),
+- **Pushed 2026-10-16** (with the caption-tag fix 493bbb9). Three commits: the engine (d9cbb0c),
   the UI (b7d0212) and the window pushes.
 - **The four design decisions, answered 2026-10-16:** auto-fill on for Casual only; shared pickups join at the
   deadline; claims grouped by spot (replacements first, no way to put a swap first); "Only when short" hidden for
@@ -30,8 +30,7 @@ gets it on deploy.
 - **Phase 3 built:** when the commissioner opens, changes or turns off a window, the rotation (not the commissioner)
   gets "Waiver window open: <the sheet's own no-names line>" (or "Waiver window off"); anyone whose claim was
   trimmed gets "Your claim changed" instead. `src/lib/server/waiver-pushes.js` `windowMessages`/`sendWindow`; the
-  line itself is now `src/lib/game/waiver-words.js`, shared with the sheet. Still open: the User Manual doc says
-  pickups/swaps.
+  line itself is now `src/lib/game/waiver-words.js`, shared with the sheet. User Manual doc updated 2026-10-16.
 - Checks: `tests/waivers.test.js` (36); `tests/waiver-pushes.test.js` (14); `node scripts/dev-test/check-waivers.js` (85);
   `check-waivers-alerts.js` (now also opens, changes and turns off a window on `zt-wv-rebuild`); `node scripts/dev-test/check-waivers-ui.js <outDir> [390] [--dark] [--only=classic|roster|rebuild|wizard]`.
 - Existing leagues keep their settings (Last Survivor Standing still reads Replace right away + every 3 + 1 swap)
