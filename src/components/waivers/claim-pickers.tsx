@@ -218,7 +218,7 @@ export function FreeAgencyPicker({ forId, dropId }: { forId: string | null; drop
   const owed = W.replacementsOwed(state, subject, period);
   const swapsLeft = W.swapsLeft(state, period, subject);
   // Who may go: anyone out you can still replace, and (with a swap left) anyone still in.
-  const drops = state.castaways.filter((c) => c.ownerIds.includes(subject) && (c.status === "active" ? swapsLeft > 0 : owed.lossIds.includes(c.id)));
+  const drops = state.castaways.filter((c) => c.ownerIds.includes(subject) && (c.status === "active" ? swapsLeft > 0 : owed.count > 0 && owed.outIds.includes(c.id)));
   const dd = drop && drops.some((c) => c.id === drop) ? drop : drops.length === 1 ? drops[0].id : null;
   const a = add && fa.some((c) => c.id === add) ? add : null;
   const dropC = dd ? StateLogic.getCastaway(state, dd) : undefined;

@@ -2207,7 +2207,9 @@ class WaiverLogic {
     let rule = WaiverLogic.replaceRule(state);
     const own = WaiverLogic.isWindow(period) && typeof period.replace === 'boolean' ? period.replace : null;
     if(own === false) return none;
-    if(own === true && (rule === 'never' || rule === 'windows')) rule = 'always';
+    // On: everyone who's out, in this window, whatever the rule (only when short included: the one-off
+    // "replace everyone" window, e.g. after the merge).
+    if(own === true) rule = 'always';
     if(rule === 'never' || MidSeasonLogic.seasonOver(state)) return none;
     if(!inLeagueRotation(Core.getPlayer(state, playerId))) return none;
     if(rule === 'windows' && !WaiverLogic.isWindow(period)) return none;

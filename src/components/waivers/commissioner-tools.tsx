@@ -123,16 +123,23 @@ export function OpenWindowSheet({
   const R = StateLogic.rosterSize(state);
   const rule = W.replaceRule(state);
   const editing = !!period && W.isWindow(period);
-  // Replacements every week (always / only when short) happen anyway: nothing to switch.
-  const ruleDecides = rule === "always" || rule === "whenShort";
+  // "Replace right away" replaces everyone every week anyway: nothing to switch. Under "Only when short"
+  // the switch lifts the cap for this window (on: everyone who's out; off: the rule, so only teams that
+  // are short); under the window rules it's the window's own say.
+  const ruleDecides = rule === "always";
+  const short = rule === "whenShort";
   const classic = !StateLogic.getLeagueType(state).hasActiveRoster;
   const cfg = W.windows(state).swaps;
-  const [replace, setReplace] = useState(() => (editing ? W.windowReplaces(state, period) : rule !== "never"));
+  const [replace, setReplace] = useState(() =>
+    short ? !!period && editing && period.replace === true : editing ? W.windowReplaces(state, period) : rule !== "never",
+  );
   const [swaps, setSwaps] = useState(() => (editing ? W.swapsAllowed(period) : cfg > 0 ? cfg : classic ? R : 1));
   const [busy, setBusy] = useState(false);
   const episode = period ? period.episode : latestEpisode(state);
   const due = period ? period.processAt : W.schedule(state, { episode, openedAt: new Date(now).toISOString() } as WaiverPeriod).processAt;
-  const replaceOn = ruleDecides ? undefined : replace;
+  // Off under "Only when short" leaves the window's say out (the rule decides), never false: that would
+  // stop even a short team replacing.
+  const replaceOn = ruleDecides || (short && !replace) ? undefined : replace;
   const line = windowLine(state, { window: true, swaps, replace: replaceOn });
   const any = swaps > 0 || (!ruleDecides && replace);
 
@@ -157,8 +164,14 @@ export function OpenWindowSheet({
         {!ruleDecides && (
           <SwitchRow
             tone="you"
-            label="Replace castaways who are out"
-            hint={replace ? "Each gets a free agent. Their points stay." : "Out castaways stay on the team."}
+            label="Replace everyone who's out"
+            hint={
+              replace
+                ? "Each gets a free agent. Their points stay."
+                : short
+                  ? `Only teams down to ${W.shortAt(state)} still in replace.`
+                  : "Out castaways stay on the team."
+            }
             checked={replace}
             onChange={setReplace}
           />
@@ -378,7 +391,7 @@ function ClaimForSheet({ state, period, player, onClose }: { state: LeagueState;
   const base = useWaiversBase();
   const name = useCastNames(state);
   const W = StateLogic.WaiverLogic;
-  const owed = player ? W.replacementsOwed(state, player.id, period) : { lossIds: [] as string[] };
+  const owed = player ? W.replacementsOwed(state, player.id, period) : { outIds: [] as string[] };
   const swaps = player ? W.swapsLeft(state, period, player.id) : 0;
   const team = player ? state.castaways.filter((c) => c.status === "active" && c.ownerIds.includes(player.id)) : [];
   const go = (dropId: string) => {
@@ -388,7 +401,7 @@ function ClaimForSheet({ state, period, player, onClose }: { state: LeagueState;
   return (
     <BottomSheet open={!!player} onOpenChange={(o) => !o && onClose()} title={player ? `Claim for ${player.name}` : ""} description="It stays private, even from you.">
       <div className="flex flex-col">
-        {owed.lossIds.map((id) => (
+        {owed.outIds.map((id) => (
           <SheetAction key={id} onClick={() => go(id)}>
             Replace {name(id)}
           </SheetAction>

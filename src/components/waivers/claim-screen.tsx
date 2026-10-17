@@ -10,7 +10,7 @@ import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { PhotoSquare, SectionHead } from "@/components/draft/draft-ui";
 import { cn } from "cn";
 import { Note } from "./waivers-ui";
-import { claimGroups, isShared, ordinal, placeInLine, useCastNames, useWaiversBase, viewerWeek, when, type ClaimSave } from "./waivers-model";
+import { andList, claimGroups, isShared, ordinal, placeInLine, useCastNames, useWaiversBase, viewerWeek, when, type ClaimSave } from "./waivers-model";
 import { latestEpisode, nextWindow, swapPhrase } from "./waivers-words";
 
 // The claim screen (docs/PLAN-waivers-v2.md "2A"; the "Waivers v2 options" canvas): your team, with
@@ -51,8 +51,11 @@ export interface PlateProps {
 /** An open week with something to do: "REPLACE PATT · SWAP 1 / Due Tue 8:05 PM · you're 3rd in line". */
 export function openPlate(state: LeagueState, period: WaiverPeriod, me: string, w: Week, now: number, name: (id: string) => string): PlateProps {
   const R = StateLogic.rosterSize(state);
-  const losses = w.owed.lossIds;
-  const replace = losses.length === 0 ? "" : losses.length <= 2 ? `Replace ${losses.map(name).join(" and ")}` : `Replace ${losses.length}`;
+  const { count, outIds } = w.owed;
+  // Fewer replacements than losses ("Only when short"): the player picks which, so say how many of how
+  // many. A name only for one: two don't fit the plate beside a swap ("REPLACE JELLY AND KILBY · SW…").
+  const replace =
+    count === 0 ? "" : outIds.length > count ? `Replace ${count} of ${outIds.length}` : count === 1 ? `Replace ${name(outIds[0])}` : `Replace ${count}`;
   const swap = w.swapsLeft > 0 ? swapPhrase(w.swapsAllowed >= R ? R : w.swapsLeft, R) : "";
   const due = period.hold ? "Due when your commissioner says" : `Due ${when(period.processAt, now)}`;
   const pos = placeInLine(state, me);
@@ -126,6 +129,12 @@ export function YourTeam({
   const pairs = claim?.pairs ?? [];
   const swapsPlanned = new Set(pairs.filter((x) => StateLogic.getCastaway(state, x.dropId)?.status === "active").map((x) => x.dropId));
   const canSwap = (c: Castaway) => w.swapsLeft > 0 && (!shared || swapsPlanned.has(c.id) || swapsPlanned.size < w.swapsLeft);
+  // Which of those who are out to replace is the player's choice, up to what the week allows: Replace on
+  // each until claims name that many, then only on the ones they named ("you're replacing Patt").
+  const replacing = [...new Set(pairs.map((x) => x.dropId).filter((id) => w.owed.outIds.includes(id)))];
+  const spotsFull = w.owed.count > 0 && replacing.length >= w.owed.count;
+  const canReplace = (c: Castaway) => w.owed.outIds.includes(c.id) && (!spotsFull || replacing.includes(c.id));
+  const firstReplaceable = team.findIndex((c) => c.status !== "active" && canReplace(c));
   return (
     <section className="flex flex-col">
       <SectionHead
@@ -145,7 +154,7 @@ export function YourTeam({
       <ul className="border-t border-border">
         {team.map((c, i) => {
           const out = c.status !== "active";
-          const replaceable = out && w.owed.lossIds.includes(c.id);
+          const replaceable = out && canReplace(c);
           const pick = shared ? pairs.find((x) => x.dropId === c.id) : undefined;
           const pts = castawayPts(state, c);
           const action = replaceable ? "Replace" : !out && canSwap(c) ? "Swap" : null;
@@ -175,13 +184,15 @@ export function YourTeam({
                   )}
                 </span>
                 <span className="truncate text-[13px] text-muted-foreground">
-                  {pick ? (joins ? `Joins your team ${joins}` : "Joins your team when claims are due") : out ? `Their ${pts} pts stay${!replaceable && w.owed.lossIds.length ? " · no replacement yet" : ""}` : `${pts} pts`}
+                  {pick ? (joins ? `Joins your team ${joins}` : "Joins your team when claims are due") : out
+                      ? `Their ${pts} pts stay${!replaceable && spotsFull ? ` · you're replacing ${andList(replacing.map(name))}` : ""}`
+                      : `${pts} pts`}
                 </span>
               </span>
               {action && (
                 <Link
                   href={href(c.id)}
-                  data-tour={replaceable && i === team.findIndex((x) => w.owed.lossIds.includes(x.id)) ? "waivers-pickup" : undefined}
+                  data-tour={replaceable && i === firstReplaceable ? "waivers-pickup" : undefined}
                   className="flex min-h-11 min-w-[88px] items-center justify-center rounded-[6px] border border-input px-3 text-sm font-bold text-foreground hover:bg-secondary focus-visible:outline-3 focus-visible:outline-chyron-line"
                 >
                   {pick ? "Change" : action}

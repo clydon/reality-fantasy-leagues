@@ -605,6 +605,18 @@ test("Open a waiver window: its own say on replacements, whatever the rule", () 
   // Turning it off forgets its say.
   W.openWindow(win, null, T0);
   assert.equal(q.replace, undefined);
+  // Only when short (the user's Weekly Start/Bench, 2026-10-17): Kim, down to 1 of 3, is owed 1 of her 2
+  // losses, her choice which. A window that replaces everyone lifts the cap: both, in that window only.
+  const short = league({ type: "active-roster", settings: { replaceRule: "whenShort", waiverWindows: { schedule: "manual", swaps: 0 } } });
+  S.addElimination(short, "ep3", "mike", "Voted Out");
+  S.addElimination(short, "ep3", "k2", "Voted Out");
+  const plain = W.openWindow(short, 1, T0).period;
+  assert.equal(W.windowReplaces(short, plain), true, "left out: the rule decides");
+  assert.deepEqual(W.replacementsOwed(short, "kim", plain), { count: 1, lossIds: ["mike"], outIds: ["mike", "k2"] });
+  W.openWindow(short, 1, T0, { replace: true });
+  assert.deepEqual(W.replacementsOwed(short, "kim", plain), { count: 2, lossIds: ["mike", "k2"], outIds: ["mike", "k2"] });
+  W.openWindow(short, 1, T0);
+  assert.equal(W.replacementsOwed(short, "kim", plain).count, 1, "back to the rule");
 });
 
 test("claims by spot: replacement groups first (oldest loss first), then the swaps; one spot set at a time", () => {

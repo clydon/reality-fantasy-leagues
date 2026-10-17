@@ -600,6 +600,28 @@ replaces the earlier one on the phone. Each links to the Waivers page.
 - `check-waivers-ui.js --only=rebuild` at 390px: the sheet's preview and the open window's plate are unchanged.
 - `tsc` and eslint clean.
 
+## Changed 2026-10-17: "Only when short" and a window that replaces everyone
+
+Found by the user in Weekly Start/Bench. They were down to 2 of 5 with 3 out, so the rule (down to 2, back
+to 3) owed 1 replacement. The app chose which one, the window still said "Replace who's out", and a
+commissioner couldn't open a "replace everyone" window in a league on Only when short.
+- **Engine:** a window's own `replace: true` now lifts any rule to every loss, Only when short included
+  (`replacementsOwed`). Off (left out) under Only when short means the rule decides, never `false`.
+- **Sheet:** "Replace everyone who's out" shows under every rule except Replace right away. Under Only
+  when short it's off by default, with the hint "Only teams down to 2 still in replace."
+- **Words:** the window line says "Replace if short" when the rule caps it (`waiver-words.js`), on the
+  sheet's preview, the plate and the push.
+- **Claim screen:** Replace on every loss the week allows. A capped week reads "Replace 1 of 3", and the
+  player chooses which. Once claims name that many, the other losses read "you're replacing Patt". The
+  plate names a single replacement; two or more say "Replace 2" (two names didn't fit beside a swap).
+  Free agency's drop list and the commissioner's Claim for offer every replaceable loss too.
+- **Checks:**
+  - `tests/waivers.test.js`: a new case in "Open a waiver window: its own say".
+  - `scripts/dev-test/check-window-replace.js`: new. Waivers Roster, Sam's choice of 1 of 2, then Kim
+    turns the switch on and Sam can replace both. Passes in both modes at 390px.
+  - `check-waivers.js`: passes.
+  - `npm test`: 351/352, the known `status-plate` failure.
+
 ## Open questions
 
 - `whenShort`'s N for Classic, which has no starting spots: R − 1? (Built that way.)
