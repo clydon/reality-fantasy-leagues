@@ -9,21 +9,18 @@ import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
-import { myLineupDue } from "@/lib/game/lineup-view";
-import { myPickDue } from "@/lib/game/pool-view";
+import { SLOT_PAGES, episodesDue, slotDue, slotFour } from "@/lib/game/league-tabs";
 import { logOut } from "@/lib/auth-client";
 import { cn } from "cn";
-import { waiversBadge } from "@/lib/game/selectors";
-import { waiversBase } from "@/components/waivers/waivers-model";
 import { LeagueMenu, LeagueMenuActions } from "@/components/league-menu";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { useSheetSwipe } from "@/components/ui/use-sheet-swipe";
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
 import { ThemePicker } from "@/components/theme-picker";
 import {
   OverviewIcon,
   EpisodesIcon,
   TrophyIcon,
-  ShuffleIcon,
   DraftIcon,
   MoreIcon,
   ShieldIcon,
@@ -33,6 +30,7 @@ import {
   ResearchIcon,
   LineupIcon,
   PickIcon,
+  TeamIcon,
   MoonIcon,
   ChevronDownIcon,
   GearIcon,
@@ -45,7 +43,8 @@ import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-mod
 import { useMoreSheetRequest } from "@/lib/more-sheet";
 import { useTourRunning, useTourStep, useTourStore } from "@/lib/tour/tour-store";
 import { usePracticeRound } from "@/lib/tour/use-practice-round";
-import { SwipeTitle } from "@/components/league-swipe";
+import { SwipeTitle, isLeaguePage } from "@/components/league-swipe";
+import { LeagueStrip, useLinkedGroup } from "@/components/league-strip";
 import { ChevronRight, MoreHorizontal } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { pageTitle as pageTitleFor, useBackTarget } from "@/lib/nav-trail";
@@ -63,10 +62,12 @@ import { artStyleVars } from "@/lib/show-art-style";
 // `nav`/`max-nav` custom breakpoint, matching the live app's single @media(max-width:880px) exactly).
 //
 // The top bar's league-name button is a real switcher now (league-menu.tsx's LeagueMenu, shared with
-// the desktop Sidebar version) rather than pure decoration.
-// Rules isn't a tab in this POC at all, so the "More" sheet only lists what's actually real: the
-// demoted 4th-slot tab, League Settings, Admin+Reports (if applicable), a working Report an Issue
-// (real-auth-only -- see the note by its row below), and Log out.
+// the desktop Sidebar version) rather than pure decoration. In a linked group it names the group, and
+// the league strip under the bar picks the game (league-strip.tsx, docs/PLAN-league-tabs.md); the ▾
+// still opens your other leagues and groups.
+// More (docs/PLAN-league-tabs.md) is things about the league and about you, nothing you play with:
+// This league (the finished Draft board, How this league works, Practice round, League Settings),
+// then You (Account, What's new, Report an issue, the tours, Demo season, Admin, Log out).
 export function MobileNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
@@ -81,7 +82,7 @@ export function MobileNav() {
   // call history.back() (that history entry is already the one being popped).
   const closingViaBack = useRef(false);
   const sheetRef = useRef<HTMLDivElement>(null);
-  const dragStartY = useRef<number | null>(null);
+  const scrimRef = useRef<HTMLDivElement>(null);
 
   // Back button closes the sheet instead of leaving the page: pushes one history entry while open,
   // and a real back press (popstate) closes it rather than navigating away.
@@ -107,46 +108,15 @@ export function MobileNav() {
     setSheetOpen(false);
   }
 
-  // Swipe down anywhere on the sheet closes it, like a native one -- as long as the sheet is
-  // scrolled to its top, so a downward swipe inside a scrolled list still just scrolls. The slide
-  // transition is off while dragging (it made the sheet trail the finger) and back on for the
-  // release, so letting go animates. A drag that turns upward hands back to normal scrolling.
-  function handleDragStart(e: React.TouchEvent) {
-    const sheet = sheetRef.current;
-    if (!sheet || sheet.scrollTop > 0) {
-      dragStartY.current = null;
-      return;
-    }
-    dragStartY.current = e.touches[0].clientY;
-    sheet.style.transition = "none";
-  }
-  function handleDragMove(e: React.TouchEvent) {
-    const sheet = sheetRef.current;
-    if (dragStartY.current == null || !sheet) return;
-    const delta = e.touches[0].clientY - dragStartY.current;
-    if (delta > 0) {
-      sheet.style.transform = `translateY(${delta}px)`;
-    } else {
-      dragStartY.current = null;
-      sheet.style.transform = "";
-      sheet.style.transition = "";
-    }
-  }
-  function handleDragEnd(e: React.TouchEvent) {
-    const sheet = sheetRef.current;
-    if (sheet) {
-      sheet.style.transition = "";
-      sheet.style.transform = "";
-    }
-    if (dragStartY.current == null) return;
-    const delta = e.changedTouches[0].clientY - dragStartY.current;
-    dragStartY.current = null;
-    if (delta > 70) closeSheet();
-  }
+  // Swipe down closes the sheet (useSheetSwipe: from the handle, or anywhere once scrolled to the top).
+  const swipe = useSheetSwipe({ sheetRef, scrimRef, onClose: closeSheet });
   const [leagueMenuOpen, setLeagueMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const state = useLeagueStore((s) => s.state);
+  // The real state for the tabs' "!", as the alert strip reads it: due is due whether or not you've looked.
+  const fullState = useLeagueStore((s) => s.fullState);
+  const seenThrough = useLeagueStore((s) => s.membership?.resultsSeenThrough ?? null);
   const mode = useLeagueStore((s) => s.mode);
   const leagueId = useLeagueStore((s) => s.leagueId);
   const leagueName = useLeagueStore((s) => s.leagueName);
@@ -201,54 +171,23 @@ export function MobileNav() {
   // into deliberately. Mirrors sidebar.tsx's `hasSeason`, and for the same reason: a signed-in user
   // with no league would otherwise get a tab bar of views onto demo data they never asked for.
   const hasSeason = mode === "live" || isPreviewingDemo;
-  // Port of computeMobileFourthTab() (public/app.js): the 4th bottom-bar slot's badge is always
-  // just "!" (no room for "Your Turn"/"Active" text at this size) -- red when it's genuinely your
-  // turn/pick, muted when a round is merely active. Draft's badge also folds in the same
-  // "it's your turn to draft" signal the Notifications banner uses (notifications tagged '/draft').
-  // Not in the original (predates this repo's second league type): a league type with no roster
-  // at all (pickem) has neither Draft nor Waivers to show here, so the slot promotes Chat
-  // instead (already reachable via the header icon too, but worth the always-visible bottom-bar
-  // spot given it's now this league type's only "other players' activity" surface) and there's
-  // nothing to demote into the More sheet.
-  const draftUrgent = !!(turn && !turn.isComplete && myPlayerId && turn.playerId === myPlayerId) || notifications.some((n) => n.tab === "/draft");
-  // Waivers (docs/PLAN-midseason-waivers.md), when the commissioner turned Pickups or Add/drops on (the
-  // same gate the desktop sidebar uses): the 4th slot after the draft in Classic; in Active Roster, a
-  // row in the More sheet, with a dot on More while a pickup is yours to claim.
-  const waivers = StateLogic.WaiverLogic.enabled(state);
-  const waiversMark = waivers ? waiversBadge(state, myPlayerId) : null;
-  const waiversSlot = waivers ? { href: waiversBase(state), label: "Waivers", icon: ShuffleIcon } : null;
-  // Active Roster gets a fifth slot, Research (who's scoring), at every phase: it's where you decide
-  // who to start and who to pick up, so it isn't buried in More. Chat stays one tap away on the top
-  // bar's icon.
-  const hasActiveRoster = StateLogic.getLeagueType(state).hasActiveRoster;
-  // After the draft Active Roster's slot is the Lineup (docs/PLAN-ux-redesign.md, 1e: slot 4 follows
-  // the season phase) -- setting it is the weekly job -- flagged while your lineup has a slot to
-  // fill. Waivers move to the More sheet.
-  const lineupSlot = hasActiveRoster && draftComplete;
-  // Eliminator Pool has no draft: its slot is the weekly Pick, flagged while yours is still to make.
-  // Chat (which used to take the slot) stays one tap away on the top bar's icon.
-  const pickSlot = !!StateLogic.getLeagueType(state).hasWeeklyPicks;
-  const fourth = lineupSlot
-    ? { href: "/lineup", label: "Lineup", icon: LineupIcon, urgent: myLineupDue(state, myPlayerId) ? true : null }
-    : pickSlot
-    ? { href: "/pick", label: "Pick", icon: PickIcon, urgent: myPickDue(state, myPlayerId) ? true : null }
-    : !hasRoster || (draftComplete && !waiversSlot)
-      ? { href: "/chat", label: "Chat", icon: ChatIcon, urgent: chatUnread > 0 ? true : null }
-      : draftComplete
-        ? // Waivers are open most weeks: marked only when a pickup's yours to claim, never just "open".
-          { ...waiversSlot!, urgent: waiversMark?.urgent ? true : null }
-        : { href: "/draft", label: "Draft", icon: DraftIcon, urgent: draftUrgent ? true : null };
-  const demoted = !hasRoster ? null : draftComplete ? { href: "/draft", label: "Draft", icon: DraftIcon } : waiversSlot;
-  // Waivers sit in the More sheet (Active Roster after the draft, anyone before it): More carries a dot
-  // while a pickup there is yours to claim.
-  const moreWaiting = hasSeason && !!waiversMark?.urgent && ((lineupSlot && !!waiversSlot) || demoted === waiversSlot);
-
-  const leagueTabs: { href: string; label: string; icon: typeof OverviewIcon; urgent?: boolean | null }[] = [
+  // The same six tabs in every game, in episode-night order (docs/PLAN-league-tabs.md): Overview ·
+  // Episodes · Scoreboard · [slot 4] · Research · More. Slot 4 is your play (league-tabs.ts): Draft,
+  // then Team (Classic) or Lineup (Active Roster); Pick in Eliminator Pool. Its "!" is any of your
+  // moves due in this game, from the alert strip's own list, so the two never disagree. Waivers isn't a
+  // tab or a More row: it's reached from Team and Lineup. Chat stays on the header's icon.
+  const slot = slotFour(state);
+  const slotUrgent =
+    slotDue(fullState, myPlayerId, seenThrough) || (slot.key === "draft" && notifications.some((n) => n.tab === "/draft"));
+  const slotIcon = { draft: DraftIcon, team: TeamIcon, lineup: LineupIcon, pick: PickIcon }[slot.key];
+  const leagueTabs: { href: string; label: string; icon: typeof OverviewIcon; urgent?: boolean | null; also?: string[] }[] = [
     { href: "/", label: "Overview", icon: OverviewIcon },
-    { href: "/episodes", label: "Episodes", icon: EpisodesIcon },
+    // The commissioner's results job lives on Episodes.
+    { href: "/episodes", label: "Episodes", icon: EpisodesIcon, urgent: episodesDue(fullState, myPlayerId, canManage) ? true : null },
     { href: "/scoreboard", label: "Scoreboard", icon: TrophyIcon },
-    fourth,
-    ...(hasActiveRoster ? [{ href: "/research", label: "Research", icon: ResearchIcon }] : []),
+    // Waivers is pushed on top of Team / Lineup, so that tab stays lit under it.
+    { href: slot.href, label: slot.label, icon: slotIcon, urgent: slotUrgent ? true : null, also: slot.key === "team" || slot.key === "lineup" ? ["/waivers"] : [] },
+    { href: "/research", label: "Research", icon: ResearchIcon },
   ];
   // No league and not previewing: the only two places worth going are the join/create screen and
   // the demo season (the latter is a state change, not a route -- hence the null href below).
@@ -262,12 +201,20 @@ export function MobileNav() {
   // The page's own name for the top bar. Overview has none: there the league name is the title. A
   // page under another gets a back that names where it goes (lib/nav-trail.ts: the page you came
   // from, else its parent).
-  const pageTitle = pageTitleFor(pathname, {
-    playerName: (id) => state.players.find((p) => p.id === id)?.name,
-    tribes: terms.Tribes,
-    castaways: terms.castaways,
-  });
+  // Slot 4's pages each draw this league's own slot 4 (team/slot-page.tsx), so they take its name.
+  const pageTitle =
+    SLOT_PAGES.includes(pathname) && slot.key !== "draft"
+      ? slot.label
+      : pageTitleFor(pathname, {
+          playerName: (id) => state.players.find((p) => p.id === id)?.name,
+          tribes: terms.Tribes,
+          castaways: terms.castaways,
+        });
   const back = useBackTarget();
+  // A linked group goes by its one name; the strip under the bar says which game is open.
+  const group = useLinkedGroup();
+  const headerName = group ? group.name : mode === "mock" ? (leagueName ?? "Demo Mode") : (leagueName ?? "");
+  const showStrip = !!group && isLeaguePage(pathname);
 
   function takeTour() {
     setSheetOpen(false);
@@ -369,28 +316,38 @@ export function MobileNav() {
               data-tour="header-league"
             >
               {pageTitle ? (
-                // Direction A: every page names itself. The league name moves up to a small line above
-                // the title -- still the switcher, still swipeable.
+                // Direction A: every page names itself. The league (or group) name moves up to a small
+                // line above the title -- still the switcher.
                 <span className="flex min-w-0 flex-col items-center gap-0.5">
-                  <span className="flex min-w-0 items-center gap-0.5 text-[12px] font-semibold text-muted-foreground">
-                    <SwipeTitle name={mode === "mock" ? (leagueName ?? "Demo Mode") : (leagueName ?? "")} className="truncate" />
+                  <span className="flex min-w-0 max-w-full items-center gap-0.5 text-[12px] font-semibold text-muted-foreground">
+                    <span className="truncate">{headerName}</span>
                     {mode !== "mock" && <ChevronDownIcon className={cn("h-3.5 w-3.5 shrink-0 transition-transform", leagueMenuOpen && "rotate-180")} />}
                   </span>
                   <span className="type-caption truncate text-[22px]">{pageTitle}</span>
                 </span>
               ) : (
-                // Overview: the league name is the page's title, left-aligned like the canvas's A2 pages.
-                <>
-                  <SwipeTitle
-                    // Signed in with no league yet, this page is My Leagues, not the demo.
-                    name={isAuthenticated && leagues.length === 0 ? "My Leagues" : mode === "mock" ? (leagueName ?? "Demo Mode") : (leagueName ?? "")}
-                    className="type-caption truncate text-[26px] leading-none"
-                    align="start"
-                  />
-                  {mode !== "mock" && (
-                    <ChevronDownIcon className={cn("h-[18px] w-[18px] shrink-0 text-muted-foreground transition-transform", leagueMenuOpen && "rotate-180")} />
+                // Overview: the league (or group) name is the page's title, left-aligned like the canvas's
+                // A2 pages; in a group, the open game and the show under it, rolling with a swipe.
+                <span className="flex min-w-0 flex-col items-start gap-1">
+                  <span className="flex min-w-0 max-w-full items-center gap-1">
+                    <span className="type-caption truncate text-[26px] leading-none">
+                      {/* Signed in with no league yet, this page is My Leagues, not the demo. */}
+                      {isAuthenticated && leagues.length === 0 ? "My Leagues" : headerName}
+                    </span>
+                    {mode !== "mock" && (
+                      <ChevronDownIcon className={cn("h-[18px] w-[18px] shrink-0 transition-transform", artSrc && !scrolled ? "text-foreground" : "text-muted-foreground", leagueMenuOpen && "rotate-180")} />
+                    )}
+                  </span>
+                  {group && (
+                    <SwipeTitle
+                      text={group.games[group.index].detail}
+                      textFor={(id) => group.games.find((g) => g.id === id)?.detail ?? ""}
+                      // Over the art it needs the ink: muted grey can't reach 7:1 on a picture (check-header-art.js).
+                      className={cn("truncate text-[12px] font-semibold", artSrc && !scrolled ? "text-foreground" : "text-muted-foreground")}
+                      align="start"
+                    />
                   )}
-                </>
+                </span>
               )}
             </button>
           </div>
@@ -410,7 +367,7 @@ export function MobileNav() {
           ) : (
             <Link
               href="/chat"
-              className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center justify-self-end rounded-full text-foreground"
+              className={cn("relative flex h-[34px] w-[34px] shrink-0 items-center justify-center justify-self-end rounded-full text-foreground", artSrc && !scrolled && "bg-background/80")}
               aria-label="Chat"
               data-tour="header-chat"
             >
@@ -423,6 +380,7 @@ export function MobileNav() {
             </Link>
           )}
         </div>
+        {showStrip && <LeagueStrip className="px-4 pb-2.5 pt-1" />}
       </header>
 
       {/* The league menu: a bottom sheet like every other choice on a phone, not a dropdown. */}
@@ -457,6 +415,7 @@ export function MobileNav() {
           const active =
             pathname === tab.href ||
             (!!tab.href && tab.href !== "/" && pathname.startsWith(`${tab.href}/`)) ||
+            !!tab.also?.some((h) => pathname === h || pathname.startsWith(`${h}/`)) ||
             // The Cast page lives under Episodes, where it's linked from.
             (tab.href === "/episodes" && pathname === "/cast");
           const Icon = tab.icon;
@@ -493,15 +452,13 @@ export function MobileNav() {
         >
           <span className="relative inline-flex">
             <MoreIcon className="h-[21px] w-[21px]" />
-            {moreWaiting && tourAllows("tab-more") && (
-              <span className="absolute -right-1 -top-0.5 size-2 rounded-full bg-destructive ring-2 ring-panel-menu" aria-label="Needs attention" />
-            )}
           </span>
           <span className="text-[0.63rem] font-semibold">More</span>
         </button>
       </nav>
 
       <div
+        ref={scrimRef}
         className={cn(
           "fixed inset-0 z-[70] bg-black/40 transition-opacity",
           sheetOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
@@ -510,9 +467,7 @@ export function MobileNav() {
       />
       <div
         ref={sheetRef}
-        onTouchStart={handleDragStart}
-        onTouchMove={handleDragMove}
-        onTouchEnd={handleDragEnd}
+        {...swipe}
         // overscroll-contain: a downward pull at the top is the close gesture, not the browser's
         // pull-to-refresh or a scroll of the page behind.
         className={cn(
@@ -523,6 +478,7 @@ export function MobileNav() {
         {/* touch-action: none -- lets the drag be read as a close gesture instead of the page trying
             to scroll underneath it. */}
         <div
+          data-sheet-handle
           className="-mt-1 flex justify-center pb-1.5 pt-2.5"
           style={{ touchAction: "none" }}
         >
@@ -555,25 +511,8 @@ export function MobileNav() {
           />
         )}
         <div className="mt-2.5 flex flex-col">
-          {hasSeason && demoted && (
-            <MoreRow
-              icon={demoted.icon}
-              label={demoted.label}
-              value={demoted.href === "/draft" ? "Done" : waiversMark?.label}
-              urgent={demoted.href !== "/draft" && !!waiversMark?.urgent}
-              onClick={() => go(demoted.href)}
-            />
-          )}
-          {hasSeason && lineupSlot && waiversSlot && (
-            <MoreRow
-              icon={waiversSlot.icon}
-              label={waiversSlot.label}
-              value={waiversMark?.label}
-              urgent={!!waiversMark?.urgent}
-              onClick={() => go(waiversSlot.href)}
-              tour="more-waivers"
-            />
-          )}
+          {/* The finished draft, kept as a board to look back at (roster games). */}
+          {hasSeason && hasRoster && draftComplete && <MoreRow icon={DraftIcon} label="Draft board" value="Done" onClick={() => go("/draft")} />}
           {hasSeason && mode === "live" && (
             <MoreRow
               icon={InfoIcon}

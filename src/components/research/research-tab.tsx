@@ -12,9 +12,11 @@ import { CastawayAvatar } from "@/components/castaway-avatar";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { MoreButton, ToggleRow } from "@/components/setup/settings-ui";
 import { cn } from "cn";
-import { RankedBy, WINDOWS, WindowTabs, airedEpisodes, buildRows, eventRank, rulesIn, type EpisodeLine, type Row, type Window } from "./research-rows";
+import { pickWindow } from "@/lib/game/pool-view";
+import { RankedBy, SAFETY_RULE, SAFETY_RULE_ID, hasSafety, WINDOWS, WindowTabs, airedEpisodes, buildRows, eventRank, rulesIn, type EpisodeLine, type Row, type Window } from "./research-rows";
 
-// Active Roster's scouting page (the canvas's "A · Draft, scouting & mid-season": Scouting): every
+// The scouting page, in every game (docs/PLAN-league-tabs.md; first Active Roster's, the canvas's
+// "A · Draft, scouting & mid-season": Scouting): every
 // castaway ranked by the points they've actually scored over a window of recent episodes -- who's
 // worth starting, who's worth picking up. A castaway's OWN points (every event attributed to them),
 // not any owner's cut of them.
@@ -29,6 +31,7 @@ import { RankedBy, WINDOWS, WindowTabs, airedEpisodes, buildRows, eventRank, rul
 // each visit starts on what counts in this league.
 
 type Who = "all" | "free" | "mine" | `team:${string}`;
+type PoolWho = "open" | "used" | "all";
 const PREFS_KEY = "rfl.research.prefs";
 export function ResearchTab() {
   const state = useLeagueStore((s) => s.state);
@@ -43,7 +46,10 @@ export function ResearchTab() {
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [teamsOpen, setTeamsOpen] = useState(false);
   // Rank by one scoring rule (an event id) instead of points. Not remembered: rules differ by show.
-  const [rankBy, setRankBy] = useState<string | null>(null);
+  // (undefined = not chosen yet: an Eliminator Pool starts on Safety, everything else on points.)
+  const [rankBy, setRankBy] = useState<string | null | undefined>(undefined);
+  // An Eliminator Pool's "who": from your own pick history (not remembered: it changes every week).
+  const [poolWho, setPoolWho] = useState<PoolWho>("open");
   const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,31 +90,43 @@ export function ResearchTab() {
   const shownWindow = windows.some(([w]) => w === window) ? window : "season";
   const rows = useMemo(() => buildRows(state, aired, shownWindow), [state, aired, shownWindow]);
 
-  if (!StateLogic.getLeagueType(state).hasActiveRoster) {
-    return (
-      <>
-        <h2 className="type-caption mb-4 text-[28px] max-nav:hidden">Research</h2>
-        <p className="text-base text-muted-foreground">Research is for Active Roster leagues.</p>
-      </>
-    );
-  }
+  // Owners exist only in roster games (Classic, Active Roster). An Eliminator Pool has nobody's team,
+  // so its rows say only who's in or out, and Whose comes down to Everyone; its own filters (Open to you /
+  // Used / Everyone) read your pick history.
+  const hasRoster = !!StateLogic.getLeagueType(state).hasRoster;
+  const shownWho: Who = hasRoster ? who : "all";
 
   const players = state.players.filter((p) => !p.disabled && p.active !== false);
-  const team = who.startsWith("team:") ? players.find((p) => p.id === who.slice(5)) ?? null : null;
+  const team = shownWho.startsWith("team:") ? players.find((p) => p.id === who.slice(5)) ?? null : null;
   const mine = (c: Castaway) => !!myPlayerId && c.ownerIds.includes(myPlayerId);
   const free = (c: Castaway) => c.ownerIds.length === 0;
   // The rules that happened at least once in this window, in the show's own order -- what you can
   // rank by. A rule that's gone from the window drops you back to points.
-  const rules = rulesIn(state, rows);
-  const rule = rankBy ? rules.find((x) => x.type === rankBy) ?? null : null;
+  // An Eliminator Pool picks one survivor a week, so surviving matters more than scoring: Safety
+  // (immunity, Tribals with no votes, votes survived) sits first among the things to rank by.
+  const isPool = !!StateLogic.getLeagueType(state).hasWeeklyPicks && !hasRoster;
+  const safety = isPool && hasSafety(state);
+  const rules = safety ? [SAFETY_RULE, ...rulesIn(state, rows)] : rulesIn(state, rows);
+  const rankKey = rankBy === undefined ? (safety ? SAFETY_RULE_ID : null) : rankBy;
+  const rule = rankKey ? rules.find((x) => x.type === rankKey) ?? null : null;
+  const bySafety = rule?.type === SAFETY_RULE_ID;
   // Under a rule, each episode's "points" is how many times it happened, so the bars and the column
   // both show that rule alone.
-  const lines = (r: Row) => (rule ? r.perEpisode.map((e) => ({ ...e, points: e.events.filter((x) => x.type === rule.type).length })) : r.perEpisode);
+  const lines = (r: Row) =>
+    rule ? r.perEpisode.map((e) => ({ ...e, points: bySafety ? e.safe : e.events.filter((x) => x.type === rule.type).length })) : r.perEpisode;
   const times = (r: Row) => lines(r).reduce((n, e) => n + e.points, 0);
   const score = (r: Row) => (rule ? times(r) : perEpisode ? r.avg : r.points);
+
+  // The pick this page would help with: the next episode's. Open to you = who you could pick now;
+  // Used = who the cycle and no-back-to-back rules hold back (the Pick page's own words).
+  const pickEp = isPool && myPlayerId ? pickWindow(state).ep : null;
+  const eligibility = pickEp && myPlayerId ? StateLogic.pickEmEligibility(state, pickEp.id, myPlayerId) : null;
+  const shownPool: PoolWho = eligibility ? poolWho : "all";
+  const poolHolds = (c: Castaway) => (shownPool === "open" ? eligibility!.available.includes(c.id) : shownPool === "used" ? !!eligibility!.blocked[c.id] : true);
   const shown = rows
-    .filter((r) => (who === "free" ? free(r.c) : who === "mine" ? mine(r.c) : team ? r.c.ownerIds.includes(team.id) : true))
+    .filter((r) => (shownWho === "free" ? free(r.c) : shownWho === "mine" ? mine(r.c) : team ? r.c.ownerIds.includes(team.id) : true))
     .filter((r) => !hideOut || r.c.status !== "eliminated")
+    .filter((r) => poolHolds(r.c))
     .sort((a, b) => score(b) - score(a) || b.points - a.points || a.c.name.localeCompare(b.c.name));
   const epNumbers = rows[0]?.perEpisode.map((e) => e.n) ?? [];
   const range = epNumbers.length === 0 ? null : epNumbers.length === 1 ? `Ep ${epNumbers[0]}` : `Ep ${epNumbers[0]}–${epNumbers[epNumbers.length - 1]}`;
@@ -123,6 +141,11 @@ export function ResearchTab() {
       const exit = state.episodes.find((e) => e.events.some((x) => x.castawayId === c.id));
       return exit ? `Out · Episode ${exit.number}` : "Out";
     }
+    if (!hasRoster) {
+      const used = eligibility?.blocked[c.id];
+      if (used) return used.reason === "backToBack" ? `Last pick · Ep ${used.episode}` : `Used Ep ${used.episode}`;
+      return eligibility?.available.includes(c.id) ? <span className="font-semibold text-good">Open to you</span> : "Still in";
+    }
     if (free(c)) return <span className="font-semibold text-good">Free agent</span>;
     // "bench" only once you've started someone: before that, nobody's on it yet.
     const yours = myLineup.length > 0 && !myLineup.includes(c.id) ? "Yours · bench" : "Yours";
@@ -131,7 +154,8 @@ export function ResearchTab() {
       .filter(Boolean)
       .join(", ");
   };
-  const steals = who === "all" || who === "free" ? freeAgentSteals(state, rows) : [];
+  // "Scoring like starters" is a lineup idea: Active Roster only.
+  const steals = StateLogic.getLeagueType(state).hasActiveRoster && (shownWho === "all" || shownWho === "free") ? freeAgentSteals(state, rows) : [];
   const open = openId ? rows.find((r) => r.c.id === openId) ?? null : null;
 
   const options = (
@@ -159,7 +183,7 @@ export function ResearchTab() {
 
       <WindowTabs windows={windows} value={shownWindow} onChange={setWindow} />
 
-      <div role="group" aria-label="Whose" className="flex flex-wrap gap-2">
+      {hasRoster && <div role="group" aria-label="Whose" className="flex flex-wrap gap-2">
         <FilterChip on={who === "all"} onClick={() => setWho("all")}>
           Everyone
         </FilterChip>
@@ -177,7 +201,21 @@ export function ResearchTab() {
             <ChevronDown className="size-4" strokeWidth={2.4} aria-hidden />
           </FilterChip>
         )}
-      </div>
+      </div>}
+
+      {eligibility && (
+        <div role="group" aria-label="Whose" className="flex flex-wrap gap-2">
+          <FilterChip on={poolWho === "open"} onClick={() => setPoolWho("open")}>
+            Open to you
+          </FilterChip>
+          <FilterChip on={poolWho === "used"} onClick={() => setPoolWho("used")}>
+            Used
+          </FilterChip>
+          <FilterChip on={poolWho === "all"} onClick={() => setPoolWho("all")}>
+            Everyone
+          </FilterChip>
+        </div>
+      )}
 
       {epNumbers.length === 0 ? (
         <p className="border-t border-border pt-3 text-base text-muted-foreground">
@@ -185,7 +223,11 @@ export function ResearchTab() {
         </p>
       ) : shown.length === 0 ? (
         <p className="border-t border-border pt-3 text-base text-muted-foreground">
-          {who === "free" ? `Every ${terms.castaway} is on someone's roster.` : `No ${terms.castaways} here.`}
+          {shownWho === "free"
+            ? `Every ${terms.castaway} is on someone's roster.`
+            : shownPool === "used"
+              ? `Nobody is held back for this pick.`
+              : `No ${terms.castaways} here.`}
         </p>
       ) : (
         <div data-tour="research-list">
@@ -193,7 +235,7 @@ export function ResearchTab() {
           <div className="flex min-h-11 items-center gap-3 text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">
             <RankedBy rules={rules} rule={rule} pointsLabel={perEpisode ? "Points per episode" : "Points"} onChange={setRankBy} className="flex-1" />
             {bars && <span className="shrink-0 text-center">{range}</span>}
-            <span className="w-11 shrink-0 text-right">{rule ? "Times" : perEpisode ? "Avg" : "Pts"}</span>
+            <span className="w-11 shrink-0 text-right">{bySafety ? "Safe" : rule ? "Times" : perEpisode ? "Avg" : "Pts"}</span>
           </div>
           <ol className="border-b border-border">
             {shown.map((r, i) => {

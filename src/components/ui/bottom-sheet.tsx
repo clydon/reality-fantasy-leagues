@@ -3,6 +3,7 @@
 import { useRef, type ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { cn } from "cn";
+import { useSheetSwipe } from "@/components/ui/use-sheet-swipe";
 
 // Row actions as a sheet that slides up from the bottom (docs/PLAN-ux-redesign.md, 1c): one "more"
 // button per row instead of a row of buttons, with anything destructive last, in red text, after a
@@ -36,17 +37,26 @@ export function BottomSheet({
   children: ReactNode;
 }) {
   const popupRef = useRef<HTMLDivElement>(null);
+  const scrimRef = useRef<HTMLDivElement>(null);
+  const swipe = useSheetSwipe({ sheetRef: popupRef, scrimRef, onClose: () => onOpenChange(false) });
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-[80] bg-(--scrim) transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+        <Dialog.Backdrop
+          ref={scrimRef}
+          className="fixed inset-0 z-[80] bg-(--scrim) transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup
           ref={popupRef}
           initialFocus={focusSheet ? popupRef : undefined}
+          {...swipe}
           className="fixed inset-x-0 bottom-0 z-[81] mx-auto flex max-h-[92dvh] max-w-[480px] flex-col rounded-t-[14px] bg-card px-4 pt-2 text-foreground shadow-sheet outline-none transition-transform duration-200 ease-out data-[ending-style]:translate-y-full data-[starting-style]:translate-y-full"
           style={{ paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))" }}
         >
-          <span className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/40" aria-hidden />
+          {/* The grab handle: a swipe down from here closes the sheet even when its content is scrolled.
+              The padding makes it a target a thumb can hit; touch-action stops the page scrolling under it. */}
+          <div data-sheet-handle className="-mt-2 flex justify-center pb-3 pt-4" style={{ touchAction: "none" }} aria-hidden>
+            <span className="h-1 w-10 rounded-full bg-muted-foreground/40" />
+          </div>
           {/* A title can be user text (a pasted event name with a URL in it): it wraps, never widens the sheet. */}
           <div className="mb-1 flex min-w-0 items-baseline gap-2.5 [overflow-wrap:anywhere]">
             <Dialog.Title className="type-caption text-[22px]">{title}</Dialog.Title>

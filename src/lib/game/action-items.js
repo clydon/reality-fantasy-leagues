@@ -22,11 +22,36 @@ function isBetSettled(bet) {
 //
 // `opts.commissioner`: this player runs the league, so an aired episode with no results is theirs to
 // fill in -- listed first, since everyone's week waits on it.
+//
+// Each item says whose job it is (`who`: "you" for your own moves, "commish" for the commissioner's,
+// which Overview's control room shows apart from Up next) and when it's due (`deadline`, for byDue).
 function actionItems(state, playerId, seenThrough, opts = {}) {
   const me = state.players.find((p) => p.id === playerId);
   if (!me || me.disabled || me.active === false) return [];
   const due = opts.commissioner ? resultsDueEpisode(state, opts.now) : null;
-  return [...(due ? [resultsItem(state, due)] : []), ...playerItems(state, playerId, seenThrough)];
+  return [...(due ? [resultsItem(state, due)] : []), ...playerItems(state, playerId, seenThrough)].map((it) => ({
+    ...it,
+    who: it.kind === "results" ? "commish" : "you",
+    deadline: it.deadline ?? null,
+  }));
+}
+
+// Someone is waiting on these right now (the draft, the league's results, your own start), so they
+// come before any deadline.
+const NOW_KINDS = new Set(["draftTurn", "blindDraft", "lateJoin", "results"]);
+
+/** When an item is due, for sorting: -Infinity for "now", Infinity for no deadline. */
+function dueAt(item) {
+  if (NOW_KINDS.has(item.kind)) return -Infinity;
+  const t = item.deadline ? Date.parse(item.deadline) : NaN;
+  return Number.isFinite(t) ? t : Infinity;
+}
+
+/** Soonest first (Up next's order); ties keep their order, which within a league is actionItems'. */
+function byDue(a, b) {
+  const x = dueAt(a);
+  const y = dueAt(b);
+  return x < y ? -1 : x > y ? 1 : 0;
 }
 
 // The episode a commissioner should fill in now: the earliest one in play that has aired and has
@@ -101,13 +126,14 @@ function waiverItems(state, playerId, seenThrough) {
         text,
         href: `${base}/claim?drop=${encodeURIComponent(owed.lossIds[0])}`,
         by: p.hold ? p.closesAt : p.processAt,
+        deadline: p.hold ? p.closesAt : p.processAt,
         detail: shared ? "pick who you want" : "first choice, then backups",
         episode: p.episode,
       },
     ];
   }
   if (!W.freeAgencyOn(state)) return [];
-  return [{ kind: "pickup", text, href: `${base}/free-agency?drop=${encodeURIComponent(owed.lossIds[0])}`, by: p.closesAt, detail: "free agency · first come", episode: p.episode }];
+  return [{ kind: "pickup", text, href: `${base}/free-agency?drop=${encodeURIComponent(owed.lossIds[0])}`, by: p.closesAt, deadline: p.closesAt, detail: "free agency · first come", episode: p.episode }];
 }
 
 // The checks themselves, on whichever copy of the league the player is playing in.
@@ -144,6 +170,8 @@ function liveItems(state, playerId) {
           text: `Set your episode ${ep.number} lineup (${open} empty slot${open === 1 ? "" : "s"})`,
           href: "/lineup",
           episode: ep.number,
+          // Lineups lock when the episode starts airing.
+          deadline: ep.airsAt || null,
         });
       }
     }
@@ -159,7 +187,7 @@ function liveItems(state, playerId) {
       !StateLogic.pickEmPickFor(state, ep.id, playerId) &&
       StateLogic.pickEmEligibility(state, ep.id, playerId).available.length > 0
     ) {
-      items.push({ kind: "pick", text: `Make your episode ${ep.number} pick`, href: "/pick", episode: ep.number });
+      items.push({ kind: "pick", text: `Make your episode ${ep.number} pick`, href: "/pick", episode: ep.number, deadline: ep.airsAt || null });
     }
   }
 
@@ -176,6 +204,8 @@ function liveItems(state, playerId) {
         text: pending.length === 1 ? `Guess "${pending[0].bet.label}"` : `${pending.length} predictions need your guess`,
         href: "/#predictions",
         episode,
+        // Nothing locks a guess, but it's about the episode: before it airs.
+        deadline: pending.find(({ ep }) => ep.number === episode).ep.airsAt || null,
       });
     }
   }
@@ -183,4 +213,4 @@ function liveItems(state, playerId) {
   return items;
 }
 
-module.exports = { actionItems, resultsDueEpisode, resultsHref, waiversHref };
+module.exports = { actionItems, resultsDueEpisode, resultsHref, waiversHref, dueAt, byDue };

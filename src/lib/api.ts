@@ -4,6 +4,7 @@ import type { ArtStyle } from "@/lib/show-art-style";
 import type { SeasonCheck } from "@/lib/game/formats/season-check";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 import type { ActionItem } from "@/lib/game/action-items.js";
+import type { CommissionerItem } from "@/lib/game/commissioner-items";
 
 export interface EpisodeTeamSummary {
   /** Every team's saved "why it mattered" line, by player id. */
@@ -76,7 +77,11 @@ export interface LeagueStateResponse {
 // wrapped in an envelope -- matches server/routes/episodes.js exactly, same contract app.js uses.
 export const api = {
   me: () => localFetch<MeResponse>("/api/me"),
-  myActions: () => localFetch<{ items: (ActionItem & { leagueId: string; leagueName: string })[] }>("/api/me/actions"),
+  myActions: () =>
+    localFetch<{
+      items: (ActionItem & { leagueId: string; leagueName: string })[];
+      commish?: (CommissionerItem & { leagueId: string; leagueName: string })[];
+    }>("/api/me/actions"),
   // Better Auth's own admin-plugin endpoint (not a custom route -- it already does exactly this,
   // swapping the session cookie back to the impersonator's). Needs an explicit empty JSON body --
   // Better Auth 400s on "Invalid JSON in request body" for a truly bodyless POST.

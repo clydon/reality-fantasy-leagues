@@ -2,8 +2,12 @@
 // Eliminator Pool) on one made-up season, with results hidden for the last two episodes -- the setup
 // for checking the reveal, the league dropdown, swipe between leagues, and anything else linked.
 //
-//   node scripts/dev-test/linked-fixture.js up        create (or refresh) it, print the login
-//   node scripts/dev-test/linked-fixture.js down      remove every row it made
+//   node scripts/dev-test/linked-fixture.js up [--name="Couch Crew"]   create (or refresh) it, print the login
+//   node scripts/dev-test/linked-fixture.js down                        remove every row it made
+//
+// Without --name the group has none, so it goes by the show and season ("Survivor 99"). Also a module:
+// `const { up, down, USERNAME, PASSWORD } = require("./linked-fixture")`; `up` resolves the leagues as
+// [{ slug, leagueId, name }] in the group's order.
 //
 // Everything is keyed on the "zt-" slug prefix and the "zt_tester" username, so `down` can't touch
 // real data, and it never touches the real "conor" account. Never run against a real database.
@@ -43,7 +47,7 @@ async function down(pool) {
   await pool.query(`DELETE FROM "user" WHERE username = $1`, [USERNAME]); // sessions/accounts cascade
 }
 
-async function up(pool) {
+async function up(pool, { groupName = null } = {}) {
   await down(pool);
   const { hashPassword } = await import("better-auth/crypto");
   const userId = id();
@@ -56,7 +60,8 @@ async function up(pool) {
     `INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt") VALUES ($1,$2,'credential',$2,$3,now(),now())`,
     [id(), userId, await hashPassword(PASSWORD)]
   );
-  const { rows: g } = await pool.query(`INSERT INTO league_groups (created_by) VALUES ($1) RETURNING id`, [userId]);
+  const { rows: g } = await pool.query(`INSERT INTO league_groups (created_by, name) VALUES ($1, $2) RETURNING id`, [userId, groupName]);
+  const made = [];
   for (const [i, [slug, name, type]] of LEAGUES.entries()) {
     const state = JSON.parse(JSON.stringify(buildDemoState(data, type, CURSOR)));
     S.migrateLeagueState(state);
@@ -71,14 +76,19 @@ async function up(pool) {
       `INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through) VALUES ($1,$2,$3,'commissioner',$4)`,
       [rows[0].id, userId, me, SEEN]
     );
+    made.push({ slug, leagueId: rows[0].id, name });
   }
   console.log(`[zt] up: sign in as ${USERNAME} / ${PASSWORD}; 3 linked leagues, episodes ${SEEN + 1}-${CURSOR} hidden`);
+  return made;
 }
+
+module.exports = { up, down, USERNAME, PASSWORD };
 
 if (require.main === module) {
   const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL });
   const cmd = process.argv[2];
-  (cmd === "up" ? up(pool) : cmd === "down" ? down(pool).then(() => console.log("[zt] down")) : Promise.reject(new Error("usage: up | down")))
+  const name = (process.argv.find((a) => a.startsWith("--name=")) || "").slice(7) || null;
+  (cmd === "up" ? up(pool, { groupName: name }) : cmd === "down" ? down(pool).then(() => console.log("[zt] down")) : Promise.reject(new Error("usage: up | down")))
     .catch((e) => { console.error(e); process.exitCode = 1; })
     .finally(() => pool.end());
 }

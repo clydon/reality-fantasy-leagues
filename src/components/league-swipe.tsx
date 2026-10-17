@@ -1,12 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import { LeagueStoreContext, makePeekStore, useLeagueStore } from "@/lib/store";
 import { api } from "@/lib/api";
-import StateLogic from "@/lib/game/state-logic.js";
+import { samePageIn } from "@/lib/game/league-tabs";
 import { cn } from "cn";
 
 // Swipe left/right between LINKED leagues (league-groups.ts) on a phone, staying on the same page.
@@ -16,19 +16,20 @@ import { cn } from "cn";
 // quick flick, it settles there and that league becomes the open one; otherwise it springs back.
 //
 // Never from a screen edge (the phone's own back gesture), never from inside something that scrolls
-// sideways, and only once the drag is clearly horizontal. Only on pages about one league (LEAGUE_PAGES) -- not Chat, which linked leagues share.
+// sideways, and only once the drag is clearly horizontal. Only on a league's own tabs (LEAGUE_PAGES) -- not Chat, which linked leagues
+// share, and not a page pushed on top of a tab (an episode, Waivers).
 
 /** True inside a peeked neighbour: display-only (no confetti, nothing tappable). */
 export const PeekContext = createContext(false);
 export const useIsPeek = () => useContext(PeekContext);
 
-// Shared with the top bar: how far the swipe has gone (-1 = fully to the next league, 1 = fully to
-// the previous), and the league it's heading to.
+// Shared with the top bar and the league strip: how far the swipe has gone (-1 = fully to the next
+// league, 1 = fully to the previous), and the league it's heading to.
 // `dragging` = the title follows the finger with no animation; it's also how it rests. Only letting go
 // of a swipe turns animation on, to settle.
-export const useSwipeProgress = create<{ progress: number; targetName: string | null; dragging: boolean }>(() => ({
+export const useSwipeProgress = create<{ progress: number; targetId: string | null; dragging: boolean }>(() => ({
   progress: 0,
-  targetName: null,
+  targetId: null,
   dragging: true,
 }));
 
@@ -39,9 +40,18 @@ const DEAD_ZONE = 18;
 // Space between the current page and the neighbour sliding in, so their cards don't touch.
 const GAP = 32;
 const SETTLE_MS = 220;
-// Pages that show one league: the only ones a swipe means anything on. Not Chat (linked leagues share
-// it), and not Account, Admin or Reports, which look the same whichever league is open.
-const LEAGUE_PAGES = new Set(["/", "/episodes", "/scoreboard", "/lineup", "/pick", "/research", "/draft", "/waivers", "/setup", "/cast"]);
+// A league's own tabs (and its More pages): the only ones a swipe means anything on. Not Chat (linked
+// leagues share it), not Account, Admin or Reports, which look the same whichever league is open, and
+// not a page pushed on top of a tab (docs/PLAN-league-tabs.md).
+const LEAGUE_PAGES = new Set(["/", "/episodes", "/scoreboard", "/team", "/lineup", "/pick", "/research", "/draft", "/setup", "/cast"]);
+
+/** A page about the open league, a tab or anything under one (an episode, Waivers, a settings page):
+ *  where the league strip shows. */
+export function isLeaguePage(pathname: string): boolean {
+  if (pathname === "/") return true;
+  const root = `/${pathname.split("/")[1]}`;
+  return LEAGUE_PAGES.has(root) || root === "/waivers";
+}
 
 /** The open league's linked group, in the order its commissioner set (the league dropdown's too), and
  *  where the open one sits. Only the leagues you're in -- linked leagues needn't share every member. */
@@ -81,6 +91,41 @@ function useNeighbour(id: string | undefined) {
   }).data;
 }
 
+type Loaded = Awaited<ReturnType<typeof api.leagueState>>;
+
+/** Opens another league of the linked group on the same tab (league-tabs.ts's samePageIn), with no
+ *  loading screen: the league swipe lands with `land`, the league strip's chips switch with `open`. */
+export function useSwitchLinked() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const switchToLoaded = useLeagueStore((s) => s.switchToLoaded);
+  const land = useCallback(
+    (res: Loaded, pathname: string) => {
+      const from = useLeagueStore.getState().fullState;
+      switchToLoaded(res);
+      // Landed on what was fetched ahead (instant); now quietly swap in a fresh copy, so anything
+      // that changed since -- a reveal, someone's lineup, new results -- catches up.
+      api.leagueState(res.league.id).then((fresh) => {
+        if (useLeagueStore.getState().leagueId === fresh.league.id) switchToLoaded(fresh);
+        queryClient.setQueryData(["league-peek", fresh.league.id], fresh);
+      }).catch(() => {});
+      window.scrollTo(0, 0);
+      // Replaced, not pushed: Back shouldn't open a page of the game you just left.
+      const to = samePageIn(pathname, from, res.state);
+      if (to !== pathname) router.replace(to);
+    },
+    [router, queryClient, switchToLoaded],
+  );
+  const open = useCallback(
+    async (id: string, pathname: string) => {
+      const res = await queryClient.fetchQuery({ queryKey: ["league-peek", id], queryFn: () => api.leagueState(id), staleTime: 30_000 });
+      land(res, pathname);
+    },
+    [queryClient, land],
+  );
+  return { land, open };
+}
+
 // Something under the finger that scrolls sideways itself (or opts out) keeps its own swipe.
 function inSideScroller(target: EventTarget | null, stop: HTMLElement | null): boolean {
   for (let el = target as HTMLElement | null; el && el !== stop; el = el.parentElement) {
@@ -92,10 +137,9 @@ function inSideScroller(target: EventTarget | null, stop: HTMLElement | null): b
 }
 
 export function LeagueSwipe({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
   const mode = useLeagueStore((s) => s.mode);
-  const switchToLoaded = useLeagueStore((s) => s.switchToLoaded);
+  const { land } = useSwitchLinked();
   const seenThrough = useLeagueStore((s) => s.membership?.resultsSeenThrough ?? null);
   const queryClient = useQueryClient();
   const { ids, index } = useLinkedOrder();
@@ -179,7 +223,7 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
         const wrapTop = (wrapRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY;
         setWarm(true);
         setPeek({ dir: d.dir, top: Math.max(0, window.scrollY - wrapTop) });
-        useSwipeProgress.setState({ targetName: res.league.name, dragging: true });
+        useSwipeProgress.setState({ targetId: res.league.id, dragging: true });
       }
     }
     if (d.axis !== "x") return;
@@ -203,32 +247,15 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
     setTrack(to, true);
     useSwipeProgress.setState({ progress: to / width, dragging: false });
     window.setTimeout(() => {
-      if (commit && res) {
-        switchToLoaded(res);
-        // Landed on what was fetched ahead (instant); now quietly swap in a fresh copy, so anything
-        // that changed since -- a reveal, someone's lineup, new results -- catches up.
-        api.leagueState(res.league.id).then((fresh) => {
-          if (useLeagueStore.getState().leagueId === fresh.league.id) switchToLoaded(fresh);
-          queryClient.setQueryData(["league-peek", fresh.league.id], fresh);
-        }).catch(() => {});
-        window.scrollTo(0, 0);
-        // The same page if the other league has it; otherwise Overview.
-        const type = StateLogic.getLeagueType(res.state);
-        const has: Record<string, boolean> = {
-          "/research": !!type.hasActiveRoster,
-          "/lineup": !!type.hasActiveRoster,
-          "/pick": !!type.hasWeeklyPicks,
-          "/draft": !!type.hasRoster,
-          "/waivers": StateLogic.WaiverLogic.enabled(res.state),
-        };
-        if (has[pathname] === false) router.push("/");
-      }
+      // The same tab (docs/PLAN-league-tabs.md): slot 4 is the other game's own (Team, Lineup or Pick,
+      // whose pages draw it already while peeking), otherwise this page if that league has it.
+      if (commit && res) land(res, pathname);
       setTrack(0, false);
       setPeek(null);
       // Snap the title back to rest with its animation OFF (the new name is already in place). It
       // stays off at rest and only comes on when a swipe is let go -- turning it back on a frame
       // later still animated this reset (the browser hadn't applied it yet), replaying the roll.
-      useSwipeProgress.setState({ progress: 0, targetName: null, dragging: true });
+      useSwipeProgress.setState({ progress: 0, targetId: null, dragging: true });
     }, SETTLE_MS);
   }
 
@@ -294,14 +321,25 @@ export function LeagueSwipe({ children }: { children: ReactNode }) {
 }
 
 /**
- * The open league's name in the top bar, rolling with a swipe like a slot machine: towards the next
- * league the name rolls up and the next one comes up from below (the previous: downward), each moved
- * by exactly its own height so the two never overlap mid-change. Centred, with dots under it showing
- * where you are in the linked group.
+ * A line of the top bar that differs by league (Overview's "Classic · Survivor 51"), rolling with a
+ * swipe like a slot machine: towards the next league it rolls up and the next one's comes up from
+ * below (the previous: downward), each moved by exactly its own height so the two never overlap
+ * mid-change. `textFor` says what it reads in the league the swipe is heading to. Where you are in the
+ * group is the league strip's to say (league-strip.tsx).
  */
-export function SwipeTitle({ name, className, align = "center" }: { name: string; className?: string; align?: "center" | "start" }) {
-  const { progress, targetName, dragging } = useSwipeProgress();
-  const { ids, index } = useLinkedOrder();
+export function SwipeTitle({
+  text,
+  textFor,
+  className,
+  align = "center",
+}: {
+  text: string;
+  textFor: (leagueId: string) => string;
+  className?: string;
+  align?: "center" | "start";
+}) {
+  const { progress, targetId, dragging } = useSwipeProgress();
+  const targetName = targetId ? textFor(targetId) : null;
   const p = Math.max(-1, Math.min(1, progress));
   const t = Math.abs(p);
   // Next league (p < 0): roll up. Previous (p > 0): roll down.
@@ -315,7 +353,7 @@ export function SwipeTitle({ name, className, align = "center" }: { name: string
     <span className={cn("flex min-w-0 flex-col", align === "start" ? "items-start" : "flex-1 items-center")}>
       <span className="relative block w-full min-w-0 overflow-hidden">
         <span className={className} style={{ display: "block", textAlign: align === "start" ? "left" : "center", transform: `translateY(${dir * t * 100}%)`, transition }}>
-          {name}
+          {text}
         </span>
         {targetName && t > 0 && (
           <span
@@ -333,13 +371,6 @@ export function SwipeTitle({ name, className, align = "center" }: { name: string
           </span>
         )}
       </span>
-      {ids.length > 1 && (
-        <span className="mt-0.5 flex gap-1" aria-hidden>
-          {ids.map((id, i) => (
-            <span key={id} className={i === index ? "h-1 w-3 rounded-full bg-primary" : "h-1 w-1 rounded-full bg-border"} />
-          ))}
-        </span>
-      )}
     </span>
   );
 }

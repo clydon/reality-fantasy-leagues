@@ -6,10 +6,14 @@ import { useQuery } from "@tanstack/react-query";
 import { useLeagueStore, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { actionItems, type ActionItem } from "@/lib/game/action-items.js";
-import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import { dismissNotificationsNudge, shouldNudgeNotifications } from "@/lib/notify-nudge";
-import { StatusPlate } from "@/components/overview/status-plate";
+import { commissionerItems } from "@/lib/game/commissioner-items";
+import { UpNext, ACTION_TAGS, type Job } from "@/components/overview/up-next";
+import { useLinkedGroup } from "@/components/league-strip";
+import { useSwitchLinked } from "@/components/league-swipe";
+import { teamBanner } from "@/components/waivers/team-waivers";
+import { useCastNames, useNow } from "@/components/waivers/waivers-model";
 
 type Item = ActionItem & { leagueId: string; leagueName: string };
 
@@ -22,6 +26,12 @@ type Item = ActionItem & { leagueId: string; leagueName: string };
 // Two sources merged: the open league's items are computed right here from the state on screen,
 // so an item vanishes the moment you deal with it; every other league's come from /api/me/actions,
 // re-fetched every 30s and whenever the open league's state changes.
+//
+// Every page shows the same items as Up next (overview/up-next.tsx: this game's most urgent move, a count
+// for the rest, the commissioner's control room above it), so none hides behind a pager. The pager keeps
+// only what isn't a league's: an invite, and the notifications nudge once nothing else needs you. Two
+// pages differ (docs/PLAN-league-tabs.md): Team / Lineup lead with their own waiver banner instead, and
+// Episodes leaves this league's results job to its own lead.
 export function ActionBar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -55,6 +65,14 @@ export function ActionBar() {
   // fetched (there are no other leagues, and no server behind it).
   const demo = mode === "mock" && !!myPlayerId;
   const hereId = leagueId ?? "demo";
+  // Team and Lineup open on their own waiver banner when waivers need you (docs/PLAN-league-tabs.md),
+  // in this strip's place: the strip would only repeat it. Read from the viewer's own copy, as the page is.
+  const viewState = useLeagueStore((s) => s.state);
+  const castName = useCastNames(viewState);
+  const now = useNow();
+  const bannerHere = (pathname === "/team" || pathname === "/lineup") && !!teamBanner(viewState, myPlayerId, now, castName);
+  const group = useLinkedGroup();
+  const { open: openLinked } = useSwitchLinked();
 
   const { data, refetch } = useQuery({
     queryKey: ["my-actions"],
@@ -76,26 +94,46 @@ export function ActionBar() {
       ? actionItems(state, myPlayerId, seenThrough, { commissioner }).map((it) => ({ ...it, leagueId: hereId, leagueName: leagueName ?? "Demo season" }))
       : [];
   const fetched = enabled ? (data?.items ?? []) : [];
-  // Nothing that points at the page you're already on (your pick on /pick, your lineup on /lineup):
-  // the page itself is the to-do. An item for a section of a page (/#predictions) still shows. The
-  // commissioner's results are Episodes' own lead (week.tsx) and the episode page's, so the strip
-  // leaves them to those pages.
-  const onThisPage = (it: Item) =>
-    (!it.href.includes("#") && it.href === pathname) || (it.kind === "results" && pathname.startsWith("/episodes"));
+  // Nothing that points at the page you're already on (your pick on /pick, your lineup on /lineup, League
+  // Settings' own job on /setup/league): the page itself is the to-do. An item for a section of a page
+  // (/#predictions) still shows. This league's results job is Episodes' own lead (week.tsx) and the
+  // episode page's, so Up next leaves it to those pages. Only this league's: another league's isn't there.
+  const onThisPage = (it: { leagueId: string; kind?: string; href: string }) =>
+    it.leagueId === hereId && ((!it.href.includes("#") && it.href === pathname) || (it.kind === "results" && pathname.startsWith("/episodes")));
+  const others = fetched.filter((it) => it.kind !== "invite" && it.leagueId !== leagueId);
+  const overview = pathname === "/" && (live || demo);
+  const hereMine = here.filter((it) => !onThisPage(it));
+  // The commissioner's jobs, for Up next's control room: this league's results and its own to-dos
+  // (commissioner-items.ts, from the viewer's trimmed state) first, then every other league you run.
+  const job = (it: { leagueId: string; leagueName: string; title?: string; text?: string; href: string }): Job => ({
+    leagueId: it.leagueId,
+    leagueName: it.leagueName,
+    title: (it.title ?? it.text) as string,
+    href: it.href,
+  });
+  const jobs: Job[] = [
+    ...hereMine.filter((it) => it.who === "commish").map(job),
+    ...(commissioner && (live || demo)
+      ? commissionerItems(viewState)
+          .map((it) => ({ leagueId: hereId, leagueName: leagueName ?? "Demo season", title: it.title, href: it.href }))
+          .filter((it) => !onThisPage(it))
+          .map(job)
+      : []),
+    ...others.filter((it) => it.who === "commish").map(job),
+    ...(enabled ? (data?.commish ?? []) : []).filter((it) => it.leagueId !== leagueId).map(job),
+  ];
+  const nudgeItem = { kind: "notifications" as const, text: "Turn on notifications", href: "/account", leagueId: "", leagueName: "Get reminders before each episode" };
   const items = [
     ...fetched.filter((it) => it.kind === "invite"),
-    ...here.filter((it) => !onThisPage(it)),
-    ...fetched.filter((it) => it.kind !== "invite" && it.leagueId !== leagueId),
-    ...(enabled && nudge
-      ? [{ kind: "notifications" as const, text: "Turn on notifications", href: "/account", leagueId: "", leagueName: "Get reminders before each episode" }]
-      : []),
+    ...(enabled && nudge && !hereMine.length && !others.length && !jobs.length ? [nudgeItem] : []),
   ];
   const i = items.length ? Math.min(index, items.length - 1) : 0;
   const item = items[i];
-  // Overview opens on the league's next beat when nothing here needs you (StatusPlate): under another
-  // league's alert if there is one, otherwise in the strip's own slot.
-  const statusPlate = pathname === "/" && (live || demo) && here.length === 0 ? <StatusPlate /> : null;
-  if ((!enabled && !demo) || !item) return statusPlate;
+  // Team / Lineup's waiver banner says what Up next would (and the page is the to-do), so nothing here.
+  const upNext = bannerHere ? null : (
+    <UpNext here={hereMine} others={others} jobs={jobs} hereId={hereId} hereName={leagueName ?? "Demo season"} quiet={overview} go={(id, href) => open({ leagueId: id, href } as Item)} />
+  );
+  if ((!enabled && !demo) || !item || bannerHere) return upNext;
 
   // Accepting lands you in the league, the same way the Dashboard's own invite list does.
   async function answer(it: Item, accept: boolean) {
@@ -125,7 +163,11 @@ export function ActionBar() {
       router.push("/account");
       return;
     }
-    if (it.leagueId !== hereId) await switchLeague(it.leagueId);
+    // A game in this linked group opens the way the league strip opens it (no loading screen).
+    if (it.leagueId !== hereId) {
+      if (group?.games.some((g) => g.id === it.leagueId)) await openLinked(it.leagueId, pathname);
+      else await switchLeague(it.leagueId);
+    }
     const [path, hash] = it.href.split("#");
     router.push(path || "/");
     // An Overview section: scroll to it once it's rendered (it may be a league switch away).
@@ -143,24 +185,13 @@ export function ActionBar() {
   const step = (d: number) => setIndex((i + d + items.length) % items.length);
 
   // Direction A: the strip is a broadcast caption -- a tag naming what kind of thing this is, then a
-  // white plate with the message. One strip, one item at a time, the pager for the rest.
+  // white plate with the message. What's left of the pager is an invite or the notifications nudge: one
+  // at a time, a single 48px "1/2 Next" that cycles (it wraps round, so there's no Previous).
   //
   // At 390px the plate has about 340px after its tag, so the message gets almost all of it: it wraps
-  // to a second line rather than truncating, an item with two answers (an invite's Join / Decline, the
-  // nudge's Turn on / Not now) puts them on their own line under it, and the pager is a single 48px
-  // "1/3 Next" that cycles (it wraps round, so there's no Previous).
-  const TAGS: Record<string, string> = {
-    invite: "Invite",
-    notifications: "Alerts",
-    draftTurn: "Your pick",
-    blindDraft: "Draft",
-    lineup: "Lineup",
-    pick: "Pick",
-    prediction: "Predict",
-    lateJoin: "Start",
-    results: "Results",
-    pickup: "Replace",
-  };
+  // to a second line rather than truncating, and an item with two answers (an invite's Join / Decline,
+  // the nudge's Turn on / Not now) puts them on their own line under it.
+  const TAGS = ACTION_TAGS;
   const plateBtn = "flex min-h-11 min-w-11 items-center justify-center bg-plate text-plate-foreground hover:bg-[#f1eff6]";
   const title = "type-caption line-clamp-2 text-[19px] leading-[1.05] [overflow-wrap:anywhere] [text-wrap:pretty]";
   const answerRow = (yes: { label: string; onClick: () => void }, no: { label: string; onClick: () => void }) => (
@@ -181,44 +212,28 @@ export function ActionBar() {
           {TAGS[item.kind] ?? "Now"}
         </span>
         <div className="tag-tuck flex min-w-0 flex-1 items-stretch bg-plate text-plate-foreground">
-          {item.kind === "invite" || item.kind === "notifications" ? (
-            <div className="flex min-w-0 flex-1 flex-col gap-2 py-2.5 pl-3 pr-2">
-              <span className="min-w-0">
-                {/* An invite's title carries the league's name, so it gets a third line. */}
-                <span className={cn(title, item.kind === "invite" && "line-clamp-3")}>{item.text}</span>
-                <span className="mt-0.5 block truncate text-[13px] text-plate-muted">
-                  {item.kind === "invite" ? (item.invitedBy ? `from ${item.invitedBy}` : null) : item.leagueName}
-                </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-2 py-2.5 pl-3 pr-2">
+            <span className="min-w-0">
+              {/* An invite's title carries the league's name, so it gets a third line. */}
+              <span className={cn(title, item.kind === "invite" && "line-clamp-3")}>{item.text}</span>
+              <span className="mt-0.5 block truncate text-[13px] text-plate-muted">
+                {item.kind === "invite" ? (item.invitedBy ? `from ${item.invitedBy}` : null) : item.leagueName}
               </span>
-              {item.kind === "invite"
-                ? answerRow({ label: "Join", onClick: () => answer(item, true) }, { label: "Decline", onClick: () => answer(item, false) })
-                : answerRow(
-                    { label: "Turn on", onClick: () => open(item) },
-                    // The one item you can wave away (snoozed -- see notify-nudge.ts).
-                    {
-                      label: "Not now",
-                      onClick: () => {
-                        dismissNotificationsNudge();
-                        setNudge(false);
-                      },
-                    }
-                  )}
-            </div>
-          ) : (
-            <button className="flex min-w-0 flex-1 items-center gap-2 py-2.5 pl-3 pr-2 text-left hover:bg-[#f1eff6]" onClick={() => open(item)}>
-              <span className="min-w-0 flex-1">
-                <span className={title}>
-                  {item.text}
-                  {item.by ? ` by ${byWhen(item.by)}` : ""}
-                </span>
-                <span className={cn("mt-0.5 block truncate text-[13px] text-plate-muted", item.leagueId !== hereId && "font-semibold text-plate-foreground")}>
-                  {item.leagueId === hereId ? item.leagueName : `in ${item.leagueName}`}
-                  {item.detail ? ` · ${item.detail}` : ""}
-                </span>
-              </span>
-              <ChevronRight className="size-[18px] shrink-0" strokeWidth={2.4} aria-hidden />
-            </button>
-          )}
+            </span>
+            {item.kind === "invite"
+              ? answerRow({ label: "Join", onClick: () => answer(item, true) }, { label: "Decline", onClick: () => answer(item, false) })
+              : answerRow(
+                  { label: "Turn on", onClick: () => open(item) },
+                  // The one item you can wave away (snoozed -- see notify-nudge.ts).
+                  {
+                    label: "Not now",
+                    onClick: () => {
+                      dismissNotificationsNudge();
+                      setNudge(false);
+                    },
+                  }
+                )}
+          </div>
           {items.length > 1 && (
             <button
               className={cn(plateBtn, "w-12 shrink-0 flex-col gap-0.5 border-l border-plate-muted/20")}
@@ -233,16 +248,7 @@ export function ActionBar() {
           )}
         </div>
       </div>
-      {statusPlate}
+      {upNext}
     </>
   );
-}
-
-/** A pickup's deadline in the viewer's own time: "Tue 8 PM" this week, else "Oct 21, 8 PM". */
-function byWhen(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: d.getMinutes() ? "2-digit" : undefined });
-  const day = Math.abs(d.getTime() - Date.now()) < 6 * 86_400_000 ? d.toLocaleDateString([], { weekday: "short" }) : d.toLocaleDateString([], { month: "short", day: "numeric" }) + ",";
-  return `${day} ${time}`;
 }

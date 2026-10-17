@@ -26,6 +26,7 @@
   --color-plate: var(--plate);
   --color-plate-foreground: var(--plate-foreground);
   --color-plate-muted: var(--plate-muted);
+  --color-plate-line: var(--plate-line);
   --color-live: var(--live);
   --color-live-foreground: var(--live-foreground);
   --color-quiet-tag: var(--quiet-tag);
@@ -108,6 +109,8 @@
   --plate: #ffffff;
   --plate-foreground: #121018;
   --plate-muted: #4a4558;
+  /* chyron-line on a plate: the plate is white on Night too, where chyron-line is the yellow itself. */
+  --plate-line: #845800;
   --live: #c02a34;
   --live-foreground: #ffffff;
   /* A caption tag that says something without saying "now": ink with white on Studio, where a pale
@@ -118,7 +121,7 @@
      lightened most. How much color comes through is the show's own (--art-grey, set inline). */
   --art-opacity: 0.3;
   --art-filter: contrast(0.8) brightness(1.2);
-  --art-side: linear-gradient(90deg, rgba(236, 235, 241, 0.8) 0%, rgba(236, 235, 241, 0.3) 68%, rgba(236, 235, 241, 0) 100%);
+  --art-side: linear-gradient(90deg, rgba(236, 235, 241, 0.9) 0%, rgba(236, 235, 241, 0.85) 38%, rgba(236, 235, 241, 0.3) 68%, rgba(236, 235, 241, 0) 100%);
 
   /* ---- depth: only plates, sheets, sticky bars and popovers float ---- */
   --plate-shadow: 0 1px 2px rgba(22, 20, 29, 0.1), 0 4px 14px rgba(22, 20, 29, 0.14);
@@ -177,13 +180,14 @@
   --plate: #ffffff;
   --plate-foreground: #121018;
   --plate-muted: #4a4558;
+  --plate-line: #845800;
   --live: #f2545b;
   --live-foreground: #2a0a0c;
   --quiet-tag: #2a2633;
   --quiet-tag-foreground: #f4f2f8;
   --art-opacity: 0.4;
   --art-filter: contrast(1.15) brightness(0.9);
-  --art-side: linear-gradient(90deg, rgba(22, 20, 29, 0.72) 0%, rgba(22, 20, 29, 0.25) 68%, rgba(22, 20, 29, 0) 100%);
+  --art-side: linear-gradient(90deg, rgba(22, 20, 29, 0.92) 0%, rgba(22, 20, 29, 0.88) 38%, rgba(22, 20, 29, 0.3) 68%, rgba(22, 20, 29, 0) 100%);
 
   --plate-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
   --sheet-shadow: 0 -12px 30px rgba(0, 0, 0, 0.45);

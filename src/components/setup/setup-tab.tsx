@@ -68,7 +68,7 @@ function SettingsList({ state }: { state: LeagueState }) {
   });
   const waiting = (invites?.invites ?? []).filter((inv) => inv.status === "pending").length;
   // The commissioner's to-dos (lib/game/commissioner-items.ts) as chyron dots on the rows that fix
-  // them; the one that blocks the league is also Overview's status plate.
+  // them; Overview's control room lists them too.
   const todo = new Set(canManage ? commissionerItems(state).map((it) => it.id) : []);
 
   const seats = state.players.filter((p) => !p.disabled);
