@@ -45,6 +45,9 @@ export function ResearchTab() {
   const [includePreseason, setIncludePreseason] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [teamsOpen, setTeamsOpen] = useState(false);
+  const [tribesOpen, setTribesOpen] = useState(false);
+  // Combines with Whose; not remembered (tribes merge and swap).
+  const [tribeId, setTribeId] = useState<string | null>(null);
   // Rank by one scoring rule (an event id) instead of points. Not remembered: rules differ by show.
   // (undefined = not chosen yet: an Eliminator Pool starts on Safety, everything else on points.)
   const [rankBy, setRankBy] = useState<string | null | undefined>(undefined);
@@ -97,6 +100,8 @@ export function ResearchTab() {
   const shownWho: Who = hasRoster ? who : "all";
 
   const players = state.players.filter((p) => !p.disabled && p.active !== false);
+  // Tribes are the show's, so every game can filter by them (not just roster games).
+  const tribe = tribeId ? state.tribes.find((t) => t.id === tribeId) ?? null : null;
   const team = shownWho.startsWith("team:") ? players.find((p) => p.id === who.slice(5)) ?? null : null;
   const mine = (c: Castaway) => !!myPlayerId && c.ownerIds.includes(myPlayerId);
   const free = (c: Castaway) => c.ownerIds.length === 0;
@@ -125,6 +130,7 @@ export function ResearchTab() {
   const poolHolds = (c: Castaway) => (shownPool === "open" ? eligibility!.available.includes(c.id) : shownPool === "used" ? !!eligibility!.blocked[c.id] : true);
   const shown = rows
     .filter((r) => (shownWho === "free" ? free(r.c) : shownWho === "mine" ? mine(r.c) : team ? r.c.ownerIds.includes(team.id) : true))
+    .filter((r) => !tribe || r.c.tribeId === tribe.id)
     .filter((r) => !hideOut || r.c.status !== "eliminated")
     .filter((r) => poolHolds(r.c))
     .sort((a, b) => score(b) - score(a) || b.points - a.points || a.c.name.localeCompare(b.c.name));
@@ -137,6 +143,14 @@ export function ResearchTab() {
   const ep = StateLogic.currentEpisode(state);
   const myLineup: string[] = ep && myPlayerId ? (StateLogic.activeRosterLineupFor(state, ep.id, myPlayerId) as string[]) : [];
   const ownerLine = (c: Castaway): ReactNode => {
+    const tr = state.tribes.find((t) => t.id === c.tribeId);
+    const tribeTag = tr && c.status !== "eliminated" ? (
+      <span className="inline-flex items-center gap-1">
+        <span className="size-2 rounded-full" style={{ background: tr.color }} aria-hidden />
+        {tr.name}
+      </span>
+    ) : null;
+    const withTribe = (n: ReactNode): ReactNode => (tribeTag ? <>{n} · {tribeTag}</> : n);
     if (c.status === "eliminated") {
       const exit = state.episodes.find((e) => e.events.some((x) => x.castawayId === c.id));
       return exit ? `Out · Episode ${exit.number}` : "Out";
@@ -144,15 +158,17 @@ export function ResearchTab() {
     if (!hasRoster) {
       const used = eligibility?.blocked[c.id];
       if (used) return used.reason === "backToBack" ? `Last pick · Ep ${used.episode}` : `Used Ep ${used.episode}`;
-      return eligibility?.available.includes(c.id) ? <span className="font-semibold text-good">Open to you</span> : "Still in";
+      return withTribe(eligibility?.available.includes(c.id) ? <span className="font-semibold text-good">Open to you</span> : "Still in");
     }
-    if (free(c)) return <span className="font-semibold text-good">Free agent</span>;
+    if (free(c)) return withTribe(<span className="font-semibold text-good">Free agent</span>);
     // "bench" only once you've started someone: before that, nobody's on it yet.
     const yours = myLineup.length > 0 && !myLineup.includes(c.id) ? "Yours · bench" : "Yours";
-    return c.ownerIds
-      .map((id) => (id === myPlayerId ? yours : StateLogic.getPlayer(state, id)?.name))
-      .filter(Boolean)
-      .join(", ");
+    return withTribe(
+      c.ownerIds
+        .map((id) => (id === myPlayerId ? yours : StateLogic.getPlayer(state, id)?.name))
+        .filter(Boolean)
+        .join(", ")
+    );
   };
   // "Scoring like starters" is a lineup idea: Active Roster only.
   const steals = StateLogic.getLeagueType(state).hasActiveRoster && (shownWho === "all" || shownWho === "free") ? freeAgentSteals(state, rows) : [];
@@ -202,6 +218,19 @@ export function ResearchTab() {
           </FilterChip>
         )}
       </div>}
+
+      {state.tribes.length > 0 && (
+        <div role="group" aria-label="Tribe" className="flex flex-wrap gap-2">
+          <FilterChip on={!tribe} onClick={() => setTribeId(null)}>
+            Any tribe
+          </FilterChip>
+          <FilterChip on={!!tribe} onClick={() => setTribesOpen(true)}>
+            {tribe && <span className="size-2.5 shrink-0 rounded-full" style={{ background: tribe.color }} aria-hidden />}
+            <span className="max-w-[120px] truncate">{tribe ? tribe.name : "Tribe"}</span>
+            <ChevronDown className="size-4" strokeWidth={2.4} aria-hidden />
+          </FilterChip>
+        </div>
+      )}
 
       {eligibility && (
         <div role="group" aria-label="Whose" className="flex flex-wrap gap-2">
@@ -285,6 +314,24 @@ export function ResearchTab() {
         </button>
       </BottomSheet>
 
+
+      <BottomSheet open={tribesOpen} onOpenChange={setTribesOpen} title="Show one tribe">
+        {state.tribes.map((t) => (
+          <SheetAction
+            key={t.id}
+            detail={tribe?.id === t.id ? "Showing" : undefined}
+            onClick={() => {
+              setTribeId(t.id);
+              setTribesOpen(false);
+            }}
+          >
+            <span className="flex items-center gap-3">
+              <span className="size-3 shrink-0 rounded-full" style={{ background: t.color }} aria-hidden />
+              {t.name}
+            </span>
+          </SheetAction>
+        ))}
+      </BottomSheet>
 
       <BottomSheet open={teamsOpen} onOpenChange={setTeamsOpen} title="Show one team">
         {players

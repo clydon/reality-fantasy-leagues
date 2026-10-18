@@ -75,8 +75,11 @@ export function CastByTribe({
   bare,
   title,
   aside,
+  remaining,
 }: {
   state: LeagueState;
+  /** Only who's still in the game (the Scoreboard's "Still in"). */
+  remaining?: boolean;
   /** No rule above it: it's the whole section. */
   bare?: boolean;
   /** The heading; the show's word for its cast when not given, none when null (the page names it). */
@@ -90,7 +93,7 @@ export function CastByTribe({
     .map((g) => ({
       g,
       members: state.castaways
-        .filter((c) => (c.tribeId || null) === g.id)
+        .filter((c) => (c.tribeId || null) === g.id && !(remaining && isKnockedOut(state, c)))
         .sort(
           (a, b) =>
             Number(a.status === "eliminated") - Number(b.status === "eliminated") ||
@@ -117,6 +120,7 @@ export function CastByTribe({
               {state.tribes.length > 0 && (
                 <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide" style={{ color: g.color }}>
                   {g.name}
+                  {remaining && <span className="ml-1.5 font-semibold text-muted-foreground">{members.length}</span>}
                 </div>
               )}
               <div className="flex flex-wrap gap-1.5">

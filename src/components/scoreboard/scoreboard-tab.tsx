@@ -14,6 +14,8 @@ import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { MoreButton } from "@/components/setup/settings-ui";
 import { cn } from "cn";
+import { CastByTribe } from "@/components/overview/cast-by-tribe";
+import { isKnockedOut } from "@/lib/game/selectors";
 import { YourSeason } from "./your-season";
 import { castawayPoints, standingLine } from "@/lib/game/classic-view";
 
@@ -60,6 +62,18 @@ export function ScoreboardTab() {
         <ActiveRosterBoard state={state} scores={scores} />
       ) : (
         <ClassicBoard state={state} scores={scores} />
+      )}
+
+      {state.tribes.length > 0 && state.castaways.some((c) => !isKnockedOut(state, c)) && (
+        <section className="flex flex-col gap-3 border-t border-border pt-4" aria-label="Still in the game">
+          <div className="flex min-h-11 items-center gap-3">
+            <h3 className="type-caption flex-1 text-[24px]">Still in</h3>
+            <Link href="/cast" className="-my-3 shrink-0 py-3 text-sm font-semibold text-chyron-line hover:underline">
+              Whole cast
+            </Link>
+          </div>
+          <CastByTribe state={state} bare title={null} remaining />
+        </section>
       )}
 
       {menuOpen && latest && (
