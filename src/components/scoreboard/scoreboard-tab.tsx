@@ -65,7 +65,7 @@ export function ScoreboardTab() {
       )}
 
       {state.tribes.length > 0 && state.castaways.some((c) => !isKnockedOut(state, c)) && (
-        <section className="flex flex-col gap-3 border-t border-border pt-4" aria-label="Still in the game">
+        <section className="flex flex-col gap-3 pt-2" aria-label="Still in the game">
           <div className="flex min-h-11 items-center gap-3">
             <h3 className="type-caption flex-1 text-[24px]">Still in</h3>
             <Link href="/cast" className="-my-3 shrink-0 py-3 text-sm font-semibold text-chyron-line hover:underline">

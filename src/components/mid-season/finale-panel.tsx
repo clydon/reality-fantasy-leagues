@@ -32,33 +32,40 @@ function CastPickGrid({
   // the pick, handled by the caller's onToggle. Only multi-select (Top-3) needs a slot free before
   // it'll accept a new name, since there's no "current slot" to swap into otherwise.
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(58px,1fr))] gap-x-2 gap-y-3">
       {pool.map((c) => {
         const idx = selected.indexOf(c.id);
         const picked = idx !== -1;
         const disabled = !editable || (max > 1 && !picked && filledCount >= max);
+        // The cast board's face tile (cast-by-tribe.tsx); picked = the chyron-line outline and a
+        // chyron badge with its slot (DESIGN.md "Cast tile").
         return (
-          <div
+          <button
             key={c.id}
-            role={editable ? "button" : undefined}
-            tabIndex={editable && !disabled ? 0 : undefined}
+            type="button"
+            disabled={disabled}
+            aria-pressed={picked}
             className={cn(
-              "relative flex flex-col items-center gap-1 rounded-lg border-2 p-1.5 text-center",
-              picked ? "border-chyron-line bg-primary/10" : "border-border",
-              editable && !disabled && "cursor-pointer hover:border-chyron-line",
-              disabled && !picked && "opacity-40"
+              "relative flex min-w-0 flex-col items-center gap-1 rounded-[2px] outline-none focus-visible:ring-[3px] focus-visible:ring-chyron-line",
+              disabled && !picked && "opacity-40",
+              disabled && "cursor-default"
             )}
-            onClick={() => editable && !disabled && onToggle(c.id)}
-            onKeyDown={(e) => editable && !disabled && e.key === "Enter" && onToggle(c.id)}
+            onClick={() => onToggle(c.id)}
           >
+            <CastawayAvatar
+              castaway={c}
+              className={cn(
+                "flex aspect-square w-full items-center justify-center rounded-[2px] bg-secondary text-xs font-bold text-muted-foreground [&_img]:object-top",
+                picked && "outline outline-[3px] outline-offset-2 outline-chyron-line"
+              )}
+            />
             {picked && (
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[0.6rem] font-bold text-primary-foreground">
+              <span className="type-num absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-[2px] bg-chyron text-[13px] text-chyron-foreground">
                 {max > 1 ? idx + 1 : "✓"}
               </span>
             )}
-            <CastawayAvatar castaway={c} className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary text-[0.6rem] font-bold" />
-            <div className="w-full truncate text-[0.65rem] font-medium leading-tight">{c.name}</div>
-          </div>
+            <span className={cn("w-full truncate text-center text-[12px] leading-tight", picked && "font-semibold")}>{c.name.split(" ")[0]}</span>
+          </button>
         );
       })}
     </div>

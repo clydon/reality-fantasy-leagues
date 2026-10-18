@@ -1,71 +1,15 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import type { Castaway, LeagueState, Player } from "@/lib/game/types";
+import type { LeagueState, Player } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useShowTerms } from "@/lib/use-show-terms";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { CastawayStatCard } from "@/components/castaway-stat-card";
 import { cn } from "cn";
+import { colourTag } from "@/components/ui/caption-plate";
 import { isKnockedOut } from "@/lib/game/selectors";
-
-// `badge`: a number in the corner -- Active Roster's points (primary), Classic's finishing place
-// (out, the red of BoardGrid's boot-order badge), or a medal emoji on its own.
-export function Chip({
-  state,
-  castaway: c,
-  ring,
-  points,
-  badgeTone = "primary",
-  small,
-  large,
-  dim = isKnockedOut(state, c),
-}: {
-  state: LeagueState;
-  castaway: Castaway;
-  ring?: string;
-  points?: number | string;
-  badgeTone?: "primary" | "out" | "medal";
-  small?: boolean;
-  /** Eliminator Pool's board: one pick per row, so it can afford to be bigger than the default. */
-  large?: boolean;
-  /** Faded as out of the game -- by default whenever they are. */
-  dim?: boolean;
-}) {
-  return (
-    <div className="relative shrink-0" title={c.name}>
-      <div
-        className={cn(
-          "overflow-hidden rounded-lg border-2",
-          small ? "h-7 w-7 opacity-80" : large ? "h-14 w-14" : "h-10 w-10",
-          dim && "opacity-50"
-        )}
-        style={{ borderColor: ring ?? "var(--border)" }}
-      >
-        <CastawayAvatar expandable
-          castaway={c}
-          className={cn(
-            "flex h-full w-full items-center justify-center bg-secondary font-mono font-bold text-muted-foreground",
-            small ? "text-[0.55rem]" : large ? "text-[0.75rem]" : "text-[0.65rem]"
-          )}
-        />
-      </div>
-      {points !== undefined &&
-        (badgeTone === "medal" ? (
-          <span className="absolute -bottom-2 -right-2 text-lg leading-none drop-shadow-sm">{points}</span>
-        ) : (
-          <span
-            className={cn(
-              "absolute -bottom-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border-2 border-card px-0.5 font-mono text-[0.55rem] font-bold leading-none",
-              badgeTone === "out" ? "bg-destructive text-white" : "bg-primary text-primary-foreground"
-            )}
-          >
-            {points}
-          </span>
-        ))}
-    </div>
-  );
-}
+import { useMyPlayerId } from "@/lib/store";
 
 // The whole cast, compact: a small photo per castaway grouped by current tribe (biggest group first,
 // same as BoardGrid), a dot per owner beneath. Tap one for its full stat card. The Board for Classic
@@ -89,7 +33,10 @@ export function CastByTribe({
 }) {
   const terms = useShowTerms();
   const [openId, setOpenId] = useState<string | null>(null);
-  const groups = [{ id: null as string | null, name: "Unassigned", color: "#4a5245" }, ...state.tribes]
+  const me = useMyPlayerId();
+  // Owners only in roster games: an Eliminator Pool has nobody's team, so no owner line.
+  const hasRoster = !!StateLogic.getLeagueType(state).hasRoster;
+  const groups = [{ id: null as string | null, name: "No tribe", color: "" }, ...state.tribes]
     .map((g) => ({
       g,
       members: state.castaways
@@ -108,56 +55,69 @@ export function CastByTribe({
     <div className={cn(!bare && "mt-4 border-t border-border pt-3")}>
       {title !== null && (
         <div className="mb-2 flex items-baseline justify-between gap-2">
-          <h3 className="section-title">{title ?? terms.castaways.replace(/^./, (ch) => ch.toUpperCase())}</h3>
+          <h3 className="type-caption text-[24px]">{title ?? terms.castaways.replace(/^./, (ch) => ch.toUpperCase())}</h3>
           {aside}
         </div>
       )}
-      <div className="flex flex-col gap-3">
-        {groups.map(({ g, members }) => (
-          <div key={g.id ?? "unassigned"} className="flex gap-2">
-            {state.tribes.length > 0 && <div className="w-1 shrink-0 rounded-full" style={{ background: g.color }} title={g.name} />}
-            <div className="min-w-0 flex-1">
-              {state.tribes.length > 0 && (
-                <div className="mb-1 text-[0.65rem] font-bold uppercase tracking-wide" style={{ color: g.color }}>
-                  {g.name}
-                  {remaining && <span className="ml-1.5 font-semibold text-muted-foreground">{members.length}</span>}
+      <div className="flex flex-col gap-5">
+        {groups.map(({ g, members }) => {
+          const tagged = state.tribes.length > 0;
+          const inCount = members.filter((m) => !isKnockedOut(state, m)).length;
+          return (
+            <section key={g.id ?? "unassigned"} aria-label={tagged ? g.name : undefined}>
+              {/* The tribe as a small caption tag in its own colour (tags, not fills), the count beside it. */}
+              {tagged && (
+                <div className="mb-2.5 flex h-7 items-stretch gap-3">
+                  <span
+                    className={cn("type-caption tag-cut flex items-center pl-2.5 pr-5 text-[15px] tracking-[0.04em]", !g.id && "bg-quiet-tag text-quiet-tag-foreground")}
+                    style={g.id ? colourTag(g.color) : undefined}
+                  >
+                    {g.name}
+                  </span>
+                  <span className="flex items-center text-[13px] text-muted-foreground">
+                    {remaining || inCount === members.length ? `${members.length} still in` : `${inCount} of ${members.length} still in`}
+                  </span>
                 </div>
               )}
-              <div className="flex flex-wrap gap-1.5">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(58px,1fr))] gap-x-2 gap-y-3">
                 {members.map((c) => {
                   const owners = c.ownerIds.map((id) => StateLogic.getPlayer(state, id)).filter((p): p is Player => !!p);
+                  const out = isKnockedOut(state, c);
+                  const mine = !!me && c.ownerIds.includes(me);
                   return (
                     <button
                       key={c.id}
-                      className={cn(
-                        "flex w-11 flex-col items-center gap-0.5 rounded-md p-0.5 hover:bg-secondary",
-                        isKnockedOut(state, c) && "opacity-45",
-                        openId === c.id && "bg-secondary"
-                      )}
+                      type="button"
+                      className="flex min-w-0 flex-col items-center gap-1 rounded-[2px] outline-none focus-visible:ring-[3px] focus-visible:ring-chyron-line"
                       onClick={() => setOpenId(openId === c.id ? null : c.id)}
                       aria-expanded={openId === c.id}
+                      aria-label={`${c.name}${out ? ", out" : ""}${mine ? ", yours" : owners.length ? `, ${owners.map((o) => o.name).join(", ")}` : hasRoster ? ", free agent" : ""}`}
                     >
-                      <div
-                        className="h-9 w-9 overflow-hidden rounded-md border-2"
-                        style={{ borderColor: owners[0]?.color ?? "var(--border)" }}
-                      >
-                        <CastawayAvatar
-                          castaway={c}
-                          className="flex h-full w-full items-center justify-center bg-secondary font-mono text-[0.55rem] font-bold text-muted-foreground"
-                        />
-                      </div>
-                      <span className="w-full truncate text-center text-[0.6rem] leading-tight">{c.name.split(" ")[0]}</span>
-                      <span className="flex h-1.5 gap-0.5">
-                        {owners.map((o) => (
-                          <span key={o.id} className="h-1.5 w-1.5 rounded-full" style={{ background: o.color }} title={o.name} />
-                        ))}
+                      <CastawayAvatar
+                        castaway={c}
+                        className={cn(
+                          "flex aspect-square w-full items-center justify-center rounded-[2px] bg-secondary text-xs font-bold text-muted-foreground [&_img]:object-top",
+                          out && "grayscale brightness-[.6]",
+                          openId === c.id
+                            ? "outline outline-[3px] outline-offset-2 outline-chyron-line"
+                            : mine && "outline outline-2 outline-chyron-line/70"
+                        )}
+                      />
+                      <span className={cn("w-full truncate text-center text-[12px] leading-tight", out ? "text-muted-foreground" : "font-semibold")}>
+                        {c.name.split(" ")[0]}
                       </span>
+                      {/* Whose, in words (Research's owner line): yours carry the outline instead, so say nothing. */}
+                      {hasRoster && (
+                        <span className={cn("-mt-0.5 h-3.5 w-full truncate text-center text-[11px] leading-[14px]", owners.length ? "text-muted-foreground" : "font-semibold text-good")}>
+                          {mine ? "" : owners.length === 0 ? (out ? "" : "Free") : owners.length === 1 ? owners[0].name : `${owners.length} teams`}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
               </div>
               {open && members.some((m) => m.id === open.id) && (
-                <div className="mt-2 max-w-[260px]">
+                <div className="mt-3">
                   <CastawayStatCard
                     state={state}
                     castaway={open}
@@ -167,9 +127,9 @@ export function CastByTribe({
                   />
                 </div>
               )}
-            </div>
-          </div>
-        ))}
+            </section>
+          );
+        })}
       </div>
     </div>
   );
