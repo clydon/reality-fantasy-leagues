@@ -1,20 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import type { StoredFormat } from "@/lib/game/types";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { ActButton, CopyButton } from "@/components/admin/admin-ui";
+import { Field, MoreOptions, fieldCls } from "@/components/setup/settings-ui";
+import { ActButton, CopyButton, Notice, Step, StickyBar } from "@/components/admin/admin-ui";
 import { PasteBar } from "@/components/paste-bar";
 import { useTourSample } from "@/lib/tour/samples";
 import { tourMark } from "@/lib/tour/tour-store";
+import { cn } from "cn";
 
-// Step 1 of "Research a new show" (docs/PLAN-stage-3-format-proposals.md step 3): build the free
-// copy/paste prompt from a show name and a few optional hints, then parse whatever a web-searching
-// chat pastes back into a draft. Same shape as episode research's PasteImportPanel
-// (season-episodes.tsx), just for a whole show's rules instead of one episode.
+// "Research a new show" for anyone adding one from the create-league flow (docs/PLAN-settings-order.md;
+// the same shape as Admin's New show page, admin/new-show-page.tsx): the show's name is the one thing
+// to type, the prompt is built as soon as it is (nothing to press), then copy it into any AI chat with
+// web search, paste the answer, and review the rules it found. Everything else the chat could use
+// (a wiki page, what the show calls its people and groups, which seasons to read) is optional help,
+// folded away. Same copy/paste shape as episode research (season-episodes.tsx) and the cast import.
 export function FormatResearchPanel({
   onCreated,
   onCancel,
@@ -37,17 +39,27 @@ export function FormatResearchPanel({
   const [castaway, setCastaway] = useState("");
   const [tribe, setTribe] = useState("");
   const [seasons, setSeasons] = useState("");
-  const [built, setBuilt] = useState(false);
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The prompt is built from what's typed, so it's fetched once typing settles rather than per key.
   const q = { name: name.trim(), wiki: wiki.trim() || undefined, castaway: castaway.trim() || undefined, tribe: tribe.trim() || undefined, seasons: seasons.trim() || undefined };
-  const { data, isLoading, error: promptError } = useQuery({
-    queryKey: ["format-prompt", promptFn === api.adminFormatPrompt ? "admin" : "self", q],
-    queryFn: () => promptFn(q),
-    enabled: built && !!q.name,
+  const key = JSON.stringify(q);
+  const [settled, setSettled] = useState(q);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(JSON.parse(key)), 400);
+    return () => clearTimeout(t);
+  }, [key]);
+  const prompt = useQuery({
+    queryKey: ["format-prompt", promptFn === api.adminFormatPrompt ? "admin" : "self", settled],
+    queryFn: () => promptFn(settled),
+    enabled: !!settled.name,
   });
+  const promptReady = !!prompt.data && JSON.stringify(settled) === key;
+  useEffect(() => {
+    if (promptReady) tourMark("add-built");
+  }, [promptReady]);
 
   async function submit() {
     if (!answer.trim()) return;
@@ -64,83 +76,63 @@ export function FormatResearchPanel({
   }
 
   return (
-    <div className="rounded-md border border-dashed border-border bg-secondary/40 p-2.5 text-xs">
-      {!built ? (
-        <>
-          <p className="mb-1.5 text-muted-foreground">
-            Research a show nobody&rsquo;s hand-written rules for yet. Fill in what you know, build a prompt, and paste
-            it into any AI chat with web search.
-          </p>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Input
-              size="sm"
-              className="min-w-[160px] flex-1"
-              placeholder="Show name, e.g. Love Island (UK)"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && name.trim() && setBuilt(true)}
-            />
-            <Input size="sm" className="min-w-[180px] flex-1" placeholder="Wiki URL (optional)" value={wiki} onChange={(e) => setWiki(e.target.value)} />
+    <div className="flex flex-col gap-6">
+      <Field label="Show name" htmlFor="rs-name" hint="The chat researches this show's rules, then you check what it found.">
+        <input id="rs-name" className={fieldCls} placeholder="Love Island (UK)" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+      </Field>
+
+      <MoreOptions label="Help the research (optional)">
+        <div className="flex flex-col gap-5">
+          <Field label="Wiki page" htmlFor="rs-wiki">
+            <input id="rs-wiki" type="url" className={fieldCls} placeholder="https://…" value={wiki} onChange={(e) => setWiki(e.target.value)} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="People are called" htmlFor="rs-castaway">
+              <input id="rs-castaway" className={fieldCls} placeholder="Islanders" value={castaway} onChange={(e) => setCastaway(e.target.value)} />
+            </Field>
+            <Field label="Groups are called" htmlFor="rs-tribe">
+              <input id="rs-tribe" className={fieldCls} placeholder="Couples" value={tribe} onChange={(e) => setTribe(e.target.value)} />
+            </Field>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <Input size="sm" className="w-[140px]" placeholder="Contestant term (optional)" value={castaway} onChange={(e) => setCastaway(e.target.value)} />
-            <Input size="sm" className="w-[140px]" placeholder="Group term (optional)" value={tribe} onChange={(e) => setTribe(e.target.value)} />
-            <Input size="sm" className="min-w-[160px] flex-1" placeholder="Seasons to check (optional)" value={seasons} onChange={(e) => setSeasons(e.target.value)} />
-          </div>
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <span data-tour="add-build">
-              <ActButton tone="chyron" disabled={!name.trim()} onClick={() => { setBuilt(true); tourMark("add-built"); }}>
-                Build prompt
-              </ActButton>
-            </span>
-            <ActButton onClick={onCancel}>Cancel</ActButton>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="mb-1.5 text-muted-foreground">
-            1. Copy this into any AI chat with web search. 2. Paste its answer into the box below. 3. Create the draft.
-          </p>
-          {isLoading && <p className="italic text-muted-foreground">Building the prompt…</p>}
-          {promptError && <p className="font-semibold text-destructive">{promptError instanceof ApiError ? promptError.message : "Couldn't build the prompt."}</p>}
-          {data && (
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2.5">
-                <CopyButton text={data.prompt} label="Copy prompt" tone="chyron" tourId="add-copy" />
-                <button className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" onClick={() => setBuilt(false)}>
-                  ← edit inputs
-                </button>
-              </div>
-              <Textarea readOnly rows={4} value={data.prompt} className="font-mono text-[0.65rem] text-muted-foreground" />
-            </div>
-          )}
-          <div className="mt-2 flex flex-col gap-1.5">
-            <span className="font-semibold">Paste the answer here</span>
-            <PasteBar value={answer} onChange={setAnswer} sample={tourSample} tourId="add-paste" />
-          </div>
-          <label className="mt-1.5 flex flex-col gap-1">
-            <span className="sr-only">The answer</span>
-            <Textarea
-              rows={8}
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              placeholder="Paste the JSON the chat wrote back (a code fence or a line of chatter around it is fine)."
-              className="font-mono text-[0.7rem]"
-            />
-          </label>
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <span data-tour="add-create">
-              <ActButton tone="chyron" disabled={busy || !answer.trim()} onClick={submit}>
-                {busy ? "Creating…" : "Create draft"}
-              </ActButton>
-            </span>
-            <ActButton disabled={busy} onClick={onCancel}>
-              Cancel
-            </ActButton>
-          </div>
-          {error && <p className="mt-1 font-semibold text-destructive">{error}</p>}
-        </>
-      )}
+          <Field label="Seasons to check" htmlFor="rs-seasons" hint="Which seasons the chat should read, e.g. 10 and 11.">
+            <input id="rs-seasons" className={fieldCls} value={seasons} onChange={(e) => setSeasons(e.target.value)} />
+          </Field>
+        </div>
+      </MoreOptions>
+
+      <ol className="flex flex-col gap-5">
+        <Step n={1} on={!answer.trim()} label="Copy the research prompt">
+          <CopyButton text={promptReady ? prompt.data?.prompt : undefined} tone={answer.trim() ? "plain" : "chyron"} disabled={!name.trim()} tourId="add-copy" />
+          <span className="text-[13px] leading-snug text-muted-foreground">
+            {name.trim() ? "Paste it into any AI chat with web search. Free." : "Name the show first."}
+          </span>
+          {prompt.error && <Notice tone="bad">{prompt.error instanceof ApiError ? prompt.error.message : "Couldn't build the prompt."}</Notice>}
+        </Step>
+        <Step n={2} on={!!answer.trim()} label="Paste what it found">
+          <PasteBar value={answer} onChange={setAnswer} sample={tourSample} tourId="add-paste" />
+          <textarea
+            aria-label="The chat's answer"
+            rows={5}
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            placeholder="Paste the chat's answer. A code fence or a line of chatter around it is fine."
+            className={cn(fieldCls, "min-h-[120px] resize-y py-3 font-mono text-sm")}
+          />
+        </Step>
+      </ol>
+
+      {error && <Notice tone="bad">{error}</Notice>}
+
+      <StickyBar note="Nothing goes live until you approve the rules.">
+        <ActButton disabled={busy} onClick={onCancel} className="min-h-12">
+          Cancel
+        </ActButton>
+        <span data-tour="add-create">
+          <ActButton tone="chyron" disabled={busy || !answer.trim()} onClick={submit} className="min-h-12">
+            {busy ? "Reading…" : "Review the rules"}
+          </ActButton>
+        </span>
+      </StickyBar>
     </div>
   );
 }

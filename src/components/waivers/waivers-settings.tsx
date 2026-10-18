@@ -26,7 +26,7 @@ const HOURS = [12, 24, 48];
 
 /** The Suggested card's numbers: "4 teams of 3 · 6 free agents". */
 export function leagueNumbers(teams: number, roster: number, freeAgents: number | null): string {
-  return `${teams} teams of ${roster}${freeAgents === null ? " · shared cast" : ` · ${freeAgents} free agent${freeAgents === 1 ? "" : "s"}`}`;
+  return `${teams} ${teams === 1 ? "team" : "teams"} of ${roster}${freeAgents === null ? " · shared cast" : ` · ${freeAgents} free agent${freeAgents === 1 ? "" : "s"}`}`;
 }
 
 export function WaiversSettingsPage() {
@@ -65,6 +65,9 @@ export function WaiversSettingsPage() {
   const shortAt = W.shortAt(state);
   const rec = W.recommendFor(state, feel);
   const recSettings = rec && rec.feasible ? rec.settings : null;
+  // Before the draft the suggestion would be worked out for whoever has joined so far; it's shown once the
+  // teams are real.
+  const fitsLater = !!state.settings.waiverFit && !StateLogic.isDraftStarted(state);
   const applied = W.isRecommended(state) && c.waiverFeel === feel;
   const w = c.waiverWindows;
   const H = W.processHours(state);
@@ -78,7 +81,13 @@ export function WaiversSettingsPage() {
   return (
     <SettingsPage title="Waivers">
       <ReadOnlyNote />
-      {rec && !rec.feasible && (
+      {fitsLater && (
+        <p className="text-[15px] leading-[1.45] text-muted-foreground">
+          <b className="font-semibold text-foreground">Nothing to set yet.</b> Waivers depend on who owns whom, how many teams there are and how big
+          the cast is, so they&rsquo;re worked out when the draft starts. Change anything here before then and they stay as you set them.
+        </p>
+      )}
+      {!fitsLater && rec && !rec.feasible && (
         <p className="rounded-[4px] border border-border bg-card px-3.5 py-3 text-[15px] leading-[1.45]">
           <b className="font-semibold">
             {W.teamsFor(state)} teams of {R} needs {rec.need} {terms.castaways}; this season has {rec.have}.
@@ -86,7 +95,7 @@ export function WaiversSettingsPage() {
           Shared ownership, or smaller teams, would fit.
         </p>
       )}
-      {recSettings && (
+      {!fitsLater && recSettings && (
         <FeelCard
           numbers={leagueNumbers(W.teamsFor(state), R, rec && rec.feasible ? rec.freeAgents : null)}
           feel={feel}

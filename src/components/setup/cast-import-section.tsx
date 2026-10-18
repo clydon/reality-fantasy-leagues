@@ -30,16 +30,16 @@ import { tourMark } from "@/lib/tour/tour-store";
 // league's format first), so it's additive: anyone already in the league is left as they are.
 //
 // On a league with a season (docs/PLAN-universal-season-cast.md) the people become the SEASON's
-// shared cast, so the review asks whether the starting groups were public before the premiere -- it
-// never assumes -- and roles stay this league's own, as episode-1 results. Once the season's cast is
+// shared cast, so the review keeps the starting groups out of sight until the premiere unless the
+// commissioner ticks that they were public -- and roles stay this league's own, as episode-1 results. Once the season's cast is
 // someone else's or finished, there's nothing to import into, and the section hides.
-export function CastImportSection({ state }: { state: LeagueState }) {
+export function CastImportSection({ state, defaultOpen = false }: { state: LeagueState; defaultOpen?: boolean }) {
   const leagueId = useLeagueStore((s) => s.leagueId);
   const mode = useLeagueStore((s) => s.mode);
   const setState = useLeagueStore((s) => s.setState);
   const canManage = useCanManage();
   const terms = useShowTerms();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [season, setSeason] = useState(state.settings.wikiSeason ? `Season ${state.settings.wikiSeason}` : "");
   const [answer, setAnswer] = useState("");
   const [parsed, setParsed] = useState<ParsedCast | null>(null);
@@ -49,7 +49,8 @@ export function CastImportSection({ state }: { state: LeagueState }) {
   const [note, setNote] = useState<string | null>(null);
   const { mode: cast, refresh } = useSeasonCastMode();
   const tourSample = useTourSample("cast");
-  const [tribesPublic, setTribesPublic] = useState<boolean | null>(null);
+  // Starting tribes are held back until episode 1 unless the commissioner says they were public.
+  const [tribesPublic, setTribesPublic] = useState(false);
 
   // The league's format with the show's own words for its people and groups.
   const base = StateLogic.formatOf(state);
@@ -107,6 +108,10 @@ export function CastImportSection({ state }: { state: LeagueState }) {
     format.hasGroups &&
     !(cast.kind === "creating" && cast.tribesConfirmed) &&
     !!parsed?.castaways.some((c) => c.startingGroup && c.startingGroup.trim());
+
+  // While they're held, the review doesn't show them either: the commissioner is a player, and the
+  // premiere is where everyone finds out.
+  const hideTribes = askTribes && !tribesPublic;
 
   async function confirmImport() {
     if (!parsed) return;
@@ -222,6 +227,19 @@ export function CastImportSection({ state }: { state: LeagueState }) {
                   ))}
                 </ul>
               )}
+              {askTribes && (
+                <label className="flex min-h-11 items-start gap-2.5 py-1">
+                  <input type="checkbox" className="mt-1 size-5 shrink-0" checked={tribesPublic} onChange={(e) => setTribesPublic(e.target.checked)} />
+                  <span className="flex flex-col gap-0.5">
+                    <span className="font-semibold">The starting {terms.tribes} were announced before the premiere</span>
+                    <span className="text-muted-foreground">
+                      {tribesPublic
+                        ? `They show now, in every league on the season.`
+                        : `Left unticked, they're saved but kept out of sight (here too) until each league reaches episode 1.`}
+                    </span>
+                  </span>
+                </label>
+              )}
               <div className="flex flex-col gap-1.5">
                 {parsed.castaways.map((c, i) => {
                   const already = !!c.name && inLeague(c.name);
@@ -232,7 +250,7 @@ export function CastImportSection({ state }: { state: LeagueState }) {
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary text-[0.6rem] font-bold text-muted-foreground"
                       />
                       <Input size="sm" className="min-w-[100px] flex-1" aria-label="Name" value={c.name} onChange={(e) => edit(i, { name: e.target.value })} />
-                      {format.hasGroups && (
+                      {format.hasGroups && !hideTribes && (
                         <Input
                           size="sm"
                           className="w-[96px]"
@@ -266,23 +284,10 @@ export function CastImportSection({ state }: { state: LeagueState }) {
                   );
                 })}
               </div>
-              {askTribes && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="font-semibold">Were these starting {terms.tribes} public before the premiere?</span>
-                  <label className="flex items-center gap-1">
-                    <input type="radio" name="tribes-public" checked={tribesPublic === true} onChange={() => setTribesPublic(true)} />
-                    Yes, show them now
-                  </label>
-                  <label className="flex items-center gap-1">
-                    <input type="radio" name="tribes-public" checked={tribesPublic === false} onChange={() => setTribesPublic(false)} />
-                    No, episode 1 shows them (held until each league gets there)
-                  </label>
-                </div>
-              )}
               {/* Pinned above the tab bar: with a whole cast to check, Import is never a long scroll away. */}
               <div className="sticky bottom-[var(--tabbar-h,0px)] z-30 -mx-4 flex items-center gap-2 border-t border-input bg-card px-4 py-3 shadow-bar nav:mx-0 nav:rounded-[3px] nav:border">
                 <span data-tour="cast-import-go" className="flex flex-1 flex-col">
-                  <Button className="min-h-11" disabled={busy || importable.length === 0 || (askTribes && tribesPublic === null)} onClick={confirmImport}>
+                  <Button className="min-h-11" disabled={busy || importable.length === 0} onClick={confirmImport}>
                     {busy ? "Importing…" : `Import ${importable.length}`}
                   </Button>
                 </span>

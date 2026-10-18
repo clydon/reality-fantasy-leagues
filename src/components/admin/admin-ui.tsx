@@ -222,7 +222,7 @@ export function ActButton({
 export function StickyBar({ note, children }: { note?: ReactNode; children: ReactNode }) {
   return (
     <div
-      className="sticky bottom-[var(--tabbar-h)] z-40 -mx-4 mt-auto flex items-center gap-3 border-t border-input bg-card px-4 py-3 shadow-bar nav:mx-0 nav:rounded-[3px] nav:border"
+      className="sticky bottom-[var(--tabbar-h,0px)] z-40 -mx-4 mt-auto flex items-center gap-3 border-t border-input bg-card px-4 py-3 shadow-bar nav:mx-0 nav:rounded-[3px] nav:border"
       data-admin-bar
     >
       {note && <span className="min-w-0 flex-1 text-[13px] leading-snug text-muted-foreground">{note}</span>}

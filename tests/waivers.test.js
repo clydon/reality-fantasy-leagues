@@ -666,6 +666,24 @@ test("the suggestion: worked out for the teams given at creation, fitted to the 
   assert.equal(W.refit(t), false);
 });
 
+test("the suggestion with no team count given is provisional too: ownership and teams are fitted when the draft starts", () => {
+  const s = league({ type: "active-roster" });
+  s.draftPicksMade = 0;
+  s.players = s.players.slice(0, 2);
+  S.updateSettings(s, "waiverRecommendation", "balanced");
+  assert.equal(s.settings.expectedTeams, undefined);
+  assert.equal(s.settings.waiverFit, true);
+  // The commissioner changes ownership before the draft; the suggestion hasn't been touched by hand.
+  S.updateSettings(s, "ownershipMode", "shared");
+  s.players = Object.keys(TEAMS).map((id) => ({ id, name: id, color: "#000", active: true }));
+  s.draftForceStarted = true; // a shared league's draft starts when it is forced or revealed
+  assert.equal(W.refit(s), true);
+  assert.equal(s.settings.waiverFit, undefined);
+  assert.equal(W.isRecommended(s), true);
+  // Once the draft has started a refit never runs twice.
+  assert.equal(W.refit(s), false);
+});
+
 test("Undo last waiver run puts everything back exactly, and holds the week until Process now or airtime", () => {
   const s = afterEpisode3();
   const before = JSON.parse(JSON.stringify(s));

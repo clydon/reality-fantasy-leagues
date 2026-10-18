@@ -2110,20 +2110,20 @@ class WaiverLogic {
     if(!r || !r.feasible) return false;
     Object.assign(state.settings, r.settings);
     WaiverLogic.mirrorLegacy(state);
-    // Worked out for a team count given at creation: fitted again to the real one when the draft starts.
-    if(!DraftLogic.isStarted(state) && WaiverLogic.teamsFor(state) !== (WaiverLogic.rotation(state).length || state.players.length)) state.settings.waiverFit = true;
+    // Before the draft a suggestion is provisional (the teams, the ownership and the roster can all still
+    // change): it is fitted again to the league as it really is when the draft starts.
+    if(!DraftLogic.isStarted(state)) state.settings.waiverFit = true;
     else delete state.settings.waiverFit;
     return true;
   }
-  // The draft has started: a league still on the suggestion it got for the team count given at creation
-  // gets the suggestion for the teams it really has. Run by the server's waiver clock (waivers.js
+  // The draft has started: a league still on the suggestion it got at creation (never touched by hand)
+  // gets the suggestion for the teams, ownership and cast it really has. Run by the server's waiver clock (waivers.js
   // syncWaivers) on every write. True when it changed the settings.
   static refit(state){
     const st = state.settings;
     if(!st || !st.waiverFit || !DraftLogic.isStarted(state)) return false;
-    const still = WaiverLogic.isRecommended(state, { teams: Number(st.expectedTeams) || undefined });
     delete st.waiverFit;
-    return still ? WaiverLogic.applyRecommendation(state) : false;
+    return WaiverLogic.applyRecommendation(state);
   }
   /** Whether the league's settings are its recommendation, for its feel (else the card says "Customized"). */
   static isRecommended(state, opts){

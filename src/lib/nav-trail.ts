@@ -86,13 +86,13 @@ export function pageTitle(
   if (player) return ctx.playerName(decodeURIComponent(player[1])) ?? "Scoreboard";
   const setup: Record<string, string> = {
     "/setup/players": "Players & invites",
-    "/setup/league": "League setup",
-    "/setup/lineups": "Lineups",
+    "/setup/league": "League basics",
+    "/setup/teams": "Teams & draft",
     "/setup/rules": "Scoring & rules",
     "/setup/rules/edit": "Edit rules",
     "/setup/waivers": "Waivers",
     "/setup/predictions": "Predictions",
-    "/setup/cast": `${ctx.tribes} & ${ctx.castaways}`,
+    "/setup/cast": `${ctx.castaways} & ${ctx.tribes}`,
     "/setup/linked": "Linked leagues",
     "/setup/backup": "Backup",
   };
@@ -157,8 +157,8 @@ export function useBackTarget(fallback?: { href: string; label: string }): BackT
   if (prev) {
     const label = pageTitle(prev, {
       playerName: (id) => players.find((p) => p.id === id)?.name,
-      tribes: terms.Tribes,
-      castaways: terms.castaways,
+      tribes: terms.tribes,
+      castaways: terms.Castaways,
       overview: true,
     });
     if (label) return { href: prev, label, viaHistory: true };

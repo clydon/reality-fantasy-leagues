@@ -13,27 +13,29 @@ import { publicMediaSrc } from "@/lib/game/selectors";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { PlainButton } from "@/components/draft/draft-ui";
 import { Chip, Field, PrimaryButton, TextSheet, fieldCls } from "@/components/setup/settings-ui";
+import { Segmented } from "@/components/waivers/waiver-controls";
 import { m, AnimatePresence } from "@/components/motion";
 import { tourMark, useTourStore } from "@/lib/tour/tour-store";
 import { COMM_LEAGUE_NAME, TOUR_CATALOG, TOUR_JOIN_CODE, buildCommissionerState } from "@/lib/tour/commissioner";
 import { cn } from "cn";
 import { ResearchShowFlow } from "./research-show-flow";
-import { WizardWaivers, recommendation, type RosterFix, type WizardWaiverChoice } from "./wizard-waivers";
 
 // Create a league as a full-screen, four-step flow (docs/PLAN-ux-redesign.md 2a; the canvas's
 // "A · Create a league", Create-1 to Create-4), at /new-league with no app shell around it:
 //
 //   1. Show and season. A finished season defaults to catch-up results, and says so in one line.
 //   2. How to play: the three league types.
-//   3. Name it, and (for a league with a draft) when the draft is, how many teams, and waivers
-//      (docs/PLAN-waivers-v2.md: a suggestion to suit that many teams). Create league.
+//   3. Name it, and (for a league with a draft) how teams are drafted (shared or exclusive, with what the
+//      season's cast can feed) and when the draft is. Create league. Waivers aren't asked: they follow
+//      from the ownership, the cast and the number of teams, so they're worked out when the draft starts
+//      (docs/PLAN-settings-order.md; League Settings › Waivers).
 //   4. Invite: the join code with Share, invite by username or email, add a computer player, then
 //      into the league.
 //
 // It replaces both the old three-step card on the Dashboard and League Settings' guided setup, which
 // used to ask for the name and show again, then the season, after the league was created. The league
 // is created at the end of step 3 with every basic already answered, so it's marked set up straight
-// away. Results, starting episode and ownership take their defaults; League Settings changes them.
+// away. Results and the starting episode take their defaults; League Settings changes them.
 //
 // The store isn't switched to the new league until the person leaves step 4: switching shows the boot
 // overlay, which would unmount this flow mid-invite. Step 4 talks to the API by league id instead.
@@ -89,9 +91,8 @@ export function CreateLeagueFlow() {
   const [typeId, setTypeId] = useState<string | null>(null);
   // Step 3
   const [name, setName] = useState(tour ? COMM_LEAGUE_NAME : "");
-  const [waivers, setWaivers] = useState<WizardWaiverChoice>({ teams: 4, feel: "balanced", custom: null });
-  // What step 3's "doesn't fit" offers change about the league's shape: shared ownership, a smaller roster.
-  const [shape, setShape] = useState<{ shared: boolean; smaller: boolean }>({ shared: false, smaller: false });
+  // null: the type's own default (exclusive, or shared for Active Roster); otherwise the person's choice.
+  const [ownership, setOwnership] = useState<"exclusive" | "shared" | null>(null);
   const [draftWhen, setDraftWhen] = useState<"self" | "time">("self");
   const [draftDate, setDraftDate] = useState("");
   const [draftTime, setDraftTime] = useState("20:00");
@@ -128,17 +129,10 @@ export function CreateLeagueFlow() {
     if (tour) return buildCommissionerState();
     const s = StateLogic.defaultState();
     if (typeId) StateLogic.updateSettings(s, "leagueTypeId", typeId);
-    rosterChanges(s, shape).forEach(([field, value]) => StateLogic.updateSettings(s, field, value));
+    rosterChanges(s, ownership).forEach(([field, value]) => StateLogic.updateSettings(s, field, value));
     return s;
-  }, [typeId, tour, shape]);
-  // Waivers suit the number of teams, and the cast they're drafted from (docs/PLAN-waivers-v2.md).
+  }, [typeId, tour, ownership]);
   const castSize = catalogSeason?.castSize ?? null;
-  const waiverRec = hasDraft ? recommendation(preview, castSize, waivers.teams, waivers.feel) : null;
-  const doesntFit = !!waiverRec && !waiverRec.feasible && castSize !== null;
-  function fix(f: RosterFix) {
-    if (f.kind === "pickem") setTypeId("pickem");
-    else setShape((x) => ({ ...x, [f.kind]: true }));
-  }
 
   function go(next: Step) {
     setDir(next > step ? 1 : -1);
@@ -173,7 +167,7 @@ export function CreateLeagueFlow() {
       ? !!show && season != null && !researching
       : step === 2
         ? !!leagueType
-        : !!name.trim() && !(hasDraft && draftWhen === "time" && (!draftDate || draftInPast)) && !doesntFit;
+        : !!name.trim() && !(hasDraft && draftWhen === "time" && (!draftDate || draftInPast));
 
   async function create() {
     if (tour) {
@@ -216,18 +210,10 @@ export function CreateLeagueFlow() {
       // From the type's defaults (the preview already has them applied).
       const fresh = StateLogic.defaultState();
       StateLogic.updateSettings(fresh, "leagueTypeId", typeId);
-      for (const [field, value] of rosterChanges(fresh, shape)) await set(field, value);
-      // Waivers: the suggestion for the teams expected (fitted to the real count when the draft starts),
-      // or the commissioner's own settings from Change.
-      if (waiverRec && waiverRec.feasible) {
-        await set("expectedTeams", waivers.teams);
-        await set("waiverRecommendation", waivers.feel);
-        if (waivers.custom) {
-          await set("replaceRule", waivers.custom.replaceRule);
-          await set("waiverWindows", waivers.custom.waiverWindows);
-          await set("autoFill", waivers.custom.autoFill);
-        }
-      }
+      for (const [field, value] of rosterChanges(fresh, ownership)) await set(field, value);
+      // Waivers aren't asked. The balanced suggestion goes on provisionally and is fitted again to the real
+      // teams, ownership and cast when the draft starts (WaiverLogic.refit), unless it's changed by hand.
+      if (hasDraft) await set("waiverRecommendation", "balanced");
       setLeagueState(await set("setupComplete", true));
       go(4);
     } catch (err) {
@@ -314,7 +300,8 @@ export function CreateLeagueFlow() {
               <>
                 {heading("What are you watching?")}
                 {researching ? (
-                  <div className="flex flex-col gap-3">
+                  // No tab bar in this flow: the research and review bars sit on the screen's own bottom (above the tour's plate).
+                  <div className="flex flex-col gap-3" style={{ "--tabbar-h": "var(--tour-h, 0px)" } as React.CSSProperties}>
                     <p className="text-[15px] text-muted-foreground">Research your show&rsquo;s rules, then approve them to add it.</p>
                     <ResearchShowFlow
                       tour={tour}
@@ -437,7 +424,7 @@ export function CreateLeagueFlow() {
                         selected={typeId === id}
                         onClick={() => {
                           setTypeId(id);
-                          setShape({ shared: false, smaller: false });
+                          setOwnership(null);
                         }}
                         title={StateLogic.LEAGUE_TYPES[id].name}
                         lead={copy.lead}
@@ -469,6 +456,26 @@ export function CreateLeagueFlow() {
                     enterKeyHint="done"
                   />
                 </Field>
+                {hasDraft && (
+                  <div className="flex flex-col gap-1.5" data-tour="create-teams">
+                    <span className="text-sm font-semibold">How are teams drafted?</span>
+                    <Segmented
+                      label="How teams are drafted"
+                      value={preview.settings.ownershipMode === "shared" ? "shared" : "exclusive"}
+                      onChange={setOwnership}
+                      options={[
+                        { value: "exclusive", label: "Exclusive" },
+                        { value: "shared", label: "Shared" },
+                      ]}
+                    />
+                    <p className="text-[13px] leading-snug text-muted-foreground">
+                      {preview.settings.ownershipMode === "shared"
+                        ? `A blind draft: everyone picks privately and the same ${terms.castaway} can be on several teams.`
+                        : `A snake draft: each ${terms.castaway} goes to one team.`}{" "}
+                      {rosterLine(preview, terms.castaways)}. {teamRoom(preview, castSize, terms.castaways)} Change any of this in Teams &amp; draft.
+                    </p>
+                  </div>
+                )}
                 {hasDraft && (
                   <fieldset className="flex flex-col gap-2.5" data-tour="create-draft">
                     <legend className="mb-1.5 text-sm font-semibold">When&rsquo;s the draft?</legend>
@@ -509,25 +516,6 @@ export function CreateLeagueFlow() {
                       </div>
                     )}
                   </fieldset>
-                )}
-                {hasDraft && (
-                  <div className="flex flex-col gap-1.5" data-tour="create-teams">
-                    <span className="text-sm font-semibold">{leagueType?.hasActiveRoster ? "Lineup" : "Teams"}</span>
-                    <div className="flex flex-col gap-0.5 rounded-[3px] bg-card px-3.5 py-3">
-                      <span className="text-[15px] font-semibold">{rosterLine(preview, terms.castaways)}</span>
-                      <span className="text-[13px] text-muted-foreground">
-                        {preview.settings.ownershipMode === "shared"
-                          ? "Blind draft: everyone picks privately, and the same person can be on several teams."
-                          : `Snake draft: each ${terms.castaway} goes to one team.`}{" "}
-                        Change it in League Settings before the draft.
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {waiverRec && (
-                  <div data-tour="create-waivers">
-                    <WizardWaivers preview={preview} castSize={castSize} value={waivers} onChange={setWaivers} onFix={fix} castaways={terms.castaways} />
-                  </div>
                 )}
                 {/* Lets the keyboard's Go/Done key submit; the visible button is in the footer. */}
                 <button type="submit" hidden />
@@ -933,17 +921,16 @@ function typeCopy(id: string, castaway: string, castaways: string): { lead: stri
   };
 }
 
-/** The settings step 3's "doesn't fit" fixes change, from the league's defaults: [field, value] pairs. */
-function rosterChanges(state: LeagueState, shape: { shared: boolean; smaller: boolean }): [string, unknown][] {
-  const out: [string, unknown][] = [];
-  if (shape.shared && state.settings.ownershipMode !== "shared") out.push(["ownershipMode", "shared"]);
-  if (shape.smaller) {
-    const s = state.settings;
-    if (!StateLogic.getLeagueType(state).hasActiveRoster) out.push(["teamSize", Math.max(1, s.teamSize - 1)]);
-    else if (s.benchSlots > 0) out.push(["benchSlots", s.benchSlots - 1]);
-    else out.push(["activeSlots", Math.max(1, s.activeSlots - 1)]);
-  }
-  return out;
+/** What step 3's ownership choice changes from the type's defaults: [field, value] pairs. */
+function rosterChanges(state: LeagueState, ownership: "exclusive" | "shared" | null): [string, unknown][] {
+  return ownership && state.settings.ownershipMode !== ownership ? [["ownershipMode", ownership]] : [];
+}
+
+/** What the season's cast can feed, as a sentence ending in a space ("21 castaways feed 7 teams. "), or nothing. */
+function teamRoom(state: LeagueState, castSize: number | null, castaways: string): string {
+  if (state.settings.ownershipMode === "shared" || !castSize) return "";
+  const room = Math.floor(castSize / Math.max(1, StateLogic.rosterSize(state)));
+  return `${castSize} ${castaways} feed ${room} ${room === 1 ? "team" : "teams"}.`;
 }
 
 function rosterLine(state: LeagueState, castaways: string) {

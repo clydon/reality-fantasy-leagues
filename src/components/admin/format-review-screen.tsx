@@ -851,8 +851,8 @@ export function FormatReviewScreen({
   // move on with the new show.
   onShowCreated?: (show: { id: string; slug: string; name: string }) => void;
   // true on Admin's own format page (AdminPage gives the title, Back, and a tab bar to sit above):
-  // no title row or Close here, and the actions go in a sticky bar. false inside another flow (the
-  // create-league wizard), which has its own sticky footer, so the actions sit at the end instead.
+  // no title row or Close here. false inside another flow (the create-league wizard), which shows the
+  // show's name and a Close above. The actions are a sticky bar either way.
   inPage?: boolean;
 }) {
   const [current, setCurrent] = useState(format);
@@ -1424,14 +1424,8 @@ export function FormatReviewScreen({
       {note && <Notice>{note}</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}
 
-      {inPage ? (
-        <StickyBar note={barNote}>{actions}</StickyBar>
-      ) : (
-        <div className="flex flex-col gap-2 border-t border-border pt-4">
-          <p className="text-[13px] leading-snug text-muted-foreground">{barNote}</p>
-          <div className="flex flex-wrap gap-2">{actions}</div>
-        </div>
-      )}
+      {/* Sticky in both places: the rules run long, and Approve is the one thing a creator came here to do. */}
+      <StickyBar note={barNote}>{actions}</StickyBar>
 
       {openEvent && (
         <EventSheet

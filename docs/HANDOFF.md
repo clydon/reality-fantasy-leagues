@@ -11,6 +11,10 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Settings and Create a league reordered, 2026-10-17 (not committed)
+
+[PLAN-settings-order.md](PLAN-settings-order.md): waivers aren't asked up front (they fit the real teams, ownership and cast when the draft starts); a new Teams & draft page holds ownership, roster, the fit arithmetic and the draft date; the index is grouped (Get ready / How it scores / League); the cast import hides starting tribes by default. Create a show done too (the research panel: name, copy, paste, sticky Review; the review's Approve is sticky). Checks: `check-settings.js`, `check-create-show.js`. **The commissioner tour is now out of step with these screens and is the next job.**
+
 ## Commissioner tour rebuilt on Survivor 51, 2026-10-17 (not committed)
 
 See [PLAN-commissioner-tour.md](PLAN-commissioner-tour.md): copy/paste everywhere with a Paste/Clear button, show import, cast import, points, waivers, draft types, results. Check: `scripts/dev-test/check-commissioner-tour.js`.

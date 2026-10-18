@@ -18,7 +18,7 @@ import { CastImportSection } from "./cast-import-section";
 import { WikiConnectorSection } from "./wiki-connector-section";
 import { GroupHead, MoreButton, RowList, SettingsPage, TextSheet } from "./settings-ui";
 
-// League Settings > Tribes & castaways (docs/PLAN-ux-redesign.md, 2b): tribes as colour + name rows,
+// League Settings > Castaways & tribes (docs/PLAN-ux-redesign.md, 2b): tribes as colour + name rows,
 // then the cast as a photo list with each one's tribe and where they stand, then importing a cast.
 // Editing a castaway (name, tribe, photo, remove) is in its ⋯ sheet, not a row of always-on inputs.
 //
@@ -30,12 +30,16 @@ export function CastPage() {
   const state = useLeagueStore((s) => s.state);
   const terms = useShowTerms();
   const { mode: cast, refresh } = useSeasonCastMode();
+  const empty = state.castaways.length === 0;
   return (
-    <SettingsPage title={`${terms.Tribes} & ${terms.castaways}`}>
+    <SettingsPage title={`${terms.Castaways} & ${terms.tribes}`}>
       <SeasonCastNotice state={state} cast={cast} onChanged={refresh} />
-      <TribesSection state={state} />
+      {/* An empty cast is the one job here, so its import leads; otherwise the people come first and the
+          groups they sit in after, with the import (set once) below them. */}
+      {empty && <CastImportSection state={state} defaultOpen />}
       <CastawaysSection state={state} />
-      <CastImportSection state={state} />
+      <TribesSection state={state} />
+      {!empty && <CastImportSection state={state} />}
       <WikiConnectorSection state={state} />
     </SettingsPage>
   );
@@ -122,7 +126,7 @@ function CastawaysSection({ state }: { state: LeagueState }) {
                     )}
                   </span>
                   <span className="truncate text-[13px] text-muted-foreground">
-                    {held ? `${held}, held until episode ${cast.kind === "creating" ? cast.tribesFromEpisode : ""} · ` : ""}
+                    {held ? `${terms.Tribe} held until episode ${cast.kind === "creating" ? cast.tribesFromEpisode : ""} · ` : ""}
                     {standing(c)}
                   </span>
                 </span>

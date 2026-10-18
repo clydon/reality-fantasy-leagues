@@ -20,6 +20,16 @@ export function commissionerItems(state: LeagueState): CommissionerItem[] {
   const type = StateLogic.getLeagueType(state);
   const items: CommissionerItem[] = [];
 
+  if (state.castaways.length === 0 && !StateLogic.isDraftStarted(state)) {
+    items.push({
+      id: "cast",
+      title: "Add the cast",
+      detail: "Import it from an AI chat's answer, or wait for the season's cast to be approved",
+      action: "Add",
+      href: "/setup/cast",
+    });
+  }
+
   if (type.hasRoster && !StateLogic.isDraftStarted(state)) {
     const n = state.players.length;
     if (n < 2) {
@@ -37,7 +47,7 @@ export function commissionerItems(state: LeagueState): CommissionerItem[] {
         title: "Draft not scheduled",
         detail: "Pick a time, or start it yourself from Draft",
         action: "Schedule",
-        href: "/setup/league",
+        href: "/setup/teams",
       });
     }
   }

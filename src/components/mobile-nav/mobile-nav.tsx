@@ -222,8 +222,8 @@ export function MobileNav() {
       ? slot.label
       : pageTitleFor(pathname, {
           playerName: (id) => state.players.find((p) => p.id === id)?.name,
-          tribes: terms.Tribes,
-          castaways: terms.castaways,
+          tribes: terms.tribes,
+          castaways: terms.Castaways,
         });
   const back = useBackTarget();
   // A linked group goes by its one name; the strip under the bar says which game is open.

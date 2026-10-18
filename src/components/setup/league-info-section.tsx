@@ -9,8 +9,9 @@ import { api } from "@/lib/api";
 import { useShowCatalog, useShowTerms } from "@/lib/use-show-terms";
 import { Field, LockedValue, MoreOptions, ReadOnlyNote, SettingsPage, StepperRow, fieldCls } from "./settings-ui";
 
-// League Settings > League setup (docs/PLAN-ux-redesign.md, 2b): name, show, season, league type,
-// results, draft date and roster size, with Starts-at and Ownership behind "More options". Each is a
+// League Settings > League basics (docs/PLAN-ux-redesign.md, 2b): name, show, season, league type and
+// results, with Starts-at behind "More options". Ownership, roster size and the draft date moved to Teams &
+// draft (teams-draft-section.tsx). Each is a
 // full-width field with its label above; anything locked renders as plain text with a lock, and one
 // sentence says why (read-only-distinction), instead of a greyed-out control.
 //
@@ -25,7 +26,7 @@ import { Field, LockedValue, MoreOptions, ReadOnlyNote, SettingsPage, StepperRow
 export function LeagueSetupPage() {
   const state = useLeagueStore((s) => s.state);
   return (
-    <SettingsPage title="League setup">
+    <SettingsPage title="League basics">
       <ReadOnlyNote />
       <LeagueSetupForm state={state} />
     </SettingsPage>
@@ -72,11 +73,7 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
   const showLocked = !canManage || seasonUnderway || nothingToPickShow;
   const typeLocked = !canManage || seasonUnderway || nothingToPickType;
   // Season locks with its show: a season belongs to one, and the league's cast and results come from it.
-  // Ownership locks on "season underway" but not on the registry-size check -- both of its options
-  // always exist. It has to lock before the draft runs: flipping it mid-draft would swap the draft
-  // mechanic out from under picks already made.
-  const ownershipLocked = !canManage || seasonUnderway;
-
+  
   async function saveName() {
     const trimmed = name.trim();
     if (!trimmed || trimmed === leagueName) return;
@@ -186,44 +183,6 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
           onChange={changeStart}
         />
       )}
-    </>
-  );
-
-  const ownership = leagueType.hasRoster && (
-    <>
-      {ownershipLocked ? (
-        <LockedValue
-          label="Ownership"
-          value={
-            state.settings.ownershipMode === "shared"
-              ? `Shared: the same ${terms.castaway} can be on several teams`
-              : `Exclusive: each ${terms.castaway} on one team`
-          }
-          lock={canManage}
-        />
-      ) : (
-        <Field
-          label="Ownership"
-          tourId="ownership"
-          htmlFor="ls-ownership"
-          hint={
-            state.settings.ownershipMode === "shared"
-              ? "Everyone picks privately (a blind draft), then all picks are revealed together. Nobody comes off the board, so there are no Pickups or Swaps."
-              : `A snake draft, one turn at a time: each ${terms.castaway} belongs to one player.`
-          }
-        >
-          <select
-            id="ls-ownership"
-            className={fieldCls}
-            value={state.settings.ownershipMode}
-            onChange={(e) => updateSetting("ownershipMode", e.target.value)}
-          >
-            <option value="exclusive">Exclusive</option>
-            <option value="shared">Shared</option>
-          </select>
-        </Field>
-      )}
-      <OwnershipNudge state={state} castSize={selectedSeason?.castSize ?? null} seasonUnderway={seasonUnderway} />
     </>
   );
 
@@ -343,115 +302,14 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
 
       {results}
 
-      {leagueType.hasRoster && !canManage && (
-        <LockedValue
-          label="Draft date"
-          value={
-            state.settings.draftScheduledAt
-              ? new Date(state.settings.draftScheduledAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })
-              : "Not set"
-          }
-          lock={false}
-        />
-      )}
-      {leagueType.hasRoster && canManage && (
-        <Field
-          label="Draft date"
-          htmlFor="ls-draft"
-          hint={state.draftForceStarted ? "The draft was started by hand, so the date no longer matters." : undefined}
-        >
-          <input
-            id="ls-draft"
-            type="datetime-local"
-            className={fieldCls}
-            defaultValue={state.settings.draftScheduledAt ? toLocalInput(state.settings.draftScheduledAt) : ""}
-            onBlur={(e) => updateSetting("draftScheduledAt", e.target.value ? new Date(e.target.value).toISOString() : null)}
-          />
-        </Field>
-      )}
-
-      {/* Active Roster derives its roster size from its starters and bench (Lineups), so a separate
-          number here would silently do nothing. */}
-      {leagueType.hasRoster && !leagueType.hasActiveRoster && (
-        <StepperRow
-          label="Roster size"
-          hint={`${terms.Castaways} each player drafts.`}
-          value={state.settings.teamSize}
-          min={1}
-          disabled={!canManage}
-          onChange={(n) => updateSetting("teamSize", n)}
-        />
-      )}
-
-      {/* Set once, so they sit behind More options. */}
-      {(startAt || ownership) && (
-        <MoreOptions>
-          {startAt}
-          {ownership}
-        </MoreOptions>
-      )}
+      {/* Set once, so it sits behind More options. */}
+      {startAt && <MoreOptions>{startAt}</MoreOptions>}
 
       {canManage && seasonUnderway && (
         <p className="text-[13px] leading-snug text-muted-foreground">
-          Show, season, league type and ownership are locked because this league has started playing.
+          Show, season and league type are locked because this league has started playing.
         </p>
       )}
     </div>
   );
-}
-
-// datetime-local wants the viewer's local time, not the stored UTC instant.
-function toLocalInput(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// Setup-time nudge toward shared ownership ("critically suggested, not required"): advice, never a
-// block, and only while exclusive is selected and the draft hasn't run. Exclusive ownership needs one
-// distinct castaway per roster slot per player, so it's player count times roster size that runs a
-// cast dry. The cast size compared against is the league's own cast when it has one, and otherwise the
-// selected season's catalogued cast size.
-function OwnershipNudge({
-  state,
-  castSize: catalogued,
-  seasonUnderway,
-}: {
-  state: LeagueState;
-  castSize: number | null;
-  seasonUnderway: boolean;
-}) {
-  const terms = useShowTerms();
-  if (state.settings.ownershipMode !== "exclusive" || seasonUnderway) return null;
-  const seats = StateLogic.BlindDraftLogic.eligiblePlayers(state).length;
-  const needed = seats * StateLogic.rosterSize(state);
-  const castSize = state.castaways.length || catalogued || 0;
-  const fromCatalog = state.castaways.length === 0 && !!catalogued;
-  if (seats === 0) return null;
-  if (castSize === 0) {
-    return (
-      <p className="-mt-3 text-[13px] leading-snug text-muted-foreground">
-        Exclusive ownership needs {needed} different {terms.castaways} for {seats} player{seats === 1 ? "" : "s"}. If the cast is smaller
-        than that, switch to shared.
-      </p>
-    );
-  }
-  if (needed > castSize) {
-    return (
-      <p className="-mt-3 text-[13px] font-semibold leading-snug text-live">
-        {seats} players × {StateLogic.rosterSize(state)} picks needs {needed} {terms.castaways}, but{" "}
-        {fromCatalog ? "this season has" : "the cast has"} {castSize}. The draft can&rsquo;t fill every team: switch to shared ownership, or
-        make rosters smaller.
-      </p>
-    );
-  }
-  if (needed > castSize * 0.75) {
-    return (
-      <p className="-mt-3 text-[13px] leading-snug text-muted-foreground">
-        {needed} of {castSize} {terms.castaways} would be taken, leaving little for Pickups or Swaps. Shared ownership is worth a look.
-      </p>
-    );
-  }
-  return null;
 }

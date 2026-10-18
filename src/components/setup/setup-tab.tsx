@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftRight, Calculator, Download, Flag, LayoutGrid, Link2, Shield, Target, TriangleAlert, Users } from "lucide-react";
+import { ArrowLeftRight, Calculator, Download, Flag, Link2, Settings2, Shield, Target, TriangleAlert, Users } from "lucide-react";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { useLeagueStore, useCanManage, useIsSuperAdmin } from "@/lib/store";
@@ -11,7 +11,7 @@ import { commissionerItems } from "@/lib/game/commissioner-items";
 import { api } from "@/lib/api";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { cn } from "cn";
-import { IndexRow, RowList } from "./settings-ui";
+import { GroupHead, IndexRow, RowList } from "./settings-ui";
 import { LeaveLeagueButton } from "./leave-league-section";
 import { ResetLeagueButton } from "./backup-section";
 
@@ -103,58 +103,81 @@ function SettingsList({ state }: { state: LeagueState }) {
     .filter(Boolean)
     .join(" · ");
 
+  const castLine = `${state.castaways.length} ${state.castaways.length === 1 ? terms.castaway : terms.castaways} · ${state.tribes.length} ${state.tribes.length === 1 ? terms.tribe : terms.tribes}`;
+  const teamsLine = type.hasRoster
+    ? [
+        s.ownershipMode === "shared" ? "Shared" : "Exclusive",
+        type.hasActiveRoster ? `${s.activeSlots} start, ${s.benchSlots} bench` : `${StateLogic.rosterSize(state)} each`,
+        s.draftScheduledAt ? `draft ${new Date(s.draftScheduledAt).toLocaleDateString([], { month: "short", day: "numeric" })}` : "no draft date",
+      ].join(" · ")
+    : "";
+
+  const players = (
+    <IndexRow
+      key="players"
+      href="/setup/players"
+      icon={Users}
+      title="Players & invites"
+      value={[
+        `${seats.length} player${seats.length === 1 ? "" : "s"}`,
+        inactive ? `${inactive} to activate` : null,
+        waiting ? `${waiting} invite${waiting === 1 ? "" : "s"} waiting` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+      alert={canManage && (inactive > 0 || todo.has("players"))}
+    />
+  );
+  const cast = (
+    <IndexRow key="cast" href="/setup/cast" icon={Shield} title={`${terms.Castaways} & ${terms.tribes}`} value={castLine} alert={todo.has("cast")} />
+  );
+  const teams = type.hasRoster ? (
+    <IndexRow key="teams" href="/setup/teams" icon={Flag} title="Teams & draft" value={teamsLine} alert={todo.has("draft")} />
+  ) : null;
+  const scoring = <IndexRow key="rules" href="/setup/rules" icon={Calculator} title="Scoring & rules" value={rulesLine} alert={pendingChanges > 0} />;
+  const predictions = <IndexRow key="predictions" href="/setup/predictions" icon={Target} title="Predictions" value={predLine} />;
+  // Replacements and swaps, run as waivers (docs/PLAN-waivers-v2.md), shared ownership included. They
+  // follow from everything above (the cast, the teams, who owns whom), so a new league doesn't answer them:
+  // the suggestion is worked out when the draft starts.
+  const waivers = midSeason ? (
+    <IndexRow key="waivers" href="/setup/waivers" icon={ArrowLeftRight} title="Waivers" value={waiversLine(state)} />
+  ) : null;
+
+  // Before the draft the page leads with what the draft needs; once it's running, with the rules.
+  const preDraft = type.hasRoster && !StateLogic.isDraftStarted(state);
+  const groups: { title: string; rows: (React.ReactNode | null)[] }[] = preDraft
+    ? [
+        { title: "Get ready", rows: [players, cast, teams] },
+        { title: "How it scores", rows: [scoring, predictions, waivers] },
+      ]
+    : [
+        { title: "How it scores", rows: [scoring, waivers, predictions] },
+        { title: "Players & teams", rows: [players, cast, teams] },
+      ];
+
   return (
-    <div data-tour="settings-list">
-    <RowList>
-      <IndexRow
-        href="/setup/players"
-        icon={Users}
-        title="Players & invites"
-        value={[
-          `${seats.length} player${seats.length === 1 ? "" : "s"}`,
-          inactive ? `${inactive} to activate` : null,
-          waiting ? `${waiting} invite${waiting === 1 ? "" : "s"} waiting` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-        alert={canManage && (inactive > 0 || todo.has("players"))}
-      />
-      <IndexRow href="/setup/league" icon={Flag} title="League setup" value={setupLine} alert={todo.has("draft")} />
-      {type.hasActiveRoster && (
-        <IndexRow
-          href="/setup/lineups"
-          icon={LayoutGrid}
-          title="Lineups"
-          value={`${s.activeSlots} starter${s.activeSlots === 1 ? "" : "s"}, ${s.benchSlots} bench${s.hideStartersUntilLock ? " · hidden until airtime" : ""}`}
-        />
-      )}
-      <IndexRow href="/setup/rules" icon={Calculator} title="Scoring & rules" value={rulesLine} alert={pendingChanges > 0} />
-      {/* Replacements and swaps, run as waivers (docs/PLAN-waivers-v2.md), shared ownership included. */}
-      {midSeason && (
-        <IndexRow
-          href="/setup/waivers"
-          icon={ArrowLeftRight}
-          title="Waivers"
-          value={waiversLine(state)}
-        />
-      )}
-      <IndexRow href="/setup/predictions" icon={Target} title="Predictions" value={predLine} />
-      <IndexRow
-        href="/setup/cast"
-        icon={Shield}
-        title={`${terms.Tribes} & ${terms.castaways}`}
-        value={`${state.tribes.length} ${state.tribes.length === 1 ? terms.tribe : terms.tribes} · ${state.castaways.length} ${state.castaways.length === 1 ? terms.castaway : terms.castaways}`}
-      />
-      {showLinks && (
-        <IndexRow
-          href="/setup/linked"
-          icon={Link2}
-          title="Linked leagues"
-          value={links!.linked.length ? `Linked with ${links!.linked.map((l) => l.name).join(", ")}` : "Not linked"}
-        />
-      )}
-      <IndexRow href="/setup/backup" icon={Download} title="Backup" value="Download or restore this league" />
-    </RowList>
+    <div data-tour="settings-list" className="flex flex-col gap-6">
+      {groups.map((g) => (
+        <section key={g.title} aria-label={g.title}>
+          <GroupHead>{g.title}</GroupHead>
+          <RowList>{g.rows}</RowList>
+        </section>
+      ))}
+      <section aria-label="League">
+        <GroupHead>League</GroupHead>
+        <RowList>
+          <IndexRow href="/setup/league" icon={Settings2} title="League basics" value={setupLine} />
+          {showLinks && (
+            <IndexRow
+              href="/setup/linked"
+              icon={Link2}
+              title="Linked leagues"
+              value={links!.linked.length ? `Linked with ${links!.linked.map((l) => l.name).join(", ")}` : "Not linked"}
+            />
+          )}
+          <IndexRow href="/setup/backup" icon={Download} title="Backup" value="Download or restore this league" />
+        </RowList>
+      </section>
     </div>
   );
 }
@@ -245,6 +268,7 @@ function DangerZone() {
 /** League Settings › Waivers in a line: "Wait for a waiver window · you open windows". */
 function waiversLine(state: LeagueState): string {
   const W = StateLogic.WaiverLogic;
+  if (state.settings.waiverFit && !StateLogic.isDraftStarted(state)) return "Set for you when the draft starts";
   if (!W.enabled(state)) return "Off";
   const rule = { always: "Replace right away", whenShort: "Only when short", windows: "Wait for a waiver window", never: "No replacements" }[W.replaceRule(state)];
   const w = W.windows(state);

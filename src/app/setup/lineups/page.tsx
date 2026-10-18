@@ -1,6 +1,6 @@
-import { LineupsPage } from "@/components/setup/active-roster-settings-section";
+import { redirect } from "next/navigation";
 
-// League Settings, one page per row of the settings list (docs/PLAN-ux-redesign.md, 2b).
+// Lineups moved into Teams & draft (docs/PLAN-settings-order.md); old links still land.
 export default function SetupLineupsPage() {
-  return <LineupsPage />;
+  redirect("/setup/teams");
 }
