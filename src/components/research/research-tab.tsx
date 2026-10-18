@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import type { Castaway, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useLeagueStore } from "@/lib/store";
 import { useShowTerms } from "@/lib/use-show-terms";
-import { useHeaderAction } from "@/lib/header-action-store";
 import { signed } from "@/lib/game/lineup-view";
 import { CastawayAvatar } from "@/components/castaway-avatar";
-import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
-import { MoreButton, ToggleRow } from "@/components/setup/settings-ui";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { RangeSlider } from "@/components/ui/range-slider";
+import { ToggleRow } from "@/components/setup/settings-ui";
 import { cn } from "cn";
 import { pickWindow } from "@/lib/game/pool-view";
-import { RankedBy, SAFETY_RULE, SAFETY_RULE_ID, hasSafety, WINDOWS, WindowTabs, airedEpisodes, buildRows, eventRank, rulesIn, type EpisodeLine, type Row, type Window } from "./research-rows";
+import { RankedBy, SAFETY_RULE, SAFETY_RULE_ID, hasSafety, airedEpisodes, buildRows, eventRank, rulesIn, type EpisodeLine, type Row } from "./research-rows";
 
 // The scouting page, in every game (docs/PLAN-league-tabs.md; first Active Roster's, the canvas's
 // "A · Draft, scouting & mid-season": Scouting): every
@@ -21,14 +21,14 @@ import { RankedBy, SAFETY_RULE, SAFETY_RULE_ID, hasSafety, WINDOWS, WindowTabs, 
 // worth starting, who's worth picking up. A castaway's OWN points (every event attributed to them),
 // not any owner's cut of them.
 //
-// One screen, top to bottom: the window (a segmented control), who to show (Everyone / Free agents /
-// Mine / one team), the ranking as hairline rows with a bar per episode, then one line naming free
-// agents who score like starters. Tapping a row opens its episodes in a sheet. The rarer options --
-// rank per episode, hide who's out, count episodes before the league started -- sit behind the page's
-// ⋯ (in the header on a phone).
+// One screen, top to bottom: a single Filter bar that says what's showing, the ranking as hairline rows
+// with a bar per episode, then one line naming free agents who score like starters. Tapping a row opens
+// its episodes in a sheet. Every filter lives in the Filter sheet: which episodes (a range slider over
+// every revealed episode, including ones before the league started -- a first-episode idol find still
+// says something), who to show, which tribe, rank per episode, hide who's out.
 //
-// The view is a per-browser convenience (localStorage), not league state. Preseason isn't remembered:
-// each visit starts on what counts in this league.
+// The view is a per-browser convenience (localStorage), not league state. The episode range isn't
+// remembered: each visit starts on the league's own episodes, up to the latest.
 
 type Who = "all" | "free" | "mine" | `team:${string}`;
 type PoolWho = "open" | "used" | "all";
@@ -37,15 +37,12 @@ export function ResearchTab() {
   const state = useLeagueStore((s) => s.state);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const terms = useShowTerms();
-  const setHeaderAction = useHeaderAction((s) => s.set);
-  const [window, setWindow] = useState<Window>("season");
   const [who, setWho] = useState<Who>("all");
   const [perEpisode, setPerEpisode] = useState(false);
   const [hideOut, setHideOut] = useState(false);
-  const [includePreseason, setIncludePreseason] = useState(false);
-  const [optionsOpen, setOptionsOpen] = useState(false);
-  const [teamsOpen, setTeamsOpen] = useState(false);
-  const [tribesOpen, setTribesOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  // Indexes into every revealed episode (allAired); null = the default, the league's own episodes.
+  const [pickedRange, setRange] = useState<[number, number] | null>(null);
   // Combines with Whose; not remembered (tribes merge and swap).
   const [tribeId, setTribeId] = useState<string | null>(null);
   // Rank by one scoring rule (an event id) instead of points. Not remembered: rules differ by show.
@@ -59,12 +56,10 @@ export function ResearchTab() {
     try {
       const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "null");
       if (saved) {
-        /* eslint-disable react-hooks/set-state-in-effect -- one-time load from browser storage */
-        if (WINDOWS.some(([w]) => w === saved.window)) setWindow(saved.window);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time load from browser storage
         if (saved.who === "all" || saved.who === "free" || saved.who === "mine") setWho(saved.who);
         if (typeof saved.hideOut === "boolean") setHideOut(saved.hideOut);
         if (typeof saved.perEpisode === "boolean") setPerEpisode(saved.perEpisode);
-        /* eslint-enable react-hooks/set-state-in-effect */
       }
     } catch {
       /* defaults are fine */
@@ -73,25 +68,24 @@ export function ResearchTab() {
   useEffect(() => {
     try {
       // One team isn't remembered: next visit, that player may have left.
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ window, who: who.startsWith("team:") ? "all" : who, hideOut, perEpisode }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ who: who.startsWith("team:") ? "all" : who, hideOut, perEpisode }));
     } catch {
       /* not remembered this time */
     }
-  }, [window, who, hideOut, perEpisode]);
+  }, [who, hideOut, perEpisode]);
 
-  // The page's options in the phone header's ⋯, like the finished Draft's.
-  useEffect(() => {
-    setHeaderAction({ label: "Research options", onClick: () => setOptionsOpen(true) });
-    return () => setHeaderAction(null);
-  }, [setHeaderAction]);
-
+  // Every revealed episode with results, before the league started too; the range picks from these.
   const startEp = StateLogic.startEpisode(state);
-  const preseason = includePreseason || startEp <= 1;
-  const aired = useMemo(() => airedEpisodes(state, preseason), [state, preseason]);
-  // Only windows shorter than what's aired: "Last 5" of three episodes is just the season.
-  const windows = WINDOWS.filter(([w]) => w === "season" || Number(w) < aired.length);
-  const shownWindow = windows.some(([w]) => w === window) ? window : "season";
-  const rows = useMemo(() => buildRows(state, aired, shownWindow), [state, aired, shownWindow]);
+  const allAired = useMemo(() => airedEpisodes(state, true), [state]);
+  const lastIdx = allAired.length - 1;
+  const firstInPlay = allAired.findIndex((e) => e.number >= startEp);
+  const startIdx = firstInPlay < 0 ? Math.max(0, lastIdx) : firstInPlay;
+  const defaultRange: [number, number] = [startIdx, Math.max(0, lastIdx)];
+  // A remembered range can outgrow the list (an episode un-revealed): clamp, falling back to the default.
+  const shownRange: [number, number] = pickedRange && pickedRange[1] <= lastIdx ? pickedRange : defaultRange;
+  const rangeIsDefault = shownRange[0] === defaultRange[0] && shownRange[1] === defaultRange[1];
+  const aired = useMemo(() => allAired.slice(shownRange[0], shownRange[1] + 1), [allAired, shownRange[0], shownRange[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = useMemo(() => buildRows(state, aired, "season"), [state, aired]);
 
   // Owners exist only in roster games (Classic, Active Roster). An Eliminator Pool has nobody's team,
   // so its rows say only who's in or out, and Whose comes down to Everyone; its own filters (Open to you /
@@ -128,6 +122,24 @@ export function ResearchTab() {
   const eligibility = pickEp && myPlayerId ? StateLogic.pickEmEligibility(state, pickEp.id, myPlayerId) : null;
   const shownPool: PoolWho = eligibility ? poolWho : "all";
   const poolHolds = (c: Castaway) => (shownPool === "open" ? eligibility!.available.includes(c.id) : shownPool === "used" ? !!eligibility!.blocked[c.id] : true);
+  // Who to show, as one list: a pool's comes from your pick history, a roster game's from ownership.
+  const whoChoices: { key: string; label: string; color?: string; pick: () => void }[] = eligibility
+    ? [
+        { key: "open", label: "Open to you", pick: () => setPoolWho("open") },
+        { key: "used", label: "Used", pick: () => setPoolWho("used") },
+        { key: "all", label: "Everyone", pick: () => setPoolWho("all") },
+      ]
+    : hasRoster
+      ? [
+          { key: "all", label: "Everyone", pick: () => setWho("all") },
+          { key: "free", label: "Free agents", pick: () => setWho("free") },
+          ...(myPlayerId ? [{ key: "mine", label: "Mine", pick: () => setWho("mine") }] : []),
+          ...players
+            .filter((p) => p.id !== myPlayerId)
+            .map((p) => ({ key: `team:${p.id}`, label: `${p.name}’s team`, color: p.color, pick: () => setWho(`team:${p.id}`) })),
+        ]
+      : [];
+  const whoKey = eligibility ? poolWho : team ? `team:${team.id}` : who;
   const shown = rows
     .filter((r) => (shownWho === "free" ? free(r.c) : shownWho === "mine" ? mine(r.c) : team ? r.c.ownerIds.includes(team.id) : true))
     .filter((r) => !tribe || r.c.tribeId === tribe.id)
@@ -174,77 +186,56 @@ export function ResearchTab() {
   const steals = StateLogic.getLeagueType(state).hasActiveRoster && (shownWho === "all" || shownWho === "free") ? freeAgentSteals(state, rows) : [];
   const open = openId ? rows.find((r) => r.c.id === openId) ?? null : null;
 
-  const options = (
-    <>
-      <ToggleRow label="Rank by points per episode" hint="Fairer to someone who joined late or sat out" checked={perEpisode} onChange={setPerEpisode} />
-      <ToggleRow label={`Hide ${terms.castaways} who are out`} checked={hideOut} onChange={setHideOut} />
-      {/* Only where there's a preseason: a league that started after episode 1. */}
-      {startEp > 1 && (
-        <ToggleRow
-          label={`Include ${startEp === 2 ? "episode 1" : `episodes 1–${startEp - 1}`}`}
-          hint="Before this league started. Scored for nobody, but it's still how they played."
-          checked={includePreseason}
-          onChange={setIncludePreseason}
-        />
-      )}
-    </>
-  );
+  const epName = (i: number) => String(allAired[i]?.number ?? "");
+  const rangeLabel =
+    allAired.length === 0 ? null : shownRange[0] === shownRange[1] ? `Ep ${epName(shownRange[0])}` : `Ep ${epName(shownRange[0])}–${epName(shownRange[1])}`;
+  const whoLabel = whoChoices.find((c) => c.key === whoKey)?.label ?? whoChoices[0]?.label;
+  // What the Filter bar says is showing: each filter in play, the ones you've changed in full ink.
+  const summary: { text: string; changed: boolean; color?: string }[] = [
+    ...(whoChoices.length > 1 ? [{ text: whoLabel!, changed: whoKey !== whoChoices[0].key, color: team?.color }] : []),
+    ...(state.tribes.length > 0 ? [{ text: tribe ? tribe.name : `Any ${terms.tribe}`, changed: !!tribe, color: tribe?.color }] : []),
+    ...(rangeLabel ? [{ text: rangeLabel, changed: !rangeIsDefault }] : []),
+    ...(perEpisode ? [{ text: "Per episode", changed: true }] : []),
+    ...(hideOut ? [{ text: "Out hidden", changed: true }] : []),
+  ];
+  const anyChanged = summary.some((s) => s.changed);
+  const resetAll = () => {
+    setRange(null);
+    setTribeId(null);
+    setPerEpisode(false);
+    setHideOut(false);
+    whoChoices[0]?.pick();
+  };
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex min-h-11 items-center gap-3 max-nav:hidden">
-        <h2 className="type-caption flex-1 text-[28px]">Research</h2>
-        <MoreButton label="Research options" onClick={() => setOptionsOpen(true)} />
-      </div>
+      <h2 className="type-caption min-h-11 content-center text-[28px] max-nav:hidden">Research</h2>
 
-      <WindowTabs windows={windows} value={shownWindow} onChange={setWindow} />
-
-      {hasRoster && <div role="group" aria-label="Whose" className="flex flex-wrap gap-2">
-        <FilterChip on={who === "all"} onClick={() => setWho("all")}>
-          Everyone
-        </FilterChip>
-        <FilterChip on={who === "free"} onClick={() => setWho("free")}>
-          Free agents
-        </FilterChip>
-        {myPlayerId && (
-          <FilterChip on={who === "mine"} onClick={() => setWho("mine")}>
-            Mine
-          </FilterChip>
-        )}
-        {players.some((p) => p.id !== myPlayerId) && (
-          <FilterChip on={!!team} onClick={() => setTeamsOpen(true)}>
-            <span className="max-w-[96px] truncate">{team ? team.name : "Team"}</span>
-            <ChevronDown className="size-4" strokeWidth={2.4} aria-hidden />
-          </FilterChip>
-        )}
-      </div>}
-
-      {state.tribes.length > 0 && (
-        <div role="group" aria-label="Tribe" className="flex flex-wrap gap-2">
-          <FilterChip on={!tribe} onClick={() => setTribeId(null)}>
-            Any tribe
-          </FilterChip>
-          <FilterChip on={!!tribe} onClick={() => setTribesOpen(true)}>
-            {tribe && <span className="size-2.5 shrink-0 rounded-full" style={{ background: tribe.color }} aria-hidden />}
-            <span className="max-w-[120px] truncate">{tribe ? tribe.name : "Tribe"}</span>
-            <ChevronDown className="size-4" strokeWidth={2.4} aria-hidden />
-          </FilterChip>
-        </div>
-      )}
-
-      {eligibility && (
-        <div role="group" aria-label="Whose" className="flex flex-wrap gap-2">
-          <FilterChip on={poolWho === "open"} onClick={() => setPoolWho("open")}>
-            Open to you
-          </FilterChip>
-          <FilterChip on={poolWho === "used"} onClick={() => setPoolWho("used")}>
-            Used
-          </FilterChip>
-          <FilterChip on={poolWho === "all"} onClick={() => setPoolWho("all")}>
-            Everyone
-          </FilterChip>
-        </div>
-      )}
+      {/* One bar for every filter: it reads back what's showing, and opens them all in one sheet. */}
+      <button
+        type="button"
+        onClick={() => setFilterOpen(true)}
+        className="flex min-h-12 w-full items-center gap-3 rounded-[3px] border border-border py-1.5 pr-1.5 pl-3 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-chyron-line"
+      >
+        <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+          {summary.map((s, i) => (
+            <span key={i}>
+              {i > 0 && " · "}
+              {s.color && <span className="mr-1 inline-block size-2 rounded-full align-middle" style={{ background: s.color }} aria-hidden />}
+              <span className={cn(s.changed && "font-semibold text-foreground")}>{s.text}</span>
+            </span>
+          ))}
+        </span>
+        <span
+          className={cn(
+            "flex min-h-9 shrink-0 items-center gap-1.5 rounded-[2px] px-3 text-sm font-bold",
+            anyChanged ? "bg-foreground text-background" : "bg-secondary text-foreground",
+          )}
+        >
+          <SlidersHorizontal className="size-4" strokeWidth={2.4} aria-hidden />
+          Filter
+        </span>
+      </button>
 
       {epNumbers.length === 0 ? (
         <p className="border-t border-border pt-3 text-base text-muted-foreground">
@@ -302,55 +293,78 @@ export function ResearchTab() {
         </p>
       )}
 
-      {/* Each toggle applies as it's flipped, so the sheet closes with Done, not Cancel. */}
-      <BottomSheet open={optionsOpen} onOpenChange={setOptionsOpen} title="Research" hideCancel>
-        <div className="flex flex-col [&>*]:border-t [&>*]:border-border">{options}</div>
-        <button
-          type="button"
-          onClick={() => setOptionsOpen(false)}
-          className="mt-3 min-h-12 rounded-[3px] border border-border bg-secondary text-[15px] font-bold text-foreground"
-        >
-          Done
-        </button>
-      </BottomSheet>
+      {/* Every filter in one sheet. Each applies as it changes (the list behind updates), so it closes
+          with Done, not Cancel. */}
+      <BottomSheet open={filterOpen} onOpenChange={setFilterOpen} title="Filter" hideCancel>
+        <div className="flex flex-col gap-5">
+          {allAired.length > 1 && (
+            <FilterGroup title="Episodes" value={rangeLabel}>
+              <RangeSlider
+                label="Episodes"
+                count={allAired.length}
+                value={shownRange}
+                onChange={setRange}
+                stepLabel={epName}
+                mark={startIdx > 0 ? { at: startIdx, caption: "League start" } : undefined}
+              />
+              {/* Earlier episodes scored for nobody, but they're still how someone played. */}
+              {shownRange[0] < startIdx && (
+                <p className="text-[13px] text-muted-foreground">
+                  {startIdx - shownRange[0] === 1 ? `Episode ${epName(shownRange[0])} was` : `Episodes ${epName(shownRange[0])}–${epName(startIdx - 1)} were`} before
+                  this league started: counted here, scored for nobody.
+                </p>
+              )}
+            </FilterGroup>
+          )}
 
+          {whoChoices.length > 1 && (
+            <FilterGroup title="Show">
+              <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
+                {whoChoices.map((c) => (
+                  <FilterChip key={c.key} on={whoKey === c.key} onClick={c.pick}>
+                    {c.color && <span className="size-2.5 shrink-0 rounded-[2px]" style={{ background: c.color }} aria-hidden />}
+                    {c.label}
+                  </FilterChip>
+                ))}
+              </div>
+            </FilterGroup>
+          )}
 
-      <BottomSheet open={tribesOpen} onOpenChange={setTribesOpen} title="Show one tribe">
-        {state.tribes.map((t) => (
-          <SheetAction
-            key={t.id}
-            detail={tribe?.id === t.id ? "Showing" : undefined}
-            onClick={() => {
-              setTribeId(t.id);
-              setTribesOpen(false);
-            }}
+          {state.tribes.length > 0 && (
+            <FilterGroup title={terms.tribe}>
+              <div role="group" aria-label={terms.tribe} className="flex flex-wrap gap-2">
+                <FilterChip on={!tribe} onClick={() => setTribeId(null)}>
+                  Any {terms.tribe}
+                </FilterChip>
+                {state.tribes.map((t) => (
+                  <FilterChip key={t.id} on={tribe?.id === t.id} onClick={() => setTribeId(t.id)}>
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ background: t.color }} aria-hidden />
+                    {t.name}
+                  </FilterChip>
+                ))}
+              </div>
+            </FilterGroup>
+          )}
+
+          <div className="flex flex-col [&>*]:border-t [&>*]:border-border">
+            <ToggleRow label="Rank by points per episode" hint="Fairer to someone who joined late or sat out" checked={perEpisode} onChange={setPerEpisode} />
+            <ToggleRow label={`Hide ${terms.castaways} who are out`} checked={hideOut} onChange={setHideOut} />
+          </div>
+        </div>
+        <div className="mt-3 flex gap-2">
+          {anyChanged && (
+            <button type="button" onClick={resetAll} className="min-h-12 rounded-[3px] border border-border px-4 text-[15px] font-bold text-foreground">
+              Reset
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setFilterOpen(false)}
+            className="min-h-12 flex-1 rounded-[3px] bg-foreground text-[15px] font-bold text-background"
           >
-            <span className="flex items-center gap-3">
-              <span className="size-3 shrink-0 rounded-full" style={{ background: t.color }} aria-hidden />
-              {t.name}
-            </span>
-          </SheetAction>
-        ))}
-      </BottomSheet>
-
-      <BottomSheet open={teamsOpen} onOpenChange={setTeamsOpen} title="Show one team">
-        {players
-          .filter((p) => p.id !== myPlayerId)
-          .map((p) => (
-            <SheetAction
-              key={p.id}
-              detail={team?.id === p.id ? "Showing" : undefined}
-              onClick={() => {
-                setWho(`team:${p.id}`);
-                setTeamsOpen(false);
-              }}
-            >
-              <span className="flex items-center gap-3">
-                <span className="size-3 shrink-0 rounded-[3px]" style={{ background: p.color }} aria-hidden />
-                {p.name}&rsquo;s team
-              </span>
-            </SheetAction>
-          ))}
+            {shown.length === 1 ? `Show 1 ${terms.castaway}` : `Show ${shown.length} ${terms.castaways}`}
+          </button>
+        </div>
       </BottomSheet>
 
       <BottomSheet
@@ -449,6 +463,19 @@ function habitsOf(played: EpisodeLine[], rank: (type: string) => number) {
 
 
 const group = (rank: number) => Math.floor(rank / 1000);
+
+/** One group in the Filter sheet: a small caps heading, with what it's set to on the right. */
+function FilterGroup({ title, value, children }: { title: string; value?: string | null; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-[12px] font-bold uppercase tracking-[0.05em] text-muted-foreground">{title}</h3>
+        {value && <span className="type-num text-[17px] text-foreground">{value}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 function FilterChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
   return (

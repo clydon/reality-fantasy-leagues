@@ -1,8 +1,9 @@
 // Dev-only test bank: Eliminator Pool Research (docs/PLAN-league-tabs.md, build step 6). Needs npm run dev.
 //
-//   node scripts/dev-test/check-pool-research.js <outDir> [width] [--dark] [--keep]
+//   node scripts/dev-test/check-pool-research.js <outDir> [width] [--dark] [--keep] [--start=N] [--tribes]
 //
-// Brings linked-fixture.js up, opens the Pool's /research and walks Open to you / Used / Everyone and the
+// Brings linked-fixture.js up, opens the Pool's /research and walks Open to you / Used / Everyone (in the
+// Filter sheet, screenshotting it as poolresearch-sheet*), then the
 // ranking control (Safety first, then Points). Prints each view's first rows (rank, name, line, count) and
 // writes <outDir>/poolresearch-<view>-<width>[-dark].png. Prints page errors. Takes the fixture down at the
 // end unless --keep. Nothing here touches a real league: it's all zt-*.
@@ -29,6 +30,14 @@ const S = require("../../src/lib/game/state-logic.js");
     for (const [ep, type, n] of [[1, "individualImmunity", 12], [1, "zeroVotesSafe", 20], [2, "zeroVotesSafe", 20], [2, "survivedVotes", 13], [3, "individualImmunity", 20]]) {
       S.ActiveRosterLogic.addEvent(state, state.episodes.find((e) => e.number === ep).id, type, id(n));
     }
+    // --start=N: the league starts at episode N, so the Filter sheet's episode slider has earlier episodes
+    // (and its "League start" mark). --tribes: split the cast into two tribes for the tribe filter.
+    const start = Number(flags.find((f) => f.startsWith("--start="))?.slice(8) || 0);
+    if (start > 1) state.settings.startEpisode = start;
+    if (flags.includes("--tribes")) {
+      state.tribes = [{ id: "zt-tribe-a", name: "Savu", color: "#7b5cd6" }, { id: "zt-tribe-b", name: "Toka", color: "#f5c518" }];
+      state.castaways.forEach((c, i) => (c.tribeId = i % 2 ? "zt-tribe-b" : "zt-tribe-a"));
+    }
     await pool.query(`UPDATE leagues SET state = $2 WHERE id = $1`, [pickem.leagueId, JSON.stringify(state)]);
     const { page, errors, BASE, close } = await open({ user: fixture.USERNAME, pass: fixture.PASSWORD, width });
     await page.addInitScript((t) => {
@@ -52,11 +61,28 @@ const S = require("../../src/lib/game/state-logic.js");
       if (!said.rows.length) console.log(`  ${said.empty}`);
       await page.screenshot({ path: `${out}/poolresearch-${view}-${suffix}.png` });
     };
+    // Every filter sits in one Filter sheet; the bar above the list says what's showing.
+    console.log("\nfilter bar:", await page.getByRole("button", { name: /Filter$/ }).innerText());
     for (const name of ["Open to you", "Used", "Everyone"]) {
-      await page.getByRole("button", { name, exact: true }).click();
+      await page.getByRole("button", { name: /Filter$/ }).click();
+      await page.waitForTimeout(400);
+      await page.getByRole("dialog").getByRole("button", { name, exact: true }).click();
+      if (name === "Open to you") await page.screenshot({ path: `${out}/poolresearch-sheet-${suffix}.png` });
+      // Drag the slider's from-thumb to the far left: every episode, before the league started too.
+      if (name === "Everyone") {
+        const from = page.getByRole("slider").first();
+        if (await from.count()) {
+          await from.focus();
+          await page.keyboard.press("Home");
+          await page.waitForTimeout(200);
+          await page.screenshot({ path: `${out}/poolresearch-sheet-all-${suffix}.png` });
+        }
+      }
+      await page.getByRole("dialog").getByRole("button", { name: /^Show \d/ }).click();
       await page.waitForTimeout(300);
       await read(name.split(" ")[0].toLowerCase());
     }
+    console.log("\nfilter bar:", await page.getByRole("button", { name: /Filter$/ }).innerText());
     // The ranking control: open it and list what it offers.
     const rank = page.locator("[data-tour=research-list] > div button").first();
     if (await rank.count()) {
