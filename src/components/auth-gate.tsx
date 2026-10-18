@@ -12,6 +12,7 @@ import { TourHost } from "@/components/tour/tour-host";
 import { DemoBar } from "@/components/demo-bar";
 import { Sidebar } from "@/components/sidebar";
 import { LoginScreen } from "@/components/login-screen";
+import { LandingPage } from "@/components/landing/landing-page";
 import { PendingApprovalScreen } from "@/components/pending-approval-screen";
 import { MobileNav } from "@/components/mobile-nav/mobile-nav";
 import { ReportModal } from "@/components/report-modal";
@@ -52,13 +53,21 @@ const LEAGUELESS_ROUTES = ["/dashboard", "/reports", "/account"];
 const FULLSCREEN_ROUTES = ["/new-league", "/reveal", "/late-join"];
 const isFullscreen = (pathname: string) => FULLSCREEN_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
 
+// The signed-out front door at "/" is the landing page; signing in is at /sign-in, creating an
+// account at /account.
+const LANDING = "/";
+const SIGN_IN = "/sign-in";
+
 // Owns the same top-level branch the live app's boot()/renderLoginScreen() do: either the login
 // screen (no sidebar at all -- see public/index.html's <aside style="display:none">, only shown
 // once renderTabs() runs after auth) or the full sidebar+content shell, never both at once. An
 // earlier version of this component rendered the login form and the app shell stacked on the
 // same page in the fallback case -- this rewrite makes the two states properly exclusive via
 // `entered`, matching the original's actual behavior instead of approximating it.
-export function AuthGate({ children }: { children: ReactNode }) {
+// hasSession: whether the request carried a session cookie at all (read by the root layout). It's
+// only a hint, so a visitor with none gets the landing page in the server render (what search
+// engines see) instead of the boot overlay; the session check below still decides.
+export function AuthGate({ children, hasSession }: { children: ReactNode; hasSession: boolean }) {
   const pathname = usePathname();
   // Where each page's back goes (lib/nav-trail.ts).
   useRecordNavTrail();
@@ -101,6 +110,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (toLateJoin) router.replace("/late-join");
   }, [toLateJoin, router]);
+
+  // Signing in from /sign-in lands on the app at "/", not on an empty page.
+  useEffect(() => {
+    if (entered && pathname === SIGN_IN) router.replace("/");
+  }, [entered, pathname, router]);
 
   // Internally gated on mode === 'live' (see use-league-poll.ts) -- safe to call unconditionally
   // here regardless of auth state, matching the Rules of Hooks.
@@ -150,7 +164,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     // Reopening the installed app where you left off (lib/last-page.ts) navigates now, behind the
     // boot overlay, so the right page is already underneath when it lifts.
     if (restoring.current === undefined) {
-      restoring.current = pageToRestore();
+      // Without a session there's nothing to reopen, and the landing page is already on screen.
+      restoring.current = hasSession ? pageToRestore() : null;
       if (restoring.current && restoring.current.path !== "/") router.replace(restoring.current.path);
     }
     // Silent check for an existing session (e.g. already logged into the live app in this same
@@ -225,6 +240,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return children;
   }
 
+  // No session cookie at "/": the landing page, from the very first (server) render, so neither a
+  // first-time visitor nor a crawler waits on the boot overlay. Also where signing out lands.
+  if (pathname === LANDING && !entered && (status !== "checking" || !hasSession) && !loadingLeague) {
+    return <LandingPage onTour={handleSkip} />;
+  }
+
   // One loading screen for both "we don't know who you are yet" and "a league is on its way".
   // The second half matters as much as the first: every path that swaps the loaded league
   // (initial load, the switcher, join/create) goes through the store's loadingLeague flag, and
@@ -234,8 +255,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return <BootOverlay />;
   }
 
-  // Signed out, every route is the front door. /account is where "Create an account" links go, so
-  // there it opens on that side. Once signed in /account goes through the shell below like any other
+  // Signed out, every other route is the sign-in screen (deep links, /sign-in). /account is where
+  // "Create an account" links go, so there it opens on that side. Once signed in /account goes through the shell below like any other
   // page, which is what gives a brand-new account a way off it.
   if (!entered) {
     return (

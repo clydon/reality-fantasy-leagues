@@ -8,6 +8,11 @@ const EMBEDDING_ROUTES = [
 ];
 
 const nextConfig: NextConfig = {
+  // Metadata goes in <head>, never streamed into <body>. The root layout reads cookies (the landing
+  // page decides signed in or out on the server), which made every page dynamic and its metadata
+  // streamed into a hidden <div>; hydration then sometimes raced it and failed. Our metadata is
+  // static, so streaming bought nothing. (Crawlers always got it in <head> anyway.)
+  htmlLimitedBots: /.*/,
   // Ship the embedding model (fetched into .models/ at build) and the ONNX runtime's Linux binary
   // with the routes that use them, so they read from disk instead of downloading on a cold start.
   outputFileTracingIncludes: Object.fromEntries(

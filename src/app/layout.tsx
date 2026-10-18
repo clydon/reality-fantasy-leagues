@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthGate } from "@/components/auth-gate";
@@ -80,7 +81,10 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Better Auth's session cookie ("__Secure-" prefixed on https). Just whether one exists: AuthGate
+  // uses it to serve the landing page to signed-out visitors in the server render.
+  const hasSession = (await cookies()).getAll().some((c) => c.name.endsWith("better-auth.session_token"));
   return (
     <html
       lang="en"
@@ -97,7 +101,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ServiceWorkerRegistrar />
         <QueryProvider>
           <MotionProvider>
-            <AuthGate>{children}</AuthGate>
+            <AuthGate hasSession={hasSession}>{children}</AuthGate>
           </MotionProvider>
         </QueryProvider>
       </body>
