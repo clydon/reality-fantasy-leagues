@@ -4,6 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import showcase from "./showcase.json";
+import { api } from "@/lib/api";
+import { publicMediaSrc } from "@/lib/game/selectors";
+import { resolveArtStyle, type ArtStyle } from "@/lib/show-art-style";
 import "./landing.css";
 
 // The signed-out front door at "/" (AuthGate renders it when there's no session cookie). It's what a
@@ -230,8 +233,7 @@ function Hero({ onTour }: { onTour: () => void }) {
                 return (
                   <div key={k} className="wcell" data-pop={pop ? "" : undefined}>
                     <Photo c={c} size={190} />
-                    {c.tribe && (s.tribes as Record<string, string>)[c.tribe] && <i className="tb" style={{ background: (s.tribes as Record<string, string>)[c.tribe] }} />}
-                    <span className="nm cap">{first(c.name)}</span>
+                    <span className="nm"><span className="cap">{first(c.name)}</span><small>{s.show.replace(/ \(US\)$/, "")} {s.season}</small></span>
                     {pop && (
                       <span className="pop"><span className="t cap">+{best.v}</span><span className="b"><b className="cap">{c.name}</b><small>{s.show} {s.season} · Episode {best.i + 1}</small></span></span>
                     )}
@@ -248,11 +250,28 @@ function Hero({ onTour }: { onTour: () => void }) {
 
 // ---------------- how it works ----------------
 function HowItWorks() {
-  const picks: [typeof S51, string, string, Castaway][] = [
-    [S51, "Survivor", "Season 51 · Wed", by(S51, "Kristin")],
-    [TRT, "The Traitors", "Season 5 · Thu", TRT.cast[3]],
-    [CHL, "The Challenge", "Season 37", by(CHL, "Kaycee") ?? CHL.cast[0]],
+  const picks: [string, string, string][] = [
+    ["Survivor", "Survivor", "Season 51 · Wed"],
+    ["The Traitors", "The Traitors", "Season 5 · Thu"],
+    ["The Challenge", "The Challenge", "Season 37"],
   ];
+  // The show's own artwork (the same art the front door's show roll uses), not a cast photo. Until
+  // it arrives, or for a show without any, the tile is the plain panel.
+  const [art, setArt] = useState<Record<string, { src: string; style: ArtStyle | null }>>({});
+  useEffect(() => {
+    let live = true;
+    api.showArt().then(({ shows }) => {
+      const out: typeof art = {};
+      for (const [match] of picks) {
+        const hit = shows.find((x) => x.name.toLowerCase().startsWith(match.toLowerCase()));
+        const src = publicMediaSrc(hit?.artUrl);
+        if (hit && src) out[match] = { src, style: hit.artStyle };
+      }
+      if (live) setArt(out);
+    }).catch(() => {});
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- picks is a constant
+  }, []);
   return (
     <section className="sec" id="how" aria-labelledby="how-h">
       <div className="wrap">
@@ -263,7 +282,19 @@ function HowItWorks() {
             <p>Survivor, The Traitors and The Challenge are ready with the full cast and scoring. Anything else, you add yourself in a couple of minutes.</p>
             <div className="phone"><div className="ph-h cap">Pick a show <small>Step 1 of 4</small></div>
               <div className="showgrid">
-                {picks.map(([, n, se, c], i) => <div key={n} className={`sp${i === 0 ? " sel" : ""}`}><Photo c={c} size={200} /><b className="cap">{n}</b><small>{se}</small></div>)}
+                {picks.map(([m, n, se], i) => {
+                  const a = art[m];
+                  const st = resolveArtStyle(a?.style);
+                  return (
+                    <div key={n} className={`sp${i === 0 ? " sel" : ""}`}>
+                      {a && (
+                        // eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL
+                        <img src={a.src} alt="" style={{ objectPosition: `${st.x}% 50%` }} />
+                      )}
+                      <b className="cap">{n}</b><small>{se}</small>
+                    </div>
+                  );
+                })}
                 <div className="sp add"><b className="cap" style={{ fontSize: 16 }}>+ Any show</b><small>Add it yourself</small></div>
               </div>
             </div>

@@ -77,8 +77,9 @@ header.top{position:sticky;top:0;z-index:50;background:rgba(22,20,29,.82);backdr
 @media(max-width:980px){.gys-landing .wcell{width:110px;height:136px}}
 .gys-landing .wcell img{width:100%;height:100%;object-fit:cover;filter:saturate(.9)}
 .gys-landing .wcell::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(16,14,21,.75))}
-.gys-landing .wcell .nm{position:absolute;left:8px;bottom:7px;z-index:1;font-size:15px;color:#fff}
-.gys-landing .wcell .tb{position:absolute;left:8px;top:8px;z-index:1;width:10px;height:10px}
+.gys-landing .wcell .nm{position:absolute;left:8px;right:6px;bottom:7px;z-index:1;color:#fff;display:flex;flex-direction:column;line-height:1.1}
+.gys-landing .wcell .nm .cap{font-size:15px}
+.gys-landing .wcell .nm small{font-size:10px;font-weight:600;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gys-landing .pop{position:absolute;z-index:3;left:50%;bottom:-6px;transform:translate(-50%,100%) scale(.9);opacity:0;display:flex;align-items:stretch;min-height:46px;background:var(--plate);color:var(--ink);border-radius:3px;box-shadow:0 10px 26px rgba(0,0,0,.45);white-space:nowrap;transition:opacity .4s,transform .55s var(--spring);pointer-events:none}
 .gys-landing .wcell.on{overflow:visible;z-index:4}
 .gys-landing .wcell.on .pop{opacity:1;transform:translate(-50%,40%) scale(1)}
