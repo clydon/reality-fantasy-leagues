@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { DEFAULT_FORMAT } from "@/lib/game/formats/index.js";
 import { Field, MoreOptions, fieldCls } from "@/components/setup/settings-ui";
 import { ActButton, AdminPage, CopyButton, Notice, Segmented, Step, StickyBar, errorText, useAdminShows } from "./admin-ui";
+import { AskAiLinks } from "@/components/ask-ai";
 import { cn } from "cn";
 
 // New show (the canvas's Admin-NewShow). Two ways in:
@@ -117,6 +118,7 @@ export function NewShowPage() {
               <span className="text-[13px] leading-snug text-muted-foreground">
                 {name.trim() ? "Paste it into any AI chat with web search. Free." : "Name the show first."}
               </span>
+              <AskAiLinks prompt={promptReady ? prompt.data?.prompt : undefined} task={`setting up a new show, ${name.trim()},`} />
               {prompt.error && <Notice tone="bad">{errorText(prompt.error, "Couldn't build the prompt.")}</Notice>}
             </Step>
             <Step n={2} on={!!answer.trim()} label="Paste what it found">

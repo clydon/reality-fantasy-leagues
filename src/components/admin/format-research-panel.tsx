@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import type { StoredFormat } from "@/lib/game/types";
 import { Field, MoreOptions, fieldCls } from "@/components/setup/settings-ui";
 import { ActButton, CopyButton, Notice, Step, StickyBar } from "@/components/admin/admin-ui";
+import { AskAiLinks } from "@/components/ask-ai";
 import { PasteBar } from "@/components/paste-bar";
 import { useTourSample } from "@/lib/tour/samples";
 import { tourMark } from "@/lib/tour/tour-store";
@@ -106,6 +107,7 @@ export function FormatResearchPanel({
           <span className="text-[13px] leading-snug text-muted-foreground">
             {name.trim() ? "Paste it into any AI chat with web search. Free." : "Name the show first."}
           </span>
+          {!tour && <AskAiLinks prompt={promptReady ? prompt.data?.prompt : undefined} task={`setting up a new show, ${name.trim()},`} />}
           {prompt.error && <Notice tone="bad">{prompt.error instanceof ApiError ? prompt.error.message : "Couldn't build the prompt."}</Notice>}
         </Step>
         <Step n={2} on={!!answer.trim()} label="Paste what it found">

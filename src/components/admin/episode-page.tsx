@@ -13,6 +13,7 @@ import { useNowMinute } from "@/components/episodes/episode-status";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { fieldCls } from "@/components/setup/settings-ui";
 import { ActButton, AdminPage, Cost, CopyButton, Notice, Row, Rows, Section, Segmented, Step, StickyBar, count, errorText, seasonShort, useAdminSeason } from "./admin-ui";
+import { AskAiLinks } from "@/components/ask-ai";
 import { ResearchResult, modelLabel } from "./admin-results";
 import { cn } from "cn";
 
@@ -253,6 +254,7 @@ function PastePanel({ seasonId, episode, busy, onSubmit }: { seasonId: string; e
           {isLoading && <span className="text-[13px] text-muted-foreground">Building the prompt…</span>}
           {error && <Notice tone="bad">{errorText(error, "Couldn't build the prompt.")}</Notice>}
           <span className="text-[13px] text-muted-foreground">Paste it into any AI chat with web search: ChatGPT, Claude, Gemini.</span>
+          <AskAiLinks prompt={data?.prompt} task={`researching what happened in episode ${episode}`} />
         </Step>
         <Step n={2} on={!!notes.trim()} label="Paste the answer">
           <textarea

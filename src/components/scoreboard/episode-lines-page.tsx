@@ -9,6 +9,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { latestScoredEpisode, parseLeagueReply } from "@/lib/game/episode-team-summary";
 import { SettingsPage, MoreOptions, fieldCls } from "@/components/setup/settings-ui";
 import { ActButton, CopyButton, Notice, Step, StickyBar } from "@/components/admin/admin-ui";
+import { AskAiLinks } from "@/components/ask-ai";
 import { useTeamSummary } from "./use-team-summary";
 
 // The commissioner's "why it mattered" lines for the latest episode, every team at once
@@ -82,6 +83,7 @@ export function EpisodeLinesPage() {
           {data?.prompt && (
             <>
               <CopyButton text={data.prompt} tone={pasted || dirty ? "plain" : "chyron"} />
+              <AskAiLinks prompt={data.prompt} task={`writing a line per team on episode ${ep.number}`} />
               <p className="text-[13px] leading-snug text-muted-foreground">
                 {data.hasSource
                   ? "ChatGPT, Claude or Gemini all work. It reads the episode's recap."

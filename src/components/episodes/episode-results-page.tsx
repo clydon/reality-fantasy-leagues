@@ -14,6 +14,7 @@ import { PageBackLink } from "@/components/back-link";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { ActButton, CopyButton, StepNum } from "@/components/admin/admin-ui";
+import { AskAiLinks } from "@/components/ask-ai";
 import { PasteBar } from "@/components/paste-bar";
 import { useTourSample } from "@/lib/tour/samples";
 import { Field, MoreButton, fieldCls } from "@/components/setup/settings-ui";
@@ -252,6 +253,7 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
               <span className="text-sm leading-snug text-muted-foreground">{askLine(panel, terms.castaways)}</span>
               <CopyButton text={panel.prompt} label="Copy the question" tone={current === 1 ? "chyron" : "plain"} tourId={`results-copy-${ep.number}`} />
               <span className="text-[13px] text-muted-foreground">Paste it into ChatGPT, Claude, Gemini: any chat that can search the web.</span>
+              {!tourSample && <AskAiLinks prompt={panel.prompt} task={`filling in what happened in episode ${ep.number}`} />}
               {panel.again ? (
                 <AgainLink disabled={busy} onClick={() => askAgain(false)}>
                   Cancel, keep what&rsquo;s saved

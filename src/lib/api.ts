@@ -616,6 +616,13 @@ export const api = {
     localFetch<{ prompt: string }>(
       `/api/formats/prompt?${new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]).toString()}`
     ),
+  // A prompt parked at /b/<code> for the "Open in ChatGPT/Claude/..." links (components/ask-ai.tsx),
+  // and (admin) who has read it.
+  createBrief: (text: string) => localFetch<{ code: string }>("/api/briefs", { method: "POST", body: JSON.stringify({ text }) }),
+  briefFetches: (code: string) =>
+    localFetch<{ fetches: { reader: string; userAgent: string | null; via: "page" | "action"; at: string }[] }>(
+      `/api/briefs/${encodeURIComponent(code)}/fetches`
+    ),
   createFormat: (answer: string) =>
     localFetch<{ format: StoredFormat }>("/api/formats", { method: "POST", body: JSON.stringify({ answer }) }),
   getFormat: (id: string) => localFetch<{ format: StoredFormat }>(`/api/formats/${encodeURIComponent(id)}`),

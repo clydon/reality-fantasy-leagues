@@ -17,6 +17,7 @@ import { X as XIcon } from "lucide-react";
 import { cn } from "cn";
 import { seasonCastApi, useSeasonCastMode } from "@/lib/season-cast-api";
 import { PasteBar } from "@/components/paste-bar";
+import { AskAiLinks } from "@/components/ask-ai";
 import { useTourSample } from "@/lib/tour/samples";
 import { tourMark } from "@/lib/tour/tour-store";
 
@@ -189,6 +190,7 @@ export function CastImportSection({ state, defaultOpen = false }: { state: Leagu
                   </Button>
                 </span>
               </div>
+              {!tourSample && <AskAiLinks prompt={prompt} task={`importing the cast of ${terms.showName ?? "a show"}${season.trim() ? ` ${season.trim()}` : ""}`} />}
               <Textarea readOnly rows={4} value={prompt} className="font-mono text-[0.65rem] text-muted-foreground" />
               <div className="flex flex-col gap-1.5">
                 <span className="font-semibold">Paste the answer here</span>

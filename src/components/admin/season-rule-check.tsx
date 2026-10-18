@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { confirm } from "@/lib/confirm-store";
+import { AskAiLinks } from "@/components/ask-ai";
 import { useShowSpoilers } from "@/lib/paid-ai-store";
 import { cn } from "cn";
 import {
@@ -292,6 +293,7 @@ function RuleCheckPanel({ seasonId, seasonLabel, onRecorded }: { seasonId: strin
               {copied ? "Copied!" : "Copy prompt"}
             </Button>
           </div>
+          <AskAiLinks prompt={data.prompt} task={`checking whether ${seasonLabel} changed how it's played`} />
           <Textarea readOnly rows={4} value={data.prompt} className="font-mono text-[0.65rem] text-muted-foreground" />
         </div>
       )}
