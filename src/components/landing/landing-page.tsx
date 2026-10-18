@@ -143,7 +143,6 @@ export function LandingPage({ onTour }: { onTour: () => void }) {
 // ---------------- hero ----------------
 function Hero({ onTour }: { onTour: () => void }) {
   const roll = useRef<HTMLSpanElement>(null);
-  const wall = useRef<HTMLDivElement>(null);
 
   // The show name rolls on the plate, sized once to the longest name so nothing moves, and lands
   // on "your show".
@@ -183,21 +182,6 @@ function Hero({ onTour }: { onTour: () => void }) {
     return () => { clearInterval(t); window.removeEventListener("resize", size); };
   }, []);
 
-  // A caption plate takes a face on the wall every couple of seconds, like a lower third.
-  useEffect(() => {
-    const w = wall.current;
-    if (!w) return;
-    const t = setInterval(() => {
-      const vis = [...w.querySelectorAll<HTMLElement>("[data-pop]")].filter((e) => {
-        const r = e.getBoundingClientRect();
-        return r.left > innerWidth * 0.45 && r.right < innerWidth - 40 && r.top > 90 && r.bottom < innerHeight - 60;
-      });
-      w.querySelectorAll(".wcell.on").forEach((e) => e.classList.remove("on"));
-      vis[Math.floor(Math.random() * vis.length)]?.classList.add("on");
-    }, 2200);
-    return () => clearInterval(t);
-  }, []);
-
   const withSeason = (s: typeof S51) => s.cast.filter((c) => c.photo).map((c) => ({ c, s }));
   const rows = [
     [...withSeason(S51), ...withSeason(TRT).slice(0, 6)],
@@ -224,19 +208,14 @@ function Hero({ onTour }: { onTour: () => void }) {
             <button type="button" onClick={onTour} className="tourlink">Take the 5-minute tour</button>
           </div>
         </div>
-        <div className="wall" ref={wall} aria-hidden="true">
+        <div className="wall" aria-hidden="true">
           {rows.map((row, ri) => (
             <div key={ri} className={`wrow${ri % 2 ? " rev" : ""}`} style={{ "--d": `${70 + ri * 12}s` } as React.CSSProperties}>
               {[...row, ...row].map(({ c, s }, k) => {
-                const best = c.perEp.reduce((m, v, i) => (v > m.v ? { v, i } : m), { v: 0, i: 0 });
-                const pop = best.v >= 4;
                 return (
-                  <div key={k} className="wcell" data-pop={pop ? "" : undefined}>
+                  <div key={k} className="wcell">
                     <Photo c={c} size={190} />
                     <span className="nm"><span className="cap">{first(c.name)}</span><small>{s.show.replace(/ \(US\)$/, "")} {s.season}</small></span>
-                    {pop && (
-                      <span className="pop"><span className="t cap">+{best.v}</span><span className="b"><b className="cap">{c.name}</b><small>{s.show} {s.season} · Episode {best.i + 1}</small></span></span>
-                    )}
                   </div>
                 );
               })}
