@@ -2021,7 +2021,7 @@ const sameDay = (a, b) => Math.abs(a - b) <= 1;
 function pasteEpisodeMismatch(parsed, episodeNumber, { siblings = [], leagueEpisodes = [] } = {}) {
   const facts = new Map();
   const of = (n) => {
-    if (!facts.has(n)) facts.set(n, { titles: new Set(), summaries: new Set(), days: [], printed: null });
+    if (!facts.has(n)) facts.set(n, { titles: new Set(), summaries: new Set(), days: [], printed: null, stored: false });
     return facts.get(n);
   };
   const know = (n, title, printed, summary) => {
@@ -2034,7 +2034,10 @@ function pasteEpisodeMismatch(parsed, episodeNumber, { siblings = [], leagueEpis
       f.printed = f.printed || printed;
     }
   };
-  for (const s of siblings) know(s.episode_number, s.title, s.air_date, s.summary);
+  for (const s of siblings) {
+    know(s.episode_number, s.title, s.air_date, s.summary);
+    of(s.episode_number).stored = true;
+  }
   // Printed dates only: ep.airsAt is a weekly estimate, which a week off the air would put a week out
   // for every episode after it.
   for (const e of leagueEpisodes) know(e.number, e.title, e.airDate, null);
@@ -2043,7 +2046,13 @@ function pasteEpisodeMismatch(parsed, episodeNumber, { siblings = [], leagueEpis
   const summary = normText(parsed.summary);
   const day = dayNumber(parsed.airDate);
   const own = of(episodeNumber);
-  const ownDay = day !== null && own.days.some((d) => sameDay(d, day));
+  // A date that fits this episode settles it: whatever another episode holds, a paste dated for this
+  // one is this one's (the other may itself be a paste that went to the wrong place). The estimated
+  // schedule counts here, in this episode's favour only: it can confirm a date, but being off proves nothing.
+  const estimate = (leagueEpisodes.find((e) => e.number === episodeNumber) || {}).airsAt;
+  const estimated = estimate && !Number.isNaN(Date.parse(estimate)) ? Math.floor(Date.parse(estimate) / 86400000) : null;
+  const ownDay = day !== null && (own.days.some((d) => sameDay(d, day)) || (estimated !== null && sameDay(estimated, day)));
+  if (ownDay) return null;
 
   const others = [...facts.keys()].filter((n) => n !== episodeNumber).sort((a, b) => Math.abs(a - episodeNumber) - Math.abs(b - episodeNumber));
   for (const n of others) {
@@ -2051,11 +2060,15 @@ function pasteEpisodeMismatch(parsed, episodeNumber, { siblings = [], leagueEpis
     let reason = null;
     if (title && f.titles.has(title) && !own.titles.has(title)) reason = `its title, "${parsed.episodeTitle}", is episode ${n}'s`;
     else if (summary.length >= 30 && f.summaries.has(summary) && !own.summaries.has(summary)) reason = `its summary is word for word episode ${n}'s`;
-    else if (day !== null && !ownDay && f.days.some((d) => sameDay(d, day))) reason = `it's dated ${parsed.airDate}, the day episode ${n} aired`;
-    if (reason) return { episode: n, message: `This looks like episode ${n}'s results, not episode ${episodeNumber}'s: ${reason}.` };
+    else if (day !== null && f.days.some((d) => sameDay(d, day))) reason = `it's dated ${parsed.airDate}, the day episode ${n} aired`;
+    if (reason) {
+      // A paste saved in the wrong episode earlier is the usual cause: say where to look.
+      const hint = f.stored ? ` If episode ${n} holds a paste that was meant for another episode, clear it there first.` : "";
+      return { episode: n, message: `This looks like episode ${n}'s results, not episode ${episodeNumber}'s: ${reason}.${hint}` };
+    }
   }
   // A date well off this episode's own, and not another's we know: a weaker sign, but worth a look.
-  if (day !== null && own.days.length && !ownDay && !own.days.some((d) => Math.abs(d - day) <= 4)) {
+  if (day !== null && own.days.length && !own.days.some((d) => Math.abs(d - day) <= 4)) {
     return {
       episode: null,
       message: `This may not be episode ${episodeNumber}'s results: they're dated ${parsed.airDate}, but episode ${episodeNumber} is dated ${own.printed || "another day"}.`,

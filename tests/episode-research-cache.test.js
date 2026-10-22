@@ -401,6 +401,18 @@ test("mismatch: a date that fits this episode, or a paste with nothing to compar
   assert.equal(R.pasteEpisodeMismatch(titled("Six", "October 15, 2026", ""), 6, {}), null);
 });
 
+test("mismatch: a date that fits this episode wins over another episode holding the same title (that one may be the wrong paste)", () => {
+  // Episode 6 holds episode 5's answer from an earlier mistake; now the right paste goes into episode 5.
+  const siblings = [stash(6, "The Sleeper Agent", "October 8, 2026")];
+  const paste = titled("The Sleeper Agent", "October 8, 2026", "");
+  assert.equal(R.pasteEpisodeMismatch(paste, 5, { siblings, leagueEpisodes: [{ number: 5, airDate: "October 8, 2026" }] }), null, "a printed date for 5");
+  assert.equal(R.pasteEpisodeMismatch(paste, 5, { siblings, leagueEpisodes: [{ number: 5, airsAt: "2026-10-09T00:00:00.000Z" }] }), null, "the estimated schedule, in 5's favour");
+  // With nothing saying what 5's date is, it's still held -- and says where to look.
+  const m = R.pasteEpisodeMismatch(paste, 5, { siblings });
+  assert.equal(m.episode, 6);
+  assert.match(m.message, /If episode 6 holds a paste that was meant for another episode, clear it there first/);
+});
+
 test("mismatch: two episodes on one night don't flag each other when the date fits this one", () => {
   const siblings = [stash(11, "Part one", "December 17, 2026")];
   const leagueEpisodes = [{ number: 12, airDate: "December 17, 2026" }];
