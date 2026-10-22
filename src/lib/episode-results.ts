@@ -28,7 +28,11 @@ export interface ApplyItem {
 export interface ResultsSource {
   /** `again`: the question asks about everyone, to research the episode again and fill gaps. */
   load: (ep: Episode, again?: boolean) => Promise<EpisodeResearchPanel>;
-  submit: (ep: Episode, notes: string, again?: boolean) => Promise<EpisodeResearchPanel>;
+  /** `confirmed`: the commissioner has been told the answer reads like another episode's and said go ahead
+   *  (the server answers 409 until then). */
+  submit: (ep: Episode, notes: string, again?: boolean, confirmed?: boolean) => Promise<EpisodeResearchPanel>;
+  /** Takes the episode's pasted research back out, for a paste that went into the wrong episode. */
+  clear: (ep: Episode) => Promise<EpisodeResearchPanel>;
   apply: (ep: Episode, items: ApplyItem[]) => Promise<{ state: LeagueState; applied: ResearchApplySummary }>;
 }
 
@@ -40,7 +44,8 @@ export function useResultsSource(): ResultsSource | null {
   if (mode === "live" && leagueId) {
     return {
       load: (ep, again) => api.episodeResearch(leagueId, ep.id, again),
-      submit: (ep, notes, again) => api.submitEpisodeResearch(leagueId, ep.id, notes, again),
+      submit: (ep, notes, again, confirmed) => api.submitEpisodeResearch(leagueId, ep.id, notes, again, confirmed),
+      clear: (ep) => api.clearEpisodeResearch(leagueId, ep.id),
       apply: (ep, items) =>
         api.applyEpisodeResearch(
           leagueId,
@@ -58,6 +63,11 @@ export function useResultsSource(): ResultsSource | null {
         const t = useTourStore.getState();
         useTourStore.setState({ staged: { ...t.staged, [ep.number]: t.staged[ep.number] ?? stageResults(ep.number) } });
         return tourPanel(full(), ep.number, useTourStore.getState().staged[ep.number]);
+      },
+      clear: async (ep) => {
+        const { [ep.number]: _gone, ...rest } = useTourStore.getState().staged;
+        useTourStore.setState({ staged: rest });
+        return tourPanel(full(), ep.number, undefined);
       },
       apply: async (ep, items) => {
         const state = full();

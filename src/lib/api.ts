@@ -484,11 +484,13 @@ export const api = {
   // this league only.
   episodeResearch: (leagueId: string, epId: string, again = false) =>
     localFetch<EpisodeResearchPanel>(`/api/leagues/${leagueId}/episodes/${epId}/research${again ? "?again=1" : ""}`),
-  submitEpisodeResearch: (leagueId: string, epId: string, notes: string, again = false) =>
+  submitEpisodeResearch: (leagueId: string, epId: string, notes: string, again = false, confirmed = false) =>
     localFetch<EpisodeResearchPanel>(`/api/leagues/${leagueId}/episodes/${epId}/research`, {
       method: "POST",
-      body: JSON.stringify({ notes, again }),
+      body: JSON.stringify({ notes, again, confirmed }),
     }),
+  clearEpisodeResearch: (leagueId: string, epId: string) =>
+    localFetch<EpisodeResearchPanel>(`/api/leagues/${leagueId}/episodes/${epId}/research`, { method: "DELETE" }),
   applyEpisodeResearch: (
     leagueId: string,
     epId: string,

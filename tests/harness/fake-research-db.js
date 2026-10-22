@@ -68,6 +68,33 @@ function fakeResearchDb({ shows = [], seasons = [], seasonCast = [], leagues = [
     if (s.startsWith("SELECT payload FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number < $3")) {
       return rows(db.research.filter((r) => r.show_id === params[0] && r.season_number === params[1] && r.episode_number < params[2]));
     }
+    if (s.startsWith("SELECT episode_number, payload->>'episodeTitle' AS title")) {
+      return rows(
+        db.research
+          .filter((r) => r.show_id === params[0] && r.season_number === params[1])
+          .map((r) => ({ episode_number: r.episode_number, title: r.payload.episodeTitle ?? null, air_date: r.payload.airDate ?? null, summary: r.payload.summary ?? null }))
+      );
+    }
+    if (s.startsWith("DELETE FROM episode_research WHERE show_id=$1")) {
+      const before = db.research.length;
+      db.research = db.research.filter((r) => !(r.show_id === params[0] && r.season_number === params[1] && r.episode_number === params[2]));
+      db.log.push({ write: "cleared", key: params });
+      return { rows: [], rowCount: before - db.research.length };
+    }
+    if (s.startsWith("DELETE FROM episode_text_chunks")) return rows([]);
+    if (s.startsWith("UPDATE season_decisions SET from_research = false WHERE season_id=$1 AND episode_number=$2")) {
+      for (const d of db.decisions) {
+        if (d.season_id === params[0] && d.episode_number === params[1] && d.status === "pending" && d.from_research) d.from_research = false;
+      }
+      return rows([]);
+    }
+    if (s.startsWith("DELETE FROM season_decisions WHERE season_id=$1 AND episode_number=$2")) {
+      const before = db.decisions.length;
+      db.decisions = db.decisions.filter(
+        (d) => !(d.season_id === params[0] && d.episode_number === params[1] && d.status === "pending" && !d.from_wiki && !d.from_research)
+      );
+      return { rows: [], rowCount: before - db.decisions.length };
+    }
     if (s.startsWith("SELECT payload, provenance, researched_at FROM episode_research")) {
       return rows(db.research.filter((r) => r.show_id === params[0] && r.season_number === params[1] && r.episode_number === params[2]));
     }

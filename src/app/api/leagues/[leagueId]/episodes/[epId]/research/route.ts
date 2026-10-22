@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
-import { researchFromPasteForLeague } from "@db/episode-research.js";
+import { clearLeagueResearch, researchFromPasteForLeague } from "@db/episode-research.js";
 import { episodeResearchPanel, researchableEpisode } from "@/lib/server/episode-research-panel";
 
 // A commissioner's episode research (docs/PLAN-episode-research-compiled-cache.md) -- for a league no
@@ -14,6 +14,10 @@ import { episodeResearchPanel, researchableEpisode } from "@/lib/server/episode-
 //   POST -- `{ notes, again? }`: the chat's JSON answer to that prompt. Merged into the episode's stored
 //           research and staged as season decisions -- the shared cache, which the next league on the
 //           season reads. Changes NO league: applying is .../research/apply, this league's own step.
+//           409 (nothing saved) when the answer reads like another episode's: the same body again with
+//           `confirmed: true` is the commissioner saying it's right.
+//   DELETE -- takes the episode's pasted research back out (the shared answers and the results only
+//           research proposed), so a paste into the wrong episode can be undone. Changes NO league.
 //
 // JSON only, so it's free: no model call on the site's key (see leagueResearchStatus).
 
@@ -35,17 +39,32 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string }> }) => {
   const { leagueId, epId } = await params;
   await requireLeagueRole(req, leagueId, "commissioner");
-  const { notes, again } = (await req.json().catch(() => ({}))) as { notes?: unknown; again?: unknown };
+  const { notes, again, confirmed } = (await req.json().catch(() => ({}))) as { notes?: unknown; again?: unknown; confirmed?: unknown };
   if (typeof notes !== "string" || !notes.trim()) throw new HttpError(400, "Paste the chat's answer first.");
   const state = await leagueState(leagueId);
   const ep = researchableEpisode(state, epId);
 
   let problems: string[] = [];
   try {
-    const run = await researchFromPasteForLeague(pool, leagueId, ep.number, notes, { again: again === true });
+    const run = await researchFromPasteForLeague(pool, leagueId, ep.number, notes, { again: again === true, confirmed: confirmed === true });
     problems = run.problems;
   } catch (e) {
+    // Not refused: the page asks the commissioner to confirm, then sends the same paste with `confirmed`.
+    if (e instanceof Error && (e as Error & { code?: string }).code === "EPISODE_MISMATCH") throw new HttpError(409, e.message);
     throw new HttpError(400, e instanceof Error ? e.message : "That answer couldn't be read.");
   }
   return NextResponse.json({ ...(await episodeResearchPanel(leagueId, state, ep.number)), problems });
+});
+
+export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string }> }) => {
+  const { leagueId, epId } = await params;
+  await requireLeagueRole(req, leagueId, "commissioner");
+  const state = await leagueState(leagueId);
+  const ep = researchableEpisode(state, epId);
+  try {
+    await clearLeagueResearch(pool, leagueId, ep.number);
+  } catch (e) {
+    throw new HttpError(400, e instanceof Error ? e.message : "Couldn't clear this episode's research.");
+  }
+  return NextResponse.json(await episodeResearchPanel(leagueId, state, ep.number));
 });

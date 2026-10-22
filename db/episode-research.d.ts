@@ -117,14 +117,24 @@ export function leagueResearchStatus(
  * merged into them rather than replacing them, and staged as season decisions. Creates the season's
  * catalog row if the league's season had none. Throws if everyone is already settled -- unless `again`,
  * the answer to the everyone-again prompt, which is filled into the stored answers field by field.
+ *
+ * Throws an error with `code: "EPISODE_MISMATCH"` (and a message fit to show) when the answer's title,
+ * summary or air date read like another episode's, saving nothing; `confirmed` is the commissioner
+ * having been asked and saying go ahead.
  */
 export function researchFromPasteForLeague(
   pool: Pool,
   leagueId: string,
   episodeNumber: number,
   notes: string,
-  opts?: { again?: boolean }
+  opts?: { again?: boolean; confirmed?: boolean }
 ): Promise<EpisodeResearchRun & { coverage: ResearchCoverage }>;
+
+/**
+ * Takes the research pasted for one episode back out: the shared stored answers and every staged
+ * result only research proposed (decided ones, and ones the wiki also reported, stay). No league changes.
+ */
+export function clearLeagueResearch(pool: Pool, leagueId: string, episodeNumber: number): Promise<{ cleared: boolean; withdrawn: number }>;
 
 /**
  * The research answer to one side bet, looked up by its wording. `researched` is false when the

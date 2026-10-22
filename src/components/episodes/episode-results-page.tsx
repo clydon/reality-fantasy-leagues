@@ -77,6 +77,10 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
   const [problems, setProblems] = useState<string[]>([]);
   const [fixing, setFixing] = useState<string | null>(null);
   const [showOpened, setShowOpened] = useState(false);
+  // The server's reason the paste reads like another episode's (it saved nothing, 409), until the
+  // commissioner says it's right or changes the box.
+  const [mismatch, setMismatch] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const tourSample = useTourSample("results");
 
   // The staged spelling, resolved to this league's own where it matches someone, so the correction
@@ -132,18 +136,45 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
     }
   }
 
-  async function submit() {
+  // A new answer, or an emptied box, drops a question about the last one.
+  function changeAnswer(text: string) {
+    setAnswer(text);
+    setMismatch(null);
+  }
+
+  async function submit(confirmed = false) {
     setBusy(true);
     setError(null);
     setNote(null);
+    setMismatch(null);
     try {
-      const p = await source!.submit(ep, answer, !!panel?.again);
+      const p = await source!.submit(ep, answer, !!panel?.again, confirmed);
       show(p);
       setProblems(p.problems ?? []);
       setAnswer("");
       setNote("Added to this episode's research. Check what it found, then apply it.");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "That answer couldn't be read.");
+      if (e instanceof ApiError && e.status === 409) setMismatch(e.message);
+      else setError(e instanceof ApiError ? e.message : "That answer couldn't be read.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Takes the pasted research back out (the wrong episode's answer, say): the episode asks afresh.
+  async function clearResearch() {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    setProblems([]);
+    setMismatch(null);
+    try {
+      show(await source!.clear(ep));
+      setAnswer("");
+      setConfirmClear(false);
+      setNote(`Cleared. Episode ${ep.number} is ready for a fresh answer.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't clear this episode's research.");
     } finally {
       setBusy(false);
     }
@@ -267,20 +298,38 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
               )}
             </StepRow>
             <StepRow n={2} on={current === 2} label={<label htmlFor="research-answer">Paste its answer</label>}>
-              <PasteBar value={answer} onChange={setAnswer} sample={tourSample ? () => tourSample(ep.number) : undefined} tourId={`results-paste-${ep.number}`} tone={current === 2 ? "chyron" : "plain"} disabled={busy} />
+              <PasteBar value={answer} onChange={changeAnswer} sample={tourSample ? () => tourSample(ep.number) : undefined} tourId={`results-paste-${ep.number}`} tone={current === 2 ? "chyron" : "plain"} disabled={busy} />
               <textarea
                 id="research-answer"
                 rows={4}
                 className={cn(fieldCls, "min-h-[96px] resize-y py-3 font-mono text-sm")}
                 placeholder="Or paste what the chat wrote back here"
                 value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
+                onChange={(e) => changeAnswer(e.target.value)}
               />
-              <span className="self-start" data-tour="results-read">
-                <ActButton tone={current === 2 ? "chyron" : "plain"} disabled={busy || !answer.trim()} onClick={submit}>
-                  {busy ? "Reading…" : "Read the answer"}
-                </ActButton>
-              </span>
+              {mismatch ? (
+                <div role="alert" className="flex flex-col gap-2.5 rounded-[3px] border border-live/40 px-3 py-3">
+                  <p className="text-[15px] font-semibold text-live">Is this really episode {ep.number}?</p>
+                  <p className="text-sm leading-snug">{mismatch}</p>
+                  <p className="text-[13px] leading-snug text-muted-foreground">
+                    Nothing is saved yet. Adding it puts it in episode {ep.number}&rsquo;s research, shared with other leagues on this season.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <ActButton tone="chyron" disabled={busy} onClick={() => changeAnswer("")}>
+                      Clear the box
+                    </ActButton>
+                    <ActButton disabled={busy} onClick={() => submit(true)}>
+                      {busy ? "Reading…" : `It is episode ${ep.number}, add it`}
+                    </ActButton>
+                  </div>
+                </div>
+              ) : (
+                <span className="self-start" data-tour="results-read">
+                  <ActButton tone={current === 2 ? "chyron" : "plain"} disabled={busy || !answer.trim()} onClick={() => submit()}>
+                    {busy ? "Reading…" : "Read the answer"}
+                  </ActButton>
+                </span>
+              )}
               <span className="text-[13px] text-muted-foreground">
                 Shared with other leagues on this season. It changes yours only when you apply it.
               </span>
@@ -373,6 +422,33 @@ function ResultsBody({ ep, state }: { ep: Episode; state: LeagueState }) {
               {busy ? "Applying…" : toApply === 0 ? "Tick a result to apply it" : `Apply ${toApply} found so far`}
             </ActButton>
           )}
+          {c.researched &&
+            (confirmClear ? (
+              <div role="alert" className="flex flex-col gap-2.5 rounded-[3px] border border-live/40 px-3 py-3">
+                <p className="text-[15px] font-semibold text-live">Clear episode {ep.number}&rsquo;s research?</p>
+                <p className="text-sm leading-snug text-muted-foreground">
+                  This removes the answer pasted for this episode and the results it found, for every league on this season. Nothing in any league changes
+                  {applied.length > 0 ? `: the ${applied.length} already in yours stay` : ""}. You can paste a fresh answer afterwards.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <ActButton tone="chyron" disabled={busy} onClick={() => setConfirmClear(false)}>
+                    Keep it
+                  </ActButton>
+                  <ActButton disabled={busy} onClick={clearResearch}>
+                    {busy ? "Clearing…" : "Clear it"}
+                  </ActButton>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirmClear(true)}
+                className="self-start text-[13px] font-semibold text-live underline-offset-2 hover:underline disabled:opacity-45"
+              >
+                Pasted the wrong episode? Clear this episode&rsquo;s research
+              </button>
+            ))}
         </StepRow>
       </ol>
 

@@ -351,3 +351,128 @@ test("league path: an empty league roster is a clear error (cast first), not an 
   db.leagues[0].state.castaways = [];
   await assert.rejects(R.leagueResearchStatus(pool, "league-a", 1), /No cast to ask about/);
 });
+
+// ---------- is this paste for THIS episode? / clearing it ----------
+
+const titled = (title, airDate, summary) => ({ episodeTitle: title, airDate, summary });
+const stash = (episode_number, title, air_date, summary = null) => ({ episode_number, title, air_date, summary });
+
+test("mismatch: a paste carrying another episode's title is caught, and says which", () => {
+  const m = R.pasteEpisodeMismatch(titled("The Sleeper Agent", null, ""), 6, { siblings: [stash(5, "The Sleeper Agent", "October 8, 2026"), stash(4, "Other", null)] });
+  assert.equal(m.episode, 5);
+  assert.match(m.message, /looks like episode 5's results, not episode 6's/);
+  assert.match(m.message, /The Sleeper Agent/);
+});
+
+test("mismatch: titles compare loosely, and the episode's own title is never a mismatch", () => {
+  const known = { siblings: [stash(5, "The Sleeper Agent", null), stash(6, "Fire in the Hole", null)] };
+  assert.equal(R.pasteEpisodeMismatch(titled("the sleeper agent!", null, ""), 6, known).episode, 5);
+  assert.equal(R.pasteEpisodeMismatch(titled("Fire in the Hole", null, ""), 6, known), null);
+});
+
+test("mismatch: another episode's air date, from stored research or the dates the league holds", () => {
+  const fromResearch = R.pasteEpisodeMismatch(titled(null, "October 8, 2026", ""), 6, { siblings: [stash(5, null, "October 8, 2026")] });
+  assert.equal(fromResearch.episode, 5);
+  assert.match(fromResearch.message, /dated October 8, 2026, the day episode 5 aired/);
+  const fromLeague = R.pasteEpisodeMismatch(titled(null, "October 8, 2026", ""), 6, {
+    leagueEpisodes: [{ number: 5, airDate: "October 9, 2026" }, { number: 6, airDate: "October 16, 2026" }],
+  });
+  assert.equal(fromLeague.episode, 5, "a day apart is the same night in another time zone");
+});
+
+test("mismatch: the estimated schedule (airsAt) is never compared: a week off the air would make it wrong for every later episode", () => {
+  const leagueEpisodes = [{ number: 5, airsAt: "2026-10-09T00:00:00.000Z" }, { number: 6, airsAt: "2026-10-16T00:00:00.000Z" }];
+  assert.equal(R.pasteEpisodeMismatch(titled(null, "October 22, 2026", ""), 6, { leagueEpisodes }), null);
+});
+
+test("mismatch: the same words as another episode's summary", () => {
+  const text = "Ada was voted out after a tied vote and a rock draw at a chaotic tribal council.";
+  assert.equal(R.pasteEpisodeMismatch(titled(null, null, text), 6, { siblings: [stash(5, null, null, text)] }).episode, 5);
+  assert.equal(R.pasteEpisodeMismatch(titled(null, null, "Short."), 6, { siblings: [stash(5, null, null, "Short.")] }), null, "too short to mean anything");
+});
+
+test("mismatch: a date that fits this episode, or a paste with nothing to compare, passes", () => {
+  const siblings = [stash(5, "Five", "October 8, 2026")];
+  const leagueEpisodes = [{ number: 6, airDate: "October 15, 2026" }];
+  assert.equal(R.pasteEpisodeMismatch(titled("Six", "October 15, 2026", ""), 6, { siblings, leagueEpisodes }), null);
+  assert.equal(R.pasteEpisodeMismatch(titled("Six", "October 16, 2026", ""), 6, { siblings, leagueEpisodes }), null, "a day out is a time zone, not a different episode");
+  assert.equal(R.pasteEpisodeMismatch(titled(null, null, ""), 6, { siblings, leagueEpisodes }), null);
+  assert.equal(R.pasteEpisodeMismatch(titled("Six", "no idea", ""), 6, { siblings, leagueEpisodes }), null);
+  assert.equal(R.pasteEpisodeMismatch(titled("Six", "October 15, 2026", ""), 6, {}), null);
+});
+
+test("mismatch: two episodes on one night don't flag each other when the date fits this one", () => {
+  const siblings = [stash(11, "Part one", "December 17, 2026")];
+  const leagueEpisodes = [{ number: 12, airDate: "December 17, 2026" }];
+  assert.equal(R.pasteEpisodeMismatch(titled("Part two", "December 17, 2026", ""), 12, { siblings, leagueEpisodes }), null);
+});
+
+test("mismatch: a date weeks off this episode's own, matching no other, is flagged more gently", () => {
+  const m = R.pasteEpisodeMismatch(titled(null, "September 3, 2026", ""), 6, { leagueEpisodes: [{ number: 6, airDate: "October 15, 2026" }] });
+  assert.equal(m.episode, null);
+  assert.match(m.message, /may not be episode 6's results: they're dated September 3, 2026, but episode 6 is dated October 15, 2026/);
+});
+
+// A chat answer that carries its episode's title, date and summary.
+const dated = (names, title, airDate, edits = {}) => {
+  const body = JSON.parse(chatAnswer(names, edits).slice(8, -4));
+  Object.assign(body, { episodeTitle: title, airDate, summary: `${title}: the tribes met and somebody went home at tribal council.` });
+  return JSON.stringify(body);
+};
+
+test("league path: episode 1's answer pasted into episode 2 is held for confirming, saves nothing, and goes through once confirmed", async () => {
+  const { db, pool } = selfServeWorld();
+  const answer = dated(CAST, "The Sleeper Agent", "October 8, 2026", { "Ada Lovelace": { leftTheGame: "yes", exitMethod: "Voted Out" } });
+  await R.researchFromPasteForLeague(pool, "league-a", 1, answer);
+  assert.equal(db.research.length, 1);
+  const decisions = db.decisions.length;
+
+  await assert.rejects(R.researchFromPasteForLeague(pool, "league-a", 2, answer), (e) => e.code === "EPISODE_MISMATCH" && /looks like episode 1's results, not episode 2's/.test(e.message));
+  assert.equal(db.research.length, 1, "nothing was stored for episode 2");
+  assert.equal(db.decisions.length, decisions, "nothing was staged");
+
+  await R.researchFromPasteForLeague(pool, "league-a", 2, answer, { confirmed: true });
+  assert.deepEqual(db.research.map((r) => r.episode_number).sort(), [1, 2]);
+});
+
+test("league path: its own episode's answer, and one with no title or date, are not held", async () => {
+  const { db, pool } = selfServeWorld();
+  await R.researchFromPasteForLeague(pool, "league-a", 1, dated(CAST, "The Sleeper Agent", "October 8, 2026"));
+  await R.researchFromPasteForLeague(pool, "league-a", 2, dated(CAST, "Fire in the Hole", "October 15, 2026"));
+  await R.researchFromPasteForLeague(pool, "league-a", 3, chatAnswer(CAST));
+  assert.equal(db.research.length, 3);
+});
+
+test("clear: takes the episode's research and research-only results back out, and keeps what an admin or the wiki also holds", async () => {
+  const { db, pool } = selfServeWorld();
+  const win = { wonIndividualImmunity: "yes" };
+  const answer = dated(CAST, "The Sleeper Agent", "October 8, 2026", { "Alan Turing": win, "Katherine Johnson": win, "Grace Hopper": win });
+  await R.researchFromPasteForLeague(pool, "league-a", 1, answer);
+  await R.researchFromPasteForLeague(pool, "league-a", 2, answer, { confirmed: true });
+  const at = (ep) => db.decisions.filter((d) => d.episode_number === ep);
+  assert.equal(at(2).length, 3);
+  // One of episode 2's results was also read by the wiki; one was accepted by an admin; one is research's alone.
+  const [wiki, accepted] = at(2);
+  wiki.from_wiki = true;
+  accepted.status = "accepted";
+  const episode1 = at(1).length;
+
+  const out = await R.clearLeagueResearch(pool, "league-a", 2);
+  assert.equal(out.cleared, true);
+  assert.deepEqual(db.research.map((r) => r.episode_number), [1], "episode 1's research is untouched");
+  assert.equal(at(1).length, episode1);
+  assert.deepEqual(at(2).map((d) => d.id).sort(), [wiki.id, accepted.id].sort());
+  assert.equal(wiki.from_research, false, "the wiki still reports it; research no longer does");
+  assert.equal(db.leagues.every((l) => l.state.castaways.every((c) => c.status === "active")), true, "no league changed");
+
+  // The episode asks its question afresh.
+  const status = await R.leagueResearchStatus(pool, "league-a", 2);
+  assert.equal(status.coverage.researched, false);
+  assert.ok(status.prompt.includes("Alan Turing"));
+});
+
+test("clear: an episode with nothing pasted is a harmless no-op", async () => {
+  const { pool } = selfServeWorld();
+  const out = await R.clearLeagueResearch(pool, "league-a", 4);
+  assert.deepEqual(out, { cleared: false, withdrawn: 0 });
+});

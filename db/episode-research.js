@@ -59,6 +59,7 @@ const ShowFormats = require("./show-formats.js");
 // rules ask by the episode it's researching, not just what the show's format asks.
 const SeasonRuleChanges = require("./season-rule-changes.js");
 const embeddings = require("./embeddings.js");
+const Air = require("../src/lib/game/air-schedule.js");
 
 // ---------- the checklist ----------
 // Deliberately three-valued. `unknown` is not a failure state, it is the honest answer when the
@@ -1977,8 +1978,138 @@ async function researchFromPasteForLeague(pool, leagueId, episodeNumber, notes, 
   }
   const seasonId = await ensureSeasonRow(pool, ctx);
   const asked = { ...ctx, seasonId, castNames: again ? ctx.castNames : coverage.needsAsking };
-  const run = await pastedRun(pool, asked, episodeNumber, trimmed, { ...opts, structured: true, merge: true, fill: again });
+  const run = await pastedRun(pool, asked, episodeNumber, trimmed, {
+    ...opts,
+    structured: true,
+    merge: true,
+    fill: again,
+    // Checked against what the league and the stored research know of every episode, unless the
+    // commissioner has already been asked and said yes (`opts.confirmed`).
+    checkEpisode: !opts.confirmed,
+    leagueEpisodes: (ctx.league && ctx.league.state && ctx.league.state.episodes) || [],
+  });
   return { ...run, coverage };
+}
+
+// ---------- is this paste for THIS episode? ----------
+// Pasting last week's answer into this week's box is easy to do and hard to see: the same names, the
+// same layout, and the answer is accepted. The chat does echo the episode's title, air date and a
+// summary though, so a paste that carries ANOTHER episode's is caught here, before it's stored (a
+// stored one is shared with every league on the season). Only a nudge: a confirmed paste goes through.
+
+const normText = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+// A printed air date ("March 5, 2026") as a whole day count, or null if it isn't one we can read.
+function dayNumber(printed) {
+  const d = Air.parseAirDate(printed);
+  if (!d) return null;
+  const [y, m, day] = d.split("-").map(Number);
+  return Date.UTC(y, m - 1, day) / 86400000;
+}
+
+// Within a day: two sources can print the same night a day apart (a time zone), but two episodes are
+// a week apart.
+const sameDay = (a, b) => Math.abs(a - b) <= 1;
+
+/**
+ * Whether a parsed answer reads like another episode's results rather than `episodeNumber`'s.
+ *   siblings        -- [{ episode_number, title, air_date, summary }]: what stored research says of each episode
+ *   leagueEpisodes  -- the league's episodes (number, title, airDate: as the wiki printed them)
+ * Returns { episode, message } or null. `episode` is the one it looks like (null when the paste is only
+ * dated off from this one's own). A paste with no title, date or summary can't be told, so passes. Pure.
+ */
+function pasteEpisodeMismatch(parsed, episodeNumber, { siblings = [], leagueEpisodes = [] } = {}) {
+  const facts = new Map();
+  const of = (n) => {
+    if (!facts.has(n)) facts.set(n, { titles: new Set(), summaries: new Set(), days: [], printed: null });
+    return facts.get(n);
+  };
+  const know = (n, title, printed, summary) => {
+    const f = of(n);
+    if (normText(title)) f.titles.add(normText(title));
+    if (normText(summary).length >= 30) f.summaries.add(normText(summary));
+    const day = dayNumber(printed);
+    if (day !== null) {
+      f.days.push(day);
+      f.printed = f.printed || printed;
+    }
+  };
+  for (const s of siblings) know(s.episode_number, s.title, s.air_date, s.summary);
+  // Printed dates only: ep.airsAt is a weekly estimate, which a week off the air would put a week out
+  // for every episode after it.
+  for (const e of leagueEpisodes) know(e.number, e.title, e.airDate, null);
+
+  const title = normText(parsed.episodeTitle);
+  const summary = normText(parsed.summary);
+  const day = dayNumber(parsed.airDate);
+  const own = of(episodeNumber);
+  const ownDay = day !== null && own.days.some((d) => sameDay(d, day));
+
+  const others = [...facts.keys()].filter((n) => n !== episodeNumber).sort((a, b) => Math.abs(a - episodeNumber) - Math.abs(b - episodeNumber));
+  for (const n of others) {
+    const f = facts.get(n);
+    let reason = null;
+    if (title && f.titles.has(title) && !own.titles.has(title)) reason = `its title, "${parsed.episodeTitle}", is episode ${n}'s`;
+    else if (summary.length >= 30 && f.summaries.has(summary) && !own.summaries.has(summary)) reason = `its summary is word for word episode ${n}'s`;
+    else if (day !== null && !ownDay && f.days.some((d) => sameDay(d, day))) reason = `it's dated ${parsed.airDate}, the day episode ${n} aired`;
+    if (reason) return { episode: n, message: `This looks like episode ${n}'s results, not episode ${episodeNumber}'s: ${reason}.` };
+  }
+  // A date well off this episode's own, and not another's we know: a weaker sign, but worth a look.
+  if (day !== null && own.days.length && !ownDay && !own.days.some((d) => Math.abs(d - day) <= 4)) {
+    return {
+      episode: null,
+      message: `This may not be episode ${episodeNumber}'s results: they're dated ${parsed.airDate}, but episode ${episodeNumber} is dated ${own.printed || "another day"}.`,
+    };
+  }
+  return null;
+}
+
+// What stored research says of each episode of the season, for pasteEpisodeMismatch.
+async function siblingEpisodeFacts(pool, ctx) {
+  const { rows } = await pool.query(
+    "SELECT episode_number, payload->>'episodeTitle' AS title, payload->>'airDate' AS air_date, payload->>'summary' AS summary FROM episode_research WHERE show_id=$1 AND season_number=$2",
+    [ctx.showId, ctx.season]
+  );
+  return rows;
+}
+
+/**
+ * Takes a commissioner's pasted research for one episode back out: the shared stored answers (and their
+ * search chunks) and every staged result that only research proposed, so the episode asks its question
+ * afresh. Results an admin has decided, or the wiki also reported, stay. Changes no league -- what a
+ * league has already applied stays applied.
+ */
+async function clearLeagueResearch(pool, leagueId, episodeNumber) {
+  requireEpisodeNumber(episodeNumber);
+  const ctx = await resolveResearchContext(pool, leagueId, episodeNumber);
+  const key = [ctx.showId, ctx.season, episodeNumber];
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // The same lock a merging paste takes, so a clear can't land in the middle of one.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`episode_research:${ctx.showId}:${ctx.season}:${episodeNumber}`]);
+    const gone = await client.query("DELETE FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3", key);
+    await client.query("DELETE FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2 AND episode_number=$3", key);
+    let withdrawn = 0;
+    if (ctx.seasonId) {
+      await client.query(
+        "UPDATE season_decisions SET from_research = false WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND from_research",
+        [ctx.seasonId, episodeNumber]
+      );
+      const del = await client.query(
+        "DELETE FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND NOT from_wiki AND NOT from_research",
+        [ctx.seasonId, episodeNumber]
+      );
+      withdrawn = del.rowCount;
+    }
+    await client.query("COMMIT");
+    return { cleared: gone.rowCount > 0, withdrawn };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 // The body both paste paths share: structure (or parse) the paste, hold it to the checklist, store it,
@@ -2016,6 +2147,15 @@ async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
     ({ parsed, usage } = await PROVIDERS.anthropic.structure({ notes: trimmed, schema, model }));
   }
   if (bets.length) parsed.betAnswers = betAnswersFrom(parsed, bets);
+
+  if (opts.checkEpisode) {
+    const mismatch = pasteEpisodeMismatch(parsed, episodeNumber, {
+      siblings: await siblingEpisodeFacts(pool, ctx),
+      leagueEpisodes: opts.leagueEpisodes,
+    });
+    // `code` lets the route tell it from a bad paste: it asks the commissioner to confirm rather than refusing.
+    if (mismatch) throw Object.assign(new Error(mismatch.message), { code: "EPISODE_MISMATCH", episode: mismatch.episode });
+  }
 
   const review = validateResearch(parsed, ctx.castNames, ctx.terms, ctx.format, { partial: !!opts.merge, groups: ctx.castGroups });
   review.problems.unshift(...(parsed.repairs || []));
@@ -2244,6 +2384,8 @@ module.exports = {
   buildPasteImportPrompt,
   researchFromPaste,
   researchFromPasteForLeague,
+  clearLeagueResearch,
+  pasteEpisodeMismatch,
   leagueResearchStatus,
   researchCoverage,
   mergeResearchPayload,
