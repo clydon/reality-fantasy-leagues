@@ -131,7 +131,15 @@ const { open } = require("./browser");
     if (label === "full couch" && !(await page.locator(".hn-now").count())) fail("full couch: no Who's on now strip");
     if (label === "new couch" && await page.locator('[data-past]').count()) fail("new couch: the trophy shelf shows before any season ended");
     if (label === "new couch" && (await page.locator("#supSec").textContent()).includes("Severance")) fail("new couch: a superlative names a show the couch doesn't have");
+    if (!(await page.locator("#supSec .sp-card.cast").count())) fail(`${label}: By the numbers has no cast stats`);
   }
+  await fresh("#/hub");
+  const castCard = page.locator("#supSec .sp-card.cast").first(), stat = (await castCard.locator(".sp-t").textContent()).trim();
+  await castCard.click();
+  await page.waitForTimeout(400);
+  const lead = (await page.locator("#page .st-cat").first().locator("h2").textContent()).trim();
+  if (lead.toLowerCase() !== stat.toLowerCase()) fail(`By the numbers card "${stat}" opened the stats led by "${lead}"`);
+  await shot("stats-sorted");
   await fresh("#/hub");
   await page.click('#cbRow [data-cb="start"]');
   await expectText("#sheet", "Pick the show");

@@ -42,13 +42,19 @@ function recapShelfHTML(){const L=SHOWS.filter(s=>follows(s)&&whereOf(s,'alex')>
 function verdictsHTML(){const L=SHOWS.filter(s=>follows(s)&&whereOf(s,'alex')>0&&!(s.dropAt&&s.dropAt>Date.now())).slice(0,4);if(!L.length)return '';
   return `<section class="sec"><div class="sh"><h2 class="cap">Couch verdicts</h2><span class="aside">The episodes you've seen</span></div><div class="cv-list">${L.map(s=>{const e=Math.min(whereOf(s,'alex'),s.eps||99),take=(WADATA[s.id]&&WADATA[s.id].lines[0])||null,mine=W.rates[s.id+e];
     return `<button class="cv-row" data-verdict="${s.id}"><img src="${ART(s.art)}" alt="" style="object-position:${s.pos}"><span class="tx"><b>${s.short} · Episode ${e}</b><small>${take?`${take[1]}: "${take[2]}"`:'No takes yet'}</small></span><span class="cv-sc"><b class="num">★ ${verdict(s,e)}</b><small>${mine?`you ${mine}`:'Rate it'}</small></span></button>`}).join('')}</div></section>`}
-// superlatives: measurable accolades about the couch; a few at a time, shuffled
-const SUPERS=[()=>['Most shows on their list','riley','7 shows'],()=>['Most-watched show',SHOWS.find(s=>s.id==='surv')?'Survivor':SHOWS[0].name,`${N===4?'4 of 4':'11 of 12'} watch it`],
-  ()=>['Never voted for','sam','0 votes in couch polls'],()=>['Most reactions this month','riley','41 reactions'],()=>['Never misses a rating','sam','6 weeks straight'],
-  ()=>['Taste twins','you + riley','agree 82% of the time'],()=>['The contrarian','jordan','rates a star off the couch'],()=>SHOWS.some(s=>s.id==='sev')?['First to finish','jordan','Severance, in 4 days']:null,
-  ()=>anyGames()?['Called it most','jordan','7 predictions right']:null,()=>anyGames()?['Longest Survival Pool streak','riley','4 in a row']:null,()=>['Most watch alongs','sam','9 this month']];
-function supersHTML(){const all=SUPERS.map(f=>f()).filter(Boolean),pick=all.sort(()=>Math.random()-.5).slice(0,3);
-  return `<section class="sec" id="supSec"><div class="sh"><h2 class="cap">Couch superlatives</h2><button class="link" data-shuffle>Shuffle</button></div><div class="sp-row">${pick.map(([t,who,d])=>`<div class="sp-card">${svg('crown')}<span class="cap">${t}</span><b>${who}</b><small>${d}</small></div>`).join('')}</div></section>`}
+// By the numbers: cast stats from the couch's shows lead ("who's had the most votes against them?"); each card opens
+// that show's stats sorted by it. Now and then one card is about the couch itself. Only shows the couch has.
+const COUCH_SUPERS=[()=>['Most shows on their list','riley','7 shows'],()=>['Most-watched show',SHOWS.find(s=>s.id==='surv')?'Survivor':SHOWS[0].name,`${N===4?'4 of 4':'11 of 12'} watch it`],
+  ()=>['Most reactions this month','riley','41 reactions'],()=>['Never misses a rating','sam','6 weeks straight'],()=>['Taste twins','you + riley','agree 82% of the time'],
+  ()=>['The contrarian','jordan','rates a star off the couch'],()=>SHOWS.some(s=>s.id==='sev')?['First to finish','jordan','Severance, in 4 days']:null,
+  ()=>anyGames()?['Called it most','jordan','7 predictions right']:null,()=>['Most watch alongs','sam','9 this month']];
+function castSupers(){const out=[];SHOWS.filter(s=>hasStats(s)&&follows(s)&&whereOf(s,'alex')>0).forEach(s=>STATS[s.id].cats.forEach(([k,t,u],ci)=>{const L=statLeader(s,k);if(L)out.push({s,ci,t,u,L})}));return out}
+const shuffled=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);
+function supersHTML(){const C=castSupers(),cast=[...shuffled(C.filter(x=>x.L.n>=2)),...shuffled(C.filter(x=>x.L.n<2))],couch=shuffled(COUCH_SUPERS.map(f=>f()).filter(Boolean));
+  const n=cast.length?(Math.random()<.5?3:4):0,cards=cast.slice(0,n).map(({s,ci,t,u,L})=>`<button class="sp-card cast" data-stats="${s.id}" data-cat="${ci}"><span class="sp-show"><img src="${ART(s.art)}" alt="" style="object-position:${s.pos}"><span class="cap">${s.short}</span></span><img class="sp-face" src="${ph(L.c)}" alt=""><span class="sp-t cap">${t}</span><b>${first(L.c.name)}</b><small>${L.n} ${unit(u,L.n)}</small><span class="sp-go">See the board ${svg('chev')}</span></button>`);
+  const couchCards=couch.slice(0,cards.length?(cards.length<4?1:0):3).map(([t,who,d])=>`<div class="sp-card couch"><span class="sp-show"><span class="cap">On the couch</span></span>${svg('crown')}<span class="sp-t cap">${t}</span><b>${who}</b><small>${d}</small></div>`);
+  const all=[...cards];couchCards.forEach(c=>all.splice(1+Math.floor(Math.random()*all.length),0,c));
+  return `<section class="sec" id="supSec"><div class="sh"><h2 class="cap">By the numbers</h2><button class="link" data-shuffle>Shuffle</button></div><p class="cb-sub">Up to where you are · tap one for the whole board</p><div class="sp-row" id="spRow">${all.join('')}</div></section>`}
 
 const hubPlus=hub;
 hub=function(){let h=hubPlus();if(N===1)return h;
@@ -69,4 +75,4 @@ wireHub=function(){wireHubPlus();if(N===1)return;
   app.querySelectorAll('[data-recap]').forEach(b=>b.onclick=()=>recapSheet(SHOWS.find(x=>x.id===b.dataset.recap)));
   app.querySelectorAll('[data-verdict]').forEach(b=>b.onclick=()=>rateSheet(SHOWS.find(x=>x.id===b.dataset.verdict)));
   wireShuffle()};
-function wireShuffle(){const sh=app.querySelector('[data-shuffle]');if(sh)sh.onclick=()=>{$('supSec').outerHTML=supersHTML();wireShuffle()}}
+function wireShuffle(){const sh=app.querySelector('[data-shuffle]');if(sh)sh.onclick=()=>{$('supSec').outerHTML=supersHTML();wireShuffle()};wireStats();if($('spRow'))hscroll($('spRow'))}

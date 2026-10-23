@@ -4,23 +4,27 @@
 // not in a game, a Stats tab in place of Standings. Every number comes from the episode research we already
 // collect, counted only up to the episode you're on. Scripted shows get Previously on and Who's who instead.
 const STATS={
-  surv:{season:()=>S51,term:'tribals',cats:[['votedWithMajority','Voted with the majority','times'],['zeroVotesSafe','Never written down','tribals, no votes against'],['survivedVotes','Survived votes against','times'],
+  surv:{season:()=>S51,term:'tribals',cats:[['votedWithMajority','Voted with the majority','times'],['zeroVotesSafe','Never written down','tribals, no votes against'],[['survivedVotes','Voted Out'],'Most votes against','tribals with votes against them'],['survivedVotes','Survived votes against','times'],
     ['tribeImmunity','Tribe immunity wins','wins'],['rewardWin','Reward wins','wins'],['idolFound','Idols found','found'],['votedAgainstMajority','Voted against the majority','times'],['learnedOfAdvantage','Learned of an advantage','times']]},
   trt:{season:()=>TRT,term:'Round Tables',cats:[['zeroVotes','Never voted for at the Round Table','Round Tables'],['shieldWon','Shields won','shields'],['votedOutFaithful','Voted out a Faithful','times'],['survivedRoundTable','Survived votes at the Round Table','times']]}};
 const hasStats=s=>!!STATS[s.id];
-function statBoard(s,key){const src=STATS[s.id].season(),w=whereOf(s,'alex');
-  return src.cast.map(c=>({c,n:(c.why||[]).filter(x=>x[0]<=w&&x[1]===key).length,out:c.exitEp&&c.exitEp<=w?c.exitEp:0})).filter(r=>r.n>0).sort((a,b)=>b.n-a.n||(!!a.out-!!b.out))}
+// "1 time", "2 times": a unit's first word loses its s for one
+const unit=(u,n)=>n===1?u.replace(/^(\w+?)s\b/,'$1').replace(/^Round Tables/,'Round Table'):u;
+// a category counts one event, or several (Most votes against = votes survived + being voted out)
+function statBoard(s,key){const src=STATS[s.id].season(),w=whereOf(s,'alex'),keys=[].concat(key);
+  return src.cast.map(c=>({c,n:(c.why||[]).filter(x=>x[0]<=w&&keys.includes(x[1])).length,out:c.exitEp&&c.exitEp<=w?c.exitEp:0})).filter(r=>r.n>0).sort((a,b)=>b.n-a.n||(!!a.out-!!b.out))}
 const statLeader=(s,key)=>statBoard(s,key)[0];
 function statRows(s,key,max){return statBoard(s,key).slice(0,max).map((r,i)=>`<div class="st-row${r.out?' out':''}"><span class="rk num">${i+1}</span><img src="${ph(r.c)}" alt=""><span class="nm">${first(r.c.name)}${r.out?`<small>Out · Ep ${r.out}</small>`:''}</span><b class="num">${r.n}</b></div>`).join('')||'<p class="muted small">Nothing yet</p>'}
 // one card for Tonight: the stat of the week, two short boards, then everything
-function statsCard(s){if(!hasStats(s))return '';const S=STATS[s.id],w=whereOf(s,'alex'),[k0,t0,u0]=S.cats[0],lead=statLeader(s,k0),[k1,t1]=S.cats[1],[k2,t2]=S.cats[3]||S.cats[2];
+function statsCard(s){if(!hasStats(s))return '';const S=STATS[s.id],w=whereOf(s,'alex'),[k0,t0,u0]=S.cats[0],lead=statLeader(s,k0),[k1,t1]=S.cats[1],[k2,t2]=S.cats[2];
   return `<section class="blk"><div class="sh"><h2 class="cap">Stats</h2><span class="aside">Up to Episode ${w} · no game needed</span></div>
-    ${lead?`<button class="st-week" data-stats="${s.id}"><img src="${ph(lead.c)}" alt=""><span class="tx"><span class="tg cap">Stat of the week</span><b class="cap">${t0}</b><small>${first(lead.c.name)} · ${lead.n} ${u0}</small></span></button>`:''}
+    ${lead?`<button class="st-week" data-stats="${s.id}" data-cat="0"><img src="${ph(lead.c)}" alt=""><span class="tx"><span class="tg cap">Stat of the week</span><b class="cap">${t0}</b><small>${first(lead.c.name)} · ${lead.n} ${unit(u0,lead.n)}</small></span></button>`:''}
     <div class="st-two"><div><span class="cap">${t1}</span>${statRows(s,k1,3)}</div><div><span class="cap">${t2}</span>${statRows(s,k2,3)}</div></div>
     <button class="st-all" data-stats="${s.id}">All ${S.cats.length} stats ${svg('chev')}</button></section>`}
-function statsBody(s){const S=STATS[s.id],w=whereOf(s,'alex');
-  return `<p class="muted small" style="line-height:1.45;margin-bottom:6px">Counted from each episode's results, up to Episode ${w}. Nothing past where you are.</p>${S.cats.map(([k,t,u])=>`<div class="st-cat"><div class="sh" style="padding:0;margin:16px 0 6px"><h2 class="cap" style="font-size:20px">${t}</h2><span class="aside">${u}</span></div>${statRows(s,k,5)}</div>`).join('')}`}
-function statsPage(s){openPage(`${s.short} stats`,`<div class="st-page">${statsBody(s)}</div>`)}
+// focus: a category index to lead with, sorted by it, the whole cast; the rest follow, top five each
+function statsBody(s,focus){const S=STATS[s.id],w=whereOf(s,'alex'),order=S.cats.map((c,i)=>i).sort((a,b)=>(b===focus)-(a===focus));
+  return `<p class="muted small" style="line-height:1.45;margin-bottom:6px">Counted from each episode's results, up to Episode ${w}. Nothing past where you are.</p>${order.map(i=>{const [k,t,u]=S.cats[i],f=i===focus;return `<div class="st-cat${f?' focus':''}" id="stc${i}"><div class="sh" style="padding:0;margin:16px 0 6px"><h2 class="cap" style="font-size:${f?26:20}px">${t}</h2><span class="aside">${f?'Sorted by this · everyone':u}</span></div>${statRows(s,k,f?99:5)}</div>`}).join('')}`}
+function statsPage(s,focus){openPage(`${s.short} stats`,`<div class="st-page">${statsBody(s,focus)}</div>`)}
 
 // Tonight: the card sits right after Watch along (shows without a game) or at the end (shows with games)
 const anchorWho='<section class="blk"><div class="sh"><h2 class="cap">Who\'s watching</h2>';
@@ -38,7 +42,7 @@ const wireWStats=wireW;
 wireW=function(s){wireWStats(s);wireStats()};
 const wireShowStats=wireShow;
 wireShow=function(s){wireShowStats(s);wireStats()};
-function wireStats(){app.querySelectorAll('[data-stats]').forEach(b=>b.onclick=()=>statsPage(SHOWS.find(x=>x.id===b.dataset.stats)));app.querySelectorAll('[data-recap]').forEach(b=>b.onclick=()=>recapSheet(SHOWS.find(x=>x.id===b.dataset.recap)))}
+function wireStats(){app.querySelectorAll('[data-stats]').forEach(b=>b.onclick=()=>statsPage(SHOWS.find(x=>x.id===b.dataset.stats),b.dataset.cat==null?undefined:+b.dataset.cat));app.querySelectorAll('[data-recap]').forEach(b=>b.onclick=()=>recapSheet(SHOWS.find(x=>x.id===b.dataset.recap)))}
 
 // ---------- Previously on: a spoiler-safe recap up to your episode ----------
 // Survivor and Traitors are written from the results we hold (who left, how); other shows' recaps come from the
