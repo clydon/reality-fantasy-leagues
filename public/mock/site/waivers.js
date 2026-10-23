@@ -12,7 +12,7 @@
 // The data is real Survivor 51 (Jenna out in Episode 4); the other three couch members' claims are made up.
 const WVQ=new URLSearchParams(location.search);
 const WV={ver:WVQ.get('waivers')==='v2'?'v2':'simple',stage:'open',shared:false,seen:false,
-  claims:{},swaps:[],ok:new Set(),own:false,touched:false,src:'season',stat:'pts',run:null,
+  claims:{},swaps:[],own:false,touched:false,src:'season',stat:'pts',run:null,
   set:{feel:'balanced',applied:true,rule:'windows',sched:'every',every:3,swaps:1,autoFill:WVQ.get('waivers')!=='v2'},
   win:{replace:true,swaps:1}};
 const WV_FA=['Sharonda','Devin','Cristian','Linnea','Ori'];
@@ -32,19 +32,26 @@ const wvFree=()=>{const taken=new Set((WV.run||[]).map(r=>r.add)),gone=(WV.run||
 const wvStillFree=()=>{const f=wvFree();return f.length?`${f.slice(0,2).join(' and ')} ${f.length>1?'are':'is'} still free`:"Nobody's left"};
 const wvBest=(skip=[])=>wvFree().filter(n=>!skip.includes(n)).sort((a,b)=>wvPts(b)-wvPts(a));
 const wvPicked=drop=>!!(WV.claims[drop]&&WV.claims[drop].length);
-// simple: each spot nobody has touched gets a different best free agent, backups the best ones nobody's lined up;
-// with auto-fill off (Competitive) nothing is lined up
-function wvLined(){const out=wvOut(),firsts=new Set(WV.swaps.map(p=>p.add)),M={};
-  out.forEach(d=>{if(wvPicked(d))firsts.add(WV.claims[d][0])});
-  out.forEach(d=>{if(wvPicked(d))return;const a=WV.set.autoFill?wvBest([...firsts])[0]:null;M[d]=a?[a]:[];if(a)firsts.add(a)});
-  out.forEach(d=>{if(wvPicked(d))M[d]=WV.claims[d];else if(!WV.shared&&M[d][0])M[d]=M[d].concat(wvBest([...firsts]).slice(0,2))});return M}
-const wvClaim=drop=>WV.ver==='simple'?wvLined()[drop]||[]:WV.claims[drop]||[];
+const wvClaim=drop=>WV.claims[drop]||[];
+// what the research says about someone, up to your episode: the row signals and the picker's filters
+function wvFacts(n){const c=S51C(n),w=seen(wvSurv())||WV_EP,ev=(c.why||[]).filter(x=>x[0]<=w),has=k=>ev.filter(x=>x[1]===k);
+  const wrong=has('votedAgainstMajority');return {va:has('survivedVotes').length,wrong:wrong.length,wrongEp:wrong.length?wrong[wrong.length-1][0]:0,idol:has('idolFound').length-has('idolPlayed').length,
+    tribal:['votedWithMajority','votedAgainstMajority','zeroVotesSafe','survivedVotes'].some(k=>has(k).length),imm:has('tribeImmunity').length+has('individualImmunity').length,lastWrong:wrong.length&&wrong[wrong.length-1][0]>=w-1}}
+function wvSignals(n){const f=wvFacts(n),S=[];
+  if(f.va)S.push(['warn',`${f.va} vote${f.va>1?'s':''} against`]);
+  if(f.wrong)S.push(['warn',`Wrong side of the vote · Ep ${f.wrongEp}`]);
+  if(f.idol>0)S.push(['good','Has an idol']);
+  if(!f.va&&f.tribal&&!f.wrong)S.push(['good','Never written down']);
+  if(!f.tribal)S.push(['','Hasn\'t been to tribal']);
+  return S.slice(0,2)}
+const wvSigHTML=n=>{const S=wvSignals(n);return S.length?`<span class="wv-sig">${S.map(([t,l])=>`<i class="${t}">${l}</i>`).join('')}</span>`:''};
+const WV_FILT=[['clean','Never written down',f=>!f.va],['idol','Has an idol',f=>f.idol>0],['right','Always voted with the majority',f=>f.tribal&&!f.wrong],['imm','Won immunity',f=>f.imm>0]];
 const unitOf=k=>{const st=exStats(wvSurv()).find(x=>exKey(x[0])===exKey(k));return st?st[1]:'Points'};
 const wvLineTxt=()=>`you're ${ordinal(WV_LINE.indexOf('alex')+1)} in line`;
 
 // ---------- the run: rounds in picking order; first add still free per spot ----------
 function wvCompute(){const taken=new Set(),res=[];
-  const mine=wvOut().map(d=>({drop:d,adds:wvClaim(d).length?wvClaim(d):WV.set.autoFill?wvBest():[],kind:'replace'})).concat(WV.swaps.length?[{drop:null,pairs:WV.swaps,kind:'swap'}]:[]);
+  const mine=wvOut().map(d=>({drop:d,adds:wvClaim(d).length?wvClaim(d):WV.set.autoFill?wvBest():[],auto:!wvClaim(d).length,kind:'replace'})).concat([...new Set(WV.swaps.map(p=>p.drop))].map(d=>({drop:d,pairs:WV.swaps.filter(p=>p.drop===d),kind:'swap'})));
   const groups={alex:mine};Object.entries(WV_WANTS).forEach(([n,p])=>groups[n]=[{drop:p[0][1],adds:p.map(x=>x[0]),kind:'replace'}]);
   const max=Math.max(...Object.values(groups).map(g=>g.length));
   for(let r=0;r<max;r++)for(const n of WV_LINE){const g=groups[n][r];if(!g)continue;
@@ -52,7 +59,7 @@ function wvCompute(){const taken=new Set(),res=[];
     // every pick taken: with auto-fill the spot still gets the best one left
     if(n==='alex'&&g.kind==='replace'&&WV.set.autoFill&&!opts.some(([a])=>WV.shared||!taken.has(a)))wvBest().filter(a=>!taken.has(a)&&!opts.some(o=>o[0]===a)).forEach(a=>opts.push([a,g.drop]));
     const i=opts.findIndex(([a])=>WV.shared||!taken.has(a));if(i<0)continue;const [add,drop]=opts[i];if(!WV.shared)taken.add(add);
-    const lost=i>0?res.find(x=>x.add===opts[0][0]):null;res.push({n,add,drop,choice:i+1,kind:g.kind,lostTo:lost&&lost.n,want:opts[0][0]})}
+    const lost=i>0&&!g.auto?res.find(x=>x.add===opts[0][0]):null;res.push({n,add,drop,choice:i+1,kind:g.kind,auto:!!g.auto,lostTo:lost&&lost.n,want:opts[0][0]})}
   return res}
 function wvDoRun(){const res=wvCompute();WV.before={roster:MOVES.roster.slice(),starters:new Set(MOVES.starters)};
   WV.run=res;res.filter(r=>r.n==='alex').forEach(r=>{const k=MOVES.roster.indexOf(r.drop);if(k>=0)MOVES.roster[k]=r.add;if(MOVES.starters.has(r.drop)){MOVES.starters.delete(r.drop);MOVES.starters.add(r.add)}});
@@ -62,7 +69,7 @@ function wvUndo(){if(WV.before){MOVES.roster=WV.before.roster;MOVES.starters=WV.
 function wvSync(){if(BS.ran&&WV.stage==='open')wvDoRun();else if(!BS.ran&&WV.stage==='ran')wvUndo()}
 const wvMineRun=()=>(WV.run||[]).filter(r=>r.n==='alex');
 const wvSentence=r=>{const who=r.n==='alex'?'You':r.n,ch=r.choice===1?'1st choice':`${ordinal(r.choice)} choice`;
-  return {b:`${who} got ${r.add} for ${r.drop}`,s:WV.shared?(r.kind==='swap'?'A swap':'A replacement'):r.lostTo?`${ch} · ${r.lostTo==='alex'?'you':r.lostTo} got ${r.want} first`:ch}};
+  return {b:`${who} got ${r.add} for ${r.drop}`,s:r.auto&&r.n==='alex'?'No pick in · most points of anyone free':WV.shared?(r.kind==='swap'?'A swap':'A replacement'):r.lostTo?`${ch} · ${r.lostTo==='alex'?'you':r.lostTo} got ${r.want} first`:ch}};
 
 // ---------- the page ----------
 function wvHead(s,title,back,label){return `<header class="sbar"><img src="${ART(s.art)}" alt="" style="object-position:${s.hpos||s.pos}"><div class="sbar-top"><a class="back" href="${back}">${svg('chev')}${label}</a><span class="sbar-st">${svg('swap')}Weekly Lineup</span><span style="width:44px"></span></div><b class="cap sbar-name">${title}</b></header>`}
@@ -91,40 +98,39 @@ function wvV2HTML(s){const out=wvOut(),swLeft=WV.win.swaps;
   <section class="blk"><div class="sh"><h2 class="cap">Your team</h2><span class="aside wv-sa">Swaps allowed <b class="num">${swLeft-(WV.shared?WV.swaps.length:0)}</b></span></div>${team}</section>
   ${groups}${wvHowRow()}`}
 
-// the simple version (reworked with the user 2026-10-23): one verb, Swap. Every move takes someone off and puts
-// someone on; the rules only say how many you get. Whoever's out gets a free swap, lined up with the best free agent
-// (doing nothing is fine); "more swaps" are optional. One Confirm for the page, never required: it turns Tonight's
-// "Check" into "Set". No points copy: what a player scored stays in past weeks, which everyone knows.
-const wvPending=()=>wvOut().filter(d=>!WV.ok.has(d)&&wvClaim(d)[0]);
-const wvLeft=()=>Math.max(0,WV.win.swaps-WV.swaps.length);
+// the simple version (reworked with the user 2026-10-23, twice): one verb, Swap; the rules only set how many. Your
+// whole team is on the page with what the research says about each (wrong side of the vote, an idol...), so you can
+// spot who to move. Whoever's out gets a free swap; YOU pick who comes in. Most points is only the fallback if you
+// forget. No points copy: what a player scored stays in past weeks, which everyone knows.
+const wvLeft=()=>Math.max(0,WV.win.swaps-new Set(WV.swaps.map(p=>p.drop)).size);
 const wvNames=L=>L.length>1?L.slice(0,-1).join(', ')+' and '+L[L.length-1]:L[0]||'';
-function wvFace(n,cls,tag,act){const c=n&&S51C(n);
-  return c?`<${act?'button':'span'} class="wvs-p ${cls}" ${act||''}><img src="${ph(c)}" alt=""><span class="tg cap">${tag}</span><b>${n}</b><small>${cls.includes('out')?(c.exitEp?`Out · Episode ${c.exitEp}`:'Comes off'):`${wvPts(n)} pts · ${c.tribeNow||c.tribe}`}</small></${act?'button':'span'}>`
-    :`<button class="wvs-p empty" ${act||''}>${svg('plus')}<b>Pick who comes in</b></button>`}
+const wvFirst=n=>S51C(n).exitEp?wvClaim(n)[0]:(WV.swaps.find(p=>p.drop===n)||{}).add;
+const wvList=n=>S51C(n).exitEp?wvClaim(n):WV.swaps.filter(p=>p.drop===n).map(p=>p.add);
+function wvFace(n,cls,tag,act){const c=S51C(n);
+  return `<${act?'button':'span'} class="wvs-p ${cls}" ${act||''}><img src="${ph(c)}" alt=""><span class="tg cap">${tag}</span><b>${n}</b><small>${cls.includes('out')?(c.exitEp?`Out · Episode ${c.exitEp}`:'Comes off'):`${wvPts(n)} pts · ${c.tribeNow||c.tribe}`}</small></${act?'button':'span'}>`}
 function wvHand(out,inn,tag,cls,act){return `<div class="wvs-hand">${wvFace(out,'out','Out')}<span class="wvs-arr" aria-hidden="true">${svg('chev')}</span>${wvFace(inn,'in '+cls,tag,act)}</div>`}
-function wvCard(d,a,tag,cls,act){const o=S51C(d),c=a&&S51C(a);
+function wvCard(d,a,tag,cls,act){const o=S51C(d),c=S51C(a);
   return `<button class="wvs-card ${cls}" ${act}><span class="fc out"><img src="${ph(o)}" alt=""></span><span class="wvs-arr">${svg('chev')}</span>
-    <span class="fc in">${c?`<img src="${ph(c)}" alt="">`:svg('plus')}</span><span class="tx"><span class="cap">${tag}</span><b>${c?`${a} for ${d}`:`Swap ${d}`}</b><small>${c?`${wvPts(a)} pts · ${c.tribeNow||c.tribe}`:'Pick who comes in'}</small></span>${svg('chev')}</button>`}
-function wvSimpleHTML(s){const out=wvOut(),pend=wvPending(),L=wvLined(),one=out.length===1;
-  const tagOf=d=>!L[d][0]?'Empty':wvPicked(d)?'Your pick':WV.ok.has(d)?'Confirmed':'Lined up';
-  const head=out.length?(pend.length?(one?`${L[out[0]][0]}'s lined up for ${out[0]}`:`${pend.length} swaps lined up`):(one&&L[out[0]][0]?`${L[out[0]][0]} for ${out[0]}`:`You're set`)):'Swap anyone this week';
-  const allow=[out.length?`${wvNames(out)} ${one?'is':'are'} out, so ${one?'that swap is':'those swaps are'} free.`:'',WV.win.swaps?`${out.length?'You also get':'You get'} ${WV.win.swaps} more swap${WV.win.swaps>1?'s':''}, for anyone.`:''].filter(Boolean).join(' ');
-  const spots=one?`${wvHand(out[0],L[out[0]][0],tagOf(out[0]),wvPicked(out[0])||WV.ok.has(out[0])?'mine':'sug',`data-wvs="pick" data-d="${out[0]}"`)}
-      <p class="wvs-why">${!L[out[0]][0]?'Nothing\'s lined up in this league: pick someone, or the spot stays empty.':WV.shared?`Nobody else can take ${L[out[0]][0]}: everyone gets who they pick.`:wvPicked(out[0])&&L[out[0]].length>1?`If someone picking ahead of you takes ${L[out[0]][0]}, you get ${L[out[0]][1]}${L[out[0]].length>2?`, then ${L[out[0]][2]}`:''}.`:`${wvPicked(out[0])?'':'Most points of anyone free. '}If someone picking ahead of you takes ${L[out[0]][0]}, you get the best one left.`}</p>
-      <button class="btn out wide" data-wvs="pick" data-d="${out[0]}">${wvPicked(out[0])?'Change':'Pick someone else'}</button>`
-    :`${out.map(d=>wvCard(d,L[d][0],tagOf(d),wvPicked(d)||WV.ok.has(d)?'mine':'sug',`data-wvs="pick" data-d="${d}"`)).join('')}
-      <p class="wvs-why">${WV.shared?'Nobody else can take them: everyone gets who they pick.':'Lined up by points. If someone picking ahead of you takes one, you get the best one left. Tap one to change it.'}</p>`;
-  const more=WV.win.swaps?`<section class="blk"><div class="sh"><h2 class="cap">More swaps</h2><span class="aside">Optional · ${wvLeft()} of ${WV.win.swaps} left</span></div>
-    ${WV.swaps.map((p,i)=>wvCard(p.drop,p.add,'Your swap','mine',`data-wvx="${i}"`)).join('')}
-    ${wvLeft()?`<button class="wvs-opt" data-wvs="swap"><span class="ic">${svg('swap')}</span><span class="tx"><b>Swap someone still in</b><small>Optional · due ${fmtT(wvDue())}</small></span>${svg('chev')}</button>`:''}</section>`:'';
+    <span class="fc in"><img src="${ph(c)}" alt=""></span><span class="tx"><span class="cap">${tag}</span><b>${a} for ${d}</b><small>${wvPts(a)} pts · ${c.tribeNow||c.tribe}</small></span>${svg('chev')}</button>`}
+function wvSimpleHTML(s){const out=wvOut(),open=out.filter(d=>!wvPicked(d)),one=out.length===1,left=wvLeft();
+  const head=open.length?(open.length===1?`${open[0]}'s out. Who comes in?`:`${wvNames(open)} are out`):out.length||WV.swaps.length?'Your swaps are in':'Any swaps this week?';
+  const chips=`${out.map(d=>`<span class="wvs-chip free${wvPicked(d)?' done':''}">${wvPicked(d)?svg('check'):''}Free swap · ${d}</span>`).join('')}${WV.win.swaps?`<span class="wvs-chip">${left?`${left} more swap${left===1?'':'s'} · anyone`:'No more swaps'}</span>`:''}`;
+  const row=n=>{const c=S51C(n),o=!!c.exitEp,a=wvFirst(n),L=wvList(n),can=o||left>0;
+    return `<div class="wvt${o?' out':''}${a?' set':''}"><div class="wvt-r"><img src="${ph(c)}" alt=""><span class="tx"><b>${n}</b>${o?`<small>Out · Episode ${c.exitEp}</small>`:`<small>${c.total} pts · ${c.tribeNow||c.tribe}</small>${wvSigHTML(n)}`}</span>
+      ${a?(o?'':'<span class="wvt-going cap">Going</span>'):`<button class="wvt-b${o?' free':''}" data-wvs="pick" data-d="${n}" ${can?'':'disabled'}>${o?'Pick':'Swap'}</button>`}</div>
+      ${a?`<button class="wvt-in" data-wvs="pick" data-d="${n}"><span class="arr">${svg('chev')}</span><img src="${ph(S51C(a))}" alt=""><span class="tx"><b>${a} comes in</b><small>${o?'Free swap':'Your swap'}${L.length>1?` · then ${L.slice(1).join(', ')}`:WV.shared?'':' · if taken, the best one left'}</small></span><span class="chg">Change</span></button>`:''}</div>`};
+  const fb=open.length?`<p class="wvs-fb">${svg('bolt')}<span>${WV.set.autoFill?`Forget, and ${open.length===1?`${open[0]}'s spot gets`:'each open spot gets'} whoever's free with the most points.`:`Forget, and ${open.length===1?'the spot stays':'those spots stay'} empty.`}</span></p>`:'';
   const line=WV.shared?'':`<section class="blk"><div class="wvs-line"><div class="sh"><h2 class="cap">Picking order</h2><span class="aside">Lowest score first</span></div>
     <ol>${WV_LINE.map((n,i)=>`<li class="${n==='alex'?'me':''}"><span class="num">${i+1}</span>${av(n,34)}<b>${n==='alex'?'You':n}</b><small>${LINEUP_PTS[n]} pts</small></li>`).join('')}</ol>
     <p class="muted small">Picks stay private until ${fmtT(wvDue())}, then go through in this order.</p></div></section>`;
-  const total=out.filter(d=>L[d][0]).length+WV.swaps.length;
-  const bar=pend.length?`<div class="wv-bar wvs-conf"><span class="tx"><small>Do nothing and ${pend.length>1?'these still go':'it still goes'} in</small><b class="cap">${pend.length===total?`${total} swap${total>1?'s':''} lined up`:`${pend.length} still lined up`}</b></span><button class="btn pri" id="wvConf">Confirm</button></div>`
-    :total?`<div class="wv-bar wvs-conf done"><span class="ok">${svg('check')}</span><span class="tx"><small>Change anything until ${fmtT(wvDue())}</small><b class="cap">${total} swap${total>1?'s':''} confirmed</b></span></div>`:'';
+  const total=out.filter(wvPicked).length+new Set(WV.swaps.map(p=>p.drop)).size;
+  const bar=open.length?`<div class="wv-bar wvs-conf"><span class="tx"><small>${open.length>1?`${open.length} free swaps to pick`:`${open[0]}'s spot is open`}</small><b class="cap">Pick by ${fmtT(wvDue())}</b></span><button class="btn pri" data-wvs="pick" data-d="${open[0]}">Pick</button></div>`
+    :total?`<div class="wv-bar wvs-conf done"><span class="ok">${svg('check')}</span><span class="tx"><small>Change anything until ${fmtT(wvDue())}</small><b class="cap">${total} swap${total>1?'s':''} in</b></span></div>`:'';
   return `<section class="blk wvs"><div class="wvs-k"><span class="cap">Due ${fmtT(wvDue())}</span><span data-cd="${wvDue().getTime()}">—</span></div>
-    <h2 class="cap wvs-q">${head}</h2><p class="wvs-allow">${allow}</p>${spots}</section>${more}${line}${wvHowRow()}${bar?'<div style="height:70px"></div>'+bar:''}`}
+    <h2 class="cap wvs-q">${head}</h2><div class="wvs-chips">${chips}</div></section>
+    <section class="blk"><div class="sh"><h2 class="cap">Your team</h2><span class="aside">${left?'Swap anyone':'No more swaps left'}</span></div>${MOVES.roster.map(row).join('')}${fb}</section>
+    ${line}${wvHowRow()}${bar?'<div style="height:70px"></div>'+bar:''}`}
+
 function wvRanHTML(s){const me=wvMineRun(),rep=me.find(r=>r.kind==='replace'),others=(WV.run||[]).filter(r=>r.n!=='alex');
   const plate=rep?`<div class="plate"><span class="tg good cap">Done</span><span class="bd"><span class="t cap">You got ${rep.add} for ${rep.drop}</span><span class="d">${wvSentence(rep).s.replace(/^./,c=>c.toUpperCase())}</span></span></div>`:'';
   const fa=`<button class="idx wv-fa" data-wvs="fa"><span class="ic">${svg('bolt')}</span><span class="tx"><b>Free agency</b><small>Until ${fmtT(wvAirs())} · first come, first served · ${wvStillFree()}</small></span>${svg('chev')}</button>
@@ -133,7 +139,7 @@ function wvRanHTML(s){const me=wvMineRun(),rep=me.find(r=>r.kind==='replace'),ot
   if(WV.ver==='v2')return `<section class="blk">${plate}</section><section class="blk">${fa}</section>${wvHowRow()}`;
   return `<section class="blk wvs"><div class="wvs-k"><span class="cap">Waivers ran</span><span>After Episode ${WV_EP}</span></div>
     ${me.length===1?`<h2 class="cap wvs-q">${rep.add}'s on your team</h2>${wvHand(rep.drop,rep.add,'Yours','got')}`:me.length?`<h2 class="cap wvs-q">${me.length} swaps went through</h2>${me.map(r=>wvCard(r.drop,r.add,'Yours','got','disabled')).join('')}`:''}
-    ${me.filter(r=>r.lostTo).map(r=>`<p class="wvs-why">${r.lostTo} picked ahead of you and took ${r.want}, so you got ${r.add}, the best one left.</p>`).join('')||(me.length?'<p class="wvs-why">All 1st choices.</p>':'')}</section>
+    ${me.filter(r=>r.lostTo||r.auto).map(r=>`<p class="wvs-why">${r.auto?`No pick in for ${r.drop}, so you got ${r.add}: the most points of anyone free.`:`${r.lostTo} picked ahead of you and took ${r.want}, so you got ${r.add}, the best one left.`}</p>`).join('')||(me.length?'<p class="wvs-why">All 1st choices.</p>':'')}</section>
     <section class="blk"><div class="sh"><h2 class="cap">Everyone's moves</h2><span class="aside">In picking order</span></div>${(WV.run||[]).map(r=>{const t=wvSentence(r);return `<div class="wv-mv${r.n==='alex'?' me':''}">${av(r.n,30)}<img src="${ph(S51C(r.add))}" alt=""><span class="tx"><b>${t.b}</b><small>${t.s}</small></span></div>`}).join('')}</section>
     <section class="blk">${fa}</section>${wvHowRow()}`}
 function wvQuietHTML(s){return `<section class="blk"><div class="plate"><span class="tg cap q">This week</span><span class="bd"><span class="t cap">Nothing to do this week</span><span class="d">Next swap window: after Episode ${WV_NEXT}</span></span></div></section>
@@ -166,27 +172,30 @@ function wireWvPick(s,drop){const paint=()=>{$('wvP').innerHTML=wvPickBody(drop)
       WV.pick=null;WV.touched=true;toast(WV.shared?`${L[0]} joins your team ${fmtT(wvDue())}`:`Claim saved · ${L[0]}${L.length>1?` + ${L.length-1} backup${L.length>2?'s':''}`:''} for ${drop}`);location.hash='#/show/surv/waivers'}};
   paint()}
 
-// ---------- the simple picker: a sheet, a ranked list, one tap ----------
-function wvsPickSheet(drop){let L=wvPicked(drop)?WV.claims[drop].slice():wvClaim(drop).slice(0,1),own=WV.own||L.length>1;
-  const body=()=>{const Lm=wvLined(),others=wvOut().filter(x=>x!==drop).map(x=>Lm[x][0]);const rows=wvFree().filter(n=>!WV.swaps.some(p=>p.add===n)&&!others.includes(n)).map(n=>({n,v:wvPts(n)})).sort((a,b)=>b.v-a.v),max=Math.max(1,...rows.map(r=>r.v));
-    return `<div class="ex-seg">${[['season','This season'],['last3','Last 3 episodes']].map(([k,l])=>`<button class="${WV.src===k?'on':''}" data-wsrc="${k}">${l}</button>`).join('')}</div>
-    ${rows.map(({n,v},i)=>{const k=L.indexOf(n),c=S51C(n);return `<button class="ex-r wvs-r${k>=0?' pick':''}" data-fa="${n}"><span class="rk num">${k>=0?(own?k+1:svg('check')):i+1}</span><img src="${ph(c)}" alt=""><span class="tx"><b>${n}</b><span class="bar"><i style="width:${Math.max(4,v/max*100)}%"></i></span><small>${c.tribeNow||c.tribe}${i===0?' · most points of anyone free':''}</small></span><span class="val"><b class="num">${v}</b><small>pts</small></span></button>`}).join('')}
-    ${WV.shared?'':`<button class="wvs-own${own?' on':''}" id="wvOwn"><span class="switch${own?' on':''}"><i></i></span><span><b>Choose my own backups</b><small>${own?'Tap in order: 1st choice, then backups':'Off: if your pick\'s taken, you get the best one left'}</small></span></button>`}
-    <button class="btn pri wide" id="wvsOk" ${L.length?'':'disabled'} style="margin-top:12px">${L.length?(own&&L.length>1?`Save ${L[0]} + ${L.length-1} backup${L.length>2?'s':''}`:`Take ${L[0]}`):'Tap someone'}</button>`};
-  openSheet(`Who comes in for ${drop}?`,`Free agents · due ${fmtT(wvDue())}`,`<div id="wvsB">${body()}</div>`,b=>{const paint=()=>{$('wvsB').innerHTML=body();wire()};
+// ---------- the simple picker: one sheet for any swap; sort by any stat, filter by what the research says ----------
+const wvTaken=drop=>wvOut().filter(d=>d!==drop).map(d=>wvClaim(d)[0]).concat(WV.swaps.filter(p=>p.drop!==drop).map(p=>p.add)).filter(Boolean);
+function wvsPickSheet(drop){const o=!!S51C(drop).exitEp,cur=wvList(drop);let L=cur.slice(),own=WV.own||L.length>1,sorts=false;const F=WV.filt||(WV.filt=new Set());
+  const body=()=>{const taken=wvTaken(drop),pool=wvFree().filter(n=>!taken.includes(n)),st=WV.stat,pts=exKey(st)===exKey('pts');
+    const rows=pool.map(n=>({n,v:wvVal(n,st),f:wvFacts(n)})).filter(r=>[...F].every(k=>WV_FILT.find(x=>x[0]===k)[2](r.f))).sort((a,b)=>b.v-a.v||wvPts(b.n)-wvPts(a.n)),max=Math.max(1,...rows.map(r=>r.v));
+    return `<div class="ex-seg">${[['season','Season'],['last3','Last 3'],['last','Last ep']].map(([k,l])=>`<button class="${WV.src===k?'on':''}" data-wsrc="${k}">${l}</button>`).join('')}</div>
+    <button class="wvp-rank" id="wvSort"><span class="cap">Sort by</span><b>${unitOf(st)}</b>${svg('chev')}</button>
+    ${sorts?`<div class="wv-sorts">${exStats(wvSurv()).map(([k,l])=>`<button class="${exKey(k)===exKey(st)?'on':''}" data-wst='${exKey(k)}'>${l}</button>`).join('')}</div>`:''}
+    <div class="wv-fchips">${WV_FILT.map(([k,l])=>`<button class="chip${F.has(k)?' on':''}" data-wf="${k}">${F.has(k)?svg('check'):''}${l}</button>`).join('')}</div>
+    ${rows.length?rows.map(({n,v},i)=>{const k=L.indexOf(n),c=S51C(n);return `<button class="ex-r wvs-r${k>=0?' pick':''}" data-fa="${n}"><span class="rk num">${k>=0?(own?k+1:svg('check')):i+1}</span><img src="${ph(c)}" alt=""><span class="tx"><b>${n}</b>${wvSigHTML(n)||`<small>${c.tribeNow||c.tribe}</small>`}<span class="bar"><i style="width:${Math.max(4,v/max*100)}%"></i></span></span><span class="val"><b class="num">${pts?+v.toFixed(1):v}</b><small>${pts?'pts':v===1?'time':'times'}</small></span></button>`}).join('')
+      :`<div class="wv-none" style="margin-top:6px">Nobody free fits · <button class="link" id="wvClr" style="color:var(--chyron);font-weight:700">Clear filters</button></div>`}
+    ${WV.shared?'':`<button class="wvs-own${own?' on':''}" id="wvOwn"><span class="switch${own?' on':''}"><i></i></span><span><b>Choose backups</b><small>${own?'Tap in order: 1st choice, then backups':'Off: if your pick\'s taken, you get the best one left'}</small></span></button>`}
+    <button class="btn pri wide" id="wvsOk" ${L.length?'':'disabled'} style="margin-top:12px">${L.length?(own&&L.length>1?`Save ${L[0]} + ${L.length-1} backup${L.length>2?'s':''}`:`${L[0]} comes in`):'Tap someone'}</button>
+    ${cur.length?`<button class="btn out wide" id="wvsNo" style="margin-top:8px">${o?'Clear my pick':`Keep ${drop}`}</button>`:''}`};
+  openSheet(`Who comes in for ${drop}?`,`${o?'Free swap':`Swap · ${drop} goes back to free agents`} · due ${fmtT(wvDue())}`,`<div id="wvsB">${body()}</div>`,b=>{const paint=()=>{$('wvsB').innerHTML=body();wire()};
     const wire=()=>{b.querySelectorAll('[data-fa]').forEach(r=>r.onclick=()=>{const n=r.dataset.fa,k=L.indexOf(n);if(!own||WV.shared)L=k>=0?[]:[n];else if(k>=0)L.splice(k,1);else L.push(n);paint()});
       b.querySelectorAll('[data-wsrc]').forEach(x=>x.onclick=()=>{WV.src=x.dataset.wsrc;paint()});
-      const o=$('wvOwn');if(o)o.onclick=()=>{own=!own;WV.own=own;if(!own)L=L.slice(0,1);paint()};
-      $('wvsOk').onclick=()=>{WV.claims[drop]=L;WV.ok.add(drop);WV.touched=true;closeSheet();toast(WV.shared?`${L[0]} joins your team ${fmtT(wvDue())}`:`${L[0]} for ${drop}${WV.shared?'':`, unless someone ahead of you takes ${L[0]} first`}`);route()}};wire()})}
-// more swaps: who goes, then who comes in (tap a swap you made to change or remove it)
-function wvsSwapSheet(step,drop){if(step!=='in'){const used=WV.swaps.map(p=>p.drop);openSheet('Swap someone still in',`Optional · ${wvLeft()} left · due ${fmtT(wvDue())}`,
-    wvIn().filter(n=>!used.includes(n)).map(n=>{const c=S51C(n);return `<button class="ex-r" data-go="${n}"><img src="${ph(c)}" alt=""><span class="tx"><b>${n}</b><small>${c.total} pts · ${c.tribeNow||c.tribe}</small></span>${svg('chev')}</button>`}).join(''),
-    b=>b.querySelectorAll('[data-go]').forEach(x=>x.onclick=()=>{closeSheet();setTimeout(()=>wvsSwapSheet('in',x.dataset.go),230)}));return}
-  const Lm=wvLined(),taken=wvOut().map(d=>Lm[d][0]).concat(WV.swaps.filter(p=>p.drop!==drop).map(p=>p.add));
-  openSheet(`Who comes in for ${drop}?`,`Free agents · due ${fmtT(wvDue())}`,wvFree().filter(n=>!taken.includes(n)).sort((a,b)=>wvPts(b)-wvPts(a)).map(n=>{const c=S51C(n);return `<button class="ex-r" data-in="${n}"><img src="${ph(c)}" alt=""><span class="tx"><b>${n}</b><small>${c.tribeNow||c.tribe}</small></span><span class="val"><b class="num">${wvPts(n)}</b><small>pts</small></span></button>`}).join('')+`<button class="btn out wide" id="wvBackS" style="margin-top:12px">Back</button>`,
-    b=>{b.querySelectorAll('[data-in]').forEach(x=>x.onclick=()=>{WV.swaps=WV.swaps.filter(p=>p.drop!==drop).concat([{add:x.dataset.in,drop}]);WV.touched=true;closeSheet();toast(`${x.dataset.in} for ${drop}, unless someone ahead of you takes ${x.dataset.in} first`);route()});$('wvBackS').onclick=()=>{closeSheet();setTimeout(()=>wvsSwapSheet(),230)}})}
-function wvsSwapEdit(i){const p=WV.swaps[i];openSheet(`${p.add} for ${p.drop}`,'One of your swaps',`<button class="row" data-ed="in"><span class="tx"><b>Change who comes in</b></span>${svg('chev')}</button><button class="row" data-ed="x"><span class="tx"><b style="color:var(--live)">Remove this swap</b><small>${p.drop} stays on your team</small></span></button>`,
-  b=>b.querySelectorAll('[data-ed]').forEach(x=>x.onclick=()=>{closeSheet();if(x.dataset.ed==='x'){WV.swaps.splice(i,1);route()}else setTimeout(()=>wvsSwapSheet('in',p.drop),230)}))}
+      $('wvSort').onclick=()=>{sorts=!sorts;paint()};b.querySelectorAll('[data-wst]').forEach(x=>x.onclick=()=>{WV.stat=JSON.parse(x.dataset.wst);sorts=false;paint()});
+      b.querySelectorAll('[data-wf]').forEach(x=>x.onclick=()=>{const k=x.dataset.wf;F.has(k)?F.delete(k):F.add(k);paint()});
+      const cl=$('wvClr');if(cl)cl.onclick=()=>{F.clear();paint()};
+      const ow=$('wvOwn');if(ow)ow.onclick=()=>{own=!own;WV.own=own;if(!own)L=L.slice(0,1);paint()};
+      const save=list=>{if(o)WV.claims[drop]=list;else WV.swaps=WV.swaps.filter(p=>p.drop!==drop).concat(list.map(a=>({add:a,drop})));WV.touched=true;closeSheet();route()};
+      $('wvsOk').onclick=()=>{save(L);toast(`${L[0]} comes in for ${drop}${WV.shared?'':`, unless someone ahead of you takes ${L[0]} first`}`)};
+      const no=$('wvsNo');if(no)no.onclick=()=>{save([]);toast(o?`Cleared. Forget, and ${drop}'s spot gets the most points left`:`${drop} stays`)}};wire()})}
 // free agency: instant, first come; a move uses the window's swap
 function wvFaSheet(){const used=wvMineRun().some(r=>r.kind==='swap'),quiet=WV.stage==='quiet';
   openSheet('Free agency',quiet?'Moves open at the next waiver window':`Instant until ${fmtT(wvAirs())} · first come, first served`,
@@ -308,9 +317,7 @@ wireBS=function(sid,page){wireBSW(sid,page);if(page!=='waivers')return;const re=
 
 // ---------- wiring the page ----------
 function wireWaivers(s){
-  app.querySelectorAll('[data-wvs]').forEach(b=>b.onclick=()=>({pick:()=>wvsPickSheet(b.dataset.d),swap:()=>wvsSwapSheet(),fa:wvFaSheet,runpage:wvRunPage,replay:wvReveal,how:()=>rulesSheet('lineup')})[b.dataset.wvs]());
-  app.querySelectorAll('[data-wvx]').forEach(b=>b.onclick=()=>wvsSwapEdit(+b.dataset.wvx));
-  const cf=$('wvConf');if(cf)cf.onclick=()=>{wvOut().forEach(d=>WV.ok.add(d));toast(`Confirmed. Change anything until ${fmtT(wvDue())}`);route()};
+  app.querySelectorAll('[data-wvs]').forEach(b=>b.onclick=()=>({pick:()=>wvsPickSheet(b.dataset.d),fa:wvFaSheet,runpage:wvRunPage,replay:wvReveal,how:()=>rulesSheet('lineup')})[b.dataset.wvs]());
   app.querySelectorAll('[data-grip]').forEach(b=>b.onclick=()=>{const [g,i]=b.dataset.grip.split('|'),k=+i,L=g==='swap'?WV.swaps:WV.claims[g],nm=g==='swap'?`${L[k].add} for ${L[k].drop}`:L[k];
     openSheet(nm,g==='swap'?`Swap · ${ordinal(k+1)} choice`:`Replacing ${g} · ${ordinal(k+1)} choice`,`${k>0?'<button class="row" data-mv="-1"><span class="tx"><b>Move up</b></span></button>':''}${k<L.length-1?'<button class="row" data-mv="1"><span class="tx"><b>Move down</b></span></button>':''}<button class="row" data-mv="x"><span class="tx"><b style="color:var(--live)">Remove</b></span></button>`,
       bb=>bb.querySelectorAll('[data-mv]').forEach(x=>x.onclick=()=>{const m=x.dataset.mv;if(m==='x')L.splice(k,1);else{const j=k+ +m;[L[k],L[j]]=[L[j],L[k]]}closeSheet();route()}))});
@@ -326,8 +333,9 @@ tabTonight=function(s){if(s.id==='surv')wvSync();let h=tabTonightW(s);if(s.id!==
   const out=wvOut(),me=wvMineRun()[0];let t,d,st;
   if(WV.stage==='ran'){t=me?`You got ${me.add} for ${me.drop}`:'Waivers ran';d=`Free agency until ${fmtT(wvAirs())}`;st='Done'}
   else if(!out.length)return h;
-  else if(WV.ver==='simple'){const Lm=wvLined(),pend=wvPending(),a=Lm[out[0]][0];t=out.length>1?`${out.length} swaps ${pend.length?'lined up':'set'} · ${wvNames(out)} out`:a?(pend.length?`${a}'s lined up for ${out[0]}`:`${a} for ${out[0]}`):`Swap ${out[0]}`;
-    d=pend.length?`Confirm or change by ${fmtT(wvDue())}`:`Confirmed · change until ${fmtT(wvDue())}`;st=pend.length||!a?'Check':'Set'}
+  else if(WV.ver==='simple'){const open=out.filter(d=>!wvPicked(d));
+    if(open.length){t=`Pick who comes in for ${wvNames(open)}`;d=`Free swap · due ${fmtT(wvDue())}`;st='Open'}
+    else{t=out.length>1?`${out.length} swaps in`:`${wvFirst(out[0])} comes in for ${out[0]}`;d=`Change until ${fmtT(wvDue())}`;st='Set'}}
   else{const L=WV.claims[out[0]]||[];t=`Replace ${out[0]}`;d=L.length?`Your claim: ${L.join(', then ')} · due ${fmtT(wvDue())}`:`Due ${fmtT(wvDue())} · ${wvLineTxt()}`;st=L.length?'In':'Open'}
   const ok=/Set|In|Done/.test(st),job=`<button class="job${ok?' done':''}" data-job="waivers"><span class="ic">${svg('swap')}</span><span class="tx"><span class="kind cap">Weekly Lineup · Waivers</span><b>${t}</b><small>${d}</small></span><span class="st">${st}</span>${svg('chev')}</button>`;
   const at=h.lastIndexOf('<button',h.indexOf('data-job="pool"'));if(at>0)h=h.slice(0,at)+job+h.slice(at);
@@ -344,11 +352,11 @@ wireShow=function(s){wireShowW(s);
   app.querySelectorAll('[data-wvep]').forEach(b=>b.onclick=()=>WV.stage==='open'?location.hash=`#/show/${s.id}/waivers`:wvRunPage())};
 
 // ---------- mock scenarios (mockmenu.js) and ?wv= / ?wvsheet= for the comparison page ----------
-function wvSet(o){WV.ver=o.ver||WV.ver;WV.shared=!!o.shared;WV.claims={};WV.swaps=[];WV.ok=new Set();WV.own=false;WV.set.autoFill=WV.ver==='simple';WV.run=null;WV.seen=false;WV.pick=null;
+function wvSet(o){WV.ver=o.ver||WV.ver;WV.shared=!!o.shared;WV.claims={};WV.swaps=[];WV.filt=new Set();WV.own=false;WV.set.autoFill=WV.ver==='simple';WV.run=null;WV.seen=false;WV.pick=null;
   MOVES.roster=o.two?['Kristin','Mike','Patt','Jenna','Eric']:['Kristin','Mike','Brady','Jenna','Eric'];MOVES.starters=new Set(['Kristin','Mike']);WV.stage='open';BS.window='open';BS.ran=false;
   if(o.filled){WV.claims.Jenna=['Sharonda','Devin'];WV.swaps=WV.ver==='v2'?[{add:'Cristian',drop:'Eric'},{add:'Linnea',drop:'Mike'}]:[{add:'Cristian',drop:'Eric'}]}
   if(o.stage==='ran'||o.stage==='quiet'){if(!o.filled&&!o.two)WV.claims.Jenna=['Sharonda','Devin'];wvDoRun();WV.seen=o.stage==='quiet'||!!o.seen;if(o.stage==='quiet')WV.stage='quiet'}
   if(o.stage==='commish'){SHOWSTATE.roles.alex='commish'}}
 {const wv=WVQ.get('wv');if(wv)wvSet({filled:wv==='filled',shared:wv==='shared',two:/two/.test(wv),stage:wv.replace('two-','')});
   const sc=+WVQ.get('wvscroll');if(sc)addEventListener('load',()=>setTimeout(()=>{$('scroller').scrollTop=sc},400));
-  const sh=WVQ.get('wvsheet');if(sh)addEventListener('load',()=>setTimeout(()=>({pick:()=>WV.ver==='v2'?null:wvsPickSheet('Jenna'),swap:()=>wvsSwapSheet(),settings:wvSettingsSheet,open:()=>wvOpenSheet(),reveal:wvReveal,how:()=>rulesSheet('lineup')})[sh]?.(),500))}
+  const sh=WVQ.get('wvsheet');if(sh)addEventListener('load',()=>setTimeout(()=>({pick:()=>WV.ver==='v2'?null:wvsPickSheet('Jenna'),swap:()=>wvsPickSheet('Mike'),settings:wvSettingsSheet,open:()=>wvOpenSheet(),reveal:wvReveal,how:()=>rulesSheet('lineup')})[sh]?.(),500))}

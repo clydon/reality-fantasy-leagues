@@ -166,3 +166,42 @@
 .wvs-conf .ok{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--good);color:var(--good-ink);flex:none}
 .wvs-conf .ok svg{width:20px;height:20px;stroke-width:3}
 .wvs-conf.done b{font-size:20px}
+/* simple, round 3: your team with signals; you pick, most points is only the fallback */
+.wvs-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:-2px}
+.wvs-chip{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 10px;border-radius:3px;background:var(--panel);font-size:13px;font-weight:700}
+.wvs-chip.free{background:var(--chyron);color:var(--ink)}
+.wvs-chip.free.done{background:none;color:var(--chyron);outline:1px solid var(--chyron);outline-offset:-1px}
+.wvs-chip svg{width:14px;height:14px;stroke-width:3}
+.wvt{border-top:1px solid var(--line)}
+.wvt:last-of-type{border-bottom:1px solid var(--line)}
+.wvt-r{display:flex;align-items:center;gap:12px;min-height:66px;padding:8px 0}
+.wvt-r img{width:46px;height:46px;border-radius:3px;object-fit:cover;object-position:center 20%;flex:none}
+.wvt-r .tx{flex:1;min-width:0}.wvt-r b{display:block;font-size:16px;font-weight:600}.wvt-r small{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.wvt.out .wvt-r img{filter:grayscale(1) brightness(.55)}
+.wvt.out .wvt-r small{color:var(--live)}
+.wvt.set .wvt-r{opacity:.55}
+.wvt-b{height:38px;min-width:72px;padding:0 14px;border-radius:3px;outline:1px solid var(--field);outline-offset:-1px;font-size:14px;font-weight:700;text-align:center;flex:none}
+.wvt-b.free{background:var(--chyron);color:var(--ink);outline:0}
+.wvt-b:disabled{opacity:.35}
+.wvt-going{font-size:11px;letter-spacing:.06em;color:var(--muted);flex:none}
+.wvt-in{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;margin:0 0 10px;border-radius:4px;background:rgba(255,197,49,.08);outline:1.5px solid var(--chyron);outline-offset:-1.5px}
+.wvt-in .arr{color:var(--chyron);transform:rotate(90deg);display:grid}.wvt-in .arr svg{width:16px;height:16px;stroke-width:2.6}
+.wvt-in img{width:40px;height:40px;border-radius:3px;object-fit:cover;object-position:center 20%}
+.wvt-in .tx{flex:1;min-width:0}.wvt-in b{display:block;font-size:15px}.wvt-in small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.wvt-in .chg{font-size:13px;font-weight:700;color:var(--chyron)}
+.wv-sig{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.wv-sig i{font-style:normal;font-size:11px;font-weight:700;padding:2px 6px;border-radius:2px;background:var(--raised);color:var(--muted);white-space:nowrap}
+.wv-sig i.warn{background:rgba(242,84,91,.16);color:#ff8a8f}
+.wv-sig i.good{background:rgba(53,181,165,.16);color:#5fd6c6}
+.wvs-fb{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.4;color:var(--muted);margin-top:12px}
+.wvs-fb svg{width:16px;height:16px;flex:none;margin-top:1px}
+.wv-fchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 8px;padding:0 16px}
+.wv-fchips::-webkit-scrollbar{display:none}
+.wv-fchips .chip{flex:none;display:flex;align-items:center;gap:5px}
+.wv-fchips .chip svg{width:13px;height:13px;stroke-width:3}
+.wv-sorts{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 12px}
+.wv-sorts button{height:34px;padding:0 10px;border-radius:3px;background:var(--raised);font-size:13px;font-weight:600}
+.wv-sorts button.on{background:var(--bone);color:var(--ink)}
+.wvs-r .tx .wv-sig{margin:3px 0 2px}
+.wv-fchips .chip{margin:0}
+.wvt-in .chg{flex:none}.wvt-in small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

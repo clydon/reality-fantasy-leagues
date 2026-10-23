@@ -1,8 +1,9 @@
 // Clicks through waivers in the full-site mock (.impeccable/mocks/site/waivers.js), both versions, no dev server,
 // login or DB needed:
-//   S. simple: Tonight's waivers job ("Check") → the page (Sharonda lined up) → Confirm (Tonight says Set) → pick Devin
-//      → a second swap (Eric for Cristian), change and remove it → How it works (the lanes) → Episodes row → the
-//      dock's Swap row → the run → the reveal → Episodes says who; two out: a card each, different free agents
+//   S. simple: Tonight's waivers job ("Open") → the page (your team, signals) → Pick for Jenna: filter "Has an idol",
+//      sort by a stat, take Devin (Tonight says Set) → swap Mike for Cristian, then Keep Mike → How it works (the
+//      lanes) → Episodes row → the dock's Swap row → the run → the reveal → Episodes says who; two out: two free
+//      swaps to pick; nobody picked: the run falls back to most points and says so
 //   V. v2 port: plate → Replace → picker (tap order, Ranked by) → Save → reorder with the grip → a swap →
 //      shared league → a quiet week
 //   C. commissioner, both: Open a waiver window (presets / controls), settings (feel), Run now → players see it
@@ -37,39 +38,47 @@ const { open } = require("./browser");
 
   // S. simple
   await fresh("&waivers=simple", "#/show/surv/tonight");
-  await expectText('[data-job="waivers"]', "lined up for Jenna");
+  await expectText('[data-job="waivers"]', "Pick who comes in for Jenna");
+  await expectText('[data-job="waivers"] .st', "Open");
   await tap('[data-job="waivers"]');
   await expectHash("#/show/surv/waivers");
-  await expectText(".wvs-q", "Sharonda's lined up");
-  if (!(await page.locator(".wvs-line li.me").count())) fail("simple: no picking order with you in it");
-  if (await page.locator("text=/points (go|stay)|Keeps \d/").count()) fail("simple: points copy is back");
+  await expectText(".wvs-q", "Jenna's out");
+  if ((await page.locator(".wvt").count()) !== 5) fail("simple: wanted all 5 of your team on the page");
+  await expectText('.wvt:has-text("Mike") .wv-sig', "Wrong side of the vote");
+  if (await page.locator(".wvt-in").count()) fail("simple: nothing should be picked for you up front");
+  if (await page.locator("text=/points (go|stay)|Keeps \\d/").count()) fail("simple: points copy is back");
+  await expectText(".wvs-fb", "most points");
   await shot("simple-page");
-  await tap("#wvConf");
-  await expectText(".wvs-conf", "confirmed");
+  await tap('.wvt-b.free[data-d="Jenna"]');
+  if (await page.locator("#sheet .wvs-r.pick").count()) fail("simple picker: nothing should be preselected");
+  await tap('#sheet [data-wf="idol"]');
+  const idol = await page.locator("#sheet [data-fa]").allTextContents();
+  if (idol.length !== 1 || !idol[0].includes("Devin")) fail(`filter Has an idol: wanted only Devin, got ${idol.length}`);
+  await tap('#sheet [data-wf="idol"]');
+  await tap("#wvSort");
+  await tap('#sheet .wv-sorts button >> nth=1');
+  if (!(await page.locator("#sheet .wvs-r .val small", { hasText: "time" }).count())) fail("sort by a stat: values should read times");
+  await tap('#sheet [data-fa="Devin"]');
+  await expectText("#wvsOk", "Devin comes in");
+  await shot("simple-picker");
+  await tap("#wvsOk");
+  await expectText('.wvt:has-text("Jenna") .wvt-in', "Devin comes in");
+  await expectText(".wvs-conf", "1 swap in");
   await go("#/show/surv/tonight");
   await expectText('[data-job="waivers"] .st', "Set");
   await go("#/show/surv/waivers");
-  await tap('button.btn[data-wvs="pick"]');
-  if (!(await page.locator('#sheet [data-fa="Sharonda"].pick').count())) fail("simple picker: the lined-up pick isn't selected");
-  await tap('#sheet [data-fa="Devin"]');
-  await expectText("#wvsOk", "Take Devin");
-  await shot("simple-picker");
+  await tap('.wvt-b[data-d="Mike"]');
+  await tap('#sheet [data-fa="Cristian"]');
   await tap("#wvsOk");
-  await expectText(".wvs-q", "Devin for Jenna");
-  await tap('[data-wvs="swap"]');
-  await tap('#sheet [data-go="Eric"]');
-  await page.waitForTimeout(300);
-  await tap('#sheet [data-in="Cristian"]');
-  await expectText('[data-wvx="0"]', "Cristian for Eric");
-  if (await page.locator('[data-wvs="swap"]').count()) fail("simple: 1 more swap used, the add row should go");
+  await expectText('.wvt:has-text("Mike") .wvt-in', "Cristian comes in");
+  if (!(await page.locator('.wvt-b[data-d="Kristin"][disabled]').count())) fail("simple: with the 1 swap used, other Swap buttons should be off");
   await shot("simple-swap");
-  await tap('[data-wvx="0"]');
-  await tap('#sheet [data-ed="x"]');
-  if (await page.locator('[data-wvx]').count()) fail("simple: removing the swap didn't");
-  await tap('[data-wvs="swap"]');
-  await tap('#sheet [data-go="Eric"]');
-  await page.waitForTimeout(300);
-  await tap('#sheet [data-in="Cristian"]');
+  await tap('.wvt:has-text("Mike") .wvt-in');
+  await tap("#wvsNo");
+  if (await page.locator('.wvt:has-text("Mike") .wvt-in').count()) fail("simple: Keep Mike didn't drop the swap");
+  await tap('.wvt-b[data-d="Mike"]');
+  await tap('#sheet [data-fa="Cristian"]');
+  await tap("#wvsOk");
   await tap('[data-wvs="how"]');
   if (!(await page.locator("#sheet .wv-lanes .wv-lane i.on").count())) fail("How it works: no open lane cells");
   await shot("how-it-works");
@@ -87,7 +96,7 @@ const { open } = require("./browser");
   await page.waitForTimeout(500);
   await tap('[data-job="wvreveal"]');
   if (!(await page.locator(".revealfs").count())) fail("the run: no reveal");
-  for (let i = 0; i < 5; i++) await tap("#rstage");
+  for (let i = 0; i < 6; i++) await tap("#rstage");
   await shot("reveal-last");
   await tap("#rvd");
   if (await page.locator('[data-job="wvreveal"]').count()) fail("the run: Waivers ran plate still there after the reveal");
@@ -97,12 +106,12 @@ const { open } = require("./browser");
   await expectText("#page", "sam got Sharonda for Aaliyah");
   await shot("run-page");
   await fresh("&waivers=simple&wv=two", "#/show/surv/waivers");
-  const cards = await page.locator(".wvs-card b").allTextContents();
-  if (cards.length !== 2 || new Set(cards.map((t) => t.split(" for ")[0])).size !== 2) fail(`two out: wanted 2 cards with different free agents, got ${JSON.stringify(cards)}`);
-  await expectText(".wvs-allow", "Patt and Jenna are out");
+  if ((await page.locator(".wvt-b.free").count()) !== 2) fail("two out: wanted two free swaps to pick");
+  await expectText(".wvs-q", "Patt and Jenna are out");
   await shot("simple-two-out");
   await fresh("&waivers=simple&wv=two-ran", "#/show/surv/waivers");
-  if ((await page.locator(".wvs-card.got").count()) !== 2) fail("two out, after the run: wanted both swaps through");
+  if ((await page.locator(".wvs-card.got").count()) !== 2) fail("two out, nobody picked: wanted both spots filled by the fallback");
+  await expectText(".wvs .wvs-why", "No pick in");
 
   // V. v2 port
   await fresh("&waivers=v2", "#/show/surv/waivers");
