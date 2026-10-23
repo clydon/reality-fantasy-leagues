@@ -62,7 +62,7 @@
 .wacta .tg.live{background:var(--live);color:var(--live-ink)}.wacta .tg i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.2s infinite}
 .wacta b{font-size:32px}.wacta small{font-size:13px;opacity:.9}
 .gcards{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.gcard{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:4px;background:var(--panel);text-decoration:none;color:var(--bone);border-top:3px solid var(--g,var(--field));min-height:104px;text-align:left}
+.gcard{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:0 0 4px 4px;background:var(--panel);text-decoration:none;color:var(--bone);border-top:3px solid var(--g,var(--field));min-height:104px;text-align:left}
 .gcard .kind{font-size:12px;letter-spacing:.04em;color:var(--muted)}
 .gcard b{font-size:36px}.gcard b.first{color:var(--chyron)}
 .gcard small{font-size:12px;color:var(--muted)}

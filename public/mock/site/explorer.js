@@ -66,7 +66,7 @@ function exCompare(s,names){const P=exPeople(s),[A,B]=names.map(n=>P.find(r=>r.c
 function exStatSheet(s,which){const cur=which===1?EX.stat:EX.stat2;
   openSheet(which===1?'Rank by':'Show beside it',`${s.short} · every stat the results track`,`${which===2?`<button class="row${cur==null?' on':''}" data-st="none"><span class="tx"><b>Nothing</b></span></button>`:''}${exStats(s).map(([k,full,u])=>`<button class="row${cur!=null&&exKey(k)===exKey(cur)?' on':''}" data-st='${exKey(k)}'><span class="tx"><b>${full}</b><small>Counted in ${u}</small></span></button>`).join('')}`,
     b=>b.querySelectorAll('[data-st]').forEach(x=>x.onclick=()=>{const v=x.dataset.st==='none'?null:JSON.parse(x.dataset.st);if(which===1)EX.stat=v;else EX.stat2=v;closeSheet();exRefresh()}))}
-const exRefresh=()=>{const y=$('scroller').scrollTop;route();$('scroller').scrollTop=y};
+function exRefresh(){const y=$('scroller').scrollTop;route();$('scroller').scrollTop=y}
 function wireExplorer(s){wireGuard();
   app.querySelectorAll('[data-exv]').forEach(b=>b.onclick=()=>{EX.view=b.dataset.exv;exRefresh()});
   app.querySelectorAll('[data-exf]').forEach(b=>b.onclick=()=>{EX.filt=b.dataset.exf;exRefresh()});

@@ -81,7 +81,7 @@
 /* ways to play: the season games swipe, the episode games sit in a grid */
 .lp-reel{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin:22px calc(-1 * var(--lpg)) 0;padding:0 var(--lpg) 4px;scroll-padding:0 var(--lpg)}
 .lp-reel::-webkit-scrollbar{display:none}
-.lp-game{flex:none;width:292px;scroll-snap-align:start;background:var(--panel);border-radius:4px;padding:16px;outline:1px solid var(--line);outline-offset:-1px;display:flex;flex-direction:column;gap:8px;min-height:356px;border-top:4px solid var(--g)}
+.lp-game{flex:none;width:292px;scroll-snap-align:start;background:var(--panel);border-radius:0 0 4px 4px;padding:16px;outline:1px solid var(--line);outline-offset:-1px;display:flex;flex-direction:column;gap:8px;min-height:356px;border-top:4px solid var(--g)}
 .lp-game h3{font-size:32px}
 .lp-game p{color:var(--muted);line-height:1.45;font-size:14px}
 .lp-game .vis{margin-top:auto}

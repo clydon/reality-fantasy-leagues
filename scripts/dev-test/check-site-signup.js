@@ -24,7 +24,7 @@ const { open } = require("./browser");
   const shot = async (name) => { const f = path.join(out, `${String(++n).padStart(2, "0")}-${name}.png`); await page.waitForTimeout(450); await page.screenshot({ path: f }); console.log("wrote", f); };
   const expectHash = async (want) => { const h = await page.evaluate(() => location.hash); if (h !== want) { fails++; console.log(`FAIL: at ${h}, wanted ${want}`); } };
   const expectText = async (sel, text) => { const t = await page.locator(sel).first().textContent().catch(() => ""); if (!t.toLowerCase().includes(text.toLowerCase())) { fails++; console.log(`FAIL: ${sel} lacks "${text}" (has "${t.slice(0, 80)}")`); } };
-  const fresh = async (hash) => { await page.goto("about:blank"); await page.goto(base + "?n=0" + hash, { waitUntil: "networkidle" }); await page.addStyleTag({ content: ".ctl,.mockfab{display:none!important}" }); await page.waitForTimeout(700); };
+  const fresh = async (hash) => { await page.goto("about:blank"); await page.goto(base + "?n=0&motion=off" + hash, { waitUntil: "networkidle" }); await page.addStyleTag({ content: ".ctl,.mockfab{display:none!important}" }); await page.waitForTimeout(700); };
 
   // A. the main path in
   await fresh("");

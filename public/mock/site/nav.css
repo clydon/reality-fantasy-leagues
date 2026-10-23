@@ -1,0 +1,52 @@
+/* motion that grounds navigation (nav.js): the phone's screen moves; the device frame never does */
+::view-transition-old(root),::view-transition-new(root){animation:none}
+/* the screen is opaque, so a page sliding over another never shows the one beneath through it */
+#scroller{background:var(--ground)}
+html[data-nav] #scroller{view-transition-name:screen}
+/* tabs: the header and the tab bar hold still while the content slides; the marker slides to the new tab */
+html[data-nav="left"] .show .sbar,html[data-nav="right"] .show .sbar{view-transition-name:showbar}
+html[data-nav="left"] .tabbar,html[data-nav="right"] .tabbar{view-transition-name:tabbar}
+html[data-nav="left"] .dock,html[data-nav="right"] .dock{view-transition-name:dock}
+html[data-nav="left"] .tab-ind,html[data-nav="right"] .tab-ind{view-transition-name:tabind}
+.tab-ind{position:absolute;top:-1px;height:3px;background:var(--chyron);border-radius:0 0 2px 2px;pointer-events:none}
+.tabbar:has(.tab-ind) a.on::before{display:none}
+
+@keyframes nav-from-right{from{transform:translateX(100%)}}
+@keyframes nav-to-left{to{transform:translateX(-28%);opacity:.4}}
+@keyframes nav-from-left{from{transform:translateX(-28%);opacity:.4}}
+@keyframes nav-to-right{to{transform:translateX(100%)}}
+@keyframes nav-nudge-in-r{from{transform:translateX(36px);opacity:0}}
+@keyframes nav-nudge-out-l{to{transform:translateX(-36px);opacity:0}}
+@keyframes nav-nudge-in-l{from{transform:translateX(-36px);opacity:0}}
+@keyframes nav-nudge-out-r{to{transform:translateX(36px);opacity:0}}
+@keyframes nav-fade-in{from{opacity:0}}
+@keyframes nav-fade-out{to{opacity:0}}
+/* deeper: the new screen comes in from the right over the old, which steps back */
+html[data-nav="push"]::view-transition-old(screen){animation:nav-to-left .38s cubic-bezier(.16,1,.3,1) both}
+html[data-nav="push"]::view-transition-new(screen){animation:nav-from-right .38s cubic-bezier(.16,1,.3,1) both}
+/* back: the screen you leave slides off to the right, a touch quicker, revealing where you were */
+html[data-nav="pop"]::view-transition-old(screen){animation:nav-to-right .3s cubic-bezier(.4,0,.2,1) both;z-index:2}
+html[data-nav="pop"]::view-transition-new(screen){animation:nav-from-left .3s cubic-bezier(.16,1,.3,1) both}
+/* tabs: a short sideways nudge in tab order */
+html[data-nav="left"]::view-transition-old(screen){animation:nav-nudge-out-l .16s ease-in both}
+html[data-nav="left"]::view-transition-new(screen){animation:nav-nudge-in-r .26s cubic-bezier(.16,1,.3,1) .04s both}
+html[data-nav="right"]::view-transition-old(screen){animation:nav-nudge-out-r .16s ease-in both}
+html[data-nav="right"]::view-transition-new(screen){animation:nav-nudge-in-l .26s cubic-bezier(.16,1,.3,1) .04s both}
+html[data-nav="left"]::view-transition-group(showbar),html[data-nav="right"]::view-transition-group(showbar),
+html[data-nav="left"]::view-transition-group(tabind),html[data-nav="right"]::view-transition-group(tabind){animation-duration:.28s;animation-timing-function:cubic-bezier(.16,1,.3,1)}
+/* changing the channel: the art grows from the tapped card into the header; the screens just crossfade under it */
+html[data-nav="channel"]::view-transition-old(screen){animation:nav-fade-out .18s ease-in both}
+html[data-nav="channel"]::view-transition-new(screen){animation:nav-fade-in .3s cubic-bezier(.16,1,.3,1) .1s both}
+::view-transition-group(show-art){animation-duration:.44s;animation-timing-function:cubic-bezier(.16,1,.3,1);z-index:5}
+::view-transition-old(show-art),::view-transition-new(show-art){height:100%;width:100%;object-fit:cover;animation-duration:.44s}
+/* a plain swap (same depth, no order): crossfade */
+html[data-nav="fade"]::view-transition-old(screen),html[data-nav="calm"]::view-transition-old(screen){animation:nav-fade-out .12s ease-in both}
+html[data-nav="fade"]::view-transition-new(screen),html[data-nav="calm"]::view-transition-new(screen){animation:nav-fade-in .2s ease-out both}
+/* the explorer: same people, new places */
+html[data-nav="flip"]::view-transition-group(*){animation-duration:.34s;animation-timing-function:cubic-bezier(.16,1,.3,1)}
+@media (prefers-reduced-motion:reduce){::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation-duration:.01s!important}
+  html[data-nav="calm"]::view-transition-old(screen){animation:nav-fade-out .12s both!important}html[data-nav="calm"]::view-transition-new(screen){animation:nav-fade-in .15s both!important}}
+
+/* press feedback: anything you tap acknowledges the finger */
+.cb-card,.sp-card,.b-open,.w-cwo,.rc-tile,.cv-row,.ex-r,.ex-face,.w-ep,.job,.row,.lp-show,.g-tvc,.hn-now,.f-step,.ex-pat{transition:transform .14s cubic-bezier(.16,1,.3,1)}
+.cb-card:active,.sp-card:active,.b-open:active,.w-cwo:active,.rc-tile:active,.cv-row:active,.ex-r:active,.ex-face:active,.w-ep:active,.job:active,.row:active,.lp-show:active,.g-tvc:active,.hn-now:active,.f-step:active,.ex-pat:active{transform:scale(.98)}

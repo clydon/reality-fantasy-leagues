@@ -101,7 +101,7 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;flex:n
 .clash>em{font-style:normal;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-stretch:62%;color:var(--chyron);display:flex;justify-content:space-between;height:12px}
 .clash .lst{height:86px}
 .nowln{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:var(--chyron);letter-spacing:.06em;text-transform:uppercase;font-stretch:62%;height:14px}
-.nowln::after{content:"";flex:1;height:2px;background:var(--chyron);box-shadow:0 0 8px rgba(255,197,49,.6)}
+.nowln::after{content:"";flex:1;height:2px;background:var(--chyron)}
 .quiet{font-size:13px;color:var(--field);height:56px;display:grid;place-items:center;border:1px dashed var(--line);border-radius:3px}
 .guide-f{display:flex;align-items:center;justify-content:space-between;padding:4px 16px 0;font-size:13px;color:var(--muted)}
 .guide-f button{color:var(--chyron);font-weight:600;font-size:14px;display:flex;align-items:center;gap:4px;height:40px}
@@ -638,6 +638,7 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;flex:n
 <link rel="stylesheet" href="explorer.css">
 <link rel="stylesheet" href="mockmenu.css">
 <link rel="stylesheet" href="device.css">
+<link rel="stylesheet" href="nav.css">
 </head>
 <body>
 <div class="device" id="device"><div class="scroller" id="scroller"><div id="app"></div></div>
@@ -1230,5 +1231,6 @@ addEventListener('hashchange',route);
 setInterval(()=>document.querySelectorAll('[data-cd]').forEach(el=>{let s=Math.max(0,(+el.dataset.cd-Date.now())/1000|0);el.textContent=`${s/86400|0}d ${String((s%86400)/3600|0).padStart(2,'0')}:${String((s%3600)/60|0).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`}),1000);
 route();
 </script>
+<script src="nav.js"></script>
 </body>
 </html>

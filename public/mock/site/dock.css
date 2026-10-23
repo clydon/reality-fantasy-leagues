@@ -2,8 +2,6 @@
 .dock{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:28;width:calc(100% - 20px);max-width:370px;display:flex;align-items:center;gap:10px;padding:7px 7px 7px 9px;border-radius:4px;background:var(--plate);color:var(--ink);box-shadow:0 12px 28px rgba(0,0,0,.5);text-align:left;animation:dockin .5s var(--spring) both;overflow:hidden}
 @media(min-width:760px){.dock{bottom:108px}}
 @keyframes dockin{from{transform:translate(-50%,30px);opacity:0}}
-.dock::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--good)}
-.dock.need::before{background:var(--chyron)}
 .dock.locked{background:var(--raised);color:var(--bone)}
 .dock.locked::before{background:var(--field)}
 .dock .faces{display:flex;padding-left:4px}

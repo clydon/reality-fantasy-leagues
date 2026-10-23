@@ -27,7 +27,7 @@ const { open } = require("./browser");
   const fail = (m) => { fails++; console.log("FAIL: " + m); };
   const expectHash = async (want) => { const h = await page.evaluate(() => location.hash); if (h !== want) fail(`at ${h}, wanted ${want}`); };
   const expectText = async (sel, text) => { const t = await page.locator(sel).first().textContent().catch(() => ""); if (!t.toLowerCase().includes(text.toLowerCase())) fail(`${sel} lacks "${text}" (has "${t.slice(0, 80)}")`); };
-  const fresh = async (hash) => { await page.goto("about:blank"); await page.goto(base + "?n=4" + hash, { waitUntil: "networkidle" }); await page.addStyleTag({ content: ".ctl,.mockfab{display:none!important}" }); await page.waitForTimeout(700); };
+  const fresh = async (hash) => { await page.goto("about:blank"); await page.goto(base + "?n=4&motion=off" + hash, { waitUntil: "networkidle" }); await page.addStyleTag({ content: ".ctl,.mockfab{display:none!important}" }); await page.waitForTimeout(700); };
 
   // A. the both-watch nudge → Make it a game → a game
   await fresh("#/hub");
