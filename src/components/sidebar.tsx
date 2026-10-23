@@ -8,7 +8,6 @@ import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDem
 import { useDemoSeasonPickerStore } from "@/lib/demo-season-picker-store";
 import { useTourStore, type TourKind } from "@/lib/tour/tour-store";
 import { usePracticeRound } from "@/lib/tour/use-practice-round";
-import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
@@ -23,7 +22,7 @@ import { ThemePicker } from "@/components/theme-picker";
 import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-modal";
 import { useAdminWaiting } from "@/components/admin/admin-shell";
 import {
-  AlertIcon,
+  TvIcon,
   ChatIcon,
   DraftIcon,
   EpisodesIcon,
@@ -296,7 +295,6 @@ function AccountRow() {
   const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
   const takeTour = useTakeTour();
   const touring = useLeagueStore((s) => s.touring);
-  const openReportModal = useReportModalStore((s) => s.openModal);
   const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
   const showExplainer = useExplainerStore((s) => s.show);
   const practice = usePracticeRound();
@@ -337,14 +335,17 @@ function AccountRow() {
               >
                 What&rsquo;s new
               </MenuRow>
+              {/* The full-site design mock (public/mock/), so it can be explored in the app; a full page load,
+                  since /mock is a static page, not a route. Report an issue stays reachable from the tours. */}
               <MenuRow
-                icon={AlertIcon}
+                icon={TvIcon}
                 onClick={() => {
                   close();
-                  openReportModal();
+                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- /mock is a static page, not a route
+                  window.location.assign("/mock");
                 }}
               >
-                Report an issue
+                Coming Soon!
               </MenuRow>
               {mode === "live" && (
                 <MenuRow

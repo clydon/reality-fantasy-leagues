@@ -5,7 +5,6 @@ import { ReplayBug, useLateJoin } from "@/components/late-join/replay-bug";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useLeagueStore, useIsSuperAdmin, useIsAuthenticated, useIsPreviewingDemo, useCanManage } from "@/lib/store";
-import { useReportModalStore } from "@/lib/report-modal-store";
 import { useChatStore } from "@/lib/chat-store";
 import { useNotificationsStore } from "@/lib/notifications-store";
 import StateLogic from "@/lib/game/state-logic.js";
@@ -24,7 +23,7 @@ import {
   DraftIcon,
   MoreIcon,
   ShieldIcon,
-  AlertIcon,
+  TvIcon,
   LogoutIcon,
   ChatIcon,
   ResearchIcon,
@@ -67,7 +66,8 @@ import { artStyleVars } from "@/lib/show-art-style";
 // still opens your other leagues and groups.
 // More (docs/PLAN-league-tabs.md) is things about the league and about you, nothing you play with:
 // This league (the finished Draft board, How this league works, Practice round, League Settings),
-// then You (Account, What's new, Report an issue, the tours, Demo season, Admin, Log out).
+// then You (Account, What's new, Coming Soon! (the design preview at /mock), the tours, Demo season, Admin,
+// Log out). Report an issue isn't listed for now; the tours' "Anything unclear?" still opens it.
 export function MobileNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const showWhatsNew = useWhatsNewPreview((s) => s.showAll);
@@ -140,7 +140,6 @@ export function MobileNav() {
   const enterMockMode = useLeagueStore((s) => s.useMock);
   const setEntered = useLeagueStore((s) => s.setEntered);
   const isPreviewingDemo = useIsPreviewingDemo();
-  const openReportModal = useReportModalStore((s) => s.openModal);
   const openDemoPicker = useDemoSeasonPickerStore((s) => s.openPicker);
   const myPlayerId = useLeagueStore((s) => s.membership?.playerId ?? null);
   const chatUnread = useChatStore((s) => s.unreadCount);
@@ -574,7 +573,7 @@ export function MobileNav() {
 
         <div className="type-caption px-0.5 pb-1.5 pt-3.5 text-[14px] tracking-[0.04em] text-muted-foreground">You</div>
         <div className="flex flex-col">
-          {/* Report an issue posts as the real signed-in user (server-side requireAuth) -- gated on real
+          {/* Account and What's new need a real signed-in user -- gated on real
               authentication, not `mode` (a super-admin with no personal league is genuinely signed in
               but stays mode:'mock' -- see store.ts's useIsAuthenticated). */}
           {isAuthenticated ? (
@@ -589,12 +588,16 @@ export function MobileNav() {
                   showWhatsNew();
                 }}
               />
+              {/* The full-site design mock (public/mock/, outside the app shell), so it can be explored in
+                  the app. A full page load, not router.push: /mock is a static page, not a route. */}
               <MoreRow
-                icon={AlertIcon}
-                label="Report an issue"
+                icon={TvIcon}
+                label="Coming Soon!"
+                value="Preview the new design"
                 onClick={() => {
                   setSheetOpen(false);
-                  openReportModal();
+                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- /mock is a static page, not a route
+                  window.location.assign("/mock");
                 }}
               />
             </>
