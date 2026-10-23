@@ -16,7 +16,7 @@ const NAV_TABS=['tonight','episodes','standings','cast','chat'];
 const SCROLLS={};
 let lastHash=location.hash||'#/hub',lastTap=null;
 const parseHash=h=>{const p=(h||'').replace(/^#\/?/,'').split('/');return {p,key:p[0]||'hub'}};
-function depthOf(h){const {p,key}=parseHash(h);if(key==='show')return ['backstage','draft','blind'].includes(p[2])?(p[3]?3:2):1;
+function depthOf(h){const {p,key}=parseHash(h);if(key==='show')return ['backstage','draft','blind','waivers'].includes(p[2])?(p[3]?3:2):1;
   if(key==='start')return 1;if(['account','join','signin','signup'].includes(key))return 1;return 0}
 // which way to move: push / pop / left / right (same depth, by tab or step order) / fade
 function navKind(from,to){const a=parseHash(from),b=parseHash(to),da=depthOf(from),db=depthOf(to);

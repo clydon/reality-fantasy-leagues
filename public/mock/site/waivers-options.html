@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waivers Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<style>
+/* Waivers in the new design: the two versions side by side, screen by screen. Each phone is the live site mock in
+   an iframe (index.html?frame=1&waivers=simple|v2&wv=<state>&wvsheet=<sheet>), so everything in it can be tapped. */
+:root{--ground:#16141d;--panel:#221f2c;--raised:#2a2633;--line:#2e2a3a;--field:#3a3548;--bone:#f4f2f8;--muted:#a9a4b8;--chyron:#ffc531;--ink:#121018}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Archivo,system-ui,sans-serif;background:#0b0a0f;color:var(--bone);-webkit-font-smoothing:antialiased;padding:32px 0 80px}
+.cap{font-stretch:62%;font-weight:800;text-transform:uppercase;line-height:1;letter-spacing:.01em}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+h1{font-size:52px}
+.lede{color:var(--muted);font-size:16px;line-height:1.55;max-width:72ch;margin-top:12px}
+.lede b{color:var(--bone)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.legend span{font-size:13px;font-weight:700;background:var(--panel);padding:6px 10px;border-radius:3px}
+.legend a{color:var(--chyron)}
+section{margin-top:56px}
+section h2{font-size:34px}
+section>p{color:var(--muted);font-size:15px;line-height:1.5;max-width:80ch;margin-top:8px}
+.row{display:flex;gap:28px;margin-top:22px;overflow-x:auto;padding-bottom:10px}
+.col{flex:none;width:300px;display:flex;flex-direction:column;gap:12px}
+.col h3{display:flex;align-items:center;gap:10px;font-size:20px}
+.rec{background:var(--chyron);color:var(--ink);font-size:11px;letter-spacing:.06em;padding:4px 12px 4px 7px;clip-path:polygon(0 0,100% 0,calc(100% - 7px) 100%,0 100%)}
+.phone{width:300px;height:649px;border-radius:24px;overflow:hidden;background:var(--ground);outline:1px solid #2a2633;box-shadow:0 20px 50px rgba(0,0,0,.5);position:relative}
+.phone iframe{position:absolute;top:0;left:0;width:390px;height:844px;border:0;transform:scale(.769);transform-origin:0 0}
+.col ul{list-style:none;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.45;color:var(--muted)}
+.col li::before{content:"·";color:var(--chyron);font-weight:900;margin-right:6px}
+.col li b{color:var(--bone);font-weight:700}
+.open{font-size:13px;color:var(--chyron);text-decoration:none;font-weight:700}
+@media (max-width:700px){h1{font-size:38px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 class="cap">Waivers, two ways</h1>
+  <p class="lede">Survivor 51's Weekly Lineup, the week after Episode 4: <b>Jenna's out</b>, a waiver window is open, claims are due the day before Episode 5. Left is the <b>simple version</b>, my best attempt at casual-first: the best free agent is already lined up, so doing nothing is a fine answer. Right is the <b>v2 port</b>: the live app's waivers (PLAN-waivers-v2, the picked design) moved into the new design. Both share the results (a reveal, then an entry in Episodes) and How it works. Every phone is the real mock: tap anything.</p>
+  <div class="legend"><span>Simple = recommended</span><span>v2 = what's live today</span><span><a href="index.html#/show/surv/waivers">Open the full mock</a> · Scenarios › Waivers</span></div>
+
+  <section><h2 class="cap">1 · The page, claims open</h2>
+    <p>Pushed in from the moves dock or Tonight's "Before Wednesday" list. One screen answers "what do I do, and by when".</p>
+    <div class="row">
+      <div class="col"><h3 class="cap">Simple <span class="rec cap">Recommended</span></h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=simple#/show/surv/waivers"></iframe></div>
+        <ul><li><b>Zero taps needed.</b> Sharonda (most points of anyone free) is lined up for Jenna's spot; it's your claim unless you change it.</li><li><b>Backups are automatic</b>: if someone ahead takes her, you get the best one left. Choosing your own is a switch in the picker.</li><li><b>Picking order is a picture</b>: four faces, you're 3rd, lowest score first. No "rolling" to explain.</li><li>The swap is <b>one optional row</b>.</li></ul></div>
+      <div class="col"><h3 class="cap">v2 port</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=v2&wv=filled#/show/surv/waivers"></iframe></div>
+        <ul><li>The plate: <b>Replace Jenna · Swap 1</b>, due Tue, you're 3rd in line.</li><li><b>Your team</b> with Swap on everyone still in, Replace on Jenna.</li><li><b>Claims grouped by spot</b>, ranked, with a grip to reorder or remove (shown filled in).</li><li>Nothing happens unless you claim (auto-fill is Casual-only).</li></ul></div>
+    </div></section>
+
+  <section><h2 class="cap">2 · Picking someone</h2>
+    <p>Simple opens a sheet over the page; v2 pushes a picker page with Research's controls.</p>
+    <div class="row">
+      <div class="col"><h3 class="cap">Simple</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=simple&wvsheet=pick#/show/surv/waivers"></iframe></div>
+        <ul><li>A ranked list with a bar: <b>This season or Last 3 episodes</b>. One tap, then "Take Devin".</li><li>"Choose my own backups" turns taps into 1, 2, 3.</li></ul></div>
+      <div class="col"><h3 class="cap">v2 port</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=v2&wv=filled#/show/surv/waivers/pick/Jenna"></iframe></div>
+        <ul><li>"Tap your first choice, then any backups." <b>Tap order is the rank.</b></li><li>Season · Last 3 · Last ep, and <b>Ranked by</b> any stat from the research (full names, from the explorer).</li><li>A confirm bar: For Jenna · backup Devin · Save.</li></ul></div>
+    </div></section>
+
+  <section><h2 class="cap">3 · Swapping someone still in</h2>
+    <div class="row">
+      <div class="col"><h3 class="cap">Simple</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=simple&wvsheet=swap#/show/surv/waivers"></iframe></div>
+        <ul><li>Two short steps: <b>who goes</b> (their points go with them), then <b>who comes in</b>.</li><li>One swap, shown as the same out → in card as the replacement.</li></ul></div>
+      <div class="col"><h3 class="cap">v2 port</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=v2&wv=filled&wvscroll=520#/show/surv/waivers"></iframe></div>
+        <ul><li>Swap on any team row opens the same picker; <b>swap backups can drop different people</b> ("Linnea for Mike, only if Cristian's taken").</li></ul></div>
+    </div></section>
+
+  <section><h2 class="cap">4 · A shared league</h2>
+    <p>Nobody can lose a free agent to anyone, so both drop ranking, backups and the line.</p>
+    <div class="row">
+      <div class="col"><h3 class="cap">Simple</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=simple&wv=shared#/show/surv/waivers"></iframe></div><ul><li>"Nobody else can take Sharonda." No picking order.</li></ul></div>
+      <div class="col"><h3 class="cap">v2 port</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=v2&wv=shared#/show/surv/waivers"></iframe></div><ul><li>"You get who you pick." Pick one; the row reads "Sharonda for Jenna · joins your team Tue".</li></ul></div>
+    </div></section>
+
+  <section><h2 class="cap">5 · After the run</h2>
+    <p>The page once claims have run. The reveal and the Episodes entry (section 8) are the same for both.</p>
+    <div class="row">
+      <div class="col"><h3 class="cap">Simple</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=simple&wv=ran#/show/surv/waivers"></iframe></div><ul><li>The out → in card, now green: <b>Devin's on your team</b>, and why not Sharonda. Then everyone's moves as sentences.</li></ul></div>
+      <div class="col"><h3 class="cap">v2 port</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=v2&wv=ran#/show/surv/waivers"></iframe></div><ul><li>A plate and one line of why, then Free agency and Past waivers, as in the live app.</li></ul></div>
+    </div></section>
+
+  <section><h2 class="cap">6 · Commissioner: waivers settings</h2>
+    <div class="row">
+      <div class="col"><h3 class="cap">Simple</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=simple&wvsheet=settings#/show/surv/backstage/waivers"></iframe></div>
+        <ul><li><b>One choice: the feel.</b> Picking one applies it; no Apply step.</li><li>The three settings fold into <b>Fine-tune</b>.</li></ul></div>
+      <div class="col"><h3 class="cap">v2 port</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=v2&wvsheet=settings#/show/surv/backstage/waivers"></iframe></div>
+        <ul><li>1A: the Suggested card with Casual · Balanced · Competitive and <b>Apply</b>, then every setting on the page.</li></ul></div>
+    </div></section>
+
+  <section><h2 class="cap">7 · Commissioner: open a waiver window</h2>
+    <div class="row">
+      <div class="col"><h3 class="cap">Simple</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=simple&wvsheet=open#/show/surv/backstage/waivers"></iframe></div>
+        <ul><li><b>Three presets</b>: Replacements · + a swap · Rebuild. "Something else" opens the controls.</li></ul></div>
+      <div class="col"><h3 class="cap">v2 port</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&waivers=v2&wvsheet=open#/show/surv/backstage/waivers"></iframe></div>
+        <ul><li>3B: a Replace toggle and a swaps counter (None · 1 · 2 … · All). Both preview the no-names line players get.</li></ul></div>
+    </div></section>
+
+  <section><h2 class="cap">8 · The same in both</h2>
+    <p>The run plays like an episode, then sits in Episodes between the two episodes; How it works carries the quiet-week lanes.</p>
+    <div class="row">
+      <div class="col"><h3 class="cap">The reveal</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&wv=ran&wvsheet=reveal#/show/surv/tonight"></iframe></div><ul><li>Tonight gets a "Waivers ran" plate. Tap through: you got, why, everyone's moves, free agency.</li></ul></div>
+      <div class="col"><h3 class="cap">In Episodes</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&wv=ran#/show/surv/episodes"></iframe></div><ul><li>"Waivers · after Episode 4" between 5 and 4; its page lists every move in picking order.</li></ul></div>
+      <div class="col"><h3 class="cap">How it works</h3><div class="phone"><iframe loading="lazy" src="index.html?frame=1&motion=off&n=4&wv=quiet&wvsheet=how#/show/surv/waivers"></iframe></div><ul><li>Three answers for this league, then <b>When moves happen</b>: Replace and Swap lanes over the episodes.</li></ul></div>
+    </div></section>
+</div>
+</body>
+</html>
