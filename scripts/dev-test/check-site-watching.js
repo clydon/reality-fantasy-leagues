@@ -123,6 +123,32 @@ const { open } = require("./browser");
   await page.waitForTimeout(400);
   if (await page.locator('#reel .lst[data-show="li"]').count()) fail("Love Island still in the guide after hiding it");
 
+  // G. the casual-first hub: Commercial break holds every game; sections for people who never play; cast stats
+  for (const [q, label] of [["", "full couch"], ["&fresh=1", "new couch"]]) {
+    await fresh("#/hub".replace("#", `${q}#`));
+    for (const sel of ["#cbRow .cb-card.rank", "#cbRow .cb-card.add", "#supSec", "#rcShelf", ".cv-list"]) if (!(await page.locator(sel).count())) fail(`${label}: missing ${sel}`);
+    if (await page.locator('[data-mini="wa"],[data-mini="party"]').count()) fail(`${label}: Watch along is still in Commercial break`);
+    if (label === "full couch" && !(await page.locator(".hn-now").count())) fail("full couch: no Who's on now strip");
+    if (label === "new couch" && await page.locator('[data-past]').count()) fail("new couch: the trophy shelf shows before any season ended");
+    if (label === "new couch" && (await page.locator("#supSec").textContent()).includes("Severance")) fail("new couch: a superlative names a show the couch doesn't have");
+  }
+  await fresh("#/hub");
+  await page.click('#cbRow [data-cb="start"]');
+  await expectText("#sheet", "Pick the show");
+  await page.click("#sheet [data-close]"); await page.waitForTimeout(300);
+  await fresh("#/show/surv/tonight".replace("#", "&fresh=1#"));
+  await expectText("#app", "Stat of the week");
+  await page.click(".st-all");
+  await expectText("#page", "Never written down");
+  await shot("stats-page");
+  await fresh("#/show/surv/standings".replace("#", "&fresh=1#"));
+  await expectText(".tabbar", "Stats");
+  await fresh("#/show/bd/tonight");
+  await page.click("[data-recap]");
+  await expectText("#sheet", "Previously on");
+  await fresh("#/show/bd/cast");
+  await expectText("#app", "Who's who");
+
   // E. streaming shows: the guide has the drop day and planned nights; the rail is streaming's home
   await fresh("#/hub");
   if (!(await page.locator(".lst.b-drop").count())) fail("no drop day in the guide");
