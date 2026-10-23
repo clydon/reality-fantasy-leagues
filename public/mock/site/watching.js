@@ -137,7 +137,7 @@ function newGameW(s){let g='pool',told=true;const others=(watchersOf(s)||[]).fil
      <button class="btn pri wide" id="wStart" style="margin-top:12px">Start it</button>`,
     b=>{b.querySelectorAll('[data-g]').forEach(x=>x.onclick=()=>{g=x.dataset.g;b.querySelectorAll('[data-g]').forEach(y=>y.classList.toggle('on',y===x))});
       $('wTell').onclick=()=>{told=!told;$('wTell').querySelector('.switch').classList.toggle('on',told)};
-      $('wStart').onclick=()=>{W.games[s.id]={g,told};W.nudgeGone=true;closeSheet();confetti();toast(`${GAMES[g].name} started${told?' · the couch has been told':''}`);
+      $('wStart').onclick=()=>{W.games[s.id]={g,told};W.nudgeGone=true;closeSheet();toast(`${GAMES[g].name} started${told?' · the couch has been told':''}`);
         [FEED4,FEED12].forEach(F=>F.unshift(['alex',`started a ${GAMES[g].name}`,`${s.short} · from Episode ${s.ep} · tap to join`,null]));if(location.hash.startsWith('#/show/'))route()}})}
 
 // ---------- Make it a game: one AI paste builds the cast and the scoring ----------

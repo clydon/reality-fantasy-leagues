@@ -67,7 +67,7 @@ function draftDone(){clearTimeout(DR.botT);
   app.innerHTML=`<div class="draft done"><div class="ddone-h"><span class="tg cap">Draft complete</span><h1 class="cap">Couch Cup<br>is set</h1><p class="muted">16 picks · ${DR.picks.filter(x=>x.by).length} made for someone else</p></div>
     ${DR.order.map((w,i)=>`<div class="dteam big${w==='alex'?' me':''}" style="animation-delay:${i*.15}s">${av(w,36)}<b>${w}</b><span class="tf">${drMine(w).map(c=>`<img src="${ph(S51C(c))}" alt="${c}">`).join('')}</span></div>`).join('')}
     <div style="padding:20px 16px"><a class="btn pri wide big cap" href="#/show/${DR.sid}/tonight">Go to Survivor 51</a><button class="btn out wide" style="margin-top:10px" id="again">Run the draft again (mock)</button></div></div>`;
-  confetti();$('again').onclick=()=>{DR.picks=[];DR.jordanBack=false;DR.nudged=false;draftRoute(DR.sid)}}
+  $('again').onclick=()=>{DR.picks=[];DR.jordanBack=false;DR.nudged=false;draftRoute(DR.sid)}}
 
 // ---------- blind draft: everyone picks privately, then one reveal ----------
 const BL={team:[],locked:false,size:4};
@@ -88,5 +88,4 @@ function blindRoute(sid){DR.sid=sid;
 function blindReveal(sid){const teams={alex:BL.team,...BLIND_OTHERS};const all=Object.values(teams).flat();const count=n=>all.filter(x=>x===n).length;
   app.innerHTML=`<div class="breveal"><span class="cap muted small">Weekly Lineup · Survivor 51</span><h1 class="cap">The teams</h1>
     ${Object.entries(teams).map(([w,t],i)=>`<div class="bteam" style="--d:${i*.9}s"><div class="bth">${av(w,32)}<b class="cap">${w}${w==='alex'?' · you':''}</b></div><div class="bcards">${t.map((c,k)=>`<div class="bcard" style="--k:${i*.9+k*.18}s"><div class="bin"><div class="bfront"></div><div class="bback"><img src="${ph(S51C(c))}" alt=""><b class="cap">${c}</b>${count(c)>=3?`<span class="same">×${count(c)}</span>`:''}</div></div></div>`).join('')}</div></div>`).join('')}
-    <div class="bfoot" style="--d:${Object.keys(teams).length*.9+.6}s"><p><b>Kristin</b> is on ${count('Kristin')} teams. Shared ownership: everyone who has her scores with her.</p><a class="btn pri wide big cap" href="#/show/${sid}/tonight">Go to Survivor 51</a></div></div>`;
-  setTimeout(confetti,Object.keys(teams).length*900+400)}
+    <div class="bfoot" style="--d:${Object.keys(teams).length*.9+.6}s"><p><b>Kristin</b> is on ${count('Kristin')} teams. Shared ownership: everyone who has her scores with her.</p><a class="btn pri wide big cap" href="#/show/${sid}/tonight">Go to Survivor 51</a></div></div>`}

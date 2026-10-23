@@ -47,7 +47,7 @@ function newCouchSheet(done){openSheet('Start a couch','Your group, for every sh
   `<label class="fld"><span>Name it</span><input id="cn" value="Couch Council"></label><p class="label cap">Your invite code</p><div class="code"><b class="num">K7Q2XZ</b><button id="cc">${svg('copy')}</button></div>
    <p class="muted small" style="margin-top:10px;line-height:1.45">Anyone with the code joins the couch. Each game decides who can play: open to everyone, or ask first.</p>
    <button class="btn pri wide" id="cgo" style="margin-top:14px">Create couch</button>`,
-  b=>{$('cc').onclick=()=>toast('Invite code copied');$('cgo').onclick=()=>{COUCH=$('cn').value||'Couch Council';closeSheet();confetti();toast(`${COUCH} is ready. Send the code!`);done&&setTimeout(done,300)}})}
+  b=>{$('cc').onclick=()=>toast('Invite code copied');$('cgo').onclick=()=>{COUCH=$('cn').value||'Couch Council';closeSheet();toast(`${COUCH} is ready. Send the code!`);done&&setTimeout(done,300)}})}
 
 // ---------- solo hub ----------
 function soloHub(){const mineIds=[...FIRST.picked].filter(id=>SHOWS.find(s=>s.id===id));window.GUIDE_ONLY=mineIds;if(!mineIds.includes(sel))sel=mineIds[0]||'surv';
@@ -106,7 +106,7 @@ function catchupStrip(){const c=SHOWSTATE.catchup;if(!c)return '';return `<butto
 function catchupStep(){const c=SHOWSTATE.catchup,cands=S51.cast.filter(x=>!x.exitEp||x.exitEp>c.ep).slice(0,8);
   openSheet(`Catch up · Episode ${c.ep}`,'Pick who survives, then reveal when you\'ve watched',`<div class="cast4">${cands.map(x=>`<button class="tile" data-p="${first(x.name)}"><img src="${ph(x)}" alt=""><span class="tick">${svg('check')}</span><div class="cap">${first(x.name)}</div></button>`).join('')}</div><button class="btn pri wide" id="cur" style="margin-top:14px" disabled>Pick someone</button>`,
   b=>{let p=null;b.querySelectorAll('[data-p]').forEach(t=>t.onclick=()=>{p=t.dataset.p;b.querySelectorAll('[data-p]').forEach(y=>y.classList.toggle('sel',y===t));$('cur').disabled=false;$('cur').textContent=`Lock ${p} and reveal Episode ${c.ep}`});
-    $('cur').onclick=()=>{const out=S51.cast.filter(x=>x.exitEp===c.ep).map(x=>first(x.name)),ok=!out.includes(p);closeSheet();toast(`Episode ${c.ep}: ${out.join(' and ')||'nobody'} out. ${ok?`${p} survived!`:`${p} went home.`}`);c.ep++;if(c.ep>c.of){SHOWSTATE.catchup=null;confetti();toast('All caught up. Pick for Episode 5 with everyone.')}route()}})}
+    $('cur').onclick=()=>{const out=S51.cast.filter(x=>x.exitEp===c.ep).map(x=>first(x.name)),ok=!out.includes(p);closeSheet();toast(`Episode ${c.ep}: ${out.join(' and ')||'nobody'} out. ${ok?`${p} survived!`:`${p} went home.`}`);c.ep++;if(c.ep>c.of){SHOWSTATE.catchup=null;toast('All caught up. Pick for Episode 5 with everyone.')}route()}})}
 
 // ---------- backstage: who can join ----------
 function joinRulesBlock(){const J=SHOWSTATE.join||(SHOWSTATE.join={pool:['shared','open'],lineup:['exclusive','ask'],outlast:['exclusive','locked']});

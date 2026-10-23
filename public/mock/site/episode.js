@@ -70,7 +70,7 @@ function revealPlay(s){applyEp5Preview();const out=S51C(EP5.out),st=[...MOVES.st
   r.innerHTML=`<div class="rtop"><span class="cap">${s.name.replace('The ','')}</span><button id="rskip">Skip</button></div><div class="rstage" id="rstage"></div><div class="rdots">${beats.map((_,i)=>`<i data-i="${i}"></i>`).join('')}</div><button class="btn ink wide rdone" id="rvd">Back to ${s.name.replace('The ','')}</button>`;
   $('device').appendChild(r);
   const show=()=>{const st=r.querySelector('#rstage');st.innerHTML=beats[k];st.firstElementChild.classList.add('in');r.querySelectorAll('.rdots i').forEach((d,i)=>d.classList.toggle('on',i<=k));r.classList.toggle('last',k===beats.length-1);
-    if(k===beats.length-1)setTimeout(()=>{after.forEach((x,i)=>{const el=r.querySelector(`.mvr[data-n="${x.n}"]`);if(el){el.style.transform=`translateY(${i*54}px)`;el.querySelector('.r').textContent=i+1;el.querySelector('.t').textContent=x.t}});const n=r.querySelector('#mvnote');if(n)n.style.opacity=1;setTimeout(confetti,500)},700)};
+    if(k===beats.length-1)setTimeout(()=>{after.forEach((x,i)=>{const el=r.querySelector(`.mvr[data-n="${x.n}"]`);if(el){el.style.transform=`translateY(${i*54}px)`;el.querySelector('.r').textContent=i+1;el.querySelector('.t').textContent=x.t}});const n=r.querySelector('#mvnote');if(n)n.style.opacity=1},700)};
   show();
   r.querySelector('#rstage').onclick=()=>{if(k<beats.length-1){k++;show()}};
   r.querySelector('#rskip').onclick=()=>{k=beats.length-1;show()};

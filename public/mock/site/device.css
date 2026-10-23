@@ -25,7 +25,7 @@ body{display:flex;align-items:center;justify-content:center;padding:0;min-height
 .page,.wa{top:0!important;bottom:0!important;border-radius:0!important}
 .dock{bottom:84px!important}
 .composer.sticky{bottom:76px!important}
-.scrim,.confetti,.revealfs{position:absolute!important;inset:0}
+.scrim,.revealfs{position:absolute!important;inset:0}
 .revealfs{max-width:none;margin:0}
 .page,.wa{height:100%}
 /* the mock control sits outside the device */

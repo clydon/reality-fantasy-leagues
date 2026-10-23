@@ -38,11 +38,11 @@ backstageRoute=function(sid,page){
   // tier 2: applying results previews the standings move
   const ap=$('applyAll');if(ap)ap.onclick=()=>previewSheet({title:'Apply Episode 4?',sub:'Here\'s what changes for the couch',cta:ap.textContent,
     changes:[[av('riley',26),'riley · Weekly Lineup','▲ 1st, +15'],[av('alex',26),'alex · Weekly Lineup','▼ 2nd, +6'],[`<img class="pvi" src="${ph(S51C('Jenna'))}" alt="">`,'Jenna out · Outlast','alex and jordan lose her'],[svg('shield'),'Survival Pool','Everyone who picked Jenna: streak ends']],
-    onConfirm:()=>{SHOWSTATE.resultsDone=true;logChange('Applied Episode 4 results to 3 games',2,()=>{SHOWSTATE.resultsDone=false});confetti();toast('Applied to all 3 games');backstageRoute(sid,'results')}});
+    onConfirm:()=>{SHOWSTATE.resultsDone=true;logChange('Applied Episode 4 results to 3 games',2,()=>{SHOWSTATE.resultsDone=false});toast('Applied to all 3 games');backstageRoute(sid,'results')}});
   // tier 2: running waivers previews who gets whom
   const rn=$('runNow');if(rn)rn.onclick=()=>previewSheet({title:'Run waivers now?',sub:'Claims are private until they run. Here\'s the result.',cta:'Run waivers',
     changes:[[`<img class="pvi" src="${ph(S51C('Maggie'))}" alt="">`,'riley gets Maggie','for Thien'],[`<img class="pvi" src="${ph(S51C('Devin'))}" alt="">`,'jordan gets Devin','for Rob'],[`<img class="pvi" src="${ph(S51C('Linnea'))}" alt="">`,'sam gets Linnea','2nd choice'],[av('alex',26),'alex','No claim in · keeps their team']],
-    onConfirm:()=>{BS.ran=true;BS.window='closed';logChange('Ran waivers: 3 players got someone',2,()=>{BS.ran=false;BS.window='open'});confetti();toast('Waivers ran · 3 players got someone');backstageRoute(sid,'waivers')}});
+    onConfirm:()=>{BS.ran=true;BS.window='closed';logChange('Ran waivers: 3 players got someone',2,()=>{BS.ran=false;BS.window='open'});toast('Waivers ran · 3 players got someone');backstageRoute(sid,'waivers')}});
   // tier 2: rescoring the season previews the move; "from Episode 6" just saves with undo
   const sr=$('saveRules');if(sr)sr.onclick=()=>{if(BS.applyFrom!=='all'){const prev=BS.rules;BS.rulesChanged=false;logChange('Changed scoring rules (from Episode 6)',1,()=>{BS.rules=prev});toast('Saved · new rules from Episode 6',()=>{BS.rules=prev;BS.rulesChanged=true;backstageRoute(sid,'rules')});backstageRoute(sid,'rules');return}
     previewSheet({title:'Rescore the season?',sub:'Every episode recounted with the new rules',cta:'Rescore the season',changes:[[av('alex',26),'alex','▲ 1st, 22 → 25'],[av('riley',26),'riley','▼ 2nd, 38 → 24'],[av('jordan',26),'jordan','18 → 19'],[svg('chatb'),'The couch','Gets a heads-up in chat']],

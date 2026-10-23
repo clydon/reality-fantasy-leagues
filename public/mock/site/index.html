@@ -310,9 +310,6 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;flex:n
 .toast.on{transform:translate(-50%,0)}
 .toast .t{background:var(--good);color:var(--good-ink);display:grid;place-items:center;padding:0 16px 0 10px;clip-path:polygon(0 0,100% 0,calc(100% - 10px) 100%,0 100%);margin-right:-10px}
 .toast span{padding:12px 12px 12px 18px;font-size:14px;font-weight:600}
-.confetti{position:fixed;inset:0;pointer-events:none;z-index:80;overflow:hidden}
-.confetti i{position:absolute;top:-20px;width:10px;height:14px;clip-path:polygon(0 0,100% 0,70% 100%,0 100%);animation:fall var(--d) var(--ease) forwards}
-@keyframes fall{to{transform:translate(var(--x),110vh) rotate(var(--r));opacity:.9}}
 
 /* sheet content pieces */
 .row{display:flex;align-items:center;gap:12px;min-height:60px;border-top:1px solid var(--line);width:100%;text-align:left}
@@ -733,9 +730,6 @@ $('scrim').onclick=()=>{if(UI.sheet)closeSheet()};
 addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(UI.sheet)closeSheet();else if(UI.wa)closeWatch();else if(UI.page)closePage()});
 function syncCtl(){$('ctl').classList.toggle('hide',!!(UI.sheet||UI.page||UI.wa))}
 function toast(t){$('toastT').textContent=t;$('toast').classList.add('on');clearTimeout(UI.tt);UI.tt=setTimeout(()=>$('toast').classList.remove('on'),2400)}
-function confetti(){if(reduce)return;const c=document.createElement('div');c.className='confetti';const cols=['#ffc531','#35b5a5','#f4f2f8','#a76bb0','#5089c9','#f2804b'];
-  for(let i=0;i<70;i++){const p=document.createElement('i');p.style.left=Math.random()*100+'%';p.style.background=cols[i%cols.length];p.style.setProperty('--x',(Math.random()*160-80)+'px');p.style.setProperty('--r',(Math.random()*720-360)+'deg');p.style.setProperty('--d',(1.4+Math.random()*1.4)+'s');p.style.animationDelay=Math.random()*.25+'s';c.appendChild(p)}
-  $('device').appendChild(c);setTimeout(()=>c.remove(),3400)}
 
 // ================= hub =================
 function hub(){
@@ -877,7 +871,7 @@ function couchSheet(){const ppl=crowdOf(),on=N===4?['riley','jordan']:['riley','
        <div class="tl"><b class="cap">Traitors 4</b><small>You won Outlast</small></div>
        <div class="tl"><b class="cap">Survivor 49</b><small>riley won Weekly Lineup · you finished 2nd</small></div></div>`,
     b=>{const cp=()=>{navigator.clipboard?.writeText('K7Q2XZ').catch(()=>{});toast('Invite code copied')};$('copy').onclick=cp;$('invite').onclick=cp;
-      $('runBack').onclick=e=>{e.currentTarget.innerHTML=`${svg('check')}Set for Survivor 52`;e.currentTarget.disabled=true;confetti();toast('Survivor 52 is set up. Everyone\'s in.')}})}
+      $('runBack').onclick=e=>{e.currentTarget.innerHTML=`${svg('check')}Set for Survivor 52`;e.currentTarget.disabled=true;toast('Survivor 52 is set up. Everyone\'s in.')}})}
 
 function profileSheet(){openSheet('alex','Couch Council · since Survivor 49',
   `<div class="stat3"><div><b class="num">2</b><small>Titles</small></div><div><b class="num">94</b><small>Power points</small></div><div><b class="num">71%</b><small>Agree with the couch</small></div></div>
@@ -905,7 +899,7 @@ function lineupSheet(){const starters=['Kristin','Mike'],bench=['Brady','Maggie'
      ${bench.map(n=>{const c=by(S51,n);return `<div class="bench"><img src="${ph(c)}" alt=""><span class="tx"><b>${c.name}</b><small>${c.tribe} · ${c.total} pts · ${(c.total/4).toFixed(1)} a week</small></span><button data-start="${n}">Start</button></div>`}).join('')}
      <button class="btn pri wide" id="lock" style="margin-top:16px">Lock lineup</button>`,
     b=>{paint(b);b.querySelectorAll('[data-start]').forEach(x=>x.onclick=()=>{chosen=chosen===x.dataset.start?null:x.dataset.start;paint(b)});
-      $('lock').onclick=()=>{state.lineup=true;closeSheet();confetti();toast(`Lineup set: Kristin, Mike, ${chosen}`);sel=heroPick();swapHero();refreshHello()}})}
+      $('lock').onclick=()=>{state.lineup=true;closeSheet();toast(`Lineup set: Kristin, Mike, ${chosen}`);sel=heroPick();swapHero();refreshHello()}})}
 
 function banishSheet(){const still=TRT.cast.filter(c=>!c.exitEp).slice(0,12);let pick=state.banish;
   openSheet('Who gets banished?','Traitors 5 · Episode 4 · scored after Thursday',
@@ -939,7 +933,7 @@ function bingoSheet(){openSheet('Episode 5 Bingo','Survivor 51 · tap a square w
    <div class="row" style="margin-top:12px"><span class="stack">${av('sam',26)}${av('riley',26)}</span><span class="tx"><small>sam has 3 · riley has 2 · first line gets a shout in chat</small></span></div>`,
   b=>{b.querySelectorAll('[data-sq]').forEach(q=>q.onclick=()=>{const i=+q.dataset.sq;if(i===12)return;state.bingo.has(i)?state.bingo.delete(i):state.bingo.add(i);q.classList.toggle('m');
     const L=[];for(let r=0;r<5;r++)L.push([0,1,2,3,4].map(c=>r*5+c));for(let c=0;c<5;c++)L.push([0,1,2,3,4].map(r=>r*5+c));L.push([0,6,12,18,24],[4,8,12,16,20]);
-    const hit=L.find(l=>l.every(x=>state.bingo.has(x)));if(hit&&!state.lined){state.lined=true;hit.forEach(x=>b.querySelector(`[data-sq="${x}"]`).classList.add('win'));$('bb').classList.add('on');confetti();toast('Bingo! Posted to the couch chat')}})})}
+    const hit=L.find(l=>l.every(x=>state.bingo.has(x)));if(hit&&!state.lined){state.lined=true;hit.forEach(x=>b.querySelector(`[data-sq="${x}"]`).classList.add('win'));$('bb').classList.add('on');toast('Bingo! Posted to the couch chat')}})})}
 
 function pollSheet(){const opts=TRT.cast.filter(c=>!c.exitEp).slice(0,4),res=[46,27,18,9];
   openSheet('Banishment poll','Who does the couch think goes next?',`<div id="pl" class="${state.poll?'voted':''}">${opts.map((c,i)=>`<button class="vote${state.poll===c.name?' mine':''}" data-v="${i}"><span class="fill"></span><img src="${ph(c)}" alt=""><b>${c.name}</b><span class="pct num">${res[i]}%</span></button>`).join('')}</div><p class="muted" style="font-size:13px;margin-top:6px" id="pn">${state.poll?`${N===4?4:11} votes`:'Vote to see the couch'}</p>`,
@@ -949,7 +943,7 @@ function pollSheet(){const opts=TRT.cast.filter(c=>!c.exitEp).slice(0,4),res=[46
 function triviaSheet(){const top=S49.cast.slice().sort((a,b)=>b.total-a.total),firstOut=S51.cast.filter(c=>c.exitEp).sort((a,b)=>a.exitEp-b.exitEp)[0];
   const Q=[{q:'Who scored the most points in Survivor 49?',a:top[0],o:[top[2],top[0],top[1],top[3]]},{q:'Who was the first person voted out of Survivor 51?',a:firstOut,o:[by(S51,'Ana'),firstOut,by(S51,'Patt'),by(S51,'Rob')]},{q:'Who finished Survivor 49 with more points?',a:top[1],o:[top[1],top[4]]}];
   let k=0,score=0;
-  const paint=b=>{if(k>=Q.length){b.innerHTML=`<div style="text-align:center;padding:10px 0 4px"><b class="num" style="font-size:96px;color:var(--chyron)">${score}/3</b><p style="font-size:17px;font-weight:600;margin-top:6px">${score>2?'You beat riley\'s 2':score===2?'Level with riley':'riley still holds the couch record'}</p><p class="muted" style="font-size:14px;margin-top:6px">Posted to the couch chat</p></div><button class="btn ink wide" style="margin-top:16px" id="again">Play again</button>`;if(score>2)confetti();$('again').onclick=()=>{k=0;score=0;paint(b)};return}
+  const paint=b=>{if(k>=Q.length){b.innerHTML=`<div style="text-align:center;padding:10px 0 4px"><b class="num" style="font-size:96px;color:var(--chyron)">${score}/3</b><p style="font-size:17px;font-weight:600;margin-top:6px">${score>2?'You beat riley\'s 2':score===2?'Level with riley':'riley still holds the couch record'}</p><p class="muted" style="font-size:14px;margin-top:6px">Posted to the couch chat</p></div><button class="btn ink wide" style="margin-top:16px" id="again">Play again</button>`;$('again').onclick=()=>{k=0;score=0;paint(b)};return}
     const it=Q[k];b.innerHTML=`<div class="qprog">${Q.map((_,i)=>`<i class="${i<=k?'on':''}"></i>`).join('')}</div><p style="font-size:20px;font-weight:700;line-height:1.3">${it.q}</p><div class="q-opts">${it.o.map((c,i)=>`<button class="q-opt" data-o="${i}"><img src="${ph(c)}" alt="">${c.name}</button>`).join('')}</div>`;
     b.querySelectorAll('[data-o]').forEach(o=>o.onclick=()=>{const c=it.o[+o.dataset.o],ok=c===it.a;if(ok)score++;o.classList.add(ok?'right':'wrong');if(!ok)b.querySelectorAll('[data-o]')[it.o.indexOf(it.a)].classList.add('right');b.querySelectorAll('[data-o]').forEach(x=>x.disabled=true);setTimeout(()=>{k++;paint(b)},1100)})};
   openSheet('Survivor 49 trivia','3 questions from the real season','',paint)}
@@ -982,7 +976,7 @@ function newLeagueSheet(){let step=0,show=null,type=null;
     else if(step===1){b.innerHTML=bar+`<p style="font-size:18px;font-weight:700;margin-bottom:12px">How do you want to play ${show}?</p>${[['Outlast','Draft a team; the last one standing carries you'],['Weekly Lineup','Draft a roster, start your best each week'],['Survival Pool','No draft: pick who survives each episode']].map(([t,d])=>`<button class="typecard" data-t="${t}"><span><b>${t}</b><small>${d}</small></span></button>`).join('')}`;
       b.querySelectorAll('[data-t]').forEach(c=>c.onclick=()=>{type=c.dataset.t;b.querySelectorAll('[data-t]').forEach(x=>x.classList.toggle('on',x===c));setTimeout(()=>{step=2;paint(b)},350)})}
     else{b.innerHTML=bar+`<div style="text-align:center;padding:8px 0"><p class="cap" style="font-size:34px;line-height:.95">${show}<br>${type}</p><p class="muted" style="margin-top:10px;font-size:15px">For Couch Council · everyone gets an invite</p></div><button class="btn pri wide" id="mk" style="margin-top:14px">Create league</button>`;
-      $('mk').onclick=()=>{closeSheet();confetti();toast(`${show} · ${type} created. Draft is next.`)}}};
+      $('mk').onclick=()=>{closeSheet();toast(`${show} · ${type} created. Draft is next.`)}}};
   openSheet('New league','For Couch Council','',paint)}
 
 function joinSheet(){openSheet('Join a couch','Got a code from a friend? Try K7Q2XZ',
@@ -991,7 +985,7 @@ function joinSheet(){openSheet('Join a couch','Got a code from a friend? Try K7Q
     ins.forEach((inp,i)=>{inp.oninput=()=>{if(inp.value&&i<5)ins[i+1].focus();$('cj').disabled=val().length<6;$('ci').className='codein'};inp.onkeydown=e=>{if(e.key==='Backspace'&&!inp.value&&i)ins[i-1].focus()};
       inp.onpaste=e=>{const t=(e.clipboardData.getData('text')||'').replace(/\W/g,'').slice(0,6);ins.forEach((x,k)=>x.value=t[k]||'');$('cj').disabled=t.length<6;e.preventDefault()}});
     setTimeout(()=>ins[0].focus(),300);
-    $('cj').onclick=()=>{if(val()==='K7Q2XZ'){$('ci').className='codein ok';$('cmsg').textContent="That's Couch Council. Pulling up a seat.";setTimeout(()=>{closeSheet();confetti();toast('You joined Couch Council')},900)}else{$('ci').className='codein bad';$('cmsg').textContent='No couch with that code. Check it with whoever sent it.'}}})}
+    $('cj').onclick=()=>{if(val()==='K7Q2XZ'){$('ci').className='codein ok';$('cmsg').textContent="That's Couch Council. Pulling up a seat.";setTimeout(()=>{closeSheet();toast('You joined Couch Council')},900)}else{$('ci').className='codein bad';$('cmsg').textContent='No couch with that code. Check it with whoever sent it.'}}})}
 
 // ---------- explore: where are you, then the show page ----------
 const CAST8=['Kaycee','Fessy','Tori','Devin','Amanda','Kyle','Nany','Big T'].map((n,i)=>{const c=by(CHL,n)||CHL.cast[i]||{name:n};return {nm:first(c.name),photo:ph(c),pts:[[6,4,9,3,7,8],[3,8,2,10,4,6],[8,2,6,5,9,3],[2,9,4,8,3,null],[5,5,7,2,6,7],[9,3,1,null,null,null],[4,6,5,7,8,5],[1,2,null,null,null,null]][i]}});
