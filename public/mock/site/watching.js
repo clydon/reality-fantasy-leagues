@@ -183,7 +183,7 @@ function inviteWatch(s){const t=nextAir(s.air),ep=s.ep;let how='live',when=fmtT(
       $('wSend').onclick=()=>{const at=new Date(t);if(how==='start'){const [hh,mm]=b.querySelector('[data-at].on').dataset.at.split(/[: ]/);at.setHours(+hh%12+12,+mm,0,0)}
         W.plans[s.id]={how,when,who:[...who],at,ep:s.ep,mine:true};closeSheet();toast(`Invites sent · ${s.short}, ${when}`);
         [FEED4,FEED12].forEach(F=>F.unshift(['alex','invited the couch to watch along',`${s.short} · ${how==='live'?'the live airing':'starting together'} · ${when}`,null]));if(location.hash.startsWith('#/show/'))route()}})}
-partySheet=()=>inviteWatch(SHOWS.find(x=>x.id==='trt'));
+partySheet=()=>inviteWatch(SHOWS.find(x=>x.id==='trt')||SHOWS[0]);
 
 // ---------- Watch along: GIFs, the screen stays on, and together sessions with pause for everyone ----------
 const GIFS=[['OMG','#e56b9f','#8f3a6a'],['Slow clap','#ffc531','#b07d10'],['I knew it','#35b5a5','#16665c'],['Nope','#f2545b','#7a1d22'],['Popcorn','#f2804b','#8a3f17'],['Crying','#5089c9','#22466e'],['Plot twist','#a76bb0','#4d2a57'],['Iconic','#f4f2f8','#8d889c'],['Screaming','#e0a312','#6d4c05']];
@@ -220,7 +220,7 @@ hub=function(){let h=hubBase();
   h=h.replace(yours,nudgeHTML()+yours).replace(ranks,couchWatchHTML()+ranks)
     .replace('<strong>Watch party</strong><small>Host Thursday\'s Traitors · chat in sync</small>','<strong>Watch it together</strong><small>Invite the couch for Thursday\'s Traitors</small>');
   return h};
-function nudgeHTML(){const s=SHOWS.find(x=>x.id==='ar');if(W.nudgeGone||W.games.ar||!follows(s))return '';const o=(watchersOf(s)||[]).filter(n=>n!=='alex');if(!o.length)return '';
+function nudgeHTML(){const s=SHOWS.find(x=>x.id==='ar');if(!s||W.nudgeGone||W.games.ar||!follows(s))return '';const o=(watchersOf(s)||[]).filter(n=>n!=='alex');if(!o.length)return '';
   return `<section class="sec"><div class="w-nudge"><img src="${ART(s.art)}" alt=""><div class="in"><span class="tg cap">You both watch</span><b>You and ${names(o)} both watch ${s.name}</b><small>Nobody's playing it yet. Start a game and the couch hears about it once.</small>
     <div class="w-nbtns"><button class="btn pri" id="wNGo">${s.unready?'Make it a game':'Start a game'}</button><button class="btn out" id="wNNo">Not now</button></div></div></div></section>`}
 function couchWatchHTML(keep=()=>true){const list=SHOWS.filter(keep).map(s=>({s,o:(watchersOf(s)||[]).filter(n=>n!=='alex')})).filter(x=>x.o.length).sort((a,b)=>(follows(a.s)-follows(b.s))||b.o.length-a.o.length);

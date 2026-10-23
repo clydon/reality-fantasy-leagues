@@ -6,6 +6,14 @@ body{display:flex;align-items:center;justify-content:center;padding:0;min-height
 .device{position:relative;width:100vw;height:100dvh;overflow:hidden;background:var(--ground);transform:translateZ(0);isolation:isolate}
 .scroller{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;overscroll-behavior:contain}
 .scroller::-webkit-scrollbar{display:none}
+/* on a phone the mock IS the screen: pin it to the visible viewport. (Centring a 100dvh device in a 100vh page left a
+   strip at the top and pushed the bottom under Android's navigation bar.) The scroller keeps room for the home bar. */
+@media(max-width:499px){
+  html,body{height:100%;overflow:hidden}
+  body{display:block;min-height:0}
+  .device{position:fixed;inset:0;width:auto;height:auto}
+  #app{padding-bottom:env(safe-area-inset-bottom)}
+}
 @media(min-width:500px){
   body{padding:24px}
   .device{width:390px;height:844px;flex:none;border-radius:34px;box-shadow:0 0 0 10px #050408,0 0 0 11px #2a2633,0 30px 80px rgba(0,0,0,.6)}

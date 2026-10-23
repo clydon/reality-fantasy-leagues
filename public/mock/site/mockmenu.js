@@ -4,7 +4,7 @@
 // "Mock · 4" chip (still in the DOM for syncMockLabel, hidden).
 const SCEN=[
   ['Ways in',[['welcome','New visitor','The landing page, then sign up',{n:0,hash:'#/welcome',out:true}],['signin','Returning player','The sign-in screen',{n:0,hash:'#/signin',out:true}],['invite','Opens an invite link','Signed out, riley\'s couch',{n:4,hash:'#/join/K7Q2XZ',out:true}]]],
-  ['The hub',[['hub4','Couch of 4','Tonight\'s Guide, everything on',{n:4,hash:'#/hub'}],['hub12','Couch of 12','A big group',{n:12,hash:'#/hub'}],['solo','Solo player','No couch yet',{n:1,hash:'#/hub'}]]],
+  ['The hub',[['hub4','Couch of 4','Tonight\'s Guide, everything on',{n:4,hash:'#/hub'}],['hub12','Couch of 12','A big group',{n:12,hash:'#/hub'}],['solo','Solo player','No couch yet',{n:1,hash:'#/hub'}],['thin1','Thin couch · Survivor only','One show on the couch',{n:4,hash:'#/hub',shows:['surv']}],['thin2','Thin couch · Survivor + Challenge','Two shows on the couch',{n:4,hash:'#/hub',shows:['surv','chl']}]]],
   ['A show',[['surv','Survivor 51','Three games: Outlast, Weekly Lineup, Survival Pool',{n:4,hash:'#/show/surv/tonight',ph:'before'}],['onair','Survivor · on air now','Episode night, watch along',{n:4,hash:'#/show/surv/tonight',ph:'during'}],['after','Survivor · just aired','Results arriving in stages',{n:4,hash:'#/show/surv/tonight',ph:'after',res:'waiting'}],
     ['ar','The Amazing Race','You and jordan watch · not a game yet',{n:4,hash:'#/show/ar/tonight'}],['plu','Pluribus','A series only sam watches',{n:4,hash:'#/show/plu/tonight'}],['wa','Watch along','Below Deck, the couch\'s reactions in sync',{n:4,hash:'#/show/bd/tonight',then:()=>openWatch('bd')}]]],
   ['Streaming',[['sev','Severance','Out in full · you\'re on Episode 3, riley and jordan ahead',{n:4,hash:'#/show/sev/tonight'}],['hp','Harry Potter','All 8 episodes drop Friday',{n:4,hash:'#/show/hp/tonight'}],['afterhp','After the Harry Potter drop','Two days later: it lives on in the streaming rail',{n:4,hash:'#/hub',pre:()=>afterDrop()}]]],
@@ -20,9 +20,25 @@ $('mockFab').onclick=()=>mockMenu($('mockPanel').hidden);$('mockX').onclick=$('m
 $('mockReset').onclick=()=>{location.href=location.pathname};
 addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('mockPanel').hidden)mockMenu(false)});
 document.querySelectorAll('[data-scen]').forEach(b=>b.onclick=()=>{const o=SCEN.flatMap(g=>g[1]).find(r=>r[0]===b.dataset.scen)[3];mockMenu(false);
-  if(o.pre)o.pre();
+  setShows(o.shows||null);if(o.pre)o.pre();
   N=o.n;sel=null;state.signedOut=!!o.out;state.solo=N===1;if(o.ph){SHOWSTATE.phase=o.ph;SHOWSTATE.res=o.res||SHOWSTATE.res}syncMockLabel();
   if(UI.wa)closeWatch();if(location.hash===o.hash)route();else location.hash=o.hash;$('scroller').scrollTop=0;if(o.then)setTimeout(o.then,400)});
+// a thin couch: only some shows exist (?shows=surv,chl, or the Thin couch scenarios). Everything that lists shows
+// reads SHOWS, so the mock drops the rest from it, plus the chatter lines, Commercial break cards and
+// notifications about shows that are gone.
+const ALL_SHOWS=SHOWS.slice();
+function setShows(ids){SHOWS.splice(0,SHOWS.length,...ALL_SHOWS.filter(s=>!ids||ids.includes(s.id)));sel=null;
+  if(!SHOWS.some(s=>s.id==='trt'))state.banish=state.banish||'gone';else if(state.banish==='gone')state.banish=null}
+const goneNames=()=>ALL_SHOWS.filter(s=>!SHOWS.includes(s)).flatMap(s=>[s.name,s.short,s.name.replace('The ','')]);
+const mentionsGone=t=>goneNames().some(n=>t.includes(n));
+const feedHTMLFull=feedHTML;
+feedHTML=function(){const F=N===4?FEED4:FEED12,keep=F.slice();F.splice(0,F.length,...keep.filter(e=>!mentionsGone(e.filter(x=>typeof x==='string').join(' '))));try{return feedHTMLFull()}finally{F.splice(0,F.length,...keep)}};
+const hubFull=hub;
+hub=function(){const h=hubFull();return goneNames().length?h.replace(/<button class="mini" data-mini="\w+">[\s\S]*?<\/button>/g,m=>mentionsGone(m.replace(/<[^>]+>/g,' '))?'':m):h};
+const notesSheetFull=notesSheet;
+notesSheet=function(){const trt=ALL_SHOWS.find(s=>s.id==='trt');if(SHOWS.includes(trt))return notesSheetFull();
+  SHOWS.push(trt);try{notesSheetFull()}finally{SHOWS.splice(SHOWS.indexOf(trt),1)}$('sheet').querySelectorAll('[data-n]').forEach(r=>{if(mentionsGone(r.textContent)||r.textContent.includes('Traitors'))r.remove()})};
+{const q=new URLSearchParams(location.search).get('shows');if(q)setShows(q.split(','))}
 // the fab steps aside while a sheet, page or watch along is open on a phone
 const syncCtlBase=syncCtl;syncCtl=function(){syncCtlBase();$('mockFab').classList.toggle('away',!!(UI.sheet||UI.page||UI.wa))};
 if(new URLSearchParams(location.search).has('frame'))$('mockFab').hidden=true;
