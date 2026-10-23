@@ -80,6 +80,7 @@ const { open } = require("./browser");
   await tap('#sheet [data-fa="Cristian"]');
   await tap("#wvsOk");
   await expectText('.wvt:has-text("Mike") .wvt-in', "Cristian comes in");
+  if (!(await page.locator('.wvs-chip.done:has-text("Optional swap used") svg').count())) fail("simple: Optional swap used needs its checkmark");
   if (!(await page.locator('.wvt-b[data-d="Kristin"][disabled]').count())) fail("simple: with the 1 swap used, other Swap buttons should be off");
   await shot("simple-swap");
   await tap('.wvt:has-text("Mike") .wvt-in');

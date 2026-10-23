@@ -6,7 +6,7 @@
 //   v2      the live app's waivers v2 (docs/PLAN-waivers-v2.md, "Phase 2: picked design"), ported faithfully:
 //           the plate, Your team with Swap / Replace, claims grouped by spot with backups, the picker with
 //           Research's controls, 1A settings, 3B Open a waiver window.
-//   simple  the casual-first proposal: the best free agent is already lined up for each spot (so doing nothing
+//   simple  PICKED by the user 2026-10-23 (the design to build); reworked since, see below. Was the casual-first proposal: the best free agent is already lined up for each spot (so doing nothing
 //           is a fine answer), backups are "the best one left" unless you choose, the swap is one optional
 //           row, lowest score picks first, settings are one choice of feel with the details folded away.
 // The data is real Survivor 51 (Jenna out in Episode 4); the other three couch members' claims are made up.
@@ -108,7 +108,7 @@ function wvCard(d,a,tag,cls,act){const o=S51C(d),c=S51C(a);
     <span class="fc in"><img src="${ph(c)}" alt=""></span><span class="tx"><span class="cap">${tag}</span><b>${a} for ${d}</b><small>${wvPts(a)} pts · ${c.tribeNow||c.tribe}</small></span>${svg('chev')}</button>`}
 function wvSimpleHTML(s){const out=wvOut(),open=out.filter(d=>!wvPicked(d)),one=out.length===1,left=wvLeft();
   const head=open.length?`Replace ${wvNames(open)}`:out.length||WV.swaps.length?'Your swaps are in':'Any swaps this week?';
-  const chips=`${out.map(d=>`<span class="wvs-chip req${wvPicked(d)?' done':''}">${wvPicked(d)?svg('check'):''}Replace ${d}</span>`).join('')}${WV.win.swaps?`<span class="wvs-chip">${left?`Optional · ${left} free swap${left===1?'':'s'}`:'Optional swap used'}</span>`:''}`;
+  const chips=`${out.map(d=>`<span class="wvs-chip req${wvPicked(d)?' done':''}">${wvPicked(d)?svg('check'):''}Replace ${d}</span>`).join('')}${WV.win.swaps?`<span class="wvs-chip${left?'':' done'}">${left?`Optional · ${left} free swap${left===1?'':'s'}`:`${svg('check')}Optional swap used`}</span>`:''}`;
   const row=n=>{const c=S51C(n),o=!!c.exitEp,a=wvFirst(n),L=wvList(n),can=o||left>0;
     return `<div class="wvt${o?' out':''}${a?' set':''}"><div class="wvt-r"><img src="${ph(c)}" alt=""><span class="tx"><b>${n}</b>${o?`<small>Out · Episode ${c.exitEp}</small>`:`<small>${c.total} pts · ${c.tribeNow||c.tribe}</small>${wvSigHTML(n)}`}</span>
       ${a?(o?'':'<span class="wvt-going cap">Going</span>'):`<button class="wvt-b${o?' free':''}" data-wvs="pick" data-d="${n}" ${can?'':'disabled'}>Swap</button>`}</div>
