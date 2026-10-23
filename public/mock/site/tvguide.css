@@ -1,0 +1,16 @@
+/* the TV guide shows all of TV (tvguide.js): your shows lead; the rest is shorter and faded */
+/* the fade ladder: yours (full) → dashed (yours, not playing yet) → faded (not on your shows), a step further */
+.lst.g-not,.lst.g-tvc{filter:saturate(.3) brightness(.78);opacity:.8}
+.lst.g-not:hover,.lst.g-tvc:hover,.lst.g-not:focus-visible,.lst.g-tvc:focus-visible{filter:none;opacity:1}
+.lst.g-tvc{height:66px;padding:6px 8px;outline:1px solid rgba(255,255,255,.1);outline-offset:-1px}
+.lst.g-tvc .tm{position:static;align-self:flex-start;font-size:10px;padding:2px 5px;margin-bottom:2px}
+.lst.g-tvc .tt{font-size:14px}
+.lst.g-tvc .ep{font-size:10px;margin-top:1px}
+.lst .g-noart,.g-tvrow .g-noart{position:absolute;inset:0;z-index:-2;display:grid;place-items:center;font-size:34px;font-weight:800;font-stretch:62%;color:rgba(255,255,255,.22);background:linear-gradient(150deg,#3a3548,#16141d)}
+.g-also{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.08em;color:var(--muted);height:14px;margin-top:2px}
+.g-also::after{content:"";flex:1;height:1px;background:var(--line)}
+.g-legend{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.g-legend button{color:var(--chyron);font-weight:700;font-size:13px;height:32px}
+.g-tvrow{display:flex;align-items:center;gap:12px;min-height:58px;border-bottom:1px solid var(--line)}
+.g-tvrow .tx{flex:1;min-width:0}.g-tvrow b{display:block;font-size:15px}
+.recap-art .g-noart.big{position:absolute;inset:0;display:grid;place-items:center;font-size:80px;font-weight:800;font-stretch:62%;color:rgba(255,255,255,.2);background:linear-gradient(150deg,#3a3548,#16141d)}

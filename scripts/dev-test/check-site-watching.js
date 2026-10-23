@@ -96,35 +96,32 @@ const { open } = require("./browser");
   await expectText("#app", "Watching privately");
   await shot("bd-private");
 
-  // F. empty days keep the guide: picks by default (one per empty day, more a tap away), slim days with picks off
-  for (const q of ["&shows=surv", "&shows=surv,chl", "&fresh=1"]) {
-    await fresh(`#/hub`.replace("#", `${q}#`));
-    const picks = await page.locator('#reel .day.g-pickday:not([aria-hidden])').count();
-    if (picks < 1 || picks > 2) fail(`${q}: ${picks} pick days (want 1 or 2)`);
-    if (!(await page.locator("#reel .day.g-slim").count())) fail(`${q}: later empty days aren't slim`);
-    await page.click('.lst[data-show="surv"]'); await page.waitForTimeout(300); await expectText("#sheet", "Survivor");
-    await page.click("#sheet [data-close]"); await page.waitForTimeout(300);
-    await shot(`picks${q.replace(/[&=,]/g, "-")}`);
-  }
-  await page.locator(".g-more").first().click();
-  await expectText("#sheet", "On TV");
-  await page.click('#sheet [data-g="Dating"]');
-  if (await page.locator("#tvl .g-tvrow").count() && (await page.locator("#tvl").textContent()).includes("Competition")) fail("the Dating filter still lists Competition shows");
-  await shot("tv-day-sheet");
-  await page.click("#sheet [data-close]"); await page.waitForTimeout(300);
-  await page.click('[data-picks="off"]');
+  // F. the guide shows all of TV: the rest is faded under "Also on", hideable; your own shows can't be hidden
+  await fresh("#/hub".replace("#", "&shows=surv#"));
+  const tvCards = await page.locator("#reel .lst.g-tvc").count();
+  if (!tvCards) fail("thin couch: the guide shows no other TV");
+  const first = page.locator("#reel .lst.g-tvc").first(), firstId = await first.getAttribute("data-tv");
+  await first.click();
+  await expectText("#sheet", "Hide from guide");
+  await shot("tv-listing-sheet");
+  await page.click("#otHide");
   await page.waitForTimeout(400);
-  if (!(await page.locator(".day.g-slim").count())) fail("picks off: no slim days in a thin week");
-  const over = await page.evaluate(() => { const r = document.getElementById("reel"); return r.scrollWidth - r.clientWidth; });
-  if (over > 2) fail(`picks off: the week doesn't fit on one screen (${over}px over)`);
-  await shot("picks-off-slim");
-  await fresh("#/hub".replace("#", "&shows=surv&guide=ontv#"));
-  if (!(await page.locator(".lst.g-ontv").count())) fail("On TV option: no fill-ins in a thin week");
-  await page.locator(".lst.g-ontv").first().click();
-  await page.click("#otAdd");
-  await expectText("#toast", "on your shows");
+  if (await page.locator(`#reel .lst.g-tvc[data-tv="${firstId}"]`).count()) fail(`${firstId} still in the guide after hiding it`);
+  await page.click("[data-hidden]");
+  await page.click(`[data-unhide="${firstId}"]`);
+  await page.waitForTimeout(400);
+  if (!(await page.locator(`#reel .lst.g-tvc[data-tv="${firstId}"]`).count())) fail(`${firstId} didn't come back after Show again`);
+  await page.click("#sheet [data-close]").catch(() => {});
+  await shot("guide-all-tv");
   await fresh("#/hub");
-  if (await page.locator(".day.g-slim").count()) fail("full couch: slim days shown");
+  await page.locator('#reel .lst[data-show="surv"]').first().click();
+  if (await page.locator("#epHide").count()) fail("your own show offers Hide from guide");
+  await page.click("#sheet [data-close]"); await page.waitForTimeout(300);
+  await page.locator('#reel .lst.g-not[data-show="li"]').first().click();
+  if (!(await page.locator("#epHide").count())) fail("a couch show you don't follow has no Hide from guide");
+  await page.click("#epHide");
+  await page.waitForTimeout(400);
+  if (await page.locator('#reel .lst[data-show="li"]').count()) fail("Love Island still in the guide after hiding it");
 
   // E. streaming shows: the guide has the drop day and planned nights; the rail is streaming's home
   await fresh("#/hub");
