@@ -1,0 +1,18 @@
+/* a thin week (thinweek.js): the guide with one or two shows */
+.rolling[hidden]{display:none}
+/* slim: empty days become a strip with the day written down it */
+.reel.g-week-slim{-webkit-mask-image:none;mask-image:none;overflow-x:auto}
+.day.g-slim{width:26px!important;padding:0!important;flex:none;align-items:center;gap:8px;border-left:1px solid var(--line);background:repeating-linear-gradient(180deg,transparent 0 10px,rgba(255,255,255,.015) 10px 20px)}
+.day.g-slim:first-child{margin-left:16px;border-left:0}
+.day.g-slim b{writing-mode:vertical-rl;transform:rotate(180deg);font-size:15px;font-stretch:62%;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding-top:2px;white-space:nowrap}
+.day.g-slim span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;font-weight:600;color:var(--field);white-space:nowrap}
+.reel .day.g-slim.today{position:sticky;left:0;z-index:3;background:var(--ground);box-shadow:none}
+.day.g-slim.today b{background:var(--chyron);color:var(--ink);padding:8px 3px 10px;clip-path:polygon(0 0,100% 0,100% 100%,0 calc(100% - 6px))}
+.reel.g-week-slim .day:not(.g-slim){flex:none}
+.reel.g-week-slim .day.today:not(.g-slim){box-shadow:none}
+/* ontv: one faded show that airs that day, not on the couch, with a + */
+.lst.g-ontv{opacity:.62;filter:saturate(.4);outline:1px dashed rgba(255,255,255,.35);outline-offset:-1px;transition:opacity .2s,filter .2s}
+.lst.g-ontv:hover,.lst.g-ontv:focus-visible{opacity:1;filter:none}
+.lst.g-ontv .g-tv{align-self:flex-start;font-size:10px;letter-spacing:.06em;padding:2px 6px;margin-bottom:3px;background:rgba(10,8,14,.75);color:var(--bone);border-radius:2px}
+.lst.g-ontv .g-plus{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:var(--chyron);color:var(--ink);display:grid;place-items:center}
+.lst.g-ontv .g-plus svg{width:15px;height:15px;stroke-width:2.8}

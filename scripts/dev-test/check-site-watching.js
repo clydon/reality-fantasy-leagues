@@ -96,12 +96,23 @@ const { open } = require("./browser");
   await expectText("#app", "Watching privately");
   await shot("bd-private");
 
-  // F. a thin week: one or two shows on the guide become a list; a busy week keeps the reel
-  for (const [q, list] of [["&shows=surv", true], ["&shows=surv,chl", true], ["&fresh=1", true], ["", false]]) {
+  // F. a thin week keeps the guide: slim days (default) or On TV fill-ins; a full couch keeps the rolling week
+  for (const [q, thin] of [["&shows=surv", true], ["&shows=surv,chl", true], ["&fresh=1", true], ["", false]]) {
     await fresh(`#/hub`.replace("#", `${q}#`));
-    if ((await page.locator(".g-list").count() > 0) !== list) fail(`${q || "full couch"}: guide list ${list ? "missing" : "shown"}`);
-    if (list) { await page.click('.g-row[data-show="surv"]'); await page.waitForTimeout(300); await expectText("#sheet", "Survivor"); await shot(`thin-guide${q.replace(/[&=,]/g, "-")}`); }
+    if ((await page.locator(".day.g-slim").count() > 0) !== thin) fail(`${q || "full couch"}: slim days ${thin ? "missing" : "shown"}`);
+    if (thin) {
+      const over = await page.evaluate(() => { const r = document.getElementById("reel"); return r.scrollWidth - r.clientWidth; });
+      if (q === "&shows=surv" && over > 2) fail(`Survivor-only week doesn't fit on one screen (${over}px over)`);
+      await page.click('.lst[data-show="surv"]'); await page.waitForTimeout(300); await expectText("#sheet", "Survivor");
+      await shot(`thin-slim${q.replace(/[&=,]/g, "-")}`);
+    }
   }
+  await fresh("#/hub".replace("#", "&shows=surv&guide=ontv#"));
+  if (!(await page.locator(".lst.g-ontv").count())) fail("On TV: no fill-ins in a thin week");
+  await page.locator(".lst.g-ontv").first().click();
+  await page.click("#otAdd");
+  await expectText("#toast", "on your shows");
+  await shot("thin-ontv");
 
   // E. streaming shows: the guide has the drop day and planned nights; the rail is streaming's home
   await fresh("#/hub");

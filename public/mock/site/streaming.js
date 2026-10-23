@@ -139,20 +139,3 @@ wireW=function(s){wireWBase(s);
 // the mock can jump past the Harry Potter drop (Scenarios → After the drop)
 function afterDrop(){const s=SHOWS.find(x=>x.id==='hp');s.dropAt=new Date(Date.now()-2*864e5);s.aired=s.eps;WHERE.hp={riley:5,sam:8,priya:2,maya:6,kat:1,luis:3};FIRST.where.hp=FIRST.where.hp||0}
 
-// ---------- a thin week: with one or two shows on the guide, a list beats a week of empty columns ----------
-// Up to two shows airing this week: "This week on the couch" becomes one row per airing (drops and planned nights
-// too), instead of seven mostly empty columns. The rolling reel stays for anything busier.
-function guideList(L){const now=new Date(),t0=startOfToday(),f=n=>`<span style="background:${col(n)}">${n[0].toUpperCase()}</span>`;
-  const dayLbl=x=>x.d===0?(now.getHours()>=17?'Tonight':'Today'):x.d===1?'Tomorrow':`${DAY[x.at.getDay()]} ${x.at.getDate()}`;
-  const rows=L.slice().sort((a,b)=>a.at-b.at).map(x=>{const s=x.s,watchOnly=s.explore||s.series||s.others,w=(x.kind==='plan'?x.p.who:(watchersOf(s)||[])).slice(0,4);
-    const tag=x.kind==='drop'?`<span class="g-tag">All ${s.eps} drop</span>`:x.kind==='plan'||x.plan?`<span class="g-tag good">Together</span>`:'';
-    return `<button class="g-row${watchOnly&&!x.kind?' watch':''}" data-show="${s.id}" data-ep="${x.ep}" data-at="${fmtT(x.at)}"><span class="g-when"><b class="cap">${dayLbl(x)}</b><small>${clock(x.at)}</small></span>
-      <img src="${ART(s.art)}" alt="" style="object-position:${s.pos}"><span class="tx">${tag}<b class="cap">${s.name}</b><small>${x.kind==='drop'?svc(s):`${s.season.replace('Season ','S')} · Ep ${x.ep}`}</small></span><span class="f">${w.map(f).join('')}</span></button>`}).join('');
-  const tonight=L.some(x=>x.d===0);
-  return `<div class="g-list">${tonight?'':`<p class="g-none">Nothing on tonight</p>`}${rows||'<p class="g-none">Nothing on this week</p>'}</div>`}
-const hubThin=hub;
-hub=function(){const h=hubThin(),L=listings();if(new Set(L.map(x=>x.s.id)).size>2)return h;
-  const a=h.indexOf('<div class="reel" id="reel">'),b=h.indexOf(h.includes('<div class="b-rail-h">')?'<div class="b-rail-h">':'<div class="guide-f">');if(a<0||b<0)return h;
-  return h.slice(0,a).replace('<span class="rolling" id="rolling">','<span class="rolling" id="rolling" hidden>')+guideList(L)+'<div class="reel" id="reel" hidden></div>'+h.slice(b)};
-const wireHubThin=wireHub;
-wireHub=function(){wireHubThin();app.querySelectorAll('.g-row').forEach(b=>b.onclick=()=>episodeSheet(b.dataset.show,b.dataset.ep,b.dataset.at))};
