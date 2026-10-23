@@ -96,14 +96,29 @@ const { open } = require("./browser");
   await expectText("#app", "Watching privately");
   await shot("bd-private");
 
-  // E. streaming shows: a drop day and a planned night are in the guide; the three hub options
-  for (const opt of [1, 2, 3]) {
-    await fresh(`#/hub`.replace("#", `&binge=${opt}#`));
-    if (!(await page.locator(".lst.b-drop").count())) fail(`option ${opt}: no drop day in the guide`);
-    const want = { 1: ".lst.b-plan", 2: ".day.b-any", 3: "#bRail" }[opt];
-    if (!(await page.locator(want).count())) fail(`option ${opt}: no ${want}`);
-    await shot(`streaming-option-${opt}`);
-  }
+  // E. streaming shows: the guide has the drop day and planned nights; the rail is streaming's home
+  await fresh("#/hub");
+  if (!(await page.locator(".lst.b-drop").count())) fail("no drop day in the guide");
+  if (!(await page.locator('.lst.b-plan[data-show="sev"]').count())) fail("riley and jordan's Severance night isn't in the guide");
+  await expectText("#bRail", "Continue · Ep 4");
+  await shot("streaming-rail");
+  await page.click('#bRail [data-qadd="wire"]');
+  await shot("quick-add-sheet");
+  await page.click("#qGo");
+  await page.waitForTimeout(400);
+  if (await page.locator('#bRail [data-qadd="wire"]').count()) fail("The Wire still offers + after adding it");
+  await page.locator('#wCW [data-qadd="plu"]').scrollIntoViewIfNeeded();
+  await page.click('#wCW [data-qadd="plu"]');
+  await page.click("#qGo");
+  await page.waitForTimeout(400);
+  await expectText("#wCW", "On your shows");
+  await page.waitForTimeout(1200);
+  if ((await page.locator("#cd").innerText()).replace(/\s+/g, " ").startsWith("00 DAYS : 00 HRS : 00 MIN")) fail("the hub countdown reset to zero after a re-render");
+  await shot("shelf-added");
+  await page.evaluate(() => { afterDrop(); route(); });
+  await page.waitForTimeout(500);
+  await expectText("#bRail", "New · all 8 out");
+  await shot("after-the-drop");
   await fresh("#/show/sev/tonight");
   await expectText("#app", "Episode 3 of 10");
   await page.click("[data-bjoin]");

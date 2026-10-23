@@ -180,7 +180,8 @@ function inviteWatch(s){const t=nextAir(s.air),ep=s.ep;let how='live',when=fmtT(
     b=>{b.querySelectorAll('[data-how]').forEach(x=>x.onclick=()=>{how=x.dataset.how;b.querySelectorAll('[data-how]').forEach(y=>y.classList.toggle('on',y===x));$('wWhen').hidden=how!=='start';when=how==='live'?fmtT(t):`${DAY[t.getDay()]} ${b.querySelector('[data-at].on').dataset.at}`});
       b.querySelectorAll('[data-at]').forEach(x=>x.onclick=()=>{b.querySelectorAll('[data-at]').forEach(y=>y.classList.toggle('on',y===x));when=`${DAY[t.getDay()]} ${x.dataset.at}`});
       b.querySelectorAll('[data-p]').forEach(x=>x.onclick=()=>{x.classList.toggle('on');x.classList.contains('on')?who.add(x.dataset.p):who.delete(x.dataset.p);$('wSend').disabled=!who.size});
-      $('wSend').onclick=()=>{W.plans[s.id]={how,when,who:[...who]};closeSheet();toast(`Invites sent · ${s.short}, ${when}`);
+      $('wSend').onclick=()=>{const at=new Date(t);if(how==='start'){const [hh,mm]=b.querySelector('[data-at].on').dataset.at.split(/[: ]/);at.setHours(+hh%12+12,+mm,0,0)}
+        W.plans[s.id]={how,when,who:[...who],at,ep:s.ep,mine:true};closeSheet();toast(`Invites sent · ${s.short}, ${when}`);
         [FEED4,FEED12].forEach(F=>F.unshift(['alex','invited the couch to watch along',`${s.short} · ${how==='live'?'the live airing':'starting together'} · ${when}`,null]));if(location.hash.startsWith('#/show/'))route()}})}
 partySheet=()=>inviteWatch(SHOWS.find(x=>x.id==='trt'));
 

@@ -1132,7 +1132,7 @@ function wireHub(){
   $('feed').onclick=e=>{const b=e.target.closest('.reacts button');if(!b)return;const m=b.classList.toggle('mine');b.setAttribute('aria-pressed',m);const c=b.querySelector('span');c.textContent=+c.textContent+(m?1:-1);b.classList.remove('bump');void b.offsetWidth;b.classList.add('bump')};
   app.querySelectorAll('[data-mini]').forEach(b=>b.onclick=()=>({bingo:bingoSheet,poll:pollSheet,trivia:triviaSheet,party:partySheet,wa:()=>openWatch('surv')})[b.dataset.mini]());
   app.querySelectorAll('[data-past]').forEach(b=>b.onclick=()=>pastSheet(+b.dataset.past));$('allSeasons').onclick=seasonsPage;
-  $('newLeague').onclick=newLeagueSheet;$('joinCouch').onclick=joinSheet;tickCd();
+  $('newLeague').onclick=newLeagueSheet;$('joinCouch').onclick=joinSheet;prevCd={};tickCd();
   app.querySelectorAll('.shelf,.minis,.trophies').forEach(hscroll)}
 function hscroll(el){if(!el||el.dataset.hs)return;el.dataset.hs=1;let x0=null,s0=0,moved=0;
   el.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.button)return;x0=e.clientX;s0=el.scrollLeft;moved=0});
