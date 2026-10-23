@@ -96,6 +96,33 @@ const { open } = require("./browser");
   await expectText("#app", "Watching privately");
   await shot("bd-private");
 
+  // E. streaming shows: a drop day and a planned night are in the guide; the three hub options
+  for (const opt of [1, 2, 3]) {
+    await fresh(`#/hub`.replace("#", `&binge=${opt}#`));
+    if (!(await page.locator(".lst.b-drop").count())) fail(`option ${opt}: no drop day in the guide`);
+    const want = { 1: ".lst.b-plan", 2: ".day.b-any", 3: "#bRail" }[opt];
+    if (!(await page.locator(want).count())) fail(`option ${opt}: no ${want}`);
+    await shot(`streaming-option-${opt}`);
+  }
+  await fresh("#/show/sev/tonight");
+  await expectText("#app", "Episode 3 of 10");
+  await page.click("[data-bjoin]");
+  await expectText("#toast", "Catch up to 6");
+  await page.click('[data-wjob="where"]');
+  await page.click("#wl");
+  await page.waitForTimeout(600);
+  await expectText("#app", "Finished");
+  await fresh("#/show/hp/tonight");
+  await expectText("#app", "Drops");
+  await page.click('[data-wjob="invite"]');
+  await page.click("#bSend");
+  await page.waitForTimeout(500);
+  await expectText(".w-plan", "Episode 1");
+  await shot("hp-premiere-planned");
+  await page.click(".back");
+  await page.waitForTimeout(600);
+  if ((await page.locator('.lst.b-plan[data-show="hp"]').count()) < 1) fail("the planned premiere isn't in the guide");
+
   await close();
   if (errors.length) fail(`page errors: ${errors.join(" | ")}`);
   console.log(fails ? `${fails} failure(s)` : "all good");

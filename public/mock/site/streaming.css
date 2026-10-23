@@ -1,0 +1,41 @@
+/* ================= streaming shows: drop days, planned watch alongs, the three guide options ================= */
+.lst .b-tag{align-self:flex-start;font-size:10px;letter-spacing:.06em;padding:3px 10px 3px 6px;margin-bottom:4px;background:var(--chyron);color:var(--ink);clip-path:polygon(0 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+.lst .b-tag.good{background:var(--good);color:var(--good-ink)}
+.lst.b-drop{outline:1.5px solid var(--chyron);outline-offset:-1.5px}
+.lst.b-plan{outline:1.5px solid var(--good);outline-offset:-1.5px}
+.lst.b-drop img,.lst.b-plan img{object-position:center 25%}
+/* option 1: the jump under the guide */
+.b-jump{display:flex;align-items:center;gap:6px;height:40px;color:var(--bone);font-weight:600;font-size:13px}
+.b-jump svg{width:16px;height:16px;color:var(--good)}
+/* option 2: the Anytime column */
+.day.b-any{background:linear-gradient(180deg,rgba(53,181,165,.08),transparent 70%)}
+.day.b-any .dh b{color:var(--good)}
+.b-anyc{position:relative;display:flex;align-items:center;gap:8px;height:58px;padding:5px;border-radius:3px;background:var(--panel);text-align:left;color:var(--bone);outline:1px solid var(--line);outline-offset:-1px}
+.b-anyc img{width:44px;height:48px;object-fit:cover;border-radius:2px;flex:none}
+.b-anyc .tx{min-width:0;display:flex;flex-direction:column;gap:3px}
+.b-anyc b{font-size:14px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-anyc .f{display:flex;align-items:center}
+.b-anyc .f span{width:14px;height:14px;border-radius:2px;margin-right:-3px;box-shadow:0 0 0 1.5px var(--panel);font-size:8px;font-weight:800;display:grid;place-items:center;color:var(--ink)}
+.b-anyc small{font-size:10px;color:var(--muted);margin-left:8px;white-space:nowrap}
+.b-more{height:34px;border-radius:3px;border:1px dashed var(--field);font-size:12px;font-weight:700;color:var(--muted)}
+/* option 3: the streaming rail */
+.b-rail-h{display:flex;align-items:baseline;justify-content:space-between;padding:10px 16px 6px}
+.b-rail-h span{font-size:14px;letter-spacing:.04em;color:var(--good)}.b-rail-h small{font-size:12px;color:var(--muted)}
+.b-rail{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:0 16px 2px}
+.b-rail::-webkit-scrollbar{display:none}
+.b-chip{flex:none;display:flex;align-items:center;gap:8px;height:52px;padding:4px 12px 4px 4px;border-radius:26px 6px 6px 26px;background:var(--panel);outline:1px solid var(--line);outline-offset:-1px;color:var(--bone);text-align:left}
+.b-chip img{width:44px;height:44px;border-radius:50%;object-fit:cover}
+.b-chip b{display:block;font-size:14px;line-height:1}.b-chip small{display:block;font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap}
+/* progress, in the shelf and Who's watching */
+.b-row{display:flex!important;align-items:center;gap:6px}
+.b-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.b-pb{display:block;height:3px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:3px}
+.b-pb i{display:block;height:100%;background:var(--good)}
+.w-who .b-pb{width:140px}
+.w-cwc .b-st{position:absolute;left:8px;bottom:8px;font-size:10px;letter-spacing:.05em;background:var(--good);color:var(--good-ink);padding:3px 7px;border-radius:2px}
+/* the drop countdown on a streaming show's Tonight */
+.b-dropbox{margin:18px 16px 0;padding:14px;border-radius:4px;background:var(--plate);color:var(--ink);display:flex;flex-direction:column;gap:4px}
+.b-dropbox .b-tag{align-self:flex-start;font-size:11px;letter-spacing:.06em;padding:4px 14px 4px 7px;background:var(--chyron);clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%)}
+.b-dropbox>b{font-size:30px;margin-top:4px}
+.b-dropbox .b-cd{font-size:34px}
+.b-dropbox small{font-size:13px;color:var(--plate-muted)}

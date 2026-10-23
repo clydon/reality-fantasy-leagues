@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roster Options</title>
+<script src="../showcase/data.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<style>
+:root{--ground:#16141d;--panel:#221f2c;--raised:#2a2633;--rail:#100e15;--line:#2e2a3a;--field:#3a3548;--bone:#f4f2f8;--muted:#a9a4b8;--chyron:#ffc531;--ink:#121018;--plate:#fff;--plate-muted:#4a4558;--live:#f2545b;--live-ink:#2a0a0c;--good:#35b5a5;--good-ink:#0e2b27;--ease:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.45,.64,1)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Archivo,system-ui,sans-serif;background:#0b0a0f;color:var(--bone);-webkit-font-smoothing:antialiased;padding:28px 0 60px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
+.cap{font-stretch:62%;font-weight:800;text-transform:uppercase;line-height:1;letter-spacing:.01em}
+.num{font-stretch:62%;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.muted{color:var(--muted)}
+svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;flex:none}
+.intro{max-width:1100px;margin:0 auto;padding:0 20px}
+.intro h1{font-size:48px}
+.intro p{color:var(--muted);font-size:16px;line-height:1.5;max-width:70ch;margin-top:10px}
+.jobs{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.jobs span{font-size:13px;font-weight:700;background:var(--panel);padding:6px 10px;border-radius:3px}
+.opts{display:flex;gap:28px;overflow-x:auto;padding:26px 20px 10px;scroll-snap-type:x mandatory}
+.opt{flex:none;scroll-snap-align:start;width:min(780px,92vw);display:flex;flex-direction:column;gap:14px}
+.opt-h{display:flex;align-items:baseline;gap:12px}
+.opt-h .k{font-size:44px;color:var(--chyron)}
+.opt-h h2{font-size:30px}
+.opt-h small{display:block;font-size:14px;color:var(--muted);font-weight:500;font-stretch:100%;text-transform:none;letter-spacing:0;margin-top:4px}
+.rec{background:var(--chyron);color:var(--ink);font-size:12px;letter-spacing:.06em;padding:4px 14px 4px 8px;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%);margin-left:auto;white-space:nowrap}
+.phones{display:flex;gap:16px}
+.ph{width:360px;height:740px;flex:none;border-radius:26px;background:var(--ground);outline:1px solid #2a2633;box-shadow:0 20px 50px rgba(0,0,0,.5);overflow:hidden;position:relative;display:flex;flex-direction:column}
+.ph .lbl{position:absolute;top:-24px;left:4px;font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.wrapph{position:relative;padding-top:24px}
+.scroll{flex:1;overflow-y:auto;scrollbar-width:none;padding-bottom:84px}
+.scroll::-webkit-scrollbar{display:none}
+.bar{height:74px;position:relative;overflow:hidden;isolation:isolate;padding:10px 12px;display:flex;align-items:flex-end;flex:none}
+.bar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:100% 40%;z-index:-2}
+.bar::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,var(--ground) 45%,rgba(22,20,29,.35))}
+.bar b{font-size:20px}.bar small{margin-left:auto;font-size:11px;font-weight:700;background:rgba(16,14,21,.7);padding:5px 8px;border-radius:2px}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:64px;background:rgba(16,14,21,.96);border-top:1px solid var(--line);display:grid;padding-bottom:6px}
+.tabs span{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--muted)}
+.tabs span.on{color:var(--bone)}.tabs span.on svg{color:var(--chyron)}
+.blk{padding:0 14px;margin-top:18px}
+.sh{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
+.sh h3{font-size:20px}.sh small{font-size:12px;color:var(--muted)}
+.seg{display:flex;gap:3px;background:var(--panel);border-radius:3px;padding:3px;margin:12px 14px 0}
+.seg button{flex:1;height:32px;border-radius:2px;font-size:12.5px;font-weight:700;color:var(--muted);text-align:center}
+.seg button.on{background:var(--bone);color:var(--ink)}
+.chips{display:flex;gap:6px;padding:12px 14px 0;overflow-x:auto;scrollbar-width:none}
+.chip{flex:none;height:32px;padding:0 11px;border-radius:2px;background:var(--raised);font-size:13px;font-weight:600;display:flex;align-items:center;gap:5px}
+.chip.on{background:var(--bone);color:var(--ink)}
+.chip b{font-stretch:62%;font-size:15px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.tile{position:relative;aspect-ratio:3/4;border-radius:3px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:6px;color:#fff;isolation:isolate;transition:transform .3s var(--spring),box-shadow .25s}
+.tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 20%;z-index:-2}
+.tile::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,transparent 45%,rgba(10,8,14,.92))}
+.tile b{font-size:14px}.tile small{font-size:10px;opacity:.85}
+.tile .flag{position:absolute;top:6px;left:6px;font-size:9.5px;font-weight:800;letter-spacing:.06em;padding:2px 5px;border-radius:2px;font-stretch:62%;text-transform:uppercase}
+.tile .flag.st{background:var(--chyron);color:var(--ink)}.tile .flag.bn{background:rgba(16,14,21,.8);color:var(--muted)}.tile .flag.out{background:var(--live);color:var(--live-ink)}
+.tile.bench img{filter:saturate(.4) brightness(.75)}
+.tile.out img{filter:grayscale(1) brightness(.6)}
+.tile.slot{background:var(--panel);outline:2px dashed var(--field);outline-offset:-2px;align-items:center;justify-content:center;color:var(--muted);font-size:12px;text-align:center}
+.tile.slot::before{display:none}
+.tile.pop{animation:pop .45s var(--spring)}
+@keyframes pop{50%{transform:scale(1.08)}}
+.tile .act{position:absolute;top:5px;right:5px;width:24px;height:24px;border-radius:50%;background:rgba(16,14,21,.75);display:grid;place-items:center}
+.tile .act svg{width:14px;height:14px}
+.row{display:flex;align-items:center;gap:10px;min-height:56px;border-top:1px solid var(--line);width:100%}
+.row img{width:40px;height:40px;object-fit:cover;object-position:center 20%;border-radius:3px}
+.row .tx{flex:1;min-width:0}.row b{display:block;font-size:14px}.row small{display:block;font-size:12px;color:var(--muted)}
+.row .btn{height:34px;padding:0 11px;border-radius:3px;font-size:12.5px;font-weight:700;flex:none;display:grid;place-items:center}
+.btn.pri{background:var(--chyron);color:var(--ink)}.btn.out{outline:1px solid var(--field);outline-offset:-1px}.btn.good{background:var(--good);color:var(--good-ink)}
+.row.me{background:var(--raised);margin:0 -8px;padding:0 8px;border-color:transparent}
+.row .rk{width:20px;font-size:19px;color:var(--muted)}
+.av{width:26px;height:26px;border-radius:3px;display:grid;place-items:center;font-size:12px;font-weight:800;color:var(--ink);font-stretch:62%;flex:none}
+.plate{display:flex;align-items:stretch;min-height:50px;background:var(--plate);color:var(--ink);border-radius:3px;overflow:hidden;margin:12px 14px 0}
+.plate .tg{background:var(--chyron);display:flex;align-items:center;padding:0 18px 0 9px;font-size:12px;letter-spacing:.04em;clip-path:polygon(0 0,100% 0,calc(100% - 10px) 100%,0 100%);margin-right:-10px}
+.plate .bd{flex:1;padding:6px 8px 6px 16px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.plate .t{font-size:16px}.plate .d{font-size:11.5px;color:var(--plate-muted)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--panel);border-radius:14px 14px 0 0;box-shadow:0 -12px 30px rgba(0,0,0,.5);padding:8px 14px 18px;z-index:5;max-height:78%;overflow-y:auto}
+.sheet .grab{width:36px;height:4px;border-radius:2px;background:var(--field);margin:0 auto 10px}
+.sheet h3{font-size:22px}.sheet .sub{font-size:12px;color:var(--muted);margin:4px 0 10px}
+.scrim{position:absolute;inset:0;background:rgba(8,6,12,.55);z-index:4}
+.cta{margin:14px 14px 0;width:calc(100% - 28px);height:46px;border-radius:3px;background:var(--chyron);color:var(--ink);font-weight:800;font-size:16px;text-align:center}
+.youcard{margin:12px 14px 0;border-radius:4px;background:var(--panel);overflow:hidden}
+.youcard .yh{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.youcard .yh b{flex:1;font-size:15px}.youcard .yh small{font-size:12px;color:var(--muted)}
+.minis{display:flex;gap:5px;padding:10px 12px}
+.minis img{width:46px;height:46px;border-radius:3px;object-fit:cover;object-position:center 20%}
+.minis img.dim{filter:saturate(.3) brightness(.7)}
+.minis img.out{filter:grayscale(1) brightness(.5)}
+.minis .add{width:46px;height:46px;border-radius:3px;outline:1.5px dashed var(--field);outline-offset:-1.5px;display:grid;place-items:center;color:var(--muted)}
+.gk{font-size:11px;letter-spacing:.06em;color:var(--muted)}
+.pc{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:740px}
+.pc div{background:var(--panel);border-radius:4px;padding:12px 14px;font-size:14px;line-height:1.45}
+.pc b{display:block;font-size:12px;letter-spacing:.06em;margin-bottom:6px}
+.pc .p b{color:var(--good)}.pc .c b{color:var(--live)}
+.pc ul{padding-left:16px}
+.verdict{max-width:1100px;margin:30px auto 0;padding:0 20px}
+.verdict div{background:var(--plate);color:var(--ink);border-radius:4px;padding:18px 20px;font-size:16px;line-height:1.5;max-width:780px}
+.verdict b.cap{font-size:24px;display:block;margin-bottom:8px}
+.dock{position:absolute;left:10px;right:10px;bottom:72px;z-index:3;display:flex;align-items:center;gap:8px;background:var(--plate);color:var(--ink);border-radius:4px;padding:6px 6px 6px 10px;box-shadow:0 10px 24px rgba(0,0,0,.5)}
+.dock .faces{display:flex}.dock .faces img{width:30px;height:30px;border-radius:3px;object-fit:cover;object-position:center 20%;margin-left:-6px;box-shadow:0 0 0 2px #fff}.dock .faces img:first-child{margin-left:0}
+.dock .tx{flex:1;line-height:1.2}.dock b{font-size:14px;display:block}.dock small{font-size:11px;color:var(--plate-muted)}
+.dock .btn{height:36px;padding:0 12px;border-radius:3px;background:var(--ink);color:#fff;font-weight:700;font-size:13px}
+</style>
+</head>
+<body>
+<div class="intro">
+  <h1 class="cap">Where your team lives</h1>
+  <p>Per-show tabs removed the old Lineup and Team tabs, so your roster needs a home. Four ways to do it, each shown as the two screens that matter: <b>seeing your team</b>, and <b>doing the weekly job</b> (start, bench, claim). All on Survivor 51 with real castaways. Tap the start/bench tiles to try them. Scroll sideways for every option.</p>
+  <div class="jobs"><span>Weekly: set 3 starters</span><span>Sometimes: claim a replacement</span><span>Often: glance at your team</span><span>Outlast: just watch your four</span></div>
+</div>
+<div class="opts" id="opts"></div>
+<div class="verdict" id="verdict"></div>
+
+<script>
+const S=(window.SHOWCASE||{seasons:[]}).seasons.find(s=>s.slug==='survivor'&&s.season===51);
+const c=n=>S.cast.find(x=>x.name.startsWith(n)),ph=x=>`../showcase/${x.photo}`,first=n=>n.split(' ')[0];
+const ICON={tv:'<rect x="3" y="7" width="18" height="13" rx="1"/><path d="m8 3 4 4 4-4"/>',cal:'<rect x="3" y="5" width="18" height="16" rx="1"/><path d="M3 10h18M8 3v4M16 3v4"/>',cup:'<path d="M7 4h10v5a5 5 0 0 1-10 0zM5 5H3v2a3 3 0 0 0 3 3M19 5h2v2a3 3 0 0 1-3 3M12 14v4M8 21h8"/>',people:'<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2.5.5 4 2.8 4 6"/>',chat:'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/>',team:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="8.5" y="14" width="7" height="7"/>',chev:'<path d="m9 6 6 6-6 6"/>',swap:'<path d="M4 7h13l-3-3M20 17H7l3 3"/>',plus:'<path d="M12 5v14M5 12h14"/>',check:'<path d="m5 12 5 5 9-10"/>',down:'<path d="m6 9 6 6 6-6"/>'};
+const svg=k=>`<svg class="i" viewBox="0 0 24 24">${ICON[k]}</svg>`;
+const ROSTER=['Kristin','Mike','Brady','Jenna','Eric'];const FREE=['Maggie','Devin','Sharonda','Alexis'];
+const OUTLAST=['Kristin','Mike','Jenna','Eric'];
+let starters=new Set(['Kristin','Mike']);
+const bar=t=>`<div class="bar"><img src="../showcase/art/survivor.jpg" alt=""><b class="cap">Survivor 51</b><small>${t||'Ep 5 · Wed 8:05 PM'}</small></div>`;
+const tabs=(set,on)=>`<div class="tabs" style="grid-template-columns:repeat(${set.length},1fr)">${set.map(([k,l])=>`<span class="${k===on?'on':''}">${svg(k)}${l}</span>`).join('')}</div>`;
+const T5=[['tv','Tonight'],['cal','Episodes'],['cup','Standings'],['people','Cast'],['chat','Chat']];
+const T6=[['tv','Tonight'],['cal','Episodes'],['cup','Standings'],['team','My team'],['people','Cast'],['chat','Chat']];
+const tile=(n,mode)=>{const x=c(n),out=!!x.exitEp,st=starters.has(n);const m=mode||(out?'out':st?'st':'bn');
+  return `<button class="tile ${m==='bn'?'bench':''} ${out?'out':''}" data-t="${n}">${`<img src="${ph(x)}" alt="">`}<span class="flag ${out?'out':st?'st':'bn'}">${out?'Out':st?'Starting':'Bench'}</span><b class="cap">${first(x.name)}</b><small>${x.total} pts</small></button>`};
+const slot=()=>`<div class="tile slot">${svg('plus')}<span>Open slot</span></div>`;
+const lineupTiles=()=>ROSTER.map(n=>tile(n)).join('')+(starters.size<3?'':'');
+const freeRows=(btn)=>FREE.map(n=>{const x=c(n);return `<div class="row"><img src="${ph(x)}" alt=""><span class="tx"><b>${x.name}</b><small>${x.tribe} · ${x.total} pts · free agent</small></span><span class="btn ${btn||'pri'}">Claim</span></div>`}).join('');
+
+const OPTIONS=[
+ {k:'A',name:'Cast tab: Mine and Free agents',sub:'Cast is the one place for people. Your roster is a filter on it.',
+  screens:()=>[['Cast › Mine',`${bar()}<div class="scroll"><div class="chips"><span class="chip">All</span><span class="chip on">Mine</span><span class="chip">Free agents <b>12</b></span><span class="chip">Toka</span></div>
+    <div class="blk"><div class="sh"><h3 class="cap">Weekly Lineup</h3><small>${starters.size} of 3 starting · locks Wed</small></div><div class="tiles" data-lu>${lineupTiles()}</div></div>
+    <div class="blk"><div class="sh"><h3 class="cap">Outlast team</h3><small>3 of 4 still in</small></div><div class="tiles">${OUTLAST.map(n=>tile(n,c(n).exitEp?'out':'st').replace('Starting','Still in')).join('')}</div></div></div>${tabs(T5,'people')}`],
+   ['Cast › Free agents · claim',`${bar()}<div class="scroll"><div class="chips"><span class="chip">All</span><span class="chip">Mine</span><span class="chip on">Free agents <b>12</b></span></div>
+    <div class="plate"><span class="tg cap">Waivers</span><span class="bd"><span class="t cap">Replace Jenna</span><span class="d">Claims run Tue 8:05 PM · you're 2nd in line</span></span></div>
+    <div class="blk">${freeRows()}</div></div>${tabs(T5,'people')}`]],
+  pros:['One place for every person: browsing, ownership, claiming','No extra tab; the 5 per-show tabs stay clean','Lineup is right next to the stats that inform it'],
+  cons:['"Mine" is a filter, so your team can feel buried in a list of 21','Outlast and Lineup mixed on one screen'],
+ },
+ {k:'B',name:'"You" block atop Standings',sub:'Your team sits above the tables: compete and manage in one place.',
+  screens:()=>[['Standings · your block',`${bar()}<div class="scroll">
+    <div class="youcard"><div class="yh"><span class="av" style="background:#45a89a">A</span><b>Your team</b><small>Weekly Lineup 2nd</small></div><div class="minis">${ROSTER.map(n=>`<img class="${starters.has(n)?'':c(n).exitEp?'out':'dim'}" src="${ph(c(n))}" alt="">`).join('')}</div>
+      <div class="yh" style="border-top:1px solid var(--line);border-bottom:0"><b style="font-size:13px">${starters.size} of 3 starting</b><span class="btn pri" style="height:32px;padding:0 10px;border-radius:3px;font-size:12px;font-weight:700;display:grid;place-items:center">Set lineup</span></div></div>
+    <div class="blk"><div class="sh"><h3 class="cap">Weekly Lineup</h3><small>After Ep 4</small></div>${[['riley',38],['alex',20],['jordan',18],['sam',16]].map(([n,t],i)=>`<div class="row${n==='alex'?' me':''}"><span class="rk num">${i+1}</span><span class="av" style="background:${['#a76bb0','#45a89a','#d9704a','#5089c9'][i]}">${n[0].toUpperCase()}</span><span class="tx"><b>${n}</b></span><b class="num" style="font-size:20px">${t}</b></div>`).join('')}</div></div>${tabs(T5,'cup')}`],
+   ['Set lineup sheet',`${bar()}<div class="scroll"></div><div class="scrim"></div><div class="sheet"><div class="grab"></div><h3 class="cap">Your lineup</h3><div class="sub">Start 3 · locks Wed 8:05 PM</div><div class="tiles" data-lu>${lineupTiles()}</div><div class="sub" style="margin-top:12px">Need someone? <b style="color:var(--chyron)">Claim a free agent ›</b></div><button class="cta">Lock lineup</button></div>${tabs(T5,'cup')}`]],
+  pros:['Your team is always at the top of the competitive view','Lineup and standings, cause and effect, on one screen'],
+  cons:['Standings gets long with three games plus your block','Claiming still needs to live somewhere (a sheet from here)'],
+ },
+ {k:'C',name:'A sixth tab: My team',sub:'Explicit and familiar: today\'s slot 4, per show.',
+  screens:()=>[['My team',`${bar()}<div class="scroll"><div class="seg"><button class="on">Weekly Lineup</button><button>Outlast</button><button>Pool</button></div>
+    <div class="blk"><div class="sh"><h3 class="cap">Starting</h3><small>${starters.size} of 3 · locks Wed</small></div><div class="tiles" data-lu>${lineupTiles()}</div></div>
+    <div class="blk"><div class="sh"><h3 class="cap">Waivers</h3><small>Window open</small></div><div class="row"><span class="tx"><b>Replace Jenna</b><small>Claims run Tue · you're 2nd</small></span><span class="btn pri">Claim</span></div></div></div>${tabs(T6,'team')}`],
+   ['My team › Claim',`${bar()}<div class="scroll"><div class="plate"><span class="tg cap">Replace</span><span class="bd"><span class="t cap">Jenna Doore</span><span class="d">Pick up to 3 in order · runs Tue 8:05 PM</span></span></div><div class="blk">${freeRows()}</div></div>${tabs(T6,'team')}`]],
+  pros:['Nobody wonders where their team is','Room for everything: lineup, waivers, Outlast, Pool picks'],
+  cons:['Six tabs: cramped labels at 390px','A game switcher returns (the thing that got people lost)','Duplicates Cast and Standings'],
+ },
+ {k:'D',name:'Your team, everywhere (the dock)',sub:'No new tab: a slim "your lineup" dock floats above the tab bar on every show tab until it locks.',
+  screens:()=>[['Any tab, with the dock',`${bar()}<div class="scroll"><div class="blk"><div class="sh"><h3 class="cap">Every episode</h3><small>16 still in</small></div>${[4,3,2,1].map(e=>{const out=S.cast.filter(x=>x.exitEp===e);return `<div class="row"><b class="num" style="font-size:24px;width:24px;color:var(--muted)">${e}</b>${out.map(x=>`<img src="${ph(x)}" alt="" style="filter:grayscale(1)">`).join('')}<span class="tx"><b>${out.map(x=>first(x.name)).join(' and ')} out</b></span></div>`}).join('')}</div></div>
+    <div class="dock"><span class="faces">${[...starters].map(n=>`<img src="${ph(c(n))}" alt="">`).join('')}</span><span class="tx"><b>${starters.size} of 3 starting</b><small>Locks Wed 8:05 PM</small></span><span class="btn">Set</span></div>${tabs(T5,'cal')}`],
+   ['Dock › your team sheet',`${bar()}<div class="scroll"></div><div class="scrim"></div><div class="sheet"><div class="grab"></div><h3 class="cap">Your team</h3><div class="seg" style="margin:6px 0 10px"><button class="on">Weekly Lineup</button><button>Outlast</button><button>Pool</button></div><div class="tiles" data-lu>${lineupTiles()}</div>
+    <div class="sub" style="margin-top:12px">Waivers open · <b style="color:var(--chyron)">Replace Jenna ›</b></div><button class="cta">Lock lineup</button></div>${tabs(T5,'cal')}`]],
+  pros:['The weekly job is one tap from anywhere, and impossible to miss','No sixth tab, no buried filter','Disappears once locked, so it never clutters'],
+  cons:['A floating element over content (must stay slim)','Your full team is in a sheet, not a page'],
+ },
+];
+function render(){document.getElementById('opts').innerHTML=OPTIONS.map(o=>`<section class="opt"><div class="opt-h"><span class="k num">${o.k}</span><div><h2 class="cap">${o.name}</h2><small>${o.sub}</small></div>${o.k==='A'?'<span class="rec cap">My pick</span>':''}</div>
+  <div class="phones">${o.screens().map(([l,h])=>`<div class="wrapph"><span class="lbl">${l}</span><div class="ph">${h}</div></div>`).join('')}</div>
+  <div class="pc"><div class="p"><b class="cap">Good</b><ul>${o.pros.map(p=>`<li>${p}</li>`).join('')}</ul></div><div class="c"><b class="cap">Watch out</b><ul>${o.cons.map(p=>`<li>${p}</li>`).join('')}</ul></div></div></section>`).join('');
+  document.querySelectorAll('[data-lu] [data-t]').forEach(t=>t.onclick=()=>{const n=t.dataset.t;if(c(n).exitEp)return;if(starters.has(n))starters.delete(n);else if(starters.size<3)starters.add(n);const sl=document.getElementById('opts').scrollLeft;render();document.getElementById('opts').scrollLeft=sl;document.querySelectorAll(`[data-t="${n}"]`).forEach(x=>x.classList.add('pop'))})}
+render();
+document.getElementById('verdict').innerHTML=`<div><b class="cap">My recommendation: A, with D's dock</b>Cast becomes the home for every person, so your team, free agents and claims sit with the stats that inform them. Then add the slim lineup dock from D, shown only while a lineup is open, so the weekly job is one tap from any tab. Its "Set" opens Cast › Mine. That gives one place to manage and one shortcut to act, with no sixth tab and no game switcher.</div>`;
+</script>
+</body>
+</html>

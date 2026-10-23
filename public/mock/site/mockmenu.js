@@ -7,6 +7,8 @@ const SCEN=[
   ['The hub',[['hub4','Couch of 4','Tonight\'s Guide, everything on',{n:4,hash:'#/hub'}],['hub12','Couch of 12','A big group',{n:12,hash:'#/hub'}],['solo','Solo player','No couch yet',{n:1,hash:'#/hub'}]]],
   ['A show',[['surv','Survivor 51','Three games: Outlast, Weekly Lineup, Survival Pool',{n:4,hash:'#/show/surv/tonight',ph:'before'}],['onair','Survivor · on air now','Episode night, watch along',{n:4,hash:'#/show/surv/tonight',ph:'during'}],['after','Survivor · just aired','Results arriving in stages',{n:4,hash:'#/show/surv/tonight',ph:'after',res:'waiting'}],
     ['ar','The Amazing Race','You and jordan watch · not a game yet',{n:4,hash:'#/show/ar/tonight'}],['plu','Pluribus','A series only sam watches',{n:4,hash:'#/show/plu/tonight'}],['wa','Watch along','Below Deck, the couch\'s reactions in sync',{n:4,hash:'#/show/bd/tonight',then:()=>openWatch('bd')}]]],
+  ['Streaming',[['sev','Severance','Out in full · you\'re on Episode 3, riley and jordan ahead',{n:4,hash:'#/show/sev/tonight'}],['hp','Harry Potter','All 8 episodes drop Friday',{n:4,hash:'#/show/hp/tonight'}],
+    ['g1','Guide option 1 · Time only','Streaming lives in The couch is watching',{opt:1}],['g2','Guide option 2 · Anytime column','A column after Today',{opt:2}],['g3','Guide option 3 · Streaming rail','A row under the guide',{opt:3}]]],
   ['Run a game',[['draft','Draft room','Outlast snake draft',{n:4,hash:'#/show/surv/draft'}],['blind','Blind draft','Pick privately, reveal together',{n:4,hash:'#/show/surv/blind'}],['bs','Backstage','The commissioner\'s side',{n:4,hash:'#/show/surv/backstage'}]]],
   ['You',[['acct','Account settings','Notifications, spoilers, appearance',{n:4,hash:'#/account'}]]]];
 document.body.insertAdjacentHTML('beforeend',`<button class="mockfab" id="mockFab" aria-label="Mock scenarios" aria-expanded="false"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Scenarios</span></button>
@@ -19,8 +21,10 @@ $('mockFab').onclick=()=>mockMenu($('mockPanel').hidden);$('mockX').onclick=$('m
 $('mockReset').onclick=()=>{location.href=location.pathname};
 addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('mockPanel').hidden)mockMenu(false)});
 document.querySelectorAll('[data-scen]').forEach(b=>b.onclick=()=>{const o=SCEN.flatMap(g=>g[1]).find(r=>r[0]===b.dataset.scen)[3];mockMenu(false);
+  if(o.opt){const q=new URLSearchParams(location.search);q.set('binge',o.opt);q.set('n',N);location.href=`${location.pathname}?${q}#/hub`;return}
   N=o.n;sel=null;state.signedOut=!!o.out;state.solo=N===1;if(o.ph){SHOWSTATE.phase=o.ph;SHOWSTATE.res=o.res||SHOWSTATE.res}syncMockLabel();
   if(UI.wa)closeWatch();if(location.hash===o.hash)route();else location.hash=o.hash;$('scroller').scrollTop=0;if(o.then)setTimeout(o.then,400)});
 // the fab steps aside while a sheet, page or watch along is open on a phone
 const syncCtlBase=syncCtl;syncCtl=function(){syncCtlBase();$('mockFab').classList.toggle('away',!!(UI.sheet||UI.page||UI.wa))};
+if(new URLSearchParams(location.search).has('frame'))$('mockFab').hidden=true;
 try{if(!localStorage.getItem('gys-mock-hint')){$('mockFab').classList.add('hint');localStorage.setItem('gys-mock-hint','1');setTimeout(()=>$('mockFab').classList.remove('hint'),6000)}}catch(e){}

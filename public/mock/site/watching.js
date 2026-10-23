@@ -8,7 +8,7 @@ const W={tab:'tonight',plans:{},games:{},priv:new Set(),nudgeGone:false,rates:{}
 
 // ---------- two more shows: a competition nobody has set up, and a series only sam watches ----------
 SHOWS.push(
-  {id:'ar',name:'The Amazing Race',season:'Season 38',short:'Amazing Race 38',art:'amazing-race',pos:'72% 50%',hpos:'60% 45%',air:[4,20,0],col:'#1f6fb8',ep:6,explore:true,unready:true,aired:5,onEp:5,
+  {id:'ar',name:'The Amazing Race',season:'Season 38',short:'Amazing Race 38',art:'amazing-race',hart:'amazing-race-left',pos:'72% 50%',hpos:'60% 45%',air:[4,20,0],col:'#1f6fb8',ep:6,explore:true,unready:true,aired:5,onEp:5,
    todo:{kind:'Both watch',t:'You and jordan both watch',d:'Not a game yet · make it one'},watchers:{4:['alex','jordan'],12:['alex','jordan','dev','noor']}},
   {id:'plu',name:'Pluribus',season:'Season 1',short:'Pluribus',art:'pluribus',pos:'22% 40%',hpos:'38% 45%',air:[5,21,0],col:'#e0a312',ep:5,series:true,others:true,aired:4,onEp:0,rating:4.6,
    watchers:{4:['sam'],12:['sam','maya','theo']}});
@@ -38,7 +38,7 @@ showRoute=function(sid,tab){const s=SHOWS.find(x=>x.id===sid);if(!s)return hubRo
     <nav class="tabbar" style="grid-template-columns:repeat(${T.length},1fr)">${T.map(k=>{const [l,i]={tonight:['Tonight','tv'],episodes:['Episodes','cal'],standings:['Standings','cup'],cast:['Cast','people'],chat:['Chat','chatb']}[k];return `<a href="#/show/${s.id}/${k}" class="${W.tab===k?'on':''}">${svg(i)}${l}</a>`}).join('')}</nav></div>`;
   wireW(s);$('scroller').scrollTop=0};
 function wBar(s){const t=nextAir(s.air),big=W.tab==='tonight',w=watchersOf(s)||[];
-  return `<header class="sbar${big?' xl':''}"><img src="${ART(s.art)}" alt="" style="object-position:${s.hpos||s.pos}">
+  return `<header class="sbar${big?' xl':''}"><img src="${ART(s.hart||s.art)}" alt="" style="object-position:${s.hart?'50% 45%':s.hpos||s.pos}">
     <div class="sbar-top"><a class="back" href="#/hub">${svg('chev')}Home</a><span class="sbar-st">Ep ${s.ep} · <span data-cd="${t.getTime()}">—</span></span><button class="iconbtn" id="wMenu" aria-label="Show menu">${svg('dots')}</button></div>
     ${big?`<h1 class="cap">${s.name.replace('The ','')}<small>${s.season}</small></h1><div class="sbar-couch"><span class="stack">${w.slice(0,6).map(n=>av(n,24)).join('')}</span>${w.length} on the couch ${w.length===1?'watches':'watch'}${s.unready?'<span class="w-nag cap">Not a game yet</span>':s.series?'<span class="w-nag cap">Series</span>':''}</div>`:`<b class="cap sbar-name">${s.name} · ${s.season.replace('Season ','S')}</b>`}</header>`}
 
@@ -222,7 +222,7 @@ hub=function(){let h=hubBase();
 function nudgeHTML(){const s=SHOWS.find(x=>x.id==='ar');if(W.nudgeGone||W.games.ar||!follows(s))return '';const o=(watchersOf(s)||[]).filter(n=>n!=='alex');if(!o.length)return '';
   return `<section class="sec"><div class="w-nudge"><img src="${ART(s.art)}" alt=""><div class="in"><span class="tg cap">You both watch</span><b>You and ${names(o)} both watch ${s.name}</b><small>Nobody's playing it yet. Start a game and the couch hears about it once.</small>
     <div class="w-nbtns"><button class="btn pri" id="wNGo">${s.unready?'Make it a game':'Start a game'}</button><button class="btn out" id="wNNo">Not now</button></div></div></div></section>`}
-function couchWatchHTML(){const list=SHOWS.map(s=>({s,o:(watchersOf(s)||[]).filter(n=>n!=='alex')})).filter(x=>x.o.length).sort((a,b)=>(follows(a.s)-follows(b.s))||b.o.length-a.o.length);
+function couchWatchHTML(keep=()=>true){const list=SHOWS.filter(keep).map(s=>({s,o:(watchersOf(s)||[]).filter(n=>n!=='alex')})).filter(x=>x.o.length).sort((a,b)=>(follows(a.s)-follows(b.s))||b.o.length-a.o.length);
   return `<section class="sec"><div class="sh"><h2 class="cap">The couch is watching</h2><span class="aside">Tap to check one out</span></div><div class="w-cw" id="wCW">${list.map(({s,o})=>{const live=NOW[s.id];
     return `<button class="w-cwc" data-cw="${s.id}"><span class="pic"><img src="${ART(s.art)}" alt="" style="object-position:${s.pos}">${follows(s)?'':'<span class="w-new cap">Not on your list</span>'}${live?`<span class="w-on cap"><i></i>${live} is on</span>`:''}</span>
       <b class="cap">${s.name}</b><span class="ppl">${o.slice(0,3).map(n=>`<span>${av(n,20)}${n} · ${NOW[s.id]===n?'now':whereOf(s,n)>=airedOf(s)?'caught up':'Ep '+whereOf(s,n)}</span>`).join('')}${o.length>3?`<span class="more">+${o.length-3} more</span>`:''}</span></button>`}).join('')}</div></section>`}
