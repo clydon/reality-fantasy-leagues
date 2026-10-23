@@ -11,15 +11,71 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
-## Settings and Create a league reordered, 2026-10-17 (not committed)
+## Full-site mock in progress, 2026-10-22 (`.impeccable/mocks/site/`, gitignored)
+**This is the current focus.** The user wants a full clickable website mock as *the* design the real
+app gets ported onto: no stone unturned, simplified or redesigned wherever /impeccable calls for it.
+Way of working: go one area at a time, interview the user on direction, bring bold recommendations
+(with a recommended option), then pause for review after each area. Casual-first (the trial showed
+pressure turns players off), phone-first at a fixed 390 × 844.
+
+- **See it:** open `.impeccable/mocks/site/index.html?n=4#/hub` in Chrome. The mock chip (bottom-left)
+  switches 4 / 12 players / Solo / New player. Screenshot every area with no server or login:
+  `node scripts/dev-test/shoot-site.js <outDir> [#/route ...] [--n=4] [--sheet]`. It prints page errors,
+  so run it after every edit.
+- **Journey:** sign-up → first run (pick shows → where you are → start / join a couch / just me) → hub
+  (Tonight's Guide) → show space (Tonight · Episodes · Standings · Cast · Chat) → moves dock → draft
+  room / blind draft → watch along → staged results and the reveal → Backstage (results with Ask an AI,
+  waivers, scoring rules, members and roles, game settings, recent changes) → account settings.
+- **Decisions:** all in memory `site-mock-decisions.md`, with the routes, how the mock is built and the
+  pitfalls already hit. Read it before touching the mock. In short: Outlast / Weekly Lineup / Survival
+  Pool; per-show tabs with games inside; always land on the hub; moves dock; casual-first draft;
+  results in stages; Backstage per game with shareable roles; guards by blast radius.
+- **Files:** `index.html` (hub CSS + JS inline, from `overdrive/hub.html`, plus the router at the end),
+  then one JS + CSS file per area, in load order: show, round2 (signup, first run, solo, join, couches),
+  dock, draft, episode, stages, backstage, askai, settings, guards; `device.css` loads last. **Later
+  files override earlier functions by redeclaring them**, so grep for the last definition before editing.
+  `roster-options.html` is the A–D roster comparison (D chosen). Real photos and art come from
+  `.impeccable/mocks/showcase/` (`scripts/dev-test/export-showcase.js`).
+- **Landing → sign-up built 2026-10-22, waiting on the user's review:** `landing.js`/`landing.css` (`#/welcome`,
+  `lp-` classes), first run is now four steps (shows → where → account → people), `#/signin`, a Join with a code
+  sheet, and the signed-out invite (account sheet, then where you are, then the join). The New player chip opens
+  `#/welcome`. Check: `node scripts/dev-test/check-site-signup.js <outDir>`; `shoot-site.js --scroll` shoots long pages.
+- **Every show in the show space + what the couch watches, built 2026-10-22, waiting on review:** `watching.js`/`watching.css`
+  (loaded last; wraps showRoute, hub, openWatch and friends). Two example shows were added: The Amazing Race (not a game yet,
+  you and jordan both watch) and Pluribus (a series only sam watches); their art is a typographic placeholder in
+  `showcase/art/`. Check: `node scripts/dev-test/check-site-watching.js <outDir>`.
+- **Still to do, in order:** (2) watch-only shows (built, see above; awaiting review) (Below Deck, The Challenge) inside the show space with the same tabs;
+  (3) notifications depth; (4) a written plan for porting the real app onto the mock (the second-pass
+  drill-down of `PLAN-couch-and-episode-night.md`, whose top now lists what the mock changed). Desktop
+  layouts come after.
+- **Live for testers (2026-10-22):** the whole site mock is served at **/mock** (and the older **/mock/hub** link)
+  from `public/mock/`. After any mock change: `node scripts/dev-test/publish-site-mock.js`, then commit
+  `public/mock/` and deploy. Phones get it full screen; desktops get the 390 × 844 frame. A floating
+  Scenarios button (`mockmenu.js`) jumps testers to each state (new visitor, invite, hub sizes, shows, drafts). The
+  mocks are gitignored and exist only on this machine.
+- **Uncommitted:** this file, `docs/PLAN-couch-and-episode-night.md` (new), `scripts/dev-test/shoot-site.js`
+  (new), `scripts/dev-test/inline-mock.js` (embeds key art). Commit only when the user says.
+- **Security:** a production Neon connection string was pasted into the 2026-10-18 conversation. It
+  wasn't used. The user should rotate that password if they haven't.
+
+## Couch, hub and episode night: overview planned 2026-10-18; landing page shipped (8f32f2b)
+The next big piece: a **couch** (the lasting group, across seasons and shows), a **hub** with a TV
+guide, a **show space** per show organised Before / During / After, episode games (Rate it, bingo,
+watch along) and show pages without a league. Overview plan: `docs/PLAN-couch-and-episode-night.md`
+(read it first; it ends with what the detailed pass must produce). Mocks in
+`.impeccable/mocks/overdrive/` (not in git). The signed-out landing page at `/` shipped in 8f32f2b
+(`src/components/landing/`, sign in moved to `/sign-in`, checked by
+`scripts/dev-test/check-landing.js`); it still uses wiki cast photos.
+
+## Settings and Create a league reordered, 2026-10-17 (committed d7c84c9)
 
 [PLAN-settings-order.md](PLAN-settings-order.md): waivers aren't asked up front (they fit the real teams, ownership and cast when the draft starts); a new Teams & draft page holds ownership, roster, the fit arithmetic and the draft date; the index is grouped (Get ready / How it scores / League); the cast import hides starting tribes by default. Create a show done too (the research panel: name, copy, paste, sticky Review; the review's Approve is sticky). Checks: `check-settings.js`, `check-create-show.js`. **The commissioner tour is now out of step with these screens and is the next job.**
 
-## Commissioner tour rebuilt on Survivor 51, 2026-10-17 (not committed)
+## Commissioner tour rebuilt on Survivor 51, 2026-10-17 (committed ad58cf8)
 
 See [PLAN-commissioner-tour.md](PLAN-commissioner-tour.md): copy/paste everywhere with a Paste/Clear button, show import, cast import, points, waivers, draft types, results. Check: `scripts/dev-test/check-commissioner-tour.js`.
 
-## League tabs redesign: designed 2026-10-17, steps 1–7 built (not committed)
+## League tabs redesign: built and shipped 2026-10-17 (d83f119, 7a0b7d2); the site mock will replace it
 
 [PLAN-league-tabs.md](PLAN-league-tabs.md): the same six tabs in every game (Overview · Episodes ·
 Scoreboard · Team/Lineup/Pick · Research · More), Research for Classic and Pool too, Waivers linked off

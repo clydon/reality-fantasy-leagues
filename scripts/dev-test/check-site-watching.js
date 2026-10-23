@@ -1,0 +1,103 @@
+// Clicks through the full-site mock's watching features (.impeccable/mocks/site/watching.js), no dev server,
+// login or DB needed:
+//   A. hub nudge "you both watch" → Make it a game (paste, review) → start a Survival Pool → Your game on Tonight
+//   B. a show you don't follow (Pluribus) → Add to my shows → where you are → it's on your list
+//   C. Below Deck → Watch it together (start together) → open it → someone pauses for everyone → resume → send a GIF
+//   D. the show menu → Watch privately
+// Asserts each step, screenshots every step, and fails on any page error.
+//
+//   node scripts/dev-test/check-site-watching.js <outDir> [--width=390]
+const fs = require("fs");
+const path = require("path");
+const { pathToFileURL } = require("url");
+const { open } = require("./browser");
+
+(async () => {
+  const args = process.argv.slice(2);
+  const out = args.find((a) => !a.startsWith("--"));
+  if (!out) throw new Error("usage: check-site-watching.js <outDir> [--width=390]");
+  const width = +((args.find((a) => a.startsWith("--width=")) || "--width=390").slice(8));
+  fs.mkdirSync(out, { recursive: true });
+  const { page, close } = await open({ width, height: 844 });
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const base = pathToFileURL(path.resolve(".impeccable/mocks/site/index.html")).href;
+  let n = 0, fails = 0;
+  const shot = async (name) => { const f = path.join(out, `${String(++n).padStart(2, "0")}-${name}.png`); await page.waitForTimeout(450); await page.screenshot({ path: f }); console.log("wrote", f); };
+  const fail = (m) => { fails++; console.log("FAIL: " + m); };
+  const expectHash = async (want) => { const h = await page.evaluate(() => location.hash); if (h !== want) fail(`at ${h}, wanted ${want}`); };
+  const expectText = async (sel, text) => { const t = await page.locator(sel).first().textContent().catch(() => ""); if (!t.toLowerCase().includes(text.toLowerCase())) fail(`${sel} lacks "${text}" (has "${t.slice(0, 80)}")`); };
+  const fresh = async (hash) => { await page.goto("about:blank"); await page.goto(base + "?n=4" + hash, { waitUntil: "networkidle" }); await page.addStyleTag({ content: ".ctl,.mockfab{display:none!important}" }); await page.waitForTimeout(700); };
+
+  // A. the both-watch nudge → Make it a game → a game
+  await fresh("#/hub");
+  await page.locator("#wNGo").scrollIntoViewIfNeeded();
+  await shot("hub-nudge");
+  await page.click("#wNGo");
+  await page.waitForTimeout(700);
+  await expectHash("#/show/ar/tonight");
+  await expectText("#page", "Make The Amazing Race a game");
+  await shot("make-step1");
+  await page.click("#mkPaste");
+  await expectText("#page", "Looks right");
+  await page.click("#mkGo");
+  await shot("make-review");
+  await page.click("#mkOk");
+  await page.waitForTimeout(500);
+  await expectText("#sheet", "Start a game");
+  await shot("start-a-game");
+  await page.click("#wStart");
+  await page.waitForTimeout(500);
+  await expectText("#app", "Your game");
+  await expectText("#app", "Make your first pick");
+  await shot("ar-your-game");
+
+  // B. follow a show only sam watches
+  await fresh("#/show/plu/tonight");
+  await expectText("#app", "sam watches this");
+  await page.click('[data-wjob="follow"]');
+  await page.click("#wl");
+  await page.waitForTimeout(700);
+  await expectHash("#/show/plu/tonight");
+  await expectText("#app", "Live · through Episode 4");
+  await shot("plu-followed");
+
+  // C. watch it together, pause for everyone, a GIF
+  await fresh("#/show/bd/tonight");
+  await page.click('[data-wjob="invite"]');
+  await page.click('[data-how="start"]');
+  await shot("invite-sheet");
+  await page.click("#wSend");
+  await page.waitForTimeout(500);
+  await expectText(".w-plan", "Starting together");
+  await page.click('[data-wjob="together"]');
+  await page.waitForTimeout(500);
+  await expectText("#waStart", "Watching");
+  await shot("together-start");
+  await page.click("#waStart [data-start]");
+  await page.waitForTimeout(10500);
+  await expectText("#wPause", "paused for everyone");
+  await shot("together-paused");
+  await page.click("#wRes");
+  if (await page.locator("#wPause").isVisible()) fail("the pause bar stayed up after Resume");
+  await page.click("[data-gif]");
+  await page.waitForTimeout(300);
+  await shot("gif-sheet");
+  await page.click('#gg [data-g="2"]');
+  await page.waitForTimeout(400);
+  if (!(await page.locator("#waS .w-gifcm").count())) fail("no GIF in the stream");
+  await shot("gif-sent");
+
+  // D. watch privately
+  await fresh("#/show/bd/tonight");
+  await page.click("#wMenu");
+  await page.click('[data-wm="priv"]');
+  await page.waitForTimeout(400);
+  await expectText("#app", "Watching privately");
+  await shot("bd-private");
+
+  await close();
+  if (errors.length) fail(`page errors: ${errors.join(" | ")}`);
+  console.log(fails ? `${fails} failure(s)` : "all good");
+  process.exit(fails ? 1 : 0);
+})().catch((e) => { console.error(e); process.exit(1); });
