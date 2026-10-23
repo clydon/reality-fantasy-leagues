@@ -9,6 +9,7 @@ const SCEN=[
     ['ar','The Amazing Race','You and jordan watch · not a game yet',{n:4,hash:'#/show/ar/tonight'}],['plu','Pluribus','A series only sam watches',{n:4,hash:'#/show/plu/tonight'}],['wa','Watch along','Below Deck, the couch\'s reactions in sync',{n:4,hash:'#/show/bd/tonight',then:()=>openWatch('bd')}]]],
   ['Streaming',[['sev','Severance','Out in full · you\'re on Episode 3, riley and jordan ahead',{n:4,hash:'#/show/sev/tonight'}],['hp','Harry Potter','All 8 episodes drop Friday',{n:4,hash:'#/show/hp/tonight'}],['afterhp','After the Harry Potter drop','Two days later: it lives on in the streaming rail',{n:4,hash:'#/hub',pre:()=>afterDrop()}]]],
   ['Waivers',[['wvs','Waivers · simple',"Jenna's out: the best free agent is lined up for you",{n:4,hash:'#/show/surv/waivers',ph:'before',pre:()=>wvSet({ver:'simple'})}],
+    ['wvtwo','Waivers · two out','Jenna and Patt out: two free swaps lined up',{n:4,hash:'#/show/surv/waivers',ph:'before',pre:()=>wvSet({ver:'simple',two:true})}],
     ['wv2','Waivers · v2 port',"The live app's claim screen in the new design",{n:4,hash:'#/show/surv/waivers',ph:'before',pre:()=>wvSet({ver:'v2'})}],
     ['wvsh','Waivers · shared league','Nobody can take your pick',{n:4,hash:'#/show/surv/waivers',ph:'before',pre:()=>wvSet({shared:true})}],
     ['wvran','Waivers ran','The run plays like an episode, then sits in Episodes',{n:4,hash:'#/show/surv/tonight',ph:'before',pre:()=>wvSet({stage:'ran'})}],
