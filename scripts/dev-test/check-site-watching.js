@@ -96,6 +96,13 @@ const { open } = require("./browser");
   await expectText("#app", "Watching privately");
   await shot("bd-private");
 
+  // F. a thin week: one or two shows on the guide become a list; a busy week keeps the reel
+  for (const [q, list] of [["&shows=surv", true], ["&shows=surv,chl", true], ["&fresh=1", true], ["", false]]) {
+    await fresh(`#/hub`.replace("#", `${q}#`));
+    if ((await page.locator(".g-list").count() > 0) !== list) fail(`${q || "full couch"}: guide list ${list ? "missing" : "shown"}`);
+    if (list) { await page.click('.g-row[data-show="surv"]'); await page.waitForTimeout(300); await expectText("#sheet", "Survivor"); await shot(`thin-guide${q.replace(/[&=,]/g, "-")}`); }
+  }
+
   // E. streaming shows: the guide has the drop day and planned nights; the rail is streaming's home
   await fresh("#/hub");
   if (!(await page.locator(".lst.b-drop").count())) fail("no drop day in the guide");
@@ -111,7 +118,8 @@ const { open } = require("./browser");
   await page.click('#wCW [data-qadd="plu"]');
   await page.click("#qGo");
   await page.waitForTimeout(400);
-  await expectText("#wCW", "On your shows");
+  if (await page.locator('#wCW [data-qadd="plu"]').count()) fail("Pluribus is still in The couch is watching after adding it");
+  await expectText("#shelf", "Pluribus");
   await page.waitForTimeout(1200);
   if ((await page.locator("#cd").innerText()).replace(/\s+/g, " ").startsWith("00 DAYS : 00 HRS : 00 MIN")) fail("the hub countdown reset to zero after a re-render");
   await shot("shelf-added");
