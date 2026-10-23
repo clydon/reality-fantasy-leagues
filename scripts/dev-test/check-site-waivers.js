@@ -1,7 +1,8 @@
 // Clicks through waivers in the full-site mock (.impeccable/mocks/site/waivers.js), both versions, no dev server,
 // login or DB needed:
-//   S. simple: Tonight's waivers job ("Open") → the page (your team, signals) → Pick for Jenna: filter "Has an idol",
-//      sort by a stat, take Devin (Tonight says Set) → swap Mike for Cristian, then Keep Mike → How it works (the
+//   S. simple: Tonight's "Replace Jenna" ("Open") → the page (your team, one quiet tag each) → Swap on Jenna: the
+//      Cast tab's slider and dropdowns (Show a tribe, Ranked by a stat), a pick and a backup marked apart, take Devin
+//      (Tonight says Set) → swap Mike for Cristian, then Keep Mike → How it works (the
 //      lanes) → Episodes row → the dock's Swap row → the run → the reveal → Episodes says who; two out: two free
 //      swaps to pick; nobody picked: the run falls back to most points and says so
 //   V. v2 port: plate → Replace → picker (tap order, Ranked by) → Save → reorder with the grip → a swap →
@@ -38,27 +39,35 @@ const { open } = require("./browser");
 
   // S. simple
   await fresh("&waivers=simple", "#/show/surv/tonight");
-  await expectText('[data-job="waivers"]', "Pick who comes in for Jenna");
+  await expectText('[data-job="waivers"]', "Replace Jenna");
   await expectText('[data-job="waivers"] .st', "Open");
   await tap('[data-job="waivers"]');
   await expectHash("#/show/surv/waivers");
-  await expectText(".wvs-q", "Jenna's out");
+  await expectText(".wvs-q", "Replace Jenna");
+  await expectText(".wvs-chip.req", "Replace Jenna");
+  if (await page.locator(".wv-sig i.warn").count()) fail("simple: negative tags are back");
+  if ((await page.locator(".wvt-b").allTextContents()).some((t) => t.trim() !== "Swap")) fail("simple: every row button should say Swap");
   if ((await page.locator(".wvt").count()) !== 5) fail("simple: wanted all 5 of your team on the page");
-  await expectText('.wvt:has-text("Mike") .wv-sig', "Wrong side of the vote");
   if (await page.locator(".wvt-in").count()) fail("simple: nothing should be picked for you up front");
   if (await page.locator("text=/points (go|stay)|Keeps \\d/").count()) fail("simple: points copy is back");
   await expectText(".wvs-fb", "most points");
   await shot("simple-page");
   await tap('.wvt-b.free[data-d="Jenna"]');
   if (await page.locator("#sheet .wvs-r.pick").count()) fail("simple picker: nothing should be preselected");
-  await tap('#sheet [data-wf="idol"]');
-  const idol = await page.locator("#sheet [data-fa]").allTextContents();
-  if (idol.length !== 1 || !idol[0].includes("Devin")) fail(`filter Has an idol: wanted only Devin, got ${idol.length}`);
-  await tap('#sheet [data-wf="idol"]');
-  await tap("#wvSort");
-  await tap('#sheet .wv-sorts button >> nth=1');
-  if (!(await page.locator("#sheet .wvs-r .val small", { hasText: "time" }).count())) fail("sort by a stat: values should read times");
+  if (!(await page.locator("#sheet #wvFrom").count())) fail("picker: no episode slider (the Cast tab's)");
+  await page.selectOption('#sheet [data-exsel="f"]', "Savu"); await page.waitForTimeout(300);
+  const savu = await page.locator("#sheet [data-fa]").allTextContents();
+  if (!savu.length || savu.some((t) => !/Devin|Ori/.test(t))) fail(`Show Savu: wanted only Savu free agents, got ${JSON.stringify(savu)}`);
+  await page.selectOption('#sheet [data-exsel="f"]', "all"); await page.waitForTimeout(300);
+  await page.selectOption('#sheet [data-exsel="st"]', { label: "Idols found" }); await page.waitForTimeout(300);
+  if (!(await page.locator("#sheet .wvs-r .val small", { hasText: "time" }).count())) fail("Ranked by a stat: values should read times");
+  await tap("#wvOwn");
   await tap('#sheet [data-fa="Devin"]');
+  await tap('#sheet [data-fa="Sharonda"]');
+  if (!(await page.locator('#sheet .wvs-r.pick[data-fa="Devin"]').count()) || !(await page.locator('#sheet .wvs-r.bk[data-fa="Sharonda"]').count())) fail("picker: pick and backup should be marked apart");
+  await shot("simple-picker-backup");
+  await tap('#sheet [data-fa="Sharonda"]');
+  await tap("#wvOwn");
   await expectText("#wvsOk", "Devin comes in");
   await shot("simple-picker");
   await tap("#wvsOk");
@@ -88,7 +97,7 @@ const { open } = require("./browser");
   await go("#/show/surv/tonight");
   await tap("#dock");
   await tap('#sheet [data-seg="lineup"]');
-  await expectText("#toWaivers", "Swap Jenna");
+  await expectText("#toWaivers", "Replace Jenna");
   await tap("#toWaivers");
   await page.waitForTimeout(400);
   await expectHash("#/show/surv/waivers");
@@ -106,8 +115,8 @@ const { open } = require("./browser");
   await expectText("#page", "sam got Sharonda for Aaliyah");
   await shot("run-page");
   await fresh("&waivers=simple&wv=two", "#/show/surv/waivers");
-  if ((await page.locator(".wvt-b.free").count()) !== 2) fail("two out: wanted two free swaps to pick");
-  await expectText(".wvs-q", "Patt and Jenna are out");
+  if ((await page.locator(".wvt-b.free").count()) !== 2) fail("two out: wanted two yellow Swap buttons");
+  await expectText(".wvs-q", "Replace Patt and Jenna");
   await shot("simple-two-out");
   await fresh("&waivers=simple&wv=two-ran", "#/show/surv/waivers");
   if ((await page.locator(".wvs-card.got").count()) !== 2) fail("two out, nobody picked: wanted both spots filled by the fallback");
@@ -154,7 +163,7 @@ const { open } = require("./browser");
     await tap("#wvSet");
     await tap('#sheet [data-wfeel="casual"]');
     if (ver === "v2") await tap("#wvApply");
-    await expectText("#sheet", ver === "v2" ? "Your league is on Casual" : "A free swap once you're down to 2");
+    await expectText("#sheet", ver === "v2" ? "Your league is on Casual" : "Replace them once you're down to 2");
     await shot(`${ver}-settings`);
     await page.keyboard.press("Escape");
     await page.waitForTimeout(300);

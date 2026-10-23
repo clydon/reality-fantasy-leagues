@@ -13,6 +13,17 @@ const exStats=s=>[['pts','Points','points'],...STATS[s.id].cats,...(s.id==='surv
 const exKey=k=>JSON.stringify(k);
 const exStat=(s,k)=>exStats(s).find(x=>exKey(x[0])===exKey(k))||exStats(s)[0];
 const exVal=(c,k,a,b)=>k==='pts'?c.perEp.slice(a-1,b).reduce((x,y)=>x+(y||0),0):(c.why||[]).filter(x=>x[0]>=a&&x[0]<=b&&[].concat(k).includes(x[1])).length;
+// the shared controls, used by the Cast tab and the swap picker alike: the episode slider and dropdowns. Imported shows
+// name their own stats and groups, so every choice list is a native dropdown (any number of options fits)
+function exSliderHTML(pre,w,a,b){return `<div class="ex-slider"><div class="lab"><span class="cap">Episodes</span><b class="num" id="${pre}RL">${a===b?a:`${a} – ${b}`}</b></div><div class="trk"><i id="${pre}Fill" style="left:${(a-1)/(w-1)*100}%;right:${(w-b)/(w-1)*100}%"></i>
+  <input type="range" min="1" max="${w}" value="${a}" id="${pre}From" aria-label="From episode"><input type="range" min="1" max="${w}" value="${b}" id="${pre}To" aria-label="To episode"></div><div class="ends"><span>1</span><span>${w}</span></div></div>`}
+// two thumbs on one track; the label follows while dragging, done(from, to) on release
+function exSliderWire(pre,w,done){const fr=$(pre+'From'),to=$(pre+'To');if(!fr||!to)return;
+  const paint=()=>{let a=+fr.value,b=+to.value;if(a>b)[a,b]=[b,a];$(pre+'RL').textContent=a===b?a:`${a} – ${b}`;$(pre+'Fill').style.left=(a-1)/(w-1)*100+'%';$(pre+'Fill').style.right=(w-b)/(w-1)*100+'%';return [a,b]};
+  [fr,to].forEach(x=>{x.oninput=paint;x.onchange=()=>done(...paint())})}
+function exSelect(key,label,opts,cur,main){const on=opts.find(o=>o[0]===cur)||opts[0];
+  return `<label class="ex-sel${main?' main':''}"><small>${label}</small><b>${on[1]}</b>${svg('chev')}<select data-exsel="${key}" aria-label="${label}">${opts.map(([v,l])=>`<option value='${v}'${v===on[0]?' selected':''}>${l}</option>`).join('')}</select></label>`}
+const exStatOpts=s=>exStats(s).map(([k,l])=>[exKey(k),l]);
 function exPeople(s){const src=STATS[s.id].season(),w=seen(s),f=EX.filt;
   return src.cast.map(c=>({c,out:c.exitEp&&c.exitEp<=w?c.exitEp:0,fac:factionOf(s,c),mine:!!s.kinds&&s.id==='surv'&&TEAMS.alex.some(x=>c.name.startsWith(x))}))
     .filter(r=>f==='all'||(f==='in'&&!r.out)||(f==='out'&&r.out)||(f==='mine'&&r.mine)||(!['all','in','out','mine'].includes(f)&&!factionSecret(s)&&r.fac===f))}
@@ -36,9 +47,8 @@ function explorerHTML(s){const w=seen(s),src=STATS[s.id].season(),term=src.tribe
   const facs=factionSecret(s)?[]:Object.keys(src.tribes||{}).filter(t=>src.cast.some(c=>factionOf(s,c)===t));
   const filts=[['all','Everyone'],['in','Still in'],['out','Out'],...facs.map(t=>[t,t]),...(s.kinds&&s.id==='surv'?[['mine','Your team']]:[])];
   const controls=`${guardChip(s)}<div class="ex-seg">${[['faces','Faces'],['rank','Rank'],['heat','By episode']].map(([k,l])=>`<button class="${EX.view===k?'on':''}" data-exv="${k}">${l}</button>`).join('')}</div>
-    ${w>1?`<div class="ex-slider"><div class="lab"><span class="cap">Episodes</span><b class="num" id="exRL">${EX.from===EX.to?EX.from:`${EX.from} – ${EX.to}`}</b></div><div class="trk"><i id="exFill" style="left:${(EX.from-1)/(w-1)*100}%;right:${(w-EX.to)/(w-1)*100}%"></i>
-      <input type="range" min="1" max="${w}" value="${EX.from}" id="exFrom" aria-label="From episode"><input type="range" min="1" max="${w}" value="${EX.to}" id="exTo" aria-label="To episode"></div><div class="ends"><span>1</span><span>${w}</span></div></div>`:''}
-    <div class="ex-filt">${filts.map(([k,l])=>`<button class="chip${EX.filt===k?' on':''}" data-exf="${k}">${l}</button>`).join('')}</div>`;
+    ${w>1?exSliderHTML('ex',w,EX.from,EX.to):''}
+    <div class="ex-pick${EX.view==='rank'?'':' one'}">${EX.view==='rank'?exSelect('1','Ranked by',exStatOpts(s),exKey(EX.stat),true):''}${exSelect('f','Show',filts,EX.filt)}</div>`;
   let body='';
   if(EX.view==='faces'){const rows=exPeople(s).map(r=>({...r,n:exVal(r.c,'pts',EX.from,EX.to)}));
     const groups=factionSecret(s)?[['Still in',rows.filter(r=>!r.out),null],['Out',rows.filter(r=>r.out),null]]
@@ -47,7 +57,7 @@ function explorerHTML(s){const w=seen(s),src=STATS[s.id].season(),term=src.tribe
       <div class="ex-faces">${L.sort((p,q)=>name==='Out'?q.out-p.out:q.n-p.n).map(r=>`<button class="ex-face${r.out?' out':''}" data-exc="${r.c.name}"><img src="${ph(r.c)}" alt=""><b class="cap">${first(r.c.name)}</b><small>${r.out?`Out · Ep ${r.out}${r.fac&&factionSecret(s)?` · ${r.fac}`:''}`:`${r.n} pts`}</small>${r.mine?'<span class="ex-yours">Your team</span>':''}</button>`).join('')}</div></div>`).join('')}
   else if(EX.view==='rank'){const [k,title,u]=exStat(s,EX.stat),k2=EX.stat2&&exStat(s,EX.stat2),rows=exRanked(s,k),max=Math.max(1,...rows.map(r=>r.n)),pats=exPatterns(s);
     body=`${pats.length?`<div class="ex-pats">${pats.map((p,i)=>`<button class="ex-pat" data-pat="${i}">${svg('bolt')}<span>${p[0]}</span>${svg('chev')}</button>`).join('')}</div>`:''}
-      <div class="ex-pick"><button data-expick="1"><small>Ranked by</small><b>${title}</b>${svg('chev')}</button><button data-expick="2"><small>Beside it</small><b>${k2?k2[1]:'Nothing'}</b>${svg('chev')}</button></div>
+      <div class="ex-pick one">${exSelect('2','Beside it',[['none','Nothing'],...exStatOpts(s)],k2?exKey(k2[0]):'none')}</div>
       <div class="ex-tools"><button class="ex-tool${EX.picking?' on':''}" data-excmp>${svg('swap')}${EX.picking?`Pick two · ${EX.cmp.length}/2`:'Compare two'}</button><button class="ex-tool" data-exshare>${svg('send')}Share this</button></div>
       <div class="ex-rank">${rows.map((r,i)=>`<button class="ex-r${r.out?' out':''}${EX.cmp.includes(r.c.name)?' pick':''}" data-exc="${r.c.name}"><span class="rk num">${i+1}</span><img src="${ph(r.c)}" alt=""><span class="tx"><b>${first(r.c.name)}</b><small>${r.out?`Out · Ep ${r.out}`:r.mine?'Your team':''}${k2?`${r.out||r.mine?' · ':''}${k2[1]}: ${exVal(r.c,k2[0],EX.from,EX.to)}`:''}</small><span class="bar"><i style="width:${Math.max(0,r.n)/max*100}%"></i></span></span><span class="val"><b class="num">${r.n}</b><small>${unit(u,r.n)}</small></span></button>`).join('')}</div>`}
   else{const eps=Array.from({length:EX.to-EX.from+1},(_,i)=>EX.from+i),rows=exPeople(s).map(r=>({...r,n:exVal(r.c,'pts',EX.from,EX.to)})).sort((p,q)=>q.n-p.n);
@@ -69,12 +79,9 @@ function exStatSheet(s,which){const cur=which===1?EX.stat:EX.stat2;
 function exRefresh(){const y=$('scroller').scrollTop;route();$('scroller').scrollTop=y}
 function wireExplorer(s){wireGuard();
   app.querySelectorAll('[data-exv]').forEach(b=>b.onclick=()=>{EX.view=b.dataset.exv;exRefresh()});
-  app.querySelectorAll('[data-exf]').forEach(b=>b.onclick=()=>{EX.filt=b.dataset.exf;exRefresh()});
-  app.querySelectorAll('[data-expick]').forEach(b=>b.onclick=()=>exStatSheet(s,+b.dataset.expick));
+  app.querySelectorAll('[data-exsel]').forEach(x=>x.onchange=()=>{const k=x.dataset.exsel,v=x.value;if(k==='f')EX.filt=v;else if(k==='1')EX.stat=JSON.parse(v);else EX.stat2=v==='none'?null:JSON.parse(v);exRefresh()});
   app.querySelectorAll('[data-pat]').forEach(b=>b.onclick=()=>{Object.assign(EX,exPatterns(s)[+b.dataset.pat][1],{view:'rank'});exRefresh()});
-  // the slider: two thumbs on one track; the label follows while dragging, the view updates on release
-  const fr=$('exFrom'),to=$('exTo'),w=seen(s);if(fr&&to){const paint=()=>{let a=+fr.value,b=+to.value;if(a>b){[a,b]=[b,a]}$('exRL').textContent=a===b?a:`${a} – ${b}`;$('exFill').style.left=(a-1)/(w-1)*100+'%';$('exFill').style.right=(w-b)/(w-1)*100+'%';return [a,b]};
-    [fr,to].forEach(x=>{x.oninput=paint;x.onchange=()=>{[EX.from,EX.to]=paint();exRefresh()}})}
+  exSliderWire('ex',seen(s),(a,b)=>{EX.from=a;EX.to=b;exRefresh()});
   app.querySelectorAll('[data-exc]').forEach(r=>r.onclick=()=>{if(!EX.picking)return exProfile(s,r.dataset.exc);const n=r.dataset.exc;EX.cmp=EX.cmp.includes(n)?EX.cmp.filter(x=>x!==n):[...EX.cmp,n].slice(-2);
     // re-rendering closes sheets, so the side-by-side opens after it
     if(EX.cmp.length===2){const names=EX.cmp;EX.cmp=[];EX.picking=false;exRefresh();exCompare(s,names)}else exRefresh()});

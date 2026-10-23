@@ -25,7 +25,7 @@ const wvOut=()=>MOVES.roster.filter(n=>S51C(n).exitEp);
 const wvIn=()=>MOVES.roster.filter(n=>!S51C(n).exitEp);
 const wvSurv=()=>SHOWS.find(s=>s.id==='surv');
 // points (or a stat) over the picker's window, never past what you've seen
-const wvRange=()=>{const w=Math.max(1,seen(wvSurv())||WV_EP);return WV.src==='last3'?[Math.max(1,w-2),w]:WV.src==='last'?[w,w]:[1,w]};
+const wvRange=()=>{const w=Math.max(1,seen(wvSurv())||WV_EP);if(WV.ver==='simple')return [WV.from||1,Math.min(WV.to||w,w)];return WV.src==='last3'?[Math.max(1,w-2),w]:WV.src==='last'?[w,w]:[1,w]};
 const wvVal=(n,k=WV.stat)=>{const [a,b]=wvRange();return exVal(S51C(n),k,a,b)};
 const wvPts=n=>+wvVal(n,'pts').toFixed(1);
 const wvFree=()=>{const taken=new Set((WV.run||[]).map(r=>r.add)),gone=(WV.run||[]).filter(r=>r.n==='alex'&&r.kind==='swap').map(r=>r.drop);return WV_FA.filter(n=>!taken.has(n)).concat(gone)};
@@ -37,15 +37,9 @@ const wvClaim=drop=>WV.claims[drop]||[];
 function wvFacts(n){const c=S51C(n),w=seen(wvSurv())||WV_EP,ev=(c.why||[]).filter(x=>x[0]<=w),has=k=>ev.filter(x=>x[1]===k);
   const wrong=has('votedAgainstMajority');return {va:has('survivedVotes').length,wrong:wrong.length,wrongEp:wrong.length?wrong[wrong.length-1][0]:0,idol:has('idolFound').length-has('idolPlayed').length,
     tribal:['votedWithMajority','votedAgainstMajority','zeroVotesSafe','survivedVotes'].some(k=>has(k).length),imm:has('tribeImmunity').length+has('individualImmunity').length,lastWrong:wrong.length&&wrong[wrong.length-1][0]>=w-1}}
-function wvSignals(n){const f=wvFacts(n),S=[];
-  if(f.va)S.push(['warn',`${f.va} vote${f.va>1?'s':''} against`]);
-  if(f.wrong)S.push(['warn',`Wrong side of the vote · Ep ${f.wrongEp}`]);
-  if(f.idol>0)S.push(['good','Has an idol']);
-  if(!f.va&&f.tribal&&!f.wrong)S.push(['good','Never written down']);
-  if(!f.tribal)S.push(['','Hasn\'t been to tribal']);
-  return S.slice(0,2)}
+// one quiet, positive tag at most (negative ones were clutter)
+function wvSignals(n){const f=wvFacts(n);return f.idol>0?[['good','Has an idol']]:!f.va&&f.tribal?[['good','Never written down']]:[]}
 const wvSigHTML=n=>{const S=wvSignals(n);return S.length?`<span class="wv-sig">${S.map(([t,l])=>`<i class="${t}">${l}</i>`).join('')}</span>`:''};
-const WV_FILT=[['clean','Never written down',f=>!f.va],['idol','Has an idol',f=>f.idol>0],['right','Always voted with the majority',f=>f.tribal&&!f.wrong],['imm','Won immunity',f=>f.imm>0]];
 const unitOf=k=>{const st=exStats(wvSurv()).find(x=>exKey(x[0])===exKey(k));return st?st[1]:'Points'};
 const wvLineTxt=()=>`you're ${ordinal(WV_LINE.indexOf('alex')+1)} in line`;
 
@@ -113,22 +107,22 @@ function wvCard(d,a,tag,cls,act){const o=S51C(d),c=S51C(a);
   return `<button class="wvs-card ${cls}" ${act}><span class="fc out"><img src="${ph(o)}" alt=""></span><span class="wvs-arr">${svg('chev')}</span>
     <span class="fc in"><img src="${ph(c)}" alt=""></span><span class="tx"><span class="cap">${tag}</span><b>${a} for ${d}</b><small>${wvPts(a)} pts · ${c.tribeNow||c.tribe}</small></span>${svg('chev')}</button>`}
 function wvSimpleHTML(s){const out=wvOut(),open=out.filter(d=>!wvPicked(d)),one=out.length===1,left=wvLeft();
-  const head=open.length?(open.length===1?`${open[0]}'s out. Who comes in?`:`${wvNames(open)} are out`):out.length||WV.swaps.length?'Your swaps are in':'Any swaps this week?';
-  const chips=`${out.map(d=>`<span class="wvs-chip free${wvPicked(d)?' done':''}">${wvPicked(d)?svg('check'):''}Free swap · ${d}</span>`).join('')}${WV.win.swaps?`<span class="wvs-chip">${left?`${left} more swap${left===1?'':'s'} · anyone`:'No more swaps'}</span>`:''}`;
+  const head=open.length?`Replace ${wvNames(open)}`:out.length||WV.swaps.length?'Your swaps are in':'Any swaps this week?';
+  const chips=`${out.map(d=>`<span class="wvs-chip req${wvPicked(d)?' done':''}">${wvPicked(d)?svg('check'):''}Replace ${d}</span>`).join('')}${WV.win.swaps?`<span class="wvs-chip">${left?`Optional · ${left} free swap${left===1?'':'s'}`:'Optional swap used'}</span>`:''}`;
   const row=n=>{const c=S51C(n),o=!!c.exitEp,a=wvFirst(n),L=wvList(n),can=o||left>0;
     return `<div class="wvt${o?' out':''}${a?' set':''}"><div class="wvt-r"><img src="${ph(c)}" alt=""><span class="tx"><b>${n}</b>${o?`<small>Out · Episode ${c.exitEp}</small>`:`<small>${c.total} pts · ${c.tribeNow||c.tribe}</small>${wvSigHTML(n)}`}</span>
-      ${a?(o?'':'<span class="wvt-going cap">Going</span>'):`<button class="wvt-b${o?' free':''}" data-wvs="pick" data-d="${n}" ${can?'':'disabled'}>${o?'Pick':'Swap'}</button>`}</div>
-      ${a?`<button class="wvt-in" data-wvs="pick" data-d="${n}"><span class="arr">${svg('chev')}</span><img src="${ph(S51C(a))}" alt=""><span class="tx"><b>${a} comes in</b><small>${o?'Free swap':'Your swap'}${L.length>1?` · then ${L.slice(1).join(', ')}`:WV.shared?'':' · if taken, the best one left'}</small></span><span class="chg">Change</span></button>`:''}</div>`};
+      ${a?(o?'':'<span class="wvt-going cap">Going</span>'):`<button class="wvt-b${o?' free':''}" data-wvs="pick" data-d="${n}" ${can?'':'disabled'}>Swap</button>`}</div>
+      ${a?`<button class="wvt-in${o?'':' opt'}" data-wvs="pick" data-d="${n}"><span class="arr">${svg('chev')}</span><img src="${ph(S51C(a))}" alt=""><span class="tx"><b>${a} comes in</b><small>${o?`Replaces ${n}`:'Optional swap'}${L.length>1||WV.shared?'':' · if taken, the best one left'}</small>${L.length>1?`<span class="wv-bk">Backup${L.length>2?'s':''}: ${L.slice(1).join(', ')}</span>`:''}</span><span class="wv-chg">Change</span></button>`:''}</div>`};
   const fb=open.length?`<p class="wvs-fb">${svg('bolt')}<span>${WV.set.autoFill?`Forget, and ${open.length===1?`${open[0]}'s spot gets`:'each open spot gets'} whoever's free with the most points.`:`Forget, and ${open.length===1?'the spot stays':'those spots stay'} empty.`}</span></p>`:'';
   const line=WV.shared?'':`<section class="blk"><div class="wvs-line"><div class="sh"><h2 class="cap">Picking order</h2><span class="aside">Lowest score first</span></div>
     <ol>${WV_LINE.map((n,i)=>`<li class="${n==='alex'?'me':''}"><span class="num">${i+1}</span>${av(n,34)}<b>${n==='alex'?'You':n}</b><small>${LINEUP_PTS[n]} pts</small></li>`).join('')}</ol>
     <p class="muted small">Picks stay private until ${fmtT(wvDue())}, then go through in this order.</p></div></section>`;
   const total=out.filter(wvPicked).length+new Set(WV.swaps.map(p=>p.drop)).size;
-  const bar=open.length?`<div class="wv-bar wvs-conf"><span class="tx"><small>${open.length>1?`${open.length} free swaps to pick`:`${open[0]}'s spot is open`}</small><b class="cap">Pick by ${fmtT(wvDue())}</b></span><button class="btn pri" data-wvs="pick" data-d="${open[0]}">Pick</button></div>`
+  const bar=open.length?`<div class="wv-bar wvs-conf"><span class="tx"><small>${open.length>1?`${open.length} to replace`:`${open[0]}'s spot is open`}</small><b class="cap">Replace by ${fmtT(wvDue())}</b></span><button class="btn pri" data-wvs="pick" data-d="${open[0]}">Swap</button></div>`
     :total?`<div class="wv-bar wvs-conf done"><span class="ok">${svg('check')}</span><span class="tx"><small>Change anything until ${fmtT(wvDue())}</small><b class="cap">${total} swap${total>1?'s':''} in</b></span></div>`:'';
   return `<section class="blk wvs"><div class="wvs-k"><span class="cap">Due ${fmtT(wvDue())}</span><span data-cd="${wvDue().getTime()}">—</span></div>
     <h2 class="cap wvs-q">${head}</h2><div class="wvs-chips">${chips}</div></section>
-    <section class="blk"><div class="sh"><h2 class="cap">Your team</h2><span class="aside">${left?'Swap anyone':'No more swaps left'}</span></div>${MOVES.roster.map(row).join('')}${fb}</section>
+    <section class="blk"><div class="sh"><h2 class="cap">Your team</h2><span class="aside">${left?'Swap anyone':''}</span></div>${MOVES.roster.map(row).join('')}${fb}</section>
     ${line}${wvHowRow()}${bar?'<div style="height:70px"></div>'+bar:''}`}
 
 function wvRanHTML(s){const me=wvMineRun(),rep=me.find(r=>r.kind==='replace'),others=(WV.run||[]).filter(r=>r.n!=='alex');
@@ -174,24 +168,23 @@ function wireWvPick(s,drop){const paint=()=>{$('wvP').innerHTML=wvPickBody(drop)
 
 // ---------- the simple picker: one sheet for any swap; sort by any stat, filter by what the research says ----------
 const wvTaken=drop=>wvOut().filter(d=>d!==drop).map(d=>wvClaim(d)[0]).concat(WV.swaps.filter(p=>p.drop!==drop).map(p=>p.add)).filter(Boolean);
-function wvsPickSheet(drop){const o=!!S51C(drop).exitEp,cur=wvList(drop);let L=cur.slice(),own=WV.own||L.length>1,sorts=false;const F=WV.filt||(WV.filt=new Set());
-  const body=()=>{const taken=wvTaken(drop),pool=wvFree().filter(n=>!taken.includes(n)),st=WV.stat,pts=exKey(st)===exKey('pts');
-    const rows=pool.map(n=>({n,v:wvVal(n,st),f:wvFacts(n)})).filter(r=>[...F].every(k=>WV_FILT.find(x=>x[0]===k)[2](r.f))).sort((a,b)=>b.v-a.v||wvPts(b.n)-wvPts(a.n)),max=Math.max(1,...rows.map(r=>r.v));
-    return `<div class="ex-seg">${[['season','Season'],['last3','Last 3'],['last','Last ep']].map(([k,l])=>`<button class="${WV.src===k?'on':''}" data-wsrc="${k}">${l}</button>`).join('')}</div>
-    <button class="wvp-rank" id="wvSort"><span class="cap">Sort by</span><b>${unitOf(st)}</b>${svg('chev')}</button>
-    ${sorts?`<div class="wv-sorts">${exStats(wvSurv()).map(([k,l])=>`<button class="${exKey(k)===exKey(st)?'on':''}" data-wst='${exKey(k)}'>${l}</button>`).join('')}</div>`:''}
-    <div class="wv-fchips">${WV_FILT.map(([k,l])=>`<button class="chip${F.has(k)?' on':''}" data-wf="${k}">${F.has(k)?svg('check'):''}${l}</button>`).join('')}</div>
-    ${rows.length?rows.map(({n,v},i)=>{const k=L.indexOf(n),c=S51C(n);return `<button class="ex-r wvs-r${k>=0?' pick':''}" data-fa="${n}"><span class="rk num">${k>=0?(own?k+1:svg('check')):i+1}</span><img src="${ph(c)}" alt=""><span class="tx"><b>${n}</b>${wvSigHTML(n)||`<small>${c.tribeNow||c.tribe}</small>`}<span class="bar"><i style="width:${Math.max(4,v/max*100)}%"></i></span></span><span class="val"><b class="num">${pts?+v.toFixed(1):v}</b><small>${pts?'pts':v===1?'time':'times'}</small></span></button>`}).join('')
-      :`<div class="wv-none" style="margin-top:6px">Nobody free fits · <button class="link" id="wvClr" style="color:var(--chyron);font-weight:700">Clear filters</button></div>`}
-    ${WV.shared?'':`<button class="wvs-own${own?' on':''}" id="wvOwn"><span class="switch${own?' on':''}"><i></i></span><span><b>Choose backups</b><small>${own?'Tap in order: 1st choice, then backups':'Off: if your pick\'s taken, you get the best one left'}</small></span></button>`}
+function wvsPickSheet(drop){const o=!!S51C(drop).exitEp,cur=wvList(drop),w=Math.max(1,seen(wvSurv())||WV_EP);let L=cur.slice(),own=WV.own||L.length>1;
+  WV.to=Math.min(WV.to||w,w);WV.from=Math.min(WV.from||1,WV.to);WV.f=WV.f||'all';
+  const body=()=>{const taken=wvTaken(drop),st=WV.stat,pts=exKey(st)==='"pts"';
+    const pool=wvFree().filter(n=>!taken.includes(n)),tribes=[...new Set(pool.map(n=>S51C(n).tribeNow||S51C(n).tribe))].sort();
+    const rows=pool.filter(n=>WV.f==='all'||(S51C(n).tribeNow||S51C(n).tribe)===WV.f).map(n=>({n,v:wvVal(n,st)})).sort((a,b)=>b.v-a.v||wvPts(b.n)-wvPts(a.n)),max=Math.max(1,...rows.map(r=>r.v));
+    return `${w>1?exSliderHTML('wv',w,WV.from,WV.to):''}
+    <div class="ex-pick">${exSelect('st','Ranked by',exStatOpts(wvSurv()),exKey(st),true)}${exSelect('f','Show',[['all','Everyone free'],...tribes.map(t=>[t,t])],WV.f)}</div>
+    ${rows.length?rows.map(({n,v},i)=>{const k=L.indexOf(n),c=S51C(n);return `<button class="ex-r wvs-r${k===0?' pick':k>0?' bk':''}" data-fa="${n}"><span class="rk num">${k===0?(own&&L.length>1?1:svg('check')):k>0?k+1:i+1}</span><img src="${ph(c)}" alt=""><span class="tx"><b>${n}${k===0?'<span class="wv-role cap">Your pick</span>':k>0?'<span class="wv-role cap bk">Backup</span>':''}</b>${wvSigHTML(n)||`<small>${c.tribeNow||c.tribe}</small>`}<span class="bar"><i style="width:${Math.max(4,v/max*100)}%"></i></span></span><span class="val"><b class="num">${pts?+v.toFixed(1):v}</b><small>${pts?'pts':v===1?'time':'times'}</small></span></button>`}).join('')
+      :`<div class="wv-none" style="margin-top:6px">Nobody free fits · <button class="link" id="wvClr" style="color:var(--chyron);font-weight:700">Show everyone</button></div>`}
+    ${WV.shared?'':`<button class="wvs-own${own?' on':''}" id="wvOwn"><span class="switch${own?' on':''}"><i></i></span><span><b>Choose backups</b><small>${own?'Tap your pick first, then backups in order':'Off: if your pick\'s taken, you get the best one left'}</small></span></button>`}
     <button class="btn pri wide" id="wvsOk" ${L.length?'':'disabled'} style="margin-top:12px">${L.length?(own&&L.length>1?`Save ${L[0]} + ${L.length-1} backup${L.length>2?'s':''}`:`${L[0]} comes in`):'Tap someone'}</button>
     ${cur.length?`<button class="btn out wide" id="wvsNo" style="margin-top:8px">${o?'Clear my pick':`Keep ${drop}`}</button>`:''}`};
-  openSheet(`Who comes in for ${drop}?`,`${o?'Free swap':`Swap · ${drop} goes back to free agents`} · due ${fmtT(wvDue())}`,`<div id="wvsB">${body()}</div>`,b=>{const paint=()=>{$('wvsB').innerHTML=body();wire()};
+  openSheet(`Who comes in for ${drop}?`,`${o?`Replaces ${drop}`:`Optional swap · ${drop} goes back to free agents`} · due ${fmtT(wvDue())}`,`<div id="wvsB">${body()}</div>`,b=>{const paint=()=>{const y=b.scrollTop;$('wvsB').innerHTML=body();b.scrollTop=y;wire()};
     const wire=()=>{b.querySelectorAll('[data-fa]').forEach(r=>r.onclick=()=>{const n=r.dataset.fa,k=L.indexOf(n);if(!own||WV.shared)L=k>=0?[]:[n];else if(k>=0)L.splice(k,1);else L.push(n);paint()});
-      b.querySelectorAll('[data-wsrc]').forEach(x=>x.onclick=()=>{WV.src=x.dataset.wsrc;paint()});
-      $('wvSort').onclick=()=>{sorts=!sorts;paint()};b.querySelectorAll('[data-wst]').forEach(x=>x.onclick=()=>{WV.stat=JSON.parse(x.dataset.wst);sorts=false;paint()});
-      b.querySelectorAll('[data-wf]').forEach(x=>x.onclick=()=>{const k=x.dataset.wf;F.has(k)?F.delete(k):F.add(k);paint()});
-      const cl=$('wvClr');if(cl)cl.onclick=()=>{F.clear();paint()};
+      exSliderWire('wv',w,(a,c)=>{WV.from=a;WV.to=c;paint()});
+      b.querySelectorAll('[data-exsel]').forEach(x=>x.onchange=()=>{if(x.dataset.exsel==='st')WV.stat=JSON.parse(x.value);else WV.f=x.value;paint()});
+      const cl=$('wvClr');if(cl)cl.onclick=()=>{WV.f='all';paint()};
       const ow=$('wvOwn');if(ow)ow.onclick=()=>{own=!own;WV.own=own;if(!own)L=L.slice(0,1);paint()};
       const save=list=>{if(o)WV.claims[drop]=list;else WV.swaps=WV.swaps.filter(p=>p.drop!==drop).concat(list.map(a=>({add:a,drop})));WV.touched=true;closeSheet();route()};
       $('wvsOk').onclick=()=>{save(L);toast(`${L[0]} comes in for ${drop}${WV.shared?'':`, unless someone ahead of you takes ${L[0]} first`}`)};
@@ -226,8 +219,7 @@ function wvReveal(){const mine=wvMineRun(),me=mine.find(r=>r.lostTo)||mine[0],c=
 // ---------- How it works: three answers for this league, then when moves happen ----------
 function wvHowHTML(){const swap=WV.set.sched==='manual'?'When your commissioner opens a waiver window.':`${WV.win.swaps} swap${WV.win.swaps>1?'s':''} every ${WV.set.every} episodes. Next: after Episode ${WV_NEXT}.`;
   const simple=WV.ver==='simple';
-  const rep=(simple?{always:'You get a free swap for them after any episode.',whenShort:'You get a free swap once you\'re down to 2 still in.',windows:'You get a free swap for them at the next waiver window.',never:'No free swap: use one of your swaps, or keep them.'}
-    :{always:'Replace them after any episode.',whenShort:'Replace them once you\'re down to 2 still in.',windows:'Replace them at the next waiver window.',never:'They stay on your team; there are no replacements.'})[WV.set.rule];
+  const rep=({always:'Replace them after any episode.',whenShort:'Replace them once you\'re down to 2 still in.',windows:'Replace them at the next waiver window.',never:'They stay on your team; there are no replacements.'})[WV.set.rule];
   const order=WV.ver==='simple'?'Lowest score picks first.':'Waiver order: get someone, go to the back of the line.';
   const cols=[];for(let e=WV_EP-2;e<WV_EP+8;e++)cols.push(e);
   const open=e=>WV.set.sched==='every'?(e-1)%WV.set.every===0:WV.set.sched==='everyEpisode';
@@ -235,7 +227,7 @@ function wvHowHTML(){const swap=WV.set.sched==='manual'?'When your commissioner 
   return `<div class="wv-how"><p class="label cap">Waivers here</p>
     ${[['Someone of yours voted out?',rep],['Swap someone still in?',swap],['Two of you want the same person?',order]].map(([q,a])=>`<div class="wv-q"><b>${q}</b><span>${a}</span></div>`).join('')}
     <p class="label cap">When moves happen</p>
-    <div class="wv-lanes">${lane(simple?'Who\'s out':'Replace',WV.set.rule!=='never')}${lane(simple?'Anyone':'Swap',WV.win.swaps>0)}<div class="wv-lane ax"><span></span>${cols.map(e=>`<b class="num${e===WV_EP?' now':''}">${e}</b>`).join('')}</div></div>
+    <div class="wv-lanes">${lane('Replace',WV.set.rule!=='never')}${lane('Swap',WV.win.swaps>0)}<div class="wv-lane ax"><span></span>${cols.map(e=>`<b class="num${e===WV_EP?' now':''}">${e}</b>`).join('')}</div></div>
     <p class="wv-leg"><i></i>Open, the day after that episode until the next one airs</p>
     <p class="muted small" style="line-height:1.5">Every ${WV.set.every}${WV.set.every===3?'rd':'th'} episode a waiver window opens: claims are private until they run, then free agency until airtime. In between, teams play as they are.</p></div>`}
 const rulesSheetW=rulesSheet;
@@ -246,17 +238,17 @@ const WV_FEEL={casual:{rule:'whenShort',every:4,autoFill:true,b:[['swap','Lose s
   balanced:{rule:'windows',every:3,autoFill:false,b:[['swap','Lose someone? They wait for a waiver window.'],['cal','1 swap every 3 episodes.'],['people','Get a free agent, go to the back of the line.'],['bell','Claims are due a day before each episode.']]},
   competitive:{rule:'never',every:2,autoFill:false,b:[['x','Out is out: no replacements.'],['cal','1 swap every 2 episodes.'],['people','Get a free agent, go to the back of the line.'],['bolt','Miss the deadline, play short.']]}};
 const WV_RULES=[['always','Replace right away','After any episode'],['whenShort','Only when short','Down to 2 still in'],['windows','Wait for a waiver window','Out castaways sit until then'],['never','No replacements','Out is out']];
-const WV_RULES_S=[['always','Free swap right away','After any episode'],['whenShort','Free swap when short','Once down to 2 still in'],['windows','Free swap at the next window','Until then they sit'],['never','No free swap','Use a regular swap, or keep them']];
-const WV_FEEL_S={casual:[['swap','Someone out? A free swap once you\'re down to 2.'],['cal','1 more swap every 4 episodes.'],['people','Lowest score picks first.'],['check','The best free agent is lined up for every spot.']],
-  balanced:[['swap','Someone out? A free swap at the next waiver window.'],['cal','1 more swap every 3 episodes.'],['people','Lowest score picks first.'],['check','The best free agent is lined up for every spot.']],
-  competitive:[['x','Someone out? No free swap: use a regular one.'],['cal','1 swap every 2 episodes.'],['people','Lowest score picks first.'],['bolt','Nothing lined up: pick, or play short.']]};
+const WV_RULES_S=WV_RULES;
+const WV_FEEL_S={casual:[['swap','Someone out? Replace them once you\'re down to 2.'],['cal','1 optional swap every 4 episodes.'],['people','Lowest score picks first.'],['check','Forget to pick? You get the most points left.']],
+  balanced:[['swap','Someone out? Replace them at the next waiver window.'],['cal','1 optional swap every 3 episodes.'],['people','Lowest score picks first.'],['check','Forget to pick? You get the most points left.']],
+  competitive:[['x','Out is out: no replacements.'],['cal','1 optional swap every 2 episodes.'],['people','Lowest score picks first.'],['bolt','Forget to pick? The spot stays empty.']]};
 function wvSettingsBody(){const S=WV.set,F=WV_FEEL[S.feel],sug=WV_FEEL[S.feel].rule,simple=WV.ver==='simple';
   const rules=(simple?WV_RULES_S:WV_RULES).map(([k,t,d])=>`<button class="wv-radio${S.rule===k?' on':''}" data-wrule="${k}"><i></i><span><b>${t}</b><small>${d}</small></span>${k===sug?'<span class="wv-sug cap">Suggested</span>':''}</button>`).join('');
-  const windows=`<p class="muted small">${simple?'When everyone gets swaps for anyone on their team.':'When players can swap someone still in.'}</p>
+  const windows=`<p class="muted small">${simple?'Optional swaps for anyone still on the team.':'When players can swap someone still in.'}</p>
     <div class="ex-seg" style="margin-top:10px">${[['everyEpisode','Every episode'],['every',`Every ${S.every}`],['manual','You decide']].map(([k,l])=>`<button class="${S.sched===k?'on':''}" data-wsched="${k}">${l}</button>`).join('')}</div>
-    <div class="wv-step"><span><b>${simple?'More swaps each':'Swaps each'}</b><small>${S.sched==='manual'?'Set when you open one':`Next window: after Episode ${WV_NEXT}`}</small></span><div class="stepper"><button data-wsw="-1" aria-label="Fewer">−</button><b class="num">${S.swaps===0?'None':S.swaps>=5?'All':S.swaps}</b><button data-wsw="1" aria-label="More">+</button></div></div>`;
+    <div class="wv-step"><span><b>${simple?'Optional swaps each':'Swaps each'}</b><small>${S.sched==='manual'?'Set when you open one':`Next window: after Episode ${WV_NEXT}`}</small></span><div class="stepper"><button data-wsw="-1" aria-label="Fewer">−</button><b class="num">${S.swaps===0?'None':S.swaps>=5?'All':S.swaps}</b><button data-wsw="1" aria-label="More">+</button></div></div>`;
   const timing=`${[['Claim deadline','1 day before'],['Waiver order',WV.ver==='simple'?'Lowest score first':'Rolling'],['Free agency','Until airtime']].map(([k,v])=>`<div class="wv-val"><b>${k}</b><span>${v}</span></div>`).join('')}
-    <button class="wv-val tog" id="wvAuto"><span><b>${simple?'Line up picks':'Auto-fill'}</b><small>${simple?'The best free agent is lined up for each spot; players can change it.':'No claim in? They get the top free agent.'}</small></span><span class="wv-sw${S.autoFill?' on':''}"><i></i></span></button>`;
+    <button class="wv-val tog" id="wvAuto"><span><b>${simple?'Fallback pick':'Auto-fill'}</b><small>${simple?'Forget to pick? They get whoever\'s free with the most points.':'No claim in? They get the top free agent.'}</small></span><span class="wv-sw${S.autoFill?' on':''}"><i></i></span></button>`;
   if(WV.ver==='v2')return `<div class="wv-card"><div class="wv-ch"><span class="cap">Suggested</span><small>4 teams of 5 · ${WV_FA.length} free agents</small></div>
     <div class="ex-seg wv-feel">${Object.keys(WV_FEEL).map(k=>`<button class="${S.feel===k?'on':''}" data-wfeel="${k}">${k[0].toUpperCase()+k.slice(1)}</button>`).join('')}</div>
     <ul>${F.b.map(([i,t])=>`<li>${svg(i)}${t}</li>`).join('')}</ul>
@@ -265,7 +257,7 @@ function wvSettingsBody(){const S=WV.set,F=WV_FEEL[S.feel],sug=WV_FEEL[S.feel].r
     <button class="wv-prev" id="wvPrev">Preview what players see</button>`;
   return `<p class="muted small" style="margin-bottom:10px">Pick a feel. It sets everything below; your players see it in How it works.</p>
     ${Object.entries(WV_FEEL).map(([k,f])=>`<button class="wvs-feel${S.feel===k?' on':''}" data-wfeel="${k}"><span class="hd"><i></i><b class="cap">${k}</b>${k==='balanced'?'<span class="wv-sug cap">Suggested</span>':''}</span>
-      <small>${{casual:'Forgiving. Nobody falls behind for bad luck.',balanced:'Free swaps wait for a window; more every few episodes.',competitive:'Every loss costs you. Stay sharp.'}[k]}</small>
+      <small>${{casual:'Forgiving. Nobody falls behind for bad luck.',balanced:'Replacements wait for a window; a swap every few episodes.',competitive:'Every loss costs you. Stay sharp.'}[k]}</small>
       ${S.feel===k?`<ul>${WV_FEEL_S[k].map(([i,t])=>`<li>${svg(i)}${t}</li>`).join('')}</ul>`:''}</button>`).join('')}
     <details class="wvs-fine"${WV.fine?' open':''}><summary><b>Fine-tune</b><small>${S.applied?'Using the feel above':'Customized'}</small>${svg('chev')}</summary>
       <p class="label cap">When someone's out</p>${rules}<p class="label cap">Waiver windows</p>${windows}<p class="label cap">Timing</p>${timing}</details>
@@ -281,13 +273,13 @@ function wvSettingsSheet(){openSheet('Waivers settings','Weekly Lineup · Surviv
     $('wvAuto').onclick=()=>{S.autoFill=!S.autoFill;S.applied=false;paint()};
     $('wvPrev').onclick=()=>{closeSheet();setTimeout(()=>rulesSheet('lineup'),230)}};wire()})}
 // 3B: no names anywhere, so it can open before everyone's revealed the episode
-const wvWinLine=(rep,sw)=>WV.ver==='simple'?[rep?'Free swaps for who\'s out':'',sw?(sw>=5?'swap anyone':`${sw} more swap${sw>1?'s':''} each`):''].filter(Boolean).join(' · ').replace(/^./,c=>c.toUpperCase())
+const wvWinLine=(rep,sw)=>WV.ver==='simple'?[rep?'Replace who\'s out':'',sw?(sw>=5?'swap anyone':`${sw} optional swap${sw>1?'s':''} each`):''].filter(Boolean).join(' · ').replace(/^./,c=>c.toUpperCase())
   :[rep?'Replace who\'s out':'',sw?(sw>=5?'Swap any':sw===1?'Swap 1':`Swap up to ${sw}`):''].filter(Boolean).join(' · ');
 function wvOpenSheet(onOpen){let rep=true,sw=1,custom=WV.ver==='v2';
-  const P=[['rep','Who\'s out','A free swap for everyone who\'s out.',true,0],['one','Who\'s out + 1','And 1 more swap each, for anyone.',true,1],['all','Anyone','Swap any of the team, e.g. after the merge.',true,5]];
+  const P=[['rep','Replace who\'s out','Everyone replaces who\'s out.',true,0],['one','Replace + 1 swap','And 1 optional swap each, for anyone.',true,1],['all','Swap anyone','Replace who\'s out and swap any of the rest, e.g. after the merge.',true,5]];
   const body=()=>{const line=wvWinLine(rep,sw),S_=WV.ver==='simple';
-    const ctl=`<button class="wv-val tog" id="wvRep"><span><b>${S_?'Free swaps for who\'s out':'Replace castaways who are out'}</b><small>${rep?'Each gets a free agent.':'Out castaways stay on the team.'}</small></span><span class="wv-sw${rep?' on':''}"><i></i></span></button>
-      <div class="wv-step"><span><b>${S_?'More swaps each':'Swap castaways still in'}</b><small>${sw===0?'Nobody still in can move.':sw>=5?'Any of them.':`Up to ${sw} each.`}</small></span><div class="stepper"><button data-wsw="-1" aria-label="Fewer">−</button><b class="num">${sw===0?'None':sw>=5?'All':sw}</b><button data-wsw="1" aria-label="More">+</button></div></div>`;
+    const ctl=`<button class="wv-val tog" id="wvRep"><span><b>Replace castaways who are out</b><small>${rep?'Each gets a free agent.':'Out castaways stay on the team.'}</small></span><span class="wv-sw${rep?' on':''}"><i></i></span></button>
+      <div class="wv-step"><span><b>${S_?'Optional swaps each':'Swap castaways still in'}</b><small>${sw===0?'Nobody still in can move.':sw>=5?'Any of them.':`Up to ${sw} each.`}</small></span><div class="stepper"><button data-wsw="-1" aria-label="Fewer">−</button><b class="num">${sw===0?'None':sw>=5?'All':sw}</b><button data-wsw="1" aria-label="More">+</button></div></div>`;
     return `${custom?ctl:P.map(([k,t,d,r,n])=>`<button class="wvs-feel${rep===r&&sw===n?' on':''}" data-wp="${k}"><span class="hd"><i></i><b class="cap">${t}</b></span><small>${d}</small></button>`).join('')+`<button class="wv-prev" id="wvCustom">Something else</button>`}
       ${S_?(line?`<p class="muted small" style="margin-top:14px">Everyone gets a notification saying what they can swap and by when.</p>`:`<div class="wv-none" style="margin-top:14px">Nothing to swap yet</div>`)
         :`<p class="label cap">Players get</p>${line?`<div class="plate"><span class="tg cap q">Window</span><span class="bd"><span class="t cap">${line}</span><span class="d">Optional · due ${fmtT(wvDue())}</span></span></div>`:`<div class="wv-none">Nothing to claim yet</div>`}`}
@@ -334,7 +326,7 @@ tabTonight=function(s){if(s.id==='surv')wvSync();let h=tabTonightW(s);if(s.id!==
   if(WV.stage==='ran'){t=me?`You got ${me.add} for ${me.drop}`:'Waivers ran';d=`Free agency until ${fmtT(wvAirs())}`;st='Done'}
   else if(!out.length)return h;
   else if(WV.ver==='simple'){const open=out.filter(d=>!wvPicked(d));
-    if(open.length){t=`Pick who comes in for ${wvNames(open)}`;d=`Free swap · due ${fmtT(wvDue())}`;st='Open'}
+    if(open.length){t=`Replace ${wvNames(open)}`;d=`Due ${fmtT(wvDue())} · you pick who comes in`;st='Open'}
     else{t=out.length>1?`${out.length} swaps in`:`${wvFirst(out[0])} comes in for ${out[0]}`;d=`Change until ${fmtT(wvDue())}`;st='Set'}}
   else{const L=WV.claims[out[0]]||[];t=`Replace ${out[0]}`;d=L.length?`Your claim: ${L.join(', then ')} · due ${fmtT(wvDue())}`:`Due ${fmtT(wvDue())} · ${wvLineTxt()}`;st=L.length?'In':'Open'}
   const ok=/Set|In|Done/.test(st),job=`<button class="job${ok?' done':''}" data-job="waivers"><span class="ic">${svg('swap')}</span><span class="tx"><span class="kind cap">Weekly Lineup · Waivers</span><b>${t}</b><small>${d}</small></span><span class="st">${st}</span>${svg('chev')}</button>`;
@@ -343,7 +335,7 @@ tabTonight=function(s){if(s.id==='surv')wvSync();let h=tabTonightW(s);if(s.id!==
 const tabEpisodesW=tabEpisodes;
 tabEpisodes=function(s){if(s.id==='surv')wvSync();let h=tabEpisodesW(s);if(s.id!=='surv'||N===1)return h;
   const me=wvMineRun()[0],done=WV.stage!=='open';
-  const row=`<button class="eprow wv-ep${done?'':' open'}" data-wvep><span class="n wvn">${svg('swap')}</span>${done&&me?`<span class="faces"><img src="${ph(S51C(me.add))}" alt="" style="filter:none"></span>`:''}<span class="tx"><b>Waivers · after Episode ${WV_EP}</b><small>${done?(me?`You got ${me.add} for ${me.drop} · ${(WV.run||[]).length} moves`:`${(WV.run||[]).length} moves`):`Due ${fmtT(wvDue())} · ${WV.ver==='simple'?'swap':'replace'} ${wvNames(wvOut())}`}</small></span>${done?svg('chev'):'<span class="st">Open</span>'}</button>`;
+  const row=`<button class="eprow wv-ep${done?'':' open'}" data-wvep><span class="n wvn">${svg('swap')}</span>${done&&me?`<span class="faces"><img src="${ph(S51C(me.add))}" alt="" style="filter:none"></span>`:''}<span class="tx"><b>Waivers · after Episode ${WV_EP}</b><small>${done?(me?`You got ${me.add} for ${me.drop} · ${(WV.run||[]).length} moves`:`${(WV.run||[]).length} moves`):`Due ${fmtT(wvDue())} · replace ${wvNames(wvOut())}`}</small></span>${done?svg('chev'):'<span class="st">Open</span>'}</button>`;
   return h.replace(`<button class="eprow" data-ep="${WV_EP}">`,row+`<button class="eprow" data-ep="${WV_EP}">`)};
 const wireShowW=wireShow;
 wireShow=function(s){wireShowW(s);
@@ -352,7 +344,7 @@ wireShow=function(s){wireShowW(s);
   app.querySelectorAll('[data-wvep]').forEach(b=>b.onclick=()=>WV.stage==='open'?location.hash=`#/show/${s.id}/waivers`:wvRunPage())};
 
 // ---------- mock scenarios (mockmenu.js) and ?wv= / ?wvsheet= for the comparison page ----------
-function wvSet(o){WV.ver=o.ver||WV.ver;WV.shared=!!o.shared;WV.claims={};WV.swaps=[];WV.filt=new Set();WV.own=false;WV.set.autoFill=WV.ver==='simple';WV.run=null;WV.seen=false;WV.pick=null;
+function wvSet(o){WV.ver=o.ver||WV.ver;WV.shared=!!o.shared;WV.claims={};WV.swaps=[];WV.f='all';WV.from=0;WV.to=0;WV.own=false;WV.set.autoFill=WV.ver==='simple';WV.run=null;WV.seen=false;WV.pick=null;
   MOVES.roster=o.two?['Kristin','Mike','Patt','Jenna','Eric']:['Kristin','Mike','Brady','Jenna','Eric'];MOVES.starters=new Set(['Kristin','Mike']);WV.stage='open';BS.window='open';BS.ran=false;
   if(o.filled){WV.claims.Jenna=['Sharonda','Devin'];WV.swaps=WV.ver==='v2'?[{add:'Cristian',drop:'Eric'},{add:'Linnea',drop:'Mike'}]:[{add:'Cristian',drop:'Eric'}]}
   if(o.stage==='ran'||o.stage==='quiet'){if(!o.filled&&!o.two)WV.claims.Jenna=['Sharonda','Devin'];wvDoRun();WV.seen=o.stage==='quiet'||!!o.seen;if(o.stage==='quiet')WV.stage='quiet'}

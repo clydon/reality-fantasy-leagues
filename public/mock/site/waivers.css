@@ -188,7 +188,7 @@
 .wvt-in .arr{color:var(--chyron);transform:rotate(90deg);display:grid}.wvt-in .arr svg{width:16px;height:16px;stroke-width:2.6}
 .wvt-in img{width:40px;height:40px;border-radius:3px;object-fit:cover;object-position:center 20%}
 .wvt-in .tx{flex:1;min-width:0}.wvt-in b{display:block;font-size:15px}.wvt-in small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
-.wvt-in .chg{font-size:13px;font-weight:700;color:var(--chyron)}
+.wvt-in .wv-chg{font-size:13px;font-weight:700;color:var(--chyron)}
 .wv-sig{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
 .wv-sig i{font-style:normal;font-size:11px;font-weight:700;padding:2px 6px;border-radius:2px;background:var(--raised);color:var(--muted);white-space:nowrap}
 .wv-sig i.warn{background:rgba(242,84,91,.16);color:#ff8a8f}
@@ -204,4 +204,17 @@
 .wv-sorts button.on{background:var(--bone);color:var(--ink)}
 .wvs-r .tx .wv-sig{margin:3px 0 2px}
 .wv-fchips .chip{margin:0}
-.wvt-in .chg{flex:none}.wvt-in small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wvt-in .wv-chg{flex:none}.wvt-in small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* round 4: yellow = you need to do it (Replace), uncolored = optional (Swap anyone); backups never yellow */
+.wvs-chip.req{background:var(--chyron);color:var(--ink)}
+.wvs-chip.req.done{background:none;color:var(--chyron);outline:1px solid var(--chyron);outline-offset:-1px}
+.wvs-r.pick{background:rgba(255,197,49,.12)}
+.wvs-r.pick .rk{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--chyron);color:var(--ink);font-size:14px}
+.wvs-r.pick .rk svg{color:var(--ink);width:14px;height:14px}
+.wvs-r.bk{background:none;outline:1px dashed var(--field);outline-offset:-1px}
+.wvs-r.bk .rk{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;outline:1.5px solid var(--muted);outline-offset:-1.5px;color:var(--bone);font-size:14px}
+.wv-role{display:inline-block;margin-left:8px;font-size:10px;letter-spacing:.06em;padding:2px 6px;border-radius:2px;background:var(--chyron);color:var(--ink);vertical-align:2px}
+.wv-role.bk{background:none;color:var(--muted);outline:1px solid var(--field);outline-offset:-1px}
+.wv-bk{display:inline-block;margin-top:4px;font-size:11.5px;color:var(--muted);padding:2px 6px;border-radius:2px;outline:1px dashed var(--field);outline-offset:-1px}
+.wvs-r{border-radius:3px;padding-right:6px}
+.wvt-in.opt{background:var(--panel);outline-color:var(--field)}.wvt-in.opt .arr,.wvt-in.opt .wv-chg{color:var(--bone)}
