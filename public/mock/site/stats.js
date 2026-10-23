@@ -5,7 +5,7 @@
 // collect, counted only up to the episode you're on. Scripted shows get Previously on and Who's who instead.
 const STATS={
   surv:{season:()=>S51,term:'tribals',cats:[['votedWithMajority','Voted with the majority','times'],['zeroVotesSafe','Never written down','tribals, no votes against'],[['survivedVotes','Voted Out'],'Most votes against','tribals with votes against them'],['survivedVotes','Survived votes against','times'],
-    ['tribeImmunity','Tribe immunity wins','wins'],['rewardWin','Reward wins','wins'],['idolFound','Idols found','found'],['votedAgainstMajority','Voted against the majority','times'],['learnedOfAdvantage','Learned of an advantage','times']]},
+    ['tribeImmunity','Tribe immunity wins','wins'],['rewardWin','Reward wins','wins'],['idolFound','Idols found','idols'],['votedAgainstMajority','Voted against the majority','times'],['learnedOfAdvantage','Learned of an advantage','times']]},
   trt:{season:()=>TRT,term:'Round Tables',cats:[['zeroVotes','Never voted for at the Round Table','Round Tables'],['shieldWon','Shields won','shields'],['votedOutFaithful','Voted out a Faithful','times'],['survivedRoundTable','Survived votes at the Round Table','times']]}};
 const hasStats=s=>!!STATS[s.id];
 // "1 time", "2 times": a unit's first word loses its s for one
@@ -24,7 +24,7 @@ function statsCard(s){if(!hasStats(s))return '';const S=STATS[s.id],w=whereOf(s,
 // focus: a category index to lead with, sorted by it, the whole cast; the rest follow, top five each
 function statsBody(s,focus){const S=STATS[s.id],w=whereOf(s,'alex'),order=S.cats.map((c,i)=>i).sort((a,b)=>(b===focus)-(a===focus));
   return `<p class="muted small" style="line-height:1.45;margin-bottom:6px">Counted from each episode's results, up to Episode ${w}. Nothing past where you are.</p>${order.map(i=>{const [k,t,u]=S.cats[i],f=i===focus;return `<div class="st-cat${f?' focus':''}" id="stc${i}"><div class="sh" style="padding:0;margin:16px 0 6px"><h2 class="cap" style="font-size:${f?26:20}px">${t}</h2><span class="aside">${f?'Sorted by this · everyone':u}</span></div>${statRows(s,k,f?99:5)}</div>`}).join('')}`}
-function statsPage(s,focus){openPage(`${s.short} stats`,`<div class="st-page">${statsBody(s,focus)}</div>`)}
+function statsPage(s,focus){openPage(`${s.short} stats`,`<div class="st-page">${guardChip(s)}${statsBody(s,focus)}</div>`,pg=>pg.querySelectorAll('[data-gdwhere]').forEach(b=>b.onclick=()=>{closePage();whereSheet({...s,aired:airedOf(s),onEp:Math.max(1,seen(s))})}))}
 
 // Tonight: the card sits right after Watch along (shows without a game) or at the end (shows with games)
 const anchorWho='<section class="blk"><div class="sh"><h2 class="cap">Who\'s watching</h2>';
@@ -34,7 +34,7 @@ const tabTonightStats=tabTonight;
 tabTonight=function(s){return tabTonightStats(s)+(N!==1&&hasStats(s)?statsCard(s):'')};
 // the Stats tab, in place of Standings when you're not in a game
 const wStandingsStats=wStandings;
-wStandings=function(s){if(!hasStats(s))return wStandingsStats(s);return `<section class="blk"><div class="sh"><h2 class="cap">Stats</h2><span class="aside">Up to Episode ${whereOf(s,'alex')}</span></div>${statsBody(s)}</section>
+wStandings=function(s){if(!hasStats(s))return wStandingsStats(s);return `<section class="blk">${guardChip(s)}<div class="sh"><h2 class="cap">Stats</h2></div>${statsBody(s)}</section>
   <div class="playplate"><span class="tg cap">Play it</span><h4 class="cap">${s.short} with your couch</h4><p>Survival Pool starts from the next episode, no draft. Or draft a team from this cast.</p><button class="btn" data-wjob="newgame">Start a game</button></div>`};
 const showRouteStats=showRoute;
 showRoute=function(sid,tab){showRouteStats(sid,tab);const s=SHOWS.find(x=>x.id===sid);if(!s||s.kinds||!hasStats(s))return;const a=app.querySelector('.tabbar a[href$="/standings"]');if(a)a.innerHTML=`${svg('poll')}Stats`};
@@ -42,7 +42,7 @@ const wireWStats=wireW;
 wireW=function(s){wireWStats(s);wireStats()};
 const wireShowStats=wireShow;
 wireShow=function(s){wireShowStats(s);wireStats()};
-function wireStats(){app.querySelectorAll('[data-stats]').forEach(b=>b.onclick=()=>statsPage(SHOWS.find(x=>x.id===b.dataset.stats),b.dataset.cat==null?undefined:+b.dataset.cat));app.querySelectorAll('[data-recap]').forEach(b=>b.onclick=()=>recapSheet(SHOWS.find(x=>x.id===b.dataset.recap)))}
+function wireStats(){wireGuard();app.querySelectorAll('[data-stats]').forEach(b=>b.onclick=()=>statsPage(SHOWS.find(x=>x.id===b.dataset.stats),b.dataset.cat==null?undefined:+b.dataset.cat));app.querySelectorAll('[data-recap]').forEach(b=>b.onclick=()=>recapSheet(SHOWS.find(x=>x.id===b.dataset.recap)))}
 
 // ---------- Previously on: a spoiler-safe recap up to your episode ----------
 // Survivor and Traitors are written from the results we hold (who left, how); other shows' recaps come from the
