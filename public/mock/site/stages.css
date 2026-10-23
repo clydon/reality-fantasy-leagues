@@ -1,0 +1,24 @@
+/* results arrive in stages */
+.wait{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:4px;background:var(--panel);margin-bottom:10px}
+.wait .pulse{width:12px;height:12px;border-radius:50%;background:var(--chyron);margin-top:5px;flex:none;box-shadow:0 0 0 0 rgba(255,197,49,.6);animation:wpulse 1.8s infinite}
+@keyframes wpulse{70%{box-shadow:0 0 0 12px rgba(255,197,49,0)}100%{box-shadow:0 0 0 0 rgba(255,197,49,0)}}
+.wait b{font-size:22px;display:block}.wait small{font-size:13px;color:var(--muted);line-height:1.45;display:block;margin-top:4px}
+.stagebar{margin-top:16px;padding:12px;border-radius:4px;background:var(--rail);outline:1px solid var(--line);outline-offset:-1px}
+.stagebar .lbl{font-size:12px;letter-spacing:.06em;color:var(--muted)}
+.stagebar .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;position:relative}
+.stagebar .steps button{display:flex;flex-direction:column;gap:3px;text-align:left;padding:0;position:relative}
+.stagebar .steps i{height:4px;border-radius:2px;background:var(--line);margin-bottom:6px}
+.stagebar .steps .on i{background:var(--good)}.stagebar .steps .cur i{background:var(--chyron)}
+.stagebar .steps b{font-size:13px}.stagebar .steps small{font-size:11px;color:var(--muted);line-height:1.3}
+.stagebar .steps .cur b{color:var(--chyron)}
+.mockhint{display:block;font-size:11px;margin-top:8px;opacity:.6}
+.night .nh em{font-style:normal;font-size:14px;color:var(--muted);margin-left:6px;font-stretch:100%;font-weight:600}
+.gline .prov{color:var(--muted)}
+.morning{display:flex;align-items:center;gap:10px;margin:14px 16px 0;width:calc(100% - 32px);min-height:58px;padding-right:12px;border-radius:3px;background:var(--plate);color:var(--ink);overflow:hidden;box-shadow:0 8px 20px rgba(0,0,0,.35);animation:rise .5s var(--ease)}
+.morning .tg{align-self:stretch;display:flex;align-items:center;background:var(--chyron);font-size:12px;letter-spacing:.06em;padding:0 18px 0 10px;clip-path:polygon(0 0,100% 0,calc(100% - 10px) 100%,0 100%)}
+.morning .ctx{flex:1;text-align:left}.morning b{display:block;font-size:16px}.morning small{font-size:12px;color:var(--plate-muted)}
+.rb .big small.soFar{display:block;font-size:15px;color:var(--muted);font-stretch:100%;font-weight:600;margin-top:8px;letter-spacing:0}
+.tally .tli.pending{opacity:.45}
+.fdelta{display:flex;align-items:center;gap:10px;padding:14px;border-radius:4px;background:var(--ground)}
+.fdelta span{font-size:12px;color:var(--muted)}.fdelta b{font-size:34px}.fdelta b.yel{color:var(--chyron)}
+.fdelta svg{color:var(--muted)}

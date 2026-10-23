@@ -1,0 +1,42 @@
+/* The device: a fixed 390 × 844 phone (19.5:9, iPhone 14/15). Content scrolls inside it; anything
+   "fixed" (tab bar, dock, sheets, pages, toasts) pins to the device, not the browser window, because
+   the device is a transformed containing block. On a real phone it simply fills the screen. */
+html,body{height:100%}
+body{display:flex;align-items:center;justify-content:center;padding:0;min-height:100vh;background:#0b0a0f}
+.device{position:relative;width:100vw;height:100dvh;overflow:hidden;background:var(--ground);transform:translateZ(0);isolation:isolate}
+.scroller{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;overscroll-behavior:contain}
+.scroller::-webkit-scrollbar{display:none}
+@media(min-width:500px){
+  body{padding:24px}
+  .device{width:390px;height:844px;flex:none;border-radius:34px;box-shadow:0 0 0 10px #050408,0 0 0 11px #2a2633,0 30px 80px rgba(0,0,0,.6)}
+}
+/* everything fixed now measures from the device: undo the old window offsets */
+.tabbar,.dock,.sheet,.page,.wa,.frfoot,.composer.sticky,.toast{max-width:390px}
+.tabbar,.frfoot{bottom:0!important;border-radius:0!important}
+.sheet{bottom:0!important;border-radius:14px 14px 0 0!important;max-height:88%!important}
+.page,.wa{top:0!important;bottom:0!important;border-radius:0!important}
+.dock{bottom:84px!important}
+.composer.sticky{bottom:76px!important}
+.scrim,.confetti,.revealfs{position:absolute!important;inset:0}
+.revealfs{max-width:none;margin:0}
+.page,.wa{height:100%}
+/* the mock control sits outside the device */
+.ctl{position:fixed!important;left:16px!important;right:auto!important;top:auto!important;bottom:16px!important;transform:none!important}
+@media(max-width:499px){.ctl{bottom:150px!important}}
+@media(min-width:900px){.ctl{left:calc(50% + 225px)!important;bottom:auto!important;top:calc(50% - 422px)!important;flex-direction:column}.ctl button[data-n]{display:block!important}}
+#app{padding-bottom:0}
+.show{min-height:100%}
+/* parity: the commissioner job is just one more row */
+.job.bs .ic{background:var(--bone);color:var(--ink)}
+.job.bs .kind{color:var(--bone)}
+.iconbtn .dot{position:absolute;top:9px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--chyron);box-shadow:0 0 0 2px rgba(16,14,21,.8)}
+
+/* no sideways drift inside the device, even from programmatic scrolls */
+.device,.scroller{overflow-x:clip}
+/* the guide: today is pinned, the week slides under it */
+.reel .day.today{position:sticky;left:0;z-index:3;background:var(--ground);box-shadow:14px 0 18px -10px rgba(0,0,0,.85);border-right:1px solid var(--line)}
+.reel .day.today .dh{cursor:pointer}
+.lst.nextup{outline:1.5px solid var(--chyron);outline-offset:-1.5px}
+.lst.nextup .tm{background:rgba(10,8,14,.8);color:var(--muted)}
+.lst.nextup .nx{font-size:11px;color:var(--chyron);letter-spacing:.06em;margin-bottom:2px}
+a.btn{text-decoration:none;color:inherit}a.btn.pri{color:var(--ink)}

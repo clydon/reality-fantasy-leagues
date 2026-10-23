@@ -1,0 +1,45 @@
+/* Backstage */
+.idx{display:flex;align-items:center;gap:12px;min-height:62px;border-top:1px solid var(--line);color:var(--bone);text-decoration:none;position:relative}
+.idx:last-child{border-bottom:1px solid var(--line)}
+.idx .ic{width:40px;height:40px;border-radius:3px;background:var(--panel);display:grid;place-items:center;flex:none}
+.idx .tx{flex:1;min-width:0}.idx b{display:block;font-size:16px;font-weight:600}.idx small{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.idx>svg{color:var(--muted)}
+.cdot{width:8px;height:8px;border-radius:50%;background:var(--chyron)}
+.clear{display:flex;gap:12px;align-items:center;padding:14px;border-radius:4px;background:var(--panel)}
+.clear>svg{width:26px;height:26px;color:var(--good);stroke-width:2.6}
+.clear b{display:block;font-size:15px}.clear small{font-size:13px;color:var(--muted)}
+.qcheck{padding:14px;border-radius:4px;background:var(--panel)}
+.qh{display:flex;gap:12px;align-items:flex-start}
+.qh .ai{width:36px;height:36px;border-radius:3px;background:var(--chyron);color:var(--ink);display:grid;place-items:center;flex:none}
+.qh>div{flex:1}.qh b{display:block;font-size:16px}.qh small{font-size:13px;color:var(--muted);line-height:1.4}
+.found{display:flex;gap:12px;align-items:center;margin-top:14px;padding:10px;border-radius:3px;background:var(--plate);color:var(--ink)}
+.found img{width:56px;height:56px;border-radius:3px;object-fit:cover;object-position:center 20%}
+.found .kind{font-size:11px;letter-spacing:.06em;color:var(--plate-muted)}.found b{display:block;font-size:17px}.found small{font-size:12px;color:#0b7568;font-weight:700}
+.frow{display:flex;gap:8px;margin-top:10px}.frow .btn{flex:1;height:44px}
+.paths{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.path{position:relative;padding:12px;border-radius:4px;background:var(--panel);outline:2px solid transparent;outline-offset:-2px;text-align:left;display:flex;flex-direction:column;gap:5px}
+.path.on{outline-color:var(--chyron)}
+.path b{font-size:16px}.path small{font-size:12px;color:var(--muted);line-height:1.4}
+.path .opt{position:absolute;top:8px;right:8px;font-size:10px;letter-spacing:.06em;color:var(--muted);background:var(--raised);padding:2px 6px;border-radius:2px}
+.resrow .kind{display:block;font-size:11px;letter-spacing:.06em;color:var(--muted)}
+.resrow .low{color:var(--gold-accent,#e0b23a);font-size:12px}
+.noface{width:40px;height:40px;border-radius:3px;background:var(--raised);display:grid;place-items:center;color:#e0b23a;font-weight:800}
+.okchip{display:flex;align-items:center;gap:4px;font-size:13px;font-weight:700;color:var(--good)}
+.okchip svg{width:16px;height:16px;stroke-width:2.6}
+.srow small{font-weight:500}
+.grp{display:block;font-size:13px;letter-spacing:.06em;color:var(--muted);margin-bottom:4px}
+.rule{display:flex;align-items:center;gap:10px;min-height:58px;border-top:1px solid var(--line)}
+.rule .tx{flex:1}.rule b{font-size:15px;font-weight:600}.rule small{display:block;font-size:12px;color:var(--muted)}
+.rule.edited small{color:var(--chyron)}
+.rule .stepper b{width:44px;text-align:center;font-size:24px}.rule .stepper b.neg{color:var(--muted)}
+.rule .stepper button{width:40px;height:40px;background:var(--panel)}
+.savebar{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:12px 16px 16px;background:var(--panel);border-top:1px solid var(--line);box-shadow:0 -10px 24px rgba(0,0,0,.4);animation:rise .3s var(--ease)}
+.rolerow{width:100%;text-align:left}.rolerow>svg{color:var(--muted)}
+.rolebtn svg{width:18px;height:18px}
+.danger{border-top:1px solid var(--line);padding-top:4px}
+.danger summary{list-style:none;display:flex;align-items:center;gap:8px;height:48px;color:var(--muted);font-weight:700;cursor:pointer}
+.danger summary::-webkit-details-marker{display:none}
+.danger[open] summary{color:var(--live)}
+.game .gh{margin-bottom:4px}
+a.job,a.idx,a.rolebtn{text-decoration:none;color:var(--bone)}a.job .st{color:var(--chyron)}a.rolebtn{display:grid;place-items:center}
+.tribeface{width:40px;height:40px;border-radius:3px;flex:none}

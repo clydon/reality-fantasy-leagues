@@ -31,12 +31,16 @@ const nextConfig: NextConfig = {
       "./node_modules/onnxruntime-web/**/*",
     ],
   },
+  // The full-site design mock, served as static files outside the app shell (public/mock/, built by
+  // scripts/dev-test/publish-site-mock.js). /mock/hub is the older link people already have.
+  async rewrites() {
+    return [
+      { source: "/mock", destination: "/mock/site/index.html" },
+      { source: "/mock/hub", destination: "/mock/site/index.html" },
+    ];
+  },
   // The service worker must never be served from a cache: browsers only pick up a new sw.js when
   // they can fetch it fresh, so a cached copy would pin every installed phone to an old worker.
-  // Design mocks served as static, self-contained pages (public/mock/*.html), outside the app shell.
-  async rewrites() {
-    return [{ source: "/mock/hub", destination: "/mock/hub.html" }];
-  },
   async headers() {
     return [
       {

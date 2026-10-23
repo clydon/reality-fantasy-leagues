@@ -1,0 +1,39 @@
+/* the moves dock */
+.dock{position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:28;width:calc(100% - 20px);max-width:370px;display:flex;align-items:center;gap:10px;padding:7px 7px 7px 9px;border-radius:4px;background:var(--plate);color:var(--ink);box-shadow:0 12px 28px rgba(0,0,0,.5);text-align:left;animation:dockin .5s var(--spring) both;overflow:hidden}
+@media(min-width:760px){.dock{bottom:108px}}
+@keyframes dockin{from{transform:translate(-50%,30px);opacity:0}}
+.dock::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--good)}
+.dock.need::before{background:var(--chyron)}
+.dock.locked{background:var(--raised);color:var(--bone)}
+.dock.locked::before{background:var(--field)}
+.dock .faces{display:flex;padding-left:4px}
+.dock .faces img{width:34px;height:34px;border-radius:3px;object-fit:cover;object-position:center 20%;margin-left:-8px;box-shadow:0 0 0 2px var(--plate)}
+.dock .faces img:first-child{margin-left:0}
+.dock .faces img.pick{border-radius:50%;margin-left:4px}
+.dock.locked .faces img{box-shadow:0 0 0 2px var(--raised);filter:saturate(.6)}
+.emptyface{width:34px;height:34px;border-radius:3px;outline:2px dashed #c7c3d1;outline-offset:-2px;display:grid;place-items:center;color:var(--plate-muted)}
+.dock .tx{flex:1;min-width:0;line-height:1.2}
+.dock b{display:flex;align-items:center;gap:5px;font-size:14px}
+.dock b svg{width:15px;height:15px}
+.dock small{font-size:11.5px;color:var(--plate-muted);font-variant-numeric:tabular-nums}
+.dock.locked small{color:var(--muted)}
+.dbtn{height:38px;padding:0 14px;border-radius:3px;display:grid;place-items:center;font-weight:800;font-size:14px;background:var(--ink);color:#fff}
+.dock.need .dbtn{background:var(--chyron);color:var(--ink)}
+.show:has(.dock) .show-body{padding-bottom:80px}
+body:has(.dock) .ctl{bottom:150px}
+.mseg{display:flex;gap:3px;background:var(--ground);border-radius:3px;padding:3px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none}
+.mseg button{flex:1 0 auto;height:36px;padding:0 10px;border-radius:2px;font-size:12.5px;font-weight:700;color:var(--muted);text-align:center;position:relative;white-space:nowrap}
+.mseg button.on{background:var(--bone);color:var(--ink)}
+.mseg i{position:absolute;top:6px;right:4px;width:6px;height:6px;border-radius:50%;background:var(--chyron)}
+.tiles.mv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mtile{position:relative;aspect-ratio:3/4;border-radius:3px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:6px;color:#fff;isolation:isolate;transition:transform .3s var(--spring),box-shadow .25s;text-align:left}
+.mtile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 20%;z-index:-2;filter:saturate(.35) brightness(.7);transition:filter .3s}
+.mtile::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,transparent 45%,rgba(10,8,14,.92))}
+.mtile.st{box-shadow:0 0 0 3px var(--chyron)}
+.mtile.st img{filter:none}
+.mtile.out img{filter:grayscale(1) brightness(.5)}
+.mtile .flag{position:absolute;top:6px;left:6px;font-size:10px;font-weight:800;letter-spacing:.06em;padding:2px 6px;border-radius:2px;font-stretch:62%;text-transform:uppercase;background:rgba(16,14,21,.8);color:var(--muted)}
+.mtile.st .flag{background:var(--chyron);color:var(--ink)}
+.mtile.out .flag{background:var(--live);color:var(--live-ink)}
+.mtile b{font-size:15px}.mtile small{font-size:11px;opacity:.85}
+.mtile.pop{animation:bump .4s var(--spring)}

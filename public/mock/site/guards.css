@@ -1,0 +1,21 @@
+/* guards and undo */
+.toast .undo{margin-left:8px;height:28px;padding:0 10px;border-radius:3px;background:var(--ink);color:#fff;font-weight:800;font-size:13px}
+.toast span:last-child{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:1}
+.pv{display:flex;flex-direction:column;gap:6px}
+.pvr{display:flex;align-items:center;gap:10px;padding:10px;border-radius:3px;background:var(--ground)}
+.pvr>svg{width:26px;height:26px;color:var(--muted)}
+.pvi{width:28px;height:28px;border-radius:3px;object-fit:cover;object-position:center 20%}
+.pvc{flex:1;font-size:15px;font-weight:600}
+.pvd{font-size:13px;font-weight:700;color:var(--muted);text-align:right}
+.pvd.up{color:var(--good)}.pvd.dn{color:var(--muted)}
+.pvnote{display:flex;gap:6px;align-items:center;margin-top:12px}
+.pvnote svg{width:15px;height:15px;flex:none}
+.cons{font-size:16px;line-height:1.5;padding:12px;border-radius:3px;background:var(--ground)}
+.hold{position:relative;width:100%;height:56px;border-radius:3px;background:var(--raised);overflow:hidden;font-weight:800;font-size:16px;color:var(--bone);text-align:center;user-select:none;touch-action:none}
+.hold .fill{position:absolute;inset:0;background:var(--live);transform:scaleX(0);transform-origin:left;transition:transform .2s}
+.hold.holding .fill{transform:scaleX(1);transition:transform 1.4s linear}
+.hold .lbl{position:relative}
+.hold.holding .lbl{color:var(--live-ink)}
+.hrow{display:flex;align-items:center;gap:12px;min-height:64px;border-top:1px solid var(--line)}
+.hrow .tx{flex:1}.hrow b{display:block;font-size:15px;font-weight:600}.hrow small{font-size:12px;color:var(--muted)}
+.typecard.dim{opacity:.5}

@@ -1,0 +1,56 @@
+/* episode night */
+.dock.reveal::before{background:var(--chyron)}
+.eyeic{width:34px;height:34px;border-radius:3px;background:var(--ink);color:var(--chyron);display:grid;place-items:center;margin-left:4px}
+.rvplate{position:relative;display:flex;flex-direction:column;justify-content:flex-end;gap:5px;width:100%;min-height:200px;border-radius:4px;overflow:hidden;padding:14px;text-align:left;color:#fff;isolation:isolate;box-shadow:0 14px 30px rgba(0,0,0,.4)}
+.rvplate img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;filter:blur(2px) brightness(.8);transform:scale(1.05)}
+.rvplate::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(16,14,21,.2),rgba(16,14,21,.92))}
+.rvplate .tg{align-self:flex-start;margin-bottom:auto;background:var(--chyron);color:var(--ink);font-size:12px;letter-spacing:.06em;padding:4px 16px 4px 8px;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%)}
+.rvplate b{font-size:34px}.rvplate small{font-size:13px;opacity:.9;line-height:1.4}
+.rvbtn{display:flex;align-items:center;justify-content:center;gap:8px;height:48px;margin-top:8px;border-radius:3px;background:var(--chyron);color:var(--ink);font-weight:800;font-size:16px}
+.night{margin-top:12px;padding:4px 14px 6px;border-radius:4px;background:var(--panel)}
+.night .nh{display:flex;align-items:baseline;justify-content:space-between;padding:10px 0 4px}
+.night .nh span{font-size:14px;color:var(--muted);letter-spacing:.06em}.night .nh b{font-size:40px;color:var(--chyron)}
+.eprow.locked{background:repeating-linear-gradient(135deg,rgba(255,255,255,.02) 0 8px,transparent 8px 16px)}
+.lockface{width:40px;height:40px;border-radius:3px;background:var(--raised);display:grid;place-items:center;color:var(--chyron)}
+.eprow .st{font-size:13px;font-weight:700;color:var(--chyron)}
+.asof{display:flex;align-items:center;gap:10px;margin:14px 16px 0;width:calc(100% - 32px);padding:10px 12px;border-radius:3px;background:var(--panel);outline:1.5px dashed var(--field);outline-offset:-1.5px;text-align:left}
+.asof>svg{color:var(--chyron)}
+.asof span:not(.st){flex:1}.asof b{display:block;font-size:15px}.asof small{font-size:12px;color:var(--muted)}
+.asof .st{font-size:13px;font-weight:700;color:var(--chyron)}
+/* the reveal, v2 */
+.revealfs.v2{justify-content:flex-start;padding:0;gap:0}
+.rtop{display:flex;align-items:center;justify-content:space-between;padding:16px;font-size:15px;color:var(--muted)}
+.rtop button{color:var(--bone);font-weight:700;height:36px;padding:0 10px}
+.rstage{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 16px 20px;cursor:pointer;position:relative}
+.rb{opacity:0;transform:translateY(18px);transition:opacity .45s,transform .55s var(--ease)}
+.rb.in{opacity:1;transform:none}
+.rb .rk{display:block;font-size:14px;color:var(--muted);letter-spacing:.08em;margin-bottom:14px}
+.rb h2{font-size:62px;line-height:.9}
+.rb p{margin-top:14px;font-size:14px}
+.vcard{position:relative;border-radius:4px;overflow:hidden;aspect-ratio:3/3.6;box-shadow:0 20px 50px rgba(0,0,0,.6);animation:vin .7s var(--spring) both}
+@keyframes vin{from{transform:scale(.85);opacity:0}}
+.vcard img{width:100%;height:100%;object-fit:cover;object-position:center 20%;filter:grayscale(.2)}
+.vcard .tg{position:absolute;left:0;bottom:84px;background:var(--live);color:var(--live-ink);font-size:16px;letter-spacing:.06em;padding:7px 24px 7px 12px;clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%);animation:tagin .45s .15s var(--ease) both}
+@keyframes tagin{from{transform:translateX(-100%)}}
+.vcard .vn{position:absolute;left:0;right:0;bottom:0;background:var(--plate);color:var(--ink);padding:12px 14px;animation:tagin .5s .3s var(--ease) both}
+.vn b{font-size:32px;display:block}.vn small{font-size:13px;color:var(--plate-muted)}
+.tally{display:flex;flex-direction:column;gap:8px}
+.tally .tli{display:flex;align-items:center;gap:10px;padding:8px;border-radius:3px;background:var(--panel);opacity:0;animation:appear .45s var(--ease) forwards;animation-delay:calc(var(--i)*.35s + .1s)}
+.tally img{width:44px;height:44px;border-radius:3px;object-fit:cover;object-position:center 20%}
+.tally span{flex:1}.tally span b{display:block;font-size:15px}.tally span small{font-size:12px;color:var(--muted)}
+.tally .num{font-size:24px;color:var(--good)}
+.rb .big{font-size:120px;color:var(--chyron);line-height:.85;margin-top:16px;opacity:0;animation:appear .5s 1.3s var(--spring) forwards}
+.og{padding:14px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+.og .kind{font-size:13px;letter-spacing:.06em}.og b{font-size:22px}.og small{font-size:13px;color:var(--muted)}
+.streak{font-size:15px;color:var(--muted)}.streak s{color:var(--field);font-size:20px}.streak b{font-size:30px;color:var(--good);display:inline}
+.mvlist{position:relative}
+.mvr{position:absolute;left:0;right:0;height:48px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:3px;background:var(--panel);transition:transform .9s var(--spring)}
+.mvr.me{background:var(--plate);color:var(--ink)}
+.mvr .r{width:22px;font-size:22px}.mvr b{flex:1;font-size:16px}.mvr .t{font-size:26px}
+.rdots{display:flex;gap:6px;justify-content:center;padding:0 0 14px}
+.rdots i{width:22px;height:4px;border-radius:2px;background:var(--line);transition:background .3s}
+.rdots i.on{background:var(--bone)}
+.rdone{margin:0 16px 20px;width:calc(100% - 32px);opacity:0;pointer-events:none;transition:opacity .4s}
+.revealfs.last .rdone{opacity:1;pointer-events:auto}
+.revealfs .rdone{width:auto}
+.vcard img{position:static}.vcard .tg,.vcard .vn{z-index:2}
