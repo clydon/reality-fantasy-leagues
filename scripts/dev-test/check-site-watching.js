@@ -157,6 +157,42 @@ const { open } = require("./browser");
   await fresh("#/show/bd/cast");
   await expectText("#app", "Who's who");
 
+  // H. the stats explorer on Cast: table (sort, filter, range), patterns, heatmap, compare, a castaway's story
+  await fresh("#/show/surv/cast");
+  await page.click("[data-exv=table]");
+  const firstVal = async () => +(await page.locator(".ex-t tbody tr").first().locator("td.on").textContent());
+  await page.click(`[data-exs='"votedWithMajority"']`);
+  const rowsVals = await page.$$eval(".ex-t tbody tr td.on", (t) => t.map((x) => +x.textContent));
+  if (rowsVals.some((v, i) => i && v > rowsVals[i - 1])) fail("Table: not sorted by the clicked column");
+  await page.click(`[data-exs='"votedWithMajority"']`);
+  if ((await firstVal()) > Math.min(...rowsVals)) fail("Table: a second tap didn't flip the sort");
+  await page.click('[data-exf="in"]');
+  if (await page.locator(".ex-t tr.out").count()) fail("Still in: shows people who are out");
+  await page.click('[data-pat="0"]');
+  await expectText(".ex-filt .chip.on", "Savu");
+  await page.click("[data-exv=heat]");
+  if (!(await page.locator(".ex-heat td.hc").count())) fail("By episode: no heatmap");
+  await page.click("[data-exv=table]");
+  await page.click("[data-excmp]");
+  await page.locator("[data-exc]").nth(0).click();
+  await page.locator("[data-exc]").nth(1).click();
+  await expectText("#sheet", "Side by side");
+  await page.click("#sheet [data-close]"); await page.waitForTimeout(300);
+  await page.locator("[data-exc]").first().click();
+  await expectText("#sheet", "up to Episode");
+  await page.click("#sheet [data-close]"); await page.waitForTimeout(300);
+  await page.click("[data-exshare]");
+  await expectText("#toast", "Shared with the couch");
+  await shot("explorer");
+  await fresh("#/show/trt/cast");
+  await page.click("[data-exv=table]");
+  if ((await page.locator(".ex-filt").textContent()).match(/Faithful|Traitor/)) fail("Traitors: the explorer shows secret roles");
+  await fresh("#/hub");
+  await page.locator("#supSec .sp-card.cast").first().click();
+  await page.click("#exOpen");
+  await page.waitForTimeout(600);
+  if (!(await page.locator(".ex-t th.on").count()) || !(await page.evaluate(() => location.hash)).endsWith("/cast")) fail("Open in the stats table didn't land on a sorted table");
+
   // E. streaming shows: the guide has the drop day and planned nights; the rail is streaming's home
   await fresh("#/hub");
   if (!(await page.locator(".lst.b-drop").count())) fail("no drop day in the guide");
