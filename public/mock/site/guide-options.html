@@ -16,7 +16,7 @@ body{font-family:Archivo,system-ui,sans-serif;background:#0b0a0f;color:var(--bon
 h1{font-size:48px}
 .lede{color:var(--muted);font-size:16px;line-height:1.55;max-width:820px;margin-top:12px}
 .lede b{color:var(--bone);font-weight:600}
-.heads{display:grid;grid-template-columns:repeat(2,390px);gap:28px;margin-top:34px}
+.heads{display:grid;grid-template-columns:repeat(3,390px);gap:28px;margin-top:34px}
 .opt h2{font-size:28px;display:flex;align-items:baseline;gap:10px}
 .opt h2 .n{color:var(--chyron)}
 .opt h2 .rec{font-size:12px;letter-spacing:.06em;background:var(--chyron);color:var(--ink);padding:4px 12px 4px 6px;clip-path:polygon(0 0,100% 0,calc(100% - 7px) 100%,0 100%)}
@@ -27,26 +27,31 @@ h1{font-size:48px}
 .pc b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
 .pc .y b{color:var(--good)}.pc .x b{color:#f2545b}
 .grp{margin-top:40px;font-size:22px;color:var(--muted)}.grp b{color:var(--bone)}
-.row{display:grid;grid-template-columns:repeat(2,390px);gap:28px;margin-top:14px}
+.row{display:grid;grid-template-columns:repeat(3,390px);gap:28px;margin-top:14px}
 iframe{width:390px;height:844px;border:0;border-radius:24px;box-shadow:0 0 0 8px #050408,0 0 0 9px #2a2633;background:#16141d}
 </style>
 </head>
 <body>
 <h1 class="cap">The guide in a thin week</h1>
-<p class="lede">With one or two shows, a seven-column guide is mostly "Nothing on". Both options <b>keep the guide</b>: day columns, Tonight first, the now line. They differ in what an empty day becomes. Busier couches keep today's rolling guide unchanged. Each phone is the working mock.</p>
+<p class="lede">With one or two shows, a seven-column guide is mostly "Nothing on". All three <b>keep the guide</b>: day columns, Tonight first, the now line. They differ in what an empty day becomes. Busier couches keep today's rolling guide unchanged. Each phone is the working mock.</p>
 <div class="heads">
-  <div class="opt"><h2 class="cap"><span class="n">1</span>Slim days<span class="rec">Recommended</span></h2>
-    <p>An empty day shrinks to a strip with the day written down it; days with your shows widen. <b>The whole week fits on one screen</b>, so you see "nothing until Wednesday" at a glance, and the guide stops rolling.</p>
-    <div class="pc"><div class="y"><b>Good</b>Honest and calm. Full-size cards. Grows naturally into the rolling guide as shows are added.</div><div class="x"><b>Watch out</b>Doesn't help you find more to watch.</div></div></div>
-  <div class="opt"><h2 class="cap"><span class="n">2</span>On TV fill-ins</h2>
-    <p>Every day keeps its column. An empty day shows one faded <b>On TV</b> show that airs that day but nobody on the couch watches, with a <b>+</b> to add it.</p>
-    <div class="pc"><div class="y"><b>Good</b>Empty days become discovery: great for a brand-new couch.</div><div class="x"><b>Watch out</b>Shows the couch doesn't watch, in "This week on the couch". Needs real TV listings data.</div></div></div>
+  <div class="opt"><h2 class="cap"><span class="n">1</span>Slim days + picks<span class="rec">Recommended</span></h2>
+    <p>The <b>two soonest empty days</b> each get one pick: a narrower, faded card for a show airing that day, ranked by how like your shows it is ("Like Survivor"), with <b>"3 more on Fri ›"</b> for that day's full listings (filters, search). Every other empty day is a slim strip. "Hide picks" makes them all slim.</p>
+    <div class="pc"><div class="y"><b>Good</b>Discovery by default, two picks a week at most however big TV gets, and your own shows are never crowded out.</div><div class="x"><b>Watch out</b>Picks need a good "like your shows" ranking to feel personal.</div></div></div>
+  <div class="opt"><h2 class="cap"><span class="n">2</span>Slim days</h2>
+    <p>With two or fewer shows, empty days shrink to strips with the day written down them; days with shows widen. <b>The whole week fits on one screen</b> and the guide stops rolling.</p>
+    <div class="pc"><div class="y"><b>Good</b>Calm and honest: "nothing until Wednesday" at a glance.</div><div class="x"><b>Watch out</b>No discovery: a one-show couch may never try anything else.</div></div></div>
+  <div class="opt"><h2 class="cap"><span class="n">3</span>On TV fill-ins</h2>
+    <p>With two or fewer shows, every empty day keeps a full column holding one faded On TV show with a +.</p>
+    <div class="pc"><div class="y"><b>Good</b>Discovery, full-size.</div><div class="x"><b>Watch out</b>Picks look as big as your own shows; no way into the rest of the day's listings.</div></div></div>
 </div>
 <div class="grp"><b>Survivor only</b></div>
-<div class="row"><iframe src="index.html?n=4&shows=surv&guide=slim&frame=1#/hub" title="Slim days, Survivor only"></iframe><iframe src="index.html?n=4&shows=surv&guide=ontv&frame=1#/hub" title="On TV, Survivor only"></iframe></div>
+<div class="row"><iframe src="index.html?n=4&shows=surv&guide=combo&frame=1#/hub" title="combo"></iframe><iframe src="index.html?n=4&shows=surv&guide=slim&frame=1#/hub" title="slim"></iframe><iframe src="index.html?n=4&shows=surv&guide=ontv&frame=1#/hub" title="ontv"></iframe></div>
 <div class="grp"><b>Survivor + The Challenge</b></div>
-<div class="row"><iframe src="index.html?n=4&shows=surv,chl&guide=slim&frame=1#/hub" title="Slim days, Survivor and Challenge"></iframe><iframe src="index.html?n=4&shows=surv,chl&guide=ontv&frame=1#/hub" title="On TV, Survivor and Challenge"></iframe></div>
+<div class="row"><iframe src="index.html?n=4&shows=surv,chl&guide=combo&frame=1#/hub" title="combo"></iframe><iframe src="index.html?n=4&shows=surv,chl&guide=slim&frame=1#/hub" title="slim"></iframe><iframe src="index.html?n=4&shows=surv,chl&guide=ontv&frame=1#/hub" title="ontv"></iframe></div>
 <div class="grp"><b>New couch</b> · Survivor added, no games yet</div>
-<div class="row"><iframe src="index.html?n=4&fresh=1&guide=slim&frame=1#/hub" title="Slim days, new couch"></iframe><iframe src="index.html?n=4&fresh=1&guide=ontv&frame=1#/hub" title="On TV, new couch"></iframe></div>
+<div class="row"><iframe src="index.html?n=4&fresh=1&guide=combo&frame=1#/hub" title="combo"></iframe><iframe src="index.html?n=4&fresh=1&guide=slim&frame=1#/hub" title="slim"></iframe><iframe src="index.html?n=4&fresh=1&guide=ontv&frame=1#/hub" title="ontv"></iframe></div>
+<div class="grp"><b>Full couch</b> · picks only fill the empty days</div>
+<div class="row"><iframe src="index.html?n=4&&guide=combo&frame=1#/hub" title="combo"></iframe><iframe src="index.html?n=4&&guide=slim&frame=1#/hub" title="slim"></iframe><iframe src="index.html?n=4&&guide=ontv&frame=1#/hub" title="ontv"></iframe></div>
 </body>
 </html>
