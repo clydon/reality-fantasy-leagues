@@ -48,3 +48,7 @@ body{display:flex;align-items:center;justify-content:center;padding:0;min-height
 .lst.nextup .tm{background:rgba(10,8,14,.8);color:var(--muted)}
 .lst.nextup .nx{font-size:11px;color:var(--chyron);letter-spacing:.06em;margin-bottom:2px}
 a.btn{text-decoration:none;color:inherit}a.btn.pri{color:var(--ink)}
+/* the hub greeting ("Evening, alex. 2 moves due…") is hidden for now (user, 2026-10-23: too large) */
+.hello{display:none}
+/* the couch line lives in your menu now, not on the hub */
+.sheet .couchline{width:100%;margin:0 0 14px}

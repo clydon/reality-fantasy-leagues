@@ -738,7 +738,6 @@ function hub(){
   <div class="top"><div class="mark cap" aria-label="Game Your Show"><span class="o">Game</span><span class="w">Your</span><span class="o">Show</span></div>
     <div class="me"><button class="iconbtn" id="bell" aria-label="Notifications">${svg('bell')}<span class="dot${state.readNotes?' gone':''}"></span></button><button class="iconbtn" id="meBtn" aria-label="Your profile">${av('alex',34)}</button></div></div>
   <p class="hello"><strong>Evening, alex.</strong> ${dueCount()?`${dueCount()} ${dueCount()===1?'move':'moves'} due this week`:'You\'re all set this week'} · ${N===4?'riley and jordan are on':'5 of your 12 are on right now'}.</p>
-  <button class="couchline" id="couchBtn"><span class="crest">${['alex','riley','jordan'].map((n,i)=>`<i style="background:${col(n)};${['left:3px;top:3px','right:3px;top:3px','left:9px;bottom:3px'][i]}"></i>`).join('')}</span><b>${typeof COUCH!=='undefined'?COUCH:'Couch Council'}</b><small>${N} on the couch</small>${svg('chev')}</button>
 
   <div class="guide-h"><h2 class="cap">This week on the couch</h2><span class="rolling" id="rolling"><i></i><span>Rolling</span></span></div>
   <div class="reel" id="reel">${guideDays()}${guideDays(true)}</div>
@@ -873,12 +872,14 @@ function couchSheet(){const ppl=crowdOf(),on=N===4?['riley','jordan']:['riley','
     b=>{const cp=()=>{navigator.clipboard?.writeText('K7Q2XZ').catch(()=>{});toast('Invite code copied')};$('copy').onclick=cp;$('invite').onclick=cp;
       $('runBack').onclick=e=>{e.currentTarget.innerHTML=`${svg('check')}Set for Survivor 52`;e.currentTarget.disabled=true;toast('Survivor 52 is set up. Everyone\'s in.')}})}
 
+// your couch sits at the top of your menu (moved off the hub, 2026-10-23); it opens the couch switcher
 function profileSheet(){openSheet('alex','Couch Council · since Survivor 49',
-  `<div class="stat3"><div><b class="num">2</b><small>Titles</small></div><div><b class="num">94</b><small>Power points</small></div><div><b class="num">71%</b><small>Agree with the couch</small></div></div>
+  `<button class="couchline" id="couchRow"><span class="crest">${['alex','riley','jordan'].map((n,i)=>`<i style="background:${col(n)};${['left:3px;top:3px','right:3px;top:3px','left:9px;bottom:3px'][i]}"></i>`).join('')}</span><b>${typeof COUCH!=='undefined'?COUCH:'Couch Council'}</b><small>${N} on the couch</small>${svg('chev')}</button><div class="stat3"><div><b class="num">2</b><small>Titles</small></div><div><b class="num">94</b><small>Power points</small></div><div><b class="num">71%</b><small>Agree with the couch</small></div></div>
    <p class="label cap">Your best show</p><div class="recap-art"><img src="${ART('survivor')}" alt="" style="object-position:64% 50%"><b class="cap">Survivor</b></div>
    <button class="row"><span class="ic">${svg('star')}</span><span class="tx"><b>Taste twin: riley</b><small>You rate episodes within half a star 8 times in 10</small></span></button>
    <button class="row"><span class="ic">${svg('bolt')}</span><span class="tx"><b>Called it: 4 in a row</b><small>Predictions right since Survivor 51 Episode 1</small></span></button>
-   <a class="btn out wide" href="#/account" style="margin-top:14px" onclick="closeSheet()">${svg('gear')}Settings</a>`)}
+   <a class="btn out wide" href="#/account" style="margin-top:14px" onclick="closeSheet()">${svg('gear')}Settings</a>`,
+  b=>b.querySelector('#couchRow').onclick=()=>{closeSheet();setTimeout(couchSwitch,250)})}
 
 function addShowSheet(){
   openSheet('Add a show','Tell the couch what you\'re watching. Playing is optional.',
@@ -1118,7 +1119,7 @@ function refreshHello(){const h=app.querySelector('.hello');if(h)h.innerHTML=`<s
   app.querySelectorAll('.poster[data-poster="surv"] .need').forEach(n=>state.lineup&&n.remove());app.querySelectorAll('.poster[data-poster="trt"] .need').forEach(n=>state.banish&&n.remove());
   app.querySelectorAll('.lst[data-show="surv"] .nd').forEach(n=>state.lineup&&n.remove());app.querySelectorAll('.lst[data-show="trt"] .nd').forEach(n=>state.banish&&n.remove())}
 function wireHub(){
-  $('bell').onclick=notesSheet;$('meBtn').onclick=profileSheet;$('couchBtn').onclick=couchSwitch;
+  $('bell').onclick=notesSheet;$('meBtn').onclick=profileSheet;
   $('addShow').onclick=$('addShow2').onclick=addShowSheet;$('todo').onclick=heroAction;if($('heroWA'))$('heroWA').onclick=()=>openWatch(sel);
   // the guide
   app.querySelectorAll('.lst').forEach(b=>b.onclick=()=>{if(UI.dragged)return;episodeSheet(b.dataset.show,b.dataset.ep,b.dataset.at)});
