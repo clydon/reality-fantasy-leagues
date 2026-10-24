@@ -18,11 +18,10 @@ export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): 
   if (!showId || wikiSeason == null || StateLogic.RevealLogic.isCatchingUp(state)) return clear();
   const { rows } = await db.query(
     `SELECT to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date, to_char(ss.air_time, 'HH24:MI') AS air_time, ss.air_tz,
-            (SELECT json_object_agg(e->>'number', e->>'airDate')
-               FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e
-              WHERE we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
-                AND e->>'airDate' IS NOT NULL) AS wiki_air_dates
+            sad.air_dates AS wiki_air_dates
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
+       -- The wiki's dates with research-confirmed starts over them (0067): a week off moves the locks too.
+       LEFT JOIN season_air_dates sad ON sad.season_id = ss.id
       WHERE s.slug = $1 AND ss.season_number = $2`,
     [showId, wikiSeason]
   );

@@ -88,6 +88,7 @@ function researchSchemaFor(format, withBets = false) {
   return z.object({
     episodeTitle: z.string().nullable(),
     airDate: z.string().nullable().describe("As printed on the source, e.g. 'March 5, 2026'."),
+    nextEpisode: NextEpisode,
     summary: z.string().describe("Two or three sentences on what happened this episode, for a human reviewer to orient on."),
     ...format.research.episodeFields(z, Answer),
     ...(format.hasMerge ? { merged: Answer.describe(mergedText(group)) } : {}),
@@ -110,6 +111,30 @@ const newGroupText = (group) =>
 const mergedText = (group) =>
   `Is the game merged by the end of this episode -- the ${group}s have become one group, in this episode ` +
   `or an earlier one? 'yes' from the merge episode on.`;
+
+// The NEXT episode's schedule, from this one's "next time" preview or the network's listings: a week off for
+// a holiday, a double or extra-long episode, a new night. recordNextEpisode files it in season_episodes
+// (0067), and every air time follows it: lineup locks, reminders, the bot's checks.
+const NextEpisode = z
+  .object({
+    airsAt: z
+      .string()
+      .nullable()
+      .describe(
+        "When the NEXT episode starts, ISO 8601 with the UTC offset of the time zone it's announced in: " +
+          "'2026-11-05T20:00:00-05:00' for 8 PM Eastern on November 5. If the show takes a week off, the date " +
+          "of the next one that does air. Null if it hasn't been announced, or this was the finale."
+      ),
+    minutes: z
+      .number()
+      .nullable()
+      .describe("How long the next episode runs, ads included, in minutes: 60, 90, or 120 for a two-hour episode. Null if not announced."),
+    note: z
+      .string()
+      .nullable()
+      .describe("Anything unusual about it, in a few words ('after a week off for Thanksgiving', 'two-hour finale'). Null if nothing."),
+  })
+  .describe("When the NEXT episode airs, from this episode's 'next time' preview or the network's announced schedule.");
 
 // Every page read for the episode with its own dates, as the page shows them. Not used to score: it's
 // the record of how soon after airing recaps appear (and get corrected), to learn when research is
@@ -375,6 +400,9 @@ function validateLeniently(raw, schema, label) {
   // has said "nothing new", which is null. Failing a whole paste over it would make research worse to
   // protect a field that's null nearly every week. Nothing else missing is excused.
   if (raw && typeof raw === "object" && !Array.isArray(raw) && !("rulesNote" in raw)) raw.rulesNote = null;
+  // The next episode's schedule (NextEpisode) is a bonus the same way: an answer from an older prompt has no
+  // such field, and a chat may fill it oddly. Missing or malformed, it's "not announced", never a failed run.
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) raw.nextEpisode = looseNextEpisode(raw.nextEpisode);
   for (let attempt = 0; attempt < 5; attempt++) {
     const result = schema.safeParse(raw);
     if (result.success) {
@@ -409,6 +437,13 @@ function validateLeniently(raw, schema, label) {
     }
   }
   throw new Error(`${label}: the answer didn't match the checklist schema.`);
+}
+
+function looseNextEpisode(v) {
+  const o = v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  const text = (x) => (typeof x === "string" && x.trim() ? x.trim() : null);
+  const n = typeof o.minutes === "number" ? o.minutes : typeof o.minutes === "string" ? Number.parseFloat(o.minutes) : NaN;
+  return { airsAt: text(o.airsAt), minutes: Number.isFinite(n) ? n : null, note: text(o.note) };
 }
 
 const valueAt = (raw, path) => path.reduce((node, key) => (node == null ? node : node[key]), raw);
@@ -1500,7 +1535,13 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
     console.log("[research] --dry: nothing written");
     return { id: null, payload, provenance, cached: false };
   }
-  if (opts.merge) return storeMergedResearch(pool, ctx, payload, provenance, { fill: !!opts.fill });
+  // Whatever this run says about the next episode goes to the season's schedule either way (0067).
+  const next = payload && payload.nextEpisode;
+  if (opts.merge) {
+    const stored = await storeMergedResearch(pool, ctx, payload, provenance, { fill: !!opts.fill });
+    await recordNextEpisode(pool, ctx, next);
+    return stored;
+  }
   const { rows } = await pool.query(
     `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance)
      VALUES ($1,$2,$3,$4::jsonb,$5::jsonb)
@@ -1509,7 +1550,75 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
      RETURNING id`,
     [ctx.showId, ctx.season, ctx.episodeNumber, JSON.stringify(payload), JSON.stringify(provenance)]
   );
+  await recordNextEpisode(pool, ctx, next);
   return { id: rows[0].id, payload, provenance, cached: false };
+}
+
+/**
+ * The next episode's schedule from one episode's research, cleaned up, or null when it says nothing usable.
+ * Pure. `airsAt` must name a real start later than `now` and within 60 days (research of an old episode
+ * names a next one that has already aired, and the wiki has those): with a UTC offset as asked, or else read
+ * in the season's zone, and a bare date takes the season's usual start time. `minutes` must be 10 to 300.
+ */
+function nextEpisodeFrom(next, { tz = "America/New_York", airTime = Air.DEFAULT_AIR_TIME, now = new Date() } = {}) {
+  if (!next || typeof next !== "object") return null;
+  const raw = typeof next.airsAt === "string" ? next.airsAt.trim() : "";
+  let at = Air.exactAirTime(raw);
+  if (!at) {
+    const m = /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}))?/.exec(raw);
+    if (m) at = Air.zonedToUtc(m[1], m[2] || String(airTime).slice(0, 5), tz);
+  }
+  const t = at && !Number.isNaN(at.getTime()) ? at.getTime() : null;
+  const airAt = t !== null && t > now.getTime() && t < now.getTime() + 60 * 24 * 3600 * 1000 ? new Date(t) : null;
+  const n = Number(next.minutes);
+  const minutes = next.minutes != null && Number.isFinite(n) && n >= 10 && n <= 300 ? Math.round(n) : null;
+  const note = typeof next.note === "string" && next.note.trim() ? next.note.trim().slice(0, 200) : null;
+  if (!airAt && minutes === null) return null;
+  return { airAt, minutes, note };
+}
+
+/**
+ * Files what one episode's research says about the next (episode + 1) in season_episodes (0067), where the
+ * season_air_dates view lays it over the wiki's dates. A field the answer leaves out keeps what's there, and
+ * a schedule an admin set by hand is never overwritten. Best effort: a failure is logged, never thrown, so it
+ * can't cost the research it came with.
+ */
+async function recordNextEpisode(pool, ctx, next) {
+  // Nothing said about the next episode (most answers before 0067, a finale): not even a lookup.
+  if (!next || (typeof next.airsAt !== "string" && next.minutes == null)) return null;
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, air_tz, to_char(air_time, 'HH24:MI') AS air_time FROM show_seasons WHERE show_id=$1 AND season_number=$2",
+      [ctx.showId, ctx.season]
+    );
+    if (!rows.length) return null;
+    const clean = nextEpisodeFrom(next, { tz: rows[0].air_tz || undefined, airTime: rows[0].air_time || undefined });
+    if (!clean) return null;
+    const written = await pool.query(
+      `INSERT INTO season_episodes (season_id, number, air_at, runtime_min, note, source, reported_in, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'research', $6, now())
+       ON CONFLICT (season_id, number) DO UPDATE SET
+         air_at = COALESCE(EXCLUDED.air_at, season_episodes.air_at),
+         runtime_min = COALESCE(EXCLUDED.runtime_min, season_episodes.runtime_min),
+         note = COALESCE(EXCLUDED.note, season_episodes.note),
+         reported_in = EXCLUDED.reported_in,
+         updated_at = now()
+       WHERE season_episodes.source <> 'admin'`,
+      [rows[0].id, ctx.episodeNumber + 1, clean.airAt, clean.minutes, clean.note, ctx.episodeNumber]
+    );
+    if (!written.rowCount) {
+      console.log(`[research] episode ${ctx.episodeNumber + 1}: kept the schedule an admin set`);
+      return null;
+    }
+    console.log(
+      `[research] episode ${ctx.episodeNumber + 1} of ${ctx.showName || ctx.showSlug || "the show"} season ${ctx.season}: ` +
+        `${clean.airAt ? clean.airAt.toISOString() : "time not given"}, ${clean.minutes ?? "?"} min${clean.note ? ` (${clean.note})` : ""}`
+    );
+    return clean;
+  } catch (e) {
+    console.error(`[research] couldn't record the next episode: ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
 }
 
 // Read, merge and write under one lock on the episode's key, so two leagues pasting the same episode
@@ -1757,7 +1866,9 @@ function buildPastePrompt(ctx, bets, { structured = false, pasteBack = null } = 
         "Answer in plain prose or bullet points, one section per person, in the order given -- not JSON,",
         "not a table. Say plainly when you don't know something rather than guessing.",
         "",
-        "Start with the episode's title, air date and a two- or three-sentence summary. List every page you",
+        "Start with the episode's title, air date and a two- or three-sentence summary. Then when the NEXT",
+        "episode airs (its date, start time with the time zone, and length), from this episode's preview or the",
+        "network's schedule, and anything unusual: a week off, a two-hour episode. List every page you",
         "read with the date it says it was published (and last updated, if it says), with the time if shown.",
         "Then one line,",
         `"Rules note:", answering this: ${RULES_NOTE.replace(/\bNull\b/g, "None")}`,
@@ -2405,6 +2516,8 @@ module.exports = {
   researchCoverage,
   mergeResearchPayload,
   storeResearch,
+  nextEpisodeFrom,
+  recordNextEpisode,
   ensureSeasonRow,
   printResearch,
   resolveResearchContext,

@@ -370,6 +370,8 @@ export interface ShowSeason {
   botResearchSince?: string | null;
   /** How long an episode runs, in minutes (0066); null = an hour. Bot research counts from the end. */
   episodeMinutes?: number | null;
+  /** Episodes whose start or length research confirmed (season_episodes, 0067), in order. */
+  scheduledEpisodes?: { number: number; airAt: string | null; minutes: number | null; note: string | null; source: "research" | "admin"; reportedIn: number | null }[] | null;
   /** The wiki's printed air date per episode number, from the cached extraction. */
   wikiAirDates?: Record<string, string> | null;
   /** The latest scheduled attempt per episode number. */

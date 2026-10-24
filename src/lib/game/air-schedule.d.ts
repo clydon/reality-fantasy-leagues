@@ -10,6 +10,8 @@ export interface AirSeason {
 }
 export function zonedToUtc(date: string, time: string, tz: string): Date;
 export function parseAirDate(text: string | null | undefined): string | null;
+/** An exact start research confirmed (season_episodes, 0067), e.g. "2026-11-06T01:00:00Z"; else null. */
+export function exactAirTime(text: string | null | undefined): Date | null;
 export function episodeAirTime(season: AirSeason, n: number, wikiAirDates?: Record<number, string | null>): Date | null;
 export function nextResearchSlot(after: Date, season: AirSeason): Date | null;
 export function formatInTz(instant: Date, tz?: string | null): string;
