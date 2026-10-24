@@ -30,11 +30,69 @@ test("a run that succeeded is done; one still running isn't started twice", () =
   assert.deepEqual(due(min(85), [ok, running]), ["full@60"]);
 });
 
-test("failures are retried at a pace, and only three times", () => {
+test("a quick check keeps trying: every 5 minutes for half an hour, then every 15, for 3 hours", () => {
   const fail = (m) => ({ episode_number: 5, slot: "quick@5", started_at: min(m), ok: false });
-  assert.deepEqual(due(min(7), [fail(5)]), [], "too soon after the last try");
-  assert.deepEqual(due(min(11), [fail(5)]), ["quick@5"]);
-  assert.deepEqual(due(min(30), [fail(5), fail(11), fail(17)]), [], "three strikes");
+  const quick = (now, tries) => due(now, tries).includes("quick@5");
+  assert.equal(quick(min(7), [fail(5)]), false, "too soon after the last try");
+  assert.equal(quick(min(10), [fail(5)]), true);
+  const firstHalfHour = [5, 10, 15, 20, 25, 30].map(fail);
+  assert.equal(quick(min(39), [...firstHalfHour, fail(35)]), false, "past its first half hour: 15 minutes apart");
+  assert.equal(quick(min(50), [...firstHalfHour, fail(35)]), true);
+  const allEvening = [5, 10, 15, 20, 25, 30, 35, 50, 65, 80, 95, 110, 125, 140, 155, 170].map(fail);
+  assert.equal(quick(min(185), allEvening), true, "the last try inside 3 hours");
+  assert.equal(quick(min(200), [...allEvening, fail(185)]), false, "3 hours on, it stops");
+});
+
+test("a full run tries three times, 20 minutes apart", () => {
+  const fail = (m) => ({ episode_number: 5, slot: "full@60", started_at: min(m), ok: false });
+  const ok = { episode_number: 5, slot: "quick@5", started_at: min(5), ok: true };
+  assert.deepEqual(due(min(70), [ok, fail(60)]), []);
+  assert.deepEqual(due(min(80), [ok, fail(60)]), ["full@60"]);
+  assert.deepEqual(due(min(150), [ok, fail(60), fail(80), fail(100)]), [], "three strikes");
+});
+
+test("runs count from when the episode ends", () => {
+  const at = (now) => Bot.dueRuns({ schedule, since: null, airTimes: [{ episode: 5, at: AIRED }], episodeMinutes: 90, history: [], now }).map((r) => r.slot);
+  assert.deepEqual(at(min(94)), [], "a 90-minute episode is still on");
+  assert.deepEqual(at(min(95)), ["quick@5"]);
+  assert.deepEqual(at(min(150)), ["quick@5", "full@60"]);
+});
+
+test("nextRunAt: when to come back, by the same rules", () => {
+  const NEXT_EP = new Date(AIRED.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const airTimes = [{ episode: 5, at: AIRED }, { episode: 6, at: NEXT_EP }];
+  const next = (now, history = [], extra = {}) => Bot.nextRunAt({ schedule, since: null, airTimes, episodeMinutes: 90, history, now, ...extra });
+  const runAt = (ep, m) => ({ episode_number: ep === 5 ? 5 : 6, slot: m.slot, started_at: m.at, ok: m.ok });
+  assert.deepEqual(next(min(-60)), min(95), "before the episode: its quick check, 5 minutes after it ends");
+  assert.deepEqual(next(min(100)), min(100), "one is due: now");
+  const quickFailed = runAt(5, { slot: "quick@5", at: min(95), ok: false });
+  assert.deepEqual(next(min(96), [quickFailed]), min(100), "a retry 5 minutes on");
+  const quickOk = runAt(5, { slot: "quick@5", at: min(100), ok: true });
+  assert.deepEqual(next(min(101), [quickFailed, quickOk]), min(150), "then the full run, an hour after the end");
+  const done = ["quick@5", "full@60", "full@540"].map((slot) => runAt(5, { slot, at: min(600), ok: true }));
+  assert.deepEqual(next(min(700), done), new Date(NEXT_EP.getTime() + 95 * 60 * 1000), "then next week's episode");
+  assert.equal(next(min(700), done, { airTimes: [{ episode: 5, at: AIRED }] }), null, "nothing left: null");
+  assert.deepEqual(next(min(-60), [], { since: min(120) }), min(150), "switched on later: earlier runs never come due");
+});
+
+test("an episode night: the VM calls only when told, and the quick check lands within 5 minutes of a source", () => {
+  // The bot finds a source from 22 minutes after the episode ends (95 + 17 = 112); full runs always work.
+  const history = [];
+  const calls = [];
+  let now = min(-30);
+  for (let guard = 0; guard < 100; guard++) {
+    const input = { schedule, since: null, airTimes: [{ episode: 5, at: AIRED }], episodeMinutes: 90, history, now };
+    const [job] = Bot.dueRuns(input);
+    if (job) {
+      calls.push(Math.round((now - AIRED) / 60000));
+      history.push({ episode_number: 5, slot: job.slot, started_at: now, ok: job.kind === "full" || now >= min(112) });
+    }
+    const when = Bot.nextRunAt({ ...input, history });
+    if (!when) break;
+    assert.ok(job || when > now, "never told to come back for a run that isn't due");
+    now = when > now ? when : new Date(now.getTime() + 60 * 1000);
+  }
+  assert.deepEqual(calls, [95, 100, 105, 110, 115, 150, 630], "quick at 95 and every 5 until 115 finds it; full at 150 and 630");
 });
 
 test("switched on mid-season: earlier runs are never picked up", () => {

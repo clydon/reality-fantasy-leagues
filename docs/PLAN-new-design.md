@@ -101,10 +101,12 @@ their own step, against the screen that needs them, so nothing is designed specu
   Preview shares production's `AUTH_DATABASE_URL`, so Vercel builds production only (Ignored Build Step,
   since 2026-10-24). Before the branch is deployed anywhere, Preview gets its own database: a Neon branch
   whose connection string the user pastes in.
-- **Neon's Free plan** meters what queries send back (5 GB a month; running out suspends the database
-  until the month resets) and compute hours (100 a month), and keeps only 6 hours of history. Anything
-  polled reads small: league state through `src/lib/server/league-states.ts`, versions or counts instead of
-  whole lists (the 2026-10-24 fix, `check-chat-polls.js`).
+- **Hosting limits** (`docs/HOSTING.md`): Neon's Free plan meters what queries send back (5 GB a month) and
+  compute hours (100; it sleeps only after 5 idle minutes), and running out of either suspends the database
+  until the month resets. Anything polled reads small: league state through
+  `src/lib/server/league-states.ts`, versions or counts instead of whole lists (`check-chat-polls.js`), and
+  nothing should wake the database on a timer. **A step that adds polling, a scheduled job, stored data or a
+  service updates HOSTING.md** (what it uses, the estimate, the Changelog) in the same commit.
 - **Never touch the couch's real leagues** from a test or script. Tests use `zt-` fixtures with up/down
   (CLAUDE.md, `scripts/dev-test/`). The local database is a copy of production from 2026-10-16.
 - **Migrations are additive** until step C. Test each on a local copy before it ships (deploys run

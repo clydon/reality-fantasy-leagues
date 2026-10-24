@@ -19,7 +19,7 @@ const KIND = { quick: "Quick check", full: "Full research" } as const;
 function slotLabel(slot: string) {
   if (slot === "now") return "run by hand";
   const after = Number(slot.split("@")[1]);
-  return Number.isFinite(after) ? `${afterLabel(after)} after airing` : slot;
+  return Number.isFinite(after) ? `${afterLabel(after)} after it ends` : slot;
 }
 
 export function BotResearchRuns({ season, episode, aired, onFiled }: { season: ShowSeason; episode: number; aired: boolean; onFiled: () => unknown }) {
@@ -27,7 +27,7 @@ export function BotResearchRuns({ season, episode, aired, onFiled }: { season: S
   const runs = useQuery({
     queryKey: ["bot-runs", season.id, episode],
     queryFn: () => api.adminBotRuns(season.id, episode),
-    // A scheduled run can start any minute after airing; poll while one is going.
+    // A scheduled run can start any minute after an episode ends; poll while one is going.
     refetchInterval: (q) => (q.state.data?.runs.some((r) => r.ok === null) ? 5000 : 60_000),
   });
   const runNow = useMutation({

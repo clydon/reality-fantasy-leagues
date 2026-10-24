@@ -87,7 +87,10 @@ async function run(pool, out, width, episode, flags) {
   const f = await fixture(pool);
   if (!f) throw new Error("No fixture: run `up` first");
   const airedAt = Air.episodeAirTime({ premiereDate: f.premiere_date, airTime: f.air_time, airTz: f.air_tz }, episode, {});
-  const at = (min) => new Date(airedAt.getTime() + min * 60 * 1000).toISOString();
+  // Runs count from the episode's end: its air time plus the season's length (an hour when unset).
+  const { rows: len } = await pool.query("SELECT episode_minutes FROM show_seasons WHERE id=$1", [f.season_id]);
+  const endsAt = new Date(airedAt.getTime() + (len[0]?.episode_minutes || 60) * 60 * 1000);
+  const at = (min) => new Date(endsAt.getTime() + min * 60 * 1000).toISOString();
   const auth = { Authorization: `Bearer ${process.env.CRON_SECRET}` };
   // Due lists are across every season with bot research on; only the fixture's count here.
   const dueAt = async (min) =>
@@ -95,9 +98,9 @@ async function run(pool, out, width, episode, flags) {
   const tick = async (min) => (await fetch(`${BASE}/api/cron/bot-research?now=${at(min)}`, { method: "POST", headers: auth })).json();
 
   expect((await fetch(`${BASE}/api/cron/bot-research`)).status === 401, "the cron route refuses a call without the secret");
-  expect((await dueAt(4)).length === 0, "nothing due 4 minutes after airing");
+  expect((await dueAt(4)).length === 0, "nothing due 4 minutes after the episode ends");
   const due6 = await dueAt(6);
-  expect(due6.length === 1 && due6[0].episode === episode && due6[0].slot === "quick@5", `the quick check is due at 6 minutes (${JSON.stringify(due6)})`);
+  expect(due6.length === 1 && due6[0].episode === episode && due6[0].slot === "quick@5", `the quick check is due 6 minutes after the end (${JSON.stringify(due6)})`);
 
   const quick = await tick(6);
   expect(quick.job && quick.job.slot === "quick@5", "the tick runs the quick check");
@@ -106,10 +109,10 @@ async function run(pool, out, width, episode, flags) {
 
   if (!flags.includes("--quick-only")) {
     const full = await tick(61);
-    expect(full.job && full.job.slot === "full@60", "an hour in, the tick runs the full research");
+    expect(full.job && full.job.slot === "full@60", "an hour after the end, the tick runs the full research");
     expect(full.ok === true && (full.result?.total ?? 0) > 0, `the full research staged results: "${full.message}"`);
     const again = await tick(541);
-    expect(again.job && again.job.slot === "full@540" && again.ok === true && again.result?.merged === true, `nine hours in, it runs again and merges: "${again.message}"`);
+    expect(again.job && again.job.slot === "full@540" && again.ok === true && again.result?.merged === true, `nine hours after, it runs again and merges: "${again.message}"`);
     const { rows } = await pool.query("SELECT provenance->>'via' AS via FROM episode_research WHERE show_id=$1 AND episode_number=$2", [f.show_id, episode]);
     expect(rows[0]?.via === "bot", "the stored research says the bot pasted it");
   }
@@ -121,8 +124,8 @@ async function run(pool, out, width, episode, flags) {
   const section = page.locator("section", { hasText: "Ask ChatGPT after each episode airs" });
   await section.scrollIntoViewIfNeeded();
   expect(await section.getByText("Experimental").isVisible(), "Setup has the Bot research section, marked experimental");
-  expect(await section.getByText("Quick check, 5 min after airing").isVisible(), "the schedule lists the quick check");
-  expect(await section.getByText("Full research, 9 h after airing").isVisible(), "and the 9-hour full research");
+  expect(await section.getByText("Quick check, 5 min after it ends").isVisible(), "the schedule lists the quick check");
+  expect(await section.getByText("Full research, 9 h after it ends").isVisible(), "and the 9-hour full research");
   await page.screenshot({ path: `${out}/bot-setup-${width}.png`, fullPage: true });
 
   await page.goto(`${BASE}/admin/seasons/${f.season_id}/episodes/${episode}`, { waitUntil: "networkidle" });

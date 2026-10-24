@@ -23,8 +23,10 @@ Every copy-a-prompt, paste-the-answer step is one component, `AskAi` (`src/compo
 ## 2. The schedule: built 2026-10-24
 
 Per season, in Admin > season > Setup > **Bot research** (`bot-research-settings.tsx`). Off by default;
-when on, a list of runs counted from each episode's air time, every one editable (kind, minutes or
-hours after airing, on/off, add, remove, reset):
+when on, a list of runs counted from when each episode **ends** (its air time plus the season's **Episode
+length**, `show_seasons.episode_minutes`, 0066, an hour when blank; Survivor's are 90), every one editable
+(kind, minutes or hours after the end, on/off, add, remove, reset). Until 2026-10-24 they counted from the
+air time, so the default quick check ran 5 minutes into a live episode and gave up before it ended:
 
 | Run | Default | What it does |
 |---|---|---|
@@ -35,11 +37,17 @@ hours after airing, on/off, add, remove, reset):
 - Tables: migration `0065_bot_research.sql` adds `show_seasons.bot_research_on / _schedule / _since`
   and the `bot_research_runs` table (one row per attempt).
 - Logic: `db/bot-research.js`. `dueRuns` is pure and unit-tested in `tests/bot-research.test.js`.
-- Retries: three tries per run, quick every 5 min, full every 20 min. A quick run is stale after 12 h,
-  a full one after 3 days. Runs timed before the switch-on are never picked up.
-- The clock: the VM's `llm-browser-tick.timer` POSTs `https://www.gameyourshow.com/api/cron/bot-research`
-  (Bearer `CRON_SECRET`) every 2 minutes. Each call runs at most one due run. Vercel Hobby cron can't
-  do minutes.
+- Retries (`nextTryAt`): a quick check every 5 min for its first half hour, then every 15, until 3 hours
+  after it was due (at least three tries; at most 20): recaps land 5-30 minutes after an episode ends,
+  later when it runs long. A full run three times, 20 min apart. A quick run is stale after 12 h, a full one
+  after 3 days. Runs timed before the switch-on are never picked up.
+- The clock: the VM's `llm-browser-tick.timer` runs llm-browser-api's `deploy/tick.py` every minute, which
+  POSTs `https://www.gameyourshow.com/api/cron/bot-research` (Bearer `CRON_SECRET`) **only when a run is
+  due**: every answer carries `next` (`planRuns` / `nextRunAt`, the same rules as what's due), plus a
+  check-in every 6 hours. When an admin saves anything that can bring a run earlier (schedule, air time,
+  status, length), the app tells the bot's `POST /tick` straight away (`tellBotClock`, production only).
+  Each call runs at most one due run. Vercel Hobby cron can't do minutes. Until 2026-10-24 the tick called
+  every 2 minutes, which kept the database awake around the clock (docs/HOSTING.md).
 - Admin episode page: the runs so far, the quick answer with sources, *Run quick now* / *Run full now*
   (`/api/admin/seasons/[id]/bot-research`).
 - Paid Claude auto-research (`auto_research`, the GitHub Actions job) is separate and untouched.

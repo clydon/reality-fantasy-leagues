@@ -1,14 +1,17 @@
 // Bot research (experimental, db/migrations/0065): the ask-AI bot -- a ChatGPT session on our own VM
-// (src/lib/server/ask-bot.ts) -- asks about each episode on a schedule counted from its air time, for
-// free. A season's schedule is a list of runs, by default:
+// (src/lib/server/ask-bot.ts) -- asks about each episode on a schedule counted from when it ENDS (its
+// air time plus the season's episode length, 0066), for free. A season's schedule is a list of runs, by
+// default:
 //
 //   quick @   5 min -- who left the game and the episode's headline, while it's still news
 //   full  @  60 min -- the whole research checklist, staged for review like a pasted answer
 //   full  @ 540 min -- the checklist again once the overnight recaps are up, merged into the first
 //
-// The VM's timer calls POST /api/cron/bot-research every couple of minutes; each call runs at most
-// one due run (the bot answers one question at a time anyway). Nothing reaches a league by itself:
-// full runs stage season decisions for an admin, exactly like the Research button.
+// Each call to POST /api/cron/bot-research runs at most one due run (the bot answers one question at a
+// time anyway) and says when the next one comes due (nextRunAt). The VM's tick calls only then, so the
+// database sleeps between runs (docs/HOSTING.md: on Neon's Free plan a database never left idle for 5
+// minutes uses up the month's compute). Nothing reaches a league by itself: full runs stage season
+// decisions for an admin, exactly like the Research button.
 const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const AutoResearch = require("./auto-research.js");
@@ -24,16 +27,67 @@ const MAX_RUNS = 8;
 // Two weeks: a run after that is about an episode nobody is waiting on.
 const MAX_AFTER = 14 * 24 * 60;
 
+// A season that hasn't said how long its episodes run (show_seasons.episode_minutes).
+const DEFAULT_EPISODE_MINUTES = 60;
+const MIN = 60 * 1000;
+
 // A run still marked running after this long was cut off (the route's 300s ceiling, a redeploy):
 // it counts as a failed attempt.
-const RUNNING_STALE_MS = 10 * 60 * 1000;
+const RUNNING_STALE_MS = 10 * MIN;
 const MAX_ATTEMPTS = 3;
-// Retry pace, and how late a missed run is still worth doing (the VM was down, say). A quick check is
-// news for hours; a full one is useful for days.
-const RETRY_MS = { quick: 5 * 60 * 1000, full: 20 * 60 * 1000 };
-const STALE_MS = { quick: 12 * 60 * 60 * 1000, full: 3 * 24 * 60 * 60 * 1000 };
+// A full run: three tries, 20 minutes apart.
+const FULL_RETRY_MS = 20 * MIN;
+// A quick check is the fast "who went home". Recaps and live blogs land 5 to 30 minutes after an episode
+// ends, later when it ran long, and ChatGPT's search lags them a little: so it keeps trying, every 5
+// minutes for its first half hour, then every 15, until 3 hours after it was due (and at least three
+// tries, for one that started late).
+const QUICK = { fastMs: 5 * MIN, fastForMs: 30 * MIN, slowMs: 15 * MIN, windowMs: 3 * 60 * MIN, maxTries: 20 };
+// How late a run is still worth doing at all (the VM was down, say). A quick check is news for hours; a
+// full one is useful for days.
+const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN };
 
 const slotOf = (run) => `${run.kind}@${run.after}`;
+
+/**
+ * When one run (a slot of one episode, due at `due`) may next be tried, or null for never: `due` itself
+ * before any try; after a failure, the retry pace; never once it has succeeded, used up its tries or gone
+ * stale. A try still marked running holds it until it's cut off. The one rule dueRuns (what to run now)
+ * and nextRunAt (when to come back) both read, so they never disagree. Pure.
+ */
+function nextTryAt(kind, due, tries) {
+  if (tries.some((h) => h.ok === true)) return null;
+  const at = due.getTime();
+  let next = at;
+  if (tries.length) {
+    const last = Math.max(...tries.map((h) => new Date(h.started_at).getTime()));
+    if (kind === "quick") {
+      if (tries.length >= QUICK.maxTries) return null;
+      next = last + (last - at < QUICK.fastForMs ? QUICK.fastMs : QUICK.slowMs);
+      if (tries.length >= MAX_ATTEMPTS && next - at > QUICK.windowMs) return null;
+    } else {
+      if (tries.length >= MAX_ATTEMPTS) return null;
+      next = last + FULL_RETRY_MS;
+    }
+    for (const h of tries) if (h.ok == null) next = Math.max(next, new Date(h.started_at).getTime() + RUNNING_STALE_MS);
+  }
+  return next - at > STALE_MS[kind] ? null : new Date(next);
+}
+
+/** Every scheduled slot of every episode, with when it's due: the episode's end plus the run's minutes. */
+function slots({ schedule, since, airTimes, episodeMinutes = 0, history }) {
+  const out = [];
+  for (const { episode, at: airedAt } of airTimes) {
+    for (const run of schedule) {
+      if (!run.on) continue;
+      const due = new Date(airedAt.getTime() + (episodeMinutes + run.after) * MIN);
+      if (since && due < since) continue;
+      const slot = slotOf(run);
+      const tries = history.filter((h) => h.episode_number === episode && h.slot === slot);
+      out.push({ episode, slot, kind: run.kind, after: run.after, at: due, next: nextTryAt(run.kind, due, tries) });
+    }
+  }
+  return out;
+}
 
 /** A schedule from a request body or the column, cleaned up; throws on anything malformed. */
 function normalizeSchedule(input) {
@@ -58,30 +112,35 @@ function normalizeSchedule(input) {
 
 /**
  * The runs due at `now` for one season, earliest first. Pure.
- *   schedule  -- normalized runs
- *   since     -- when bot research was switched on (Date); runs timed before it never run
- *   airTimes  -- [{ episode, at: Date }] for episodes that have aired
- *   history   -- bot_research_runs rows for the season: { episode_number, slot, started_at, ok }
+ *   schedule        -- normalized runs
+ *   since           -- when bot research was switched on (Date); runs timed before it never run
+ *   airTimes        -- [{ episode, at: Date }]: when each episode starts airing (later ones are ignored)
+ *   episodeMinutes  -- how long an episode runs: a run's minutes count from its end
+ *   history         -- bot_research_runs rows for the season: { episode_number, slot, started_at, ok }
  */
-function dueRuns({ schedule, since, airTimes, history, now }) {
+function dueRuns({ schedule, since, airTimes, episodeMinutes = 0, history, now }) {
   const t = now.getTime();
-  const due = [];
-  for (const { episode, at: airedAt } of airTimes) {
-    for (const run of schedule) {
-      if (!run.on) continue;
-      const at = new Date(airedAt.getTime() + run.after * 60 * 1000);
-      if (at.getTime() > t || (since && at < since) || t - at.getTime() > STALE_MS[run.kind]) continue;
-      const slot = slotOf(run);
-      const tries = history.filter((h) => h.episode_number === episode && h.slot === slot);
-      if (tries.some((h) => h.ok === true)) continue;
-      if (tries.some((h) => h.ok == null && t - new Date(h.started_at).getTime() < RUNNING_STALE_MS)) continue;
-      if (tries.length >= MAX_ATTEMPTS) continue;
-      const last = Math.max(0, ...tries.map((h) => new Date(h.started_at).getTime()));
-      if (tries.length && t - last < RETRY_MS[run.kind]) continue;
-      due.push({ episode, slot, kind: run.kind, after: run.after, at });
-    }
+  return slots({ schedule, since, airTimes, episodeMinutes, history })
+    .filter((s) => s.next && s.next.getTime() <= t && t - s.at.getTime() <= STALE_MS[s.kind])
+    .map(({ episode, slot, kind, after, at }) => ({ episode, slot, kind, after, at }))
+    .sort((a, b) => a.at - b.at);
+}
+
+/**
+ * When this season next has a run due: `now` when one already is, null when none is left. Takes every
+ * episode's air time, aired or not. Pure; the same rules as dueRuns, so the VM is never told to come back
+ * for a run that then isn't due.
+ */
+function nextRunAt({ schedule, since, airTimes, episodeMinutes = 0, history, now }) {
+  const t = now.getTime();
+  let best = null;
+  for (const s of slots({ schedule, since, airTimes, episodeMinutes, history })) {
+    if (!s.next) continue;
+    const when = Math.max(s.next.getTime(), t);
+    if (when - s.at.getTime() > STALE_MS[s.kind]) continue;
+    if (best === null || when < best) best = when;
   }
-  return due.sort((a, b) => a.at - b.at);
+  return best === null ? null : new Date(best);
 }
 
 // ---------- the quick check ----------
@@ -151,37 +210,58 @@ async function loadSeasonForJob(pool, seasonId) {
   return season;
 }
 
-/** Episodes of a season that have aired by `now`: [{ episode, at }]. */
-function airedEpisodes(season, now) {
+/** When each episode of a season airs, as far as the schedule knows: [{ episode, at }]. */
+function episodeAirTimes(season) {
   const out = [];
   const last = season.episode_count || 60;
   for (let n = 1; n <= last; n++) {
     const at = Air.episodeAirTime(season.schedule, n, season.wikiAirDates);
-    if (!at || at > now) break;
+    if (!at) break;
     out.push({ episode: n, at });
   }
   return out;
 }
 
-/** Everything due now, across every season with bot research on (or one season). */
-async function listDue(pool, { now = new Date(), seasonId } = {}) {
+/** Episodes of a season that have aired by `now`: [{ episode, at }]. */
+function airedEpisodes(season, now) {
+  return episodeAirTimes(season).filter((e) => e.at <= now);
+}
+
+/** How long a season's episodes run, in minutes (0066): its own setting, else an hour. */
+const episodeMinutesOf = (season) => season.episode_minutes || DEFAULT_EPISODE_MINUTES;
+
+/**
+ * Across every season with bot research on (or one season): what's due now, earliest first, and when the
+ * next run comes due (`now` if one already is; null when no season has one left). One read of each
+ * season's history serves both.
+ */
+async function planRuns(pool, { now = new Date(), seasonId } = {}) {
   const due = [];
+  let next = null;
   for (const season of await loadBotSeasons(pool, seasonId)) {
-    if (!AutoResearch.isSeasonLive(season, now)) continue;
+    if (season.status !== "airing") continue;
     const { rows: history } = await pool.query(
       "SELECT episode_number, slot, started_at, ok FROM bot_research_runs WHERE season_id=$1",
       [season.id]
     );
-    const runs = dueRuns({
+    const input = {
       schedule: normalizeSchedule(season.bot_research_schedule),
       since: season.bot_research_since ? new Date(season.bot_research_since) : null,
-      airTimes: airedEpisodes(season, now),
+      airTimes: episodeAirTimes(season),
+      episodeMinutes: episodeMinutesOf(season),
       history,
       now,
-    });
-    due.push(...runs.map((r) => ({ ...r, season })));
+    };
+    if (AutoResearch.isSeasonLive(season, now)) due.push(...dueRuns(input).map((r) => ({ ...r, season })));
+    const when = nextRunAt(input);
+    if (when && AutoResearch.isSeasonLive(season, when) && (next === null || when < next)) next = when;
   }
-  return due.sort((a, b) => a.at - b.at);
+  return { due: due.sort((a, b) => a.at - b.at), next };
+}
+
+/** Everything due now, across every season with bot research on (or one season). */
+async function listDue(pool, opts = {}) {
+  return (await planRuns(pool, opts)).due;
 }
 
 /**
@@ -255,13 +335,22 @@ async function runJob(pool, job, { ask, dry = false } = {}) {
 
 /** What the VM's timer calls: runs the earliest due job, if any. */
 async function runNext(pool, { ask, now = new Date(), dry = false, seasonId } = {}) {
-  const [job] = await listDue(pool, { now, seasonId });
-  if (!job) return { job: null };
+  const startedAt = Date.now();
+  const plan = await planRuns(pool, { now, seasonId });
+  const [job] = plan.due;
+  if (!job) return { job: null, next: plan.next };
   const label = `${job.season.slug} season ${job.season.season_number} episode ${job.episode} ${job.slot}`;
   console.log(`[bot-research] running ${label}`);
   const outcome = await runJob(pool, job, { ask, dry });
   console.log(`[bot-research] ${label}: ${outcome.ok ? "ok" : "failed"} in ${outcome.seconds}s: ${outcome.message}`);
-  return { job: { season: job.season.slug, seasonNumber: job.season.season_number, episode: job.episode, slot: job.slot, kind: job.kind }, ...outcome };
+  // Planned again: this try changed the history (a retry's time, or the next slot). `now` moves on by
+  // however long the run took, so a test clock stays a test clock.
+  const after = await planRuns(pool, { now: new Date(now.getTime() + Date.now() - startedAt), seasonId });
+  return {
+    job: { season: job.season.slug, seasonNumber: job.season.season_number, episode: job.episode, slot: job.slot, kind: job.kind },
+    ...outcome,
+    next: after.next,
+  };
 }
 
 module.exports = {
@@ -269,12 +358,18 @@ module.exports = {
   MAX_ATTEMPTS,
   normalizeSchedule,
   dueRuns,
+  nextRunAt,
+  nextTryAt,
   buildQuickPrompt,
   parseQuickAnswer,
   quickMessage,
   airedEpisodes,
+  episodeAirTimes,
+  episodeMinutesOf,
+  DEFAULT_EPISODE_MINUTES,
   loadSeasonForJob,
   listDue,
+  planRuns,
   runJob,
   runNext,
   slotOf,

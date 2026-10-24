@@ -43,6 +43,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# League backups (scripts/backup-leagues.js): real people's data, never committed
+/backups/
+
 # Playwright MCP browser logs and page snapshots (local tooling)
 /.playwright-mcp/
 
