@@ -13,11 +13,13 @@ explained to a commissioner") rather than re-deriving it from source each time.
 
 ## Hosting: read [HOSTING.md](HOSTING.md) before adding anything that polls, runs on a schedule or stores data
 Every service, its free limits, current usage, what drives each limit, and what more would cost; keep it current
-(the user's standing request, 2026-10-24). Open alerts there: **GitHub Actions has run nothing since 2026-10-19**
-(no reminders, no wiki sync: a billing or minutes problem on the account), and Vercel's Functions Storage is over
-its free 10 GB. Fixed 2026-10-24: the chat polls that used up Neon's transfer (31294fd), and the bot clock that kept
-Neon awake (the VM now calls only when a run is due; runs count from the episode's end). Vercel builds production
-only (Preview shared production's database).
+(the user's standing request, 2026-10-24). **The repo is public** since 2026-10-24 (free Actions minutes; the
+history was scrubbed of real people's data first): never commit secrets, real usernames or emails, or screenshots
+of real data (HOSTING.md, The repo is public). Open alerts there: Vercel's Functions Storage is over its free 10 GB,
+and the bot's new clock waits on a VM redeploy. Fixed 2026-10-24: the chat polls that used up Neon's transfer
+(31294fd); the bot clock that kept Neon awake (the VM calls only when a run is due; runs count from the episode's
+end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
+production's database).
 
 ## Next: moving the app onto the new design (plan written 2026-10-23)
 **Read [PLAN-new-design.md](PLAN-new-design.md) first.** One database, no data transfer (the new screens read and
