@@ -6,7 +6,7 @@
     "for": "the World Series, Game 2 of the 2025 World Series",
     "on": "2026-10-24",
     "by": "ChatGPT with web search, through the ask-AI bot (scripts/dev-test/check-rulebook-prompt.js)",
-    "castChecked": false
+    "castChecked": true
   },
   "leftOut": [
     "A standard game has nine innings, but innings and half-innings are subdivisions of the game rather than independent segments for this rulebook.",

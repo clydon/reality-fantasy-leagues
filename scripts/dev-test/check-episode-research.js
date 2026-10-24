@@ -84,7 +84,9 @@ async function exitsFor(url, key, p, blocks, names, dir) {
     }
     for (const r of people) {
       const name = names.find((n) => n.toLowerCase() === String(r.name || "").trim().toLowerCase());
-      if (name && !exits[name] && Number.isInteger(r.leftInEpisode)) exits[name] = { episode: r.leftInEpisode, how: r.howTheyLeft || null, from: "ChatGPT" };
+      // The episode can come back as text ("12"), as the example above shows it.
+      const episode = r.leftInEpisode == null || r.leftInEpisode === "" ? NaN : Number(r.leftInEpisode);
+      if (name && !exits[name] && Number.isInteger(episode)) exits[name] = { episode, how: r.howTheyLeft || null, from: "ChatGPT" };
     }
   }
   return exits;

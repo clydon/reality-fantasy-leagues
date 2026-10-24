@@ -427,13 +427,27 @@ scoring file changed). All in `src/lib/game/formats/`, plain CommonJS with `.d.t
     exists; `asksArrivals` when people arrive mid-season (research must then ask who's new, 6b). Drop people only on a
     **confirmed** exit: production's `stillInGame` drops on any earlier research answer, reviewed or not, so one wrong
     "left" silently loses a person's later moments.
+    Re-run narrowed: Survivor 51's episode 5 asked 17 of 21 (the 4 gone by accepted results) and came back with 30
+    unknowns, not 93, and without the wrong "Jenna Doore left" (she was still asked about: her episode 4 exit isn't
+    accepted). Survivor 50's episode 13, the finale, asked the 5 still in (19 skipped by ChatGPT's exit list) and came back
+    with 113 unknowns: "unknown" where a plain "no" fit, and no final-five vote. The same whole-cast prompt had come
+    back with 550 unknowns once and 0 the next time, so one answer per setting can't measure completeness. Narrowing's
+    sure gain is that nobody gone gets a moment or "leaves" again. Completeness needs a second ask when unknowns run
+    high: Research again's field-by-field merge, run by itself on the bot path. Nothing scores the jurors themselves,
+    so a finale loses nothing by skipping them.
   - **The bot leaks context between requests.** Asked for the 2026 World Series cast, ChatGPT returned Survivor 50's
-    (an earlier request in the run) with Survivor sources, and the episodes followed it. The bot uses one persistent
+    (an earlier request in the run) with Survivor sources, and the episodes followed it. It happened again on the
+    re-run, this time with Survivor 51's cast, the request just before it. The bot uses one persistent
     signed-out profile; recommended: temporary chats (`?temporary-chat=true`) per request, and the app checking an answer
     is about what it asked (cast sources, an episode's title and air date against the schedule: the paste path's
     episode-mismatch check, on the bot path too). Not changed yet: waiting on the user.
   - **A sport's cast needs its own words:** the cast prompt ("as the show credits them", "season 2025") came back empty
     for the World Series; "both teams' rosters" is the harness's stopgap. Step 10's cast import needs it per kind.
+    The re-run's 2025 cast came back as both teams' real 52-man rosters. Game 1 then researched all 52, sourced.
+  - **A sport's stats break the whole answer:** innings pitched came back as 6.2 (baseball's 6⅔), and the compiler
+    types every count as an integer, so the 2025 World Series' game 2 didn't parse. R2: a count that isn't whole (a
+    `number` type, or the prompt asking in outs). And one person missing one field fails the whole answer, which
+    `parseJsonAnswer` could treat as unknown instead (a production fix, like the doubled answer below).
   - **Production's paste parser breaks on a doubled answer** (a draft, then a correction): `extractJsonObject` reads first
     `{` to last `}`. The rulebook parser takes the last complete object (`jsonObjectsIn`); the classic paste path should
     too (a master fix).
