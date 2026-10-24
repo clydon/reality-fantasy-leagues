@@ -113,7 +113,7 @@ push the last one's results about an hour back; a second bot (the PC fallback, o
 ## Changelog
 
 - **2026-10-24.** Neon transfer was at 95% with a week left: every chat fetch read each linked league's full
-  state once per member (~240 KB for 12 KB of chat). Fixed in 23c9da5: `src/lib/server/league-states.ts`
+  state once per member (~240 KB for 12 KB of chat). Fixed in 31294fd: `src/lib/server/league-states.ts`
   (hash check, cached copies), `/chat/unread`, `/chat?v=`; checked by `scripts/dev-test/check-chat-polls.js`.
   Vercel set to build production only. The bot clock's 2-minute tick kept Neon awake around the clock (~180
   CU-hours a month); now the app tells the VM when the next run is due (`db/bot-research.js` `nextRunAt`,

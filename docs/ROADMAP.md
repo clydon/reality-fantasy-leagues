@@ -24,7 +24,7 @@ commissioner. Verified by tsc/eslint/tests (167/167), the format-regression harn
 before/after), and an end-to-end fork/edit/share/delete cycle against a disposable league in the
 local DB.
 
-**Shipped 2026-10-08, Active Roster results and lineup UX** (commits `e06383d`, `c61b8c1`):
+**Shipped 2026-10-08, Active Roster results and lineup UX** (commits `685c65e`, `f82af94`):
 Overview's Latest Episode lists every team's points for the week, each opening to how they earned
 them; a new League Scoring Overview section (collapsed, first by default) sets out what everything is
 worth; each Scoreboard card has Episode N rows (earlier ones behind "Show all episodes…") above the
@@ -70,7 +70,7 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
     (`PLAN-universal-season-cast.md`).
 
 - **One cast per season, shared by every league on it** (`PLAN-universal-season-cast.md`): a written
-  plan, decided 2026-10-08. **Done and live 2026-10-09** (`4f7fd6f`), built in the plan's "Order of work"
+  plan, decided 2026-10-08. **Done and live 2026-10-09** (`89108de`), built in the plan's "Order of work"
   with a review between each piece.
   - **Open questions, resolved 2026-10-09 with the plan's own suggestions:** (1) the creating league's
     cast locks on "Finish cast" or the season's first draft start, whichever comes first; (2) roles aren't
@@ -185,7 +185,7 @@ pastes the answer back. That paid automation, not league counts, is what monetiz
       applied-results counts are unchanged, and the linking dry run finds nothing to do.
     - Gates: tsc clean, eslint only the known pickem error, `npm test` 247/247, both harnesses
       byte-identical.
-    - Shipped in `4f7fd6f`, with the copy and defaults as proposed. The production linking pass is
+    - Shipped in `89108de`, with the copy and defaults as proposed. The production linking pass is
       done (above).
   - Found in the smoke test and fixed afterwards: the red "No wiki page yet" now shows only for
     admin-decided seasons, and a season created by a league's cast entry starts as "airing". A season
