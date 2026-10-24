@@ -107,6 +107,8 @@ their own step, against the screen that needs them, so nothing is designed specu
   `src/lib/server/league-states.ts`, versions or counts instead of whole lists (`check-chat-polls.js`), and
   nothing should wake the database on a timer. **A step that adds polling, a scheduled job, stored data or a
   service updates HOSTING.md** (what it uses, the estimate, the Changelog) in the same commit.
+- **The repo is public** (since 2026-10-24, `docs/HOSTING.md`): no secrets, no real usernames, names or emails
+  in tests and docs (the mock's demo names: alex, riley, jordan, sam), and no screenshots of real data in git.
 - **Never touch the couch's real leagues** from a test or script. Tests use `zt-` fixtures with up/down
   (CLAUDE.md, `scripts/dev-test/`). The local database is a copy of production from 2026-10-16.
 - **Migrations are additive** until step C. Test each on a local copy before it ships (deploys run
