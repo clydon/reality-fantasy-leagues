@@ -138,4 +138,6 @@ push the last one's results about an hour back; a second bot (the PC fallback, o
   and `scripts/dev-test/check-bot-clock.js`. Found GitHub Actions stopped since 2026-10-19 (Alerts).
   Then: the repo went public (history scrubbed first: see The repo is public) so Actions minutes are free; the
   hourly workflow, found disabled by hand on 2026-10-22, was re-enabled and both workflows ran green. Neon
-  branch `pre-new-design-2026-10-24` created before 0066 shipped.
+  branch `pre-new-design-2026-10-24` created before 0066 shipped. Migration 0067 `season_episodes` (a row per
+  episode whose start or length research confirmed: tiny) and the `season_air_dates` view, which every
+  air-time query now reads (no extra polling).

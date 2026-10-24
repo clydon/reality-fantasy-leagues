@@ -78,23 +78,37 @@ function parseAirDate(text) {
   return null;
 }
 
+/** An exact start, as research confirmed it (season_episodes, 0067): "2026-11-06T01:00:00Z". Else null. */
+function exactAirTime(text) {
+  const s = text == null ? "" : String(text).trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/.test(s)) return null;
+  const at = new Date(s);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
 /**
- * When episode `n` airs, or null when there's nothing to go on. The wiki's printed date wins
- * (it knows about double episodes and weeks off); otherwise weekly from the premiere.
+ * When episode `n` airs, or null when there's nothing to go on. An exact start research confirmed wins
+ * (a special at another time), then the wiki's printed date (it knows about double episodes and weeks
+ * off); otherwise weekly from the latest dated episode before it, else from the premiere.
  *
- * season: { premiereDate, airTime, airTz }   wikiAirDates: { [episodeNumber]: "March 1, 2023" }
+ * season: { premiereDate, airTime, airTz }
+ * wikiAirDates: { [episodeNumber]: "March 1, 2023" | "2026-11-06T01:00:00Z" } (the season_air_dates view)
  */
 function episodeAirTime(season, n, wikiAirDates) {
   const tz = season.airTz || "America/New_York";
   const time = (season.airTime || DEFAULT_AIR_TIME).slice(0, 5);
+  const exact = exactAirTime(wikiAirDates && wikiAirDates[n]);
+  if (exact) return exact;
   const fromWiki = parseAirDate(wikiAirDates && wikiAirDates[n]);
   if (fromWiki) return zonedToUtc(fromWiki, time, tz);
-  // Weekly from the latest earlier episode the wiki DID date (so a schedule shift carries forward),
-  // else from the premiere. Either one is enough on its own.
+  // Weekly from the latest earlier episode with a date (so a week off or a moved night carries forward),
+  // else from the premiere. Either one is enough on its own. An exact start anchors by its local date,
+  // so one special at 9 PM doesn't move the episodes after it.
   let anchorN = season.premiereDate ? 1 : null;
   let anchorDate = season.premiereDate ? String(season.premiereDate).slice(0, 10) : null;
   for (const [k, v] of Object.entries(wikiAirDates || {})) {
-    const d = parseAirDate(v);
+    const x = exactAirTime(v);
+    const d = x ? localDate(x, tz) : parseAirDate(v);
     if (d && Number(k) < n && (anchorN === null || Number(k) >= anchorN)) {
       anchorN = Number(k);
       anchorDate = d;
@@ -138,4 +152,4 @@ function formatInTz(instant, tz) {
   }).format(instant);
 }
 
-module.exports = { zonedToUtc, parseAirDate, episodeAirTime, nextResearchSlot, formatInTz, localDate, WEEKDAYS, DEFAULT_AIR_TIME };
+module.exports = { zonedToUtc, parseAirDate, exactAirTime, episodeAirTime, nextResearchSlot, formatInTz, localDate, WEEKDAYS, DEFAULT_AIR_TIME };

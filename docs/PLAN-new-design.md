@@ -187,8 +187,10 @@ All additive; the classic app keeps working untouched. One migration file per co
    `league_memberships.results_seen_through` (the max across a person's leagues on a season). **Dual-write**:
    the classic `results-seen` endpoint also updates `show_follows`, and the new design writes both, so the
    two designs never disagree. `league_memberships.results_seen_through` is dropped at step C.
-3. **Schedule.** `season_episodes (season_id, number, air_at timestamptz, runtime_min, title)` and
-   `show_seasons.release ('weekly'|'nightly'|'binge')`, `show_seasons.drop_at`, `shows.kind
+3. **Schedule.** `season_episodes` already exists (master's 0067, 2026-10-24: `air_at`, `runtime_min`, `note`,
+   `source` research/admin, `reported_in`, filled from each episode's research about the next one, read
+   through the `season_air_dates` view); 0b extends it (`title`, backfilled weekly rows) rather than making
+   it. Also `show_seasons.release ('weekly'|'nightly'|'binge')`, `show_seasons.drop_at`, `shows.kind
    ('competition'|'series'|'talk'|'sport')`, the same four kinds as the rulebook's `kind` (R1's schema). The
    kind is inferred when a show is set up (step 10), never asked; every show today backfills as a competition.
    Backfill weekly air dates from `air_time` + `premiere_date` + the known episode count, where those exist;

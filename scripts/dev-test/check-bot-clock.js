@@ -47,6 +47,8 @@ async function ui(pool, season, out, width) {
     await more.scrollIntoViewIfNeeded();
     await page.getByText("Each run counts from when an episode ends").waitFor();
     await page.getByText("Quick check, 5 min after it ends").waitFor();
+    // The confirmed episode 4 from the main run (moved a week, its length set by hand).
+    await page.getByText(/Next: Episode 4, .*90 min \(after a week off\), set by hand\./).waitFor();
     await page.screenshot({ path: `${out}/bot-clock-setup-${width}.png` });
     await more.click();
     for (let i = 0; i < 20; i++) {
@@ -114,6 +116,24 @@ async function ui(pool, season, out, width) {
     await pool.query("UPDATE show_seasons SET episode_minutes = NULL WHERE id = $1", [season]);
     r = await clock("GET", "2026-10-22T01:42:00Z");
     assert.equal(r.body.next, "2026-10-22T02:00:00.000Z", "no length set: an hour");
+
+    // Episode 3's research says episode 4 comes a week late (Nov 4, 8 PM Eastern) and runs two hours
+    // (db/episode-research.js recordNextEpisode -> season_episodes, 0067): the clock follows both.
+    const Research = require("../../db/episode-research.js");
+    const told = await Research.recordNextEpisode(
+      pool,
+      { showId: show, season: 1, episodeNumber: 3, showName: "ZT Bot Clock" },
+      { airsAt: "2026-11-04T20:00:00-05:00", minutes: 120, note: "after a week off" }
+    );
+    assert.equal(told && told.minutes, 120, "recorded");
+    r = await clock("GET", "2026-10-28T01:00:00Z"); // when episode 4 would have aired
+    assert.deepEqual(r.body.due, [], "not on the usual night");
+    assert.equal(r.body.next, "2026-11-05T03:05:00.000Z", "its quick check: 8 PM EST Nov 4, plus two hours, plus 5 minutes");
+    // An admin's correction (source 'admin') is never overwritten by later research.
+    await pool.query("UPDATE season_episodes SET source = 'admin', runtime_min = 90 WHERE season_id = $1 AND number = 4", [season]);
+    await Research.recordNextEpisode(pool, { showId: show, season: 1, episodeNumber: 3 }, { airsAt: null, minutes: 150 });
+    const { rows: kept } = await pool.query("SELECT runtime_min FROM season_episodes WHERE season_id = $1 AND number = 4", [season]);
+    assert.equal(kept[0].runtime_min, 90, "the admin's length stands");
 
     // Switched off: nothing scheduled at all.
     await pool.query("UPDATE show_seasons SET bot_research_on = false WHERE id = $1", [season]);

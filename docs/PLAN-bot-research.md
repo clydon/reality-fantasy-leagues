@@ -34,6 +34,12 @@ air time, so the default quick check ran 5 minutes into a live episode and gave 
 | full | 60 min | The whole checklist through the paste import: stored in `episode_research`, staged for review |
 | full | 540 min | The checklist again, merged field by field into the first (`merge` + `fill`) |
 
+- **The next episode, confirmed (0067):** every full research answer (the bot's, a paste, paid auto-research)
+  also says when the NEXT episode airs and how long it runs, from the "next time" preview or the network
+  (`nextEpisode` in the research schema; `recordNextEpisode` -> `season_episodes`). The `season_air_dates`
+  view lays those exact starts over the wiki's dates, so a week off or a special moves every air time:
+  lineup locks, reminders, waivers, the bot clock (which also uses that episode's own length). An admin's
+  value (`source = 'admin'`) is never overwritten. Setup shows "Next: Episode N, ..." under the length.
 - Tables: migration `0065_bot_research.sql` adds `show_seasons.bot_research_on / _schedule / _since`
   and the `bot_research_runs` table (one row per attempt).
 - Logic: `db/bot-research.js`. `dueRuns` is pure and unit-tested in `tests/bot-research.test.js`.

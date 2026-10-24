@@ -73,13 +73,14 @@ function nextTryAt(kind, due, tries) {
   return next - at > STALE_MS[kind] ? null : new Date(next);
 }
 
-/** Every scheduled slot of every episode, with when it's due: the episode's end plus the run's minutes. */
+/** Every scheduled slot of every episode, with when it's due: the episode's end (its own length when research
+ *  confirmed one, else the season's) plus the run's minutes. */
 function slots({ schedule, since, airTimes, episodeMinutes = 0, history }) {
   const out = [];
-  for (const { episode, at: airedAt } of airTimes) {
+  for (const { episode, at: airedAt, minutes } of airTimes) {
     for (const run of schedule) {
       if (!run.on) continue;
-      const due = new Date(airedAt.getTime() + (episodeMinutes + run.after) * MIN);
+      const due = new Date(airedAt.getTime() + ((minutes ?? episodeMinutes) + run.after) * MIN);
       if (since && due < since) continue;
       const slot = slotOf(run);
       const tries = history.filter((h) => h.episode_number === episode && h.slot === slot);
@@ -114,8 +115,9 @@ function normalizeSchedule(input) {
  * The runs due at `now` for one season, earliest first. Pure.
  *   schedule        -- normalized runs
  *   since           -- when bot research was switched on (Date); runs timed before it never run
- *   airTimes        -- [{ episode, at: Date }]: when each episode starts airing (later ones are ignored)
- *   episodeMinutes  -- how long an episode runs: a run's minutes count from its end
+ *   airTimes        -- [{ episode, at: Date, minutes? }]: when each episode starts airing, and its own length
+ *                      when known (later ones are ignored)
+ *   episodeMinutes  -- how long an episode runs when it has no length of its own: a run's minutes count from its end
  *   history         -- bot_research_runs rows for the season: { episode_number, slot, started_at, ok }
  */
 function dueRuns({ schedule, since, airTimes, episodeMinutes = 0, history, now }) {
@@ -210,14 +212,16 @@ async function loadSeasonForJob(pool, seasonId) {
   return season;
 }
 
-/** When each episode of a season airs, as far as the schedule knows: [{ episode, at }]. */
+/** When each episode of a season airs, as far as the schedule knows, and how long it runs when research
+ *  confirmed that (season_episodes, 0067): [{ episode, at, minutes? }]. */
 function episodeAirTimes(season) {
   const out = [];
   const last = season.episode_count || 60;
+  const runtimes = season.episodeRuntimes || {};
   for (let n = 1; n <= last; n++) {
     const at = Air.episodeAirTime(season.schedule, n, season.wikiAirDates);
     if (!at) break;
-    out.push({ episode: n, at });
+    out.push(runtimes[n] ? { episode: n, at, minutes: Number(runtimes[n]) } : { episode: n, at });
   }
   return out;
 }

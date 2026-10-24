@@ -45,12 +45,11 @@ export const GET = apiRoute(async (req) => {
                   -- Bot research (0065, experimental): the free ChatGPT schedule.
                   'botResearchOn', ss.bot_research_on, 'botResearchSchedule', ss.bot_research_schedule,
                   'botResearchSince', ss.bot_research_since, 'episodeMinutes', ss.episode_minutes,
-                  'wikiAirDates', (
-                    SELECT json_object_agg(e->>'number', e->>'airDate')
-                      FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e
-                     WHERE we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
-                       AND e->>'airDate' IS NOT NULL
-                  ),
+                  -- What research confirmed about upcoming episodes (0067): a week off, a long special.
+                  'scheduledEpisodes', (SELECT json_agg(json_build_object('number', se.number, 'airAt', se.air_at, 'minutes', se.runtime_min,
+                                            'note', se.note, 'source', se.source, 'reportedIn', se.reported_in) ORDER BY se.number)
+                                          FROM season_episodes se WHERE se.season_id = ss.id),
+                  'wikiAirDates', (SELECT air_dates FROM season_air_dates sad WHERE sad.season_id = ss.id),
                   'lastAutoAttempts', (
                     SELECT json_object_agg(a.episode_number, json_build_object('at', a.attempted_at, 'ok', a.ok, 'message', a.message))
                       FROM (SELECT DISTINCT ON (episode_number) episode_number, attempted_at, ok, message

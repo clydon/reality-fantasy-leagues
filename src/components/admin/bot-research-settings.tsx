@@ -6,6 +6,8 @@ import type { ShowSeason } from "@/lib/game/types";
 import { StepperRow, ToggleRow, fieldCls } from "@/components/setup/settings-ui";
 import { ActButton, Rows, Section } from "./admin-ui";
 import { cn } from "cn";
+import * as Air from "@/lib/game/air-schedule.js";
+import { useNowMinute } from "@/components/episodes/episode-status";
 
 // Bot research (experimental, db/bot-research.js) for one season: the free ChatGPT schedule, counted
 // from when each episode ends (its air time plus the season's episode length). Every run is editable:
@@ -83,6 +85,7 @@ export function BotResearchSection({
             onChange={(n) => save({ episodeMinutes: n })}
           />
         )}
+        {on && <ConfirmedNext season={season} />}
         {on &&
           runs.map((r, i) => (
             <div key={`${r.kind}@${r.after}@${i}`} className="flex flex-col gap-1 pb-3">
@@ -116,6 +119,25 @@ export function BotResearchSection({
         </div>
       )}
     </Section>
+  );
+}
+
+// The next episode research confirmed (season_episodes, 0067): each full research run asks when the next one
+// airs and how long it runs, so a week off or a two-hour special moves the schedule by itself. Shown so the
+// admin can see what the clock is going by.
+function ConfirmedNext({ season }: { season: ShowSeason }) {
+  const now = useNowMinute();
+  if (now === null) return null;
+  const next = (season.scheduledEpisodes ?? []).find((e) => e.airAt && new Date(e.airAt).getTime() > now);
+  if (!next || !next.airAt) return null;
+  const when = Air.formatInTz(new Date(next.airAt), season.airTz || "America/New_York");
+  const from = next.source === "admin" ? "set by hand" : next.reportedIn ? `from Episode ${next.reportedIn}'s research` : "from research";
+  return (
+    <p className="pb-3 text-[13px] leading-snug text-muted-foreground">
+      Next: Episode {next.number}, {when}
+      {next.minutes ? `, ${next.minutes} min` : ""}
+      {next.note ? ` (${next.note})` : ""}, {from}.
+    </p>
   );
 }
 

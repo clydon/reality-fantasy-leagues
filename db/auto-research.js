@@ -27,13 +27,12 @@ async function loadSeasons(pool, where = "ss.auto_research", params = []) {
             ss.research_model, ss.auto_research_since, ss.episode_count, ss.status,
             ss.bot_research_on, ss.bot_research_schedule, ss.bot_research_since, ss.episode_minutes,
             to_char(ss.finale_date, 'YYYY-MM-DD') AS finale_date,
-            (SELECT json_object_agg(e->>'number', e->>'airDate')
-               FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e
-              WHERE we.show_id = s.id AND we.season_number = ss.season_number AND we.kind = 'episodes'
-                AND e->>'airDate' IS NOT NULL) AS wiki_air_dates,
+            -- The wiki's dates with research-confirmed starts over them, and confirmed lengths (0067).
+            sad.air_dates AS wiki_air_dates, sad.runtimes AS episode_runtimes,
             COALESCE((SELECT array_agg(er.episode_number) FROM episode_research er
                        WHERE er.show_id = s.id AND er.season_number = ss.season_number), '{}') AS researched
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
+       LEFT JOIN season_air_dates sad ON sad.season_id = ss.id
       WHERE ${where}`,
     params
   );
@@ -48,6 +47,7 @@ async function loadSeasons(pool, where = "ss.auto_research", params = []) {
       researchDelayHours: r.research_delay_hours,
     },
     wikiAirDates: r.wiki_air_dates || {},
+    episodeRuntimes: r.episode_runtimes || {},
   }));
 }
 
