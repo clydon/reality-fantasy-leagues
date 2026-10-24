@@ -17,7 +17,7 @@ else needs re-reading.
 
 | Step | What | State | Model / effort |
 |---|---|---|---|
-| 0a | Back up the live leagues | not started | Opus · medium |
+| 0a | Back up the live leagues | built, proven on the local copy; waiting on the user's production run | Opus · medium |
 | 0b | Backend foundation (couch, progress, schedule, roles, guard) | not started | Opus · high |
 | R1 | Rulebooks phase 1: schema, built-ins as blocks, How it works view model (logic only) | not started | Opus · high |
 | R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | not started | Opus · high |
@@ -166,6 +166,46 @@ Goal: a complete, restorable copy of everything the couch has played, before any
 - Also recommend a Neon branch of production named `pre-new-design-<date>` (the user creates it in the Neon
   console: instant and free).
 - `backups/` is gitignored. Done when a restore of a production backup into a scratch database matches.
+
+**As built (2026-10-24, on `new-design`).**
+- `scripts/backup-leagues.js <outDir> [--group=<id>]`: every league and season by default. Reads
+  `BACKUP_DATABASE_URL` when set, else `AUTH_DATABASE_URL`, and prints only host and database. One read-only,
+  repeatable-read transaction. One file per table, each row as Postgres prints it (`row_to_json`, UTC, in
+  primary-key byte order), plus `manifest.json`: rows and a sha256 per table, each league's state md5, the
+  migrations applied. Tables: the list above, plus `wiki_proposals` / `wiki_proposal_items` (league data)
+  and `wiki_extractions` (782 of the local copy's results point at one). People: everyone the rows point
+  at (members, deciders, approvers), with their settings and notification prefs; never `account` or
+  `session`. Shared helpers in `scripts/backup-common.js`.
+- `scripts/restore-leagues.js <dir> --into=restore_<name> [--drop]`: the local server only, a name starting
+  `restore_`. Drops and creates it, makes Better Auth's tables (its `getMigrations` with the username and
+  admin plugins: the CLI isn't installed, and `approved` comes from 0058 as in production), runs
+  `db/migrate.js`, clears the rows migrations seed, and loads in foreign-key order (the two cycles,
+  `league_groups.favorite_league_id` and `leagues.ruleset_id`, filled in afterwards). Then it checks each
+  file against its manifest hash, each table read back the same way (or as data, when only the text
+  differs), and each league's state hash; prints the diff and exits 1 on any difference. A `--group`
+  backup's references to rows it doesn't hold are settled the way deleting those rows would (nulled or
+  left out) and reported.
+- Proven: the local copy (`--all`: 6 leagues, 27 tables, 1,038 results) restores byte for byte.
+  `scripts/dev-test/check-backup-restore.js` with `backup-fixture.js` (every table filled, both cycles, a
+  league outside the group) passes the `--group` round trip and catches a backup file changed afterwards;
+  it found and now guards a bug where a nulled reference dropped its row.
+- Left out on purpose: `episode_text_chunks` (embeddings, rebuilt from the wiki), operational logs
+  (`reminder_log`, `auto_research_attempts`, `bot_research_runs`, `issue_reports`, `push_subscriptions`),
+  and login data. The Neon branch holds everything.
+- **Waiting on the user:** rotate the Neon password (pasted 2026-10-18), create the branch
+  `pre-new-design-2026-10-24` in the Neon console (Free plan: 10 branches, 6 hours of history), then, with
+  the same connection string Vercel's `AUTH_DATABASE_URL` holds:
+  ```
+  $env:BACKUP_DATABASE_URL = "<production connection string>"
+  node scripts/backup-leagues.js backups/prod-2026-10-24
+  Remove-Item Env:BACKUP_DATABASE_URL
+  node scripts/restore-leagues.js backups/prod-2026-10-24 --into=restore_prod
+  ```
+  The step is done when that restore prints "everything matches". It warns if production has run
+  migrations this code hasn't. The backup is a few MB of Neon transfer.
+- For the next step: every script in `scripts/` fails eslint's `no-require-imports` (they're CommonJS and
+  `scripts/` isn't ignored; pre-existing), and three tests in `tests/tour-commissioner.test.js` already
+  fail on master (the tour's draft finds no free agent; untouched here).
 
 ## Step 0b: backend foundation
 

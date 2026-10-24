@@ -1,0 +1,123 @@
+// Dev-only test bank: linked-fixture.js's group of three leagues, filled so that every table a league backup
+// holds (scripts/backup-common.js) has rows: a zt show, season and format of its own; a second person;
+// cast, results, research, rule and cast changes, wiki reads and proposals; invites, a ruleset, waiver claims,
+// blind picks, team notes, chat with a reaction and reads; settings and notification prefs. Also both foreign
+// key cycles (the group's favourite league, a league's ruleset) and one league outside the group that a cast
+// change points at, so a --group backup has a reference to settle.
+//
+//   node scripts/dev-test/backup-fixture.js up      create (or refresh) it, print the group id
+//   node scripts/dev-test/backup-fixture.js down    remove every row it made
+//
+// Also a module: `const { up, down } = require("./backup-fixture")`; `up` resolves { groupId, leagues }.
+// Everything is keyed on zt- slugs, the zt-show / zt-format ids and zt_ usernames. Never run it against a
+// real database (it refuses a non-local one).
+require("dotenv").config({ path: ".env.local", quiet: true });
+const { Pool } = require("pg");
+const linked = require("./linked-fixture");
+
+const SHOW = "zt-show";
+const FORMAT = "zt-format";
+const ANN = "zt_bk_ann";
+
+async function down(pool) {
+  await pool.query("DELETE FROM shows WHERE slug = $1", [SHOW]); // seasons, cast, results, research, wiki reads go with it
+  await pool.query("DELETE FROM show_formats WHERE id = $1", [FORMAT]);
+  await linked.down(pool); // every zt- league (zt-outside included), the group, zt_tester
+  await pool.query(`DELETE FROM "user" WHERE username = $1`, [ANN]);
+}
+
+async function up(pool) {
+  await down(pool);
+  const leagues = await linked.up(pool);
+  const [classic, roster, poolLeague] = leagues.map((l) => l.leagueId);
+  const one = async (sql, params) => (await pool.query(sql, params)).rows[0];
+  const { id: me, group_id: groupId } = await one(
+    `SELECT u.id, l.group_id FROM "user" u JOIN leagues l ON l.created_by = u.id WHERE u.username = $1 AND l.id = $2`,
+    [linked.USERNAME, classic]
+  );
+  const ann = (await one(`INSERT INTO "user" (id, name, email, "emailVerified", username, "displayUsername", "createdAt", "updatedAt")
+    VALUES ('zt_bk_ann_id', $1, 'zt_bk_ann@example.invalid', true, $1, $1, now(), now()) RETURNING id`, [ANN])).id;
+  const players = (await one("SELECT state->'players' AS p FROM leagues WHERE id = $1", [classic])).p;
+  await pool.query(`INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, 'member')`, [classic, ann, players[1].id]);
+
+  // The leagues play a zt season of a zt show with a zt format.
+  await pool.query(`INSERT INTO show_formats (id, name, status, proposal, created_by) VALUES ($1, 'ZT format', 'draft', '{}', $2)`, [FORMAT, me]);
+  const show = (await one(`INSERT INTO shows (slug, name, format, created_by) VALUES ($1, 'ZT Show', $2, $3) RETURNING id`, [SHOW, FORMAT, me])).id;
+  const season = (await one(
+    `INSERT INTO show_seasons (show_id, season_number, name, status, cast_created_by_league) VALUES ($1, 1, 'ZT Show 1', 'airing', $2) RETURNING id`,
+    [show, classic]
+  )).id;
+  await pool.query(
+    `UPDATE leagues SET state = jsonb_set(jsonb_set(state, '{settings,showId}', to_jsonb($1::text)), '{settings,wikiSeason}', '1') WHERE id = ANY($2::uuid[])`,
+    [SHOW, [classic, roster, poolLeague]]
+  );
+  const outside = (await one(
+    `INSERT INTO leagues (name, slug, join_code, state, created_by) SELECT 'ZT Outside', 'zt-outside', 'ZTOUTS', state, created_by FROM leagues WHERE id = $1 RETURNING id`,
+    [classic]
+  )).id;
+
+  // Season level.
+  const cast = (await one(`INSERT INTO season_cast (season_id, name, tribe_name, sort_order) VALUES ($1, 'Castaway 0', 'Red', 0) RETURNING id`, [season])).id;
+  await pool.query(`INSERT INTO season_cast (season_id, name, tribe_name, sort_order) VALUES ($1, 'Castaway 1', 'Blue', 1)`, [season]);
+  await pool.query(
+    `INSERT INTO season_cast_changes (season_id, season_cast_id, field, before, after, changed_by, by_league) VALUES ($1, $2, 'tribe_name', 'Red', 'Blue', $3, $4)`,
+    [season, cast, ann, outside]
+  );
+  const extraction = (await one(
+    `INSERT INTO wiki_extractions (show_id, season_number, kind, payload, provenance) VALUES ($1, 1, 'episodes', '{"episodes": []}', '{}') RETURNING id`,
+    [show]
+  )).id;
+  const research = (await one(
+    `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance) VALUES ($1, 1, 1, '{"exiled": ["Castaway 0"]}', '{}') RETURNING id`,
+    [show]
+  )).id;
+  const decision = (await one(
+    `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, event_type, extraction_id, research_id, sources, status, decided_by)
+     VALUES ($1, 1, 'exiled', 'Castaway 0', '', '', $2, $3, ARRAY['wiki', 'research'], 'accepted', $4) RETURNING id`,
+    [season, extraction, research, me]
+  )).id;
+  await pool.query(`INSERT INTO season_rule_changes (season_id, status, summary, proposal, created_by) VALUES ($1, 'draft', 'zt', '{}', $2)`, [season, me]);
+  await pool.query(
+    `INSERT INTO episode_research_items (league_id, research_id, episode_number, kind, castaway_name, sources, decided_by) VALUES ($1, $2, 1, 'exiled', 'Castaway 0', ARRAY['zt'], $3)`,
+    [classic, research, me]
+  );
+  await pool.query(`INSERT INTO league_applied_decisions (league_id, decision_id, decided_at, detail) VALUES ($1, $2, now(), '{"zt": true}')`, [classic, decision]);
+  await pool.query(`INSERT INTO wiki_proposals (league_id, kind, payload, provenance) VALUES ($1, 'eliminations', '{}', '{}')`, [classic]);
+  await pool.query(
+    `INSERT INTO wiki_proposal_items (league_id, extraction_id, episode_number, kind, castaway_name, method, event_type, decided_by) VALUES ($1, $2, 1, 'exiled', 'Castaway 0', '', '', $3)`,
+    [classic, extraction, me]
+  );
+
+  // League level, both cycles included.
+  const ruleset = (await one(`INSERT INTO league_rulesets (league_id, name, data, parent_kind, created_by) VALUES ($1, 'ZT rules', '{}', 'none', $2) RETURNING id`, [roster, me])).id;
+  await pool.query("UPDATE leagues SET ruleset_id = $1 WHERE id = $2", [ruleset, roster]);
+  await pool.query("UPDATE league_groups SET favorite_league_id = $1, name = 'ZT couch' WHERE id = $2", [poolLeague, groupId]);
+  await pool.query(`INSERT INTO league_invites (league_id, invited_by, identifier, player_id) VALUES ($1, $2, 'zt_someone', $3)`, [classic, me, players[2].id]);
+  await pool.query(`INSERT INTO waiver_claims (league_id, period_id, player_id, pairs, updated_by) VALUES ($1, 'zt-p1', $2, '[]', $3)`, [roster, players[0].id, me]);
+  await pool.query(`INSERT INTO blind_draft_picks (league_id, player_id, castaway_ids, locked_at) VALUES ($1, $2, '["k1", "k2"]', now())`, [classic, players[0].id]);
+  await pool.query(`INSERT INTO episode_team_notes (league_id, episode_number, player_id, why_text) VALUES ($1, 1, $2, 'zt: why')`, [classic, players[0].id]);
+  const msg = (await one(`INSERT INTO chat_messages (league_id, user_id, author_name, type, text) VALUES ($1, $2, $3, 'message', 'zt hi') RETURNING id`, [classic, me, linked.USERNAME])).id;
+  await pool.query(`INSERT INTO chat_messages (league_id, user_id, author_name, type, text, edited_at) VALUES ($1, $2, $3, 'message', 'zt hey', now())`, [poolLeague, ann, ANN]);
+  await pool.query(`INSERT INTO chat_reactions (message_id, user_id, emoji) VALUES ($1, $2, '🔥')`, [msg, ann]);
+  await pool.query(`INSERT INTO chat_reads (league_id, user_id, last_read_at) VALUES ($1, $2, now())`, [classic, me]);
+  await pool.query(`INSERT INTO user_settings (user_id, show_results_immediately) VALUES ($1, true) ON CONFLICT (user_id) DO NOTHING`, [me]);
+  await pool.query(`INSERT INTO notification_prefs (user_id, disabled) VALUES ($1, '["chat"]')`, [ann]);
+
+  console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
+  return { groupId, leagues };
+}
+
+module.exports = { up, down };
+
+if (require.main === module) {
+  const url = process.env.AUTH_DATABASE_URL || "";
+  if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(url)) throw new Error("backup-fixture runs against a local database only");
+  const pool = new Pool({ connectionString: url });
+  const cmd = process.argv[2];
+  (cmd === "up" ? up(pool) : cmd === "down" ? down(pool).then(() => console.log("[zt] backup fixture down")) : Promise.reject(new Error("usage: up | down")))
+    .catch((e) => {
+      console.error(e);
+      process.exitCode = 1;
+    })
+    .finally(() => pool.end());
+}
