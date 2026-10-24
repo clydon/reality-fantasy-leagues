@@ -29,7 +29,7 @@ says where each phase goes. The logic, data and API in this file still hold.
 
 | Phase | What | Built in (`PLAN-new-design.md`) | Status |
 |---|---|---|---|
-| 1 | Schema module, hand-written blocks for the three built-ins, read-only "How the season works" | R1 (logic only; the page is step 1) | not started |
+| 1 | Schema module, hand-written blocks for the three built-ins, read-only "How the season works" | R1 (logic only; the page is step 1) | **done** 2026-10-24 (logic; `PLAN-new-design.md` R1 As built lists the schema changes) |
 | 2 | The compiler, legacy freeze, engine relaxations | R2 | not started |
 | 3 | Database: `rulebooks`, `rulebook_edits`; migration; resolution through rulebooks | R3 | not started |
 | 4 | Admin editor (six blocks, every sheet) on season rulebooks | 6b (admin Find) | not started |

@@ -19,7 +19,7 @@ else needs re-reading.
 |---|---|---|---|
 | 0a | Back up the live leagues | **done** 2026-10-24 (production backup restored and matched) | Opus · medium |
 | 0b | Backend foundation (couch, progress, schedule, roles, guard) | **done** 2026-10-24 on the branch (rehearsed on production's data; before it ships: a fresh backup and a Neon branch run, see As built) | Opus · high |
-| R1 | Rulebooks phase 1: schema, built-ins as blocks, How it works view model (logic only) | not started | Opus · high |
+| R1 | Rulebooks phase 1: schema, built-ins as blocks, How it works view model (logic only) | **done** 2026-10-24 on the branch | Opus · high |
 | R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | not started | Opus · high |
 | R3 | Rulebooks phase 3: `rulebooks` tables, backfill, resolution behind a flag | not started | Opus · high |
 | 0c | The new shell, Preview system, fixtures, motion | not started | Opus · high |
@@ -341,6 +341,41 @@ Build from `docs/PLAN-rulebooks-implementation.md` (its sections 3–5 and phase
 - **R3 (phase 3)** as written, behind its flag (off): the tables, the backfill, `db/rulebooks.js`,
   resolution through rulebooks. Number the migration after the latest one (the plan's `0060` is taken).
   Take a 0a backup first; run the backfill on the local copy and a Neon branch.
+
+**As built, R1 (2026-10-24, on `new-design`).** Logic only, nothing existing touched (no format, engine or
+scoring file changed). All in `src/lib/game/formats/`, plain CommonJS with `.d.ts` beside each:
+- `rulebook-schema.js`: every answer as an `OPT` list `[value, label, help]` (the rulebook mockup's words), the
+  four kinds in `KINDS` (block headings, null where a kind hides one; the part word; where results come from;
+  which games fit), the editor's `QUESTIONS`, `labelOf` / `optionsFor` / `partWord` / `blockLabel`, and
+  `blocksProblems`, which locates each problem on its row (`segments[tribalCouncil].voters`) in plain words.
+- `rulebook-moments.js`: `momentsFor(blocks)`, the implementation plan's template table, each moment with its
+  research question (`ask`) or `auto` when nothing need be asked; `questionFor`.
+- `blocks/survivor|traitors|challenge.blocks.js`: the built-ins by hand, with `aliases.events` (moment → the event
+  id leagues recorded) and `aliases.exits` (way out → the exit method castaways carry). Each builds every one of
+  its format's events exactly once (tested). `rulebook-from-format.js` reads any other format back as blocks
+  (generic and the stored ones: categories with something asked become segments nobody decides, exits become
+  ways out, nothing guessed: no finale). `blocks/index.js` `rulebookFor(formatId, data)` picks.
+- `rulebook-describe.js`: `howItWorks(blocks, { seen, episodeCount, phaseStarts, compiled, points, updates, ... })`,
+  the mock's How it works page section by section, spoiler-safe through `seen` (a phase not yet reached shows only
+  its condition, later updates are counted, a later rule change's moments wait for their episode); and the pieces
+  (`decidedLine`, `whoLine`, `startText`, `pointGroups`, `blockSummaries`, ...). With `compiled` (the format data a
+  league plays by) What scores is that catalog with its real points, so it can't disagree with scoring.
+- **Changed from the implementation plan's section 3** (decided 2026-10-24 or needed to cover the shows): `kind`
+  is competition / series / talk / **sport** (not "event"), a series has `start` (reality / scripted), `parts`
+  names a sport's race and the rundown's own heading ("Each leg"); `tagline`, `premise` and a segment `summary`
+  for How it works; `onTheLine: points` (a sport's standings); a way out can mean `outForOne` (did not finish:
+  out of one race, not the season); `momentsOff` on twists and the finale too; ways out carry `aliases.exits`.
+  Moments carry `ask` / `auto`, not rules: R2's compiler writes the rules (and its golden tests prove them).
+  Every template has its own question ("who came 2nd in ..."), because the plan's "who {label}?" only reads right
+  for labels that start with a verb; the built-ins' hand-added moments bring their own questions.
+- Tests: `tests/rulebooks.test.js` (21: options, kinds, validation messages, every template, the built-ins' and
+  every stored format's coverage, How it works for every built-in and stored format, spoiler gating, every kind's
+  words) on `tests/fixtures/rulebook-samples.js` (Below Deck, Pluribus, SNL, Formula 1, The Amazing Race) and
+  `tests/fixtures/stored-formats.json` (`scripts/dev-test/export-stored-formats.js` refreshes it). `npm test`:
+  419 pass, plus the 3 known tour-commissioner failures.
+- For R2: aliases cover events and exits; question keys aren't aliased yet (the compiler maps them to the legacy
+  checklist, where its golden tests can prove each one). Survivor's legacy `finalist` event also goes to the
+  winner, The Traitors' and The Challenge's don't: the compiler needs to follow each.
 
 ## Step 0c: the new shell
 

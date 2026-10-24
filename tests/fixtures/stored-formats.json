@@ -1,0 +1,1941 @@
+{
+  "big-brother-us": {
+    "id": "big-brother-us",
+    "name": "Big Brother US",
+    "wiki": {
+      "version": 1,
+      "eventTypes": [],
+      "voteSections": [],
+      "guideSections": [],
+      "missingGuideNote": "no episode guide found -- eliminations will be missing",
+      "missingVotesNote": "no vote/elimination table found -- eliminations will be missing",
+      "routineEliminations": 1
+    },
+    "recap": [
+      {
+        "label": "Won Head of Household",
+        "events": [
+          "hohWin"
+        ]
+      },
+      {
+        "label": "Won Power of Veto",
+        "events": [
+          "vetoWin"
+        ]
+      }
+    ],
+    "rules": {
+      "implied": [
+        {
+          "award": "evicted",
+          "whenExit": "Evicted"
+        },
+        {
+          "award": "walked",
+          "whenExit": "Walked"
+        },
+        {
+          "award": "removed",
+          "whenExit": "Removed"
+        },
+        {
+          "award": "expelled",
+          "whenExit": "Expelled"
+        },
+        {
+          "award": "reachedFinal",
+          "whenExit": [
+            "Finalist",
+            "Winner"
+          ]
+        },
+        {
+          "award": "seasonWinner",
+          "whenExit": "Winner"
+        }
+      ],
+      "research": [
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonHoH"
+          },
+          "award": "hohWin"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonVeto"
+          },
+          "award": "vetoWin"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonOtherChallenge"
+          },
+          "award": "otherChallengeWin"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "usedVeto"
+          },
+          "award": "usedVeto"
+        },
+        {
+          "when": {
+            "answer": "votesReceived",
+            "greaterThan": 0
+          },
+          "award": "receivedEvictionVotes"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wasNominated"
+          },
+          "award": "nominated"
+        },
+        {
+          "when": {
+            "all": [
+              {
+                "is": "yes",
+                "answer": "atRisk"
+              },
+              {
+                "isNot": "yes",
+                "answer": "leftTheGame"
+              }
+            ]
+          },
+          "award": "survivedEviction"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "replacementNominee"
+          },
+          "award": "replacementNominee"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wasHaveNot"
+          },
+          "award": "haveNot"
+        },
+        {
+          "when": {
+            "answer": "juryVoteReceived",
+            "greaterThan": 0
+          },
+          "award": "juryVote"
+        },
+        {
+          "vote": "voteTarget",
+          "award": "votedForEvictee",
+          "builtIn": "votedForLeaver",
+          "otherwise": "votedAgainstEvictee",
+          "exitMethod": "Evicted"
+        }
+      ]
+    },
+    "terms": {
+      "tribe": "Alliance",
+      "castaway": "Houseguest"
+    },
+    "events": [
+      {
+        "id": "hohWin",
+        "label": "Won Head of Household",
+        "defaultPoints": 2
+      },
+      {
+        "id": "vetoWin",
+        "label": "Won Power of Veto",
+        "defaultPoints": 2
+      },
+      {
+        "id": "otherChallengeWin",
+        "label": "Won another competition",
+        "defaultPoints": 1
+      },
+      {
+        "id": "usedVeto",
+        "label": "Used the Power of Veto",
+        "defaultPoints": 1
+      },
+      {
+        "id": "receivedEvictionVotes",
+        "label": "Received eviction votes",
+        "defaultPoints": 0.5
+      },
+      {
+        "id": "nominated",
+        "label": "Put on the block",
+        "defaultPoints": -0.5
+      },
+      {
+        "id": "survivedEviction",
+        "label": "Survived the eviction vote",
+        "defaultPoints": 1
+      },
+      {
+        "id": "replacementNominee",
+        "label": "Named replacement nominee",
+        "defaultPoints": -0.5
+      },
+      {
+        "id": "votedForEvictee",
+        "label": "Voted for the evicted Houseguest",
+        "defaultPoints": 0.5
+      },
+      {
+        "id": "votedAgainstEvictee",
+        "label": "Voted to keep the evicted Houseguest",
+        "defaultPoints": -0.5
+      },
+      {
+        "id": "haveNot",
+        "label": "Selected as a Have-Not",
+        "defaultPoints": -0.5
+      },
+      {
+        "id": "evicted",
+        "label": "Evicted",
+        "implied": true,
+        "defaultPoints": -3
+      },
+      {
+        "id": "walked",
+        "label": "Walked from the game",
+        "implied": true,
+        "defaultPoints": -5
+      },
+      {
+        "id": "removed",
+        "label": "Removed from the game",
+        "implied": true,
+        "defaultPoints": -3
+      },
+      {
+        "id": "expelled",
+        "label": "Expelled from the game",
+        "implied": true,
+        "defaultPoints": -5
+      },
+      {
+        "id": "reachedFinal",
+        "label": "Reached the finale",
+        "implied": true,
+        "defaultPoints": 3
+      },
+      {
+        "id": "seasonWinner",
+        "label": "Won Big Brother",
+        "implied": true,
+        "defaultPoints": 8
+      },
+      {
+        "id": "juryVote",
+        "label": "Received a jury vote",
+        "defaultPoints": 0.5
+      }
+    ],
+    "hasMerge": false,
+    "research": {
+      "claims": [
+        "leftTheGame",
+        "wasNominated",
+        "wonHoH",
+        "wonVeto",
+        "usedVeto",
+        "atRisk",
+        "replacementNominee",
+        "wonOtherChallenge",
+        "wasHaveNot"
+      ],
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The houseguest's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the game permanently in THIS episode?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "wasNominated",
+          "note": "Nominated",
+          "type": "answer",
+          "description": "Was this Houseguest explicitly named as a nominee for eviction during this episode, including a replacement nominee?"
+        },
+        {
+          "key": "votesReceived",
+          "note": "Votes received",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many votes to evict this Houseguest were explicitly reported for the eviction decision in this episode? Return unknown if the recap does not give the numerical total."
+        },
+        {
+          "key": "voteTarget",
+          "note": "Vote target",
+          "type": "string",
+          "nullable": true,
+          "description": "Which Houseguest did this person vote to evict in the eviction vote shown or described in this episode? Return unknown if the recap does not identify this person's individual vote."
+        },
+        {
+          "key": "wonHoH",
+          "note": "HOH winner",
+          "type": "answer",
+          "description": "Did this Houseguest win the Head of Household competition during this episode?"
+        },
+        {
+          "key": "hohWinsCount",
+          "note": "HOH wins",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many Head of Household competitions did this Houseguest win during this episode? Return unknown unless the recap explicitly establishes the complete number."
+        },
+        {
+          "key": "wonVeto",
+          "note": "Veto winner",
+          "type": "answer",
+          "description": "Did this Houseguest win the Power of Veto competition during this episode?"
+        },
+        {
+          "key": "vetoWinsCount",
+          "note": "Veto wins",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many Power of Veto competitions did this Houseguest win during this episode? Return unknown unless the recap establishes the complete number."
+        },
+        {
+          "key": "usedVeto",
+          "note": "Used veto",
+          "type": "answer",
+          "description": "Did this Houseguest explicitly use the Power of Veto to remove a nominee from the eviction block during this episode?"
+        },
+        {
+          "key": "vetoTarget",
+          "note": "Veto target",
+          "type": "string",
+          "nullable": true,
+          "description": "Which nominee did this Houseguest remove from the eviction block by using the Power of Veto during this episode? Return unknown if no use or no named target is reported."
+        },
+        {
+          "key": "atRisk",
+          "note": "At risk",
+          "type": "answer",
+          "description": "Was this Houseguest explicitly described as being on the eviction block or otherwise eligible to be evicted in this episode's announced eviction decision?"
+        },
+        {
+          "key": "replacementNominee",
+          "note": "Replacement nominee",
+          "type": "answer",
+          "description": "Was this Houseguest explicitly named as a replacement nominee after a veto or another power changed the original nominations during this episode?"
+        },
+        {
+          "key": "wonOtherChallenge",
+          "note": "Other win",
+          "type": "answer",
+          "description": "Did this Houseguest explicitly win another named competition or individual challenge during this episode, excluding Head of Household and Power of Veto?"
+        },
+        {
+          "key": "otherChallengeWinsCount",
+          "note": "Other wins",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many explicitly reported individual wins in named competitions other than Head of Household and Power of Veto did this Houseguest earn during this episode? Return unknown unless the recap establishes a complete count."
+        },
+        {
+          "key": "wasHaveNot",
+          "note": "Have-Not",
+          "type": "answer",
+          "description": "Was this Houseguest explicitly selected or announced as a Have-Not during this episode?"
+        },
+        {
+          "key": "juryVoteReceived",
+          "note": "Jury votes",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many jury votes did this Houseguest receive in the season finale? Return unknown unless the final vote count is explicitly reported."
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "searchHint": [
+        "Search for this episode's recaps and any reporting on who was Nominated, Votes received, Vote target, HOH winner, HOH wins, Veto winner.",
+        "Then answer the checklist for every person above."
+      ],
+      "episodeFields": []
+    },
+    "hasGroups": true,
+    "exitMethods": [
+      "Evicted",
+      "Walked",
+      "Removed",
+      "Expelled",
+      "Finalist",
+      "Winner",
+      "Other"
+    ],
+    "eventCategories": [
+      {
+        "id": "competitions",
+        "label": "Competitions",
+        "events": [
+          "hohWin",
+          "vetoWin",
+          "otherChallengeWin"
+        ]
+      },
+      {
+        "id": "strategy",
+        "label": "Strategy",
+        "events": [
+          "usedVeto",
+          "replacementNominee"
+        ]
+      },
+      {
+        "id": "socialGame",
+        "label": "Social game",
+        "events": [
+          "receivedEvictionVotes",
+          "votedForEvictee",
+          "votedAgainstEvictee"
+        ]
+      },
+      {
+        "id": "survival",
+        "label": "Survival",
+        "events": [
+          "nominated",
+          "survivedEviction"
+        ]
+      },
+      {
+        "id": "houseLife",
+        "label": "House life",
+        "events": [
+          "haveNot"
+        ]
+      },
+      {
+        "id": "exits",
+        "label": "Exits",
+        "events": [
+          "evicted",
+          "walked",
+          "removed",
+          "expelled"
+        ]
+      },
+      {
+        "id": "seasonMilestones",
+        "label": "Season milestones",
+        "events": [
+          "reachedFinal",
+          "seasonWinner",
+          "juryVote"
+        ]
+      }
+    ],
+    "winnerExitMethod": "Winner",
+    "endgameExitMethods": [
+      "Finalist",
+      "Winner"
+    ]
+  },
+  "dancing-with-the-stars": {
+    "id": "dancing-with-the-stars",
+    "name": "Dancing with the Stars",
+    "wiki": {
+      "version": 1,
+      "eventTypes": [],
+      "voteSections": [],
+      "guideSections": [],
+      "missingGuideNote": "no episode guide found -- eliminations will be missing",
+      "missingVotesNote": "no vote/elimination table found -- eliminations will be missing",
+      "routineEliminations": 1
+    },
+    "recap": [
+      {
+        "label": "Perfect score",
+        "events": [
+          "perfectScore"
+        ]
+      },
+      {
+        "label": "Highest judges' score",
+        "events": [
+          "highestScore"
+        ]
+      }
+    ],
+    "rules": {
+      "implied": [
+        {
+          "award": "eliminated",
+          "whenExit": "Eliminated"
+        },
+        {
+          "award": "withdrew",
+          "whenExit": "Withdrew"
+        },
+        {
+          "award": "reachedFinale",
+          "whenExit": [
+            "Fifth place",
+            "Fourth place",
+            "Third place",
+            "Runner-up",
+            "Winner"
+          ]
+        },
+        {
+          "award": "thirdPlace",
+          "whenExit": "Third place"
+        },
+        {
+          "award": "runnerUp",
+          "whenExit": "Runner-up"
+        },
+        {
+          "award": "wonMirrorball",
+          "whenExit": "Winner"
+        }
+      ],
+      "research": [
+        {
+          "when": {
+            "is": "yes",
+            "answer": "perfectScore"
+          },
+          "award": "perfectScore"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "highestScore"
+          },
+          "award": "highestScore"
+        },
+        {
+          "when": {
+            "all": [
+              {
+                "is": "yes",
+                "answer": "lowestScore"
+              },
+              {
+                "isNot": "yes",
+                "answer": "leftTheGame"
+              }
+            ]
+          },
+          "award": "survivedBottom"
+        },
+        {
+          "when": {
+            "answer": "numberOfDances",
+            "greaterThan": 1
+          },
+          "award": "multipleDances"
+        }
+      ]
+    },
+    "terms": {
+      "tribe": "Couple",
+      "castaway": "Celebrity"
+    },
+    "events": [
+      {
+        "id": "perfectScore",
+        "label": "Perfect score",
+        "defaultPoints": 3
+      },
+      {
+        "id": "highestScore",
+        "label": "Highest judges' score",
+        "defaultPoints": 2
+      },
+      {
+        "id": "survivedBottom",
+        "label": "Survived while bottom of leaderboard",
+        "defaultPoints": 1.5
+      },
+      {
+        "id": "eliminated",
+        "label": "Eliminated",
+        "implied": true,
+        "defaultPoints": -3
+      },
+      {
+        "id": "withdrew",
+        "label": "Withdrew",
+        "implied": true,
+        "defaultPoints": -5
+      },
+      {
+        "id": "reachedFinale",
+        "label": "Reached the finale",
+        "implied": true,
+        "defaultPoints": 3
+      },
+      {
+        "id": "thirdPlace",
+        "label": "Third place",
+        "implied": true,
+        "defaultPoints": 4
+      },
+      {
+        "id": "runnerUp",
+        "label": "Runner-up",
+        "implied": true,
+        "defaultPoints": 6
+      },
+      {
+        "id": "wonMirrorball",
+        "label": "Won the Mirrorball",
+        "implied": true,
+        "defaultPoints": 10
+      },
+      {
+        "id": "multipleDances",
+        "label": "Performed multiple dances",
+        "defaultPoints": 0.5
+      }
+    ],
+    "hasMerge": false,
+    "research": {
+      "claims": [
+        "leftTheGame",
+        "perfectScore",
+        "highestScore",
+        "lowestScore",
+        "atRisk",
+        "guestJudgePresent"
+      ],
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The celebrity's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the game permanently in THIS episode?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "judgesScore",
+          "note": "judges total",
+          "type": "integer",
+          "nullable": true,
+          "description": "What was this couple's total judges' score for the episode (sum of individual judges, usually out of 30; note if guest judge made it out of 40)?"
+        },
+        {
+          "key": "perfectScore",
+          "note": "perfect score",
+          "type": "answer",
+          "description": "Did this couple receive a perfect score from the judges this episode (all 10s, or equivalent on adjusted scale)?"
+        },
+        {
+          "key": "highestScore",
+          "note": "top of leaderboard",
+          "type": "answer",
+          "description": "Did this couple receive the highest (or tied for highest) judges' score of the night?"
+        },
+        {
+          "key": "lowestScore",
+          "note": "bottom of leaderboard",
+          "type": "answer",
+          "description": "Did this couple receive the lowest (or tied for lowest) judges' score of the night?"
+        },
+        {
+          "key": "danceStyle",
+          "note": "dance performed",
+          "type": "string",
+          "nullable": true,
+          "description": "What dance style(s) did this couple perform this episode?"
+        },
+        {
+          "key": "atRisk",
+          "note": "in danger",
+          "type": "answer",
+          "description": "Was this couple among those called out as in danger / standing for possible elimination before the result was announced?"
+        },
+        {
+          "key": "guestJudgePresent",
+          "note": "guest judge week",
+          "type": "answer",
+          "description": "Was there a guest judge this episode (making scores out of 40)?"
+        },
+        {
+          "key": "numberOfDances",
+          "note": "dances danced",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many competitive dances did this couple perform this episode?"
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "searchHint": [
+        "Search for this episode's recaps and any reporting on who was judges total, perfect score, top of leaderboard, bottom of leaderboard, dance performed, in danger.",
+        "Then answer the checklist for every person above."
+      ],
+      "episodeFields": []
+    },
+    "hasGroups": false,
+    "exitMethods": [
+      "Eliminated",
+      "Withdrew",
+      "Fifth place",
+      "Fourth place",
+      "Third place",
+      "Runner-up",
+      "Winner",
+      "Other"
+    ],
+    "eventCategories": [
+      {
+        "id": "scoring",
+        "label": "Scoring",
+        "events": [
+          "perfectScore",
+          "highestScore"
+        ]
+      },
+      {
+        "id": "survival",
+        "label": "Survival",
+        "events": [
+          "survivedBottom"
+        ]
+      },
+      {
+        "id": "exit",
+        "label": "Exit",
+        "events": [
+          "eliminated",
+          "withdrew"
+        ]
+      },
+      {
+        "id": "progress",
+        "label": "Progress",
+        "events": [
+          "reachedFinale"
+        ]
+      },
+      {
+        "id": "finish",
+        "label": "Finish",
+        "events": [
+          "thirdPlace",
+          "runnerUp",
+          "wonMirrorball"
+        ]
+      },
+      {
+        "id": "performance",
+        "label": "Performance",
+        "events": [
+          "multipleDances"
+        ]
+      }
+    ],
+    "winnerExitMethod": "Winner",
+    "endgameExitMethods": [
+      "Fifth place",
+      "Fourth place",
+      "Third place",
+      "Runner-up",
+      "Winner"
+    ]
+  },
+  "love-island-usa-2": {
+    "id": "love-island-usa-2",
+    "name": "Love Island USA",
+    "wiki": {
+      "version": 1,
+      "eventTypes": [],
+      "voteSections": [],
+      "guideSections": [],
+      "missingGuideNote": "no episode guide found -- eliminations will be missing",
+      "missingVotesNote": "no vote/elimination table found -- eliminations will be missing",
+      "routineEliminations": 1
+    },
+    "recap": [],
+    "rules": {
+      "implied": [
+        {
+          "award": "dumped",
+          "whenExit": "Dumped"
+        },
+        {
+          "award": "removed",
+          "whenExit": "Removed"
+        },
+        {
+          "award": "walked",
+          "whenExit": "Walked"
+        },
+        {
+          "award": "reachedFinal",
+          "whenExit": [
+            "Finalist",
+            "Winner"
+          ]
+        },
+        {
+          "award": "seasonWinner",
+          "whenExit": "Winner"
+        }
+      ],
+      "research": [
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonChallenge"
+          },
+          "award": "challengeWin"
+        },
+        {
+          "when": {
+            "answer": "challengeWinsCount",
+            "greaterThan": 1
+          },
+          "award": "challengeSweep"
+        },
+        {
+          "when": {
+            "answer": "votesReceived",
+            "greaterThan": 0
+          },
+          "award": "receivedVotes"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "atRisk"
+          },
+          "award": "atRisk"
+        },
+        {
+          "when": {
+            "all": [
+              {
+                "is": "yes",
+                "answer": "atRisk"
+              },
+              {
+                "isNot": "yes",
+                "answer": "leftTheGame"
+              }
+            ]
+          },
+          "award": "survivedDumping"
+        },
+        {
+          "when": {
+            "all": [
+              {
+                "answer": "newPartner",
+                "present": true
+              },
+              {
+                "isNot": "yes",
+                "answer": "leftTheGame"
+              }
+            ]
+          },
+          "award": "newCouple"
+        }
+      ]
+    },
+    "terms": {
+      "tribe": "Couple",
+      "castaway": "Islander"
+    },
+    "events": [
+      {
+        "id": "challengeWin",
+        "label": "Challenge winner",
+        "defaultPoints": 1
+      },
+      {
+        "id": "challengeSweep",
+        "label": "Multiple challenge wins",
+        "defaultPoints": 0.5
+      },
+      {
+        "id": "receivedVotes",
+        "label": "Received elimination votes",
+        "defaultPoints": 0.5
+      },
+      {
+        "id": "atRisk",
+        "label": "In danger",
+        "defaultPoints": 0
+      },
+      {
+        "id": "survivedDumping",
+        "label": "Survived a dumping",
+        "defaultPoints": 1
+      },
+      {
+        "id": "newCouple",
+        "label": "Formed a new couple",
+        "defaultPoints": 0.5
+      },
+      {
+        "id": "dumped",
+        "label": "Dumped from the villa",
+        "implied": true,
+        "defaultPoints": -3
+      },
+      {
+        "id": "removed",
+        "label": "Removed from the villa",
+        "implied": true,
+        "defaultPoints": -3
+      },
+      {
+        "id": "walked",
+        "label": "Left voluntarily",
+        "implied": true,
+        "defaultPoints": -5
+      },
+      {
+        "id": "reachedFinal",
+        "label": "Reached the finale",
+        "implied": true,
+        "defaultPoints": 3
+      },
+      {
+        "id": "seasonWinner",
+        "label": "Season winner",
+        "implied": true,
+        "defaultPoints": 8
+      }
+    ],
+    "hasMerge": false,
+    "research": {
+      "claims": [
+        "leftTheGame",
+        "atRisk",
+        "wonChallenge"
+      ],
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The islander's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the game permanently in THIS episode?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "atRisk",
+          "note": "At risk",
+          "type": "answer",
+          "description": "Was this Islander explicitly identified as vulnerable, at risk, in the bottom group, or eligible for elimination in this episode?"
+        },
+        {
+          "key": "votesReceived",
+          "note": "Votes received",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many votes did this Islander receive from other Islanders in an elimination or save vote during this episode? Return unknown unless the recap states the number."
+        },
+        {
+          "key": "publicVoteCount",
+          "note": "Public votes",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many public votes did this Islander receive in this episode? Return unknown unless an actual numerical count is reported."
+        },
+        {
+          "key": "voteTarget",
+          "note": "Vote target",
+          "type": "string",
+          "nullable": true,
+          "description": "Which Islander did this person explicitly vote to eliminate or not save in an Islanders' elimination vote this episode? Return unknown if no individual vote is reported."
+        },
+        {
+          "key": "coupledWith",
+          "note": "Couple partner",
+          "type": "string",
+          "nullable": true,
+          "description": "According to the recap, which Islander was this person coupled up with at the end of this episode? Answer with the partner's name, or unknown if not stated."
+        },
+        {
+          "key": "wonChallenge",
+          "note": "Challenge win",
+          "type": "answer",
+          "description": "Did this Islander explicitly win an individual challenge or receive an explicitly named individual challenge victory this episode?"
+        },
+        {
+          "key": "challengeWinsCount",
+          "note": "Challenge wins",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many individual challenge victories did this Islander earn in this episode? Count only explicitly reported individual wins; if the recap does not establish a complete count, return unknown."
+        },
+        {
+          "key": "newPartner",
+          "note": "New partner",
+          "type": "string",
+          "nullable": true,
+          "description": "Which Islander did this person newly couple up with during a recoupling in this episode? Return unknown if no new pairing is explicitly reported."
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "searchHint": [
+        "Search for this episode's recaps and any reporting on who was At risk, Votes received, Public votes, Vote target, Couple partner, Challenge win.",
+        "Then answer the checklist for every person above."
+      ],
+      "episodeFields": []
+    },
+    "hasGroups": true,
+    "exitMethods": [
+      "Dumped",
+      "Removed",
+      "Walked",
+      "Finalist",
+      "Winner",
+      "Other"
+    ],
+    "eventCategories": [
+      {
+        "id": "challenges",
+        "label": "Challenges",
+        "events": [
+          "challengeWin",
+          "challengeSweep"
+        ]
+      },
+      {
+        "id": "socialGame",
+        "label": "Social game",
+        "events": [
+          "receivedVotes"
+        ]
+      },
+      {
+        "id": "survival",
+        "label": "Survival",
+        "events": [
+          "atRisk",
+          "survivedDumping"
+        ]
+      },
+      {
+        "id": "relationships",
+        "label": "Relationships",
+        "events": [
+          "newCouple"
+        ]
+      },
+      {
+        "id": "exits",
+        "label": "Exits",
+        "events": [
+          "dumped",
+          "removed",
+          "walked"
+        ]
+      },
+      {
+        "id": "seasonMilestones",
+        "label": "Season milestones",
+        "events": [
+          "reachedFinal",
+          "seasonWinner"
+        ]
+      }
+    ],
+    "winnerExitMethod": "Winner",
+    "endgameExitMethods": [
+      "Finalist",
+      "Winner"
+    ]
+  },
+  "rupauls-drag-race-us-flagship": {
+    "id": "rupauls-drag-race-us-flagship",
+    "name": "RuPaul's Drag Race (US flagship)",
+    "wiki": {
+      "version": 1,
+      "eventTypes": [],
+      "voteSections": [],
+      "guideSections": [],
+      "missingGuideNote": "no episode guide found -- eliminations will be missing",
+      "missingVotesNote": "no vote/elimination table found -- eliminations will be missing",
+      "routineEliminations": 1
+    },
+    "recap": [
+      {
+        "label": "Main challenge winner",
+        "events": [
+          "challengeWin"
+        ]
+      },
+      {
+        "label": "Won a comeback battle",
+        "events": [
+          "comebackWin"
+        ]
+      }
+    ],
+    "rules": {
+      "implied": [
+        {
+          "award": "eliminated",
+          "whenExit": "Eliminated"
+        },
+        {
+          "award": "disqualified",
+          "whenExit": "Disqualified"
+        },
+        {
+          "award": "withdrew",
+          "whenExit": "Withdrew"
+        },
+        {
+          "award": "reachedFinal",
+          "whenExit": [
+            "Finalist",
+            "Winner"
+          ]
+        },
+        {
+          "award": "seasonWinner",
+          "whenExit": "Winner"
+        }
+      ],
+      "research": [
+        {
+          "when": {
+            "is": "Winner",
+            "answer": "challengePlacement"
+          },
+          "award": "challengeWin"
+        },
+        {
+          "when": {
+            "is": "High",
+            "answer": "challengePlacement"
+          },
+          "award": "highPlacement"
+        },
+        {
+          "when": {
+            "is": "TopTwo",
+            "answer": "challengePlacement"
+          },
+          "award": "topTwo"
+        },
+        {
+          "when": {
+            "any": [
+              {
+                "is": "BottomTwo",
+                "answer": "challengePlacement"
+              },
+              {
+                "is": "BottomThree",
+                "answer": "challengePlacement"
+              }
+            ]
+          },
+          "award": "bottomPlacement"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonLipSync"
+          },
+          "award": "lipSyncWin"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonMiniChallenge"
+          },
+          "award": "miniChallengeWin"
+        },
+        {
+          "when": {
+            "answer": "miniChallengeWinsCount",
+            "greaterThan": 1
+          },
+          "award": "miniChallengeSweep"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonRunwayAward"
+          },
+          "award": "runwayAward"
+        },
+        {
+          "when": {
+            "all": [
+              {
+                "any": [
+                  {
+                    "is": "BottomTwo",
+                    "answer": "challengePlacement"
+                  },
+                  {
+                    "is": "BottomThree",
+                    "answer": "challengePlacement"
+                  }
+                ]
+              },
+              {
+                "isNot": "yes",
+                "answer": "leftTheGame"
+              }
+            ]
+          },
+          "award": "survivedBottom"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonReturningQueenBattle"
+          },
+          "award": "comebackWin"
+        }
+      ]
+    },
+    "terms": {
+      "tribe": "Team",
+      "castaway": "Queen"
+    },
+    "events": [
+      {
+        "id": "challengeWin",
+        "label": "Main challenge winner",
+        "defaultPoints": 2
+      },
+      {
+        "id": "highPlacement",
+        "label": "High placement",
+        "defaultPoints": 1
+      },
+      {
+        "id": "topTwo",
+        "label": "Reached the top two",
+        "defaultPoints": 1
+      },
+      {
+        "id": "bottomPlacement",
+        "label": "Bottom placement",
+        "defaultPoints": -1
+      },
+      {
+        "id": "lipSyncWin",
+        "label": "Won a lip-sync",
+        "defaultPoints": 1
+      },
+      {
+        "id": "miniChallengeWin",
+        "label": "Mini-challenge winner",
+        "defaultPoints": 0.5
+      },
+      {
+        "id": "miniChallengeSweep",
+        "label": "Multiple mini-challenge wins",
+        "defaultPoints": 0.5
+      },
+      {
+        "id": "runwayAward",
+        "label": "Runway award winner",
+        "defaultPoints": 1
+      },
+      {
+        "id": "survivedBottom",
+        "label": "Survived the bottom",
+        "defaultPoints": 1
+      },
+      {
+        "id": "comebackWin",
+        "label": "Won a comeback battle",
+        "defaultPoints": 3
+      },
+      {
+        "id": "eliminated",
+        "label": "Eliminated",
+        "implied": true,
+        "defaultPoints": -3
+      },
+      {
+        "id": "disqualified",
+        "label": "Disqualified",
+        "implied": true,
+        "defaultPoints": -5
+      },
+      {
+        "id": "withdrew",
+        "label": "Withdrew from the competition",
+        "implied": true,
+        "defaultPoints": -5
+      },
+      {
+        "id": "reachedFinal",
+        "label": "Reached the finale",
+        "implied": true,
+        "defaultPoints": 3
+      },
+      {
+        "id": "seasonWinner",
+        "label": "America's Next Drag Superstar",
+        "implied": true,
+        "defaultPoints": 8
+      }
+    ],
+    "hasMerge": false,
+    "research": {
+      "claims": [
+        "leftTheGame",
+        "wonLipSync",
+        "wonMiniChallenge",
+        "wonRunwayAward",
+        "wonReturningQueenBattle"
+      ],
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The queen's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the game permanently in THIS episode?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "challengePlacement",
+          "note": "Challenge placement",
+          "type": "enum",
+          "values": [
+            "Winner",
+            "TopTwo",
+            "High",
+            "Safe",
+            "Low",
+            "BottomTwo",
+            "BottomThree",
+            "Unknown"
+          ],
+          "nullable": true,
+          "description": "What official competitive placement did this contestant receive for the main challenge and judging this episode? Use only an explicitly reported placement. Use Unknown if the recap does not establish it."
+        },
+        {
+          "key": "wonLipSync",
+          "note": "Lip-sync win",
+          "type": "answer",
+          "description": "Did this contestant explicitly win a lip-sync battle shown in this episode, including a lip-sync for your life or a separately decided tournament match?"
+        },
+        {
+          "key": "lipSyncOpponent",
+          "note": "Lip-sync opponent",
+          "type": "string",
+          "nullable": true,
+          "description": "Which contestant or contestants did this person explicitly lip-sync against in a battle shown in this episode? Return the named opponent or opponents; use unknown if the recap does not identify them."
+        },
+        {
+          "key": "wonMiniChallenge",
+          "note": "Mini-challenge win",
+          "type": "answer",
+          "description": "Did this contestant explicitly win a mini-challenge during this episode?"
+        },
+        {
+          "key": "miniChallengeWinsCount",
+          "note": "Mini wins",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many mini-challenges did this contestant explicitly win during this episode? Return unknown unless the recap establishes the complete number."
+        },
+        {
+          "key": "wonRunwayAward",
+          "note": "Runway award",
+          "type": "answer",
+          "description": "Did this contestant explicitly win a named runway or fashion award during this episode, separate from the main challenge result?"
+        },
+        {
+          "key": "wonReturningQueenBattle",
+          "note": "Comeback win",
+          "type": "answer",
+          "description": "Did this contestant explicitly win a comeback or returning-contestant battle during this episode?"
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "searchHint": [
+        "Search for this episode's recaps and any reporting on who was Challenge placement, Lip-sync win, Lip-sync opponent, Mini-challenge win, Mini wins, Runway award.",
+        "Then answer the checklist for every person above."
+      ],
+      "episodeFields": []
+    },
+    "hasGroups": true,
+    "exitMethods": [
+      "Eliminated",
+      "Disqualified",
+      "Withdrew",
+      "Finalist",
+      "Winner",
+      "Other"
+    ],
+    "eventCategories": [
+      {
+        "id": "challenges",
+        "label": "Challenges",
+        "events": [
+          "challengeWin",
+          "highPlacement",
+          "topTwo",
+          "miniChallengeWin",
+          "miniChallengeSweep"
+        ]
+      },
+      {
+        "id": "survival",
+        "label": "Survival",
+        "events": [
+          "bottomPlacement",
+          "survivedBottom"
+        ]
+      },
+      {
+        "id": "performance",
+        "label": "Performance",
+        "events": [
+          "lipSyncWin"
+        ]
+      },
+      {
+        "id": "fashion",
+        "label": "Fashion",
+        "events": [
+          "runwayAward"
+        ]
+      },
+      {
+        "id": "specialAchievements",
+        "label": "Special achievements",
+        "events": [
+          "comebackWin"
+        ]
+      },
+      {
+        "id": "exits",
+        "label": "Exits",
+        "events": [
+          "eliminated",
+          "disqualified",
+          "withdrew"
+        ]
+      },
+      {
+        "id": "seasonMilestones",
+        "label": "Season milestones",
+        "events": [
+          "reachedFinal",
+          "seasonWinner"
+        ]
+      }
+    ],
+    "winnerExitMethod": "Winner",
+    "endgameExitMethods": [
+      "Finalist",
+      "Winner"
+    ]
+  },
+  "the-amazing-race-american-edition": {
+    "id": "the-amazing-race-american-edition",
+    "name": "The Amazing Race (American edition)",
+    "wiki": {
+      "version": 1,
+      "eventTypes": [],
+      "voteSections": [],
+      "guideSections": [],
+      "missingGuideNote": "no episode guide found -- eliminations will be missing",
+      "missingVotesNote": "no vote/elimination table found -- eliminations will be missing",
+      "routineEliminations": 1
+    },
+    "recap": [
+      {
+        "label": "Won the leg",
+        "events": [
+          "legWinner"
+        ]
+      },
+      {
+        "label": "Won Fast Forward",
+        "events": [
+          "wonFastForward"
+        ]
+      },
+      {
+        "label": "Won Express Pass",
+        "events": [
+          "wonExpressPass"
+        ]
+      }
+    ],
+    "rules": {
+      "implied": [
+        {
+          "award": "eliminated",
+          "whenExit": "Eliminated"
+        },
+        {
+          "award": "removedFromRace",
+          "whenExit": "Removed from the Race"
+        },
+        {
+          "award": "quitRace",
+          "whenExit": "Quit"
+        },
+        {
+          "award": "reachedFinal",
+          "whenExit": "Finalist"
+        },
+        {
+          "award": "seasonWinner",
+          "whenExit": "Winner"
+        }
+      ],
+      "research": [
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonLeg"
+          },
+          "award": "legWinner"
+        },
+        {
+          "when": {
+            "answer": "legPlacement",
+            "equals": 2
+          },
+          "award": "legRunnerUp"
+        },
+        {
+          "when": {
+            "answer": "legPlacement",
+            "equals": 3
+          },
+          "award": "legPodium"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonFastForward"
+          },
+          "award": "wonFastForward"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonExpressPass"
+          },
+          "award": "wonExpressPass"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "usedExpressPass"
+          },
+          "award": "usedExpressPass"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "usedUTurn"
+          },
+          "award": "usedUTurn"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "receivedUTurn"
+          },
+          "award": "receivedUTurn"
+        },
+        {
+          "when": {
+            "answer": "receivedVotes",
+            "greaterThan": 0
+          },
+          "award": "receivedVotes"
+        },
+        {
+          "when": {
+            "is": "yes",
+            "answer": "wonHeadToHead"
+          },
+          "award": "wonHeadToHead"
+        }
+      ]
+    },
+    "terms": {
+      "tribe": "Team",
+      "castaway": "Racer"
+    },
+    "events": [
+      {
+        "id": "legWinner",
+        "label": "Won the leg",
+        "defaultPoints": 2
+      },
+      {
+        "id": "legRunnerUp",
+        "label": "Finished second",
+        "defaultPoints": 1
+      },
+      {
+        "id": "legPodium",
+        "label": "Finished third",
+        "defaultPoints": 0.5
+      },
+      {
+        "id": "wonFastForward",
+        "label": "Won Fast Forward",
+        "defaultPoints": 3
+      },
+      {
+        "id": "wonExpressPass",
+        "label": "Won Express Pass",
+        "defaultPoints": 2
+      },
+      {
+        "id": "usedExpressPass",
+        "label": "Used Express Pass",
+        "defaultPoints": 1
+      },
+      {
+        "id": "usedUTurn",
+        "label": "U-Turned another team",
+        "defaultPoints": 1
+      },
+      {
+        "id": "receivedUTurn",
+        "label": "Received a U-Turn",
+        "defaultPoints": -1
+      },
+      {
+        "id": "receivedVotes",
+        "label": "Received U-Turn votes",
+        "defaultPoints": 0
+      },
+      {
+        "id": "wonHeadToHead",
+        "label": "Won head-to-head",
+        "defaultPoints": 1
+      },
+      {
+        "id": "eliminated",
+        "label": "Eliminated",
+        "implied": true,
+        "defaultPoints": -3
+      },
+      {
+        "id": "removedFromRace",
+        "label": "Removed from the Race",
+        "implied": true,
+        "defaultPoints": -3
+      },
+      {
+        "id": "quitRace",
+        "label": "Quit the Race",
+        "implied": true,
+        "defaultPoints": -5
+      },
+      {
+        "id": "reachedFinal",
+        "label": "Reached the final",
+        "implied": true,
+        "defaultPoints": 3
+      },
+      {
+        "id": "seasonWinner",
+        "label": "Won the season",
+        "implied": true,
+        "defaultPoints": 8
+      }
+    ],
+    "hasMerge": false,
+    "research": {
+      "claims": [
+        "leftTheGame",
+        "wonLeg",
+        "wonFastForward",
+        "usedExpressPass",
+        "receivedUTurn",
+        "usedUTurn",
+        "wonExpressPass",
+        "wonHeadToHead"
+      ],
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The racer's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the game permanently in THIS episode?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "legPlacement",
+          "note": "Leg placement",
+          "type": "integer",
+          "nullable": true,
+          "description": "What finishing place did the team achieve on this leg?"
+        },
+        {
+          "key": "wonLeg",
+          "note": "First place",
+          "type": "answer",
+          "description": "Did the team finish this leg in first place?"
+        },
+        {
+          "key": "wonFastForward",
+          "note": "Fast Forward",
+          "type": "answer",
+          "description": "Did the team win the Fast Forward on this leg?"
+        },
+        {
+          "key": "usedExpressPass",
+          "note": "Express Pass",
+          "type": "answer",
+          "description": "Did the team use an Express Pass to skip a task on this leg?"
+        },
+        {
+          "key": "receivedUTurn",
+          "note": "U-Turned",
+          "type": "answer",
+          "description": "Was the team U-Turned by another team on this leg?"
+        },
+        {
+          "key": "usedUTurn",
+          "note": "Used U-Turn",
+          "type": "answer",
+          "description": "Did the team use a U-Turn on another team on this leg?"
+        },
+        {
+          "key": "receivedVotes",
+          "note": "Votes received",
+          "type": "integer",
+          "nullable": true,
+          "description": "How many votes did the team receive in an explicitly reported vote to assign a U-Turn?"
+        },
+        {
+          "key": "votedForTeam",
+          "note": "Vote target",
+          "type": "string",
+          "nullable": true,
+          "description": "Which team did the team vote to receive the U-Turn in an explicitly reported vote?"
+        },
+        {
+          "key": "wonExpressPass",
+          "note": "Won pass",
+          "type": "answer",
+          "description": "Did the team win an Express Pass on this leg?"
+        },
+        {
+          "key": "wonHeadToHead",
+          "note": "Head-to-head",
+          "type": "answer",
+          "description": "Did the team win a head-to-head race against another team on this leg?"
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "searchHint": [
+        "Search for this episode's recaps and any reporting on who was Leg placement, First place, Fast Forward, Express Pass, U-Turned, Used U-Turn.",
+        "Then answer the checklist for every person above."
+      ],
+      "episodeFields": []
+    },
+    "hasGroups": true,
+    "exitMethods": [
+      "Eliminated",
+      "Removed from the Race",
+      "Quit",
+      "Finalist",
+      "Winner",
+      "Other"
+    ],
+    "eventCategories": [
+      {
+        "id": "racePerformance",
+        "label": "Race performance",
+        "events": [
+          "legWinner",
+          "legRunnerUp",
+          "legPodium"
+        ]
+      },
+      {
+        "id": "advantages",
+        "label": "Advantages",
+        "events": [
+          "wonFastForward",
+          "wonExpressPass",
+          "usedExpressPass"
+        ]
+      },
+      {
+        "id": "strategy",
+        "label": "Strategy",
+        "events": [
+          "usedUTurn",
+          "receivedUTurn",
+          "receivedVotes"
+        ]
+      },
+      {
+        "id": "challenges",
+        "label": "Challenges",
+        "events": [
+          "wonHeadToHead"
+        ]
+      },
+      {
+        "id": "exit",
+        "label": "Exit",
+        "events": [
+          "eliminated",
+          "removedFromRace",
+          "quitRace"
+        ]
+      },
+      {
+        "id": "seasonFinish",
+        "label": "Season finish",
+        "events": [
+          "reachedFinal",
+          "seasonWinner"
+        ]
+      }
+    ],
+    "winnerExitMethod": "Winner",
+    "endgameExitMethods": [
+      "Finalist",
+      "Winner"
+    ]
+  }
+}
