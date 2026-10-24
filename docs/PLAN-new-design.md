@@ -24,7 +24,7 @@ else needs re-reading.
 | R3 | Rulebooks phase 3: `rulebooks` tables, backfill, resolution behind a flag | **done** 2026-10-24 on the branch (migration 0107 ships with 0b's; the flag stays off) | Opus · high |
 | 0c | The new shell, Preview system, fixtures, motion | **done** 2026-10-24 on the branch (migration 0108 ships with 0b's) | Opus · high |
 | 0d | Hub and show space ported (fixtures behind Preview) | **done** 2026-10-24 on the branch (the hub, then the show space) | Opus · high |
-| 1 | Show space on real leagues: Tonight's move cards, Games tab, How it works | not started | Opus · high |
+| 1 | Show space on real leagues: Tonight's move cards, Games tab, How it works | **done** 2026-10-24 on the branch (no migration) | Opus · high |
 | 2 | Episodes, staged results, the one reveal, share at the reveal | not started | Opus · high |
 | 3 | Cast explorer and stats, server-side spoiler guard | not started | Opus · high |
 | 4 | Chat, per couch and show, spoiler-folded | not started | Opus · medium |
@@ -842,6 +842,66 @@ Each step: port the area from the mock, wire real data, remove its fixtures and 
 
 **Then the couch switches:** set `ui='new'` for the three members (with their OK), keep classic one tap
 away, and watch for a week before step C is even considered.
+
+### As built, step 1 (2026-10-24, on `new-design`)
+
+The show space plays on real leagues. No migration; nothing polled or scheduled (HOSTING.md's Changelog has the reads).
+- **Your games on a show:** `GET /api/seasons/[id]/games?couch=` (`src/lib/server/season-games.ts`), one `GameView` per
+  game you play there (`src/lib/game/game-view.ts`, pure): your moves for the next episode (the lineup: slots, need,
+  starters, roster, carried, locked; the pick: open, available, blocked and why, streak; open predictions with your
+  guess), the table (rank with T for ties, total, last week or the streak now, the team, the last lineup, picks), the
+  cast (photo, group, out, where they finished, points as the game counts them), each game's rules in plain words
+  from its settings (`src/lib/game/game-rules.ts`), who's set this week, `revealFirst` and `catchingUp`. `useShow`
+  carries it as `show.play`.
+- **The guard:** each game is built from `GhostLogic.viewFor` at your season mark (`guard.ts seenThrough`); a late
+  joiner catching up plays from their league mark if it's earlier. Someone else's pick shows only once it's decided.
+  Behind on results (sam in the fixture), the sheet's Weekly Lineup and Survival Pool tabs say "Reveal Episode N
+  first" (who went home decides who you can start or pick): its button is `show.reveal`, step 2's.
+- **Writes** go through the classic routes (lineups PUT, picks PUT, predictions POST, and DELETE to change a guess:
+  classic has no edit), asked `?quiet` so they answer `{ ok: true }` and never the league's whole state
+  (`stateResponse` in `api-route.ts`; classic is unchanged). Then the home and every show's games read again.
+- **Your moves sheet:** a tab per game you play here (two of one game: by league name), Predictions (every game's,
+  free text: real bets have no options, so the mock's chips became a field), Outlast's team; a dot on what's still
+  to do; one Save writes what changed, says "All set. Change anything until Tue 8:00 PM." or "Saved. Something's still
+  open.", and a failed write says why. A waiver pickup shows as "Out · replace" tiles and a Replace row in that game's
+  tab (Weekly Lineup or Outlast), to the Waivers page (6a).
+- **Tonight:** open cards from the home's moves (as in 0d), then **done cards** (Your lineup is in, Survival Pool: Brady,
+  each with Change at its game's tab); with nothing open, "You're set for Episode N" leads them. The row starts back at
+  the first card whenever its cards change. Your games: real places and lines.
+- **The dock's faces:** your starters and your pick (round), from the first Weekly Lineup and Survival Pool here.
+- **Games:** a real table per game (pills with your place, Rules from settings, a person's sheet: Survival Pool's picks
+  with how each went, Weekly Lineup's season, last episode, a week, last lineup and team, Outlast's team with points
+  and finishes); "Through Episode N. Standings move when you reveal."
+- **How it works:** `GET /api/seasons/[id]/how-it-works?couch=` (`src/lib/server/how-it-works.ts`): R1's `howItWorks()` on
+  the rulebook the couch's game here plays by (a game you play first, Weekly Lineup first, for its points: "This
+  game's points"), from your copy of that league (a rule change past your episode isn't in it; the game's adopted
+  changes are passed as updates, so a later one is only counted); else the season's rulebook row, else its show's
+  format ("Suggested"). Phase starts from the rulebook row, else `knownPhaseStarts`. Who's playing: the league's
+  faces in their starting groups, or the season cast without groups (tribes can be held back). Read when the page
+  opens (and by the Games tab's row, for its line). "Something off? Suggest a fix" is `show.suggest-fix` (6b).
+- **Who's set:** `/api/me/home` shows now carry `progress` per weekly game (`progressOf`); the hub's Up next shows the
+  current couch's (lineups before picks), faces dimmed until set; the Episodes tab says "4 of 4 lineups set · 1 of 4
+  picked".
+- **`src/lib/server/league-read.ts` `readyLeague`:** what a league read does first (the next episode, a bot's move, a
+  waiver step due), moved out of classic's `/state` so the new design's reads keep leagues moving too.
+- **Fixtures and Preview:** deleted `fixtures/moves.ts`, `standings.ts`, `how-it-works.ts` and the entries `show.moves`,
+  `show.your-games`, `show.standings`, `show.how-it-works`, `hub.upnext-progress`; added `show.reveal` (2) and
+  `show.suggest-fix` (6b). What Cast and an episode page still borrowed moved to their own fixtures (`cast.ts`
+  `YOUR_TEAM`, step 3; `episodes.ts` `YOUR_PICKS`, step 2). `new-fixture.js` now has Survivor 51's real faces from the
+  showcase, and its placements count up from the first out (they were the wrong way round).
+- **Checks:** `check-new-show.js` (69 PASS at 390 and at 1280): set-up through the real routes (`?quiet` answers `{ ok }`), a
+  card per move, the sheet's tabs, a lineup, a pick and a guess saved and read back from the database and `/games`,
+  done cards, Change replacing a lineup and a guess (one each), the dock's faces, who's set, the real tables and rules,
+  How it works (real faces, a show nobody plays), the hub's who's set, and sam's guard (nothing past Episode 3, reveal
+  first). `tests/game-view.test.js` (6). `check-new-shell.js` (How it works is `[data-how]` now), `check-new-hub.js` and
+  `check-preview.js` pass; `npm test` 468 pass plus the 3 known tour-commissioner failures; type-check clean, lint as
+  before.
+- **Noticed, left as is:** the home's moves (action-items.js) list a lineup or pick as due for someone behind on results
+  (the card then opens Reveal first, as classic's pick page does); the dock says "Locks <airtime>" even when only a
+  waiver pickup is due, whose deadline is earlier; table avatars use the league's player name (alex) where the couch line
+  uses the account's (zt_nd_alex in the fixture).
+- **For step 2:** `show.reveal` (the sheet's Reveal first) and the Episodes tab; `GameView.revealFirst` per game says what
+  each still hides; `through` is each game's standings episode.
 
 ### Step 6a: Backstage II, the game's own pages
 

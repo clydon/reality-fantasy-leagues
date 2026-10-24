@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { BookOpen, Ellipsis, Eye, KeyRound, Bell, Plus, Tv, UserPlus, Users } from "lucide-react";
 import { calm, ticks } from "../clock";
-import { useCouchForSeason, useHome, useSpace, type GameRef, type SeasonHeader, type UpNext } from "../data";
+import { useCouchForSeason, useHome, useSeasonGames, useSpace, type GameRef, type GameView, type SeasonHeader, type UpNext } from "../data";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
@@ -26,14 +26,16 @@ import type { PreviewId } from "../preview";
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
 // the tab bar, and what opens over them: Your moves, How it works. Ported from the mock in 0d (show.js, dock.js,
-// refine.js tabTonight, gamestab.js, explorer.js, rulebook.js howPage); real where it's free, fixtures behind Preview.
+// refine.js tabTonight, gamestab.js, explorer.js, rulebook.js howPage); on real leagues since step 1 (your moves, the
+// tables, How it works), the rest on fixtures behind Preview.
 
 /** Everything a show's screens share: the couch it opens with, its header (from the home's cache until its own
- *  read comes back), its games, and whether you run one of them. */
+ *  read comes back), its games, whether you run one of them, and your games as you play them (moves, tables). */
 export function useShow(seasonId: string) {
   const home = useHome();
   const couch = useCouchForSeason(home.data, seasonId);
   const space = useSpace(seasonId, couch?.id ?? null, !!home.data);
+  const play = useSeasonGames(seasonId, couch?.id ?? null, !!home.data);
   const cached = home.data?.shows.find((s) => s.seasonId === seasonId);
   const header: SeasonHeader | undefined = space.data ?? cached;
   const games: GameRef[] = space.data?.games ?? cached?.games ?? [];
@@ -57,6 +59,8 @@ export function useShow(seasonId: string) {
     latestAired: space.data?.schedule?.latestAired ?? cached?.latestAired ?? 0,
     moves,
     movesDue: moves.length,
+    /** Your games here (game-view.ts), in the couch's order; null until they've come back. */
+    play: (play.data?.games ?? null) as GameView[] | null,
     notFound: (space.error as { status?: number } | null)?.status === 404,
     error: home.error ?? space.error,
   };
@@ -119,7 +123,9 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       {dock && <Dock show={show} />}
       <TabBar seasonId={seasonId} tabs={tabs} current={tab} badges={{ tonight: show.movesDue }} />
       <MovesSheet show={show} seasonId={seasonId} />
-      {show.header && <HowItWorksPage seasonId={seasonId} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />}
+      {show.header && (
+        <HowItWorksPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />
+      )}
     </>
   );
 }

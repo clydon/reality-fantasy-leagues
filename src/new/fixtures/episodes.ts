@@ -25,5 +25,9 @@ export const YOUR_SCORERS: Record<number, string> = {
   4: "Kristin +5 · Mike +5 · Jenna −4",
 };
 
+/** The fixture reader's Survival Pool picks from GAMES_FROM on, and Outlast team (first names), for an episode's page. */
+export const YOUR_PICKS = ["Kristin", "Maggie", "Brady"];
+export { YOUR_TEAM } from "./cast";
+
 /** The waiver window between Episodes 4 and 5 (Simple waivers, step 6a). */
 export const WAIVERS = { after: 4, due: "Tue 8:05 PM", replace: "Jenna" };

@@ -7,10 +7,11 @@ import { dueMoves } from "@/lib/server/due-moves";
 import { seenThrough } from "@/lib/server/guard";
 import { followsOf, games, seasonHeaders, type Game } from "@/lib/server/show-space";
 import { latestAired, seasonSchedules, upNext } from "@/lib/server/schedule";
+import { progressOf } from "@/lib/server/season-games";
 
 // The new design's home (docs/PLAN-new-design.md step 0b; the hub, step 8): your couches with their people and
-// games, the shows you follow or play with where you are in each and what's on next, and the moves due across
-// your leagues (due-moves.ts, the same items as the classic action bar).
+// games, the shows you follow or play with where you are in each and what's on next (and who's set for it, step 1),
+// and the moves due across your leagues (due-moves.ts, the same items as the classic action bar).
 //
 // Spoiler-safe through guard.ts: it says nothing about results, only when episodes air and how far you are.
 // Others' follows are only those they share (a show watched privately isn't), and never how far they are.
@@ -33,6 +34,8 @@ export const GET = apiRoute(async (req) => {
   const mine = follows.filter((f) => f.userId === user.id);
   const seasonIds = [...new Set([...mine.filter((f) => f.following).map((f) => f.seasonId), ...myGames.map((g) => g.seasonId).filter((id): id is string => !!id)])];
   const [headers, schedules, moves] = await Promise.all([seasonHeaders(seasonIds), seasonSchedules(seasonIds), dueMoves(user.id)]);
+  // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash.
+  const progress = await progressOf(user, myGames);
   const now = new Date();
   const shows = [];
   for (const id of seasonIds) {
@@ -50,6 +53,8 @@ export const GET = apiRoute(async (req) => {
       upNext: upNext(schedule, now),
       latestAired: latestAired(schedule, now),
       games: myGames.filter((g) => g.seasonId === id).map(gameOut),
+      // Who's set for the next episode, per game with a weekly move (Up next shows the current couch's).
+      progress: myGames.filter((g) => g.seasonId === id && progress.has(g.leagueId)).map((g) => ({ leagueId: g.leagueId, ...progress.get(g.leagueId)! })),
     });
   }
 

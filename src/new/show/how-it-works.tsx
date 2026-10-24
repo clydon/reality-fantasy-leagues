@@ -2,9 +2,7 @@
 
 import { useRef } from "react";
 import { BookOpen, ChevronRight, CircleQuestionMark, Crown, Gavel, Shuffle, Trophy, Users, Zap } from "lucide-react";
-import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
-import { CAST, TRIBES } from "../fixtures/cast";
-import { HOW } from "../fixtures/how-it-works";
+import { useHowItWorks, type HowItWorksPage } from "../data";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
@@ -13,8 +11,9 @@ import { Face, IconBox } from "./parts";
 // How it works (the mock's rulebook.js howPage), for everyone: a page pushed over the show from its ⋯ menu and the
 // Games tab (?page=how-it-works). It draws R1's view model (formats/rulebook-describe.js howItWorks): the premise,
 // each episode as a rundown, the season as a cell per episode with its phases (future ones by their condition), who's
-// playing, ways out, twists, what scores, and the rulebook's updates (later ones counted, never told). On a fixture
-// behind Preview until step 1 serves it per season through the guard.
+// playing, ways out, twists, what scores, and the rulebook's updates (later ones counted, never told). Served per
+// season through the guard (GET /api/seasons/[id]/how-it-works: the rulebook the couch's games play by, at your
+// episode), read once the page opens. Suggesting a fix is step 6b's.
 
 const STAKE: Record<string, string> = {
   reward: "text-chyron-line outline-chyron-line",
@@ -24,13 +23,32 @@ const STAKE: Record<string, string> = {
 
 const DECIDED_ICON = (decided: string | null) => (/vote/i.test(decided ?? "") ? Users : /head/i.test(decided ?? "") ? Zap : /challenge/i.test(decided ?? "") ? Trophy : Gavel);
 
-export function HowItWorksPage({ seasonId, name, seasonNumber, artUrl }: { seasonId: string; name: string; seasonNumber: number | null; artUrl: string | null }) {
+export function HowItWorksPage({
+  seasonId,
+  couchId,
+  name,
+  seasonNumber,
+  artUrl,
+}: {
+  seasonId: string;
+  couchId: string | null;
+  name: string;
+  seasonNumber: number | null;
+  artUrl: string | null;
+}) {
   const how = usePushedPage("how-it-works");
+  const page = useHowItWorks(seasonId, couchId, how.open);
   return (
     <PushedPage open={how.open} onClose={how.close} title="How it works" back={name.replace(/^The /, "")}>
-      <Preview id="show.how-it-works" className="mx-2 mb-10 mt-3 pb-6">
-        <HowBody how={HOW} seasonId={seasonId} name={name} seasonNumber={seasonNumber} artUrl={artUrl} />
-      </Preview>
+      <div data-how className="mx-2 mb-10 mt-3 pb-6">
+        {page.data ? (
+          <HowBody page={page.data} seasonId={seasonId} name={name} seasonNumber={seasonNumber} artUrl={artUrl} />
+        ) : page.error ? (
+          <p className="px-2 pt-6 text-sm text-muted-foreground">How it works didn&rsquo;t load. Try again in a moment.</p>
+        ) : (
+          <div aria-busy className="mx-2 h-[230px] animate-pulse rounded-[4px] bg-card" />
+        )}
+      </div>
     </PushedPage>
   );
 }
@@ -45,7 +63,8 @@ function Head({ jump, title, aside }: { jump?: string; title: string | null; asi
   );
 }
 
-function HowBody({ how, seasonId, name, seasonNumber, artUrl }: { how: HowItWorks; seasonId: string; name: string; seasonNumber: number | null; artUrl: string | null }) {
+function HowBody({ page, seasonId, name, seasonNumber, artUrl }: { page: HowItWorksPage; seasonId: string; name: string; seasonNumber: number | null; artUrl: string | null }) {
+  const { how, cast } = page;
   const top = useRef<HTMLDivElement>(null);
   const jump = (key: string) => {
     const el = top.current?.querySelector<HTMLElement>(`[data-jump-to="${key}"]`);
@@ -164,13 +183,15 @@ function HowBody({ how, seasonId, name, seasonNumber, artUrl }: { how: HowItWork
       {/* Who's playing */}
       <Head jump="who" title={how.who.label} aside={/^\d+ \S+/.exec(how.who.line)?.[0].replace(/,$/, "") ?? null} />
       <div className="px-2">
-        <div className="grid grid-cols-6 gap-1.5">
-          {CAST.map((c) => (
-            <span key={c.name} className="overflow-hidden rounded-[2px] border-b-[3px]" style={{ borderBottomColor: TRIBES[c.start] }}>
-              <Face src={c.photo} className="aspect-square w-full" />
-            </span>
-          ))}
-        </div>
+        {cast.length > 0 && (
+          <div className="grid grid-cols-6 gap-1.5">
+            {cast.map((c) => (
+              <span key={c.name} className="overflow-hidden rounded-[2px] border-b-[3px]" style={{ borderBottomColor: c.colour ?? "transparent" }} title={c.name}>
+                <Face src={c.photo} name={c.name} className="aspect-square w-full text-lg" />
+              </span>
+            ))}
+          </div>
+        )}
         <p className="mt-2.5 text-[15px] leading-snug text-muted-foreground">{[how.who.line, how.who.groups].filter(Boolean).join(" ")}</p>
       </div>
 
@@ -270,15 +291,15 @@ function HowBody({ how, seasonId, name, seasonNumber, artUrl }: { how: HowItWork
           {how.lineage}
         </p>
       )}
-      <div className="px-2">
+      <Preview id="show.suggest-fix" tag={false} className="mx-2 mt-3">
         <button
           type="button"
-          className="mt-3 flex h-12 w-full items-center gap-2 rounded-[3px] px-3 text-[15px] font-semibold text-muted-foreground outline-1 -outline-offset-1 outline-input"
+          className="flex h-12 w-full items-center gap-2 rounded-[3px] px-3 text-[15px] font-semibold text-muted-foreground outline-1 -outline-offset-1 outline-input"
         >
           <CircleQuestionMark className="size-[18px]" aria-hidden />
           Something off? Suggest a fix
         </button>
-      </div>
+      </Preview>
     </div>
   );
 }

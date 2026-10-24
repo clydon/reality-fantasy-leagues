@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
-import { apiRoute } from "@/lib/server/api-route";
+import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { catchingUpMark } from "@/lib/server/late-join";
@@ -33,6 +32,6 @@ export const PUT = apiRoute(
       if (problem) throw new HttpError(400, problem);
       if (mark === null) StateLogic.setActiveRosterLineup(s, epId, playerId, castawayIds);
     });
-    return NextResponse.json(state);
+    return stateResponse(req, state);
   }
 );

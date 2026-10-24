@@ -1,31 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ArrowLeftRight, Check, ChevronRight, Lock, Plus } from "lucide-react";
 import { airTime, calm, ticks } from "../clock";
-import { CAST, castaway } from "../fixtures/cast";
-import { MOVES } from "../fixtures/moves";
-import { outlastPoints } from "../fixtures/standings";
+import { moves as write, useAfterSave, type GameView, type Move } from "../data";
 import { NavLink } from "../nav";
 import { paths, type ShowTab } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { useNow } from "../ui/bars";
-import { Btn, Chip } from "../ui/parts";
+import { Btn } from "../ui/parts";
 import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
-import { closeMoves, dockWords, openMoves, tabOf, useMovesSheet, type MovesTab } from "./moves";
+import { toast } from "../ui/toast";
+import { ordinal } from "../games";
+import { closeMoves, dockWords, faceIn, first, openMoves, sheetTabs, tabOf, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
 import { Face, IconBox } from "./parts";
 
 // The moves dock (the mock's dock.js, option D): above the tab bar on Episodes, Games and Cast while you play a game
 // here, until airtime. Needs you (the one yellow: Set) → all set (Edit, change until airtime) → locked once it's on
-// (scores stay hidden). Real: its state and words come from your moves due here and the schedule. It opens "Your
-// moves", one sheet for the lineup, the pool pick, predictions and the Outlast team, still on fixtures (step 1
-// writes through the lineup, pick and bet endpoints). Saving never locks; airtime does.
+// (scores stay hidden). Its faces are your starters and your pick; its state and words come from your moves due
+// here and the schedule. It opens "Your moves", one sheet with a tab per game you play here (Weekly Lineup, Survival
+// Pool, Outlast's team) and Predictions, which saves through the league routes the classic app uses (lineups,
+// picks, predictions). Saving never locks; airtime does.
 
 /** Whether the dock shows on this tab: not on Chat, and on Tonight only once it's on (Tonight has its own cards). */
 export function dockShows(show: ShowData, tab: ShowTab) {
   if (!show.upNext || !show.games.some((g) => g.yourRole) || tab === "chat") return false;
   return tab !== "tonight" || show.upNext.live;
+}
+
+/** Your starters (the first Weekly Lineup here) and your pick (the first Survival Pool), as overlapping faces. */
+function DockFaces({ play, locked }: { play: GameView[] | null; locked?: boolean }) {
+  const lineup = play?.find((g) => g.lineup && !g.revealFirst);
+  const pool = play?.find((g) => g.pick?.pick && !g.revealFirst);
+  const starters = lineup ? lineup.lineup!.starters.map((id) => faceIn(lineup, id)).filter((c) => !!c) : [];
+  const pick = pool ? faceIn(pool, pool.pick!.pick!) : undefined;
+  if (!starters.length && !pick) return null;
+  const ring = locked ? "shadow-[0_0_0_2px_var(--secondary)] saturate-[.6]" : "shadow-[0_0_0_2px_var(--plate)]";
+  return (
+    <span className="flex flex-none pl-1" aria-label={[...starters.map((c) => first(c.name)), pick && `pick ${first(pick.name)}`].filter(Boolean).join(", ")}>
+      {starters.map((c, i) => (
+        <Face key={c.id} src={c.photo} name={c.name} className={`size-[34px] rounded-[3px] text-sm ${ring} ${i ? "-ml-2" : ""}`} />
+      ))}
+      {pick && <Face src={pick.photo} name={pick.name} className={`size-[34px] rounded-full text-sm ${ring} ${starters.length ? "ml-1" : ""}`} />}
+    </span>
+  );
 }
 
 export function Dock({ show }: { show: ShowData }) {
@@ -38,25 +57,31 @@ export function Dock({ show }: { show: ShowData }) {
   if (up.live) {
     return (
       <div className={`${base} bg-secondary text-foreground`} aria-live="polite">
-        <span className="grid size-[34px] flex-none place-items-center rounded-[3px] bg-background/60">
-          <Lock className="size-4" aria-hidden />
-        </span>
+        <DockFaces play={show.play} locked />
         <span className="min-w-0 flex-1 leading-tight">
-          <b className="block text-sm">Locked for Episode {up.number}</b>
+          <b className="flex items-center gap-1.5 text-sm">
+            <Lock className="size-[15px] flex-none" aria-hidden />
+            Locked for Episode {up.number}
+          </b>
           <small className="block text-[11.5px] text-muted-foreground">Scores stay hidden until you reveal</small>
         </span>
       </div>
     );
   }
   const need = show.moves.length > 0;
+  const faces = <DockFaces play={show.play} />;
   return (
-    <button type="button" onClick={() => openMoves(tabOf(show.moves[0]))} className={`${base} nd-press bg-plate text-plate-foreground`}>
-      <span
-        className={`grid size-[34px] flex-none place-items-center rounded-[3px] ${need ? "text-plate-muted outline-2 -outline-offset-2 outline-dashed outline-plate-muted/60" : "bg-good/20 text-good"}`}
-        aria-hidden
-      >
-        {need ? <Plus className="size-4" /> : <Check className="size-4" strokeWidth={2.6} />}
-      </span>
+    <button type="button" onClick={() => openMoves(tabOf(show.moves[0]), show.moves[0]?.leagueId ?? null)} className={`${base} nd-press bg-plate text-plate-foreground`}>
+      {show.play?.some((g) => (g.lineup?.starters.length || g.pick?.pick) && !g.revealFirst) ? (
+        faces
+      ) : (
+        <span
+          className={`grid size-[34px] flex-none place-items-center rounded-[3px] ${need ? "text-plate-muted outline-2 -outline-offset-2 outline-dashed outline-plate-muted/60" : "bg-good/20 text-good"}`}
+          aria-hidden
+        >
+          {need ? <Plus className="size-4" /> : <Check className="size-4" strokeWidth={2.6} />}
+        </span>
+      )}
       <span className="min-w-0 flex-1 leading-tight">
         <b className="block truncate text-sm">{need ? dockWords(show.moves) : `All set for Episode ${up.number}`}</b>
         {when && (
@@ -74,15 +99,8 @@ export function Dock({ show }: { show: ShowData }) {
 
 // ---------- the "Your moves" sheet ----------
 
-const SEGMENTS: [MovesTab, string][] = [
-  ["lineup", "Weekly Lineup"],
-  ["pool", "Survival Pool"],
-  ["predict", "Predictions"],
-  ["outlast", "Outlast"],
-];
-
 export function MovesSheet({ show, seasonId }: { show: ShowData; seasonId: string }) {
-  const { open, tab } = useMovesSheet();
+  const { open, tab, leagueId } = useMovesSheet();
   const up = show.upNext;
   const until = up?.airAt ? airTime(Date.parse(up.airAt)) : null;
   return (
@@ -92,173 +110,360 @@ export function MovesSheet({ show, seasonId }: { show: ShowData; seasonId: strin
       title="Your moves"
       subtitle={up ? `Episode ${up.number}${until ? ` · change anything until ${until}` : ""}` : undefined}
     >
-      <Preview id="show.moves" className="-mx-2 mt-3 px-2 pb-2 pt-3">
-        {/* A fresh body each time it opens, at the tab it was opened for. */}
-        <MovesBody key={`${open}-${tab}`} initial={tab} seasonId={seasonId} />
-      </Preview>
+      {show.play ? (
+        // A fresh body each time it opens, at the tab it was opened for, from what's saved.
+        <MovesBody key={`${open}-${tab}-${leagueId}`} show={show} play={show.play} initial={tab} initialLeague={leagueId} seasonId={seasonId} until={until} />
+      ) : (
+        <div aria-busy className="mt-3 h-72 animate-pulse rounded-[4px] bg-background" />
+      )}
     </Sheet>
   );
 }
 
-function MovesBody({ initial, seasonId }: { initial: MovesTab; seasonId: string }) {
-  const [seg, setSeg] = useState(initial);
-  const [starters, setStarters] = useState<string[]>(MOVES.lineup.starters);
-  const [pick, setPick] = useState<string | null>(null);
-  const [calls, setCalls] = useState<Record<string, string>>({});
-  const done: Record<MovesTab, boolean> = {
-    lineup: starters.length >= MOVES.lineup.slots,
-    pool: !!pick,
-    predict: Object.keys(calls).length >= MOVES.predictions.length,
-    outlast: true,
-  };
-  const toggle = (who: string) =>
-    setStarters((s) => (s.includes(who) ? s.filter((x) => x !== who) : s.length < MOVES.lineup.slots ? [...s, who] : s));
+/** Whether a game's lineup can be set right now (not behind on results, not locked). */
+const lineupOpen = (g: GameView) => !g.revealFirst && !!g.lineup && !g.lineup.locked;
+/** Whether a game's pick can be made right now. */
+const pickOpen = (g: GameView) => !g.revealFirst && !!g.pick?.open && g.pick.available.length > 0;
+const guessKey = (g: GameView, betId: string) => `${g.leagueId}:${betId}`;
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
 
+function MovesBody({
+  show,
+  play,
+  initial,
+  initialLeague,
+  seasonId,
+  until,
+}: {
+  show: ShowData;
+  play: GameView[];
+  initial: MovesTab;
+  initialLeague: string | null;
+  seasonId: string;
+  until: string | null;
+}) {
+  const tabs = sheetTabs(play);
+  const [seg, setSeg] = useState(
+    () => (tabs.find((t) => t.kind === initial && (!initialLeague || !t.leagueId || t.leagueId === initialLeague)) ?? tabs.find((t) => t.kind === initial) ?? tabs[0])?.key
+  );
+  const [lineups, setLineups] = useState<Record<string, string[]>>(() => Object.fromEntries(play.filter((g) => g.lineup).map((g) => [g.leagueId, g.lineup!.starters])));
+  const [picks, setPicks] = useState<Record<string, string | null>>(() => Object.fromEntries(play.filter((g) => g.pick).map((g) => [g.leagueId, g.pick!.pick])));
+  const [guesses, setGuesses] = useState<Record<string, string>>(() =>
+    Object.fromEntries(play.flatMap((g) => g.predictions.map((q) => [guessKey(g, q.betId), q.guess?.text ?? ""])))
+  );
+  const [saving, setSaving] = useState(false);
+  const after = useAfterSave();
+  const game = (id: string | null) => play.find((g) => g.leagueId === id);
+  // Someone of yours to replace in a game: a waiver move (the home's), whose page is pushed over the show.
+  const pickup = (leagueId: string) => show.moves.find((m) => m.kind === "pickup" && m.leagueId === leagueId);
+
+  // Whether a tab still has something for you to do (its dot).
+  const open = (t: SheetTab): boolean => {
+    const g = game(t.leagueId);
+    if (g && pickup(g.leagueId)) return true;
+    if (t.kind === "lineup") return !!g && lineupOpen(g) && (lineups[g.leagueId]?.length ?? 0) < g.lineup!.need;
+    if (t.kind === "pool") return !!g && pickOpen(g) && !picks[g.leagueId];
+    if (t.kind === "predict") return play.some((x) => x.predictions.some((q) => !(guesses[guessKey(x, q.betId)] ?? "").trim()));
+    return false;
+  };
+
+  async function save() {
+    const jobs: (() => Promise<void>)[] = [];
+    for (const g of play) {
+      const l = g.lineup;
+      if (l && lineupOpen(g) && !sameSet(lineups[g.leagueId] ?? [], l.starters)) jobs.push(() => write.lineup(g.leagueId, l.epId, g.playerId, lineups[g.leagueId]));
+      const p = g.pick;
+      const chosen = picks[g.leagueId];
+      if (p && pickOpen(g) && chosen && chosen !== p.pick) jobs.push(() => write.pick(g.leagueId, p.epId, g.playerId, chosen));
+      for (const q of g.predictions) {
+        const now = (guesses[guessKey(g, q.betId)] ?? "").trim();
+        if (now === (q.guess?.text ?? "")) continue;
+        // A guess is changed by taking the old one back and making the new one (the classic app has no edit).
+        jobs.push(async () => {
+          if (q.guess) await write.unguess(g.leagueId, q.epId, q.betId, q.guess.id);
+          if (now) await write.guess(g.leagueId, q.epId, q.betId, g.playerId, now);
+        });
+      }
+    }
+    if (!jobs.length) return closeMoves();
+    setSaving(true);
+    try {
+      for (const job of jobs) await job();
+      await after();
+      closeMoves();
+      const still = tabs.some((t) => t.kind !== "predict" && t.kind !== "outlast" && open(t));
+      toast(still ? "Saved. Something's still open." : until ? `All set. Change anything until ${until}.` : "All set.");
+    } catch (e) {
+      await after();
+      toast(`Not saved: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const current = tabs.find((t) => t.key === seg);
+  const g = game(current?.leagueId ?? null);
+
+  if (!tabs.length) return <p className="mt-3 text-sm text-muted-foreground">Nothing to set here.</p>;
   return (
     <>
-      <div className="mb-3.5 flex gap-[3px] overflow-x-auto rounded-[3px] bg-background p-[3px] [scrollbar-width:none]" role="tablist">
-        {SEGMENTS.map(([k, label]) => (
-          <button
-            key={k}
-            type="button"
-            role="tab"
-            aria-selected={seg === k}
-            data-try
-            onClick={() => setSeg(k)}
-            className={`relative h-9 flex-[1_0_auto] whitespace-nowrap rounded-[2px] px-2.5 text-[12.5px] font-bold ${seg === k ? "bg-foreground text-background" : "text-muted-foreground"}`}
-          >
-            {label}
-            {!done[k] && <i className="absolute right-1 top-1.5 size-1.5 rounded-full bg-chyron-line" aria-label="To do" />}
-          </button>
-        ))}
-      </div>
-
-      {seg === "lineup" && (
-        <>
-          <p className="mb-2.5 text-[13px] text-muted-foreground">
-            Start {MOVES.lineup.slots} of your {MOVES.lineup.roster.length}. Tap to start or bench.
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            {MOVES.lineup.roster.map((first) => {
-              const c = castaway(first);
-              const out = !!c.out;
-              const on = starters.includes(first);
-              return (
-                <button
-                  key={first}
-                  type="button"
-                  data-try={out ? undefined : true}
-                  onClick={() => !out && toggle(first)}
-                  aria-pressed={on}
-                  className={`relative isolate flex aspect-[3/4] flex-col justify-end overflow-hidden rounded-[3px] p-1.5 text-left text-white transition-shadow ${on ? "shadow-[0_0_0_3px_var(--chyron)]" : ""}`}
-                >
-                  <Face src={c.photo} className={`absolute inset-0 -z-[2] size-full ${out ? "brightness-50 grayscale" : on ? "" : "brightness-[.7] saturate-[.35]"}`} />
-                  <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,transparent_45%,rgba(10,8,14,.92))]" />
-                  <span
-                    className={`type-caption absolute left-1.5 top-1.5 rounded-[2px] px-1.5 py-0.5 text-[10px] tracking-[0.06em] ${
-                      out ? "bg-live text-live-foreground" : on ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.8)] text-muted-foreground"
-                    }`}
-                  >
-                    {out ? "Out · replace" : on ? "Starting" : "Bench"}
-                  </span>
-                  <b className="type-caption text-[15px]">{first}</b>
-                  <small className={`text-[11px] ${out ? "text-chyron-line" : "opacity-85"}`}>{out ? "Tap to replace" : `${c.perEp.reduce((a, b) => a + b, 0)} pts`}</small>
-                </button>
-              );
-            })}
-            {Array.from({ length: Math.max(0, MOVES.lineup.slots - starters.length) }, (_, i) => (
-              <div
-                key={i}
-                className="flex aspect-[3/4] flex-col items-center justify-center gap-1 rounded-[3px] text-center text-muted-foreground outline-2 -outline-offset-2 outline-dashed outline-input"
-              >
-                <Plus className="size-[22px]" aria-hidden />
-                <b className="type-caption text-[15px] text-foreground">Open slot</b>
-                <small className="block text-[11px]">Start someone</small>
-              </div>
-            ))}
-          </div>
-          <NavLink data-try href={paths.showPage(seasonId, "waivers")} className="nd-press mt-2 flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
-            <IconBox icon={ArrowLeftRight} />
-            <span className="min-w-0 flex-1">
-              <b className="block text-[15px] font-semibold">Replace {MOVES.lineup.replace.who}</b>
-              <small className="block text-[13px] text-muted-foreground">Waivers · due {MOVES.lineup.replace.due}</small>
-            </span>
-            <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
-          </NavLink>
-        </>
+      {tabs.length > 1 && (
+        <div className="mb-3.5 flex gap-[3px] overflow-x-auto rounded-[3px] bg-background p-[3px] [scrollbar-width:none]" role="tablist">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={seg === t.key}
+              onClick={() => setSeg(t.key)}
+              className={`relative h-9 flex-[1_0_auto] whitespace-nowrap rounded-[2px] px-2.5 text-[12.5px] font-bold ${seg === t.key ? "bg-foreground text-background" : "text-muted-foreground"}`}
+            >
+              {t.label}
+              {open(t) && <i className="absolute right-1 top-1.5 size-1.5 rounded-full bg-chyron-line" aria-label="To do" />}
+            </button>
+          ))}
+        </div>
       )}
 
-      {seg === "pool" && (
-        <>
-          <p className="mb-2.5 text-[13px] text-muted-foreground">Who survives this episode? Streak {MOVES.pool.streak}. Not someone you&rsquo;ve used.</p>
-          <div className="grid grid-cols-4 gap-2">
-            {CAST.filter((c) => !c.out).map((c) => {
-              const used = MOVES.pool.used.includes(c.first);
-              const on = pick === c.first;
-              return (
-                <button
-                  key={c.name}
-                  type="button"
-                  data-try={used ? undefined : true}
-                  disabled={used}
-                  onClick={() => setPick(c.first)}
-                  aria-pressed={on}
-                  className={`relative overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground ${used ? "opacity-45" : ""} ${on ? "shadow-[0_0_0_3px_var(--good)]" : ""}`}
-                >
-                  <Face src={c.photo} className="aspect-[4/4.2] w-full" />
-                  {on && (
-                    <span className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-good text-good-foreground">
-                      <Check className="size-3.5" strokeWidth={3} aria-hidden />
-                    </span>
-                  )}
-                  <span className="block px-1.5 pb-1.5 pt-1">
-                    <b className="type-caption block text-[14px]">{c.first}</b>
-                    <small className="block text-[11px] text-plate-muted">{used ? "Used" : c.tribe}</small>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </>
+      {current?.kind === "lineup" && g && (
+        <LineupPanel g={g} starters={lineups[g.leagueId] ?? []} onStarters={(s) => setLineups((x) => ({ ...x, [g.leagueId]: s }))} pickup={pickup(g.leagueId)} seasonId={seasonId} />
       )}
+      {current?.kind === "pool" && g && <PoolPanel g={g} pick={picks[g.leagueId] ?? null} onPick={(id) => setPicks((x) => ({ ...x, [g.leagueId]: id }))} />}
+      {current?.kind === "predict" && <PredictPanel play={play} guesses={guesses} onGuess={(k, v) => setGuesses((x) => ({ ...x, [k]: v }))} />}
+      {current?.kind === "outlast" && g && <OutlastPanel g={g} pickup={pickup(g.leagueId)} seasonId={seasonId} />}
 
-      {seg === "predict" &&
-        MOVES.predictions.map((p) => (
-          <div key={p.key} className="mb-4">
-            <b className="text-[15px]">{p.q}</b>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {p.options.map((o) => (
-                <Chip key={o} data-try on={calls[p.key] === o} onClick={() => setCalls((c) => ({ ...c, [p.key]: o }))}>
-                  {o}
-                </Chip>
-              ))}
-            </div>
-          </div>
-        ))}
-
-      {seg === "outlast" && (
-        <>
-          <p className="mb-2.5 text-[13px] text-muted-foreground">Nothing to set in Outlast. Your four just have to last.</p>
-          {MOVES.outlast.map((first) => {
-            const c = castaway(first);
-            return (
-              <div key={first} className={`flex min-h-14 items-center gap-3 border-t border-border py-1.5 ${c.out ? "opacity-60" : ""}`}>
-                <Face src={c.photo} out={!!c.out} className="size-10 rounded-[3px]" />
-                <span className="min-w-0 flex-1">
-                  <b className="block text-[15px] font-semibold">{c.name}</b>
-                  <small className="block text-[13px] text-muted-foreground">{c.out ? `Out · Episode ${c.out}` : "Still in"}</small>
-                </span>
-                <b className="type-num text-[22px]">{outlastPoints(first)}</b>
-              </div>
-            );
-          })}
-        </>
-      )}
-
-      <Btn tone="must" wide className="mt-3.5">
-        Save
+      <Btn tone="must" wide className="mt-3.5" disabled={saving} onClick={save}>
+        {saving ? "Saving…" : "Save"}
       </Btn>
       <p className="mt-2 text-center text-[13px] text-muted-foreground">Saving doesn&rsquo;t lock anything. Airtime does.</p>
+    </>
+  );
+}
+
+/** Results you haven't revealed stand in the way: who went home decides what you can choose. The reveal is step 2's. */
+function RevealFirst({ episode, what }: { episode: number; what: string }) {
+  return (
+    <div className="rounded-[4px] bg-background p-4 outline-1 -outline-offset-1 outline-border">
+      <b className="type-caption block text-[22px] leading-none">Reveal Episode {episode} first</b>
+      <small className="mt-1.5 block text-sm leading-snug text-muted-foreground">Who went home decides {what}.</small>
+      <Preview id="show.reveal" tag={false} className="mt-3">
+        <Btn wide>Reveal Episode {episode}</Btn>
+      </Preview>
+    </div>
+  );
+}
+
+function Note({ children }: { children: ReactNode }) {
+  return <p className="rounded-[4px] bg-background p-4 text-sm leading-snug text-muted-foreground outline-1 -outline-offset-1 outline-border">{children}</p>;
+}
+
+function LineupPanel({
+  g,
+  starters,
+  onStarters,
+  pickup,
+  seasonId,
+}: {
+  g: GameView;
+  starters: string[];
+  onStarters: (s: string[]) => void;
+  pickup: Move | undefined;
+  seasonId: string;
+}) {
+  const l = g.lineup;
+  if (g.revealFirst) return <RevealFirst episode={g.revealFirst} what="who you can start" />;
+  if (!l) return <Note>No episode to set a lineup for yet.</Note>;
+  const roster = l.roster.map((id) => faceIn(g, id)).filter((c) => !!c);
+  if (l.locked) {
+    return (
+      <Note>
+        Locked for Episode {l.episode}: {l.starters.map((id) => first(faceIn(g, id)?.name ?? "")).join(", ") || "nobody started"}.
+      </Note>
+    );
+  }
+  const stillIn = roster.filter((c) => !c.left).length;
+  const toggle = (id: string) => {
+    if (starters.includes(id)) return onStarters(starters.filter((x) => x !== id));
+    if (starters.length >= l.slots) return toast("Bench someone first");
+    onStarters([...starters, id]);
+  };
+  const tile = "relative isolate flex aspect-[3/4] flex-col justify-end overflow-hidden rounded-[3px] p-1.5 text-left text-white transition-shadow";
+  return (
+    <>
+      <p className="mb-2.5 text-[13px] text-muted-foreground">
+        Start {l.slots} of your {stillIn}. Tap to start or bench.
+        {l.carried && sameSet(starters, l.starters) ? " Your last lineup carries over unless you change it." : ""}
+      </p>
+      <div className="grid grid-cols-3 gap-2">
+        {roster.map((c) => {
+          const on = starters.includes(c.id);
+          const body = (
+            <>
+              <Face
+                src={c.photo}
+                name={c.name}
+                className={`absolute inset-0 -z-[2] size-full text-[40px] ${c.left ? "brightness-50 grayscale" : on ? "" : "brightness-[.7] saturate-[.35]"}`}
+              />
+              <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,transparent_45%,rgba(10,8,14,.92))]" />
+              <span
+                className={`type-caption absolute left-1.5 top-1.5 rounded-[2px] px-1.5 py-0.5 text-[10px] tracking-[0.06em] ${
+                  c.left ? "bg-live text-live-foreground" : on ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.8)] text-muted-foreground"
+                }`}
+              >
+                {c.left ? (pickup ? "Out · replace" : "Out") : on ? "Starting" : "Bench"}
+              </span>
+              <b className="type-caption text-[15px]">{first(c.name)}</b>
+              <small className={`text-[11px] ${c.left ? "text-chyron-line" : "opacity-85"}`}>
+                {c.left ? (pickup ? "Tap to replace" : c.out ? `Out · Ep ${c.out}` : "Out") : `${c.points ?? 0} pts`}
+              </small>
+            </>
+          );
+          if (c.left && pickup) {
+            return (
+              <NavLink key={c.id} href={paths.showPage(seasonId, "waivers")} className={tile}>
+                {body}
+              </NavLink>
+            );
+          }
+          return (
+            <button key={c.id} type="button" data-starter={c.id} disabled={c.left} onClick={() => toggle(c.id)} aria-pressed={on} className={`${tile} ${on ? "shadow-[0_0_0_3px_var(--chyron)]" : ""}`}>
+              {body}
+            </button>
+          );
+        })}
+        {Array.from({ length: Math.max(0, l.need - starters.length) }, (_, i) => (
+          <div
+            key={i}
+            className="flex aspect-[3/4] flex-col items-center justify-center gap-1 rounded-[3px] text-center text-muted-foreground outline-2 -outline-offset-2 outline-dashed outline-input"
+          >
+            <Plus className="size-[22px]" aria-hidden />
+            <b className="type-caption text-[15px] text-foreground">Open slot</b>
+            <small className="block text-[11px]">Start someone</small>
+          </div>
+        ))}
+      </div>
+      {pickup && <ReplaceRow pickup={pickup} seasonId={seasonId} />}
+    </>
+  );
+}
+
+/** Someone to replace: the waiver row, to the Waivers page. */
+function ReplaceRow({ pickup, seasonId }: { pickup: Move; seasonId: string }) {
+  return (
+    <NavLink href={paths.showPage(seasonId, "waivers")} className="nd-press mt-2 flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
+      <IconBox icon={ArrowLeftRight} />
+      <span className="min-w-0 flex-1">
+        <b className="block text-[15px] font-semibold">{pickup.text}</b>
+        <small className="block text-[13px] text-muted-foreground">Waivers{pickup.deadline ? ` · due ${airTime(Date.parse(pickup.deadline))}` : ""}</small>
+      </span>
+      <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
+    </NavLink>
+  );
+}
+
+function PoolPanel({ g, pick, onPick }: { g: GameView; pick: string | null; onPick: (id: string) => void }) {
+  const p = g.pick;
+  if (g.revealFirst) return <RevealFirst episode={g.revealFirst} what="who you can pick" />;
+  if (!p) return <Note>No episode to pick for yet.</Note>;
+  if (!p.open) {
+    const c = p.pick ? faceIn(g, p.pick) : undefined;
+    return <Note>Picks are closed for Episode {p.episode}{c ? `: you picked ${first(c.name)}` : ""}.</Note>;
+  }
+  if (!p.available.length) return <Note>Nobody&rsquo;s left you can pick for Episode {p.episode}.</Note>;
+  const blocked = new Map(p.blocked.map((b) => [b.id, b]));
+  const choices = g.cast.filter((c) => p.available.includes(c.id) || blocked.has(c.id));
+  return (
+    <>
+      <p className="mb-2.5 text-[13px] text-muted-foreground">
+        Who survives Episode {p.episode}? {p.streak ? `Streak ${p.streak}. ` : ""}Not someone you&rsquo;ve used.
+      </p>
+      <div className="grid grid-cols-4 gap-2">
+        {choices.map((c) => {
+          const no = blocked.get(c.id);
+          const on = pick === c.id;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              data-pick={c.id}
+              disabled={!!no}
+              onClick={() => onPick(c.id)}
+              aria-pressed={on}
+              className={`relative overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground ${no ? "opacity-45" : ""} ${on ? "shadow-[0_0_0_3px_var(--good)]" : ""}`}
+            >
+              <Face src={c.photo} name={c.name} className="aspect-[4/4.2] w-full text-[28px]" />
+              {on && (
+                <span className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-good text-good-foreground">
+                  <Check className="size-3.5" strokeWidth={3} aria-hidden />
+                </span>
+              )}
+              <span className="block px-1.5 pb-1.5 pt-1">
+                <b className="type-caption block truncate text-[14px]">{first(c.name)}</b>
+                <small className="block truncate text-[11px] text-plate-muted">{no ? (no.reason === "backToBack" ? "Last time" : `Used Ep ${no.episode}`) : (c.tribe?.name ?? "Still in")}</small>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function PredictPanel({ play, guesses, onGuess }: { play: GameView[]; guesses: Record<string, string>; onGuess: (key: string, value: string) => void }) {
+  const withCalls = play.filter((g) => g.predictions.length);
+  if (!withCalls.length) return <Note>No predictions open this week.</Note>;
+  return (
+    <>
+      {withCalls.map((g) => (
+        <div key={g.leagueId}>
+          {withCalls.length > 1 && <p className="type-caption mb-2 mt-1 text-[13px] tracking-[0.04em] text-muted-foreground">{g.name}</p>}
+          {g.predictions.map((q) => {
+            const key = guessKey(g, q.betId);
+            return (
+              <label key={q.betId} className="mb-4 block">
+                <b className="block text-[15px]">{q.label}</b>
+                <small className="mb-2 block text-[13px] text-muted-foreground">
+                  {q.points} {q.points === 1 ? "point" : "points"} · Episode {q.episode}
+                  {q.answers === 1 && !q.guess ? " · one more answer and it pays" : ""}
+                </small>
+                <input
+                  data-guess={q.betId}
+                  value={guesses[key] ?? ""}
+                  onChange={(e) => onGuess(key, e.target.value)}
+                  placeholder="Your guess"
+                  maxLength={120}
+                  className="h-12 w-full rounded-[3px] bg-background px-3 text-base outline-1 -outline-offset-1 outline-input placeholder:text-muted-foreground focus:outline-2 focus:outline-foreground"
+                />
+              </label>
+            );
+          })}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function OutlastPanel({ g, pickup, seasonId }: { g: GameView; pickup: Move | undefined; seasonId: string }) {
+  const team = (g.you?.team ?? []).map((id) => faceIn(g, id)).filter((c) => !!c);
+  if (!team.length) return <Note>Your team shows here once the draft&rsquo;s done.</Note>;
+  return (
+    <>
+      <p className="mb-2.5 text-[13px] text-muted-foreground">
+        {pickup ? `No lineup in ${g.gameName}, but one of yours is out: pick who comes in.` : `Nothing to set in ${g.gameName}. Your ${team.length} just have to last.`}
+      </p>
+      {team.map((c) => (
+        <div key={c.id} className={`flex min-h-14 items-center gap-3 border-t border-border py-1.5 ${c.knocked ? "opacity-60" : ""}`}>
+          <Face src={c.photo} name={c.name} out={c.knocked} className="size-10 rounded-[3px]" />
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px] font-semibold">{c.name}</b>
+            <small className="block text-[13px] text-muted-foreground">
+              {c.left ? `Out${c.out ? ` · Episode ${c.out}` : ""}${c.place ? ` · finished ${ordinal(c.place)}` : ""}` : "Still in"}
+            </small>
+          </span>
+          <b className="type-num text-[22px]">{c.points ?? 0}</b>
+        </div>
+      ))}
+      {pickup && <ReplaceRow pickup={pickup} seasonId={seasonId} />}
     </>
   );
 }

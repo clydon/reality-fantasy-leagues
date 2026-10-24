@@ -8,6 +8,9 @@ export const STEP = "3";
 
 /** The fixture's reader is on Episode 4; Episode 5 is next. */
 export const SEEN = 4;
+
+/** The fixture reader's Outlast team (first names): the explorer's "Your team" tag. */
+export const YOUR_TEAM = ["Kristin", "Mike", "Jenna", "Eric"];
 export const EPISODES = 13;
 
 /** The tribes, in the mock's colours (tribes never fill a yellow button: they're colour chips). */

@@ -210,13 +210,13 @@ function recordTransitions() {
     await page.getByRole("dialog").getByText("How it works").click();
     await page.waitForURL(/\?page=how-it-works/);
     await page.waitForTimeout(600);
-    check(await page.locator('[data-preview="show.how-it-works"]').isVisible(), "How it works opens over the show");
+    check(await page.locator('[data-how]').isVisible(), "How it works opens over the show");
     const covered = await page.evaluate(() => !!document.elementFromPoint(innerWidth / 2, innerHeight - 20)?.closest("[role=dialog]"));
     check(covered, "it covers the whole screen, the tab bar too");
     await snap("how-it-works");
     await page.goBack();
     await page.waitForTimeout(600);
-    check(!page.url().includes("page=") && !(await page.locator('[data-preview="show.how-it-works"]').isVisible()), "the back gesture closes it, on the same show");
+    check(!page.url().includes("page=") && !(await page.locator('[data-how]').isVisible()), "the back gesture closes it, on the same show");
 
     // ---- back to the hub: the channel change in reverse ----
     await page.getByRole("button", { name: "Home" }).click();

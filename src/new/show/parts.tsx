@@ -16,10 +16,17 @@ export function Block({ title, aside, id, className = "", children }: { title?: 
   );
 }
 
-/** A cast member's photo, cropped to the face; greyed once they're out. */
-export function Face({ src, out, className = "", ...props }: { src: string; out?: boolean } & Omit<ComponentProps<"img">, "src">) {
+/** A cast member's photo, cropped to the face; greyed once they're out. No photo: their initial on a tile. */
+export function Face({ src, name, out, className = "", ...props }: { src: string | null; name?: string; out?: boolean } & Omit<ComponentProps<"img">, "src">) {
+  if (!src) {
+    return (
+      <span aria-hidden className={`type-caption grid place-items-center bg-secondary text-muted-foreground ${out ? "opacity-70" : ""} ${className}`}>
+        {(name ?? "?").slice(0, 1)}
+      </span>
+    );
+  }
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- fixture photos from the published mock
+    // eslint-disable-next-line @next/next/no-img-element -- cast photos come from anywhere a show's cast was imported from
     <img src={src} alt="" {...props} className={`object-cover object-[center_20%] ${out ? "grayscale" : ""} ${className}`} />
   );
 }

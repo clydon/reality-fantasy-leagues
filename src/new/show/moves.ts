@@ -2,13 +2,14 @@
 
 import { useSyncExternalStore } from "react";
 import { airTime } from "../clock";
-import type { Move } from "../data";
+import type { CastFace, GameView, Move } from "../data";
 import { paths } from "../routes";
 
 // Your moves on a show (docs/PLAN-new-design.md step 1; the mock's refine.js Tonight cards and dock.js): the moves
 // due in this show's games, as the home lists them (/api/me/home: actionItems, the classic action bar's), turned
-// into Tonight's cards, the dock's one line and the "Your moves" sheet's tabs. Required moves are cards; a
-// prediction is an extra (optional, no counts).
+// into Tonight's cards, the dock's one line and the "Your moves" sheet's tabs; and what you've already set this
+// episode (your games, game-view.ts) as done cards. Required moves are cards; a prediction is an extra (optional,
+// no counts).
 
 export type MovesTab = "lineup" | "pool" | "predict" | "outlast";
 
@@ -25,8 +26,9 @@ export interface MoveCard {
   title: string;
   line: string;
   action: string;
-  /** Opens the moves sheet at this tab, or goes to `href` (waivers, the drafts). */
+  /** Opens the moves sheet at this tab (of this game's), or goes to `href` (waivers, the drafts). */
   tab?: MovesTab;
+  leagueId?: string;
   href?: string;
 }
 
@@ -37,9 +39,9 @@ export function moveCard(m: Move, seasonId: string, twin: boolean): MoveCard {
   const key = `${m.kind}-${m.leagueId}`;
   switch (m.kind) {
     case "lineup":
-      return { key, title: "Set your lineup", line: `${plural(slotsOf(m), "open slot")}${when ? ` · locks ${when}` : ""}${which}`, action: "Set lineup", tab: "lineup" };
+      return { key, title: "Set your lineup", line: `${plural(slotsOf(m), "open slot")}${when ? ` · locks ${when}` : ""}${which}`, action: "Set lineup", tab: "lineup", leagueId: m.leagueId };
     case "pick":
-      return { key, title: "Pick who survives", line: `Picks close at airtime${when ? ` · ${when}` : ""}${which}`, action: "Make my pick", tab: "pool" };
+      return { key, title: "Pick who survives", line: `Picks close at airtime${when ? ` · ${when}` : ""}${which}`, action: "Make my pick", tab: "pool", leagueId: m.leagueId };
     case "pickup":
       return { key, title: m.text, line: `${when ? `Due ${when} · ` : ""}you pick who comes in${which}`, action: "Pick who comes in", href: paths.showPage(seasonId, "waivers") };
     case "draftTurn":
@@ -49,6 +51,67 @@ export function moveCard(m: Move, seasonId: string, twin: boolean): MoveCard {
     default:
       return { key, title: m.text, line: m.leagueName, action: "Open", tab: "lineup" };
   }
+}
+
+/** First names: "Kristin". */
+export const first = (name: string) => name.split(" ")[0];
+
+/** A castaway of this game's, by id. */
+export const faceIn = (g: GameView, id: string): CastFace | undefined => g.cast.find((c) => c.id === id);
+
+/**
+ * What you've already set for the next episode, as done cards (each with Change): a lineup that's in, a pick
+ * that's made. Only while they can still change. `twin`: two games of a kind here, so each says which.
+ */
+export function doneCards(play: GameView[]): MoveCard[] {
+  const twin = (g: GameView) => play.filter((x) => x.gameType === g.gameType).length > 1;
+  const cards: MoveCard[] = [];
+  for (const g of play) {
+    if (g.revealFirst) continue;
+    const which = twin(g) ? ` · ${g.name}` : "";
+    const l = g.lineup;
+    if (l && !l.locked && l.set && l.starters.length) {
+      const names = l.starters.map((id) => first(faceIn(g, id)?.name ?? "")).filter(Boolean);
+      const until = l.airsAt ? ` · change until ${airTime(Date.parse(l.airsAt))}` : "";
+      cards.push({ key: `lineup-done-${g.leagueId}`, title: "Your lineup is in", line: `${names.join(", ")}${until}${which}`, action: "Change", tab: "lineup", leagueId: g.leagueId });
+    }
+    const p = g.pick;
+    if (p && p.open && p.pick) {
+      cards.push({
+        key: `pick-done-${g.leagueId}`,
+        title: `Survival Pool: ${first(faceIn(g, p.pick)?.name ?? "your pick")}`,
+        line: `${p.streak ? `Streak ${p.streak} on the line` : "Your first right pick starts a streak"}${which}`,
+        action: "Change",
+        tab: "pool",
+        leagueId: g.leagueId,
+      });
+    }
+  }
+  return cards;
+}
+
+export interface SheetTab {
+  key: string;
+  kind: MovesTab;
+  label: string;
+  /** The game it's for; null for Predictions, which gathers every game's. */
+  leagueId: string | null;
+}
+
+/** The sheet's tabs: the games you play here (by name, or by league when two share a game), then Predictions. */
+export function sheetTabs(play: GameView[]): SheetTab[] {
+  const tab = (g: GameView, kind: MovesTab): SheetTab => ({
+    key: `${kind}:${g.leagueId}`,
+    kind,
+    leagueId: g.leagueId,
+    label: play.filter((x) => x.gameType === g.gameType).length > 1 ? g.name : g.gameName,
+  });
+  return [
+    ...play.filter((g) => g.gameType === "active-roster").map((g) => tab(g, "lineup")),
+    ...play.filter((g) => g.gameType === "pickem").map((g) => tab(g, "pool")),
+    ...(play.some((g) => g.predictions.length) ? [{ key: "predict", kind: "predict" as const, label: "Predictions", leagueId: null }] : []),
+    ...play.filter((g) => g.gameType !== "active-roster" && g.gameType !== "pickem").map((g) => tab(g, "outlast")),
+  ];
 }
 
 /** The dock's one line: "1 open slot · no pick · 2 calls". */
@@ -75,12 +138,13 @@ export function tabOf(m: Move | undefined): MovesTab {
 
 // ---- the sheet: one per show, opened from Tonight's cards, its Extras and the dock ----
 
-let sheet: { open: boolean; tab: MovesTab } = { open: false, tab: "lineup" };
+let sheet: { open: boolean; tab: MovesTab; leagueId: string | null } = { open: false, tab: "lineup", leagueId: null };
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
-export function openMoves(tab: MovesTab) {
-  sheet = { open: true, tab };
+/** Opens Your moves at a tab: that game's, when `leagueId` says which. */
+export function openMoves(tab: MovesTab, leagueId: string | null = null) {
+  sheet = { open: true, tab, leagueId };
   emit();
 }
 
@@ -89,7 +153,7 @@ export function closeMoves() {
   emit();
 }
 
-const CLOSED = { open: false, tab: "lineup" as MovesTab };
+const CLOSED = { open: false, tab: "lineup" as MovesTab, leagueId: null };
 
 export function useMovesSheet() {
   return useSyncExternalStore(

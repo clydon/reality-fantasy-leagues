@@ -44,7 +44,7 @@ export function HomeScreen() {
       ) : shape === "grow" ? (
         <GrowHub home={home} couch={couch} newCouch={newCouch} />
       ) : (
-        <FocusHub home={home} />
+        <FocusHub home={home} couch={couch} />
       )}
       <ProfileSheet open={profile} onOpenChange={setProfile} me={me} couch={couch} />
       <CouchPages />
@@ -52,12 +52,12 @@ export function HomeScreen() {
   );
 }
 
-function FocusHub({ home }: { home: Home }) {
+function FocusHub({ home, couch }: { home: Home; couch: Couch | null }) {
   const up = nextShow(home);
   return (
     <>
       <StatusLine home={home} />
-      {up && <UpNext home={home} show={up} />}
+      {up && <UpNext home={home} show={up} couch={couch} />}
       <OnNow />
       <YourShows home={home} />
       <BothWatch />
@@ -77,7 +77,7 @@ function GrowHub({ home, couch, newCouch }: { home: Home; couch: Couch | null; n
     <>
       <StatusLine home={home} />
       {newCouch && <GetGoing couch={couch} />}
-      {up && <UpNext home={home} show={up} />}
+      {up && <UpNext home={home} show={up} couch={couch} />}
       <YourShows home={home} />
       <Guide />
       <Feed />

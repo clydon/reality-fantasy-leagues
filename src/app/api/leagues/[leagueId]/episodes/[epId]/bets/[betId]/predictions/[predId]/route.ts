@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
-import { apiRoute } from "@/lib/server/api-route";
+import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { notifyBetResult } from "@/lib/server/push-events";
@@ -22,7 +22,7 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<RoutePa
     }
     StateLogic.removeBetPrediction(s, epId, betId, predId);
   });
-  return NextResponse.json(state);
+  return stateResponse(req, state);
 });
 
 // Port of the same file's PATCH /:epId/bets/:betId/predictions/:predId -- commissioner-only

@@ -189,3 +189,10 @@ never handles it: the user does the reset and the pasting.
   reads every league's state) and then `/api/me/home` and `/api/seasons/[id]/space` once a visit, again when you come
   back to the tab after a minute (react-query's refetch on focus), never on a timer. Nothing polls or runs on a
   schedule, and only accounts that opt in use any of it.
+- **2026-10-24, on the `new-design` branch (not deployed).** Step 1, the show space on real leagues. No migration, no
+  new table, nothing polled or scheduled. Two new reads, each once a visit (and on refocus after a minute):
+  `/api/seasons/[id]/games` reads the states of your games on that show through `league-states.ts` (hash checks; a full
+  20-40 KB state only when it changed, as `/state` does) and answers ~15-20 KB for three games; `/api/seasons/[id]/how-it-works`
+  reads one state and the season's rulebook row only when the page opens (~9 KB out). `/api/me/home` now also says
+  who's set for each show (its games' states, read just after the moves' own read, so hashes only). Saves go through
+  the classic lineup, pick and prediction routes, asked `?quiet` so they answer `{ ok }` instead of the whole state.

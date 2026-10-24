@@ -2,8 +2,7 @@
 
 import { ChevronRight, Crown, Eye, Flame, Laugh, Link2, Plus, Tv, Trophy, ChartColumn, type LucideIcon } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
-import type { Couch, Home, HomeShow, Move } from "../data";
-import { COUCH_PROGRESS } from "../fixtures/moves";
+import type { Couch, Home, HomeShow, Move, WeekProgress } from "../data";
 import { FEED, GROW_NOTE, TYPING, type ReactKind } from "../fixtures/hub";
 import { GET_GOING } from "../fixtures/couches";
 import { ON_NOW } from "../fixtures/watch-along";
@@ -110,9 +109,28 @@ export function StatusLine({ home }: { home: Home }) {
 
 // ---------- Up next ----------
 
-/** The show on next: its art large, when it's on, and your move for it on a caption plate. */
-export function UpNext({ home, show }: { home: Home; show: HomeShow }) {
+/** Who's set: the people in that game, those not set yet dimmed, and the count. */
+function WhoIsSet({ progress }: { progress: WeekProgress }) {
+  return (
+    <span data-progress className="flex items-center gap-2.5 text-[13px] text-white/90">
+      <span className="flex">
+        {progress.people.slice(0, 6).map((p, i) => (
+          <span key={p.playerId} className={`rounded-[3px] shadow-[0_0_0_2px_var(--background)] ${i ? "-ml-1.5" : ""} ${p.done ? "" : "opacity-45"}`}>
+            <Avatar id={p.userId ?? p.playerId} name={p.name} size={24} />
+          </span>
+        ))}
+      </span>
+      {progress.done} of {progress.of} {progress.label}
+    </span>
+  );
+}
+
+/** The show on next: its art large, when it's on, your move for it on a caption plate, and who's set. */
+export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couch: Couch | null }) {
   const up = show.upNext!;
+  // Who's set in this couch's game here (a lineup's before a pick's), else in any of yours.
+  const here = show.progress.filter((p) => !couch || couch.games.some((g) => g.leagueId === p.leagueId));
+  const progress = [...(here.length ? here : show.progress)].sort((a, b) => Number(a.label !== "lineups set") - Number(b.label !== "lineups set"))[0];
   const t = up.airAt ? Date.parse(up.airAt) : null;
   const now = useNow(t != null && ticks(t));
   const move = movesByDue(home.moves).find((m) => show.games.some((g) => g.leagueId === m.leagueId));
@@ -171,12 +189,7 @@ export function UpNext({ home, show }: { home: Home; show: HomeShow }) {
           </span>
         </NavLink>
         <div className="flex items-center justify-between gap-2.5">
-          <Preview id="hub.upnext-progress" tag={false} className="-m-1 p-1">
-            <span className="flex items-center gap-2.5 text-[13px] text-white/90">
-              <Faces who={COUCH_PROGRESS.people} />
-              {COUCH_PROGRESS.done} of {COUCH_PROGRESS.of} {COUCH_PROGRESS.label}
-            </span>
-          </Preview>
+          {progress ? <WhoIsSet progress={progress} /> : <span />}
           <Preview id="hub.watch-along" tag={false}>
             <button
               type="button"

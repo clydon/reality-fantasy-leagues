@@ -1,20 +1,11 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
-import { pool, HttpError, withLeagueLock } from "@/lib/server/db";
-import StateLogic from "@/lib/game/state-logic.js";
+import { pool, HttpError } from "@/lib/server/db";
 import type { LeagueState } from "@/lib/game/types";
-import Bots from "@/lib/game/bot-logic.js";
-import { notifyDraftTurn } from "@/lib/server/push-events";
 import { resultsSeenThrough } from "@/lib/server/results-seen";
-import { stampAirTimes } from "@/lib/server/air-times";
 import { leagueState } from "@/lib/server/league-states";
-
-// Who's on the clock in the draft, to tell whether a bot's picks passed the turn on to someone (read
-// on a copy: currentDraftTurn tidies draftOrder as it goes).
-function draftTurn(state: LeagueState) {
-  return StateLogic.currentDraftTurn(structuredClone(state))?.playerId;
-}
+import { readyLeague } from "@/lib/server/league-read";
 
 // "How this league works" (docs/PLAN-league-explainer.md): false until this member has finished or
 // skipped it once. A super-admin with no membership has nothing to be shown.
@@ -39,26 +30,8 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   if (!leagueRes.rows.length || !state) throw new HttpError(404, "League not found");
   const league = { ...leagueRes.rows[0], state } as { id: string; name: string; state: LeagueState };
 
-  // A league that predates the always-a-next-episode rule (or hasn't been written to since) gets it
-  // on load -- persisted, not just computed, since bets and picks key on the episode's id and an id
-  // invented fresh on every read would never match. The check runs on a copy so the common case
-  // (nothing to do) costs no write.
-  //
-  // Same for a computer player with a move waiting that no write has prompted -- typically a draft
-  // whose scheduled start time just passed with a bot first on the clock. withLeagueLock runs the bots.
-  // If that moved a turn on, whoever's up now hears about it as they would after a person's pick. Air
-  // times are stamped first so a bot never sees a lineup as open when its episode is already airing.
-  //
-  // And a waiver week with a step due (opening, processing, closing: docs/PLAN-midseason-waivers.md),
-  // so the week moves on when its time comes even if nobody has written to the league since.
-  await stampAirTimes(pool, league.state);
-  const waiverStepDue = !!StateLogic.WaiverLogic.due(league.state, Date.now());
-  if (StateLogic.ensureNextEpisode(structuredClone(league.state)) || Bots.hasWork(league.state) || waiverStepDue) {
-    const before = draftTurn(league.state);
-    league.state = await withLeagueLock(leagueId, () => {});
-    if (draftTurn(league.state) !== before) notifyDraftTurn(leagueId, league.state, null);
-    await stampAirTimes(pool, league.state);
-  }
+  // The next episode, any computer player's move and any waiver step that was waiting for a read (league-read.ts).
+  league.state = await readyLeague(leagueId, league.state);
 
   const accountsRes = await pool.query(
     `SELECT m.player_id, m.role, u.username FROM league_memberships m

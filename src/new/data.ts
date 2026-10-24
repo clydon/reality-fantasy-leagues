@@ -1,11 +1,16 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useSyncExternalStore } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useSyncExternalStore } from "react";
 import { api } from "@/lib/api";
+import type { GameView, WeekProgress } from "@/lib/game/game-view";
+import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
 
-// The new design's reads (docs/PLAN-new-design.md steps 0b and 0c): the home and a show space's frame, both
-// spoiler-safe on the server (guard.ts). Nothing here polls: a screen that polls should poll something smaller
+export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
+
+// The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
+// on a show and its How it works, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
+// league routes the classic app uses. Nothing here polls: a screen that polls should poll something smaller
 // (docs/HOSTING.md).
 
 export type LeagueRole = "commissioner" | "admin" | "member";
@@ -67,6 +72,8 @@ export interface HomeShow extends SeasonHeader {
   upNext: UpNext | null;
   latestAired: number;
   games: GameRef[];
+  /** Who's set for the next episode, per game of yours here with a weekly move. */
+  progress: (WeekProgress & { leagueId: string })[];
 }
 
 export interface Couch {
@@ -119,6 +126,73 @@ export function useSpace(seasonId: string, couchId: string | null, enabled = tru
     enabled,
     retry: (n, e) => (e as { status?: number }).status !== 404 && n < 2,
   });
+}
+
+/** Your games on a show (GET /api/seasons/[id]/games): moves, tables, rules and cast, as far as you've seen. */
+export function useSeasonGames(seasonId: string, couchId: string | null, enabled = true) {
+  const query = couchId ? `?couch=${encodeURIComponent(couchId)}` : "";
+  return useQuery({
+    queryKey: ["new-design", "games", seasonId, couchId],
+    queryFn: () => get<{ seenThrough: number | null; games: GameView[] }>(`/api/seasons/${seasonId}/games${query}`),
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+export interface HowItWorksPage {
+  how: HowItWorks;
+  cast: { name: string; photo: string | null; colour: string | null }[];
+}
+
+/** How it works for a show, told from the couch's games there (GET /api/seasons/[id]/how-it-works). */
+export function useHowItWorks(seasonId: string, couchId: string | null, enabled = true) {
+  const query = couchId ? `?couch=${encodeURIComponent(couchId)}` : "";
+  return useQuery({
+    queryKey: ["new-design", "how", seasonId, couchId],
+    queryFn: () => get<HowItWorksPage>(`/api/seasons/${seasonId}/how-it-works${query}`),
+    staleTime: 5 * 60_000,
+    enabled,
+  });
+}
+
+// ---- the moves' writes: the league routes the classic app uses, asked for `?quiet` so the answer is { ok } rather
+// than the league's whole state (which holds results you may not have revealed: guard.ts) ----
+
+async function send(path: string, method: "PUT" | "POST" | "DELETE", body?: unknown) {
+  const res = await fetch(`${path}?quiet`, {
+    method,
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Couldn't save (${res.status})`);
+  }
+}
+
+const episode = (leagueId: string, epId: string) => `/api/leagues/${leagueId}/episodes/${encodeURIComponent(epId)}`;
+
+export const moves = {
+  lineup: (leagueId: string, epId: string, playerId: string, castawayIds: string[]) =>
+    send(`${episode(leagueId, epId)}/lineups/${encodeURIComponent(playerId)}`, "PUT", { castawayIds }),
+  pick: (leagueId: string, epId: string, playerId: string, castawayId: string) => send(`${episode(leagueId, epId)}/picks`, "PUT", { playerId, castawayId }),
+  guess: (leagueId: string, epId: string, betId: string, playerId: string, guess: string) =>
+    send(`${episode(leagueId, epId)}/bets/${encodeURIComponent(betId)}/predictions`, "POST", { playerId, guess }),
+  unguess: (leagueId: string, epId: string, betId: string, predId: string) =>
+    send(`${episode(leagueId, epId)}/bets/${encodeURIComponent(betId)}/predictions/${encodeURIComponent(predId)}`, "DELETE"),
+};
+
+/** After a save: the home (your moves due) and every show's games read again. */
+export function useAfterSave() {
+  const client = useQueryClient();
+  return useCallback(
+    () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: HOME_KEY }),
+        client.invalidateQueries({ queryKey: ["new-design", "games"] }),
+      ]),
+    [client]
+  );
 }
 
 // ---- which couch you're looking at: one hub shows one couch at a time (site-mock-decisions) ----

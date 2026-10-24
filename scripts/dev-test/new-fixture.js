@@ -33,11 +33,19 @@ const CURSOR = 5; // results in through episode 5
 const SEEN = { alex: 5, riley: 5, jordan: 5, sam: 3 };
 const id = () => Array.from(crypto.randomBytes(24), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
 
+// The cast: Survivor 51's real castaways and the mock's photos of them (public/mock/showcase), never app users.
+// The first one listed goes home first; placement counts up from the first out, the winner last.
+const FACES = [
+  "aaliyah-puglia", "alexis-levine", "ana-sani", "brady-booker", "carter-krull", "cristian-chavez", "danny-kilby", "devin-way",
+  "eric-macksoud", "jelly-loblack", "jenna-doore", "kristin-flickinger", "lewis-kelly", "linnea-capobianco", "maggie-nestor",
+  "mike-pinsky", "ori-jean-charles", "sharonda-cox",
+];
+const nameOf = (slug) => slug.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 const data = {
   id: "zt-nd", showId: SHOW, showName: "ZT Survivor", seasonName: "ZT Survivor 51", episodeCount: EPISODES,
   players: ["alex", "riley", "jordan", "sam"].map((key) => ({ key, name: key, color: "#888" })),
-  castaways: Array.from({ length: 18 }, (_, i) => ({
-    key: `k${i}`, name: `Castaway ${i}`, placement: 18 - i,
+  castaways: FACES.map((slug, i) => ({
+    key: `k${i}`, name: nameOf(slug), placement: i + 1, photoUrl: `/mock/showcase/img/survivor-51/${slug}.jpg`,
     exitEpisode: Math.min(i + 1, EPISODES), exitMethod: i === 17 ? "Sole Survivor" : "Voted Out",
   })),
 };

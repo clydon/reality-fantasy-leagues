@@ -5,9 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeftRight, ChevronRight } from "lucide-react";
 import { airTime } from "../clock";
 import { CAST, EPISODES, SEEN, TRIBES, castaway } from "../fixtures/cast";
-import { FINALE, GAMES_FROM, HAPPENED, WAIVERS, YOUR_LINEUP, YOUR_SCORERS } from "../fixtures/episodes";
-import { EPISODE_PROGRESS } from "../fixtures/moves";
-import { POOL, TEAMS } from "../fixtures/standings";
+import { FINALE, GAMES_FROM, HAPPENED, WAIVERS, YOUR_LINEUP, YOUR_PICKS, YOUR_SCORERS, YOUR_TEAM } from "../fixtures/episodes";
 import { GAME_STYLE, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -19,8 +17,18 @@ import { Block, Face } from "./parts";
 
 // Episodes (the mock's show.js tabEpisodes and episodePage, waivers.js's row): this week's episode, then every
 // episode with who went home and what you scored, each opening its own page (?page=ep4). Real: this week's
-// episode, its art and time. On fixtures behind Preview: who's set (step 1), every episode and its page (2), the
-// waiver window's row (6a).
+// episode, its art and time, and who's set for it in your games. On fixtures behind Preview: every episode and its
+// page (2), the waiver window's row (6a).
+
+/** "3 of 4 lineups set · 2 of 4 picked": who's set for the next episode in your games here, a line per kind. */
+function progressLine(show: ShowData): string | null {
+  const seen = new Set<string>();
+  const parts = (show.play ?? [])
+    .map((g) => g.progress)
+    .filter((p) => !!p && !seen.has(p.label) && !!seen.add(p.label))
+    .map((p) => `${p!.done} of ${p!.of} ${p!.label}`);
+  return parts.length ? parts.join(" · ") : null;
+}
 
 const outIn = (e: number) => CAST.filter((c) => c.out === e);
 /** Where someone who left in episode e finished: everyone still in at the start of it, counted down. */
@@ -37,9 +45,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
             <ShowArt seasonId={seasonId} artUrl={show.header.show.artUrl} name={show.header.show.name} className="h-[60px] w-24 flex-none rounded-[3px] text-[13px]" />
             <div className="min-w-0">
               <b className="type-caption block text-[19px]">{up.live ? "On air now" : t != null ? `Airs ${airTime(t)}` : "Up next"}</b>
-              <Preview id="hub.upnext-progress" tag={false} className="-m-1 mt-0.5 p-1">
-                <small className="block text-[13px] text-muted-foreground">{EPISODE_PROGRESS}</small>
-              </Preview>
+              {progressLine(show) && <small className="block text-[13px] text-muted-foreground">{progressLine(show)}</small>}
             </div>
           </div>
         </Block>
@@ -139,7 +145,7 @@ function EpisodeBody({ e }: { e: number }) {
   const scored = CAST.filter((c) => c.perEp[e - 1])
     .sort((a, b) => b.perEp[e - 1] - a.perEp[e - 1])
     .slice(0, 5);
-  const team = TEAMS.alex.map(castaway);
+  const team = YOUR_TEAM.map(castaway);
   const lost = team.filter((c) => c.out === e).length;
   return (
     <Preview id="show.episode" className="mx-2 mb-10 mt-3 px-2 pb-4 pt-4">
@@ -165,7 +171,7 @@ function EpisodeBody({ e }: { e: number }) {
         <GameLine
           game="Survival Pool"
           big={e < GAMES_FROM ? "—" : "Survived"}
-          line={e < GAMES_FROM ? `Pool started Episode ${GAMES_FROM}` : `You picked ${POOL.alex.picks[e - GAMES_FROM] ?? "Kristin"}`}
+          line={e < GAMES_FROM ? `Pool started Episode ${GAMES_FROM}` : `You picked ${YOUR_PICKS[e - GAMES_FROM] ?? "Kristin"}`}
         />
         <GameLine game="Outlast" big={lost ? "Lost one" : "All safe"} line={`${team.filter((c) => !c.out || c.out > e).length} of ${team.length} still in after this episode`} />
       </section>

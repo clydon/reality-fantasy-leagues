@@ -3,8 +3,7 @@
 import { startTransition, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeftRight, ChevronDown, ChevronRight, Send, Zap } from "lucide-react";
-import { CAST, EVENT_NAME, SEEN, STATS, TRIBES, statValue, unitFor, type CastMember } from "../fixtures/cast";
-import { TEAMS } from "../fixtures/standings";
+import { CAST, EVENT_NAME, SEEN, STATS, TRIBES, YOUR_TEAM, statValue, unitFor, type CastMember } from "../fixtures/cast";
 import type { ShowData } from "../screens/show-space";
 import { Flip } from "../ui/flip";
 import { Preview } from "../ui/preview";
@@ -20,7 +19,7 @@ import { Face } from "./parts";
 
 type View = "faces" | "rank" | "heat";
 const statOf = (key: string) => STATS.find((s) => s.key === key) ?? STATS[0];
-const mine = (c: CastMember) => TEAMS.alex.includes(c.first);
+const mine = (c: CastMember) => YOUR_TEAM.includes(c.first);
 
 export function Cast({ show }: { show: ShowData }) {
   const asked = useSearchParams().get("rank");

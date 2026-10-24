@@ -23,7 +23,6 @@ export const PREVIEWS = {
   "hub.notifications": { step: "15", title: "Notifications", line: "What's happened on your couch since you last looked." },
   "hub.couch-switcher": { step: "9", title: "Your couches", line: "Switch couches, start one, or invite people to this one." },
   "hub.profile": { step: "8", title: "Your numbers", line: "Titles, ranking points, your best show, your taste twin." },
-  "hub.upnext-progress": { step: "1", title: "Who's set", line: "How many of the couch have made this episode's move." },
   "hub.watch-along": { step: "13", title: "Watch along", line: "Watch with the couch, live or on your own time." },
   "hub.on-now": { step: "13", title: "On now", line: "Who's watching right now, and joining them." },
   "hub.add-show": { step: "10", title: "Add a show", line: "Tell the couch what you're watching." },
@@ -43,16 +42,9 @@ export const PREVIEWS = {
   "hub.trophies": { step: "8", title: "Trophy shelf", line: "Every season the couch has finished." },
 
   // ---- a show space (ported in 0d; fixtures in src/new/fixtures/) ----
-  "show.moves": { step: "1", title: "Your moves", line: "Your lineup, your pick and your predictions, in one sheet." },
-  "show.your-games": { step: "1", title: "Your games", line: "Where you stand in each game on this show." },
-  "show.standings": { step: "1", title: "Standings", line: "Every game's table, each person's team and picks." },
-  "show.how-it-works": {
-    step: "1",
-    title: "How it works",
-    line: "The show's premise, an episode as a rundown, the season, ways out, twists and what scores.",
-  },
   "show.episodes": { step: "2", title: "Every episode", line: "Who went home each episode, and what you scored." },
   "show.episode": { step: "2", title: "An episode", line: "Who went home, your games, the top scorers, what happened." },
+  "show.reveal": { step: "2", title: "The reveal", line: "An episode's results, one beat at a time, when you're ready." },
   "show.cast": { step: "3", title: "The cast", line: "The cast by group, ranked by any stat, episode by episode." },
   "show.stats": { step: "3", title: "Stats", line: "Cast stats up to where you are, no game needed." },
   "show.chat": { step: "4", title: "Chat", line: "The couch's chat about this show, folded at where you are." },
@@ -63,6 +55,7 @@ export const PREVIEWS = {
   "show.invite": { step: "9", title: "Invite to this show", line: "A code for this show; they join the couch too." },
   "show.start-game": { step: "10", title: "Start a game", line: "A season game or an episode game for this show." },
   "show.notifications": { step: "15", title: "Notifications for this show", line: "Lineup reminders, results, chat." },
+  "show.suggest-fix": { step: "6b", title: "Suggest a fix", line: "Tell us what the rulebook got wrong; it's checked, then fixed for every couch." },
 
   // ---- pushed over a show ----
   "show.waivers": { step: "6a", title: "Waivers", line: "Replace whoever's out, and swaps if your game allows them." },

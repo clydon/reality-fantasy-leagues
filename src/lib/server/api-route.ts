@@ -21,3 +21,12 @@ export function apiRoute<Args extends unknown[]>(
     }
   };
 }
+
+/**
+ * A league write's answer: the league's whole state, which the classic app adopts; or `{ ok: true }` when the caller
+ * asks with `?quiet`. The new design reads its own spoiler-guarded view after a save (guard.ts), so the full state,
+ * results it hasn't revealed and all, never reaches it.
+ */
+export function stateResponse(req: Request, state: unknown): Response {
+  return new URL(req.url).searchParams.has("quiet") ? NextResponse.json({ ok: true }) : NextResponse.json(state);
+}

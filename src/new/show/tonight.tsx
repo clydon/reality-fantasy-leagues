@@ -5,8 +5,8 @@ import { Check, ChevronRight, Lock, Plus, Tv } from "lucide-react";
 import { airTime, calmWhen, dayOf, ticks, timeOf } from "../clock";
 import { BINGO_CARD } from "../fixtures/episode-games";
 import { SEEN, STATS, statBoard, unitFor } from "../fixtures/cast";
-import { standing, yourLine } from "../fixtures/standings";
-import { GAME_STYLE, isGameName, ordinal, type GameName } from "../games";
+import type { GameView } from "../data";
+import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
@@ -14,15 +14,16 @@ import { useNow } from "../ui/bars";
 import { Btn, BtnLink } from "../ui/parts";
 import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
-import { isRequired, moveCard, openMoves } from "./moves";
+import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./moves";
 import { Block, Face } from "./parts";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
-// Your moves as swipeable cards (open first with the one yellow button on the first; all done is one "You're set"
-// card), Extras this week (optional, no counts), Watch along, your games and the cast's stats. No dock before
-// airtime and no commissioner job (5B: Backstage and a dot on the show's ⋯ carry it). Real: the heading, the
-// cards and the predictions in Extras (your moves due here, as the home lists them). On fixtures behind Preview:
-// the moves sheet the cards open (step 1), bingo (12), Watch along (13), your places (1), the stats (3).
+// Your moves as swipeable cards (open first with the one yellow button on the first, then what you've already set
+// as done cards with Change; all done starts with one "You're set" card), Extras this week (optional, no counts),
+// Watch along, your games and the cast's stats. No dock before airtime and no commissioner job (5B: Backstage and
+// a dot on the show's ⋯ carry it). Real: the heading, the cards (your moves due here, as the home lists them, and
+// your games' done moves), the predictions in Extras, your places. On fixtures behind Preview: bingo (12), Watch
+// along (13), the stats (3).
 
 export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
@@ -73,74 +74,122 @@ function PhaseHead({ show }: { show: ShowData }) {
 // ---------- Your moves ----------
 
 function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
-  const [at, setAt] = useState(0);
   const up = show.upNext;
   const t = up?.airAt ? Date.parse(up.airAt) : null;
   const open = show.moves.filter(isRequired);
   const kinds = open.map((m) => m.kind);
   const cards = open.map((m) => moveCard(m, seasonId, kinds.filter((k) => k === m.kind).length > 1));
+  const done = show.play ? doneCards(show.play) : [];
   const due = open[0]?.deadline ? Date.parse(open[0].deadline) : t;
 
   let body: ReactNode;
   if (up?.live) {
-    body = (
-      <DoneCard icon={Lock} title="Your moves are locked" line="Scores stay hidden until you reveal" />
-    );
-  } else if (!cards.length) {
+    body = <DoneCard icon={Lock} title="Your moves are locked" line="Scores stay hidden until you reveal" />;
+  } else if (!cards.length && !done.length) {
     body = (
       <DoneCard
         icon={Check}
         title={up ? `You're set for Episode ${up.number}` : "Nothing due"}
         line={t != null ? `Change anything until ${airTime(t)}` : "Nothing to set until the next episode"}
-        action={up ? <Btn onClick={() => openMoves("lineup")} wide className="mt-1">Change</Btn> : undefined}
+        action={up && show.play?.length ? <Btn onClick={() => openMoves("lineup")} wide className="mt-1">Change</Btn> : undefined}
       />
     );
   } else {
-    body = (
-      <>
-        <div
-          className="-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 [scrollbar-width:none]"
-          onScroll={(e) => {
-            const el = e.currentTarget;
-            const w = (el.firstElementChild as HTMLElement | null)?.offsetWidth ?? 1;
-            setAt(Math.round(el.scrollLeft / (w + 10)));
-          }}
-        >
-          {cards.map((c, i) => (
-            <div
-              key={c.key}
-              data-move={c.key}
-              className={`flex flex-none snap-start flex-col gap-1.5 rounded-[4px] bg-card p-4 ${cards.length > 1 ? "w-[calc(100%-36px)]" : "w-full"}`}
-            >
-              <span className="type-num text-[30px] leading-none text-muted-foreground">{i + 1}</span>
-              <b className="type-caption text-[26px] leading-none">{c.title}</b>
-              <small className="block mb-2.5 text-sm leading-snug text-muted-foreground">{c.line}</small>
-              {c.href ? (
-                <BtnLink href={c.href} tone={i ? "optional" : "must"} wide className="mt-auto">
-                  {c.action}
-                </BtnLink>
-              ) : (
-                <Btn tone={i ? "optional" : "must"} wide className="mt-auto" onClick={() => openMoves(c.tab ?? "lineup")}>
-                  {c.action}
-                </Btn>
-              )}
-            </div>
-          ))}
-        </div>
-        {cards.length > 1 && (
-          <div className="mt-2.5 flex justify-center gap-1.5" aria-hidden>
-            {cards.map((c, i) => (
-              <i key={c.key} className={`h-1 w-[18px] rounded-[2px] transition-colors ${i === at ? "bg-foreground" : "bg-border"}`} />
-            ))}
-          </div>
-        )}
-      </>
-    );
+    // Open moves first (the first one's button the one yellow), then what you've set, as done cards; with nothing
+    // open, one "You're set" card leads them.
+    const items: { key: string; node: ReactNode }[] = [
+      ...(cards.length || !up
+        ? []
+        : [{ key: "set", node: <SetCard title={`You're set for Episode ${up.number}`} line={t != null ? `Change anything until ${airTime(t)}` : "Change anything until it airs"} /> }]),
+      ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0} /> })),
+      ...done.map((c) => ({ key: c.key, node: <DoneMove card={c} /> })),
+    ];
+    // A new set of cards (a save made one done) starts back at the first, so what's still due is in view.
+    body = <MoveCards key={items.map((it) => it.key).join()} items={items} />;
   }
   return (
     <Block title="Your moves" aside={up?.live ? "Locked" : cards.length ? `${cards.length} to do before ${due != null ? dayOf(due) : "airtime"}` : "All done"}>
       {body}
     </Block>
+  );
+}
+
+/** The cards, one in view at a time, swiped sideways, with a dot each. */
+function MoveCards({ items }: { items: { key: string; node: ReactNode }[] }) {
+  const [at, setAt] = useState(0);
+  return (
+    <>
+      <div
+        className="-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 [scrollbar-width:none]"
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const w = (el.firstElementChild as HTMLElement | null)?.offsetWidth ?? 1;
+          setAt(Math.round(el.scrollLeft / (w + 10)));
+        }}
+      >
+        {items.map((it) => (
+          <div key={it.key} className={`flex flex-none snap-start ${items.length > 1 ? "w-[calc(100%-36px)]" : "w-full"}`}>
+            {it.node}
+          </div>
+        ))}
+      </div>
+      {items.length > 1 && (
+        <div className="mt-2.5 flex justify-center gap-1.5" aria-hidden>
+          {items.map((it, i) => (
+            <i key={it.key} className={`h-1 w-[18px] rounded-[2px] transition-colors ${i === at ? "bg-foreground" : "bg-border"}`} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** A move still to make: its number, what it is, and its button (yellow only on the first). */
+function OpenCard({ card: c, n, must }: { card: MoveCard; n: number; must: boolean }) {
+  return (
+    <div data-move={c.key} className="flex w-full flex-col gap-1.5 rounded-[4px] bg-card p-4">
+      <span className="type-num text-[30px] leading-none text-muted-foreground">{n}</span>
+      <b className="type-caption text-[26px] leading-none">{c.title}</b>
+      <small className="mb-2.5 block text-sm leading-snug text-muted-foreground">{c.line}</small>
+      {c.href ? (
+        <BtnLink href={c.href} tone={must ? "must" : "optional"} wide className="mt-auto">
+          {c.action}
+        </BtnLink>
+      ) : (
+        <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => openMoves(c.tab ?? "lineup", c.leagueId ?? null)}>
+          {c.action}
+        </Btn>
+      )}
+    </div>
+  );
+}
+
+/** A move you've made that can still change. */
+function DoneMove({ card: c }: { card: MoveCard }) {
+  return (
+    <div data-done={c.key} className="flex w-full flex-col gap-1.5 rounded-[4px] bg-background p-4 outline-1 -outline-offset-1 outline-border">
+      <span className="grid size-[30px] place-items-center rounded-full bg-good/20 text-good">
+        <Check className="size-4" strokeWidth={2.6} aria-hidden />
+      </span>
+      <b className="type-caption text-[26px] leading-none">{c.title}</b>
+      <small className="mb-2.5 block text-sm leading-snug text-muted-foreground">{c.line}</small>
+      <Btn wide className="mt-auto" onClick={() => openMoves(c.tab ?? "lineup", c.leagueId ?? null)}>
+        {c.action}
+      </Btn>
+    </div>
+  );
+}
+
+/** Nothing left to do: the first of the done cards. */
+function SetCard({ title, line }: { title: string; line: string }) {
+  return (
+    <div className="flex w-full flex-col gap-1.5 rounded-[4px] bg-background p-4 outline-1 -outline-offset-1 outline-border">
+      <span className="grid size-[34px] place-items-center rounded-full bg-good/20 text-good">
+        <Check className="size-[18px]" strokeWidth={2.6} aria-hidden />
+      </span>
+      <b className="type-caption text-[26px] leading-none">{title}</b>
+      <small className="block text-sm leading-snug text-muted-foreground">{line}</small>
+    </div>
   );
 }
 
@@ -230,41 +279,46 @@ function WatchAlongCard({ seasonId, show }: { seasonId: string; show: ShowData }
 
 // ---------- Your games ----------
 
-/** The games you play here, by name (the fixture's three if none is one the new design knows). */
-export function gamesPlayed(show: ShowData): GameName[] {
-  const names = [...new Set(show.games.filter((g) => g.yourRole).map((g) => g.gameName))].filter(isGameName);
-  return names.length ? names : (Object.keys(GAME_STYLE) as GameName[]);
+/** The line under your place: points, your streak now, or who's still in. */
+export function yourLine(g: GameView): string {
+  const me = g.you;
+  if (!me) return "Not on the table yet";
+  if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
+  if (g.gameType === "active-roster") return `${me.total} pts`;
+  const team = me.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c);
+  return `${team.filter((c) => !c.knocked).length} of ${team.length} still in`;
 }
 
+/** Your place in a game: "1st", or "T2" for a tie. */
+export const placeOf = (g: GameView) => (!g.you ? "—" : g.you.rank.startsWith("T") ? g.you.rank : ordinal(g.you.place));
+
 function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
-  const games = gamesPlayed(show);
   const tab = paths.show(seasonId, "games");
+  if (!show.play) return <div aria-busy className="mx-4 mt-[26px] h-[150px] animate-pulse rounded-[4px] bg-card" />;
+  const twin = (g: GameView) => show.play!.filter((x) => x.gameType === g.gameType).length > 1;
   return (
-    <Preview id="show.your-games" className="mx-2 mt-[26px] px-2 pb-3 pt-4">
+    <section className="mt-[26px] px-4">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 className="type-caption text-[24px]">Your games</h2>
-        <NavLink data-try href={tab} replace className="text-[15px] font-semibold">
+        <NavLink href={tab} replace className="text-[15px] font-semibold">
           Standings
         </NavLink>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        {games.map((g) => {
-          const me = standing(g).find((r) => r.who === "alex")!;
-          return (
-            <NavLink
-              key={g}
-              data-try
-              href={tab}
-              replace
-              className="nd-press flex min-h-[104px] flex-col gap-1.5 rounded-b-[4px] border-t-[3px] bg-card p-3"
-              style={{ borderTopColor: GAME_STYLE[g].colour }}
-            >
-              <span className="type-caption text-xs tracking-[0.04em] text-muted-foreground">{g}</span>
-              <b className="type-num text-[36px] leading-none">{ordinal(me.place)}</b>
-              <small className="block text-xs text-muted-foreground">{yourLine(g)}</small>
-            </NavLink>
-          );
-        })}
+        {show.play.map((g) => (
+          <NavLink
+            key={g.leagueId}
+            href={tab}
+            replace
+            data-game={g.leagueId}
+            className="nd-press flex min-h-[104px] flex-col gap-1.5 rounded-b-[4px] border-t-[3px] bg-card p-3"
+            style={{ borderTopColor: gameColour(g.gameName) }}
+          >
+            <span className="type-caption truncate text-xs tracking-[0.04em] text-muted-foreground">{twin(g) ? g.name : g.gameName}</span>
+            <b className="type-num text-[36px] leading-none">{placeOf(g)}</b>
+            <small className="block text-xs text-muted-foreground">{yourLine(g)}</small>
+          </NavLink>
+        ))}
         <Preview id="show.start-game" tag={false}>
           <button type="button" className="flex min-h-[104px] w-full flex-col justify-center gap-1.5 p-3 text-left text-muted-foreground">
             <Plus className="size-5" aria-hidden />
@@ -273,7 +327,7 @@ function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
           </button>
         </Preview>
       </div>
-    </Preview>
+    </section>
   );
 }
 
