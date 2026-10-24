@@ -168,7 +168,7 @@ Unchanged, except a move is the same pair (dropId now required), against the sam
 ### Close (airtime)
 
 With `autoFill` on, replaceable losses still unfilled are filled as today (random free agent / most
-points), only after a real free agency (8f85285). Under `windows`, only at a window's close. Swaps are
+points), only after a real free agency (c1c4269). Under `windows`, only at a window's close. Swaps are
 never automatic.
 
 ## Commissioner: Open a waiver window

@@ -46,6 +46,12 @@ next-env.d.ts
 # League backups (scripts/backup-leagues.js): real people's data, never committed
 /backups/
 
+# Screenshots of the running app can show real people (usernames, emails: the admin screens do), and the
+# repo is public: keep captures out of git. Shoot zt- fixtures, or keep real-data captures outside the repo.
+/docs/ux-baseline/
+/docs/screenshots/
+/captures/
+
 # Playwright MCP browser logs and page snapshots (local tooling)
 /.playwright-mcp/
 

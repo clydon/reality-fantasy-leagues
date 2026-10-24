@@ -13,7 +13,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | **Neon** (project `reality-fanatsy-leagues`, AWS us-east-2, Postgres 18) | Every table, auth included | Free | $0 |
 | **Oracle Cloud** (`gys-bot`, VM.Standard.E2.1.Micro: x86, 1 GB) | The ChatGPT bot (`C:\Users\conor\llm-browser-api`) and the bot research clock | Always Free | $0 |
 | **Cloudflare** tunnels | `bot.gameyourshow.com` (the VM), `bot-home.gameyourshow.com` (the PC fallback) | Free | $0 |
-| **GitHub Actions** (private repo) | Hourly job (`auto-research.yml`: auto-research, reminders, waivers) and nightly wiki sync | Free account minutes | $0, **but stopped: see Alerts** |
+| **GitHub** (`clydon/reality-fantasy-leagues`, **public since 2026-10-24**) | The code; Actions runs the hourly job (`auto-research.yml`: auto-research, reminders, waivers) and the nightly wiki sync | Free; Actions minutes unlimited while public | $0 |
 | healthchecks.io | Emails when the bot's daily self-test fails | Free | $0 |
 | Resend | Sign-up and password emails | not checked | $0? |
 | Anthropic API | Paid auto-research (Claude), only for seasons switched on | Pay per use | per episode researched |
@@ -21,18 +21,33 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 
 ## Alerts (open problems)
 
-- **GitHub Actions has run nothing since 2026-10-19 14:21 UTC**: "The job was not started because recent account
-  payments have failed or your spending limit needs to be increased". So no push reminders, no hourly waiver
-  announcements, no paid auto-research and no nightly wiki sync. (Waivers still process when someone opens a
-  league; the bot research clock runs on the VM, not here.) This repo's jobs need about 775 minutes a month (a
-  run takes 35-50 s and is billed as a minute: 24 a day, plus the nightly sync), under the free 2,000 a private
-  account gets, so either other private repos share the pool or a payment failed. Check GitHub › Settings ›
-  Billing and plans. Options, cheapest first: make the repo public (Actions minutes are free and unlimited for
-  public repos); move the hourly job onto the VM's clock (it's always on and free; it would call app routes
-  the way the bot clock does); allow paid minutes (about $0.008 a minute, ~$6 a month at this volume: verify).
 - **Vercel Hobby: "Exceeded free resources"**, Functions Storage 14.52 GB of 10 GB (seen 2026-10-24). Cause not
   looked into; a likely suspect is every retained deployment keeping its function bundles (the embedding
   model under `.models/` is fetched at build). Check Vercel › Usage and deployment retention.
+- **The bot's new clock isn't deployed yet** (2026-10-24): until llm-browser-api is redeployed to the VM, its
+  old timer still calls every 2 minutes and keeps Neon awake. Deploy steps: llm-browser-api `deploy/README.md`
+  (Living with it › Updating the bot); a bundle with Unix line endings is built at `llm-bot.tgz`.
+
+## The repo is public
+
+Public since 2026-10-24, so Actions minutes are free (a private account gets 2,000 a month; GitHub had stopped
+the jobs on 2026-10-19 when they ran out). What that means:
+- **Anything committed is readable by anyone, history included.** No secrets (they live in Vercel, Neon,
+  GitHub secrets and `.env.local`), and **no real people's data**: no screenshots of real leagues or admin
+  screens, no real usernames or emails in tests and docs (use the mock's demo names: alex, riley, jordan,
+  sam). `.gitignore` covers `backups/` and the screenshot folders (`docs/ux-baseline/`, `docs/screenshots/`,
+  `captures/`).
+- Before going public the history was scanned and rewritten (git-filter-repo): the `docs/ux-baseline`
+  screenshots (their admin screens showed real accounts' emails) removed from every commit, two real usernames
+  and two partial emails replaced with demo ones, and commit emails moved to GitHub's private noreply address
+  (this repo's `user.email` is set to it). The old history is kept, locally only, in
+  `C:\Users\conor\rfl-history-before-scrub-2026-10-24.bundle`: it still holds that personal data, so it never
+  goes anywhere public. GitHub can keep old commits reachable by their old hashes until it cleans up; nobody
+  outside had them while the repo was private, and GitHub Support can purge them on request.
+- **Going private again later** (a paid app): one switch (Settings › Danger zone, or `gh repo edit --visibility
+  private`). Actions then counts minutes again: about 775 a month for these jobs (a run takes 35-50 s, billed as
+  a minute; 24 a day plus the nightly sync), inside the free 2,000 unless other private repos share them.
+  Anything public in the meantime may have been copied.
 
 ## Limits and usage
 
@@ -44,14 +59,14 @@ Snapshot **2026-10-24**. Neon's numbers are since its period start (Sep 30); Ver
 | Neon compute | 100 CU-hours a month per project | 35.38 CU-h | Running out suspends the database. Free computes sleep after 5 minutes idle and can't be kept awake |
 | Neon storage | 1 GB per project (the billing page; one FAQ says 0.5) | 38.77 MB | Plus 254 kB of history |
 | Neon history (point-in-time restore) | 6 hours | | So the JSON backups (`scripts/backup-leagues.js`) and named branches are the real safety nets |
-| Neon branches | 10 per project | 1 | |
+| Neon branches | 10 per project | 2 | `production`, and `pre-new-design-2026-10-24` (made before migration 0066 shipped; never auto-deletes) |
 | Vercel function invocations | 1M | 92K | |
 | Vercel Fluid Active CPU | 4 h | 1 h 24 m | |
 | Vercel CDN requests | 1M | 168K | |
 | Vercel Functions Storage | 10 GB | **14.52 GB** | See Alerts |
 | Vercel cron | once a day on Hobby | unused | Why the bot clock lives on the VM |
 | Vercel Preview builds | | off | Ignored Build Step = "Only build production" since 2026-10-24: Preview shared production's database and every build runs migrations |
-| GitHub Actions (private) | 2,000 min a month | exhausted | See Alerts |
+| GitHub Actions | unlimited while public (2,000 min a month if private) | ~775 min a month | See The repo is public |
 | Oracle VM | 1 GB RAM, 1/8 OCPU burstable | | One question at a time: ~48 s with web search, ~114 s for a full research prompt |
 
 ## What uses each limit (for estimating)
@@ -107,16 +122,20 @@ push the last one's results about an hour back; a second bot (the PC fallback, o
 - **Neon**: console › project › Overview (compute, storage, history, transfer since the period started);
   Monitoring › Query performance (top queries, but only since the compute last woke). A banner warns near a limit.
 - **Vercel**: dashboard › Usage; Settings › Build and Deployment for the Ignored Build Step.
-- **GitHub**: `gh run list --workflow=auto-research.yml --limit 5`; Settings › Billing and plans for minutes.
+- **GitHub**: `gh run list --workflow=auto-research.yml --limit 5` (green hourly; `gh workflow list --all` shows if one
+  was disabled); Settings › Billing and plans for minutes once private.
 - **The bot clock**: on the VM, `journalctl -u llm-browser-tick -n 20` (one line per call; nothing between).
 
 ## Changelog
 
 - **2026-10-24.** Neon transfer was at 95% with a week left: every chat fetch read each linked league's full
-  state once per member (~240 KB for 12 KB of chat). Fixed in ff95851: `src/lib/server/league-states.ts`
+  state once per member (~240 KB for 12 KB of chat). Fixed in 31294fd: `src/lib/server/league-states.ts`
   (hash check, cached copies), `/chat/unread`, `/chat?v=`; checked by `scripts/dev-test/check-chat-polls.js`.
   Vercel set to build production only. The bot clock's 2-minute tick kept Neon awake around the clock (~180
   CU-hours a month); now the app tells the VM when the next run is due (`db/bot-research.js` `nextRunAt`,
   llm-browser-api `deploy/tick.py`, `POST /tick` for schedule changes), runs count from the episode's end
   (0066 `episode_minutes`), and the quick check retries for 3 hours; checked by `tests/bot-research.test.js`
   and `scripts/dev-test/check-bot-clock.js`. Found GitHub Actions stopped since 2026-10-19 (Alerts).
+  Then: the repo went public (history scrubbed first: see The repo is public) so Actions minutes are free; the
+  hourly workflow, found disabled by hand on 2026-10-22, was re-enabled and both workflows ran green. Neon
+  branch `pre-new-design-2026-10-24` created before 0066 shipped.
