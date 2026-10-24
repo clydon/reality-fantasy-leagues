@@ -24,9 +24,8 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 - **Vercel Hobby: "Exceeded free resources"**, Functions Storage 14.52 GB of 10 GB (seen 2026-10-24). Cause not
   looked into; a likely suspect is every retained deployment keeping its function bundles (the embedding
   model under `.models/` is fetched at build). Check Vercel › Usage and deployment retention.
-- **The bot's new clock isn't deployed yet** (2026-10-24): until llm-browser-api is redeployed to the VM, its
-  old timer still calls every 2 minutes and keeps Neon awake. Deploy steps: llm-browser-api `deploy/README.md`
-  (Living with it › Updating the bot); a bundle with Unix line endings is built at `llm-bot.tgz`.
+- **The Neon password hasn't been rotated** since it was pasted into a chat on 2026-10-18 (a precaution, not a
+  known leak; the user deferred it on 2026-10-24). Steps under "Rotating the database password".
 
 ## The repo is public
 
@@ -117,6 +116,19 @@ push the last one's results about an hour back; a second bot (the PC fallback, o
    deciding; not verified here).
 5. **The bot tiers** (One tap $1 a season, Autopilot $5) are meant to pay for the research they trigger.
 
+## Rotating the database password
+
+The production connection string lives in exactly two places: Vercel's `AUTH_DATABASE_URL` (Production and
+Preview) and the GitHub Actions secret `AUTH_DATABASE_URL` (the hourly job). The VM doesn't have it. Claude
+never handles it: the user does the reset and the pasting.
+1. Neon › project › Roles › `neondb_owner` › ⋯ › Reset password. Production fails from here until step 3 is live
+   (3-5 minutes), so do 1-3 back to back at a quiet time.
+2. Vercel › Settings › Environment Variables › `AUTH_DATABASE_URL` › Edit › paste. Use the same form as before:
+   direct (connection pooling off) unless the old host had `-pooler`. `db/migrate.js` holds a session advisory
+   lock, which a pooled (transaction-mode) connection can't keep.
+3. Redeploy production (Deployments › the current one › Redeploy): environment changes only reach new deploys.
+4. GitHub › Settings › Secrets and variables › Actions › `AUTH_DATABASE_URL` › Update.
+
 ## How to check usage
 
 - **Neon**: console › project › Overview (compute, storage, history, transfer since the period started);
@@ -140,4 +152,7 @@ push the last one's results about an hour back; a second bot (the PC fallback, o
   hourly workflow, found disabled by hand on 2026-10-22, was re-enabled and both workflows ran green. Neon
   branch `pre-new-design-2026-10-24` created before 0066 shipped. Migration 0067 `season_episodes` (a row per
   episode whose start or length research confirmed: tiny) and the `season_air_dates` view, which every
-  air-time query now reads (no extra polling).
+  air-time query now reads (no extra polling). The VM's new tick deployed (13:44 UTC) and bot research switched on
+  for Survivor 51 with a 90-minute episode length: the clock's next call is the quick check on 2026-10-29 01:40 UTC
+  (Wednesday 9:40 PM Eastern), quiet until then apart from 6-hourly check-ins. Network transfer read 4.73 GB six
+  hours after the polling fix (unchanged). The Neon password rotation was deferred (Alerts).
