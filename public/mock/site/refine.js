@@ -66,13 +66,19 @@ tabTonight=function(s){const h=tabTonightR(s);if(N===1||!s.kinds)return h;const 
   const before=[...d.querySelectorAll('section.blk')].find(x=>/^Before/i.test((x.querySelector('h2')?.textContent||'').trim()));
   if(before){const all=[...before.querySelectorAll('.job')].map(j=>({k:j.dataset.job,t:j.querySelector('b')?.textContent||'',d:j.querySelector('small')?.textContent||'',st:j.querySelector('.st')?.textContent||'',done:j.classList.contains('done')}));
     const req=all.filter(x=>REQ.includes(x.k)),open=req.filter(x=>!x.done),done=req.filter(x=>x.done),extras=all.filter(x=>EXTRA.includes(x.k)),commish=all.find(x=>x.k==='results'),t=nextAir(s.air);
-    const plates=open.length?open.map((x,i)=>`<button class="plate r-need" data-job="${x.k}"><span class="tg cap${i?' q':''}">${i?'Then':'Next'}</span><span class="bd"><span class="t cap">${x.t}</span><span class="d">${x.d}</span></span><span class="go">${svg('chev')}</span></button>`).join('')
-      :`<div class="plate"><span class="tg good cap">Set</span><span class="bd"><span class="t cap">You're set for Episode ${s.ep}</span><span class="d">Change anything until ${fmtT(t)}</span></span></div>`;
-    before.replaceWith(el(`<div class="r-wrap"><section class="blk"><div class="sh"><h2 class="cap">Needs you</h2><span class="aside">${open.length?`${open.length} before ${DAY[t.getDay()]}`:'All done'}</span></div>${plates}
-      ${done.map(x=>`<button class="row r-done" data-job="${x.k}"><span class="ok">${svg('check')}</span><span class="tx"><b>${x.t}</b><small>${x.d}</small></span><span class="st">Done</span></button>`).join('')}</section>
+    // your moves, one at a time (picked over the "Needs you" plates 2026-10-24): open moves first, one yellow button
+    // on the first; finished ones stay at the end as done cards you can change; all done is one "You're set" card
+    const ACT={lineup:'Set lineup',waivers:'Pick who comes in',pool:'Make my pick',banish:'Make my pick'};
+    const cards=[...(open.length?[]:[`<div class="r-card set"><span class="r-n ok">${svg('check')}</span><b class="cap">You're set for Episode ${s.ep}</b><small>Change anything until ${fmtT(t)}</small></div>`]),
+      ...open.map((x,i)=>`<div class="r-card"><span class="r-n num">${i+1}</span><b class="cap">${x.t}</b><small>${x.d}</small><button class="btn ${i?'out':'pri'} wide" data-job="${x.k}">${ACT[x.k]||'Open'}</button></div>`),
+      ...done.map(x=>`<div class="r-card done"><span class="r-n ok">${svg('check')}</span><b class="cap">${x.t}</b><small>${x.d}</small><button class="btn out wide" data-job="${x.k}">Change</button></div>`)];
+    before.replaceWith(el(`<div class="r-wrap"><section class="blk"><div class="sh"><h2 class="cap">Your moves</h2><span class="aside">${open.length?`${open.length} to do before ${DAY[t.getDay()]}`:'All done'}</span></div>
+      <div class="r-cards" id="rCards">${cards.join('')}</div>${cards.length>1?`<div class="r-dots">${cards.map((_,i)=>`<i class="${i?'':'on'}"></i>`).join('')}</div>`:''}</section>
       ${extras.length?`<section class="blk"><div class="sh"><h2 class="cap">Extras this week</h2><span class="aside">Optional</span></div>${extras.map(x=>`<button class="row r-extra" data-job="${x.k}"><span class="tx"><b>${x.t}</b><small>${x.d}</small></span><span class="st">${x.st}</span>${svg('chev')}</button>`).join('')}</section>`:''}
       ${commish?`<section class="blk"><a class="row r-bs" href="#/show/${s.id}/backstage"><span class="ic">${svg('key')}</span><span class="tx"><b>You run this · ${commish.t}</b><small>${commish.d}</small></span>${svg('chev')}</a></section>`:''}</div>`))}
   return d.innerHTML};
+const wireShowRf=wireShow;
+wireShow=function(s){wireShowRf(s);const c=$('rCards');if(c)c.onscroll=()=>{const w=c.firstElementChild.offsetWidth+10,i=Math.round(c.scrollLeft/w);app.querySelectorAll('.r-dots i').forEach((d,j)=>d.classList.toggle('on',j===i))}};
 const dockR=dockHTML;
 dockHTML=function(s){if(SHOWSTATE.tab==='tonight'&&(SHOWSTATE.phase==='before'||resultsIn()||(typeof finalIn==='function'&&finalIn()&&!SHOWSTATE.finalSeen&&revealed5())))return '';return dockR(s)};
 
@@ -88,17 +94,34 @@ function oneChip(s){const w=s.id==='surv'?seen(s):(typeof whereOf==='function'?w
   app.querySelectorAll('.where').forEach(x=>{if(x.dataset.r)return;x.dataset.r=1;const b=x.querySelector('button');x.classList.add('r-chip');x.innerHTML=`${svg('shield')}<span>${chipText(s,w)}</span>`;if(b){b.textContent='Change';x.appendChild(b)}});
   app.querySelectorAll('.sh .aside').forEach(a=>{if(/^Up to (Episode|where)/.test(a.textContent.trim()))a.textContent=''})}
 
-// ---------- 5. the commissioner stays spoiler-safe ----------
-let lookedAt=false;
+// ---------- 5. the commissioner stays spoiler-safe: trusted results apply on their own (5B, 2026-10-24) ----------
+// The bot's quick check (bot.gameyourshow.com) is trusted: when its sources agree, who went home applies itself and
+// the commissioner sees nothing. Show me and Undo are there; sources that disagree wait for them instead.
+let lookedAt=false,undone=false;
 const bsResultsR=bsResults;
-bsResults=function(s){const h=bsResultsR(s);if(lookedAt||!BS.quick)return h;const d=el(`<div>${h}</div>`),f=d.querySelector('.qcheck .found'),row=d.querySelector('.qcheck .frow');
-  if(f){f.outerHTML=`<div class="found r-hid"><span class="r-blur"><img src="${ph(S51C('Thien'))}" alt=""></span><div><span class="cap kind">Episode 5 · found 8:41 PM</span><b>Who went home is in</b><small>3 sources agree · hidden until you look</small></div></div>`;
-    if(row)row.outerHTML=`<div class="frow"><button class="btn pri" id="qConfirm">${SHOWSTATE.res==='early'?'Confirmed':'Confirm without looking'}</button><button class="btn out" id="rShow">Show me</button></div><p class="muted small" style="margin-top:8px">Your players can reveal once you confirm, and you can still watch it fresh.</p>`}
+bsResults=function(s){const h=bsResultsR(s);if(lookedAt||undone||!BS.quick)return h;const d=el(`<div>${h}</div>`),f=d.querySelector('.qcheck .found'),row=d.querySelector('.qcheck .frow');
+  if(f){f.outerHTML=`<div class="found r-hid"><span class="r-blur"><img src="${ph(S51C('Thien'))}" alt=""></span><div><span class="cap kind">Episode 5 · applied 8:41 PM</span><b>Applied on its own</b><small>3 sources agreed · nothing shown to you</small></div></div>`;
+    if(row)row.outerHTML=`<div class="frow"><button class="btn out" id="rShow">Show me</button><button class="btn out" id="rUndo">Undo</button></div><p class="muted small" style="margin-top:8px">When the sources agree it applies itself, so your players can reveal and you can still watch it fresh. If they disagree, it waits for you.</p>`}
   return d.innerHTML};
 const wireBSR=wireBS;
-wireBS=function(sid,page){wireBSR(sid,page);const b=$('rShow');if(b)b.onclick=()=>{lookedAt=true;backstageRoute(sid,'results')}};
+wireBS=function(sid,page){wireBSR(sid,page);const b=$('rShow');if(b)b.onclick=()=>{lookedAt=true;backstageRoute(sid,'results')};
+  const u=$('rUndo');if(u)u.onclick=()=>{undone=true;toast('Undone · Episode 5 waits for you to confirm');backstageRoute(sid,'results')}};
 const afterBlockR=afterBlock;
-afterBlock=function(s){const h=afterBlockR(s);if(!isCommish()||!BS.quick||lookedAt)return h;
-  return h.replace(/<button class="job bs" data-job="whoout">[\s\S]*?<\/button>/,`<button class="job bs" data-job="results"><span class="ic">${svg('key')}</span><span class="tx"><span class="kind cap">Backstage · you run this</span><b>Results found · confirm without looking</b><small>3 sources agree · your players can reveal once you confirm</small></span><span class="st">Confirm</span>${svg('chev')}</button>`)};
+afterBlock=function(s){const h=afterBlockR(s);if(!isCommish()||!BS.quick||lookedAt||undone)return h;
+  return h.replace(/<button class="job bs" data-job="whoout">[\s\S]*?<\/button>/,'')};
+
+// ---------- add a show: search, suggestions as you type, and "Add it as a new show" (2026-10-24) ----------
+addShowSheet=function(){
+  const pool=()=>[...ADDABLE.map(([id,n,art,sub])=>({id,name:n,art,sub,on:id==='bd'||id==='ar'||state.added.has(id)})),...CATALOG.filter(c=>!ADDABLE.some(a=>a[0]===c.id)).map(c=>({id:c.id,name:c.name,sub:`${c.season} · ${c.net}`,c:c.c,on:state.added.has(c.id),ready:c.ready}))];
+  openSheet('Add a show','Everything on TV. Playing is optional.',`<label class="search">${svg('search')}<input id="q" placeholder="Search or add a show" aria-label="Search or add a show" autocomplete="off"></label><div id="ag"></div>`,
+  b=>{const q=$('q'),ag=$('ag');
+    const paint=()=>{const t=q.value.trim(),lt=t.toLowerCase(),P=pool();
+      if(!t){ag.innerHTML=`<div class="artgrid">${P.filter(p=>p.art).slice(0,6).map(p=>`<button class="artcard${p.on?' on':''}" data-add="${p.id}"><img src="${ART(p.art)}" alt=""><span class="chk">${svg(p.on?'check':'plus')}</span><b class="cap">${p.name}</b><small>${p.on?'On your list':p.sub}</small></button>`).join('')}</div>`}
+      else{const hits=P.filter(p=>p.name.toLowerCase().includes(lt)).slice(0,6),exact=hits.some(p=>p.name.toLowerCase()===lt);
+        ag.innerHTML=`${hits.map(p=>`<button class="srow2" data-add="${p.id}">${p.art?`<img class="th" src="${ART(p.art)}" alt="">`:`<span class="th" style="--c:${p.c||'#3a3548'}">${p.name[0]}</span>`}<span class="tx"><b>${p.name}</b><small>${p.sub}</small></span><span class="st ${p.on?'in':p.ready?'ready':'not'}">${p.on?'On your list':p.ready?'Ready':'Not a game yet'}</span></button>`).join('')}
+          ${exact?'':`<button class="r-addnew" data-new="${t.replace(/"/g,'')}">${svg('plus')}<span><b>Add “${t}” as a new show</b><small>${hits.length?'Not one of these? ':''}We'll find its episodes and airtimes</small></span></button>`}`}
+      ag.querySelectorAll('[data-add]').forEach(x=>x.onclick=()=>{const p=pool().find(y=>y.id===x.dataset.add);if(p.on)return toast(`${p.name} is already on your list`);state.added.add(p.id);toast(`${p.name} added to your shows`);if(p.id==='li')refreshShelf();paint()});
+      ag.querySelectorAll('[data-new]').forEach(x=>x.onclick=()=>{const n=x.dataset.new;closeSheet();setTimeout(()=>openSheet(`Add ${n}?`,'A show nobody here has added yet',`<p class="muted" style="line-height:1.5;margin-bottom:12px">We'll look it up in TV listings for its episodes and airtimes, and ask where you are in it so nothing spoils. It isn't a game yet: anyone on the couch can make it one later.</p><button class="btn pri wide" id="rNewGo">Add to my shows</button>`,bb=>$('rNewGo').onclick=()=>{closeSheet();toast(`${n} added · not a game yet`)}),230)})};
+    paint();q.oninput=paint;setTimeout(()=>q.focus(),300)})};
 
 route()}}

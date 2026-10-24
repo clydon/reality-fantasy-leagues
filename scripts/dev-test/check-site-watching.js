@@ -129,16 +129,18 @@ const { open } = require("./browser");
   await fresh("#/hub");
   if (!(await page.locator(".r-status").count())) fail("hub: no one-line status at the top");
   if (!(await page.locator(".hn-now").count())) fail("full couch: no Who's on now strip");
-  for (const [k, sel] of [["games", "#cbRow .cb-card.rank"], ["games", "#cbRow .cb-card.add"], ["numbers", "#supSec .sp-card.cast"], ["recaps", "#rcShelf"], ["verdicts", ".cv-list"]]) {
+  // each More on the couch page (couchpages.js): its own lead element
+  for (const [k, sel] of [["rank", ".cp-hero .cp-big"], ["rank", ".cp-board .prow.me"], ["games", ".cp-ident"], ["games", ".cp-game"], ["games", "#cpStart"], ["numbers", ".cp-stat[data-stats]"], ["numbers", ".cp-row"], ["recaps", ".cp-cold .cp-beat"], ["verdicts", ".cp-verdict .cp-big"], ["trophies", ".cp-plaque.won"]]) {
     await more(k); if (!(await page.locator(`#page ${sel}`).count())) fail(`More on the couch › ${k}: missing ${sel}`);
-    if (k === "games" && await page.locator('#page [data-mini="wa"],#page [data-mini="party"]').count()) fail("Watch along is still in Commercial break");
+    if (k === "games" && await page.locator('#page .cp-ep', { hasText: /Watch along|Watch party/ }).count()) fail("Watch along is still in Commercial break");
+    if (k === "games" && (await page.locator("#page .cp-due").count()) > 1) fail("Commercial break: more than one yellow due tag");
     await page.click("#page [data-back]"); await page.waitForTimeout(350); }
   await fresh("&fresh=1#/hub");
   if (!(await page.locator(".r-grow").count())) fail("new couch: no note on what appears later");
   if (await page.locator('[data-more],#supSec,[data-past]').count()) fail("new couch: rankings, numbers or trophies show before there's anything in them");
   await fresh("#/hub");
   await more("numbers");
-  const castCard = page.locator("#page #supSec .sp-card.cast").first(), stat = (await castCard.locator(".sp-t").textContent()).trim();
+  const castCard = page.locator("#page .cp-stat[data-stats]").first(), stat = (await castCard.locator(".tg").textContent()).trim();
   await castCard.click();
   await page.waitForTimeout(400);
   const lead = (await page.locator("#page .st-cat").first().locator("h2").textContent()).trim();
@@ -146,7 +148,7 @@ const { open } = require("./browser");
   await shot("stats-sorted");
   await fresh("#/hub");
   await more("games");
-  await page.click('#page #cbRow [data-cb="start"]');
+  await page.click("#page #cpStart");
   await expectText("#sheet", "Pick the show");
   await page.click("#sheet [data-close]"); await page.waitForTimeout(300);
   await fresh("#/show/surv/tonight".replace("#", "&fresh=1#"));
@@ -207,7 +209,7 @@ const { open } = require("./browser");
   await shot("explorer-traitors");
   await fresh("#/hub");
   await more("numbers");
-  await page.locator("#page #supSec .sp-card.cast").first().click();
+  await page.locator("#page .cp-stat[data-stats]").first().click();
   await page.click("#exOpen");
   await page.waitForTimeout(600);
   if (!(await page.locator(".ex-rank").count()) || !(await page.evaluate(() => location.hash)).endsWith("/cast")) fail("See everyone ranked didn't land on Rank");

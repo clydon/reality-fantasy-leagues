@@ -17,7 +17,7 @@ standing=function(g){const rows=_std(g);if(!revealed5())return rows;
 // ---------- Tonight's after block, by stage ----------
 const _after=afterBlock;
 afterBlock=function(s){
-  if(waiting())return `<section class="blk"><div class="wait"><span class="pulse"></span><div><b class="cap">Waiting for results</b><small>They usually start 30 to 60 minutes after the episode. We'll ping you. Nothing is spoiled in the meantime.</small></div></div>
+  if(waiting())return `<section class="blk"><div class="wait"><span class="pulse"></span><div><b class="cap">Waiting for results</b><small>Who went home usually lands a few minutes after the episode ends. We'll ping you. Nothing is spoiled in the meantime.</small></div></div>
     ${isCommish()?`<button class="job bs" data-job="whoout"><span class="ic">${svg('key')}</span><span class="tx"><span class="kind cap">Backstage · you run this</span><b>Who went home?</b><small>Tap one name and Survival Pool and Outlast settle now</small></span><span class="st">Tap</span>${svg('chev')}</button>`:''}
     <div class="stagebar">${stageBar()}</div></section>`;
   if(!revealed5())return _after(s).replace('<b class="cap">Results are in</b>','<b class="cap">Early results are in</b>').replace('Watched it? Reveal for every game at once. Nothing shows until then.','Who went home, Survival Pool and Outlast. Weekly Lineup points land tomorrow morning.')+`<div class="blk"><div class="stagebar">${stageBar()}</div></div>`;
@@ -27,13 +27,13 @@ afterBlock=function(s){
      .replace(/<b>Up to 1st<\/b><small>[^<]*<\/small>/,finalIn()?`<b>Up to 1st</b><small>Kristin +9 · Brady +3 · Mike +2 · final</small>`:`<b class="prov">+${lu} so far</b><small>Reward and immunity counted · full scores tomorrow morning</small>`);
   const top=finalIn()&&!SHOWSTATE.finalSeen?`<button class="morning" data-job="final"><span class="tg cap">Morning update</span><span class="ctx"><b>Final scores are in</b><small>Weekly Lineup +22 · you moved up to ${ordinal(rank)}</small></span>${svg('chev')}</button>`:'';
   return top+h+`<div class="blk"><div class="stagebar">${stageBar()}</div></div>`};
-function stageBar(){const st=SHOWSTATE.res,steps=[['waiting','Aired','8:05 PM'],['early','Early results','~9:00 PM · who went home'],['final','Final scores','Tomorrow morning · every point']];const idx=steps.findIndex(x=>x[0]===st);
+function stageBar(){const st=SHOWSTATE.res,steps=[['waiting','Aired','8:05 PM'],['early','Early results','Minutes after it ends · who went home'],['final','Final scores','Tomorrow morning · every point']];const idx=steps.findIndex(x=>x[0]===st);
   return `<span class="cap lbl">Episode 5 results</span><div class="steps">${steps.map(([k,t,d],i)=>`<button data-res="${k}" class="${i<=idx?'on':''}${i===idx?' cur':''}"><i></i><b>${t}</b><small>${d}</small></button>`).join('')}</div><small class="muted mockhint">Mock: tap a stage to jump the clock</small>`}
 
 // ---------- dock by stage ----------
 const _dock2=dockHTML;
 dockHTML=function(s){if(N===1||s.id!=='surv'||SHOWSTATE.tab==='chat')return '';
-  if(waiting())return `<div class="dock locked"><span class="eyeic" style="background:var(--raised)">${svg('cal')}</span><span class="tx"><b>Episode 5 just aired</b><small>Early results ~9:00 PM · we'll ping you</small></span></div>`;
+  if(waiting())return `<div class="dock locked"><span class="eyeic" style="background:var(--raised)">${svg('cal')}</span><span class="tx"><b>Episode 5 just aired</b><small>Early results minutes after it ends · we'll ping you</small></span></div>`;
   if(resultsIn())return _dock2(s).replace('Episode 5 results are in','Early results are in').replace('Everything stays hidden until you reveal','Who went home · Pool · Outlast');
   if(revealed5()&&finalIn()&&!SHOWSTATE.finalSeen)return `<button class="dock need" id="dockFinal"><span class="eyeic" style="background:var(--ink);color:var(--chyron)">${svg('cup')}</span><span class="tx"><b>Final scores are in</b><small>Weekly Lineup +22 · up to 1st</small></span><span class="dbtn">See</span></button>`;
   return _dock2(s)};

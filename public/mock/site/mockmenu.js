@@ -20,6 +20,7 @@ const SCEN=[
     ['wdcorr','A correction came in','Episode 3: Brady\'s idol removed for everyone',{n:4,hash:'#/show/surv/episodes',pre:()=>wdSet({corr:true})}],
     ['wdrule','Commissioner: keep our result','Backstage › Results · a house ruling',{n:4,hash:'#/show/surv/backstage/results',pre:()=>wdSet({corr:true})}],
     ['wdfill','Anyone fills in results','A player sees "Fill it in" after early results',{n:4,hash:'#/show/surv/tonight',ph:'after',res:'early',pre:()=>{wdSet({});delete SHOWSTATE.roles.alex}}],
+    ['botres','How results get in','Copy and paste, One tap, Autopilot (soon)',{n:4,hash:'#/show/surv/backstage/results',pre:()=>{wdSet({});botSet({})}}],
     ['wdadmin','Admin','Inbox · Find · Settings',{n:4,hash:'#/admin/inbox',pre:()=>wdSet({})}],
     ['wdfact','Admin: decide a dispute','Both sides, then canonical',{n:4,hash:'#/admin/fact/d1',pre:()=>wdSet({})}]]],
   ['Run a game',[['draft','Draft room','Outlast snake draft',{n:4,hash:'#/show/surv/draft'}],['blind','Blind draft','Pick privately, reveal together',{n:4,hash:'#/show/surv/blind'}],['bs','Backstage','The commissioner\'s side',{n:4,hash:'#/show/surv/backstage'}]]],

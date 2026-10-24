@@ -80,16 +80,31 @@ const { open } = require("./browser");
   await tap("[data-corr]");
   await expectText("#page .ruling", "House ruling (alex)");
 
-  // R2. the commissioner stays spoiler-safe: Quick check's find is hidden until they choose to look
+  // R2. the commissioner stays spoiler-safe: trusted results apply on their own, hidden until they choose to look
   await fresh("&wd=none", "#/show/surv/backstage/results");
   if ((await page.locator(".qcheck").textContent()).includes("Thien")) fail("Backstage › Results shows who went home before the commissioner chose to look");
-  await expectText("#qConfirm", "Confirm without looking");
+  await expectText(".qcheck", "Applied on its own");
   await tap("#rShow");
   await expectText(".qcheck", "Thien");
   await fresh("&wd=none", "#/show/surv/tonight");
   await page.evaluate(() => { SHOWSTATE.phase = "after"; SHOWSTATE.res = "waiting"; route(); });
   await page.waitForTimeout(400);
-  await expectText('[data-job="results"]', "confirm without looking");
+  if (await page.locator('[data-job="whoout"]').count()) fail("Tonight still asks the commissioner who went home");
+  // how results get in: copy and paste (free), One tap ($1, free in beta), Autopilot (coming soon)
+  await fresh("&wd=none", "#/show/surv/backstage/results");
+  await expectText(".bt-opt.on", "Copy and paste");
+  await expectText("#app", "Free during beta");
+  await tap('[data-bt="auto"]');
+  await expectText("#toast", "coming soon");
+  await tap('[data-bt="tap"]');
+  await tap("#btUnlock");
+  await expectText(".bt-opt.on", "One tap");
+  await page.evaluate(() => askAI({ title: "Fill in Episode 5", what: "", onDone: () => { window.__filled = true; } }));
+  await page.waitForTimeout(400);
+  await tap("#btAsk");
+  await page.waitForTimeout(2800);
+  await tap("#btUse");
+  if (!(await page.evaluate(() => window.__filled))) fail("One tap: Use this answer didn't fill the results");
 
   // F. a player can fill in full scores, quietly
   await fresh("&wd=none", "#/show/surv/tonight");

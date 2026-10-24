@@ -39,3 +39,19 @@ html[data-refine] .qcheck .ai{background:var(--raised)!important;color:var(--bon
 html[data-refine] .w-addb{background:none;color:var(--bone);outline:1px solid var(--field);outline-offset:-1px}
 html[data-refine] .w-nudge{outline-color:var(--line)}
 html[data-refine] .qcheck .switch.on i{background:var(--ink)}
+/* Tonight: your moves, one at a time (2C, picked 2026-10-24) */
+.r-cards{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px;padding:0 16px;scrollbar-width:none}
+.r-cards::-webkit-scrollbar{display:none}
+.r-card{flex:none;width:calc(100% - 36px);scroll-snap-align:start;display:flex;flex-direction:column;gap:6px;padding:16px;border-radius:4px;background:var(--panel)}
+.r-cards .r-card:only-child{width:100%}
+.r-card .r-n{font-size:30px;color:var(--muted);line-height:1}
+.r-card .r-n.ok{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:rgba(53,181,165,.18);color:#5fd6c6}
+.r-card .r-n.ok svg{width:18px;height:18px;stroke-width:2.6}
+.r-card b{font-size:26px;line-height:1}.r-card small{font-size:14px;color:var(--muted);line-height:1.4;margin-bottom:10px}
+.r-card .btn{margin-top:auto}
+.r-card.done,.r-card.set{background:var(--ground);outline:1px solid var(--line);outline-offset:-1px}
+.r-dots{display:flex;gap:6px;justify-content:center;margin-top:10px}.r-dots i{width:18px;height:4px;border-radius:2px;background:var(--line);transition:background .2s}.r-dots i.on{background:var(--bone)}
+/* add a show: the new-show block */
+.r-addnew{display:flex;align-items:center;gap:12px;width:100%;margin-top:12px;padding:14px;border-radius:4px;outline:1.5px dashed var(--field);outline-offset:-1.5px;text-align:left}
+.r-addnew>svg{width:22px;height:22px;flex:none;color:var(--bone)}
+.r-addnew b{display:block;font-size:15px}.r-addnew small{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
