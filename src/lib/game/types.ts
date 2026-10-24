@@ -199,6 +199,16 @@ export interface FinalePrediction {
   winner: string | null;
 }
 
+/** A league's compiled rulebook as its state caches it (settings.rulebook, db/rulebooks.js). `version` is the
+ *  rulebook's when it was written, so a league behind its rulebook is detectable; `reader` is the code half
+ *  that reads the show (formats/index.js formatForRulebook). */
+export interface LeagueRulebook {
+  id: string;
+  version: number;
+  data: FormatData;
+  reader: "survivor" | "traitors" | "challenge" | "research" | "league";
+}
+
 export interface LeagueSettings {
   teamSize: number;
   bonusEnabled: boolean;
@@ -268,6 +278,12 @@ export interface LeagueSettings {
    * vast majority, read exactly as before. Never set by a request: only the ruleset routes write it.
    */
   leagueRulesetData?: FormatData | null;
+  /**
+   * The league's compiled rulebook (db/rulebooks.js syncLeagueRulebook), checked first of all by
+   * StateLogic.formatOf. Written only while the rulebooks flag is on, and taken out when it goes off; never
+   * set by a request: the settings route refuses it.
+   */
+  rulebook?: LeagueRulebook;
   /**
    * Season rule changes (docs/PLAN-season-rule-changes.md). `seasonRuleChanges` is every change an
    * admin approved for this league's season -- what its commissioner is offered. `adoptedRuleChanges`

@@ -13,6 +13,7 @@
 const Formats = require("../src/lib/game/formats/index.js");
 const Check = require("../src/lib/game/formats/season-check.js");
 const ShowFormats = require("./show-formats.js");
+const Rulebooks = require("./rulebooks.js");
 
 const asChange = (r) => ({
   id: r.id,
@@ -63,10 +64,14 @@ async function seasonInfo(db, seasonId) {
  * format, or `formatId` when the caller knows which one the answers were asked under, plus its
  * approved changes. A change that no longer fits the format (the show was switched since) is left out
  * rather than breaking research -- the review screen is where that gets noticed.
+ *
+ * With the rulebooks flag on, the season's rulebook stands in for the show's format (db/rulebooks.js
+ * seasonRulebookFormat: an unedited one only for the format it was frozen from, so it's the same rules).
  */
 async function seasonFormat(db, seasonId, { formatId, episode = null, excludeId = null } = {}) {
   const info = formatId === undefined ? await seasonInfo(db, seasonId) : null;
-  const base = await ShowFormats.resolveFormat(db, formatId === undefined ? info && info.format : formatId);
+  const id = formatId === undefined ? info && info.format : formatId;
+  const base = (await Rulebooks.seasonRulebookFormat(db, seasonId, { formatId: id })) || (await ShowFormats.resolveFormat(db, id));
   const changes = await approvedChanges(db, seasonId, { throughEpisode: episode, excludeId });
   try {
     return Formats.withChanges(base, changes);

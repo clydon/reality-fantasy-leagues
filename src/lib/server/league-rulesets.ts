@@ -3,6 +3,7 @@ import type { FormatData } from "@/lib/game/formats/index";
 import type { LeagueRuleset } from "@/lib/game/types";
 import { withLeagueLock } from "@/lib/server/db";
 import * as LR from "@db/league-rulesets.js";
+import { syncLeagueRulebook } from "@db/rulebooks.js";
 
 export type ForkSource =
   | { from: "builtin" | "show_format" | "league_ruleset"; sourceId: string; name?: string }
@@ -16,6 +17,9 @@ export type EditResult = { updated: LeagueRuleset } | { refused: string[] } | { 
  * ruleset, or from scratch, and points the league at it. Each write happens under the league's own
  * lock, with leagues.ruleset_id (a real column, outside `state`) updated via the lock's own
  * transaction client -- withLeagueLock's final UPDATE only ever touches `state` itself.
+ *
+ * All three writes here keep the league's own rulebook in step with its copy while the rulebooks flag
+ * is on (db/rulebooks.js syncLeagueRulebook): formatOf reads settings.rulebook ahead of the copy.
  */
 export async function forkLeagueRuleset(leagueId: string, source: ForkSource, userId: string | null): Promise<ForkResult> {
   let result!: ForkResult;
@@ -63,6 +67,7 @@ export async function forkLeagueRuleset(leagueId: string, source: ForkSource, us
     });
     await client.query("UPDATE leagues SET ruleset_id=$1 WHERE id=$2", [created.id, leagueId]);
     LR.setLeagueRuleset(s.settings, data);
+    await syncLeagueRulebook(client, leagueId, s.settings);
     result = { created };
   });
   return result;
@@ -85,6 +90,7 @@ export async function editLeagueRuleset(leagueId: string, data: FormatData): Pro
     }
     const updated = await LR.updateRulesetData(client, current.id, data, data.name || current.name);
     LR.setLeagueRuleset(s.settings, data);
+    await syncLeagueRulebook(client, leagueId, s.settings);
     result = { updated: updated! };
   });
   return result;
@@ -105,6 +111,7 @@ export async function abandonLeagueRuleset(leagueId: string): Promise<{ abandone
     }
     await client.query("UPDATE leagues SET ruleset_id=NULL WHERE id=$1", [leagueId]);
     LR.setLeagueRuleset(s.settings, null);
+    await syncLeagueRulebook(client, leagueId, s.settings);
     outcome = { abandoned: true, deleted: await LR.deleteIfUnreferenced(client, current.id) };
   });
   return outcome;

@@ -31,7 +31,7 @@ says where each phase goes. The logic, data and API in this file still hold.
 |---|---|---|---|
 | 1 | Schema module, hand-written blocks for the three built-ins, read-only "How the season works" | R1 (logic only; the page is step 1) | **done** 2026-10-24 (logic; `PLAN-new-design.md` R1 As built lists the schema changes) |
 | 2 | The compiler, legacy freeze, engine relaxations | R2 | **done** 2026-10-24 (`PLAN-new-design.md` R2 As built). Changed from this plan: a rulebook compiles on top of the format data it was frozen from (`base`), not through `aliases.questions`; `per` scores one result carrying `units` (migration 0106); `number` questions for amounts |
-| 3 | Database: `rulebooks`, `rulebook_edits`; migration; resolution through rulebooks | R3 | not started |
+| 3 | Database: `rulebooks`, `rulebook_edits`; migration; resolution through rulebooks | R3 | **done** 2026-10-24 (`PLAN-new-design.md` R3 As built). Changed from this plan: migration 0107; `base` and `provenance` columns, `kind 'sport'`; offers, pushes and `shows.kind` wait for phases 5, 7, 8; an unedited rulebook mirrors its source and is written into a league only when it's exactly what the league plays by; the fan-out is `scripts/rulebooks-flag.js` |
 | 4 | Admin editor (six blocks, every sheet) on season rulebooks | 6b (admin Find) | not started |
 | 5 | Timeline edits: show changed / fix, reach, league fan-out, rescore | 6b | not started |
 | 6 | Research: the rulebook prompt, paste-and-review, check for changes | 6b | **logic built** 2026-10-24 (`rulebook-research.js`, tried on 11 shows); Check for changes and the screens are 6b's |

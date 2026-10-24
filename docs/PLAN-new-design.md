@@ -21,7 +21,7 @@ else needs re-reading.
 | 0b | Backend foundation (couch, progress, schedule, roles, guard) | **done** 2026-10-24 on the branch (rehearsed on production's data; before it ships: a fresh backup and a Neon branch run, see As built) | Opus · high |
 | R1 | Rulebooks phase 1: schema, built-ins as blocks, How it works view model (logic only) | **done** 2026-10-24 on the branch | Opus · high |
 | R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | **done** 2026-10-24 on the branch (migration 0106 ships with 0b's) | Opus · high |
-| R3 | Rulebooks phase 3: `rulebooks` tables, backfill, resolution behind a flag | not started | Opus · high |
+| R3 | Rulebooks phase 3: `rulebooks` tables, backfill, resolution behind a flag | **done** 2026-10-24 on the branch (migration 0107 ships with 0b's; the flag stays off) | Opus · high |
 | 0c | The new shell, Preview system, fixtures, motion | not started | Opus · high |
 | 0d | Hub and show space ported (fixtures behind Preview) | not started | Opus · high |
 | 1 | Show space on real leagues: Tonight's move cards, Games tab, How it works | not started | Opus · high |
@@ -527,6 +527,69 @@ function-source hashes moved.
   moment whose question changed would keep its old rule. Store `phaseStarts` beside the blocks. Not done: an edited question
   on a moment the base still scores keeps the base's question (by design: re-asking it differently means a new moment), and
   the "× n" in classic event rows.
+
+**As built, R3 (2026-10-24, on `new-design`).** Rulebooks phase 3: the tables, the backfill, `db/rulebooks.js`, and
+`settings.rulebook = { id, version, data, reader }` written into leagues behind the `rulebooks` flag, which is off. Nothing
+scores differently with it on (proved on zt leagues of every kind and, read-only, on the local copy's real leagues), and
+off it touches nothing but one small flag read.
+- **Migration 0107** (`rulebooks`, `rulebook_edits`, `show_seasons.rulebook_id`, `leagues.rulebook_id`). Changed from the
+  implementation plan's 5.1: `kind` is the schema's `sport`, not `event`; a `base` column (the data a rulebook was frozen from,
+  never moved: every compile from blocks starts from it, R2's ask) and `provenance` (where it came from, and `editedAt` once saved
+  from the editor); `parent_kind 'library'` for an entry of `formats/library/`; unique indexes for one live rulebook per league
+  and one library row per source (so the backfill and the lazy paths can't make two); `rulebook_edits.legacy_id`, the season
+  change it was copied from (no FK: that table goes in C). Left for their phases: `rulebook_offers` and `rulebook_pushes` (5 and
+  7, in 6b), `shows.kind` and `new_season_from` (8, step 10).
+- **`db/rulebooks.js`** (+ `.d.ts`): the plan's `getRulebook`, `listLibrary`, `seasonRulebook`, `rulebookForLeague`,
+  `createRulebook`, `copyRulebook`, `saveBlocks` (validates, compiles on `base` with its aliases, reader and phase starts, refuses
+  located problems, version on, `compiled_source 'blocks'`), `setPhaseStart` (recompiles one from blocks), `lineage`,
+  `leaguesUsing`, `compiledFor` (cached by id and version; `throughEpisode` waits for phase 5's edits). And what keeps
+  rulebooks honest until the editors make them the source: `ensureTemplate`, `ensureSeasonRulebook` and `ensureLeagueRulebook`
+  make one if missing and bring an **unedited** one (`legacy`) up to its source when it moved (a stored format re-approved, a
+  show switched format, a commissioner's copy edited or given up), version on; anything saved from blocks is never touched.
+  **`syncLeagueRulebook`** writes a legacy rulebook into a league only when its data and reader are exactly what the league
+  plays by without it (`legacyBase`, formatOf's own choice), else the league stays on the old path and the result says why (a
+  stale cache, no season in the catalog). Adopted season changes still layer on top in formatOf. The flag is read every time
+  (one row), so a flip is seen at once.
+- **The backfill** (`db/backfill-rulebooks.js [--dry-run]`, a rolled-back transaction for the dry run; idempotent): templates for
+  the four built-ins and each approved stored format, the six library drafts, a rulebook per season (each checked against the
+  format its research reads), approved and withdrawn season changes as `rulebook_edits` (ops where blocks can say it, the delta
+  kept whole in `proposal`), own-copy leagues. **Run on the local copy:** 9 templates, 6 drafts, 5 seasons, all the same as their
+  formats; a second run changed nothing. There are no season changes or own copies in that data, so those paths are proved on
+  the fixture. Phase starts: only a clean switch in accepted results counts as a confirmed merge (decision 5), because real
+  results mix the flag: Survivor 49 has tribe immunity marked post-merge in episode 8. So Survivor 44's merge is 6; 49's and 51's
+  are left for a person to confirm (6b), and the backfill says so.
+- **The flag:** `app_settings 'rulebooks'`; **`scripts/rulebooks-flag.js status | check | on | off`**. `check` writes nothing:
+  each league synced in a rolled-back transaction and compared (standings, every episode's events and points, the season's
+  end, the catalog), each season's rulebook against its research format. On the local copy: the five real leagues on a season
+  would get their season's rulebook and score the same; the sixth has no show. `on` runs the backfill first (refusing if a
+  season doesn't match), sets the flag, then walks every league under its row lock without running waivers or bots, saving only
+  what changed; `off` takes `settings.rulebook` out again. No admin switch yet (6b). **`scripts/rehearse-migrations.js` now also
+  runs the backfill and `check` on the Neon branch** (tried end to end on the local database), so 0b's rehearsal covers 0107.
+- **Wired** (each a no-op with the flag off): the settings route on a show or season change; `pushShowFormat` (the show's
+  season rulebooks first, then each league under its lock); the league ruleset fork, edit and give-up. **`rulebook` is now
+  `SERVER_OWNED` in the settings route:** since R2's formatOf read `settings.rulebook`, a commissioner could have set any rules
+  through the generic setter on the branch. `seasonFormat` reads the season's rulebook with the flag on
+  (`seasonRulebookFormat`: an unedited one only for the format it was frozen from). Not switched: `db/embeddings.js` and the
+  decision route still `resolveFormat` (the same rules while every rulebook is legacy; 6b switches them when edits differ).
+- **Tests:** `tests/rulebooks-db.test.js` (5: key-order-free comparison, `legacyBase`, the clean-switch merge, flag off touches
+  nothing, a delta as ops); **`scripts/dev-test/rulebook-fixture.js`** (zt leagues on Survivor, Traitors, Challenge and a stored
+  format, every league type, an own copy, an adopted season change, a league from before formats, a stale cache, a season not in
+  the catalog; `--copies` for scale) and **`check-rulebook-flag.js run`** (43 PASS: the backfill, the flag on and every league
+  scoring the same, the stale league refused, research's format, a wrong rulebook caught, a format re-approved, an own copy edited
+  and given up, unedited blocks scoring the same and a real edit playing, phase starts, lineage, a copy, the flag off leaving each
+  league exactly as it was). The app's routes checked against the running dev server (the refusal, a season change, fork, edit,
+  give up). `npm test` 455 pass plus the 3 known tour-commissioner failures; type check clean; `src/` lint has one error, in
+  `use-sheet-swipe.ts`, from 2026-10-17, not this step.
+- **Hosting:** ~30 KB of storage per season's rulebook; with the flag on every league's state carries its rules (+5-14 KB), and
+  HOSTING.md has the lever if that matters (no `data` for an unedited built-in).
+- **For 6b:** season_rule_changes is still what research applies and leagues adopt; the copied edits wait for phase 5's
+  `rulebook-patch.js`. Rulebooks aren't in `backup-leagues.js` yet: fine while every one is legacy (the backfill re-makes them),
+  but add `rulebooks` and `rulebook_edits` (both FK cycles: leagues and show_seasons point at them) once one can be edited. The fan-out
+  is a CLI; 6b's admin switch and edit pushes need `rulebook_pushes`. Confirm Survivor 49's and 51's merges. A show on `generic`
+  reads with the research code half, not generic's own: the same scoring, possibly other prompts (no show uses it).
+- **Before 0107 reaches production:** it ships with 0b's and 0106, under the same fresh backup and Neon branch rehearsal, which
+  now runs the backfill. Production's backfill can wait: with the flag off nothing reads the tables, and `rulebooks-flag.js on`
+  runs it first.
 
 ## Step 0c: the new shell
 

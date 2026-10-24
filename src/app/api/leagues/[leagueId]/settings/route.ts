@@ -8,6 +8,7 @@ import { approvedCastFor, applyCastToState } from "@/lib/server/season-cast";
 import { syncLeagueDecisions } from "@/lib/server/season-decisions";
 import { syncLeagueFormat } from "@db/show-formats.js";
 import { syncLeagueChanges } from "@db/season-rule-changes.js";
+import { syncLeagueRulebook } from "@db/rulebooks.js";
 
 // Set by the server from the league's show (below, and the admin show route), never by a request: a
 // league's rules are its show's, and stored format data is validated on approval, not here.
@@ -15,8 +16,8 @@ import { syncLeagueChanges } from "@db/season-rule-changes.js";
 // write it, after running it through rulesetProblems.
 // seasonRuleChanges/adoptedRuleChanges (docs/PLAN-season-rule-changes.md): written by the server when a
 // change is approved, and by the adopt/decline route (declinedRuleChanges too) -- never set straight
-// from a settings request.
-const SERVER_OWNED = ["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges", "declinedRuleChanges"];
+// from a settings request. And rulebook (db/rulebooks.js), which formatOf reads ahead of all of them.
+const SERVER_OWNED = ["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges", "declinedRuleChanges", "rulebook"];
 
 // Port of SurvivorDraft's server/routes/roster.js PATCH /settings -- generic field/value setter,
 // no per-field validation server-side (same as the original; the client only ever sends fields
@@ -60,6 +61,9 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
       // season must not undo what its commissioner chose, so that only happens when it really moved.
       const seasonAfter = `${s.settings.showId ?? ""}|${s.settings.wikiSeason ?? ""}`;
       await syncLeagueChanges(client, s.settings, { adoptAll: seasonAfter !== seasonBefore });
+      // The season's rulebook, while the rulebooks flag is on (db/rulebooks.js): written only when it's
+      // exactly the rules cached above, and taken out with the flag off.
+      await syncLeagueRulebook(client, leagueId, s.settings);
       const approved = await approvedCastFor(client, s.settings.showId, s.settings.wikiSeason);
       // The starting tribes ride along only if this league may see them yet -- a league catching up
       // from episode 0 gets the people now and the division when it reveals the premiere. See

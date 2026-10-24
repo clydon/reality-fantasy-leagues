@@ -1,6 +1,8 @@
 // Runs the migrations on a Neon branch of production, then checks step 0b's data there
-// (scripts/dev-test/check-foundation-data.js): the rehearsal docs/PLAN-new-design.md asks for before a
-// migration ships. Never production itself: it refuses the host any production backup in backups/ was read
+// (scripts/dev-test/check-foundation-data.js), then runs the rulebooks backfill there (db/backfill-rulebooks.js,
+// step R3) and its read-only check that every league would score the same with the rulebooks flag on
+// (scripts/rulebooks-flag.js check; the flag itself stays off): the rehearsal docs/PLAN-new-design.md asks for
+// before a migration ships. Never production itself: it refuses the host any production backup in backups/ was read
 // from (each manifest records it), and without such a backup it asks for --yes after printing the host.
 //
 //   PowerShell:  $env:REHEARSE_DATABASE_URL = "<the Neon branch's connection string>"
@@ -42,12 +44,19 @@ if (!production.size && !process.argv.includes("--yes")) {
   } finally {
     await pool.end();
   }
-  const check = spawnSync(process.execPath, [path.join(__dirname, "dev-test", "check-foundation-data.js")], {
-    encoding: "utf8",
-    env: { ...process.env, CHECK_DATABASE_URL: url },
-  });
-  process.stdout.write(check.stdout + check.stderr);
-  if (check.status !== 0) process.exitCode = 1;
+  const steps = [
+    [path.join(__dirname, "dev-test", "check-foundation-data.js")],
+    [path.join(__dirname, "..", "db", "backfill-rulebooks.js")],
+    [path.join(__dirname, "rulebooks-flag.js"), "check"],
+  ];
+  for (const args of steps) {
+    const step = spawnSync(process.execPath, args, {
+      encoding: "utf8",
+      env: { ...process.env, CHECK_DATABASE_URL: url, RULEBOOKS_DATABASE_URL: url },
+    });
+    process.stdout.write(step.stdout + step.stderr);
+    if (step.status !== 0) process.exitCode = 1;
+  }
 })().catch((e) => {
   console.error(`[rehearse] ${e.message}`);
   process.exitCode = 1;

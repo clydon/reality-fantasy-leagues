@@ -86,7 +86,7 @@ measured; measure from Neon's usage a week after a change):
 
 | Poll | Every | Read from Neon |
 |---|---|---|
-| League state (`/state`) | 15 s | ~2 KB (a hash check; the full 20-40 KB state only when it changed) |
+| League state (`/state`) | 15 s | ~2 KB (a hash check; the full 20-40 KB state only when it changed; ~5-14 KB more per league with the rulebooks flag on, see Changelog) |
 | Unread chat (`/chat/unread`) | 15 s | under 1 KB (a count) |
 | Your moves (`/api/me/actions`) | 30 s | ~1-2 KB (hashes; full states only when changed) |
 | Open chat (`/chat?v=`) | 5 s | under 1 KB when nothing changed |
@@ -169,3 +169,15 @@ never handles it: the user does the reset and the pasting.
   they show (no league state but the action items', through `league-states.ts`) and aren't polled yet: whatever
   polls them later should poll something smaller. The rehearsal before deploying uses a third Neon branch (of the
   10 allowed); delete it once 0b is live.
+- **2026-10-24, on the `new-design` branch (not deployed).** Step R3's migration 0107 adds `rulebooks` and
+  `rulebook_edits`, filled by `db/backfill-rulebooks.js`: on the local copy of production 20 rows, 728 kB with
+  indexes (a season's rulebook is ~29 KB: its blocks, its compiled data and the data it was frozen from; a library
+  row ~19 KB), so about 30 KB more storage per new season. Nothing polls or runs on a schedule. With the rulebooks
+  flag off (the default) the only new reads are one tiny `app_settings` row per season-research format lookup and
+  per show or season change. **With the flag on, every league's state carries its rules** (`settings.rulebook`):
+  +12.5 KB for a Survivor league, +14 KB Traitors, +5 KB Challenge, so today's 20-25 KB states become ~33-38 KB,
+  and each full state read after a change costs that much more (the `/state` and `/api/me/actions` rows above:
+  the hash checks are unchanged). If that matters when the flag goes on, the lever is to leave `data` out of an
+  unedited built-in's `settings.rulebook` (formatOf would read the built-in's own data), which is most leagues.
+  Rehearsal: `scripts/rehearse-migrations.js` now also runs the backfill and the read-only `rulebooks-flag.js
+  check` on the branch.
