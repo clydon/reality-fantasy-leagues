@@ -211,6 +211,7 @@ export function StepperRow({
   onChange,
   min,
   max,
+  step,
   disabled,
 }: {
   label: string;
@@ -219,6 +220,7 @@ export function StepperRow({
   onChange: (next: number) => void;
   min?: number;
   max?: number;
+  step?: number;
   disabled?: boolean;
 }) {
   return (
@@ -231,7 +233,7 @@ export function StepperRow({
       {disabled ? (
         <span className="type-num min-w-10 shrink-0 text-right text-[24px]">{value}</span>
       ) : (
-        <Stepper label={label} value={value} onChange={onChange} min={min} max={max} />
+        <Stepper label={label} value={value} onChange={onChange} min={min} max={max} step={step} />
       )}
     </div>
   );

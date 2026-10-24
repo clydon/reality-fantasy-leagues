@@ -79,3 +79,26 @@ export async function askBot(prompt: string): Promise<{ answer: string; seconds:
   }
   throw new HttpError(502, `ChatGPT didn't answer. ${failures.join(" · ")}`);
 }
+
+/**
+ * Tells the bot's clock when bot research next has a run due (null: none left), so it calls
+ * /api/cron/bot-research then instead of waiting for its next check-in (llm-browser-api's deploy/tick.py;
+ * docs/HOSTING.md). For a change that can bring a run earlier: a schedule, an air time, a season switched
+ * on. Every bot is told; one without a clock (the home PC) just answers 404. Best effort, never throws.
+ * Production only: the clock calls production, and a dev machine (whose .env.local can point at the same
+ * bot) telling it a time from its own database would make it miss real runs.
+ */
+export async function tellBotClock(next: Date | null): Promise<void> {
+  if (!askBotConfigured || process.env.VERCEL_ENV !== "production") return;
+  await Promise.all(
+    URLS.map((url) =>
+      fetch(`${url}/tick`, {
+        method: "POST",
+        headers: { ...UA, "Content-Type": "application/json", "X-API-Key": KEY! },
+        body: JSON.stringify({ next: next ? next.toISOString() : null }),
+        signal: AbortSignal.timeout(5000),
+        cache: "no-store",
+      }).catch(() => null)
+    )
+  );
+}

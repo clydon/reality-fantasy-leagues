@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { parseWikiUrl } from "@/lib/server/wiki-url";
+import { tellBotClock } from "@/lib/server/ask-bot";
 import { RESEARCH_MODELS } from "@db/episode-research.js";
-import { normalizeSchedule } from "@db/bot-research.js";
+import { normalizeSchedule, planRuns } from "@db/bot-research.js";
 
 type RouteParams = { id: string };
 
@@ -120,6 +121,13 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     if (on) sets.push("bot_research_since = COALESCE(CASE WHEN bot_research_on THEN bot_research_since END, now())");
     else sets.push("bot_research_since = NULL");
   }
+  // How long an episode runs (0066): bot research counts its schedule from the end. Blank = an hour.
+  if ("episodeMinutes" in body) {
+    const raw = body.episodeMinutes;
+    const n = raw === null || raw === "" ? null : Number(raw);
+    if (n !== null && (!Number.isInteger(n) || n < 1 || n > 600)) throw new HttpError(400, "An episode's length is 1 to 600 minutes");
+    push("episode_minutes", n);
+  }
   if ("wikiUrl" in body) {
     const wikiUrl = String(body.wikiUrl || "").trim() || null;
     if (wikiUrl) {
@@ -218,8 +226,21 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     );
     leaguesOnOldNumber = usage[0].n;
   }
+
+  // The bot's clock calls only when it's told a run is due (db/bot-research.js), so anything that can bring
+  // one earlier tells it now, after the response: otherwise it'd wait for its next check-in.
+  if (BOT_CLOCK_FIELDS.some((f) => f in body)) {
+    after(async () => {
+      try {
+        await tellBotClock((await planRuns(pool)).next);
+      } catch (e) {
+        console.error("[bot-research] couldn't tell the bot's clock:", e);
+      }
+    });
+  }
   return NextResponse.json({ season: rows[0], leaguesOnOldNumber, pruned });
 });
+const BOT_CLOCK_FIELDS = ["status", "episodeCount", "premiereDate", "finaleDate", "airTime", "airTz", "botResearchSchedule", "botResearchOn", "episodeMinutes", "seasonNumber"];
 
 export const DELETE = apiRoute(async (req, { params }: { params: Promise<RouteParams> }) => {
   const { id } = await params;

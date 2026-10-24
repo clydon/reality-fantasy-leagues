@@ -4,7 +4,7 @@ import type { Pool } from "pg";
 export type BotKind = "quick" | "full";
 export interface BotScheduleRun {
   kind: BotKind;
-  /** Minutes after the episode airs. */
+  /** Minutes after the episode ends (its air time plus the season's episode length). */
   after: number;
   on: boolean;
 }
@@ -29,16 +29,20 @@ export const MAX_ATTEMPTS: number;
 /** A schedule from a request body, cleaned up; throws (with a message for the admin) if malformed. */
 export function normalizeSchedule(input: unknown): BotScheduleRun[];
 export function slotOf(run: { kind: BotKind; after: number }): string;
-/** The earliest due run across every season with bot research on, run; or { job: null }. */
+/** The earliest due run across every season with bot research on, run; or { job: null }. Either way,
+ *  `next`: when the next run comes due (now if one already is), or null when none is left. */
 export function runNext(
   pool: Pool,
   opts: { ask: Ask; now?: Date; dry?: boolean; seasonId?: string }
-): Promise<{ job: null } | ({ job: { season: string; seasonNumber: number; episode: number; slot: string; kind: BotKind } } & BotRunOutcome)>;
+): Promise<
+  | { job: null; next: Date | null }
+  | ({ job: { season: string; seasonNumber: number; episode: number; slot: string; kind: BotKind }; next: Date | null } & BotRunOutcome)
+>;
+type DueRun = { episode: number; slot: string; kind: BotKind; after: number; at: Date; season: { id: string; slug: string; season_number: number } };
 /** What's due now (each with its season row), earliest first. */
-export function listDue(
-  pool: Pool,
-  opts?: { now?: Date; seasonId?: string }
-): Promise<{ episode: number; slot: string; kind: BotKind; after: number; at: Date; season: { id: string; slug: string; season_number: number } }[]>;
+export function listDue(pool: Pool, opts?: { now?: Date; seasonId?: string }): Promise<DueRun[]>;
+/** What's due now, and when the next run comes due (now if one already is; null when none is left). */
+export function planRuns(pool: Pool, opts?: { now?: Date; seasonId?: string }): Promise<{ due: DueRun[]; next: Date | null }>;
 /** One run, outside the schedule (an admin's "Run now"). */
 export function runJob(
   pool: Pool,

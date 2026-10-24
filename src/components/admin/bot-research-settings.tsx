@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import type { ShowSeason } from "@/lib/game/types";
-import { ToggleRow, fieldCls } from "@/components/setup/settings-ui";
+import { StepperRow, ToggleRow, fieldCls } from "@/components/setup/settings-ui";
 import { ActButton, Rows, Section } from "./admin-ui";
 import { cn } from "cn";
 
 // Bot research (experimental, db/bot-research.js) for one season: the free ChatGPT schedule, counted
-// from each episode's air time. Every run is editable: what it asks, how long after airing, on or off.
+// from when each episode ends (its air time plus the season's episode length). Every run is editable:
+// what it asks, how long after the end, on or off.
 
 type Run = { kind: "quick" | "full"; after: number; on: boolean };
 
@@ -70,11 +71,23 @@ export function BotResearchSection({
           // The schedule goes with the switch, so a season that never saved one gets the default.
           onChange={(next) => save(next ? { botResearchOn: true, botResearchSchedule: runs } : { botResearchOn: false })}
         />
+        {on && (
+          <StepperRow
+            label="Episode length, minutes"
+            hint="Each run counts from when an episode ends. Survivor's run 90."
+            value={season.episodeMinutes ?? 60}
+            min={5}
+            max={600}
+            step={5}
+            disabled={busy}
+            onChange={(n) => save({ episodeMinutes: n })}
+          />
+        )}
         {on &&
           runs.map((r, i) => (
             <div key={`${r.kind}@${r.after}@${i}`} className="flex flex-col gap-1 pb-3">
               <ToggleRow
-                label={`${KIND_LABEL[r.kind]}, ${afterLabel(r.after)} after airing`}
+                label={`${KIND_LABEL[r.kind]}, ${afterLabel(r.after)} after it ends`}
                 hint={KIND_HINT[r.kind]}
                 checked={r.on}
                 disabled={busy}
@@ -125,7 +138,7 @@ function RunEditor({ run, disabled, onChange, onRemove }: { run: Run; disabled: 
         <option value="full">Full</option>
       </select>
       <input
-        aria-label="How long after airing"
+        aria-label="How long after it ends"
         type="number"
         min={0}
         className={cn(fieldCls, "min-h-11 w-[68px] px-3 tabular-nums")}

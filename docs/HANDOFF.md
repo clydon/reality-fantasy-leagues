@@ -11,17 +11,13 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
-## Hosting limits, 2026-10-24 (read before adding anything that polls)
-- **Neon Free plan:** 5 GB a month of query results (running out suspends the database until the month resets),
-  100 compute hours, 6 hours of history. On 2026-10-24 the month was at 95% with a week left, almost all of it the
-  chat polls re-reading full league states; fixed and pushed in ff95851 (`src/lib/server/league-states.ts`, a
-  `/chat/unread` count, a version on `/chat`; `scripts/dev-test/check-chat-polls.js`). The ask-AI bot's VM timer
-  calls `/api/cron/bot-research` every 2 minutes, which keeps the compute awake around the clock and will use up
-  the 100 hours next month: it should tick often only around air times (`llm-browser-api`, not this repo).
-- **Vercel builds production only** (Settings › Build and Deployment › Ignored Build Step, changed 2026-10-24):
-  Preview shares production's `AUTH_DATABASE_URL`, and every build runs the migrations. Give Preview its own
-  database (a Neon branch) before deploying a branch.
-- Vercel's Hobby plan also shows "Exceeded free resources" (Functions Storage 14.5 of 10 GB): not looked into.
+## Hosting: read [HOSTING.md](HOSTING.md) before adding anything that polls, runs on a schedule or stores data
+Every service, its free limits, current usage, what drives each limit, and what more would cost; keep it current
+(the user's standing request, 2026-10-24). Open alerts there: **GitHub Actions has run nothing since 2026-10-19**
+(no reminders, no wiki sync: a billing or minutes problem on the account), and Vercel's Functions Storage is over
+its free 10 GB. Fixed 2026-10-24: the chat polls that used up Neon's transfer (ff95851), and the bot clock that kept
+Neon awake (the VM now calls only when a run is due; runs count from the episode's end). Vercel builds production
+only (Preview shared production's database).
 
 ## Next: moving the app onto the new design (plan written 2026-10-23)
 **Read [PLAN-new-design.md](PLAN-new-design.md) first.** One database, no data transfer (the new screens read and
