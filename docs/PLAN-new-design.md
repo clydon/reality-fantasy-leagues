@@ -17,7 +17,7 @@ else needs re-reading.
 
 | Step | What | State | Model / effort |
 |---|---|---|---|
-| 0a | Back up the live leagues | built, proven locally; Neon branch made; waiting on the user's production backup run | Opus · medium |
+| 0a | Back up the live leagues | **done** 2026-10-24 (production backup restored and matched) | Opus · medium |
 | 0b | Backend foundation (couch, progress, schedule, roles, guard) | not started | Opus · high |
 | R1 | Rulebooks phase 1: schema, built-ins as blocks, How it works view model (logic only) | not started | Opus · high |
 | R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | not started | Opus · high |
@@ -197,7 +197,10 @@ Goal: a complete, restorable copy of everything the couch has played, before any
 - Left out on purpose: `episode_text_chunks` (embeddings, rebuilt from the wiki), operational logs
   (`reminder_log`, `auto_research_attempts`, `bot_research_runs`, `issue_reports`, `push_subscriptions`),
   and login data. The Neon branch holds everything.
-- **Waiting on the user:** the production backup. The Neon branch `pre-new-design-2026-10-24` exists (made
+- **Done 2026-10-24:** the user ran the production backup (14:16 UTC, `backups/prod-2026-10-24`, local only: 6
+  leagues, 1,135 results, 6 people), and it restored into a scratch database matching exactly: 28 tables and every
+  league's state hash, with production's migrations equal to the code's. How it was run, for next time:
+- The production backup. The Neon branch `pre-new-design-2026-10-24` exists (made
   2026-10-24, never auto-deletes); rotating the password first was deferred (docs/HOSTING.md has the steps)
   and isn't needed for this. With the connection string Vercel's `AUTH_DATABASE_URL` holds (Neon › Connect,
   Show password; direct, not pooled):
