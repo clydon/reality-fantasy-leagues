@@ -31,6 +31,8 @@ test("the prompt carries every choice and its help, the rules, and only what was
 
 test("the answer's JSON, with chatter and fences around it", () => {
   assert.deepEqual(R.parseRulebookAnswer('Here you go:\n```json\n{ "kind": "talk" }\n```\nEnjoy!'), { kind: "talk" });
+  assert.deepEqual(R.parseRulebookAnswer('{ "kind": "series", "x": "}{" }{ "kind": "talk" }'), { kind: "talk" }, "a draft, then the chat's correction: the last wins");
+  assert.deepEqual(R.jsonObjectsIn('a { "b": "}" } c {"d":{"e":1}}'), ['{ "b": "}" }', '{"d":{"e":1}}'], "braces inside strings don't count");
   assert.throws(() => R.parseRulebookAnswer("Sorry, I can't."), /no JSON object/);
   assert.throws(() => R.parseRulebookAnswer('{ "kind": "talk", }'), /doesn't parse/);
 });

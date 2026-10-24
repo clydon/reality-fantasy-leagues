@@ -16,4 +16,6 @@ export interface RulebookReview {
 
 export function buildRulebookPrompt(opts: { show: string; season?: string; airing?: boolean; template?: RulebookBlocks | null }): string;
 export function parseRulebookAnswer(answer: string): Record<string, unknown>;
+/** Every top-level JSON object in a text, in order (braces counted outside strings). */
+export function jsonObjectsIn(text: string): string[];
 export function reviewRulebook(answer: unknown, opts?: { castNames?: string[] }): RulebookReview;

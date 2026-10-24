@@ -21,29 +21,7 @@ const path = require("path");
 const R = require("../../src/lib/game/formats/rulebook-research.js");
 const D = require("../../src/lib/game/formats/rulebook-describe.js");
 const { momentsFor } = require("../../src/lib/game/formats/rulebook-moments.js");
-const { BUILT_IN_BLOCKS } = require("../../src/lib/game/formats/blocks/index.js");
-const SAMPLES = require("../../tests/fixtures/rulebook-samples.js");
-
-// Each show to try: what to ask, and our own rulebook for it, when we have one, to compare with.
-const PRESETS = {
-  "survivor-50": { show: "Survivor", season: "Season 50", expect: BUILT_IN_BLOCKS.survivor.blocks },
-  "survivor-51": { show: "Survivor", season: "Season 51, airing now", airing: true, expect: BUILT_IN_BLOCKS.survivor.blocks, cast: ["survivor", 51] },
-  "amazing-race": { show: "The Amazing Race", season: "its most recent season", expect: SAMPLES.amazingRace },
-  "the-challenge": { show: "The Challenge", season: "its most recent season", expect: BUILT_IN_BLOCKS.challenge.blocks },
-  "real-housewives": { show: "The Real Housewives of Beverly Hills", season: "its most recent season" },
-  "below-deck": { show: "Below Deck", season: "its most recent season", expect: SAMPLES.belowDeck },
-  "world-series-2025-game-2": { show: "the World Series", season: "Game 2 of the 2025 World Series" },
-  "world-series-2026-game-2": { show: "the World Series", season: "Game 2 of the 2026 World Series, which hasn't happened yet or is about to", airing: true },
-  scrubs: { show: "Scrubs", season: "its most recent season" },
-  "snl-51": { show: "Saturday Night Live", season: "Season 51", expect: SAMPLES.snl },
-  "snl-52": { show: "Saturday Night Live", season: "Season 52, airing now", airing: true, expect: SAMPLES.snl },
-};
-// The nearest rulebook we have, for --template: by kind, as the show's own preset says it'd be.
-const TEMPLATES = {
-  "amazing-race": BUILT_IN_BLOCKS.survivor.blocks, "the-challenge": BUILT_IN_BLOCKS.survivor.blocks, "real-housewives": SAMPLES.belowDeck,
-  "below-deck": SAMPLES.pluribus, "world-series-2025-game-2": SAMPLES.formula1, "world-series-2026-game-2": SAMPLES.formula1,
-  scrubs: SAMPLES.pluribus, "snl-51": SAMPLES.formula1, "snl-52": SAMPLES.formula1,
-};
+const { PRESETS, TEMPLATES, botUrl, askBot, localCast } = require("./rulebook-shows");
 
 const args = process.argv.slice(2);
 const flag = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split("=")[1] ?? (args.includes(`--${name}`) ? true : null);
@@ -56,47 +34,6 @@ if (!outDir) throw new Error("usage: node scripts/dev-test/check-rulebook-prompt
 const wanted = args.filter((a) => !a.startsWith("--") && a !== outDir);
 for (const w of wanted) if (!PRESETS[w]) throw new Error(`no preset "${w}" (--list shows them)`);
 const shows = wanted.length ? wanted : Object.keys(PRESETS);
-
-const UA = { "User-Agent": "GameYourShow/1.0 (+https://gameyourshow.com)" };
-
-// The season's cast, for the spoiler check, when the local database has it (read only; [] otherwise).
-async function castNames(cast) {
-  const url = process.env.AUTH_DATABASE_URL || "";
-  if (!cast || !/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(url)) return [];
-  const { Pool } = require("pg");
-  const pool = new Pool({ connectionString: url });
-  try {
-    const { rows } = await pool.query(
-      "SELECT sc.name FROM season_cast sc JOIN show_seasons ss ON ss.id = sc.season_id JOIN shows s ON s.id = ss.show_id WHERE s.slug = $1 AND ss.season_number = $2",
-      cast
-    );
-    return rows.map((r) => r.name);
-  } catch {
-    return [];
-  } finally {
-    await pool.end();
-  }
-}
-function botUrl() {
-  const urls = (process.env.LLM_BROWSER_API_URL || "").split(",").map((u) => u.trim().replace(/\/+$/, "")).filter(Boolean);
-  if (!urls.length || !process.env.LLM_BROWSER_API_KEY) throw new Error("LLM_BROWSER_API_URL and LLM_BROWSER_API_KEY must be in .env.local");
-  const local = urls.find((u) => /127\.0\.0\.1|localhost/.test(u));
-  const which = flag("bot") || "local";
-  if (which === "local" && local) return local;
-  return urls.find((u) => u !== local) || urls[0];
-}
-
-async function ask(url, prompt) {
-  const res = await fetch(`${url}/ask`, {
-    method: "POST",
-    headers: { ...UA, "Content-Type": "application/json", "X-API-Key": process.env.LLM_BROWSER_API_KEY },
-    body: JSON.stringify({ provider: "chatgpt", prompt, search: true, max_wait: 420 }),
-    signal: AbortSignal.timeout(450_000),
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok || !body.response) throw new Error(body.detail || `HTTP ${res.status}`);
-  return { answer: body.response, seconds: body.seconds || 0 };
-}
 
 // ---------- how an answer reads ----------
 
@@ -136,11 +73,13 @@ function compare(expect, got) {
     const g = segs.get(norm(s.name)) || [...segs.values()].find((x) => norm(x.name).includes(norm(s.name)) || norm(s.name).includes(norm(x.name)));
     if (!g) { lines.push(`  MISS  segment ${s.name}`); continue; }
     segs.delete(norm(g.name));
-    const a = keys.filter((k) => s[k] !== undefined).map((k) => `${k}=${s[k]}`);
-    const b = keys.filter((k) => g[k] !== undefined).map((k) => `${k}=${g[k]}`);
+    // Nothing on the line is the same said or not.
+    const said = (x, k) => x[k] !== undefined && !(k === "onTheLine" && x[k] === "nothing");
+    const a = keys.filter((k) => said(s, k)).map((k) => `${k}=${s[k]}`);
+    const b = keys.filter((k) => said(g, k)).map((k) => `${k}=${g[k]}`);
     lines.push(`${a.join(" ") === b.join(" ") ? "  same " : "  DIFF "} segment ${s.name}: ours ${a.join(" ")} · theirs ${b.join(" ")}`);
   }
-  for (const g of segs.values()) lines.push(`  EXTRA segment ${g.name}: ${keys.filter((k) => g[k] !== undefined).map((k) => `${k}=${g[k]}`).join(" ")}`);
+  for (const g of segs.values()) lines.push(`  EXTRA segment ${g.name}: ${keys.filter((k) => g[k] !== undefined && !(k === "onTheLine" && g[k] === "nothing")).map((k) => `${k}=${g[k]}`).join(" ")}`);
   const ways = (b) => (b.waysOut || []).map((w) => `${norm(w.name)}:${w.means}`).sort();
   same("ways out", ways(expect), ways(got));
   same("twists", (expect.twists || []).map((t) => t.type).sort(), (got.twists || []).map((t) => t.type).sort());
@@ -150,7 +89,7 @@ function compare(expect, got) {
 // ---------- run ----------
 
 (async () => {
-  const url = botUrl();
+  const url = botUrl(flag("bot") || "local");
   console.log(`[rulebook-prompt] ${shows.length} show(s) through ${new URL(url).host}${flag("template") ? ", with a starting rulebook" : ""} -> ${outDir}`);
   const summary = [];
   for (const key of shows) {
@@ -167,7 +106,7 @@ function compare(expect, got) {
     else {
       process.stdout.write(`  ${key}: asking... `);
       try {
-        ({ answer, seconds } = await ask(url, prompt));
+        ({ answer, seconds } = await askBot(url, prompt));
       } catch (e) {
         console.log(`failed: ${e.message}`);
         summary.push(`${key.padEnd(26)} FAILED: ${e.message}`);
@@ -178,7 +117,7 @@ function compare(expect, got) {
     }
     let review;
     try {
-      review = R.reviewRulebook(R.parseRulebookAnswer(answer), { castNames: await castNames(p.cast) });
+      review = R.reviewRulebook(R.parseRulebookAnswer(answer), { castNames: await localCast(p.cast) });
     } catch (e) {
       fs.writeFileSync(path.join(dir, "review.txt"), `The answer didn't parse: ${e.message}\n`, "utf8");
       summary.push(`${key.padEnd(26)} DIDN'T PARSE: ${e.message}`);

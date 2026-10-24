@@ -64,10 +64,13 @@ function formatProblems(data) {
   if (!isTextList(exits, { empty: false })) p.push('exitMethods: a non-empty list of names');
   else if (new Set(exits).size !== exits.length) p.push('exitMethods: a name is listed twice');
   const exitList = Array.isArray(exits) ? exits : [];
-  if (!exitList.includes(data.winnerExitMethod)) p.push('winnerExitMethod: not one of the exit methods');
+  // Null: nobody wins (a series, a talk show; a compiled rulebook, rulebook-compile.js). A league can't play
+  // one of those yet: state-logic's season-over reads assume a winner (docs/PLAN-rulebooks-implementation.md 4.6).
+  const noWinner = data.winnerExitMethod === null;
+  if (!noWinner && !exitList.includes(data.winnerExitMethod)) p.push('winnerExitMethod: not one of the exit methods');
   if (!isTextList(data.endgameExitMethods) || !data.endgameExitMethods.every((m) => exitList.includes(m))) {
     p.push('endgameExitMethods: must all be exit methods');
-  } else if (!data.endgameExitMethods.includes(data.winnerExitMethod)) {
+  } else if (!noWinner && !data.endgameExitMethods.includes(data.winnerExitMethod)) {
     p.push('endgameExitMethods: must include the winner');
   }
   if (!data.terms || !isText(data.terms.castaway) || !isText(data.terms.tribe)) p.push('terms: castaway and tribe');

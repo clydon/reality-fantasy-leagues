@@ -51,8 +51,11 @@ function buildRulebookPrompt({ show, season, airing = false, template } = {}) {
     'Describe the game as it is played, not one season\'s story:',
     '- "segments" are the regular parts of a typical episode. A one-time event (a special vote, a mutiny, the opening day) isn\'t a segment: mention it in a phase\'s summary or in "leftOut". A tie, a revote or a tiebreaker is part of its segment, not one of its own.',
     '- The vote or decision that crowns the winner is "season.finale", not a segment. A final duel that only happens near the end (a fire-making challenge, a final race) is a segment with "often": "onePhase" and "phase": "finale".',
+    '- For a talk, variety or awards show: the moments are what might or might not happen tonight, so people can call them (someone breaks character, a surprise cameo, the host sings, a winner cries), never what happens every show (the monologue airs). They\'re answered by "league".',
+    '- For a scripted series: the moments are what happens to the characters that anyone watching could say yes or no to (in the episode, at the centre of the story, a big reveal about them, in danger and survives, a romance starts or ends), and the comings and goings are written out, killed off and new characters. "segments" are the regular parts of the episode\'s structure (a cold open, the ending), not its themes.',
+    '- For a sport or live event: "segments" are the parts of one event that decide something (qualifying, the race; for a team sport, the game itself), never each inning, quarter or lap. What competitors do in it (a home run, a goal, a fastest lap, places gained) are "customMoments", counted "eachTime" or "perUnit". "waysOut" are only withdrawals (injured, ejected, did not finish); winning or losing an event is its segment\'s result, and winning the title is the finale.',
     '- "twists" are things that recur or last, and each is one of the four types. Similar advantages that score alike are one twist ("Idols and advantages"), with their kinds listed in its summary. Anything else goes in "leftOut".',
-    '- "waysOut" lists every way someone can leave or finish on this show, even if nobody has left that way yet this season. Each segment that sends someone home causes a way out of its own ("Lost fire-making", cause: that segment).',
+    '- "waysOut" lists every way someone can leave or finish on this show, even if nobody has left that way yet this season. Each segment that sends someone home causes a way out of its own ("Lost fire-making", cause: that segment). "outForOne" is only for a sport or live event, where someone misses one race and is back for the next; a reprieve (a non-elimination leg) isn\'t a way out.',
     '- A phase "starts" at an "episode" only when the show fixes it in advance (a finale week, a scheduled playoff). A swap or a merge that comes when the show decides is "remaining" or "announced". When a season has already reached a phase, say the episode in "phaseStarts" (outside the blocks), never in a phase\'s summary.',
     '- Every answer builds its own moments, so "customMoments" must not repeat them: a segment decided by the result builds "Won the <segment>" (and 2nd and 3rd for the top three, best and worst, first and last), its group\'s win when groups take part, and what\'s on the line (an advantage, a shared reward, being put at risk); a vote by the cast builds zero votes, received votes and survived, voted with and against the majority; a pick builds picked, picked first and not picked; each way out scores on its own; a jury finale builds each jury vote; each twist builds got, played and one moment per thing it does. "customMoments" are for everything else.',
     ''
@@ -152,7 +155,38 @@ function buildRulebookPrompt({ show, season, airing = false, template } = {}) {
 
 // ---------- the answer ----------
 
-/** A chat's answer -> the JSON object in it. Chatter and code fences around the JSON are fine. */
+/**
+ * Every top-level JSON object in a chat's answer, in order, as text: braces counted outside strings. A chat
+ * sometimes sends a draft and then a corrected copy back to back.
+ */
+function jsonObjectsIn(text) {
+  const s = String(text || '');
+  const out = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inString) {
+      if (ch === '\\') i++;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') {
+      if (depth > 0) inString = true;
+    } else if (ch === '{') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === '}' && depth > 0) {
+      depth--;
+      if (depth === 0) out.push(s.slice(start, i + 1));
+    }
+  }
+  return out;
+}
+
+/**
+ * A chat's answer -> the JSON object in it. Chatter and code fences around it are fine; of several objects, the
+ * last one that parses (the chat's own correction) wins.
+ */
 function parseRulebookAnswer(answer) {
   const s = String(answer || '');
   const start = s.indexOf('{');
@@ -162,7 +196,15 @@ function parseRulebookAnswer(answer) {
   try {
     parsed = JSON.parse(s.slice(start, end + 1));
   } catch (e) {
-    throw new Error(`The answer's JSON doesn't parse (${e.message}). Ask the chat to send it again as one JSON object.`);
+    for (const candidate of jsonObjectsIn(s).reverse()) {
+      try {
+        parsed = JSON.parse(candidate);
+        break;
+      } catch {
+        // an earlier one, then
+      }
+    }
+    if (parsed === undefined) throw new Error(`The answer's JSON doesn't parse (${e.message}). Ask the chat to send it again as one JSON object.`);
   }
   if (!isObj(parsed)) throw new Error("The answer's JSON is not an object.");
   return parsed;
@@ -238,6 +280,17 @@ function reviewRulebook(answer, { castNames = [] } = {}) {
     if (typeof m.during.twist === 'string' && !new Set(byName.twists.values()).has(m.during.twist) && resolve('twists', m.during.twist)) m.during.twist = resolve('twists', m.during.twist);
   }
   for (const p of phases) if (isObj(p) && typeof p.changes === 'string') p.changes = [p.changes];
+  // "When this many are left" with no number is "when the show says so"; the first phase starts at the premiere.
+  for (const p of phases) {
+    if (isObj(p) && isObj(p.starts) && p.starts.type === 'remaining' && !(Number.isInteger(p.starts.n) && p.starts.n >= 1)) {
+      p.starts = { type: 'announced' };
+      warnings.push({ at: `season.phases[${p.id}].starts`, message: `${p.name}: when the show says so (no number for how many are left)` });
+    }
+  }
+  if (isObj(phases[0]) && !(isObj(phases[0].starts) && phases[0].starts.type === 'episode' && phases[0].starts.n === 1)) {
+    phases[0].starts = { type: 'episode', n: 1 };
+    warnings.push({ at: `season.phases[${phases[0].id}].starts`, message: `${phases[0].name}: from the first episode` });
+  }
 
   // When phases actually started is the season's, not the rulebook's: it comes back beside the blocks, for a
   // person to confirm (How it works shows each one only to someone who has seen it).
@@ -382,4 +435,4 @@ function repeatedMoments(blocks) {
   return out;
 }
 
-module.exports = { buildRulebookPrompt, parseRulebookAnswer, reviewRulebook };
+module.exports = { buildRulebookPrompt, parseRulebookAnswer, reviewRulebook, jsonObjectsIn };
