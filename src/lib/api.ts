@@ -660,7 +660,7 @@ export const api = {
   // (admin) Bot research (db/bot-research.js): a season's runs, and one run now outside the schedule.
   adminBotRuns: (seasonId: string, episode?: number) =>
     localFetch<{ runs: BotResearchRun[] }>(`/api/admin/seasons/${seasonId}/bot-research${episode ? `?episode=${episode}` : ""}`),
-  adminBotRunNow: (seasonId: string, episode: number, kind: "quick" | "full") =>
+  adminBotRunNow: (seasonId: string, episode: number, kind: "quick" | "full" | "schedule") =>
     localFetch<{ ok: boolean; message: string; seconds: number }>(`/api/admin/seasons/${seasonId}/bot-research`, {
       method: "POST",
       body: JSON.stringify({ episode, kind }),

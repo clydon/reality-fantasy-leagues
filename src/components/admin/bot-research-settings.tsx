@@ -13,7 +13,7 @@ import { useNowMinute } from "@/components/episodes/episode-status";
 // from when each episode ends (its air time plus the season's episode length). Every run is editable:
 // what it asks, how long after the end, on or off.
 
-type Run = { kind: "quick" | "full"; after: number; on: boolean };
+type Run = { kind: "quick" | "full" | "schedule"; after: number; on: boolean };
 
 // The server's default (db/bot-research.js DEFAULT_SCHEDULE), for a season that's never saved one.
 const DEFAULT: Run[] = [
@@ -21,10 +21,11 @@ const DEFAULT: Run[] = [
   { kind: "full", after: 60, on: true },
   { kind: "full", after: 540, on: true },
 ];
-const KIND_LABEL = { quick: "Quick check", full: "Full research" } as const;
+const KIND_LABEL = { quick: "Quick check", full: "Full research", schedule: "Schedule check" } as const;
 const KIND_HINT = {
   quick: "Who left the game, and the episode's headline.",
   full: "Every result, staged for your review. A second one fills in what the first missed.",
+  schedule: "When the next episode airs and how long it runs, so lineups lock at the right time. Nothing to review.",
 } as const;
 
 export function afterLabel(min: number) {
@@ -65,7 +66,7 @@ export function BotResearchSection({
           label="Ask ChatGPT after each episode airs"
           hint={
             on
-              ? "Free: our bot asks on this schedule, from when it was switched on. Results still wait for your review."
+              ? "Free: our bot asks on this schedule, from when it was switched on. Only full research waits for your review."
               : "Off: the bot only runs when someone asks."
           }
           checked={on}
@@ -158,6 +159,7 @@ function RunEditor({ run, disabled, onChange, onRemove }: { run: Run; disabled: 
         {/* Short: the row's title above already says it in full. */}
         <option value="quick">Quick</option>
         <option value="full">Full</option>
+        <option value="schedule">Schedule</option>
       </select>
       <input
         aria-label="How long after it ends"

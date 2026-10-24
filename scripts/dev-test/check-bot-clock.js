@@ -38,7 +38,11 @@ const arg = (name) => (process.argv.find((a) => a.startsWith(`--${name}=`)) || "
 async function ui(pool, season, out, width) {
   const linked = require("./linked-fixture");
   const { open } = require("./browser");
-  await pool.query("UPDATE show_seasons SET bot_research_on = true, episode_minutes = 90 WHERE id = $1", [season]);
+  await pool.query(
+    `UPDATE show_seasons SET bot_research_on = true, episode_minutes = 90,
+            bot_research_schedule = '[{"kind":"quick","after":5,"on":true},{"kind":"schedule","after":30,"on":true}]' WHERE id = $1`,
+    [season]
+  );
   await linked.up(pool); // zt_tester is an admin
   const { page, errors, close } = await open({ user: linked.USERNAME, pass: linked.PASSWORD, width, motion: "off" });
   try {
@@ -47,6 +51,8 @@ async function ui(pool, season, out, width) {
     await more.scrollIntoViewIfNeeded();
     await page.getByText("Each run counts from when an episode ends").waitFor();
     await page.getByText("Quick check, 5 min after it ends").waitFor();
+    await page.getByText("Schedule check, 30 min after it ends").waitFor();
+    await page.getByText("When the next episode airs and how long it runs").waitFor();
     // The confirmed episode 4 from the main run (moved a week, its length set by hand).
     await page.getByText(/Next: Episode 4, .*90 min \(after a week off\), set by hand\./).waitFor();
     await page.screenshot({ path: `${out}/bot-clock-setup-${width}.png` });
@@ -134,6 +140,22 @@ async function ui(pool, season, out, width) {
     await Research.recordNextEpisode(pool, { showId: show, season: 1, episodeNumber: 3 }, { airsAt: null, minutes: 150 });
     const { rows: kept } = await pool.query("SELECT runtime_min FROM season_episodes WHERE season_id = $1 AND number = 4", [season]);
     assert.equal(kept[0].runtime_min, 90, "the admin's length stands");
+
+    // The schedule check (0068): episode 4's run asks only when episode 5 airs and files it, with nothing to
+    // review. A stand-in bot answers; the run is recorded like any other.
+    const Bot = require("../../db/bot-research.js");
+    const job = { season: await Bot.loadSeasonForJob(pool, season), episode: 4, kind: "schedule", slot: "schedule@30" };
+    const said = (json) => async () => ({ answer: "```json\n" + json + "\n```" });
+    const ran = await Bot.runJob(pool, job, { ask: said('{"found": true, "airsAt": "2026-11-11T20:00:00-05:00", "minutes": 120, "note": "two-hour episode", "sources": []}') });
+    assert.equal(ran.ok, true, ran.message);
+    const { rows: ep5 } = await pool.query("SELECT air_at, runtime_min, note, reported_in FROM season_episodes WHERE season_id = $1 AND number = 5", [season]);
+    assert.equal(ep5[0].air_at.toISOString(), "2026-11-12T01:00:00.000Z");
+    assert.equal(ep5[0].runtime_min, 120);
+    assert.equal(ep5[0].reported_in, 4);
+    const notYet = await Bot.runJob(pool, job, { ask: said('{"found": false, "airsAt": null, "minutes": null}') });
+    assert.equal(notYet.ok, false, "no source yet: a failed try, asked again later");
+    const { rows: kinds } = await pool.query("SELECT kind, ok FROM bot_research_runs WHERE season_id = $1 ORDER BY started_at", [season]);
+    assert.deepEqual(kinds.slice(-2).map((k) => `${k.kind}:${k.ok}`), ["schedule:true", "schedule:false"]);
 
     // Switched off: nothing scheduled at all.
     await pool.query("UPDATE show_seasons SET bot_research_on = false WHERE id = $1", [season]);

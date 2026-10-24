@@ -34,6 +34,11 @@ air time, so the default quick check ran 5 minutes into a live episode and gave 
 | full | 60 min | The whole checklist through the paste import: stored in `episode_research`, staged for review |
 | full | 540 min | The checklist again, merged field by field into the first (`merge` + `fill`) |
 
+- **The schedule check (0068), a third kind of run:** asks only when the next episode airs, its start and its
+  length (`buildSchedulePrompt` / `parseScheduleAnswer`), and files it through `recordNextEpisode`. It stages no
+  results, so there's nothing to review: the run to use when only the schedule matters (Survivor 51, since the
+  user won't review staged results). Three tries, 20 minutes apart. Admin episode page: "Check the next episode's
+  schedule".
 - **The next episode, confirmed (0067):** every full research answer (the bot's, a paste, paid auto-research)
   also says when the NEXT episode airs and how long it runs, from the "next time" preview or the network
   (`nextEpisode` in the research schema; `recordNextEpisode` -> `season_episodes`). The `season_air_dates`
