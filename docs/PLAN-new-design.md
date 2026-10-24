@@ -23,7 +23,7 @@ else needs re-reading.
 | R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | **done** 2026-10-24 on the branch (migration 0106 ships with 0b's) | Opus · high |
 | R3 | Rulebooks phase 3: `rulebooks` tables, backfill, resolution behind a flag | **done** 2026-10-24 on the branch (migration 0107 ships with 0b's; the flag stays off) | Opus · high |
 | 0c | The new shell, Preview system, fixtures, motion | **done** 2026-10-24 on the branch (migration 0108 ships with 0b's) | Opus · high |
-| 0d | Hub and show space ported (fixtures behind Preview) | not started | Opus · high |
+| 0d | Hub and show space ported (fixtures behind Preview) | **in progress**: the hub done 2026-10-24; the show space next | Opus · high |
 | 1 | Show space on real leagues: Tonight's move cards, Games tab, How it works | not started | Opus · high |
 | 2 | Episodes, staged results, the one reveal, share at the reveal | not started | Opus · high |
 | 3 | Cast explorer and stats, server-side spoiler guard | not started | Opus · high |
@@ -702,6 +702,44 @@ your couch's members, your leagues listed as shows, the show header (art, season
   until its step, opens the mock at that route in a new tab with a "Preview" note.
 - Split across two sessions if needed (hub, then show space). Done when every hub section and show tab is
   ported and previewed, and the check script lists them all.
+
+**As built, part 1: the hub (2026-10-24, on `new-design`).** The show space is the next session.
+- **`/home` in both shapes** (`src/new/screens/home.tsx`, sections in `src/new/hub/`). *Focus first:* the status
+  line, Up next, On now, Your shows, You both watch, the guide, Streaming on the couch, The couch is watching, On the
+  couch (the feed), More on the couch, New league / Join a couch. *Grows with you* (your first week on the couch, by
+  `couch_members.joined_at`, which `/api/me/home` now returns, or a couch with no games yet): the status line, Get
+  the couch going (a brand-new couch only), Up next, Your shows, the guide, the feed, "More shows up as the couch
+  plays", the foot. `?hub=focus|grow|new` shows a shape (new = a brand-new couch) for a look.
+- **Real, no Preview:** the status line (your moves from `/api/me/home`, worded "your Survivor lineup locks Wed 8:05
+  PM", tapping to that show); Up next (the show on soonest, its art, season, episode, a calm clock, and the plate with
+  your move for it in yellow, or "All set" in teal); Your shows (art, season and night, the games by name once each,
+  a red dot when a move is due); More on the couch's six rows. **On fixtures, behind `<Preview>`,** each tagged with
+  the step that makes it real: who's set and Watch along on Up next (1, 13), On now (13), Add a show (10), the nudge
+  (10), the guide (11), the streaming rail (14), The couch is watching (10), the feed (8), the six pages (8), the
+  profile's numbers (8), the couch switcher (9), Get the couch going (9), the grow note (8), the foot (9).
+  `src/new/fixtures/`: people.ts (the demo people and the mock's pictures, served from `public/mock/showcase`), hub,
+  guide, watching, streaming, watch-along, moves, couches.
+- **The couch moved off the hub** as in the mock (2026-10-23): the avatar opens your profile (Sheet): the couch line
+  (switcher, step 9), your numbers, and **Settings**. More on the couch's pages are `PushedPage`s (`?page=rankings`
+  and so on, "‹ Home"); `PushedPage` takes a `back` label now.
+- **The channel change grows the card you tapped**, not one fixed card: the hub shows a show in several places
+  (Up next and its poster), and React's `<ViewTransition name>` allows one element per name, so `ShowArt` no longer
+  carries one. A `NavLink channel` names the tapped card's art (or that of the card around it, `data-art-scope`, as
+  Up next's title and plate do); new.css names the show bar's art while `data-nav` is `channel`; coming back,
+  NavMotion's layout effect names the hub's art for that show (the first on screen) inside the transition. All one
+  name, `nd-art`.
+- **Changed from the mock:** the streaming rail's ＋ and Commercial break's optional pieces aren't yellow (yellow only
+  for what you must do; the guide's Today and Up next's move are); the poster has no "best 1st" badge or flip side
+  (standings are step 1); the guide stops rolling at its end rather than looping. The Preview tag now sits on the
+  dashed line like a legend, so it never covers what it marks.
+- **Checks:** `scripts/dev-test/check-new-hub.js <outDir> [--width=390] [--keep]` (every shape, the profile, the six
+  pages opening and closing, every `hub.*` registry entry rendering, Up next's art growing into the show bar, nothing
+  wider than the screen); `check-new-shell.js` updated for the hub (profile sheet, `nd-art`); `check-preview.js`
+  lists 21 hub entries across steps 1, 8, 9, 10, 11, 13, 14 and 15.
+- **For part 2 (the show space):** the tab placeholders are still `show.<tab>` and `show.how-it-works` on step 0d.
+  Mock: `show.js`, `dock.js`, `episode.js` (`standing`), `refine.js` (`tabTonight`, the swipeable move cards and
+  Extras), `gamestab.js`, `explorer.js` (Cast), `rulebook.js` (`howPage`). Moves fixtures go in `fixtures/moves.ts`
+  (step 1). `useShow(seasonId)` has the frame's data; `DemoAvatar` / `Faces` in `hub/sections.tsx` draw fixture people.
 
 ## Steps 1–7: parity with what the couch plays today
 

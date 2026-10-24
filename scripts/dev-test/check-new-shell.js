@@ -136,19 +136,23 @@ function recordTransitions() {
     check(new URL(page.url()).pathname === "/home" && (await cookie()) === "new", "a device without the cookie gets there too, and gets the cookie");
 
     // ---- the hub ----
-    const card = page.locator(`a[href="/show/${sid}/tonight"]`);
+    // The show's card on Your shows: the link holding its art (Up next and the status line link there too).
+    const card = page.locator(`a[href="/show/${sid}/tonight"]:has([data-art])`);
     await card.first().waitFor({ timeout: 30_000 });
     check((await card.count()) === 1, "the hub lists the couch's show once, as a card");
-    check(await page.getByText("ZT Survivor 51").first().isVisible(), "the couch line names the couch");
+    await page.getByRole("button", { name: "Your profile" }).click();
+    check(await page.getByRole("dialog").getByText("ZT Survivor 51").first().isVisible(), "your profile names your couch");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(400);
     await page.evaluate(() => (window.__vt.length = 0));
     await snap("home");
-    await page.locator('[data-preview="hub.sections"]').click();
-    check(await page.getByText("Coming soon: The rest of the hub").isVisible(), "a Preview tap says Coming soon");
+    await page.locator('[data-preview="hub.feed"]').click();
+    check(await page.getByText("Coming soon: On the couch").isVisible(), "a Preview tap says Coming soon");
 
     // ---- into the show: the channel change ----
     await card.click();
     await page.waitForURL(`**/show/${sid}/tonight`);
-    await moved("hub → show", "channel", "nd-art-");
+    await moved("hub → show", "channel", "(nd-art)");
     await page.getByRole("heading", { level: 1 }).first().waitFor();
     check(await page.getByText("Ep 6 · in 3 days").isVisible(), "the show bar's calm clock: Ep 6 · in 3 days");
     const tabs = (await page.locator("nav[aria-label=Show] a").allTextContents()).map((t) => t.replace(/\d+$/, ""));
@@ -217,10 +221,11 @@ function recordTransitions() {
     // ---- back to the hub: the channel change in reverse ----
     await page.getByRole("button", { name: "Home" }).click();
     await page.waitForURL("**/home");
-    await moved("show → hub", "channel", "nd-art-");
+    await moved("show → hub", "channel", "(nd-art)");
 
     // ---- you ----
-    await page.getByRole("link", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Your profile" }).click();
+    await page.getByRole("dialog").getByRole("link", { name: "Settings" }).click();
     await page.waitForURL("**/settings");
     await moved("hub → Settings", "push");
     await snap("settings");

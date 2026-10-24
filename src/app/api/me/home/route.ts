@@ -59,7 +59,7 @@ export const GET = apiRoute(async (req) => {
       id: c.id,
       name: c.name,
       yourRole: c.role,
-      members: (members.get(c.id) ?? []).map((m) => ({ userId: m.userId, name: m.name, role: m.role, watching: watching(m.userId) })),
+      members: (members.get(c.id) ?? []).map((m) => ({ userId: m.userId, name: m.name, role: m.role, joinedAt: m.joinedAt, watching: watching(m.userId) })),
       games: couchGames.filter((g) => g.couchId === c.id).map(gameOut),
     })),
     shows,

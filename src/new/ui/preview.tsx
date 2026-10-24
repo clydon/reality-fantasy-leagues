@@ -25,7 +25,8 @@ export function Preview({ id, children, tag = true, className = "" }: { id: Prev
       }}
     >
       {tag && (
-        <span className="type-caption pointer-events-none absolute right-2 top-2 z-[2] rounded-[2px] bg-secondary px-1.5 py-1 text-[11px] tracking-[0.04em] text-muted-foreground">
+        // On the dashed line, like a legend, so it never covers what it marks.
+        <span className="type-caption pointer-events-none absolute -top-2 right-3 z-[2] rounded-[2px] bg-secondary px-1.5 py-[3px] text-[10px] tracking-[0.05em] text-muted-foreground">
           Preview
         </span>
       )}

@@ -36,6 +36,24 @@ html:has(.nd) body {
   right: var(--nd-inset);
 }
 
+/* Up next's art drifts slowly, like a channel's promo (the mock's kenburns). */
+@keyframes nd-kenburns {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.12) translate(-2%, 1%);
+  }
+}
+.nd-kenburns {
+  animation: nd-kenburns 22s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-kenburns {
+    animation: none;
+  }
+}
+
 /* Anything you tap acknowledges the finger. */
 .nd-press {
   transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1);
@@ -200,20 +218,23 @@ html[data-nav="right"]::view-transition-new(root) {
 }
 
 /* Changing the channel: the show's art grows from the tapped card into the show's header (or shrinks back into it);
-   the screens just crossfade under it. */
+   the screens just crossfade under it. The card is named by nav.tsx; the show bar's art here. */
+html[data-nav="channel"] .nd-showbar [data-art] {
+  view-transition-name: nd-art;
+}
 html[data-nav="channel"]::view-transition-old(root) {
   animation: nd-fade-out 0.18s ease-in both;
 }
 html[data-nav="channel"]::view-transition-new(root) {
   animation: nd-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
 }
-::view-transition-group(.nd-art) {
+::view-transition-group(nd-art) {
   animation-duration: 0.44s;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 5;
 }
-::view-transition-old(.nd-art),
-::view-transition-new(.nd-art) {
+::view-transition-old(nd-art),
+::view-transition-new(nd-art) {
   height: 100%;
   width: 100%;
   object-fit: cover;

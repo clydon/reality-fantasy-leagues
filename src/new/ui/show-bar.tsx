@@ -1,6 +1,6 @@
 "use client";
 
-import { ViewTransition, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CalendarDays, ChevronLeft, MessageCircle, Trophy, Tv, Users, type LucideIcon } from "lucide-react";
 import { NavLink } from "../nav";
 import { paths, type ShowTab } from "../routes";
@@ -10,26 +10,23 @@ import { paths, type ShowTab } from "../routes";
 // tab move both hold still while the content nudges (new.css: .nd-showbar, .nd-tabbar, .nd-tabind).
 
 /**
- * A show's art. `morph`: this is the one picture of the show that grows into (or out of) the show bar on a channel
- * change, so it carries the shared name; only one on a screen may (nav.tsx finds it by data-art going back). No art:
- * the name set large on a dark plate.
+ * A show's art, with data-art so a channel change can find it (nav.tsx grows the tapped one into the show bar). No
+ * art: the name set large on a dark plate.
  */
 export function ShowArt({
   seasonId,
   artUrl,
   name,
-  morph,
   className = "",
   position = "center",
 }: {
   seasonId: string;
   artUrl: string | null;
   name: string;
-  morph?: boolean;
   className?: string;
   position?: string;
 }) {
-  const art = artUrl ? (
+  return artUrl ? (
     // eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL
     <img src={artUrl} alt="" data-art={seasonId} className={`object-cover ${className}`} style={{ objectPosition: position }} />
   ) : (
@@ -39,12 +36,6 @@ export function ShowArt({
     >
       {name}
     </span>
-  );
-  if (!morph) return art;
-  return (
-    <ViewTransition name={`nd-art-${seasonId}`} share="nd-art" default="none">
-      {art}
-    </ViewTransition>
   );
 }
 
@@ -67,7 +58,6 @@ export function ShowBar({
   menu,
   title,
   below,
-  morph,
 }: {
   show: ShowBarShow;
   tall?: boolean;
@@ -76,7 +66,6 @@ export function ShowBar({
   menu?: ReactNode;
   title?: ReactNode;
   below?: ReactNode;
-  morph?: boolean;
 }) {
   const season = show.seasonNumber ? `S${show.seasonNumber}` : null;
   return (
@@ -89,7 +78,6 @@ export function ShowBar({
         seasonId={show.seasonId}
         artUrl={show.artUrl}
         name={show.name}
-        morph={morph}
         position={tall ? "100% 40%" : "center"}
         className={`absolute inset-y-0 -z-[2] h-full ${tall ? "right-0 w-[70%]" : "inset-x-0 w-full"}`}
       />

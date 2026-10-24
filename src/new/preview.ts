@@ -20,14 +20,28 @@ export interface PreviewEntry {
 }
 
 export const PREVIEWS = {
-  // ---- the hub ----
-  "hub.sections": {
-    step: "0d",
-    title: "The rest of the hub",
-    line: "Up next, the TV guide, what the couch is watching, On the couch and More on the couch.",
-  },
+  // ---- the hub (ported in 0d; fixtures in src/new/fixtures/) ----
   "hub.notifications": { step: "15", title: "Notifications", line: "What's happened on your couch since you last looked." },
   "hub.couch-switcher": { step: "9", title: "Your couches", line: "Switch couches, start one, or invite people to this one." },
+  "hub.profile": { step: "8", title: "Your numbers", line: "Titles, ranking points, your best show, your taste twin." },
+  "hub.upnext-progress": { step: "1", title: "Who's set", line: "How many of the couch have made this episode's move." },
+  "hub.watch-along": { step: "13", title: "Watch along", line: "Watch with the couch, live or on your own time." },
+  "hub.on-now": { step: "13", title: "On now", line: "Who's watching right now, and joining them." },
+  "hub.add-show": { step: "10", title: "Add a show", line: "Tell the couch what you're watching." },
+  "hub.nudge": { step: "10", title: "You both watch", line: "A show you and someone on the couch watch, nobody's playing yet." },
+  "hub.guide": { step: "11", title: "The TV guide", line: "This week on the couch, and the rest of TV." },
+  "hub.streaming": { step: "14", title: "Streaming on the couch", line: "Shows without an airtime, at your own pace." },
+  "hub.couch-watching": { step: "10", title: "The couch is watching", line: "What the couch watches that you don't, yet." },
+  "hub.feed": { step: "8", title: "On the couch", line: "What the couch has been up to, and what they said." },
+  "hub.grow-note": { step: "8", title: "What comes next", line: "More of the hub shows up as the couch plays." },
+  "hub.get-going": { step: "9", title: "Get the couch going", line: "A new couch's first steps." },
+  "hub.foot": { step: "9", title: "New league, Join a couch", line: "Start a game or join another couch." },
+  "hub.rankings": { step: "8", title: "Power rankings", line: "Where everyone stands this year." },
+  "hub.break": { step: "8", title: "Commercial break", line: "Every game on the couch." },
+  "hub.numbers": { step: "8", title: "By the numbers", line: "Cast stats and couch accolades." },
+  "hub.verdicts": { step: "8", title: "Couch verdicts", line: "How the couch rated each episode." },
+  "hub.previously": { step: "8", title: "Previously on", line: "The story so far, up to where you are." },
+  "hub.trophies": { step: "8", title: "Trophy shelf", line: "Every season the couch has finished." },
 
   // ---- a show space ----
   "show.tonight": {

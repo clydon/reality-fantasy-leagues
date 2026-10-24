@@ -30,10 +30,10 @@ export function Btn({ tone = "optional", wide, className = "", ...props }: Compo
   );
 }
 
-/** A section's heading: condensed caps, with an aside or one link on its line. */
-export function SectionHead({ title, aside, className = "" }: { title: ReactNode; aside?: ReactNode; className?: string }) {
+/** A section's heading: condensed caps, with an aside or one link on its line. `flush`: inside something already padded. */
+export function SectionHead({ title, aside, flush, className = "" }: { title: ReactNode; aside?: ReactNode; flush?: boolean; className?: string }) {
   return (
-    <div className={`mb-3 flex items-baseline justify-between gap-3 px-4 ${className}`}>
+    <div className={`mb-3 flex items-baseline justify-between gap-3 ${flush ? "" : "px-4"} ${className}`}>
       <h2 className="type-caption text-[24px]">{title}</h2>
       {aside && <span className="text-[13px] text-muted-foreground">{aside}</span>}
     </div>

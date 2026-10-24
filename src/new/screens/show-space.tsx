@@ -92,7 +92,6 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         <ShowBar
           show={{ seasonId, name: show.header.show.name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl }}
           tall={tab === "tonight"}
-          morph
           back={{ label: "Home", onClick: () => nav.back(paths.home) }}
           status={status}
           menu={<ShowMenu seasonId={seasonId} show={show} />}
@@ -170,7 +169,7 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
           {soon("show.notifications", Bell, "Notifications", "Reminders, results and chat for this show")}
         </div>
       </Sheet>
-      <PushedPage open={how.open} onClose={how.close} title="How it works">
+      <PushedPage open={how.open} onClose={how.close} title="How it works" back={name.replace(/^The /, "")}>
         <Preview id="show.how-it-works" className="mx-4 mt-5" />
       </PushedPage>
     </>

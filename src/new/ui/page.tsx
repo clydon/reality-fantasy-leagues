@@ -40,13 +40,14 @@ export function usePushedPage(key: string) {
 
 const noop = () => () => {};
 
-export function PushedPage({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode }) {
-  const back = useRef<HTMLButtonElement>(null);
+/** `back`: where back returns you, as its label ("Home"). */
+export function PushedPage({ open, onClose, title, back = "Back", children }: { open: boolean; onClose: () => void; title: ReactNode; back?: string; children: ReactNode }) {
+  const backButton = useRef<HTMLButtonElement>(null);
   // Only in the browser: the server has no <body> to portal into.
   const mounted = useSyncExternalStore(noop, () => true, () => false);
   useEffect(() => {
     if (!open) return;
-    back.current?.focus({ preventScroll: true });
+    backButton.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -62,9 +63,9 @@ export function PushedPage({ open, onClose, title, children }: { open: boolean; 
       }`}
     >
       <div className="sticky top-0 z-[3] flex h-14 items-center gap-1.5 border-b border-border bg-[rgba(22,20,29,.9)] px-2.5 backdrop-blur-md">
-        <button ref={back} type="button" onClick={onClose} className="flex h-11 items-center gap-0.5 rounded-[3px] pl-1 pr-2.5 text-[15px] font-semibold hover:bg-card">
+        <button ref={backButton} type="button" onClick={onClose} className="flex h-11 items-center gap-0.5 rounded-[3px] pl-1 pr-2.5 text-[15px] font-semibold hover:bg-card">
           <ChevronLeft className="size-5" aria-hidden />
-          Back
+          {back}
         </button>
         <h3 className="type-caption flex-1 text-[20px]">{title}</h3>
       </div>

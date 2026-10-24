@@ -2,8 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Bell, ChevronLeft } from "lucide-react";
-import { NavLink, useNav } from "../nav";
-import { paths } from "../routes";
+import { useNav } from "../nav";
 import { Preview } from "./preview";
 
 // The new design's top bars: the hub's (the wordmark, notifications, you) and a pushed page's (back, a centred
@@ -11,13 +10,13 @@ import { Preview } from "./preview";
 
 /** Someone's square: their initial on their colour (the mock's .av). Colour from their id until people pick one. */
 const AV_COLOURS = ["#35b5a5", "#a76bb0", "#f2804b", "#5089c9", "#e0b23a", "#e86f9a"];
-export function Avatar({ id, name, size = 34 }: { id: string; name: string; size?: number }) {
+export function Avatar({ id, name, size = 34, colour }: { id: string; name: string; size?: number; colour?: string }) {
   let h = 0;
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return (
     <span
       className="type-num grid flex-none place-items-center rounded-[3px] text-[#121018]"
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.46), background: AV_COLOURS[h % AV_COLOURS.length] }}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.46), background: colour ?? AV_COLOURS[h % AV_COLOURS.length] }}
       aria-hidden
     >
       {name.slice(0, 1).toUpperCase()}
@@ -38,7 +37,8 @@ export function Wordmark() {
   );
 }
 
-export function TopBar({ me }: { me: { id: string; name: string } }) {
+/** The hub's top: the wordmark, notifications, and you (your profile: your couch, your numbers, Settings). */
+export function TopBar({ me, onProfile }: { me: { id: string; name: string }; onProfile: () => void }) {
   return (
     <header className="flex items-center justify-between px-4 pb-1 pt-[calc(14px+env(safe-area-inset-top,0px))]">
       <Wordmark />
@@ -48,9 +48,9 @@ export function TopBar({ me }: { me: { id: string; name: string } }) {
             <Bell className="size-5" aria-hidden />
           </button>
         </Preview>
-        <NavLink href={paths.settings} aria-label="Settings" className="nd-press grid size-11 place-items-center rounded-[3px]">
+        <button type="button" onClick={onProfile} aria-label="Your profile" className="nd-press grid size-11 place-items-center rounded-[3px]">
           <Avatar id={me.id} name={me.name} />
-        </NavLink>
+        </button>
       </div>
     </header>
   );

@@ -73,7 +73,7 @@ export interface Couch {
   id: string;
   name: string;
   yourRole: "owner" | "member";
-  members: { userId: string; name: string; role: "owner" | "member"; watching: string[] }[];
+  members: { userId: string; name: string; role: "owner" | "member"; joinedAt: string; watching: string[] }[];
   games: GameRef[];
 }
 

@@ -12,7 +12,10 @@ import { navKind, type NavKind } from "./routes";
 // The screen that moves is the whole page as you see it (the view transition's root snapshot), because pages
 // scroll the document: naming a page's own element would morph it from wherever it was scrolled to. Named on
 // top of it: the show bar and tab bar during a tab move (they hold still), the tab marker (it slides), and a
-// show's art on a channel change (ShowArt).
+// show's art on a channel change: the card you tapped grows into the show bar (named here at the tap; the show
+// bar's art by new.css while data-nav is "channel"), and coming back, the show bar shrinks into that show's card
+// on the hub (named when the hub commits). The hub shows a show in several places, so it's by hand, not React's
+// <ViewTransition name>, which allows one element per name.
 //
 // Going somewhere (a NavLink, nav.push): React runs the transition. It only starts one when a <ViewTransition>
 // boundary changes, so <NavMotion> keeps a tiny boundary keyed on the path; React also waits for the new page
@@ -41,7 +44,9 @@ export function markNav(kind: NavKind): number {
 }
 
 function clearNav(seq: number) {
-  if (seq === navSeq) delete document.documentElement.dataset.nav;
+  if (seq !== navSeq) return;
+  delete document.documentElement.dataset.nav;
+  document.querySelectorAll<HTMLElement>("[data-art]").forEach(unnameArt);
 }
 
 /** Unmarks once every animation of the running view transition has finished. The animations are the CSS keyed on
@@ -68,7 +73,8 @@ let backing = false;
 // Called once the next navigation has committed (NavMotion's layout effect), before the browser paints it.
 let onCommit: (() => void)[] = [];
 
-/** A Link that moves the screen the right way. `channel`: a show card whose art grows into the show's header. */
+/** A Link that moves the screen the right way. `channel`: a show card whose art grows into the show's header (the
+ *  link's own art, or that of the card around it marked data-art-scope). */
 export function NavLink({ channel, onClick, ...props }: ComponentProps<typeof Link> & { channel?: boolean }) {
   const pathname = usePathname();
   return (
@@ -79,25 +85,30 @@ export function NavLink({ channel, onClick, ...props }: ComponentProps<typeof Li
         if (e.defaultPrevented || !isPlainClick(e) || typeof props.href !== "string") return;
         markNav(navKind(pathname, props.href, { channel }));
         replacing = !!props.replace;
+        // The art that grows: the link's own, or its card's (data-art-scope) when the art sits beside the link.
+        const card = e.currentTarget.closest<HTMLElement>("[data-art-scope]") ?? e.currentTarget;
+        if (channel) nameArt(card.querySelector<HTMLElement>("[data-art]"));
       }}
     />
   );
 }
 
-/** The art that carries a channel change back to the hub: the show bar's now, the hub's card for it after. */
+/** The one piece of art that carries a channel change (new.css's nd-art). */
 function nameArt(el: HTMLElement | null) {
-  if (!el) return null;
-  el.style.setProperty("view-transition-name", "nd-art-back");
-  el.style.setProperty("view-transition-class", "nd-art");
-  return el;
+  el?.style.setProperty("view-transition-name", "nd-art");
 }
 function unnameArt(el: HTMLElement | null) {
   el?.style.removeProperty("view-transition-name");
-  el?.style.removeProperty("view-transition-class");
 }
 function onScreen(el: Element) {
   const r = el.getBoundingClientRect();
   return r.bottom > 40 && r.top < window.innerHeight - 40 && r.width > 20;
+}
+/** Back on the hub from a show: that show's art on screen, the first if there are several. */
+function nameReturnArt(fromPath: string) {
+  const seasonId = fromPath.split("/")[2];
+  const art = [...document.querySelectorAll<HTMLElement>(`[data-art="${seasonId}"]`)].find(onScreen);
+  nameArt(art ?? null);
 }
 
 /** The browser's back, moving the screen as `kind` says (see the top of this file). */
@@ -108,10 +119,8 @@ function historyBack(kind: NavKind) {
     window.history.back();
     return;
   }
-  const channel = document.documentElement.dataset.nav === "channel";
-  const from = channel ? nameArt(document.querySelector<HTMLElement>(".nd-showbar [data-art]")) : null;
-  let to: HTMLElement | null = null;
   let skipped = false;
+  // The art for a channel change is named the same way as React's transitions name it (NavMotion, new.css).
   const t = document.startViewTransition(
     () =>
       new Promise<void>((resolve) => {
@@ -119,9 +128,6 @@ function historyBack(kind: NavKind) {
         const timer = setTimeout(resolve, 1500);
         onCommit.push(() => {
           clearTimeout(timer);
-          unnameArt(from);
-          const art = from && !skipped ? document.querySelector<HTMLElement>(`[data-art="${from.dataset.art}"]`) : null;
-          if (art && onScreen(art)) to = nameArt(art);
           resolve();
         });
         window.history.back();
@@ -129,8 +135,6 @@ function historyBack(kind: NavKind) {
   );
   t.ready.catch(() => (skipped = true));
   t.finished.finally(() => {
-    unnameArt(from);
-    unnameArt(to);
     if (!skipped) clearNav(seq);
   });
 }
@@ -167,6 +171,9 @@ export function NavMotion() {
     if (last.current === pathname) return;
     if (!replacing) previousPath = last.current;
     replacing = false;
+    // A channel change back to the hub: the art it shrinks into (inside the transition, before the new screen is
+    // captured).
+    if (document.documentElement.dataset.nav === "channel" && last.current.startsWith("/show/")) nameReturnArt(last.current);
     last.current = pathname;
     const waiting = onCommit;
     onCommit = [];
