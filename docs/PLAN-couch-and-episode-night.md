@@ -12,7 +12,7 @@ Mocks (open in Chrome; they link to each other): `.impeccable/mocks/overdrive/`
 - `flow.html`: one show through episode night: show space, Before / During / After, the games,
   bingo, watch along, the one reveal.
 - `nav.html`, `overview.html`: earlier navigation and Overview explorations (partly superseded).
-- `landing.html`: the signed-out landing page, **shipped** in 8f32f2b (`src/components/landing/`).
+- `landing.html`: the signed-out landing page, **shipped** in 2d30f14 (`src/components/landing/`).
 
 Memory that records the decisions behind this: couch-group-term, explore-shows-without-league,
 non-competition-shows-direction, future-game-types-hub, league-tabs-redesign.
@@ -195,7 +195,7 @@ the verdict after marking the episode watched. Agreement, not ranking, is the no
 
 ### 8. The landing page (shipped)
 
-Signed-out visitors at `/` get the landing page (8f32f2b): free, any show, do it yourself, real
+Signed-out visitors at `/` get the landing page (2d30f14): free, any show, do it yourself, real
 casts, a working spoiler-gate replay, FAQ JSON-LD, and a quiet Preview chip. Sign in is at
 `/sign-in`. Before it's promoted publicly, swap the wiki cast photos for licensed ones.
 

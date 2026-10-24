@@ -15,7 +15,7 @@ explained to a commissioner") rather than re-deriving it from source each time.
 Every service, its free limits, current usage, what drives each limit, and what more would cost; keep it current
 (the user's standing request, 2026-10-24). Open alerts there: **GitHub Actions has run nothing since 2026-10-19**
 (no reminders, no wiki sync: a billing or minutes problem on the account), and Vercel's Functions Storage is over
-its free 10 GB. Fixed 2026-10-24: the chat polls that used up Neon's transfer (ff95851), and the bot clock that kept
+its free 10 GB. Fixed 2026-10-24: the chat polls that used up Neon's transfer (23c9da5), and the bot clock that kept
 Neon awake (the VM now calls only when a run is due; runs count from the episode's end). Vercel builds production
 only (Preview shared production's database).
 
@@ -74,24 +74,24 @@ pressure turns players off), phone-first at a fixed 390 × 844.
 - **Security:** a production Neon connection string was pasted into the 2026-10-18 conversation. It
   wasn't used. The user should rotate that password if they haven't.
 
-## Couch, hub and episode night: overview planned 2026-10-18; landing page shipped (8f32f2b)
+## Couch, hub and episode night: overview planned 2026-10-18; landing page shipped (2d30f14)
 The next big piece: a **couch** (the lasting group, across seasons and shows), a **hub** with a TV
 guide, a **show space** per show organised Before / During / After, episode games (Rate it, bingo,
 watch along) and show pages without a league. Overview plan: `docs/PLAN-couch-and-episode-night.md`
 (read it first; it ends with what the detailed pass must produce). Mocks in
-`.impeccable/mocks/overdrive/` (not in git). The signed-out landing page at `/` shipped in 8f32f2b
+`.impeccable/mocks/overdrive/` (not in git). The signed-out landing page at `/` shipped in 2d30f14
 (`src/components/landing/`, sign in moved to `/sign-in`, checked by
 `scripts/dev-test/check-landing.js`); it still uses wiki cast photos.
 
-## Settings and Create a league reordered, 2026-10-17 (committed d7c84c9)
+## Settings and Create a league reordered, 2026-10-17 (committed 1e134ed)
 
 [PLAN-settings-order.md](PLAN-settings-order.md): waivers aren't asked up front (they fit the real teams, ownership and cast when the draft starts); a new Teams & draft page holds ownership, roster, the fit arithmetic and the draft date; the index is grouped (Get ready / How it scores / League); the cast import hides starting tribes by default. Create a show done too (the research panel: name, copy, paste, sticky Review; the review's Approve is sticky). Checks: `check-settings.js`, `check-create-show.js`. **The commissioner tour is now out of step with these screens and is the next job.**
 
-## Commissioner tour rebuilt on Survivor 51, 2026-10-17 (committed ad58cf8)
+## Commissioner tour rebuilt on Survivor 51, 2026-10-17 (committed 6fe75ff)
 
 See [PLAN-commissioner-tour.md](PLAN-commissioner-tour.md): copy/paste everywhere with a Paste/Clear button, show import, cast import, points, waivers, draft types, results. Check: `scripts/dev-test/check-commissioner-tour.js`.
 
-## League tabs redesign: built and shipped 2026-10-17 (d83f119, 7a0b7d2); the site mock will replace it
+## League tabs redesign: built and shipped 2026-10-17 (4106cd7, d4b06ab); the site mock will replace it
 
 [PLAN-league-tabs.md](PLAN-league-tabs.md): the same six tabs in every game (Overview · Episodes ·
 Scoreboard · Team/Lineup/Pick · Research · More), Research for Classic and Pool too, Waivers linked off
@@ -121,8 +121,8 @@ Plan: `docs/PLAN-waivers-v2.md`: "As built: phase 1" (engine), "As built: phase 
 made, what was verified) and "As built: phase 3" (the window pushes: who reads what). Design: the canvas https://claude.ai/artifact/KEsHGXFXjsDeuWe65JWZZz; DESIGN.md →
 "Waivers (mid-season moves)" now describes v2. `db/migrations/0063_waivers_v2.sql` is applied locally; production
 gets it on deploy.
-- **Pushed 2026-10-16** (with the caption-tag fix 493bbb9). Three commits: the engine (d9cbb0c),
-  the UI (b7d0212) and the window pushes.
+- **Pushed 2026-10-16** (with the caption-tag fix fd4127a). Three commits: the engine (d2086cb),
+  the UI (1d753c8) and the window pushes.
 - **The four design decisions, answered 2026-10-16:** auto-fill on for Casual only; shared pickups join at the
   deadline; claims grouped by spot (replacements first, no way to put a swap first); "Only when short" hidden for
   Classic (reads as Replace right away). Plus: the create wizard asks "How many teams?" and re-fits the suggestion
@@ -221,7 +221,7 @@ the calls made and what was verified: `docs/PLAN-practice-round.md` -> "As built
 `node docs/ux-baseline/scripts/practice.js <outDir>`. Waiting on the user: review, commit, and a What's
 New entry.
 
-## "How this league works" built 2026-10-11 (committed c493b01)
+## "How this league works" built 2026-10-11 (committed 35740eb)
 
 A recap-style card sequence shown once after joining a league (and from More), playing a made-up
 episode of that league; for late joiners it ends by recommending where to start. Details and the
@@ -773,7 +773,7 @@ those):
      New). The two throwaway leagues were deleted (no invites left). `tsc` clean in `src`, eslint clean
      on every changed file, `npm test` 247/247. No paid AI was triggered.
 4. ~~Declutter pass (direction A2)~~ **Done 2026-10-10**, built from `docs/PLAN-ux-declutter.md` in its build order,
-   one commit per step (`d998edc`..`e0ff48b`, plus the docs commit). The header art was mocked first on the canvas
+   one commit per step (`ecdb6f9`..`de1b7bf`, plus the docs commit). The header art was mocked first on the canvas
    ("A2 · Header art": Night and Studio, with and without art, four shows) and approved (Mono treatment).
    - **Overview** (`lib/overview-layout.ts`): an opener plus three sections per league type; default order per type
      (`defaultOverviewOrder`); League Scoring, Season Status and Last Week are gone (Last Week is a "You" plate under
@@ -989,7 +989,7 @@ show) were fixed the same session.
   research domains (done as migration 0043). Switch the Traitors show's Rules to "The Traitors" in
   Admin if it's still on Survivor rules (it was locally).
 
-## What shipped on 2026-10-01/02 (~60 commits, `fd15b0b..HEAD`)
+## What shipped on 2026-10-01/02 (~60 commits, `f4301db..HEAD`)
 
 Grouped by area, with the file to start from.
 
