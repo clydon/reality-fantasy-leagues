@@ -420,7 +420,8 @@ compared with the old v2 port on `waivers-options.html`; checked by `scripts/dev
 - *Unreviewed results don't carry over (user, 2026-10-24).* Results staged but never reviewed (Survivor 51 had
   88 pending) may be wrong, and the user won't review them: only decisions already accepted, as applied to the
   three active leagues, count. Converting statuses leaves pending ones out (they survive only in 0a's backup),
-  never mapping them to Reported or showing them in stats. Bot research is off for the same reason.
+  never mapping them to Reported or showing them in stats. For the same reason Survivor 51's bot research runs only the schedule check (when the next episode airs and how
+  long it runs), which stages no results.
 - *Anyone fills in results* (couch setting "Who can fill them in": Anyone on the couch, default, or only
   people who run games). Players get a quiet "Full scores need one paste · Fill it in" after early results.
 - *Disputes:* "Something wrong?" at the foot of every episode page and a flag on each episode of a
