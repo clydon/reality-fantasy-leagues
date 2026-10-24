@@ -1,0 +1,138 @@
+/* Kinds of show and rulebooks (rulebook.js): How it works, Make it a game's review, Backstage, the Formula 1 game */
+/* How it works: the show's name over its art, the kind as a lower third */
+.rb-hero{position:relative;height:208px;display:flex;flex-direction:column;justify-content:flex-end;padding:0 16px 16px;isolation:isolate;overflow:hidden}
+.rb-hero>img{position:absolute;inset:-12px;width:calc(100% + 24px);height:calc(100% + 24px);object-fit:cover;z-index:-2;filter:blur(3px) saturate(1.15)}
+.rb-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(22,20,29,.45) 0%,rgba(22,20,29,.78) 55%,var(--ground) 100%)}
+.rb-hero h2{font-size:56px;line-height:.86;letter-spacing:.005em;text-wrap:balance}
+.rb-lt{display:flex;align-items:stretch;margin-top:10px;max-width:100%}
+.rb-ktag{display:inline-flex;align-items:center;gap:6px;flex:none;position:relative;z-index:1;background:var(--raised);color:var(--bone);font-size:13px;letter-spacing:.05em;padding:7px 18px 7px 9px;clip-path:polygon(0 0,100% 0,calc(100% - 10px) 100%,0 100%)}
+.rb-ktag svg{width:15px;height:15px}
+.rb-ksub{display:flex;align-items:center;min-width:0;margin-left:-8px;padding:6px 12px 6px 16px;background:var(--plate);color:var(--ink);font-size:13px;font-weight:600;border-radius:0 3px 3px 0;box-shadow:var(--plate-shadow)}
+.rb-premise{font-size:17px;line-height:1.55;color:var(--bone);padding:16px 16px 0;max-width:62ch;text-wrap:pretty}
+.rb-jump{display:flex;gap:6px;padding:16px 16px 0;overflow-x:auto;scrollbar-width:none}
+.rb-jump button{flex:none;height:34px;padding:0 12px;border-radius:3px;outline:1px solid var(--field);outline-offset:-1px;font-size:13px;font-weight:700;color:var(--muted)}
+.rb-jump button:hover{color:var(--bone)}
+/* each episode, in order: the rundown */
+.rb-run{position:relative}
+.rb-run::before{content:"";position:absolute;left:15.5px;top:24px;bottom:24px;width:1px;background:var(--field)}
+.rb-seg{position:relative;display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:12px;align-items:start;padding:11px 0}
+.rb-seg .n{position:relative;z-index:1;width:32px;height:32px;border-radius:50%;background:var(--ground);outline:1px solid var(--field);outline-offset:-1px;display:grid;place-items:center;font-size:17px;color:var(--bone)}
+.rb-seg b.cap{display:block;font-size:21px;line-height:1;padding-top:6px}
+.rb-seg p{font-size:14px;color:var(--muted);line-height:1.4;margin-top:5px}
+.rb-seg .dec{display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-size:12px;font-weight:600;color:var(--muted)}
+.rb-seg .dec svg{width:14px;height:14px}
+.rb-stk{margin-top:4px;padding:5px 8px;border-radius:2px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;outline:1px solid currentColor;outline-offset:-1px}
+.rb-stk.home{color:var(--live)}.rb-stk.safe{color:var(--good)}.rb-stk.rew{color:#e0b23a}.rb-stk.pts{color:var(--bone);outline-color:var(--field)}
+.rb-run.sm .rb-seg{padding:7px 0}.rb-run.sm .rb-seg b.cap{font-size:18px;padding-top:5px}.rb-run.sm .dec{margin-top:4px}
+/* the season: one cell an episode, what you've seen filled, phases in order underneath */
+.rb-strip{display:flex;gap:3px;height:30px}
+.rb-strip i{flex:1;border-radius:2px;background:var(--raised);position:relative}
+.rb-strip i.seen{background:var(--bone)}
+.rb-strip i.next{background:transparent;outline:2px solid var(--bone);outline-offset:-2px}
+.rb-strip i.fin{background:rgba(224,178,58,.22);outline:1px solid #e0b23a;outline-offset:-1px}
+.rb-strip i.fin.seen{background:#e0b23a}
+.rb-strip i.spr::after{content:"";position:absolute;left:50%;bottom:-8px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--muted)}
+.rb-scale{display:flex;justify-content:space-between;gap:8px;margin-top:12px;font-size:12px;color:var(--muted)}.rb-scale .me{color:var(--bone);font-weight:700}
+.rb-phases{list-style:none;display:flex;flex-wrap:wrap;gap:10px 0;margin-top:14px}
+.rb-phases li{display:flex;flex-direction:column;padding-right:28px;position:relative}
+.rb-phases li:not(:last-child)::after{content:"";position:absolute;right:11px;top:6px;width:7px;height:7px;border-top:2px solid var(--field);border-right:2px solid var(--field);transform:rotate(45deg)}
+.rb-phases b{font-size:20px;color:var(--muted)}.rb-phases li.on b{color:var(--bone)}
+.rb-phases small{font-size:12.5px;color:var(--muted);margin-top:3px}
+.rb-sprdot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--muted);margin-right:8px;vertical-align:middle}
+/* who's playing */
+.rb-faces{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.rb-faces span{position:relative;aspect-ratio:1;border-radius:3px;overflow:hidden;background:var(--panel)}
+.rb-faces img{width:100%;height:100%;object-fit:cover;object-position:center 18%}
+.rb-faces i{position:absolute;left:0;right:0;bottom:0;height:4px}
+.rb-drv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.rb-drv span{display:grid;grid-template-columns:12px minmax(0,1fr);column-gap:10px;align-items:center;padding:9px 10px;border-radius:3px;background:var(--panel)}
+.rb-drv i{grid-row:1/3;width:12px;height:12px;border-radius:50%}
+.rb-drv b{font-size:17px;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rb-drv small{font-size:11.5px;color:var(--muted)}
+.rb-note{font-size:13px;color:var(--muted);line-height:1.45;margin-top:10px}
+.rb-more{font-size:13px;color:var(--muted);margin-top:8px}
+/* ways out, twists */
+.rb-chips{display:flex;flex-wrap:wrap;gap:6px}
+.rb-chips span{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:2px;background:var(--panel);font-size:14px;font-weight:600}
+.rb-end{display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:14px;line-height:1.45}.rb-end svg{width:18px;height:18px;color:#e0b23a;flex:none;margin-top:1px}
+.rb-tw{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
+.rb-tw .ic{width:38px;height:38px;border-radius:3px;background:var(--panel);display:grid;place-items:center;flex:none}.rb-tw .ic svg{width:18px;height:18px}
+.rb-tw b{display:block;font-size:16px}.rb-tw small{display:block;font-size:13px;color:var(--muted);margin-top:2px;line-height:1.4}
+/* what scores */
+.rb-pg{display:block;font-size:13px;letter-spacing:.06em;color:var(--muted);padding:14px 0 6px}
+.rb-pt{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;border-top:1px solid var(--line);font-size:14.5px}
+.rb-pt b{font-size:22px;color:var(--good);white-space:nowrap}.rb-pt b.neg{color:var(--live)}
+.rb-cq{font-style:normal;font-size:11px;font-weight:700;color:var(--muted);margin-left:4px;padding:2px 6px;border-radius:2px;background:var(--raised);white-space:nowrap}
+.rb-moms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.rb-moms span{display:flex;align-items:center;min-height:56px;padding:8px 10px;border-radius:3px;outline:1.5px dashed var(--field);outline-offset:-1.5px;font-size:14px;font-weight:600;line-height:1.25}
+/* updates */
+.rb-u{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 0;border-top:1px solid var(--line)}
+.rb-u .ep{font-size:24px;line-height:1;text-align:center}.rb-u .ep small{display:block;font-size:10px;letter-spacing:.06em;color:var(--muted);margin-bottom:3px}
+.rb-u .tx b{display:block;font-size:15px}.rb-u .tx small{display:block;font-size:13px;color:var(--muted);margin-top:2px;line-height:1.4}
+.rb-uk{padding:4px 8px;border-radius:2px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.rb-uk.fix{background:var(--good);color:var(--good-ink)}.rb-uk.show{background:var(--bone);color:var(--ink)}
+.rb-u.hid{color:var(--muted)}.rb-u.hid .ep svg{width:20px;height:20px;color:var(--muted)}.rb-u.hid b{color:var(--muted)}
+.rb-line{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);line-height:1.45;margin-bottom:10px}.rb-line svg{width:16px;height:16px;flex:none;margin-top:1px}
+/* Make it a game: what ChatGPT found, ticking in; the review; the kind line */
+.rb-found{list-style:none;display:flex;flex-direction:column;gap:14px;margin-top:6px}
+.rb-found li{display:flex;align-items:center;gap:12px;font-size:17px;font-weight:600;opacity:0;transform:translateY(6px);animation:rbIn .45s var(--ease) forwards;animation-delay:var(--d)}
+.rb-found i{width:28px;height:28px;border-radius:50%;background:var(--good);color:var(--good-ink);display:grid;place-items:center;flex:none;transform:scale(.3);animation:rbPop .45s var(--spring) forwards;animation-delay:calc(var(--d) + .12s)}
+.rb-found i svg{width:16px;height:16px;stroke-width:3}
+@keyframes rbIn{to{opacity:1;transform:none}}@keyframes rbPop{to{transform:none}}
+@media (prefers-reduced-motion:reduce){.rb-found li,.rb-found i{animation:none;opacity:1;transform:none}}
+.rb-kind{display:flex;align-items:center;gap:12px;width:100%;padding:12px;margin:4px 0 2px;border-radius:4px;background:var(--panel);outline:1px solid var(--field);outline-offset:-1px;text-align:left}
+.rb-kind .ic{width:40px;height:40px;border-radius:3px;background:var(--bone);color:var(--ink);display:grid;place-items:center;flex:none}.rb-kind .ic svg{width:20px;height:20px}
+.rb-kind .tx{flex:1;min-width:0}.rb-kind b{display:block;font-size:16px}.rb-kind small{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.rb-chg{flex:none;font-size:14px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.w-mk .rb-sh{padding:0;margin:24px 0 10px}.w-mk .rb-sh h2{font-size:22px}
+.rb-src{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;margin-top:14px;color:var(--muted)}.rb-src b{color:var(--bone)}.rb-src svg{width:18px;height:18px;flex:none;margin-top:1px;color:var(--bone)}
+.rb-howlink{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:46px;margin-top:10px;font-size:14px;font-weight:700;color:var(--bone)}.rb-howlink svg{width:17px;height:17px}
+.rb-fine{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);line-height:1.45;margin-top:14px}.rb-fine svg{width:16px;height:16px;flex:none;margin-top:1px}
+.rb-kc{align-items:flex-start}.rb-ki{width:36px;height:36px;border-radius:3px;background:var(--panel);display:grid;place-items:center;flex:none}.rb-ki svg{width:18px;height:18px}
+.rb-kc.on .rb-ki{background:var(--ink);color:var(--bone)}
+.rb-kc em{display:block;font-size:12.5px;font-style:italic;color:var(--muted);margin-top:4px}.rb-kc.on em{color:var(--plate-muted)}
+.rb-fl{margin:-2px 0 12px}
+.rb-nofit{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);line-height:1.45;margin:2px 0 8px}.rb-nofit svg{width:16px;height:16px;flex:none;margin-top:1px}
+/* a show's plate: make it a game / play it (optional, so the tag is quiet, never yellow) */
+.rb-plate{margin:26px 16px 30px;padding:16px;border-radius:4px;background:var(--plate);color:var(--ink);box-shadow:var(--plate-shadow)}
+.blk .rb-plate{margin:0}
+.rb-plate .tg{display:inline-block;background:var(--ink);color:var(--bone);font-size:13px;letter-spacing:.06em;padding:5px 18px 5px 9px;clip-path:polygon(0 0,100% 0,calc(100% - 9px) 100%,0 100%)}
+.rb-plate h4{font-size:26px;margin-top:10px}.rb-plate p{font-size:14px;color:var(--plate-muted);margin-top:6px;line-height:1.45}
+.rb-plate .btn{margin-top:14px;width:100%;background:var(--ink);color:#fff}.rb-plate .btn.pri{background:var(--chyron);color:var(--ink)}
+.rb-howrow .ic svg{width:20px;height:20px}
+.job .st.rb-st-done{color:var(--muted)}
+/* Backstage: following, or our own */
+.rb-follow{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:4px;background:var(--panel)}
+.rb-follow .ic{width:40px;height:40px;border-radius:3px;background:var(--bone);color:var(--ink);display:grid;place-items:center;flex:none}.rb-follow .ic svg{width:20px;height:20px}
+.rb-follow b{display:block;font-size:17px}.rb-follow small{display:block;font-size:13px;color:var(--muted);margin-top:3px;line-height:1.45}
+.frow .btn svg{width:16px;height:16px}
+.rb-mom{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:48px;border-top:1px solid var(--line);font-size:15px;text-align:left}
+.rb-ck{width:26px;height:26px;border-radius:3px;background:var(--bone);color:var(--ink);display:grid;place-items:center;flex:none}.rb-ck svg{width:16px;height:16px;stroke-width:3}
+.rb-mom.off{color:var(--muted)}.rb-mom.off .rb-ck{background:transparent;outline:1.5px solid var(--field);outline-offset:-1.5px;color:transparent}
+.rb-step{display:flex;align-items:center;gap:6px}
+.rb-step button{width:44px;height:44px;border-radius:3px;background:var(--panel);outline:1px solid var(--field);outline-offset:-1px;font-size:20px;font-weight:700}
+.rb-step b{min-width:64px;text-align:center;font-size:26px}
+.rb-new.q .tg{background:var(--bone);color:var(--ink)}
+.rb-new small b{display:inline;font-size:inherit;color:var(--bone);font-weight:700}
+.rb-new .frow{margin-top:10px}
+/* Formula 1: the draft, your five, how a race scores */
+.f1-pg{padding:2px 16px 16px}
+.f1-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.f1-t{display:flex;align-items:center;gap:10px;min-height:58px;padding:10px;border-radius:3px;background:var(--panel);text-align:left;transition:background .2s}
+.f1-t>i{width:12px;height:12px;border-radius:50%;flex:none}
+.f1-t .tx{flex:1;min-width:0}.f1-t b{display:block;font-size:18px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f1-t small{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f1-t .ck{width:22px;height:22px;border-radius:50%;outline:1.5px solid var(--field);outline-offset:-1.5px;display:grid;place-items:center;color:transparent;flex:none}.f1-t .ck svg{width:14px;height:14px;stroke-width:3}
+.f1-t.on{background:var(--plate);color:var(--ink)}.f1-t.on small{color:var(--plate-muted)}.f1-t.on .ck{background:var(--ink);color:var(--plate);outline:0}
+.f1-grid.sm .f1-t{min-height:50px}
+.f1-bar{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:rgba(22,20,29,.97);border-top:1px solid var(--line)}
+.f1-bar span{font-size:15px;color:var(--muted)}.f1-bar b{font-size:26px;color:var(--bone)}.f1-bar .btn{padding:0 20px;height:48px}
+.f1-row{display:flex;align-items:center;gap:12px;min-height:62px;border-top:1px solid var(--line)}
+.f1-row>i{width:12px;height:12px;border-radius:50%;flex:none}
+.f1-row .tx{flex:1;min-width:0}.f1-row b{display:block;font-size:20px;line-height:1}.f1-row small{display:block;font-size:12.5px;color:var(--muted);margin-top:3px}
+.f1-row:not(.on) b{color:var(--muted)}
+.f1-sw{height:36px;min-width:88px;padding:0 12px;border-radius:3px;font-size:13px;font-weight:700;outline:1px solid var(--field);outline-offset:-1px;color:var(--muted)}
+.f1-sw.on{background:var(--bone);color:var(--ink);outline:0}
+.rb-eq{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.3fr);gap:4px;margin-top:10px}
+.rb-eq span{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 4px;border-radius:3px;background:var(--panel)}
+.rb-eq b{font-size:28px;color:var(--good)}.rb-eq small{margin-top:4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.rb-eq .tot{background:var(--plate)}.rb-eq .tot b{color:var(--ink);font-size:34px}.rb-eq .tot small{color:var(--plate-muted)}

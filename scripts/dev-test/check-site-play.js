@@ -54,7 +54,7 @@ const { open } = require("./browser");
   if (!(await page.locator("[data-eg]").count())) fail("Games: no episode games");
   await shot("games-playing");
   await fresh("&n=4", "#/show/ar/standings");
-  await expectText(".playplate", "Make");
+  await expectText(".rb-plate", "Make");
   await fresh("&n=1", "#/show/surv/tonight");
   const solo = await tabs();
   if (solo.includes("Chat") || !solo.includes("Games")) fail(`solo tabs ${JSON.stringify(solo)}: wanted Games and no Chat`);

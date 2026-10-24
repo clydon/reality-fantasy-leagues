@@ -23,6 +23,15 @@ const SCEN=[
     ['botres','How results get in','Copy and paste, One tap, Autopilot (soon)',{n:4,hash:'#/show/surv/backstage/results',pre:()=>{wdSet({});botSet({})}}],
     ['wdadmin','Admin','Inbox · Find · Settings',{n:4,hash:'#/admin/inbox',pre:()=>wdSet({})}],
     ['wdfact','Admin: decide a dispute','Both sides, then canonical',{n:4,hash:'#/admin/fact/d1',pre:()=>wdSet({})}]]],
+  ['Kinds of show & rulebooks',[['rbbd','Make a series a game','Below Deck Med: the crew, what scores, Weekly Lineup',{n:4,hash:'#/show/bd/standings',pre:()=>rbSet({}),then:()=>makeGame(ALL_SHOWS.find(s=>s.id==='bd'))}],
+    ['rbplu','A scripted series','Pluribus: characters, theories, the kind line',{n:4,hash:'#/show/plu/standings',pre:()=>rbSet({}),then:()=>makeGame(ALL_SHOWS.find(s=>s.id==='plu'))}],
+    ['rbsnl','Make a talk show a game','Saturday Night Live: bingo and calls every show',{n:4,hash:'#/show/snl/tonight',pre:()=>rbSet({add:['snl']})}],
+    ['rbf1','Make a sport a game','Formula 1: the grid, race weekends, what scores',{n:4,hash:'#/show/f1/tonight',pre:()=>rbSet({add:['f1']})}],
+    ['rbf1p','Formula 1 · playing','Drafted five: start three for Race 19',{n:4,hash:'#/show/f1/standings',pre:()=>rbSet({made:['f1'],add:['f1'],f1play:true})}],
+    ['rbhow','How the season works','Survivor 51, readable for everyone',{n:4,hash:'#/show/surv/standings',ph:'before',pre:()=>rbSet({}),then:()=>howPage(ALL_SHOWS.find(s=>s.id==='surv'))}],
+    ['rbnew','The show changed','Episode 5 found something new: is it?',{n:4,hash:'#/show/surv/episodes',pre:()=>rbSet({rev:5}),then:()=>episodePage(5)}],
+    ['rbours','Backstage: our own rulebook','Scoring rules · Following, or Make it ours',{n:4,hash:'#/show/surv/backstage/rules',pre:()=>rbSet({new5:'confirmed',rev:5})}],
+    ['rbadm','Admin: a rulebook','Find › Survivor 51 · Override, Lock, History',{n:4,hash:'#/admin/rb/s51',pre:()=>rbSet({})}]]],
   ['Run a game',[['draft','Draft room','Outlast snake draft',{n:4,hash:'#/show/surv/draft'}],['blind','Blind draft','Pick privately, reveal together',{n:4,hash:'#/show/surv/blind'}],['bs','Backstage','The commissioner\'s side',{n:4,hash:'#/show/surv/backstage'}]]],
   ['You',[['acct','Account settings','Notifications, spoilers, appearance',{n:4,hash:'#/account'}]]]];
 document.body.insertAdjacentHTML('beforeend',`<button class="mockfab" id="mockFab" aria-label="Mock scenarios" aria-expanded="false"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Scenarios</span></button>

@@ -639,6 +639,7 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;flex:n
 <link rel="stylesheet" href="couchpages.css">
 <link rel="stylesheet" href="opentab.css">
 <link rel="stylesheet" href="bot.css">
+<link rel="stylesheet" href="rulebook.css">
 <link rel="stylesheet" href="mockmenu.css">
 <link rel="stylesheet" href="device.css">
 <link rel="stylesheet" href="nav.css">
@@ -722,7 +723,7 @@ function openSheet(title,sub,body,onMount){
   sh.setAttribute('aria-label',title);$('scrim').classList.add('on');requestAnimationFrame(()=>sh.classList.add('on'));UI.sheet=true;syncCtl();
   sh.querySelector('[data-close]').onclick=closeSheet;dragToClose(sh);onMount&&onMount(sh.querySelector('.body'));setTimeout(()=>sh.querySelector('[data-close]').focus({focusVisible:false}),50);
 }
-function closeSheet(){$('sheet').classList.remove('on');if(!UI.page)$('scrim').classList.remove('on');UI.sheet=false;syncCtl()}
+function closeSheet(){$('sheet').classList.remove('on');$('scrim').classList.remove('on');UI.sheet=false;syncCtl()}
 function dragToClose(sh){const g=$('grab');let y0=null,dy=0;
   g.onpointerdown=e=>{y0=e.clientY;sh.classList.add('drag');g.setPointerCapture(e.pointerId)};
   g.onpointermove=e=>{if(y0===null)return;dy=Math.max(0,e.clientY-y0);sh.style.transform=`translate(-50%,${dy}px)`};
@@ -1240,6 +1241,7 @@ route();
 <script src="solo.js"></script>
 <script src="share.js"></script>
 <script src="bot.js"></script>
+<script src="rulebook.js"></script>
 <script src="nav.js"></script>
 </body>
 </html>

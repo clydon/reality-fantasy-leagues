@@ -38,6 +38,7 @@ const { open } = require("./browser");
   await expectHash("#/show/ar/tonight");
   await expectText("#page", "Make The Amazing Race a game");
   await shot("make-step1");
+  await page.click("#mkManual"); // Make it a game leads with "Ask ChatGPT for me"; paste is the manual way
   await page.click("#mkPaste");
   await expectText("#page", "Looks right");
   await page.click("#mkGo");
