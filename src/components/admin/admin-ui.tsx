@@ -185,8 +185,11 @@ export function ActButton({
   children,
   className,
   type = "button",
+  external,
 }: {
   href?: string;
+  /** href is another site's: opens in a new tab, so this page (and anything typed on it) stays put. */
+  external?: boolean;
   onClick?: () => void;
   tone?: "chyron" | "plain";
   disabled?: boolean;
@@ -201,6 +204,13 @@ export function ActButton({
       : "border border-input bg-card text-foreground hover:bg-secondary",
     className,
   );
+  if (href && !disabled && external) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>
+        {children}
+      </a>
+    );
+  }
   if (href && !disabled) {
     return (
       <Link href={href} className={cls}>

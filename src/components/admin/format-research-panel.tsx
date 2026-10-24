@@ -5,8 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import type { StoredFormat } from "@/lib/game/types";
 import { Field, MoreOptions, fieldCls } from "@/components/setup/settings-ui";
-import { ActButton, CopyButton, Notice, Step, StickyBar } from "@/components/admin/admin-ui";
-import { AskAiLinks } from "@/components/ask-ai";
+import { ActButton, Notice, Step, StickyBar } from "@/components/admin/admin-ui";
+import { AskAi } from "@/components/ask-ai";
 import { PasteBar } from "@/components/paste-bar";
 import { useTourSample } from "@/lib/tour/samples";
 import { tourMark } from "@/lib/tour/tour-store";
@@ -102,12 +102,19 @@ export function FormatResearchPanel({
       </MoreOptions>
 
       <ol className="flex flex-col gap-5">
-        <Step n={1} on={!answer.trim()} label="Copy the research prompt">
-          <CopyButton text={promptReady ? prompt.data?.prompt : undefined} tone={answer.trim() ? "plain" : "chyron"} disabled={!name.trim()} tourId="add-copy" />
+        <Step n={1} on={!answer.trim()} label={tour ? "Copy the research prompt" : "Ask an AI"}>
+          <AskAi
+            prompt={promptReady ? prompt.data?.prompt : undefined}
+            task={`setting up a new show, ${name.trim()},`}
+            onAnswer={setAnswer}
+            answered={!!answer.trim()}
+            disabled={!name.trim()}
+            copyTourId="add-copy"
+            tour={!!tour}
+          />
           <span className="text-[13px] leading-snug text-muted-foreground">
-            {name.trim() ? "Paste it into any AI chat with web search. Free." : "Name the show first."}
+            {name.trim() ? "Or copy the prompt into any AI chat with web search. Free either way." : "Name the show first."}
           </span>
-          {!tour && <AskAiLinks prompt={promptReady ? prompt.data?.prompt : undefined} task={`setting up a new show, ${name.trim()},`} />}
           {prompt.error && <Notice tone="bad">{prompt.error instanceof ApiError ? prompt.error.message : "Couldn't build the prompt."}</Notice>}
         </Step>
         <Step n={2} on={!!answer.trim()} label="Paste what it found">

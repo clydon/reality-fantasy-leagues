@@ -41,6 +41,26 @@ async function localFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+/** One bot research attempt (db/migrations/0065). ok is null while it runs. */
+export interface BotResearchRun {
+  id: string;
+  episode: number;
+  slot: string;
+  kind: "quick" | "full";
+  startedAt: string;
+  finishedAt: string | null;
+  ok: boolean | null;
+  message: string | null;
+  result: {
+    left?: { name: string; how: string | null; matched: boolean }[];
+    headline?: string | null;
+    sources?: string[];
+    inserted?: number;
+    merged?: boolean;
+  } | null;
+  seconds: number | null;
+}
+
 export interface MeResponse {
   user: { id: string; username: string; isSuperAdmin: boolean; approved: boolean };
   // Already sorted for display by the server -- see /api/me.
@@ -625,6 +645,19 @@ export const api = {
     localFetch<{ fetches: { reader: string; userAgent: string | null; via: "page" | "action"; at: string }[] }>(
       `/api/briefs/${encodeURIComponent(code)}/fetches`
     ),
+  // The ask-AI bot (lib/server/ask-bot.ts), for admins and commissioners: whether this user may use it
+  // and it's up, and running a prompt through it.
+  askAiStatus: () => localFetch<{ allowed: boolean; available: boolean; busy: boolean }>("/api/ask-ai"),
+  askAi: (prompt: string) =>
+    localFetch<{ answer: string; seconds: number }>("/api/ask-ai", { method: "POST", body: JSON.stringify({ prompt }) }),
+  // (admin) Bot research (db/bot-research.js): a season's runs, and one run now outside the schedule.
+  adminBotRuns: (seasonId: string, episode?: number) =>
+    localFetch<{ runs: BotResearchRun[] }>(`/api/admin/seasons/${seasonId}/bot-research${episode ? `?episode=${episode}` : ""}`),
+  adminBotRunNow: (seasonId: string, episode: number, kind: "quick" | "full") =>
+    localFetch<{ ok: boolean; message: string; seconds: number }>(`/api/admin/seasons/${seasonId}/bot-research`, {
+      method: "POST",
+      body: JSON.stringify({ episode, kind }),
+    }),
   createFormat: (answer: string) =>
     localFetch<{ format: StoredFormat }>("/api/formats", { method: "POST", body: JSON.stringify({ answer }) }),
   getFormat: (id: string) => localFetch<{ format: StoredFormat }>(`/api/formats/${encodeURIComponent(id)}`),

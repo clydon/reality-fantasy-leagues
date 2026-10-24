@@ -12,8 +12,9 @@ import { airLine, autoResearchNote, episodeRows } from "@/lib/admin-season";
 import { useNowMinute } from "@/components/episodes/episode-status";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { fieldCls } from "@/components/setup/settings-ui";
-import { ActButton, AdminPage, Cost, CopyButton, Notice, Row, Rows, Section, Segmented, Step, StickyBar, count, errorText, seasonShort, useAdminSeason } from "./admin-ui";
-import { AskAiLinks } from "@/components/ask-ai";
+import { ActButton, AdminPage, Cost, Notice, Row, Rows, Section, Segmented, Step, StickyBar, count, errorText, seasonShort, useAdminSeason } from "./admin-ui";
+import { AskAi } from "@/components/ask-ai";
+import { BotResearchRuns } from "./bot-research-runs";
 import { ResearchResult, modelLabel } from "./admin-results";
 import { cn } from "cn";
 
@@ -171,6 +172,16 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
 
       {pasting && <PastePanel seasonId={seasonId} episode={episode} busy={!!working} onSubmit={doPaste} />}
 
+      <BotResearchRuns
+        season={season}
+        episode={episode}
+        aired={aired}
+        onFiled={async () => {
+          await refetch();
+          await queryClient.invalidateQueries({ queryKey: ["season-decisions", seasonId] });
+        }}
+      />
+
       {working === "research" && <Notice tone="quiet">Working through the checklist, tens of seconds. Leave this open.</Notice>}
       {error && <Notice tone="bad">{error}</Notice>}
       {note && <Notice>{note}</Notice>}
@@ -241,20 +252,17 @@ function PastePanel({ seasonId, episode, busy, onSubmit }: { seasonId: string; e
         />
       )}
       <ol className="flex flex-col gap-4">
-        <Step n={1} on={!notes.trim()} label="Copy the episode prompt">
-          <span className="flex flex-wrap items-center gap-3">
-            <CopyButton text={data?.prompt} tone={notes.trim() ? "plain" : "chyron"} />
-            {data && (
-              <span className="text-[13px] text-muted-foreground">
-                {count(data.castCount, "person", "people")}
-                {data.betCount ? `, ${count(data.betCount, "open prediction")}` : ""}
-              </span>
-            )}
-          </span>
+        <Step n={1} on={!notes.trim()} label="Ask an AI">
+          {data && (
+            <span className="text-[13px] text-muted-foreground">
+              About {count(data.castCount, "person", "people")}
+              {data.betCount ? `, ${count(data.betCount, "open prediction")}` : ""}.
+            </span>
+          )}
           {isLoading && <span className="text-[13px] text-muted-foreground">Building the prompt…</span>}
           {error && <Notice tone="bad">{errorText(error, "Couldn't build the prompt.")}</Notice>}
-          <span className="text-[13px] text-muted-foreground">Paste it into any AI chat with web search: ChatGPT, Claude, Gemini.</span>
-          <AskAiLinks prompt={data?.prompt} task={`researching what happened in episode ${episode}`} />
+          <AskAi prompt={data?.prompt} task={`researching what happened in episode ${episode}`} onAnswer={setNotes} answered={!!notes.trim()} />
+          <span className="text-[13px] text-muted-foreground">Or copy the prompt into any AI chat that can search the web.</span>
         </Step>
         <Step n={2} on={!!notes.trim()} label="Paste the answer">
           <textarea

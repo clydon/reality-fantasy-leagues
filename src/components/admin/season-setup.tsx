@@ -14,6 +14,7 @@ import { Field, MoreOptions, StepperRow, ToggleRow, fieldCls } from "@/component
 import { PlainButton } from "@/components/draft/draft-ui";
 import { ActButton, Notice, Rows, Section, count, errorText } from "./admin-ui";
 import { SeasonRules } from "./season-rule-check";
+import { BotResearchSection } from "./bot-research-settings";
 import { SeasonFrame } from "./season-frame";
 import { cn } from "cn";
 
@@ -261,6 +262,8 @@ function SetupTab({ season, refetch }: { season: ShowSeason; refetch: () => unkn
           </div>
         )}
       </Section>
+
+      <BotResearchSection season={season} busy={busy} save={save} />
 
       <Section title="Results">
         {/* Who decides the season's results (db/migrations/0054). Controlled, so cancelling the confirm

@@ -363,6 +363,11 @@ export interface ShowSeason {
   researchDelayHours?: number | null;
   researchModel?: string | null;
   autoResearchSince?: string | null;
+  // Bot research (db/migrations/0065, experimental): the free ChatGPT schedule, minutes after airing.
+  botResearchOn?: boolean;
+  /** null = never set: the default (quick at 5 min, full at 1 h and 9 h). */
+  botResearchSchedule?: { kind: "quick" | "full"; after: number; on: boolean }[] | null;
+  botResearchSince?: string | null;
   /** The wiki's printed air date per episode number, from the cached extraction. */
   wikiAirDates?: Record<string, string> | null;
   /** The latest scheduled attempt per episode number. */

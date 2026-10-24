@@ -25,6 +25,7 @@ async function loadSeasons(pool, where = "ss.auto_research", params = []) {
             to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date, to_char(ss.air_time, 'HH24:MI') AS air_time, ss.air_tz,
             ss.auto_research, ss.research_weekday, to_char(ss.research_time, 'HH24:MI') AS research_time, ss.research_delay_hours,
             ss.research_model, ss.auto_research_since, ss.episode_count, ss.status,
+            ss.bot_research_on, ss.bot_research_schedule, ss.bot_research_since,
             to_char(ss.finale_date, 'YYYY-MM-DD') AS finale_date,
             (SELECT json_object_agg(e->>'number', e->>'airDate')
                FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e

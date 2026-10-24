@@ -17,7 +17,7 @@ import { X as XIcon } from "lucide-react";
 import { cn } from "cn";
 import { seasonCastApi, useSeasonCastMode } from "@/lib/season-cast-api";
 import { PasteBar } from "@/components/paste-bar";
-import { AskAiLinks } from "@/components/ask-ai";
+import { AskAi } from "@/components/ask-ai";
 import { useTourSample } from "@/lib/tour/samples";
 import { tourMark } from "@/lib/tour/tour-store";
 
@@ -44,7 +44,6 @@ export function CastImportSection({ state, defaultOpen = false }: { state: Leagu
   const [season, setSeason] = useState(state.settings.wikiSeason ? `Season ${state.settings.wikiSeason}` : "");
   const [answer, setAnswer] = useState("");
   const [parsed, setParsed] = useState<ParsedCast | null>(null);
-  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -65,18 +64,6 @@ export function CastImportSection({ state, defaultOpen = false }: { state: Leagu
   if (!canManage || cast.kind === "shared") return null;
   const seasonal = cast.kind === "create" || cast.kind === "creating";
   const seasonName = seasonal ? `Season ${cast.seasonNumber}` : "";
-
-  async function copyPrompt() {
-    try {
-      await navigator.clipboard.writeText(prompt);
-    } catch {
-      /* clipboard blocked -- the prompt's still selectable below */
-      if (!tourSample) return;
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    tourMark("cast-copy");
-  }
 
   function review() {
     setError(null);
@@ -179,18 +166,18 @@ export function CastImportSection({ state, defaultOpen = false }: { state: Leagu
               <p className="text-muted-foreground">
                 Fill the whole cast in at once: names, photos
                 {format.hasGroups ? ` and starting ${terms.tribes}` : ""}
-                {roles.length ? " and starting roles" : ""}. 1. Copy the prompt into any AI chat with web search. 2. Paste its
-                answer below. 3. Review and import. Anyone already in the league is left as they are.
+                {roles.length ? " and starting roles" : ""}. 1. Ask an AI with web search (ours, or copy the prompt into any chat).
+                2. Its answer lands below. 3. Review and import. Anyone already in the league is left as they are.
               </p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Input size="sm" className="min-w-[160px] flex-1" placeholder="Season, e.g. Season 50" value={season} onChange={(e) => setSeason(e.target.value)} />
-                <span data-tour="cast-copy">
-                  <Button variant="secondary" size="xs" onClick={copyPrompt}>
-                    {copied ? "Copied!" : "Copy prompt"}
-                  </Button>
-                </span>
-              </div>
-              {!tourSample && <AskAiLinks prompt={prompt} task={`importing the cast of ${terms.showName ?? "a show"}${season.trim() ? ` ${season.trim()}` : ""}`} />}
+              <Input size="sm" className="min-w-[160px]" placeholder="Season, e.g. Season 50" value={season} onChange={(e) => setSeason(e.target.value)} />
+              <AskAi
+                prompt={prompt}
+                task={`importing the cast of ${terms.showName ?? "a show"}${season.trim() ? ` ${season.trim()}` : ""}`}
+                onAnswer={setAnswer}
+                answered={!!answer.trim()}
+                copyTourId="cast-copy"
+                tour={!!tourSample}
+              />
               <Textarea readOnly rows={4} value={prompt} className="font-mono text-[0.65rem] text-muted-foreground" />
               <div className="flex flex-col gap-1.5">
                 <span className="font-semibold">Paste the answer here</span>

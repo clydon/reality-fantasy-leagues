@@ -1,11 +1,13 @@
-// Dev-only test bank: the "Or skip the copy: open it in (test)" links (components/ask-ai.tsx), on Admin >
-// New show. Types a show name, waits for the brief to be parked, checks every chat link carries the
-// one-liner pointing at /b/<code>, fetches that page the way ChatGPT's fetcher would (its user agent),
-// and checks the row's "Read by" line names ChatGPT. Also checks the brief's JSON twin (the custom GPT's
-// action) and that a made-up code 404s.
+// Dev-only test bank: the "Ask an AI" step (components/ask-ai.tsx), on Admin > New show. Types a show
+// name, waits for the brief to be parked, checks the one "Open in ChatGPT" link carries the one-liner
+// pointing at /b/<code> (and no other chat's link is left), fetches that page the way ChatGPT's fetcher
+// would (its user agent) and checks the read was logged as ChatGPT's. Also checks the brief's JSON twin
+// (the custom GPT's action) and that a made-up code 404s. With --bot, also presses "Ask ChatGPT for me"
+// (marked Experimental) and checks the answer lands in the paste box (needs the ask-AI bot running:
+// lib/server/ask-bot.ts; takes up to 5 min).
 //
 //   node scripts/dev-test/check-ask-ai.js up
-//   node scripts/dev-test/check-ask-ai.js run <outDir> [width=390] [--dark]   (needs `up` + npm run dev)
+//   node scripts/dev-test/check-ask-ai.js run <outDir> [width=390] [--dark] [--bot]   (needs `up` + npm run dev)
 //   node scripts/dev-test/check-ask-ai.js down
 //
 // Makes a throwaway admin, zt_ask_admin / zt-pass-12345. Briefs it parks are keyed on that user, so
@@ -53,16 +55,16 @@ async function run(out, width, flags) {
   await page.goto(`${BASE}/admin/shows/new`, { waitUntil: "networkidle" });
   // A fresh name each run: the same prompt is the same brief, which an earlier run has already read.
   await page.getByLabel("Show name").fill(`zt Ask Show ${Date.now() % 100000}`);
-  await page.waitForSelector("text=Nobody has opened the brief yet.", { timeout: 20000 });
+  await page.getByRole("link", { name: /Open in ChatGPT/ }).waitFor({ timeout: 20000 });
 
   const hrefs = await page.$$eval("a[target=_blank]", (as) => as.map((a) => ({ name: a.textContent.trim(), href: a.href })));
   const chats = hrefs.filter((h) => /chatgpt|claude|gemini|google|perplexity|grok|copilot/.test(h.href));
-  expect(chats.length >= 7, `seven chat links (${chats.map((c) => c.name).join(", ")})`);
+  expect(chats.length === 1 && /chatgpt\.com/.test(chats[0].href), `one chat link, ChatGPT's (${chats.map((c) => c.name).join(", ")})`);
   const line = decodeURIComponent(new URL(chats[0].href).searchParams.get("q") || "");
   const briefUrl = (line.match(/https?:\/\/\S+\/b\/[A-Za-z0-9_-]{16}/) || [])[0];
   expect(!!briefUrl, `the one-liner points at a brief: "${line.slice(0, 90)}…"`);
   expect(line.length < 500, `the one-liner is short (${line.length} chars)`);
-  expect(chats.every((c) => decodeURIComponent(c.href).includes(briefUrl)), "every link carries the same brief");
+  expect(await page.getByRole("button", { name: /Copy prompt/ }).isVisible(), "Copy prompt is there as the fallback");
   await page.screenshot({ path: `${out}/ask-ai-${tag}-links.png`, fullPage: true });
 
   const res = await fetch(briefUrl, { headers: { "User-Agent": CHATGPT_UA } });
@@ -75,11 +77,23 @@ async function run(out, width, flags) {
   expect(json.instructions === body, "the GPT action's JSON carries the same text");
   expect((await fetch(`${BASE}/b/AAAAAAAAAAAAAAAA`)).status === 404, "an unknown code 404s");
 
-  await page.waitForSelector("text=/Read by .*ChatGPT/", { timeout: 15000 }).catch(() => {});
-  const readBy = await page.locator("text=/Read by/").first().textContent().catch(() => "");
-  expect(/ChatGPT/.test(readBy), `the row says who read it: "${readBy}"`);
-  await page.locator("text=/Read by/").first().scrollIntoViewIfNeeded();
-  await page.screenshot({ path: `${out}/ask-ai-${tag}-read.png` });
+  // The read log is no longer on the page; it's still kept, for an admin asking the API.
+  const reads = await page.evaluate((c) => fetch(`/api/briefs/${c}/fetches`).then((r) => r.json()), code);
+  expect((reads.fetches || []).some((f) => f.reader === "ChatGPT"), `the read was logged as ChatGPT's (${(reads.fetches || []).map((f) => f.reader).join(", ")})`);
+
+  if (flags.includes("--bot")) {
+    const ask = page.getByRole("button", { name: "Ask ChatGPT for me" });
+    expect(await ask.isVisible().catch(() => false), "the bot's button shows (the bot is up)");
+    expect(await page.getByText("Experimental").first().isVisible(), "marked Experimental");
+    await ask.click();
+    await page.waitForSelector("text=/Asking ChatGPT… \\d+s/", { timeout: 5000 });
+    await page.screenshot({ path: `${out}/ask-ai-${tag}-bot-asking.png` });
+    await page.waitForSelector("text=/Answered in \\d+s/", { timeout: 300_000 }).catch(() => {});
+    const answer = await page.getByLabel("The chat's answer").inputValue();
+    expect(answer.length > 200, `the answer landed in the paste box (${answer.length} chars)`);
+    await page.getByLabel("The chat's answer").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${out}/ask-ai-${tag}-bot-answered.png` });
+  }
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(!overflow, "no horizontal scroll");

@@ -4,6 +4,7 @@ import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { parseWikiUrl } from "@/lib/server/wiki-url";
 import { RESEARCH_MODELS } from "@db/episode-research.js";
+import { normalizeSchedule } from "@db/bot-research.js";
 
 type RouteParams = { id: string };
 
@@ -101,6 +102,23 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     // Switching on starts the clock: only slots from now on are picked up (see 0020).
     if (on) sets.push("auto_research_since = COALESCE(CASE WHEN auto_research THEN auto_research_since END, now())");
     else sets.push("auto_research_since = NULL");
+  }
+  // Bot research (0065, experimental): the free ChatGPT schedule. Switching on starts its clock, like
+  // auto-research's; the schedule is kept while it's off, so switching back on picks up where it was.
+  if ("botResearchSchedule" in body) {
+    let schedule;
+    try {
+      schedule = normalizeSchedule(body.botResearchSchedule);
+    } catch (e) {
+      throw new HttpError(400, e instanceof Error ? e.message : "Bad schedule");
+    }
+    push("bot_research_schedule", JSON.stringify(schedule));
+  }
+  if ("botResearchOn" in body) {
+    const on = body.botResearchOn === true;
+    push("bot_research_on", on);
+    if (on) sets.push("bot_research_since = COALESCE(CASE WHEN bot_research_on THEN bot_research_since END, now())");
+    else sets.push("bot_research_since = NULL");
   }
   if ("wikiUrl" in body) {
     const wikiUrl = String(body.wikiUrl || "").trim() || null;

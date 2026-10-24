@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { confirm } from "@/lib/confirm-store";
-import { AskAiLinks } from "@/components/ask-ai";
+import { AskAi } from "@/components/ask-ai";
 import { useShowSpoilers } from "@/lib/paid-ai-store";
 import { cn } from "cn";
 import {
@@ -250,20 +250,8 @@ function RuleCheckPanel({ seasonId, seasonLabel, onRecorded }: { seasonId: strin
     staleTime: 0,
   });
   const [answer, setAnswer] = useState("");
-  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function copyPrompt() {
-    if (!data?.prompt) return;
-    try {
-      await navigator.clipboard.writeText(data.prompt);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard blocked (permissions, non-HTTPS) -- the prompt's still selectable below */
-    }
-  }
 
   async function submit() {
     setBusy(true);
@@ -281,19 +269,14 @@ function RuleCheckPanel({ seasonId, seasonLabel, onRecorded }: { seasonId: strin
   return (
     <div className="mt-1 rounded-md border border-dashed border-border bg-secondary/40 p-2.5 text-xs">
       <p className="mb-1.5 text-muted-foreground">
-        Has {seasonLabel} changed how it&rsquo;s played? 1. Copy this into any AI chat with web search. 2. Paste its answer below. &ldquo;Nothing
-        changed&rdquo; is a fine answer, and gets recorded too.
+        Has {seasonLabel} changed how it&rsquo;s played? 1. Ask an AI with web search (ours, or copy this into any chat). 2. Its answer
+        goes below. &ldquo;Nothing changed&rdquo; is a fine answer, and gets recorded too.
       </p>
       {isLoading && <p className="italic text-muted-foreground">Building the prompt…</p>}
       {promptError && <p className="font-semibold text-destructive">{promptError instanceof ApiError ? promptError.message : "Couldn't build the prompt."}</p>}
       {data && (
         <div className="flex flex-col gap-1">
-          <div>
-            <Button variant="secondary" size="xs" onClick={copyPrompt}>
-              {copied ? "Copied!" : "Copy prompt"}
-            </Button>
-          </div>
-          <AskAiLinks prompt={data.prompt} task={`checking whether ${seasonLabel} changed how it's played`} />
+          <AskAi prompt={data.prompt} task={`checking whether ${seasonLabel} changed how it's played`} onAnswer={setAnswer} answered={!!answer.trim()} />
           <Textarea readOnly rows={4} value={data.prompt} className="font-mono text-[0.65rem] text-muted-foreground" />
         </div>
       )}

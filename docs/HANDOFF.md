@@ -11,6 +11,12 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Next: moving the app onto the new design (plan written 2026-10-23)
+**Read [PLAN-new-design.md](PLAN-new-design.md) first.** One database, no data transfer (the new screens read and
+write the same leagues), additive migrations, the classic app running beside the new one until the couch switches,
+and a Preview overlay (`<Preview step>`) on anything still on fixtures. Its Status table says what step is next; each
+step updates it and adds an As built note. Step 0a (back up the live leagues) comes first.
+
 ## Full-site mock in progress, 2026-10-22 (`.impeccable/mocks/site/`, gitignored)
 **This is the current focus.** The user wants a full clickable website mock as *the* design the real
 app gets ported onto: no stone unturned, simplified or redesigned wherever /impeccable calls for it.

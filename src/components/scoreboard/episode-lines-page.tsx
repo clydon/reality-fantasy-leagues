@@ -8,8 +8,8 @@ import { useCanManage, useLeagueStore } from "@/lib/store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { latestScoredEpisode, parseLeagueReply } from "@/lib/game/episode-team-summary";
 import { SettingsPage, MoreOptions, fieldCls } from "@/components/setup/settings-ui";
-import { ActButton, CopyButton, Notice, Step, StickyBar } from "@/components/admin/admin-ui";
-import { AskAiLinks } from "@/components/ask-ai";
+import { ActButton, Notice, Step, StickyBar } from "@/components/admin/admin-ui";
+import { AskAi } from "@/components/ask-ai";
 import { useTeamSummary } from "./use-team-summary";
 
 // The commissioner's "why it mattered" lines for the latest episode, every team at once
@@ -77,16 +77,15 @@ export function EpisodeLinesPage() {
         One line per team on why Episode {ep.number} mattered to them. Everyone sees them on the Scoreboard.
       </p>
       <ol className="flex flex-col gap-6">
-        <Step n={1} on={!pasted && !dirty} label="Copy the prompt into an AI chat that can search the web">
+        <Step n={1} on={!pasted && !dirty} label="Ask an AI that can search the web">
           {isLoading && <Notice tone="quiet">Building the prompt…</Notice>}
           {error && <Notice tone="bad">{error instanceof ApiError ? error.message : "Couldn't build the prompt."}</Notice>}
           {data?.prompt && (
             <>
-              <CopyButton text={data.prompt} tone={pasted || dirty ? "plain" : "chyron"} />
-              <AskAiLinks prompt={data.prompt} task={`writing a line per team on episode ${ep.number}`} />
+              <AskAi prompt={data.prompt} task={`writing a line per team on episode ${ep.number}`} onAnswer={pasteReply} answered={pasted || dirty} />
               <p className="text-[13px] leading-snug text-muted-foreground">
                 {data.hasSource
-                  ? "ChatGPT, Claude or Gemini all work. It reads the episode's recap."
+                  ? "Or copy the prompt into ChatGPT, Claude or Gemini. It reads the episode's recap."
                   : "No trusted sites are set for this show, so the AI will look for a recap on its own."}
               </p>
               <MoreOptions label="See the prompt">

@@ -42,6 +42,9 @@ export const GET = apiRoute(async (req) => {
                   'researchTime', to_char(ss.research_time, 'HH24:MI'), 'researchModel', ss.research_model,
                   'researchDelayHours', ss.research_delay_hours,
                   'autoResearchSince', ss.auto_research_since,
+                  -- Bot research (0065, experimental): the free ChatGPT schedule.
+                  'botResearchOn', ss.bot_research_on, 'botResearchSchedule', ss.bot_research_schedule,
+                  'botResearchSince', ss.bot_research_since,
                   'wikiAirDates', (
                     SELECT json_object_agg(e->>'number', e->>'airDate')
                       FROM wiki_extractions we, jsonb_array_elements(we.payload->'episodes') e

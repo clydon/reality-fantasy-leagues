@@ -2182,6 +2182,8 @@ async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
 
   const provenance = {
     provider: "paste",
+    // Who pasted: the ask-AI bot (db/bot-research.js) rather than a person.
+    ...(opts.via ? { via: opts.via } : {}),
     // No model touched a JSON paste; naming one would make the UI price a call that never happened.
     model: opts.structured ? null : model,
     pasteMode: opts.structured ? "json" : "text",
