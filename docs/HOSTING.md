@@ -155,4 +155,6 @@ never handles it: the user does the reset and the pasting.
   air-time query now reads (no extra polling). The VM's new tick deployed (13:44 UTC) and bot research switched on
   for Survivor 51 with a 90-minute episode length: the clock's next call is the quick check on 2026-10-29 01:40 UTC
   (Wednesday 9:40 PM Eastern), quiet until then apart from 6-hourly check-ins. Network transfer read 4.73 GB six
-  hours after the polling fix (unchanged). The Neon password rotation was deferred (Alerts).
+  hours after the polling fix (unchanged). The Neon password rotation was deferred (Alerts). Later the same day the
+  user switched bot research off again: its full runs stage results for review, and unreviewed results aren't used
+  (PLAN-new-design 6b). The clock has nothing scheduled, so it only checks in every 6 hours.

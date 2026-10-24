@@ -417,6 +417,10 @@ compared with the old v2 port on `waivers-options.html`; checked by `scripts/dev
   Confirmed (2 independent sources agree) · Disputed · Canonical (admin, locked), replacing
   pending/accepted/rejected; `results_by` admin/leagues collapses into one mode (every league receives
   shared facts); new `fact_disputes` (who flagged what, why, note, link) and `league_rulings` (house rulings).
+- *Unreviewed results don't carry over (user, 2026-10-24).* Results staged but never reviewed (Survivor 51 had
+  88 pending) may be wrong, and the user won't review them: only decisions already accepted, as applied to the
+  three active leagues, count. Converting statuses leaves pending ones out (they survive only in 0a's backup),
+  never mapping them to Reported or showing them in stats. Bot research is off for the same reason.
 - *Anyone fills in results* (couch setting "Who can fill them in": Anyone on the couch, default, or only
   people who run games). Players get a quiet "Full scores need one paste · Fill it in" after early results.
 - *Disputes:* "Something wrong?" at the foot of every episode page and a flag on each episode of a
