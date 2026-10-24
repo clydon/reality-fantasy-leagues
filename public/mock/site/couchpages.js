@@ -60,12 +60,33 @@ function verdictsPage(){const L=seenShows().slice(0,5);
     pg=>pg.querySelectorAll('[data-rate]').forEach(b=>b.onclick=()=>{closePage();setTimeout(()=>rateSheet(SHOWS.find(x=>x.id===b.dataset.rate)),250)}),{back:'Home'})}
 
 // ---------- Previously on ----------
-function recapsPage(){const L=seenShows();
-  openPage('Previously on',`<div class="cp">${safeChip}${L.map(s=>{const lines=recapLines(s).slice(-3);
-    return `<section class="cp-cold"><div class="cp-coldh"><img src="${ART(s.art)}" alt="" style="object-position:${s.hpos||s.pos}"><b class="cap">Previously on<br>${s.short}</b></div>
-      <div class="cp-beats">${lines.map(([e,t])=>`<button class="plate cp-beat" data-beat="${s.id}" data-e="${e}"><span class="tg q cap">Ep ${e}</span><span class="bd"><span class="d">${t}</span></span></button>`).join('')}</div>
-      <small class="cp-upto">Up to Episode ${whereOf(s,'alex')} · nothing past it</small></section>`}).join('')}</div><div style="height:40px"></div>`,
-    pg=>pg.querySelectorAll('[data-beat]').forEach(b=>b.onclick=()=>{const s=SHOWS.find(x=>x.id===b.dataset.beat);if(s.id==='surv'){closePage();setTimeout(()=>episodePage(+b.dataset.e),250)}else recapSheet(s)}),{back:'Home'})}
+// Redesigned 2026-10-24 (the stacked caption plates were rejected): faces, not banners. One show at a time; a cold open;
+// "Last time" as the reveal's vote-out card; the boot order as a strip of faces; who's still in by group (a secret
+// faction stays secret); then episode by episode. Shows without cast data get the same frame with the recap as type.
+let poShow=null;
+const METHOD={'Voted Out':'Voted out',Murdered:'Murdered',Banished:'Banished',Quit:'Quit',Medevac:'Medically evacuated'};
+function recapsPage(){const L=seenShows();if(!L.length)return openPage('Previously on','<div class="cp"><p class="muted" style="padding:20px 16px">Add a show and set where you are; its story so far shows up here.</p></div>',null,{back:'Home'});
+  if(!L.some(s=>s.id===poShow))poShow=(L.find(s=>STATS[s.id])||L[0]).id;
+  const paint=()=>{const s=L.find(x=>x.id===poShow),w=whereOf(s,'alex'),src=STATS[s.id]&&STATS[s.id].season(),cast=src?src.cast:[];
+    const gone=cast.filter(c=>c.exitEp&&c.exitEp<=w).sort((a,b)=>a.exitEp-b.exitEp),still=cast.filter(c=>!(c.exitEp&&c.exitEp<=w)),last=gone.filter(c=>c.exitEp===w),lines=recapLines(s);
+    const place=c=>ordinal(cast.length-cast.filter(x=>x.exitEp&&x.exitEp<c.exitEp).length);
+    const groups=factionSecret(s)?[['Still in',still,null]]:[...new Set(still.map(c=>factionOf(s,c)).filter(Boolean))].map(g=>[g,still.filter(c=>factionOf(s,c)===g),(src.tribes||{})[g]]);
+    const lastTime=last.length?`<div class="po-last${last.length>1?' two':''}">${last.map(c=>`<button class="po-card" data-po-ep="${w}"><img src="${ph(c)}" alt=""><span class="tg cap">${METHOD[c.exitMethod]||'Out'} · Ep ${w}</span><span class="po-plate"><b class="cap">${first(c.name)}</b><small>${factionSecret(s)&&factionOf(s,c)?`${factionOf(s,c)} · `:''}Finished ${place(c)}</small></span></button>`).join('')}</div>`
+      :`<button class="po-text" data-po-ep="${w}"><span class="po-epn num">${w}</span><p>${(lines[lines.length-1]||[0,'Nothing recorded yet'])[1]}</p></button>`;
+    return `<div class="po-shows" role="tablist">${L.map(x=>`<button role="tab" aria-selected="${x.id===poShow}" class="${x.id===poShow?'on':''}" data-po="${x.id}"><img src="${ART(x.art)}" alt="" style="object-position:${x.pos}"><span>${x.short}</span></button>`).join('')}</div>
+      <section class="po-open"><img src="${ART(s.art)}" alt="" style="object-position:${s.hpos||s.pos}"><div><b class="cap">Previously on</b><span class="cap">${s.short}</span></div>
+        <div class="po-safe">${svg('shield')}Up to Episode ${w} · nothing past it</div></section>
+      <section class="blk"><div class="sh"><h2 class="cap">Last time</h2><span class="aside">Episode ${w}</span></div>${lastTime}</section>
+      ${gone.length?`<section class="blk"><div class="sh"><h2 class="cap">The story so far</h2><span class="aside">${gone.length} gone · ${still.length} still in</span></div>
+        <div class="po-track">${gone.map(c=>`<button class="po-gone${c.exitEp===w?' last':''}" data-po-ep="${c.exitEp}"><img src="${ph(c)}" alt=""><b>${first(c.name)}</b><small class="cap">Ep ${c.exitEp}</small></button>`).join('')}</div></section>`:''}
+      ${still.length?`<section class="blk"><div class="sh"><h2 class="cap">Still in</h2><span class="aside">${factionSecret(s)?'Factions stay secret':src.tribeTerm?`By ${src.tribeTerm.toLowerCase()}`:''}</span></div>
+        ${groups.map(([g,P,col])=>`<div class="po-grp">${groups.length>1||col?`<span class="po-gh">${col?`<i style="background:${col}"></i>`:''}<b class="cap">${g}</b><small>${P.length}</small></span>`:''}<div class="po-faces">${P.map(c=>`<span><img src="${ph(c)}" alt=""><small>${first(c.name)}</small></span>`).join('')}</div></div>`).join('')}</section>`:''}
+      <section class="blk"><div class="sh"><h2 class="cap">Episode by episode</h2></div>${lines.slice().reverse().map(([e,t])=>{const out=gone.filter(c=>c.exitEp===e);return `<button class="po-ep" data-po-ep="${e}"><span class="po-epn num">${e}</span>${out.length?`<span class="po-epf">${out.map(c=>`<img src="${ph(c)}" alt="">`).join('')}</span>`:''}<span class="tx">${t}</span>${svg('chev')}</button>`}).join('')}</section>
+      ${s.air||s.binge?`<section class="blk"><button class="btn out wide" data-po-watch="${s.id}">${svg('tv')}Watch along · Episode ${Math.min(w+1,s.ep||w+1)}</button></section>`:''}`};
+  openPage('Previously on',`<div class="cp po" id="poB">${paint()}</div><div style="height:40px"></div>`,pg=>{const wire=()=>{
+      pg.querySelectorAll('[data-po]').forEach(b=>b.onclick=()=>{poShow=b.dataset.po;$('poB').innerHTML=paint();wire();pg.scrollTop=0});
+      pg.querySelectorAll('[data-po-ep]').forEach(b=>b.onclick=()=>{const s=SHOWS.find(x=>x.id===poShow);if(s.id==='surv'){closePage();setTimeout(()=>episodePage(+b.dataset.poEp),250)}else recapSheet(s)});
+      pg.querySelectorAll('[data-po-watch]').forEach(b=>b.onclick=()=>{closePage();setTimeout(()=>openWatch(b.dataset.poWatch),250)})};wire()},{back:'Home'})}
 
 // ---------- Trophy shelf ----------
 function trophiesPage(){const mine=2,seasons=9;
@@ -77,7 +98,7 @@ function trophiesPage(){const mine=2,seasons=9;
 
 const PAGES={rank:rankingsPage,games:breakPage,numbers:numbersPage,verdicts:verdictsPage,recaps:recapsPage,trophies:trophiesPage};
 const SUBS={rank:()=>{const p=placeOf();return p.i===1?'You lead the couch this year':`You're ${ordinal(p.i)} · ${p.gap} back of ${p.lead}`},games:()=>`${SHOWS.filter(s=>s.kinds).reduce((n,s)=>n+(s.games||[]).length,0)} games you're in · bingo and polls this week`,
-  numbers:()=>'Who leads every stat, up to where you are',verdicts:()=>`How the couch rated ${seenShows().length} shows`,recaps:()=>'Catch up in three lines a show',trophies:()=>'2 titles · 9 seasons played'};
+  numbers:()=>'Who leads every stat, up to where you are',verdicts:()=>`How the couch rated ${seenShows().length} shows`,recaps:()=>'The story so far, up to where you are',trophies:()=>'2 titles · 9 seasons played'};
 const wireHubCP=wireHub;
 wireHub=function(){wireHubCP();app.querySelectorAll('[data-more]').forEach(r=>{const k=r.dataset.more;if(!PAGES[k])return;r.onclick=()=>PAGES[k]();const sm=r.querySelector('small');if(sm&&SUBS[k])sm.textContent=SUBS[k]()})};
 window.couchPage=k=>PAGES[k]&&PAGES[k]();

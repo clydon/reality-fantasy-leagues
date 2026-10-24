@@ -130,7 +130,7 @@ const { open } = require("./browser");
   if (!(await page.locator(".r-status").count())) fail("hub: no one-line status at the top");
   if (!(await page.locator(".hn-now").count())) fail("full couch: no Who's on now strip");
   // each More on the couch page (couchpages.js): its own lead element
-  for (const [k, sel] of [["rank", ".cp-hero .cp-big"], ["rank", ".cp-board .prow.me"], ["games", ".cp-ident"], ["games", ".cp-game"], ["games", "#cpStart"], ["numbers", ".cp-stat[data-stats]"], ["numbers", ".cp-row"], ["recaps", ".cp-cold .cp-beat"], ["verdicts", ".cp-verdict .cp-big"], ["trophies", ".cp-plaque.won"]]) {
+  for (const [k, sel] of [["rank", ".cp-hero .cp-big"], ["rank", ".cp-board .prow.me"], ["games", ".cp-ident"], ["games", ".cp-game"], ["games", "#cpStart"], ["numbers", ".cp-stat[data-stats]"], ["numbers", ".cp-row"], ["recaps", ".po-open"], ["recaps", ".po-card"], ["recaps", ".po-gone.last"], ["verdicts", ".cp-verdict .cp-big"], ["trophies", ".cp-plaque.won"]]) {
     await more(k); if (!(await page.locator(`#page ${sel}`).count())) fail(`More on the couch › ${k}: missing ${sel}`);
     if (k === "games" && await page.locator('#page .cp-ep', { hasText: /Watch along|Watch party/ }).count()) fail("Watch along is still in Commercial break");
     if (k === "games" && (await page.locator("#page .cp-due").count()) > 1) fail("Commercial break: more than one yellow due tag");
