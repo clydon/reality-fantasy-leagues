@@ -1,9 +1,11 @@
 # Plan: moving the app onto the new design
 
-Status: **plan, 2026-10-23.** The full-site mock (`.impeccable/mocks/site/`, live at `/mock`, decisions in memory
-`site-mock-decisions`) is about 80% settled. This plan takes the real app onto it, piece by piece, without
-losing anything the one live couch has played. It is the "second-pass drill-down" that
-`PLAN-couch-and-episode-night.md` asked for; where the two disagree, this file and the mock win.
+Status: **plan, 2026-10-23; updated 2026-10-24** with every mock decision since (the critique refinements,
+the Games tab, how results get in, solo, sharing, privacy, and the kinds-of-show and rulebooks round). The
+full-site mock (`.impeccable/mocks/site/`, live at `/mock`, decisions in memory `site-mock-decisions`) is
+about 80% settled. This plan takes the real app onto it, piece by piece, without losing anything the one
+live couch has played. It is the "second-pass drill-down" that `PLAN-couch-and-episode-night.md` asked
+for; where the two disagree, this file and the mock win.
 
 **How to use this file.** It's written to be read in parts. Every session reads **Status** (the table just
 below), **The approach**, the **Rules for every session**, and then only its own step's section. Each step
@@ -17,29 +19,41 @@ else needs re-reading.
 |---|---|---|---|
 | 0a | Back up the live leagues | not started | Opus · medium |
 | 0b | Backend foundation (couch, progress, schedule, roles, guard) | not started | Opus · high |
+| R1 | Rulebooks phase 1: schema, built-ins as blocks, How it works view model (logic only) | not started | Opus · high |
+| R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | not started | Opus · high |
+| R3 | Rulebooks phase 3: `rulebooks` tables, backfill, resolution behind a flag | not started | Opus · high |
 | 0c | The new shell, Preview system, fixtures, motion | not started | Opus · high |
 | 0d | Hub and show space ported (fixtures behind Preview) | not started | Opus · high |
-| 1 | Show space on real leagues: Tonight, moves dock, Standings | not started | Opus · high |
-| 2 | Episodes, staged results, the one reveal | not started | Opus · high |
+| 1 | Show space on real leagues: Tonight's move cards, Games tab, How it works | not started | Opus · high |
+| 2 | Episodes, staged results, the one reveal, share at the reveal | not started | Opus · high |
 | 3 | Cast explorer and stats, server-side spoiler guard | not started | Opus · high |
 | 4 | Chat, per couch and show, spoiler-folded | not started | Opus · medium |
-| 5 | Backstage I: results, Recent changes, guards and undo | not started | Opus · high |
-| 6 | Backstage II: waivers, rules, members and roles, settings | not started | Opus · high |
+| 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | not started | Opus · high |
+| 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | not started | Opus · high |
+| 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | not started | Opus · high |
+| 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | not started | Opus · medium |
 | 7 | Draft room and blind draft | not started | Opus · medium |
 | — | **Switch the couch to the new design by default** | — | — |
-| 8 | Hub I: Up next, your shows, Previously on, By the numbers, rankings, trophies | not started | Opus · high |
-| 9 | Couches, sign-up, first run, join, sign-in | not started | Opus · high |
-| 10 | Watching: follow a show, where you are, no-game show space, Make it a game | not started | Opus · high |
+| 8 | Hub I: focus-first hub, More on the couch and its six pages | not started | Opus · high |
+| 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | not started | Opus · high |
+| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | not started | Opus · high |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · high |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · high |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · high |
 | 14 | Streaming shows and the rail | not started | Opus · medium |
-| 15 | Notifications by moment, account settings | not started | Opus · medium |
-| C | Cutover: new design for everyone, classic removed, cleanup | not started | Opus · high |
+| 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · medium |
+| C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · high |
 
 Steps 1–7 bring the new design to parity with what the couch plays today; after them the couch switches to
 it. Steps 8–15 are new features and can be reordered. Desktop layouts come after step 15 (until then the new
 design is a centred phone column on a desktop, like the mock).
+
+**Rulebooks** (`docs/PLAN-admin-shows-rulebooks.md` is the design, `docs/PLAN-rulebooks-implementation.md` the
+build; phase numbers are the implementation plan's). R1–R3 are its phases 1–3, logic and data only, built
+before the new shell so How it works and Scoring rules are real from the start. None of its classic screens
+are built: How it works is drawn in the new design. Phases 4–7 are built inside 6b (the editor is a
+rulebook's page under admin Find; Make it ours is the commissioner's Scoring rules), phase 8 in step 10 (the
+library and the new-show flow), phase 9 with C.
 
 ## The approach (and why)
 
@@ -77,6 +91,20 @@ their own step, against the screen that needs them, so nothing is designed specu
   look at the mock for your area only: `node scripts/dev-test/shoot-site.js <out> "#/route" [--scroll]` for
   screenshots, and grep the area's mock file for its functions (the mock's layout of files is in memory
   `site-mock-decisions`). Don't read the whole mock.
+- **Branch:** all code work is on `new-design` (cut from master on 2026-10-24) so the user can test locally
+  first. Never merge it or push it without asking. **Production fixes** go on master (or a short `fix/…`
+  branch off it), deploy as usual, and are merged into `new-design` straight after, so the port always
+  carries them.
+- **Migrations on the branch** are numbered from `0100` (master's fixes keep `0066`–`0099`), so the two
+  lines never collide and a fresh database applies them in order. Never rename a migration once any
+  database has applied it (`db/migrate.js` tracks file names). Every build runs `db/migrate.js`, and
+  Preview shares production's `AUTH_DATABASE_URL`, so Vercel builds production only (Ignored Build Step,
+  since 2026-10-24). Before the branch is deployed anywhere, Preview gets its own database: a Neon branch
+  whose connection string the user pastes in.
+- **Neon's Free plan** meters what queries send back (5 GB a month; running out suspends the database
+  until the month resets) and compute hours (100 a month), and keeps only 6 hours of history. Anything
+  polled reads small: league state through `src/lib/server/league-states.ts`, versions or counts instead of
+  whole lists (the 2026-10-24 fix, `check-chat-polls.js`).
 - **Never touch the couch's real leagues** from a test or script. Tests use `zt-` fixtures with up/down
   (CLAUDE.md, `scripts/dev-test/`). The local database is a copy of production from 2026-10-16.
 - **Migrations are additive** until step C. Test each on a local copy before it ships (deploys run
@@ -100,10 +128,15 @@ their own step, against the screen that needs them, so nothing is designed specu
 | Season games (Outlast, Weekly Lineup, Survival Pool) | engine + league API, all three types | display names only (`leagueTypeId` unchanged) |
 | Moves (lineup, pick, predictions) | `/episodes/[epId]/lineups`, `/picks`, `/bets` | none for writes; the dock is new UI |
 | Results in stages, the reveal | research + apply, `reveal-next`, `results-seen` | "early results" stage flag; one reveal per episode across a couch's leagues |
-| Standings | selectors, scoreboard | none |
+| Games tab (standings, this week's episode games) | selectors, scoreboard | none for standings; episode games in step 12 |
 | Cast stats explorer | `season_decisions` (events by episode, per season) | a read endpoint that counts and guards |
 | Chat | per league, `reveal` type, reactions, reads | couch/show scope; fold by person's progress |
 | Backstage | settings, rulesets, waivers, research, members | game-admin role; Recent changes log; undo for tier 2 |
+| Results from everyone | `episode_research` (one row per episode), `season_decisions`, `league_applied_decisions` | a row per submission; Reported / Confirmed / Disputed / Canonical; `fact_disputes`, `league_rulings` |
+| How results get in | "Ask ChatGPT for me" (experimental) and the bot's schedule (`PLAN-bot-research.md`) | per couch and show-season unlocks, the three ways, "Free during beta" |
+| Rulebooks, How it works, kinds of show | formats (code + `show_formats`), `league_rulesets`, `season_rule_changes` | the rulebooks plan: R1–R3, then 6b, step 10 and C |
+| Solo play | computer players (`src/lib/game/bot-logic.js`) | public pools per season, the practice couch |
+| Sharing, privacy | none | the share card at the reveal; What your couch sees |
 | Draft room, blind draft | full | none |
 | Couch | `league_groups` links leagues on one season | lasting couch: members, name, invite code, many seasons and shows |
 | Where you are | per league membership (`results_seen_through`) | per person per show season |
@@ -152,15 +185,18 @@ All additive; the classic app keeps working untouched. One migration file per co
    two designs never disagree. `league_memberships.results_seen_through` is dropped at step C.
 3. **Schedule.** `season_episodes (season_id, number, air_at timestamptz, runtime_min, title)` and
    `show_seasons.release ('weekly'|'nightly'|'binge')`, `show_seasons.drop_at`, `shows.kind
-   ('competition'|'series')`. Backfill weekly air dates from `air_time` + `premiere_date` + the known episode
-   count, where those exist; the admin edits the rest (a small admin screen, or the research prompt filling
-   them).
+   ('competition'|'series'|'talk'|'sport')`, the same four kinds as the rulebook's `kind` (R1's schema). The
+   kind is inferred when a show is set up (step 10), never asked; every show today backfills as a competition.
+   Backfill weekly air dates from `air_time` + `premiere_date` + the known episode count, where those exist;
+   the admin edits the rest (a small admin screen, or the research prompt filling them).
 4. **Roles.** `league_memberships.role` gains `'admin'` (Game admin: runs Backstage, can be handed off or
    shared). The "last commissioner can't step down" rule is enforced in the API.
 5. **The spoiler guard, server side.** `src/lib/server/guard.ts`: `seenThrough(userId, seasonId)` (from
    `show_follows`, 0 when unknown: fail closed) and `secretFields(format)` (the format definition marks
    secrets, e.g. the Traitors' faction, revealed only once that person has left by your episode). Every
-   new read endpoint trims through it; a unit test proves a request can't get past your episode.
+   new read endpoint trims through it; a unit test proves a request can't get past your episode. The same
+   module answers what one member shares with another (`shares(viewerId, memberId, what)`): for now only a
+   show watched privately is hidden; step 15's What your couch sees adds the levels in this one place.
 6. **Read endpoints for the new design** (thin, composed from what exists):
    - `GET /api/me/home`: your couches, your follows with progress, your leagues grouped by season, due moves
      (from `action-items.js`), each couch member's follows (for the guide's faces).
@@ -172,12 +208,34 @@ All additive; the classic app keeps working untouched. One migration file per co
   checks unchanged, and the backfill gives the live couch one couch with three leagues and the right
   progress for each member.
 
+## Steps R1–R3: rulebooks, logic and data only
+
+Build from `docs/PLAN-rulebooks-implementation.md` (its sections 3–5 and phases 1–3), with
+`docs/PLAN-admin-shows-rulebooks.md` for the design. Changes to those plans' scope:
+
+- **R1 (phase 1) is logic only:** `rulebook-schema.js`, `rulebook-moments.js`, `rulebook-describe.js` (the How
+  it works view model), the three built-ins as blocks, `blocksFromFormat` for stored formats. None of phase
+  1's classic screens (no `src/components/rulebook/`, no Rulebook tab on the admin season page, no Shows ·
+  Rulebooks control, no commissioner view): How it works is drawn in step 1. The schema has the four
+  kinds, with a series' two starting points (reality, scripted) and sport as a full kind whose parts say
+  Race or Event, not Episode. Done when the describe view models for every built-in and stored format are
+  covered by tests and `npm test` is green.
+- **R2 (phase 2)** as written: the compiler, the legacy freeze, the engine relaxations; the harness diff for
+  unchanged formats is empty.
+- **R3 (phase 3)** as written, behind its flag (off): the tables, the backfill, `db/rulebooks.js`,
+  resolution through rulebooks. Number the migration after the latest one (the plan's `0060` is taken).
+  Take a 0a backup first; run the backfill on the local copy and a Neon branch.
+
 ## Step 0c: the new shell
 
 - **Routes** (a route group, `src/app/(new)/`), mirroring the mock's hash routes:
-  `/home` (hub), `/show/[seasonId]/[tab]` (tonight · episodes · standings · cast · chat),
+  `/home` (hub), `/show/[seasonId]/[tab]` (tonight · episodes · games · cast · chat; the same five on every
+  show, solo drops chat; the mock's route key for Games is still `standings`), `/show/[seasonId]/waivers`,
   `/show/[seasonId]/draft`, `/show/[seasonId]/blind`, `/show/[seasonId]/backstage/[[...page]]`, `/start/[step]`,
-  `/join/[code]`, `/settings`. Signed-out `/` stays the landing page (already shipped).
+  `/join/[code]`, `/settings`, and the new admin (step 6b) on a path of its own until C retires classic
+  `/admin` (classic also owns `/waivers`, `/account`, `/setup`: check `src/app/` before naming). How it
+  works and More on the couch's pages are pages pushed over the current route, as in the mock. Signed-out
+  `/` stays the landing page (already shipped).
 - **Opting in.** `user_settings.ui ('classic'|'new')`. The Coming Soon! row becomes **Try the new design**
   (sets it, goes to `/home`); the new design's settings has **Back to the classic design**. When `ui='new'`,
   signed-in `/` redirects to `/home`. The full mock stays at `/mock` for reference.
@@ -185,6 +243,11 @@ All additive; the classic app keeps working untouched. One migration file per co
   DESIGN.md once here (the mock's bends: more than one yellow in the guide, view transitions). Dark first;
   the Studio (light) theme follows in step 15. Primitives: sheet, page, toast, tab bar, show bar, caption
   plate, chip, row, empty state, the guard chip. Reuse what exists in `src/components/ui` where it fits.
+  Rules they carry (critique, 2026-10-23/24): **yellow only for what you must do** (optional actions are
+  outlines; Weekly Lineup is Lake `#5089c9`; tribes never fill); **one spoiler chip** everywhere,
+  "Spoiler-safe · you're on Ep N · Change" (the guard chip; "Live" is not a spoiler word); **calm clocks**
+  (more than a day out reads "Wed 8:05 PM · in 5 days"; seconds tick only inside the last day); plates are
+  for single moments, never stacked as list items; **Watch along** is the only name for watching together.
 - **Motion.** Port `nav.js`'s rules with React `<ViewTransition>` (read
   `node_modules/next/dist/docs/01-app/02-guides/view-transitions.md` first): channel change (hub card art →
   show header), push / pop by depth, tabs sideways with the header and tab bar still, explorer re-sorts.
@@ -202,9 +265,16 @@ Port the mock's hub and show space screens to React, on fixtures, all behind `<P
 is browsable end to end (the "mock in the foreground"). Real data only where it's already free: your name,
 your couch's members, your leagues listed as shows, the show header (art, season, countdown).
 
-- Hub: greeting, couch line, Who's on now, the guide, streaming rail, Up next, your shows, Previously on,
-  couch verdicts, couch is watching, On the couch, Commercial break, By the numbers, trophy shelf.
-- Show space: show bar, the five tabs and their content, the moves dock, sheets for moves.
+- Hub, in its two shapes (mock `refine.js` `wireHub`, `couchpages.js`): **grows with you** for a new
+  member's first week or a brand-new couch (`?member=new`, `?fresh=1`): status line, Get the couch going,
+  Up next, Your shows, the guide, the feed, and a note of what shows up as the couch plays. Then **focus
+  first**: a one-line status ("2 moves due · …" or "You're all set"), Up next with a calm time, Who's on
+  now, Your shows, the both-watch nudge, the guide (rolls only once you reach it), the streaming rail, The
+  couch is watching, the feed (On the couch), and **More on the couch**, one tap each to its own page:
+  power rankings, Commercial break (every game), By the numbers, Couch verdicts, Previously on (cold open,
+  Last time as the vote-out card, the boot order as faces), Trophy shelf.
+- Show space: show bar, the five tabs (Tonight · Episodes · Games · Cast · Chat) and their content, Tonight's
+  move cards, the moves dock, sheets for moves, the How it works page.
 - Everything else (Backstage, drafts, watch along, first run, settings) is reached from these screens and,
   until its step, opens the mock at that route in a new tab with a "Preview" note.
 - Split across two sessions if needed (hub, then show space). Done when every hub section and show tab is
@@ -214,14 +284,28 @@ your couch's members, your leagues listed as shows, the show header (art, season
 
 Each step: port the area from the mock, wire real data, remove its fixtures and Preview entries, add a check.
 
-1. **Show space on real leagues.** The show space for a season with the couch's leagues: game cards (place,
-   type), Tonight's checklist from `action-items.js` / `commissioner-items.ts` (each row opens the move),
-   the moves dock (needs you → all set → locked at airtime) writing through the existing lineup, pick and
-   bet endpoints, and Standings from the selectors. Mock: `show.js`, `dock.js`, `episode.js` (`standing`).
+1. **Show space on real leagues.** The show space for a season with the couch's leagues. Mock: `show.js`,
+   `dock.js`, `episode.js` (`standing`), `refine.js` (`tabTonight`), `gamestab.js`, `rulebook.js` (`howPage`).
+   - *Tonight* (option 2C, picked 2026-10-24): the phase as a heading from the clock ("Episode 6 · Wed 8:05
+     PM · in 5 days", "On air · Episode 6", "Results"), then **Your moves** as swipeable cards, one per
+     required move from `action-items.js` (Set lineup, Pick who comes in, Make my pick): open moves first with
+     one yellow button on the first, finished ones as done cards with Change, all done as one "You're set for
+     Episode N" card. Then **Extras this week** (predictions, bingo: optional, no counts). No dock on Tonight
+     before airtime, never a second Reveal / Final scores button beside the plate, and no commissioner job
+     (5B, step 5): `commissioner-items.ts` feeds Backstage and a dot on the show's ⋯ menu.
+   - *The moves dock* on the other tabs (needs you → all set → locked at airtime), writing through the
+     existing lineup, pick and bet endpoints. Save never locks; airtime does.
+   - *Games tab*: your games (place, type) and standings from the selectors, then "This week" episode games
+     (fixtures behind Preview until step 12). A show you don't play gets Make it a game / Play it (step 10).
+   - *How it works*, for everyone (a row on the Games tab and the show's ⋯): the premise, each episode as a
+     rundown, the season as a cell per episode, who's playing, ways out, twists, what scores. Built from R1's
+     `rulebook-describe.js` and spoiler-safe through the guard: future phases show by their condition, later
+     updates stay hidden.
 2. **Episodes, staged results, the reveal.** The Episodes tab; results in stages (waiting → early: who went
    home → final), which needs a stage flag on applied results; one reveal per episode for every game the
    couch has on the season (the group's leagues), reusing `reveal-next` / `results-seen` and writing
-   progress through `show_follows`. Mock: `episode.js`, `stages.js`.
+   progress through `show_follows`. **Share** at the reveal's last beat: post to the couch, or a story card
+   that leaves out who went home by default. Mock: `episode.js`, `stages.js`, `share.js`.
 3. **Cast explorer and stats.** `GET /api/seasons/[id]/stats?from=&to=` counting `season_decisions` events
    through the guard; Faces by faction (secret factions never as filters), Rank by full stat names from the
    format, By episode heatmap, the slider capped at your episode, Patterns, Compare, Share, the castaway
@@ -229,66 +313,152 @@ Each step: port the area from the mock, wire real data, remove its fixtures and 
 4. **Chat.** One chat per couch and show (today's group chat for the season), folded past each reader's
    progress, reactions, the reveal line. Reuse the chat API with a show/couch scope. Mock: `show.js`
    (`tabChat`), `watching.js` (`wChat`).
-5. **Backstage I.** Results with Ask an AI (the research flow exists), apply to every game, the early
-   "who went home?" one-tap, the Recent changes log (a new `league_changes` table every write appends to),
-   guards by blast radius with undo for tier 1 and 2. Mock: `backstage.js`, `askai.js`, `guards.js`.
-6. **Backstage II.** Waivers (v2 exists), scoring rules (rulesets exist), members and roles (the new admin
-   role, hand off / share, last-commissioner guard), game settings with "Reset to recommended". Mock:
-   `backstage.js`, `settings.js`.
-   **Waivers: the Simple design was picked (2026-10-23).** Mock: `waivers.js` (`?waivers=simple`, the default),
-   compared with the old v2 port on `waivers-options.html`; checked by `scripts/dev-test/check-site-waivers.js`.
-   - *Player:* a Waivers page pushed in from the moves dock and Tonight. "Replace Jenna" chips (yellow: needed)
-     and "Optional · 1 free swap" (uncolored); your whole team with one quiet positive tag each; every button
-     says **Swap** (yellow on whoever's out); a set swap reads "Sharonda comes in" (Backup: Devin) with Change.
-     Nothing is chosen for you: the most-points pick is only the fallback if you forget, and the page says so.
-     Picking order as four faces, lowest score first. A bottom bar keeps score ("Jenna's spot is open" → "2
-     swaps in"). One picker for every swap, using the Cast tab's own controls (episode slider, Ranked by and
-     Show dropdowns); your pick yellow, backups outlined and marked Backup. No points copy anywhere.
-   - *Results:* the run plays like an episode (a "Waivers ran" plate on Tonight opens a reveal), then sits in
-     Episodes as "Waivers · after Episode N" between the two episodes, with its own page in picking order.
-   - *How it works:* three answers for the league plus the "When moves happen" lanes (Replace / Swap).
-   - *Commissioner:* settings are one choice of feel (Casual / Balanced / Competitive, applied on tap) with the
-     rest under Fine-tune; Open a waiver window is three presets (Replace who's out · Replace + 1 swap · Swap
-     anyone) and no "Players get" preview.
-   - *Engine deltas to make:* the fallback pick (today's `autoFill`) on for Casual and Balanced, off for
-     Competitive; waiver order "lowest score first" in place of rolling for these leagues (confirm before
-     changing a running league); the free swap and optional swaps map onto `replaceRule` + `waiverWindows.swaps`
-     unchanged. Open question: under "No replacements", may a player spend an optional swap on someone out?
+5. **Backstage I.** Results with Ask an AI (the research flow exists; copy and paste is the free way, 6c adds
+   the others), apply to every game, the early "who went home?" quick check, the Recent changes log (a new
+   `league_changes` table every write appends to), guards by blast radius with undo for tier 1 and 2.
+   **Trusted results apply on their own (option 5B, 2026-10-24):** a commissioner's high-confidence results
+   apply without a review, with Show me and Undo; only sources that disagree wait for them. A commissioner
+   stays spoiler-safe (Quick check's result stays hidden until they choose) and has no results job on
+   Tonight. Mock: `backstage.js`, `askai.js`, `guards.js`, `refine.js` (`bsResults`, `afterBlock`).
+6. **Backstage II, results from everyone, and how results get in**, in three parts, each with its own section
+   below: **6a** the game's own Backstage pages, **6b** community results and the admin (with rulebooks
+   phases 4–7), **6c** the bot tiers.
 7. **Draft room and blind draft.** Casual-first: no timer by default, admins pick for someone, the blind
    draft's private picks and reveal. Endpoints exist. Mock: `draft.js`.
 
 **Then the couch switches:** set `ui='new'` for the three members (with their OK), keep classic one tap
 away, and watch for a week before step C is even considered.
 
+### Step 6a: Backstage II, the game's own pages
+
+Simple waivers (below; v2's engine exists), members and roles (the new admin role, hand off / share, the
+last-commissioner guard), game settings with "Reset to recommended", and **Scoring rules' read side**:
+"Following Survivor 51's rulebook", How it works, and this game's points (rulesets exist). **Make it ours**
+comes at the end of 6b, because it reuses the editor and the edits built there. Mock: `backstage.js`,
+`settings.js`, `waivers.js`, `rulebook.js`.
+
+**Waivers: the Simple design was picked (2026-10-23).** Mock: `waivers.js` (`?waivers=simple`, the default),
+compared with the old v2 port on `waivers-options.html`; checked by `scripts/dev-test/check-site-waivers.js`.
+- *Player:* a Waivers page pushed in from the moves dock and Tonight. "Replace Jenna" chips (yellow: needed)
+  and "Optional · 1 free swap" (uncolored); your whole team with one quiet positive tag each; every button
+  says **Swap** (yellow on whoever's out); a set swap reads "Sharonda comes in" (Backup: Devin) with Change.
+  Nothing is chosen for you: the most-points pick is only the fallback if you forget, and the page says so.
+  Picking order as four faces, lowest score first. A bottom bar keeps score ("Jenna's spot is open" → "2
+  swaps in"). One picker for every swap, using the Cast tab's own controls (episode slider, Ranked by and
+  Show dropdowns); your pick yellow, backups outlined and marked Backup. No points copy anywhere.
+- *Results:* the run plays like an episode (a "Waivers ran" plate on Tonight opens a reveal), then sits in
+  Episodes as "Waivers · after Episode N" between the two episodes, with its own page in picking order.
+- *How it works:* three answers for the league plus the "When moves happen" lanes (Replace / Swap).
+- *Commissioner:* settings are one choice of feel (Casual / Balanced / Competitive, applied on tap) with the
+  rest under Fine-tune; Open a waiver window is three presets (Replace who's out · Replace + 1 swap · Swap
+  anyone) and no "Players get" preview.
+- *Engine deltas to make:* the fallback pick (today's `autoFill`) on for Casual and Balanced, off for
+  Competitive; waiver order "lowest score first" in place of rolling for these leagues (confirm before
+  changing a running league); the free swap and optional swaps map onto `replaceRule` + `waiverWindows.swaps`
+  unchanged. Open question: under "No replacements", may a player spend an optional swap on someone out?
+
+### Step 6b: results from everyone, disputes, house rulings, the admin; rulebooks phases 4–7
+
+**Results settle by community; admin is the exception desk (decided 2026-10-23).** Mock: `community.js`
+(Scenarios › Results & admin); checked by `scripts/dev-test/check-site-community.js`.
+- *The pattern stays:* facts are shared per season (`season_decisions`, one answer per fact), points are
+  local (league rules), and `league_applied_decisions` applies, undoes and re-applies per league, gated by
+  reveal. Wiki reads only for Quick check ("who went home"); full results come from the research prompt.
+- *What changes in data:* `episode_research` keeps one row per submission (a couch's paste, an Autopilot
+  run, Quick check) with who sent it, instead of replacing; a fact's status becomes Reported (1 source) ·
+  Confirmed (2 independent sources agree) · Disputed · Canonical (admin, locked), replacing
+  pending/accepted/rejected; `results_by` admin/leagues collapses into one mode (every league receives
+  shared facts); new `fact_disputes` (who flagged what, why, note, link) and `league_rulings` (house rulings).
+- *Anyone fills in results* (couch setting "Who can fill them in": Anyone on the couch, default, or only
+  people who run games). Players get a quiet "Full scores need one paste · Fill it in" after early results.
+- *Disputes:* "Something wrong?" at the foot of every episode page and a flag on each episode of a
+  castaway's story (who → which result or "something's missing" → why, note, optional link). Reported
+  facts show "1 source" in stats. A dispute open a day triggers one tie-break run; only a split reaches admin.
+- *Corrections* apply to every league on their own with a line in Episodes and a plate on the episode
+  ("Episode 3 corrected · Brady's idol removed · you −4"). A commissioner may keep the old result as a
+  **house ruling**: previewed, shown to their players on the episode, never leaking into shared stats;
+  linked leagues rule together; any cross-couch leaderboard uses true facts.
+- *The show changed, community-confirmed* (rulebooks phase 5): when research finds something the rulebook
+  doesn't have, the episode page shows "Something the rulebook doesn't have" → It's new / Not new; a second
+  couch agreeing adds it from that episode for every couch following the rulebook. Mock: `rulebook.js`.
+- *Admin* (profile menu, admins only): **Inbox** (only disputes the community couldn't settle, reports,
+  stranded couches; "Nothing needs you" plus a week's self-running numbers), **Find** (one search; every
+  entity page has Override with its reach, a Lock and History with undo), **Settings** (research model and
+  prompts, Quick check, Confirmed threshold, tie-break run, new-couch defaults, Autopilot trial, What's New).
+  Today's `/admin` review queue, cast approval, format approval gate, schedules and per-season wiki and
+  bot-research setup are retired at cutover.
+- *Admin › Find › a rulebook* (rulebooks phases 4–6): the rulebook's page is the editor (the six blocks,
+  card sheets, generated moments). Override per part as **Fix a mistake** or **The show changed from
+  episode N**, with its reach (fan-out to leagues and rescore), a Lock, and History with undo. Research asks
+  for blocks, Check for changes included.
+- *Make it ours* (rulebooks phase 7), on 6a's Scoring rules: the couch's own copy. Choose what counts (turn
+  moments off, or add one the couch answers); fixes still reach it; show changes ask first (add it or skip
+  it); Follow it again any time. Points were always the couch's.
+
+The largest step: plan on about three sessions (results and disputes; the admin and the rulebook editor;
+Make it ours).
+
+### Step 6c: how results get in
+
+Decided 2026-10-24, mock `bot.js`. Per couch and show-season, three ways, all on bot.gameyourshow.com
+(`docs/PLAN-bot-research.md`; "Ask ChatGPT for me" and the bot's schedule are built and experimental):
+**Copy and paste** (free, always, anyone on the couch), **One tap** ("Ask ChatGPT for me", $1 a season, one
+person unlocks it for the whole couch), **Autopilot** (the schedule, $5 a season, $4 after One tap; disabled,
+"coming soon"). Who went home (the quick check) is always free, because it keeps a commissioner
+spoiler-safe. Every price shows with a "Free during beta" label and nothing is charged. Setting up a show
+with "Ask ChatGPT for me" is free (step 10).
+
 ## Steps 8–15: beyond parity
 
-8. **Hub I.** Up next (needs-you first, else soonest airing), your shows (posters, flip), Previously on
-   (recaps from results through your episode), By the numbers (stats cards opening sorted pages, an
-   occasional couch accolade), power rankings (by finishing position, normalised across game types), the
-   trophy shelf (only once a season has ended), Commercial break as every game. Couch verdicts wait for
-   step 12. Mock: `index.html` (hub), `hubplus.js`, `fresh.js`.
-9. **Couches, sign-up, first run, join, sign-in.** Start / join / switch couches, invite codes, the landing →
-   first run path (shows → where → save your shows → people), joining mid-season by ownership rules,
-   sign-in. Google sign-in via Better Auth (needs a Google OAuth app the user creates; Apple needs a paid
-   developer account, so later). Mock: `landing.js`, `round2.js`.
-10. **Watching.** Follow a show (with where you are), watch privately, the show space for a show with no
-    game (series: Tonight · Episodes · Cast · Chat; competition: plus Standings), Make it a game (the cast
-    import exists), the both-watch nudge. Mock: `watching.js`.
+8. **Hub I.** 0d's two hub shapes on real data: the status line and Up next (needs-you first, else soonest
+   airing, with a calm time), your shows (posters, flip), and More on the couch's six pages, each rebuilt
+   bolder (`couchpages.js`): power rankings (a big place, by finishing position, normalised across game
+   types), Commercial break (every game: playing, this week, start one), By the numbers (a stat-card deck,
+   then every stat sorted; now and then a couch accolade), Previously on (one show at a time: a cold open,
+   Last time as the vote-out card, the boot order as faces, Still in by group, episode by episode; a show
+   without cast data gets the same frame with the recap as large type), the trophy shelf (only once a
+   season has ended: titles, plaques, couch records). Couch verdicts wait for step 12. Mock: `index.html`
+   (hub), `hubplus.js`, `fresh.js`, `refine.js`, `couchpages.js`.
+9. **Couches, sign-up, first run, join, sign-in, solo.** Start / join / switch couches, invite codes, the
+   landing → first run path (shows → where → save your shows → people), joining mid-season by ownership
+   rules, sign-in. Google sign-in via Better Auth (needs a Google OAuth app the user creates; Apple needs a
+   paid developer account, so later). **Solo** (someone with no couch; mock `solo.js`): the Games tab offers
+   both a **public pool** per season ("Survivor 51 · Everyone": Survival Pool and predictions, usernames
+   only, no chat) and a **practice couch** against computer players (Easy / Normal / Sharp, on
+   `bot-logic.js`). Mock: `landing.js`, `round2.js`, `solo.js`.
+10. **Watching, and Make it a game for every kind of show** (with rulebooks phase 8). **Add a show**:
+    "Search or add a show", suggestions as you type, and an "Add '<name>' as a new show" block (first run's
+    search uses it too). Follow a show (with where you are), watch privately, the show space for a show
+    with no game (the same five tabs; Games offers Make it a game / Play it, and a series gets Call it and
+    bingo), the both-watch nudge. **Make it a game**: the kind is inferred from the TV listing and
+    ChatGPT's answer and shown on the review as one line with Change, never asked first; it leads with
+    **"Ask ChatGPT for me", free** (setting up a show is on us), copy and paste behind it; the cast import
+    exists. **Start a game offers only games that fit:** a competition gets Survival Pool, Weekly Lineup and
+    Outlast; a series gets Weekly Lineup plus episode games; talk, variety or awards gets Weekly Bingo and
+    Weekly Calls (played with step 12's bingo and Call it); a sport gets a draft of athletes (draft from the
+    whole grid with shared ownership, start some each race; the show says "Race", not "Episode") and
+    Survival Pool. Episode games work on every show. Behind it, phase 8's library of starting templates.
+    Mock: `watching.js`, `rulebook.js`, `refine.js` (`addShowSheet`).
 11. **TV guide.** The guide from `season_episodes` for the couch's shows plus all of TV from a listings
     source (recommended: TVmaze's free schedule API, cached in a `tv_listings` table by a daily job), faded
     with Add / Hide from guide (`guide_hidden`), drop days, planned watch-along nights. Mock: `tvguide.js`.
 12. **Episode games.** Rate it and the couch verdict (`episode_ratings`), Call it at couch level, bingo
-    (`bingo_cards`, `bingo_marks`), polls, trivia; Commercial break on real data. Mock: `episode.js`,
-    `index.html` sheets.
-13. **Watch along.** Reactions pinned to runtime (`watch_reactions (season_id, episode, runtime_ms, user_id,
-    kind, text, gif)`), shown 30s late, never early; GIFs (a provider key: Tenor or GIPHY); together sessions
+    (`bingo_cards`, `bingo_marks`), polls, trivia; Commercial break on real data. Weekly Bingo and Weekly
+    Calls, the season games for talk shows, are built from these. Mock: `episode.js`, `index.html` sheets,
+    `gamestab.js`.
+13. **Watch along** (the one name for watching together: live now, planned with "Plan a watch along" and a
+    quiet tag, or on your own time). Reactions pinned to runtime (`watch_reactions (season_id, episode,
+    runtime_ms, user_id, kind, text, gif)`), shown 30s late, never early; GIFs (a provider key: Tenor or
+    GIPHY); together sessions
     (`watch_sessions`, a shared clock and pause for everyone) over polling (every few seconds while open;
     no websockets needed at this group size); screen wake lock. Mock: `index.html` (`openWatch`),
     `watching.js`.
 14. **Streaming shows.** Release model binge, drop day in the guide, the streaming rail, planned nights.
     Mock: `streaming.js`.
 15. **Notifications and account settings.** Notifications by moment (push exists), spoiler-safe copy, the
-    settings page, the Studio light theme. Mock: `settings.js`.
+    settings page, the Studio light theme, and **What your couch sees** (Account): Everything (default) ·
+    Just my games · Only what games need, with a live "what riley sees" preview and Customize toggles;
+    per-show Watch privately stays. Enforced in 0b's `shares()`. Mock: `settings.js`, `share.js`.
 
 ## Step C: cutover
 
@@ -296,7 +466,13 @@ away, and watch for a week before step C is even considered.
   pages under `src/app/` that the new routes replaced, `league-strip`, `action-bar`, and so on: list them
   from the import graph, not memory).
 - Contract migrations: drop `league_memberships.results_seen_through` (progress lives in `show_follows`),
-  and anything else 0b's expand left behind.
+  and anything else 0b's expand left behind. **They ship last, in a deploy of their own.** A deploy runs
+  `db/migrate.js` before `next build`, while the previous deployment is still serving, so dropping a column
+  the old code reads breaks production for those minutes. First the cutover deploy stops reading the old
+  columns; once it's live and checked, a later deploy carries the drops, after a fresh 0a backup and a
+  Neon branch.
+- Rulebooks phase 9: retire `show_formats`, `league_rulesets`, `season_rule_changes` and their old screens
+  and routes (archived into a backup table first), and `shows.format` reads. Same two-deploy order.
 - `src/new/preview.ts` and `src/new/fixtures/` must already be empty; delete them, `<Preview>`, and
   `check-preview.js`.
 - DESIGN.md, README, HANDOFF and the User Manual doc updated; a What's New entry (user approves the copy).

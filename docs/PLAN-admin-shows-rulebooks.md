@@ -9,6 +9,12 @@ Night/Studio, and ten sample rulebooks across all four kinds of show). Nothing h
 are frozen verbatim until first edited; leagues keep a cached copy of compiled rules (no
 hydrate-on-read); and phase start episodes are confirmed by a person, never inferred.
 
+**Updated 2026-10-24 (the site mock's `rulebook.js`, decided with the user):** the kind of show is inferred,
+not asked first; reality and scripted are one kind, a series, with two starting points; sport is a full
+kind with a draft game; the editor is reached from the admin's Find; How it works is drawn in the new
+design, not the classic app. Layer zero, Navigation and Order of work below are updated to match. Where
+each phase is built is in `docs/PLAN-new-design.md` (R1–R3, then its steps 6b, 10 and C).
+
 ## The problem
 
 Admin > Shows is hard to navigate, and the rules behind a show are the hardest part of it.
@@ -46,8 +52,8 @@ Admin > Shows is hard to navigate, and the rules behind a show are the hardest p
 6. **Commissioners can copy their own season's rulebook or build from scratch.** Browsing the whole
    library is for later.
 7. **Not every show is a competition.** Series (Below Deck, Scrubs, HBO's Harry Potter), talk and
-   variety (late-night shows), and live sport or events (X Games) can be added too. The first question
-   when adding a show is what kind it is (see "Layer zero").
+   variety (late-night shows), and live sport or events (Formula 1, X Games) can be added too. The kind is
+   inferred when a show is set up, never asked first (see "Layer zero"; changed 2026-10-24).
 8. **A rulebook describes the show; a game type decides how a league plays it.** What players draft,
    pick or mark off belongs to the game type, never to the rulebook. Game types are their own future
    library (see "Rulebooks and game types are separate").
@@ -70,20 +76,26 @@ reads it. Every rulebook has:
 
 ## Layer zero: what kind of show is it?
 
-Adding a show starts with one question. It's a full-screen flow (DESIGN.md's create-a-league pattern),
-in three steps: **kind → how to start (research, a template, or scratch) → name it**.
+**The kind is inferred, never asked first (changed 2026-10-24).** When someone makes a show a game (the
+new design's Make it a game, `PLAN-new-design.md` step 10), the kind comes from the TV listing and
+ChatGPT's answer, and the review shows it as one line with **Change**. Change opens the four kinds with the
+guess marked; a series also picks its starting point there. There is no add-a-show flow that opens on the
+kind.
 
 | Kind | What it means | Like |
 |---|---|---|
 | **A competition** | People get knocked out until someone wins | Survivor, Bake Off, The Bachelor, The Amazing Race |
-| **A series** | The same cast every week, and nobody's playing to win. Reality or scripted | Below Deck, Real Housewives, Scrubs, Harry Potter |
-| **Talk, variety or awards** | A host, guests and bits, different every night. Nobody leaves, nobody wins | Late-night shows, sketch shows, awards nights |
-| **A live sport or event** | Athletes or teams compete in events; results arrive as they happen | X Games, the Olympics, a tournament |
+| **A series** | The same cast every week, and nobody's playing to win. One kind, two starting points: **reality** or **scripted** | Below Deck, Real Housewives (reality); Scrubs, Harry Potter, Pluribus (scripted) |
+| **Talk, variety or awards** | A host, guests and bits, different every night. Nobody leaves, nobody wins | Saturday Night Live, late-night shows, awards nights |
+| **A sport or live event** | Athletes or teams compete in events; results arrive as they happen | Formula 1, X Games, the Olympics, a tournament |
+
+A series' starting point only changes its defaults and words (Weekly Lineup drafts "the crew" on a reality
+series and "the characters" on a scripted one); its blocks and games are the same.
 
 The kind doesn't add blocks. It renames them and hides the ones that don't apply, so no show ever
 has more than six:
 
-| Block | Competition | Series | Talk, variety or awards | Live sport or event |
+| Block | Competition | Series | Talk, variety or awards | Sport or live event |
 |---|---|---|---|---|
 | 1 | Who's playing | The cast | Regulars | Who's competing |
 | 2 | The season | The season | The season | The schedule |
@@ -93,13 +105,24 @@ has more than six:
 | 6 | Points | Points | Moments | Points |
 
 It also sets **where results come from by default**. People watch live, on release, so wikis that fill
-in days later can't be the only source (memory: non-competition shows brainstorm 2026-10-11):
+in days later can't be the only source, and a wiki is only reliable for who went home (memory:
+non-competition shows brainstorm 2026-10-11; research source reliability 2026-10-23):
 
-- **Competition:** the wiki connector, then research.
-- **Series:** research the morning after, then the league answers what it misses.
-- **Talk, variety or awards:** the league says what happened, as it watches.
-- **Live sport or event:** a results feed, later. Research until then. Sports stay at the level of
-  abstractions for now: a pool of people, moments that score per unit, and a results source.
+- **Competition:** who went home minutes after the episode (the quick check), everything else from
+  ChatGPT that night.
+- **Series:** ChatGPT the morning after, and the couch answers anything it misses.
+- **Talk, variety or awards:** the couch says what happened as it watches; ChatGPT checks the next morning.
+- **Sport or live event:** results minutes after the finish, from ChatGPT. A results feed can replace it
+  later.
+
+And it decides **which games fit**; Start a game offers only those. A competition: Survival Pool, Weekly
+Lineup, Outlast. A series: Weekly Lineup. Talk, variety or awards: Weekly Bingo and Weekly Calls. A sport:
+a draft of athletes (Weekly Lineup with shared ownership) and Survival Pool. Episode games (bingo, Call it)
+work on every show.
+
+**Sport is a full kind (changed 2026-10-24; it was abstractions only).** The site mock plays Formula 1 in
+full: draft five drivers from the whole grid with shared ownership, start three each race, a Survival Pool
+pick is a driver who finishes in the points, and the show's parts say Race (or Event), not Episode.
 
 Non-competition shows need one more answer to "Who decides it?": **Nobody**. That's a regular part of
 an episode where nothing is contested (a monologue, a charter, a preference sheet meeting). It
@@ -121,9 +144,10 @@ can feed. The rulebook page shows this as "Fits these games":
 
 | Game type | Needs | Fits |
 |---|---|---|
-| Active Roster | A cast whose moments score | Competitions, series, sport |
-| Classic | People leaving one by one, and a winner | Competitions |
-| Eliminator Pool | Someone going home most episodes | Most competitions (not Love Island's irregular dumpings) |
+| Weekly Lineup (was Active Roster) | A cast whose moments score | Competitions, series, sport |
+| Outlast (was Classic) | People leaving one by one, and a winner | Competitions |
+| Survival Pool (was Eliminator Pool) | Someone going home most episodes, or a result to survive each event | Most competitions (not Love Island's irregular dumpings), sport |
+| Weekly Bingo, Weekly Calls | One show at a time, all season | Talk, variety or awards |
 | Bingo | Plenty of moments | Everything with five or more moments |
 | Live react | Moments the league can call as they happen | Everything |
 | Predictions, Quiz | Anything | Everything |
@@ -481,6 +505,16 @@ need writing (see engine changes).
 
 ## Navigation
 
+**Changed 2026-10-24: built inside the new design, not the classic admin.** The admin reaches a rulebook
+from **Find** (one search, the new design's admin, `PLAN-new-design.md` step 6b). The rulebook's page is
+the editor below, with **Override** per part (Fix a mistake / The show changed from episode N, with its
+reach), a **Lock**, and **History** with undo. How the season works becomes **How it works**, one readable
+page for everyone (a row on the Games tab, the show's ⋯, Make it a game's review), drawn in the new
+design. A commissioner's way in is Backstage › Scoring rules: "Following Survivor 51's rulebook", or
+**Make it ours**. Not built: the Shows · Rulebooks control, the season page's Rulebook tab and the
+League Settings path described below. Still holding: the editor's block pages, card sheets, Save, and
+the phone rules.
+
 Still Shows → Show → Season, two levels deep (DESIGN.md: no breadcrumbs).
 
 - **Shows** opens with a segmented control: **Shows · Rulebooks**. The library stops being a link at the
@@ -589,25 +623,35 @@ hasMerge, hasGroups, roles, recap). Scoring, research and the wiki read don't ch
 
 ## Order of work
 
-1. **Read-only first, no engine change.** Add the "How the season works" view, derived from today's
-   `FormatData`, on the season page and the commissioner's Scoring & rules. Also the Shows · Rulebooks
-   segmented control, the status-line grammar and the jargon pass. Ships value immediately and tests
-   the vocabulary.
-2. **The compiler and its tests.** Survivor, Traitors and Challenge as blocks, compiling to identical
-   scoring. No UI. The rulebook carries `kind` from the start, and the compiler handles shows with no
-   winner and no ways out (`winnerExitMethod` null), and segments nobody decides.
-3. **The rulebooks table and migration,** with season ownership. `formatOf` and `resolveSeasonFormat`
-   read through it.
-4. **The editor** (six blocks, card sheets, generated moments) for admins on season rulebooks.
-5. **Timeline edits** with show-changed/fix and reach, replacing the season Rules tab.
-6. **Commissioner copies** on the new model ("Make it ours", the same editor), and first-creator-
-   becomes-parent for self-serve shows.
-7. **The library and the new-show flow:** layer zero's kind question, nine starting templates (five
-   competition, two series, one talk and variety, one live event), build from scratch, research
-   targeting blocks. "Fits these games" on each rulebook, with today's three game types.
-8. **Separately, a game-type library plan:** Bingo, Live react, Predictions only, Quiz, and lengths
-   (season, a few episodes, a week, one night). The first non-competition pilots (Below Deck, Scrubs)
-   need at least one of these, because Classic and Eliminator Pool don't fit them.
+Phases are `PLAN-rulebooks-implementation.md`'s nine (its section 8 says when each is done). Since
+2026-10-24 they're built as part of the new-design port (`PLAN-new-design.md`), not in the classic app:
+
+1. **Schema, built-ins as blocks, the How it works view model** (R1). Logic only: no classic screens.
+   How it works is drawn in the new design's show space (its step 1). The schema carries the four kinds,
+   a series' two starting points, and sport's own words (Race, Event).
+2. **The compiler and its tests** (R2). Survivor, Traitors and Challenge as blocks, compiling to identical
+   scoring. No UI. The compiler handles shows with no winner and no ways out (`winnerExitMethod` null),
+   and segments nobody decides.
+3. **The rulebooks tables and migration** (R3), with season ownership, behind a flag. `formatOf` and
+   `resolveSeasonFormat` read through it.
+4. **The editor** (step 6b): six blocks, card sheets, generated moments, as a rulebook's page under the
+   admin's Find.
+5. **Edits and reach** (step 6b): Override as Fix a mistake / The show changed from episode N, fan-out
+   and rescore, History with undo, Lock. Research can find a change too: the episode page asks about
+   "Something the rulebook doesn't have" (It's new / Not new), and a second couch agreeing makes it a
+   show-changed edit for every couch following the rulebook.
+6. **Research targeting blocks** (step 6b): the rulebook prompt and Check for changes.
+7. **Commissioner copies** (end of step 6b, on 6a's Scoring rules): Following / Make it ours, the couch
+   choosing what counts; fixes still reach it, show changes ask first.
+8. **The library and the new-show flow** (step 10): Make it a game for every kind, with the kind inferred
+   and "Ask ChatGPT for me" free; the starting templates; Start a game offering only games that fit; first
+   creator becomes the parent.
+9. **Clean-up** (with step C): retire `show_formats`, `league_rulesets`, `season_rule_changes` and the old
+   screens.
+
+The game types non-competition shows need are part of the new design: Weekly Lineup already fits a series
+and a sport; Weekly Bingo and Weekly Calls for talk shows are built from step 12's episode games (bingo,
+Call it). Lengths shorter than a season (a few episodes, a week, one night) still need their own plan.
 
 ## Open points
 

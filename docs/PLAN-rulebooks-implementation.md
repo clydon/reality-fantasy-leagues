@@ -16,21 +16,28 @@ Written 2026-10-16 for a fresh session to build from. **Read first:**
 Nothing in this plan is built yet. Phases are ordered so each one ships on its own and leaves the app
 working; a phase's "Done when" is its acceptance check.
 
+**Placement changed 2026-10-24.** The phases are now built as part of the new-design port
+(`docs/PLAN-new-design.md`, which wins where the two disagree on screens), not in the classic app. Phase 1 is
+logic and data only (no `src/components/rulebook/`, no classic Rulebook tab or commissioner view: How it
+works is drawn in the new design); phases 4–8 are built inside the new design's screens; the kind of show
+is inferred, never asked first (`PLAN-admin-shows-rulebooks.md`, Layer zero). The "Built in" column below
+says where each phase goes. The logic, data and API in this file still hold.
+
 ---
 
 ## 0. Status
 
-| Phase | What | Status |
-|---|---|---|
-| 1 | Schema module, hand-written blocks for the three built-ins, read-only "How the season works" | not started |
-| 2 | The compiler, legacy freeze, engine relaxations | not started |
-| 3 | Database: `rulebooks`, `rulebook_edits`; migration; resolution through rulebooks | not started |
-| 4 | Admin editor (six blocks, every sheet) on season rulebooks | not started |
-| 5 | Timeline edits: show changed / fix, reach, league fan-out, rescore | not started |
-| 6 | Research: the rulebook prompt, paste-and-review, check for changes | not started |
-| 7 | Commissioner: read view, Make it ours, own-copy editor, offers and fixes | not started |
-| 8 | Library, kinds of show, the new-show flow, "Fits these games", first-creator-is-parent | not started |
-| 9 | Clean-up: retire `show_formats`, `league_rulesets`, `season_rule_changes`, old screens | not started |
+| Phase | What | Built in (`PLAN-new-design.md`) | Status |
+|---|---|---|---|
+| 1 | Schema module, hand-written blocks for the three built-ins, read-only "How the season works" | R1 (logic only; the page is step 1) | not started |
+| 2 | The compiler, legacy freeze, engine relaxations | R2 | not started |
+| 3 | Database: `rulebooks`, `rulebook_edits`; migration; resolution through rulebooks | R3 | not started |
+| 4 | Admin editor (six blocks, every sheet) on season rulebooks | 6b (admin Find) | not started |
+| 5 | Timeline edits: show changed / fix, reach, league fan-out, rescore | 6b | not started |
+| 6 | Research: the rulebook prompt, paste-and-review, check for changes | 6b | not started |
+| 7 | Commissioner: read view, Make it ours, own-copy editor, offers and fixes | 6b (on 6a's Scoring rules) | not started |
+| 8 | Library, kinds of show, the new-show flow, "Fits these games", first-creator-is-parent | 10 | not started |
+| 9 | Clean-up: retire `show_formats`, `league_rulesets`, `season_rule_changes`, old screens | C | not started |
 
 Update this table (and `docs/HANDOFF.md`) as phases land.
 

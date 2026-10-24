@@ -11,11 +11,25 @@ Survivor 51/50 running example. It's not auto-updated when features change; open
 tool if you need that framing (e.g. "what does the app call this to a player," "how is this
 explained to a commissioner") rather than re-deriving it from source each time.
 
+## Hosting limits, 2026-10-24 (read before adding anything that polls)
+- **Neon Free plan:** 5 GB a month of query results (running out suspends the database until the month resets),
+  100 compute hours, 6 hours of history. On 2026-10-24 the month was at 95% with a week left, almost all of it the
+  chat polls re-reading full league states; fixed and pushed in ff95851 (`src/lib/server/league-states.ts`, a
+  `/chat/unread` count, a version on `/chat`; `scripts/dev-test/check-chat-polls.js`). The ask-AI bot's VM timer
+  calls `/api/cron/bot-research` every 2 minutes, which keeps the compute awake around the clock and will use up
+  the 100 hours next month: it should tick often only around air times (`llm-browser-api`, not this repo).
+- **Vercel builds production only** (Settings › Build and Deployment › Ignored Build Step, changed 2026-10-24):
+  Preview shares production's `AUTH_DATABASE_URL`, and every build runs the migrations. Give Preview its own
+  database (a Neon branch) before deploying a branch.
+- Vercel's Hobby plan also shows "Exceeded free resources" (Functions Storage 14.5 of 10 GB): not looked into.
+
 ## Next: moving the app onto the new design (plan written 2026-10-23)
 **Read [PLAN-new-design.md](PLAN-new-design.md) first.** One database, no data transfer (the new screens read and
 write the same leagues), additive migrations, the classic app running beside the new one until the couch switches,
 and a Preview overlay (`<Preview step>`) on anything still on fixtures. Its Status table says what step is next; each
-step updates it and adds an As built note. Step 0a (back up the live leagues) comes first.
+step updates it and adds an As built note. Step 0a (back up the live leagues) comes first. Updated 2026-10-24 with every
+mock decision since, the rulebooks phases placed in its order (R1–R3 after 0b), and step 6 split into 6a/6b/6c. **All
+code work is on the `new-design` branch**; don't merge or push it without asking.
 
 ## Full-site mock in progress, 2026-10-22 (`.impeccable/mocks/site/`, gitignored)
 **This is the current focus.** The user wants a full clickable website mock as *the* design the real
