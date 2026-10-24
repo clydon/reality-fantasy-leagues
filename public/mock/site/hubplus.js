@@ -35,7 +35,7 @@ function startGamePicker(){const L=SHOWS.filter(s=>follows(s)&&!s.binge);
 
 // ---------- for everyone: who's on now, previously on, couch verdicts, superlatives ----------
 function nowHTML(){const L=Object.entries(NOW).map(([sid,n])=>({s:SHOWS.find(x=>x.id===sid),n})).filter(x=>x.s&&x.n!=='alex');if(!L.length)return '';const {s,n}=L[0];
-  return `<button class="hn-now" data-now="${s.id}"><span class="live"><i></i>On now</span>${av(n,26)}<span class="tx"><b>${n} is watching ${s.name}</b><small>Episode ${Math.min(whereOf(s,n)+1,s.ep)}${L.length>1?` · and ${L.length-1} more`:''}</small></span><span class="go">Join ${svg('chev')}</span></button>`}
+  return `<button class="hn-now" data-now="${s.id}"><span class="live"><i></i>On now</span>${av(n,26)}<span class="tx"><b>${n} is watching ${s.name}</b><small>Episode ${Math.min(whereOf(s,n)+1,s.ep)}${L.length>1?` · and ${L.length-1} more`:''}</small></span><span class="go">Watch along ${svg('chev')}</span></button>`}
 function recapShelfHTML(){const L=SHOWS.filter(s=>follows(s)&&whereOf(s,'alex')>0&&!(s.dropAt&&s.dropAt>Date.now()));if(!L.length)return '';
   return `<section class="sec"><div class="sh"><h2 class="cap">Previously on</h2><span class="aside">Up to where you are</span></div><div class="rc-shelf" id="rcShelf">${L.map(s=>{const lines=recapLines(s),last=lines[lines.length-1];
     return `<button class="rc-tile" data-recap="${s.id}"><img src="${ART(s.art)}" alt="" style="object-position:${s.pos}"><span class="tx"><span class="cap">Up to Ep ${whereOf(s,'alex')}</span><b class="cap">${s.short}</b><small>${last?last[1]:''}</small></span></button>`}).join('')}</div></section>`}

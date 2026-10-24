@@ -24,7 +24,7 @@ const airedOf=s=>s.aired||s.ep-1;
 const whereOf=(s,n)=>n==='alex'?(FIRST.where[s.id]??s.onEp??airedOf(s)):((WHERE[s.id]||{})[n]??airedOf(s));
 const names=a=>a.length<3?a.join(' and '):`${a.slice(0,2).join(', ')} and ${a.length-2} more`;
 const kindW=s=>s.kinds?'game':s.series?'series':'comp';
-const wTabs=s=>kindW(s)==='series'?['tonight','episodes','cast','chat']:['tonight','episodes','standings','cast','chat'];
+const wTabs=s=>['tonight','episodes','standings','cast','chat'];
 const verdict=(s,e)=>(3.6+((e*7+s.id.length*3)%12)/10).toFixed(1);
 const rxCount=(s,e)=>8+((e*5+s.id.length)%17);
 const pickN=(s,e)=>3+((e+s.id.length)%3);
@@ -48,8 +48,8 @@ function wTonight(s){const aired=airedOf(s),fol=follows(s),w=fol?whereOf(s,'alex
   if(!fol)h+=`<section class="blk"><div class="w-follow"><span class="stack">${others.map(n=>av(n,30)).join('')}</span><div><b>${names(others)} ${others.length===1?'watches':'watch'} this</b><small>Add it to rate episodes and see the couch's reactions. Nothing past your episode ever shows.</small></div><button class="btn pri wide" data-wjob="follow">${svg('plus')}Add to my shows</button></div></section>`;
   else h+=`<section class="blk"><div class="where" style="margin:0">${svg('eye')}<strong>${w>=aired?`Live · through Episode ${aired}`:w?`You're on Episode ${w} · nothing past it shows`:'Not started · nothing past Episode 1 shows'}</strong><button data-wjob="where">Change</button></div>${W.priv.has(s.id)?`<p class="w-priv">${svg('eye')}Watching privately: the couch doesn't see this on your list</p>`:''}</section>`;
   h+=`<button class="wacta" data-wjob="watch"><img src="${ART(s.art)}" alt="" style="object-position:${s.hpos||s.pos}"><span class="tg cap">${w>=aired?`Live · ${fmtT(nextAir(s.air))}`:`Episode ${next}`}</span><b class="cap">Watch along</b><small>${ahead.length?`${names(ahead)} left ${rxCount(s,next)} reactions · they show up as you reach them`:'Be the first. Your reactions wait for whoever watches next.'}</small></button>`;
-  h+=plan?`<div class="w-plan"><span class="tg cap">Together</span><div class="tx"><b>${plan.how==='live'?'The live airing':'Starting together'} · ${plan.when}</b><small>${names(plan.who)} invited · anyone can pause for everyone</small></div><button class="btn pri" data-wjob="together">Open</button></div>`
-    :`<button class="w-inv" data-wjob="invite">${svg('people')}<span><b>Watch it together</b><small>Invite the couch for the live airing, or start at the same time</small></span>${svg('chev')}</button>`;
+  h+=plan?`<div class="w-plan"><span class="tg cap">Watch along</span><div class="tx"><b>${plan.how==='live'?'The live airing':'Starting at the same time'} · ${plan.when}</b><small>${names(plan.who)} invited · anyone can pause for everyone</small></div><button class="btn pri" data-wjob="together">Open</button></div>`
+    :`<button class="w-inv" data-wjob="invite">${svg('people')}<span><b>Plan a watch along</b><small>Invite the couch for the live airing, or start at the same time</small></span>${svg('chev')}</button>`;
   if(g)h+=`<section class="blk"><div class="sh"><h2 class="cap">Your game</h2><span class="aside">Starts Episode ${s.ep}</span></div><button class="job" data-wjob="gpick"><span class="ic" style="background:${GAMES[g.g].col};color:var(--ink)">${svg(g.g==='pool'?'shield':'people')}</span><span class="tx"><span class="kind cap">${GAMES[g.g].name}</span><b>${g.g==='pool'?'Make your first pick':'Draft before Episode '+s.ep}</b><small>${g.told?'The couch was told · ':''}${names(others)} invited</small></span><span class="st">${g.g==='pool'?'Pick':'Set'}</span></button></section>`;
   h+=`<section class="blk"><div class="sh"><h2 class="cap">Who's watching</h2><span class="aside">${others.length+(fol&&!W.priv.has(s.id)?1:0)} on the couch</span></div>
     ${[...(fol?['alex']:[]),...others].map(n=>{const at=whereOf(s,n),live=NOW[s.id]===n;return `<div class="w-who">${av(n,32,live)}<span class="tx"><b>${n}${n==='alex'?' <span class="you">YOU</span>':''}</b><small>${live?`<span class="w-live">Watching now · Episode ${Math.min(at+1,s.ep)}</span>`:at>=aired?`Caught up · watches live ${DAY[s.air[0]]}`:at?`On Episode ${at}`:'Not started'}${n==='alex'&&W.priv.has(s.id)?' · private':''}</small></span>${n!=='alex'&&at>w&&fol?`<span class="w-ahead">${at-w} ahead</span>`:''}</div>`}).join('')}</section>`;
@@ -107,7 +107,7 @@ function wMenu(s){const fol=follows(s),pv=W.priv.has(s.id);
   openSheet(s.name,`${s.season} · ${fol?'on your shows':'not on your shows'}`,
     `${fol?`<button class="row" data-wm="priv"><span class="ic">${svg('eye')}</span><span class="tx"><b>Watch privately</b><small>Only you see this on your list. Reactions and chat still work.</small></span><span class="switch${pv?' on':''}" aria-hidden="true"><i></i></span></button>
       <button class="row" data-wm="where"><span class="ic">${svg('cal')}</span><span class="tx"><b>Where you are</b><small>${whereOf(s,'alex')?`Episode ${whereOf(s,'alex')}`:'Not started'}</small></span></button>`:''}
-     <button class="row" data-wm="invite"><span class="ic">${svg('people')}</span><span class="tx"><b>Watch it together</b><small>Invite the couch for the live airing or a shared start</small></span></button>
+     <button class="row" data-wm="invite"><span class="ic">${svg('people')}</span><span class="tx"><b>Plan a watch along</b><small>Invite the couch for the live airing or a shared start</small></span></button>
      ${s.series?'':`<button class="row" data-wm="${s.unready?'make':'newgame'}"><span class="ic">${svg('plus')}</span><span class="tx"><b>${s.unready?'Make it a game':'Start a game'}</b><small>${s.unready?'Set up the cast with one paste':'Survival Pool, Weekly Lineup or Outlast'}</small></span></button>`}
      ${fol?`<button class="row" data-wm="drop"><span class="ic">${svg('x')}</span><span class="tx"><b>Remove from my shows</b><small>Your ratings and reactions stay</small></span></button>`:''}`,
     b=>b.querySelectorAll('[data-wm]').forEach(x=>x.onclick=()=>{const m=x.dataset.wm;
@@ -129,7 +129,7 @@ function callSheet(s){const e=Math.min(whereOf(s,'alex')+1,s.ep);
 // ---------- start a game for a show without one (and the Watch party card becomes Watch it together) ----------
 const newGameSheetGame=newGameSheet;
 newGameSheet=function(s){if(!s.kinds)return newGameW(s);newGameSheetGame(s);
-  const c=$('sheet').querySelector('[data-n="Watch party"]');if(c){c.querySelector('b').textContent='Watch it together';c.querySelector('small').textContent='Invite the couch for the next episode';c.onclick=()=>{closeSheet();setTimeout(()=>inviteWatch(s),250)}}};
+  const c=$('sheet').querySelector('[data-n="Watch party"]');if(c){c.querySelector('b').textContent='Plan a watch along';c.querySelector('small').textContent='Invite the couch for the next episode';c.onclick=()=>{closeSheet();setTimeout(()=>inviteWatch(s),250)}}};
 function newGameW(s){let g='pool',told=true;const others=(watchersOf(s)||[]).filter(n=>n!=='alex');
   openSheet('Start a game',`${s.name} · from Episode ${s.ep}`,
     `${[['pool','No draft · pick one survivor each episode · best for mid-season'],['lineup','Draft a roster, start your best each week'],['outlast','Draft a team, the last one standing carries you']].map(([k,d])=>`<button class="typecard${k===g?' on':''}" data-g="${k}"><span class="gdot" style="background:${GAMES[k].col}"></span><span><b>${GAMES[k].name}${k==='pool'?' · Recommended':''}</b><small>${d}</small></span></button>`).join('')}
@@ -170,9 +170,9 @@ function makeGame(s){let step=0,pasted=false;
 
 // ---------- Watch it together: invite ahead for the live airing, or a shared start ----------
 function inviteWatch(s){const t=nextAir(s.air),ep=s.ep;let how='live',when=fmtT(t);const fans=watchersOf(s)||[],who=new Set(fans.filter(n=>n!=='alex'));
-  openSheet('Watch it together',`${s.name} · Episode ${ep}`,
+  openSheet('Plan a watch along',`${s.name} · Episode ${ep}`,
     `<button class="typecard on" data-how="live"><span class="gdot" style="background:var(--live)"></span><span><b>The live airing</b><small>${fmtT(t)} · everyone follows the broadcast, Ad break included</small></span></button>
-     <button class="typecard" data-how="start"><span class="gdot" style="background:var(--good)"></span><span><b>Start together</b><small>Streaming · one shared clock · anyone can pause for everyone</small></span></button>
+     <button class="typecard" data-how="start"><span class="gdot" style="background:var(--good)"></span><span><b>Start at the same time</b><small>Streaming · one shared clock · anyone can pause for everyone</small></span></button>
      <div id="wWhen" hidden><p class="label cap">Start at</p>${['8:30 PM','9:00 PM','9:30 PM','10:00 PM'].map((x,i)=>`<button class="chip${i===1?' on':''}" data-at="${x}">${x}</button>`).join('')}</div>
      <p class="label cap">Invite</p><div>${crowdOf().filter(n=>n!=='alex').map(n=>`<button class="chip${who.has(n)?' on':''}" data-p="${n}">${n}${fans.includes(n)?'':' · new to it'}</button>`).join('')}</div>
      <p class="muted small" style="line-height:1.45;margin-top:4px">Can't make it? They can watch along later. Everyone's reactions wait for them.</p>
@@ -195,8 +195,8 @@ openWatch=function(sid,opts={}){if(!WADATA[sid])sid='bd';openWatchBase(sid);cons
   el.querySelector('.clock').insertAdjacentHTML('afterend',`<div class="w-pausebar" id="wPause" hidden></div>`);
   if(plan){const st=$('waStart');st.querySelector('h3').innerHTML=`Watching<br>together`;st.querySelector('p').textContent=`${names(plan.who)} ${plan.how==='live'?'are on the live airing':'start with you'}. Anyone can pause for everyone, and late arrivals watch along after.`;
     st.querySelector(`[data-start="${plan.how==='live'?'stream':'live'}"]`).remove();const c=st.querySelector('[data-start]');c.classList.add('first');
-    c.innerHTML=`<span class="ic">${svg(plan.how==='live'?'tv':'play')}</span><span>${plan.how==='live'?'Join the live airing':'Start together'}<small>${plan.how==='live'?'Tap Ad break when the ads start, so everyone stays in step':'3, 2, 1 for everyone in it'}</small></span>`;
-    el.querySelector('.wa-top small').textContent=`Together · ${names(plan.who)}`}
+    c.innerHTML=`<span class="ic">${svg(plan.how==='live'?'tv':'play')}</span><span>${plan.how==='live'?'Join the live airing':'Start at the same time'}<small>${plan.how==='live'?'Tap Ad break when the ads start, so everyone stays in step':'3, 2, 1 for everyone in it'}</small></span>`;
+    el.querySelector('.wa-top small').textContent=`Watch along · ${names(plan.who)}`}
   el.querySelectorAll('[data-start]').forEach(b=>b.addEventListener('click',()=>{try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(l=>wa.lock=l).catch(()=>{})}catch(e){}
     setTimeout(()=>{if(UI.wa&&wa.run)addGif(wa.t,(watchersOf(s)||['riley']).find(n=>n!=='alex')||'riley',1,false)},5000);
     if(plan&&plan.how==='start')setTimeout(()=>{if(!UI.wa||!wa.run)return;const who=plan.who[0];wa.run=false;el.classList.add('paused');$('waPP').innerHTML=`${svg('play')}Resume`;pauseBar(`${who} paused for everyone`,true)},9000)}));
@@ -218,7 +218,7 @@ const hubBase=hub;
 hub=function(){let h=hubBase();
   const yours='<section class="sec"><div class="sh"><h2 class="cap">Your shows</h2>',ranks='<section class="sec"><div class="sh"><h2 class="cap">Power rankings</h2>';
   h=h.replace(yours,nudgeHTML()+yours).replace(ranks,couchWatchHTML()+ranks)
-    .replace('<strong>Watch party</strong><small>Host Thursday\'s Traitors · chat in sync</small>','<strong>Watch it together</strong><small>Invite the couch for Thursday\'s Traitors</small>');
+    .replace('<strong>Watch party</strong><small>Host Thursday\'s Traitors · chat in sync</small>','<strong>Plan a watch along</strong><small>Invite the couch for Thursday\'s Traitors</small>');
   return h};
 function nudgeHTML(){const s=SHOWS.find(x=>x.id==='ar');if(!s||W.nudgeGone||W.games.ar||!follows(s))return '';const o=(watchersOf(s)||[]).filter(n=>n!=='alex');if(!o.length)return '';
   return `<section class="sec"><div class="w-nudge"><img src="${ART(s.art)}" alt=""><div class="in"><span class="tg cap">You both watch</span><b>${o.length>1?`You, ${names(o)} all watch`:`You and ${names(o)} both watch`} ${s.name}</b><small>Nobody's playing it yet. Start a game and the couch hears about it once.</small>

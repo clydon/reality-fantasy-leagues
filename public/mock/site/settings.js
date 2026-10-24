@@ -37,7 +37,7 @@ function accountRoute(){const tg=(on,id)=>`<button class="switch${on?' on':''}" 
     <section class="blk"><div class="me-card">${av('alex',56)}<div><b>alex</b><small>On Couch Council and Work Crew · since Survivor 49</small></div><button class="rolebtn">Edit</button></div></section>
     <section class="blk"><div class="qsec"><h2 class="cap">What we notify you about</h2></div>
       <div class="lockdown"><span class="tx"><b>Lineup reminders</b><small>2 hours before your moves lock, only if something's open</small></span>${tg(A.notif.lineup,'lineup')}</div>
-      <div class="lockdown"><span class="tx"><b>Early results are in</b><small>Who went home, about an hour after the episode</small></span>${tg(A.notif.early,'early')}</div>
+      <div class="lockdown"><span class="tx"><b>Early results are in</b><small>Who went home, minutes after the episode</small></span>${tg(A.notif.early,'early')}</div>
       <div class="lockdown"><span class="tx"><b>Final scores are in</b><small>The morning after</small></span>${tg(A.notif.final,'final')}</div>
       <div class="lockdown"><span class="tx"><b>Invites and join requests</b><small>Someone joins your couch or asks to join a game</small></span>${tg(A.notif.invites,'invites')}</div>
       <div class="jq"><div class="jgh"><b>Couch chat</b></div>${[['all','Every message',''],['quiet','Quiet on episode nights','Catch up when you reveal'],['off','Never','Check chat when you open the app']].map(([k,t,d])=>`<button class="radio${A.notif.chat===k?' on':''}" data-chat="${k}"><i></i><span><b>${t}${k==='quiet'?' <em>Recommended</em>':''}</b>${d?`<small>${d}</small>`:''}</span></button>`).join('')}</div></section>

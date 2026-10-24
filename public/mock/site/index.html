@@ -637,6 +637,7 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;flex:n
 <link rel="stylesheet" href="community.css">
 <link rel="stylesheet" href="refine.css">
 <link rel="stylesheet" href="couchpages.css">
+<link rel="stylesheet" href="opentab.css">
 <link rel="stylesheet" href="bot.css">
 <link rel="stylesheet" href="mockmenu.css">
 <link rel="stylesheet" href="device.css">
@@ -851,7 +852,7 @@ function countUp(root){if(reduce)return;root.querySelectorAll('.pts[data-to]').f
 
 // ---------- feed ----------
 const FEED4=[['riley','set a Survivor lineup','Hidden until Wed 8:05 PM',[['fire',3,true],['laugh',1]],null],['jordan','',"Traitors banishment is going to be messy. Calling it now.",[['eye',2]],null,'Traitors 5'],['sam','joined Episode 5 Bingo','',null]];
-const FEED12=[['priya','took 1st in Weekly Lineup','+14 last episode',[['fire',7,true],['crown',3]]],['dev','',"If Kristin finds that idol I'm quitting this league",[['laugh',9],['eye',2,true]],null,'Survivor 51'],['riley','set a Survivor lineup','Hidden until Wed 8:05 PM',[['fire',4]],null],['maya','started a Watch party','Traitors 5 · Thu 9:00 PM · 6 going',null],['luis','',"who keeps picking Ori in the Pool lol",[['laugh',5]],null,'Survivor 51']];
+const FEED12=[['priya','took 1st in Weekly Lineup','+14 last episode',[['fire',7,true],['crown',3]]],['dev','',"If Kristin finds that idol I'm quitting this league",[['laugh',9],['eye',2,true]],null,'Survivor 51'],['riley','set a Survivor lineup','Hidden until Wed 8:05 PM',[['fire',4]],null],['maya','planned a watch along','Traitors 5 · Thu 9:00 PM · 6 going',null],['luis','',"who keeps picking Ori in the Pool lol",[['laugh',5]],null,'Survivor 51']];
 function evHTML([n,act,txt,re,face,ctx],isNew){const c=face&&by(S51,face);
   return `<div class="ev${isNew?' new':''}">${av(n,34)}<div class="tx"><b>${n}</b> ${act}${act&&txt?`<span class="ctx">${txt}</span>`:''}${!act?`<span class="q">${txt}</span><span class="ctx">${ctx||''}</span>`:''}${re?`<div class="reacts">${re.map(([k,c2,m])=>`<button class="${m?'mine':''}" aria-pressed="${!!m}">${svg(k)}<span>${c2}</span></button>`).join('')}</div>`:''}</div>${c?`<img class="thumb" src="${ph(c)}" alt="">`:''}</div>`}
 function feedHTML(){return (N===4?FEED4:FEED12).map(e=>evHTML(e)).join('')+`<div class="typing"><span style="display:flex;gap:3px"><i></i><i></i><i></i></span>${N===4?'sam is typing':'kat and 2 others are typing'}</div>`}
@@ -955,14 +956,14 @@ function triviaSheet(){const top=S49.cast.slice().sort((a,b)=>b.total-a.total),f
   openSheet('Survivor 49 trivia','3 questions from the real season','',paint)}
 
 function partySheet(){let when='9:00 PM',who=new Set(crowdOf().filter(n=>n!=='alex'));
-  openSheet('Host a watch party','The Traitors · Season 5 · Episode 4',
+  openSheet('Plan a watch along','The Traitors · Season 5 · Episode 4',
     `<div class="recap-art"><img src="${ART('traitors')}" alt="" style="object-position:74% 35%"><b class="cap">Thursday</b></div>
      <p class="label cap" style="margin-top:4px">Start at</p>${['8:45 PM','9:00 PM','9:30 PM'].map(t=>`<button class="chip${t===when?' on':''}" data-w="${t}">${t}</button>`).join('')}
      <p class="label cap">Invite</p><div>${crowdOf().filter(n=>n!=='alex').map(n=>`<button class="chip on" data-p="${n}">${n}</button>`).join('')}</div>
      <button class="btn pri wide" id="host" style="margin-top:14px">Host it</button>`,
     b=>{b.querySelectorAll('[data-w]').forEach(c=>c.onclick=()=>{when=c.dataset.w;b.querySelectorAll('[data-w]').forEach(x=>x.classList.toggle('on',x===c))});
       b.querySelectorAll('[data-p]').forEach(c=>c.onclick=()=>{c.classList.toggle('on');c.classList.contains('on')?who.add(c.dataset.p):who.delete(c.dataset.p);$('host').disabled=!who.size});
-      $('host').onclick=()=>{closeSheet();toast(`Watch party set for Thu ${when} · ${who.size} invited`);$('feed').insertAdjacentHTML('afterbegin',evHTML(['alex','started a Watch party',`Traitors 5 · Thu ${when} · ${who.size} invited`,null],true))}})}
+      $('host').onclick=()=>{closeSheet();toast(`Watch along set for Thu ${when} · ${who.size} invited`);$('feed').insertAdjacentHTML('afterbegin',evHTML(['alex','planned a watch along',`Traitors 5 · Thu ${when} · ${who.size} invited`,null],true))}})}
 
 function pastSheet(i){const p=PAST[i],ppl=crowdOf(),pts=[61,57,49,44,41,38,33,30,27,22,19,15];const order=[p.winner,...ppl.filter(n=>n!==p.winner)];
   openSheet(p.show,p.gold?'You won':'Final standings',`<div class="recap-art"><img src="${ART(p.art)}" alt=""><b class="cap">${p.winner} won</b></div>
@@ -1235,6 +1236,9 @@ route();
 <script src="community.js"></script>
 <script src="refine.js"></script>
 <script src="couchpages.js"></script>
+<script src="gamestab.js"></script>
+<script src="solo.js"></script>
+<script src="share.js"></script>
 <script src="bot.js"></script>
 <script src="nav.js"></script>
 </body>

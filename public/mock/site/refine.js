@@ -25,7 +25,7 @@ const calmCd=root=>(root.querySelectorAll?root:document).querySelectorAll('[data
 new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType===1){if(n.dataset&&n.dataset.cd)calmCd(n.parentNode||n);else calmCd(n)}}))).observe(document.body,{childList:true,subtree:true});
 setInterval(()=>document.querySelectorAll('[data-cdcalm]').forEach(x=>{const t=+x.dataset.cdcalm;if(t-Date.now()<=864e5){x.dataset.cd=t;x.removeAttribute('data-cdcalm')}else x.textContent=calm(t)}),60000);
 const heroHTMLR=heroHTML;
-heroHTML=function(a){const s=SHOWS.find(x=>x.id===sel),h=heroHTMLR(a);if(!s)return h;const t=nextAir(s.air);
+heroHTML=function(a){const s=SHOWS.find(x=>x.id===sel);let h=heroHTMLR(a);if(N===12)h=h.replace(/(\d+ of \d+) (?:lineups set|have picked)/,'$1 set');if(!s)return h;const t=nextAir(s.air);
   return t-Date.now()>864e5?h.replace(/<div class="cd" id="cd"[\s\S]*?<\/div>\s*(?=<button class="todo")/,`<div class="r-when cap">${calmWhen(t)}</div>`):h};
 
 // ---------- 1. the hub ----------

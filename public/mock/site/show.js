@@ -16,7 +16,7 @@ const POOL={alex:{streak:3,picks:['Kristin','Maggie','Brady']},riley:{streak:4,p
 let SHOWSTATE={tab:'tonight',phase:'before',revealed:4,roles:{alex:'commish',riley:'admin'},filter:'All',pool:null,preds:{}};
 
 function showRoute(sid,tab){const s=SHOWS.find(x=>x.id===sid);if(!s)return hubRoute();
-  if(!s.kinds&&N!==1){return whereSheet(s)}SHOWSTATE.tab=tab||'tonight';if(N===1&&(SHOWSTATE.tab==='standings'||SHOWSTATE.tab==='chat'))SHOWSTATE.tab='tonight';
+  if(!s.kinds&&N!==1){return whereSheet(s)}SHOWSTATE.tab=tab||'tonight';if(N===1&&SHOWSTATE.tab==='chat')SHOWSTATE.tab='tonight';
   app.innerHTML=`<div class="show">${showBar(s)}<div class="show-body" id="showBody">${({tonight:tabTonight,episodes:tabEpisodes,standings:tabStandings,cast:tabCast,chat:tabChat})[SHOWSTATE.tab](s)}</div>${dockHTML(s)}${tabBar(s)}</div>`;
   wireShow(s);$('scroller').scrollTop=0}
 const isCommish=()=>!!SHOWSTATE.roles.alex;
@@ -25,7 +25,7 @@ function showBar(s){const t=nextAir(s.air),phs=SHOWSTATE.phase,big=SHOWSTATE.tab
   return `<header class="sbar${big?' xl':''}${phs==='during'?' live':''}"><img src="${ART(s.art)}" alt="" style="object-position:${s.hpos||s.pos}">
     <div class="sbar-top"><a class="back" href="#/hub">${svg('chev')}Home</a><span class="sbar-st">${status}</span><button class="iconbtn" id="showMenu" aria-label="Show menu">${svg('dots')}${isCommish()&&!SHOWSTATE.resultsDone?'<span class="dot"></span>':''}</button></div>
     ${big?`<h1 class="cap">${s.name.replace('The ','')}<small>${s.season}</small></h1><div class="sbar-couch"><span class="stack">${crowdOf().slice(0,6).map(n=>av(n,24)).join('')}</span>${N===1?'Watching solo':'Couch Council · '+s.kinds.length+(s.kinds.length===1?' game':' games')}</div>`:`<b class="cap sbar-name">${s.name} · ${s.season.replace('Season ','S')}</b>`}</header>`}
-function tabBar(s){let T=[['tonight','Tonight','tv'],['episodes','Episodes','cal'],['standings','Standings','cup'],['cast','Cast','people'],['chat','Chat','chatb']];if(N===1)T=T.filter(t=>t[0]!=='standings'&&t[0]!=='chat');
+function tabBar(s){let T=[['tonight','Tonight','tv'],['episodes','Episodes','cal'],['standings','Standings','cup'],['cast','Cast','people'],['chat','Chat','chatb']];if(N===1)T=T.filter(t=>t[0]!=='chat');
   const due=dueInShow(s);return `<nav class="tabbar" style="grid-template-columns:repeat(${T.length},1fr)">${T.map(([k,l,i])=>`<a href="#/show/${s.id}/${k}" class="${SHOWSTATE.tab===k?'on':''}">${svg(i)}${l}${k==='tonight'&&due?`<span class="bang">${due}</span>`:''}${k==='chat'?'<span class="cnt">3</span>':''}</a>`).join('')}</nav>`}
 const dueInShow=s=>N===1?0:SHOWSTATE.revealed>=5&&s.id==='surv'?1:s.id!=='surv'?(s.id==='trt'&&!state.banish?1:0):movesOpen();
 
@@ -129,7 +129,7 @@ function rulesSheet(g){const R={outlast:['Snake-draft a team of four before the 
 function newGameSheet(s){openSheet('Start a game',`${s.name} · anyone on the couch can`,`
   ${[['outlast','Outlast','Draft before the season starts · this season is underway',true],['lineup','Weekly Lineup','A second league with different people or rules'],['pool','Survival Pool','Starts from the next episode · no draft']].map(([k,n,d,dis])=>`<button class="typecard${dis?' dim':''}" data-n="${n}" ${dis?'disabled':''}><span class="gdot" style="background:${GAMES[k].col}"></span><span><b>${n}</b><small>${d}</small></span></button>`).join('')}
   <p class="label cap">One night only</p>
-  ${[['Bingo night','A card for Episode 5'],['Prediction round','3 calls for the couch'],['Watch party','Host Wednesday\'s episode']].map(([n,d])=>`<button class="typecard" data-n="${n}"><span class="gdot" style="background:var(--bone)"></span><span><b>${n}</b><small>${d}</small></span></button>`).join('')}`,
+  ${[['Bingo night','A card for Episode 5'],['Prediction round','3 calls for the couch'],['Watch along','Plan one for Wednesday\'s episode']].map(([n,d])=>`<button class="typecard" data-n="${n}"><span class="gdot" style="background:var(--bone)"></span><span><b>${n}</b><small>${d}</small></span></button>`).join('')}`,
   b=>b.querySelectorAll('[data-n]:not([disabled])').forEach(x=>x.onclick=()=>{closeSheet();toast(`${x.dataset.n} started · the couch has been invited`)}))}
 function backstageRoute(sid){const s=SHOWS.find(x=>x.id===sid);const R=SHOWSTATE.roles,ppl=crowdOf();
   app.innerHTML=`<div class="show"><header class="sbar"><img src="${ART(s.art)}" alt="" style="object-position:${s.hpos||s.pos}"><div class="sbar-top"><a class="back" href="#/show/${sid}/tonight">${svg('chev')}${s.name.replace('The ','')}</a><span class="sbar-st">Backstage</span><span style="width:44px"></span></div><b class="cap sbar-name">Backstage</b></header>
