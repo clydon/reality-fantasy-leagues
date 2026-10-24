@@ -15,7 +15,7 @@ const LEAGUE_TABLES = [
 ];
 const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
-  "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions",
+  "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions", "season_episodes",
 ];
 const PEOPLE_TABLES = ["user", "user_settings", "notification_prefs"];
 const TABLES = [...LEAGUE_TABLES, ...SEASON_TABLES, ...PEOPLE_TABLES];

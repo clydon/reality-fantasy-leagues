@@ -78,6 +78,10 @@ async function up(pool) {
   )).id;
   await pool.query(`INSERT INTO season_rule_changes (season_id, status, summary, proposal, created_by) VALUES ($1, 'draft', 'zt', '{}', $2)`, [season, me]);
   await pool.query(
+    `INSERT INTO season_episodes (season_id, number, air_at, runtime_min, note, reported_in) VALUES ($1, 2, '2026-11-05T01:00:00Z', 120, 'zt: a week off', 1)`,
+    [season]
+  );
+  await pool.query(
     `INSERT INTO episode_research_items (league_id, research_id, episode_number, kind, castaway_name, sources, decided_by) VALUES ($1, $2, 1, 'exiled', 'Castaway 0', ARRAY['zt'], $3)`,
     [classic, research, me]
   );

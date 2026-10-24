@@ -189,7 +189,8 @@ Goal: a complete, restorable copy of everything the couch has played, before any
   differs), and each league's state hash; prints the diff and exits 1 on any difference. A `--group`
   backup's references to rows it doesn't hold are settled the way deleting those rows would (nulled or
   left out) and reported.
-- Proven: the local copy (`--all`: 6 leagues, 27 tables, 1,038 results) restores byte for byte.
+- Proven: the local copy (`--all`: 6 leagues, 27 tables, 1,038 results) restores byte for byte (28 tables since
+  master's 0067 added `season_episodes`, which the backup includes).
   `scripts/dev-test/check-backup-restore.js` with `backup-fixture.js` (every table filled, both cycles, a
   league outside the group) passes the `--group` round trip and catches a backup file changed afterwards;
   it found and now guards a bug where a nulled reference dropped its row.

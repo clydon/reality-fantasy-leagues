@@ -49,6 +49,7 @@ const GROUP_SLICES = {
   season_cast_changes: "season_id = ANY($S::uuid[])",
   season_decisions: "season_id = ANY($S::uuid[])",
   season_rule_changes: "season_id = ANY($S::uuid[])",
+  season_episodes: "season_id = ANY($S::uuid[])",
   episode_research: "(show_id, season_number) IN (SELECT show_id, season_number FROM show_seasons WHERE id = ANY($S::uuid[]))",
   episode_research_items: `league_id = ANY($L::uuid[]) AND research_id IN (SELECT er.id FROM episode_research er
       JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number WHERE ss.id = ANY($S::uuid[]))`,
