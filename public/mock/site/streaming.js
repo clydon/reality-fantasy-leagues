@@ -8,7 +8,7 @@
 //     Anything not on your list has a ＋ that adds it without leaving the hub.
 const B12=(...a)=>({4:[],12:a});
 SHOWS.push(
-  {id:'hp',name:'Harry Potter',season:'Season 1',short:'Harry Potter',art:'harry-potter',pos:'50% 22%',hpos:'50% 16%',air:[5,21,0],col:'#7a1f2b',ep:1,series:true,binge:true,net:'HBO Max',eps:8,aired:0,onEp:0,dropAt:nextAir([5,21,0]),
+  {id:'hp',name:'Harry Potter',season:'Season 1',short:'Harry Potter',art:'harry-potter',pos:'50% 22%',hpos:'50% 16%',air:[5,21,0],col:'#7a1f2b',ep:1,series:true,binge:true,net:'HBO Max',eps:8,aired:0,onEp:0,dropAt:(()=>{const t=new Date();t.setDate(t.getDate()+2);t.setHours(21,0,0,0);return t})(),
    watchers:{4:['alex','riley','sam'],12:['alex','riley','sam','priya','maya','kat','luis']}},
   {id:'sev',name:'Severance',season:'Season 2',short:'Severance 2',art:'severance',pos:'62% 40%',hpos:'60% 30%',air:[5,21,0],col:'#2f6f5e',ep:10,series:true,binge:true,net:'Apple TV+',eps:10,aired:10,onEp:3,
    watchers:{4:['alex','riley','jordan'],12:['alex','riley','jordan','dev','noor','theo']}},

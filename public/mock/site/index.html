@@ -634,6 +634,7 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;flex:n
 <link rel="stylesheet" href="hubplus.css">
 <link rel="stylesheet" href="explorer.css">
 <link rel="stylesheet" href="waivers.css">
+<link rel="stylesheet" href="community.css">
 <link rel="stylesheet" href="mockmenu.css">
 <link rel="stylesheet" href="device.css">
 <link rel="stylesheet" href="nav.css">
@@ -1128,7 +1129,7 @@ function wireHub(){
   // rankings
   $('rankTabs').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{rankTab=b.dataset.t;$('rankTabs').querySelectorAll('[data-t]').forEach(x=>x.classList.toggle('on',x===b));paintRank(true)});
   const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){paintRank(false);io.disconnect()}}),{threshold:.2});$('rankPane').innerHTML=rankPane();io.observe($('rankPane'));
-  requestAnimationFrame(()=>{const tabs=$('rankTabs'),on=tabs.querySelector('.on'),pill=tabs.querySelector('.pill');pill.style.width=on.offsetWidth+'px';pill.style.left='3px';pill.style.transform=`translateX(${on.offsetLeft-3}px)`});
+  requestAnimationFrame(()=>{const tabs=$('rankTabs');if(!tabs)return;const on=tabs.querySelector('.on'),pill=tabs.querySelector('.pill');pill.style.width=on.offsetWidth+'px';pill.style.left='3px';pill.style.transform=`translateX(${on.offsetLeft-3}px)`});
   $('allRank').onclick=allRankSheet;$('openChat').onclick=chatPage;
   $('feed').onclick=e=>{const b=e.target.closest('.reacts button');if(!b)return;const m=b.classList.toggle('mine');b.setAttribute('aria-pressed',m);const c=b.querySelector('span');c.textContent=+c.textContent+(m?1:-1);b.classList.remove('bump');void b.offsetWidth;b.classList.add('bump')};
   app.querySelectorAll('[data-mini]').forEach(b=>b.onclick=()=>({bingo:bingoSheet,poll:pollSheet,trivia:triviaSheet,party:partySheet,wa:()=>openWatch('surv')})[b.dataset.mini]());
@@ -1228,6 +1229,7 @@ addEventListener('hashchange',route);
 setInterval(()=>document.querySelectorAll('[data-cd]').forEach(el=>{let s=Math.max(0,(+el.dataset.cd-Date.now())/1000|0);el.textContent=`${s/86400|0}d ${String((s%86400)/3600|0).padStart(2,'0')}:${String((s%3600)/60|0).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`}),1000);
 route();
 </script>
+<script src="community.js"></script>
 <script src="nav.js"></script>
 </body>
 </html>
