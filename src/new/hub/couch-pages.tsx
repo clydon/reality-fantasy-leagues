@@ -18,7 +18,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
-  GAME_COLOUR,
   PLAYING,
   PREVIOUSLY,
   RANKINGS,
@@ -30,6 +29,7 @@ import {
   TROPHIES,
   VERDICTS,
 } from "../fixtures/hub";
+import { GAME_STYLE, ordinal } from "../games";
 import type { PreviewId } from "../preview";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { Row, SectionHead } from "../ui/parts";
@@ -142,8 +142,6 @@ function How({ icon: Icon, lead, children }: { icon: LucideIcon; lead: string; c
   );
 }
 
-const ordinal = (n: number) => `${n}${["th", "st", "nd", "rd"][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10] ?? "th"}`;
-
 // ---------- Power rankings ----------
 
 function Rankings() {
@@ -224,7 +222,7 @@ function CommercialBreak() {
             {/* eslint-disable-next-line @next/next/no-img-element -- fixture art from the published mock */}
             <img src={g.art} alt="" className="size-[54px] flex-none rounded-[3px] object-cover" style={{ objectPosition: g.position }} />
             <span className="min-w-0 flex-1">
-              <span className="type-caption text-xs tracking-[0.05em]" style={{ color: GAME_COLOUR[g.game] }}>
+              <span className="type-caption text-xs tracking-[0.05em]" style={{ color: GAME_STYLE[g.game].colour }}>
                 {g.game}
               </span>
               <b className="mt-[3px] block text-base">{g.show}</b>

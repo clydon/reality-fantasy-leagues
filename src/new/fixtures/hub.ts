@@ -1,5 +1,6 @@
 // The hub's own data, from the mock (index.html, refine.js, couchpages.js, stats.js): the feed (On the couch), your
 // profile's numbers, and the six pages of More on the couch. Step 8 (Hub I) makes them real.
+import type { GameName } from "../games";
 import { art, castPhoto, type Demo } from "./people";
 
 export const STEP = "8";
@@ -7,8 +8,6 @@ export const STEP = "8";
 const s51 = (name: string) => castPhoto("survivor-51", name);
 const t5 = (name: string) => castPhoto("the-traitors-us-5", name);
 
-/** The game colours (the mock's GAMES, with Weekly Lineup in Lake: yellow is only for what you must do). */
-export const GAME_COLOUR = { "Weekly Lineup": "#5089c9", Outlast: "#f2804b", "Survival Pool": "#35b5a5" } as const;
 export const SHOW_COLOUR = { Survivor: "#f2804b", Traitors: "#c23a4b", Challenge: "#5089c9" } as const;
 
 // ---------- On the couch: the feed ----------
@@ -58,7 +57,7 @@ export const RANKINGS: { who: Demo; points: [number, number, number]; move?: "up
 export const RANKING_SHOWS = ["Survivor", "Traitors", "Challenge"] as const;
 
 /** Commercial break: the games you're in, and this week's one-night games. */
-export const PLAYING: { game: keyof typeof GAME_COLOUR; show: string; art: string; position: string; line: string; place?: string; due?: string }[] = [
+export const PLAYING: { game: GameName; show: string; art: string; position: string; line: string; place?: string; due?: string }[] = [
   { game: "Weekly Lineup", show: "Survivor 51", art: art("survivor"), position: "64% 50%", line: "Your lineup is due", due: "Due Wed" },
   { game: "Outlast", show: "Survivor 51", art: art("survivor"), position: "64% 50%", line: "Last Survivor Standing", place: "1st" },
   { game: "Survival Pool", show: "Survivor 51", art: art("survivor"), position: "64% 50%", line: "Avoid Elimination · streak 3", place: "3rd" },

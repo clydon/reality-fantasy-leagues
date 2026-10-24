@@ -5,19 +5,28 @@ import { usePathname } from "next/navigation";
 import { BookOpen, Ellipsis, Eye, KeyRound, Bell, Plus, Tv, UserPlus, Users } from "lucide-react";
 import { calm, ticks } from "../clock";
 import { useCouchForSeason, useHome, useSpace, type GameRef, type SeasonHeader, type UpNext } from "../data";
+import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
+import { Cast } from "../show/cast";
+import { Chat } from "../show/chat";
+import { Dock, dockShows, MovesSheet } from "../show/dock";
+import { Episodes } from "../show/episodes";
+import { Games } from "../show/games";
+import { HowItWorksPage } from "../show/how-it-works";
+import { Tonight } from "../show/tonight";
 import { Avatar, useNow } from "../ui/bars";
-import { usePushedPage, PushedPage } from "../ui/page";
+import { usePushedPage } from "../ui/page";
 import { EmptyState, GuardChip, Row } from "../ui/parts";
 import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { ShowBar, TabBar } from "../ui/show-bar";
 import type { PreviewId } from "../preview";
 
-// A show space (/show/[seasonId]/[tab]), step 0c's shell: the show bar (the show's art, where the next episode is,
-// the ⋯ menu), the five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat) and their placeholders
-// until step 0d ports them from the mock (show.js, refine.js tabTonight, gamestab.js, explorer.js).
+// A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
+// five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
+// the tab bar, and what opens over them: Your moves, How it works. Ported from the mock in 0d (show.js, dock.js,
+// refine.js tabTonight, gamestab.js, explorer.js, rulebook.js howPage); real where it's free, fixtures behind Preview.
 
 /** Everything a show's screens share: the couch it opens with, its header (from the home's cache until its own
  *  read comes back), its games, and whether you run one of them. */
@@ -31,6 +40,8 @@ export function useShow(seasonId: string) {
   const yours = games.filter((g) => g.yourRole);
   const runs = games.filter((g) => g.yourRole === "commissioner" || g.yourRole === "admin");
   const people = space.data?.people ?? null;
+  // Your moves due in this couch's games here, soonest first (the home's list: actionItems).
+  const moves = movesByDue(home.data?.moves.filter((m) => yours.some((g) => g.leagueId === m.leagueId)) ?? []);
   return {
     home: home.data,
     couch,
@@ -44,7 +55,8 @@ export function useShow(seasonId: string) {
     seenThrough: space.data ? space.data.you.seenThrough : (cached?.seenThrough ?? 0),
     upNext: space.data?.schedule?.upNext ?? cached?.upNext ?? null,
     latestAired: space.data?.schedule?.latestAired ?? cached?.latestAired ?? 0,
-    movesDue: home.data?.moves.filter((m) => yours.some((g) => g.leagueId === m.leagueId)).length ?? 0,
+    moves,
+    movesDue: moves.length,
     notFound: (space.error as { status?: number } | null)?.status === 404,
     error: home.error ?? space.error,
   };
@@ -86,6 +98,9 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
     return <EmptyState icon={Tv} title="Show not found" line="It may have been removed." />;
   }
   const tabs = show.solo ? SHOW_TABS.filter((t) => t !== "chat") : SHOW_TABS;
+  const dock = dockShows(show, tab);
+  // Room under the content for what sits over its foot: the tab bar, the dock, Chat's composer.
+  const foot = 96 + (dock ? 72 : 0) + (tab === "chat" ? 72 : 0);
   return (
     <>
       {show.header ? (
@@ -100,8 +115,11 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       ) : (
         <div className={`animate-pulse bg-card ${tab === "tonight" ? "h-[250px]" : "h-24"}`} aria-busy />
       )}
-      <main className="pb-[calc(96px+env(safe-area-inset-bottom,0px))]">{children}</main>
+      <main style={{ paddingBottom: `calc(${foot}px + env(safe-area-inset-bottom, 0px))` }}>{children}</main>
+      {dock && <Dock show={show} />}
       <TabBar seasonId={seasonId} tabs={tabs} current={tab} badges={{ tonight: show.movesDue }} />
+      <MovesSheet show={show} seasonId={seasonId} />
+      {show.header && <HowItWorksPage seasonId={seasonId} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />}
     </>
   );
 }
@@ -169,32 +187,40 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
           {soon("show.notifications", Bell, "Notifications", "Reminders, results and chat for this show")}
         </div>
       </Sheet>
-      <PushedPage open={how.open} onClose={how.close} title="How it works" back={name.replace(/^The /, "")}>
-        <Preview id="show.how-it-works" className="mx-4 mt-5" />
-      </PushedPage>
     </>
   );
 }
-
-const TAB_PREVIEW: Record<ShowTab, PreviewId> = {
-  tonight: "show.tonight",
-  episodes: "show.episodes",
-  games: "show.games",
-  cast: "show.cast",
-  chat: "show.chat",
-};
 
 /** One tab's content. Everything past Tonight is spoiler-guarded, so it carries the one spoiler chip. */
 export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab }) {
   const show = useShow(seasonId);
   const [where, setWhere] = useState(false);
+  if (!show.header) return <TabSkeleton />;
   return (
-    <div className="px-4 pt-4">
-      {tab !== "tonight" && show.header && <GuardChip seenThrough={show.seenThrough} onChange={() => setWhere(true)} className="mb-3" />}
-      <Preview id={TAB_PREVIEW[tab]} />
-      <Sheet open={where} onOpenChange={setWhere} title="Where you are" subtitle={show.header?.show.name}>
+    <div data-tab={tab}>
+      {tab !== "tonight" && (
+        <div className="px-4 pt-4">
+          <GuardChip seenThrough={show.seenThrough} onChange={() => setWhere(true)} />
+        </div>
+      )}
+      {tab === "tonight" && <Tonight seasonId={seasonId} show={show} />}
+      {tab === "episodes" && <Episodes seasonId={seasonId} show={show} />}
+      {tab === "games" && <Games show={show} />}
+      {tab === "cast" && <Cast show={show} />}
+      {tab === "chat" && <Chat show={show} />}
+      <Sheet open={where} onOpenChange={setWhere} title="Where you are" subtitle={show.header.show.name}>
         <Preview id="show.where" />
       </Sheet>
+    </div>
+  );
+}
+
+function TabSkeleton() {
+  return (
+    <div aria-busy className="animate-pulse px-4 pt-5">
+      <div className="h-7 w-40 rounded-[3px] bg-card" />
+      <div className="mt-4 h-48 rounded-[4px] bg-card" />
+      <div className="mt-6 h-24 rounded-[4px] bg-card" />
     </div>
   );
 }

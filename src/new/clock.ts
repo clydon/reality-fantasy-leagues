@@ -20,6 +20,16 @@ export function airTime(t: number): string {
   return new Date(t).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }).replace(",", "");
 }
 
+/** "8:05 PM". */
+export function timeOf(t: number): string {
+  return new Date(t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+/** "Wed", "Wednesday". */
+export function dayOf(t: number, long = false): string {
+  return new Date(t).toLocaleDateString("en-US", { weekday: long ? "long" : "short" });
+}
+
 /** Whether a clock for t should tick by the second (inside the last day) rather than read in days. */
 export function ticks(t: number, now = Date.now()): boolean {
   return t - now <= DAY;

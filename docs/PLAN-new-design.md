@@ -23,7 +23,7 @@ else needs re-reading.
 | R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | **done** 2026-10-24 on the branch (migration 0106 ships with 0b's) | Opus · high |
 | R3 | Rulebooks phase 3: `rulebooks` tables, backfill, resolution behind a flag | **done** 2026-10-24 on the branch (migration 0107 ships with 0b's; the flag stays off) | Opus · high |
 | 0c | The new shell, Preview system, fixtures, motion | **done** 2026-10-24 on the branch (migration 0108 ships with 0b's) | Opus · high |
-| 0d | Hub and show space ported (fixtures behind Preview) | **in progress**: the hub done 2026-10-24; the show space next | Opus · high |
+| 0d | Hub and show space ported (fixtures behind Preview) | **done** 2026-10-24 on the branch (the hub, then the show space) | Opus · high |
 | 1 | Show space on real leagues: Tonight's move cards, Games tab, How it works | not started | Opus · high |
 | 2 | Episodes, staged results, the one reveal, share at the reveal | not started | Opus · high |
 | 3 | Cast explorer and stats, server-side spoiler guard | not started | Opus · high |
@@ -740,6 +740,59 @@ your couch's members, your leagues listed as shows, the show header (art, season
   Mock: `show.js`, `dock.js`, `episode.js` (`standing`), `refine.js` (`tabTonight`, the swipeable move cards and
   Extras), `gamestab.js`, `explorer.js` (Cast), `rulebook.js` (`howPage`). Moves fixtures go in `fixtures/moves.ts`
   (step 1). `useShow(seasonId)` has the frame's data; `DemoAvatar` / `Faces` in `hub/sections.tsx` draw fixture people.
+
+**As built, part 2: the show space (2026-10-24, on `new-design`).** 0d is done: no `0d` entries are left in the registry.
+- **The five tabs** (`src/new/show/`, mounted by `TabScreen` in `screens/show-space.tsx`; the frame also mounts the dock, the
+  "Your moves" sheet and How it works, so every tab shares them). *Tonight*: the phase heading, Your moves, Extras this
+  week, Watch along, Your games, Stats. *Episodes*: this week's episode, then every episode (each opens its page,
+  `?page=ep4`) with the waiver window's row. *Games*: a pill per game, each game's table (a row opens that person's sheet,
+  Rules each game in plain words), How it works' row, This week, Start a game; a show you don't play gets **Play it** in
+  place of the tables. *Cast*: the explorer, Faces / Rank / By episode, one episode slider, Ranked by and Beside it as
+  native dropdowns, Patterns, Compare two, Share, a castaway's story; `?rank=<stat>` opens Rank (Tonight's Stats card
+  links there). *Chat*: the day lines, bubbles, the reveal line, the composer above the tab bar.
+- **Real, no Preview:** Tonight's heading from the schedule ("Episode 6 · Tue 8:00 PM · in 3 days", "On air · Episode 6
+  · Locked at 8:00 PM", "Season over"); **Your moves' cards**, one per required move due in this couch's games here as the
+  home lists them (`/api/me/home`, actionItems: lineup, pickup, pick, draftTurn, blindDraft; `src/new/show/moves.ts`
+  words them), the first with the one yellow button, swipeable with dots, "You're set for Episode N" (with Change) when
+  none, "Your moves are locked" once it's on; predictions due as Extras rows; **the dock**'s state and words (Set with
+  "1 open slot · no pick · 2 calls", Edit when all set, Locked on air; on Episodes, Games and Cast, on Tonight only once
+  it's on, never on Chat; it holds still during tab moves as `nd-dock`); the show's art, name and air times wherever they
+  appear; How it works' row. `useShow` now returns `moves` (this couch's, soonest first); the tab badge still counts them all.
+- **On fixtures behind Preview**, each tagged with its step: the moves sheet (`show.moves`, 1: lineup tiles, pool grid,
+  predictions, the Outlast team; Save says Coming soon), your places and the tables (`show.your-games`, `show.standings`, 1),
+  How it works (`show.how-it-works`, 1), who's set (`hub.upnext-progress`, 1), every episode and its page (`show.episodes`,
+  `show.episode`, 2), the cast and stats (`show.cast`, `show.stats`, 3), chat (`show.chat`, 4), the waiver row
+  (`show.waivers`, 6a), Play it and Start a game (`show.make-it-a-game`, `show.start-game`, 10), the episode games and
+  bingo (`show.episode-games`, 12), Watch along (`show.watch-along`, 13). Fixtures: `cast.ts` (Survivor 51 through
+  Episode 4 from the showcase export: tribes, exits, points per episode, recorded events; its STEP is 3, the last step
+  that reads it), `standings.ts`, `moves.ts`, `how-it-works.ts` (1), `episodes.ts` (2), `chat.ts` (4), `episode-games.ts` (12).
+- **How it works is R1's view model already**: `fixtures/how-it-works.ts` is `howItWorks()` (formats/rulebook-describe.js)
+  on the built-in Survivor rulebook, seen through Episode 4, with the mock's updates (Episode 8's counted, not told).
+  The page (`show/how-it-works.tsx`) draws the `HowItWorks` type, so step 1 only swaps the source for an endpoint that
+  runs the same function on the season's rulebook through the guard. Its "Who's playing" faces come from the cast fixture.
+- **`<Preview>` can be looked around now** (`ui/preview.tsx`): a control marked `data-try` works inside one (it only
+  changes what the fixture shows: a view, a segment, a fixture sheet, a tab), a Preview inside another answers for its
+  own part, and a sheet or page opened from one isn't covered by it (React carries events up through portals), so it
+  wraps its own fixture. Everything else still toasts "Coming soon".
+- **Shared now:** `src/new/games.ts` (each season game's colour and line, `ordinal`; the hub's fixture uses it too),
+  `BtnLink` (a Btn that goes somewhere), `timeOf` / `dayOf` in clock.ts, `show/parts.tsx` (Block, Face, IconBox).
+- **Changed from the mock:** no commissioner job on Tonight (5B, the plan's step 1); not yellow, by the yellow rule:
+  1st places, the explorer's slider, rank bars and "Your team" tag, Stat of the week's tag; ties read T3 (the mock said
+  T4); the move cards don't show done ones yet (the home lists only what's due: step 1 adds them), so all done is the one
+  "You're set" card, with Change; the sheet's episode words avoid a number ("Who survives this episode?") because its
+  fixture and the real schedule disagree.
+- **Checks:** `scripts/dev-test/check-new-show.js <outDir> [--width=390] [--keep]` (39 PASS at 390 and 1280: the heading,
+  one card per required move and one yellow, no dock on Tonight before airtime or on Chat, the sheet's segments switch
+  and Save toasts, the dock's word, an episode page opens and back closes it, the dock holds still across a tab move,
+  a standings row's sheet, Rules, How it works from Games and its jump bar, Faces / Rank / By episode, a re-sort runs
+  Flip, `?rank=`, Play it on a show alex doesn't play, every `show.*` entry renders, nothing overflows, no page errors).
+  `check-new-shell.js`, `check-new-hub.js` and `check-preview.js` pass; `npm test` 462 pass plus the 3 known
+  tour-commissioner failures; type-check clean, lint as before (the one `use-sheet-swipe.ts` error predates the branch).
+- **For step 1:** delete `fixtures/moves.ts`, `standings.ts` and `how-it-works.ts` and the entries `show.moves`,
+  `show.your-games`, `show.standings`, `show.how-it-works`, `hub.upnext-progress`; the sheet writes through the lineup,
+  pick and bet endpoints (its tabs should be the games you play here, not all four); done cards need what you've already
+  set this episode; the dock's faces (your starters, your pick) come with it. The tables come from the selectors, Rules
+  from each league's settings. The cast fixture stays for steps 2 and 3, so step 1's real sheet needs the season's cast.
 
 ## Steps 1–7: parity with what the couch plays today
 

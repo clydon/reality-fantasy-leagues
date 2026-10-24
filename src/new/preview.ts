@@ -8,8 +8,7 @@
 // done in the plan's Status still has entries here, or an entry is never used (or a <Preview> names one that
 // isn't here).
 //
-// step:  the plan's step that replaces it. Placeholders for whole screens are "0d" (hub and show space ported on
-//        fixtures) or the step that builds that screen.
+// step:  the plan's step that replaces it: the step that builds that screen, or makes that part real.
 // title: what it is, in the words a player would use ("The TV guide"); the toast says "Coming soon: <title>".
 // line:  what will be there, for the empty placeholder.
 
@@ -43,21 +42,23 @@ export const PREVIEWS = {
   "hub.previously": { step: "8", title: "Previously on", line: "The story so far, up to where you are." },
   "hub.trophies": { step: "8", title: "Trophy shelf", line: "Every season the couch has finished." },
 
-  // ---- a show space ----
-  "show.tonight": {
-    step: "0d",
-    title: "Tonight",
-    line: "Your moves for this episode as cards, extras this week, and when it's on.",
-  },
-  "show.episodes": { step: "0d", title: "Episodes", line: "This week's episode, then every episode with who went home." },
-  "show.games": { step: "0d", title: "Games", line: "Your standings in each game, and this week's episode games." },
-  "show.cast": { step: "0d", title: "Cast", line: "The cast by group, ranked by any stat, episode by episode." },
-  "show.chat": { step: "0d", title: "Chat", line: "The couch's chat about this show, folded at where you are." },
+  // ---- a show space (ported in 0d; fixtures in src/new/fixtures/) ----
+  "show.moves": { step: "1", title: "Your moves", line: "Your lineup, your pick and your predictions, in one sheet." },
+  "show.your-games": { step: "1", title: "Your games", line: "Where you stand in each game on this show." },
+  "show.standings": { step: "1", title: "Standings", line: "Every game's table, each person's team and picks." },
   "show.how-it-works": {
-    step: "0d",
+    step: "1",
     title: "How it works",
     line: "The show's premise, an episode as a rundown, the season, ways out, twists and what scores.",
   },
+  "show.episodes": { step: "2", title: "Every episode", line: "Who went home each episode, and what you scored." },
+  "show.episode": { step: "2", title: "An episode", line: "Who went home, your games, the top scorers, what happened." },
+  "show.cast": { step: "3", title: "The cast", line: "The cast by group, ranked by any stat, episode by episode." },
+  "show.stats": { step: "3", title: "Stats", line: "Cast stats up to where you are, no game needed." },
+  "show.chat": { step: "4", title: "Chat", line: "The couch's chat about this show, folded at where you are." },
+  "show.episode-games": { step: "12", title: "This week's games", line: "Bingo, Who goes home? and trivia for each episode." },
+  "show.make-it-a-game": { step: "10", title: "Make it a game", line: "Play this show with your couch." },
+  "show.watch-along": { step: "13", title: "Watch along", line: "Watch with the couch, live or on your own time." },
   "show.where": { step: "10", title: "Where you are", line: "Tell us how far you've watched; nothing past it shows." },
   "show.invite": { step: "9", title: "Invite to this show", line: "A code for this show; they join the couch too." },
   "show.start-game": { step: "10", title: "Start a game", line: "A season game or an episode game for this show." },

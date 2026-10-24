@@ -271,3 +271,57 @@ html[data-nav="calm"]::view-transition-new(root) {
     animation: nd-fade-in 0.15s both !important;
   }
 }
+
+/* ---------- the show space (src/new/show/) ---------- */
+
+/* The moves dock rises into place once, and holds still while the tabs move under it. */
+@keyframes nd-dock-in {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+}
+.nd-dock {
+  animation: nd-dock-in 0.5s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+}
+html[data-nav="left"] .nd-dock,
+html[data-nav="right"] .nd-dock {
+  view-transition-name: nd-dock;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-dock {
+    animation: none;
+  }
+}
+
+/* The Cast explorer's episode slider: two native ranges on one track, only their thumbs take a finger. */
+.nd-range {
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  pointer-events: none;
+}
+.nd-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  pointer-events: auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--foreground);
+  border: 3px solid var(--background);
+  box-shadow: 0 0 0 1.5px var(--foreground);
+  cursor: grab;
+}
+.nd-range::-moz-range-thumb {
+  pointer-events: auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--foreground);
+  border: 3px solid var(--background);
+  box-shadow: 0 0 0 1.5px var(--foreground);
+  cursor: grab;
+}
+.nd-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--foreground);
+}

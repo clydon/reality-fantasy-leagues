@@ -20,14 +20,22 @@ const BTN = {
   ink: "bg-foreground text-background",
 };
 
+const btnClass = (tone: keyof typeof BTN, wide?: boolean) =>
+  `nd-press flex h-[52px] items-center justify-center gap-2 rounded-[3px] px-4 text-center text-[15px] font-bold hover:brightness-110 ${BTN[tone]} ${wide ? "w-full" : ""}`;
+
 export function Btn({ tone = "optional", wide, className = "", ...props }: ComponentProps<"button"> & { tone?: keyof typeof BTN; wide?: boolean }) {
   return (
     <button
       type="button"
       {...props}
-      className={`nd-press flex h-[52px] items-center justify-center gap-2 rounded-[3px] px-4 text-center text-[15px] font-bold hover:brightness-110 disabled:bg-secondary disabled:text-muted-foreground disabled:outline-0 ${BTN[tone]} ${wide ? "w-full" : ""} ${className}`}
+      className={`${btnClass(tone, wide)} disabled:bg-secondary disabled:text-muted-foreground disabled:outline-0 ${className}`}
     />
   );
+}
+
+/** A Btn that goes somewhere. */
+export function BtnLink({ tone = "optional", wide, className = "", ...props }: ComponentProps<typeof NavLink> & { tone?: keyof typeof BTN; wide?: boolean }) {
+  return <NavLink {...props} className={`${btnClass(tone, wide)} ${className}`} />;
 }
 
 /** A section's heading: condensed caps, with an aside or one link on its line. `flush`: inside something already padded. */
