@@ -18,6 +18,27 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   if (await outOfChat(leagueId, membership.playerId)) return NextResponse.json({ messages: [], reads: [] });
   const ids = await groupLeagueIds(leagueId);
 
+  // The open chat polls every 5s (chat-tab.tsx). `v` fingerprints everything the answer is built from
+  // (messages and edits, reactions, reads, members, and the leagues' states, which decide who's out of
+  // the conversation), computed in the database so only 32 characters come back; when the caller already
+  // has that version, nothing else is read or sent.
+  const { rows: ver } = await pool.query(
+    `SELECT md5(concat_ws('|',
+       (SELECT string_agg(id::text || ':' || coalesce(edited_at::text, ''), ',' ORDER BY id)
+          FROM chat_messages WHERE league_id = ANY($1::uuid[]) AND type <> 'system'),
+       (SELECT string_agg(r.id::text, ',' ORDER BY r.id)
+          FROM chat_reactions r JOIN chat_messages c ON c.id = r.message_id WHERE c.league_id = ANY($1::uuid[])),
+       (SELECT string_agg(league_id::text || ':' || user_id || ':' || last_read_at::text, ',' ORDER BY league_id, user_id)
+          FROM chat_reads WHERE league_id = ANY($1::uuid[])),
+       (SELECT string_agg(league_id::text || ':' || user_id || ':' || player_id, ',' ORDER BY league_id, user_id)
+          FROM league_memberships WHERE league_id = ANY($1::uuid[])),
+       (SELECT string_agg(id::text || ':' || md5(state::text), ',' ORDER BY id) FROM leagues WHERE id = ANY($1::uuid[]))
+     )) AS v`,
+    [ids]
+  );
+  const v = ver[0].v as string;
+  if (new URL(req.url).searchParams.get("v") === v) return NextResponse.json({ unchanged: true, v });
+
   // The newest 300, oldest first.
   const { rows } = await pool.query(
     `SELECT * FROM (
@@ -45,7 +66,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   // Nobody reads as a late joiner the league can't see, in this league or any linked one (late-join.ts).
   const out = await outOfGroupChat(ids);
   const visibleReads = reads.filter((r) => !out.has(r.userId));
-  return NextResponse.json({ messages: await withReactions(rows), reads: visibleReads });
+  return NextResponse.json({ messages: await withReactions(rows), reads: visibleReads, v });
 });
 
 // Pushes everyone else in the league (one notification per league, kept up to date).

@@ -14,6 +14,10 @@ import { api } from "@/lib/api";
 // in public/app.js. "Read up to" comes from the server's own record (chat_reads, the same one
 // "Read by" uses), so the count is right after a reload and on another device; lastSeenAt only adds
 // what's been read in this session, and only for the league it was read in.
+//
+// Both polls are kept small (2026-10-24, the database's transfer allowance): the badge asks the server
+// for the count alone (/chat/unread), and ChatTab's poll sends the version it last got, so a quiet chat
+// answers { unchanged: true } instead of the whole conversation.
 export const DEMO_VISITOR_ID = "demo_visitor";
 
 const MOCK_SEED: ChatMessage[] = [
@@ -36,6 +40,9 @@ interface ChatStore {
   lastSeenLeagueId: string | null;
   /** Spoiler protection: messages tapped open past the "may contain spoilers" line (ChatTab). */
   shownIds: string[];
+  /** The version the chat route sent with the messages, kept with the exact list it describes: once
+   *  anything else replaces the list (a send, an edit, the tour), it no longer applies. */
+  loadedVersion: { leagueId: string; v: string; messages: ChatMessage[] } | null;
   showMessage: (id: string) => void;
   // Both return a real value (not implicit undefined) since they double as TanStack Query
   // queryFns (ChatTab's poll, and the background chat-unread poll respectively) -- a queryFn may
@@ -59,6 +66,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   lastSeenAt: null,
   lastSeenLeagueId: null,
   shownIds: [],
+  loadedVersion: null,
   showMessage: (id) => set({ shownIds: [...get().shownIds, id] }),
 
   async load() {
@@ -77,8 +85,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     if (!leagueId) return true;
     set({ loading: true });
     try {
-      const { messages, reads } = await api.getChat(leagueId);
-      set({ messages, reads: reads ?? [], loaded: true });
+      const known = get().loadedVersion;
+      const v = known && known.leagueId === leagueId && known.messages === get().messages ? known.v : null;
+      const res = await api.getChat(leagueId, v);
+      if (!res.unchanged) {
+        const { messages, reads } = res;
+        set({ messages, reads: reads ?? [], loaded: true, loadedVersion: res.v ? { leagueId, v: res.v, messages } : null });
+      }
       get().markSeen();
       return true;
     } finally {
@@ -90,15 +103,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     // TanStack Query's queryFn may not return undefined -- these two branches both return a
     // real value (rather than an implicit `undefined`) purely to satisfy that; the actual result
     // lives in this store's own state (unreadCount), same pattern as load() below.
-    const { mode, leagueId, userId } = useLeagueStore.getState();
+    const { mode, leagueId } = useLeagueStore.getState();
     if (mode !== "live" || !leagueId) return null;
-    const { messages, reads } = await api.getChat(leagueId);
-    // The later of what the server has on record and what was read here this session (same league only).
-    const serverRead = reads.find((r) => r.userId === userId)?.lastReadAt ?? null;
+    // The server counts from its own read mark; this adds what was read here this session (same league only).
     const local = get().lastSeenLeagueId === leagueId ? get().lastSeenAt : null;
-    const readTo = [serverRead, local].filter((t): t is string => !!t).map((t) => new Date(t).getTime());
-    const since = readTo.length ? Math.max(...readTo) : null;
-    const unread = messages.filter((m) => m.user_id !== userId && (since === null || new Date(m.created_at).getTime() > since)).length;
+    const { unread } = await api.getChatUnread(leagueId, local);
     set({ unreadCount: unread });
     return unread;
   },

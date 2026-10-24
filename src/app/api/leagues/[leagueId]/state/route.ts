@@ -8,6 +8,7 @@ import Bots from "@/lib/game/bot-logic.js";
 import { notifyDraftTurn } from "@/lib/server/push-events";
 import { resultsSeenThrough } from "@/lib/server/results-seen";
 import { stampAirTimes } from "@/lib/server/air-times";
+import { leagueState } from "@/lib/server/league-states";
 
 // Who's on the clock in the draft, to tell whether a bot's picks passed the turn on to someone (read
 // on a copy: currentDraftTurn tidies draftOrder as it goes).
@@ -31,9 +32,12 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   const { leagueId } = await params;
   const { user, membership } = await requireLeagueRole(req, leagueId, "member");
 
-  const leagueRes = await pool.query("SELECT id, name, state FROM leagues WHERE id=$1", [leagueId]);
-  if (!leagueRes.rows.length) throw new HttpError(404, "League not found");
-  const league = leagueRes.rows[0];
+  // Polled every 15s while a league is open: the state comes through league-states.ts, which only
+  // fetches it again when it has changed.
+  const leagueRes = await pool.query("SELECT id, name FROM leagues WHERE id=$1", [leagueId]);
+  const state = await leagueState(leagueId);
+  if (!leagueRes.rows.length || !state) throw new HttpError(404, "League not found");
+  const league = { ...leagueRes.rows[0], state } as { id: string; name: string; state: LeagueState };
 
   // A league that predates the always-a-next-episode rule (or hasn't been written to since) gets it
   // on load -- persisted, not just computed, since bets and picks key on the episode's id and an id

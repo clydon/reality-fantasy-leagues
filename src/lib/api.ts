@@ -370,7 +370,14 @@ export const api = {
 
   // Chat lives in its own Postgres tables (chat_messages/chat_reactions), not the JSONB league
   // state, so these return their own shapes rather than a LeagueState.
-  getChat: (leagueId: string) => localFetch<{ messages: ChatMessage[]; reads: ChatRead[] }>(`/api/leagues/${leagueId}/chat`),
+  // `v`: the version last received; when nothing has changed since, the answer is just { unchanged: true }.
+  getChat: (leagueId: string, v?: string | null) =>
+    localFetch<{ messages: ChatMessage[]; reads: ChatRead[]; v?: string; unchanged?: undefined } | { unchanged: true; v: string }>(
+      `/api/leagues/${leagueId}/chat${v ? `?v=${encodeURIComponent(v)}` : ""}`
+    ),
+  // The unread badge's count, worked out on the server; `since` is what this device has seen this session.
+  getChatUnread: (leagueId: string, since: string | null) =>
+    localFetch<{ unread: number }>(`/api/leagues/${leagueId}/chat/unread${since ? `?since=${encodeURIComponent(since)}` : ""}`),
   markChatRead: (leagueId: string, at: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/chat/read`, { method: "POST", body: JSON.stringify({ at }) }),
   sendChatMessage: (leagueId: string, text: string) =>

@@ -6,6 +6,7 @@ import { actionItems } from "@/lib/game/action-items.js";
 import { commissionerItems } from "@/lib/game/commissioner-items";
 import { stampAirTimes } from "@/lib/server/air-times";
 import { showsResultsImmediately } from "@/lib/server/results-seen";
+import { leagueStates } from "@/lib/server/league-states";
 
 // What's waiting on the signed-in user across EVERY league they're in -- the app-wide action bar's
 // data (action-bar.tsx), so a lineup or a draft turn due in one league shows while another is open.
@@ -30,12 +31,15 @@ export const GET = apiRoute(async (req) => {
     [user.id]
   );
   const immediate = await showsResultsImmediately(user.id);
-  const { rows } = await pool.query(
-    `SELECT l.id, l.name, l.state, m.player_id, m.role, m.results_seen_through FROM league_memberships m
+  const { rows: memberships } = await pool.query(
+    `SELECT l.id, l.name, m.player_id, m.role, m.results_seen_through FROM league_memberships m
      JOIN leagues l ON l.id = m.league_id WHERE m.user_id=$1
      ORDER BY l.name`,
     [user.id]
   );
+  // Polled every 30s: states through league-states.ts, fetched again only when one has changed.
+  const states = await leagueStates(memberships.map((r) => r.id));
+  const rows = memberships.filter((r) => states.has(r.id)).map((r) => ({ ...r, state: states.get(r.id)! }));
   const inviteItems = invites.map((r) => ({
     kind: "invite" as const,
     text: r.seat_name ? `You're invited to take over ${r.seat_name}'s team` : `You're invited to join ${r.league_name}`,

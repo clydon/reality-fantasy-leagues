@@ -2,6 +2,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { pool, HttpError, withLeagueLock } from "./db";
 import { groupLeagueIds, groupOrder } from "./league-groups";
+import { leagueState, leagueStates } from "./league-states";
 import { markResultsSeen, resultsSeenThrough } from "./results-seen";
 import { leftOutOfBroadcasts } from "./push-targets";
 
@@ -107,15 +108,18 @@ export async function lateJoinGroup(userId: string, leagueId: string): Promise<L
  * linked league but an ordinary player in another is in the conversation through that other one.
  */
 export async function outOfGroupChat(leagueIds: string[]): Promise<Set<string>> {
-  const { rows } = await pool.query(
-    "SELECT m.user_id, m.player_id, l.state FROM league_memberships m JOIN leagues l ON l.id = m.league_id WHERE m.league_id = ANY($1::uuid[])",
-    [leagueIds]
-  );
+  // Each league's state once (league-states.ts), not once per member: the chat polls run this.
+  const { rows } = await pool.query("SELECT user_id, player_id, league_id FROM league_memberships WHERE league_id = ANY($1::uuid[])", [
+    leagueIds,
+  ]);
+  const states = await leagueStates(leagueIds);
   const inChat = new Set<string>();
   const all = new Set<string>();
   for (const r of rows) {
+    const state = states.get(r.league_id);
+    if (!state) continue;
     all.add(r.user_id);
-    if (!leftOutOfBroadcasts(r.state, r.player_id)) inChat.add(r.user_id);
+    if (!leftOutOfBroadcasts(state, r.player_id)) inChat.add(r.user_id);
   }
   return new Set([...all].filter((id) => !inChat.has(id)));
 }
@@ -126,8 +130,7 @@ export async function outOfGroupChat(leagueIds: string[]): Promise<Set<string>> 
  */
 export async function outOfChat(leagueId: string, playerId: string | null | undefined): Promise<boolean> {
   if (!playerId) return false;
-  const { rows } = await pool.query("SELECT state FROM leagues WHERE id=$1", [leagueId]);
-  const state = rows[0]?.state as LeagueState | undefined;
+  const state = await leagueState(leagueId);
   if (!state) return false;
   return StateLogic.GhostLogic.isCatchingUp(state, playerId) || StateLogic.GhostLogic.isGhost(StateLogic.getPlayer(state, playerId));
 }
