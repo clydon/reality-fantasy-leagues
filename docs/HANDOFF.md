@@ -25,7 +25,7 @@ production's database).
 **Read [PLAN-new-design.md](PLAN-new-design.md) first.** One database, no data transfer (the new screens read and
 write the same leagues), additive migrations, the classic app running beside the new one until the couch switches,
 and a Preview overlay (`<Preview step>`) on anything still on fixtures. Its Status table says what step is next; each
-step updates it and adds an As built note. Step 0a (back up the live leagues) comes first. Updated 2026-10-24 with every
+step updates it and adds an As built note. Step 0a (back up the live leagues) is done (2026-10-24: the production backup restores exactly); next is 0b. Updated 2026-10-24 with every
 mock decision since, the rulebooks phases placed in its order (R1–R3 after 0b), and step 6 split into 6a/6b/6c. **All
 code work is on the `new-design` branch**; don't merge or push it without asking.
 
