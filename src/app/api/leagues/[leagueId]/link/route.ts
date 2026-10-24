@@ -3,6 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole, isSuperAdminUser } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { groupDisplayName, groupOrder, linkProblem } from "@/lib/server/league-groups";
+import { linkedLeague, unlinkedLeague } from "@/lib/server/couches";
 import type { LeagueState } from "@/lib/game/types";
 
 // Linked leagues (db/migrations/0040, league-groups.ts): League Settings' "Linked leagues".
@@ -109,6 +110,8 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
       WHERE id = $2`,
     [groupId, otherLeagueId]
   );
+  // A linked group is one couch (couches.ts): the other league joins this one's.
+  await linkedLeague(otherLeagueId, leagueId);
   return NextResponse.json({ ok: true });
 });
 
@@ -149,7 +152,8 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
 
 export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
+  const { rows: was } = await pool.query("SELECT group_id FROM leagues WHERE id = $1", [leagueId]);
   // A group whose favorite leaves has no favorite.
   await pool.query("UPDATE league_groups SET favorite_league_id = NULL WHERE favorite_league_id = $1", [leagueId]);
   await pool.query("UPDATE leagues SET group_id = NULL, group_position = NULL WHERE id = $1", [leagueId]);
@@ -158,5 +162,7 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagu
     `UPDATE leagues SET group_id = NULL, group_position = NULL WHERE group_id IN (SELECT group_id FROM leagues WHERE group_id IS NOT NULL GROUP BY group_id HAVING count(*) = 1)`
   );
   await pool.query("DELETE FROM league_groups g WHERE NOT EXISTS (SELECT 1 FROM leagues l WHERE l.group_id = g.id)");
+  // Outside a group, a classic league is a couch of its own again (couches.ts).
+  if (was[0]?.group_id) await unlinkedLeague(leagueId, user.id);
   return NextResponse.json({ ok: true });
 });

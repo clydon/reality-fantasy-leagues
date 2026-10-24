@@ -40,10 +40,19 @@ const LEAGUES = [
 const id = () => Array.from(crypto.randomBytes(24), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
 
 async function down(pool) {
-  const { rows } = await pool.query(`SELECT id, group_id FROM leagues WHERE slug LIKE 'zt-%'`);
+  const { rows } = await pool.query(`SELECT id, group_id, couch_id FROM leagues WHERE slug LIKE 'zt-%'`);
   const groups = [...new Set(rows.map((r) => r.group_id).filter(Boolean))];
+  const couches = [...new Set(rows.map((r) => r.couch_id).filter(Boolean))];
   await pool.query(`DELETE FROM leagues WHERE slug LIKE 'zt-%'`); // memberships cascade
   if (groups.length) await pool.query(`DELETE FROM league_groups WHERE id = ANY($1::uuid[])`, [groups]);
+  // Their couches (a fixture's own, or one the new design's home made for them), once nothing real is on them.
+  if (couches.length) {
+    await pool.query(
+      `DELETE FROM couches c WHERE c.id = ANY($1::uuid[]) AND NOT EXISTS (SELECT 1 FROM leagues l WHERE l.couch_id = c.id)
+          AND NOT EXISTS (SELECT 1 FROM couch_members m JOIN "user" u ON u.id = m.user_id WHERE m.couch_id = c.id AND u.username NOT LIKE 'zt%')`,
+      [couches]
+    );
+  }
   await pool.query(`DELETE FROM "user" WHERE username = $1`, [USERNAME]); // sessions/accounts cascade
 }
 

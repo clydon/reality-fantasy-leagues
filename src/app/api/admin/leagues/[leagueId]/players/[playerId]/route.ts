@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
+import { leftLeague } from "@/lib/server/couches";
 
 // Port of SurvivorDraft's server/routes/admin.js DELETE /leagues/:leagueId/players/:playerId --
 // "deletes" a player without breaking history: renames to disabled_player_XXXX, flags it
@@ -19,5 +20,6 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagu
 
   await pool.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), leagueId]);
   await pool.query("DELETE FROM league_memberships WHERE league_id=$1 AND player_id=$2", [leagueId, playerId]);
+  await leftLeague(leagueId);
   return NextResponse.json({ ok: true, player: disabled });
 });

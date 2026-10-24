@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
+import { leftLeague } from "@/lib/server/couches";
 
 // Port of SurvivorDraft's server/routes/leagues.js POST /:leagueId/leave -- before the draft
 // starts, your roster slot is fully removed (it never held any points); once the draft has
@@ -31,6 +32,8 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   }
   await pool.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), leagueId]);
   await pool.query("DELETE FROM league_memberships WHERE id=$1", [membership.rows[0].id]);
+  // Off its couch too, unless another of the couch's leagues still has them (couches.ts).
+  await leftLeague(leagueId);
 
   return NextResponse.json({ ok: true });
 });

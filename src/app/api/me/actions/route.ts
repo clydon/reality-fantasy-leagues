@@ -2,16 +2,12 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSession } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
-import { actionItems } from "@/lib/game/action-items.js";
-import { commissionerItems } from "@/lib/game/commissioner-items";
-import { stampAirTimes } from "@/lib/server/air-times";
-import { showsResultsImmediately } from "@/lib/server/results-seen";
-import { leagueStates } from "@/lib/server/league-states";
+import { dueMoves } from "@/lib/server/due-moves";
 
 // What's waiting on the signed-in user across EVERY league they're in -- the app-wide action bar's
 // data (action-bar.tsx), so a lineup or a draft turn due in one league shows while another is open.
-// One query for all of them; actionItems is pure, so this is just a fan-out over league state.
-// Leagues in My Leagues order (alphabetical); items within a league keep actionItems' urgency order.
+// The leagues' items come from due-moves.ts (shared with the new design's home): one query for all of
+// them, then actionItems over each league's state.
 // `commish`: the leagues you run's own to-dos (commissioner-items.ts: invite players, schedule the
 // draft, reveal the next episode), for Overview's control room. Kept apart from `items` so the alert
 // strip, the league strip's dots and the reminder job read exactly what they did.
@@ -30,16 +26,6 @@ export const GET = apiRoute(async (req) => {
      ORDER BY li.created_at DESC`,
     [user.id]
   );
-  const immediate = await showsResultsImmediately(user.id);
-  const { rows: memberships } = await pool.query(
-    `SELECT l.id, l.name, m.player_id, m.role, m.results_seen_through FROM league_memberships m
-     JOIN leagues l ON l.id = m.league_id WHERE m.user_id=$1
-     ORDER BY l.name`,
-    [user.id]
-  );
-  // Polled every 30s: states through league-states.ts, fetched again only when one has changed.
-  const states = await leagueStates(memberships.map((r) => r.id));
-  const rows = memberships.filter((r) => states.has(r.id)).map((r) => ({ ...r, state: states.get(r.id)! }));
   const inviteItems = invites.map((r) => ({
     kind: "invite" as const,
     text: r.seat_name ? `You're invited to take over ${r.seat_name}'s team` : `You're invited to join ${r.league_name}`,
@@ -49,30 +35,6 @@ export const GET = apiRoute(async (req) => {
     leagueId: r.league_id as string,
     leagueName: r.league_name as string,
   }));
-  // One league's unreadable state costs that league's items, not the whole bar. Air times stamped
-  // first, so a lineup or pick whose episode has started isn't still listed as due.
-  const leagueItems = [];
-  const commish = [];
-  for (const r of rows) {
-    if (!r.player_id) continue;
-    try {
-      await stampAirTimes(pool, r.state);
-      // A late joiner who hasn't revealed anything yet is at the episode before their start (as in late-join.ts).
-      // Anyone else goes by their mark (results-seen.ts), or sees everything if they've opted out of
-      // spoiler protection; no mark yet counts as nothing revealed, so a waiver pickup (which says one of
-      // theirs left) never shows before they've looked.
-      const late = r.state.players?.find((p: { id: string }) => p.id === r.player_id)?.lateJoin;
-      const seen = late
-        ? (r.results_seen_through ?? (Number.isInteger(late.startEpisode) ? late.startEpisode - 1 : null))
-        : immediate
-          ? null
-          : (r.results_seen_through ?? 0);
-      leagueItems.push(...actionItems(r.state, r.player_id, seen, { commissioner: r.role === "commissioner" }).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })));
-      // None of these says anything about results, so the full state is safe to read.
-      if (r.role === "commissioner") commish.push(...commissionerItems(r.state).map((it) => ({ ...it, leagueId: r.id as string, leagueName: r.name as string })));
-    } catch (e) {
-      console.error(`[actions] league ${r.id}:`, e);
-    }
-  }
-  return NextResponse.json({ items: [...inviteItems, ...leagueItems], commish });
+  const { items, commish } = await dueMoves(user.id);
+  return NextResponse.json({ items: [...inviteItems, ...items], commish });
 });

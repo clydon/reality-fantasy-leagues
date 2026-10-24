@@ -18,7 +18,7 @@ else needs re-reading.
 | Step | What | State | Model / effort |
 |---|---|---|---|
 | 0a | Back up the live leagues | **done** 2026-10-24 (production backup restored and matched) | Opus · medium |
-| 0b | Backend foundation (couch, progress, schedule, roles, guard) | not started | Opus · high |
+| 0b | Backend foundation (couch, progress, schedule, roles, guard) | **done** 2026-10-24 on the branch (rehearsed on production's data; before it ships: a fresh backup and a Neon branch run, see As built) | Opus · high |
 | R1 | Rulebooks phase 1: schema, built-ins as blocks, How it works view model (logic only) | not started | Opus · high |
 | R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | not started | Opus · high |
 | R3 | Rulebooks phase 3: `rulebooks` tables, backfill, resolution behind a flag | not started | Opus · high |
@@ -258,6 +258,71 @@ All additive; the classic app keeps working untouched. One migration file per co
 - Done when migrations run clean on the local copy and a Neon branch, the classic app passes its existing
   checks unchanged, and the backfill gives the live couch one couch with three leagues and the right
   progress for each member.
+
+**As built (2026-10-24, on `new-design`).**
+- **Migrations 0100–0105**, one per concept, the two backfills in files of their own so they can run again
+  (idempotent: `tests/couch-backfill.test.js` runs them in a rolled-back transaction, `restore-leagues.js` after
+  restoring a backup from before 0100). 0100 `couches`, `couch_members` (owner / member), `couch_invites`,
+  `leagues.couch_id` (no ON DELETE: a couch with games can't be deleted). 0101: each linked group is one couch
+  (its name, else show and season), every other league a couch of its own (its name); everyone in its leagues
+  is on it; the owner is its maker if on it, else its earliest commissioner, else its earliest member. 0102
+  `show_follows`; 0103 fills it: each person's furthest mark per season, no mark = 0, forward only. 0104
+  `season_episodes.title`, `show_seasons.release` / `drop_at`, `shows.kind` (all competition). 0105 the
+  `admin` role.
+- **Changed from the plan: no weekly rows stored.** A guessed date in `season_episodes` would sit over the
+  wiki's real one in `season_air_dates`, the clock lineups lock by, and go stale when the premiere moves.
+  `src/lib/server/schedule.ts` lists a season's episodes from `episodeAirTime` (research's starts, the wiki,
+  weekly), titles from `season_episodes` else the wiki, runtimes from research else the season's
+  `episode_minutes`. `episodeAirTime` takes `release` (nightly steps a day, binge drops all at `dropAt`), but
+  the classic callers (`air-times.ts`, `db/reminders.js`, `db/waivers.js`, `db/auto-research.js`,
+  `db/bot-research.js`, `src/lib/admin-season.ts`) don't pass it, so everything stays weekly as today: pass it
+  there before a nightly or binge season goes live (step 14 at the latest).
+- **Rehearsed on production's data:** 0a's backup restored at the old schema, then 0100–0105 applied as a
+  deploy would: every league on a couch, the live couch one couch with its three leagues and all four members
+  (one owner), each person's progress the furthest of their leagues' marks, the backfills a no-op run again.
+  `scripts/dev-test/check-foundation-data.js` checks those rules on any database (counts only).
+- **Classic keeps it in step**, best effort after each write so nothing classic can fail on it
+  (`src/lib/server/couches.ts`, `follows.ts`): a new league is a couch of its own; joining (code, invite, admin)
+  puts you on its couch and following its season; leaving or an admin's removal takes you off once you're in
+  none of its leagues; deleting a league deletes its couch when that's empty; linking moves the league onto the
+  group's couch (one left empty is folded in and goes); unlinking gives it a couch of its own. Both writes in
+  `results-seen.ts` and the late-join route move the follow forward. `healCouches` (home, space) repairs a
+  league with no couch or a member not on it, which also covers the deploy window (the old code serving for a
+  few minutes after the migrations ran). *For step 9:* classic's leave suits implicit couches;
+  couch-only members need leaving a game and leaving a couch kept apart.
+- **Roles:** `requireLeagueRole` ranks member < admin < commissioner (`roles.ts`); classic routes still ask for
+  commissioner, so a Game admin is a member there. `PUT /api/leagues/[leagueId]/members/[userId]/role` and the
+  super-admin memberships route refuse to leave a league without a Commissioner. Leaving the league as its last
+  commissioner isn't blocked yet (classic has no hand-off screen): 6a's Members page should add it.
+- **Guard** (`src/lib/server/guard.ts`): `seenThrough` is the follow's mark, 0 when unknown, except that someone
+  with spoiler protection off sees everything on a season where they play an ordinary seat (as `results-seen.ts`:
+  late joiners always go by their mark); `throughEpisode` / `withinSeen` drop later and unknown episodes;
+  `secretFields` is `role` for a format with `roles` (Traitors) and `withoutSecrets` keeps it only for people
+  out by then; `shares` / `visibleFollows` hide a private or unfollowed show. Nobody else's progress is sent.
+- **Endpoints:** `GET /api/me/home` (couches with members, what each openly watches and the games; your shows
+  with where you are, `upNext`, `latestAired` and your games; `moves` and `backstage` from `due-moves.ts`,
+  which `/api/me/actions` now shares), `GET /api/couches/[couchId]`, `GET /api/seasons/[seasonId]/space?couch=`,
+  `PUT /api/me/follows/[seasonId]` (`seenThrough` is refused with 409 on a season you play: step 2's reveal
+  moves it). Game names come from `league-season.ts` `gameName`. Nothing polls them yet.
+- **Backups** include the four tables, a backup of a database without them goes without (`backup-common.js`
+  `LATER_TABLES`), and restoring one fills them in from 0101 and 0103. `check-backup-restore.js` covers both.
+- **Checks:** `tests/guard.test.js`, `tests/couch-backfill.test.js` (local database, skipped without it), release
+  cases in `tests/episode-schedule.test.js`; `scripts/dev-test/new-fixture.js` (a zt couch like the live one,
+  a Traitors season followed openly and privately, a league ready to link) and `check-foundation.js` (all of the
+  above over HTTP, then the data check). Classic unchanged: `check-chat-polls`, `check-up-next`, `check-reveal`
+  at 390 and `check-backup-restore` pass; `npm test` 398 pass, plus the 3 known tour-commissioner failures.
+- **Before 0b reaches production** (it ships with the branch, and nothing has been pushed): (1) a fresh backup,
+  0a's commands into a new folder (`backups/prod-<date>-pre-0b`), restored with `restore-leagues.js` until it
+  prints everything matches; (2) a Neon branch of production (Neon › Branches › New, e.g. `pre-0b-<date>`),
+  rehearsed from your own terminal with its connection string (the script refuses production's host):
+  ```
+  $env:REHEARSE_DATABASE_URL = "<the Neon branch's connection string>"
+  node scripts/rehearse-migrations.js
+  Remove-Item Env:REHEARSE_DATABASE_URL
+  ```
+  It applies the migrations to the branch and must end "all good"; (3) then deploy.
+- **For R1:** `shows.kind` has R1's four kinds; `secretFields` reads a format's `roles`, so R1's schema should
+  keep secret roles findable the same way (or change `secretFields` with it).
 
 ## Steps R1–R3: rulebooks, logic and data only
 

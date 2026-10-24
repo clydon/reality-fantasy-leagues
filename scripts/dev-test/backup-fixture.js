@@ -106,6 +106,12 @@ async function up(pool) {
   await pool.query(`INSERT INTO chat_reads (league_id, user_id, last_read_at) VALUES ($1, $2, now())`, [classic, me]);
   await pool.query(`INSERT INTO user_settings (user_id, show_results_immediately) VALUES ($1, true) ON CONFLICT (user_id) DO NOTHING`, [me]);
   await pool.query(`INSERT INTO notification_prefs (user_id, disabled) VALUES ($1, '["chat"]')`, [ann]);
+  // Couches and follows (step 0b): the group is one couch, with an invite code, and both people follow the season.
+  const couch = (await one(`INSERT INTO couches (name, created_by) VALUES ('ZT couch', $1) RETURNING id`, [me])).id;
+  await pool.query("UPDATE leagues SET couch_id = $1 WHERE id = ANY($2::uuid[])", [couch, [classic, roster, poolLeague]]);
+  await pool.query(`INSERT INTO couch_members (couch_id, user_id, role) VALUES ($1, $2, 'owner'), ($1, $3, 'member')`, [couch, me, ann]);
+  await pool.query(`INSERT INTO couch_invites (code, couch_id, created_by) VALUES ('ZTCOUCH1', $1, $2)`, [couch, me]);
+  await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, 4), ($3, $2, 0)`, [me, season, ann]);
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

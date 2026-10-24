@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { genJoinCode, slugify } from "@/lib/server/league-codes";
+import { couchForNewLeague } from "@/lib/server/couches";
 
 // Port of SurvivorDraft's server/routes/leagues.js POST / -- the creator becomes commissioner
 // and the first drafting player, same as that route.
@@ -37,6 +38,8 @@ export const POST = apiRoute(async (req) => {
     user.id,
     creator.id,
   ]);
+  // A classic league is a couch of its own (couches.ts).
+  await couchForNewLeague(league.id, user.id, league.name);
 
   return NextResponse.json({ league, state });
 });

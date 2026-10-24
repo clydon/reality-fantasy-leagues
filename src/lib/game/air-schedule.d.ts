@@ -7,6 +7,10 @@ export interface AirSeason {
   researchTime?: string | null;
   /** Research each episode this many hours after it airs (takes over from weekday/time). */
   researchDelayHours?: number | null;
+  /** How it airs (show_seasons.release, 0104): weekly when left out. */
+  release?: "weekly" | "nightly" | "binge" | null;
+  /** When a binge season drops every episode (show_seasons.drop_at). */
+  dropAt?: string | Date | null;
 }
 export function zonedToUtc(date: string, time: string, tz: string): Date;
 export function parseAirDate(text: string | null | undefined): string | null;

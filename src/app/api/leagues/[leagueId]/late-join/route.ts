@@ -5,6 +5,7 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { notifyLateJoinerStarted } from "@/lib/server/push-events";
 import { lateJoinGroup } from "@/lib/server/late-join";
+import { followLeagueProgress } from "@/lib/server/follows";
 
 // The step's linked group (docs/PLAN-linked-late-join.md): one answer for every linked league they
 // still have to start, prefilled from one they're already playing.
@@ -37,6 +38,9 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
       start - 1,
     ]);
   });
+  // Their follow of the season moves with the mark (follows.ts); forward only, so a later start here never
+  // takes back what another league of theirs has shown them.
+  await followLeagueProgress(user.id, leagueId);
   const name = StateLogic.getPlayer(state, playerId)?.name || (user as { username?: string | null }).username || user.name;
   notifyLateJoinerStarted(leagueId, name, start);
   return NextResponse.json(state);

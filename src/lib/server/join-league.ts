@@ -4,6 +4,8 @@ import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
 import { notifyMemberJoined } from "./push-events";
+import { joinedLeague } from "./couches";
+import { followLeagueProgress } from "./follows";
 
 export interface JoinLeagueResult {
   league: { id: string; name: string };
@@ -68,6 +70,10 @@ export async function joinLeague(
     );
     if (afterJoin) await afterJoin(client);
     await client.query("COMMIT");
+    // On the league's couch, and following its season (couches.ts, follows.ts): after the commit, so neither
+    // can cost the join.
+    await joinedLeague(league.id, user.id);
+    await followLeagueProgress(user.id, league.id);
     // After the commit, per notifyAfter's rule. Named as the league shows them (their player).
     const joinedAs = state.players.find((p) => p.id === playerId)?.name || (user as { username?: string | null }).username || user.name;
     // A late joiner (StateLogic.GhostLogic) is out of the league's sight: nobody hears they joined. Their

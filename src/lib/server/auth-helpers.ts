@@ -1,12 +1,14 @@
 import { auth } from "@/lib/auth";
 import { pool } from "./db";
 import { HttpError } from "./http-error";
+import { roleAtLeast } from "./roles";
 
 export type Session = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
 export type SessionUser = Session["user"];
 
 export interface LeagueMembership {
-  role: "member" | "commissioner";
+  /** "admin" is a Game admin (db/migrations/0105, roles.ts): a member as far as the classic app goes. */
+  role: "member" | "admin" | "commissioner";
   playerId: string | null;
 }
 
@@ -90,7 +92,7 @@ export async function requireSuperAdmin(req: Request): Promise<SessionUser> {
 export async function requireLeagueRole(
   req: Request,
   leagueId: string,
-  minRole: "member" | "commissioner"
+  minRole: "member" | "admin" | "commissioner"
 ): Promise<{ user: SessionUser; membership: LeagueMembership }> {
   const user = await requireAuth(req);
   if (!UUID_RE.test(leagueId)) throw new HttpError(404, "League not found");
@@ -102,7 +104,7 @@ export async function requireLeagueRole(
   ]);
   if (rows.length) {
     const role: LeagueMembership["role"] = isSuperAdmin ? "commissioner" : rows[0].role;
-    if (minRole === "commissioner" && role !== "commissioner") throw new HttpError(403, "Commissioner only");
+    if (!roleAtLeast(role, minRole)) throw new HttpError(403, minRole === "commissioner" ? "Commissioner only" : "Game admins only");
     return { user, membership: { role, playerId: rows[0].player_id } };
   }
   if (isSuperAdmin) {

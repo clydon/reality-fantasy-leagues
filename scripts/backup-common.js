@@ -9,16 +9,32 @@ const crypto = require("crypto");
 
 // Every table a backup holds, in three groups. People are only those the other rows point at.
 const LEAGUE_TABLES = [
-  "leagues", "league_memberships", "league_groups", "league_invites", "league_rulesets", "waiver_claims",
+  "leagues", "league_memberships", "league_groups", "couches", "couch_members", "couch_invites", "league_invites", "league_rulesets", "waiver_claims",
   "blind_draft_picks", "episode_team_notes", "league_applied_decisions", "chat_messages", "chat_reactions",
   "chat_reads", "wiki_proposals", "wiki_proposal_items",
 ];
 const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
-  "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions", "season_episodes",
+  "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions", "season_episodes", "show_follows",
 ];
 const PEOPLE_TABLES = ["user", "user_settings", "notification_prefs"];
 const TABLES = [...LEAGUE_TABLES, ...SEASON_TABLES, ...PEOPLE_TABLES];
+
+// Tables a database has only from a migration on (docs/PLAN-new-design.md step 0b), and the files that fill them
+// in from the leagues. A backup of a database from before it simply hasn't got them; restoring that backup runs
+// the fill-in files, so the restore has them as the migration would have made them.
+const LATER_TABLES = {
+  couches: { since: "0100", fill: "0101_couches_backfill.sql" },
+  couch_members: { since: "0100", fill: "0101_couches_backfill.sql" },
+  couch_invites: { since: "0100", fill: null },
+  show_follows: { since: "0102", fill: "0103_show_follows_backfill.sql" },
+};
+
+/** Whether the database has this table. */
+async function hasTable(db, table) {
+  const { rows } = await db.query("SELECT to_regclass($1) IS NOT NULL AS ok", [`public.${q(table)}`]);
+  return rows[0].ok;
+}
 
 const q = (ident) => `"${ident.replace(/"/g, '""')}"`;
 
@@ -77,4 +93,4 @@ async function rowLines(db, table, cols, pk, where = "TRUE", params = []) {
 
 const hashLines = (lines) => crypto.createHash("sha256").update(lines.join("\n")).digest("hex");
 
-module.exports = { LEAGUE_TABLES, SEASON_TABLES, PEOPLE_TABLES, TABLES, q, describeUrl, columnsOf, primaryKeyOf, foreignKeys, rowLines, hashLines };
+module.exports = { LEAGUE_TABLES, SEASON_TABLES, PEOPLE_TABLES, TABLES, LATER_TABLES, q, hasTable, describeUrl, columnsOf, primaryKeyOf, foreignKeys, rowLines, hashLines };

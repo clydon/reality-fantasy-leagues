@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
+import { joinedLeague } from "@/lib/server/couches";
+import { lastCommissionerProblem, LEAGUE_ROLES, type LeagueRole } from "@/lib/server/roles";
 
 // Port of SurvivorDraft's server/routes/admin.js GET/POST /leagues/:leagueId/memberships.
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
@@ -29,9 +31,13 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     playerId?: string;
     role?: string;
   };
-  if (!userId || !playerId || (role !== "commissioner" && role !== "member")) {
+  if (!userId || !playerId || !LEAGUE_ROLES.includes(role as LeagueRole)) {
     throw new HttpError(400, "userId, playerId, and a valid role are required");
   }
+  // A league always keeps a Commissioner (roles.ts).
+  const { rows: roles } = await pool.query("SELECT user_id, role FROM league_memberships WHERE league_id=$1", [leagueId]);
+  const problem = lastCommissionerProblem(roles.map((r) => ({ userId: r.user_id, role: r.role })), userId, role as LeagueRole);
+  if (problem) throw new HttpError(409, problem);
 
   try {
     const { rows } = await pool.query(
@@ -40,6 +46,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
        RETURNING id, player_id, role, user_id`,
       [leagueId, userId, playerId, role]
     );
+    await joinedLeague(leagueId, userId);
     return NextResponse.json({ membership: rows[0] });
   } catch (e) {
     if ((e as { code?: string }).code === "23505") {

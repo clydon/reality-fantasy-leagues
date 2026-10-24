@@ -1,6 +1,7 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { pool } from "./db";
+import { followLeagueProgress } from "./follows";
 
 // Spoiler protection's server half (db/migrations/0034): each member's "seen results through
 // episode N" mark. The client trims anything later out of what it displays
@@ -32,6 +33,8 @@ export async function resultsSeenThrough(userId: string, leagueId: string, state
   if (rows[0].results_seen_through !== null) return rows[0].results_seen_through;
   const latest = StateLogic.SpoilerLogic.latestWithResults(state);
   await pool.query("UPDATE league_memberships SET results_seen_through=$3 WHERE league_id=$1 AND user_id=$2", [leagueId, userId, latest]);
+  // The new design's progress moves with every mark (follows.ts).
+  await followLeagueProgress(userId, leagueId);
   return latest;
 }
 
@@ -42,6 +45,7 @@ export async function markResultsSeen(userId: string, leagueId: string, n: numbe
       WHERE league_id=$1 AND user_id=$2`,
     [leagueId, userId, n]
   );
+  await followLeagueProgress(userId, leagueId);
 }
 
 /** Splits accounts into those who see results immediately (opted out) and those protected from them. */

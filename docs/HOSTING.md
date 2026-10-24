@@ -161,3 +161,11 @@ never handles it: the user does the reset and the pasting.
   corrected to 8:00 PM (was 8:05). Migration 0068 adds the bot's schedule check (when the next episode airs and how
   long it runs, nothing to review): one bot question per episode, so a few minutes of Neon compute per episode night. Survivor 51's bot research is back on
   with only that check: its first run is 2026-10-29 02:00 UTC (Wednesday 10 PM Eastern, half an hour after episode 6).
+- **2026-10-24, on the `new-design` branch (not deployed).** Step 0b's migrations 0100–0105 add four small tables:
+  `couches`, `couch_members`, `couch_invites` (a row per couch, per person on it, per code) and `show_follows` (a row
+  per person per season they follow or play): a few KB today, growing with people, not with play. Nothing new
+  polls or runs on a schedule. Each classic reveal, join, late-join start, league made, left, linked or unlinked
+  adds one or two tiny queries. The new design's `/api/me/home` and `/api/seasons/[id]/space` read only the fields
+  they show (no league state but the action items', through `league-states.ts`) and aren't polled yet: whatever
+  polls them later should poll something smaller. The rehearsal before deploying uses a third Neon branch (of the
+  10 allowed); delete it once 0b is live.

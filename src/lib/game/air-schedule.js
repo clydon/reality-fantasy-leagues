@@ -89,9 +89,11 @@ function exactAirTime(text) {
 /**
  * When episode `n` airs, or null when there's nothing to go on. An exact start research confirmed wins
  * (a special at another time), then the wiki's printed date (it knows about double episodes and weeks
- * off); otherwise weekly from the latest dated episode before it, else from the premiere.
+ * off); otherwise weekly from the latest dated episode before it, else from the premiere. A season that
+ * airs nightly (show_seasons.release, 0104) steps a day at a time instead; a binge season drops every
+ * episode at once, at dropAt. Every caller that leaves `release` out gets weekly, as every season is today.
  *
- * season: { premiereDate, airTime, airTz }
+ * season: { premiereDate, airTime, airTz, release?, dropAt? }
  * wikiAirDates: { [episodeNumber]: "March 1, 2023" | "2026-11-06T01:00:00Z" } (the season_air_dates view)
  */
 function episodeAirTime(season, n, wikiAirDates) {
@@ -101,8 +103,13 @@ function episodeAirTime(season, n, wikiAirDates) {
   if (exact) return exact;
   const fromWiki = parseAirDate(wikiAirDates && wikiAirDates[n]);
   if (fromWiki) return zonedToUtc(fromWiki, time, tz);
-  // Weekly from the latest earlier episode with a date (so a week off or a moved night carries forward),
-  // else from the premiere. Either one is enough on its own. An exact start anchors by its local date,
+  if (season.release === "binge") {
+    const drop = season.dropAt ? new Date(season.dropAt) : null;
+    return drop && !Number.isNaN(drop.getTime()) ? drop : null;
+  }
+  const step = season.release === "nightly" ? 1 : 7;
+  // Weekly (or nightly) from the latest earlier episode with a date (so a week off or a moved night carries
+  // forward), else from the premiere. Either one is enough on its own. An exact start anchors by its local date,
   // so one special at 9 PM doesn't move the episodes after it.
   let anchorN = season.premiereDate ? 1 : null;
   let anchorDate = season.premiereDate ? String(season.premiereDate).slice(0, 10) : null;
@@ -115,7 +122,7 @@ function episodeAirTime(season, n, wikiAirDates) {
     }
   }
   if (anchorDate === null) return null;
-  return zonedToUtc(addDays(anchorDate, 7 * (n - anchorN)), time, tz);
+  return zonedToUtc(addDays(anchorDate, step * (n - anchorN)), time, tz);
 }
 
 /**

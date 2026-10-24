@@ -11,6 +11,9 @@
 // Prints a diff: each table's rows in the backup and in the restore, and each league's state hash. Rows
 // that point at something outside the backup (a --group backup leaves other leagues out) are loaded the way
 // deleting that something would leave them, and the diff says so. Exits 1 on any other difference.
+//
+// A backup taken before step 0b's migrations has no couches or follows (backup-common.js LATER_TABLES): they're
+// filled in from the restored leagues by the same files the migrations ran (0101, 0103), and listed as such.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
@@ -28,14 +31,14 @@ const withDb = (url, name) => {
 
 /** Insert order: every table after the tables it points at; a cycle is broken by filling a nullable
  *  column in afterwards (`deferred`). */
-function insertOrder(fks) {
+function insertOrder(fks, tables) {
   const done = new Set();
   const order = [];
   // A table pointing at itself fills that column in afterwards.
-  const deferred = fks.filter((f) => f.table === f.refTable && C.TABLES.includes(f.table));
+  const deferred = fks.filter((f) => f.table === f.refTable && tables.includes(f.table));
   if (deferred.some((f) => f.notNull)) throw new Error("a table points at itself through a required column");
-  const open = (t) => fks.filter((f) => f.table === t && f.refTable !== t && C.TABLES.includes(f.refTable) && !done.has(f.refTable) && !deferred.includes(f));
-  let remaining = [...C.TABLES];
+  const open = (t) => fks.filter((f) => f.table === t && f.refTable !== t && tables.includes(f.refTable) && !done.has(f.refTable) && !deferred.includes(f));
+  let remaining = [...tables];
   while (remaining.length) {
     let next = remaining.filter((t) => !open(t).length);
     if (!next.length) {
@@ -98,12 +101,17 @@ async function main() {
   if (new URL(base).pathname.slice(1) === into) throw new Error("that's the dev database");
 
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
+  // A backup of a database from before a later table's migration hasn't got it (C.LATER_TABLES): those are
+  // filled in from the leagues after loading, as the migration would have.
+  const tables = C.TABLES.filter((t) => manifest.tables[t]);
+  const notBackedUp = C.TABLES.filter((t) => !manifest.tables[t]);
+  for (const t of notBackedUp) if (!C.LATER_TABLES[t]) throw new Error(`the backup has no ${t}.json`);
   const rows = {};
   // First, that each file is what the backup wrote: its rows, as written (one per line, joined by ",\n",
   // which can't occur inside one), hash to the manifest's. Otherwise "the restore matches the file" proves
   // nothing about the database it came from.
   const changed = new Set();
-  for (const t of C.TABLES) {
+  for (const t of tables) {
     const text = fs.readFileSync(path.join(dir, `${t}.json`), "utf8");
     rows[t] = JSON.parse(text);
     const body = text.startsWith("[\n") && text.endsWith("\n]\n") ? text.slice(2, -3) : null;
@@ -137,9 +145,9 @@ async function main() {
     if (missing.length) console.log(`[restore] the backup's database had migrations this code doesn't: ${missing.join(", ")}`);
     if (extra.length) console.log(`[restore] this code has migrations the backup's database hadn't run: ${extra.join(", ")}`);
 
-    const fks = (await C.foreignKeys(pool)).filter((f) => C.TABLES.includes(f.table));
+    const fks = (await C.foreignKeys(pool)).filter((f) => tables.includes(f.table));
     const notes = settleReferences(rows, fks);
-    const { order, deferred } = insertOrder(fks);
+    const { order, deferred } = insertOrder(fks, tables);
 
     const db = await pool.connect();
     try {
@@ -167,6 +175,9 @@ async function main() {
           ]);
         }
       }
+      for (const fill of [...new Set(notBackedUp.map((t) => C.LATER_TABLES[t].fill).filter(Boolean))]) {
+        await db.query(fs.readFileSync(path.join(__dirname, "..", "db", "migrations", fill), "utf8"));
+      }
       await db.query("COMMIT");
     } catch (e) {
       await db.query("ROLLBACK").catch(() => {});
@@ -179,7 +190,12 @@ async function main() {
     await pool.query("SET TIME ZONE 'UTC'");
     const width = Math.max(...C.TABLES.map((t) => t.length));
     console.log(`\n  ${"table".padEnd(width)}  backup  restored`);
-    for (const t of C.TABLES) {
+    for (const t of notBackedUp) {
+      const { rows: n } = await pool.query(`SELECT count(*)::int AS n FROM ${C.q(t)}`);
+      const how = C.LATER_TABLES[t].fill ? `filled in from the leagues (${C.LATER_TABLES[t].fill})` : "none";
+      console.log(`  ${t.padEnd(width)}       -  ${String(n[0].n).padStart(8)}  not in the backup (made before ${C.LATER_TABLES[t].since}): ${how}`);
+    }
+    for (const t of tables) {
       const m = manifest.tables[t];
       const targetCols = await C.columnsOf(pool, t);
       const cols = m.columns.filter((c) => targetCols.includes(c));
@@ -220,7 +236,7 @@ async function main() {
       if (!ok) failures++;
       console.log(`  ${l.slug.padEnd(width)}  ${l.stateHash.slice(0, 8)}  ${(h || "missing").slice(0, 8)}  ${ok ? "same" : "DIFFERENT"}`);
     }
-    console.log(failures ? `\n[restore] ${failures} differences` : `\n[restore] everything matches: ${C.TABLES.length} tables, ${manifest.leagues.length} leagues' state`);
+    console.log(failures ? `\n[restore] ${failures} differences` : `\n[restore] everything matches: ${tables.length} tables, ${manifest.leagues.length} leagues' state`);
   } finally {
     await pool.end();
     if (drop) await admin.query(`DROP DATABASE IF EXISTS ${C.q(into)} WITH (FORCE)`);

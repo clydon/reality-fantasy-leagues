@@ -46,6 +46,19 @@ test("a confirmed start wins over the wiki's printed date for the same episode",
   assert.equal(iso(Air.episodeAirTime(season, 5, dates)), "2026-11-05T02:00:00.000Z");
 });
 
+test("how a season airs (show_seasons.release, 0104): weekly unless it says nightly or binge", () => {
+  assert.equal(iso(Air.episodeAirTime({ ...season, release: "weekly" }, 3, {})), iso(Air.episodeAirTime(season, 3, {})), "weekly is the default");
+  const nightly = { ...season, release: "nightly" };
+  assert.equal(iso(Air.episodeAirTime(nightly, 1, {})), "2026-10-08T00:00:00.000Z"); // Oct 7, 8 PM EDT
+  assert.equal(iso(Air.episodeAirTime(nightly, 3, {})), "2026-10-10T00:00:00.000Z", "a day apart");
+  assert.equal(iso(Air.episodeAirTime(nightly, 5, { 3: "2026-10-11T00:00:00Z" })), "2026-10-13T00:00:00.000Z", "nightly from a moved one");
+  const binge = { ...season, release: "binge", dropAt: "2026-11-14T08:00:00Z" };
+  assert.equal(iso(Air.episodeAirTime(binge, 1, {})), "2026-11-14T08:00:00.000Z");
+  assert.equal(iso(Air.episodeAirTime(binge, 8, {})), "2026-11-14T08:00:00.000Z", "every episode drops at once");
+  assert.equal(Air.episodeAirTime({ ...binge, dropAt: null }, 1, {}), null, "no drop date: nothing to go on");
+  assert.equal(iso(Air.episodeAirTime(binge, 2, { 2: "2026-11-21T08:00:00Z" })), "2026-11-21T08:00:00.000Z", "a confirmed start still wins");
+});
+
 test("nextEpisodeFrom: what research says, cleaned up", () => {
   const now = new Date("2026-10-29T03:00:00Z");
   const opts = { tz: "America/New_York", airTime: "20:00", now };

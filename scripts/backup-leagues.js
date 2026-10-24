@@ -1,8 +1,9 @@
 // Backs up everything the couch has played, before the new design changes anything (docs/PLAN-new-design.md,
 // step 0a): the leagues with their state, members, groups, invites, rulesets, waiver claims, blind draft
-// picks, team notes, applied results and chat; their seasons' shows, formats, cast, results, rule changes,
-// research and wiki reads; and the people those rows point at (user, settings, notification prefs: never
-// sessions, accounts or passwords).
+// picks, team notes, applied results and chat; their couches (step 0b); their seasons' shows, formats, cast,
+// results, rule changes, research, wiki reads and who follows them; and the people those rows point at (user,
+// settings, notification prefs: never sessions, accounts or passwords). A database from before step 0b's
+// migrations has no couches or follows yet, and its backup goes without them.
 //
 //   node scripts/backup-leagues.js <outDir>                       every league, every season (the default)
 //   node scripts/backup-leagues.js <outDir> --group=<group id>    one linked group's leagues and their seasons
@@ -31,6 +32,9 @@ const GROUP_SLICES = {
   leagues: "id = ANY($L::uuid[])",
   league_memberships: "league_id = ANY($L::uuid[])",
   league_groups: "id IN (SELECT group_id FROM leagues WHERE id = ANY($L::uuid[]))",
+  couches: "id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[]))",
+  couch_members: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[]))",
+  couch_invites: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[]))",
   league_invites: "league_id = ANY($L::uuid[])",
   league_rulesets: "league_id = ANY($L::uuid[]) OR id IN (SELECT ruleset_id FROM leagues WHERE id = ANY($L::uuid[]))",
   waiver_claims: "league_id = ANY($L::uuid[])",
@@ -50,6 +54,7 @@ const GROUP_SLICES = {
   season_decisions: "season_id = ANY($S::uuid[])",
   season_rule_changes: "season_id = ANY($S::uuid[])",
   season_episodes: "season_id = ANY($S::uuid[])",
+  show_follows: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
   episode_research: "(show_id, season_number) IN (SELECT show_id, season_number FROM show_seasons WHERE id = ANY($S::uuid[]))",
   episode_research_items: `league_id = ANY($L::uuid[]) AND research_id IN (SELECT er.id FROM episode_research er
       JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number WHERE ss.id = ANY($S::uuid[]))`,
@@ -116,7 +121,14 @@ async function main() {
       lines[table] = await C.rowLines(db, table, cols, pk, ...bind(where, { L: leagueIds, S: seasonIds, X: extra }));
       parsed[table] = lines[table].map((l) => JSON.parse(l));
     };
-    for (const table of [...C.LEAGUE_TABLES, ...C.SEASON_TABLES]) await take(table, groupId ? GROUP_SLICES[table] : "TRUE");
+    // A database from before a later table's migration (C.LATER_TABLES) hasn't got it: the backup goes without.
+    const present = [];
+    for (const table of C.TABLES) if (await C.hasTable(db, table)) present.push(table);
+    for (const table of C.TABLES.filter((t) => !present.includes(t))) {
+      if (!C.LATER_TABLES[table]) throw new Error(`the database has no ${table} table`);
+      console.log(`[backup] no ${table} table (it comes with migration ${C.LATER_TABLES[table].since}): left out`);
+    }
+    for (const table of [...C.LEAGUE_TABLES, ...C.SEASON_TABLES].filter((t) => present.includes(t))) await take(table, groupId ? GROUP_SLICES[table] : "TRUE");
 
     // Rows pointed at from outside their slice, then the people every row so far points at.
     for (const table of PULLED) {
@@ -141,7 +153,7 @@ async function main() {
 
     fs.mkdirSync(outDir, { recursive: true });
     const tables = {};
-    for (const table of C.TABLES) {
+    for (const table of present) {
       fs.writeFileSync(path.join(outDir, `${table}.json`), `[\n${lines[table].join(",\n")}\n]\n`, "utf8");
       tables[table] = { rows: lines[table].length, hash: C.hashLines(lines[table]), ...meta[table] };
     }
@@ -156,8 +168,8 @@ async function main() {
     };
     fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n", "utf8");
 
-    const width = Math.max(...C.TABLES.map((t) => t.length));
-    for (const t of C.TABLES) console.log(`  ${t.padEnd(width)}  ${String(tables[t].rows).padStart(6)}`);
+    const width = Math.max(...present.map((t) => t.length));
+    for (const t of present) console.log(`  ${t.padEnd(width)}  ${String(tables[t].rows).padStart(6)}`);
     console.log(`[backup] ${leagues.length} leagues, ${seasonIds.length} seasons, ${tables.user.rows} people -> ${outDir}`);
   } catch (e) {
     await db.query("ROLLBACK").catch(() => {});
