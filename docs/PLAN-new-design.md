@@ -8,10 +8,10 @@ live couch has played. It is the "second-pass drill-down" that `PLAN-couch-and-e
 for; where the two disagree, this file and the mock win.
 
 **How to use this file.** It's written to be read in parts. Every session reads **Status** (the table just
-below), **The approach**, the **Rules for every session**, and then only its own step's section. Each step
-ends by updating its Status row and adding an **As built** note under its section (what changed, what was
-decided on the way, what the next step should know). That's the continuity between sessions; nothing
-else needs re-reading.
+below), **The approach**, the **Rules for every session**, **Noticed, not fixed** (what earlier steps saw and left
+for a later one), and then only its own step's section. Each step ends by updating its Status row, adding an
+**As built** note under its section (what changed, what was decided on the way, what the next step should know)
+and bringing Noticed, not fixed up to date. That's the continuity between sessions; nothing else needs re-reading.
 
 ## Status
 
@@ -122,8 +122,32 @@ their own step, against the screen that needs them, so nothing is designed specu
 - **Done means:** real data, the area's fixtures and Preview entries removed, a check script added or
   extended in `scripts/dev-test/` and passing, type-check and lint clean, checked at 390px in a real
   browser (memory: always-verify-locally), committed. Pushing to production: ask the user.
+- **Noticed, not fixed** (the list below): at the start, read it for anything your step touches and fix it if the
+  step is the right place (or say why not); at the end, add anything you noticed and left alone, with the step
+  that could take it, and take out what you fixed.
 - **End**: update Status and your step's As built; recommend whether to start a fresh session and give a
   seed prompt with model and effort (memory: new-session-handoff).
+
+## Noticed, not fixed
+
+Behaviour a session saw and left alone because it wasn't that step's to change. Each says what happens, where, and
+the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
+step's As built.
+
+- **Told a move is due while behind on results** (step 1; for step 2). Someone who hasn't revealed the latest results is
+  still told their lineup or pick is due (the home's moves: `action-items.js` reads the full state), and the card opens
+  "Reveal Episode N first" in the sheet. Classic's action bar and pick page do the same. Step 2's reveal could word the
+  card as one move ("Reveal Episode 4, then set your lineup"). `action-items.js` is shared with classic and the
+  reminder job (`db/reminders.js`), so change the new design's wording, not the item.
+- **The dock's clock when only a waiver pickup is due** (step 1; for 6a). The dock says "Locks Tue 8:00 PM · in 3 days"
+  (airtime) even when the only thing due is a pickup, whose own deadline is sooner (Mon 8 PM). `show/dock.tsx`: say the
+  soonest move's deadline, as Tonight's cards do.
+- **Predictions are a text field** (step 1; for 12). Real predictions are free-text questions with free-text guesses
+  (`Bet` has no options), so the sheet's Predictions tab has a field where the mock has chips. Step 12's Call it and
+  polls could give a prediction options (a cast pick, yes / no) and bring the chips back.
+- **Two names for one person** (step 1; for 15). The tables and who's set show a league's player name (alex), the couch
+  line the account's (zt_nd_alex in the fixture), so a face can carry two initials. Step 15's profile (name, picture,
+  colour) is the place to make one name win everywhere.
 
 ## What exists, what's needed
 
@@ -896,10 +920,8 @@ The show space plays on real leagues. No migration; nothing polled or scheduled 
   first). `tests/game-view.test.js` (6). `check-new-shell.js` (How it works is `[data-how]` now), `check-new-hub.js` and
   `check-preview.js` pass; `npm test` 468 pass plus the 3 known tour-commissioner failures; type-check clean, lint as
   before.
-- **Noticed, left as is:** the home's moves (action-items.js) list a lineup or pick as due for someone behind on results
-  (the card then opens Reveal first, as classic's pick page does); the dock says "Locks <airtime>" even when only a
-  waiver pickup is due, whose deadline is earlier; table avatars use the league's player name (alex) where the couch line
-  uses the account's (zt_nd_alex in the fixture).
+- **Noticed, left as is:** four things, now in Noticed, not fixed (near the top): told a move is due while behind on
+  results, the dock's clock for a waiver pickup, predictions as a text field, two names for one person.
 - **For step 2:** `show.reveal` (the sheet's Reveal first) and the Episodes tab; `GameView.revealFirst` per game says what
   each still hides; `through` is each game's standings episode.
 
