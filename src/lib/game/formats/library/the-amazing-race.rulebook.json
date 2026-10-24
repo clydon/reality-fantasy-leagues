@@ -873,7 +873,8 @@
             "answer": "teamSwitchesDetour",
             "greaterThan": 0
           },
-          "award": "teamSwitchesDetour"
+          "award": "teamSwitchesDetour",
+          "per": "teamSwitchesDetour"
         },
         {
           "when": {
@@ -1013,7 +1014,8 @@
             "answer": "teamMakesNavigationMistake",
             "greaterThan": 0
           },
-          "award": "teamMakesNavigationMistake"
+          "award": "teamMakesNavigationMistake",
+          "per": "teamMakesNavigationMistake"
         },
         {
           "when": {
@@ -1027,14 +1029,16 @@
             "answer": "teamHelpsAnotherTeam",
             "greaterThan": 0
           },
-          "award": "teamHelpsAnotherTeam"
+          "award": "teamHelpsAnotherTeam",
+          "per": "teamHelpsAnotherTeam"
         },
         {
           "when": {
             "answer": "teamArgues",
             "greaterThan": 0
           },
-          "award": "teamArgues"
+          "award": "teamArgues",
+          "per": "teamArgues"
         },
         {
           "when": {
@@ -1048,7 +1052,8 @@
             "answer": "teamReceivesPenalty",
             "greaterThan": 0
           },
-          "award": "teamReceivesPenalty"
+          "award": "teamReceivesPenalty",
+          "per": "teamReceivesPenalty"
         },
         {
           "when": {
@@ -1062,14 +1067,16 @@
             "answer": "teamCompletesTaskFirstTry",
             "greaterThan": 0
           },
-          "award": "teamCompletesTaskFirstTry"
+          "award": "teamCompletesTaskFirstTry",
+          "per": "teamCompletesTaskFirstTry"
         },
         {
           "when": {
             "answer": "teamGetsTaskHelp",
             "greaterThan": 0
           },
-          "award": "teamGetsTaskHelp"
+          "award": "teamGetsTaskHelp",
+          "per": "teamGetsTaskHelp"
         }
       ],
       "implied": [

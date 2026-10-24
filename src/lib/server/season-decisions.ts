@@ -32,6 +32,8 @@ interface DecisionRow {
   event_type: string;
   /** A finalist elimination's jury votes received (0036), when research found them. */
   jury_votes: number | null;
+  /** An event's count (0106: 3 home runs), when research reported one. NUMERIC, so text. */
+  units: string | null;
   applied: { castawayName?: string; method?: string; eventType?: string } | null;
   decided_at: Date;
 }
@@ -71,6 +73,8 @@ export async function seasonCastRefs(client: PoolClient, seasonId: string | null
   return rows;
 }
 
+const unitsOf = (d: DecisionRow): number | null => (d.units != null ? Number(d.units) : null);
+
 function applyDecision(state: LeagueState, d: DecisionRow, cast: CastRef): { detail?: LedgerDetail; skip?: string } {
   const name = d.applied?.castawayName || d.castaway_name;
   // By the season cast link first (docs/PLAN-universal-season-cast.md, piece 7); the loose name match
@@ -98,8 +102,12 @@ function applyDecision(state: LeagueState, d: DecisionRow, cast: CastRef): { det
   if (d.kind === "event") {
     const type = d.applied?.eventType || d.event_type;
     const existing = (ep.scoringEvents || []).find((e) => e.type === type && e.castawayId === castaway.id);
-    if (existing) return { detail: { ...base, eventType: type, eventId: existing.id, preexisting: true } };
-    const ev = StateLogic.ActiveRosterLogic.addEvent(state, ep.id, type, castaway.id);
+    if (existing) {
+      // Already there (entered by hand, say): still take a count it doesn't have yet.
+      if (existing.units == null && unitsOf(d) != null) StateLogic.ActiveRosterLogic.setEventUnits(state, ep.id, existing.id, unitsOf(d));
+      return { detail: { ...base, eventType: type, eventId: existing.id, preexisting: true } };
+    }
+    const ev = StateLogic.ActiveRosterLogic.addEvent(state, ep.id, type, castaway.id, unitsOf(d));
     if (!ev) return { skip: `"${type}" isn't a recognized scoring event` };
     return { detail: { ...base, eventType: type, eventId: ev.id } };
   }
@@ -174,7 +182,7 @@ export async function syncLeagueDecisions(
   const gate = StateLogic.RevealLogic.revealedThrough(state);
   const { rows: accepted } = seasonId
     ? await client.query<DecisionRow>(
-        `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, jury_votes, applied, decided_at
+        `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, jury_votes, units, applied, decided_at
            FROM season_decisions
           WHERE season_id=$1 AND status='accepted' AND ($2::int IS NULL OR episode_number <= $2)
             AND ($3::timestamptz IS NULL OR decided_at >= $3)
@@ -248,6 +256,15 @@ export async function syncLeagueDecisions(
     const { castaway } = StateLogic.Core.findSeasonCastaway(state, d.applied?.castawayName || d.castaway_name, cast);
     const ev = ep && castaway ? (ep.events || []).find((e) => e.castawayId === castaway.id) : null;
     if (ep && castaway && ev && ev.juryVotes !== d.jury_votes) StateLogic.setJuryVotes(state, ep.id, castaway.id, d.jury_votes);
+  }
+  // A count, the same way: filled in or corrected on the accepted decision after its event was applied.
+  for (const d of accepted) {
+    if (d.kind !== "event" || d.units == null || !current.has(d.id)) continue;
+    const ep = state.episodes.find((e) => e.number === d.episode_number);
+    const { castaway } = StateLogic.Core.findSeasonCastaway(state, d.applied?.castawayName || d.castaway_name, cast);
+    const type = d.applied?.eventType || d.event_type;
+    const ev = ep && castaway ? (ep.scoringEvents || []).find((e) => e.type === type && e.castawayId === castaway.id) : null;
+    if (ep && ev && (ev.units ?? 1) !== unitsOf(d)) StateLogic.ActiveRosterLogic.setEventUnits(state, ep.id, ev.id, unitsOf(d));
   }
 
   if (eliminationsChanged) orderPlacementsByEpisode(state);

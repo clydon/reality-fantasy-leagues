@@ -118,7 +118,7 @@ function YourWeekPlate({ state, ep }: { state: LeagueState; ep: Episode }) {
   const allEvents = StateLogic.ActiveRosterLogic.episodeEvents(state, ep);
   const myEvents = allEvents.filter((ev) => lineup.has(ev.castawayId));
   const pts = (evs: typeof allEvents) =>
-    StateLogic.roundPoints(evs.reduce((sum, ev) => sum + StateLogic.ActiveRosterLogic.pointsFor(state, ev.type), 0));
+    StateLogic.roundPoints(evs.reduce((sum, ev) => sum + StateLogic.ActiveRosterLogic.eventPoints(state, ev), 0));
   // Your bench that week: castaways you own who weren't in its lineup. Ownership is today's (a swap
   // since then can shift it), which is fine for a "you left this on the bench" nudge.
   const mine = new Set(state.castaways.filter((c) => (c.ownerIds || []).includes(me)).map((c) => c.id));

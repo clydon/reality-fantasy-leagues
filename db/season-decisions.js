@@ -44,7 +44,7 @@ function canonicalName(castState, name) {
 /**
  * Upserts one read's worth of decisions for a season.
  *
- *   items   -- [{ episode, postMerge, kind, name, method, eventType, confidence, sources }]
+ *   items   -- [{ episode, postMerge, kind, name, method, eventType, confidence, sources, juryVotes?, units? }]
  *   source  -- "wiki" | "research"
  *   refId   -- the wiki_extractions / episode_research row they came from
  *   scope   -- { episode } limits the stale-row cleanup to one episode (research is per episode;
@@ -73,8 +73,8 @@ async function stageDecisions(pool, seasonId, items, source, refId, scope = {}) 
         // the source listed it.
         `INSERT INTO season_decisions
            (season_id, episode_number, post_merge, kind, castaway_name, method, event_type, confidence,
-            from_wiki, from_research, extraction_id, research_id, sources, jury_votes, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$15, clock_timestamp())
+            from_wiki, from_research, extraction_id, research_id, sources, jury_votes, units, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$15,$16, clock_timestamp())
          ON CONFLICT (season_id, episode_number, kind, castaway_name, event_type)
          DO UPDATE SET
            from_wiki     = season_decisions.from_wiki OR EXCLUDED.from_wiki,
@@ -88,6 +88,9 @@ async function stageDecisions(pool, seasonId, items, source, refId, scope = {}) 
            -- count) -- syncLeagueDecisions then tops up the leagues' elimination with it.
            jury_votes    = CASE WHEN season_decisions.status = 'pending' THEN COALESCE(EXCLUDED.jury_votes, season_decisions.jury_votes)
                                 ELSE COALESCE(season_decisions.jury_votes, EXCLUDED.jury_votes) END,
+           -- A count (0106: 3 home runs), the same way: a re-read moves a pending one, never a decided one.
+           units         = CASE WHEN season_decisions.status = 'pending' THEN COALESCE(EXCLUDED.units, season_decisions.units)
+                                ELSE COALESCE(season_decisions.units, EXCLUDED.units) END,
            -- Merge status: the wiki's read wins while it's pending; research (which asks "merged") can
            -- only turn it on, so an episode it couldn't place doesn't undo what the wiki said.
            post_merge    = CASE WHEN season_decisions.status = 'pending' AND (EXCLUDED.from_wiki OR EXCLUDED.post_merge) THEN EXCLUDED.post_merge ELSE season_decisions.post_merge END,
@@ -111,6 +114,7 @@ async function stageDecisions(pool, seasonId, items, source, refId, scope = {}) 
           it.sources || [],
           CONFIDENCE_RANK[it.confidence] || 3,
           Number.isInteger(it.juryVotes) ? it.juryVotes : null,
+          Number.isFinite(it.units) && it.units > 0 ? it.units : null,
         ]
       );
       ids.push(rows[0].id);

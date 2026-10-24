@@ -127,7 +127,7 @@ function profiles(state) {
     ActiveRosterLogic.episodeEvents(state, ep).forEach((ev) => {
       const p = out[ev.castawayId];
       if (!p) return;
-      p.form += w * ActiveRosterLogic.pointsFor(state, ev.type);
+      p.form += w * ActiveRosterLogic.eventPoints(state, ev);
       if (SIGNALS.danger.has(ev.type)) p.danger += w;
       if (SIGNALS.safe.has(ev.type)) p.safe += w;
       if (SIGNALS.threat.has(ev.type)) p.threat += w;

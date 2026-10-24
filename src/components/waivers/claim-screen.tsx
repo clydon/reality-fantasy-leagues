@@ -30,9 +30,8 @@ export function castawayPts(state: LeagueState, c: Castaway): number {
 
 /** The player's castaways out of the game and not yet replaced (not the winner), oldest first. */
 export function unreplaced(state: LeagueState, me: string): Castaway[] {
-  const winner = StateLogic.formatOf(state).winnerExitMethod;
   return state.castaways
-    .filter((c) => c.ownerIds.includes(me) && c.status === "eliminated" && !c.replenishClaimed && c.exitMethod !== winner)
+    .filter((c) => c.ownerIds.includes(me) && c.status === "eliminated" && !c.replenishClaimed && !StateLogic.isWinnerExit(state, c.exitMethod))
     .sort((a, b) => (a.placementOrder ?? 0) - (b.placementOrder ?? 0));
 }
 
@@ -122,9 +121,8 @@ export function YourTeam({
 }) {
   const name = useCastNames(state);
   const shared = isShared(state);
-  const winner = StateLogic.formatOf(state).winnerExitMethod;
   const team = state.castaways
-    .filter((c) => c.ownerIds.includes(me) && c.exitMethod !== winner && !(c.status !== "active" && c.replenishClaimed))
+    .filter((c) => c.ownerIds.includes(me) && !StateLogic.isWinnerExit(state, c.exitMethod) && !(c.status !== "active" && c.replenishClaimed))
     .sort((a, b) => Number(a.status !== "active") - Number(b.status !== "active") || castawayPts(state, b) - castawayPts(state, a));
   const pairs = claim?.pairs ?? [];
   const swapsPlanned = new Set(pairs.filter((x) => StateLogic.getCastaway(state, x.dropId)?.status === "active").map((x) => x.dropId));

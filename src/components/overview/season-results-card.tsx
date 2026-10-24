@@ -24,8 +24,7 @@ export function SeasonResultsCard({ state }: { state: LeagueState }) {
   // Shared first place: everyone level with the leader on what the standings rank by.
   const champs = scores.filter((r) => r.total === top.total && (!pickem || (r.longestStreak ?? 0) === (top.longestStreak ?? 0)));
   const rest = scores.slice(champs.length, 3);
-  const winnerMethod = StateLogic.formatOf(state).winnerExitMethod;
-  const showWinner = state.castaways.find((c) => c.exitMethod === winnerMethod);
+  const showWinner = StateLogic.seasonWinner(state);
   const score = (r: (typeof scores)[number]) => (pickem ? `${r.longestStreak ?? 0} streak` : `${r.total} pts`);
 
   return (

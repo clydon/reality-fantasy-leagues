@@ -303,8 +303,16 @@ declare const StateLogic: {
   inPlay(state: LeagueState, episodeNumber: number): boolean;
   /** Whether the episode has started airing (its server-stamped airsAt has passed). */
   hasAired(ep: Episode | null | undefined, now?: number): boolean;
+  /** Whether an exit method crowns the winner (never, for a format nobody wins, or a null method). */
+  isWinnerExit(state: LeagueState, method: string | null | undefined): boolean;
+  /** Whoever won the season, or null (not yet, or a format nobody wins). */
+  seasonWinner(state: LeagueState): Castaway | null;
+  /** The season is over: its winner crowned, or, in a format nobody wins, nobody left in it. */
+  seasonEnded(state: LeagueState): boolean;
   ActiveRosterLogic: {
     pointsFor(state: LeagueState, type: string): number;
+    /** One event's points: its type's, times its units (a count research reported). */
+    eventPoints(state: LeagueState, ev: Pick<ScoringEvent, "type" | "units">): number;
     activeSlots(state: LeagueState): number;
     benchSlots(state: LeagueState): number;
     /** This episode's lineup, or (if never set for it) the most recent earlier one, still-owned and capped. */
@@ -317,8 +325,9 @@ declare const StateLogic: {
     lockLineups(state: LeagueState, epId: string): boolean;
     unlockLineups(state: LeagueState, epId: string): boolean;
     carryForwardLineups(state: LeagueState, epId: string): boolean;
-    addEvent(state: LeagueState, epId: string, type: string, castawayId: string): ScoringEvent | null;
+    addEvent(state: LeagueState, epId: string, type: string, castawayId: string, units?: number | null): ScoringEvent | null;
     removeEvent(state: LeagueState, epId: string, eventId: string): void;
+    setEventUnits(state: LeagueState, epId: string, eventId: string, units: number | null): boolean;
     /** Recorded events plus the ones the format implies from exits and roles (`implied: true`). */
     episodeEvents(state: LeagueState, ep: Episode): ScoringEvent[];
   };
@@ -528,7 +537,8 @@ declare const StateLogic: {
   setActiveRosterLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;
   lockActiveRosterLineups(state: LeagueState, epId: string): boolean;
   unlockActiveRosterLineups(state: LeagueState, epId: string): boolean;
-  addScoringEvent(state: LeagueState, epId: string, type: string, castawayId: string): ScoringEvent | null;
+  addScoringEvent(state: LeagueState, epId: string, type: string, castawayId: string, units?: number | null): ScoringEvent | null;
+  setScoringEventUnits(state: LeagueState, epId: string, eventId: string, units: number | null): boolean;
   removeScoringEvent(state: LeagueState, epId: string, eventId: string): void;
   pickEmPickFor(state: LeagueState, epId: string, playerId: string): PickEmPick | null;
   /**

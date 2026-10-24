@@ -74,6 +74,9 @@ const SEED_CASTAWAYS = ['Aaliyah','Alexis','Ana','Brady','Carter','Cristian','De
 //
 // A league's own ruleset copy (settings.leagueRulesetData, db/league-rulesets.js) wins over all of
 // that when present -- a commissioner's fork, forever ahead of whatever the show's format does next.
+// A compiled rulebook (settings.rulebook: { data, reader }, written by the server from step R3 on,
+// docs/PLAN-rulebooks-implementation.md decision 3) wins over everything: it already holds whatever
+// the league follows or made its own.
 //
 // On top of whichever base that is go the season rule changes this league's commissioner adopted
 // (settings.adoptedRuleChanges, docs/PLAN-season-rule-changes.md): additive, and gated by episode, so
@@ -81,9 +84,11 @@ const SEED_CASTAWAYS = ['Aaliyah','Alexis','Ana','Brady','Carter','Cristian','De
 // until one is adopted -- gets the base itself, untouched.
 function formatOf(state){
   const s = state && state.settings ? state.settings : {};
-  const base = s.leagueRulesetData
-    ? Formats.formatForRuleset(s.leagueRulesetData)
-    : Formats.formatFor(s.showFormat || null, s.showFormatData || null);
+  const base = s.rulebook && s.rulebook.data
+    ? Formats.formatForRulebook(s.rulebook.data, s.rulebook.reader)
+    : s.leagueRulesetData
+      ? Formats.formatForRuleset(s.leagueRulesetData)
+      : Formats.formatFor(s.showFormat || null, s.showFormatData || null);
   const adopted = s.adoptedRuleChanges;
   if(!Array.isArray(adopted) || !adopted.length) return base;
   try { return Formats.withChanges(base, adopted); }
@@ -105,6 +110,32 @@ function startEpisode(state){
   return Number.isInteger(n) && n >= 1 ? n : 1;
 }
 function inPlay(state, episodeNumber){ return episodeNumber >= startEpisode(state); }
+
+// Who won, and when the season is over. The format's winner exit method crowns the winner (Survivor's
+// Sole Survivor). A format nobody wins -- a series, a talk show, a sport's standings: winnerExitMethod
+// null (formats/rulebook-compile.js) -- crowns no one, and someone still in the game (exitMethod null)
+// never matches. Such a season is over once nobody is left in it (everyone has left, by an ending, a
+// finish or a way out); one nobody leaves (a talk show) runs on.
+function isWinnerExit(state, method){
+  const w = formatOf(state).winnerExitMethod;
+  return w != null && method === w;
+}
+function seasonWinner(state){ return (state.castaways || []).find(c => isWinnerExit(state, c.exitMethod)) || null; }
+function seasonEnded(state){
+  if(formatOf(state).winnerExitMethod != null) return !!seasonWinner(state);
+  const cast = state.castaways || [];
+  return cast.length > 0 && cast.every(c => c.status === 'eliminated');
+}
+// The episode that ended the season: the winner's, or (nobody wins) the last one anyone left in.
+// Null while it runs, or when that episode is missing.
+function finaleEpisodeOf(state){
+  const episodes = state.episodes || [];
+  const winner = seasonWinner(state);
+  if(winner) return episodes.find(e => e.id === winner.exitEpisodeId) || null;
+  if(!seasonEnded(state)) return null;
+  const exits = new Set((state.castaways || []).map(c => c.exitEpisodeId));
+  return episodes.filter(e => exits.has(e.id)).sort((a,b) => b.number - a.number)[0] || null;
+}
 
 // Whether an episode has started airing: ep.airsAt is stamped by the server from the season's
 // schedule (src/lib/server/air-times.ts) and absent when there's no schedule or the league is
@@ -646,6 +677,14 @@ class ActiveRosterLogic {
     const def = formatOf(state).events.find(e => e.id === type);
     return defaultPointsFor(def, ownershipModeOf(state));
   }
+  // Points for one recorded or implied event: its type's points, times its units when it counts more
+  // than one (a `per` rule's count, formats/rules.js: 3 home runs, 6.67 innings). One unit is the type's
+  // points exactly.
+  static eventPoints(state, ev){
+    const units = ev && Number.isFinite(ev.units) && ev.units > 0 ? ev.units : 1;
+    const points = ActiveRosterLogic.pointsFor(state, ev.type);
+    return units === 1 ? points : points * units;
+  }
   static activeSlots(state){ return (state.settings && state.settings.activeSlots) || 0; }
   static benchSlots(state){ return (state.settings && state.settings.benchSlots) || 0; }
 
@@ -774,7 +813,8 @@ class ActiveRosterLogic {
   // PickEmScoringStrategy. Writing an "immunity win" into it would make Pick'em score that castaway
   // as voted out and make episode deletion try to un-eliminate them. Two genuinely different things
   // (a structural season fact vs. a point-earning occurrence), so they get two fields.
-  static addEvent(state, epId, type, castawayId){
+  // `units`: how many it counts for, when more than one (a count research reported, eventPoints).
+  static addEvent(state, epId, type, castawayId, units){
     const ep = state.episodes.find(e => e.id === epId);
     const c = Core.getCastaway(state, castawayId);
     if(!ep || !c || !type) return null;
@@ -785,8 +825,18 @@ class ActiveRosterLogic {
     if(Number.isInteger(def.retiredFrom) && ep.number >= def.retiredFrom) return null;
     if(!ep.scoringEvents) ep.scoringEvents = [];
     const ev = { id: Core.uid('sev'), type, castawayId };
+    if(Number.isFinite(units) && units > 0 && units !== 1) ev.units = units;
     ep.scoringEvents.push(ev);
     return ev;
+  }
+  // A recorded event's count, corrected (a re-research found 3 home runs, not 2). 1 or nothing clears it.
+  static setEventUnits(state, epId, eventId, units){
+    const ep = state.episodes.find(e => e.id === epId);
+    const ev = ep && (ep.scoringEvents || []).find(x => x.id === eventId);
+    if(!ev) return false;
+    if(Number.isFinite(units) && units > 0 && units !== 1) ev.units = units;
+    else delete ev.units;
+    return true;
   }
   static removeEvent(state, epId, eventId){
     const ep = state.episodes.find(e => e.id === epId);
@@ -925,7 +975,7 @@ class ActiveRosterEventScoringStrategy {
         state.players.forEach(p=>{
           const lineup = ActiveRosterLogic.lineupFor(state, ep.id, p.id);
           if(lineup.includes(ev.castawayId)){
-            results[p.id].locked = roundPoints(results[p.id].locked + ActiveRosterLogic.pointsFor(state, ev.type));
+            results[p.id].locked = roundPoints(results[p.id].locked + ActiveRosterLogic.eventPoints(state, ev));
           }
         });
       });
@@ -2213,9 +2263,8 @@ class WaiverLogic {
     if(rule === 'never' || MidSeasonLogic.seasonOver(state)) return none;
     if(!inLeagueRotation(Core.getPlayer(state, playerId))) return none;
     if(rule === 'windows' && !WaiverLogic.isWindow(period)) return none;
-    const winnerMethod = formatOf(state).winnerExitMethod;
     const losses = state.castaways
-      .filter(c => ownerListOf(c).includes(playerId) && c.status === 'eliminated' && !c.replenishClaimed && c.exitMethod !== winnerMethod)
+      .filter(c => ownerListOf(c).includes(playerId) && c.status === 'eliminated' && !c.replenishClaimed && !isWinnerExit(state, c.exitMethod))
       .sort((a,b) => (a.placementOrder || 0) - (b.placementOrder || 0))
       .map(c => c.id);
     let count = losses.length;
@@ -2669,7 +2718,7 @@ class WaiverLogic {
     state.episodes.forEach(ep => {
       if(!inPlay(state, ep.number)) return;
       ActiveRosterLogic.episodeEvents(state, ep).forEach(ev => {
-        if(ev.castawayId === castawayId) total += ActiveRosterLogic.pointsFor(state, ev.type);
+        if(ev.castawayId === castawayId) total += ActiveRosterLogic.eventPoints(state, ev);
       });
     });
     return roundPoints(total);
@@ -2763,12 +2812,11 @@ class EpisodeLogic {
       (ep.picks||[]).length > 0 || Object.values(ep.lineups||{}).some(ids => (ids||[]).length > 0));
   }
   // Live mode's half of ensureNextEpisode: the latest episode is the upcoming one until it has
-  // results, then the next one is created. Stops once a winner is crowned (the format's winner exit
-  // method -- Survivor's is Sole Survivor).
+  // results, then the next one is created. Stops once the season is over (seasonEnded: a winner is
+  // crowned by the format's winner exit method -- Survivor's is Sole Survivor -- or, where nobody wins,
+  // nobody is left).
   static ensureUpcoming(state){
-    const winnerMethod = formatOf(state).winnerExitMethod;
-    const seasonOver = state.castaways.some(c => c.exitMethod === winnerMethod);
-    if(seasonOver) return false;
+    if(seasonEnded(state)) return false;
     const maxNum = state.episodes.length ? Math.max(...state.episodes.map(e=>e.number)) : 0;
     const latest = state.episodes.find(e=>e.number===maxNum);
     if(latest && !EpisodeLogic.hasResults(latest)) return false;
@@ -2784,16 +2832,14 @@ class EpisodeLogic {
   //                  the one after.
   //   live        -- the latest episode, until it has results; then the next one (ensureUpcoming).
   //
-  // Once a winner is crowned nothing more is created, and any trailing episode that is completely
-  // empty (no results, bets or picks) and numbered after the winner's episode is removed -- the
-  // reveal of the finale creates a "next" episode before anyone has confirmed the winner, and it
-  // shouldn't outlive that. Returns true if it changed anything.
+  // Once the season is over (a winner crowned, or, where nobody wins, nobody left) nothing more is
+  // created, and any trailing episode that is completely empty (no results, bets or picks) and
+  // numbered after the finale is removed -- the reveal of the finale creates a "next" episode before
+  // anyone has confirmed the winner, and it shouldn't outlive that. Returns true if it changed anything.
   static ensureNextEpisode(state){
     if(!Array.isArray(state.episodes)) state.episodes = [];
-    const winnerMethod = formatOf(state).winnerExitMethod;
-    const winner = (state.castaways||[]).find(c => c.exitMethod === winnerMethod);
-    if(winner){
-      const finale = state.episodes.find(e => e.id === winner.exitEpisodeId);
+    if(seasonEnded(state)){
+      const finale = finaleEpisodeOf(state);
       if(!finale) return false;
       const before = state.episodes.length;
       state.episodes = state.episodes.filter(e =>
@@ -2875,8 +2921,8 @@ class EpisodeLogic {
         const already = (ep.scoringEvents || []).some(x => x.type === sev.type && x.castawayId === castaway.id);
         if(already){ result.skipped.push(`${castaway.name} (${sev.type}, ep ${ep.number})`); return; }
         // addEvent rejects a type that isn't in the format's catalog, so an unknown type can't land
-        // here even if it survived the connector's own validation.
-        const added = ActiveRosterLogic.addEvent(state, ep.id, sev.type, castaway.id);
+        // here even if it survived the connector's own validation. `units`: a count research reported.
+        const added = ActiveRosterLogic.addEvent(state, ep.id, sev.type, castaway.id, sev.units);
         if(added) result.events.push({ episode: ep.number, name: castaway.name, type: sev.type });
         else result.skipped.push(`${castaway.name} (unknown event type "${sev.type}")`);
       });
@@ -3108,10 +3154,7 @@ class RevealLogic {
   // True once the revealed results have crowned a winner (results only land in state when their
   // episode is revealed, so a winner here is one the league has seen). Nothing is left to reveal
   // then -- without this the panel kept offering "episode N+1" past the finale.
-  static isComplete(state){
-    const winnerMethod = formatOf(state).winnerExitMethod;
-    return (state.castaways||[]).some(c => c.exitMethod === winnerMethod);
-  }
+  static isComplete(state){ return seasonEnded(state); }
   // The episode a reveal would show next, or null in live mode (nothing to reveal -- it's already
   // all visible).
   static nextEpisode(state){
@@ -3205,8 +3248,7 @@ class SpoilerLogic {
     // Pickups and add/drops since their mark, and those weeks' waivers (docs/PLAN-midseason-waivers.md).
     WaiverLogic.redact(s, seenThrough);
     // The finale's real answers only exist once the winner is out; hidden, they'd spoil the finale.
-    const winnerMethod = formatOf(s).winnerExitMethod;
-    if(!s.castaways.some(c => c.exitMethod === winnerMethod)) s.finaleActual = { top3: [null, null, null], winner: null };
+    if(!seasonWinner(s)) s.finaleActual = { top3: [null, null, null], winner: null };
     return s;
   }
 }
@@ -3755,7 +3797,7 @@ return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
   LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize, originalDraftPicks,
-  formatOf, startEpisode, inPlay, hasAired,
+  formatOf, startEpisode, inPlay, hasAired, isWinnerExit, seasonWinner, seasonEnded,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct
@@ -3798,7 +3840,7 @@ return {
   // keeps call sites unambiguous about which kind.
   activeRosterLineupFor: ActiveRosterLogic.lineupFor, setActiveRosterLineup: ActiveRosterLogic.setLineup,
   lockActiveRosterLineups: ActiveRosterLogic.lockLineups, unlockActiveRosterLineups: ActiveRosterLogic.unlockLineups,
-  addScoringEvent: ActiveRosterLogic.addEvent, removeScoringEvent: ActiveRosterLogic.removeEvent,
+  addScoringEvent: ActiveRosterLogic.addEvent, removeScoringEvent: ActiveRosterLogic.removeEvent, setScoringEventUnits: ActiveRosterLogic.setEventUnits,
   pickEmPickFor: PickEmLogic.pickFor, pickEmEligibility: PickEmLogic.eligibility, pickEmHistory: PickEmLogic.history,
   pickEmUpcomingEpisode: PickEmLogic.upcomingEpisode, currentEpisode,
   setPickEmPick: PickEmLogic.setPick, removePickEmPick: PickEmLogic.removePick,

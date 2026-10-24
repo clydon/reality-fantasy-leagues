@@ -1689,9 +1689,13 @@ function itemsFromChecklist(entry, format, payload, episode) {
   };
   const ctx = { payload, same: (a, b) => who(a) === who(b), episode };
   const items = [];
-  // `method` is only for a role (the role value); an event's identity is its eventType.
-  const add = (kind, eventType, method = "") =>
-    items.push({ castawayName: entry.name, kind, eventType, method, confidence: entry.confidence, sources: entry.sources || [] });
+  // `method` is only for a role (the role value); an event's identity is its eventType. `units` only for a
+  // count (a rule's `per`: 3 home runs), which rides on the one item.
+  const add = (kind, eventType, method = "", units) =>
+    items.push({
+      castawayName: entry.name, kind, eventType, method, confidence: entry.confidence, sources: entry.sources || [],
+      ...(units != null ? { units } : {}),
+    });
   // Leaving the game is the one result every format shares. It used to come only from the wiki's
   // tables (research was an add-on), so research -- and a paste, which is research -- never staged
   // an elimination: the person who went home was simply missing from review.
@@ -1751,6 +1755,7 @@ async function stageResearchDecisions(pool, run, opts = {}) {
     method: c.method || "",
     eventType: c.eventType,
     juryVotes: Number.isInteger(c.juryVotes) ? c.juryVotes : null,
+    units: c.units != null ? c.units : null,
     confidence: c.confidence,
     sources: c.sources,
   }));

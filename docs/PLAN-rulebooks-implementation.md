@@ -30,7 +30,7 @@ says where each phase goes. The logic, data and API in this file still hold.
 | Phase | What | Built in (`PLAN-new-design.md`) | Status |
 |---|---|---|---|
 | 1 | Schema module, hand-written blocks for the three built-ins, read-only "How the season works" | R1 (logic only; the page is step 1) | **done** 2026-10-24 (logic; `PLAN-new-design.md` R1 As built lists the schema changes) |
-| 2 | The compiler, legacy freeze, engine relaxations | R2 | **started** 2026-10-24: `rulebook-compile.js` core and `formatProblems` taking no winner (`PLAN-new-design.md` R1 As built); the golden tests and the rest are R2's |
+| 2 | The compiler, legacy freeze, engine relaxations | R2 | **done** 2026-10-24 (`PLAN-new-design.md` R2 As built). Changed from this plan: a rulebook compiles on top of the format data it was frozen from (`base`), not through `aliases.questions`; `per` scores one result carrying `units` (migration 0106); `number` questions for amounts |
 | 3 | Database: `rulebooks`, `rulebook_edits`; migration; resolution through rulebooks | R3 | not started |
 | 4 | Admin editor (six blocks, every sheet) on season rulebooks | 6b (admin Find) | not started |
 | 5 | Timeline edits: show changed / fix, reach, league fan-out, rescore | 6b | not started |

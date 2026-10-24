@@ -31,7 +31,9 @@ const RESEARCH_CODE = ['entryProblems', 'notes', 'sentences'];
 // Code a format MAY supply: episodeProblems(payload) checks answers against each other across the whole
 // cast (who attended Tribal against who won immunity, say), repairing what it must and reporting it.
 const RESEARCH_OPTIONAL_CODE = ['episodeProblems'];
-const ROLES_DATA = ['default', 'values'];
+// `becomes` (optional): a recorded value that makes someone another role ("Recruited Traitor" -> "Traitor"),
+// read by a data-only format's roleFor (custom.js); a built-in's own roleFor says it in code.
+const ROLES_DATA = ['default', 'values', 'becomes'];
 const ROLES_CODE = ['roleFor'];
 // Keys research's episode-level answer already has (db/episode-research.js researchSchemaFor).
 const EPISODE_RESERVED = ['episodeTitle', 'airDate', 'summary', 'rulesNote', 'castaways', 'betAnswers', 'merged', 'sourcesRead'];
@@ -64,8 +66,8 @@ function formatProblems(data) {
   if (!isTextList(exits, { empty: false })) p.push('exitMethods: a non-empty list of names');
   else if (new Set(exits).size !== exits.length) p.push('exitMethods: a name is listed twice');
   const exitList = Array.isArray(exits) ? exits : [];
-  // Null: nobody wins (a series, a talk show; a compiled rulebook, rulebook-compile.js). A league can't play
-  // one of those yet: state-logic's season-over reads assume a winner (docs/PLAN-rulebooks-implementation.md 4.6).
+  // Null: nobody wins (a series, a talk show, a sport's standings; a compiled rulebook, rulebook-compile.js).
+  // state-logic then ends the season when nobody is left in it, and never crowns anyone.
   const noWinner = data.winnerExitMethod === null;
   if (!noWinner && !exitList.includes(data.winnerExitMethod)) p.push('winnerExitMethod: not one of the exit methods');
   if (!isTextList(data.endgameExitMethods) || !data.endgameExitMethods.every((m) => exitList.includes(m))) {
@@ -119,6 +121,17 @@ function formatProblems(data) {
   if ('roles' in data) {
     p.push(...unknownKeys(data.roles, ROLES_DATA, 'roles'));
     if (!data.roles || !isText(data.roles.default) || !isTextList(data.roles.values, { empty: false })) p.push('roles: a default and a list of values');
+    else if ('becomes' in data.roles) {
+      const b = data.roles.becomes;
+      const roles = [data.roles.default, ...data.roles.values];
+      if (!b || typeof b !== 'object' || Array.isArray(b)) p.push('roles.becomes: an object of value -> role');
+      else {
+        for (const [k, v] of Object.entries(b)) {
+          if (!data.roles.values.includes(k)) p.push(`roles.becomes: ${k} isn't one of the role values`);
+          if (!roles.includes(v)) p.push(`roles.becomes.${k}: ${v} isn't a role in this format`);
+        }
+      }
+    }
   }
 
   const w = data.wiki;

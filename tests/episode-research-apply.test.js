@@ -158,3 +158,30 @@ test("inLeague: true once a row's result is in the episode, by whichever path", 
   assert.equal(inLeague(s, 1, { kind: "elimination", castawayName: "Ada Lovelace", eventType: "" }), true);
   assert.equal(inLeague(s, 1, { kind: "elimination", castawayName: "Alan Turing", eventType: "" }), false);
 });
+
+// A count rides on its decision (0106: units, NUMERIC, so Postgres hands it over as text) onto the league's event,
+// and a corrected count reaches an event already applied. A league on a compiled rulebook with counted moments.
+test("a count research reported reaches the league on its event, and a corrected one follows (step R2)", async () => {
+  const { compileRulebook } = require("../src/lib/game/formats/rulebook-compile.js");
+  const { LIBRARY } = require("../src/lib/game/formats/library/index.js");
+  const s = league();
+  s.settings.rulebook = { data: compileRulebook(LIBRARY["world-series"].blocks, { id: "world-series" }).data, reader: "research" };
+  const world = season(s);
+  const decidedAt = new Date("2026-10-08T12:00:00Z");
+  world.decisions = [{ id: "d-hr", episode_number: 1, post_merge: false, kind: "event", castaway_name: "Grace Hopper", method: "", event_type: "homeRun", jury_votes: null, units: "3", applied: null, decided_at: decidedAt }];
+  world.accepted = new Set(["d-hr"]);
+  const homeRun = () => s.episodes.find((e) => e.number === 1).scoringEvents.find((e) => e.type === "homeRun");
+  await syncLeagueDecisions(fakeClient(world), "league-a", s);
+  assert.equal(homeRun().units, 3);
+  assert.equal(StateLogic.ActiveRosterLogic.eventPoints(s, homeRun()), 15, "5 a home run, three of them");
+  world.decisions[0].units = "4";
+  await syncLeagueDecisions(fakeClient(world), "league-a", s);
+  assert.equal(homeRun().units, 4, "re-research corrected the count on the accepted decision");
+
+  // The commissioner's own apply carries it too.
+  const t = league();
+  t.settings.rulebook = s.settings.rulebook;
+  applyResearchDecisions(t, 1, [{ kind: "event", castawayName: "Grace Hopper", eventType: "inningsPitched", units: 6.67 }]);
+  const innings = t.episodes.find((e) => e.number === 1).scoringEvents.find((e) => e.type === "inningsPitched");
+  assert.equal(innings.units, 6.67);
+});

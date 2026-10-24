@@ -1,7 +1,9 @@
 // Survivor as a rulebook's blocks (docs/PLAN-rulebooks-implementation.md 4.5), hand-written from
 // survivor.js. Until someone edits it, the season plays by survivor.js's data exactly (the legacy freeze);
-// these blocks are what How it works shows, and what R2's compiler must turn back into the same scoring.
+// these blocks are what How it works shows, and what the compiler turns back into the same scoring (on
+// survivor.js's data as its base, rulebook-compile.js; tests/rulebook-golden.test.js proves it).
 //
+// `points` carries survivor.js's own values, so How it works and a compiled rulebook score as it does, and
 // `aliases` keeps every recorded result working: `events` maps a moment these blocks build to the event id
 // leagues have already recorded and score (only where the two differ), and `exits` maps each way out to the
 // exit method string castaways carry. Every survivor.js event is built here exactly once (tests/rulebooks
@@ -73,6 +75,26 @@ module.exports = {
       { id: 'learnedOfAdvantage', label: 'Learned of an idol or advantage privately', during: { twist: 'advantages' }, counted: 'yesNo', answeredBy: 'research', reliability: 'patchy' },
       { id: 'wentToExile', label: 'Sent to Exile', question: 'This episode, who was sent to Exile?', during: { twist: 'journeys' }, counted: 'yesNo', answeredBy: 'research', reliability: 'reliable' },
     ],
+    // The format's own points where they differ from the templates' suggestions.
+    points: {
+      rewardChallengeWon: { exclusive: 1, shared: 1.5 },
+      chosenForReward: 0.5,
+      immunityChallengeWon: { exclusive: 3, shared: 4 },
+      immunityChallengeSecond: { exclusive: 1.5, shared: 2 },
+      immunityChallengeThird: 1,
+      satOut: -0.5,
+      tribalCouncilZeroVotes: { exclusive: 0.5, shared: 1 },
+      tribalCouncilSurvivedVotes: 1.5,
+      tribalCouncilVotedWithMajority: { exclusive: 0.5, shared: 1 },
+      advantagesUsedAgainst: -0.5,
+      lostFireMaking: -1,
+      quit: -5,
+      medicallyEvacuated: 0,
+      finalist: { exclusive: 2, shared: 3 },
+      soleSurvivor: { exclusive: 1, shared: 3 },
+      finaleJuryVote: { exclusive: 0.5, shared: 1 },
+      finaleNoJuryVotes: { exclusive: -2, shared: -3 },
+    },
     leftOut: [],
   },
   aliases: {

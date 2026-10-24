@@ -153,7 +153,10 @@ test("formatFor resolves a stored format from its data, and never shadows a buil
   assert.equal(Formats.formatFor("other-id", data).id, "survivor", "data for a different id is ignored");
   assert.equal(Formats.formatFor("traitors", { ...data, id: "traitors" }).id, "traitors", "a built-in id is always the built-in");
   assert.ok(Formats.isBuiltInFormat("generic") && !Formats.isBuiltInFormat(data.id) && !Formats.isBuiltInFormat("toString"));
-  assert.throws(() => buildDataFormat({ ...data, roles: { default: "A", values: ["B"] } }), /can't have secret roles/);
+  // Secret roles in a data-only format (step R2): a recorded value is the role it names, unless `becomes` maps it.
+  const roles = buildDataFormat({ ...data, roles: { default: "A", values: ["B", "Recruited B"], becomes: { "Recruited B": "B" } } }).roles;
+  assert.deepEqual([roles.roleFor("B"), roles.roleFor("Recruited B")], ["B", "B"]);
+  assert.match(Formats.formatProblems({ ...data, roles: { default: "A", values: ["B"], becomes: { C: "B" } } }).join(), /roles.becomes: C isn't one of the role values/);
 });
 
 test("an approved proposal runs through research and scoring end to end", () => {

@@ -8,7 +8,7 @@ export interface Moment {
   from: { segment?: string; twist?: string; wayOut?: string; finale?: true; custom?: string };
   defaultPoints: Points;
   /** What research asks to know it. Several moments can share one question. */
-  ask?: { key: string; type: "answer" | "integer" | "string"; question: string };
+  ask?: { key: string; type: "answer" | "integer" | "number" | "string"; question: string };
   /** Known without asking about it: how someone left, a role, other answers. */
   auto?: true;
   custom?: true;

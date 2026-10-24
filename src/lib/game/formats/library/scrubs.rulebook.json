@@ -756,7 +756,8 @@
             "answer": "medicalMistake",
             "greaterThan": 0
           },
-          "award": "medicalMistake"
+          "award": "medicalMistake",
+          "per": "medicalMistake"
         },
         {
           "when": {
@@ -770,7 +771,8 @@
             "answer": "mentorshipMoment",
             "greaterThan": 0
           },
-          "award": "mentorshipMoment"
+          "award": "mentorshipMoment",
+          "per": "mentorshipMoment"
         },
         {
           "when": {
@@ -791,7 +793,8 @@
             "answer": "argument",
             "greaterThan": 0
           },
-          "award": "argument"
+          "award": "argument",
+          "per": "argument"
         },
         {
           "when": {
@@ -805,21 +808,24 @@
             "answer": "fantasySequence",
             "greaterThan": 0
           },
-          "award": "fantasySequence"
+          "award": "fantasySequence",
+          "per": "fantasySequence"
         },
         {
           "when": {
             "answer": "imaginaryScenario",
             "greaterThan": 0
           },
-          "award": "imaginaryScenario"
+          "award": "imaginaryScenario",
+          "per": "imaginaryScenario"
         },
         {
           "when": {
             "answer": "emotionalConfession",
             "greaterThan": 0
           },
-          "award": "emotionalConfession"
+          "award": "emotionalConfession",
+          "per": "emotionalConfession"
         },
         {
           "when": {
@@ -847,7 +853,8 @@
             "answer": "apology",
             "greaterThan": 0
           },
-          "award": "apology"
+          "award": "apology",
+          "per": "apology"
         },
         {
           "when": {

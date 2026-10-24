@@ -7,8 +7,10 @@
 //
 //   from          where it comes from: { segment } | { twist } | { wayOut } | { finale: true }, plus { custom }
 //                 for a moment added by hand (with its segment or twist when it happens during one)
-//   ask           what research asks to know it: { key, type: 'answer' | 'integer' | 'string', question }.
-//                 Several moments can share one question (a vote's "who got votes").
+//   ask           what research asks to know it: { key, type: 'answer' | 'integer' | 'number' | 'string', question }.
+//                 Several moments can share one question (a vote's "who got votes"). A count of times is an
+//                 integer; an amount that needn't be whole (innings pitched, a judge's score) a number.
+//                 Either scores per unit (rulebook-compile.js, rules.js `per`).
 //   auto          known without asking about it: from how someone left, a role, or other answers
 //   off           only with { includeOff: true }: built, but switched off (momentsOff)
 //
@@ -71,7 +73,7 @@ function segmentMoments(s, blocks) {
       yes('First', `First in ${the(n)}`, 2, `finished first in ${the(n)}`);
       yes('Last', `Last in ${the(n)}`, -1, `finished last in ${the(n)}`);
     }
-    if (d === 'score') make('PerPoint', `Each point at ${the(n)}`, 0.1, { key: `${s.id}Score`, type: 'integer', question: `This ${part}, what did each person score at ${the(n)}?` });
+    if (d === 'score') make('PerPoint', `Each point at ${the(n)}`, 0.1, { key: `${s.id}Score`, type: 'number', question: `This ${part}, what did each person score at ${the(n)}?` });
     if (s.decidedBy === 'headToHead' && s.onTheLine !== 'goingHome') yes('Lost', `Lost ${the(n)}`, -1);
     const groups = blocks.cast && blocks.cast.groups;
     if (groups && ['groups', 'groupsThenEach'].includes(s.takesPart)) yes('GroupWon', `${cap(groups.singular)} won ${the(n)}`, 1, `was in the ${groups.singular} that won ${the(n)}`);
@@ -170,7 +172,7 @@ function customMoment(m, blocks) {
   const seg = m.during && m.during.segment ? list(blocks.segments).find((s) => s.id === m.during.segment) : null;
   const twist = m.during && m.during.twist ? list(blocks.twists).find((t) => t.id === m.during.twist) : null;
   const from = { custom: m.id, ...(seg ? { segment: seg.id } : twist ? { twist: twist.id } : {}) };
-  const type = m.counted === 'yesNo' ? 'answer' : 'integer';
+  const type = m.counted === 'yesNo' ? 'answer' : m.counted === 'perUnit' ? 'number' : 'integer';
   // A segment is a place in the episode ("at the Reward challenge"); a twist isn't, so it adds nothing to the question.
   const question = questionFor({ label: m.label, question: m.question, counted: m.counted, where: seg ? seg.name : null }, blocks);
   return { id: m.id, label: m.label, from, defaultPoints: 0, custom: true, ask: { key: m.id, type, question }, answeredBy: m.answeredBy, ...(m.reliability ? { reliability: m.reliability } : {}) };

@@ -60,7 +60,9 @@ function labelFor(d: SeasonDecision, format: GameFormat): string {
     return group ? `Moved to ${group}` : "Left their team";
   }
   const type = d.applied?.eventType || d.event_type;
-  return format.events.find((e) => e.id === type)?.label ?? type;
+  const label = format.events.find((e) => e.id === type)?.label ?? type;
+  // A count research reported (0106): "Hit a home run × 3".
+  return d.units != null && Number(d.units) !== 1 ? `${label} × ${Number(d.units)}` : label;
 }
 
 function sourcesOf(d: SeasonDecision): string {

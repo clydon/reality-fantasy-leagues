@@ -179,7 +179,8 @@ test("twists, ways out and the finale build theirs", () => {
   assert.deepEqual(twist({ type: "sideTrip", oneIsCalled: "a journey", who: "chosen", canGet: ["advantage", "disadvantage"] }), ["tWent", "tCameBackWithAdvantage", "tLostSomething"]);
   assert.deepEqual(twist({ type: "secretRole", roles: ["Mole", "Player"], revealed: "atFinale", canSwitch: "never" }), ["tMadeFinale"]);
 
-  const s = momentsFor(BUILT_IN_BLOCKS.survivor.blocks);
+  // The templates' suggestions (the built-in itself carries survivor.js's own points).
+  const s = momentsFor({ ...BUILT_IN_BLOCKS.survivor.blocks, points: {} });
   const way = (id) => s.find((m) => m.id === id);
   assert.deepEqual([way("votedOut").defaultPoints, way("finalist").defaultPoints, way("soleSurvivor").defaultPoints], [-3, 2, 5]);
   assert.ok(way("votedOut").auto, "a way out scores from how they left");

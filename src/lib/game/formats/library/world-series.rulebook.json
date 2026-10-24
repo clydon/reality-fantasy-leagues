@@ -799,23 +799,23 @@
         },
         {
           "key": "runsScored",
-          "type": "integer",
+          "type": "number",
           "nullable": true,
-          "description": "This game, how much for each person: runs scored at the Game? This person's number; 0 if none, null if unknown.",
+          "description": "This game, how much for each person: runs scored at the Game? This person's amount as a number, with a decimal for part of one (6⅔ is 6.67, never a shorthand like 6.2); 0 if none, null if unknown.",
           "note": "runs scored"
         },
         {
           "key": "inningsPitched",
-          "type": "integer",
+          "type": "number",
           "nullable": true,
-          "description": "This game, how much for each person: innings pitched at the Game? This person's number; 0 if none, null if unknown.",
+          "description": "This game, how much for each person: innings pitched at the Game? This person's amount as a number, with a decimal for part of one (6⅔ is 6.67, never a shorthand like 6.2); 0 if none, null if unknown.",
           "note": "innings pitched"
         },
         {
           "key": "pitchCount",
-          "type": "integer",
+          "type": "number",
           "nullable": true,
-          "description": "This game, how much for each person: pitches thrown at the Game? This person's number; 0 if none, null if unknown.",
+          "description": "This game, how much for each person: pitches thrown at the Game? This person's amount as a number, with a decimal for part of one (6⅔ is 6.67, never a shorthand like 6.2); 0 if none, null if unknown.",
           "note": "pitches thrown"
         },
         {
@@ -871,98 +871,112 @@
             "answer": "homeRun",
             "greaterThan": 0
           },
-          "award": "homeRun"
+          "award": "homeRun",
+          "per": "homeRun"
         },
         {
           "when": {
             "answer": "hit",
             "greaterThan": 0
           },
-          "award": "hit"
+          "award": "hit",
+          "per": "hit"
         },
         {
           "when": {
             "answer": "runBattedIn",
             "greaterThan": 0
           },
-          "award": "runBattedIn"
+          "award": "runBattedIn",
+          "per": "runBattedIn"
         },
         {
           "when": {
             "answer": "strikeout",
             "greaterThan": 0
           },
-          "award": "strikeout"
+          "award": "strikeout",
+          "per": "strikeout"
         },
         {
           "when": {
             "answer": "batterStrikeout",
             "greaterThan": 0
           },
-          "award": "batterStrikeout"
+          "award": "batterStrikeout",
+          "per": "batterStrikeout"
         },
         {
           "when": {
             "answer": "walk",
             "greaterThan": 0
           },
-          "award": "walk"
+          "award": "walk",
+          "per": "walk"
         },
         {
           "when": {
             "answer": "stolenBase",
             "greaterThan": 0
           },
-          "award": "stolenBase"
+          "award": "stolenBase",
+          "per": "stolenBase"
         },
         {
           "when": {
             "answer": "doublePlay",
             "greaterThan": 0
           },
-          "award": "doublePlay"
+          "award": "doublePlay",
+          "per": "doublePlay"
         },
         {
           "when": {
             "answer": "fieldingError",
             "greaterThan": 0
           },
-          "award": "fieldingError"
+          "award": "fieldingError",
+          "per": "fieldingError"
         },
         {
           "when": {
             "answer": "hitByPitch",
             "greaterThan": 0
           },
-          "award": "hitByPitch"
+          "award": "hitByPitch",
+          "per": "hitByPitch"
         },
         {
           "when": {
             "answer": "extraBaseHit",
             "greaterThan": 0
           },
-          "award": "extraBaseHit"
+          "award": "extraBaseHit",
+          "per": "extraBaseHit"
         },
         {
           "when": {
             "answer": "caughtStealing",
             "greaterThan": 0
           },
-          "award": "caughtStealing"
+          "award": "caughtStealing",
+          "per": "caughtStealing"
         },
         {
           "when": {
             "answer": "sacrificeFly",
             "greaterThan": 0
           },
-          "award": "sacrificeFly"
+          "award": "sacrificeFly",
+          "per": "sacrificeFly"
         },
         {
           "when": {
             "answer": "sacrificeBunt",
             "greaterThan": 0
           },
-          "award": "sacrificeBunt"
+          "award": "sacrificeBunt",
+          "per": "sacrificeBunt"
         },
         {
           "when": {
@@ -1004,49 +1018,56 @@
             "answer": "basesLoaded",
             "greaterThan": 0
           },
-          "award": "basesLoaded"
+          "award": "basesLoaded",
+          "per": "basesLoaded"
         },
         {
           "when": {
             "answer": "pitchingChange",
             "greaterThan": 0
           },
-          "award": "pitchingChange"
+          "award": "pitchingChange",
+          "per": "pitchingChange"
         },
         {
           "when": {
             "answer": "leadChange",
             "greaterThan": 0
           },
-          "award": "leadChange"
+          "award": "leadChange",
+          "per": "leadChange"
         },
         {
           "when": {
             "answer": "tieGame",
             "greaterThan": 0
           },
-          "award": "tieGame"
+          "award": "tieGame",
+          "per": "tieGame"
         },
         {
           "when": {
             "answer": "runsScored",
             "greaterThan": 0
           },
-          "award": "runsScored"
+          "award": "runsScored",
+          "per": "runsScored"
         },
         {
           "when": {
             "answer": "inningsPitched",
             "greaterThan": 0
           },
-          "award": "inningsPitched"
+          "award": "inningsPitched",
+          "per": "inningsPitched"
         },
         {
           "when": {
             "answer": "pitchCount",
             "greaterThan": 0
           },
-          "award": "pitchCount"
+          "award": "pitchCount",
+          "per": "pitchCount"
         }
       ],
       "implied": [

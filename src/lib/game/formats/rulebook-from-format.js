@@ -10,7 +10,8 @@
 // with something research asks about becomes a segment nobody decides, holding its events as moments added
 // by hand; categories only of automatic events (exits, endgame bonuses) hold nothing, their other events
 // sitting loose. Nothing is guessed: no phase starts but the first, no finale (how it's decided isn't in the
-// data), every moment's suggested points the format's own. Plain CommonJS, browser-safe, like everything here.
+// data), every moment's suggested points the format's own (0 for a way out the format scores nothing for).
+// Plain CommonJS, browser-safe, like everything here.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
 const { camelId, pluralOf, SCHEMA_VERSION } = require('./rulebook-schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
@@ -63,7 +64,7 @@ function blocksFromFormat(data) {
       claimed.add(ev);
       if (ev !== id) aliases.events[id] = ev;
       points[id] = byId.get(ev).defaultPoints;
-    }
+    } else points[id] = 0; // the format scores nothing for leaving this way, so its moment is worth nothing
   }
 
   const segments = [];

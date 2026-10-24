@@ -20,7 +20,7 @@ else needs re-reading.
 | 0a | Back up the live leagues | **done** 2026-10-24 (production backup restored and matched) | Opus · medium |
 | 0b | Backend foundation (couch, progress, schedule, roles, guard) | **done** 2026-10-24 on the branch (rehearsed on production's data; before it ships: a fresh backup and a Neon branch run, see As built) | Opus · high |
 | R1 | Rulebooks phase 1: schema, built-ins as blocks, How it works view model (logic only) | **done** 2026-10-24 on the branch | Opus · high |
-| R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | not started | Opus · high |
+| R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | **done** 2026-10-24 on the branch (migration 0106 ships with 0b's) | Opus · high |
 | R3 | Rulebooks phase 3: `rulebooks` tables, backfill, resolution behind a flag | not started | Opus · high |
 | 0c | The new shell, Preview system, fixtures, motion | not started | Opus · high |
 | 0d | Hub and show space ported (fixtures behind Preview) | not started | Opus · high |
@@ -464,6 +464,69 @@ scoring file changed). All in `src/lib/game/formats/`, plain CommonJS with `.d.t
 - For R2: aliases cover events and exits; question keys aren't aliased yet (the compiler maps them to the legacy
   checklist, where its golden tests can prove each one). Survivor's legacy `finalist` event also goes to the
   winner, The Traitors' and The Challenge's don't: the compiler needs to follow each.
+
+**As built, R2 (2026-10-24, on `new-design`).** Rulebooks phase 2 is done: the compiler, the legacy freeze proved by golden
+tests, and the engine relaxations, plus the six items R1 left. `npm test` is 450 pass plus the 3 known tour-commissioner
+failures; type check and `src/` lint are clean. The format harness (T-15) shows no behaviour change; only `rules.js`'s
+function-source hashes moved.
+- **The legacy freeze, by construction: a rulebook compiles on top of the data it was frozen from.** Survivor's frozen rules
+  aren't the templates': a reward from either reward answer, 2nd and 3rd from an integer finishing place, zero votes
+  excluding a tribe immunity winner. So the plan's `aliases.questions` (renaming question keys) couldn't reproduce them,
+  and a built-in reader's code half reads its family's own question keys by name. `compileRulebook(blocks, { aliases,
+  reader, base, phaseStarts })`: a built-in `reader` brings its family's data as the `base` (a stored format passes its
+  data). Every event the blocks still build keeps the base's label, rules, questions, group, recap entry and wiki event
+  type; its points come from the blocks (the three built-ins' blocks now carry `points`, their formats' own). What the
+  blocks add compiles from the templates. What they drop takes its rules with it, with a warning when a base rule needed
+  it: a built-in rule loses a dropped optional role event, or goes when a required one is gone. `rulebookFor` now returns
+  `reader` (and `base` for a stored format). `aliases.questions` is dropped from the plan.
+- **Golden tests** (`tests/rulebook-golden.test.js`, T-10/T-11): each compiled built-in equals its format key for key (not
+  `terms`: the rulebook owns its cast words); the harness's research answers (now shared, `tests/harness/research-fixtures.js`)
+  stage the same results with the same review and notes; every exit method, jury count and role implies the same events;
+  demo leagues of all three types score the same played by `settings.showFormat` or by `settings.rulebook`. Every stored
+  format compiles back onto its own data the same way, except that a way out it scored nothing for becomes a 0-point moment
+  (`blocksFromFormat` now gives it 0, not the template's 2).
+- **`formatForRulebook(data, reader)`** (index.js, re-exported by rulebook-compile.js): a built-in reader's code half over the
+  data, its `roleFor` only when the data has roles (the generic one when the family has none); anything else is a data-only
+  format. Built once per data and reader. **`formatOf` reads `settings.rulebook` (`{ data, reader }`) first.** Nothing writes it
+  yet; R3's flag decides when the server does.
+- **`per` on research rules: one result carrying `units`, not N results.** Staging keeps one row per person, episode and event
+  (the unique index), so the count rides on that row the way a finalist's jury votes do. Migration **0106**
+  (`season_decisions.units` NUMERIC), staged by `db/season-decisions.js`; a re-read moves a pending count, never a decided
+  one. It's applied by `season-decisions.ts` (a count filled in or corrected after the accept follows, like jury votes) and by
+  the commissioner's apply, landing on `episode.scoringEvents[].units`. `ActiveRosterLogic.eventPoints` (points times units)
+  and `setEventUnits`; all 13 per-event point reads in the classic UI and bots use `eventPoints`, and castaway stats count
+  units. Only the admin's review shows "× 3"; classic event rows show the multiplied points without it (the new design
+  draws its own). `rules.js` validates `per` (a count question) and reads it as "once per home run".
+- **Counts that aren't whole:** a `number` checklist type. "Each time" is an integer; "how much" (`perUnit`) and a segment's
+  score are numbers, asked "with a decimal for part of one (6⅔ is 6.67, never a shorthand like 6.2)". The World Series'
+  innings pitched now parse.
+- **Secret roles:** `custom.js` has a generic `roleFor` (a recorded value is the role it names unless `roles.becomes` maps it:
+  "Recruited Traitor" makes a Traitor). The compiler writes the role questions (`isTraitor`, `becameTraitor`,
+  `recruitedAsTraitor`, the same keys traitors.js uses), the role stage rules, `voteByRole` for every cast vote that sends
+  someone home, once per way out it causes (`voteByRole`'s four role events are now each optional, at least one needed),
+  recruitment from the recorded role, and reaching the finale as the secret role. On the same Round Table it catches and
+  fools the same people as traitors.js (T-26).
+- **Phase gating:** `phaseRanges`; a one-phase segment's rules run from its phase's start to the episode before the next known
+  start (`rules.js` gained `untilEpisode`). Until its start is known they don't run at all, the compiler warns, and research
+  gets an episode question `phaseStarted`. A finale-only segment isn't gated. The Real Housewives' reunion now waits.
+- **state-logic with no winner:** `isWinnerExit`, `seasonWinner`, `seasonEnded`, `finaleEpisodeOf`. A winnerless season is over
+  once nobody is left (everyone gone, by an ending or a way out); a talk show runs on. Before this, a null winner matched
+  every castaway still in (their `exitMethod` is null), so a winnerless league would have read as over from the start.
+  Four classic components use the helpers; `rules.js`'s finale fact and `roleWonEpisode` too. T-21 plays every kind ten episodes.
+- **Tests and checks added:** `tests/rulebook-compile.test.js` (counts, roles, gating, every segment combination: 2,232 compile
+  clean, every kind through ten episodes, readers, edits on a base, alias collisions), the units case in
+  `tests/episode-research-apply.test.js`, and **`scripts/dev-test/check-decision-units.js run`** (real SQL on the local
+  database: staged with its count, moved while pending, held once decided, carried and scored by a zt league; PASS ×6).
+  `save-rulebook-library.js --recompile` refreshes the library after a compiler change (done: five entries). Browser smoke
+  at 390: Overview and Episodes on the results fixture, the waivers claim screen; the touched screens render.
+- **For the user to review:** Below Deck's researched "individual charter gratuity share" is an amount at 1 point, so it now
+  scores per dollar. Its 6b review should make it worth about 0, or a yes/no.
+- **Before 0106 reaches production:** it ships with 0b's migrations, so the same fresh backup and Neon branch rehearsal covers it.
+- **For R3:** write `settings.rulebook = { id, version, data, reader }`. The backfill stores `compiled` = the frozen format data,
+  and keeps that frozen data as the `base` for every compile from blocks. Don't base a recompile on the previous compile: a
+  moment whose question changed would keep its old rule. Store `phaseStarts` beside the blocks. Not done: an edited question
+  on a moment the base still scores keeps the base's question (by design: re-asking it differently means a new moment), and
+  the "× n" in classic event rows.
 
 ## Step 0c: the new shell
 

@@ -29,13 +29,15 @@ export interface ResearchApplyItem {
   method?: string;
   eventType?: string;
   juryVotes?: number | null;
+  /** An event's count, when research reported one. */
+  units?: number | null;
   postMerge?: boolean;
 }
 
 /** Everything staged for one episode of a season, wiki and research alike, in the season sync's order. */
 export async function stagedForEpisode(db: Pool | PoolClient, seasonId: string, episodeNumber: number): Promise<StagedResearchDecision[]> {
   const { rows } = await db.query(
-    `SELECT id, kind, castaway_name, method, event_type, jury_votes, confidence, sources, status,
+    `SELECT id, kind, castaway_name, method, event_type, jury_votes, units, confidence, sources, status,
             from_wiki, from_research, post_merge, applied
        FROM season_decisions
       WHERE season_id=$1 AND episode_number=$2
@@ -51,6 +53,8 @@ export async function stagedForEpisode(db: Pool | PoolClient, seasonId: string, 
     method: r.applied && r.applied.method !== undefined ? r.applied.method : r.method,
     eventType: (r.applied && r.applied.eventType) || r.event_type,
     juryVotes: r.jury_votes,
+    // NUMERIC arrives as text.
+    units: r.units != null ? Number(r.units) : null,
     confidence: r.confidence,
     sources: r.sources || [],
     status: r.status,
@@ -123,7 +127,11 @@ export function applyResearchDecisions(state: LeagueState, episodeNumber: number
     // The proposal shape carries a confidence the apply step never reads; a commissioner's confirmed row is "high".
     const r = StateLogic.applyScoringEventsImport(state, {
       episodes: [
-        { number: episodeNumber, postMerge, events: events.map((i) => ({ name: i.castawayName, type: i.eventType!, confidence: "high" as const })) },
+        {
+          number: episodeNumber,
+          postMerge,
+          events: events.map((i) => ({ name: i.castawayName, type: i.eventType!, confidence: "high" as const, units: i.units ?? null })),
+        },
       ],
     });
     out.events.push(...r.events.map((e) => ({ name: e.name, type: e.type })));

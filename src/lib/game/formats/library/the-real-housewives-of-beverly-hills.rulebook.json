@@ -682,7 +682,17 @@
           "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
         }
       ],
-      "episodeFields": [],
+      "episodeFields": [
+        {
+          "key": "phaseStarted",
+          "type": "enum",
+          "values": [
+            "reunion"
+          ],
+          "nullable": true,
+          "description": "Did one of these parts of the season begin in THIS episode? reunion: Reunion (The cast gathers for a multipart reunion to revisit disagreements, challenge competing accounts of events, discuss damaged friendships, and address unresolved questions from the season.). Null if none did."
+        }
+      ],
       "searchHint": [
         "Search for this episode's recap and any reporting on what happened to each person, and who left.",
         "Then answer the checklist for every person above."
@@ -700,7 +710,8 @@
             "answer": "heatedExchange",
             "greaterThan": 0
           },
-          "award": "heatedExchange"
+          "award": "heatedExchange",
+          "per": "heatedExchange"
         },
         {
           "when": {
@@ -714,28 +725,8 @@
             "answer": "toastOrSpeech",
             "greaterThan": 0
           },
-          "award": "toastOrSpeech"
-        },
-        {
-          "when": {
-            "answer": "reunionWalkOff",
-            "greaterThan": 0
-          },
-          "award": "reunionWalkOff"
-        },
-        {
-          "when": {
-            "answer": "reunionDisagreement",
-            "greaterThan": 0
-          },
-          "award": "reunionDisagreement"
-        },
-        {
-          "when": {
-            "answer": "reunionTears",
-            "greaterThan": 0
-          },
-          "award": "reunionTears"
+          "award": "toastOrSpeech",
+          "per": "toastOrSpeech"
         },
         {
           "when": {
@@ -749,91 +740,104 @@
             "answer": "argument",
             "greaterThan": 0
           },
-          "award": "argument"
+          "award": "argument",
+          "per": "argument"
         },
         {
           "when": {
             "answer": "stormedOut",
             "greaterThan": 0
           },
-          "award": "stormedOut"
+          "award": "stormedOut",
+          "per": "stormedOut"
         },
         {
           "when": {
             "answer": "walkedAway",
             "greaterThan": 0
           },
-          "award": "walkedAway"
+          "award": "walkedAway",
+          "per": "walkedAway"
         },
         {
           "when": {
             "answer": "cried",
             "greaterThan": 0
           },
-          "award": "cried"
+          "award": "cried",
+          "per": "cried"
         },
         {
           "when": {
             "answer": "apologized",
             "greaterThan": 0
           },
-          "award": "apologized"
+          "award": "apologized",
+          "per": "apologized"
         },
         {
           "when": {
             "answer": "accusation",
             "greaterThan": 0
           },
-          "award": "accusation"
+          "award": "accusation",
+          "per": "accusation"
         },
         {
           "when": {
             "answer": "denial",
             "greaterThan": 0
           },
-          "award": "denial"
+          "award": "denial",
+          "per": "denial"
         },
         {
           "when": {
             "answer": "gossipShared",
             "greaterThan": 0
           },
-          "award": "gossipShared"
+          "award": "gossipShared",
+          "per": "gossipShared"
         },
         {
           "when": {
             "answer": "secretRevealed",
             "greaterThan": 0
           },
-          "award": "secretRevealed"
+          "award": "secretRevealed",
+          "per": "secretRevealed"
         },
         {
           "when": {
             "answer": "friendshipQuestioned",
             "greaterThan": 0
           },
-          "award": "friendshipQuestioned"
+          "award": "friendshipQuestioned",
+          "per": "friendshipQuestioned"
         },
         {
           "when": {
             "answer": "relationshipAnnouncement",
             "greaterThan": 0
           },
-          "award": "relationshipAnnouncement"
+          "award": "relationshipAnnouncement",
+          "per": "relationshipAnnouncement"
         },
         {
           "when": {
             "answer": "unexpectedArrival",
             "greaterThan": 0
           },
-          "award": "unexpectedArrival"
+          "award": "unexpectedArrival",
+          "per": "unexpectedArrival"
         },
         {
           "when": {
             "answer": "awkwardSilence",
             "greaterThan": 0
           },
-          "award": "awkwardSilence"
+          "award": "awkwardSilence",
+          "per": "awkwardSilence"
         }
       ],
       "implied": [

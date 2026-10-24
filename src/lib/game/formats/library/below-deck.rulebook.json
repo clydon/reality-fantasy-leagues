@@ -519,9 +519,9 @@
         },
         {
           "key": "individualTipShare",
-          "type": "integer",
+          "type": "number",
           "nullable": true,
-          "description": "This episode, how much for each person: individual charter gratuity share at the Tip Meeting? This person's number; 0 if none, null if unknown.",
+          "description": "This episode, how much for each person: individual charter gratuity share at the Tip Meeting? This person's amount as a number, with a decimal for part of one (6⅔ is 6.67, never a shorthand like 6.2); 0 if none, null if unknown.",
           "note": "individual charter gratuity share"
         },
         {
@@ -599,28 +599,32 @@
             "answer": "guestComplaint",
             "greaterThan": 0
           },
-          "award": "guestComplaint"
+          "award": "guestComplaint",
+          "per": "guestComplaint"
         },
         {
           "when": {
             "answer": "guestSpecialRequest",
             "greaterThan": 0
           },
-          "award": "guestSpecialRequest"
+          "award": "guestSpecialRequest",
+          "per": "guestSpecialRequest"
         },
         {
           "when": {
             "answer": "serviceMistake",
             "greaterThan": 0
           },
-          "award": "serviceMistake"
+          "award": "serviceMistake",
+          "per": "serviceMistake"
         },
         {
           "when": {
             "answer": "safetyIncident",
             "greaterThan": 0
           },
-          "award": "safetyIncident"
+          "award": "safetyIncident",
+          "per": "safetyIncident"
         },
         {
           "when": {
@@ -634,7 +638,8 @@
             "answer": "individualTipShare",
             "greaterThan": 0
           },
-          "award": "individualTipShare"
+          "award": "individualTipShare",
+          "per": "individualTipShare"
         },
         {
           "when": {
@@ -648,14 +653,16 @@
             "answer": "captainReprimand",
             "greaterThan": 0
           },
-          "award": "captainReprimand"
+          "award": "captainReprimand",
+          "per": "captainReprimand"
         },
         {
           "when": {
             "answer": "crewArgument",
             "greaterThan": 0
           },
-          "award": "crewArgument"
+          "award": "crewArgument",
+          "per": "crewArgument"
         },
         {
           "when": {
@@ -669,14 +676,16 @@
             "answer": "crewApology",
             "greaterThan": 0
           },
-          "award": "crewApology"
+          "award": "crewApology",
+          "per": "crewApology"
         },
         {
           "when": {
             "answer": "confessionalComment",
             "greaterThan": 0
           },
-          "award": "confessionalComment"
+          "award": "confessionalComment",
+          "per": "confessionalComment"
         }
       ],
       "implied": [

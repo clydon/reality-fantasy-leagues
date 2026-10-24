@@ -94,7 +94,7 @@ export function RosterBreakdown({ state, playerId }: { state: LeagueState; playe
         // What they scored that episode, started or not: the bar shows it either way (a benched week
         // is what starting them would have been worth); `points` only counts it when started.
         const evs = StateLogic.ActiveRosterLogic.episodeEvents(state, ep).filter((e) => e.castawayId === c.id);
-        const scored = StateLogic.roundPoints(evs.reduce((t, e) => t + StateLogic.ActiveRosterLogic.pointsFor(state, e.type), 0));
+        const scored = StateLogic.roundPoints(evs.reduce((t, e) => t + StateLogic.ActiveRosterLogic.eventPoints(state, e), 0));
         return {
           n: ep.number,
           fielded,
@@ -106,7 +106,7 @@ export function RosterBreakdown({ state, playerId }: { state: LeagueState; playe
             ? evs.map((e) => ({
                 id: e.id,
                 label: defs.find((d) => d.id === e.type)?.label ?? e.type,
-                points: StateLogic.ActiveRosterLogic.pointsFor(state, e.type),
+                points: StateLogic.ActiveRosterLogic.eventPoints(state, e),
               }))
             : [],
         };

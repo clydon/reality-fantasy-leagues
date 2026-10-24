@@ -9,8 +9,8 @@ const survivor = require('./survivor.js');
 const traitors = require('./traitors.js');
 const challenge = require('./challenge.js');
 const generic = require('./generic.js');
-const { formatProblems } = require('./define.js');
-const { buildDataFormat } = require('./custom.js');
+const { formatProblems, defineFormat } = require('./define.js');
+const { buildDataFormat, rolesCode } = require('./custom.js');
 const { withChanges, applyChanges, changeProblems } = require('./season-changes.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -66,8 +66,34 @@ function formatForRuleset(data) {
   return format;
 }
 
+// A compiled rulebook's runtime format (docs/PLAN-rulebooks-implementation.md 4.3, decision 6). `reader` is
+// the code half that reads its show: one of the built-ins' (BUILT_IN_READERS), whose wiki read, contradiction
+// checks and reviewer notes know that family's own questions -- which is why a rulebook on one compiles on top
+// of the family's data (rulebook-compile.js `base`) -- or anything else ('research', 'league', none) for a
+// data-only format (custom.js). The family's roleFor goes only with data that has roles; data with roles on a
+// family without them (a secret role added to Survivor) gets the generic one. Built once per data and reader.
+const BUILT_IN_READERS = ['survivor', 'traitors', 'challenge'];
+const builtForRulebook = new WeakMap();
+function formatForRulebook(data, reader) {
+  let byReader = builtForRulebook.get(data);
+  if (!byReader) builtForRulebook.set(data, (byReader = new Map()));
+  const key = BUILT_IN_READERS.includes(reader) ? reader : '';
+  if (!byReader.has(key)) {
+    let format;
+    if (!key) format = buildDataFormat(data);
+    else {
+      const { roles, ...code } = FORMATS[key].code;
+      format = defineFormat(data, data && data.roles ? { ...code, roles: roles || rolesCode(data) } : code);
+    }
+    byReader.set(key, format);
+  }
+  return byReader.get(key);
+}
+
 module.exports = {
   FORMATS, DEFAULT_FORMAT, formatFor, formatForRuleset, isBuiltInFormat, formatOptions, formatProblems,
+  // Compiled rulebooks (rulebook-compile.js).
+  BUILT_IN_READERS, formatForRulebook,
   // Season rule changes (season-changes.js, docs/PLAN-season-rule-changes.md).
   withChanges, applyChanges, changeProblems,
 };

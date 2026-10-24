@@ -16,6 +16,8 @@ export interface FormatRoles {
   default: string;
   /** The values a role decision can record ("Traitor", "Recruited Traitor"). */
   values: string[];
+  /** A data-only format's: the role a recorded value makes someone, when not itself (custom.js). */
+  becomes?: Record<string, string>;
   /** The role a recorded value makes someone ("Traitor"). */
   roleFor(value: string): string;
 }
@@ -23,7 +25,7 @@ export interface FormatRoles {
 /** One research checklist question (formats/checklist.js). */
 export interface ChecklistField {
   key: string;
-  type: "answer" | "string" | "integer" | "enum" | "exitMethod" | "stringList";
+  type: "answer" | "string" | "integer" | "number" | "enum" | "exitMethod" | "stringList";
   nullable?: boolean;
   /** Only for type "enum". */
   values?: string[];
@@ -50,9 +52,12 @@ export interface ScoringRule {
   whenExit?: string | string[];
   whenExiled?: true;
   whenRole?: string;
+  /** Once per unit: an implied rule's whole-number exit fact, or a research rule's count question (rules.js). */
   per?: string;
   /** Set on a rule a season rule change added: it applies from this episode on. */
   fromEpisode?: number;
+  /** The last episode it applies to (a compiled rulebook's phase gating). */
+  untilEpisode?: number;
   [param: string]: unknown;
 }
 
@@ -62,14 +67,15 @@ export interface FormatData {
   name: string;
   exitMethods: string[];
   terms: { castaway: string; tribe: string };
-  winnerExitMethod: string;
+  /** Null for a show nobody wins (a series, a talk show, a sport's standings). */
+  winnerExitMethod: string | null;
   endgameExitMethods: string[];
   events: { id: string; label: string; defaultPoints: number | { exclusive: number; shared: number }; implied?: boolean; retiredFrom?: number }[];
   eventCategories: { id: string; label: string; events: string[] }[];
   recap: { label: string; events: string[]; tribeEvents?: string[] }[];
   hasMerge: boolean;
   hasGroups: boolean;
-  roles?: { default: string; values: string[] };
+  roles?: { default: string; values: string[]; becomes?: Record<string, string> };
   wiki: {
     version?: number;
     voteSections: string[];
@@ -95,7 +101,8 @@ export interface GameFormat {
   /** The exit method that crowns the winner and ends the season. */
   /** A new show's default terms for its people and groups (Castaway / Tribe, Challenger / Team…). */
   terms: { castaway: string; tribe: string };
-  winnerExitMethod: string;
+  /** Null for a show nobody wins: its season ends when nobody is left (StateLogic.seasonEnded). */
+  winnerExitMethod: string | null;
   /** Exits that mean reaching the end (finalist, winner) rather than being knocked out. */
   endgameExitMethods: string[];
   /** The Active Roster scoring catalog. */
@@ -126,6 +133,10 @@ export function formatFor(id: string | null | undefined, data?: FormatData | nul
  *  `data.id` matches a built-in's id -- unlike formatFor, which would return the built-in instead. */
 export function formatForRuleset(data: FormatData): GameFormat;
 export function isBuiltInFormat(id: string | null | undefined): boolean;
+/** The code halves a compiled rulebook can read its show with. */
+export const BUILT_IN_READERS: ("survivor" | "traitors" | "challenge")[];
+/** A compiled rulebook's runtime format: a built-in reader's code half over `data`, else a data-only format. */
+export function formatForRulebook(data: FormatData, reader?: string | null): GameFormat;
 export function formatOptions(): { id: string; name: string }[];
 /** Why a format's data half isn't usable: [] when it is. */
 export function formatProblems(data: unknown): string[];

@@ -355,7 +355,7 @@ export function benchMiss(s: LeagueState, n: number): { name: string; points: nu
     return !!c && c.ownerIds.includes(PRACTICE_ME) && !starters.includes(x.castawayId);
   });
   if (!ev) return null;
-  const points = StateLogic.ActiveRosterLogic.pointsFor(s, ev.type);
+  const points = StateLogic.ActiveRosterLogic.eventPoints(s, ev);
   return points > 0 ? { name: firstNameOf(s, ev.castawayId), points } : null;
 }
 

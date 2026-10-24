@@ -31,8 +31,8 @@ export function castawayEventStats(state: LeagueState, castawayId: string): { to
     .forEach((ep) => {
       StateLogic.ActiveRosterLogic.episodeEvents(state, ep).forEach((sev) => {
         if (sev.castawayId !== castawayId) return;
-        counts[sev.type] = (counts[sev.type] || 0) + 1;
-        total = StateLogic.roundPoints(total + StateLogic.ActiveRosterLogic.pointsFor(state, sev.type));
+        counts[sev.type] = (counts[sev.type] || 0) + (sev.units ?? 1);
+        total = StateLogic.roundPoints(total + StateLogic.ActiveRosterLogic.eventPoints(state, sev));
       });
     });
   // Same order as the Active Roster Settings list (the format's own catalog order), filtered to only
@@ -68,7 +68,7 @@ export function playerEventRows(state: LeagueState, playerId: string): PlayerEve
           postMerge: ep.postMerge,
           castawayName: StateLogic.getCastaway(state, sev.castawayId)?.name || "?",
           label: def?.label || sev.type,
-          points: StateLogic.ActiveRosterLogic.pointsFor(state, sev.type),
+          points: StateLogic.ActiveRosterLogic.eventPoints(state, sev),
         });
       });
     });
@@ -76,13 +76,13 @@ export function playerEventRows(state: LeagueState, playerId: string): PlayerEve
 }
 
 // Same shape as castawayEventStats, over a chosen set of scoring events.
-function statsFrom(state: LeagueState, evs: { type: string }[]): { total: number; byType: CastawayEventStat[] } {
+function statsFrom(state: LeagueState, evs: { type: string; units?: number }[]): { total: number; byType: CastawayEventStat[] } {
   const events = StateLogic.formatOf(state).events;
   const counts: Record<string, number> = {};
   let total = 0;
   for (const ev of evs) {
-    counts[ev.type] = (counts[ev.type] || 0) + 1;
-    total = StateLogic.roundPoints(total + StateLogic.ActiveRosterLogic.pointsFor(state, ev.type));
+    counts[ev.type] = (counts[ev.type] || 0) + (ev.units ?? 1);
+    total = StateLogic.roundPoints(total + StateLogic.ActiveRosterLogic.eventPoints(state, ev));
   }
   const byType = events
     .filter((e) => counts[e.id] > 0)
@@ -171,7 +171,7 @@ export function episodePlayerPoints(state: LeagueState, epId: string) {
     .map((p) => {
       const lineup = StateLogic.activeRosterLineupFor(state, ep.id, p.id);
       const points = StateLogic.roundPoints(
-        evs.filter((e) => lineup.includes(e.castawayId)).reduce((t, e) => t + StateLogic.ActiveRosterLogic.pointsFor(state, e.type), 0)
+        evs.filter((e) => lineup.includes(e.castawayId)).reduce((t, e) => t + StateLogic.ActiveRosterLogic.eventPoints(state, e), 0)
       );
       return { player: p, points };
     })

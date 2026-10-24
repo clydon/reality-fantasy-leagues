@@ -48,7 +48,6 @@ export function YourTeamCard({ state, link }: { state: LeagueState; link?: boole
 // One castaway as a name plate: photo, then a white plate with the name and where they stand. Someone
 // who's out drops to a dark plate with a greyed photo, so the ones still playing for you stand out.
 function TeamPlate({ state, c }: { state: LeagueState; c: Castaway }) {
-  const winner = StateLogic.formatOf(state).winnerExitMethod;
   const tribe = state.tribes.find((t) => t.id === c.tribeId);
   const knocked = isKnockedOut(state, c);
   const ep = c.exitEpisodeId ? state.episodes.find((e) => e.id === c.exitEpisodeId)?.number : undefined;
@@ -70,7 +69,7 @@ function TeamPlate({ state, c }: { state: LeagueState; c: Castaway }) {
     // The winner and the other finalists: an ending, not a boot.
     detail = (
       <>
-        {chip(c.exitMethod === winner ? "bg-chyron text-chyron-foreground" : "bg-good text-good-foreground", c.exitMethod ?? "Finalist")}
+        {chip(StateLogic.isWinnerExit(state, c.exitMethod) ? "bg-chyron text-chyron-foreground" : "bg-good text-good-foreground", c.exitMethod ?? "Finalist")}
         {place && `finished ${ordinal(place)}`}
       </>
     );

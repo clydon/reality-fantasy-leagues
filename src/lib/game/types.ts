@@ -130,6 +130,9 @@ export interface ScoringEvent {
   castawayId: string;
   /** Derived from an exit or a role rather than recorded (ActiveRosterLogic.episodeEvents). */
   implied?: boolean;
+  /** How many it counts for, when more than one: a count research reported (3 home runs, 6.67 innings).
+   *  Its points are the type's times this (ActiveRosterLogic.eventPoints). */
+  units?: number;
 }
 
 export interface PickEmPick {
@@ -584,6 +587,8 @@ export interface StagedResearchDecision {
   /** event: the scoring event id. */
   eventType: string;
   juryVotes: number | null;
+  /** event: how many it counts for, when research reported a count (0106: 3 home runs). */
+  units?: number | null;
   confidence: "high" | "medium" | "low";
   sources: string[];
   /** The admin's season-wide decision, for information only -- the commissioner's apply ignores it. */
@@ -714,6 +719,8 @@ export interface SeasonDecision {
   event_type: string;
   /** A finalist elimination's jury votes received (0036), when research found them. */
   jury_votes?: number | null;
+  /** An event's count (0106), when research reported one: 3 home runs. Postgres NUMERIC, so text. */
+  units?: string | null;
   confidence: "high" | "medium" | "low";
   from_wiki: boolean;
   from_research: boolean;

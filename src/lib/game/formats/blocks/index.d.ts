@@ -7,6 +7,10 @@ export interface RulebookSource {
   aliases: RulebookAliases;
   /** Hand-written (Survivor, The Traitors, The Challenge), not read back from a format's data. */
   builtIn: boolean;
+  /** The code half that reads its show (compileRulebook and formatForRulebook): a built-in's own, else research. */
+  reader: "survivor" | "traitors" | "challenge" | "research";
+  /** Read back from a format: that format's data, the base it compiles on (a built-in's comes with its reader). */
+  base?: FormatData;
 }
 
 export const BUILT_IN_BLOCKS: Record<"survivor" | "traitors" | "challenge", { blocks: RulebookBlocks; aliases: RulebookAliases }>;

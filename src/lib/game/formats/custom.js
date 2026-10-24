@@ -9,8 +9,10 @@
 //             on someone who didn't leave, a claim with no source). notes/sentences: built from the
 //             checklist -- each question's `note` (checklist.js) for a yes, the number for a count, the
 //             text for a text answer.
-//
-// No secret roles: a role mechanic is exactly what a proposal flags for a developer instead.
+//   roles     roleFor, when the data has secret roles (a compiled rulebook's secret-role twist,
+//             rulebook-compile.js): a recorded value is the role it names, unless `roles.becomes` maps it
+//             to another ("Recruited Traitor" makes someone a Traitor, and is also what scores the
+//             recruitment). A research proposal still flags a role mechanic for a developer instead.
 //
 // Plain CommonJS, like everything in formats/.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
@@ -77,7 +79,7 @@ function questionPhrases(fields, c) {
     const label = f.note || words(f.key);
     if (f.type === 'answer') {
       if (v === 'yes') out.push(label);
-    } else if (f.type === 'integer') {
+    } else if (f.type === 'integer' || f.type === 'number') {
       if (typeof v === 'number' && v > 0) out.push(`${label}: ${v}`);
     } else if (f.type === 'stringList') {
       if (listOf(v).length) out.push(`${label}: ${listOf(v).join(', ')}`);
@@ -96,14 +98,20 @@ function researchCode(data) {
   };
 }
 
+function rolesCode(data) {
+  const becomes = data.roles.becomes || {};
+  return { roleFor: (value) => (Object.prototype.hasOwnProperty.call(becomes, value) ? becomes[value] : value) };
+}
+
 /** A runtime format from a data half alone (throws, like defineFormat, if the data isn't usable). */
 function buildDataFormat(data) {
-  if (data && data.roles) throw new Error(`format ${data.id}: a data-only format can't have secret roles yet`);
-  const format = defineFormat(data, { wiki: wikiCode(data), research: researchCode(data) });
+  const code = { wiki: wikiCode(data), research: researchCode(data) };
+  if (data && data.roles) code.roles = rolesCode(data);
+  const format = defineFormat(data, code);
   // Its code half is built FROM its data, so changed data (a season rule change) rebuilds through here
   // rather than reusing code that closed over the old data.
   Object.defineProperty(format, 'dataOnly', { value: true, enumerable: false });
   return format;
 }
 
-module.exports = { buildDataFormat, questionPhrases };
+module.exports = { buildDataFormat, questionPhrases, rolesCode };

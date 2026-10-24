@@ -37,6 +37,17 @@ module.exports = {
       { id: 'captain', label: 'Served as team captain', question: 'This episode, who served as a team captain?', during: { segment: 'dailyChallenge' }, counted: 'yesNo', answeredBy: 'research', reliability: 'usually' },
       { id: 'nominatedSurvived', label: 'Nominated for elimination and survived', question: 'This episode, who was nominated for elimination and survived?', during: { segment: 'elimination' }, counted: 'yesNo', answeredBy: 'research', reliability: 'usually' },
     ],
+    // The format's own points where they differ from the templates' suggestions.
+    points: {
+      captain: { exclusive: 0.5, shared: 1 },
+      eliminationWon: 3,
+      nominatedSurvived: 1,
+      disqualified: -5,
+      quit: -5,
+      medicallyRemoved: 0,
+      finalist: { exclusive: 3, shared: 5 },
+      winner: { exclusive: 5, shared: 10 },
+    },
     leftOut: [],
   },
   aliases: {

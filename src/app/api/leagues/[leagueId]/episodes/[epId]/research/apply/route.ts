@@ -53,6 +53,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
         method: d.kind === "group" && typeof p.method === "string" ? p.method.trim() : str(p.method, d.method),
         eventType: str(p.eventType, d.eventType),
         juryVotes: Number.isInteger(p.juryVotes) && (p.juryVotes as number) >= 0 ? (p.juryVotes as number) : d.juryVotes,
+        units: d.units ?? null,
         postMerge: d.postMerge,
       };
     });

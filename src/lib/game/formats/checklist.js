@@ -11,6 +11,7 @@
 //   type        answer      the shared yes / no / unknown enum (research's `Answer`)
 //               string      free text
 //               integer     a whole number
+//               number      any number: an amount that needn't be whole (innings pitched, 6.67)
 //               enum        one of `values`
 //               exitMethod  one of the format's own exit methods
 //               stringList  a list of strings (names, URLs)
@@ -26,7 +27,7 @@
 //
 // Plain CommonJS with no dependencies, like the formats themselves: `z` and `Answer` are handed in.
 
-const TYPES = ['answer', 'string', 'integer', 'enum', 'exitMethod', 'stringList'];
+const TYPES = ['answer', 'string', 'integer', 'number', 'enum', 'exitMethod', 'stringList'];
 const FIELD_PROPS = ['key', 'type', 'nullable', 'values', 'description', 'note'];
 
 // Fields the shared research code reads by name on every format (validateResearch, itemsFromChecklist,
@@ -107,6 +108,7 @@ function fieldSchema(f, z, Answer, exitMethods) {
   if (f.type === 'answer') s = Answer;
   else if (f.type === 'string') s = z.string();
   else if (f.type === 'integer') s = z.number().int();
+  else if (f.type === 'number') s = z.number();
   else if (f.type === 'enum') s = z.enum(f.values);
   else if (f.type === 'exitMethod') s = z.enum(exitMethods);
   else if (f.type === 'stringList') s = z.array(z.string());

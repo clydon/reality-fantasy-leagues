@@ -150,7 +150,7 @@ function CastRow({
 // ---- Classic: the team, still in first, then who's out in the order they went ----
 
 function Team({ state, r }: { state: LeagueState; r: ScoreRow }) {
-  const winner = StateLogic.formatOf(state).winnerExitMethod;
+  const won = (c: Castaway) => StateLogic.isWinnerExit(state, c.exitMethod);
   const epOf = (c: Castaway) => (c.exitEpisodeId ? state.episodes.find((e) => e.id === c.exitEpisodeId)?.number : undefined);
   const inGame = r.roster.filter((c) => c.status !== "eliminated").sort((a, b) => a.name.localeCompare(b.name));
   const out = r.roster.filter((c) => c.status === "eliminated").sort((a, b) => (b.placementOrder ?? 0) - (a.placementOrder ?? 0));
@@ -191,11 +191,11 @@ function Team({ state, r }: { state: LeagueState; r: ScoreRow }) {
                 <CastRow
                   key={c.id}
                   c={c}
-                  out={c.exitMethod !== winner}
+                  out={!won(c)}
                   points={{ n: castawayPoints(state, c), final: true }}
                   detail={
-                    c.exitMethod === winner ? (
-                      <Chip tone="chyron">{winner}</Chip>
+                    won(c) ? (
+                      <Chip tone="chyron">{c.exitMethod}</Chip>
                     ) : (
                       <>
                         <Chip tone="live">Out</Chip>
