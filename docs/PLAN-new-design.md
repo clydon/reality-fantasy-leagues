@@ -22,7 +22,7 @@ else needs re-reading.
 | R1 | Rulebooks phase 1: schema, built-ins as blocks, How it works view model (logic only) | **done** 2026-10-24 on the branch | Opus · high |
 | R2 | Rulebooks phase 2: the compiler, legacy freeze, engine relaxations | **done** 2026-10-24 on the branch (migration 0106 ships with 0b's) | Opus · high |
 | R3 | Rulebooks phase 3: `rulebooks` tables, backfill, resolution behind a flag | **done** 2026-10-24 on the branch (migration 0107 ships with 0b's; the flag stays off) | Opus · high |
-| 0c | The new shell, Preview system, fixtures, motion | not started | Opus · high |
+| 0c | The new shell, Preview system, fixtures, motion | **done** 2026-10-24 on the branch (migration 0108 ships with 0b's) | Opus · high |
 | 0d | Hub and show space ported (fixtures behind Preview) | not started | Opus · high |
 | 1 | Show space on real leagues: Tonight's move cards, Games tab, How it works | not started | Opus · high |
 | 2 | Episodes, staged results, the one reveal, share at the reveal | not started | Opus · high |
@@ -623,6 +623,64 @@ off it touches nothing but one small flag read.
   marked done in Status still has entries.
 - Done when an opted-in account lands on `/home` and moves through empty route shells with the motion
   working, at 390px and on desktop, and classic is unchanged.
+
+**As built (2026-10-24, on `new-design`).**
+- **Routes** (`src/app/(new)/`, listed in `src/new/routes.ts`): `(in)/` checks the session on the server (none:
+  `/sign-in`; not approved: classic's `/`) and holds `/home`, `/settings` and `/show/[seasonId]/...`; `/start/[step]`
+  and `/join/[code]` sit outside it, open signed out, for step 9. **The Games tab's route key is `games`** (the mock's
+  was `standings`). `/show/[seasonId]` goes to Tonight; the five tabs share `(tabs)/layout.tsx` (show bar and tab
+  bar); `backstage/[[...page]]` (results, waivers, rules, members, settings, history), `waivers`, `draft` and `blind`
+  are pushed over the show without them. AuthGate passes the new routes straight through and doesn't boot classic
+  on them (no `/api/me`, no league state); switching designs is always a full load.
+- **Opting in:** migration 0108 `user_settings.ui` ('classic' | 'new'), read and written by `/api/me/settings`;
+  classic's More sheet and sidebar menu say **Try the new design** (Coming Soon!, which opened /mock, is gone; /mock
+  is now Settings › The full design); the new Settings has **Back to the classic design**. A signed-in `/` goes to
+  `/home` by a `next.config.ts` redirect on the `gys_ui` cookie plus a session cookie, before anything renders (a
+  `redirect()` in classic's `Home` page threw React's dev-only "negative time stamp" error). A device without the
+  cookie gets there through AuthGate: `/api/me` now returns `ui` and sets the cookie (`src/lib/server/ui-choice.ts`).
+- **Tokens:** the Night tokens exactly as classic's `.dark` has them, forced (the shell puts `dark` on `<html>`), so
+  the new design uses classic's utilities and adds no token names. `src/app/(new)/new.css` holds only the phone
+  column (390px, the #0b0a0f desktop backdrop, `.nd-fixed-x` for anything fixed) and the motion. DESIGN.md has a new
+  section, "The new design", with the rules the primitives carry and the mock's bends.
+- **Primitives** (`src/new/ui/`): `Sheet` (Base UI and classic's swipe, the mock's shape), `PushedPage` +
+  `usePushedPage` (`?page=`, the back gesture closes it, rendered into `<body>`), `toast` (with Undo), `Preview`,
+  `TopBar` / `PageHeader` / `Avatar` / `Wordmark`, `ShowBar` (tall on Tonight, compact and sticky elsewhere),
+  `TabBar` (tabs replace the history entry: back from any tab leaves the show), `ShowArt`, `Btn` (must / optional /
+  ink), `Row`, `SectionHead`, `Chip`, `EmptyState`, `GuardChip`, classic's `CaptionPlate` re-exported, and `Flip` for
+  step 3's re-sorts (unused yet).
+- **Real data in the shells** (all free): your name; your couches (the hub shows the one picked on this device,
+  else the busiest); your shows as cards with their art; the show bar (art, season, a calm clock from the schedule,
+  the ⋯ menu); the couch line; Tonight's badge (moves due in this couch's games); Backstage for whoever runs a game
+  here; the guard chip's episode. A show opens with the current couch if it plays it, else the busiest couch that
+  does; with only you on the couch there's no Chat tab. `src/new/data.ts`, `useShow` in `screens/show-space.tsx`.
+- **Motion, and two React behaviours it had to work around** (`src/new/nav.tsx`, `new.css`). The screen that moves
+  is the view transition's root snapshot, because pages scroll the document (naming a page's own element morphs it
+  from wherever it was scrolled to); `html[data-nav]` says which way; the show bar, tab bar and tab marker are named
+  during a tab move and the show's art on a channel change. (1) React cancels the root's part of a transition unless
+  `<html>` has an inline `view-transition-name`, so the shell sets `root` (the check asserts the root moves, so a
+  React upgrade that changes this shows up). (2) React applies a popstate to a page it still has synchronously, so
+  the browser can restore the scroll, and a synchronous update never animates: the browser's own back (a gesture,
+  Android's back) isn't animated, as Next's guide says (iOS animates its swipe anyway), while the in-app Back buttons
+  (`nav.back`) run their own `document.startViewTransition` around `history.back()`, naming the art by hand for the
+  channel change. Also: closing a Base UI sheet runs a `flushSync`, which cancels a transition, so a sheet row that
+  navigates leaves the sheet open and it slides away with the screen. On a desktop the root is the whole window, so
+  pushes and pops are the tabs' short nudge there.
+- **Preview** (`src/new/preview.ts`, 28 entries): `<Preview id>` takes its step from the registry (so ids type-check)
+  rather than a `step` prop; `tag={false}` for an icon button. 0d's entries are the placeholders for the rest of the
+  hub (`hub.sections`) and each show tab (`show.<tab>`, `show.how-it-works`); the others belong to the step that
+  builds that screen. `src/new/fixtures/` has the convention (`export const STEP = "..."` per module) and no data
+  yet: 0d ports the mock's.
+- **Checks:** `tests/new-nav.test.js` (the routes, every kind of move, calm clocks); `scripts/dev-test/check-new-shell.js
+  <outDir> [--width=390|1280] [--reduce] [--keep]` (in a browser on new-fixture.js: opting in both ways and the
+  cookie, every kind of move with the animations that ran, the root included, the badge, the guard chip, How it
+  works covering the screen, back to classic), passing at 390, 1280 and reduced motion; `scripts/dev-test/
+  check-preview.js`. Classic unchanged: `check-up-next`, `check-reveal` (plays to its last beat), `check-chat-polls`;
+  `npm test` 462 pass plus the 3 known tour-commissioner failures. Type-check and lint clean.
+- **For 0d:** replace `hub.sections` and each `show.<tab>` placeholder with the ported sections, each behind its own
+  Preview entry tagged with the step that makes it real, data in `src/new/fixtures/<area>.ts`. Any card that should
+  grow into the show is a `NavLink channel` holding `ShowArt morph`, and only one element per season may carry it at
+  a time (check-new-shell counts one card per show). A `notFound()` under the new routes shows Next's plain 404;
+  a `src/app/(new)/not-found.tsx` would fit the design. Migration 0108 ships with 0b's (same rehearsal).
 
 ## Step 0d: hub and show space, ported
 

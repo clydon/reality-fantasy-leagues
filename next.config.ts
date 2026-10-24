@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { UI_COOKIE } from "./src/new/routes";
 
 // The two routes that embed text for research search (db/embeddings.js): research itself, which
 // indexes what it found, and a side bet's suggested answer, which embeds the question.
@@ -33,6 +34,21 @@ const nextConfig: NextConfig = {
   },
   // The full-site design mock, served as static files outside the app shell (public/mock/, built by
   // scripts/dev-test/publish-site-mock.js). /mock/hub is the older link people already have.
+  // An account on the new design opens on /home (docs/PLAN-new-design.md step 0c): signed in (a session cookie,
+  // whichever name it has on http and https) and this device's copy of the choice (src/lib/server/ui-choice.ts).
+  // Here rather than in the page, so it's answered before anything renders; /home checks the session itself. A
+  // device without the cookie yet gets there through AuthGate, which asks /api/me (and that sets the cookie).
+  async redirects() {
+    return ["better-auth.session_token", "__Secure-better-auth.session_token"].map((session) => ({
+      source: "/",
+      has: [
+        { type: "cookie" as const, key: UI_COOKIE, value: "new" },
+        { type: "cookie" as const, key: session },
+      ],
+      destination: "/home",
+      permanent: false,
+    }));
+  },
   async rewrites() {
     return [
       { source: "/mock", destination: "/mock/site/index.html" },

@@ -34,6 +34,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { LeagueSwipe } from "@/components/league-swipe";
 import { AdminMobileChrome, AdminSidebar, isAdminRoute } from "@/components/admin/admin-shell";
 import { useRecordNavTrail } from "@/lib/nav-trail";
+import { isNewDesignRoute } from "@/new/routes";
 
 type Status = "checking" | "idle" | "loading";
 
@@ -94,6 +95,8 @@ export function AuthGate({ children, hasSession }: { children: ReactNode; hasSes
   const startTour = useTourStore((s) => s.start);
   const tourRunning = useTourRunning();
   const [status, setStatus] = useState<Status>("checking");
+  // On the way to the new design (an account that chose it, arriving at "/"): the boot screen stays up until it's gone.
+  const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signedInUsername, setSignedInUsername] = useState<string | null>(null);
   // Early access gate (db/migrations/0058_user_approval.sql) -- true until loadFirstLeague says
@@ -125,6 +128,14 @@ export function AuthGate({ children, hasSession }: { children: ReactNode; hasSes
 
   async function loadFirstLeague() {
     const me = await api.me();
+    // An account on the new design (user_settings.ui, docs/PLAN-new-design.md step 0c) opens on /home. /api/me
+    // has just set this device's cookie, so from now on "/" goes there before any of this loads. A full load: the
+    // new design has its own shell.
+    if (me.user.ui === "new" && (window.location.pathname === LANDING || window.location.pathname === SIGN_IN)) {
+      setLeaving(true);
+      window.location.replace("/home");
+      return;
+    }
     // "My Leagues" reflects real membership only, even for a super-admin (see the live app's
     // server/routes/auth.js) -- identity is set regardless; with no leagues the render below
     // shows the Dashboard (join/create/invites) rather than demo data.
@@ -160,7 +171,13 @@ export function AuthGate({ children, hasSession }: { children: ReactNode; hasSes
     setEntered(true);
   }
 
+  // The new design's routes (src/new/routes.ts) bring their own shell and their own sign-in check, so nothing
+  // here loads for them. Classic boots the first time you're on one of its pages instead.
+  const onNewDesign = isNewDesignRoute(pathname);
+  const booted = useRef(false);
   useEffect(() => {
+    if (onNewDesign || booted.current) return;
+    booted.current = true;
     // Reopening the installed app where you left off (lib/last-page.ts) navigates now, behind the
     // boot overlay, so the right page is already underneath when it lifts.
     if (restoring.current === undefined) {
@@ -170,7 +187,6 @@ export function AuthGate({ children, hasSession }: { children: ReactNode; hasSes
     }
     // Silent check for an existing session (e.g. already logged into the live app in this same
     // browser) -- failing this is the normal, expected first-load case, not an error to surface.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadFirstLeague()
       .catch(() => {
         // Signed out: the front door, and anything after it (signing in, the tour), starts from "/".
@@ -178,7 +194,7 @@ export function AuthGate({ children, hasSession }: { children: ReactNode; hasSes
         restoring.current = null;
       })
       .finally(() => setStatus("idle"));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [onNewDesign]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleLogin(identifier: string, password: string) {
     setStatus("loading");
@@ -233,6 +249,15 @@ export function AuthGate({ children, hasSession }: { children: ReactNode; hasSes
     // Deliberately a full reload, not router.push() -- see the comment above this function.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/";
+  }
+
+  // The new design (step 0c): its own layout, src/app/(new)/.
+  if (onNewDesign) {
+    return children;
+  }
+
+  if (leaving) {
+    return <BootOverlay />;
   }
 
   // Forgot / reset password bring their own full-screen layout (auth/front-door.tsx).

@@ -1,0 +1,110 @@
+// The new design's routes (docs/PLAN-new-design.md step 0c), and which way the screen moves between them: a port
+// of the mock's nav.js rules (.impeccable/mocks/site/nav.js), kept pure so tests/new-nav.test.js can check them.
+//
+//   /home                                    the hub (depth 0)
+//   /show/[seasonId]/[tab]                   a show space's five tabs (depth 1)
+//   /show/[seasonId]/backstage|draft|blind|waivers   pushed over the show (depth 2; a Backstage page is 3)
+//   /settings, /start/[step], /join/[code]   their own screens (depth 1)
+//
+// Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
+
+/** This device's copy of which design the account opens on (src/lib/server/ui-choice.ts); next.config.ts's
+ *  redirect of "/" reads it. */
+export const UI_COOKIE = "gys_ui";
+
+/** The paths the new design owns. AuthGate (classic's shell) leaves these alone. */
+export const NEW_DESIGN_PREFIXES = ["/home", "/show", "/settings", "/start", "/join"] as const;
+
+export function isNewDesignRoute(pathname: string): boolean {
+  return NEW_DESIGN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+/** A show space's tabs, in order (the order tabs slide by). The mock's route key for Games was `standings`. */
+export const SHOW_TABS = ["tonight", "episodes", "games", "cast", "chat"] as const;
+export type ShowTab = (typeof SHOW_TABS)[number];
+
+export function isShowTab(v: string): v is ShowTab {
+  return (SHOW_TABS as readonly string[]).includes(v);
+}
+
+/** Pages pushed over a show space, each a route of its own. */
+export const SHOW_PAGES = ["backstage", "draft", "blind", "waivers"] as const;
+
+/** Backstage's own pages, one level deeper (/show/[seasonId]/backstage/results). */
+export const BACKSTAGE_PAGES = ["results", "waivers", "rules", "members", "settings", "history"] as const;
+export type BackstagePage = (typeof BACKSTAGE_PAGES)[number];
+
+export function isBackstagePage(v: string): v is BackstagePage {
+  return (BACKSTAGE_PAGES as readonly string[]).includes(v);
+}
+
+/** First run's steps: shows, where you are, your account, your people. */
+export const START_STEPS = 4;
+
+export const paths = {
+  home: "/home",
+  settings: "/settings",
+  show: (seasonId: string, tab: ShowTab = "tonight") => `/show/${seasonId}/${tab}`,
+  backstage: (seasonId: string, page?: string) => `/show/${seasonId}/backstage${page ? `/${page}` : ""}`,
+  showPage: (seasonId: string, page: "draft" | "blind" | "waivers") => `/show/${seasonId}/${page}`,
+  start: (step: number) => `/start/${step}`,
+  join: (code: string) => `/join/${code}`,
+};
+
+/**
+ * How a navigation moves the screen:
+ *   push / pop   deeper comes in from the right over the old screen; back slides it off to the right
+ *   left / right a show's tabs, by tab order: the content nudges sideways, the show bar and tab bar hold still
+ *   channel      the hub and a show: the show's art grows from its card into the header (or back), the rest crossfades
+ *   fade         same depth, no order: a crossfade
+ *   calm         reduced motion: a short crossfade, nothing moves
+ */
+export type NavKind = "push" | "pop" | "left" | "right" | "channel" | "fade" | "calm";
+
+function parse(href: string): string[] {
+  const path = href.split(/[?#]/)[0];
+  return path.split("/").filter(Boolean);
+}
+
+export function depthOf(href: string): number {
+  const p = parse(href);
+  switch (p[0]) {
+    case "home":
+      return 0;
+    case "show":
+      if ((SHOW_PAGES as readonly string[]).includes(p[2])) return p[3] ? 3 : 2;
+      return 1;
+    case "settings":
+    case "start":
+    case "join":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * The kind of move from one path to another. `channel` asks for the art morph when going from the hub into a show
+ * (the tapped card has art to grow); coming back from a show's tab to the hub is always a channel change.
+ */
+export function navKind(from: string, to: string, opts: { channel?: boolean; reducedMotion?: boolean } = {}): NavKind {
+  if (opts.reducedMotion) return "calm";
+  const a = parse(from);
+  const b = parse(to);
+  const da = depthOf(from);
+  const db = depthOf(to);
+  // Two tabs of the same show: sideways by tab order.
+  if (a[0] === "show" && b[0] === "show" && a[1] === b[1] && da === 1 && db === 1) {
+    const i = SHOW_TABS.indexOf((a[2] ?? "tonight") as ShowTab);
+    const j = SHOW_TABS.indexOf((b[2] ?? "tonight") as ShowTab);
+    return i === j ? "fade" : j > i ? "left" : "right";
+  }
+  // First run: forward and back through its steps.
+  if (a[0] === "start" && b[0] === "start") return (Number(b[1]) || 1) > (Number(a[1]) || 1) ? "push" : "pop";
+  // The hub and a show: the channel change.
+  if (da === 0 && db === 1 && b[0] === "show" && opts.channel) return "channel";
+  if (da === 1 && db === 0 && a[0] === "show") return "channel";
+  if (db > da) return "push";
+  if (db < da) return "pop";
+  return "fade";
+}

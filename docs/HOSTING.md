@@ -181,3 +181,11 @@ never handles it: the user does the reset and the pasting.
   unedited built-in's `settings.rulebook` (formatOf would read the built-in's own data), which is most leagues.
   Rehearsal: `scripts/rehearse-migrations.js` now also runs the backfill and the read-only `rulebooks-flag.js
   check` on the branch.
+- **2026-10-24, on the `new-design` branch (not deployed).** Step 0c, the new design's shell. Migration 0108 adds one
+  column, `user_settings.ui` (classic or new). Classic's `/api/me` reads it (one tiny query on each app start) and
+  sets a `gys_ui` cookie to match; a signed-in `/` with that cookie set to new is sent to `/home` by a `next.config.ts`
+  redirect, which Vercel answers in its routing layer (no function, no database). The new design's signed-in pages
+  read the session once per full page load (one Better Auth query, in place of classic's `/api/me` boot, which
+  reads every league's state) and then `/api/me/home` and `/api/seasons/[id]/space` once a visit, again when you come
+  back to the tab after a minute (react-query's refetch on focus), never on a timer. Nothing polls or runs on a
+  schedule, and only accounts that opt in use any of it.

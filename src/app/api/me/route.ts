@@ -3,6 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { isApprovedUser, requireSession } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
 import { groupDisplayName } from "@/lib/server/league-groups";
+import { uiOf, withUiCookie } from "@/lib/server/ui-choice";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 
@@ -73,7 +74,10 @@ export const GET = apiRoute(async (req) => {
       );
     }
   }
-  return NextResponse.json({
+  // Which design this account opens on (step 0c): auth-gate.tsx sends the new design's people to /home, and
+  // the cookie lets this device's next "/" do it before anything loads (ui-choice.ts).
+  const ui = await uiOf(user.id);
+  return withUiCookie(NextResponse.json({
     user: {
       id: user.id,
       username: (user as { username?: string | null }).username,
@@ -81,10 +85,11 @@ export const GET = apiRoute(async (req) => {
       // Early access gate (db/migrations/0058_user_approval.sql) -- auth-gate.tsx shows the
       // pending screen instead of the app shell when this is false.
       approved: isApprovedUser(user),
+      ui,
     },
     leagues,
     // Better Auth's admin plugin marks impersonation on the session row (impersonatedBy), not
     // the user -- same underlying idea as SurvivorDraft's separate req.session.impersonatorId.
     impersonating: !!(session as { impersonatedBy?: unknown }).impersonatedBy,
-  });
+  }), ui);
 });

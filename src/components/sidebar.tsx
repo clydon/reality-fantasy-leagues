@@ -42,6 +42,7 @@ import {
 } from "@/components/icons";
 import { useExplainerStore } from "@/lib/explainer-store";
 import { cn } from "cn";
+import { switchDesign } from "@/new/data";
 
 type Icon = ComponentType<{ className?: string }>;
 
@@ -335,17 +336,16 @@ function AccountRow() {
               >
                 What&rsquo;s new
               </MenuRow>
-              {/* The full-site design mock (public/mock/), so it can be explored in the app; a full page load,
-                  since /mock is a static page, not a route. Report an issue stays reachable from the tours. */}
+              {/* The new design (docs/PLAN-new-design.md step 0c): this account opens on it from now on, and its
+                  Settings has the way back. Report an issue stays reachable from the tours. */}
               <MenuRow
                 icon={TvIcon}
                 onClick={() => {
                   close();
-                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- /mock is a static page, not a route
-                  window.location.assign("/mock");
+                  switchDesign("new");
                 }}
               >
-                Coming Soon!
+                Try the new design
               </MenuRow>
               {mode === "live" && (
                 <MenuRow

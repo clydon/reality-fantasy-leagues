@@ -62,7 +62,8 @@ export interface BotResearchRun {
 }
 
 export interface MeResponse {
-  user: { id: string; username: string; isSuperAdmin: boolean; approved: boolean };
+  /** ui: the design this account opens on (user_settings.ui, docs/PLAN-new-design.md step 0c). */
+  user: { id: string; username: string; isSuperAdmin: boolean; approved: boolean; ui: "classic" | "new" };
   // Already sorted for display by the server -- see /api/me.
   // landOn: the league the app opens on in this one's place -- its linked group's favorite, or null.
   // group: its linked group and that group's name (already defaulted to show + season), or null.
@@ -84,6 +85,8 @@ export interface MySettings {
   showResultsImmediately: boolean;
   whatsNewSeen: string | null;
   accountCreatedAt: string | null;
+  /** The design this account opens on (docs/PLAN-new-design.md step 0c). */
+  ui: "classic" | "new";
 }
 
 export interface LeagueStateResponse {
@@ -141,7 +144,7 @@ export const api = {
     localFetch<LeagueState>(`/api/leagues/${leagueId}/players/${id}/convert`, { method: "POST" }),
   getMySettings: () => localFetch<MySettings>("/api/me/settings"),
   // Only the fields sent change.
-  setMySettings: (changes: { showResultsImmediately?: boolean; whatsNewSeen?: string }) =>
+  setMySettings: (changes: { showResultsImmediately?: boolean; whatsNewSeen?: string; ui?: "classic" | "new" }) =>
     localFetch<MySettings>("/api/me/settings", { method: "PUT", body: JSON.stringify(changes) }),
   createLeague: (name: string) =>
     localFetch<{ league: { id: string; name: string; join_code: string }; state: LeagueState }>("/api/leagues", {

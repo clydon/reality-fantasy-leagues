@@ -36,6 +36,7 @@ colors:
   chart-ember: "#f2804b"
   chart-orchid: "#a76bb0"
   chart-lake: "#5089c9"
+  desktop-backdrop: "#0b0a0f"
 typography:
   caption-xl:
     fontFamily: "Archivo, system-ui, sans-serif"
@@ -560,6 +561,20 @@ Mobile first, and for a thumb: motion explains a change you just made, never del
 - **Waiver banner → way in** (`waivers/team-waivers.tsx`): tapping Team / Lineup's banner smooth-scrolls to the Waivers way in and plays `.way-in-lit` on it once it's in view (opacity, plus a 1.02 → 1 settle), and focuses it.
 - **Applied**: applying an episode's results opens its page with a quiet "Applied · N results in your league" plate rising in once (`lib/applied-results-store.ts`; a reload or a later visit shows nothing).
 - **Check**: `scripts/dev-test/check-motion.js` (parts: strip, sheet, tap, upnext, lineup, reduce, apply; fails on any animation that isn't transform or opacity), with `open({ motion: "on" | "off" | "reduce", watch })` in `scripts/dev-test/motion.js` for capturing deterministically.
+
+## The new design (docs/PLAN-new-design.md, from step 0c)
+
+The full-site mock (`.impeccable/mocks/site/`, decisions in memory `site-mock-decisions`) is being ported onto the real app as a new set of screens: `src/app/(new)/` for its routes, `src/new/` for everything else. It is direction A, so everything above holds; this is what it adds or bends. Until the cutover both designs run side by side, opted into per account (`user_settings.ui`).
+
+- **Night only, for now.** The new design forces Night (`dark` on `<html>` while you're on it) with exactly the Night tokens above, through the same utilities (`bg-background`, `bg-card`, `bg-secondary`, `border-border`, `text-muted-foreground`, `bg-chyron`, `bg-plate`). Studio comes back in step 15. Its own CSS is `src/app/(new)/new.css`: the phone column and the motion, nothing else.
+- **A phone column.** Designed at 390px; on a desktop it is a centred 390px column on the **Desktop Backdrop** (#0b0a0f) with a hairline either side, and the tab bar, sheets, toasts and pushed pages stay inside it (`.nd-fixed-x`). Desktop layouts come after step 15.
+- **Yellow only for what you must do** (the critique, 2026-10-23): an optional action is an outline (`Btn tone="optional"`), never a yellow fill; Weekly Lineup's colour is Lake (#5089c9), not yellow; tribes never fill. **The mock's one bend of the One Chyron Rule:** the TV guide pins Today (or Tonight) in yellow beside a yellow "needs you", so the guide can carry two.
+- **One spoiler chip** on every guarded surface: "Spoiler-safe · you're on Ep N · Change" (`GuardChip`, teal on a 10% teal fill). "Live" is not a spoiler word.
+- **Calm clocks**: anything more than a day away reads in days ("Wed 8:05 PM · in 5 days"); seconds tick only inside the last day (`src/new/clock.ts`).
+- **Plates are for single moments**, never stacked as list items; lists are rows (`Row`: a 40px icon box, a 15px title, a 13px muted line, hairlines between). **Watch along** is the only name for watching together.
+- **Sheets** keep classic's behaviour (Base UI, swipe down to close) in the mock's shape: a 26px condensed title with one muted line under it and a close button, 380ms on the mock's ease-out (`cubic-bezier(.16,1,.3,1)`). **Toasts** drop from the top as a white plate with a teal check tag, Undo on the end when there is one. **Pushed pages** (How it works, More on the couch's pages) slide in from the right over the screen you're on and close with the back gesture (`?page=`).
+- **Navigation moves** (the bend of "nothing plays on arriving on a page"): every navigation is a view transition that says where you went, ported from the mock's `nav.js` (`src/new/nav.tsx`, `routes.ts`). Deeper pushes in from the right over the old screen, which steps back; back slides it off to the right; a show's tabs nudge sideways by tab order with the show bar and tab bar still and the tab marker sliding; the hub and a show change the channel (the show's art grows from its card into the show bar, and back). On a desktop, pushes are the short nudge. Reduced motion is a short crossfade. Transform and opacity only.
+- **Preview**: a part of a new screen not yet on real data has a 2px dashed Field Line outline and a small "Preview" tag, and its taps say "Coming soon" (`<Preview id>`, `src/new/preview.ts`). It isn't decoration; it goes as each step makes the part real.
 
 ## Do's and Don'ts
 

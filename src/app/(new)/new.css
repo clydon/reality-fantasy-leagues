@@ -1,0 +1,252 @@
+/* The new design's own CSS (docs/PLAN-new-design.md step 0c). Its tokens are DESIGN.md's Night palette, the same
+   variables classic's `.dark` block sets (globals.css), so components use the usual utilities (bg-background,
+   bg-card, bg-secondary, border-border, text-muted-foreground, bg-chyron, bg-plate...). The layout forces Night by
+   putting `dark` on <html> while you're here; the Studio (light) theme comes back in step 15. Everything else is
+   Tailwind in the components; this file holds what utilities can't say: the phone column, and the motion. */
+
+/* ---------- the phone column ---------- */
+/* Phone first: on a desktop the new design is a centred 390px column on a darker backdrop (desktop layouts come
+   after step 15). Fixed pieces (tab bar, sheets, toasts, pushed pages) sit inside the column with these insets. */
+html:has(.nd) {
+  --nd-col: 390px;
+  --nd-inset: max(0px, calc((100vw - var(--nd-col)) / 2));
+  background: #0b0a0f;
+  color-scheme: dark;
+}
+html:has(.nd) body {
+  background: #0b0a0f;
+}
+.nd {
+  min-height: 100dvh;
+  width: 100%;
+  max-width: var(--nd-col);
+  margin: 0 auto;
+  background: var(--background);
+  color: var(--foreground);
+  position: relative;
+  overflow-x: clip;
+}
+@media (min-width: 760px) {
+  .nd {
+    outline: 1px solid #2a2633;
+  }
+}
+.nd-fixed-x {
+  left: var(--nd-inset);
+  right: var(--nd-inset);
+}
+
+/* Anything you tap acknowledges the finger. */
+.nd-press {
+  transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nd-press:active {
+  transform: scale(0.98);
+}
+
+/* ---------- motion that grounds navigation (src/new/nav.tsx, the mock's nav.css) ----------
+   The screen is the view transition's root snapshot; html[data-nav] says which way it moves. Only transform and
+   opacity animate. */
+
+/* The boundary that starts a transition on every navigation: invisible, and it plays nothing itself. */
+.nd-mark {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+::view-transition-old(.nd-mark),
+::view-transition-new(.nd-mark) {
+  animation: none;
+  opacity: 0;
+}
+/* Taps during a transition reach the page underneath instead of being lost. */
+::view-transition {
+  pointer-events: none;
+}
+
+@keyframes nd-from-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes nd-to-left {
+  to {
+    transform: translateX(-28%);
+    opacity: 0.4;
+  }
+}
+@keyframes nd-from-left {
+  from {
+    transform: translateX(-28%);
+    opacity: 0.4;
+  }
+}
+@keyframes nd-to-right {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes nd-nudge-in-r {
+  from {
+    transform: translateX(36px);
+    opacity: 0;
+  }
+}
+@keyframes nd-nudge-out-l {
+  to {
+    transform: translateX(-36px);
+    opacity: 0;
+  }
+}
+@keyframes nd-nudge-in-l {
+  from {
+    transform: translateX(-36px);
+    opacity: 0;
+  }
+}
+@keyframes nd-nudge-out-r {
+  to {
+    transform: translateX(36px);
+    opacity: 0;
+  }
+}
+@keyframes nd-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes nd-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Deeper: the new screen comes in from the right over the old, which steps back. Screens slide as opaque sheets,
+   so no additive blending where they overlap. */
+html[data-nav="push"]::view-transition-old(root),
+html[data-nav="push"]::view-transition-new(root),
+html[data-nav="pop"]::view-transition-old(root),
+html[data-nav="pop"]::view-transition-new(root) {
+  mix-blend-mode: normal;
+}
+html[data-nav="push"]::view-transition-old(root) {
+  animation: nd-to-left 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+html[data-nav="push"]::view-transition-new(root) {
+  animation: nd-from-right 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* Back: the screen you leave slides off to the right, a touch quicker, uncovering where you were. */
+html[data-nav="pop"]::view-transition-old(root) {
+  animation: nd-to-right 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
+  z-index: 2;
+}
+html[data-nav="pop"]::view-transition-new(root) {
+  animation: nd-from-left 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* On a desktop the snapshot is the whole window, not the phone column: a full slide would sweep the backdrop
+   across the screen, so depth there is the tabs' short nudge. */
+@media (min-width: 760px) {
+  html[data-nav="push"]::view-transition-old(root) {
+    animation: nd-nudge-out-l 0.16s ease-in both;
+  }
+  html[data-nav="push"]::view-transition-new(root) {
+    animation: nd-nudge-in-r 0.26s cubic-bezier(0.16, 1, 0.3, 1) 0.04s both;
+  }
+  html[data-nav="pop"]::view-transition-old(root) {
+    animation: nd-nudge-out-r 0.16s ease-in both;
+  }
+  html[data-nav="pop"]::view-transition-new(root) {
+    animation: nd-nudge-in-l 0.26s cubic-bezier(0.16, 1, 0.3, 1) 0.04s both;
+  }
+}
+
+/* A show's tabs: a short sideways nudge in tab order; the show bar and the tab bar hold still (the show bar morphs
+   between Tonight's tall header and the others' compact one) and the tab marker slides to the new tab. */
+html[data-nav="left"] .nd-showbar,
+html[data-nav="right"] .nd-showbar {
+  view-transition-name: nd-showbar;
+}
+html[data-nav="left"] .nd-tabbar,
+html[data-nav="right"] .nd-tabbar {
+  view-transition-name: nd-tabbar;
+}
+html[data-nav="left"] .nd-tabind,
+html[data-nav="right"] .nd-tabind {
+  view-transition-name: nd-tabind;
+}
+html[data-nav="left"]::view-transition-old(root) {
+  animation: nd-nudge-out-l 0.16s ease-in both;
+}
+html[data-nav="left"]::view-transition-new(root) {
+  animation: nd-nudge-in-r 0.26s cubic-bezier(0.16, 1, 0.3, 1) 0.04s both;
+}
+html[data-nav="right"]::view-transition-old(root) {
+  animation: nd-nudge-out-r 0.16s ease-in both;
+}
+html[data-nav="right"]::view-transition-new(root) {
+  animation: nd-nudge-in-l 0.26s cubic-bezier(0.16, 1, 0.3, 1) 0.04s both;
+}
+::view-transition-group(nd-showbar),
+::view-transition-group(nd-tabind) {
+  animation-duration: 0.28s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+::view-transition-group(nd-tabind) {
+  z-index: 3;
+}
+
+/* Changing the channel: the show's art grows from the tapped card into the show's header (or shrinks back into it);
+   the screens just crossfade under it. */
+html[data-nav="channel"]::view-transition-old(root) {
+  animation: nd-fade-out 0.18s ease-in both;
+}
+html[data-nav="channel"]::view-transition-new(root) {
+  animation: nd-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+::view-transition-group(.nd-art) {
+  animation-duration: 0.44s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 5;
+}
+::view-transition-old(.nd-art),
+::view-transition-new(.nd-art) {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  animation-duration: 0.44s;
+}
+
+/* A plain swap (same depth, no order): a crossfade. */
+html[data-nav="fade"]::view-transition-old(root),
+html[data-nav="calm"]::view-transition-old(root) {
+  animation: nd-fade-out 0.12s ease-in both;
+}
+html[data-nav="fade"]::view-transition-new(root),
+html[data-nav="calm"]::view-transition-new(root) {
+  animation: nd-fade-in 0.2s ease-out both;
+}
+
+/* Same people, new places (the Cast explorer's re-sorts, step 3: src/new/ui/flip.tsx). */
+::view-transition-group(.nd-flip) {
+  animation-duration: 0.34s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Reduced motion: nothing moves; navigation is a short crossfade. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01s !important;
+  }
+  html[data-nav="calm"]::view-transition-old(root) {
+    animation: nd-fade-out 0.12s both !important;
+  }
+  html[data-nav="calm"]::view-transition-new(root) {
+    animation: nd-fade-in 0.15s both !important;
+  }
+}

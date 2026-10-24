@@ -53,6 +53,7 @@ import { useHeaderAction } from "@/lib/header-action-store";
 import { useShowCatalog, useShowTerms } from "@/lib/use-show-terms";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import { artStyleVars } from "@/lib/show-art-style";
+import { switchDesign } from "@/new/data";
 
 // Port of the live app's mobile-only nav chrome (public/index.html's <header class="mobile-topbar">
 // / <nav class="mobile-bottombar"> / <div class="mobile-more-sheet">, populated by
@@ -588,16 +589,15 @@ export function MobileNav() {
                   showWhatsNew();
                 }}
               />
-              {/* The full-site design mock (public/mock/, outside the app shell), so it can be explored in
-                  the app. A full page load, not router.push: /mock is a static page, not a route. */}
+              {/* The new design (docs/PLAN-new-design.md step 0c): this account opens on it from now on, and its
+                  Settings has the way back. A full page load: the new design has its own shell. */}
               <MoreRow
                 icon={TvIcon}
-                label="Coming Soon!"
-                value="Preview the new design"
+                label="Try the new design"
+                value="Switch back any time"
                 onClick={() => {
                   setSheetOpen(false);
-                  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- /mock is a static page, not a route
-                  window.location.assign("/mock");
+                  switchDesign("new");
                 }}
               />
             </>
