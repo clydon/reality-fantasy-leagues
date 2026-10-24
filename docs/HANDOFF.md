@@ -16,7 +16,7 @@ Every service, its free limits, current usage, what drives each limit, and what 
 (the user's standing request, 2026-10-24). **The repo is public** since 2026-10-24 (free Actions minutes; the
 history was scrubbed of real people's data first): never commit secrets, real usernames or emails, or screenshots
 of real data (HOSTING.md, The repo is public). Open alerts there: Vercel's Functions Storage is over its free 10 GB,
-and the bot's new clock waits on a VM redeploy. Fixed 2026-10-24: the chat polls that used up Neon's transfer
+and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the chat polls that used up Neon's transfer
 (31294fd); the bot clock that kept Neon awake (the VM calls only when a run is due; runs count from the episode's
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
