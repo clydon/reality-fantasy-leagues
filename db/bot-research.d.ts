@@ -1,7 +1,9 @@
 // Types for the part of bot-research.js the Next app calls (the cron tick and the admin season routes).
 import type { Pool } from "pg";
 
-export type BotKind = "quick" | "full";
+/** quick: who left and the headline; full: every result, staged for review; schedule: when the next episode airs
+ *  and how long it runs (season_episodes), nothing to review. */
+export type BotKind = "quick" | "full" | "schedule";
 export interface BotScheduleRun {
   kind: BotKind;
   /** Minutes after the episode ends (its air time plus the season's episode length). */

@@ -14,7 +14,7 @@ import { cn } from "cn";
 // for, with what it found -- a quick check's answer is shown right here, a full run's results join the
 // review list -- and "Run now" for either kind, outside the schedule.
 
-const KIND = { quick: "Quick check", full: "Full research" } as const;
+const KIND = { quick: "Quick check", full: "Full research", schedule: "Schedule check" } as const;
 
 function slotLabel(slot: string) {
   if (slot === "now") return "run by hand";
@@ -31,7 +31,7 @@ export function BotResearchRuns({ season, episode, aired, onFiled }: { season: S
     refetchInterval: (q) => (q.state.data?.runs.some((r) => r.ok === null) ? 5000 : 60_000),
   });
   const runNow = useMutation({
-    mutationFn: (kind: "quick" | "full") => api.adminBotRunNow(season.id, episode, kind),
+    mutationFn: (kind: "quick" | "full" | "schedule") => api.adminBotRunNow(season.id, episode, kind),
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["bot-runs", season.id, episode] });
       await onFiled();
@@ -67,6 +67,9 @@ export function BotResearchRuns({ season, episode, aired, onFiled }: { season: S
           </ActButton>
           <ActButton disabled={runNow.isPending} onClick={() => runNow.mutate("full")}>
             {runNow.isPending && runNow.variables === "full" ? `Asking… ${elapsed}s` : "Run full now"}
+          </ActButton>
+          <ActButton disabled={runNow.isPending} onClick={() => runNow.mutate("schedule")}>
+            {runNow.isPending && runNow.variables === "schedule" ? `Asking… ${elapsed}s` : "Check the next episode's schedule"}
           </ActButton>
         </div>
       )}

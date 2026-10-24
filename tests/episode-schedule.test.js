@@ -75,6 +75,33 @@ test("the bot clock counts from a two-hour episode's own end", () => {
   assert.deepEqual(due(at(125), 120), ["quick@5"]);
 });
 
+test("the schedule check: asks only about the next episode, and reads the answer", () => {
+  const prompt = Bot.buildSchedulePrompt("Survivor", 51, 6, new Date("2026-10-29T00:00:00Z"), "America/New_York");
+  assert.match(prompt, /Survivor season 51: when does episode 7 air\?/);
+  assert.match(prompt, /Episode 6, which aired/);
+  assert.match(prompt, /"airsAt": "2026-11-04T20:00:00-05:00"/);
+  assert.doesNotMatch(prompt, /left the game/, "no results asked for");
+  const a = Bot.parseScheduleAnswer('```json\n{"found": true, "airsAt": "2026-11-04T20:00:00-05:00", "minutes": "120", "note": "two-hour", "sources": ["https://x.y/z", "nope"]}\n```');
+  assert.deepEqual(a, { found: true, airsAt: "2026-11-04T20:00:00-05:00", minutes: 120, note: "two-hour", sources: ["https://x.y/z"] });
+  assert.equal(Bot.parseScheduleAnswer('{"found": false, "airsAt": null, "minutes": null}').found, false);
+  assert.equal(Bot.parseScheduleAnswer('{"airsAt": null, "minutes": null, "note": "soon"}').found, false, "nothing usable is not found");
+});
+
+test("a schedule check is a run like the others: on a schedule, three tries 20 minutes apart", () => {
+  const schedule = Bot.normalizeSchedule([{ kind: "schedule", after: 30 }]);
+  assert.deepEqual(schedule.map(Bot.slotOf), ["schedule@30"]);
+  const aired = new Date("2026-10-29T00:00:00Z");
+  const at = (min) => new Date(aired.getTime() + min * 60 * 1000);
+  const tries = (...m) => m.map((x) => ({ episode_number: 6, slot: "schedule@30", started_at: at(x), ok: false }));
+  const due = (now, history = []) =>
+    Bot.dueRuns({ schedule, since: null, airTimes: [{ episode: 6, at: aired }], episodeMinutes: 90, history, now }).map((r) => r.slot);
+  assert.deepEqual(due(at(119)), []);
+  assert.deepEqual(due(at(120)), ["schedule@30"], "half an hour after a 90-minute episode ends");
+  assert.deepEqual(due(at(130), tries(120)), []);
+  assert.deepEqual(due(at(140), tries(120)), ["schedule@30"]);
+  assert.deepEqual(due(at(200), tries(120, 140, 160)), [], "three tries");
+});
+
 test("the research schema asks about the next episode, and the paste skeleton has it empty", () => {
   const Formats = require("../src/lib/game/formats/index.js");
   const prompt = Research.buildPastePrompt(

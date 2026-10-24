@@ -34,7 +34,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   const body = (await req.json().catch(() => ({}))) as { episode?: unknown; kind?: unknown };
   const episode = Number(body.episode);
   if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode must be a positive whole number");
-  if (body.kind !== "quick" && body.kind !== "full") throw new HttpError(400, "kind must be quick or full");
+  if (body.kind !== "quick" && body.kind !== "full" && body.kind !== "schedule") throw new HttpError(400, "kind must be quick, full or schedule");
   const season = await loadSeasonForJob(pool, id);
   if (!season) throw new HttpError(404, "Season not found");
   const airsAt = await episodeAirsAt(pool, id, episode);

@@ -157,4 +157,6 @@ never handles it: the user does the reset and the pasting.
   (Wednesday 9:40 PM Eastern), quiet until then apart from 6-hourly check-ins. Network transfer read 4.73 GB six
   hours after the polling fix (unchanged). The Neon password rotation was deferred (Alerts). Later the same day the
   user switched bot research off again: its full runs stage results for review, and unreviewed results aren't used
-  (PLAN-new-design 6b). The clock has nothing scheduled, so it only checks in every 6 hours.
+  (PLAN-new-design 6b). The clock has nothing scheduled, so it only checks in every 6 hours. Survivor 51's air time
+  corrected to 8:00 PM (was 8:05). Migration 0068 adds the bot's schedule check (when the next episode airs and how
+  long it runs, nothing to review): one bot question per episode, so a few minutes of Neon compute per episode night.

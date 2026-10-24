@@ -17,7 +17,7 @@ const StateLogic = require("../src/lib/game/state-logic.js");
 const AutoResearch = require("./auto-research.js");
 const Research = require("./episode-research.js");
 
-const KINDS = ["quick", "full"];
+const KINDS = ["quick", "full", "schedule"];
 const DEFAULT_SCHEDULE = [
   { kind: "quick", after: 5, on: true },
   { kind: "full", after: 60, on: true },
@@ -44,7 +44,7 @@ const FULL_RETRY_MS = 20 * MIN;
 const QUICK = { fastMs: 5 * MIN, fastForMs: 30 * MIN, slowMs: 15 * MIN, windowMs: 3 * 60 * MIN, maxTries: 20 };
 // How late a run is still worth doing at all (the VM was down, say). A quick check is news for hours; a
 // full one is useful for days.
-const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN };
+const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN };
 
 const slotOf = (run) => `${run.kind}@${run.after}`;
 
@@ -65,6 +65,7 @@ function nextTryAt(kind, due, tries) {
       next = last + (last - at < QUICK.fastForMs ? QUICK.fastMs : QUICK.slowMs);
       if (tries.length >= MAX_ATTEMPTS && next - at > QUICK.windowMs) return null;
     } else {
+      // A full run, and a schedule check: three tries, 20 minutes apart.
       if (tries.length >= MAX_ATTEMPTS) return null;
       next = last + FULL_RETRY_MS;
     }
@@ -192,6 +193,42 @@ function parseQuickAnswer(text, castNames) {
   };
 }
 
+// ---------- the schedule check ----------
+// Only when the NEXT episode airs, its start and its length: the previous episode's "next time" preview, or the
+// network's schedule. Filed in season_episodes (0067) by Research.recordNextEpisode, so a week off or a long
+// special moves lineup locks, reminders and the bot's own runs. It stages no results: nothing to review.
+
+/** The schedule check's prompt: episode n has just aired; when does n+1? */
+function buildSchedulePrompt(showName, season, episode, airedAt, tz) {
+  const when = airedAt ? `, which aired ${Air.formatInTz(airedAt, tz)}` : "";
+  return [
+    `Search the web for ${showName} season ${season}: when does episode ${episode + 1} air?`,
+    `Episode ${episode}${when} has just aired. Its "next time" preview, the network's schedule or TV listings should say.`,
+    "",
+    "Reply with only this JSON, in a ```json code block:",
+    '{"found": true, "airsAt": "2026-11-04T20:00:00-05:00", "minutes": 90, "note": null, "sources": ["https://..."]}',
+    "",
+    `- airsAt: when episode ${episode + 1} starts, ISO 8601 with the UTC offset of the time zone it's announced in. If the show takes a week off, the date of the next one that does air.`,
+    "- minutes: how long it runs, ads included (60, 90, or 120 for a two-hour episode). Null if not announced.",
+    "- note: anything unusual in a few words ('after a week off', 'two-hour finale'), else null.",
+    `If you can't find a source for when episode ${episode + 1} airs, set "found" to false. Never guess from earlier seasons or a usual pattern.`,
+  ].join("\n");
+}
+
+/** The schedule check's answer: { found, airsAt, minutes, note, sources }. */
+function parseScheduleAnswer(text) {
+  const raw = JSON.parse(Research.extractJsonObject(String(text || "")));
+  const str = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const n = typeof raw.minutes === "number" ? raw.minutes : Number.parseFloat(raw.minutes);
+  const out = {
+    airsAt: str(raw.airsAt),
+    minutes: Number.isFinite(n) ? n : null,
+    note: str(raw.note),
+    sources: (Array.isArray(raw.sources) ? raw.sources : []).map(String).filter((u) => /^https?:\/\//.test(u)).slice(0, 8),
+  };
+  return { found: raw.found !== false && (!!out.airsAt || out.minutes !== null), ...out };
+}
+
 function quickMessage(q) {
   const who = q.left.length ? `${q.left.map((p) => p.name).join(" & ")} left` : "Nobody left";
   return q.headline ? `${who}. ${q.headline}` : `${who}.`;
@@ -297,6 +334,27 @@ async function runJob(pool, job, { ask, dry = false } = {}) {
   };
 
   try {
+    if (kind === "schedule") {
+      const { rows: show } = await pool.query("SELECT name FROM shows WHERE id=$1", [season.show_id]);
+      const showName = show[0] ? show[0].name : season.slug;
+      const airedAt = Air.episodeAirTime(season.schedule, episode, season.wikiAirDates);
+      const { answer } = await ask(buildSchedulePrompt(showName, season.season_number, episode, airedAt, season.air_tz));
+      const a = parseScheduleAnswer(answer);
+      if (!a.found) return finish(false, `No source yet for when episode ${episode + 1} airs`, a);
+      if (dry) return finish(true, `Episode ${episode + 1}: ${a.airsAt || "time not given"}, ${a.minutes ?? "?"} min (dry run: not filed)`, a);
+      const clean = await Research.recordNextEpisode(
+        pool,
+        { showId: season.show_id, season: season.season_number, episodeNumber: episode, showName },
+        { airsAt: a.airsAt, minutes: a.minutes, note: a.note }
+      );
+      // An answer that can't be right (a date already past, a length of 3 minutes) is a failed try, asked again later.
+      if (!clean) return finish(false, `Episode ${episode + 1}'s schedule didn't check out, or an admin set it by hand`, a);
+      const when = clean.airAt ? Air.formatInTz(clean.airAt, season.air_tz) : "time not given";
+      return finish(true, `Episode ${episode + 1}: ${when}${clean.minutes ? `, ${clean.minutes} min` : ""}${clean.note ? ` (${clean.note})` : ""}`, {
+        ...a,
+        airAt: clean.airAt ? clean.airAt.toISOString() : null,
+      });
+    }
     if (kind === "quick") {
       const ctx = await Research.resolveSeasonResearchContext(pool, season.slug, season.season_number, episode);
       const airedAt = Air.episodeAirTime(season.schedule, episode, season.wikiAirDates);
@@ -365,6 +423,8 @@ module.exports = {
   nextRunAt,
   nextTryAt,
   buildQuickPrompt,
+  buildSchedulePrompt,
+  parseScheduleAnswer,
   parseQuickAnswer,
   quickMessage,
   airedEpisodes,
