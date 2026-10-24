@@ -1,0 +1,41 @@
+/* refinements from the full-mock critique (refine.js); everything here is under html[data-refine] so ?orig=1 shows the original */
+/* calm clocks */
+.r-when{font-size:20px;letter-spacing:.02em;margin:6px 0 10px;color:var(--bone)}
+/* 1. the hub */
+.r-status{display:flex;align-items:center;gap:10px;width:calc(100% - 32px);margin:4px 16px 12px;padding:10px 12px;border-radius:3px;background:var(--panel);text-align:left;font-size:14px;color:var(--muted)}
+.r-status b{color:var(--bone)}.r-status span:nth-child(2){flex:1}.r-status>svg{color:var(--muted);flex:none}
+.r-dot{width:8px;height:8px;border-radius:50%;background:var(--chyron);flex:none}.r-dot.ok{background:var(--good)}
+.r-more .row{border-top:1px solid var(--line)}.r-more .row:last-child{border-bottom:1px solid var(--line)}
+.r-holder{padding-bottom:40px}
+.r-grow{margin:0 16px;padding:14px;border-radius:4px;outline:1px dashed var(--field);outline-offset:-1px}
+.r-grow b{font-size:16px}.r-grow ul{list-style:none;margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.r-grow li{display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--muted)}.r-grow li svg{width:16px;height:16px;flex:none}
+/* 2. Tonight */
+.r-phase{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:18px 16px 0;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.r-phase b{font-size:22px;display:flex;align-items:center;gap:8px}.r-phase span{font-size:14px;color:var(--muted)}
+.r-phase .dotlive{width:9px;height:9px}
+.r-need{margin-bottom:8px}
+.r-need .tg.q{background:var(--raised);color:var(--bone)}
+.r-done .ok{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:rgba(53,181,165,.18);color:#5fd6c6;flex:none}
+.r-done .ok svg{width:15px;height:15px;stroke-width:2.6}
+.r-done .st,.r-extra .st{font-size:13px;font-weight:600;color:var(--muted)}
+.r-extra>svg,.r-done>svg{color:var(--muted)}
+.r-bs .ic{background:var(--bone);color:var(--ink)}
+/* 3. yellow means "you need to do it": optional actions are outlines; games and tribes never borrow it */
+html[data-refine] #app .sec .btn.pri,html[data-refine] .guide-f button,html[data-refine] [data-wjob="follow"].btn,html[data-refine] [data-bqadd].btn,html[data-refine] #otAdd,html[data-refine] #soloStart{background:none;color:var(--bone);outline:1px solid var(--field);outline-offset:-1px}
+html[data-refine] .onnext .tg,html[data-refine] .w-nudge .tg{background:var(--raised);color:var(--bone)}
+html[data-refine] .tabbar .bang{background:var(--bone);color:var(--ink)}
+html[data-refine] .happ .chip{background:var(--raised)!important;color:var(--bone)!important}
+html[data-refine] [style*="color:#ffc531"]{color:#5089c9!important}
+html[data-refine] .qcheck .switch.on{background:var(--bone)}
+html[data-refine] .qcheck .ai{background:var(--raised)!important;color:var(--bone)!important}
+/* 4. one spoiler chip */
+.where.r-chip{background:rgba(53,181,165,.1);color:var(--good);font-size:13px;font-weight:600}
+.where.r-chip svg{width:16px;height:16px;flex:none}.where.r-chip span{flex:1;color:var(--bone);font-weight:500}.where.r-chip span b{color:var(--good);font-weight:700}
+.where.r-chip button{font-weight:700;color:var(--bone)}
+/* 5. the commissioner stays spoiler-safe */
+.r-blur{width:56px;height:56px;border-radius:3px;overflow:hidden;flex:none}
+.r-blur img{width:100%;height:100%;object-fit:cover;filter:blur(9px) saturate(.4);transform:scale(1.2)}
+html[data-refine] .w-addb{background:none;color:var(--bone);outline:1px solid var(--field);outline-offset:-1px}
+html[data-refine] .w-nudge{outline-color:var(--line)}
+html[data-refine] .qcheck .switch.on i{background:var(--ink)}

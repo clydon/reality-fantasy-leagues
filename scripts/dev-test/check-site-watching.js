@@ -59,7 +59,7 @@ const { open } = require("./browser");
   await page.click("#wl");
   await page.waitForTimeout(700);
   await expectHash("#/show/plu/tonight");
-  await expectText("#app", "Live · through Episode 4");
+  await expectText("#app", "Spoiler-safe · you're on Ep 4");
   await shot("plu-followed");
 
   // C. watch it together, pause for everyone, a GIF
@@ -123,25 +123,30 @@ const { open } = require("./browser");
   await page.waitForTimeout(400);
   if (await page.locator('#reel .lst[data-show="li"]').count()) fail("Love Island still in the guide after hiding it");
 
-  // G. the casual-first hub: Commercial break holds every game; sections for people who never play; cast stats
-  for (const [q, label] of [["", "full couch"], ["&fresh=1", "new couch"]]) {
-    await fresh("#/hub".replace("#", `${q}#`));
-    for (const sel of ["#cbRow .cb-card.rank", "#cbRow .cb-card.add", "#supSec", "#rcShelf", ".cv-list"]) if (!(await page.locator(sel).count())) fail(`${label}: missing ${sel}`);
-    if (await page.locator('[data-mini="wa"],[data-mini="party"]').count()) fail(`${label}: Watch along is still in Commercial break`);
-    if (label === "full couch" && !(await page.locator(".hn-now").count())) fail("full couch: no Who's on now strip");
-    if (label === "new couch" && await page.locator('[data-past]').count()) fail("new couch: the trophy shelf shows before any season ended");
-    if (label === "new couch" && (await page.locator("#supSec").textContent()).includes("Severance")) fail("new couch: a superlative names a show the couch doesn't have");
-    if (!(await page.locator("#supSec .sp-card.cast").count())) fail(`${label}: By the numbers has no cast stats`);
-  }
+  // G. the hub (refined 2026-10-23): focus first, the rest of the couch one tap away under "More on the couch";
+  // a brand-new couch (or a new member's first week) gets the short hub that grows as the couch plays
+  const more = async (k) => { await page.click(`[data-more="${k}"]`); await page.waitForTimeout(400); };
   await fresh("#/hub");
-  const castCard = page.locator("#supSec .sp-card.cast").first(), stat = (await castCard.locator(".sp-t").textContent()).trim();
+  if (!(await page.locator(".r-status").count())) fail("hub: no one-line status at the top");
+  if (!(await page.locator(".hn-now").count())) fail("full couch: no Who's on now strip");
+  for (const [k, sel] of [["games", "#cbRow .cb-card.rank"], ["games", "#cbRow .cb-card.add"], ["numbers", "#supSec .sp-card.cast"], ["recaps", "#rcShelf"], ["verdicts", ".cv-list"]]) {
+    await more(k); if (!(await page.locator(`#page ${sel}`).count())) fail(`More on the couch › ${k}: missing ${sel}`);
+    if (k === "games" && await page.locator('#page [data-mini="wa"],#page [data-mini="party"]').count()) fail("Watch along is still in Commercial break");
+    await page.click("#page [data-back]"); await page.waitForTimeout(350); }
+  await fresh("&fresh=1#/hub");
+  if (!(await page.locator(".r-grow").count())) fail("new couch: no note on what appears later");
+  if (await page.locator('[data-more],#supSec,[data-past]').count()) fail("new couch: rankings, numbers or trophies show before there's anything in them");
+  await fresh("#/hub");
+  await more("numbers");
+  const castCard = page.locator("#page #supSec .sp-card.cast").first(), stat = (await castCard.locator(".sp-t").textContent()).trim();
   await castCard.click();
   await page.waitForTimeout(400);
   const lead = (await page.locator("#page .st-cat").first().locator("h2").textContent()).trim();
   if (lead.toLowerCase() !== stat.toLowerCase()) fail(`By the numbers card "${stat}" opened the stats led by "${lead}"`);
   await shot("stats-sorted");
   await fresh("#/hub");
-  await page.click('#cbRow [data-cb="start"]');
+  await more("games");
+  await page.click('#page #cbRow [data-cb="start"]');
   await expectText("#sheet", "Pick the show");
   await page.click("#sheet [data-close]"); await page.waitForTimeout(300);
   await fresh("#/show/surv/tonight".replace("#", "&fresh=1#"));
@@ -201,7 +206,8 @@ const { open } = require("./browser");
   await expectText("#sheet", "secret until they leave");
   await shot("explorer-traitors");
   await fresh("#/hub");
-  await page.locator("#supSec .sp-card.cast").first().click();
+  await more("numbers");
+  await page.locator("#page #supSec .sp-card.cast").first().click();
   await page.click("#exOpen");
   await page.waitForTimeout(600);
   if (!(await page.locator(".ex-rank").count()) || !(await page.evaluate(() => location.hash)).endsWith("/cast")) fail("See everyone ranked didn't land on Rank");
@@ -224,14 +230,16 @@ const { open } = require("./browser");
   if (await page.locator('#wCW [data-qadd="plu"]').count()) fail("Pluribus is still in The couch is watching after adding it");
   await expectText("#shelf", "Pluribus");
   await page.waitForTimeout(1200);
-  if ((await page.locator("#cd").innerText()).replace(/\s+/g, " ").startsWith("00 DAYS : 00 HRS : 00 MIN")) fail("the hub countdown reset to zero after a re-render");
+  // more than a day out the hero reads calmly ("Wed 8:05 PM · in 5 days"); inside the last day it counts down
+  if (await page.locator("#cd").count()) { if ((await page.locator("#cd").innerText()).replace(/\s+/g, " ").startsWith("00 DAYS : 00 HRS : 00 MIN")) fail("the hub countdown reset to zero after a re-render"); }
+  else if (!/in \d+ days|tomorrow|today/i.test(await page.locator(".r-when").innerText().catch(() => ""))) fail("the hub's Up next has neither a countdown nor a calm time");
   await shot("shelf-added");
   await page.evaluate(() => { afterDrop(); route(); });
   await page.waitForTimeout(500);
   await expectText("#bRail", "New · all 8 out");
   await shot("after-the-drop");
   await fresh("#/show/sev/tonight");
-  await expectText("#app", "Episode 3 of 10");
+  await expectText("#app", "you're on Ep 3");
   await page.click("[data-bjoin]");
   await expectText("#toast", "Catch up to 6");
   await page.click('[data-wjob="where"]');

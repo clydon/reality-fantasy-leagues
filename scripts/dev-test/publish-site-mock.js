@@ -15,11 +15,14 @@ fs.rmSync(path.join(OUT, "showcase"), { recursive: true, force: true });
 
 let n = 0, bytes = 0;
 const add = (from, to) => { copy(from, to); n++; bytes += fs.statSync(to).size; };
-for (const f of fs.readdirSync(SRC).filter((f) => /\.(js|css)$/.test(f))) add(path.join(SRC, f), path.join(OUT, "site", f));
+// critique-* files are local review tools (option comparisons from a design critique): never published, and their
+// tags are stripped from the published pages
+const LOCAL = (f) => f.startsWith("critique-");
+for (const f of fs.readdirSync(SRC).filter((f) => /\.(js|css)$/.test(f) && !LOCAL(f))) add(path.join(SRC, f), path.join(OUT, "site", f));
 // every page gets noindex; index.html also gets a <base> so it works from /mock and /mock/hub. The other pages
 // (option comparisons such as binge-options.html) are opened at /mock/site/<page>.html.
-for (const f of fs.readdirSync(SRC).filter((f) => f.endsWith(".html"))) {
-  let html = fs.readFileSync(path.join(SRC, f), "utf8");
+for (const f of fs.readdirSync(SRC).filter((f) => f.endsWith(".html") && !LOCAL(f))) {
+  let html = fs.readFileSync(path.join(SRC, f), "utf8").replace(/\n?<(?:script src|link rel="stylesheet" href)="critique-[^"]*"[^>]*>(?:<\/script>)?/g, "");
   if (!html.includes("<head>")) throw new Error(`${f} has no <head>`);
   html = html.replace("<head>", `<head>\n${f === "index.html" ? '<base href="/mock/site/">\n' : ""}<meta name="robots" content="noindex, nofollow">`);
   fs.writeFileSync(path.join(OUT, "site", f), html);

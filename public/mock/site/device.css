@@ -52,3 +52,5 @@ a.btn{text-decoration:none;color:inherit}a.btn.pri{color:var(--ink)}
 .hello{display:none}
 /* the couch line lives in your menu now, not on the hub */
 .sheet .couchline{width:100%;margin:0 0 14px}
+/* links are never browser-blue: an anchor takes its surroundings' colour; links that should look like links say so (.link) */
+a{color:inherit;text-decoration:none}

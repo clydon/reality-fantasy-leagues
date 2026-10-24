@@ -221,7 +221,7 @@ hub=function(){let h=hubBase();
     .replace('<strong>Watch party</strong><small>Host Thursday\'s Traitors · chat in sync</small>','<strong>Watch it together</strong><small>Invite the couch for Thursday\'s Traitors</small>');
   return h};
 function nudgeHTML(){const s=SHOWS.find(x=>x.id==='ar');if(!s||W.nudgeGone||W.games.ar||!follows(s))return '';const o=(watchersOf(s)||[]).filter(n=>n!=='alex');if(!o.length)return '';
-  return `<section class="sec"><div class="w-nudge"><img src="${ART(s.art)}" alt=""><div class="in"><span class="tg cap">You both watch</span><b>You and ${names(o)} both watch ${s.name}</b><small>Nobody's playing it yet. Start a game and the couch hears about it once.</small>
+  return `<section class="sec"><div class="w-nudge"><img src="${ART(s.art)}" alt=""><div class="in"><span class="tg cap">You both watch</span><b>${o.length>1?`You, ${names(o)} all watch`:`You and ${names(o)} both watch`} ${s.name}</b><small>Nobody's playing it yet. Start a game and the couch hears about it once.</small>
     <div class="w-nbtns"><button class="btn pri" id="wNGo">${s.unready?'Make it a game':'Start a game'}</button><button class="btn out" id="wNNo">Not now</button></div></div></div></section>`}
 function couchWatchHTML(keep=()=>true){const list=SHOWS.filter(keep).map(s=>({s,o:(watchersOf(s)||[]).filter(n=>n!=='alex')})).filter(x=>x.o.length).sort((a,b)=>(follows(a.s)-follows(b.s))||b.o.length-a.o.length);
   return `<section class="sec"><div class="sh"><h2 class="cap">The couch is watching</h2><span class="aside">Tap to check one out</span></div><div class="w-cw" id="wCW">${list.map(({s,o})=>{const live=NOW[s.id];

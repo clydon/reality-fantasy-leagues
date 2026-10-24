@@ -80,6 +80,17 @@ const { open } = require("./browser");
   await tap("[data-corr]");
   await expectText("#page .ruling", "House ruling (alex)");
 
+  // R2. the commissioner stays spoiler-safe: Quick check's find is hidden until they choose to look
+  await fresh("&wd=none", "#/show/surv/backstage/results");
+  if ((await page.locator(".qcheck").textContent()).includes("Thien")) fail("Backstage › Results shows who went home before the commissioner chose to look");
+  await expectText("#qConfirm", "Confirm without looking");
+  await tap("#rShow");
+  await expectText(".qcheck", "Thien");
+  await fresh("&wd=none", "#/show/surv/tonight");
+  await page.evaluate(() => { SHOWSTATE.phase = "after"; SHOWSTATE.res = "waiting"; route(); });
+  await page.waitForTimeout(400);
+  await expectText('[data-job="results"]', "confirm without looking");
+
   // F. a player can fill in full scores, quietly
   await fresh("&wd=none", "#/show/surv/tonight");
   await page.evaluate(() => { delete SHOWSTATE.roles.alex; SHOWSTATE.phase = "after"; SHOWSTATE.res = "early"; route(); });

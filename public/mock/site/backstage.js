@@ -34,7 +34,7 @@ backstageRoute=function(sid,page){const s=SHOWS.find(x=>x.id===sid);
 // ---------- Results ----------
 function bsResults(s){return `
   <section class="blk"><div class="sh"><h2 class="cap">Tonight: who went home</h2><span class="aside">Settles Pool + Outlast</span></div>
-    <div class="qcheck"><div class="qh"><span class="ai">${svg('bolt')}</span><div><b>Quick check</b><small>A low-cost search runs 30 and 60 minutes after airtime. Free, on by default.</small></div><button class="switch${BS.quick?' on':''}" id="quickT" aria-pressed="${BS.quick}"><i></i></button></div>
+    <div class="qcheck"><div class="qh"><span class="ai">${svg('bolt')}</span><div><b>Quick check</b><small>A low-cost search runs 30 and 60 minutes after airtime. Free, on by default.</small></div><button class="switch${BS.quick?' on':''}" id="quickT" aria-label="Quick check" aria-pressed="${BS.quick}"><i></i></button></div>
       ${BS.quick?`<div class="found"><img src="${ph(S51C('Thien'))}" alt=""><div><span class="cap kind">Episode 5 · found 8:41 PM</span><b>Thien An Nguyen voted out</b><small>3 sources agree · high confidence</small></div></div>
       <div class="frow"><button class="btn pri" id="qConfirm">${SHOWSTATE.res==='early'?'Confirmed':'Confirm'}</button><button class="btn out" id="qWrong">Not right</button></div>`:`<p class="muted small" style="margin-top:8px">Off: tap who went home yourself after the episode, from Tonight.</p>`}
     </div></section>

@@ -35,3 +35,6 @@ body:has(.dock) .ctl{bottom:150px}
 .mtile.out .flag{background:var(--live);color:var(--live-ink)}
 .mtile b{font-size:15px}.mtile small{font-size:11px;opacity:.85}
 .mtile.pop{animation:bump .4s var(--spring)}
+.mtile.slot{align-items:center;justify-content:center;text-align:center;gap:4px;background:none;outline:2px dashed var(--field);outline-offset:-2px;color:var(--muted)}
+.mtile.slot::before{display:none}.mtile.slot .plus svg{width:22px;height:22px}.mtile.slot b{color:var(--bone)}
+.mtile.out small{color:var(--chyron)}

@@ -40,7 +40,8 @@ const { open } = require("./browser");
   // S. simple
   await fresh("&waivers=simple", "#/show/surv/tonight");
   await expectText('[data-job="waivers"]', "Replace Jenna");
-  await expectText('[data-job="waivers"] .st', "Open");
+  // Tonight (refined): an open move is a "Needs you" plate; a done one is a quiet row marked Done
+  if (!(await page.locator('.plate.r-need[data-job="waivers"]').count())) fail("Tonight: Replace Jenna should be a Needs you plate");
   await tap('[data-job="waivers"]');
   await expectHash("#/show/surv/waivers");
   await expectText(".wvs-q", "Replace Jenna");
@@ -74,7 +75,7 @@ const { open } = require("./browser");
   await expectText('.wvt:has-text("Jenna") .wvt-in', "Devin comes in");
   await expectText(".wvs-conf", "1 swap in");
   await go("#/show/surv/tonight");
-  await expectText('[data-job="waivers"] .st', "Set");
+  await expectText('.r-done[data-job="waivers"] .st', "Done");
   await go("#/show/surv/waivers");
   await tap('.wvt-b[data-d="Mike"]');
   await tap('#sheet [data-fa="Cristian"]');
@@ -95,7 +96,7 @@ const { open } = require("./browser");
   await page.keyboard.press("Escape");
   await go("#/show/surv/episodes");
   await expectText(".wv-ep", "Due ");
-  await go("#/show/surv/tonight");
+  await go("#/show/surv/standings");
   await tap("#dock");
   await tap('#sheet [data-seg="lineup"]');
   await expectText("#toWaivers", "Replace Jenna");

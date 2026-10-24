@@ -348,8 +348,8 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;flex:n
 .artcard::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,transparent 35%,rgba(10,8,14,.9))}
 .artcard b{font-size:17px}.artcard small{font-size:11px;opacity:.85;margin-top:2px}
 .artcard .chk{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(10,8,14,.6);display:grid;place-items:center;transition:background .25s,transform .4s var(--spring)}
-.artcard.on .chk{background:var(--good);color:var(--good-ink);transform:scale(1.12)}
-.artcard.on{box-shadow:0 0 0 3px var(--good)}
+.artcard.on .chk{background:var(--chyron);color:var(--ink);transform:scale(1.12)}
+.artcard.on{box-shadow:0 0 0 3px var(--chyron)}
 .artcard.blank{background:linear-gradient(135deg,#2a2633,#3a3548)}
 .artcard.blank::before{display:none}
 .artcard.blank b{font-size:22px}
@@ -635,6 +635,7 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;flex:n
 <link rel="stylesheet" href="explorer.css">
 <link rel="stylesheet" href="waivers.css">
 <link rel="stylesheet" href="community.css">
+<link rel="stylesheet" href="refine.css">
 <link rel="stylesheet" href="mockmenu.css">
 <link rel="stylesheet" href="device.css">
 <link rel="stylesheet" href="nav.css">
@@ -679,7 +680,7 @@ const SHOWS=[
    watchers:{4:['riley'],12:['riley','maya','priya','noor']}},
 ];
 const watchersOf=s=>s.watch==='all'?crowdOf():typeof s.watch==='number'?crowdOf().slice(0,N===4?4:s.watch):(s.watchers[N===4?4:12]);
-const ADDABLE=[['li','Love Island USA','love-island','riley watches'],['bb','Big Brother','big-brother','Season 27'],['dr','RuPaul\'s Drag Race','drag-race','Season 18'],['dw','Dancing with the Stars','dwts','Season 34'],['ar','The Amazing Race','', 'Season 38'],['bd','Below Deck Med','below-deck','On your list']];
+const ADDABLE=[['li','Love Island USA','love-island','riley watches'],['bb','Big Brother','big-brother','Season 27'],['dr','RuPaul\'s Drag Race','drag-race','Season 18'],['dw','Dancing with the Stars','dwts','Season 34'],['ar','The Amazing Race','amazing-race','On your list'],['bd','Below Deck Med','below-deck','On your list']];
 const PR4=[['riley',41,38,33],['alex',52,24,18],['jordan',30,26,22],['sam',22,30,12]];
 const PR12=[['riley',41,38,33],['priya',44,31,29],['alex',52,24,18],['dev',35,32,21],['jordan',30,26,22],['maya',28,22,30],['sam',22,30,12],['luis',25,18,20],['kat',19,24,17],['ben',15,22,14],['noor',18,12,16],['theo',12,15,9]];
 const MOVE={riley:'up',priya:'up',alex:'dn',dev:'up'};
@@ -724,7 +725,7 @@ function dragToClose(sh){const g=$('grab');let y0=null,dy=0;
   g.onpointermove=e=>{if(y0===null)return;dy=Math.max(0,e.clientY-y0);sh.style.transform=`translate(-50%,${dy}px)`};
   g.onpointerup=()=>{sh.classList.remove('drag');sh.style.transform='';if(dy>90)closeSheet();y0=null;dy=0}}
 function openPage(title,body,onMount,opts={}){
-  const pg=$('page');pg.innerHTML=(opts.bare?'':`<div class="pg-h"><button class="back" data-back>${svg('chev')}Home</button><h3 class="cap">${title}</h3>${opts.right||''}</div>`)+body;
+  const pg=$('page');pg.innerHTML=(opts.bare?'':`<div class="pg-h"><button class="back" data-back>${svg('chev')}${opts.back||'Back'}</button><h3 class="cap">${title}</h3>${opts.right||''}</div>`)+body;
   pg.scrollTop=0;pg.classList.add('on');UI.page=true;syncCtl();pg.querySelectorAll('[data-back]').forEach(b=>b.onclick=closePage);onMount&&onMount(pg);
 }
 function closePage(){$('page').classList.remove('on');UI.page=false;if(!UI.sheet)$('scrim').classList.remove('on');syncCtl()}
@@ -847,15 +848,15 @@ function paintRank(anim){const p=$('rankPane');p.innerHTML=rankPane();p.classLis
 function countUp(root){if(reduce)return;root.querySelectorAll('.pts[data-to]').forEach(el=>{const to=+el.dataset.to,s=performance.now();const st=n=>{const k=Math.min((n-s)/1100,1);el.textContent=Math.round(to*(1-Math.pow(1-k,4)));if(k<1)requestAnimationFrame(st)};requestAnimationFrame(st)})}
 
 // ---------- feed ----------
-const FEED4=[['riley','set her Survivor lineup','Carter, Mike, Danny',[['fire',3,true],['laugh',1]],'Carter'],['jordan','',"Traitors banishment is going to be messy. Calling it now.",[['eye',2]],null,'Traitors 5'],['sam','joined Episode 5 Bingo','',null]];
-const FEED12=[['priya','took 1st in Weekly Lineup','+14 last episode',[['fire',7,true],['crown',3]]],['dev','',"If Kristin finds that idol I'm quitting this league",[['laugh',9],['eye',2,true]],null,'Survivor 51'],['riley','set her Survivor lineup','Carter, Mike, Danny',[['fire',4]],'Carter'],['maya','started a Watch party','Traitors 5 · Thu 9:00 PM · 6 going',null],['luis','',"who keeps picking Ori in the Pool lol",[['laugh',5]],null,'Survivor 51']];
+const FEED4=[['riley','set a Survivor lineup','Hidden until Wed 8:05 PM',[['fire',3,true],['laugh',1]],null],['jordan','',"Traitors banishment is going to be messy. Calling it now.",[['eye',2]],null,'Traitors 5'],['sam','joined Episode 5 Bingo','',null]];
+const FEED12=[['priya','took 1st in Weekly Lineup','+14 last episode',[['fire',7,true],['crown',3]]],['dev','',"If Kristin finds that idol I'm quitting this league",[['laugh',9],['eye',2,true]],null,'Survivor 51'],['riley','set a Survivor lineup','Hidden until Wed 8:05 PM',[['fire',4]],null],['maya','started a Watch party','Traitors 5 · Thu 9:00 PM · 6 going',null],['luis','',"who keeps picking Ori in the Pool lol",[['laugh',5]],null,'Survivor 51']];
 function evHTML([n,act,txt,re,face,ctx],isNew){const c=face&&by(S51,face);
   return `<div class="ev${isNew?' new':''}">${av(n,34)}<div class="tx"><b>${n}</b> ${act}${act&&txt?`<span class="ctx">${txt}</span>`:''}${!act?`<span class="q">${txt}</span><span class="ctx">${ctx||''}</span>`:''}${re?`<div class="reacts">${re.map(([k,c2,m])=>`<button class="${m?'mine':''}" aria-pressed="${!!m}">${svg(k)}<span>${c2}</span></button>`).join('')}</div>`:''}</div>${c?`<img class="thumb" src="${ph(c)}" alt="">`:''}</div>`}
 function feedHTML(){return (N===4?FEED4:FEED12).map(e=>evHTML(e)).join('')+`<div class="typing"><span style="display:flex;gap:3px"><i></i><i></i><i></i></span>${N===4?'sam is typing':'kat and 2 others are typing'}</div>`}
 
 // ================= sheets & pages =================
 function notesSheet(){
-  const notes=[['lineup','Your lineup locks Wednesday','1 open slot in Weekly Start/Bench','2h',()=>lineupSheet(),'surv'],['predict','Traitors predictions are open','Who gets banished? Closes Thu 9:00 PM','5h',()=>banishSheet(),'trt'],['eye','Episode 4 results are in','Reveal Survivor 51 when you\'ve watched','1d',()=>toast('Opening the reveal (see flow.html)'),'surv'],['people','riley set her lineup','Carter, Mike, Danny','1d',null,null]];
+  const notes=[['lineup','Your lineup locks Wednesday','1 open slot in Weekly Start/Bench','2h',()=>lineupSheet(),'surv'],['predict','Traitors predictions are open','Who gets banished? Closes Thu 9:00 PM','5h',()=>banishSheet(),'trt'],['eye','Episode 4 results are in','Reveal Survivor 51 when you\'ve watched','1d',()=>toast('Opening the reveal (see flow.html)'),'surv'],['people','riley set a lineup','Hidden until Wed 8:05 PM','1d',null,null]];
   openSheet('Notifications',state.readNotes?'All caught up':`${notes.length} new`,
     notes.map(([ic,t,s,w,fn,art],i)=>`<button class="row${state.readNotes?'':' unread'}" data-n="${i}"><span class="ic">${art?`<img src="${ART(SHOWS.find(x=>x.id===art).art)}" alt="" style="object-position:${SHOWS.find(x=>x.id===art).pos}">`:svg(ic)}</span><span class="tx"><b>${t}</b><small>${s}</small></span><span class="when">${w}</span></button>`).join('')+`<button class="btn out wide" id="markRead" style="margin-top:14px">${svg('check')}Mark all read</button>`,
     b=>{b.querySelectorAll('[data-n]').forEach(r=>r.onclick=()=>{const fn=notes[+r.dataset.n][4];if(fn){closeSheet();setTimeout(fn,250)}});
@@ -876,7 +877,7 @@ function couchSheet(){const ppl=crowdOf(),on=N===4?['riley','jordan']:['riley','
 
 // your couch sits at the top of your menu (moved off the hub, 2026-10-23); it opens the couch switcher
 function profileSheet(){openSheet('alex','Couch Council · since Survivor 49',
-  `<button class="couchline" id="couchRow"><span class="crest">${['alex','riley','jordan'].map((n,i)=>`<i style="background:${col(n)};${['left:3px;top:3px','right:3px;top:3px','left:9px;bottom:3px'][i]}"></i>`).join('')}</span><b>${typeof COUCH!=='undefined'?COUCH:'Couch Council'}</b><small>${N} on the couch</small>${svg('chev')}</button><div class="stat3"><div><b class="num">2</b><small>Titles</small></div><div><b class="num">94</b><small>Power points</small></div><div><b class="num">71%</b><small>Agree with the couch</small></div></div>
+  `<button class="couchline" id="couchRow"><span class="crest">${['alex','riley','jordan'].map((n,i)=>`<i style="background:${col(n)};${['left:3px;top:3px','right:3px;top:3px','left:9px;bottom:3px'][i]}"></i>`).join('')}</span><b>${typeof COUCH!=='undefined'?COUCH:'Couch Council'}</b><small>${N} on the couch</small>${svg('chev')}</button><div class="stat3"><div><b class="num">2</b><small>Titles</small></div><div><b class="num">94</b><small>Ranking points</small></div><div><b class="num">71%</b><small>Agree with the couch</small></div></div>
    <p class="label cap">Your best show</p><div class="recap-art"><img src="${ART('survivor')}" alt="" style="object-position:64% 50%"><b class="cap">Survivor</b></div>
    <button class="row"><span class="ic">${svg('star')}</span><span class="tx"><b>Taste twin: riley</b><small>You rate episodes within half a star 8 times in 10</small></span></button>
    <button class="row"><span class="ic">${svg('bolt')}</span><span class="tx"><b>Called it: 4 in a row</b><small>Predictions right since Survivor 51 Episode 1</small></span></button>
@@ -886,9 +887,9 @@ function profileSheet(){openSheet('alex','Couch Council · since Survivor 49',
 function addShowSheet(){
   openSheet('Add a show','Tell the couch what you\'re watching. Playing is optional.',
     `<label class="search">${svg('search')}<input id="q" placeholder="Search any show" aria-label="Search shows"></label><div class="artgrid" id="ag"></div><p class="muted" style="font-size:13px;margin-top:12px;line-height:1.45">Not here? Add it anyway and research it with one copy and paste.</p>`,
-    b=>{const paint=q=>{$('ag').innerHTML=ADDABLE.filter(a=>a[1].toLowerCase().includes(q.toLowerCase())).map(([id,n,art,s])=>{const on=id==='bd'||state.added.has(id);
+    b=>{const paint=q=>{$('ag').innerHTML=ADDABLE.filter(a=>a[1].toLowerCase().includes(q.toLowerCase())).map(([id,n,art,s])=>{const on=id==='bd'||id==='ar'||state.added.has(id);
         return `<button class="artcard${art?'':' blank'}${on?' on':''}" data-add="${id}">${art?`<img src="${ART(art)}" alt="">`:''}<span class="chk">${svg(on?'check':'plus')}</span><b class="cap">${n}</b><small>${s}</small></button>`}).join('')||`<button class="artcard blank" style="grid-column:1/-1;aspect-ratio:auto;min-height:80px" data-add="new"><b class="cap">Add "${q}"</b><small>Research it with one paste</small></button>`;
-        $('ag').querySelectorAll('[data-add]').forEach(c=>c.onclick=()=>{const id=c.dataset.add;if(id==='bd')return toast('Below Deck Med is already on your list');if(id==='new'){closeSheet();return toast(`"${$('q').value}" added. Research opens next.`)}
+        $('ag').querySelectorAll('[data-add]').forEach(c=>c.onclick=()=>{const id=c.dataset.add;if(id==='bd'||id==='ar')return toast(`${ADDABLE.find(a=>a[0]===id)[1]} is already on your list`);if(id==='new'){closeSheet();return toast(`"${$('q').value}" added. Research opens next.`)}
           const on=!state.added.has(id);on?state.added.add(id):state.added.delete(id);c.classList.toggle('on',on);c.querySelector('.chk').innerHTML=svg(on?'check':'plus');
           if(on)toast(`${ADDABLE.find(a=>a[0]===id)[1]} added to your shows`);if(id==='li')refreshShelf()})};
       paint('');$('q').oninput=e=>paint(e.target.value)})}
@@ -1179,7 +1180,7 @@ function tickCd(){const cd=$('cd');if(!cd)return;let s=Math.max(0,(+cd.dataset.t
 setInterval(tickCd,1000);
 
 // live couch activity, now and then
-const LIVE=[['jordan','',"tribal next week is going to be chaos",null,null,'Survivor 51'],['riley','set her Traitors pick','Hidden until Thursday',null],['noor','',"first time playing, why is Mike on 3 teams",null,null,'Survivor 51'],['ben','joined Episode 5 Bingo','',null]];
+const LIVE=[['jordan','',"tribal next week is going to be chaos",null,null,'Survivor 51'],['riley','set a Traitors pick','Hidden until Thursday',null],['noor','',"first time playing, why is Mike on 3 teams",null,null,'Survivor 51'],['ben','joined Episode 5 Bingo','',null]];
 let li=0;setInterval(()=>{const feed=$('feed');if(!feed||document.hidden||UI.sheet||UI.page)return;const L=N===4?LIVE.slice(0,2):LIVE;feed.insertAdjacentHTML('afterbegin',evHTML(L[li++%L.length],true));const evs=feed.querySelectorAll('.ev');if(evs.length>(N===4?4:6))evs[evs.length-1].remove()},9000);
 
 $('ctlT').onclick=()=>$('ctl').classList.toggle('open');
@@ -1230,6 +1231,7 @@ setInterval(()=>document.querySelectorAll('[data-cd]').forEach(el=>{let s=Math.m
 route();
 </script>
 <script src="community.js"></script>
+<script src="refine.js"></script>
 <script src="nav.js"></script>
 </body>
 </html>

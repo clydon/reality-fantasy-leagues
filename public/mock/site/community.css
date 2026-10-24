@@ -73,3 +73,4 @@
 .adm-edit{font-size:13px;font-weight:700;color:var(--muted);flex:none}
 .adm-body .idx .tx small{margin:0 0 2px}
 .adm-danger{color:var(--live)}
+#admEditF{color:var(--bone);outline-color:var(--field)}
