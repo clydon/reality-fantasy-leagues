@@ -258,7 +258,8 @@ function howItWorks(blocks, opts = {}) {
     return { id: p.id, name: p.name, when: startText(p, b, opts), started: at !== null && at <= Math.max(1, seen), summary: p.summary || null };
   });
   const finale = b.season && b.season.finale;
-  if (finale && finale.decidedBy && finale.decidedBy !== 'nobody') {
+  // The finale closes the strip, unless the rulebook already has a phase for it.
+  if (finale && finale.decidedBy && finale.decidedBy !== 'nobody' && !phases.some((p) => p.id === 'finale' || /\bfinale\b/i.test(p.name || ''))) {
     phases.push({ id: 'finale', name: 'Finale', when: total ? `${unit} ${total}` : `The last ${part.singular}`, started: total !== null && you !== null && you >= total, summary: null, finale: true });
   }
 
