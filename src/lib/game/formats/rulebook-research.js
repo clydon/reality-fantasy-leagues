@@ -49,7 +49,7 @@ function buildRulebookPrompt({ show, season, airing = false, template } = {}) {
     '4. Anything the choices can\'t describe goes in "leftOut", one sentence each, with no names or results either. Don\'t force it in.',
     '',
     'Describe the game as it is played, not one season\'s story:',
-    '- "segments" are the regular parts of a typical episode. A one-time event (a special vote, a mutiny, the opening day) isn\'t a segment: mention it in a phase\'s summary or in "leftOut". A tie, a revote or a tiebreaker is part of its segment, not one of its own.',
+    '- "segments" are the regular parts of a typical episode. A one-time event (a special vote, a mutiny, the opening day) isn\'t a segment: mention it in a phase\'s summary or in "leftOut". A tie, a revote or a tiebreaker is part of its segment, not one of its own. A contest won first as a group and later alone (a tribe\'s immunity, then individual immunity after the merge) is one segment with "takesPart": "groupsThenEach", not two.',
     '- The vote or decision that crowns the winner is "season.finale", not a segment. A final duel that only happens near the end (a fire-making challenge, a final race) is a segment with "often": "onePhase" and "phase": "finale".',
     '- For a talk, variety or awards show: the moments are what might or might not happen tonight, so people can call them (someone breaks character, a surprise cameo, the host sings, a winner cries), never what happens every show (the monologue airs). They\'re answered by "league".',
     '- For a scripted series: the moments are what happens to the characters that anyone watching could say yes or no to (in the episode, at the centre of the story, a big reveal about them, in danger and survives, a romance starts or ends), and the comings and goings are written out, killed off and new characters. "segments" are the regular parts of the episode\'s structure (a cold open, the ending), not its themes.',
@@ -402,8 +402,10 @@ function spoilers(blocks, castNames, warnings) {
   return problems;
 }
 
-// "Won a reward challenge" -> { won, reward, challenge }: the words that matter, to tell a repeat.
-const STOP = new Set(['a', 'an', 'the', 'was', 'were', 'is', 'got', 'each', 'their', 'at', 'in', 'of', 'by', 'for', 'to']);
+// "Won a reward challenge" -> { won, reward, challeng }: the words that matter, roughly stemmed ("receiving" and
+// "received", "vote" and "votes", read alike), to tell a repeat.
+const STOP = new Set(['a', 'an', 'the', 'was', 'were', 'is', 'got', 'each', 'their', 'at', 'in', 'of', 'by', 'for', 'to', 'as', 'and', 'on', 'with', 'from', 'despite']);
+const stem = (w) => w.replace(/(ing|ed)$/, '').replace(/e?s$/, '').replace(/e$/, '');
 const wordsOf = (s) =>
   new Set(
     String(s || '')
@@ -411,7 +413,7 @@ const wordsOf = (s) =>
       .replace(/[^a-z0-9]+/g, ' ')
       .split(' ')
       .filter((w) => w && !STOP.has(w))
-      .map((w) => w.replace(/s$/, ''))
+      .map(stem)
   );
 // One says all the other does ("Received a jury vote" and "Each jury vote received"), in two words or more.
 const repeats = (a, b) => a.size >= 2 && b.size >= 2 && ([...a].every((w) => b.has(w)) || [...b].every((w) => a.has(w)));

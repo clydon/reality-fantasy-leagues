@@ -30,13 +30,13 @@ says where each phase goes. The logic, data and API in this file still hold.
 | Phase | What | Built in (`PLAN-new-design.md`) | Status |
 |---|---|---|---|
 | 1 | Schema module, hand-written blocks for the three built-ins, read-only "How the season works" | R1 (logic only; the page is step 1) | **done** 2026-10-24 (logic; `PLAN-new-design.md` R1 As built lists the schema changes) |
-| 2 | The compiler, legacy freeze, engine relaxations | R2 | not started |
+| 2 | The compiler, legacy freeze, engine relaxations | R2 | **started** 2026-10-24: `rulebook-compile.js` core and `formatProblems` taking no winner (`PLAN-new-design.md` R1 As built); the golden tests and the rest are R2's |
 | 3 | Database: `rulebooks`, `rulebook_edits`; migration; resolution through rulebooks | R3 | not started |
 | 4 | Admin editor (six blocks, every sheet) on season rulebooks | 6b (admin Find) | not started |
 | 5 | Timeline edits: show changed / fix, reach, league fan-out, rescore | 6b | not started |
-| 6 | Research: the rulebook prompt, paste-and-review, check for changes | 6b | not started |
+| 6 | Research: the rulebook prompt, paste-and-review, check for changes | 6b | **logic built** 2026-10-24 (`rulebook-research.js`, tried on 11 shows); Check for changes and the screens are 6b's |
 | 7 | Commissioner: read view, Make it ours, own-copy editor, offers and fixes | 6b (on 6a's Scoring rules) | not started |
-| 8 | Library, kinds of show, the new-show flow, "Fits these games", first-creator-is-parent | 10 | not started |
+| 8 | Library, kinds of show, the new-show flow, "Fits these games", first-creator-is-parent | 10 | **library seeded** 2026-10-24: six researched rulebooks in `src/lib/game/formats/library/` |
 | 9 | Clean-up: retire `show_formats`, `league_rulesets`, `season_rule_changes`, old screens | C | not started |
 
 Update this table (and `docs/HANDOFF.md`) as phases land.

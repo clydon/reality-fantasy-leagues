@@ -373,6 +373,80 @@ scoring file changed). All in `src/lib/game/formats/`, plain CommonJS with `.d.t
   words) on `tests/fixtures/rulebook-samples.js` (Below Deck, Pluribus, SNL, Formula 1, The Amazing Race) and
   `tests/fixtures/stored-formats.json` (`scripts/dev-test/export-stored-formats.js` refreshes it). `npm test`:
   419 pass, plus the 3 known tour-commissioner failures.
+- **The research prompt, built early (user, 2026-10-24: "test that the prompt we generate for the show's rules
+  outputs what we expect").** Phase 6's logic, `rulebook-research.js`: `buildRulebookPrompt` (generated from the
+  schema, every choice and its help, ~13k characters), `parseRulebookAnswer`, `reviewRulebook`. Tried on real
+  shows through ChatGPT with `scripts/dev-test/check-rulebook-prompt.js` (this PC's bot, so the VM stays free;
+  answers cached in its out folder, `--again` re-asks). What the runs taught, and what changed because of it:
+  - **Spoilers.** An airing season's first answer named castaways and said who found what and who left by
+    episode 5, and pinned the swap to its episode. A rulebook is read before anyone has watched, so: the prompt's
+    first rule is no names and no results; the review makes a cast member's name a problem (the season's cast
+    from `season_cast`) and a sentence about an episode a warning; when phases actually started comes back as
+    `phaseStarts`, beside the blocks (season data for a person to confirm), and a phase it reports a start for
+    becomes "when the show says so" in the blocks. After that: no names, no episode statements.
+  - **One season's story instead of the format.** Every one-off event became a twist (11 for Survivor 50: Blood
+    Moon, a coin flip, fan votes, fire-making). The prompt now says what segments, twists and ways out are and
+    aren't (one-time events and ties go in a summary or leftOut; similar advantages are one twist; a final duel is
+    a finale-only segment; the deciding vote is the finale; every way out, even unused). Survivor went to 2-3 twists
+    with fire-making as a finale-only segment.
+  - **Repeats.** Answers added moments the segments already build ("Voted with the majority"), which would score
+    twice. The prompt lists what each answer builds; the review leaves out a repeat (word-set match) and says so.
+  - **Tidied without changing meaning:** ids from names, references by name, answers that don't go with who decides
+    a segment, the finale's jury vote given as a segment, a "remaining" phase with no number, a first phase that
+    doesn't start at episode 1. Flagged: a segment that sends someone home with no way out it causes.
+  - **Per show** (most recent season unless noted): Survivor 50 and 51 match ours (kind, tribes changing at set
+    points, reward / immunity / Tribal Council, a jury finale; immunity is "who wins", ours keeps the top three for
+    the legacy events). The Amazing Race matches our sample (pairs, the Pit Stop in finishing order, first to the
+    finish, U-Turn / Express Pass / Yield), but used `outForOne` for a non-elimination leg, so it's now a problem
+    outside a sport. The Challenge described that season's teams ("Permanent Teams" as an advantage, a group-wins
+    finale). Real Housewives of Beverly Hills: a reality series, no winner, a good set of moments (got in an argument,
+    walked out). Below Deck matches our sample, with better ways out. The World Series (2025 and 2026 Game 2) is a
+    sport with "game" as its word and good player-stat moments, no result guessed for the 2026 game, but innings as
+    segments and winning as a "withdrawal": the prompt now has sport guidance. Scrubs: a scripted series, but its
+    segments were themes and its moments judgement calls, with no comings and goings: the prompt now has scripted
+    guidance. A one-game league (the World Series' Game 2) is a game's length, not a rulebook (the design plan's
+    open "lengths" item): the rulebook is the World Series.
+- **The compiler's core, built early** to check episode research end to end (user, 2026-10-24: "check a handful of
+  episode research of each show"): `rulebook-compile.js` `compileRulebook(blocks, { aliases })` → FormatData (events
+  from moments; exit methods from ways out; the checklist from each moment's question; research rules for yes/no and
+  counts; implied rules for ways out and a jury finale; a cast vote's attendance, votes and majority through
+  `votedForLeaver`; a talk show's moments as episode-level answers) and `formatForRulebook` (a data-only format).
+  `formatProblems` (define.js) now takes `winnerExitMethod: null`. Every built-in, sample, stored-format and researched
+  rulebook compiles clean; the built-ins to their own event ids and exit methods. **Left for R2:** the golden scoring
+  tests against the frozen built-ins; `per` on research rules (a count scores once for now); secret roles (custom.js's
+  generic `roleFor`); phase gating from `phaseStarts`; `formatForRulebook` with the built-in readers; state-logic
+  null-safe for a winnerless format before any league plays one.
+- **Episode research from a researched rulebook, end to end** (`scripts/dev-test/check-episode-research.js`: compile,
+  the cast, then ~3 episodes per show through the app's own JSON paste prompt, parse, validation and staging). 28
+  episodes on 9 shows came back usable (nothing fatal, everyone covered): Survivor 50/51 (51's exits match our accepted
+  results), Amazing Race, The Challenge, Real Housewives, Below Deck, Scrubs, SNL 51/52 (episode-level answers, right
+  hosts and dates). What it taught:
+  - **Ask only about who's still in** (decided with the user): late episodes asked about everyone were weak (8 of 28
+    sourced, 544 unknowns). `rulebook-roster.js` `whoToAsk` decides by the rulebook: gone after a way out that means out
+    or a finish, never after `outForOne` (a sport asks about everyone), kept while a comeback from people who left
+    exists; `asksArrivals` when people arrive mid-season (research must then ask who's new, 6b). Drop people only on a
+    **confirmed** exit: production's `stillInGame` drops on any earlier research answer, reviewed or not, so one wrong
+    "left" silently loses a person's later moments.
+  - **The bot leaks context between requests.** Asked for the 2026 World Series cast, ChatGPT returned Survivor 50's
+    (an earlier request in the run) with Survivor sources, and the episodes followed it. The bot uses one persistent
+    signed-out profile; recommended: temporary chats (`?temporary-chat=true`) per request, and the app checking an answer
+    is about what it asked (cast sources, an episode's title and air date against the schedule: the paste path's
+    episode-mismatch check, on the bot path too). Not changed yet: waiting on the user.
+  - **A sport's cast needs its own words:** the cast prompt ("as the show credits them", "season 2025") came back empty
+    for the World Series; "both teams' rosters" is the harness's stopgap. Step 10's cast import needs it per kind.
+  - **Production's paste parser breaks on a doubled answer** (a draft, then a correction): `extractJsonObject` reads first
+    `{` to last `}`. The rulebook parser takes the last complete object (`jsonObjectsIn`); the classic paste path should
+    too (a master fix).
+  - **Rulebook quality shows up in scoring:** ChatGPT split Survivor's immunity into two segments, so one win scored
+    twice; near-repeats ("Survived Tribal Council despite receiving votes") slipped past the review. The prompt now asks
+    for one segment for a contest won as a group then alone, and the repeat check stems words.
+- **The library** (user, 2026-10-24: "transfer the rules of new shows so we don't have to compile it again"):
+  `src/lib/game/formats/library/`, one researched rulebook per new show (The Amazing Race, The Real Housewives of
+  Beverly Hills, Below Deck, the World Series, Scrubs, Saturday Night Live), each its blocks and compiled data with
+  where it came from, all research drafts. `tests/rulebook-library.test.js` keeps each valid, its compiled data what
+  its blocks compile to, and free of names and results; `scripts/dev-test/save-rulebook-library.js` saves or refreshes
+  them (refusing problems, and any cast member's name with `--cast`). **R3's backfill loads them** into `rulebooks` as
+  library entries; step 10 starts new shows from them.
 - For R2: aliases cover events and exits; question keys aren't aliased yet (the compiler maps them to the legacy
   checklist, where its golden tests can prove each one). Survivor's legacy `finalist` event also goes to the
   winner, The Traitors' and The Challenge's don't: the compiler needs to follow each.

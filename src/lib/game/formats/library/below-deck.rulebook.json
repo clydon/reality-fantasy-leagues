@@ -1,0 +1,702 @@
+{
+  "id": "below-deck",
+  "show": "Below Deck",
+  "status": "draft",
+  "researched": {
+    "for": "Below Deck, its most recent season",
+    "on": "2026-10-24",
+    "by": "ChatGPT with web search, through the ask-AI bot (scripts/dev-test/check-rulebook-prompt.js)",
+    "castChecked": true
+  },
+  "leftOut": [
+    "The interior and exterior departments have distinct responsibilities, but they do not compete as teams in an official standings table.",
+    "Charter gratuities are shared among eligible crew members, and the amount can be scored as money rather than as a competitive victory.",
+    "The captain and department heads have different levels of authority, and performance assessments can lead to staffing changes.",
+    "Charter guests rotate throughout the season and are temporary participants rather than permanent members of the crew cast.",
+    "The yacht's destination, weather, mechanical condition, guest itineraries, and excursions create situational challenges that do not follow a fixed competitive format.",
+    "The season may include a special departure, an unexpected staffing change, or an unusual guest incident that does not fit a recurring segment or a formal twist.",
+    "The latest season is still airing, so its complete episode count and any later structural changes cannot yet be established with certainty."
+  ],
+  "blocks": {
+    "schema": 1,
+    "kind": "series",
+    "start": "reality",
+    "show": "Below Deck",
+    "tagline": "Luxury yacht service, demanding guests, and crew drama",
+    "premise": "A captain and a professional yacht crew live and work aboard a luxury yacht while hosting wealthy charter guests with demanding preferences. Each episode follows the crew as they deliver hospitality, manage yacht operations, handle problems, and navigate workplace relationships. The season ends when the charter season concludes, rather than with a competitive winner.",
+    "parts": {
+      "singular": "episode",
+      "plural": "episodes",
+      "label": "Each episode"
+    },
+    "cast": {
+      "unit": "people",
+      "singular": "crew member",
+      "plural": "crew members",
+      "usualSize": 10,
+      "groups": null
+    },
+    "season": {
+      "phases": [
+        {
+          "id": "crewSettlesIn",
+          "name": "Crew Settles In",
+          "starts": {
+            "type": "episode",
+            "n": 1
+          },
+          "changes": [
+            "arrivals",
+            "segmentsChange"
+          ],
+          "summary": "The captain and crew establish their working relationships, settle into their roles, and prepare to meet the demands of the charter season."
+        },
+        {
+          "id": "charterSeason",
+          "name": "Charter Season",
+          "starts": {
+            "type": "announced"
+          },
+          "changes": [
+            "segmentsChange"
+          ],
+          "summary": "The crew repeatedly prepares for guest arrivals, delivers hospitality and yacht operations, handles requests and problems, shares gratuities, and navigates professional and personal tensions."
+        },
+        {
+          "id": "closingCharter",
+          "name": "Closing Charter",
+          "starts": {
+            "type": "announced"
+          },
+          "changes": [
+            "segmentsChange"
+          ],
+          "summary": "The crew completes its final scheduled charter and wraps up the season's professional and personal storylines."
+        }
+      ],
+      "finale": {
+        "decidedBy": "nobody",
+        "summary": "The season concludes with the final charter, its gratuity discussion, and reflections on the crew's work and relationships, without crowning a competitive winner."
+      }
+    },
+    "segments": [
+      {
+        "id": "charterPreparation",
+        "name": "Charter Preparation",
+        "summary": "The crew reviews guest preferences, prepares cabins and service areas, organizes supplies, and coordinates the yacht's readiness before guests arrive.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "someEpisodes"
+      },
+      {
+        "id": "guestArrival",
+        "name": "Guest Arrival",
+        "summary": "The crew welcomes charter guests aboard, learns their expectations, and begins the service period under scrutiny.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "someEpisodes"
+      },
+      {
+        "id": "charter",
+        "name": "Charter",
+        "summary": "The interior and exterior crew provide hospitality, meals, activities, excursions, and yacht operations while adapting to guest requests, changing conditions, and service problems.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "tipMeeting",
+        "name": "Tip Meeting",
+        "summary": "After a charter, the captain reveals the guests' gratuity and the crew discusses the amount received and the service provided.",
+        "decidedBy": "nobody",
+        "onTheLine": "reward",
+        "often": "someEpisodes"
+      },
+      {
+        "id": "crewNightOut",
+        "name": "Crew Night Out",
+        "summary": "Crew members socialize away from their duties, allowing friendships, flirtations, rivalries, and disagreements to develop or intensify.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "someEpisodes"
+      },
+      {
+        "id": "captainDebrief",
+        "name": "Captain's Debrief",
+        "summary": "The captain and crew discuss work quality, leadership, mistakes, guest satisfaction, and expectations for future charters.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "someEpisodes"
+      }
+    ],
+    "waysOut": [
+      {
+        "id": "dismissed",
+        "name": "Dismissed by Management",
+        "means": "out",
+        "cause": "removed"
+      },
+      {
+        "id": "quits",
+        "name": "Leaves by Choice",
+        "means": "out",
+        "cause": "ownChoice"
+      },
+      {
+        "id": "medicalDeparture",
+        "name": "Medical Departure",
+        "means": "out",
+        "cause": "medical"
+      },
+      {
+        "id": "seasonEnds",
+        "name": "Season Ends",
+        "means": "ending"
+      }
+    ],
+    "twists": [],
+    "customMoments": [
+      {
+        "id": "guestComplaint",
+        "label": "A guest complains about the service",
+        "during": {
+          "segment": "charter"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "guestSpecialRequest",
+        "label": "A guest makes an unusual or demanding special request",
+        "during": {
+          "segment": "charter"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "serviceMistake",
+        "label": "A service or operational mistake is identified",
+        "during": {
+          "segment": "charter"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "safetyIncident",
+        "label": "A guest safety incident requires crew intervention",
+        "during": {
+          "segment": "charter"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "tipRevealed",
+        "label": "The charter gratuity amount is revealed",
+        "during": {
+          "segment": "tipMeeting"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "crewArgument",
+        "label": "Crew members have an argument",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "romanticDevelopment",
+        "label": "A romantic development between crew members is shown",
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "crewApology",
+        "label": "A crew member apologizes for their conduct or a mistake",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "patchy"
+      },
+      {
+        "id": "captainReprimand",
+        "label": "The captain issues a warning or reprimand",
+        "during": {
+          "segment": "captainDebrief"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "confessionalComment",
+        "label": "A crew member comments directly on another crew member's behavior in a confessional",
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "individualTipShare",
+        "label": "Individual charter gratuity share",
+        "during": {
+          "segment": "tipMeeting"
+        },
+        "counted": "perUnit",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "lateNightSocializing",
+        "label": "Crew members continue socializing late into the night",
+        "during": {
+          "segment": "crewNightOut"
+        },
+        "counted": "yesNo",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      }
+    ],
+    "points": {
+      "guestComplaint": -2,
+      "guestSpecialRequest": 1,
+      "serviceMistake": -2,
+      "safetyIncident": -3,
+      "tipRevealed": 1,
+      "crewArgument": -1,
+      "romanticDevelopment": 2,
+      "crewApology": 1,
+      "captainReprimand": -2,
+      "confessionalComment": 1,
+      "individualTipShare": 1,
+      "lateNightSocializing": 1
+    },
+    "leftOut": [
+      "The interior and exterior departments have distinct responsibilities, but they do not compete as teams in an official standings table.",
+      "Charter gratuities are shared among eligible crew members, and the amount can be scored as money rather than as a competitive victory.",
+      "The captain and department heads have different levels of authority, and performance assessments can lead to staffing changes.",
+      "Charter guests rotate throughout the season and are temporary participants rather than permanent members of the crew cast.",
+      "The yacht's destination, weather, mechanical condition, guest itineraries, and excursions create situational challenges that do not follow a fixed competitive format.",
+      "The season may include a special departure, an unexpected staffing change, or an unusual guest incident that does not fit a recurring segment or a formal twist.",
+      "The latest season is still airing, so its complete episode count and any later structural changes cannot yet be established with certainty."
+    ]
+  },
+  "compiled": {
+    "id": "below-deck",
+    "name": "Below Deck",
+    "exitMethods": [
+      "Dismissed by Management",
+      "Leaves by Choice",
+      "Medical Departure",
+      "Season Ends",
+      "Other"
+    ],
+    "terms": {
+      "castaway": "Crew member",
+      "tribe": "Group"
+    },
+    "winnerExitMethod": null,
+    "endgameExitMethods": [
+      "Season Ends"
+    ],
+    "events": [
+      {
+        "id": "guestComplaint",
+        "label": "A guest complains about the service",
+        "defaultPoints": -2
+      },
+      {
+        "id": "guestSpecialRequest",
+        "label": "A guest makes an unusual or demanding special request",
+        "defaultPoints": 1
+      },
+      {
+        "id": "serviceMistake",
+        "label": "A service or operational mistake is identified",
+        "defaultPoints": -2
+      },
+      {
+        "id": "safetyIncident",
+        "label": "A guest safety incident requires crew intervention",
+        "defaultPoints": -3
+      },
+      {
+        "id": "tipRevealed",
+        "label": "The charter gratuity amount is revealed",
+        "defaultPoints": 1
+      },
+      {
+        "id": "individualTipShare",
+        "label": "Individual charter gratuity share",
+        "defaultPoints": 1
+      },
+      {
+        "id": "lateNightSocializing",
+        "label": "Crew members continue socializing late into the night",
+        "defaultPoints": 1
+      },
+      {
+        "id": "captainReprimand",
+        "label": "The captain issues a warning or reprimand",
+        "defaultPoints": -2
+      },
+      {
+        "id": "dismissed",
+        "label": "Dismissed by Management",
+        "defaultPoints": -3,
+        "implied": true
+      },
+      {
+        "id": "quits",
+        "label": "Leaves by Choice",
+        "defaultPoints": -3,
+        "implied": true
+      },
+      {
+        "id": "medicalDeparture",
+        "label": "Medical Departure",
+        "defaultPoints": -3,
+        "implied": true
+      },
+      {
+        "id": "seasonEnds",
+        "label": "Season Ends",
+        "defaultPoints": 3,
+        "implied": true
+      },
+      {
+        "id": "crewArgument",
+        "label": "Crew members have an argument",
+        "defaultPoints": -1
+      },
+      {
+        "id": "romanticDevelopment",
+        "label": "A romantic development between crew members is shown",
+        "defaultPoints": 2
+      },
+      {
+        "id": "crewApology",
+        "label": "A crew member apologizes for their conduct or a mistake",
+        "defaultPoints": 1
+      },
+      {
+        "id": "confessionalComment",
+        "label": "A crew member comments directly on another crew member's behavior in a confessional",
+        "defaultPoints": 1
+      }
+    ],
+    "eventCategories": [
+      {
+        "id": "segmentCharter",
+        "label": "Charter",
+        "events": [
+          "guestComplaint",
+          "guestSpecialRequest",
+          "serviceMistake",
+          "safetyIncident"
+        ]
+      },
+      {
+        "id": "segmentTipmeeting",
+        "label": "Tip Meeting",
+        "events": [
+          "tipRevealed",
+          "individualTipShare"
+        ]
+      },
+      {
+        "id": "segmentCrewnightout",
+        "label": "Crew Night Out",
+        "events": [
+          "lateNightSocializing"
+        ]
+      },
+      {
+        "id": "segmentCaptaindebrief",
+        "label": "Captain's Debrief",
+        "events": [
+          "captainReprimand"
+        ]
+      },
+      {
+        "id": "leaving",
+        "label": "Comings and goings",
+        "events": [
+          "dismissed",
+          "quits",
+          "medicalDeparture"
+        ]
+      },
+      {
+        "id": "endgame",
+        "label": "Endgame",
+        "events": [
+          "seasonEnds"
+        ]
+      },
+      {
+        "id": "other",
+        "label": "Other moments",
+        "events": [
+          "crewArgument",
+          "romanticDevelopment",
+          "crewApology",
+          "confessionalComment"
+        ]
+      }
+    ],
+    "recap": [],
+    "hasMerge": false,
+    "hasGroups": false,
+    "wiki": {
+      "version": 1,
+      "voteSections": [],
+      "guideSections": [],
+      "missingVotesNote": "no vote or elimination table found: who left will come from research",
+      "missingGuideNote": "no episode guide found: who left will come from research",
+      "eventTypes": [],
+      "routineEliminations": 1
+    },
+    "research": {
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The crew member's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the game permanently in THIS episode?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "guestComplaint",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a guest complains about the service at the Charter? This person's number; 0 if none, null if unknown.",
+          "note": "a guest complains about the service"
+        },
+        {
+          "key": "guestSpecialRequest",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a guest makes an unusual or demanding special request at the Charter? This person's number; 0 if none, null if unknown.",
+          "note": "a guest makes an unusual or demanding special request"
+        },
+        {
+          "key": "serviceMistake",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a service or operational mistake is identified at the Charter? This person's number; 0 if none, null if unknown.",
+          "note": "a service or operational mistake is identified"
+        },
+        {
+          "key": "safetyIncident",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a guest safety incident requires crew intervention at the Charter? This person's number; 0 if none, null if unknown.",
+          "note": "a guest safety incident requires crew intervention"
+        },
+        {
+          "key": "tipRevealed",
+          "type": "answer",
+          "description": "The charter gratuity amount is revealed, this episode: yes, no, or unknown.",
+          "note": "the charter gratuity amount is revealed"
+        },
+        {
+          "key": "individualTipShare",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how much for each person: individual charter gratuity share at the Tip Meeting? This person's number; 0 if none, null if unknown.",
+          "note": "individual charter gratuity share"
+        },
+        {
+          "key": "lateNightSocializing",
+          "type": "answer",
+          "description": "Crew members continue socializing late into the night, this episode: yes, no, or unknown.",
+          "note": "crew members continue socializing late into the night"
+        },
+        {
+          "key": "captainReprimand",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: the captain issues a warning or reprimand at the Captain's Debrief? This person's number; 0 if none, null if unknown.",
+          "note": "the captain issues a warning or reprimand"
+        },
+        {
+          "key": "crewArgument",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: crew members have an argument? This person's number; 0 if none, null if unknown.",
+          "note": "crew members have an argument"
+        },
+        {
+          "key": "romanticDevelopment",
+          "type": "answer",
+          "description": "A romantic development between crew members is shown, this episode: yes, no, or unknown.",
+          "note": "a romantic development between crew members is shown"
+        },
+        {
+          "key": "crewApology",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a crew member apologizes for their conduct or a mistake? This person's number; 0 if none, null if unknown.",
+          "note": "a crew member apologizes for their conduct or a mistake"
+        },
+        {
+          "key": "confessionalComment",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a crew member comments directly on another crew member's behavior in a confessional? This person's number; 0 if none, null if unknown.",
+          "note": "a crew member comments directly on another crew member's behavior in a confessional"
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "episodeFields": [],
+      "searchHint": [
+        "Search for this episode's recap and any reporting on what happened to each person, and who left.",
+        "Then answer the checklist for every person above."
+      ],
+      "claims": [
+        "leftTheGame",
+        "tipRevealed",
+        "lateNightSocializing",
+        "romanticDevelopment"
+      ]
+    },
+    "rules": {
+      "research": [
+        {
+          "when": {
+            "answer": "guestComplaint",
+            "greaterThan": 0
+          },
+          "award": "guestComplaint"
+        },
+        {
+          "when": {
+            "answer": "guestSpecialRequest",
+            "greaterThan": 0
+          },
+          "award": "guestSpecialRequest"
+        },
+        {
+          "when": {
+            "answer": "serviceMistake",
+            "greaterThan": 0
+          },
+          "award": "serviceMistake"
+        },
+        {
+          "when": {
+            "answer": "safetyIncident",
+            "greaterThan": 0
+          },
+          "award": "safetyIncident"
+        },
+        {
+          "when": {
+            "answer": "tipRevealed",
+            "is": "yes"
+          },
+          "award": "tipRevealed"
+        },
+        {
+          "when": {
+            "answer": "individualTipShare",
+            "greaterThan": 0
+          },
+          "award": "individualTipShare"
+        },
+        {
+          "when": {
+            "answer": "lateNightSocializing",
+            "is": "yes"
+          },
+          "award": "lateNightSocializing"
+        },
+        {
+          "when": {
+            "answer": "captainReprimand",
+            "greaterThan": 0
+          },
+          "award": "captainReprimand"
+        },
+        {
+          "when": {
+            "answer": "crewArgument",
+            "greaterThan": 0
+          },
+          "award": "crewArgument"
+        },
+        {
+          "when": {
+            "answer": "romanticDevelopment",
+            "is": "yes"
+          },
+          "award": "romanticDevelopment"
+        },
+        {
+          "when": {
+            "answer": "crewApology",
+            "greaterThan": 0
+          },
+          "award": "crewApology"
+        },
+        {
+          "when": {
+            "answer": "confessionalComment",
+            "greaterThan": 0
+          },
+          "award": "confessionalComment"
+        }
+      ],
+      "implied": [
+        {
+          "whenExit": "Dismissed by Management",
+          "award": "dismissed"
+        },
+        {
+          "whenExit": "Leaves by Choice",
+          "award": "quits"
+        },
+        {
+          "whenExit": "Medical Departure",
+          "award": "medicalDeparture"
+        },
+        {
+          "whenExit": "Season Ends",
+          "award": "seasonEnds"
+        }
+      ]
+    }
+  }
+}

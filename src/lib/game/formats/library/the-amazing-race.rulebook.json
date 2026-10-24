@@ -1,0 +1,1103 @@
+{
+  "id": "the-amazing-race",
+  "show": "The Amazing Race",
+  "status": "draft",
+  "researched": {
+    "for": "The Amazing Race, its most recent season",
+    "on": "2026-10-24",
+    "by": "ChatGPT with web search, through the ask-AI bot (scripts/dev-test/check-rulebook-prompt.js)",
+    "castChecked": true
+  },
+  "leftOut": [
+    "The Driver's Seat is a task-control mechanism rather than a conventional advantage that simply protects its holder or skips a task, so its effects are only approximated by the available advantage fields.",
+    "Roadside Assistance specifically permits a teammate to help during a Roadblock, which is not accurately represented by the available advantage effects.",
+    "The current season's Express Passes have a shared deadline, but the schema cannot express an expiration tied to a particular leg.",
+    "Non-elimination legs allow teams to remain in the race after finishing last, sometimes with a penalty or disadvantage, and therefore do not constitute a separate way out.",
+    "The Fast Forward, Yield, Intersection, and Hazard are additional race mechanisms that can appear in some seasons but are not guaranteed parts of every leg.",
+    "Roadblocks have rules limiting how frequently each team member can perform them, and the exact restrictions vary by season.",
+    "Transportation choices, flights, departure-time gaps, equalizers, waiting periods, and route restrictions can change teams' relative positions without constituting separate regular segments.",
+    "The show may introduce special tasks, altered starting conditions, or temporary race rules that are specific to a season or leg rather than recurring elements of the standard format."
+  ],
+  "blocks": {
+    "schema": 1,
+    "kind": "competition",
+    "show": "The Amazing Race",
+    "tagline": "Teams of two race around the world, tackling challenges and avoiding elimination",
+    "premise": "Teams of two travel between destinations around the world, following clues and completing physical, mental, and practical challenges. Each leg features tasks such as Roadblocks and Detours before teams check in at the Pit Stop, where their arrival order determines their standing and the last team may be eliminated. The remaining teams compete in a final leg, and the first team to reach the final destination wins the season.",
+    "parts": {
+      "singular": "leg",
+      "plural": "legs",
+      "label": "Each leg"
+    },
+    "cast": {
+      "unit": "pairs",
+      "singular": "team",
+      "plural": "teams",
+      "usualSize": 13,
+      "groups": null
+    },
+    "season": {
+      "phases": [
+        {
+          "id": "race",
+          "name": "The Race",
+          "starts": {
+            "type": "episode",
+            "n": 1
+          },
+          "changes": [],
+          "summary": "Teams navigate the international route, complete tasks, manage their time and travel choices, and check in at Pit Stops as elimination legs progressively reduce the field."
+        }
+      ],
+      "finale": {
+        "decidedBy": "firstToFinish",
+        "finalists": 3,
+        "summary": "The final teams complete the last leg and race to the final destination, where the first team to check in wins the season and the grand prize."
+      }
+    },
+    "segments": [
+      {
+        "id": "startingLine",
+        "name": "Starting Line",
+        "summary": "Teams begin the race and receive the opening instructions and clues for their route.",
+        "decidedBy": "nobody",
+        "often": "onePhase",
+        "phase": "race"
+      },
+      {
+        "id": "routeInfo",
+        "name": "Route Info",
+        "summary": "Teams read clues that direct them to destinations, transportation, or upcoming tasks and determine how to proceed.",
+        "decidedBy": "nobody",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "roadblock",
+        "name": "Roadblock",
+        "summary": "One member of each team performs a specified physical, mental, or practical task, usually without help from their partner, to earn the next clue.",
+        "decidedBy": "nobody",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "detour",
+        "name": "Detour",
+        "summary": "Teams choose between two tasks with different requirements and must complete their selected option to receive the next clue.",
+        "decidedBy": "nobody",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "scramble",
+        "name": "Scramble",
+        "summary": "Teams tackle multiple tasks in a designated area, deciding how to navigate between challenges and complete the required objectives.",
+        "decidedBy": "nobody",
+        "often": "someEpisodes"
+      },
+      {
+        "id": "driversSeat",
+        "name": "Driver's Seat",
+        "summary": "A team receives control over specified task conditions or workloads for other teams, creating strategic choices that can affect the pace of the leg.",
+        "decidedBy": "pick",
+        "pickers": "onePerson",
+        "takesPart": "groups",
+        "onTheLine": "atRisk",
+        "often": "someEpisodes"
+      },
+      {
+        "id": "pitStop",
+        "name": "Pit Stop",
+        "summary": "Teams check in with the host after completing the leg, establishing their arrival order and determining whether the last-place team is eliminated, penalized, or allowed to continue.",
+        "decidedBy": "result",
+        "takesPart": "groups",
+        "decides": "fullOrder",
+        "onTheLine": "atRisk",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "finalLeg",
+        "name": "Final Leg",
+        "summary": "The remaining teams complete the last route and its challenges before racing to the final destination to determine the season winner.",
+        "decidedBy": "result",
+        "takesPart": "groups",
+        "decides": "fullOrder",
+        "onTheLine": "nothing",
+        "often": "onePhase",
+        "phase": "finale"
+      }
+    ],
+    "waysOut": [
+      {
+        "id": "eliminatedAtPitStop",
+        "name": "Eliminated at the Pit Stop",
+        "means": "out",
+        "cause": {
+          "segment": "pitStop"
+        }
+      },
+      {
+        "id": "withdrawal",
+        "name": "Withdraws from the Race",
+        "means": "out",
+        "cause": "ownChoice"
+      },
+      {
+        "id": "medicalWithdrawal",
+        "name": "Medical Withdrawal",
+        "means": "out",
+        "cause": "medical"
+      },
+      {
+        "id": "removedFromRace",
+        "name": "Removed from the Race",
+        "means": "out",
+        "cause": "removed"
+      },
+      {
+        "id": "finalist",
+        "name": "Finalist",
+        "means": "finalist"
+      },
+      {
+        "id": "seasonWinner",
+        "name": "Season Winner",
+        "means": "winner"
+      }
+    ],
+    "twists": [
+      {
+        "id": "expressPass",
+        "name": "Express Pass",
+        "summary": "An Express Pass allows a team to bypass an eligible task and obtain the next clue without completing that task; in the current season, each team starts with one and must use it before the specified deadline.",
+        "type": "advantage",
+        "oneIsCalled": "an Express Pass",
+        "gotBy": "given",
+        "does": [
+          "skipsATask"
+        ],
+        "lasts": "oneUse"
+      },
+      {
+        "id": "roadsideAssistance",
+        "name": "Roadside Assistance",
+        "summary": "A limited-use advantage allows a team member to call on their partner to help with a Roadblock, temporarily changing the usual restriction on partner assistance.",
+        "type": "advantage",
+        "oneIsCalled": "Roadside Assistance",
+        "gotBy": "found",
+        "does": [
+          "savesSomeone"
+        ],
+        "lasts": "oneUse"
+      },
+      {
+        "id": "driversSeatAdvantage",
+        "name": "Driver's Seat",
+        "summary": "A team gains control over task conditions assigned to other teams, such as the amount of work they must complete, giving the controlling team a strategic influence over the leg.",
+        "type": "advantage",
+        "oneIsCalled": "the Driver's Seat",
+        "gotBy": "wonAt",
+        "wonAt": "driversSeat",
+        "does": [
+          "hurtsSomeone"
+        ],
+        "lasts": "oneEpisode"
+      }
+    ],
+    "customMoments": [
+      {
+        "id": "teamGetsLost",
+        "label": "Team Gets Lost",
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "teamMakesNavigationMistake",
+        "label": "Team Makes a Navigation Mistake",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "teamUsesWrongTransportation",
+        "label": "Team Takes the Wrong Transportation",
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "patchy"
+      },
+      {
+        "id": "teamHelpsAnotherTeam",
+        "label": "Team Helps Another Team",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "teamArgues",
+        "label": "Team Argues",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "teamHasEmotionalBreakdown",
+        "label": "Team Has an Emotional Breakdown",
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "patchy"
+      },
+      {
+        "id": "teamReceivesPenalty",
+        "label": "Team Receives a Time Penalty",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "teamCooperatesStrategically",
+        "label": "Teams Cooperate Strategically",
+        "counted": "yesNo",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "teamSwitchesDetour",
+        "label": "Team Switches Detour Tasks",
+        "during": {
+          "segment": "detour"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "teamCompletesTaskFirstTry",
+        "label": "Team Completes a Task on the First Try",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "patchy"
+      },
+      {
+        "id": "teamGetsTaskHelp",
+        "label": "Team Receives Help from Another Team",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      }
+    ],
+    "points": {
+      "teamGetsLost": -2,
+      "teamMakesNavigationMistake": -1,
+      "teamUsesWrongTransportation": -2,
+      "teamHelpsAnotherTeam": 2,
+      "teamArgues": -1,
+      "teamHasEmotionalBreakdown": -1,
+      "teamReceivesPenalty": -3,
+      "teamCooperatesStrategically": 1,
+      "teamSwitchesDetour": -1,
+      "teamCompletesTaskFirstTry": 2,
+      "teamGetsTaskHelp": 1
+    },
+    "leftOut": [
+      "The Driver's Seat is a task-control mechanism rather than a conventional advantage that simply protects its holder or skips a task, so its effects are only approximated by the available advantage fields.",
+      "Roadside Assistance specifically permits a teammate to help during a Roadblock, which is not accurately represented by the available advantage effects.",
+      "The current season's Express Passes have a shared deadline, but the schema cannot express an expiration tied to a particular leg.",
+      "Non-elimination legs allow teams to remain in the race after finishing last, sometimes with a penalty or disadvantage, and therefore do not constitute a separate way out.",
+      "The Fast Forward, Yield, Intersection, and Hazard are additional race mechanisms that can appear in some seasons but are not guaranteed parts of every leg.",
+      "Roadblocks have rules limiting how frequently each team member can perform them, and the exact restrictions vary by season.",
+      "Transportation choices, flights, departure-time gaps, equalizers, waiting periods, and route restrictions can change teams' relative positions without constituting separate regular segments.",
+      "The show may introduce special tasks, altered starting conditions, or temporary race rules that are specific to a season or leg rather than recurring elements of the standard format."
+    ]
+  },
+  "compiled": {
+    "id": "the-amazing-race",
+    "name": "The Amazing Race",
+    "exitMethods": [
+      "Eliminated at the Pit Stop",
+      "Withdraws from the Race",
+      "Medical Withdrawal",
+      "Removed from the Race",
+      "Finalist",
+      "Season Winner",
+      "Other"
+    ],
+    "terms": {
+      "castaway": "Team",
+      "tribe": "Group"
+    },
+    "winnerExitMethod": "Season Winner",
+    "endgameExitMethods": [
+      "Finalist",
+      "Season Winner"
+    ],
+    "events": [
+      {
+        "id": "teamSwitchesDetour",
+        "label": "Team Switches Detour Tasks",
+        "defaultPoints": -1
+      },
+      {
+        "id": "driversSeatPicked",
+        "label": "Picked at the Driver's Seat",
+        "defaultPoints": 1
+      },
+      {
+        "id": "driversSeatPickedFirst",
+        "label": "Picked first at the Driver's Seat",
+        "defaultPoints": 2
+      },
+      {
+        "id": "driversSeatNotPicked",
+        "label": "Not picked at the Driver's Seat",
+        "defaultPoints": -1
+      },
+      {
+        "id": "driversSeatAtRisk",
+        "label": "Put at risk at the Driver's Seat",
+        "defaultPoints": -0.5
+      },
+      {
+        "id": "pitStopFirst",
+        "label": "First in the Pit Stop",
+        "defaultPoints": 2
+      },
+      {
+        "id": "pitStopLast",
+        "label": "Last in the Pit Stop",
+        "defaultPoints": -1
+      },
+      {
+        "id": "pitStopAtRisk",
+        "label": "Put at risk at the Pit Stop",
+        "defaultPoints": -0.5
+      },
+      {
+        "id": "finalLegFirst",
+        "label": "First in the Final Leg",
+        "defaultPoints": 2
+      },
+      {
+        "id": "finalLegLast",
+        "label": "Last in the Final Leg",
+        "defaultPoints": -1
+      },
+      {
+        "id": "expressPassGot",
+        "label": "Got an Express Pass",
+        "defaultPoints": 2
+      },
+      {
+        "id": "expressPassPlayed",
+        "label": "Played an Express Pass",
+        "defaultPoints": 1
+      },
+      {
+        "id": "expressPassSkippedTask",
+        "label": "Skipped a task with an Express Pass",
+        "defaultPoints": 1
+      },
+      {
+        "id": "roadsideAssistanceGot",
+        "label": "Got Roadside Assistance",
+        "defaultPoints": 2
+      },
+      {
+        "id": "roadsideAssistancePlayed",
+        "label": "Played Roadside Assistance",
+        "defaultPoints": 1
+      },
+      {
+        "id": "roadsideAssistanceSavedSomeone",
+        "label": "Used Roadside Assistance to save someone",
+        "defaultPoints": 1
+      },
+      {
+        "id": "driversSeatAdvantageGot",
+        "label": "Got the Driver's Seat",
+        "defaultPoints": 2
+      },
+      {
+        "id": "driversSeatAdvantagePlayed",
+        "label": "Played the Driver's Seat",
+        "defaultPoints": 1
+      },
+      {
+        "id": "driversSeatAdvantageUsedAgainst",
+        "label": "Had the Driver's Seat used against them",
+        "defaultPoints": -1
+      },
+      {
+        "id": "eliminatedAtPitStop",
+        "label": "Eliminated at the Pit Stop",
+        "defaultPoints": -3,
+        "implied": true
+      },
+      {
+        "id": "withdrawal",
+        "label": "Withdraws from the Race",
+        "defaultPoints": -3,
+        "implied": true
+      },
+      {
+        "id": "medicalWithdrawal",
+        "label": "Medical Withdrawal",
+        "defaultPoints": -3,
+        "implied": true
+      },
+      {
+        "id": "removedFromRace",
+        "label": "Removed from the Race",
+        "defaultPoints": -3,
+        "implied": true
+      },
+      {
+        "id": "finalist",
+        "label": "Finalist",
+        "defaultPoints": 2,
+        "implied": true
+      },
+      {
+        "id": "seasonWinner",
+        "label": "Season Winner",
+        "defaultPoints": 5,
+        "implied": true
+      },
+      {
+        "id": "teamGetsLost",
+        "label": "Team Gets Lost",
+        "defaultPoints": -2
+      },
+      {
+        "id": "teamMakesNavigationMistake",
+        "label": "Team Makes a Navigation Mistake",
+        "defaultPoints": -1
+      },
+      {
+        "id": "teamUsesWrongTransportation",
+        "label": "Team Takes the Wrong Transportation",
+        "defaultPoints": -2
+      },
+      {
+        "id": "teamHelpsAnotherTeam",
+        "label": "Team Helps Another Team",
+        "defaultPoints": 2
+      },
+      {
+        "id": "teamArgues",
+        "label": "Team Argues",
+        "defaultPoints": -1
+      },
+      {
+        "id": "teamHasEmotionalBreakdown",
+        "label": "Team Has an Emotional Breakdown",
+        "defaultPoints": -1
+      },
+      {
+        "id": "teamReceivesPenalty",
+        "label": "Team Receives a Time Penalty",
+        "defaultPoints": -3
+      },
+      {
+        "id": "teamCooperatesStrategically",
+        "label": "Teams Cooperate Strategically",
+        "defaultPoints": 1
+      },
+      {
+        "id": "teamCompletesTaskFirstTry",
+        "label": "Team Completes a Task on the First Try",
+        "defaultPoints": 2
+      },
+      {
+        "id": "teamGetsTaskHelp",
+        "label": "Team Receives Help from Another Team",
+        "defaultPoints": 1
+      }
+    ],
+    "eventCategories": [
+      {
+        "id": "segmentDetour",
+        "label": "Detour",
+        "events": [
+          "teamSwitchesDetour"
+        ]
+      },
+      {
+        "id": "segmentDriversseat",
+        "label": "Driver's Seat",
+        "events": [
+          "driversSeatPicked",
+          "driversSeatPickedFirst",
+          "driversSeatNotPicked",
+          "driversSeatAtRisk"
+        ]
+      },
+      {
+        "id": "segmentPitstop",
+        "label": "Pit Stop",
+        "events": [
+          "pitStopFirst",
+          "pitStopLast",
+          "pitStopAtRisk"
+        ]
+      },
+      {
+        "id": "segmentFinalleg",
+        "label": "Final Leg",
+        "events": [
+          "finalLegFirst",
+          "finalLegLast"
+        ]
+      },
+      {
+        "id": "twistExpresspass",
+        "label": "Express Pass",
+        "events": [
+          "expressPassGot",
+          "expressPassPlayed",
+          "expressPassSkippedTask"
+        ]
+      },
+      {
+        "id": "twistRoadsideassistance",
+        "label": "Roadside Assistance",
+        "events": [
+          "roadsideAssistanceGot",
+          "roadsideAssistancePlayed",
+          "roadsideAssistanceSavedSomeone"
+        ]
+      },
+      {
+        "id": "twistDriversseatadvantage",
+        "label": "Driver's Seat",
+        "events": [
+          "driversSeatAdvantageGot",
+          "driversSeatAdvantagePlayed",
+          "driversSeatAdvantageUsedAgainst"
+        ]
+      },
+      {
+        "id": "leaving",
+        "label": "Ways out",
+        "events": [
+          "eliminatedAtPitStop",
+          "withdrawal",
+          "medicalWithdrawal",
+          "removedFromRace"
+        ]
+      },
+      {
+        "id": "endgame",
+        "label": "Endgame",
+        "events": [
+          "finalist",
+          "seasonWinner"
+        ]
+      },
+      {
+        "id": "other",
+        "label": "Other moments",
+        "events": [
+          "teamGetsLost",
+          "teamMakesNavigationMistake",
+          "teamUsesWrongTransportation",
+          "teamHelpsAnotherTeam",
+          "teamArgues",
+          "teamHasEmotionalBreakdown",
+          "teamReceivesPenalty",
+          "teamCooperatesStrategically",
+          "teamCompletesTaskFirstTry",
+          "teamGetsTaskHelp"
+        ]
+      }
+    ],
+    "recap": [],
+    "hasMerge": false,
+    "hasGroups": false,
+    "wiki": {
+      "version": 1,
+      "voteSections": [],
+      "guideSections": [],
+      "missingVotesNote": "no vote or elimination table found: who left will come from research",
+      "missingGuideNote": "no episode guide found: who left will come from research",
+      "eventTypes": [],
+      "routineEliminations": 1
+    },
+    "research": {
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The team's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the game permanently in THIS leg?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "teamSwitchesDetour",
+          "type": "integer",
+          "nullable": true,
+          "description": "This leg, how many times did each person: team Switches Detour Tasks at the Detour? This person's number; 0 if none, null if unknown.",
+          "note": "team Switches Detour Tasks"
+        },
+        {
+          "key": "driversSeatPicked",
+          "type": "answer",
+          "description": "Picked at the Driver's Seat, this leg: yes, no, or unknown.",
+          "note": "picked at the Driver's Seat"
+        },
+        {
+          "key": "driversSeatPickedFirst",
+          "type": "answer",
+          "description": "Picked first at the Driver's Seat, this leg: yes, no, or unknown.",
+          "note": "picked first at the Driver's Seat"
+        },
+        {
+          "key": "driversSeatNotPicked",
+          "type": "answer",
+          "description": "Not picked at the Driver's Seat, this leg: yes, no, or unknown.",
+          "note": "not picked at the Driver's Seat"
+        },
+        {
+          "key": "driversSeatAtRisk",
+          "type": "answer",
+          "description": "Put at risk at the Driver's Seat, this leg: yes, no, or unknown.",
+          "note": "put at risk at the Driver's Seat"
+        },
+        {
+          "key": "pitStopFirst",
+          "type": "answer",
+          "description": "First in the Pit Stop, this leg: yes, no, or unknown.",
+          "note": "first in the Pit Stop"
+        },
+        {
+          "key": "pitStopLast",
+          "type": "answer",
+          "description": "Last in the Pit Stop, this leg: yes, no, or unknown.",
+          "note": "last in the Pit Stop"
+        },
+        {
+          "key": "pitStopAtRisk",
+          "type": "answer",
+          "description": "Put at risk at the Pit Stop, this leg: yes, no, or unknown.",
+          "note": "put at risk at the Pit Stop"
+        },
+        {
+          "key": "finalLegFirst",
+          "type": "answer",
+          "description": "First in the Final Leg, this leg: yes, no, or unknown.",
+          "note": "first in the Final Leg"
+        },
+        {
+          "key": "finalLegLast",
+          "type": "answer",
+          "description": "Last in the Final Leg, this leg: yes, no, or unknown.",
+          "note": "last in the Final Leg"
+        },
+        {
+          "key": "expressPassGot",
+          "type": "answer",
+          "description": "Got an Express Pass, this leg: yes, no, or unknown.",
+          "note": "got an Express Pass"
+        },
+        {
+          "key": "expressPassPlayed",
+          "type": "answer",
+          "description": "Played an Express Pass, this leg: yes, no, or unknown.",
+          "note": "played an Express Pass"
+        },
+        {
+          "key": "expressPassSkippedTask",
+          "type": "answer",
+          "description": "Skipped a task with an Express Pass, this leg: yes, no, or unknown.",
+          "note": "skipped a task with an Express Pass"
+        },
+        {
+          "key": "roadsideAssistanceGot",
+          "type": "answer",
+          "description": "Got Roadside Assistance, this leg: yes, no, or unknown.",
+          "note": "got Roadside Assistance"
+        },
+        {
+          "key": "roadsideAssistancePlayed",
+          "type": "answer",
+          "description": "Played Roadside Assistance, this leg: yes, no, or unknown.",
+          "note": "played Roadside Assistance"
+        },
+        {
+          "key": "roadsideAssistanceSavedSomeone",
+          "type": "answer",
+          "description": "Used Roadside Assistance to save someone, this leg: yes, no, or unknown.",
+          "note": "used Roadside Assistance to save someone"
+        },
+        {
+          "key": "driversSeatAdvantageGot",
+          "type": "answer",
+          "description": "Got the Driver's Seat, this leg: yes, no, or unknown.",
+          "note": "got the Driver's Seat"
+        },
+        {
+          "key": "driversSeatAdvantagePlayed",
+          "type": "answer",
+          "description": "Played the Driver's Seat, this leg: yes, no, or unknown.",
+          "note": "played the Driver's Seat"
+        },
+        {
+          "key": "driversSeatAdvantageUsedAgainst",
+          "type": "answer",
+          "description": "Had the Driver's Seat used against them, this leg: yes, no, or unknown.",
+          "note": "had the Driver's Seat used against them"
+        },
+        {
+          "key": "teamGetsLost",
+          "type": "answer",
+          "description": "Team Gets Lost, this leg: yes, no, or unknown.",
+          "note": "team Gets Lost"
+        },
+        {
+          "key": "teamMakesNavigationMistake",
+          "type": "integer",
+          "nullable": true,
+          "description": "This leg, how many times did each person: team Makes a Navigation Mistake? This person's number; 0 if none, null if unknown.",
+          "note": "team Makes a Navigation Mistake"
+        },
+        {
+          "key": "teamUsesWrongTransportation",
+          "type": "answer",
+          "description": "Team Takes the Wrong Transportation, this leg: yes, no, or unknown.",
+          "note": "team Takes the Wrong Transportation"
+        },
+        {
+          "key": "teamHelpsAnotherTeam",
+          "type": "integer",
+          "nullable": true,
+          "description": "This leg, how many times did each person: team Helps Another Team? This person's number; 0 if none, null if unknown.",
+          "note": "team Helps Another Team"
+        },
+        {
+          "key": "teamArgues",
+          "type": "integer",
+          "nullable": true,
+          "description": "This leg, how many times did each person: team Argues? This person's number; 0 if none, null if unknown.",
+          "note": "team Argues"
+        },
+        {
+          "key": "teamHasEmotionalBreakdown",
+          "type": "answer",
+          "description": "Team Has an Emotional Breakdown, this leg: yes, no, or unknown.",
+          "note": "team Has an Emotional Breakdown"
+        },
+        {
+          "key": "teamReceivesPenalty",
+          "type": "integer",
+          "nullable": true,
+          "description": "This leg, how many times did each person: team Receives a Time Penalty? This person's number; 0 if none, null if unknown.",
+          "note": "team Receives a Time Penalty"
+        },
+        {
+          "key": "teamCooperatesStrategically",
+          "type": "answer",
+          "description": "Teams Cooperate Strategically, this leg: yes, no, or unknown.",
+          "note": "teams Cooperate Strategically"
+        },
+        {
+          "key": "teamCompletesTaskFirstTry",
+          "type": "integer",
+          "nullable": true,
+          "description": "This leg, how many times did each person: team Completes a Task on the First Try? This person's number; 0 if none, null if unknown.",
+          "note": "team Completes a Task on the First Try"
+        },
+        {
+          "key": "teamGetsTaskHelp",
+          "type": "integer",
+          "nullable": true,
+          "description": "This leg, how many times did each person: team Receives Help from Another Team? This person's number; 0 if none, null if unknown.",
+          "note": "team Receives Help from Another Team"
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "episodeFields": [],
+      "searchHint": [
+        "Search for this leg's recap and any reporting on Driver's Seat, Pit Stop, Final Leg, what happened to each person, and who left.",
+        "Then answer the checklist for every person above."
+      ],
+      "claims": [
+        "leftTheGame",
+        "driversSeatPicked",
+        "driversSeatPickedFirst",
+        "driversSeatNotPicked",
+        "driversSeatAtRisk",
+        "pitStopFirst",
+        "pitStopLast",
+        "pitStopAtRisk",
+        "finalLegFirst",
+        "finalLegLast",
+        "expressPassGot",
+        "expressPassPlayed",
+        "expressPassSkippedTask",
+        "roadsideAssistanceGot",
+        "roadsideAssistancePlayed",
+        "roadsideAssistanceSavedSomeone",
+        "driversSeatAdvantageGot",
+        "driversSeatAdvantagePlayed",
+        "driversSeatAdvantageUsedAgainst",
+        "teamGetsLost",
+        "teamUsesWrongTransportation",
+        "teamHasEmotionalBreakdown",
+        "teamCooperatesStrategically"
+      ]
+    },
+    "rules": {
+      "research": [
+        {
+          "when": {
+            "answer": "teamSwitchesDetour",
+            "greaterThan": 0
+          },
+          "award": "teamSwitchesDetour"
+        },
+        {
+          "when": {
+            "answer": "driversSeatPicked",
+            "is": "yes"
+          },
+          "award": "driversSeatPicked"
+        },
+        {
+          "when": {
+            "answer": "driversSeatPickedFirst",
+            "is": "yes"
+          },
+          "award": "driversSeatPickedFirst"
+        },
+        {
+          "when": {
+            "answer": "driversSeatNotPicked",
+            "is": "yes"
+          },
+          "award": "driversSeatNotPicked"
+        },
+        {
+          "when": {
+            "answer": "driversSeatAtRisk",
+            "is": "yes"
+          },
+          "award": "driversSeatAtRisk"
+        },
+        {
+          "when": {
+            "answer": "pitStopFirst",
+            "is": "yes"
+          },
+          "award": "pitStopFirst"
+        },
+        {
+          "when": {
+            "answer": "pitStopLast",
+            "is": "yes"
+          },
+          "award": "pitStopLast"
+        },
+        {
+          "when": {
+            "answer": "pitStopAtRisk",
+            "is": "yes"
+          },
+          "award": "pitStopAtRisk"
+        },
+        {
+          "when": {
+            "answer": "finalLegFirst",
+            "is": "yes"
+          },
+          "award": "finalLegFirst"
+        },
+        {
+          "when": {
+            "answer": "finalLegLast",
+            "is": "yes"
+          },
+          "award": "finalLegLast"
+        },
+        {
+          "when": {
+            "answer": "expressPassGot",
+            "is": "yes"
+          },
+          "award": "expressPassGot"
+        },
+        {
+          "when": {
+            "answer": "expressPassPlayed",
+            "is": "yes"
+          },
+          "award": "expressPassPlayed"
+        },
+        {
+          "when": {
+            "answer": "expressPassSkippedTask",
+            "is": "yes"
+          },
+          "award": "expressPassSkippedTask"
+        },
+        {
+          "when": {
+            "answer": "roadsideAssistanceGot",
+            "is": "yes"
+          },
+          "award": "roadsideAssistanceGot"
+        },
+        {
+          "when": {
+            "answer": "roadsideAssistancePlayed",
+            "is": "yes"
+          },
+          "award": "roadsideAssistancePlayed"
+        },
+        {
+          "when": {
+            "answer": "roadsideAssistanceSavedSomeone",
+            "is": "yes"
+          },
+          "award": "roadsideAssistanceSavedSomeone"
+        },
+        {
+          "when": {
+            "answer": "driversSeatAdvantageGot",
+            "is": "yes"
+          },
+          "award": "driversSeatAdvantageGot"
+        },
+        {
+          "when": {
+            "answer": "driversSeatAdvantagePlayed",
+            "is": "yes"
+          },
+          "award": "driversSeatAdvantagePlayed"
+        },
+        {
+          "when": {
+            "answer": "driversSeatAdvantageUsedAgainst",
+            "is": "yes"
+          },
+          "award": "driversSeatAdvantageUsedAgainst"
+        },
+        {
+          "when": {
+            "answer": "teamGetsLost",
+            "is": "yes"
+          },
+          "award": "teamGetsLost"
+        },
+        {
+          "when": {
+            "answer": "teamMakesNavigationMistake",
+            "greaterThan": 0
+          },
+          "award": "teamMakesNavigationMistake"
+        },
+        {
+          "when": {
+            "answer": "teamUsesWrongTransportation",
+            "is": "yes"
+          },
+          "award": "teamUsesWrongTransportation"
+        },
+        {
+          "when": {
+            "answer": "teamHelpsAnotherTeam",
+            "greaterThan": 0
+          },
+          "award": "teamHelpsAnotherTeam"
+        },
+        {
+          "when": {
+            "answer": "teamArgues",
+            "greaterThan": 0
+          },
+          "award": "teamArgues"
+        },
+        {
+          "when": {
+            "answer": "teamHasEmotionalBreakdown",
+            "is": "yes"
+          },
+          "award": "teamHasEmotionalBreakdown"
+        },
+        {
+          "when": {
+            "answer": "teamReceivesPenalty",
+            "greaterThan": 0
+          },
+          "award": "teamReceivesPenalty"
+        },
+        {
+          "when": {
+            "answer": "teamCooperatesStrategically",
+            "is": "yes"
+          },
+          "award": "teamCooperatesStrategically"
+        },
+        {
+          "when": {
+            "answer": "teamCompletesTaskFirstTry",
+            "greaterThan": 0
+          },
+          "award": "teamCompletesTaskFirstTry"
+        },
+        {
+          "when": {
+            "answer": "teamGetsTaskHelp",
+            "greaterThan": 0
+          },
+          "award": "teamGetsTaskHelp"
+        }
+      ],
+      "implied": [
+        {
+          "whenExit": "Eliminated at the Pit Stop",
+          "award": "eliminatedAtPitStop"
+        },
+        {
+          "whenExit": "Withdraws from the Race",
+          "award": "withdrawal"
+        },
+        {
+          "whenExit": "Medical Withdrawal",
+          "award": "medicalWithdrawal"
+        },
+        {
+          "whenExit": "Removed from the Race",
+          "award": "removedFromRace"
+        },
+        {
+          "whenExit": "Finalist",
+          "award": "finalist"
+        },
+        {
+          "whenExit": "Season Winner",
+          "award": "seasonWinner"
+        }
+      ]
+    }
+  }
+}

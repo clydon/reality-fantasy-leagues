@@ -1,0 +1,1064 @@
+{
+  "id": "world-series",
+  "show": "World Series",
+  "status": "draft",
+  "researched": {
+    "for": "the World Series, Game 2 of the 2025 World Series",
+    "on": "2026-10-24",
+    "by": "ChatGPT with web search, through the ask-AI bot (scripts/dev-test/check-rulebook-prompt.js)",
+    "castChecked": false
+  },
+  "leftOut": [
+    "A standard game has nine innings, but innings and half-innings are subdivisions of the game rather than independent segments for this rulebook.",
+    "The batting order determines the sequence of hitters, while defensive positions and pitching assignments shape how each team attempts to record outs.",
+    "The designated hitter rule, mound visits, replay reviews, intentional walks, substitutions, and other situational rules affect play but are not separate segments or recurring twists.",
+    "A game can end before the bottom of the ninth when the home team already leads, and postseason games continue into extra innings until a winner is determined.",
+    "The championship is a best-of-seven series, so a single game's result affects the series standings but does not itself necessarily determine the champion.",
+    "Ceremonial first pitches, national anthems, between-inning entertainment, broadcast interviews, and award presentations may occur around the game but are not competitive segments.",
+    "Individual player statistics, team statistics, pitch tracking, defensive plays, and situational baseball events provide additional fantasy-scoring possibilities beyond the listed custom moments.",
+    "A player may be substituted out of a game without being ejected or medically withdrawn, and that substitution does not count as a way out of the competition."
+  ],
+  "blocks": {
+    "schema": 1,
+    "kind": "sport",
+    "show": "World Series",
+    "tagline": "Two teams compete for baseball's championship",
+    "premise": "Two teams play a best-of-seven championship series, with each game decided by the number of runs scored. The first team to win four games becomes champion, and individual games feature batting, pitching, fielding, baserunning, and strategic substitutions.",
+    "parts": {
+      "singular": "game",
+      "plural": "games",
+      "label": "Each game"
+    },
+    "cast": {
+      "unit": "people",
+      "singular": "player",
+      "plural": "players",
+      "usualSize": 52,
+      "groups": {
+        "type": "sides",
+        "singular": "team",
+        "change": "never"
+      }
+    },
+    "season": {
+      "phases": [
+        {
+          "id": "worldSeries",
+          "name": "World Series",
+          "starts": {
+            "type": "episode",
+            "n": 1
+          },
+          "changes": [],
+          "summary": "Two championship teams play a series of up to seven games, alternating home and away arrangements according to the schedule, until one team wins four games."
+        }
+      ],
+      "finale": {
+        "decidedBy": "firstToFinish",
+        "finalists": 2,
+        "summary": "The championship goes to the first team to win four games in the series."
+      }
+    },
+    "segments": [
+      {
+        "id": "game",
+        "name": "Game",
+        "summary": "The teams alternate batting and fielding through nine scheduled innings, with each half-inning ending when the batting team records three outs; extra innings are played if the score is tied after nine, and the game ends when the rules establish a winner.",
+        "decidedBy": "result",
+        "takesPart": "groups",
+        "decides": "winner",
+        "onTheLine": "points",
+        "often": "everyEpisode"
+      }
+    ],
+    "waysOut": [
+      {
+        "id": "ejected",
+        "name": "Ejected",
+        "means": "out",
+        "cause": "removed"
+      },
+      {
+        "id": "injuryWithdrawal",
+        "name": "Withdrawn due to injury",
+        "means": "out",
+        "cause": "medical"
+      }
+    ],
+    "twists": [],
+    "customMoments": [
+      {
+        "id": "homeRun",
+        "label": "Hit a home run",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "hit",
+        "label": "Recorded a hit",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "runBattedIn",
+        "label": "Recorded an RBI",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "strikeout",
+        "label": "Recorded a strikeout as a pitcher",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "batterStrikeout",
+        "label": "Struck out as a batter",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "walk",
+        "label": "Drew a walk",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "stolenBase",
+        "label": "Stole a base",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "doublePlay",
+        "label": "Turned a double play",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "fieldingError",
+        "label": "Committed a fielding error",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "hitByPitch",
+        "label": "Batter hit by a pitch",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "extraBaseHit",
+        "label": "Recorded an extra-base hit",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "caughtStealing",
+        "label": "Caught stealing",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "sacrificeFly",
+        "label": "Recorded a sacrifice fly",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "sacrificeBunt",
+        "label": "Recorded a sacrifice bunt",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "completeGame",
+        "label": "Pitcher completes the entire game",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "shutout",
+        "label": "Team records a shutout",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "save",
+        "label": "Pitcher earns a save",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "extraInnings",
+        "label": "Game goes to extra innings",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "walkOff",
+        "label": "Game ends on a walk-off play",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "basesLoaded",
+        "label": "Bases loaded",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "pitchingChange",
+        "label": "Pitching change",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "leadChange",
+        "label": "Lead changes",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "tieGame",
+        "label": "Score becomes tied",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "runsScored",
+        "label": "Runs scored",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "perUnit",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "inningsPitched",
+        "label": "Innings pitched",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "perUnit",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "pitchCount",
+        "label": "Pitches thrown",
+        "during": {
+          "segment": "game"
+        },
+        "counted": "perUnit",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      }
+    ],
+    "points": {
+      "homeRun": 5,
+      "hit": 1,
+      "runBattedIn": 2,
+      "strikeout": 1,
+      "batterStrikeout": -1,
+      "walk": 1,
+      "stolenBase": 2,
+      "doublePlay": 2,
+      "fieldingError": -2,
+      "hitByPitch": 1,
+      "extraBaseHit": 2,
+      "caughtStealing": -2,
+      "sacrificeFly": 1,
+      "sacrificeBunt": 1,
+      "completeGame": 5,
+      "shutout": 5,
+      "save": 3,
+      "extraInnings": 2,
+      "walkOff": 5,
+      "basesLoaded": 1,
+      "pitchingChange": 1,
+      "leadChange": 2,
+      "tieGame": 1,
+      "runsScored": 1,
+      "inningsPitched": 1,
+      "pitchCount": 0
+    },
+    "leftOut": [
+      "A standard game has nine innings, but innings and half-innings are subdivisions of the game rather than independent segments for this rulebook.",
+      "The batting order determines the sequence of hitters, while defensive positions and pitching assignments shape how each team attempts to record outs.",
+      "The designated hitter rule, mound visits, replay reviews, intentional walks, substitutions, and other situational rules affect play but are not separate segments or recurring twists.",
+      "A game can end before the bottom of the ninth when the home team already leads, and postseason games continue into extra innings until a winner is determined.",
+      "The championship is a best-of-seven series, so a single game's result affects the series standings but does not itself necessarily determine the champion.",
+      "Ceremonial first pitches, national anthems, between-inning entertainment, broadcast interviews, and award presentations may occur around the game but are not competitive segments.",
+      "Individual player statistics, team statistics, pitch tracking, defensive plays, and situational baseball events provide additional fantasy-scoring possibilities beyond the listed custom moments.",
+      "A player may be substituted out of a game without being ejected or medically withdrawn, and that substitution does not count as a way out of the competition."
+    ]
+  },
+  "compiled": {
+    "id": "world-series",
+    "name": "World Series",
+    "exitMethods": [
+      "Ejected",
+      "Withdrawn due to injury",
+      "Other"
+    ],
+    "terms": {
+      "castaway": "Player",
+      "tribe": "Team"
+    },
+    "winnerExitMethod": null,
+    "endgameExitMethods": [],
+    "events": [
+      {
+        "id": "gameWon",
+        "label": "Won the Game",
+        "defaultPoints": 2
+      },
+      {
+        "id": "gameGroupWon",
+        "label": "Team won the Game",
+        "defaultPoints": 1
+      },
+      {
+        "id": "homeRun",
+        "label": "Hit a home run",
+        "defaultPoints": 5
+      },
+      {
+        "id": "hit",
+        "label": "Recorded a hit",
+        "defaultPoints": 1
+      },
+      {
+        "id": "runBattedIn",
+        "label": "Recorded an RBI",
+        "defaultPoints": 2
+      },
+      {
+        "id": "strikeout",
+        "label": "Recorded a strikeout as a pitcher",
+        "defaultPoints": 1
+      },
+      {
+        "id": "batterStrikeout",
+        "label": "Struck out as a batter",
+        "defaultPoints": -1
+      },
+      {
+        "id": "walk",
+        "label": "Drew a walk",
+        "defaultPoints": 1
+      },
+      {
+        "id": "stolenBase",
+        "label": "Stole a base",
+        "defaultPoints": 2
+      },
+      {
+        "id": "doublePlay",
+        "label": "Turned a double play",
+        "defaultPoints": 2
+      },
+      {
+        "id": "fieldingError",
+        "label": "Committed a fielding error",
+        "defaultPoints": -2
+      },
+      {
+        "id": "hitByPitch",
+        "label": "Batter hit by a pitch",
+        "defaultPoints": 1
+      },
+      {
+        "id": "extraBaseHit",
+        "label": "Recorded an extra-base hit",
+        "defaultPoints": 2
+      },
+      {
+        "id": "caughtStealing",
+        "label": "Caught stealing",
+        "defaultPoints": -2
+      },
+      {
+        "id": "sacrificeFly",
+        "label": "Recorded a sacrifice fly",
+        "defaultPoints": 1
+      },
+      {
+        "id": "sacrificeBunt",
+        "label": "Recorded a sacrifice bunt",
+        "defaultPoints": 1
+      },
+      {
+        "id": "completeGame",
+        "label": "Pitcher completes the entire game",
+        "defaultPoints": 5
+      },
+      {
+        "id": "shutout",
+        "label": "Team records a shutout",
+        "defaultPoints": 5
+      },
+      {
+        "id": "save",
+        "label": "Pitcher earns a save",
+        "defaultPoints": 3
+      },
+      {
+        "id": "extraInnings",
+        "label": "Game goes to extra innings",
+        "defaultPoints": 2
+      },
+      {
+        "id": "walkOff",
+        "label": "Game ends on a walk-off play",
+        "defaultPoints": 5
+      },
+      {
+        "id": "basesLoaded",
+        "label": "Bases loaded",
+        "defaultPoints": 1
+      },
+      {
+        "id": "pitchingChange",
+        "label": "Pitching change",
+        "defaultPoints": 1
+      },
+      {
+        "id": "leadChange",
+        "label": "Lead changes",
+        "defaultPoints": 2
+      },
+      {
+        "id": "tieGame",
+        "label": "Score becomes tied",
+        "defaultPoints": 1
+      },
+      {
+        "id": "runsScored",
+        "label": "Runs scored",
+        "defaultPoints": 1
+      },
+      {
+        "id": "inningsPitched",
+        "label": "Innings pitched",
+        "defaultPoints": 1
+      },
+      {
+        "id": "pitchCount",
+        "label": "Pitches thrown",
+        "defaultPoints": 0
+      },
+      {
+        "id": "ejected",
+        "label": "Ejected",
+        "defaultPoints": -3,
+        "implied": true
+      },
+      {
+        "id": "injuryWithdrawal",
+        "label": "Withdrawn due to injury",
+        "defaultPoints": -3,
+        "implied": true
+      }
+    ],
+    "eventCategories": [
+      {
+        "id": "segmentGame",
+        "label": "Game",
+        "events": [
+          "gameWon",
+          "gameGroupWon",
+          "homeRun",
+          "hit",
+          "runBattedIn",
+          "strikeout",
+          "batterStrikeout",
+          "walk",
+          "stolenBase",
+          "doublePlay",
+          "fieldingError",
+          "hitByPitch",
+          "extraBaseHit",
+          "caughtStealing",
+          "sacrificeFly",
+          "sacrificeBunt",
+          "completeGame",
+          "shutout",
+          "save",
+          "extraInnings",
+          "walkOff",
+          "basesLoaded",
+          "pitchingChange",
+          "leadChange",
+          "tieGame",
+          "runsScored",
+          "inningsPitched",
+          "pitchCount"
+        ]
+      },
+      {
+        "id": "leaving",
+        "label": "Withdrawals",
+        "events": [
+          "ejected",
+          "injuryWithdrawal"
+        ]
+      }
+    ],
+    "recap": [],
+    "hasMerge": false,
+    "hasGroups": true,
+    "wiki": {
+      "version": 1,
+      "voteSections": [],
+      "guideSections": [],
+      "missingVotesNote": "no vote or elimination table found: who left will come from research",
+      "missingGuideNote": "no episode guide found: who left will come from research",
+      "eventTypes": [],
+      "routineEliminations": 1
+    },
+    "research": {
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The player's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the game permanently in THIS game?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "gameWon",
+          "type": "answer",
+          "description": "Won the Game, this game: yes, no, or unknown.",
+          "note": "won the Game"
+        },
+        {
+          "key": "gameGroupWon",
+          "type": "answer",
+          "description": "Team won the Game, this game: yes, no, or unknown.",
+          "note": "team won the Game"
+        },
+        {
+          "key": "homeRun",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: hit a home run at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "hit a home run"
+        },
+        {
+          "key": "hit",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: recorded a hit at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "recorded a hit"
+        },
+        {
+          "key": "runBattedIn",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: recorded an RBI at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "recorded an RBI"
+        },
+        {
+          "key": "strikeout",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: recorded a strikeout as a pitcher at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "recorded a strikeout as a pitcher"
+        },
+        {
+          "key": "batterStrikeout",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: struck out as a batter at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "struck out as a batter"
+        },
+        {
+          "key": "walk",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: drew a walk at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "drew a walk"
+        },
+        {
+          "key": "stolenBase",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: stole a base at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "stole a base"
+        },
+        {
+          "key": "doublePlay",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: turned a double play at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "turned a double play"
+        },
+        {
+          "key": "fieldingError",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: committed a fielding error at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "committed a fielding error"
+        },
+        {
+          "key": "hitByPitch",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: batter hit by a pitch at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "batter hit by a pitch"
+        },
+        {
+          "key": "extraBaseHit",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: recorded an extra-base hit at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "recorded an extra-base hit"
+        },
+        {
+          "key": "caughtStealing",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: caught stealing at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "caught stealing"
+        },
+        {
+          "key": "sacrificeFly",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: recorded a sacrifice fly at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "recorded a sacrifice fly"
+        },
+        {
+          "key": "sacrificeBunt",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: recorded a sacrifice bunt at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "recorded a sacrifice bunt"
+        },
+        {
+          "key": "completeGame",
+          "type": "answer",
+          "description": "Pitcher completes the entire game, this game: yes, no, or unknown.",
+          "note": "pitcher completes the entire game"
+        },
+        {
+          "key": "shutout",
+          "type": "answer",
+          "description": "Team records a shutout, this game: yes, no, or unknown.",
+          "note": "team records a shutout"
+        },
+        {
+          "key": "save",
+          "type": "answer",
+          "description": "Pitcher earns a save, this game: yes, no, or unknown.",
+          "note": "pitcher earns a save"
+        },
+        {
+          "key": "extraInnings",
+          "type": "answer",
+          "description": "Game goes to extra innings, this game: yes, no, or unknown.",
+          "note": "game goes to extra innings"
+        },
+        {
+          "key": "walkOff",
+          "type": "answer",
+          "description": "Game ends on a walk-off play, this game: yes, no, or unknown.",
+          "note": "game ends on a walk-off play"
+        },
+        {
+          "key": "basesLoaded",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: bases loaded at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "bases loaded"
+        },
+        {
+          "key": "pitchingChange",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: pitching change at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "pitching change"
+        },
+        {
+          "key": "leadChange",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: lead changes at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "lead changes"
+        },
+        {
+          "key": "tieGame",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how many times did each person: score becomes tied at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "score becomes tied"
+        },
+        {
+          "key": "runsScored",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how much for each person: runs scored at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "runs scored"
+        },
+        {
+          "key": "inningsPitched",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how much for each person: innings pitched at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "innings pitched"
+        },
+        {
+          "key": "pitchCount",
+          "type": "integer",
+          "nullable": true,
+          "description": "This game, how much for each person: pitches thrown at the Game? This person's number; 0 if none, null if unknown.",
+          "note": "pitches thrown"
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "episodeFields": [],
+      "searchHint": [
+        "Search for this game's recap and any reporting on Game, what happened to each person, and who left.",
+        "Then answer the checklist for every person above."
+      ],
+      "claims": [
+        "leftTheGame",
+        "gameWon",
+        "gameGroupWon",
+        "completeGame",
+        "shutout",
+        "save",
+        "extraInnings",
+        "walkOff"
+      ]
+    },
+    "rules": {
+      "research": [
+        {
+          "when": {
+            "answer": "gameWon",
+            "is": "yes"
+          },
+          "award": "gameWon"
+        },
+        {
+          "when": {
+            "answer": "gameGroupWon",
+            "is": "yes"
+          },
+          "award": "gameGroupWon"
+        },
+        {
+          "when": {
+            "answer": "homeRun",
+            "greaterThan": 0
+          },
+          "award": "homeRun"
+        },
+        {
+          "when": {
+            "answer": "hit",
+            "greaterThan": 0
+          },
+          "award": "hit"
+        },
+        {
+          "when": {
+            "answer": "runBattedIn",
+            "greaterThan": 0
+          },
+          "award": "runBattedIn"
+        },
+        {
+          "when": {
+            "answer": "strikeout",
+            "greaterThan": 0
+          },
+          "award": "strikeout"
+        },
+        {
+          "when": {
+            "answer": "batterStrikeout",
+            "greaterThan": 0
+          },
+          "award": "batterStrikeout"
+        },
+        {
+          "when": {
+            "answer": "walk",
+            "greaterThan": 0
+          },
+          "award": "walk"
+        },
+        {
+          "when": {
+            "answer": "stolenBase",
+            "greaterThan": 0
+          },
+          "award": "stolenBase"
+        },
+        {
+          "when": {
+            "answer": "doublePlay",
+            "greaterThan": 0
+          },
+          "award": "doublePlay"
+        },
+        {
+          "when": {
+            "answer": "fieldingError",
+            "greaterThan": 0
+          },
+          "award": "fieldingError"
+        },
+        {
+          "when": {
+            "answer": "hitByPitch",
+            "greaterThan": 0
+          },
+          "award": "hitByPitch"
+        },
+        {
+          "when": {
+            "answer": "extraBaseHit",
+            "greaterThan": 0
+          },
+          "award": "extraBaseHit"
+        },
+        {
+          "when": {
+            "answer": "caughtStealing",
+            "greaterThan": 0
+          },
+          "award": "caughtStealing"
+        },
+        {
+          "when": {
+            "answer": "sacrificeFly",
+            "greaterThan": 0
+          },
+          "award": "sacrificeFly"
+        },
+        {
+          "when": {
+            "answer": "sacrificeBunt",
+            "greaterThan": 0
+          },
+          "award": "sacrificeBunt"
+        },
+        {
+          "when": {
+            "answer": "completeGame",
+            "is": "yes"
+          },
+          "award": "completeGame"
+        },
+        {
+          "when": {
+            "answer": "shutout",
+            "is": "yes"
+          },
+          "award": "shutout"
+        },
+        {
+          "when": {
+            "answer": "save",
+            "is": "yes"
+          },
+          "award": "save"
+        },
+        {
+          "when": {
+            "answer": "extraInnings",
+            "is": "yes"
+          },
+          "award": "extraInnings"
+        },
+        {
+          "when": {
+            "answer": "walkOff",
+            "is": "yes"
+          },
+          "award": "walkOff"
+        },
+        {
+          "when": {
+            "answer": "basesLoaded",
+            "greaterThan": 0
+          },
+          "award": "basesLoaded"
+        },
+        {
+          "when": {
+            "answer": "pitchingChange",
+            "greaterThan": 0
+          },
+          "award": "pitchingChange"
+        },
+        {
+          "when": {
+            "answer": "leadChange",
+            "greaterThan": 0
+          },
+          "award": "leadChange"
+        },
+        {
+          "when": {
+            "answer": "tieGame",
+            "greaterThan": 0
+          },
+          "award": "tieGame"
+        },
+        {
+          "when": {
+            "answer": "runsScored",
+            "greaterThan": 0
+          },
+          "award": "runsScored"
+        },
+        {
+          "when": {
+            "answer": "inningsPitched",
+            "greaterThan": 0
+          },
+          "award": "inningsPitched"
+        },
+        {
+          "when": {
+            "answer": "pitchCount",
+            "greaterThan": 0
+          },
+          "award": "pitchCount"
+        }
+      ],
+      "implied": [
+        {
+          "whenExit": "Ejected",
+          "award": "ejected"
+        },
+        {
+          "whenExit": "Withdrawn due to injury",
+          "award": "injuryWithdrawal"
+        }
+      ]
+    }
+  }
+}

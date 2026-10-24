@@ -79,7 +79,7 @@ function startText(phase, blocks, { phaseStarts, seen } = {}) {
   const start = phaseStart(phase, phaseStarts);
   const fixed = phase && phase.starts && phase.starts.type === 'episode';
   if (start !== null && (fixed || start <= Math.max(1, seenOf(seen)))) return `From ${unit} ${start}`;
-  if (phase && phase.starts && phase.starts.type === 'remaining') return `When about ${phase.starts.n} remain`;
+  if (phase && phase.starts && phase.starts.type === 'remaining' && Number.isInteger(phase.starts.n)) return `When about ${phase.starts.n} remain`;
   return 'When the show says so';
 }
 

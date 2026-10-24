@@ -1,0 +1,883 @@
+{
+  "id": "scrubs",
+  "show": "Scrubs",
+  "status": "draft",
+  "researched": {
+    "for": "Scrubs, its most recent season",
+    "on": "2026-10-24",
+    "by": "ChatGPT with web search, through the ask-AI bot (scripts/dev-test/check-rulebook-prompt.js)",
+    "castChecked": true
+  },
+  "leftOut": [
+    "The series uses first-person narration and subjective storytelling, which can make a character's interpretation of events as important as the literal events themselves.",
+    "The revival continues an established fictional timeline, so character histories and relationships may depend on earlier seasons rather than being introduced from scratch.",
+    "Medical cases and personal plots frequently overlap, making a single scene relevant to several storylines without constituting a separate formal segment.",
+    "The show's recurring daydreams, visual exaggerations, musical comedy, and occasional departures from realistic presentation do not constitute a persistent game twist.",
+    "There is no formal cast vote, elimination ladder, competitive finale, or season champion.",
+    "The current season is an ongoing scripted ensemble comedy rather than a game with scheduled phases, so the phase structure describes its continuing format rather than a competitive progression."
+  ],
+  "blocks": {
+    "schema": 1,
+    "kind": "series",
+    "start": "scripted",
+    "show": "Scrubs",
+    "tagline": "Hospital comedy, medical mishaps, and overactive imaginations",
+    "premise": "Set in a teaching hospital, the series follows experienced doctors, newer doctors, interns, and other hospital staff as they balance patient care with friendships, family, romance, mentorship, and professional responsibilities. Episodes weave together medical dilemmas, workplace comedy, personal storylines, and exaggerated fantasy sequences, with no competition or elimination system and no single winner at the end of a season.",
+    "cast": {
+      "unit": "people",
+      "singular": "character",
+      "plural": "characters",
+      "usualSize": 10,
+      "groups": null
+    },
+    "season": {
+      "phases": [
+        {
+          "id": "ongoingHospitalLife",
+          "name": "Ongoing Hospital Life",
+          "starts": {
+            "type": "episode",
+            "n": 1
+          },
+          "changes": [],
+          "summary": "Established and newer hospital characters continue their professional and personal lives through interconnected medical cases, workplace relationships, mentorship, and comic misunderstandings, with stories carrying over between episodes."
+        }
+      ],
+      "finale": null
+    },
+    "segments": [
+      {
+        "id": "coldOpen",
+        "name": "Cold Open",
+        "summary": "A brief comic or surprising setup establishes the episode's tone before the main story develops.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "medicalCase",
+        "name": "Medical Case",
+        "summary": "Doctors and trainees assess patients, investigate symptoms, make treatment decisions, and confront clinical uncertainty, ethical dilemmas, or unexpected complications.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "hospitalWorkplace",
+        "name": "Hospital Workplace",
+        "summary": "Characters navigate supervision, professional rivalries, mistakes, administrative pressures, teaching responsibilities, and the demands of working in a hospital.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "personalStorylines",
+        "name": "Personal Storylines",
+        "summary": "Parallel plots explore friendships, romantic relationships, family obligations, parenting, confidence, and the tension between professional duties and private life.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "fantasyCutaway",
+        "name": "Fantasy Cutaway",
+        "summary": "A character's imagination transforms an ordinary situation into an exaggerated, surreal, or absurd visual scenario that reveals a comic fear, wish, misunderstanding, or interpretation.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "someEpisodes"
+      },
+      {
+        "id": "emotionalTurn",
+        "name": "Emotional Turn",
+        "summary": "A patient encounter or personal conflict creates an opportunity for vulnerability, empathy, self-reflection, reconciliation, or a change in perspective.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "someEpisodes"
+      },
+      {
+        "id": "closingReflection",
+        "name": "Closing Reflection",
+        "summary": "The episode closes by connecting its medical and personal threads, often using reflective narration, a final joke, or an emotional observation about life and relationships.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "everyEpisode"
+      }
+    ],
+    "waysOut": [
+      {
+        "id": "characterWrittenOut",
+        "name": "Character Written Out",
+        "means": "out",
+        "cause": "story"
+      },
+      {
+        "id": "characterKilledOff",
+        "name": "Character Killed Off",
+        "means": "out",
+        "cause": "story"
+      },
+      {
+        "id": "seasonEnds",
+        "name": "Season Ends",
+        "means": "ending"
+      }
+    ],
+    "twists": [],
+    "customMoments": [
+      {
+        "id": "patientEmergency",
+        "label": "A patient emergency develops",
+        "during": {
+          "segment": "medicalCase"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "difficultDiagnosis",
+        "label": "A difficult diagnosis is pursued",
+        "during": {
+          "segment": "medicalCase"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "ethicalDilemma",
+        "label": "A medical or ethical dilemma arises",
+        "during": {
+          "segment": "medicalCase"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "medicalMistake",
+        "label": "A character makes a medical or professional mistake",
+        "during": {
+          "segment": "medicalCase"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "fantasySequence",
+        "label": "An elaborate fantasy sequence occurs",
+        "during": {
+          "segment": "fantasyCutaway"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "imaginaryScenario",
+        "label": "An imagined scenario contradicts ordinary reality",
+        "during": {
+          "segment": "fantasyCutaway"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "breaksIntoSong",
+        "label": "A character breaks into song",
+        "counted": "yesNo",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "breaksFourthWall",
+        "label": "A character directly acknowledges the audience",
+        "counted": "yesNo",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "romanceBegins",
+        "label": "A romantic relationship begins",
+        "during": {
+          "segment": "personalStorylines"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "romanceEnds",
+        "label": "A romantic relationship ends",
+        "during": {
+          "segment": "personalStorylines"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "argument",
+        "label": "A significant argument occurs",
+        "during": {
+          "segment": "personalStorylines"
+        },
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "apology",
+        "label": "A character apologizes to another character",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "emotionalConfession",
+        "label": "A character makes an emotional confession",
+        "during": {
+          "segment": "emotionalTurn"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "characterInDangerSurvives",
+        "label": "A character faces danger and survives",
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "careerDecision",
+        "label": "A character faces a consequential career decision",
+        "during": {
+          "segment": "hospitalWorkplace"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "mentorshipMoment",
+        "label": "A character teaches or mentors a colleague",
+        "during": {
+          "segment": "hospitalWorkplace"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "friendshipReaffirmed",
+        "label": "A friendship is explicitly reaffirmed",
+        "during": {
+          "segment": "personalStorylines"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "unexpectedVisitor",
+        "label": "An unexpected visitor appears",
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "narrationPunchline",
+        "label": "Closing narration delivers a comic observation",
+        "during": {
+          "segment": "closingReflection"
+        },
+        "counted": "yesNo",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      }
+    ],
+    "points": {
+      "patientEmergency": 2,
+      "difficultDiagnosis": 2,
+      "ethicalDilemma": 2,
+      "medicalMistake": -1,
+      "fantasySequence": 2,
+      "imaginaryScenario": 1,
+      "breaksIntoSong": 3,
+      "breaksFourthWall": 3,
+      "romanceBegins": 3,
+      "romanceEnds": 2,
+      "argument": -1,
+      "apology": 2,
+      "emotionalConfession": 2,
+      "characterInDangerSurvives": 2,
+      "careerDecision": 2,
+      "mentorshipMoment": 1,
+      "friendshipReaffirmed": 2,
+      "unexpectedVisitor": 1,
+      "narrationPunchline": 2
+    },
+    "leftOut": [
+      "The series uses first-person narration and subjective storytelling, which can make a character's interpretation of events as important as the literal events themselves.",
+      "The revival continues an established fictional timeline, so character histories and relationships may depend on earlier seasons rather than being introduced from scratch.",
+      "Medical cases and personal plots frequently overlap, making a single scene relevant to several storylines without constituting a separate formal segment.",
+      "The show's recurring daydreams, visual exaggerations, musical comedy, and occasional departures from realistic presentation do not constitute a persistent game twist.",
+      "There is no formal cast vote, elimination ladder, competitive finale, or season champion.",
+      "The current season is an ongoing scripted ensemble comedy rather than a game with scheduled phases, so the phase structure describes its continuing format rather than a competitive progression."
+    ]
+  },
+  "compiled": {
+    "id": "scrubs",
+    "name": "Scrubs",
+    "exitMethods": [
+      "Character Written Out",
+      "Character Killed Off",
+      "Season Ends",
+      "Other"
+    ],
+    "terms": {
+      "castaway": "Character",
+      "tribe": "Group"
+    },
+    "winnerExitMethod": null,
+    "endgameExitMethods": [
+      "Season Ends"
+    ],
+    "events": [
+      {
+        "id": "patientEmergency",
+        "label": "A patient emergency develops",
+        "defaultPoints": 2
+      },
+      {
+        "id": "difficultDiagnosis",
+        "label": "A difficult diagnosis is pursued",
+        "defaultPoints": 2
+      },
+      {
+        "id": "ethicalDilemma",
+        "label": "A medical or ethical dilemma arises",
+        "defaultPoints": 2
+      },
+      {
+        "id": "medicalMistake",
+        "label": "A character makes a medical or professional mistake",
+        "defaultPoints": -1
+      },
+      {
+        "id": "careerDecision",
+        "label": "A character faces a consequential career decision",
+        "defaultPoints": 2
+      },
+      {
+        "id": "mentorshipMoment",
+        "label": "A character teaches or mentors a colleague",
+        "defaultPoints": 1
+      },
+      {
+        "id": "romanceBegins",
+        "label": "A romantic relationship begins",
+        "defaultPoints": 3
+      },
+      {
+        "id": "romanceEnds",
+        "label": "A romantic relationship ends",
+        "defaultPoints": 2
+      },
+      {
+        "id": "argument",
+        "label": "A significant argument occurs",
+        "defaultPoints": -1
+      },
+      {
+        "id": "friendshipReaffirmed",
+        "label": "A friendship is explicitly reaffirmed",
+        "defaultPoints": 2
+      },
+      {
+        "id": "fantasySequence",
+        "label": "An elaborate fantasy sequence occurs",
+        "defaultPoints": 2
+      },
+      {
+        "id": "imaginaryScenario",
+        "label": "An imagined scenario contradicts ordinary reality",
+        "defaultPoints": 1
+      },
+      {
+        "id": "emotionalConfession",
+        "label": "A character makes an emotional confession",
+        "defaultPoints": 2
+      },
+      {
+        "id": "narrationPunchline",
+        "label": "Closing narration delivers a comic observation",
+        "defaultPoints": 2
+      },
+      {
+        "id": "characterWrittenOut",
+        "label": "Character Written Out",
+        "defaultPoints": -3,
+        "implied": true
+      },
+      {
+        "id": "characterKilledOff",
+        "label": "Character Killed Off",
+        "defaultPoints": -3,
+        "implied": true
+      },
+      {
+        "id": "seasonEnds",
+        "label": "Season Ends",
+        "defaultPoints": 3,
+        "implied": true
+      },
+      {
+        "id": "breaksIntoSong",
+        "label": "A character breaks into song",
+        "defaultPoints": 3
+      },
+      {
+        "id": "breaksFourthWall",
+        "label": "A character directly acknowledges the audience",
+        "defaultPoints": 3
+      },
+      {
+        "id": "apology",
+        "label": "A character apologizes to another character",
+        "defaultPoints": 2
+      },
+      {
+        "id": "characterInDangerSurvives",
+        "label": "A character faces danger and survives",
+        "defaultPoints": 2
+      },
+      {
+        "id": "unexpectedVisitor",
+        "label": "An unexpected visitor appears",
+        "defaultPoints": 1
+      }
+    ],
+    "eventCategories": [
+      {
+        "id": "segmentMedicalcase",
+        "label": "Medical Case",
+        "events": [
+          "patientEmergency",
+          "difficultDiagnosis",
+          "ethicalDilemma",
+          "medicalMistake"
+        ]
+      },
+      {
+        "id": "segmentHospitalworkplace",
+        "label": "Hospital Workplace",
+        "events": [
+          "careerDecision",
+          "mentorshipMoment"
+        ]
+      },
+      {
+        "id": "segmentPersonalstorylines",
+        "label": "Personal Storylines",
+        "events": [
+          "romanceBegins",
+          "romanceEnds",
+          "argument",
+          "friendshipReaffirmed"
+        ]
+      },
+      {
+        "id": "segmentFantasycutaway",
+        "label": "Fantasy Cutaway",
+        "events": [
+          "fantasySequence",
+          "imaginaryScenario"
+        ]
+      },
+      {
+        "id": "segmentEmotionalturn",
+        "label": "Emotional Turn",
+        "events": [
+          "emotionalConfession"
+        ]
+      },
+      {
+        "id": "segmentClosingreflection",
+        "label": "Closing Reflection",
+        "events": [
+          "narrationPunchline"
+        ]
+      },
+      {
+        "id": "leaving",
+        "label": "Comings and goings",
+        "events": [
+          "characterWrittenOut",
+          "characterKilledOff"
+        ]
+      },
+      {
+        "id": "endgame",
+        "label": "Endgame",
+        "events": [
+          "seasonEnds"
+        ]
+      },
+      {
+        "id": "other",
+        "label": "Other moments",
+        "events": [
+          "breaksIntoSong",
+          "breaksFourthWall",
+          "apology",
+          "characterInDangerSurvives",
+          "unexpectedVisitor"
+        ]
+      }
+    ],
+    "recap": [],
+    "hasMerge": false,
+    "hasGroups": false,
+    "wiki": {
+      "version": 1,
+      "voteSections": [],
+      "guideSections": [],
+      "missingVotesNote": "no vote or elimination table found: who left will come from research",
+      "missingGuideNote": "no episode guide found: who left will come from research",
+      "eventTypes": [],
+      "routineEliminations": 1
+    },
+    "research": {
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The character's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the game permanently in THIS episode?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "patientEmergency",
+          "type": "answer",
+          "description": "A patient emergency develops, this episode: yes, no, or unknown.",
+          "note": "a patient emergency develops"
+        },
+        {
+          "key": "difficultDiagnosis",
+          "type": "answer",
+          "description": "A difficult diagnosis is pursued, this episode: yes, no, or unknown.",
+          "note": "a difficult diagnosis is pursued"
+        },
+        {
+          "key": "ethicalDilemma",
+          "type": "answer",
+          "description": "A medical or ethical dilemma arises, this episode: yes, no, or unknown.",
+          "note": "a medical or ethical dilemma arises"
+        },
+        {
+          "key": "medicalMistake",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a character makes a medical or professional mistake at the Medical Case? This person's number; 0 if none, null if unknown.",
+          "note": "a character makes a medical or professional mistake"
+        },
+        {
+          "key": "careerDecision",
+          "type": "answer",
+          "description": "A character faces a consequential career decision, this episode: yes, no, or unknown.",
+          "note": "a character faces a consequential career decision"
+        },
+        {
+          "key": "mentorshipMoment",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a character teaches or mentors a colleague at the Hospital Workplace? This person's number; 0 if none, null if unknown.",
+          "note": "a character teaches or mentors a colleague"
+        },
+        {
+          "key": "romanceBegins",
+          "type": "answer",
+          "description": "A romantic relationship begins, this episode: yes, no, or unknown.",
+          "note": "a romantic relationship begins"
+        },
+        {
+          "key": "romanceEnds",
+          "type": "answer",
+          "description": "A romantic relationship ends, this episode: yes, no, or unknown.",
+          "note": "a romantic relationship ends"
+        },
+        {
+          "key": "argument",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a significant argument occurs at the Personal Storylines? This person's number; 0 if none, null if unknown.",
+          "note": "a significant argument occurs"
+        },
+        {
+          "key": "friendshipReaffirmed",
+          "type": "answer",
+          "description": "A friendship is explicitly reaffirmed, this episode: yes, no, or unknown.",
+          "note": "a friendship is explicitly reaffirmed"
+        },
+        {
+          "key": "fantasySequence",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: an elaborate fantasy sequence occurs at the Fantasy Cutaway? This person's number; 0 if none, null if unknown.",
+          "note": "an elaborate fantasy sequence occurs"
+        },
+        {
+          "key": "imaginaryScenario",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: an imagined scenario contradicts ordinary reality at the Fantasy Cutaway? This person's number; 0 if none, null if unknown.",
+          "note": "an imagined scenario contradicts ordinary reality"
+        },
+        {
+          "key": "emotionalConfession",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a character makes an emotional confession at the Emotional Turn? This person's number; 0 if none, null if unknown.",
+          "note": "a character makes an emotional confession"
+        },
+        {
+          "key": "narrationPunchline",
+          "type": "answer",
+          "description": "Closing narration delivers a comic observation, this episode: yes, no, or unknown.",
+          "note": "closing narration delivers a comic observation"
+        },
+        {
+          "key": "breaksIntoSong",
+          "type": "answer",
+          "description": "A character breaks into song, this episode: yes, no, or unknown.",
+          "note": "a character breaks into song"
+        },
+        {
+          "key": "breaksFourthWall",
+          "type": "answer",
+          "description": "A character directly acknowledges the audience, this episode: yes, no, or unknown.",
+          "note": "a character directly acknowledges the audience"
+        },
+        {
+          "key": "apology",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a character apologizes to another character? This person's number; 0 if none, null if unknown.",
+          "note": "a character apologizes to another character"
+        },
+        {
+          "key": "characterInDangerSurvives",
+          "type": "answer",
+          "description": "A character faces danger and survives, this episode: yes, no, or unknown.",
+          "note": "a character faces danger and survives"
+        },
+        {
+          "key": "unexpectedVisitor",
+          "type": "answer",
+          "description": "An unexpected visitor appears, this episode: yes, no, or unknown.",
+          "note": "an unexpected visitor appears"
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "episodeFields": [],
+      "searchHint": [
+        "Search for this episode's recap and any reporting on what happened to each person, and who left.",
+        "Then answer the checklist for every person above."
+      ],
+      "claims": [
+        "leftTheGame",
+        "patientEmergency",
+        "difficultDiagnosis",
+        "ethicalDilemma",
+        "careerDecision",
+        "romanceBegins",
+        "romanceEnds",
+        "friendshipReaffirmed",
+        "narrationPunchline",
+        "breaksIntoSong",
+        "breaksFourthWall",
+        "characterInDangerSurvives",
+        "unexpectedVisitor"
+      ]
+    },
+    "rules": {
+      "research": [
+        {
+          "when": {
+            "answer": "patientEmergency",
+            "is": "yes"
+          },
+          "award": "patientEmergency"
+        },
+        {
+          "when": {
+            "answer": "difficultDiagnosis",
+            "is": "yes"
+          },
+          "award": "difficultDiagnosis"
+        },
+        {
+          "when": {
+            "answer": "ethicalDilemma",
+            "is": "yes"
+          },
+          "award": "ethicalDilemma"
+        },
+        {
+          "when": {
+            "answer": "medicalMistake",
+            "greaterThan": 0
+          },
+          "award": "medicalMistake"
+        },
+        {
+          "when": {
+            "answer": "careerDecision",
+            "is": "yes"
+          },
+          "award": "careerDecision"
+        },
+        {
+          "when": {
+            "answer": "mentorshipMoment",
+            "greaterThan": 0
+          },
+          "award": "mentorshipMoment"
+        },
+        {
+          "when": {
+            "answer": "romanceBegins",
+            "is": "yes"
+          },
+          "award": "romanceBegins"
+        },
+        {
+          "when": {
+            "answer": "romanceEnds",
+            "is": "yes"
+          },
+          "award": "romanceEnds"
+        },
+        {
+          "when": {
+            "answer": "argument",
+            "greaterThan": 0
+          },
+          "award": "argument"
+        },
+        {
+          "when": {
+            "answer": "friendshipReaffirmed",
+            "is": "yes"
+          },
+          "award": "friendshipReaffirmed"
+        },
+        {
+          "when": {
+            "answer": "fantasySequence",
+            "greaterThan": 0
+          },
+          "award": "fantasySequence"
+        },
+        {
+          "when": {
+            "answer": "imaginaryScenario",
+            "greaterThan": 0
+          },
+          "award": "imaginaryScenario"
+        },
+        {
+          "when": {
+            "answer": "emotionalConfession",
+            "greaterThan": 0
+          },
+          "award": "emotionalConfession"
+        },
+        {
+          "when": {
+            "answer": "narrationPunchline",
+            "is": "yes"
+          },
+          "award": "narrationPunchline"
+        },
+        {
+          "when": {
+            "answer": "breaksIntoSong",
+            "is": "yes"
+          },
+          "award": "breaksIntoSong"
+        },
+        {
+          "when": {
+            "answer": "breaksFourthWall",
+            "is": "yes"
+          },
+          "award": "breaksFourthWall"
+        },
+        {
+          "when": {
+            "answer": "apology",
+            "greaterThan": 0
+          },
+          "award": "apology"
+        },
+        {
+          "when": {
+            "answer": "characterInDangerSurvives",
+            "is": "yes"
+          },
+          "award": "characterInDangerSurvives"
+        },
+        {
+          "when": {
+            "answer": "unexpectedVisitor",
+            "is": "yes"
+          },
+          "award": "unexpectedVisitor"
+        }
+      ],
+      "implied": [
+        {
+          "whenExit": "Character Written Out",
+          "award": "characterWrittenOut"
+        },
+        {
+          "whenExit": "Character Killed Off",
+          "award": "characterKilledOff"
+        },
+        {
+          "whenExit": "Season Ends",
+          "award": "seasonEnds"
+        }
+      ]
+    }
+  }
+}

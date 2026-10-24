@@ -482,6 +482,7 @@ function blocksProblems(blocks) {
     claim(w.id, at, name);
     if (!isText(w.name)) add(`${at}.name`, 'A way out has no name');
     oneOf(`${at}.means`, name, 'means', w.means, 'what it means');
+    if (w.means === 'outForOne' && blocks.kind !== 'sport') add(`${at}.means`, `${name}: out for one race or event only goes with a sport or live event`);
     if (w.cause !== undefined) {
       if (isObj(w.cause)) {
         if (!segIds.has(w.cause.segment)) add(`${at}.cause`, `${name}: what causes it isn't one of the segments`);

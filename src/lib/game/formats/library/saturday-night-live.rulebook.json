@@ -1,0 +1,615 @@
+{
+  "id": "saturday-night-live",
+  "show": "Saturday Night Live",
+  "status": "draft",
+  "researched": {
+    "for": "Saturday Night Live, Season 52, airing now",
+    "on": "2026-10-24",
+    "by": "ChatGPT with web search, through the ask-AI bot (scripts/dev-test/check-rulebook-prompt.js)",
+    "castChecked": true
+  },
+  "leftOut": [
+    "The guest host and musical guest change between episodes, so their appearances are best treated as episode-specific assignments rather than recurring cast roles.",
+    "The broadcast is produced under live television conditions, and local broadcast delays, edits and streaming availability can affect what different viewers see.",
+    "Sketches may be cut, shortened or altered between rehearsal and broadcast, and some material may be released separately afterward.",
+    "The show has no official competition phases, eliminations, twists, finale vote or season winner, so these game mechanics do not apply.",
+    "The order, length and number of individual sketches can vary, and the regular segments do not guarantee that any particular type of joke, cameo or performance will occur.",
+    "The season premiered on September 26, 2026, and remains in progress as of October 24, 2026."
+  ],
+  "blocks": {
+    "schema": 1,
+    "kind": "talk",
+    "show": "Saturday Night Live",
+    "tagline": "Live comedy, topical satire, sketches and musical performances",
+    "premise": "Saturday Night Live is a live late-night variety and sketch-comedy show built around a guest host, a regular comedy cast and a musical guest. Each episode mixes topical humor, character sketches, recurring news satire and live music, with surprise appearances and unexpected moments sometimes adding to the fun. There is no elimination game or season champion; each broadcast is its own collection of performances.",
+    "cast": {
+      "unit": "people",
+      "singular": "cast member",
+      "plural": "cast members",
+      "usualSize": 17,
+      "groups": null
+    },
+    "season": {
+      "phases": [
+        {
+          "id": "weeklyBroadcast",
+          "name": "Weekly Broadcast",
+          "starts": {
+            "type": "episode",
+            "n": 1
+          },
+          "changes": [],
+          "summary": "Each episode follows the variety-show format, combining a guest host, comedy sketches, Weekend Update and musical performances without a season-long elimination or competitive progression."
+        }
+      ],
+      "finale": null
+    },
+    "segments": [
+      {
+        "id": "coldOpen",
+        "name": "Cold Open",
+        "summary": "A sketch, often built around current events, politics or recognizable public situations, opens the show before the opening titles.",
+        "decidedBy": "nobody",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "openingMonologue",
+        "name": "Opening Monologue",
+        "summary": "The guest host addresses the audience with jokes, observations or a comedic performance that introduces the night's host.",
+        "decidedBy": "nobody",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "comedySketches",
+        "name": "Comedy Sketches",
+        "summary": "The cast and guest host perform scripted or character-based comedy across a variety of settings, formats and topical subjects.",
+        "decidedBy": "nobody",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "weekendUpdate",
+        "name": "Weekend Update",
+        "summary": "A recurring satirical news segment presents jokes about current events and may include fictional characters or guest appearances.",
+        "decidedBy": "nobody",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "musicalPerformance",
+        "name": "Musical Performance",
+        "summary": "The musical guest performs songs live as part of the broadcast, typically in two separate appearances.",
+        "decidedBy": "nobody",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "goodnights",
+        "name": "Goodnights",
+        "summary": "The cast, guest host and musical guest gather for the closing moments of the broadcast.",
+        "decidedBy": "nobody",
+        "often": "everyEpisode"
+      }
+    ],
+    "waysOut": [],
+    "twists": [],
+    "customMoments": [
+      {
+        "id": "hostBreaksCharacter",
+        "label": "The host breaks character",
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "castMemberBreaksCharacter",
+        "label": "A cast member breaks character",
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "surpriseCameo",
+        "label": "A surprise cameo appears",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "unexpectedGuestAppearance",
+        "label": "An unexpected guest appears in a sketch",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "hostSings",
+        "label": "The host sings during a comedy segment",
+        "counted": "yesNo",
+        "answeredBy": "league",
+        "reliability": "usually"
+      },
+      {
+        "id": "hostDances",
+        "label": "The host performs a dance during a comedy segment",
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "usually"
+      },
+      {
+        "id": "sketchBreaks",
+        "label": "A sketch visibly breaks down into laughter",
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "weekendUpdateGuest",
+        "label": "A character or guest joins Weekend Update",
+        "during": {
+          "segment": "weekendUpdate"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "topicalPoliticalImpression",
+        "label": "A recognizable political figure is impersonated",
+        "during": {
+          "segment": "comedySketches"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "recurringCharacterReturns",
+        "label": "A recurring character returns",
+        "during": {
+          "segment": "comedySketches"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "topicalNewsReference",
+        "label": "A joke directly references a current news event",
+        "during": {
+          "segment": "weekendUpdate"
+        },
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "usually"
+      },
+      {
+        "id": "improvisedMoment",
+        "label": "An unscripted moment occurs during a live performance",
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "hostJoinsMusicalPerformance",
+        "label": "The host joins a musical performance",
+        "during": {
+          "segment": "musicalPerformance"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "audienceReactionInterrupts",
+        "label": "Audience reaction audibly interrupts a performance",
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "costumeTransformation",
+        "label": "A performer makes a conspicuous costume or character transformation",
+        "during": {
+          "segment": "comedySketches"
+        },
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "usually"
+      },
+      {
+        "id": "sketchParodiesPopularMedia",
+        "label": "A sketch parodies a recognizable film, television show or popular-media format",
+        "during": {
+          "segment": "comedySketches"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "monologueAudienceParticipation",
+        "label": "An audience member participates in the opening monologue",
+        "during": {
+          "segment": "openingMonologue"
+        },
+        "counted": "yesNo",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "fourthWallBreak",
+        "label": "A performer directly acknowledges the live broadcast or audience outside the apparent scene",
+        "during": {
+          "segment": "comedySketches"
+        },
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      }
+    ],
+    "points": {
+      "hostBreaksCharacter": 2,
+      "castMemberBreaksCharacter": 2,
+      "surpriseCameo": 3,
+      "unexpectedGuestAppearance": 2,
+      "hostSings": 2,
+      "hostDances": 1,
+      "sketchBreaks": 2,
+      "weekendUpdateGuest": 1,
+      "topicalPoliticalImpression": 1,
+      "recurringCharacterReturns": 1,
+      "topicalNewsReference": 1,
+      "improvisedMoment": 2,
+      "hostJoinsMusicalPerformance": 3,
+      "audienceReactionInterrupts": 1,
+      "costumeTransformation": 1,
+      "sketchParodiesPopularMedia": 1,
+      "monologueAudienceParticipation": 2,
+      "fourthWallBreak": 1
+    },
+    "leftOut": [
+      "The guest host and musical guest change between episodes, so their appearances are best treated as episode-specific assignments rather than recurring cast roles.",
+      "The broadcast is produced under live television conditions, and local broadcast delays, edits and streaming availability can affect what different viewers see.",
+      "Sketches may be cut, shortened or altered between rehearsal and broadcast, and some material may be released separately afterward.",
+      "The show has no official competition phases, eliminations, twists, finale vote or season winner, so these game mechanics do not apply.",
+      "The order, length and number of individual sketches can vary, and the regular segments do not guarantee that any particular type of joke, cameo or performance will occur.",
+      "The season premiered on September 26, 2026, and remains in progress as of October 24, 2026."
+    ]
+  },
+  "compiled": {
+    "id": "saturday-night-live",
+    "name": "Saturday Night Live",
+    "exitMethods": [
+      "Other"
+    ],
+    "terms": {
+      "castaway": "Cast member",
+      "tribe": "Group"
+    },
+    "winnerExitMethod": null,
+    "endgameExitMethods": [],
+    "events": [
+      {
+        "id": "monologueAudienceParticipation",
+        "label": "An audience member participates in the opening monologue",
+        "defaultPoints": 2
+      },
+      {
+        "id": "topicalPoliticalImpression",
+        "label": "A recognizable political figure is impersonated",
+        "defaultPoints": 1
+      },
+      {
+        "id": "recurringCharacterReturns",
+        "label": "A recurring character returns",
+        "defaultPoints": 1
+      },
+      {
+        "id": "costumeTransformation",
+        "label": "A performer makes a conspicuous costume or character transformation",
+        "defaultPoints": 1
+      },
+      {
+        "id": "sketchParodiesPopularMedia",
+        "label": "A sketch parodies a recognizable film, television show or popular-media format",
+        "defaultPoints": 1
+      },
+      {
+        "id": "fourthWallBreak",
+        "label": "A performer directly acknowledges the live broadcast or audience outside the apparent scene",
+        "defaultPoints": 1
+      },
+      {
+        "id": "weekendUpdateGuest",
+        "label": "A character or guest joins Weekend Update",
+        "defaultPoints": 1
+      },
+      {
+        "id": "topicalNewsReference",
+        "label": "A joke directly references a current news event",
+        "defaultPoints": 1
+      },
+      {
+        "id": "hostJoinsMusicalPerformance",
+        "label": "The host joins a musical performance",
+        "defaultPoints": 3
+      },
+      {
+        "id": "hostBreaksCharacter",
+        "label": "The host breaks character",
+        "defaultPoints": 2
+      },
+      {
+        "id": "castMemberBreaksCharacter",
+        "label": "A cast member breaks character",
+        "defaultPoints": 2
+      },
+      {
+        "id": "surpriseCameo",
+        "label": "A surprise cameo appears",
+        "defaultPoints": 3
+      },
+      {
+        "id": "unexpectedGuestAppearance",
+        "label": "An unexpected guest appears in a sketch",
+        "defaultPoints": 2
+      },
+      {
+        "id": "hostSings",
+        "label": "The host sings during a comedy segment",
+        "defaultPoints": 2
+      },
+      {
+        "id": "hostDances",
+        "label": "The host performs a dance during a comedy segment",
+        "defaultPoints": 1
+      },
+      {
+        "id": "sketchBreaks",
+        "label": "A sketch visibly breaks down into laughter",
+        "defaultPoints": 2
+      },
+      {
+        "id": "improvisedMoment",
+        "label": "An unscripted moment occurs during a live performance",
+        "defaultPoints": 2
+      },
+      {
+        "id": "audienceReactionInterrupts",
+        "label": "Audience reaction audibly interrupts a performance",
+        "defaultPoints": 1
+      }
+    ],
+    "eventCategories": [
+      {
+        "id": "segmentOpeningmonologue",
+        "label": "Opening Monologue",
+        "events": [
+          "monologueAudienceParticipation"
+        ]
+      },
+      {
+        "id": "segmentComedysketches",
+        "label": "Comedy Sketches",
+        "events": [
+          "topicalPoliticalImpression",
+          "recurringCharacterReturns",
+          "costumeTransformation",
+          "sketchParodiesPopularMedia",
+          "fourthWallBreak"
+        ]
+      },
+      {
+        "id": "segmentWeekendupdate",
+        "label": "Weekend Update",
+        "events": [
+          "weekendUpdateGuest",
+          "topicalNewsReference"
+        ]
+      },
+      {
+        "id": "segmentMusicalperformance",
+        "label": "Musical Performance",
+        "events": [
+          "hostJoinsMusicalPerformance"
+        ]
+      },
+      {
+        "id": "other",
+        "label": "What can happen",
+        "events": [
+          "hostBreaksCharacter",
+          "castMemberBreaksCharacter",
+          "surpriseCameo",
+          "unexpectedGuestAppearance",
+          "hostSings",
+          "hostDances",
+          "sketchBreaks",
+          "improvisedMoment",
+          "audienceReactionInterrupts"
+        ]
+      }
+    ],
+    "recap": [],
+    "hasMerge": false,
+    "hasGroups": false,
+    "wiki": {
+      "version": 1,
+      "voteSections": [],
+      "guideSections": [],
+      "missingVotesNote": "no vote or elimination table found: who left will come from research",
+      "missingGuideNote": "no episode guide found: who left will come from research",
+      "eventTypes": [],
+      "routineEliminations": 1
+    },
+    "research": {
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The cast member's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the show for good in THIS episode?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "episodeFields": [
+        {
+          "key": "monologueAudienceParticipation",
+          "type": "answer",
+          "description": "Did it happen tonight: an audience member participates in the opening monologue?",
+          "note": "an audience member participates in the opening monologue"
+        },
+        {
+          "key": "topicalPoliticalImpression",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: a recognizable political figure is impersonated?",
+          "note": "a recognizable political figure is impersonated"
+        },
+        {
+          "key": "recurringCharacterReturns",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: a recurring character returns?",
+          "note": "a recurring character returns"
+        },
+        {
+          "key": "costumeTransformation",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: a performer makes a conspicuous costume or character transformation?",
+          "note": "a performer makes a conspicuous costume or character transformation"
+        },
+        {
+          "key": "sketchParodiesPopularMedia",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: a sketch parodies a recognizable film, television show or popular-media format?",
+          "note": "a sketch parodies a recognizable film, television show or popular-media format"
+        },
+        {
+          "key": "fourthWallBreak",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: a performer directly acknowledges the live broadcast or audience outside the apparent scene?",
+          "note": "a performer directly acknowledges the live broadcast or audience outside the apparent scene"
+        },
+        {
+          "key": "weekendUpdateGuest",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: a character or guest joins Weekend Update?",
+          "note": "a character or guest joins Weekend Update"
+        },
+        {
+          "key": "topicalNewsReference",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: a joke directly references a current news event?",
+          "note": "a joke directly references a current news event"
+        },
+        {
+          "key": "hostJoinsMusicalPerformance",
+          "type": "answer",
+          "description": "Did it happen tonight: the host joins a musical performance?",
+          "note": "the host joins a musical performance"
+        },
+        {
+          "key": "hostBreaksCharacter",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: the host breaks character?",
+          "note": "the host breaks character"
+        },
+        {
+          "key": "castMemberBreaksCharacter",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: a cast member breaks character?",
+          "note": "a cast member breaks character"
+        },
+        {
+          "key": "surpriseCameo",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: a surprise cameo appears?",
+          "note": "a surprise cameo appears"
+        },
+        {
+          "key": "unexpectedGuestAppearance",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: an unexpected guest appears in a sketch?",
+          "note": "an unexpected guest appears in a sketch"
+        },
+        {
+          "key": "hostSings",
+          "type": "answer",
+          "description": "Did it happen tonight: the host sings during a comedy segment?",
+          "note": "the host sings during a comedy segment"
+        },
+        {
+          "key": "hostDances",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: the host performs a dance during a comedy segment?",
+          "note": "the host performs a dance during a comedy segment"
+        },
+        {
+          "key": "sketchBreaks",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: a sketch visibly breaks down into laughter?",
+          "note": "a sketch visibly breaks down into laughter"
+        },
+        {
+          "key": "improvisedMoment",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: an unscripted moment occurs during a live performance?",
+          "note": "an unscripted moment occurs during a live performance"
+        },
+        {
+          "key": "audienceReactionInterrupts",
+          "type": "integer",
+          "nullable": true,
+          "description": "Did it happen tonight: audience reaction audibly interrupts a performance?",
+          "note": "audience reaction audibly interrupts a performance"
+        }
+      ],
+      "searchHint": [
+        "Search for this episode's recap and reviews: who hosted, who performed, and what happened in it.",
+        "Then answer the episode questions, and the checklist for every person above."
+      ],
+      "claims": [
+        "leftTheGame"
+      ]
+    },
+    "rules": {
+      "research": [],
+      "implied": []
+    }
+  }
+}

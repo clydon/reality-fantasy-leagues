@@ -6,6 +6,10 @@
 //
 //   node scripts/dev-test/check-episode-research.js <rulebookDir> <outDir> [show ...] [--episodes=1,5] [--bot=local|vm] [--again]
 //
+// Each episode asks only about the people still in the game, by the rulebook (rulebook-roster.js whoToAsk), as the
+// app does: who left and when comes from the season's accepted results where the local database has them, else from
+// asking ChatGPT once per show (a stand-in for confirmed results; cached). --full-cast asks about everyone instead.
+//
 // Writes <outDir>/<show>/cast.json, ep<N>-prompt.txt, ep<N>-answer.txt, ep<N>-review.txt (coverage, who left,
 // what each person scored, problems) and <outDir>/summary.txt. Shows and their episodes are rulebook-shows.js's
 // presets. Answers are cached; --again re-asks. Reads the local database for a cast it has; writes nothing.
@@ -17,7 +21,8 @@ const { termsFor } = require("../../db/wiki-sync.js");
 const { compileRulebook, formatForRulebook } = require("../../src/lib/game/formats/rulebook-compile.js");
 const { buildCastPrompt, parseCastImport } = require("../../src/lib/game/formats/cast-prompt.js");
 const { jsonObjectsIn } = require("../../src/lib/game/formats/rulebook-research.js");
-const { PRESETS, botUrl, askBot, localCast } = require("./rulebook-shows");
+const { whoToAsk } = require("../../src/lib/game/formats/rulebook-roster.js");
+const { PRESETS, botUrl, askBot, localCast, localExits } = require("./rulebook-shows");
 
 const args = process.argv.slice(2);
 const flag = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split("=")[1] ?? (args.includes(`--${name}`) ? true : null);
@@ -38,7 +43,7 @@ async function cached(file, make) {
 async function castFor(url, key, p, format, dir) {
   const fromDb = await localCast(p.cast);
   if (fromDb.length) return { names: fromDb, from: "the local database" };
-  const prompt = buildCastPrompt(format, { seasonName: `season ${p.episodes.season}`, showName: p.show });
+  const prompt = buildCastPrompt(format, { seasonName: p.episodes.castLabel || `season ${p.episodes.season}`, showName: p.show });
   const answer = await cached(path.join(dir, "cast-answer.txt"), async () => {
     process.stdout.write(`  ${key}: asking for the cast... `);
     const { answer: a, seconds } = await askBot(url, prompt);
@@ -48,6 +53,47 @@ async function castFor(url, key, p, format, dir) {
   const parsed = parseCastImport(answer, format);
   const names = (parsed.castaways || []).filter((c) => c.name && !(c.problems || []).length).map((c) => c.name);
   return { names, from: "ChatGPT's cast answer", repairs: parsed.repairs || [] };
+}
+
+// When each person left and how, for the questions' list: accepted results first, then ChatGPT for the rest.
+async function exitsFor(url, key, p, blocks, names, dir) {
+  const exits = await localExits(p.cast);
+  const missing = names.filter((n) => !exits[n]);
+  if (missing.length) {
+    const ways = (blocks.waysOut || []).map((w) => w.name);
+    const prompt = [
+      `${p.show} season ${p.episodes.season}. For each person below, say when they left the game for good and how. Search the web; don't answer from memory.`,
+      "",
+      ...names.map((n, i) => `${i + 1}. ${n}`),
+      "",
+      "Answer with ONE JSON object and nothing after it:",
+      JSON.stringify({ people: [{ name: "exactly as listed", leftInEpisode: "the episode number they left in, or null if they haven't left (or the season hasn't got there yet)", howTheyLeft: `one of ${ways.map((w) => JSON.stringify(w)).join(", ") || '"Left"'}, or null` }] }, null, 1),
+    ].join("\n");
+    const answer = await cached(path.join(dir, "exits-answer.txt"), async () => {
+      process.stdout.write(`  ${key}: asking who left when... `);
+      const { answer: a, seconds } = await askBot(url, prompt);
+      console.log(`${Math.round(seconds)}s`);
+      return a;
+    });
+    const objects = jsonObjectsIn(answer);
+    let people = [];
+    try {
+      people = JSON.parse(objects[objects.length - 1] || "{}").people || [];
+    } catch {
+      // nothing usable: everyone is asked about
+    }
+    for (const r of people) {
+      const name = names.find((n) => n.toLowerCase() === String(r.name || "").trim().toLowerCase());
+      if (name && !exits[name] && Number.isInteger(r.leftInEpisode)) exits[name] = { episode: r.leftInEpisode, how: r.howTheyLeft || null, from: "ChatGPT" };
+    }
+  }
+  return exits;
+}
+
+// What a way out means, by its name (a way the rulebook doesn't have: out for good, or for one race in a sport).
+function meansOf(blocks, how) {
+  const w = (blocks.waysOut || []).find((x) => String(x.name).toLowerCase() === String(how || "").toLowerCase());
+  return w ? w.means : blocks.kind === "sport" ? "outForOne" : "out";
 }
 
 (async () => {
@@ -63,7 +109,8 @@ async function castFor(url, key, p, format, dir) {
       summary.push(`${key.padEnd(26)} no rulebook in ${rulebookDir} (run check-rulebook-prompt.js first)`);
       continue;
     }
-    const { data, problems: compileProblems, warnings } = compileRulebook(JSON.parse(fs.readFileSync(blocksFile, "utf8")));
+    const blocks = JSON.parse(fs.readFileSync(blocksFile, "utf8"));
+    const { data, problems: compileProblems, warnings } = compileRulebook(blocks);
     if (compileProblems.length) {
       summary.push(`${key.padEnd(26)} didn't compile: ${compileProblems.join("; ")}`);
       continue;
@@ -82,8 +129,20 @@ async function castFor(url, key, p, format, dir) {
       summary.push(`${key.padEnd(26)} no cast came back`);
       continue;
     }
+    let exits = {};
+    if (!flag("full-cast")) {
+      try {
+        exits = await exitsFor(url, key, p, blocks, cast.names, dir);
+      } catch (e) {
+        console.log(`  ${key}: who left when didn't come back (${e.message}); asking about everyone`);
+      }
+    }
+    fs.writeFileSync(path.join(dir, "exits.json"), JSON.stringify(exits, null, 2), "utf8");
+    const people = cast.names.map((name) => ({ name, left: exits[name] ? { episode: exits[name].episode, means: meansOf(blocks, exits[name].how) } : null }));
     for (const n of (only || p.episodes.numbers)) {
-      const ctx = { showName: p.show, season: p.episodes.season, episodeNumber: n, castNames: cast.names, castGroups: {}, terms, domains: [], format };
+      const roster = whoToAsk(blocks, people, n);
+      const asking = roster.ask;
+      const ctx = { showName: p.show, season: p.episodes.season, episodeNumber: n, castNames: asking, castGroups: {}, terms, domains: [], format };
       const prompt = ER.buildPastePrompt(ctx, [], { structured: true, pasteBack: "Send the JSON only." });
       fs.writeFileSync(path.join(dir, `ep${n}-prompt.txt`), prompt, "utf8");
       let answer;
@@ -99,7 +158,12 @@ async function castFor(url, key, p, format, dir) {
         summary.push(`${key.padEnd(26)} ep ${String(n).padStart(2)}  FAILED: ${e.message}`);
         continue;
       }
-      const out = [`${p.show} season ${p.episodes.season}, episode ${n}: ${cast.names.length} people (${cast.from})`, ""];
+      const out = [
+        `${p.show} season ${p.episodes.season}, episode ${n}: asked about ${asking.length} of ${cast.names.length} people (${cast.from})`,
+        ...(roster.skipped.length ? [`Not asked, already gone: ${roster.skipped.map((x) => `${x.name} (${x.why})`).join(", ")}`] : []),
+        ...(roster.asksArrivals ? ["This rulebook has arrivals: a new person mid-season isn't asked about yet (6b adds \"who's new\")."] : []),
+        "",
+      ];
       let line;
       try {
         // The app's paste path reads from the first { to the last }; a chat that sends a draft and then a
@@ -107,7 +171,7 @@ async function castFor(url, key, p, format, dir) {
         const objects = jsonObjectsIn(answer);
         if (objects.length > 1) out.push(`Note: the answer had ${objects.length} JSON objects; the app's paste path would fail on it. Used the last.`, "");
         const parsed = ER.parseJsonAnswer(objects.length > 1 ? objects[objects.length - 1] : ER.extractJsonObject(answer), ER.researchSchemaFor(format, false), "The answer");
-        const v = ER.validateResearch(parsed, cast.names, terms, format);
+        const v = ER.validateResearch(parsed, asking, terms, format);
         const items = ER.candidatesFor(parsed, format, n);
         const label = new Map(data.events.map((e) => [e.id, e.label]));
         const left = items.filter((i) => i.kind === "elimination");
@@ -124,7 +188,7 @@ async function castFor(url, key, p, format, dir) {
         if (parsed.repairs && parsed.repairs.length) out.push(`Repaired (${parsed.repairs.length}):`, ...parsed.repairs.map((x) => `  ${x}`));
         if (warnings.length) out.push("", "Compiler notes:", ...warnings.map((x) => `  ${x}`));
         const events = items.filter((x) => x.kind === "event").length;
-        line = `${key.padEnd(26)} ep ${String(n).padStart(2)}  ${v.fatal.length ? "FATAL" : "ok   "}  ${String(v.counts.castaways).padStart(2)}/${cast.names.length} people  ${String(v.counts.sourced).padStart(2)} sourced  ${String(v.counts.unknowns).padStart(3)} unknowns  left: ${left.map((i) => i.castawayName).join(", ") || "nobody"}  ${events} results  ${v.problems.length} problems`;
+        line = `${key.padEnd(26)} ep ${String(n).padStart(2)}  ${v.fatal.length ? "FATAL" : "ok   "}  ${String(v.counts.castaways).padStart(2)}/${asking.length} asked of ${cast.names.length}  ${String(v.counts.sourced).padStart(2)} sourced  ${String(v.counts.unknowns).padStart(3)} unknowns  left: ${left.map((i) => i.castawayName).join(", ") || "nobody"}  ${events} results  ${v.problems.length} problems`;
       } catch (e) {
         out.push(`Didn't parse: ${e.message}`);
         line = `${key.padEnd(26)} ep ${String(n).padStart(2)}  DIDN'T PARSE: ${e.message.slice(0, 120)}`;

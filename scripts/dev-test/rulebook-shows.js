@@ -5,7 +5,7 @@
 //
 // Each preset: what to ask for the rulebook (show, season, airing), our own rulebook to compare with (expect),
 // where its cast is in the local database (cast: [showSlug, seasonNumber]), and the season and episodes to
-// research (episodes: { season, numbers }). The bot is llm-browser-api (LLM_BROWSER_API_URL / _KEY in
+// research (episodes: { season, numbers, castLabel? }: castLabel names the cast when "season N" doesn't, as for a sport's rosters). The bot is llm-browser-api (LLM_BROWSER_API_URL / _KEY in
 // .env.local): this PC's by default, so production's VM stays free.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const { BUILT_IN_BLOCKS } = require("../../src/lib/game/formats/blocks/index.js");
@@ -21,10 +21,10 @@ const PRESETS = {
   "the-challenge": { show: "The Challenge", season: "its most recent season", expect: BUILT_IN_BLOCKS.challenge.blocks, episodes: { season: "40", numbers: [1, 8, 16] } },
   "real-housewives": { show: "The Real Housewives of Beverly Hills", season: "its most recent season", episodes: { season: "14", numbers: [1, 9, 18] } },
   "below-deck": { show: "Below Deck", season: "its most recent season", expect: SAMPLES.belowDeck, episodes: { season: "11", numbers: [1, 8, 15] } },
-  "world-series-2025-game-2": { show: "the World Series", season: "Game 2 of the 2025 World Series", episodes: { season: "2025", numbers: [1, 2, 3] } },
+  "world-series-2025-game-2": { show: "the World Series", season: "Game 2 of the 2025 World Series", episodes: { season: "2025", numbers: [1, 2, 3], castLabel: "the 2025 World Series: both teams' full rosters" } },
   "world-series-2026-game-2": {
     show: "the World Series", season: "Game 2 of the 2026 World Series, which hasn't happened yet or is about to", airing: true,
-    episodes: { season: "2026", numbers: [1, 2] },
+    episodes: { season: "2026", numbers: [1, 2], castLabel: "the 2026 World Series: both teams' full rosters" },
   },
   scrubs: { show: "Scrubs", season: "its most recent season", episodes: { season: "1", numbers: [1, 12, 24] } },
   "snl-51": { show: "Saturday Night Live", season: "Season 51", expect: SAMPLES.snl, episodes: { season: "51", numbers: [1, 8, 15] } },
@@ -82,4 +82,25 @@ async function localCast(cast) {
   }
 }
 
-module.exports = { PRESETS, TEMPLATES, botUrl, askBot, localCast };
+/** Who left and when, by the season's accepted results in the local database (read only; {} when it isn't there). */
+async function localExits(cast) {
+  const url = process.env.AUTH_DATABASE_URL || "";
+  if (!cast || !/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(url)) return {};
+  const { Pool } = require("pg");
+  const pool = new Pool({ connectionString: url });
+  try {
+    const { rows } = await pool.query(
+      `SELECT sd.castaway_name AS name, sd.episode_number AS episode, sd.method FROM season_decisions sd
+         JOIN show_seasons ss ON ss.id = sd.season_id JOIN shows s ON s.id = ss.show_id
+        WHERE s.slug = $1 AND ss.season_number = $2 AND sd.kind = 'elimination' AND sd.status = 'accepted'`,
+      cast
+    );
+    return Object.fromEntries(rows.map((r) => [r.name, { episode: r.episode, how: r.method, from: "accepted results" }]));
+  } catch {
+    return {};
+  } finally {
+    await pool.end();
+  }
+}
+
+module.exports = { PRESETS, TEMPLATES, botUrl, askBot, localCast, localExits };

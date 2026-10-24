@@ -1,0 +1,847 @@
+{
+  "id": "the-real-housewives-of-beverly-hills",
+  "show": "The Real Housewives of Beverly Hills",
+  "status": "draft",
+  "researched": {
+    "for": "The Real Housewives of Beverly Hills, its most recent season",
+    "on": "2026-10-24",
+    "by": "ChatGPT with web search, through the ask-AI bot (scripts/dev-test/check-rulebook-prompt.js)",
+    "castChecked": true
+  },
+  "leftOut": [
+    "The series has no formal competition, elimination order, official winner, or season-long points standings; the fantasy game therefore scores observable social and personal events rather than competitive results.",
+    "The recurring distinction between full-time Housewives and friends of the cast affects their screen time and social access but does not constitute a formal team system.",
+    "Confessional commentary is frequently intercut with scenes from other times, so an individual reaction may appear in the same episode as an event without being recorded at the moment it occurred.",
+    "The reunion is a scheduled closing format with a moderator, seating arrangements, and questions about the season, rather than a vote, final challenge, or contest.",
+    "The show includes ongoing personal storylines involving marriage, divorce, family, money, business, and changing friendships, but these are not standardized challenges with uniform outcomes.",
+    "A cast member can appear less frequently, depart between seasons, or be reclassified as a recurring friend without an in-episode elimination ceremony.",
+    "The game cannot objectively measure sincerity, authenticity, social influence, fashion quality, or who is morally right in a disagreement; these remain subjective interpretations."
+  ],
+  "blocks": {
+    "schema": 1,
+    "kind": "series",
+    "start": "reality",
+    "show": "The Real Housewives of Beverly Hills",
+    "tagline": "Luxury lifestyles, shifting friendships, and high-stakes social drama",
+    "premise": "A group of affluent women in Beverly Hills share their personal lives, relationships, careers, family changes, social events, and conflicts on camera. Episodes move between private conversations, glamorous gatherings, group outings, and candid confessionals, with tensions and alliances evolving throughout the season. The season closes with a multi-part reunion in which the cast revisits unresolved disagreements and answers questions about the relationships portrayed on screen.",
+    "cast": {
+      "unit": "people",
+      "singular": "Housewife",
+      "plural": "Housewives",
+      "usualSize": 7,
+      "groups": null
+    },
+    "season": {
+      "phases": [
+        {
+          "id": "regularSeason",
+          "name": "Regular Season",
+          "starts": {
+            "type": "episode",
+            "n": 1
+          },
+          "changes": [
+            "arrivals"
+          ],
+          "summary": "The Housewives navigate individual life changes and group relationships through social gatherings, private conversations, celebrations, trips, and increasingly complicated interpersonal conflicts."
+        },
+        {
+          "id": "reunion",
+          "name": "Reunion",
+          "starts": {
+            "type": "announced"
+          },
+          "changes": [
+            "segmentsChange"
+          ],
+          "summary": "The cast gathers for a multipart reunion to revisit disagreements, challenge competing accounts of events, discuss damaged friendships, and address unresolved questions from the season."
+        }
+      ],
+      "finale": {
+        "decidedBy": "nobody",
+        "summary": "The season concludes with the final installment of the reunion, bringing the season's relationship discussions and outstanding conflicts into a closing conversation rather than crowning a winner."
+      }
+    },
+    "segments": [
+      {
+        "id": "personalLifeScenes",
+        "name": "Personal Life Scenes",
+        "summary": "A Housewife shares developments in her relationships, family, finances, career, home life, or personal plans, often revealing a new source of tension or vulnerability.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "oneOnOneConversations",
+        "name": "One-on-One Conversations",
+        "summary": "Two Housewives discuss their relationship, exchange information, offer advice, revisit an earlier disagreement, or test whether trust can be restored.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "socialEvents",
+        "name": "Social Events",
+        "summary": "The cast attends parties, dinners, celebrations, launches, and other gatherings where introductions, personal announcements, gossip, disagreements, and shifting social dynamics can emerge.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "groupOutings",
+        "name": "Group Outings and Trips",
+        "summary": "Several Housewives spend time together away from their usual routines, creating opportunities for bonding, private side conversations, confrontations, and disputes that spill into the wider group.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "someEpisodes"
+      },
+      {
+        "id": "confessionals",
+        "name": "Confessionals",
+        "summary": "Individual cast members speak directly to the camera, offering personal interpretations, reactions, clarifications, and commentary that can contrast with what was said in group settings.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "everyEpisode"
+      },
+      {
+        "id": "groupConfrontations",
+        "name": "Group Confrontations",
+        "summary": "Several Housewives address a disputed comment, suspected disloyalty, circulating information, or a damaged friendship, with the conversation potentially escalating or ending without resolution.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "someEpisodes"
+      },
+      {
+        "id": "reunionDiscussion",
+        "name": "Reunion Discussion",
+        "summary": "The cast sits together in a moderated setting to revisit season-long disagreements, compare accounts, respond to questions, and discuss the state of their relationships.",
+        "decidedBy": "nobody",
+        "onTheLine": "nothing",
+        "often": "onePhase",
+        "phase": "reunion"
+      }
+    ],
+    "waysOut": [
+      {
+        "id": "seasonEnds",
+        "name": "Season Ends",
+        "means": "ending"
+      }
+    ],
+    "twists": [
+      {
+        "id": "newCastArrivals",
+        "name": "New Cast Arrivals",
+        "summary": "New full-time cast members or recurring friends can enter the established social circle, bringing new relationships, perspectives, and potential sources of friction.",
+        "type": "comeback",
+        "who": "newPeople",
+        "how": "theShow"
+      }
+    ],
+    "customMoments": [
+      {
+        "id": "argument",
+        "label": "Got into an argument",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "heatedExchange",
+        "label": "Had a heated exchange at a group gathering",
+        "during": {
+          "segment": "socialEvents"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "stormedOut",
+        "label": "Stormed out of a conversation or gathering",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "walkedAway",
+        "label": "Walked away from a tense conversation",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "cried",
+        "label": "Cried on camera",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "apologized",
+        "label": "Apologized to another cast member",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "accusation",
+        "label": "Made a direct accusation",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "denial",
+        "label": "Denied an accusation or disputed an account",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "gossipShared",
+        "label": "Shared information about an absent cast member",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "patchy"
+      },
+      {
+        "id": "secretRevealed",
+        "label": "Disclosed previously private information",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "friendshipQuestioned",
+        "label": "Questioned the loyalty or authenticity of a friendship",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "relationshipAnnouncement",
+        "label": "Made a relationship or family announcement",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "surpriseGuest",
+        "label": "A surprise guest appeared",
+        "during": {
+          "segment": "socialEvents"
+        },
+        "counted": "yesNo",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "unexpectedArrival",
+        "label": "An unexpected person joined a gathering",
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "toastOrSpeech",
+        "label": "Delivered a toast or public speech",
+        "during": {
+          "segment": "socialEvents"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "awkwardSilence",
+        "label": "A conversation ended in conspicuous awkward silence",
+        "counted": "eachTime",
+        "answeredBy": "league",
+        "reliability": "patchy"
+      },
+      {
+        "id": "reunionWalkOff",
+        "label": "Walked away during the reunion",
+        "during": {
+          "segment": "reunionDiscussion"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      },
+      {
+        "id": "reunionDisagreement",
+        "label": "Directly challenged another cast member's account during the reunion",
+        "during": {
+          "segment": "reunionDiscussion"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "usually"
+      },
+      {
+        "id": "reunionTears",
+        "label": "Cried during the reunion",
+        "during": {
+          "segment": "reunionDiscussion"
+        },
+        "counted": "eachTime",
+        "answeredBy": "research",
+        "reliability": "reliable"
+      }
+    ],
+    "points": {
+      "argument": 2,
+      "heatedExchange": 2,
+      "stormedOut": 3,
+      "walkedAway": 1,
+      "cried": 1,
+      "apologized": 2,
+      "accusation": 2,
+      "denial": 1,
+      "gossipShared": 1,
+      "secretRevealed": 3,
+      "friendshipQuestioned": 2,
+      "relationshipAnnouncement": 2,
+      "surpriseGuest": 2,
+      "unexpectedArrival": 1,
+      "toastOrSpeech": 1,
+      "awkwardSilence": 1,
+      "reunionWalkOff": 3,
+      "reunionDisagreement": 2,
+      "reunionTears": 1
+    },
+    "leftOut": [
+      "The series has no formal competition, elimination order, official winner, or season-long points standings; the fantasy game therefore scores observable social and personal events rather than competitive results.",
+      "The recurring distinction between full-time Housewives and friends of the cast affects their screen time and social access but does not constitute a formal team system.",
+      "Confessional commentary is frequently intercut with scenes from other times, so an individual reaction may appear in the same episode as an event without being recorded at the moment it occurred.",
+      "The reunion is a scheduled closing format with a moderator, seating arrangements, and questions about the season, rather than a vote, final challenge, or contest.",
+      "The show includes ongoing personal storylines involving marriage, divorce, family, money, business, and changing friendships, but these are not standardized challenges with uniform outcomes.",
+      "A cast member can appear less frequently, depart between seasons, or be reclassified as a recurring friend without an in-episode elimination ceremony.",
+      "The game cannot objectively measure sincerity, authenticity, social influence, fashion quality, or who is morally right in a disagreement; these remain subjective interpretations."
+    ]
+  },
+  "compiled": {
+    "id": "the-real-housewives-of-beverly-hills",
+    "name": "The Real Housewives of Beverly Hills",
+    "exitMethods": [
+      "Season Ends",
+      "Other"
+    ],
+    "terms": {
+      "castaway": "Housewife",
+      "tribe": "Group"
+    },
+    "winnerExitMethod": null,
+    "endgameExitMethods": [
+      "Season Ends"
+    ],
+    "events": [
+      {
+        "id": "heatedExchange",
+        "label": "Had a heated exchange at a group gathering",
+        "defaultPoints": 2
+      },
+      {
+        "id": "surpriseGuest",
+        "label": "A surprise guest appeared",
+        "defaultPoints": 2
+      },
+      {
+        "id": "toastOrSpeech",
+        "label": "Delivered a toast or public speech",
+        "defaultPoints": 1
+      },
+      {
+        "id": "reunionWalkOff",
+        "label": "Walked away during the reunion",
+        "defaultPoints": 3
+      },
+      {
+        "id": "reunionDisagreement",
+        "label": "Directly challenged another cast member's account during the reunion",
+        "defaultPoints": 2
+      },
+      {
+        "id": "reunionTears",
+        "label": "Cried during the reunion",
+        "defaultPoints": 1
+      },
+      {
+        "id": "newCastArrivalsArrived",
+        "label": "Arrived partway through",
+        "defaultPoints": 0
+      },
+      {
+        "id": "seasonEnds",
+        "label": "Season Ends",
+        "defaultPoints": 3,
+        "implied": true
+      },
+      {
+        "id": "argument",
+        "label": "Got into an argument",
+        "defaultPoints": 2
+      },
+      {
+        "id": "stormedOut",
+        "label": "Stormed out of a conversation or gathering",
+        "defaultPoints": 3
+      },
+      {
+        "id": "walkedAway",
+        "label": "Walked away from a tense conversation",
+        "defaultPoints": 1
+      },
+      {
+        "id": "cried",
+        "label": "Cried on camera",
+        "defaultPoints": 1
+      },
+      {
+        "id": "apologized",
+        "label": "Apologized to another cast member",
+        "defaultPoints": 2
+      },
+      {
+        "id": "accusation",
+        "label": "Made a direct accusation",
+        "defaultPoints": 2
+      },
+      {
+        "id": "denial",
+        "label": "Denied an accusation or disputed an account",
+        "defaultPoints": 1
+      },
+      {
+        "id": "gossipShared",
+        "label": "Shared information about an absent cast member",
+        "defaultPoints": 1
+      },
+      {
+        "id": "secretRevealed",
+        "label": "Disclosed previously private information",
+        "defaultPoints": 3
+      },
+      {
+        "id": "friendshipQuestioned",
+        "label": "Questioned the loyalty or authenticity of a friendship",
+        "defaultPoints": 2
+      },
+      {
+        "id": "relationshipAnnouncement",
+        "label": "Made a relationship or family announcement",
+        "defaultPoints": 2
+      },
+      {
+        "id": "unexpectedArrival",
+        "label": "An unexpected person joined a gathering",
+        "defaultPoints": 1
+      },
+      {
+        "id": "awkwardSilence",
+        "label": "A conversation ended in conspicuous awkward silence",
+        "defaultPoints": 1
+      }
+    ],
+    "eventCategories": [
+      {
+        "id": "segmentSocialevents",
+        "label": "Social Events",
+        "events": [
+          "heatedExchange",
+          "surpriseGuest",
+          "toastOrSpeech"
+        ]
+      },
+      {
+        "id": "segmentReuniondiscussion",
+        "label": "Reunion Discussion",
+        "events": [
+          "reunionWalkOff",
+          "reunionDisagreement",
+          "reunionTears"
+        ]
+      },
+      {
+        "id": "twistNewcastarrivals",
+        "label": "New Cast Arrivals",
+        "events": [
+          "newCastArrivalsArrived"
+        ]
+      },
+      {
+        "id": "endgame",
+        "label": "Endgame",
+        "events": [
+          "seasonEnds"
+        ]
+      },
+      {
+        "id": "other",
+        "label": "Other moments",
+        "events": [
+          "argument",
+          "stormedOut",
+          "walkedAway",
+          "cried",
+          "apologized",
+          "accusation",
+          "denial",
+          "gossipShared",
+          "secretRevealed",
+          "friendshipQuestioned",
+          "relationshipAnnouncement",
+          "unexpectedArrival",
+          "awkwardSilence"
+        ]
+      }
+    ],
+    "recap": [],
+    "hasMerge": false,
+    "hasGroups": false,
+    "wiki": {
+      "version": 1,
+      "voteSections": [],
+      "guideSections": [],
+      "missingVotesNote": "no vote or elimination table found: who left will come from research",
+      "missingGuideNote": "no episode guide found: who left will come from research",
+      "eventTypes": [],
+      "routineEliminations": 1
+    },
+    "research": {
+      "checklist": [
+        {
+          "key": "name",
+          "type": "string",
+          "description": "The housewife's full name, exactly as given in the list you were sent."
+        },
+        {
+          "key": "leftTheGame",
+          "type": "answer",
+          "description": "Did this person leave the game permanently in THIS episode?"
+        },
+        {
+          "key": "exitMethod",
+          "type": "exitMethod",
+          "nullable": true,
+          "description": "How they left, if they left. Null if they did not leave."
+        },
+        {
+          "key": "heatedExchange",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: had a heated exchange at a group gathering at the Social Events? This person's number; 0 if none, null if unknown.",
+          "note": "had a heated exchange at a group gathering"
+        },
+        {
+          "key": "surpriseGuest",
+          "type": "answer",
+          "description": "A surprise guest appeared, this episode: yes, no, or unknown.",
+          "note": "a surprise guest appeared"
+        },
+        {
+          "key": "toastOrSpeech",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: delivered a toast or public speech at the Social Events? This person's number; 0 if none, null if unknown.",
+          "note": "delivered a toast or public speech"
+        },
+        {
+          "key": "reunionWalkOff",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: walked away during the reunion at the Reunion Discussion? This person's number; 0 if none, null if unknown.",
+          "note": "walked away during the reunion"
+        },
+        {
+          "key": "reunionDisagreement",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: directly challenged another cast member's account during the reunion at the Reunion Discussion? This person's number; 0 if none, null if unknown.",
+          "note": "directly challenged another cast member's account during the reunion"
+        },
+        {
+          "key": "reunionTears",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: cried during the reunion at the Reunion Discussion? This person's number; 0 if none, null if unknown.",
+          "note": "cried during the reunion"
+        },
+        {
+          "key": "newCastArrivalsArrived",
+          "type": "answer",
+          "description": "Arrived partway through, this episode: yes, no, or unknown.",
+          "note": "arrived partway through"
+        },
+        {
+          "key": "argument",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: got into an argument? This person's number; 0 if none, null if unknown.",
+          "note": "got into an argument"
+        },
+        {
+          "key": "stormedOut",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: stormed out of a conversation or gathering? This person's number; 0 if none, null if unknown.",
+          "note": "stormed out of a conversation or gathering"
+        },
+        {
+          "key": "walkedAway",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: walked away from a tense conversation? This person's number; 0 if none, null if unknown.",
+          "note": "walked away from a tense conversation"
+        },
+        {
+          "key": "cried",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: cried on camera? This person's number; 0 if none, null if unknown.",
+          "note": "cried on camera"
+        },
+        {
+          "key": "apologized",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: apologized to another cast member? This person's number; 0 if none, null if unknown.",
+          "note": "apologized to another cast member"
+        },
+        {
+          "key": "accusation",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: made a direct accusation? This person's number; 0 if none, null if unknown.",
+          "note": "made a direct accusation"
+        },
+        {
+          "key": "denial",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: denied an accusation or disputed an account? This person's number; 0 if none, null if unknown.",
+          "note": "denied an accusation or disputed an account"
+        },
+        {
+          "key": "gossipShared",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: shared information about an absent cast member? This person's number; 0 if none, null if unknown.",
+          "note": "shared information about an absent cast member"
+        },
+        {
+          "key": "secretRevealed",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: disclosed previously private information? This person's number; 0 if none, null if unknown.",
+          "note": "disclosed previously private information"
+        },
+        {
+          "key": "friendshipQuestioned",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: questioned the loyalty or authenticity of a friendship? This person's number; 0 if none, null if unknown.",
+          "note": "questioned the loyalty or authenticity of a friendship"
+        },
+        {
+          "key": "relationshipAnnouncement",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: made a relationship or family announcement? This person's number; 0 if none, null if unknown.",
+          "note": "made a relationship or family announcement"
+        },
+        {
+          "key": "unexpectedArrival",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: an unexpected person joined a gathering? This person's number; 0 if none, null if unknown.",
+          "note": "an unexpected person joined a gathering"
+        },
+        {
+          "key": "awkwardSilence",
+          "type": "integer",
+          "nullable": true,
+          "description": "This episode, how many times did each person: a conversation ended in conspicuous awkward silence? This person's number; 0 if none, null if unknown.",
+          "note": "a conversation ended in conspicuous awkward silence"
+        },
+        {
+          "key": "sources",
+          "type": "stringList",
+          "description": "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'."
+        },
+        {
+          "key": "confidence",
+          "type": "enum",
+          "values": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source."
+        }
+      ],
+      "episodeFields": [],
+      "searchHint": [
+        "Search for this episode's recap and any reporting on what happened to each person, and who left.",
+        "Then answer the checklist for every person above."
+      ],
+      "claims": [
+        "leftTheGame",
+        "surpriseGuest",
+        "newCastArrivalsArrived"
+      ]
+    },
+    "rules": {
+      "research": [
+        {
+          "when": {
+            "answer": "heatedExchange",
+            "greaterThan": 0
+          },
+          "award": "heatedExchange"
+        },
+        {
+          "when": {
+            "answer": "surpriseGuest",
+            "is": "yes"
+          },
+          "award": "surpriseGuest"
+        },
+        {
+          "when": {
+            "answer": "toastOrSpeech",
+            "greaterThan": 0
+          },
+          "award": "toastOrSpeech"
+        },
+        {
+          "when": {
+            "answer": "reunionWalkOff",
+            "greaterThan": 0
+          },
+          "award": "reunionWalkOff"
+        },
+        {
+          "when": {
+            "answer": "reunionDisagreement",
+            "greaterThan": 0
+          },
+          "award": "reunionDisagreement"
+        },
+        {
+          "when": {
+            "answer": "reunionTears",
+            "greaterThan": 0
+          },
+          "award": "reunionTears"
+        },
+        {
+          "when": {
+            "answer": "newCastArrivalsArrived",
+            "is": "yes"
+          },
+          "award": "newCastArrivalsArrived"
+        },
+        {
+          "when": {
+            "answer": "argument",
+            "greaterThan": 0
+          },
+          "award": "argument"
+        },
+        {
+          "when": {
+            "answer": "stormedOut",
+            "greaterThan": 0
+          },
+          "award": "stormedOut"
+        },
+        {
+          "when": {
+            "answer": "walkedAway",
+            "greaterThan": 0
+          },
+          "award": "walkedAway"
+        },
+        {
+          "when": {
+            "answer": "cried",
+            "greaterThan": 0
+          },
+          "award": "cried"
+        },
+        {
+          "when": {
+            "answer": "apologized",
+            "greaterThan": 0
+          },
+          "award": "apologized"
+        },
+        {
+          "when": {
+            "answer": "accusation",
+            "greaterThan": 0
+          },
+          "award": "accusation"
+        },
+        {
+          "when": {
+            "answer": "denial",
+            "greaterThan": 0
+          },
+          "award": "denial"
+        },
+        {
+          "when": {
+            "answer": "gossipShared",
+            "greaterThan": 0
+          },
+          "award": "gossipShared"
+        },
+        {
+          "when": {
+            "answer": "secretRevealed",
+            "greaterThan": 0
+          },
+          "award": "secretRevealed"
+        },
+        {
+          "when": {
+            "answer": "friendshipQuestioned",
+            "greaterThan": 0
+          },
+          "award": "friendshipQuestioned"
+        },
+        {
+          "when": {
+            "answer": "relationshipAnnouncement",
+            "greaterThan": 0
+          },
+          "award": "relationshipAnnouncement"
+        },
+        {
+          "when": {
+            "answer": "unexpectedArrival",
+            "greaterThan": 0
+          },
+          "award": "unexpectedArrival"
+        },
+        {
+          "when": {
+            "answer": "awkwardSilence",
+            "greaterThan": 0
+          },
+          "award": "awkwardSilence"
+        }
+      ],
+      "implied": [
+        {
+          "whenExit": "Season Ends",
+          "award": "seasonEnds"
+        }
+      ]
+    }
+  }
+}
