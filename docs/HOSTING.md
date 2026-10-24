@@ -159,4 +159,5 @@ never handles it: the user does the reset and the pasting.
   user switched bot research off again: its full runs stage results for review, and unreviewed results aren't used
   (PLAN-new-design 6b). The clock has nothing scheduled, so it only checks in every 6 hours. Survivor 51's air time
   corrected to 8:00 PM (was 8:05). Migration 0068 adds the bot's schedule check (when the next episode airs and how
-  long it runs, nothing to review): one bot question per episode, so a few minutes of Neon compute per episode night.
+  long it runs, nothing to review): one bot question per episode, so a few minutes of Neon compute per episode night. Survivor 51's bot research is back on
+  with only that check: its first run is 2026-10-29 02:00 UTC (Wednesday 10 PM Eastern, half an hour after episode 6).
