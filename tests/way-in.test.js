@@ -64,8 +64,10 @@ test("the landing and sign-in are the new design's; classic keeps /sign-in", () 
   assert.equal(R.depthOf("/signin"), 1);
 });
 
-test("who gets in: an unset or unknown setting waits for an admin; invites and open let invites in", () => {
-  assert.equal(S.signupModeOf(undefined), "approve");
+test("who gets in: unset means invites let people in; a bad value waits for an admin; invites and open let invites in", () => {
+  assert.equal(S.signupModeOf(undefined), "invites");
+  assert.equal(S.signupModeOf(null), "invites");
+  assert.equal(S.signupModeOf("approve"), "approve");
   assert.equal(S.signupModeOf("everyone"), "approve");
   assert.equal(S.signupModeOf("invites"), "invites");
   assert.equal(S.signupModeOf("open"), "open");

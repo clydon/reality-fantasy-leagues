@@ -146,8 +146,8 @@ function FindTab() {
 
 /** Who gets in (src/lib/signups.ts): the desk's three ways, each with what it means. */
 const SIGNUPS = [
-  ["approve", "You let each one in", "Every new account waits until a site admin lets it in. Early access, as it's been."],
-  ["invites", "Invites let people in", "Someone who joins a couch with its code gets in straight away. Anyone else waits for you."],
+  ["approve", "You let each one in", "Every new account waits until a site admin lets it in, invited or not. Early access as it was."],
+  ["invites", "Invites let people in", "Recommended. Someone who joins a couch with its code gets in straight away. Anyone else waits for you."],
   ["open", "Anyone gets in", "Every new account plays straight away."],
 ] as const;
 

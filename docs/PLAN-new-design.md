@@ -2169,10 +2169,12 @@ is a service once the user makes it). New: `src/lib/server/way-in.ts`, `src/lib/
   3). The picks wait on the device (`localStorage gys.firstRun`, a week) through making the account, a Google round trip or
   an emailed link, then `POST /api/me/first-run` follows each openly with where you are (never past what's aired) and makes
   the new design the one the account opens on (with this device's `gys_ui` cookie). Signed in already, step 3 is skipped.
-- **Who gets in (decided: the gate stays as it was unless the desk changes it):** since 0058 every new account waits for a
-  site admin, so the way in would have ended "You're on the list" for everyone new. It's now the desk's **People › Who gets
-  in** (`app_settings 'signups'`): **You let each one in** (approve: the default, unset, exactly as before), **Invites let
-  people in** (joining a couch with its code lets a waiting account in, in the join's transaction; anyone else waits) and
+- **Who gets in (the user's call, 2026-10-25: the branch ships with invites letting people in):** since 0058 every new
+  account waits for a site admin, so the way in would have ended "You're on the list" for everyone new. It's now the desk's
+  **People › Who gets in** (`app_settings 'signups'`, `src/lib/signups.ts`): **You let each one in** (approve: early access
+  as it was), **Invites let people in** (**the default: what an unset key means**, marked Recommended; joining a couch with
+  its code lets a waiting account in, in the join's transaction; anyone else waits; a value that's none of the three reads as
+  approve) and
   **Anyone gets in** (open: let in as the account's made, by auth.ts's create hook), with the waiting count, History and
   Undo. A waiting account may save its own first-run shows and nothing else (`requireAuth` refuses the rest);
   `/api/couches/join` takes a session and refuses a waiting account unless invites let it in. It sees "You're on the list"
@@ -2209,7 +2211,7 @@ is a service once the user makes it). New: `src/lib/server/way-in.ts`, `src/lib/
   wall has only what's on now or coming up (two seasons on the local copy), finished seasons are found by searching; a show
   tile on the landing picks its season.
 - **Fixtures and Preview:** removed `start.steps` and `join.couch`; new `start.add-show` (step 10).
-- **Checks:** `scripts/dev-test/check-new-way-in.js <outDir> [--width=390] [--keep] [--api]` (84 PASS at 390; on new-fixture.js
+- **Checks:** `scripts/dev-test/check-new-way-in.js <outDir> [--width=390] [--keep] [--api]` (85 PASS at 390; on new-fixture.js
   plus its own curated "ZT Way In" show, seasons 7 airing and 8 coming up, and the desk's `zt_nd_desk`; sign-ups are
   `zt_nd_wi_` usernames with `@example.invalid` emails or a username alone; refuses a RESEND_API_KEY; puts Who gets in back):
   the catalog signed out, every Who gets in mode through the desk's API, a waiting account's first-run save and refusals, an

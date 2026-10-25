@@ -365,7 +365,7 @@ never handles it: the user does the reset and the pasting.
   nothing runs on a schedule.** New reads: the catalog (`/api/catalog`, signed out, cached at the edge for 5 minutes,
   a few KB), and first run's save (`POST /api/me/first-run`: one `show_follows` row per show picked, and
   `user_settings.ui`), once per new account. A new setting, `app_settings 'signups'` (the desk's Who gets in: approve /
-  invites / open; unset means approve, as early access has been). A new service once the user makes it: a **Google
+  invites / open; unset means invites, the user's call: an invite lets a new account straight in, anyone else waits). A new service once the user makes it: a **Google
   OAuth client** for Continue with Google (free; Better Auth keeps each Google sign-in's tokens in `account`, encrypted
   now with `account.encryptOAuthTokens`: a few hundred bytes per Google account). Password resets and email
   verification go through Resend as before (a sign-up that gives an email gets one verification email; nothing new is

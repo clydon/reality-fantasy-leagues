@@ -4,8 +4,9 @@
 //   API:
 //   - the catalog, signed out: on now and coming up first, ZT Way In's two seasons with how far each has aired, nothing
 //     about any episode, a player's own show (the fixture's) left out, cached at the edge;
-//   - who gets in (the desk's Settings › Who gets in, app_settings 'signups'): a sign-up waits (approve, the default), an
-//     invite lets a waiting account in (invites), anyone gets in (open); refused bad values and non-admins; History;
+//   - who gets in (the desk's Settings › Who gets in, app_settings 'signups'): unset it's invites; a sign-up waits
+//     (approve), an invite lets a waiting account in (invites), anyone gets in (open); refused bad values and non-admins;
+//     History;
 //   - first run's save for a waiting account (its follows, where it is, never past what's aired; the new design's
 //     cookie), and everything else refused while it waits (a couch, a join in approve mode);
 //   - an email sign-up: no session until it's verified, then signed in.
@@ -120,6 +121,10 @@ const toastText = (page) => page.getByRole("status").last().innerText().catch(()
     const as = { alex: await api({ user: fixture.username("alex"), pass: PASSWORD }), desk: await api({ user: DESK, pass: PASSWORD }) };
     const code = (await as.alex.call("GET", `/api/couches/${fx.couchId}/invite`)).body.code;
     check(/^[A-Z2-9]{6}$/.test(code || ""), "alex's invite code for ZT Survivor 51", code);
+    // Unset, Who gets in is Invites let people in (the user's call for the branch, 2026-10-25).
+    await pool.query("DELETE FROM app_settings WHERE key = 'signups'");
+    check((await as.desk.call("GET", "/api/desk/settings")).body.settings?.signups.mode === "invites", "unset, Who gets in is Invites let people in");
+    await setMode("approve");
 
     // ---------- the catalog, signed out ----------
     const cat = await fetch(BASE + "/api/catalog");
@@ -140,7 +145,7 @@ const toastText = (page) => page.getByRole("status").last().innerText().catch(()
     check(made.status === 200 && made.body.user?.emailVerified === false && !made.body.token, "an email sign-up makes the account with no session until it's verified", JSON.stringify(made.body).slice(0, 160));
     check((await signIn(ann)).status === 403, "it can't sign in before the link (EMAIL_NOT_VERIFIED)");
     await pool.query(`UPDATE "user" SET "emailVerified" = true WHERE username = $1`, [ann]);
-    check((await userOf(ann)).approved === false, "approve (the default): it waits to get in");
+    check((await userOf(ann)).approved === false, "approve: it waits to get in");
     const A = await api({ user: ann, pass: PASSWORD });
     const meA = (await A.call("GET", "/api/me")).body;
     check(meA.user?.approved === false, "once verified it signs in, waiting (GET /api/me approved: false)");
