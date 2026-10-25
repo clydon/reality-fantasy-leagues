@@ -184,6 +184,9 @@ function fullAnswer(prompt, { danny = true, eric = true, devin = true } = {}) {
     await fits(j.page, "Tonight with Fill it in");
     await shot(j.page, "tonight-fill-it");
     await j.page.locator("[data-fill-it='6']").click();
+    // With our bot answering, the sheet leads with One tap (step 6c): this is copy and paste's, one row below.
+    await j.page.locator("[data-ask-ai=full], [data-one-tap]").first().waitFor({ timeout: 20000 });
+    if (await j.page.locator("[data-one-tap]").count()) await j.page.locator("[data-copy-paste]").click();
     await j.page.locator("[data-ask-ai=full]").waitFor();
     await j.page.locator("a[data-ai-open][href]").waitFor({ timeout: 20000 });
     const jPrompt = (await as.jordan.call("GET", `/api/seasons/${sid}/backstage/prompt${A}&episode=6&kind=full`)).body.prompt;

@@ -50,7 +50,7 @@ export interface DeskFact {
 }
 
 const REASON: Record<string, string> = { "didnt-happen": "Didn't happen", "wrong-person": "Wrong person", "wrong-episode": "Wrong episode", other: "Something else", missing: "Something's missing" };
-const SOURCE: Record<string, string> = { paste: "pasted the results", quick: "checked who went home", hand: "entered it by hand", bot: "the bot's run", autopilot: "Autopilot", tiebreak: "a tie-break run" };
+const SOURCE: Record<string, string> = { paste: "pasted the results", quick: "checked who went home", hand: "entered it by hand", bot: "asked our bot (One tap)", autopilot: "Autopilot", tiebreak: "a tie-break run" };
 
 /** One fact, everything the desk needs to decide it. */
 export async function deskFact(id: string): Promise<DeskFact> {

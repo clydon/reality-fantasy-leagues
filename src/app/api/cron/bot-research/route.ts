@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { pool, HttpError } from "@/lib/server/db";
-import { askBot } from "@/lib/server/ask-bot";
+import { askBot, botFor } from "@/lib/server/ask-bot";
+import { botSend } from "@/lib/server/bot-results";
 import { runNext, planRuns } from "@db/bot-research.js";
 
 // The bot research clock (db/bot-research.js): the ask-AI bot's VM calls this, and each call runs at most
@@ -12,6 +13,9 @@ import { runNext, planRuns } from "@db/bot-research.js";
 //
 //   POST            run the earliest due run, if any; { job, ..., next }
 //   GET ?dry=1      what's due and `next`, run nothing
+//
+// Each answer is a source like anyone's (step 6c, src/lib/server/bot-results.ts): what's trusted reaches every league on
+// the season on its own, and who went home that can't be trusted yet waits in Backstage and is asked again.
 //
 // Authorization: Bearer <CRON_SECRET>, the same value in Vercel and the VM's .env.
 export const maxDuration = 300;
@@ -42,6 +46,7 @@ export const GET = apiRoute(async (req) => {
 
 export const POST = apiRoute(async (req) => {
   requireCron(req);
-  const out = await runNext(pool, { ask: askBot, now: nowFrom(req) });
+  const bot = botFor(req);
+  const out = await runNext(pool, { ask: (prompt) => askBot(prompt, { bot }), send: botSend, now: nowFrom(req) });
   return NextResponse.json(out);
 });

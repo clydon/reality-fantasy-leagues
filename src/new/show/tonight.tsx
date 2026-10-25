@@ -5,7 +5,7 @@ import { Check, ChevronRight, Eye, Lock, MessageCircle, Plus, Tv } from "lucide-
 import { airTime, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { BINGO_CARD } from "../fixtures/episode-games";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
-import { backstage, chatCouch, useAfterResults, useChatBadge, type GameView } from "../data";
+import { backstage, chatCouch, useAfterResults, useChatBadge, type GameView, type PasteResult } from "../data";
 import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -354,6 +354,13 @@ function FillItIn({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const n = show.episodes?.fill?.episode ?? null;
   const couchId = show.couch?.id ?? null;
   if (!n || !couchId) return null;
+  // Pasted, or fetched by One tap: the same thanks.
+  const thanks = async (r: PasteResult) => {
+    setOpen(false);
+    await refresh();
+    if (r.kind !== "full") return;
+    toast(r.applied ? "Thanks! Every game on the couch is scored" : `Thanks! ${r.waiting} ${r.waiting === 1 ? "result waits" : "results wait"} for whoever runs the games`);
+  };
   return (
     <section className="mt-[26px] px-4">
       <button type="button" data-fill-it={n} onClick={() => setOpen(true)} className="nd-press flex min-h-[64px] w-full items-center gap-3 rounded-[4px] bg-card p-3.5 text-left outline-1 -outline-offset-1 outline-input">
@@ -367,19 +374,15 @@ function FillItIn({ seasonId, show }: { seasonId: string; show: ShowData }) {
         open={open}
         onOpenChange={setOpen}
         title={`Fill in Episode ${n}`}
-        what={`Your AI searches the web for everything that happened in Episode ${n}, then answers in a format we can read. Paste it back and every game on the couch scores.`}
+        what={`An AI searches the web for everything that happened in Episode ${n}, then answers in a format we can read: every game on the couch scores.`}
         seasonId={seasonId}
         couchId={couchId}
         episode={n}
         kind="full"
         check={checkFull}
-        onUse={async (answer, opts) => {
-          const r = await backstage.paste(seasonId, couchId, { episode: n, kind: "full", answer, ...opts });
-          setOpen(false);
-          await refresh();
-          if (r.kind !== "full") return;
-          toast(r.applied ? "Thanks! Every game on the couch is scored" : `Thanks! ${r.waiting} ${r.waiting === 1 ? "result waits" : "results wait"} for whoever runs the games`);
-        }}
+        onUse={async (answer, opts) => thanks(await backstage.paste(seasonId, couchId, { episode: n, kind: "full", answer, ...opts }))}
+        onTapped={thanks}
+        seasonName={show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season"}
       />
     </section>
   );

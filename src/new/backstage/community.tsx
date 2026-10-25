@@ -62,7 +62,7 @@ export function FillState({ seasonId, couchId, data }: { seasonId: string; couch
             </span>
             <span className="min-w-0 flex-1">
               <b className="block text-[15px] font-semibold">
-                Episode {e.episode} · {e.here && e.by ? `filled in by ${e.by}` : "filled in on another couch"}
+                Episode {e.episode} · {e.here && e.by ? `filled in by ${e.by}` : e.bot ? "filled in by our bot" : "filled in on another couch"}
               </b>
               <small className="block text-[13px] text-muted-foreground">{e.sources >= 2 ? `Confirmed · ${e.sources} sources agree` : "Reported · 1 source so far"}</small>
             </span>

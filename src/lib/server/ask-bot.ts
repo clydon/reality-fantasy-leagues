@@ -19,6 +19,32 @@ const KEY = process.env.LLM_BROWSER_API_KEY;
 
 export const askBotConfigured = URLS.length > 0 && !!KEY;
 
+/** Which bot to ask: `bot` (a development server's stand-in, from botFor) instead of the configured list. */
+export interface BotChoice {
+  bot?: string;
+}
+
+const urlsFor = (o: BotChoice = {}) => (o.bot ? [o.bot] : URLS);
+const configured = (o: BotChoice = {}) => !!o.bot || askBotConfigured;
+
+/**
+ * A development server's bot for one request, named by its `x-gys-bot` header: a check's own stand-in
+ * (scripts/dev-test/fake-bot.js) or the PC's bot, so a check never queues behind production's runs on the VM.
+ * `next dev` only, and only a loopback address; production never reads it.
+ */
+export function botFor(req: Request): string | undefined {
+  if (process.env.NODE_ENV !== "development") return undefined;
+  const asked = req.headers.get("x-gys-bot");
+  if (!asked) return undefined;
+  try {
+    const u = new URL(asked);
+    if (u.protocol === "http:" && (u.hostname === "127.0.0.1" || u.hostname === "localhost")) return u.origin;
+  } catch {
+    /* not a URL: the configured bots, as for anyone */
+  }
+  return undefined;
+}
+
 /** Who gets "Ask ChatGPT for me" (experimental): super-admins, and anyone who commissions a league. */
 export async function canUseAskBot(user: SessionUser): Promise<boolean> {
   if (isSuperAdminUser(user)) return true;
@@ -43,18 +69,18 @@ async function health(url: string): Promise<{ busy: boolean } | null> {
 }
 
 /** Whether any bot answers right now (a quick health check), so the button only shows when it'll work. */
-export async function askBotStatus(): Promise<{ available: boolean; busy: boolean }> {
-  if (!askBotConfigured) return { available: false, busy: false };
-  const all = await Promise.all(URLS.map(health));
+export async function askBotStatus(o: BotChoice = {}): Promise<{ available: boolean; busy: boolean }> {
+  if (!configured(o)) return { available: false, busy: false };
+  const all = await Promise.all(urlsFor(o).map(health));
   const up = all.filter((h) => h !== null);
   return { available: up.length > 0, busy: up.length > 0 && up.every((h) => h.busy) };
 }
 
-export async function askBot(prompt: string): Promise<{ answer: string; seconds: number }> {
-  if (!askBotConfigured) throw new HttpError(404, "The ask-AI bot isn't set up here.");
+export async function askBot(prompt: string, o: BotChoice = {}): Promise<{ answer: string; seconds: number }> {
+  if (!configured(o)) throw new HttpError(404, "The ask-AI bot isn't set up here.");
   const deadline = Date.now() + BUDGET_MS;
   const failures: string[] = [];
-  for (const url of URLS) {
+  for (const url of urlsFor(o)) {
     const left = deadline - Date.now();
     // A fallback that can't finish in time isn't worth starting.
     if (left < 60_000) break;

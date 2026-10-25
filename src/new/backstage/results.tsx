@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check, CircleQuestionMark, EyeOff, ListChecks, PenLine, Sparkles, Zap } from "lucide-react";
 import { airTime, timeOf } from "../clock";
-import { backstage, useAfterResults, useBackstage, type Backstage, type BackstageEpisode, type Chosen, type PasteResult, type PreviewLine, type ResultRow, type Shown } from "../data";
+import { backstage, useAfterResults, useBackstage, useWays, type Backstage, type BackstageEpisode, type Chosen, type PasteResult, type PreviewLine, type ResultRow, type Shown, type Ways } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Block, Face } from "../show/parts";
 import { GuardSheet } from "../ui/guards";
 import { Btn, Chip, EmptyState } from "../ui/parts";
-import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { AskAiSheet, checkFull, checkQuick } from "./ask-ai";
+import { AskAiSheet, BetaChip, checkFull, checkQuick, priceOf } from "./ask-ai";
 import { Corrections, CouchFlags, FillState, QuestionCard } from "./community";
 
 // Backstage › Results (the mock's backstage.js bsResults with refine.js's 5B and bot.js's ways, docs/PLAN-new-design.md
@@ -20,12 +19,15 @@ import { Corrections, CouchFlags, FillState, QuestionCard } from "./community";
 // Tonight: who went home (the quick check: Survival Pool and Outlast settle, the episode's early results) and Full scores
 // (every moment: Weekly Lineup's points, final). What its sources agree on applies to every game here on its own and
 // shows you nothing (option 5B), so you can still watch it fresh: Show me and Undo are there. What they disagree on waits
-// for you to tick, then a preview of what changes (tier 2) before it applies. How results get in (One tap, Autopilot) is
-// step 6c's. Results from everyone (step 6b): every answer is shared with every couch on the season, so the full scores
-// say who filled them in and how far the sources agree; who can fill them in is the couch's (community.tsx), and so are
-// the corrections the shared check made and any house ruling.
+// for you to tick, then a preview of what changes (tier 2) before it applies. Results from everyone (step 6b): every
+// answer is shared with every couch on the season, so the full scores say who filled them in and how far the sources
+// agree; who can fill them in is the couch's (community.tsx), and so are the corrections the shared check made and any
+// house ruling. How results get in (step 6c, bot.js): copy and paste, One tap (our bot asks ChatGPT; unlocked once for the
+// whole couch) and Autopilot (coming soon), every price "Free during beta"; a quick check that couldn't be sure is kept on
+// the server and waits here (its names behind Show me), whoever sent it, the bot's own scheduled check included.
 
 type Ask = { kind: "quick" | "full"; episode: number } | null;
+type Guard = { title: string; cta: string; items: Chosen[]; quick: boolean; episode: number; replace?: string | null; wait?: { id: string; right: boolean } };
 
 export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const couchId = show.couch?.id ?? null;
@@ -36,10 +38,19 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
   const n = bs.data?.episode?.number ?? null;
   const shown = useBackstage(seasonId, couchId, n, { show: true, enabled: looking != null && looking === n });
   const [ask, setAsk] = useState<Ask>(null);
-  const [quickWait, setQuickWait] = useState<{ episode: number; result: Extract<PasteResult, { kind: "quick" }>["waiting"] } | null>(null);
-  const [byHand, setByHand] = useState<{ episode: number; replace: string | null } | null>(null);
-  const [guard, setGuard] = useState<{ title: string; cta: string; items: Chosen[]; quick: boolean; episode: number; replace?: string | null } | null>(null);
+  const [byHand, setByHand] = useState<{ episode: number; replace: string | null; wait: string | null } | null>(null);
+  const [guard, setGuard] = useState<Guard | null>(null);
   const refresh = useAfterResults();
+  const ways = useWays(seasonId, couchId);
+  const seasonName = show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season";
+  // A One tap that finishes after its sheet was closed: when it leaves the running list, the results it sent are read.
+  const runningIds = (ways.data?.running ?? []).map((r) => r.id).join();
+  const wasRunning = useRef(runningIds);
+  useEffect(() => {
+    const before = wasRunning.current.split(",").filter(Boolean);
+    wasRunning.current = runningIds;
+    if (before.some((id) => !runningIds.split(",").includes(id))) void refresh();
+  }, [runningIds, refresh]);
 
   if (bs.error) return <EmptyState icon={CircleQuestionMark} title="Results aren't yours to fill in here" line={(bs.error as Error).message} />;
   if (!bs.data || !couchId) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
@@ -60,24 +71,28 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
     }
   };
 
-  const onUse = async (answer: string, opts: { confirmed: boolean }) => {
-    if (!ask) return;
-    const r = await backstage.paste(seasonId, couchId, { episode: ask.episode, kind: ask.kind, answer, ...opts });
+  // What an answer did, pasted or fetched by One tap: the same toasts, and nothing of it shown.
+  const said = async (r: PasteResult) => {
     setAsk(null);
     await refresh();
     if (r.kind === "quick") {
       if (r.applied) {
         const batch = r.applied.batch;
-        setQuickWait(null);
         toast(`Applied to ${r.applied.games} ${r.applied.games === 1 ? "game" : "games"} · nothing shown to you`, { undo: () => void undo(batch, "who went home") });
       } else if (r.waiting?.doubt === "not-found") toast(r.waiting.line);
-      else setQuickWait({ episode: ask.episode, result: r.waiting });
+      else toast("It couldn't be sure · it waits for you here");
     } else {
       const batch = r.batch;
       const line = r.applied ? `${r.applied} ${r.applied === 1 ? "result" : "results"} applied to ${r.games} ${r.games === 1 ? "game" : "games"}` : "Nothing applied on its own";
       toast(`${line}${r.waiting ? ` · ${r.waiting} ${r.waiting === 1 ? "waits" : "wait"} for you` : ""}`, batch ? { undo: () => void undo(batch, "the full results") } : {});
     }
   };
+  const onUse = async (answer: string, opts: { confirmed: boolean }) => {
+    if (!ask) return;
+    await said(await backstage.paste(seasonId, couchId, { episode: ask.episode, kind: ask.kind, answer, ...opts }));
+  };
+  // A One tap still going for a pass of this episode (the sheet can be closed while it asks).
+  const asking = (kind: "quick" | "full") => (ep ? (ways.data?.running.find((r) => r.episode === ep.number && r.kind === kind) ?? null) : null);
 
   return (
     <div className="pb-12">
@@ -102,15 +117,15 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
               data={data}
               look={look}
               looking={looking === ep.number}
-              waiting={quickWait?.episode === ep.number ? quickWait.result : null}
+              asking={!!asking("quick")}
               onAsk={() => setAsk({ kind: "quick", episode: ep.number })}
               onShow={() => setLooking(ep.number)}
               onUndo={(batch) => undo(batch, "who went home")}
-              onByHand={(replace) => setByHand({ episode: ep.number, replace })}
-              onApplyWaiting={(items) => setGuard({ title: `Apply who went home in Episode ${ep.number}?`, cta: `Apply to ${allGames}`, items, quick: true, episode: ep.number })}
+              onByHand={(replace, wait) => setByHand({ episode: ep.number, replace, wait })}
+              onApplyWaiting={(items, wait) => setGuard({ title: `Apply who went home in Episode ${ep.number}?`, cta: `Apply to ${allGames}`, items, quick: true, episode: ep.number, wait: { id: wait, right: true } })}
             />
           </Block>
-          <Preview id="backstage.results-ways" className="mx-4 mt-6" />
+          {ways.data && <ResultsWays seasonId={seasonId} couchId={couchId} ways={ways.data} anyone={data.fill.anyone} seasonName={seasonName} />}
           <Block title="Full scores" aside={settles(data, "full")}>
             <FillState seasonId={seasonId} couchId={couchId} data={data} />
             {ep.questions > 0 && <QuestionCard episode={ep.number} count={ep.questions} onAsk={() => setAsk({ kind: "full", episode: ep.number })} />}
@@ -118,6 +133,7 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
               ep={ep}
               look={look}
               looking={looking === ep.number}
+              asking={!!asking("full")}
               onAsk={() => setAsk({ kind: "full", episode: ep.number })}
               onShow={() => setLooking(ep.number)}
               onUndo={(batch) => undo(batch, "the full results")}
@@ -142,8 +158,8 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
           title={ask.kind === "quick" ? `Who went home in Episode ${ask.episode}?` : `Fill in Episode ${ask.episode}`}
           what={
             ask.kind === "quick"
-              ? `Your AI searches tonight's recaps for who left ${show.header?.show.name ?? "the show"} in Episode ${ask.episode}, then answers in a format we can read.`
-              : `Your AI searches the web for everything that happened in Episode ${ask.episode}, then answers in a format we can read. Paste it back and every game here scores.`
+              ? `An AI searches tonight's recaps for who left ${show.header?.show.name ?? "the show"} in Episode ${ask.episode}, then answers in a format we can read.`
+              : `An AI searches the web for everything that happened in Episode ${ask.episode}, then answers in a format we can read: every game here scores.`
           }
           spoiler="Its answer says who went home. If you haven't watched, copy it without reading: when its sources agree it applies on its own, and we show you nothing."
           seasonId={seasonId}
@@ -152,6 +168,8 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
           kind={ask.kind}
           check={ask.kind === "quick" ? checkQuick : checkFull}
           onUse={onUse}
+          onTapped={said}
+          seasonName={seasonName}
         />
       )}
       {byHand && (
@@ -161,7 +179,8 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
           episode={byHand.episode}
           onClose={() => setByHand(null)}
           onNext={(items) => {
-            setGuard({ title: `Apply who went home in Episode ${byHand.episode}?`, cta: `Apply to ${allGames}`, items, quick: true, episode: byHand.episode, replace: byHand.replace });
+            const wait = byHand.wait ? { id: byHand.wait, right: false } : undefined;
+            setGuard({ title: `Apply who went home in Episode ${byHand.episode}?`, cta: `Apply to ${allGames}`, items, quick: true, episode: byHand.episode, replace: byHand.replace, wait });
             setByHand(null);
           }}
         />
@@ -174,7 +193,6 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
           next={data.next}
           onClose={() => setGuard(null)}
           onDone={async (batch) => {
-            setQuickWait(null);
             setLooking(null);
             await refresh();
             toast(`Applied to ${allGames}`, { undo: () => void undo(batch, guard.quick ? "who went home" : "those results") });
@@ -236,7 +254,7 @@ function QuickCard({
   data,
   look,
   looking,
-  waiting,
+  asking,
   onAsk,
   onShow,
   onUndo,
@@ -247,12 +265,13 @@ function QuickCard({
   data: Backstage;
   look: Shown | null;
   looking: boolean;
-  waiting: Extract<PasteResult, { kind: "quick" }>["waiting"];
+  /** One tap is asking about it right now. */
+  asking: boolean;
   onAsk: () => void;
   onShow: () => void;
   onUndo: (batch: string) => void;
-  onByHand: (replace: string | null) => void;
-  onApplyWaiting: (items: Chosen[]) => void;
+  onByHand: (replace: string | null, wait: string | null) => void;
+  onApplyWaiting: (items: Chosen[], wait: string) => void;
 }) {
   const q = ep.quick && !ep.quick.undone ? ep.quick : null;
   const own = !!q?.own;
@@ -270,31 +289,45 @@ function QuickCard({
     </div>
   );
 
-  if (ep.stage === "none" && waiting) {
+  const waiting = ep.stage === "none" ? ep.wait : null;
+  if (waiting) {
+    const names = looking ? (look?.wait ?? null) : null;
+    const how = waiting.via === "tap" ? "asked" : "pasted";
+    const from =
+      waiting.via === "autopilot"
+        ? "Our bot's own check"
+        : `${waiting.mine ? `You ${how}` : waiting.by ? `${waiting.by} ${how}` : how[0].toUpperCase() + how.slice(1)} ${timeOf(Date.parse(waiting.at))}`;
     return (
-      <div data-quick="waiting" className="rounded-[4px] bg-card p-3.5">
+      <div data-quick="waiting" data-wait={waiting.via} className="rounded-[4px] bg-card p-3.5">
         {head}
-        <Plate kind={`Episode ${ep.number} · waiting for you`} title="It couldn't be sure" line={waiting.line} faces={looking ? waiting.out.map((o) => ({ name: o.name, photo: null })) : null} />
-        {looking ? (
+        <Plate kind={`Episode ${ep.number} · waiting for you`} title="It couldn't be sure" line={waiting.line} faces={names ? names.map((o) => ({ name: o.name, photo: o.photo })) : null} />
+        <p className="mt-2 text-[13px] text-muted-foreground">
+          {from} · {waiting.sources === 1 ? "one source" : `${waiting.sources} sources`}
+        </p>
+        {names ? (
           <>
-            <ul className="mt-3 flex flex-col gap-1 text-[14px]">
-              {waiting.out.map((o) => (
-                <li key={o.name}>
-                  <b>{o.name}</b> · {o.matched ? o.method : "not someone in this cast"}
-                </li>
-              ))}
-              <li className="text-[13px] text-muted-foreground">{waiting.sources === 1 ? "One source" : `${waiting.sources} sources`}</li>
+            <ul data-wait-names className="mt-3 flex flex-col gap-1 text-[14px]">
+              {names.length ? (
+                names.map((o) => (
+                  <li key={o.name}>
+                    <b>{o.name}</b> · {o.matched ? o.method : "not someone in this cast"}
+                  </li>
+                ))
+              ) : (
+                <li>It says nobody went home</li>
+              )}
             </ul>
             <div className="mt-3 flex gap-2">
               <Btn
+                data-wait-right
                 tone="must"
                 className="flex-1"
-                disabled={!waiting.out.some((o) => o.matched)}
-                onClick={() => onApplyWaiting(waiting.out.filter((o) => o.matched).map((o) => ({ castawayName: o.name, method: o.method })))}
+                disabled={!names.some((o) => o.matched)}
+                onClick={() => onApplyWaiting(names.filter((o) => o.matched).map((o) => ({ castawayName: o.name, method: o.method })), waiting.id)}
               >
                 It&apos;s right
               </Btn>
-              <Btn className="flex-1" onClick={() => onByHand(null)}>
+              <Btn data-wait-wrong className="flex-1" onClick={() => onByHand(null, waiting.id)}>
                 Not right
               </Btn>
             </div>
@@ -304,8 +337,8 @@ function QuickCard({
             <Btn data-show-me className="flex-1" onClick={onShow}>
               Show me
             </Btn>
-            <Btn className="flex-1" onClick={onAsk}>
-              Ask again
+            <Btn className="flex-1" onClick={onAsk} disabled={asking}>
+              {asking ? "Asking…" : "Ask again"}
             </Btn>
           </div>
         )}
@@ -317,11 +350,12 @@ function QuickCard({
     return (
       <div data-quick="ask" className="rounded-[4px] bg-card p-3.5">
         {head}
+        {asking && <Asking />}
         <Btn data-ask="quick" tone="must" wide className="mt-3.5" onClick={onAsk}>
           <Sparkles className="size-5" aria-hidden />
-          Ask an AI
+          {asking ? "See it asking" : "Ask an AI"}
         </Btn>
-        <button type="button" data-by-hand onClick={() => onByHand(null)} className="mt-1 flex min-h-11 w-full items-center justify-center gap-2 text-[14px] font-semibold text-muted-foreground">
+        <button type="button" data-by-hand onClick={() => onByHand(null, null)} className="mt-1 flex min-h-11 w-full items-center justify-center gap-2 text-[14px] font-semibold text-muted-foreground">
           <PenLine className="size-4" aria-hidden />
           Watched it? Enter who went home yourself
         </button>
@@ -361,7 +395,7 @@ function QuickCard({
           </Btn>
         )}
         {looking && ep.stage === "early" && q?.undoable && (
-          <Btn className="flex-1" onClick={() => onByHand(q.batch)}>
+          <Btn className="flex-1" onClick={() => onByHand(q.batch, null)}>
             Not right
           </Btn>
         )}
@@ -378,6 +412,7 @@ function FullCard({
   ep,
   look,
   looking,
+  asking,
   onAsk,
   onShow,
   onUndo,
@@ -386,6 +421,8 @@ function FullCard({
   ep: BackstageEpisode;
   look: Shown | null;
   looking: boolean;
+  /** One tap is asking about it right now. */
+  asking: boolean;
   onAsk: () => void;
   onShow: () => void;
   onUndo: (batch: string) => void;
@@ -474,15 +511,135 @@ function FullCard({
                 </small>
               </span>
             </div>
+            {asking && <Asking />}
             <Btn data-ask="full" tone={ep.stage === "early" ? "must" : "optional"} wide className="mt-3.5" onClick={onAsk}>
               <Sparkles className="size-5" aria-hidden />
-              Ask an AI
+              {asking ? "See it asking" : "Ask an AI"}
             </Btn>
           </div>
         )
       )}
       {ep.stage !== "final" && f && looking && look && <AppliedList rows={look.applied.filter((r) => r.kind !== "elimination")} />}
     </div>
+  );
+}
+
+/** One tap is asking ChatGPT right now (the sheet was closed while it runs): a line on the card. */
+function Asking() {
+  return (
+    <p data-asking className="mt-3 flex items-center gap-2.5 text-[13px] font-semibold">
+      <span className="size-4 flex-none animate-spin rounded-full border-2 border-border border-t-foreground motion-reduce:animate-none" aria-hidden />
+      ChatGPT is looking it up · usually under 2 minutes
+    </p>
+  );
+}
+
+/**
+ * How results get in (step 6c, the mock's bot.js): copy and paste (free, always), One tap (unlocked once for the whole
+ * couch) and Autopilot (coming soon; "on" while an admin runs the bot's schedule for this season), each with what it will
+ * cost and "Free during beta". Unlocking One tap is tier 1: a sheet that says what it is, nothing charged.
+ */
+function ResultsWays({ seasonId, couchId, ways, anyone, seasonName }: { seasonId: string; couchId: string; ways: Ways; anyone: boolean; seasonName: string }) {
+  const [unlocking, setUnlocking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const refresh = useAfterResults();
+  const auto = ways.autopilot.quick || ways.autopilot.full;
+  const current = auto ? "autopilot" : ways.tap.unlocked ? "tap" : "paste";
+  const autoLine = auto
+    ? `On for this season: our bot ${[ways.autopilot.quick && "checks who went home minutes after each episode, and keeps checking until it's sure", ways.autopilot.full && "fills in every point within the hour, checked again overnight"].filter(Boolean).join(", and ")}.`
+    : "Results arrive on their own: who went home minutes after the episode, every point within the hour, checked again overnight. Nobody taps anything.";
+  const unlock = async () => {
+    setBusy(true);
+    try {
+      await backstage.unlock(seasonId, couchId);
+      setUnlocking(false);
+      await refresh();
+      toast(`One tap unlocked for ${seasonName} · free during beta`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Block title="How results get in" aside={<BetaChip />}>
+      <div data-ways={current} className="flex flex-col gap-2">
+        <Way
+          id="paste"
+          name="Copy and paste"
+          price="Free"
+          on={current === "paste"}
+          tag={current === "paste" ? "How you do it now" : null}
+          line={`${anyone ? "Anyone on the couch" : "Whoever runs a game here"} copies our question into ChatGPT and pastes the answer. About 2 minutes an episode.`}
+          onClick={() => ways.tap.unlocked && toast("One tap stays unlocked this season; copy and paste always works too")}
+        />
+        <Way
+          id="tap"
+          name="One tap"
+          price={`${priceOf(ways.prices.tap)} a season`}
+          on={current === "tap"}
+          tag={ways.tap.unlocked ? `Unlocked for this season${ways.tap.by ? ` by ${ways.tap.by}` : ""}` : null}
+          line={`"Ask ChatGPT for me": our bot asks and sends it in. One tap an episode, for the whole couch.${ways.bot.available ? "" : " Our bot isn't answering right now."}`}
+          onClick={() => (ways.tap.unlocked ? undefined : ways.canUnlock ? setUnlocking(true) : toast("Whoever runs the games here can unlock it"))}
+        />
+        <Way
+          id="autopilot"
+          name="Autopilot"
+          price={`${priceOf(ways.tap.unlocked ? ways.prices.autopilotAfterTap : ways.prices.autopilot)} a season`}
+          on={current === "autopilot"}
+          soon={!auto}
+          tag={auto ? "On for this season" : null}
+          line={autoLine}
+          onClick={() => !auto && toast("Autopilot is coming soon · we'll tell you when it's ready")}
+        />
+      </div>
+      <p className="mt-1 text-[12.5px] leading-snug text-muted-foreground">
+        Prices are what they&apos;ll be after beta; nothing is charged now.{auto ? "" : " Autopilot is coming soon."}
+        {ways.tap.unlocked ? ` With One tap it will be ${priceOf(ways.prices.autopilotAfterTap)}.` : ""} Who went home is always free.
+      </p>
+      <Sheet open={unlocking} onOpenChange={setUnlocking} title="Unlock One tap?" subtitle={`${seasonName} · for everyone on the couch`}>
+        <div data-unlock-sheet className="flex items-center gap-3.5 rounded-[4px] bg-background p-3.5">
+          <b className="text-[44px] leading-none">{priceOf(ways.prices.tap)}</b>
+          <span className="text-[16px] font-semibold">
+            for the whole season
+            <small className="mt-1 block text-[13px] font-normal leading-snug text-muted-foreground">
+              Every episode&apos;s results with one tap, for anyone on the couch. Copy and paste still works too.
+            </small>
+          </span>
+        </div>
+        <p className="mt-2.5 flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+          <BetaChip />
+          Nothing is charged during beta.
+        </p>
+        <Btn data-unlock tone="must" wide className="mt-3" disabled={busy} onClick={unlock}>
+          Unlock for {seasonName}
+        </Btn>
+      </Sheet>
+    </Block>
+  );
+}
+
+function Way({ id, name, price, line, on, tag, soon, onClick }: { id: string; name: string; price: string; line: string; on: boolean; tag: string | null; soon?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      data-way={id}
+      aria-pressed={on}
+      aria-disabled={soon || undefined}
+      onClick={onClick}
+      className={`block w-full rounded-[4px] p-3.5 text-left outline-[1.5px] -outline-offset-[1.5px] ${on ? "bg-background outline-foreground" : "bg-card outline-transparent"} ${soon ? "opacity-55" : ""}`}
+    >
+      <span className="flex items-center gap-2.5">
+        <i className={`size-[18px] flex-none rounded-full ${on ? "shadow-[inset_0_0_0_5px_var(--foreground)]" : "shadow-[inset_0_0_0_2px_var(--input)]"}`} aria-hidden />
+        <b className="type-caption flex-1 text-[20px]">{name}</b>
+        <span className="text-[14px] font-bold">
+          {price}
+          {soon && <span className="font-semibold text-muted-foreground"> · Coming soon</span>}
+        </span>
+      </span>
+      <small className="ml-7 mt-1 block text-[13px] leading-snug text-muted-foreground">{line}</small>
+      {tag && <span className="type-caption ml-7 mt-2 inline-block text-[11px] tracking-[0.06em] text-good">{tag}</span>}
+    </button>
   );
 }
 
@@ -596,7 +753,7 @@ function ApplyGuard({
 }: {
   seasonId: string;
   couchId: string;
-  guard: { title: string; cta: string; items: Chosen[]; quick: boolean; episode: number; replace?: string | null };
+  guard: Guard;
   next: Backstage["next"];
   onClose: () => void;
   onDone: (batch: string) => Promise<void>;
@@ -625,7 +782,7 @@ function ApplyGuard({
       onConfirm={async () => {
         // Not right: what applied first comes off, then yours goes in.
         if (guard.replace) await backstage.undo(seasonId, couchId, guard.replace);
-        const r = await backstage.apply(seasonId, couchId, { episode: guard.episode, items: guard.items, quick: guard.quick });
+        const r = await backstage.apply(seasonId, couchId, { episode: guard.episode, items: guard.items, quick: guard.quick, wait: guard.wait });
         await onDone(r.batch);
       }}
     />

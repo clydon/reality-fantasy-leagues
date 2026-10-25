@@ -158,6 +158,7 @@ async function up(pool) {
   ]);
   await pool.query(`INSERT INTO admin_changes (entity, entity_id, action, text, undo, user_id) VALUES ('rulebook', $1, 'showChanged', 'zt: the show changed from Episode 3', '{"type": "rulebookEdit"}', $2)`, [book, me]);
   await pool.query(`INSERT INTO couch_answers (couch_id, season_id, episode_number, moment_id, user_id, picks) VALUES ($1, $2, 1, 'criedAtTribal', $3, '[{"name": "Castaway 0"}]')`, [couch, season, ann]);
+  await pool.query(`INSERT INTO results_plans (couch_id, season_id, plan, unlocked_by) VALUES ($1, $2, 'tap', $3)`, [couch, season, ann]);
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

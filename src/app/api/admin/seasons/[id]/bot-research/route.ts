@@ -3,6 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireSuperAdmin, isUuid } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { askBot } from "@/lib/server/ask-bot";
+import { botSend } from "@/lib/server/bot-results";
 import { loadSeasonForJob, runJob } from "@db/bot-research.js";
 import { episodeAirsAt } from "@db/auto-research.js";
 
@@ -39,6 +40,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   if (!season) throw new HttpError(404, "Season not found");
   const airsAt = await episodeAirsAt(pool, id, episode);
   if (airsAt && airsAt.getTime() > Date.now()) throw new HttpError(400, `Episode ${episode} hasn't aired yet`);
-  const outcome = await runJob(pool, { season, episode, kind: body.kind }, { ask: askBot });
+  // Filed as a source like a scheduled run's (step 6c): what's trusted reaches every league on the season.
+  const outcome = await runJob(pool, { season, episode, kind: body.kind }, { ask: askBot, send: botSend });
   return NextResponse.json(outcome);
 });

@@ -271,7 +271,7 @@ export async function settleNow(seasonId: string, episode: number, before?: (cli
 export async function sendResults(
   input: SubmitInput,
   log: { kind: string; text: (count: number) => string; detail?: Record<string, unknown> }
-): Promise<{ researchId: string; batch: string; games: number; settled: Settled; facts: string[]; count: number }> {
+): Promise<{ researchId: string; batch: string; games: number; leagues: number; settled: Settled; facts: string[]; count: number }> {
   const sent = await submit(input);
   const { rows } = await pool.query("SELECT count(*)::int AS n FROM season_decisions WHERE id = ANY($1::uuid[]) AND status = 'accepted'", [sent.facts]);
   const count: number = rows[0].n;
@@ -289,7 +289,8 @@ export async function sendResults(
     },
   });
   const games = synced.filter((s) => s.couchId === input.couchId && s.episodes.includes(input.episode)).length;
-  return { ...sent, batch, games, count };
+  const leagues = synced.filter((s) => s.episodes.includes(input.episode)).length;
+  return { ...sent, batch, games, leagues, count };
 }
 
 /** Takes an answer back: it stops counting, the episode settles again, and every league follows. */
@@ -317,10 +318,12 @@ export async function withdrawResults(researchId: string, couchId: string | null
  * went home and hand entries say only what they said, so they stay; results an admin decided stay as decided.
  */
 export async function restageSeason(seasonId: string, fromEpisode: number, actorId: string | null): Promise<{ episodes: number[]; answers: number }> {
+  // Full answers only (they cover every kind of result): a quick check, the bot's included, says only who went home.
   const { rows: subs } = await pool.query<{ id: string; episode_number: number; payload: unknown; show_id: string; season_number: number }>(
     `SELECT er.id, er.episode_number, er.payload, er.show_id, er.season_number FROM episode_research er
        JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number
       WHERE ss.id = $1 AND er.episode_number >= $2 AND er.withdrawn_at IS NULL AND er.source IN ('paste', 'bot', 'autopilot', 'tiebreak')
+        AND er.covers IS NOT NULL AND NOT (er.covers ? 'only') AND jsonb_typeof(er.covers->'kinds') = 'null'
       ORDER BY er.episode_number, er.researched_at`,
     [seasonId, Math.max(1, fromEpisode)]
   );
@@ -442,12 +445,13 @@ export async function unsettledFacts(seasonId: string, through: number): Promise
   return out;
 }
 
-/** Who sent each episode's full answers, and how far they agree: Backstage's "filled in by riley · Confirmed". */
-export async function fillState(seasonId: string, episodes: number[]): Promise<Map<number, { by: string | null; byCouch: string | null; sources: number }>> {
-  const out = new Map<number, { by: string | null; byCouch: string | null; sources: number }>();
+/** Who sent each episode's full answers, and how far they agree: Backstage's "filled in by riley · Confirmed". `bot`: the first
+ *  was the bot's own (Autopilot, or a tie-break run), with nobody to name. */
+export async function fillState(seasonId: string, episodes: number[]): Promise<Map<number, { by: string | null; byCouch: string | null; bot: boolean; sources: number }>> {
+  const out = new Map<number, { by: string | null; byCouch: string | null; bot: boolean; sources: number }>();
   if (!episodes.length) return out;
-  const { rows } = await pool.query<{ episode_number: number; key: string; who: string | null; couch_id: string | null }>(
-    `SELECT er.episode_number, COALESCE(er.submitted_by, 'bot:' || er.source) AS key, COALESCE(u.username, u.name) AS who, er.couch_id
+  const { rows } = await pool.query<{ episode_number: number; key: string; who: string | null; couch_id: string | null; source: string; submitted_by: string | null }>(
+    `SELECT er.episode_number, COALESCE(er.submitted_by, 'bot:' || er.source) AS key, COALESCE(u.username, u.name) AS who, er.couch_id, er.source, er.submitted_by
        FROM episode_research er JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number
        LEFT JOIN "user" u ON u.id = er.submitted_by
       WHERE ss.id = $1 AND er.episode_number = ANY($2::int[]) AND er.source <> 'combined' AND er.withdrawn_at IS NULL
@@ -457,7 +461,7 @@ export async function fillState(seasonId: string, episodes: number[]): Promise<M
   );
   const keys = new Map<number, Set<string>>();
   for (const r of rows) {
-    if (!out.has(r.episode_number)) out.set(r.episode_number, { by: r.who, byCouch: r.couch_id, sources: 0 });
+    if (!out.has(r.episode_number)) out.set(r.episode_number, { by: r.who, byCouch: r.couch_id, bot: !r.submitted_by && r.source !== "paste", sources: 0 });
     keys.set(r.episode_number, (keys.get(r.episode_number) ?? new Set()).add(r.key));
   }
   for (const [n, k] of keys) out.get(n)!.sources = k.size;

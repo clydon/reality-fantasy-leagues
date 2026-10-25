@@ -40,6 +40,15 @@ export interface BotRunOutcome {
   runId: string | null;
 }
 type Ask = (prompt: string) => Promise<{ answer: string }>;
+/** Files the bot's answers as sources (src/lib/server/bot-results.ts, docs/PLAN-new-design.md step 6c). */
+export interface BotSend {
+  /** Who went home: sent when it can be trusted on its own, else kept for a commissioner (`applied: false`). */
+  quick(input: { seasonId: string; episode: number; answer: QuickAnswer; castNames: string[]; exitMethods: string[] }): Promise<
+    { applied: true; leagues: number; researchId: string } | { applied: false; doubt: string; line: string }
+  >;
+  /** The full results (researchFromPaste's run): sent as one source. */
+  full(input: { seasonId: string; episode: number; run: unknown }): Promise<{ researchId: string; facts: number; count: number }>;
+}
 
 export const DEFAULT_SCHEDULE: BotScheduleRun[];
 export const MAX_ATTEMPTS: number;
@@ -50,7 +59,7 @@ export function slotOf(run: { kind: BotKind; after: number }): string;
  *  `next`: when the next run comes due (now if one already is), or null when none is left. */
 export function runNext(
   pool: Pool,
-  opts: { ask: Ask; now?: Date; dry?: boolean; seasonId?: string }
+  opts: { ask: Ask; send?: BotSend; now?: Date; dry?: boolean; seasonId?: string }
 ): Promise<
   | { job: null; next: Date | null }
   | ({ job: { season: string; seasonNumber: number; episode: number; slot: string; kind: BotKind }; next: Date | null } & BotRunOutcome)
@@ -64,7 +73,7 @@ export function planRuns(pool: Pool, opts?: { now?: Date; seasonId?: string }): 
 export function runJob(
   pool: Pool,
   job: { season: unknown; episode: number; kind: BotKind; slot?: string },
-  opts: { ask: Ask; dry?: boolean }
+  opts: { ask: Ask; send?: BotSend; dry?: boolean }
 ): Promise<BotRunOutcome>;
 /** A season row the way runJob wants it (schedule, air clock), or undefined. */
 export function loadSeasonForJob(pool: Pool, seasonId: string): Promise<unknown>;

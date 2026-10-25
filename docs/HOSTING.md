@@ -3,7 +3,7 @@
 **Keep this current.** Update it in the same commit as any change that adds or changes polling, a scheduled
 job, stored data, or a service, and whenever usage is checked (date the numbers). It exists so that, when a
 free plan stops being enough, choosing the cheapest fit is arithmetic, not research. Last updated
-**2026-10-24**.
+**2026-10-25**.
 
 ## The stack
 
@@ -94,6 +94,8 @@ measured; measure from Neon's usage a week after a change):
 | New design, a show space: the Chat tab's badge (`/api/seasons/[id]/chat/unread`) | 30 s | under 1 KB (a count) |
 | New design, the open Chat tab (`/api/seasons/[id]/chat?v=`) | 5 s, in place of the badge | under 1 KB when nothing changed (32 characters) |
 | **Per open new-design screen** | | **~0.1 MB an hour** on a show space, ~0.5 MB on its Chat tab; nothing on the hub |
+| New design, One tap asking (`/api/seasons/[id]/backstage/ask?run=`) | 2.5 s, only while the bot answers (~1-2 min) | under 1 KB (the run's row) |
+| New design, Backstage › Results while a One tap runs (`/backstage/ways`) | 4 s, only while one runs | ~1 KB |
 
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
@@ -106,6 +108,13 @@ times Hobby's). Polling is the first thing growth hits; see Levers.
 **Bot capacity:** each episode needs a quick check (usually 2-4 tries of ~48 s) and two full runs (~2 min each),
 so about 5-8 minutes of bot time per show per episode, one at a time. Ten shows ending at the same hour would
 push the last one's results about an hour back; a second bot (the PC fallback, or a second free VM) halves that.
+One tap (new design, step 6c) adds one question per tap: who went home (~48 s) or the full results (~2 min). Results
+are shared per season, so an episode needs at most one of each from any couch (a second tap joins the one running),
+unless a dispute asks again.
+
+**Vercel function time (One tap):** the bot is asked after the tap's request has answered (`after()`), so a function
+stays alive while it waits, up to the route's 300 s (typically 40-120 s). That's mostly waiting: little Active CPU, but
+provisioned memory for the whole wait (about 1 GB × 2 minutes per full-results tap).
 
 ## Levers, cheapest first
 
@@ -280,3 +289,15 @@ never handles it: the user does the reset and the pasting.
   polls or runs on a schedule. New reads, each once a visit: Scoring rules adds the copy's half (a few small queries,
   ~1-3 KB), and an episode's page asks for the couch's own moments (one small read; empty for a couch without any). An
   answer writes one row and, when it settles something, each of the couch's games once.
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 6c part 1, how results get in. Migration 0115:
+  `results_plans` (a row when a couch unlocks One tap for a season; nothing is charged in beta), `quick_waits` (a row per
+  quick check that couldn't be sure, under 1 KB), and two columns on `bot_research_runs` (each One tap is a run row, ~1 KB
+  with its outcome). **One tap** asks the bot from the server: the request answers at once and the function stays alive
+  until the bot does (`after()`, at most 300 s; see Vercel function time above); the sheet polls the run every 2.5 s
+  while it asks, and Backstage › Results polls the ways every 4 s while one runs (both under 1 KB a time, both stop when
+  it's done). Opening the Ask an AI sheet asks the bot's `/health` (a call to the VM, no database; cached 20 s). **The
+  bot's scheduled runs are now sources** (`src/lib/server/bot-results.ts`): what's trusted reaches every league on the
+  season through the season sync (each league locked, read and written once, as a paste does), and a quick check that
+  isn't sure waits for a commissioner and counts as a failed try, so it's asked again on the quick check's usual retry
+  pace (every 5 minutes for half an hour, then every 15, for up to 3 hours: the same rule as "no source yet"). Survivor
+  51's schedule is unchanged (only the schedule check), so nothing new runs on production when this ships.

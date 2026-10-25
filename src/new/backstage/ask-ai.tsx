@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronRight, ClipboardPaste, Copy, EyeOff, CircleAlert } from "lucide-react";
+import { Check, ChevronRight, ClipboardPaste, Copy, EyeOff, CircleAlert, Zap } from "lucide-react";
 import { chatLink, type ChatApp } from "@/lib/ai-brief";
-import { backstage } from "../data";
+import { backstage, useAfterResults, useAskRun, useWays, type AskRun, type PasteResult, type Ways } from "../data";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
@@ -12,8 +12,14 @@ import { toast } from "../ui/toast";
 // Ask an AI (the mock's askai.js, docs/PLAN-new-design.md step 5): one sheet wherever a question needs answering by a
 // chat that can search the web. A three-step track (Open · It answers · Paste it back); one big Open in ChatGPT (your
 // last choice remembered on this device; Grok the other one that follows our links), and Another AI? Copy the question.
-// Back from the chat, Paste the answer, a check that it looks whole, then Use this answer. Copy and paste is the free
-// way; step 6c adds One tap ("Ask ChatGPT for me") and Autopilot. The question itself is parked at /b/<code>.
+// Back from the chat, Paste the answer, a check that it looks whole, then Use this answer. The question itself is parked
+// at /b/<code>.
+//
+// One tap (step 6c, the mock's bot.js): while our bot answers its health check, the sheet leads with "Ask ChatGPT for
+// me", and copy and paste is one row below it. Who went home is always free; the full results ask for One tap to be
+// unlocked for the couch ($1 a season, "Free during beta": nothing is charged), which the same tap does. The bot asks
+// on the server while the sheet shows it searching (it can be closed: the run carries on, and opening the sheet again
+// shows it); its answer goes in like a paste, so the sheet closes with the same toast and nothing is shown of it.
 
 const APPS: Record<ChatApp, { name: string; colour: string; line: string }> = {
   chatgpt: { name: "ChatGPT", colour: "#10a37f", line: "Opens the ChatGPT app or chatgpt.com" },
@@ -47,13 +53,176 @@ export interface AskAiProps {
   check: AnswerCheck;
   /** Sends the answer; throws with the reason (a 409 asks whether it really is this episode). */
   onUse: (answer: string, opts: { confirmed: boolean }) => Promise<void>;
+  /** What One tap's answer did, once the bot is done (the sheet closes; say so as after a paste). */
+  onTapped: (r: PasteResult) => Promise<void> | void;
+  /** "Survivor 51", for One tap's unlock line. */
+  seasonName: string;
 }
 
 export function AskAiSheet(props: AskAiProps) {
+  const ways = useWays(props.seasonId, props.couchId, props.open);
+  const [paste, setPaste] = useState(false);
+  // Each time it opens: One tap first when the bot can take it.
+  const [wasOpen, setWasOpen] = useState(props.open);
+  if (props.open !== wasOpen) {
+    setWasOpen(props.open);
+    if (props.open) setPaste(false);
+  }
+  const w = ways.data;
+  const locked = props.kind === "full" && !w?.tap.unlocked;
+  // One tap is on offer when our bot answers, and for the full results it's unlocked here or you may unlock it.
+  const tap = !!w?.bot.available && (!locked || w.canUnlock);
+  const choosing = !paste && (tap || ways.isPending);
+  const subtitle = !choosing
+    ? "Ask an AI · free · about 2 minutes"
+    : props.kind === "quick"
+      ? "Who went home is always free"
+      : locked
+        ? "Get this episode's results in"
+        : "One tap · unlocked for this season";
   return (
-    <Sheet open={props.open} onOpenChange={props.onOpenChange} title={props.title} subtitle="Ask an AI · free · about 2 minutes">
-      {props.open && <AskAiBody {...props} />}
+    <Sheet open={props.open} onOpenChange={props.onOpenChange} title={props.title} subtitle={subtitle}>
+      {props.open &&
+        (ways.isPending && !paste ? (
+          <div aria-busy className="h-44 animate-pulse rounded-[3px] bg-background" />
+        ) : choosing && w ? (
+          <OneTap {...props} ways={w} locked={locked} onPaste={() => setPaste(true)} />
+        ) : (
+          <AskAiBody {...props} />
+        ))}
     </Sheet>
+  );
+}
+
+/** A price in cents as it reads: "$1", "$4.50". */
+export const priceOf = (cents: number) => `$${cents % 100 ? (cents / 100).toFixed(2) : cents / 100}`;
+
+/** "Ask ChatGPT for me": the bot asks for you; copy and paste one row below. Then it's searching, done or not. */
+function OneTap({ ways, locked, onPaste, ...props }: AskAiProps & { ways: Ways; locked: boolean; onPaste: () => void }) {
+  const { seasonId, couchId, episode, kind } = props;
+  const going = ways.running.find((r) => r.episode === episode && r.kind === kind) ?? null;
+  const [runId, setRunId] = useState<string | null>(going?.id ?? null);
+  const [asking, setAsking] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const run = useAskRun(seasonId, couchId, runId);
+  const refresh = useAfterResults();
+  const ended = useRef<string | null>(null);
+  const r: AskRun | null = run.data ?? (going && going.id === runId ? going : null);
+  const shown = problem ?? (r?.status === "failed" ? (r.message ?? "ChatGPT didn't answer. Copy and paste works.") : null);
+
+  // Done: what it did goes to the caller (the sheet closes); another couch's run just brings the results in.
+  useEffect(() => {
+    if (!r || r.status !== "done" || ended.current === r.id) return;
+    ended.current = r.id;
+    if (r.outcome) void props.onTapped(r.outcome);
+    else {
+      void refresh();
+      toast(`Episode ${episode}'s results are in`);
+      props.onOpenChange(false);
+    }
+  }, [r, episode, props, refresh]);
+
+  const ask = async () => {
+    setAsking(true);
+    setProblem(null);
+    try {
+      if (locked) {
+        await backstage.unlock(seasonId, couchId);
+        void refresh();
+        toast(`One tap unlocked for ${props.seasonName} · free during beta`);
+      }
+      const started = await backstage.ask(seasonId, couchId, episode, kind);
+      setRunId(started.id);
+    } catch (e) {
+      setProblem((e as Error).message);
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  if (r && r.status === "running") {
+    const who = r.mine ? "" : r.here ? (r.by ? `${r.by} asked · ` : "") : "Asked from another couch · ";
+    return (
+      <div data-one-tap="running" aria-live="polite">
+        <div className="flex items-center gap-3 pb-3 pt-1.5">
+          <span className="size-[26px] flex-none animate-spin rounded-full border-[3px] border-border border-t-foreground motion-reduce:animate-none" aria-hidden />
+          <span>
+            <b className="block text-[16px]">ChatGPT is searching the web</b>
+            <small className="block text-[13px] leading-snug text-muted-foreground">{who}Usually under 2 minutes · you can close this, it carries on</small>
+          </span>
+        </div>
+        <div className="h-1 overflow-hidden rounded-[2px] bg-border">
+          <i className="nd-asking block h-full w-2/5 bg-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-one-tap={locked ? "locked" : "ready"}>
+      <p className="text-[15px] leading-snug">{props.what}</p>
+      {props.spoiler && (
+        <p className="mt-3 flex gap-2 rounded-[3px] bg-background px-3 py-2.5 text-[13px] leading-snug text-muted-foreground">
+          <EyeOff className="mt-px size-4 flex-none" aria-hidden />
+          Its answer says who went home, so you never see it: what its sources agree on applies on its own.
+        </p>
+      )}
+      <button
+        type="button"
+        data-ask-bot
+        onClick={ask}
+        disabled={asking}
+        className="nd-press mt-4 flex min-h-[72px] w-full items-center gap-3 rounded-[4px] bg-plate p-3.5 text-left text-plate-foreground disabled:opacity-70"
+      >
+        <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-chyron text-chyron-foreground">
+          <Zap className="size-5" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <b className="block text-[17px]">{asking ? "Asking…" : "Ask ChatGPT for me"}</b>
+          <small className="block text-[13px] leading-snug text-plate-muted">
+            {locked ? "One tap an episode, for the whole couch" : kind === "quick" ? "Free: our bot asks and sends the answer" : "One tap: our bot asks and sends the answer"}
+          </small>
+        </span>
+        {locked ? (
+          <span className="flex flex-none flex-col items-end">
+            <b className="text-[20px] leading-none">{priceOf(ways.prices.tap)}</b>
+            <small className="text-[11px] text-plate-muted">this season</small>
+          </span>
+        ) : (
+          <ChevronRight className="size-5 flex-none text-plate-muted" aria-hidden />
+        )}
+      </button>
+      {locked && (
+        <p className="mt-2.5 flex flex-wrap items-center gap-2 text-[13px] leading-snug text-muted-foreground">
+          <BetaChip />
+          Unlock it once for {props.seasonName} and anyone on the couch can use it.
+        </p>
+      )}
+      {shown && (
+        <p role="alert" data-one-tap-problem className="mt-3 rounded-[3px] bg-background p-3 text-[13px] leading-snug">
+          {shown}
+        </p>
+      )}
+      <button type="button" data-copy-paste onClick={onPaste} className="mt-3 flex min-h-[60px] w-full items-center gap-3 border-b border-border pb-2 text-left">
+        <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary">
+          <Copy className="size-5" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <b className="block text-[15px] font-semibold">Copy and paste it yourself</b>
+          <small className="block text-[13px] text-muted-foreground">Free, always · about 2 minutes</small>
+        </span>
+        <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+/** "Free during beta": every price says it, and nothing is charged. */
+export function BetaChip() {
+  return (
+    <span className="type-caption inline-flex h-[22px] items-center whitespace-nowrap rounded-[2px] px-2 text-[11px] tracking-[0.06em] text-good outline-1 -outline-offset-1 outline-good/50">
+      Free during beta
+    </span>
   );
 }
 

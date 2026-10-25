@@ -16,6 +16,7 @@ import type { WaiverWeek } from "@/lib/game/waiver-view";
 import type { GameSettings, ScoringRules, WaiverAdminGame, WaiverAction } from "@/lib/server/backstage-games";
 import type { CouchMoments } from "@/lib/server/couch-answers";
 import type { Members, OutPreview } from "@/lib/server/backstage-members";
+import type { AskRun, Ways } from "@/lib/server/results-ways";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -33,6 +34,7 @@ export type { GameRules, GameSettings, ScoringRules, WaiverAdminGame } from "@/l
 export type { OurRules } from "@/lib/server/ours";
 export type { CouchMoments } from "@/lib/server/couch-answers";
 export type { Member, MemberGame, Members, OutPreview } from "@/lib/server/backstage-members";
+export type { AskRun, Ways } from "@/lib/server/results-ways";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -400,6 +402,31 @@ export function useBackstage(seasonId: string, couchId: string | null, episode: 
   });
 }
 
+/**
+ * How results get in for this couch's season (GET .../backstage/ways, step 6c): One tap's unlock, Autopilot, whether our bot
+ * is answering, and any One tap still running (polled while one is, so a card can say when it lands).
+ */
+export function useWays(seasonId: string, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "ways", seasonId, couchId],
+    queryFn: () => get<Ways>(seasonUrl(seasonId, "/backstage/ways", { couch: couchId ?? "" })),
+    enabled: !!couchId && enabled,
+    staleTime: 30_000,
+    refetchInterval: (q) => (q.state.data?.running.length ? 4000 : false),
+    retry: (n, e) => (e as { status?: number }).status !== 403 && n < 2,
+  });
+}
+
+/** One tap's run (GET .../backstage/ask?run=), polled every 2.5 s until it's done or failed. */
+export function useAskRun(seasonId: string, couchId: string | null, runId: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "ask-run", seasonId, couchId, runId],
+    queryFn: () => get<AskRun>(seasonUrl(seasonId, "/backstage/ask", { couch: couchId ?? "", run: runId ?? "" })),
+    enabled: !!couchId && !!runId,
+    refetchInterval: (q) => (q.state.data && q.state.data.status !== "running" ? false : 2500),
+  });
+}
+
 /** Recent changes to the couch's games here (GET .../changes), for everyone on the couch. */
 export function useChanges(seasonId: string, couchId: string | null, enabled = true) {
   return useQuery({
@@ -418,7 +445,7 @@ export const backstage = {
     post<PasteResult>(seasonUrl(seasonId, "/backstage/results", { couch: couchId }), body),
   preview: (seasonId: string, couchId: string, body: { episode: number; items: Chosen[]; quick?: boolean }) =>
     post<{ lines: PreviewLine[]; games: number }>(seasonUrl(seasonId, "/backstage/apply", { couch: couchId }), { ...body, preview: true }),
-  apply: (seasonId: string, couchId: string, body: { episode: number; items: Chosen[]; quick?: boolean }) =>
+  apply: (seasonId: string, couchId: string, body: { episode: number; items: Chosen[]; quick?: boolean; wait?: { id: string; right: boolean } }) =>
     post<{ games: number; skipped: string[]; batch: string }>(seasonUrl(seasonId, "/backstage/apply", { couch: couchId }), body),
   undo: (seasonId: string, couchId: string, batch: string) =>
     post<{ undone: number; text: string }>(seasonUrl(seasonId, `/changes/${encodeURIComponent(batch)}/undo`, { couch: couchId })),
@@ -434,6 +461,10 @@ export const backstage = {
     if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't save (${res.status})`), { status: res.status });
     return out as { games: number };
   },
+  /** One tap: our bot asks this episode's question for the couch (a run to poll; a run already going is joined). */
+  ask: (seasonId: string, couchId: string, episode: number, kind: "quick" | "full") => post<AskRun>(seasonUrl(seasonId, "/backstage/ask", { couch: couchId }), { episode, kind }),
+  /** Unlocks One tap for the whole couch on this season (free during beta). */
+  unlock: (seasonId: string, couchId: string) => post<Ways>(seasonUrl(seasonId, "/backstage/ways", { couch: couchId }), { unlock: "tap" }),
   /** Who can fill in results on the couch: anyone on it, or only people who run games. */
   setFill: (seasonId: string, couchId: string, anyone: boolean) => sendJson<{ anyone: boolean }>(seasonUrl(seasonId, "/backstage/fill", { couch: couchId }), "PUT", { anyone }),
 };

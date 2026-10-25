@@ -31,7 +31,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | **done** 2026-10-25 on the branch (migration 0111 ships with 0b's) | Opus · high |
 | 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | **done** 2026-10-25 on the branch (no migration) | Opus · high |
 | 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **done** 2026-10-25 on the branch, in three parts: results from everyone and disputes (migration 0112), the admin's desk and the rulebook editor (0113), Make it ours (0114); all ship with 0b's | Opus · high |
-| 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | not started | Opus · xhigh |
+| 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | **part 1 done** 2026-10-25 on the branch (One tap, the ways, the bot's runs as sources, quick checks that wait kept; migration 0115 ships with 0b's); part 2 next: the tie-break run, "nobody went home", show changes the couches confirm | Opus · xhigh |
 | 7 | Draft room and blind draft | not started | Opus · xhigh |
 | — | **Switch the couch to the new design by default** | — | — |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | not started | Opus · xhigh |
@@ -137,10 +137,6 @@ step's As built.
 - **Predictions are a text field** (step 1; for 12). Real predictions are free-text questions with free-text guesses
   (`Bet` has no options), so the sheet's Predictions tab has a field where the mock has chips. Step 12's Call it and
   polls could give a prediction options (a cast pick, yes / no) and bring the chips back.
-- **The bot's quick check applies nothing** (step 2; for 6c). Step 5's quick check (Backstage: Ask an AI's answer
-  pasted, or who went home entered by hand) applies the eliminations and marks the episode early; the bot's own quick check
-  (`db/bot-research.js`) still only keeps its answer on the run row. 6c can hand it to `backstage.ts`'s apply (the
-  `applyToGames` path, as `pasteResults` does for a pasted quick check) for every couch on the season with a game there.
 - **The morning update replays the reveal** (step 2; for 8 or later). Final scores after an early reveal open the
   episode's reveal again (who went home included), where the mock's sheet shows "so far +14 → final +22": nobody keeps
   what the early reveal showed. Keeping the early total on `show_follows` (beside `early_seen`) would allow the delta.
@@ -177,21 +173,19 @@ step's As built.
   see yet, gets "Chat opens later". The fold would keep them spoiler-safe now, but posting would show them to a league
   that can't see them; step 9's join flow is where a couch member who isn't in the games yet joins the talk.
 - **Only the newest 300 messages** (step 4; for 13 or 15), as classic: nothing loads earlier ones.
-- **Only the new design's answers are sources** (step 6b part 1; for 6c and C). Backstage's quick check, hand
-  entries, ticks and full pastes (and a player's Fill it in) are submissions that settle facts for every couch; the bot's
-  runs (`db/bot-research.js`), classic's commissioner research panel, the admin's research and paste in Admin › Shows, and
-  the wiki still stage pending results the old way, so they're never a source and never apply on their own. 6c's One tap and
-  Autopilot should send through `community-results.ts` `sendResults` (source `bot` / `autopilot`). The desk's decisions are
-  canonical (part 2), as classic's accept and reject are; the admin's research and paste in classic Admin › Shows retire at
-  cutover.
-- **No tie-break run** (step 6b part 1; for 6c). The plan's "a dispute open a day triggers one tie-break run" needs a
+- **Classic's research isn't a source** (step 6b part 1; for C). Backstage's answers, a player's Fill it in, One tap and
+  (since 6c) the bot's scheduled runs are submissions that settle facts for every couch; classic's commissioner research
+  panel, the admin's research and paste in Admin › Shows, and the wiki still stage pending results the old way, so they're
+  never a source and never apply on their own. The desk's decisions are canonical (part 2), as classic's accept and reject
+  are; classic's research screens retire at cutover.
+- **No tie-break run** (step 6b part 1; for 6c part 2). The plan's "a dispute open a day triggers one tie-break run" needs a
   scheduled bot run (and Survivor 51's bot runs only the schedule check, the user's call); until then a flag waits for
   someone to Check it again from Backstage (one more answer about everyone settles it), and since part 2 a flag nothing
   checked for a day, and any split, reaches the admin's Inbox.
 - **One person, one source** (step 6b part 1; for a later step). Sources are counted by person, so two accounts on one couch
   pasting the same wrong answer confirm it for every couch. House rulings take away a couch's reason to, the admin can
   decide it (part 2), and Settings' Confirmed needs can ask for 3 or 4; counting couches instead of people is still open.
-- **Show changes aren't community-confirmed** (step 6b part 2; for 6c, with research's runs). The plan's "Something the
+- **Show changes aren't community-confirmed** (step 6b part 2; for 6c part 2, with research's runs). The plan's "Something the
   rulebook doesn't have" on an episode page (It's new / Not new, a second couch agreeing adds it from that episode) isn't
   built: the desk's The show changed is the only way a rulebook changes from an episode on (couches with their own copy are
   asked first, part 3). Until it is, a rulebook's Lock holds back nothing the desk doesn't already control.
@@ -206,7 +200,7 @@ step's As built.
   all in a built one's is left out as a repeat, so a first research of the Traitors would drop "As a Faithful, voted out a
   Faithful" (it reads as "…voted out a Traitor at Round Table"). Check for changes keeps the rulebook's own moments
   (part 2); a new show has none to keep. Telling the roles apart (a differing noun) would fix it.
-- **The desk's Settings is short** (step 6b part 2; for 6c and C). The mock's research model and prompts, Autopilot trial
+- **The desk's Settings is short** (step 6b part 2; for 6c part 2 and C). The mock's research model and prompts, Autopilot trial
   and What's New aren't there; classic's `/admin` still has them until cutover. A person's page only looks (no reset,
   remove or make admin) for the same reason.
 - **Undo leaves what another answer also says** (step 6b part 1; for a later polish). Taking your answer back keeps any
@@ -215,11 +209,11 @@ step's As built.
 - **Flags don't notify** (step 6b part 1; for 15). "You'll hear how it went" is the flag's status: Backstage's Flags from your
   couch (for whoever runs a game) and "you flagged this" on the episode's sheet. A push when a flag settles belongs with
   notifications by moment.
-- **A quick check that waits isn't kept** (step 5; for 6c). Pasted and unsure (one source, a name we don't know), it waits
-  on the open page: whoever pasted it is there to Show me and say It's right or Not right. The bot's unsure answers will
-  need keeping (`bot_research_runs.result` has them) and showing in Backstage.
-- **"Nobody went home" can't be marked** (step 5; for 6c). A quick check that says nobody left waits, and there's no way to
-  mark an episode early with no elimination; the full results settle it. Rare (non-elimination episodes).
+- **"Nobody went home" can't be marked** (step 5; for 6c part 2). A quick check that says nobody left waits (kept since 6c
+  part 1, with It's right disabled: there's no one to apply), and there's no way to mark an episode early with no
+  elimination; the full results settle it. Rare (non-elimination episodes). The engine's "has results" means an event is
+  in, so it needs a marker (say a shared `noexit` fact the sync applies and undoes like any other, which a quick answer
+  naming someone counts against).
 - **Not in Recent changes yet** (step 5; for 7, 9 and 6b). Logged: every classic results route, settings, roles, players,
   the cast and tribes, waivers (process, undo, window), the catch-up reveal, lineup locks, the draft's start, order and
   take-back, the finale's results, prediction questions, rule changes, scoring rules, renaming, linking and moves made for
@@ -246,6 +240,23 @@ step's As built.
   Restoring them (Recent changes) puts them back on it.
 - **The run's "seen" mark is per device** (step 6a; for 15). Tonight's "Waivers ran" plate goes once you've watched the run
   here (localStorage), so another phone shows it again until the week ends.
+- **No quick-check switch for a couch** (step 6c part 1; for 6c part 2 or when Autopilot ships, the user's call). The mock's
+  Quick check card has a switch ("Our bot checks who went home about 5 minutes after the episode, and keeps checking until
+  it's sure. Always free."). The bot's schedule is per season and an admin's (Survivor 51 runs only the schedule check, the
+  user's decision), so a couch switching it on would add runs for every couch on the season; not built. Backstage says
+  "Autopilot · On for this season" when an admin's schedule has a quick or full run.
+- **One tap's answers may not be independent** (step 6c part 1; for the bot, the user's call). Two couches tapping One tap for
+  one episode are two sources (counted by who tapped, like two pastes), but the bot's one signed-out ChatGPT profile
+  carries earlier chats (memory ask-ai-bot's context leak), so its second answer may lean on its first. Temporary chats per
+  request in llm-browser-api's server.py would fix it; it's a change on the VM. The full answer's episode check
+  (`pasteEpisodeMismatch`) fails a One tap answer about another episode; a quick answer has no such check (its names must
+  be someone still in, and it needs two sources to apply on its own).
+- **Nobody can undo the bot's own answer** (step 6c part 1; for 6c part 2's desk Settings or C). An Autopilot answer has no
+  couch, so no couch gets its line or its Undo (like another couch's answer); a wrong one is flagged ("Something wrong?") and
+  settled by the next answer, or decided on the desk. The desk could offer "withdraw this answer" on a result's page.
+- **The commissioner tour's test fails** (seen in step 6c part 1, failing at HEAD before it; for 7 or a classic fix).
+  `tests/tour-commissioner.test.js`' three tests stop in the tour's draft (`S.freeAgents(s)[0]` is undefined while drafting
+  `buildCommissionerState()`'s league). Not looked into; the other 513 tests pass.
 - **Fewer starters trims lineups** (step 6a). Lowering Who scores each week keeps the first starters of a lineup already set
   for the next episode; Undo puts the number back, not the trimmed starters (the lineup then reads "not set", so it's asked
   for again).
@@ -1668,6 +1679,78 @@ person unlocks it for the whole couch), **Autopilot** (the schedule, $5 a season
 "coming soon"). Who went home (the quick check) is always free, because it keeps a commissioner
 spoiler-safe. Every price shows with a "Free during beta" label and nothing is charged. Setting up a show
 with "Ask ChatGPT for me" is free (step 10).
+
+Two parts (decided 2026-10-25): part 1 is the three ways, One tap and the bot's runs as sources, and keeping a quick check
+that waits; part 2 is the Noticed items left for 6c: the tie-break run (a scheduled bot run, so its switch is the user's
+for Survivor 51), "nobody went home", the show changes the couches confirm, and the desk's Settings for the bot.
+
+### As built, step 6c part 1 (2026-10-25, on `new-design`): how results get in
+
+Results get in three ways per couch and season: copy and paste (free, always), One tap (our bot asks ChatGPT for the couch,
+unlocked once for the whole couch, free during beta) and Autopilot (coming soon; on when an admin runs the bot's schedule
+for the season). The bot's answers are sources like anyone's, and a quick check that can't be sure is kept until someone
+checks it. Migration **0115** ships with 0b's (same rehearsal).
+- **Data (0115, additive):** `results_plans` (couch, season, plan `tap`, who unlocked it, `charged_cents` 0 in beta);
+  `bot_research_runs.couch_id` / `asked_by` (a One tap is a run, slot `tap`); `quick_waits` (an answer about who went home
+  that waits: the season, episode, couch (null: the bot's own), who sent it, how (`paste` / `tap` / `autopilot`), the parsed
+  answer, the doubt; closed as right, not-right or replaced). Backups take `results_plans` (`backup-common.js`,
+  `backup-leagues.js`, `backup-fixture.js`); waits and runs aren't kept (what was asked, not what was played).
+- **One tap** (`src/lib/server/results-ways.ts`; `GET/POST /api/seasons/[id]/backstage/ways`, `POST/GET .../backstage/ask`):
+  who went home is free for whoever runs a game; the full results need One tap unlocked for the couch (whoever may fill in
+  results can unlock it: a line in Recent changes on each of the couch's games, nothing to undo). The POST answers at once
+  with a run and the bot is asked after the response (`next/server` `after`, within the route's 300 s); a run for the same
+  episode already going (from any couch: results are shared) is joined, so the bot is asked once. The answer goes through
+  `pasteResults(..., { via: "tap" })`: a submission with source `bot` counted as whoever tapped (their voice, like their
+  paste), applying what's trusted to every league on the season, one line with Undo in the couch's Recent changes. A full
+  answer that reads like another episode's, a bot that doesn't answer, or one that can't be read fails the run with a
+  reason. Nothing in a run's outcome names anyone (`PasteResult` lost its names: Show me has them).
+- **The sheet** (`src/new/backstage/ask-ai.tsx`): while our bot answers its health check (`askBotStatus`, cached 20 s), Ask an
+  AI leads with "Ask ChatGPT for me" (the mock's plate with the chyron bolt; "Free: our bot asks and sends the answer" for
+  who went home; "$1 this season" and "Free during beta · Unlock it once for <season> and anyone on the couch can use it"
+  while the full results are locked) and "Copy and paste it yourself · Free, always" one row below, which is step 5's
+  three-step flow. Tapping it (unlocking first when locked) shows ChatGPT searching (a spinner and a moving bar, still under
+  reduced motion; "you can close this, it carries on"); the sheet polls the run and, when it's done, closes with the same
+  toasts as a paste. A sheet opened while a run is going joins it ("riley asked", or "Asked from another couch"). A bot
+  that's down: the sheet is copy and paste as before. Tonight's Fill it in gets the same.
+- **How results get in** (Backstage › Results, replacing the `backstage.results-ways` Preview): the three ways with their
+  prices ($1 a season; Autopilot $5, $4 with One tap), "Free during beta", the one in use marked (copy and paste "How you do
+  it now"; One tap "Unlocked for this season by alex"; Autopilot "On for this season" with what the bot checks, else
+  "Coming soon" and a toast), the unlock sheet (the mock's: $1 for the whole season, nothing charged, Unlock for <season>).
+  A card whose pass is being asked says "ChatGPT is looking it up" (the ways poll every 4 s while a run is going).
+- **The bot's scheduled runs are sources** (`src/lib/server/bot-results.ts`, `db/bot-research.js` `runJob`'s injected `send`,
+  passed by the cron route and classic Admin's Run now): a quick check that can be trusted (`quickVerdict`) and every full
+  run are submissions with source `autopilot` and nobody behind them (one voice, `bot:autopilot`: a later run's answer
+  replaces an earlier one's), reaching every league on the season; no couch gets an arrival line, only corrections. A full
+  run's answer is checked against the episode first (`checkEpisode`: one about another episode is a failed try). Full
+  scores say "filled in by our bot" (`fillState`'s `bot`). Survivor 51's schedule is unchanged (only the schedule check),
+  so nothing new runs on production; the user decides any quick or full runs.
+- **A quick check that waits is kept** (`src/lib/server/quick-waits.ts`): pasted or One tap, it waits on that couch; the bot's
+  scheduled one on every couch with a game on the season, and counts as a failed try so the bot asks again (the quick
+  check's retry pace). Backstage's read carries `episode.wait` (the doubt, how many sources, who sent it, no names) while
+  nobody's who-went-home is in, and `shown.wait` (the names, their faces and how they left) with Show me; Needs you says
+  "An answer waits". It's right and Not right send `wait: { id, right }` with the apply, which closes it; a newer answer
+  replaces it; "couldn't find it yet" isn't kept.
+- **Also:** `restageSeason` re-reads only full answers (a quick one, the bot's now included, says only who went home); the
+  desk names a One tap source "asked our bot (One tap)"; `sendResults` says how many leagues it changed (`leagues`).
+- **Fixed from Noticed, not fixed:** the bot's quick check applies (the bot's runs are sources); a quick check that waits is kept
+  and shown in Backstage.
+- **Fixtures and Preview:** `backstage.results-ways` is gone; no fixtures added.
+- **Changed from the mock:** One tap's done state applies the answer the way a paste does (5B: what the sources agree on applies
+  on its own and nothing is shown) instead of showing the answer with "Use this answer", so a commissioner who hasn't watched
+  stays spoiler-safe; the Quick check card has no switch for the bot (Noticed); the ways list is buttons with radio dots, as
+  the mock's, but only One tap's (unlock) and Autopilot's (coming soon) do anything.
+- **Testing seam:** a dev server takes the bot from a request's `x-gys-bot` header (`ask-bot.ts` `botFor`: `next dev` only, a
+  loopback address only), so a check asks its own stand-in (`scripts/dev-test/fake-bot.js`) instead of ChatGPT or
+  production's VM; `browser.js`' `api()` takes `headers`.
+- **Checks:** `scripts/dev-test/check-new-results-ways.js <outDir> [--width=390] [--keep]` (89 PASS at 390): the ways, a bot
+  that's down, One tap for who went home (joined, applied everywhere, a source by whoever tapped, Undo), waits kept (One tap
+  and pasted; It's right, Not right, not found), the browser (How results get in, the unlock sheet, the One tap sheet, searching,
+  applied, a wait, the full results locked, copy and paste, unlocking with one tap), the full results (couch B still locked,
+  sam refused, a bot that fails), jordan's Fill it in with One tap, and the bot's schedule (an unsure quick check waits on
+  every couch and is retried, the sure retry and the full run reach every league, "filled in by our bot"). Its test clock
+  sits near the real one (the season is moved so Episode 6 ended six minutes ago): retries count from when a try really
+  started. `check-new-backstage.js` (67) and `check-new-community.js` (82) tap "Copy and paste it yourself" when One tap is
+  offered, and step 5's unsure answers are now kept.
 
 ## Steps 8–15: beyond parity
 

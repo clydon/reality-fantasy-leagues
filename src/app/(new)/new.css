@@ -356,3 +356,20 @@ html[data-nav="right"] .nd-dock {
 .nd-range:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 3px var(--foreground);
 }
+
+/* One tap (step 6c, the mock's bot.js): the bot is asking, a bar that keeps moving (a still, faint bar under reduced motion). */
+@keyframes nd-asking {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+.nd-asking {
+  animation: nd-asking 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-asking {
+    animation: none;
+    transform: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}

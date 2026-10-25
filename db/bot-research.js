@@ -10,8 +10,13 @@
 // Each call to POST /api/cron/bot-research runs at most one due run (the bot answers one question at a
 // time anyway) and says when the next one comes due (nextRunAt). The VM's tick calls only then, so the
 // database sleeps between runs (docs/HOSTING.md: on Neon's Free plan a database never left idle for 5
-// minutes uses up the month's compute). Nothing reaches a league by itself: full runs stage season
-// decisions for an admin, exactly like the Research button.
+// minutes uses up the month's compute).
+//
+// Its answers are sources like anyone's (docs/PLAN-new-design.md step 6c): the app passes `send`
+// (src/lib/server/bot-results.ts), which files each answer through community-results.ts, so what's trusted
+// reaches every league on the season on its own, and a quick check it can't be sure of waits in Backstage and is
+// asked again. Without `send` (a test, a dry run) a quick answer is only kept on the run row and a full one staged
+// for an admin, as before.
 const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const AutoResearch = require("./auto-research.js");
@@ -308,9 +313,11 @@ async function listDue(pool, opts = {}) {
 /**
  * Runs one job: asks the bot (`ask(prompt) -> { answer }`, injected so a test can stand in) and files
  * the answer. A quick answer is kept on the run row; a full one goes through the paste import, merged
- * into whatever the episode already has. `dry` asks and parses but writes nothing.
+ * into whatever the episode already has. `send` (the app's) also files either as a source: a quick
+ * answer it can't trust yet waits for a commissioner and counts as a failed try, so it's asked again.
+ * `dry` asks and parses but writes nothing.
  */
-async function runJob(pool, job, { ask, dry = false } = {}) {
+async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
   const { season, episode, kind } = job;
   const slot = job.slot || "now";
   const started = Date.now();
@@ -362,6 +369,12 @@ async function runJob(pool, job, { ask, dry = false } = {}) {
       const q = parseQuickAnswer(answer, ctx.castNames);
       // Too early is a failed attempt, so it's asked again a few minutes later.
       if (!q.found) return finish(false, "No source about this episode yet", q);
+      if (send && !dry) {
+        const sent = await send.quick({ seasonId: season.id, episode, answer: q, castNames: ctx.castNames, exitMethods: (ctx.format && ctx.format.exitMethods) || [] });
+        // Not sure yet (one source, a name not in the cast): it waits in Backstage, and the next try may settle it.
+        if (!sent.applied) return finish(false, `Not sure yet: ${sent.line}`, { ...q, doubt: sent.doubt });
+        return finish(true, `${quickMessage(q)} In ${sent.leagues} league(s).`, { ...q, applied: true, researchId: sent.researchId });
+      }
       return finish(true, quickMessage(q), q);
     }
     const { prompt } = await Research.buildPasteImportPrompt(pool, season.slug, season.season_number, episode, { structured: true });
@@ -379,6 +392,8 @@ async function runJob(pool, job, { ask, dry = false } = {}) {
       fill: again,
       dry,
       via: "bot",
+      // An answer about another episode (the bot's chat can carry an earlier question over) is a failed try.
+      checkEpisode: !!send,
     });
     const d = run.decisions || {};
     const result = {
@@ -389,6 +404,10 @@ async function runJob(pool, job, { ask, dry = false } = {}) {
       total: d.total || 0,
       problems: (run.problems || []).slice(0, 20),
     };
+    if (send && !dry) {
+      const sent = await send.full({ seasonId: season.id, episode, run });
+      return finish(true, `${sent.count} of ${sent.facts} result(s) in every league${again ? " (the stored answers merged too)" : ""}`, { ...result, submission: sent.researchId, live: sent.count });
+    }
     return finish(true, `${result.inserted} new result(s) to review${again ? " (merged into the earlier answers)" : ""}`, result);
   } catch (e) {
     return finish(false, e instanceof Error ? e.message : String(e), null);
@@ -396,14 +415,14 @@ async function runJob(pool, job, { ask, dry = false } = {}) {
 }
 
 /** What the VM's timer calls: runs the earliest due job, if any. */
-async function runNext(pool, { ask, now = new Date(), dry = false, seasonId } = {}) {
+async function runNext(pool, { ask, send = null, now = new Date(), dry = false, seasonId } = {}) {
   const startedAt = Date.now();
   const plan = await planRuns(pool, { now, seasonId });
   const [job] = plan.due;
   if (!job) return { job: null, next: plan.next };
   const label = `${job.season.slug} season ${job.season.season_number} episode ${job.episode} ${job.slot}`;
   console.log(`[bot-research] running ${label}`);
-  const outcome = await runJob(pool, job, { ask, dry });
+  const outcome = await runJob(pool, job, { ask, send, dry });
   console.log(`[bot-research] ${label}: ${outcome.ok ? "ok" : "failed"} in ${outcome.seconds}s: ${outcome.message}`);
   // Planned again: this try changed the history (a retry's time, or the next slot). `now` moves on by
   // however long the run took, so a test clock stays a test clock.

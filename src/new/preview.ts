@@ -55,12 +55,7 @@ export const PREVIEWS = {
   "show.blind": { step: "7", title: "The blind draft", line: "Pick in private, then reveal together." },
 
   // ---- Backstage (Results and Recent changes are real since step 5; Waivers, Scoring rules, Members & roles and Game
-  // settings since 6a) ----
-  "backstage.results-ways": {
-    step: "6c",
-    title: "How results get in",
-    line: "Copy and paste (free), One tap (we ask ChatGPT for you) and Autopilot, for the whole couch.",
-  },
+  // settings since 6a; How results get in since 6c) ----
   "backstage.end-game": { step: "10", title: "Archive or delete a game", line: "Keep it on the trophy shelf and stop scoring, or remove it for everyone." },
 
   // ---- you ----

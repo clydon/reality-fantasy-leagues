@@ -67,9 +67,16 @@ Check: `node scripts/dev-test/check-bot-research.js up | run <out> 390 5 | down`
 into a `zt-bot-*` show and drives the schedule with a test clock against the real bot. Last run: quick
 34s, full 111s (35 results), the 9 h re-run merged 15 more.
 
+## In the new design (step 6c, on the `new-design` branch)
+
+- **The bot's answers are sources** (`src/lib/server/bot-results.ts`, `runJob`'s injected `send`): a quick check that can
+  be trusted and every full run go in as submissions (source `autopilot`), reaching every league on the season on their
+  own; a quick check that can't be sure waits in every couch's Backstage (`quick_waits`) and counts as a failed try, so it's
+  asked again. A full run's answer about another episode is a failed try. Without `send` (a dry run) it's as above.
+- **One tap** ("Ask ChatGPT for me" for a couch, `src/lib/server/results-ways.ts`) is a run of its own (slot `tap`, with the
+  couch and who asked), so the admin's runs list shows it too.
+- A dev server can be pointed at a stand-in bot per request (`x-gys-bot`, `ask-bot.ts` `botFor`; `scripts/dev-test/fake-bot.js`).
+
 ## Next
 
-- Show the quick check to players: the "who went home" stage in PLAN-couch-and-episode-night.md and
-  PLAN-new-design.md (Backstage I). It's on `bot_research_runs.result` today, admin-only.
-- Maybe stage a quick check's exits as pending season decisions, so an admin can accept who left early.
 - Per-show research checks as data (memory: research-checks-as-data) applies to the quick prompt too.

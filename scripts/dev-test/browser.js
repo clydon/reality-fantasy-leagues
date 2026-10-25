@@ -63,7 +63,8 @@ async function open({ user, pass, width = 390, height = 844, motion = process.en
 //   const { api } = require("./browser");
 //   const sam = await api({ user: "zt_wplayer", pass: "zt-pass-12345" });
 //   const { status, body } = await sam.call("PUT", `/api/leagues/${id}/waivers/claims`, { pickupIds: [] });
-async function api({ user, pass }) {
+// `headers` go with every call (a check's stand-in bot: { "x-gys-bot": bot.url }, fake-bot.js).
+async function api({ user, pass, headers = {} }) {
   const r = await fetch(BASE + "/api/auth/sign-in/username", {
     method: "POST",
     headers: { "content-type": "application/json", origin: BASE },
@@ -74,7 +75,7 @@ async function api({ user, pass }) {
   async function call(method, url, body) {
     const res = await fetch(BASE + url, {
       method,
-      headers: { cookie, origin: BASE, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+      headers: { cookie, origin: BASE, ...headers, ...(body === undefined ? {} : { "content-type": "application/json" }) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await res.text();

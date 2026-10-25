@@ -1,9 +1,9 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import { applyDecision, orderPlacementsByEpisode, type CastRef, type DecisionFact } from "@/lib/game/decision-apply";
-import { previewLines, QUICK_DOUBTS, quickVerdict, type PreviewLine, type QuickDoubt } from "@/lib/game/results-changes";
+import { exitMethodFor, previewLines, QUICK_DOUBTS, quickVerdict, type PreviewLine, type QuickDoubt } from "@/lib/game/results-changes";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import type { LeagueState, StagedResearchDecision } from "@/lib/game/types";
-import { buildQuickPrompt, parseQuickAnswer } from "@db/bot-research.js";
+import { buildQuickPrompt, parseQuickAnswer, type QuickAnswer } from "@db/bot-research.js";
 import { leagueResearchStatus, researchFromPasteForLeague, researchItems, resolveResearchContext } from "@db/episode-research.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { couchFillsResults, couchFlags, factLabel, fillState, openQuestions, sendResults, type SubmittedFact } from "./community-results";
@@ -13,15 +13,16 @@ import { seenThrough } from "./guard";
 import { couchGames, latestBatch, type ChangeLine } from "./league-changes";
 import { readyLeague } from "./league-read";
 import { leagueStates } from "./league-states";
+import { closeWaits, keepWait, openWait, type WaitVia } from "./quick-waits";
 import { couchCorrections, type Correction } from "./rulings";
 import { latestAired, seasonSchedules, upNext } from "./schedule";
 import { seasonCastRefs } from "./season-decisions";
 import type { Game } from "./show-space";
 
 // Backstage › Results (docs/PLAN-new-design.md step 5): getting an episode's results into every game the couch has on
-// a season, for whoever runs them. Two passes, both by Ask an AI (copy and paste is the free way; 6c adds One tap and
-// Autopilot): the quick check (who went home, minutes after airing: Survival Pool and Outlast settle, the episode goes
-// to its early stage) and the full results (every scoring moment: final). Research is shared per season episode
+// a season, for whoever runs them. Two passes, both by Ask an AI (copy and paste, or One tap: results-ways.ts): the
+// quick check (who went home, minutes after airing: Survival Pool and Outlast settle, the episode goes to its early
+// stage) and the full results (every scoring moment: final). Research is shared per season episode
 // (db/episode-research.js stages it into season_decisions); applying it is per game, through decision-apply.ts.
 //
 // Option 5B (2026-10-24): what's trusted applies on its own, without being shown (quickVerdict in results-changes.ts,
@@ -33,6 +34,10 @@ import type { Game } from "./show-space";
 // (community-results.ts). What's trusted reaches every game on the season through the season sync, the couch that sent it
 // gets one line in Recent changes, and its Undo takes the answer back everywhere. Anyone on the couch may fill in the full
 // results unless the couch says only people who run games (couches.results_by_anyone); who went home stays theirs.
+//
+// How results get in (step 6c): One tap's answer comes through pasteResults like a paste (`via: "tap"`, a source counted as
+// whoever tapped), and a quick check that can't be trusted on its own is kept (quick-waits.ts) until someone here says
+// It's right or Not right: a couch's own on that couch, the bot's scheduled one on every couch.
 
 export interface BackstageScope {
   user: SessionUser;
@@ -132,6 +137,8 @@ export interface FillLine {
   by: string | null;
   /** Sent from this couch. */
   here: boolean;
+  /** The bot's own (Autopilot), with nobody to name. */
+  bot: boolean;
   sources: number;
 }
 
@@ -149,6 +156,8 @@ export interface BackstageEpisode {
   waiting: number;
   /** Results disputed in it (once you've seen it): one more answer settles them. */
   questions: number;
+  /** A quick check that waits for you (no names: Show me has them), while nobody's results are in. */
+  wait: { id: string; doubt: QuickDoubt; line: string; sources: number; via: WaitVia; by: string | null; mine: boolean; at: string } | null;
 }
 
 /** What Show me opens: names, faces and what happened. */
@@ -159,6 +168,8 @@ export interface Shown {
   /** Who's still in going into it, for entering who went home yourself. */
   cast: Face[];
   methods: string[];
+  /** The waiting quick check's names: who it says left, how, and whether they're someone in the cast. */
+  wait: (Face & { method: string; matched: boolean })[] | null;
 }
 
 export interface Backstage {
@@ -236,6 +247,15 @@ function castGoingInto(state: LeagueState, n: number): Face[] {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** A waiting quick check's names, matched to the cast for their faces, with how each left in the show's words. */
+function waitFaces(state: LeagueState, q: QuickAnswer): (Face & { method: string; matched: boolean })[] {
+  const exits = StateLogic.formatOf(state).exitMethods;
+  return q.left.map((p) => {
+    const { castaway } = StateLogic.Core.findCastawayByName(state, p.name);
+    return { name: castaway?.name ?? p.name, photo: publicMediaSrc(castaway?.photoUrl), method: exitMethodFor(p.how, exits) ?? "Other", matched: p.matched && !!castaway };
+  });
+}
+
 const day = (iso: string | null, tz: string) =>
   iso ? new Date(iso).toLocaleDateString("en-US", { weekday: "short", timeZone: tz }) : null;
 
@@ -272,7 +292,7 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
   out.fill.episodes = recent.map((e) => {
     const f = filled.get(e);
     const here = f?.byCouch === scope.couchId;
-    return { episode: e, by: here ? (f?.by ?? null) : null, here, sources: f?.sources ?? 0 };
+    return { episode: e, by: here ? (f?.by ?? null) : null, here, bot: !!f?.bot, sources: f?.sources ?? 0 };
   });
 
   // Where each aired episode stands: the least far along of the games that can take it. Open: from the first that
@@ -297,6 +317,9 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
   const { rows: waiting, refs } = await waitingRows(scope, first.state, n);
   const questions = await openQuestions(scope.seasonId);
   const airAt = schedule?.episodes.find((e) => e.number === n)?.airAt ?? null;
+  // A quick check waiting is only for an episode whose who-went-home isn't in yet.
+  const waitOf = async (e: number) => (stageOf(e) === "none" ? await openWait(scope.seasonId, e, scope.couchId) : null);
+  const wait = await waitOf(n);
   out.episode = {
     number: n,
     airAt,
@@ -307,12 +330,15 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
     waiting: waiting.length,
     // A count, never who or what: shown whether or not you've seen the episode.
     questions: questions.get(n) ?? 0,
+    wait: wait ? { id: wait.id, doubt: wait.doubt, line: wait.line, sources: wait.sources, via: wait.via, by: wait.couchId ? wait.by : null, mine: wait.sentBy === scope.user.id, at: wait.at } : null,
   };
 
   for (const o of out.open) {
     const w = o.number === n ? waiting.length : (await waitingRows(scope, first.state, o.number)).rows.length;
     const when = day(schedule?.episodes.find((e) => e.number === o.number)?.airAt ?? null, tz);
     if (w) out.needs.push({ id: "waiting", episode: o.number, title: `${w} ${w === 1 ? "result waits" : "results wait"} for you`, detail: `Episode ${o.number} · the sources don't agree` });
+    else if (o.stage === "none" && (o.number === n ? wait : await waitOf(o.number)))
+      out.needs.push({ id: "quick", episode: o.number, title: `Who went home in Episode ${o.number}? An answer waits`, detail: "It couldn't be sure · check it before it applies" });
     else if (o.stage === "none") out.needs.push({ id: "quick", episode: o.number, title: `Who went home in Episode ${o.number}?`, detail: `${when ? `Aired ${when} · ` : ""}ask an AI, or enter it yourself` });
     else if (o.stage === "early") out.needs.push({ id: "full", episode: o.number, title: `Fill in Episode ${o.number}'s full scores`, detail: "Who went home is in · one paste scores every game" });
   }
@@ -330,6 +356,7 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
       waiting: waiting.map((d) => asRow(first.state, d, refs)),
       cast: castGoingInto(first.state, n),
       methods: StateLogic.formatOf(first.state).exitMethods,
+      wait: wait ? waitFaces(first.state, wait.answer) : null,
     };
   }
   return out;
@@ -429,7 +456,7 @@ const submitted = (f: Fact, confidence: SubmittedFact["confidence"] = "high", so
 async function send(
   scope: BackstageScope,
   n: number,
-  source: "paste" | "quick" | "hand",
+  source: "paste" | "quick" | "hand" | "bot",
   covers: Parameters<typeof sendResults>[0]["covers"],
   facts: SubmittedFact[],
   log: { kind: "results.quick" | "results.full"; text: (count: number) => string; detail?: Record<string, unknown> },
@@ -440,17 +467,18 @@ async function send(
   return sendResults({ seasonId: scope.seasonId, episode: n, source, userId: scope.user.id, couchId: scope.couchId, covers, facts, ...extra }, log);
 }
 
+/** What came of an answer, with no names (who went home is Show me's): the paste's reply, and One tap's outcome. */
 export type PasteResult =
-  | { kind: "quick"; applied: { games: number; sources: number; batch: string } | null; waiting: { doubt: QuickDoubt; line: string; out: { name: string; method: string; matched: boolean }[]; sources: number } | null }
+  | { kind: "quick"; applied: { games: number; sources: number; batch: string } | null; waiting: { id: string | null; doubt: QuickDoubt; line: string; sources: number } | null }
   | { kind: "full"; applied: number; waiting: number; games: number; problems: number; batch: string | null };
 
 /**
- * An answer pasted back from Ask an AI. The quick check is sent for every couch on the season when its sources agree
- * (quickVerdict), else waits on the page with what it found (names included: whoever pasted it has the answer already;
- * the screen keeps them behind Show me). The full results are sent as one source among any others for the episode, and
- * whatever's trusted reaches every game on the season on its own; the rest waits to be ticked.
+ * An answer pasted back from Ask an AI, or fetched by One tap (`via: "tap"`). The quick check is sent for every couch on
+ * the season when its sources agree (quickVerdict), else kept for this couch to check (quick-waits.ts; its names behind
+ * Show me). The full results are sent as one source among any others for the episode, and whatever's trusted reaches
+ * every game on the season on its own; the rest waits to be ticked.
  */
-export async function pasteResults(scope: BackstageScope, n: number, kind: "quick" | "full", answer: unknown, opts: { confirmed?: boolean } = {}): Promise<PasteResult> {
+export async function pasteResults(scope: BackstageScope, n: number, kind: "quick" | "full", answer: unknown, opts: { confirmed?: boolean; via?: "tap" } = {}): Promise<PasteResult> {
   if (typeof answer !== "string" || !answer.trim()) throw new HttpError(400, "Paste the AI's answer first.");
   const loaded = await load(scope);
   const first = loaded.find((l) => takes(l, n));
@@ -466,21 +494,16 @@ export async function pasteResults(scope: BackstageScope, n: number, kind: "quic
       throw new HttpError(400, "That doesn't look like the whole answer. Copy all of it, from { to }.");
     }
     const verdict = quickVerdict(q, StateLogic.formatOf(first.state).exitMethods);
+    const via = opts.via ?? "paste";
     if (verdict.trusted) {
       const facts = verdict.out.map((o) => submitted(fact(n, { kind: "elimination", castawayName: o.name, method: o.method }), "high", q.sources));
-      const r = await send(scope, n, "quick", { people: stillIn, kinds: ["elimination"] }, facts, { kind: "results.quick", text: () => WORDS.quick(n, true), detail: { own: true, sources: q.sources.length } }, { payload: q });
+      const r = await send(scope, n, opts.via ? "bot" : "quick", { people: stillIn, kinds: ["elimination"] }, facts, { kind: "results.quick", text: () => WORDS.quick(n, true), detail: { own: true, sources: q.sources.length, via } }, { payload: q });
+      await closeWaits({ seasonId: scope.seasonId, episode: n, couchId: scope.couchId }, "replaced", scope.user.id);
       return { kind: "quick", applied: { games: r.games, sources: q.sources.length, batch: r.batch }, waiting: null };
     }
-    return {
-      kind: "quick",
-      applied: null,
-      waiting: {
-        doubt: verdict.doubt!,
-        line: QUICK_DOUBTS[verdict.doubt!],
-        out: q.left.map((p) => ({ name: p.name, method: verdict.out.find((o) => o.name === p.name)?.method ?? "Other", matched: p.matched })),
-        sources: q.sources.length,
-      },
-    };
+    // Couldn't find the episode yet: nothing to keep, ask again later. Anything else waits here until someone checks it.
+    const id = verdict.doubt === "not-found" ? null : await keepWait({ seasonId: scope.seasonId, episode: n, couchId: scope.couchId, sentBy: scope.user.id, via, answer: q, doubt: verdict.doubt! });
+    return { kind: "quick", applied: null, waiting: { id, doubt: verdict.doubt!, line: QUICK_DOUBTS[verdict.doubt!], sources: q.sources.length } };
   }
 
   // Asked about everyone still in, whatever's stored for the episode: each answer is a source of its own, and another
@@ -500,10 +523,10 @@ export async function pasteResults(scope: BackstageScope, n: number, kind: "quic
   const r = await send(
     scope,
     n,
-    "paste",
+    opts.via ? "bot" : "paste",
     { people: run.castNames, kinds: null },
     facts,
-    { kind: "results.full", text: (count) => WORDS.full(n, true, count), detail: { own: true } },
+    { kind: "results.full", text: (count) => WORDS.full(n, true, count), detail: { own: true, via: opts.via ?? "paste" } },
     { payload: run.submitted, provenance: { ...provenance, pasted: typeof pastedNotes === "string" ? pastedNotes.length : null } }
   );
   const after = await load(scope);
@@ -562,7 +585,7 @@ async function seatUsers(leagueIds: string[]): Promise<Map<string, string>> {
  * sheet's lines); otherwise they're applied, one batch with Undo. `quick`: who went home, entered by hand or confirmed
  * from a quick check that waited.
  */
-export async function applyChosen(scope: BackstageScope, n: number, items: Chosen[], opts: { preview?: boolean; quick?: boolean }): Promise<{ lines: PreviewLine[]; games: number } | { games: number; skipped: string[]; batch: string }> {
+export async function applyChosen(scope: BackstageScope, n: number, items: Chosen[], opts: { preview?: boolean; quick?: boolean; wait?: { id: string; right: boolean } }): Promise<{ lines: PreviewLine[]; games: number } | { games: number; skipped: string[]; batch: string }> {
   const loaded = (await load(scope)).filter((l) => takes(l, n));
   if (!loaded.length) throw new HttpError(400, `Reveal Episode ${n} first: your games are catching up.`);
   const facts = await chosenFacts(scope, loaded[0].state, n, items, !!opts.quick);
@@ -600,5 +623,7 @@ export async function applyChosen(scope: BackstageScope, n: number, items: Chose
         detail: { own: false },
       })
     : await send(scope, n, "hand", { only: true }, facts.map((f) => submitted(f)), { kind: "results.full", text: (count) => WORDS.full(n, false, count), detail: { own: false } });
+  // A waiting quick check answered: It's right (its names), or Not right (who you entered instead).
+  if (opts.wait) await closeWaits({ id: opts.wait.id, seasonId: scope.seasonId, couchId: scope.couchId }, opts.wait.right ? "right" : "not-right", scope.user.id);
   return { games: r.games, skipped: [], batch: r.batch };
 }

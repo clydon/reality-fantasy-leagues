@@ -115,6 +115,10 @@ function fullAnswer(prompt) {
     const stranger = await as.alex.call("POST", `/api/seasons/${sid}/backstage/results${q}`, { episode: 6, kind: "quick", answer: quickAnswer([{ name: "Someone Else", how: "Voted Out" }]) });
     check(stranger.body.waiting?.doubt === "unknown-name", "a name we don't know: it waits");
     check((await allEp6()).every((e) => !e.outs && !e.stage), "nothing applied while it waits");
+    // Kept (step 6c): the newest waits in Backstage, with no names until Show me; the browser part starts from nothing.
+    const kept = (await as.alex.call("GET", `/api/seasons/${sid}/backstage${q}`)).body;
+    check(kept.episode?.wait?.doubt === "unknown-name" && kept.episode.wait.via === "paste" && !JSON.stringify(kept).includes("Someone Else"), "the answer that waits is kept, its names behind Show me", JSON.stringify(kept.episode?.wait));
+    await pool.query("UPDATE quick_waits SET closed_at = now(), outcome = 'replaced' WHERE season_id = $1", [sid]);
 
     // ---- 1. the browser ----
     const b = await open({ user: fixture.username("alex"), pass: fixture.PASSWORD, width, height: 844 });
@@ -157,6 +161,11 @@ function fullAnswer(prompt) {
     };
     const visibleText = () => page.evaluate(() => document.body.innerText);
     const sheet = page.locator("[role=dialog]");
+    // With our bot answering, the sheet leads with One tap (step 6c): this check is copy and paste's, one row below.
+    const copyAndPaste = async (kind) => {
+      await page.locator(`[data-ask-ai=${kind}], [data-one-tap]`).first().waitFor({ timeout: 20000 });
+      if (await page.locator("[data-one-tap]").count()) await page.locator("[data-copy-paste]").click();
+    };
 
     await page.goto(`${BASE}/show/${sid}/tonight`);
     await page.locator("[data-menu-dot]").waitFor({ timeout: 20000 });
@@ -176,6 +185,7 @@ function fullAnswer(prompt) {
     check(page.url().includes("/backstage/results?ep=6"), "the job opens Results at Episode 6");
     await shot("results-ask");
     await page.locator("[data-ask=quick]").click();
+    await copyAndPaste("quick");
     await page.locator("[data-ask-ai=quick]").waitFor();
     await page.locator('a[data-ai-open][href*="chatgpt.com"]').waitFor({ timeout: 20000 });
     const href = await page.locator("a[data-ai-open]").getAttribute("href");
@@ -246,6 +256,7 @@ function fullAnswer(prompt) {
 
     // The full results: what's trusted applies on its own, Devin's medium-confidence idol waits.
     await page.locator("[data-ask=full]").click();
+    await copyAndPaste("full");
     await page.locator("[data-ask-ai=full]").waitFor();
     await page.locator("a[data-ai-open][href]").waitFor({ timeout: 20000 });
     const fullQ = await as.alex.call("GET", `/api/seasons/${sid}/backstage/prompt${q}&episode=6&kind=full`);
