@@ -33,7 +33,6 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **done** 2026-10-25 on the branch, in three parts: results from everyone and disputes (migration 0112), the admin's desk and the rulebook editor (0113), Make it ours (0114); all ship with 0b's | Opus · high |
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | **done** 2026-10-25 on the branch, in two parts: how results get in (One tap, the ways, the bot's runs as sources, quick checks that wait; migration 0115) and settling without the admin (the tie-break run behind a desk switch that's off, "nobody went home", show changes the couches confirm, the desk's bot Settings; 0116); both ship with 0b's | Opus · xhigh |
 | 7 | Draft room and blind draft | **done** 2026-10-25 on the branch (migration 0117 ships with 0b's) | Opus · xhigh |
-| — | **Switch the couch to the new design by default** | — | — |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | not started | Opus · xhigh |
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | not started | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | not started | Opus · xhigh |
@@ -42,10 +41,13 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
 | 14 | Streaming shows and the rail | not started | Opus · xhigh |
 | 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
+| — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
 | C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · xhigh |
 
-Steps 1–7 bring the new design to parity with what the couch plays today; after them the couch switches to
-it. Steps 8–15 are new features and can be reordered. Desktop layouts come after step 15 (until then the new
+Steps 1–7 bring the new design to parity with what the couch plays today (done 2026-10-25). Steps 8–15 are new
+features and can be reordered. **The user decided (2026-10-25) to finish steps 8–15 on the branch before anything
+merges:** then one merge and deploy (with the backup and Neon rehearsal of every branch migration), then the couch
+switches, then a week's watch, then C. Desktop layouts come after step 15 (until then the new
 design is a centred phone column on a desktop, like the mock).
 
 **Rulebooks** (`docs/PLAN-admin-shows-rulebooks.md` is the design, `docs/PLAN-rulebooks-implementation.md` the
@@ -67,7 +69,8 @@ The user's instinct, agreed with three adjustments:
    written: expand, then contract in step C). The backup in 0a is insurance, not a migration path.
 2. **The classic app keeps running beside the new one.** The couch is mid-season; their game must never
    break. The new design lives in its own routes, opted into per account ("Try the new design", which
-   replaces the Coming Soon! link). The couch keeps playing in classic until step 7 lands, then flips.
+   replaces the Coming Soon! link). The couch keeps playing in classic until the branch ships after step 15 (the
+   user's call, 2026-10-25: all of steps 8–15 first, then one merge), then flips.
 3. **The engine is kept, the screens are rebuilt.** `src/lib/game/` (state-logic.js, selectors, view models,
    action items, waivers) and the league-scoped API (`/api/leagues/[leagueId]/...`: drafts, lineups, picks,
    bets, waivers, research, reveal, chat) are UI-independent and stay. The mock's vanilla JS is **not**
@@ -253,7 +256,7 @@ step's As built.
 - **Nobody can undo the bot's own answer** (step 6c part 1; for C or a later desk step; 6c part 2 left it). An Autopilot answer has no
   couch, so no couch gets its line or its Undo (like another couch's answer); a wrong one is flagged ("Something wrong?") and
   settled by the next answer, or decided on the desk. The desk could offer "withdraw this answer" on a result's page.
-- **Pushes open classic's pages** (step 4 for chat, step 7 for the draft; before the couch switches, or 15). "You're on the
+- **Pushes open classic's pages** (step 4 for chat, step 7 for the draft; for 15, which comes before the switch). "You're on the
   clock", a draft Nudge, results and chat pushes link to classic's routes (`/draft?league=`, `/chat`, ...), so someone on the
   new design lands in classic from a notification. Before the couch switches, a push should open the new design for people
   on it: classic's routes could send someone with `ui='new'` to the show (and the draft room, with its `?game=`).
@@ -983,8 +986,8 @@ Each step: port the area from the mock, wire real data, remove its fixtures and 
 7. **Draft room and blind draft.** Casual-first: no timer by default, admins pick for someone, the blind
    draft's private picks and reveal. Endpoints exist. Mock: `draft.js`.
 
-**Then the couch switches:** set `ui='new'` for the three members (with their OK), keep classic one tap
-away, and watch for a week before step C is even considered.
+**Then the couch switches** (after steps 8–15, the user decided on 2026-10-25): set `ui='new'` for the three members
+(with their OK), keep classic one tap away, and watch for a week before step C is even considered.
 
 ### As built, step 1 (2026-10-24, on `new-design`)
 
@@ -1884,9 +1887,10 @@ The draft room and the blind draft are real, on the leagues' own drafts, which e
   `tests/tour-commissioner.test.js` passes again (527 of 527); `check-backup-restore.js` covers `draft_queues`.
 - **Noticed, left as is:** pushes open classic's pages (worth settling before the couch switches), the pick timer needs
   someone in the room, the draft's points are the game's.
-- **The switch (needs the user's OK):** steps 1–7 are done. Switching the couch means the branch reaches production: a fresh
-  backup and the Neon branch rehearsal of 0100–0117 (0b's As built: the user's terminal), merging `new-design` into master
-  and deploying, then `ui='new'` for the three members, classic one tap away, and a week's watch before step C.
+- **The switch:** steps 1–7 are done. Switching the couch means the branch reaches production: a fresh backup and the Neon
+  branch rehearsal of every branch migration (0b's As built: the user's terminal), merging `new-design` into master and
+  deploying, then `ui='new'` for the three members, classic one tap away, and a week's watch before step C. **Asked on
+  2026-10-25, the user chose to carry on: steps 8–15 are finished on the branch first, then one merge and the switch.**
 
 ## Steps 8–15: beyond parity
 
