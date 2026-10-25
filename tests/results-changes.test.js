@@ -121,3 +121,43 @@ test("the preview says who goes out, whose team loses them, and who moves", () =
   assert.match(lines[0].change, new RegExp(`${owner.name} loses them`));
   assert.ok(lines.every((l) => l.label && (l.face.kind === "castaway" || l.change)));
 });
+
+test("nobody went home: the episode has results with no one out, recorded, previewed and taken back (step 6c)", () => {
+  for (const type of ["classic-draft", "active-roster", "pickem"]) {
+    const before = league(type);
+    const after = clone(before);
+    const { detail } = applyDecision(after, fact("noexit", ""), []);
+    assert.equal(detail.kind, "noexit", type);
+    assert.equal(S.episodeHasResults(ep6(after)), true, `${type}: it has results`);
+    assert.equal(ep6(after).events.length, 0, `${type}: nobody out`);
+    assert.equal(applyDecision(after, fact("noexit", ""), []).detail.preexisting, true, `${type}: twice is once`);
+    S.setResultsStage(after, ep6(after).id, "early");
+    const d = resultsDiff(before, after, 6);
+    assert.deepEqual(d.added.map((x) => x.kind), ["noexit"], type);
+    assert.ok(previewLines(before, after, "Game", () => null).some((l) => l.label === "Nobody went home in Episode 6"), `${type}: the preview says so`);
+    const undone = clone(after);
+    undoResults(undone, d);
+    assert.equal(S.episodeHasResults(ep6(undone)), false, `${type}: undone`);
+    // Taken off by the sync's ledger, and put back by an undo that removed it.
+    const off = clone(after);
+    jiti("../src/lib/game/decision-apply.ts").undoDetail(off, detail);
+    assert.equal(!!ep6(off).noExit, false, type);
+    const r = resultsDiff(after, off, 6);
+    assert.deepEqual(r.removed, [{ kind: "noexit" }], type);
+    undoResults(off, r);
+    assert.equal(ep6(off).noExit, true, `${type}: put back`);
+  }
+});
+
+test("nobody went home in a Survival Pool: the episode is decided and every pick survives (step 6c)", () => {
+  const s = league("pickem");
+  const ep = S.ensureEpisodeNumber(s, 6, false);
+  const player = s.players[0].id;
+  const pick = s.castaways.find((c) => c.status === "active");
+  ep.picks = [{ playerId: player, castawayId: pick.id }];
+  const row = () => S.pickEmHistory(s, player).rows.find((r) => r.episode === 6);
+  assert.equal(row().correct, null, "waiting before anything's in");
+  applyDecision(s, fact("noexit", ""), []);
+  assert.equal(S.pickEmDecided(ep6(s)), true);
+  assert.equal(row().correct, true, "nobody went home: the pick survived");
+});

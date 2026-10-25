@@ -77,6 +77,7 @@ scales up under load). So what matters is how often something wakes it, not how 
 |---|---|---|
 | Hourly GitHub job (when it runs) | ~6 min an hour | ~18 |
 | Bot research clock, after 2026-10-24 | each episode night's runs, plus a check-in every 6 h | ~3 per show airing |
+| Tie-break runs (new design, step 6c; off until switched on in desk › Settings) | one call a day after a dispute, up to 3 tries | a few minutes per disputed episode |
 | Bot research clock, before (a call every 2 min) | around the clock | ~180 (over the allowance) |
 | People with the app open (classic, or a new-design show space: its Chat badge polls) | while they're on it, plus 5 minutes | the rest: ~20 in Oct 1-24 (35.4 total, less ~11 for the hourly job until it stopped and ~3 for the clock's first night) |
 | Admin bot-research runs panel | polls every 60 s while open | admin only |
@@ -96,6 +97,7 @@ measured; measure from Neon's usage a week after a change):
 | **Per open new-design screen** | | **~0.1 MB an hour** on a show space, ~0.5 MB on its Chat tab; nothing on the hub |
 | New design, One tap asking (`/api/seasons/[id]/backstage/ask?run=`) | 2.5 s, only while the bot answers (~1-2 min) | under 1 KB (the run's row) |
 | New design, Backstage › Results while a One tap runs (`/backstage/ways`) | 4 s, only while one runs | ~1 KB |
+| New design, an episode page while the bot adds a show change (`/api/seasons/[id]/show-changes/[n]`) | 4 s, only while it's added (~1-3 min) | under 1 KB |
 
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
@@ -110,7 +112,8 @@ so about 5-8 minutes of bot time per show per episode, one at a time. Ten shows 
 push the last one's results about an hour back; a second bot (the PC fallback, or a second free VM) halves that.
 One tap (new design, step 6c) adds one question per tap: who went home (~48 s) or the full results (~2 min). Results
 are shared per season, so an episode needs at most one of each from any couch (a second tap joins the one running),
-unless a dispute asks again.
+unless a dispute asks again: the tie-break run (step 6c part 2, off until switched on) is one more full question for an
+episode disputed a day, and a show change the couches confirm one rulebook question (~1-3 min).
 
 **Vercel function time (One tap):** the bot is asked after the tap's request has answered (`after()`), so a function
 stays alive while it waits, up to the route's 300 s (typically 40-120 s). That's mostly waiting: little Active CPU, but
@@ -301,3 +304,18 @@ never handles it: the user does the reset and the pasting.
   isn't sure waits for a commissioner and counts as a failed try, so it's asked again on the quick check's usual retry
   pace (every 5 minutes for half an hour, then every 15, for up to 3 hours: the same rule as "no source yet"). Survivor
   51's schedule is unchanged (only the schedule check), so nothing new runs on production when this ships.
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 6c part 2, settling without the admin. Migration 0116:
+  `rulebook_notices` and `rulebook_notice_votes` (a row per episode whose research said the show changed, and one per
+  person who answered; under 1 KB each, a handful a season), new kinds on `season_decisions` ("nobody went home", a fact
+  like any other) and `bot_research_runs`. **The tie-break run** is a scheduled bot run: when a shared result has been
+  disputed for a day, the bot asks that episode's full research once more (~2 min of the bot, up to three tries 20 minutes
+  apart). It's planned with the rest (`db/bot-research.js planRuns`), so the VM's clock is told when one is due and calls
+  only then; planning it adds one tiny `app_settings` read to each clock call, and while it's on two small queries (the
+  episodes with a question open, their tie-break history). It's **off** (desk › Settings); switched on, it reaches every
+  season with shared results. A flag, and the switch, tell the clock at once in production (one planning pass and one
+  call to the VM). **Show changes the couches confirm**: once two couches agree an episode brought something new, the bot
+  is asked the rulebook question once (~1-3 min of the bot), after the vote's response (`after()`, at most 300 s: Vercel
+  function time, as One tap), and the episode's card polls every 4 s while it's added (under 1 KB a time; it stops when
+  it's in). The rulebook's edit is written like the desk's The show changed (its version moves on; leagues on rulebooks
+  rewrite `settings.rulebook`). The desk's season page reads the season's bot schedule and its last 6 runs (~1-2 KB).
+  Nothing else polls; "nobody went home" is a fact like any other (one row, applied by the season sync).

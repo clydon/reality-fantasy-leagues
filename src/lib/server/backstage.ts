@@ -3,10 +3,10 @@ import { applyDecision, orderPlacementsByEpisode, type CastRef, type DecisionFac
 import { exitMethodFor, previewLines, QUICK_DOUBTS, quickVerdict, type PreviewLine, type QuickDoubt } from "@/lib/game/results-changes";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import type { LeagueState, StagedResearchDecision } from "@/lib/game/types";
-import { buildQuickPrompt, parseQuickAnswer, type QuickAnswer } from "@db/bot-research.js";
+import { buildQuickPrompt, parseQuickAnswer, tiebreakNext, tiebreakOn, tiebreakQuestions, type QuickAnswer } from "@db/bot-research.js";
 import { leagueResearchStatus, researchFromPasteForLeague, researchItems, resolveResearchContext } from "@db/episode-research.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
-import { couchFillsResults, couchFlags, factLabel, fillState, openQuestions, sendResults, type SubmittedFact } from "./community-results";
+import { couchFillsResults, couchFlags, factLabel, fillState, openQuestions, sendResults, withNobodyOut, type SubmittedFact } from "./community-results";
 import { pool, HttpError } from "./db";
 import { inLeague, stagedForEpisode } from "./episode-research-apply";
 import { seenThrough } from "./guard";
@@ -156,6 +156,8 @@ export interface BackstageEpisode {
   waiting: number;
   /** Results disputed in it (once you've seen it): one more answer settles them. */
   questions: number;
+  /** When our bot checks it again if nobody does (the desk's tie-break run, step 6c part 2), while it's on. */
+  tiebreakAt: string | null;
   /** A quick check that waits for you (no names: Show me has them), while nobody's results are in. */
   wait: { id: string; doubt: QuickDoubt; line: string; sources: number; via: WaitVia; by: string | null; mine: boolean; at: string } | null;
 }
@@ -222,6 +224,8 @@ async function waitingRows(scope: BackstageScope, first: LeagueState, n: number)
 }
 
 function asRow(state: LeagueState, d: StagedResearchDecision, refs: CastRef): ResultRow {
+  // Nobody went home (step 6c): no one to show.
+  if (d.kind === "noexit") return { id: d.id, name: "Nobody", photo: null, kind: d.kind, label: "Who went home", method: null, eventType: null, confidence: d.confidence ?? null, sources: (d.sources || []).length };
   const format = StateLogic.formatOf(state);
   const { castaway } = StateLogic.Core.findSeasonCastaway(state, d.castawayName, refs);
   const label = d.kind === "event" ? (format.events.find((e) => e.id === d.eventType)?.label ?? d.eventType) : d.kind === "elimination" ? d.method : d.method || d.kind;
@@ -254,6 +258,14 @@ function waitFaces(state: LeagueState, q: QuickAnswer): (Face & { method: string
     const { castaway } = StateLogic.Core.findCastawayByName(state, p.name);
     return { name: castaway?.name ?? p.name, photo: publicMediaSrc(castaway?.photoUrl), method: exitMethodFor(p.how, exits) ?? "Other", matched: p.matched && !!castaway };
   });
+}
+
+/** When the tie-break run would check an episode again (its next try), while the desk's switch is on. */
+async function tiebreakFor(seasonId: string, episode: number): Promise<string | null> {
+  if (!(await tiebreakOn(pool))) return null;
+  const q = (await tiebreakQuestions(pool, seasonId)).find((x) => x.episode === episode);
+  const at = q ? tiebreakNext(q) : null;
+  return at ? at.next.toISOString() : null;
 }
 
 const day = (iso: string | null, tz: string) =>
@@ -330,6 +342,7 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
     waiting: waiting.length,
     // A count, never who or what: shown whether or not you've seen the episode.
     questions: questions.get(n) ?? 0,
+    tiebreakAt: questions.get(n) ? await tiebreakFor(scope.seasonId, n) : null,
     wait: wait ? { id: wait.id, doubt: wait.doubt, line: wait.line, sources: wait.sources, via: wait.via, by: wait.couchId ? wait.by : null, mine: wait.sentBy === scope.user.id, at: wait.at } : null,
   };
 
@@ -518,7 +531,10 @@ export async function pasteResults(scope: BackstageScope, n: number, kind: "quic
     throw new HttpError(400, e instanceof Error ? e.message : "That answer couldn't be read.");
   }
   const items = await researchItems(pool, scope.seasonId, run, run.submitted);
-  const facts: SubmittedFact[] = items.map((i) => ({ kind: i.kind, castawayName: i.name, method: i.method, eventType: i.eventType, units: i.units, juryVotes: i.juryVotes, postMerge: i.postMerge, confidence: i.confidence, sources: i.sources }));
+  const facts: SubmittedFact[] = withNobodyOut(
+    items.map((i) => ({ kind: i.kind, castawayName: i.name, method: i.method, eventType: i.eventType, units: i.units, juryVotes: i.juryVotes, postMerge: i.postMerge, confidence: i.confidence, sources: i.sources })),
+    run.format as { exitMethods?: string[] }
+  );
   const { pastedNotes, ...provenance } = run.provenance as unknown as Record<string, unknown>;
   const r = await send(
     scope,
@@ -535,12 +551,16 @@ export async function pasteResults(scope: BackstageScope, n: number, kind: "quic
   return { kind: "full", applied: r.count, waiting: waiting.length, games: r.games, problems: run.problems.length, batch: r.games ? r.batch : null };
 }
 
-/** What you chose to apply: a staged result by id (possibly corrected), or who went home by name (entered by hand). */
+/**
+ * What you chose to apply: a staged result by id (possibly corrected), or who went home by name (entered by hand), or that
+ * nobody went home (`nobody`, step 6c: one item on its own).
+ */
 export interface Chosen {
   id?: string;
   castawayName?: string;
   method?: string;
   eventType?: string;
+  nobody?: boolean;
 }
 
 /** The chosen results as facts: staged ones from season_decisions (never the client's word for kind or episode). */
@@ -548,6 +568,11 @@ async function chosenFacts(scope: BackstageScope, state: LeagueState, n: number,
   if (!Array.isArray(items) || !items.length) throw new HttpError(400, "Pick at least one result.");
   const format = StateLogic.formatOf(state);
   if (quick) {
+    // Nobody went home: the episode is marked like any other quick check, with no one out.
+    if (items.some((i) => i.nobody === true)) {
+      if (items.length > 1) throw new HttpError(400, "Nobody went home, or pick who did: not both.");
+      return [fact(n, { kind: "noexit", castawayName: "" })];
+    }
     return items.map((i) => {
       const name = typeof i.castawayName === "string" ? i.castawayName.trim() : "";
       const { castaway } = StateLogic.Core.findCastawayByName(state, name);
@@ -562,6 +587,7 @@ async function chosenFacts(scope: BackstageScope, state: LeagueState, n: number,
   return items.map((i) => {
     const d = staged.get(String(i.id));
     if (!d) throw new HttpError(400, "One of those results is no longer staged for this episode. Open it again.");
+    if (d.kind === "noexit") return fact(n, { kind: "noexit", castawayName: "" });
     return fact(n, {
       kind: d.kind,
       castawayName: str(i.castawayName, d.castawayName),
@@ -616,8 +642,9 @@ export async function applyChosen(scope: BackstageScope, n: number, items: Chose
   }
   // Entered by hand: who went home, as someone who watched it (and saying nobody else did); ticked: those results
   // vouched for, and nothing said about anyone else. Either way a source of its own, shared like any answer.
+  // Saying who went home answers for "nobody went home" too (against it, or for it when that's what you said).
   const r = opts.quick
-    ? await send(scope, n, "hand", { people: castGoingInto(loaded[0].state, n).map((c) => c.name), kinds: ["elimination"] }, facts.map((f) => submitted(f)), {
+    ? await send(scope, n, "hand", { people: castGoingInto(loaded[0].state, n).map((c) => c.name), kinds: ["elimination", "noexit"] }, facts.map((f) => submitted(f)), {
         kind: "results.quick",
         text: () => WORDS.quick(n, false),
         detail: { own: false },

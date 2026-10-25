@@ -659,7 +659,7 @@ function askLine(p: Panel, people: string): string {
 }
 
 function kindLabel(kind: StagedResearchDecision["kind"]): string {
-  return { elimination: "Left the game", event: "Scored", exiled: "Exiled", role: "Role", group: "Moved" }[kind];
+  return { elimination: "Left the game", event: "Scored", exiled: "Exiled", role: "Role", group: "Moved", noexit: "Nobody went home" }[kind];
 }
 
 // Which group a staged result sits in: one per scoring event or role value; eliminations, exiles and

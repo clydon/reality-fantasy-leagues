@@ -14,7 +14,8 @@ export interface RulebookReview {
   approvable: boolean;
 }
 
-export function buildRulebookPrompt(opts: { show: string; season?: string; airing?: boolean; template?: RulebookBlocks | null }): string;
+/** `change`: something one episode brought that the rulebook may not have (research's note): only that is added to `template`. */
+export function buildRulebookPrompt(opts: { show: string; season?: string; airing?: boolean; template?: RulebookBlocks | null; change?: { episode: number; note: string } }): string;
 export function parseRulebookAnswer(answer: string): Record<string, unknown>;
 /** Every top-level JSON object in a text, in order (braces counted outside strings). */
 export function jsonObjectsIn(text: string): string[];

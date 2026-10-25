@@ -117,6 +117,7 @@ function labelOf(state: LeagueState, d: Pick<DecisionRow, "kind" | "method" | "e
   const type = d.applied?.eventType || d.event_type;
   if (d.kind === "event") return StateLogic.formatOf(state).events.find((e) => e.id === type)?.label ?? type;
   if (d.kind === "group") return `moved to ${d.applied?.method ?? d.method}`;
+  if (d.kind === "noexit") return "Nobody went home";
   return (d.applied?.method ?? d.method) || d.kind;
 }
 

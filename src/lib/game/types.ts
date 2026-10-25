@@ -151,6 +151,9 @@ export interface Episode {
   resultsHidden?: boolean;
   /** 'early' while only who went home is in (StateLogic.resultsStage); absent once the full results are. */
   resultsStage?: "early";
+  /** Nobody went home in it (docs/PLAN-new-design.md step 6c): the season sync's shared fact, so an episode with no
+   *  elimination still has results (StateLogic.episodeHasResults). */
+  noExit?: boolean;
   /** When this episode airs (ISO), from the league's season schedule -- stamped by the server
    *  (src/lib/server/air-times.ts), absent without a schedule or while catching up. Lineups and
    *  picks lock at this moment. */
@@ -594,8 +597,9 @@ export interface ResearchCoverage {
   needsAsking: string[];
 }
 
-/** Every kind season_decisions holds: research stages the first four, the wiki also stages tribe moves. */
-export type ResearchDecisionKind = "elimination" | "event" | "exiled" | "role" | "group";
+/** Every kind season_decisions holds: research stages the first four, the wiki also stages tribe moves; `noexit` is
+ *  "nobody went home" (step 6c), with no castaway. */
+export type ResearchDecisionKind = "elimination" | "event" | "exiled" | "role" | "group" | "noexit";
 
 /** One staged season decision for an episode, as the commissioner's research panel shows and edits it. */
 export interface StagedResearchDecision {
@@ -731,7 +735,7 @@ export interface SeasonDecision {
   id: string;
   episode_number: number;
   post_merge: boolean;
-  kind: "elimination" | "event" | "exiled" | "role" | "group";
+  kind: "elimination" | "event" | "exiled" | "role" | "group" | "noexit";
   castaway_name: string;
   /**
    * The exit method for an elimination; the role value ("Traitor") for a role; the new tribe/team's

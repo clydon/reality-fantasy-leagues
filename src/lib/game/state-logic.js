@@ -1039,8 +1039,9 @@ class PickEmLogic {
   // Active Roster's lineup grid and Overview's side bets.
   static upcomingEpisode(state){ return currentEpisode(state); }
   // An episode has "happened" for scoring once its eliminations are logged -- a pick for a future
-  // episode would otherwise count as correct the moment it's made (nothing yet contradicts it).
-  static decided(ep){ return !!ep && (ep.events||[]).length > 0; }
+  // episode would otherwise count as correct the moment it's made (nothing yet contradicts it) -- or
+  // once it's known nobody went home (ep.noExit, step 6c), when every pick survives.
+  static decided(ep){ return !!ep && (!!ep.noExit || (ep.events||[]).length > 0); }
 
   // Who a player may pick for an episode, under both rules:
   //
@@ -2803,11 +2804,21 @@ class EpisodeLogic {
     return EpisodeLogic.create(state, maxNum+1, previousEp ? previousEp.postMerge : false);
   }
   // An episode "has results" once anything that happened in it is recorded: an elimination, a
-  // scoring event, an exile, a role or a group change. That's what "this episode has been played"
-  // means everywhere below.
+  // scoring event, an exile, a role or a group change, or the word that nobody went home (`noExit`,
+  // docs/PLAN-new-design.md step 6c: a shared fact the season sync applies). That's what "this
+  // episode has been played" means everywhere below.
   static hasResults(ep){
-    return !!ep && ((ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0
+    return !!ep && (!!ep.noExit || (ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0
       || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0);
+  }
+  // Nobody went home in this episode (on), or that's taken back (off). Only the season sync's shared
+  // "nobody went home" fact sets it (decision-apply.ts).
+  static setNoExit(state, epId, on){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep) return false;
+    if(on) ep.noExit = true;
+    else delete ep.noExit;
+    return true;
   }
   // Results arrive in stages (docs/PLAN-new-design.md step 2): 'early' while only who went home is in (a quick
   // check: Survival Pool and Outlast settle, Weekly Lineup scores so far), 'final' once the full results are
@@ -3262,7 +3273,7 @@ class SpoilerLogic {
     s.episodes.forEach(ep => {
       if(!ids.has(ep.id)) return;
       ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = [];
-      delete ep.resultsStage;
+      delete ep.resultsStage; delete ep.noExit;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
       ep.resultsHidden = true;
@@ -3858,7 +3869,7 @@ return {
   GroupLogic, addGroupChange: GroupLogic.add, removeGroupChange: GroupLogic.remove,
   ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,
   ensureNextEpisode: EpisodeLogic.ensureNextEpisode, seasonUnderway: EpisodeLogic.seasonUnderway, episodeHasResults: EpisodeLogic.hasResults,
-  resultsStage: EpisodeLogic.resultsStage, setResultsStage: EpisodeLogic.setResultsStage,
+  resultsStage: EpisodeLogic.resultsStage, setResultsStage: EpisodeLogic.setResultsStage, setNoExit: EpisodeLogic.setNoExit,
   addBet: BetLogic.add, addBetToUpcoming: BetLogic.addToUpcoming, updateBet: BetLogic.update, removeBet: BetLogic.remove,
   MAX_BET_POINTS,
   addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,
@@ -3871,7 +3882,7 @@ return {
   lockActiveRosterLineups: ActiveRosterLogic.lockLineups, unlockActiveRosterLineups: ActiveRosterLogic.unlockLineups,
   addScoringEvent: ActiveRosterLogic.addEvent, removeScoringEvent: ActiveRosterLogic.removeEvent, setScoringEventUnits: ActiveRosterLogic.setEventUnits,
   pickEmPickFor: PickEmLogic.pickFor, pickEmEligibility: PickEmLogic.eligibility, pickEmHistory: PickEmLogic.history,
-  pickEmUpcomingEpisode: PickEmLogic.upcomingEpisode, currentEpisode,
+  pickEmUpcomingEpisode: PickEmLogic.upcomingEpisode, pickEmDecided: PickEmLogic.decided, currentEpisode,
   setPickEmPick: PickEmLogic.setPick, removePickEmPick: PickEmLogic.removePick,
 
   // ---- domain classes: reference these directly in new code instead of the flat aliases above ----

@@ -15,6 +15,7 @@ import type { PreviewLine } from "@/lib/game/results-changes";
 import type { WaiverWeek } from "@/lib/game/waiver-view";
 import type { GameSettings, ScoringRules, WaiverAdminGame, WaiverAction } from "@/lib/server/backstage-games";
 import type { CouchMoments } from "@/lib/server/couch-answers";
+import type { ShowChange } from "@/lib/server/show-changes";
 import type { Members, OutPreview } from "@/lib/server/backstage-members";
 import type { AskRun, Ways } from "@/lib/server/results-ways";
 
@@ -33,6 +34,7 @@ export type { WaiverFace, WaiverMove, WaiverRunView, WaiverWeek } from "@/lib/ga
 export type { GameRules, GameSettings, ScoringRules, WaiverAdminGame } from "@/lib/server/backstage-games";
 export type { OurRules } from "@/lib/server/ours";
 export type { CouchMoments } from "@/lib/server/couch-answers";
+export type { ShowChange } from "@/lib/server/show-changes";
 export type { Member, MemberGame, Members, OutPreview } from "@/lib/server/backstage-members";
 export type { AskRun, Ways } from "@/lib/server/results-ways";
 
@@ -582,6 +584,23 @@ export function useCouchMoments(seasonId: string, couchId: string | null, episod
 
 export const answerCouchMoment = (seasonId: string, couchId: string, episode: number, moment: string, picks: { name: string; times?: number }[]) =>
   post<CouchMoments>(seasonUrl(seasonId, `/couch-moments/${episode}`, { couch: couchId }), { moment, picks });
+
+// ---- something the rulebook doesn't have (step 6c part 2): on an episode's page, once you've seen it ----
+
+/** Polls (every 4 s) only while our bot is working out what to add: the card says when it's in. */
+export function useShowChange(seasonId: string, couchId: string | null, episode: number) {
+  return useQuery({
+    queryKey: ["new-design", "show-change", seasonId, couchId, episode],
+    queryFn: () => get<{ change: ShowChange | null }>(seasonUrl(seasonId, `/show-changes/${episode}`, { couch: couchId ?? "" })),
+    enabled: !!couchId,
+    staleTime: 30_000,
+    refetchInterval: (q) => (q.state.data?.change?.status === "checking" ? 4000 : false),
+    retry: (n, e) => (e as { status?: number }).status !== 403 && n < 2,
+  });
+}
+
+export const answerShowChange = (seasonId: string, couchId: string, episode: number, isNew: boolean) =>
+  post<{ change: ShowChange | null }>(seasonUrl(seasonId, `/show-changes/${episode}`, { couch: couchId }), { isNew });
 
 // ---- which couch you're looking at: one hub shows one couch at a time (site-mock-decisions) ----
 // Per device for now (step 9 brings the couch switcher); a stale id just falls back to the first couch.

@@ -10,8 +10,8 @@ import { GuardSheet } from "../ui/guards";
 import { Btn, Chip, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskPerson, type DeskSeason, type DeskShow } from "./data";
-import { DeskHeader, FieldRow, History, ItemRow, LockRow, OverrideSheet, Section, Tag } from "./parts";
+import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskPerson, type DeskSeason, type DeskShow, type SeasonBot } from "./data";
+import { DeskHeader, FieldRow, History, ItemRow, LockRow, OverrideSheet, Section, SwitchRow, Tag } from "./parts";
 
 // One thing on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminFact and adminEntity): a
 // disputed fact's two sides and the admin's decision; a season (its rulebook, its cast by group, its episodes' results);
@@ -67,7 +67,7 @@ export function FactPage({ id }: { id: string }) {
           <span className="flex flex-col justify-center gap-1 py-2 pl-3 pr-3">
             <Tag tone={tone}>{tag}</Tag>
             <b className="type-caption text-[19px] leading-tight">
-              {f.name} · {f.label}
+              {[f.name, f.label].filter(Boolean).join(" · ")}
             </b>
             <small className="text-[13px] text-plate-muted">
               {f.season.name} · Episode {f.episode}
@@ -111,9 +111,11 @@ export function FactPage({ id }: { id: string }) {
             It didn&apos;t happen
           </Btn>
         </div>
-        <button type="button" data-edit-fact onClick={() => setEditing(true)} className="mt-1 flex min-h-11 w-full items-center justify-center text-[14px] font-semibold text-muted-foreground">
-          Something else: edit the fact
-        </button>
+        {f.kind !== "noexit" && (
+          <button type="button" data-edit-fact onClick={() => setEditing(true)} className="mt-1 flex min-h-11 w-full items-center justify-center text-[14px] font-semibold text-muted-foreground">
+            Something else: edit the fact
+          </button>
+        )}
         {f.locked && f.community && (
           <Btn data-reopen wide className="mt-2" onClick={() => act({ reopen: true }, "Reopened · settled again from its sources")}>
             Unlock and reopen
@@ -130,7 +132,7 @@ export function FactPage({ id }: { id: string }) {
           title={deciding === "no" ? "Remove it for everyone?" : "Keep it for everyone?"}
           subtitle="Becomes canonical and locked. Couches with a house ruling keep theirs."
           lines={[
-            { face: { kind: "castaway", name: f.name, photo: f.photo }, label: `${f.name} · ${f.label} · Ep ${f.episode}`, change: deciding === "no" ? "Removed" : "Stays", dir: null },
+            { face: { kind: "castaway", name: f.name, photo: f.photo }, label: `${[f.name, f.label].filter(Boolean).join(" · ")} · Ep ${f.episode}`, change: deciding === "no" ? "Removed" : "Stays", dir: null },
             { face: { kind: "player", userId: null, name: "Leagues" }, label: `${f.leagues} ${f.leagues === 1 ? "league" : "leagues"}`, change: deciding === "no" ? (f.live ? `Corrected after each reveals Episode ${f.episode}` : "No change") : f.live ? "No change" : "It goes in", dir: null },
             ...(f.flags.some((x) => x.status === "open") ? [{ face: { kind: "player" as const, userId: null, name: "Flags" }, label: "People who flagged it", change: "Answered", dir: null }] : []),
           ]}
@@ -222,8 +224,77 @@ function EditFactSheet({ fact, onClose, onSave }: { fact: DeskFact; onClose: () 
 
 // ---------- a season ----------
 
+type BotRun = SeasonBot["schedule"][number];
+const RUN_WORDS: Record<BotRun["kind"], string> = { quick: "Who went home", full: "The full results", schedule: "When the next episode airs" };
+const minutes = (m: number) => (m < 60 ? `${m} min` : Number.isInteger(m / 60) ? `${m / 60} h` : `${Math.floor(m / 60)} h ${m % 60} min`);
+// The runs a season can switch on: its own, and the usual ones it hasn't got (off until switched on).
+const USUAL: BotRun[] = [
+  { kind: "quick", after: 5, on: false },
+  { kind: "full", after: 60, on: false },
+  { kind: "full", after: 540, on: false },
+  { kind: "schedule", after: 30, on: false },
+];
+
+/**
+ * The bot's schedule for a season (step 6c part 2): Autopilot's trial. On or off, each run on or off, and its latest runs.
+ * Each change is a line in the season's History with Undo.
+ */
+function SeasonBotSection({ id, bot }: { id: string; bot: SeasonBot }) {
+  const act = useAct<{ bot: SeasonBot }>(`/seasons/${id}`);
+  const runs = [...bot.schedule, ...USUAL.filter((u) => !bot.schedule.some((r) => r.kind === u.kind && r.after === u.after) && !(u.kind === "schedule" && bot.schedule.some((r) => r.kind === "schedule")))].sort((a, b) => a.after - b.after);
+  const save = (body: { on?: boolean; schedule?: BotRun[] }, done: string) => act({ bot: body }, done).catch(() => undefined);
+  // A run of its own is switched on or off in place; a usual one it hasn't got is added, on.
+  const flip = (run: BotRun) => {
+    const own = bot.schedule.some((r) => r.kind === run.kind && r.after === run.after);
+    const schedule = own ? bot.schedule.map((r) => (r.kind === run.kind && r.after === run.after ? { ...r, on: !r.on } : r)) : [...bot.schedule, { ...run, on: true }];
+    void save({ schedule }, `${RUN_WORDS[run.kind]} ${run.on ? "off" : "on"} · undo from History`);
+  };
+  return (
+    <Section title="Autopilot trial" aside="Our bot">
+      <div data-season-bot className="flex flex-col gap-2">
+        <SwitchRow
+          data="bot"
+          on={bot.on}
+          title="The bot's schedule"
+          line={
+            bot.on
+              ? `On: our bot asks after each episode ends (${bot.episodeMinutes ?? 60} min after it starts). Its answers are sources like anyone's.`
+              : "Off: the bot asks only when a couch taps One tap. Switch it on to try Autopilot on this season."
+          }
+          onChange={(on) => save({ on }, on ? "The bot's schedule is on · undo from History" : "The bot's schedule is off · undo from History")}
+        />
+        {runs.map((r) => (
+          <SwitchRow
+            key={`${r.kind}@${r.after}`}
+            data={`run-${r.kind}@${r.after}`}
+            on={r.on}
+            disabled={!bot.on}
+            title={`${RUN_WORDS[r.kind]} · ${minutes(r.after)} after it ends`}
+            line={r.kind === "quick" ? "Free for every couch: keeps whoever runs a game spoiler-safe." : r.kind === "full" ? "Every scoring moment, for every game on the season." : "Moves lineup locks and reminders when the show takes a week off."}
+            onChange={() => flip(r)}
+          />
+        ))}
+      </div>
+      {bot.recent.length > 0 && (
+        <div data-bot-runs className="mt-3">
+          <p className="type-caption text-[11px] tracking-[0.06em] text-muted-foreground">Latest runs</p>
+          {bot.recent.map((r, i) => (
+            <div key={`${r.at}-${i}`} className="flex items-start gap-2 border-t border-border py-2 text-[13px] first:border-t-0">
+              <span className={`mt-0.5 flex-none font-bold ${r.ok ? "text-good" : r.ok === false ? "text-chyron-line" : "text-muted-foreground"}`}>{r.ok ? "Done" : r.ok === false ? "Failed" : "Asking"}</span>
+              <span className="min-w-0 flex-1 text-muted-foreground">
+                Episode {r.episode} · {r.kind === "tiebreak" ? "tie-break" : r.slot === "tap" ? "One tap" : (RUN_WORDS[r.kind as BotRun["kind"]] ?? r.kind).toLowerCase()} · {airTime(Date.parse(r.at))}
+                {r.message ? <span className="block truncate">{r.message}</span> : null}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 export function SeasonPage({ id }: { id: string }) {
-  const q = useDesk<DeskSeason & { history: DeskLine[] }>(`/seasons/${id}`);
+  const q = useDesk<DeskSeason & { bot: SeasonBot; history: DeskLine[] }>(`/seasons/${id}`);
   const act = useAct<{ people: number; leagues: number }>(`/seasons/${id}`);
   const [clearing, setClearing] = useState<{ group: string; preview: { people: number; leagues: number } | null } | null>(null);
   const [open, setOpen] = useState<number | null>(null);
@@ -249,6 +320,7 @@ export function SeasonPage({ id }: { id: string }) {
           />
         </Section>
       )}
+      <SeasonBotSection id={id} bot={s.bot} />
       <Section title="Cast" aside={`${s.cast.length} people`}>
         {s.groups.length > 0 && (
           <div className="mb-3 flex flex-col gap-2">
@@ -301,7 +373,7 @@ export function SeasonPage({ id }: { id: string }) {
               </button>
               {open === e.number &&
                 e.facts.map((f) => (
-                  <ItemRow key={f.id} data="fact" href={paths.deskItem("fact", f.id)} tag={STATUS_TAG[f.status]?.[0] ?? f.status} tone={STATUS_TAG[f.status]?.[1]} title={`${f.name} · ${f.label}`} line={f.live ? "In every league" : "In no league"} />
+                  <ItemRow key={f.id} data="fact" href={paths.deskItem("fact", f.id)} tag={STATUS_TAG[f.status]?.[0] ?? f.status} tone={STATUS_TAG[f.status]?.[1]} title={[f.name, f.label].filter(Boolean).join(" · ")} line={f.live ? "In every league" : "In no league"} />
                 ))}
             </div>
           ))

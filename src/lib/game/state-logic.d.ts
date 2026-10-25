@@ -499,6 +499,8 @@ declare const StateLogic: {
   resultsStage(ep: Episode | null | undefined): "early" | "final" | null;
   /** Marks an episode's results early, or final (the mark comes off). False for no such episode. */
   setResultsStage(state: LeagueState, epId: string, stage: "early" | "final"): boolean;
+  /** Nobody went home in this episode (the season sync's shared fact), or that's taken back. False for no such episode. */
+  setNoExit(state: LeagueState, epId: string, on: boolean): boolean;
   nextPlacementOrder(state: LeagueState): number;
   updateBet(state: LeagueState, epId: string, betId: string, field: string, value: unknown): void;
   removeBetPrediction(state: LeagueState, epId: string, betId: string, predId: string): void;
@@ -567,6 +569,8 @@ declare const StateLogic: {
   };
   /** The episode picks are being made for (the next to reveal when catching up, else the latest). */
   pickEmUpcomingEpisode(state: LeagueState): Episode | null;
+  /** A Pool episode is decided once someone went home in it, or it's known nobody did (step 6c). */
+  pickEmDecided(ep: Episode | null | undefined): boolean;
   /**
    * The episode "this week's choice" is for -- shared by Eliminator Pool's pick, Active Roster's
    * lineup grid, and Overview's side bets (the next to reveal when catching up, else the latest, never

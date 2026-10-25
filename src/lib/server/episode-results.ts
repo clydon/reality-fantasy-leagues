@@ -47,6 +47,8 @@ export async function episodeResults(user: SessionUser, seasonId: string, couchI
   const telling = secretEvents(format, view.book);
   const people = new Map<string, EpisodeResults["people"][number]>();
   for (const f of shared) {
+    // "Nobody went home" is about no one: the episode page says so itself (its stage), and "Something else" flags it.
+    if (f.kind === "noexit") continue;
     const { castaway } = StateLogic.Core.findCastawayByName(state, f.name);
     const stillIn = castaway?.status !== "eliminated";
     if (stillIn && (secretKinds.has(f.kind) || (f.kind === "event" && telling.has(f.eventType)))) continue;

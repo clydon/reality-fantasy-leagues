@@ -77,6 +77,7 @@ const TAGS: Record<string, [string, "must" | "quiet"]> = {
   stranded: ["Couch", "quiet"],
   phase: ["Confirm", "must"],
   suggestion: ["Report", "quiet"],
+  change: ["New?", "must"],
 };
 
 function InboxTab({ data, loading }: { data: Inbox | undefined; loading: boolean }) {
@@ -114,7 +115,7 @@ function InboxTab({ data, loading }: { data: Inbox | undefined; loading: boolean
             </div>
           ))}
         </div>
-        <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">Facts settle when sources agree. A dispute reaches you when another answer couldn&apos;t settle it, or nobody checked a flag within a day.</p>
+        <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">Facts settle when sources agree. A dispute reaches you when another answer couldn&apos;t settle it, or nobody checked a flag within a day (with the tie-break run on, once it has had its try).</p>
       </Section>
     </>
   );
@@ -146,7 +147,7 @@ function FindTab() {
 function SettingsTab() {
   const q = useDesk<{ settings: DeskSettings; history: DeskLine[] }>("/settings");
   const after = useAfterDesk();
-  const [sheet, setSheet] = useState<"confirm" | "couches" | null>(null);
+  const [sheet, setSheet] = useState<"confirm" | "couches" | "tiebreak" | null>(null);
   if (!q.data) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
   const s = q.data.settings;
   const put = async (body: Record<string, unknown>, done: string) => {
@@ -164,7 +165,23 @@ function SettingsTab() {
       <Section title="Results">
         <Row title="Confirmed needs" detail={`${s.confirmAt} sources that agree`} onClick={() => setSheet("confirm")} />
         <Row title="Quick check" detail="Who went home, from one question · free" />
-        <Row title="Tie-break run" detail="Comes with the bot's runs (step 6c): until then, someone checks it again" />
+        <Row
+          title="Tie-break run"
+          detail={s.tiebreak.on ? `On · when a result is disputed for a day, our bot asks once more` : "Off · a dispute waits for someone to check it again"}
+          onClick={() => setSheet("tiebreak")}
+        />
+      </Section>
+      <Section title="Autopilot trial" aside="Our bot">
+        <p className="mb-2 text-[13px] leading-snug text-muted-foreground">
+          The bot&apos;s schedule, season by season: what Autopilot will be. Couches see &ldquo;Autopilot · On for this season&rdquo; while it checks results. Change it on a season&apos;s page.
+        </p>
+        <div data-autopilot>
+          {s.autopilot.length ? (
+            s.autopilot.map((a) => <ItemRow key={a.id} data="season" href={paths.deskItem("season", a.id)} tag="On" title={a.name} line={a.line} />)
+          ) : (
+            <p className="rounded-[4px] bg-card p-3.5 text-[14px] text-muted-foreground">No season&apos;s bot is on. Switch one on from its page (Find › a season).</p>
+          )}
+        </div>
       </Section>
       <Section title="Couches">
         <Row title="Who fills in results, for new couches" detail={s.newCouchesAnyone ? "Anyone on the couch" : "Only people who run games"} onClick={() => setSheet("couches")} />
@@ -199,6 +216,22 @@ function SettingsTab() {
           ))}
         </div>
         <p className="mt-3 text-[13px] text-muted-foreground">Every shared result is settled again with the new number.</p>
+      </Sheet>
+      <Sheet open={sheet === "tiebreak"} onOpenChange={(o) => !o && setSheet(null)} title="Tie-break run" subtitle={`When a result has been disputed for ${s.tiebreak.hours} hours`}>
+        <div className="flex flex-col gap-2">
+          {([
+            [true, "On", "Our bot asks that episode's full results once more, as a source of its own. Most disputes settle; what doesn't comes to your Inbox. Free: about 2 minutes of the bot each."],
+            [false, "Off", "A dispute waits for someone on a couch to check it again. A flag nobody checks within a day comes to your Inbox."],
+          ] as const).map(([v, t, d]) => (
+            <button key={String(v)} type="button" data-tiebreak={String(v)} aria-pressed={s.tiebreak.on === v} onClick={() => put({ tiebreak: v }, v ? "Tie-break run on" : "Tie-break run off")} className={`nd-press rounded-[3px] p-3.5 text-left ${s.tiebreak.on === v ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}>
+              <b className="block text-[16px]">{t}</b>
+              <small className="text-[13px] leading-snug text-muted-foreground">{d}</small>
+            </button>
+          ))}
+        </div>
+        <p data-tiebreak-reach className="mt-3 text-[13px] leading-snug text-muted-foreground">
+          {s.tiebreak.reach.length ? `It reaches every season with shared results. Airing now: ${s.tiebreak.reach.join(", ")}.` : "It reaches every season with shared results. Nothing is airing now."}
+        </p>
       </Sheet>
       <Sheet open={sheet === "couches"} onOpenChange={(o) => !o && setSheet(null)} title="New couches" subtitle="Who fills in results, until the couch changes it">
         <div className="flex flex-col gap-2">

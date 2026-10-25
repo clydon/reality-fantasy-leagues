@@ -1,7 +1,10 @@
 import type { Pool, PoolClient } from "pg";
+import { TIEBREAK_AFTER_MS, tiebreakNext, tiebreakOn, tiebreakQuestions } from "@db/bot-research.js";
 import { isSuperAdminUser, requireAuth, type SessionUser } from "./auth-helpers";
 import { confirmAt, settleEverything } from "./community-results";
 import { pool, HttpError } from "./db";
+import { autopilotSeasons, nudgeBotClock, tiebreakReach } from "./desk-bot";
+import { deskNotices } from "./show-changes";
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin): results settle by
 // community, and the admin is the exception desk. Three tabs from the profile menu: Inbox (only what the community
@@ -75,6 +78,10 @@ export interface DeskSettings {
   newCouchesAnyone: boolean;
   /** The rulebooks flag (every season's leagues play by its rulebook), and the seasons switched on one by one. */
   rulebooks: { everywhere: boolean; seasons: { id: string; name: string }[] };
+  /** The tie-break run (step 6c part 2): on or off (off by default), and the airing seasons it would reach. */
+  tiebreak: { on: boolean; hours: number; reach: string[] };
+  /** Autopilot's trial: the seasons whose bot schedule is on, and what each checks (each season's page changes it). */
+  autopilot: { id: string; name: string; line: string }[];
 }
 
 async function setting(key: string): Promise<unknown> {
@@ -97,6 +104,8 @@ export async function deskSettings(): Promise<DeskSettings> {
     confirmAt: await confirmAt(),
     newCouchesAnyone: await newCouchesAnyone(),
     rulebooks: { everywhere: (await setting("rulebooks")) === true, seasons: live },
+    tiebreak: { on: await tiebreakOn(pool), hours: TIEBREAK_AFTER_MS / 3600000, reach: await tiebreakReach() },
+    autopilot: await autopilotSeasons(),
   };
 }
 
@@ -107,7 +116,7 @@ const putSetting = (key: string, value: unknown) =>
   ]);
 
 /** Changes one setting (with its undo in History); the Confirmed threshold settles every community fact again. */
-export async function setDeskSetting(user: SessionUser, body: { confirmAt?: unknown; newCouchesAnyone?: unknown }): Promise<DeskSettings> {
+export async function setDeskSetting(user: SessionUser, body: { confirmAt?: unknown; newCouchesAnyone?: unknown; tiebreak?: unknown }): Promise<DeskSettings> {
   const was = await deskSettings();
   if (body.confirmAt !== undefined) {
     const n = Number(body.confirmAt);
@@ -134,6 +143,24 @@ export async function setDeskSetting(user: SessionUser, body: { confirmAt?: unkn
       });
     }
   }
+  // The tie-break run: the bot asks a disputed episode once more after a day (db/bot-research.js), on every season.
+  if (body.tiebreak !== undefined) {
+    if (typeof body.tiebreak !== "boolean") throw new HttpError(400, "tiebreak is true or false");
+    if (body.tiebreak !== was.tiebreak.on) {
+      await putSetting("tiebreak", body.tiebreak);
+      await logDesk(pool, {
+        entity: "settings",
+        entityId: "tiebreak",
+        action: "set",
+        text: body.tiebreak ? "Tie-break run on: the bot checks a result disputed for a day" : "Tie-break run off",
+        before: was.tiebreak.on,
+        after: body.tiebreak,
+        undo: { type: "setting", key: "tiebreak", value: was.tiebreak.on },
+        userId: user.id,
+      });
+      nudgeBotClock();
+    }
+  }
   return deskSettings();
 }
 
@@ -143,16 +170,20 @@ export async function restoreSetting(key: string, value: unknown, userId: string
     await putSetting("confirm_at", value);
     await settleEverything(userId);
   } else if (key === "new_couch_fill") await putSetting("new_couch_fill", value);
-  else throw new HttpError(409, "That setting can't be put back here");
+  else if (key === "tiebreak") {
+    await putSetting("tiebreak", value === true);
+    nudgeBotClock();
+  } else throw new HttpError(409, "That setting can't be put back here");
 }
 
 /** The desk's Settings lines, newest first. */
-export const settingsLines = async () => byNewest([...(await deskLines("settings", "confirm_at")), ...(await deskLines("settings", "new_couch_fill"))]);
+export const settingsLines = async () =>
+  byNewest([...(await deskLines("settings", "confirm_at")), ...(await deskLines("settings", "new_couch_fill")), ...(await deskLines("settings", "tiebreak"))]);
 
 // ---------- Inbox ----------
 
 export interface InboxItem {
-  kind: "split" | "stale" | "stranded" | "phase" | "suggestion";
+  kind: "split" | "stale" | "stranded" | "phase" | "suggestion" | "change";
   title: string;
   line: string;
   href: string;
@@ -170,17 +201,40 @@ export const STRANDED = `EXISTS (SELECT 1 FROM league_memberships m WHERE m.leag
 const DAY = "interval '1 day'";
 /** "rewardWin" -> "Reward win": a result's id, readable where the show's own label isn't to hand. */
 export const readable = (id: string) => String(id || "").replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).trim();
+/** "Brady · Found an idol", or "Nobody went home" (step 6c's fact about no one). */
+const factTitle = (f: { castaway_name: string; kind: string; method: string; event_type: string }) =>
+  f.kind === "noexit" ? "Nobody went home" : `${f.castaway_name} · ${f.kind === "event" ? readable(f.event_type) : f.method || f.kind}`;
 // An answer for the fact's episode since a flag was raised.
 const ANSWER_SINCE = `EXISTS (SELECT 1 FROM episode_research er WHERE er.show_id = ss.show_id AND er.season_number = ss.season_number
   AND er.episode_number = d.episode_number AND er.source <> 'combined' AND er.withdrawn_at IS NULL AND er.researched_at > x.created_at)`;
+
+/**
+ * The episodes whose tie-break run hasn't had its say yet, while the desk's switch is on ("season:episode"): their
+ * disputes wait for it before they're the admin's. And the ones a tie-break has answered, for the line.
+ */
+async function tiebreaks(): Promise<{ pending: Set<string>; answered: Set<string> }> {
+  const pending = new Set<string>();
+  const answered = new Set<string>();
+  if (!(await tiebreakOn(pool))) return { pending, answered };
+  for (const q of await tiebreakQuestions(pool)) {
+    const key = `${q.seasonId}:${q.episode}`;
+    if (q.tries.some((t) => t.ok === true)) answered.add(key);
+    const at = tiebreakNext(q);
+    // Still to come, and not gone stale (three days past due: the bot was down, say).
+    if (at && at.next.getTime() - at.due.getTime() <= 3 * 24 * 3600 * 1000) pending.add(key);
+  }
+  return { pending, answered };
+}
 
 /** Only what needs the admin: the community and its couches handle the rest. */
 export async function inbox(): Promise<Inbox> {
   const items: InboxItem[] = [];
   // A disputed fact with no flag waiting for an answer is a split the next answer didn't settle; one flagged a day
-  // ago with no answer since would have had a tie-break run (6c): either way it's the admin's now.
+  // ago with no answer since: either way it's the admin's now. With the tie-break run on (6c part 2), each waits for its
+  // episode's tie-break first, and reaches the desk only if that didn't settle it.
+  const tie = await tiebreaks();
   const { rows: facts } = await pool.query(
-    `SELECT d.id, d.castaway_name, d.kind, d.method, d.event_type, d.episode_number, ${seasonName} AS season,
+    `SELECT d.id, d.season_id, d.castaway_name, d.kind, d.method, d.event_type, d.episode_number, ${seasonName} AS season,
             EXISTS (SELECT 1 FROM fact_disputes x WHERE x.decision_id = d.id AND x.status = 'open' AND NOT ${ANSWER_SINCE}) AS stale
        FROM season_decisions d JOIN show_seasons ss ON ss.id = d.season_id JOIN shows s ON s.id = ss.show_id
       WHERE d.locked_at IS NULL AND d.fact_status IS NOT NULL
@@ -189,10 +243,13 @@ export async function inbox(): Promise<Inbox> {
       ORDER BY d.episode_number DESC LIMIT 30`
   );
   for (const f of facts) {
+    const key = `${f.season_id}:${f.episode_number}`;
+    if (tie.pending.has(key)) continue;
+    const tried = tie.answered.has(key);
     items.push({
       kind: f.stale ? "stale" : "split",
-      title: `${f.castaway_name} · ${f.kind === "event" ? readable(f.event_type) : f.method || f.kind}`,
-      line: `${f.season} · Episode ${f.episode_number} · ${f.stale ? "flagged a day ago, nothing's checked it" : "the sources split"}`,
+      title: factTitle(f),
+      line: `${f.season} · Episode ${f.episode_number} · ${f.stale ? (tried ? "flagged, and the tie-break run didn't settle it" : "flagged a day ago, nothing's checked it") : tried ? "the sources split, the tie-break run too" : "the sources split"}`,
       href: `/desk/fact/${f.id}`,
     });
   }
@@ -217,6 +274,10 @@ export async function inbox(): Promise<Inbox> {
       if (!p?.starts || p.starts.type === "episode" || (b.phase_starts ?? {})[p.id] != null) continue;
       items.push({ kind: "phase", title: `${b.season}: when did ${String(p.name).toLowerCase().startsWith("the ") ? p.name : `the ${p.name}`} start?`, line: "A phase start to confirm · its segments wait until it's set", href: `/desk/rulebook/${b.id}` });
     }
+  }
+  // Something new the couches split on, or that couldn't go in on its own (step 6c part 2).
+  for (const n of await deskNotices()) {
+    items.push({ kind: "change", title: `${n.season}: something new in Episode ${n.episode}?`, line: `${n.line ?? "The couches split"} · "${n.note.slice(0, 80)}"`, href: n.rulebookId ? `/desk/rulebook/${n.rulebookId}` : `/desk/season/${n.seasonId}` });
   }
   const { rows: tips } = await pool.query(
     `SELECT g.id, g.note, g.rulebook_id, ${seasonName} AS season, COALESCE(u.username, u.name) AS who
@@ -299,7 +360,7 @@ export async function find(q: string): Promise<FoundItem[]> {
   out.push(
     ...facts.map((r) => ({
       kind: "fact" as const,
-      title: `${r.castaway_name} · ${r.kind === "event" ? readable(r.event_type) : r.method || r.kind}`,
+      title: factTitle(r),
       line: `${r.season} · Episode ${r.episode_number} · ${r.fact_status}`,
       href: `/desk/fact/${r.id}`,
     }))

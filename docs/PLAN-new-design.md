@@ -31,7 +31,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | **done** 2026-10-25 on the branch (migration 0111 ships with 0b's) | Opus · high |
 | 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | **done** 2026-10-25 on the branch (no migration) | Opus · high |
 | 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **done** 2026-10-25 on the branch, in three parts: results from everyone and disputes (migration 0112), the admin's desk and the rulebook editor (0113), Make it ours (0114); all ship with 0b's | Opus · high |
-| 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | **part 1 done** 2026-10-25 on the branch (One tap, the ways, the bot's runs as sources, quick checks that wait kept; migration 0115 ships with 0b's); part 2 next: the tie-break run, "nobody went home", show changes the couches confirm | Opus · xhigh |
+| 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | **done** 2026-10-25 on the branch, in two parts: how results get in (One tap, the ways, the bot's runs as sources, quick checks that wait; migration 0115) and settling without the admin (the tie-break run behind a desk switch that's off, "nobody went home", show changes the couches confirm, the desk's bot Settings; 0116); both ship with 0b's | Opus · xhigh |
 | 7 | Draft room and blind draft | not started | Opus · xhigh |
 | — | **Switch the couch to the new design by default** | — | — |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | not started | Opus · xhigh |
@@ -178,17 +178,19 @@ step's As built.
   panel, the admin's research and paste in Admin › Shows, and the wiki still stage pending results the old way, so they're
   never a source and never apply on their own. The desk's decisions are canonical (part 2), as classic's accept and reject
   are; classic's research screens retire at cutover.
-- **No tie-break run** (step 6b part 1; for 6c part 2). The plan's "a dispute open a day triggers one tie-break run" needs a
-  scheduled bot run (and Survivor 51's bot runs only the schedule check, the user's call); until then a flag waits for
-  someone to Check it again from Backstage (one more answer about everyone settles it), and since part 2 a flag nothing
-  checked for a day, and any split, reaches the admin's Inbox.
+- **The tie-break run is off** (step 6c part 2; the user's call). Built behind the desk's Settings switch, off by default:
+  switched on, it reaches every season with shared results, Survivor 51 included (whose bot otherwise runs only the
+  schedule check). Until it's on, a flag waits for someone to Check it again, and a flag nothing checked for a day, and any
+  split, reaches the admin's Inbox.
 - **One person, one source** (step 6b part 1; for a later step). Sources are counted by person, so two accounts on one couch
   pasting the same wrong answer confirm it for every couch. House rulings take away a couch's reason to, the admin can
   decide it (part 2), and Settings' Confirmed needs can ask for 3 or 4; counting couches instead of people is still open.
-- **Show changes aren't community-confirmed** (step 6b part 2; for 6c part 2, with research's runs). The plan's "Something the
-  rulebook doesn't have" on an episode page (It's new / Not new, a second couch agreeing adds it from that episode) isn't
-  built: the desk's The show changed is the only way a rulebook changes from an episode on (couches with their own copy are
-  asked first, part 3). Until it is, a rulebook's Lock holds back nothing the desk doesn't already control.
+- **A confirmed show change is the bot's reading of a note** (step 6c part 2; for 10 or later). When couches agree an episode
+  brought something new, our bot turns research's one-sentence note into rulebook items, and only its additions go in, from
+  that episode, for every couch following the rulebook (Undo is the desk's; Lock holds it back). Its wording and points are
+  the bot's guess until the desk edits them; a split goes to the desk rather than to a tie-break check (the mock's).
+  Research's note comes from any full answer (a paste, One tap, the bot's runs); classic's research panel and Admin pastes
+  only reach the combined row, which the card doesn't read.
 - **Points are for the whole season** (step 6b part 3; for step 10 or later). The mock's Scoring rules saves points "From
   Episode 6" or "Rescore the season"; the engine keeps one number per moment (`settings.eventPoints`, read by ~20 places,
   classic's screens among them, none with the episode to hand), so a change always scores the season again. Points by
@@ -200,8 +202,9 @@ step's As built.
   all in a built one's is left out as a repeat, so a first research of the Traitors would drop "As a Faithful, voted out a
   Faithful" (it reads as "…voted out a Traitor at Round Table"). Check for changes keeps the rulebook's own moments
   (part 2); a new show has none to keep. Telling the roles apart (a differing noun) would fix it.
-- **The desk's Settings is short** (step 6b part 2; for 6c part 2 and C). The mock's research model and prompts, Autopilot trial
-  and What's New aren't there; classic's `/admin` still has them until cutover. A person's page only looks (no reset,
+- **The desk's Settings is still short** (step 6b part 2, 6c part 2; for C). The tie-break switch and Autopilot's trial (each
+  season's bot schedule) are there now; the research model and prompts and What's New aren't (not small: classic's `/admin`
+  still has them until cutover), nor a season's episode length (classic's Setup). A person's page only looks (no reset,
   remove or make admin) for the same reason.
 - **Undo leaves what another answer also says** (step 6b part 1; for a later polish). Taking your answer back keeps any
   result another source still reports (it's still a source's word), but the toast says only "Undone"; it could say "3
@@ -209,11 +212,9 @@ step's As built.
 - **Flags don't notify** (step 6b part 1; for 15). "You'll hear how it went" is the flag's status: Backstage's Flags from your
   couch (for whoever runs a game) and "you flagged this" on the episode's sheet. A push when a flag settles belongs with
   notifications by moment.
-- **"Nobody went home" can't be marked** (step 5; for 6c part 2). A quick check that says nobody left waits (kept since 6c
-  part 1, with It's right disabled: there's no one to apply), and there's no way to mark an episode early with no
-  elimination; the full results settle it. Rare (non-elimination episodes). The engine's "has results" means an event is
-  in, so it needs a marker (say a shared `noexit` fact the sync applies and undoes like any other, which a quick answer
-  naming someone counts against).
+- **"Nobody went home" never applies on its own** (step 6c part 2; for a later polish). A quick check that says nobody left
+  always waits for It's right, however many sources it has (a check run too early can find nothing and say so); entered by
+  hand, or in a full answer, it applies like any result. Two couches' quick checks saying nobody could confirm it instead.
 - **Not in Recent changes yet** (step 5; for 7, 9 and 6b). Logged: every classic results route, settings, roles, players,
   the cast and tribes, waivers (process, undo, window), the catch-up reveal, lineup locks, the draft's start, order and
   take-back, the finale's results, prediction questions, rule changes, scoring rules, renaming, linking and moves made for
@@ -240,7 +241,7 @@ step's As built.
   Restoring them (Recent changes) puts them back on it.
 - **The run's "seen" mark is per device** (step 6a; for 15). Tonight's "Waivers ran" plate goes once you've watched the run
   here (localStorage), so another phone shows it again until the week ends.
-- **No quick-check switch for a couch** (step 6c part 1; for 6c part 2 or when Autopilot ships, the user's call). The mock's
+- **No quick-check switch for a couch** (step 6c part 1; for when Autopilot ships, the user's call; 6c part 2 left it). The mock's
   Quick check card has a switch ("Our bot checks who went home about 5 minutes after the episode, and keeps checking until
   it's sure. Always free."). The bot's schedule is per season and an admin's (Survivor 51 runs only the schedule check, the
   user's decision), so a couch switching it on would add runs for every couch on the season; not built. Backstage says
@@ -251,7 +252,7 @@ step's As built.
   request in llm-browser-api's server.py would fix it; it's a change on the VM. The full answer's episode check
   (`pasteEpisodeMismatch`) fails a One tap answer about another episode; a quick answer has no such check (its names must
   be someone still in, and it needs two sources to apply on its own).
-- **Nobody can undo the bot's own answer** (step 6c part 1; for 6c part 2's desk Settings or C). An Autopilot answer has no
+- **Nobody can undo the bot's own answer** (step 6c part 1; for C or a later desk step; 6c part 2 left it). An Autopilot answer has no
   couch, so no couch gets its line or its Undo (like another couch's answer); a wrong one is flagged ("Something wrong?") and
   settled by the next answer, or decided on the desk. The desk could offer "withdraw this answer" on a result's page.
 - **The commissioner tour's test fails** (seen in step 6c part 1, failing at HEAD before it; for 7 or a classic fix).
@@ -1751,6 +1752,74 @@ checks it. Migration **0115** ships with 0b's (same rehearsal).
   sits near the real one (the season is moved so Episode 6 ended six minutes ago): retries count from when a try really
   started. `check-new-backstage.js` (67) and `check-new-community.js` (82) tap "Copy and paste it yourself" when One tap is
   offered, and step 5's unsure answers are now kept.
+
+### As built, step 6c part 2 (2026-10-25, on `new-design`): settling without the admin
+
+What part 1 left for 6c: the tie-break run, "nobody went home", the show changes the couches confirm, and the desk's
+Settings for the bot. Migration **0116** ships with 0b's (same rehearsal). Survivor 51's schedule is unchanged (only the
+schedule check), and the tie-break switch is off, so nothing new runs on production when this ships.
+- **Data (0116, additive):** `season_decisions.kind` takes `noexit` (no castaway: `castaway_name ''`; the shape CHECK has a
+  row for it); `bot_research_runs.kind` takes `tiebreak` and `rulebook`; `rulebook_edits.source` takes `community`;
+  `rulebook_notices` (one per season episode whose research said the show changed: research's note, its status open /
+  checking / added / not_new / desk, the edit it made, the bot's run) and `rulebook_notice_votes` (one per person, with
+  their couch). Neither new table is backed up (like `quick_waits` and the bot's runs: what was said about a note; what it
+  added is kept in `rulebook_edits`, which is).
+- **Nobody went home:** a shared fact of its own. The engine's "has results" counts the league episode's `noExit` mark
+  (`EpisodeLogic.hasResults`, `setNoExit`; cleared with the spoiler hiding), so the episode is early with nobody out;
+  `decision-apply.ts` applies it and its ledger undoes it; `resultsDiff`/`undoResults` record and restore it; the preview
+  says "Nobody went home in Episode N". Settling (`fact-status.ts coversFact`): any answer about who went home speaks to
+  it, so a quick check or hand entry naming someone counts against it, and saying nobody went home (it covers
+  `["elimination", "noexit"]`) counts against whoever someone else said left. A full answer that names nobody out reports
+  it (`community-results.ts withNobodyOut`, for a show with ways out: the paste, One tap, the bot's runs, and the season's
+  re-read). Backstage's by-hand sheet has "Nobody went home" (`Chosen.nobody`), and It's right works for a quick check
+  that says nobody left (a "nobody" answer still always waits: two sources aren't enough to trust it on its own). The
+  desk, corrections and the episode's results name it "Nobody went home" (no face, no edit). The Survival Pool decides an
+  episode once nobody went home too (`PickEmLogic.decided`, `pool-view.ts`, `action-items.js`: every pick survives).
+- **The tie-break run** (`db/bot-research.js` `tiebreakNext` / `tiebreakQuestions` / `planTiebreaks`): when an episode has
+  a result disputed (sources split) or a flag no answer has come in since, the bot asks the episode's full research once
+  more, a day after the question opened (the oldest flag since the newest answer; for a split, the answer that split it),
+  as a source of its own (`tiebreak`, nobody's: `bot-results.ts`), with a full run's retries (three, 20 minutes apart,
+  counted from when the question opened). A split a tie-break already answered stays the admin's; a flag raised after it
+  gets one of its own. It's planned with the scheduled runs in `planRuns`, so the cron route's `next` tells the VM's
+  clock when one is due and nothing else wakes the database; every season is covered, whatever its schedule, behind the
+  desk's switch (`app_settings 'tiebreak'`, **off by default**: switching it on reaches Survivor 51 too, the user's call).
+  A flag (production only) and the switch tell the clock at once (`desk-bot.ts nudgeBotClock`, `tellBotClock`).
+  Backstage's question card says "If nobody checks it, our bot does Mon 1:50 PM", and the Inbox holds a split or stale flag
+  back while its tie-break is still to come ("the sources split, the tie-break run too" once it has had its say).
+- **Show changes the couches confirm** (`src/lib/server/show-changes.ts`, `GET/POST /api/seasons/[id]/show-changes/[n]`,
+  `src/new/show/show-change.tsx`; the mock's rulebook.js rbNewCard): when an answer for an episode carries research's
+  `rulesNote`, its page shows "Something the rulebook doesn't have" to anyone who plays on a couch there and has seen it:
+  It's new / Not new. Voices are counted by couch (its newest answer; a couch whose own research said so counts as saying
+  it's new, and so does our bot's research, as one voice). Confirmed needs of them (the desk's number, 2) and more than say
+  it isn't: our bot works out what to add, after the response (the rulebook prompt with the season's rulebook as it is and
+  the note, `buildRulebookPrompt`'s new `change`; reviewed, and only what it **adds** is kept: a twist, a way out, a
+  segment or a moment), saved as The show changed from that episode (a `community` edit, compiled, pushed to the leagues
+  following it, couches with their own copy asked first, answers re-read from that episode), with a line and Undo in the
+  rulebook's History; the card polls every 4 s while it's added and then says "It's in the rulebook now". More saying it
+  isn't: put away. A split, a locked rulebook, a change before a later one, or anything the bot can't add: the Inbox
+  ("something new in Episode N?"), and the rulebook's page has It's in now / Not new. A notice whose edit the desk withdraws
+  goes from the page. Lock's line on the rulebook page now says what it holds back.
+- **The desk's Settings** (`src/lib/server/desk-bot.ts`, `desk.ts`): Tie-break run (a sheet: on or off, what each means, and
+  the airing seasons it reaches), and **Autopilot trial**: the seasons whose bot schedule is on and what each checks.
+  A season's page has its schedule (`GET/POST /api/desk/seasons/[id]` `{ bot }`): the bot on or off, each run on or off
+  (its own, and the usual ones it hasn't got, added when switched on), its latest runs; each change a History line with
+  Undo, the same columns classic's Admin › season › Setup edits. Research model and prompts aren't here (Noticed).
+- **Fixed from Noticed, not fixed:** no tie-break run; "nobody went home" can't be marked; show changes aren't
+  community-confirmed; the desk's Settings had nothing for the bot.
+- **Fixtures and Preview:** none added or removed.
+- **Changed from the mock:** the mock's "a tie-break check runs tomorrow" for a show change the couches split on is the
+  desk's instead; the mock's card says what the change is ("a Block a Vote advantage"), ours quotes research's note; a
+  "nobody went home" quick check always waits for It's right.
+- **Checks:** `scripts/dev-test/check-new-settling.js <outDir> [--width=390] [--keep]` (96 PASS at 390): nobody went home by
+  hand in the browser (the preview, every league, Show me, Undo) and It's right on a quick check that says so; a split with
+  casey's full answer and the Inbox while the switch is off; the tie-break (the switch is the desk's, the clock's `next`, the
+  Inbox holding back, three failed tries then the desk's, a new answer opening it again, the run settling it with a
+  correction line, a later flag's own); the show change (sam refused, jordan's Not new in the browser, the split in the
+  Inbox, alex's It's new and the bot adding only the twist, the History's Undo, a locked rulebook sent to the desk and put
+  away there, two couches saying Not new); the desk's Settings and a season's schedule in the browser; every real league
+  unchanged. It stops if another local season has bot research on or a question open (the tie-break plans every season).
+  `fake-bot.js` knows the rulebook prompt (kind `rulebook`). `tests/bot-research.test.js` (`tiebreakNext`),
+  `tests/fact-status.test.js` and `tests/results-changes.test.js` (nobody went home).
 
 ## Steps 8–15: beyond parity
 

@@ -20,9 +20,11 @@ const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}
 
 /** "Brady's idol removed" said plainly: "Brady · Found an idol, taken out" / "Devin · Found an idol, added" / "Mike · Voted Out → Quit". */
 export function correctionWhat(c: Pick<Correction, "name" | "label" | "change" | "to">): string {
-  if (c.change === "removed") return `${first(c.name)} · ${c.label}, taken out`;
-  if (c.change === "added") return `${first(c.name)} · ${c.label}, added`;
-  return `${first(c.name)} · ${c.label} → ${c.to?.split(" · ").pop() ?? ""}`;
+  // A fact about no one ("Nobody went home", step 6c) is its label alone.
+  const what = c.name ? `${first(c.name)} · ${c.label}` : c.label;
+  if (c.change === "removed") return `${what}, taken out`;
+  if (c.change === "added") return `${what}, added`;
+  return `${what} → ${c.to?.split(" · ").pop() ?? ""}`;
 }
 
 /** What a house ruling does here: keeps the old result, or keeps an added one out. */

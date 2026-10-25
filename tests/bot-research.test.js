@@ -141,3 +141,28 @@ test("the quick prompt names the episode, the cast and the show's own exits", ()
   assert.match(p, /Alexis Levine/);
   assert.match(p, /"found": true/);
 });
+
+test("the tie-break: a day after a flag nobody's answer has checked, or after the answer that split a result (step 6c)", () => {
+  const T = new Date("2026-10-26T12:00:00Z").getTime();
+  const at = (h) => new Date(T + h * 3600 * 1000);
+  // A flag after the newest answer: due a day after the flag.
+  const flag = Bot.tiebreakNext({ flags: [at(2)], disputed: true, newest: at(0), tries: [] });
+  assert.equal(flag.due.getTime(), at(26).getTime());
+  assert.equal(flag.next.getTime(), at(26).getTime());
+  // A split with no flag waiting: a day after the answer that split it.
+  const split = Bot.tiebreakNext({ flags: [at(-5)], disputed: true, newest: at(0), tries: [] });
+  assert.equal(split.due.getTime(), at(24).getTime());
+  // Nothing open, or a flag an answer has come in since on a fact that's no longer disputed: none.
+  assert.equal(Bot.tiebreakNext({ flags: [], disputed: false, newest: at(0), tries: [] }), null);
+  assert.equal(Bot.tiebreakNext({ flags: [at(-1)], disputed: false, newest: at(0), tries: [] }), null);
+  // Three tries, 20 minutes apart, counted only since the question opened; then it's the admin's.
+  const tried = (n) => Array.from({ length: n }, (_, i) => ({ started_at: new Date(at(24).getTime() + i * 20 * 60000), ok: false }));
+  assert.equal(Bot.tiebreakNext({ flags: [], disputed: true, newest: at(0), tries: tried(1) }).next.getTime(), at(24).getTime() + 20 * 60000);
+  assert.equal(Bot.tiebreakNext({ flags: [], disputed: true, newest: at(0), tries: tried(3) }), null);
+  // A split a tie-break already answered stays the admin's; a new flag after it gets one of its own.
+  const done = [{ started_at: at(24), ok: true }];
+  assert.equal(Bot.tiebreakNext({ flags: [], disputed: true, newest: at(24), tries: done }), null);
+  assert.equal(Bot.tiebreakNext({ flags: [at(30)], disputed: true, newest: at(24), tries: done }).due.getTime(), at(54).getTime());
+  // Gone stale three days past due (the bot was down): none.
+  assert.equal(Bot.tiebreakNext({ flags: [], disputed: true, newest: at(0), tries: [{ started_at: at(24 + 80), ok: false }] }), null);
+});

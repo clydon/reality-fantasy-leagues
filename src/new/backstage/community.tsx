@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CalendarClock, Check, CircleQuestionMark, KeyRound, Users } from "lucide-react";
+import { airTime } from "../clock";
 import { backstage, useAfterResults, type Backstage, type Correction, type PreviewLine } from "../data";
 import { Block } from "../show/parts";
 import { GuardSheet } from "../ui/guards";
@@ -16,12 +17,14 @@ import { toast } from "../ui/toast";
 
 const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}`;
 const first = (name: string) => name.split(" ")[0];
+// "Brady · Found an idol"; a fact about no one ("Nobody went home", step 6c) is its label alone.
+const what = (name: string, label: string) => (name ? `${first(name)} · ${label}` : label);
 
 /** "Removed: Brady · Found an idol", "Added: Devin · Found an idol", "Changed: Mike · Voted Out → Quit". */
 export function correctionTitle(c: Pick<Correction, "name" | "label" | "change" | "to">): string {
-  if (c.change === "removed") return `Removed: ${first(c.name)} · ${c.label}`;
-  if (c.change === "added") return `Added: ${first(c.name)} · ${c.label}`;
-  return `Changed: ${first(c.name)} · ${c.label} → ${c.to?.split(" · ").pop() ?? ""}`;
+  if (c.change === "removed") return `Removed: ${what(c.name, c.label)}`;
+  if (c.change === "added") return `Added: ${what(c.name, c.label)}`;
+  return `Changed: ${what(c.name, c.label)} → ${c.to?.split(" · ").pop() ?? ""}`;
 }
 
 /** Who can fill them in, then each recent episode that someone has filled in, and how far its sources agree. */
@@ -93,7 +96,7 @@ export function FillState({ seasonId, couchId, data }: { seasonId: string; couch
 }
 
 /** A disputed episode: one more answer about everyone settles it. */
-export function QuestionCard({ episode, count, onAsk }: { episode: number; count: number; onAsk: () => void }) {
+export function QuestionCard({ episode, count, tiebreakAt, onAsk }: { episode: number; count: number; tiebreakAt?: string | null; onAsk: () => void }) {
   return (
     <div data-question={episode} className="rounded-[4px] bg-card p-3.5">
       <div className="flex items-start gap-3">
@@ -106,6 +109,7 @@ export function QuestionCard({ episode, count, onAsk }: { episode: number; count
           </b>
           <small className="text-[13px] leading-snug text-muted-foreground">
             Someone flagged it, or the sources don&apos;t agree. Nothing changes until it&apos;s settled: one more answer about everyone settles most.
+            {tiebreakAt ? ` If nobody checks it, our bot does ${airTime(Date.parse(tiebreakAt))}.` : ""}
           </small>
         </span>
       </div>

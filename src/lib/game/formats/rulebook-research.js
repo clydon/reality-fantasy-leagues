@@ -36,7 +36,7 @@ const KIND_LINES = () =>
     .map(([k, K]) => `      ${k}: ${K.name}. ${K.blurb} Like ${K.like}.${k === 'talk' ? ' Has no ways out and no twists.' : k === 'sport' ? ' Has no twists.' : ''}`)
     .join('\n');
 
-function buildRulebookPrompt({ show, season, airing = false, template } = {}) {
+function buildRulebookPrompt({ show, season, airing = false, template, change } = {}) {
   const what = [show, season].filter(Boolean).join(', ');
   const parts = [];
   parts.push(
@@ -143,7 +143,16 @@ function buildRulebookPrompt({ show, season, airing = false, template } = {}) {
     '  "phaseStarts": only for a season already under way: { "<phase id>": the episode it started in }, for the phases it has reached',
     '}'
   );
-  if (template && isObj(template)) {
+  // Something one episode brought that the rulebook may not have (docs/PLAN-new-design.md step 6c part 2: research's note
+  // about it, which the couches confirmed is new): only that is added, and the rulebook it starts from is kept as it is.
+  if (change && isObj(change) && change.note && template && isObj(template)) {
+    parts.push(
+      '',
+      `Episode ${change.episode} of this season changed how the game is played. Research on it says: "${String(change.note).replace(/"/g, "'")}"`,
+      'Add what that describes to the rulebook below, where it belongs: a twist, a way out, a segment or a moment, with the show\'s own name for it. Change nothing else: answer with the rulebook below exactly as it is, plus what you added. If it describes something the rulebook already has, answer with the rulebook unchanged.',
+      JSON.stringify(template, null, 1)
+    );
+  } else if (template && isObj(template)) {
     parts.push(
       '',
       'Start from this rulebook of a similar show and correct it to fit, rather than starting over. Keep what matches; change, add or remove the rest:',

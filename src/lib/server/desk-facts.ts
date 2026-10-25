@@ -1,5 +1,5 @@
 import { publicMediaSrc } from "@/lib/game/selectors";
-import type { FactStatus } from "@/lib/game/fact-status";
+import { coversFact, type FactStatus } from "@/lib/game/fact-status";
 import { seasonFormat } from "@db/season-rule-changes.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { settleNow } from "./community-results";
@@ -69,7 +69,12 @@ export async function deskFact(id: string): Promise<DeskFact> {
   const format = await seasonFormat(pool, d.season_id, { episode: d.episode_number });
   const eventType = d.applied?.eventType || d.event_type;
   const method = d.applied?.method ?? d.method;
-  const label = d.kind === "event" ? (format.data.events.find((e: { id: string; label: string }) => e.id === eventType)?.label ?? readable(eventType)) : method || d.kind;
+  const label =
+    d.kind === "event"
+      ? (format.data.events.find((e: { id: string; label: string }) => e.id === eventType)?.label ?? readable(eventType))
+      : d.kind === "noexit"
+        ? "Nobody went home"
+        : method || d.kind;
 
   const { rows: subs } = await pool.query(
     `SELECT er.id, er.source, er.researched_at, er.covers, COALESCE(u.username, u.name) AS who, c.name AS couch, f.method AS said, f.research_id IS NOT NULL AS yes
@@ -79,14 +84,8 @@ export async function deskFact(id: string): Promise<DeskFact> {
       ORDER BY er.researched_at`,
     [id, d.show_id, d.season_number, d.episode_number]
   );
-  const name = (d.applied?.castawayName || d.castaway_name).toLowerCase();
-  const speaks = (s: (typeof subs)[number]) => {
-    if (s.yes) return true;
-    const c = s.covers;
-    if (!c || c.only) return false;
-    if (c.kinds && !c.kinds.includes(d.kind)) return false;
-    return (c.people || []).some((p: string) => p.toLowerCase() === name);
-  };
+  const name = d.applied?.castawayName || d.castaway_name;
+  const speaks = (s: (typeof subs)[number]) => s.yes || (!!s.covers && coversFact(s.covers, { kind: d.kind, castawayName: name }));
   const source = (s: (typeof subs)[number]): DeskSource => ({
     who: s.who ?? SOURCE[s.source] ?? "The bot",
     couch: s.couch,
@@ -119,7 +118,7 @@ export async function deskFact(id: string): Promise<DeskFact> {
     season: { id: d.season_id, name: d.season_name },
     episode: d.episode_number,
     kind: d.kind,
-    name: d.applied?.castawayName || d.castaway_name,
+    name: d.kind === "noexit" ? "" : name,
     photo: publicMediaSrc(d.photo_url),
     label,
     method,
@@ -170,6 +169,7 @@ export async function decideFact(user: SessionUser, id: string, body: { decide?:
     text = yes ? "Decided: it happened · canonical, locked" : "Decided: it didn't happen · removed for everyone, locked";
     flagsTo = yes ? "kept" : "upheld";
   } else if (body.edit && typeof body.edit === "object") {
+    if (fact.kind === "noexit") throw new HttpError(400, "Nobody went home has nothing to edit: it happened or it didn't.");
     const e = body.edit;
     const castawayName = typeof e.castawayName === "string" && e.castawayName.trim() ? e.castawayName.trim() : fact.name;
     if (!fact.choices.cast.some((c) => c === castawayName)) throw new HttpError(400, `${castawayName} isn't in this season's cast`);

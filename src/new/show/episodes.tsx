@@ -13,6 +13,7 @@ import { first } from "./moves";
 import { Block, Face } from "./parts";
 import { useOpenReveal } from "./reveal";
 import { CouchMomentsCard } from "./couch-moments";
+import { ShowChangeCard } from "./show-change";
 import { CorrectionPlates, CorrectionRow, SomethingWrong } from "./something-wrong";
 import { playsWaivers, WaiverEpisodeRow } from "./waivers";
 
@@ -213,7 +214,11 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const e = show.episodes?.episodes.find((x) => x.number === shown && x.status === "seen") ?? null;
   return (
     <PushedPage open={ep != null} onClose={page.close} title={`Episode ${shown ?? ""}`} back="Episodes">
-      {e ? <EpisodeBody seasonId={seasonId} couchId={show.couch?.id ?? null} e={e} /> : <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>}
+      {e ? (
+        <EpisodeBody seasonId={seasonId} couchId={show.couch?.id ?? null} e={e} seasonName={show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season"} />
+      ) : (
+        <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>
+      )}
     </PushedPage>
   );
 }
@@ -233,7 +238,7 @@ function GameLine({ l }: { l: GameNight }) {
   );
 }
 
-function EpisodeBody({ seasonId, couchId, e }: { seasonId: string; couchId: string | null; e: EpisodeRow }) {
+function EpisodeBody({ seasonId, couchId, e, seasonName }: { seasonId: string; couchId: string | null; e: EpisodeRow; seasonName: string }) {
   const out = e.out ?? [];
   const results = useEpisodeResults(seasonId, couchId, e.number);
   return (
@@ -298,6 +303,7 @@ function EpisodeBody({ seasonId, couchId, e }: { seasonId: string; couchId: stri
         </section>
       )}
       <CouchMomentsCard seasonId={seasonId} couchId={couchId} episode={e.number} />
+      <ShowChangeCard seasonId={seasonId} couchId={couchId} episode={e.number} seasonName={seasonName} />
       <SomethingWrong seasonId={seasonId} couchId={couchId} episode={e.number} />
     </div>
   );

@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 export type { Inbox, InboxItem, FoundItem, DeskSettings, DeskLine } from "@/lib/server/desk";
 export type { DeskFact, DeskSource } from "@/lib/server/desk-facts";
 export type { DeskSeason, DeskCastaway } from "@/lib/server/desk-cast";
+export type { SeasonBot } from "@/lib/server/desk-bot";
 export type { DeskCouch, DeskPerson, DeskShow } from "@/lib/server/desk-couches";
 export type { DeskRulebook, DeskRulebookEdit } from "@/lib/server/desk-rulebooks";
 

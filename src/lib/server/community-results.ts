@@ -23,9 +23,9 @@ import { syncSeasonLeagues } from "./season-decisions";
 
 export type SubmissionSource = "paste" | "quick" | "hand" | "bot" | "autopilot" | "tiebreak";
 
-/** One result a submission reports. */
+/** One result a submission reports. `noexit`: nobody went home in the episode (no castaway: castawayName ''). */
 export interface SubmittedFact {
-  kind: "elimination" | "event" | "exiled" | "role" | "group";
+  kind: "elimination" | "event" | "exiled" | "role" | "group" | "noexit";
   castawayName: string;
   method?: string | null;
   eventType?: string | null;
@@ -56,6 +56,16 @@ export interface Settled {
 }
 
 const lockKey = (seasonId: string, episode: number) => `facts:${seasonId}:${episode}`;
+
+/**
+ * A full answer's facts, with "nobody went home" when it names nobody who left (step 6c): a full answer speaks for every
+ * kind of result, so its silence about exits is an answer, and it's what lets an episode with no elimination settle. Only
+ * for a show people leave (its format has ways out).
+ */
+export function withNobodyOut(facts: SubmittedFact[], format: { exitMethods?: string[] } | null | undefined): SubmittedFact[] {
+  if (!format?.exitMethods?.length || facts.some((f) => f.kind === "elimination")) return facts;
+  return [...facts, { kind: "noexit", castawayName: "", confidence: "high" }];
+}
 
 /** How many sources confirm a fact (the desk's Settings, app_settings 'confirm_at'; 2 by default). */
 export async function confirmAt(db: { query: PoolClient["query"] } = pool): Promise<number> {
@@ -113,7 +123,7 @@ async function fileFacts(client: PoolClient, seasonId: string, episode: number, 
   // The season cast's own spelling, so the same person from any couch lands on one fact.
   const castState = await seasonCastState(client, seasonId);
   for (const one of given) {
-    const f = { ...one, castawayName: canonicalName(castState, one.castawayName) };
+    const f = { ...one, castawayName: one.kind === "noexit" ? "" : canonicalName(castState, one.castawayName) };
     const identity = `${f.kind}|${f.castawayName.toLowerCase()}|${f.eventType ?? ""}`;
     if (seen.has(identity)) continue;
     seen.add(identity);
@@ -333,7 +343,13 @@ export async function restageSeason(seasonId: string, fromEpisode: number, actor
     const items = new Map<string, SubmittedFact[]>();
     for (const s of subs.filter((x) => x.episode_number === n)) {
       const read = await researchItems(pool, seasonId, { showId: s.show_id, season: s.season_number, episodeNumber: n, format }, s.payload);
-      items.set(s.id, read.map((i) => ({ kind: i.kind, castawayName: i.name, method: i.method, eventType: i.eventType, units: i.units, juryVotes: i.juryVotes, postMerge: i.postMerge, confidence: i.confidence, sources: i.sources })));
+      items.set(
+        s.id,
+        withNobodyOut(
+          read.map((i) => ({ kind: i.kind, castawayName: i.name, method: i.method, eventType: i.eventType, units: i.units, juryVotes: i.juryVotes, postMerge: i.postMerge, confidence: i.confidence, sources: i.sources })),
+          format
+        )
+      );
     }
     await settleNow(seasonId, n, async (client) => {
       for (const [id, facts] of items) {
@@ -431,7 +447,7 @@ export async function unsettledFacts(seasonId: string, through: number): Promise
     `SELECT d.episode_number, d.castaway_name, d.fact_status,
             (SELECT count(*)::int FROM fact_disputes x WHERE x.decision_id = d.id AND x.status = 'open') AS flags
        FROM season_decisions d
-      WHERE d.season_id = $1 AND d.status = 'accepted' AND d.episode_number <= $2 AND d.kind <> 'role' AND d.fact_status IN ('reported', 'disputed', 'confirmed')`,
+      WHERE d.season_id = $1 AND d.status = 'accepted' AND d.episode_number <= $2 AND d.kind NOT IN ('role', 'noexit') AND d.fact_status IN ('reported', 'disputed', 'confirmed')`,
     [seasonId, Number.isFinite(through) ? through : 100000]
   );
   const out = new Map<number, Map<string, "reported" | "disputed">>();
@@ -574,6 +590,7 @@ export function factLabel(state: LeagueState, f: { kind: string; method: string;
   if (f.kind === "event") return StateLogic.formatOf(state).events.find((e) => e.id === f.eventType)?.label ?? f.eventType;
   if (f.kind === "group") return `Moved to ${f.method}`;
   if (f.kind === "exiled") return "Exiled";
+  if (f.kind === "noexit") return "Nobody went home";
   return f.method || f.kind;
 }
 

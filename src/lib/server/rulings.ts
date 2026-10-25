@@ -237,7 +237,12 @@ export async function rulingsFor(leagueIds: string[], episode: number): Promise<
   return rows.map((r) => {
     const state = states.get(r.league_id) as LeagueState | undefined;
     const k = r.keeps as DecisionFact;
-    const label = k.kind === "event" ? (state ? StateLogic.formatOf(state).events.find((e) => e.id === k.event_type)?.label : null) ?? k.event_type : k.method || k.kind;
+    const label =
+      k.kind === "event"
+        ? ((state ? StateLogic.formatOf(state).events.find((e) => e.id === k.event_type)?.label : null) ?? k.event_type)
+        : k.kind === "noexit"
+          ? "Nobody went home"
+          : k.method || k.kind;
     return { decisionId: r.decision_id, leagueId: r.league_id, by: r.who, name: k.castaway_name, label, absent: (r.keeps as { absent?: boolean }).absent === true };
   });
 }

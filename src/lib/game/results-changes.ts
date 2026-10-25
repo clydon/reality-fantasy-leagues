@@ -17,7 +17,8 @@ export type RemovedResult =
   | { kind: "event"; castawayId: string; eventType: string; units: number | null }
   | { kind: "role"; castawayId: string; role: string }
   | { kind: "group"; castawayId: string; tribeId: string | null }
-  | { kind: "exiled"; castawayId: string };
+  | { kind: "exiled"; castawayId: string }
+  | { kind: "noexit" };
 
 /** How a results change is taken back (league_changes.undo). */
 export interface ResultsUndo {
@@ -73,6 +74,10 @@ export function resultsDiff(before: LeagueState, after: LeagueState, episode: nu
   for (const x of exiled.gone) removed.push({ kind: "exiled", castawayId: x.castawayId });
   for (const x of exiled.come) added.push(base(x.castawayId, "exiled"));
 
+  // Nobody went home (step 6c): the episode's mark, with no one to name.
+  if (was?.noExit && !now?.noExit) removed.push({ kind: "noexit" });
+  if (now?.noExit && !was?.noExit) added.push(base("", "noexit"));
+
   if (!added.length && !removed.length) return null;
   return { type: "results", episode, added, removed, stageBefore: was ? StateLogic.resultsStage(was) : null };
 }
@@ -89,6 +94,7 @@ export function undoResults(state: LeagueState, undo: ResultsUndo) {
       } else if (r.kind === "event") StateLogic.ActiveRosterLogic.addEvent(state, ep.id, r.eventType, r.castawayId, r.units);
       else if (r.kind === "role") StateLogic.addRole(state, ep.id, r.castawayId, r.role);
       else if (r.kind === "group") StateLogic.addGroupChange(state, ep.id, r.castawayId, r.tribeId);
+      else if (r.kind === "noexit") StateLogic.setNoExit(state, ep.id, true);
       else StateLogic.addExiled(state, ep.id, r.castawayId);
     }
   }
@@ -205,6 +211,10 @@ export function previewLines(before: LeagueState, after: LeagueState, gameName: 
       change: owners.length ? `${and(owners)} ${owners.length === 1 ? "loses" : "lose"} them` : "",
       dir: null,
     });
+  }
+  // Nobody went home (step 6c): said once, whatever the game.
+  for (const e of after.episodes.filter((x) => x.noExit && !before.episodes.find((y) => y.number === x.number)?.noExit)) {
+    lines.push({ face: { kind: "castaway", name: "Nobody", photo: null }, label: `Nobody went home in Episode ${e.number}`, change: "", dir: null });
   }
   const moved: { line: PreviewLine; size: number }[] = [];
   for (const r of a) {

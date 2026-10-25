@@ -9,7 +9,8 @@ export interface DecisionRow {
   id: string;
   episode_number: number;
   post_merge: boolean;
-  kind: "elimination" | "event" | "exiled" | "role" | "group";
+  /** `noexit`: nobody went home in the episode (step 6c; no castaway, castaway_name ''). */
+  kind: "elimination" | "event" | "exiled" | "role" | "group" | "noexit";
   castaway_name: string;
   method: string;
   event_type: string;
@@ -40,6 +41,14 @@ export type CastRef = { id: string; name: string }[];
 export const unitsOf = (d: DecisionFact): number | null => (d.units != null ? Number(d.units) : null);
 
 export function applyDecision(state: LeagueState, d: DecisionFact, cast: CastRef): { detail?: LedgerDetail; skip?: string } {
+  if (d.kind === "noexit") {
+    // Nobody went home: the episode has results with no one out (EpisodeLogic.hasResults reads the mark).
+    const ep = StateLogic.ensureEpisodeNumber(state, d.episode_number, d.post_merge);
+    const detail: LedgerDetail = { episodeNumber: d.episode_number, castawayId: "", kind: "noexit" };
+    if (ep.noExit) return { detail: { ...detail, preexisting: true } };
+    StateLogic.setNoExit(state, ep.id, true);
+    return { detail };
+  }
   const name = d.applied?.castawayName || d.castaway_name;
   // By the season cast link first (docs/PLAN-universal-season-cast.md, piece 7); the loose name match
   // only for a league not linked yet.
@@ -98,7 +107,9 @@ export function undoDetail(state: LeagueState, detail: LedgerDetail) {
   if (detail.preexisting) return;
   const ep = state.episodes.find((e) => e.number === detail.episodeNumber);
   if (!ep) return;
-  if (detail.kind === "elimination") {
+  if (detail.kind === "noexit") {
+    StateLogic.setNoExit(state, ep.id, false);
+  } else if (detail.kind === "elimination") {
     if ((ep.events || []).some((e) => e.castawayId === detail.castawayId)) {
       StateLogic.removeElimination(state, ep.id, detail.castawayId);
     }

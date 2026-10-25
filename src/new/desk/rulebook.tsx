@@ -175,6 +175,27 @@ export function RulebookPage({ id }: { id: string }) {
         </Btn>
       </Section>
 
+      {page.notices.length > 0 && (
+        <Section title="Something new?" aside={page.notices.length}>
+          {page.notices.map((n) => (
+            <div key={n.id} data-notice={n.id} className="border-t border-border py-2.5 first:border-t-0">
+              <b className="block text-[15px]">&ldquo;{n.note}&rdquo;</b>
+              <small className="block text-[13px] text-muted-foreground">
+                Episode {n.episode} · {n.line ?? "The couches split"} · {n.yes} say it&apos;s new, {n.no} say it isn&apos;t
+              </small>
+              <p className="mt-1 text-[13px] leading-snug text-muted-foreground">Add it with an edit above (The show changed from Episode {n.episode}), or Check for changes; then mark it.</p>
+              <div className="mt-2 flex gap-2">
+                <Btn data-notice-added className="h-10 flex-1 text-[14px]" onClick={() => post({ action: "notice", notice: n.id, status: "added" }, "Marked added")}>
+                  It&apos;s in now
+                </Btn>
+                <Btn data-notice-not-new className="h-10 flex-1 text-[14px]" onClick={() => post({ action: "notice", notice: n.id, status: "not_new" }, "Put away: not new")}>
+                  Not new
+                </Btn>
+              </div>
+            </div>
+          ))}
+        </Section>
+      )}
       {page.suggestions.length > 0 && (
         <Section title="Suggested fixes" aside={page.suggestions.length}>
           {page.suggestions.map((s) => (
@@ -199,8 +220,8 @@ export function RulebookPage({ id }: { id: string }) {
       <Section>
         <LockRow
           locked={!!page.locked}
-          on="Locked: couches can suggest fixes, but only you change it"
-          off="Couches suggest fixes from How it works; you change it here"
+          on="Locked: couches suggest fixes and say what's new, but only you change it"
+          off="When couches agree an episode brought something new, it's added from that episode. Fixes are yours."
           onChange={(lock) => post({ action: "lock", lock }, lock ? "Locked" : "Unlocked")}
         />
       </Section>

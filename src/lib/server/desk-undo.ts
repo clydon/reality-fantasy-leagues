@@ -4,6 +4,7 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { setWhoFills } from "./community-results";
 import { pool, HttpError } from "./db";
 import { restoreSetting } from "./desk";
+import { restoreSeasonBot } from "./desk-bot";
 import { restoreCastaway, restoreGroup, setCastawayLock } from "./desk-cast";
 import { restoreFact } from "./desk-facts";
 import { restoreLive, undoRulebook, writePhase } from "./desk-rulebooks";
@@ -47,6 +48,9 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       break;
     case "live":
       await restoreLive(user.id, String(u.id), !!u.live);
+      break;
+    case "bot":
+      await restoreSeasonBot(String(u.id), { on: !!u.on, schedule: u.schedule as Parameters<typeof restoreSeasonBot>[1]["schedule"] });
       break;
     case "phase": {
       const r = await getRulebook(pool, String(u.id));

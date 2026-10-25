@@ -182,7 +182,7 @@ function liveItems(state, playerId) {
     const ep = StateLogic.pickEmUpcomingEpisode(state);
     if (
       ep &&
-      ep.events.length === 0 &&
+      !StateLogic.pickEmDecided(ep) &&
       !StateLogic.hasAired(ep) &&
       !StateLogic.pickEmPickFor(state, ep.id, playerId) &&
       StateLogic.pickEmEligibility(state, ep.id, playerId).available.length > 0

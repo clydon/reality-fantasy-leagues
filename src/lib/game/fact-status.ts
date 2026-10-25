@@ -71,9 +71,14 @@ const METHOD_KINDS = new Set(["elimination", "role", "group"]);
 
 const lower = (s: string) => s.trim().toLowerCase();
 
-/** Whether a submission answered for this fact's person and kind (a vouch answers only for its own facts). */
+/**
+ * Whether a submission answered for this fact's person and kind (a vouch answers only for its own facts). "Nobody went
+ * home" (`noexit`, step 6c) is about no one: any answer about who went home speaks to it, so one naming someone who left
+ * counts against it, and one saying nobody did (or a full answer with nobody out) reports it.
+ */
 export function coversFact(covers: Covers, fact: Pick<FactInput, "kind" | "castawayName">): boolean {
   if ("only" in covers) return false;
+  if (fact.kind === "noexit") return !covers.kinds || covers.kinds.includes("elimination") || covers.kinds.includes("noexit");
   if (covers.kinds && !covers.kinds.includes(fact.kind)) return false;
   const name = lower(fact.castawayName);
   return covers.people.some((p) => lower(p) === name);

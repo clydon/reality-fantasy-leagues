@@ -78,6 +78,7 @@ export function inLeague(
   seasonCast?: { id: string; name: string }[]
 ): boolean {
   const ep = state.episodes.find((e) => e.number === episodeNumber);
+  if (d.kind === "noexit") return !!ep?.noExit;
   const { castaway } = StateLogic.Core.findSeasonCastaway(state, d.castawayName, seasonCast);
   if (!ep || !castaway) return false;
   if (d.kind === "elimination") return (ep.events || []).some((e) => e.castawayId === castaway.id);

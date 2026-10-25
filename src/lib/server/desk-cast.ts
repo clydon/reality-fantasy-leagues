@@ -84,8 +84,8 @@ export async function deskSeason(id: string): Promise<DeskSeason> {
     const ep: DeskSeason["episodes"][number] = episodes.get(f.episode_number) ?? { number: f.episode_number, facts: [] };
     ep.facts.push({
       id: f.id,
-      name: f.applied?.castawayName || f.castaway_name,
-      label: f.kind === "event" ? readable(f.applied?.eventType || f.event_type) : f.applied?.method || f.method || f.kind,
+      name: f.kind === "noexit" ? "" : f.applied?.castawayName || f.castaway_name,
+      label: f.kind === "event" ? readable(f.applied?.eventType || f.event_type) : f.kind === "noexit" ? "Nobody went home" : f.applied?.method || f.method || f.kind,
       status: f.fact_status ?? (f.status === "accepted" ? "canonical" : "removed"),
       live: f.status === "accepted",
     });

@@ -10,6 +10,7 @@ import { requireCouch } from "./couches";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
 import { reachCopies } from "./ours";
+import { deskNotices } from "./show-changes";
 import { latestAired, seasonSchedules } from "./schedule";
 
 // A rulebook on the desk (docs/PLAN-new-design.md step 6b part 2; rulebooks phases 4-6; the mock's rulebook.js
@@ -60,6 +61,8 @@ export interface DeskRulebook {
   lastChange: number;
   how: HowItWorks;
   suggestions: { id: string; who: string; about: string; note: string; at: string }[];
+  /** Show changes the couches split on, or sent to the desk (step 6c part 2): research's note, and why it's here. */
+  notices: { id: string; episode: number; note: string; line: string | null; yes: number; no: number }[];
   history: DeskLine[];
 }
 
@@ -156,6 +159,7 @@ export async function deskRulebook(id: string): Promise<DeskRulebook> {
     lastChange: Math.max(1, ...edits.map((e) => e.fromEpisode)),
     how,
     suggestions: tips.map((t) => ({ id: t.id, who: t.who ?? "Someone", about: ABOUT[t.about] ?? t.about, note: t.note, at: t.created_at.toISOString() })),
+    notices: season ? (await deskNotices()).filter((n) => n.seasonId === season.id).map((n) => ({ id: n.id, episode: n.episode, note: n.note, line: n.line, yes: n.yes, no: n.no })) : [],
     history: byNewest(await deskLines("rulebook", id)),
   };
 }

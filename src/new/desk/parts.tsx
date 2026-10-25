@@ -104,6 +104,30 @@ export function LockRow({ locked, on, off, onChange }: { locked: boolean; on: st
   );
 }
 
+/** A switch with its title and a line on what it means now (the bot's schedule and its runs, step 6c). */
+export function SwitchRow({ on, title, line, onChange, data, disabled }: { on: boolean; title: string; line: string; onChange: (on: boolean) => void; data?: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      data-switch={data}
+      data-on={on ? "on" : "off"}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className="nd-press flex min-h-[64px] w-full items-center gap-3 rounded-[4px] bg-card p-3.5 text-left disabled:opacity-60"
+    >
+      <span className="min-w-0 flex-1">
+        <b className="block text-[16px]">{title}</b>
+        <small className="block text-[13px] leading-snug text-muted-foreground">{line}</small>
+      </span>
+      <span className={`relative h-[30px] w-[52px] flex-none rounded-full transition-colors ${on ? "bg-foreground" : "bg-secondary"}`}>
+        <i className={`absolute top-[3px] size-6 rounded-full transition-[left] ${on ? "left-[25px] bg-background" : "left-[3px] bg-muted-foreground"}`} />
+      </span>
+    </button>
+  );
+}
+
 /** History: newest first, each line with when, and Undo on the desk's own changes. */
 export function History({ lines, emptyLine = "Nothing yet." }: { lines: DeskLine[]; emptyLine?: string }) {
   const after = useAfterDesk();

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, CircleQuestionMark, EyeOff, ListChecks, PenLine, Sparkles, Zap } from "lucide-react";
+import { Check, CircleQuestionMark, EyeOff, ListChecks, PenLine, Sparkles, UsersRound, Zap } from "lucide-react";
 import { airTime, timeOf } from "../clock";
 import { backstage, useAfterResults, useBackstage, useWays, type Backstage, type BackstageEpisode, type Chosen, type PasteResult, type PreviewLine, type ResultRow, type Shown, type Ways } from "../data";
 import type { ShowData } from "../screens/show-space";
@@ -128,7 +128,7 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
           {ways.data && <ResultsWays seasonId={seasonId} couchId={couchId} ways={ways.data} anyone={data.fill.anyone} seasonName={seasonName} />}
           <Block title="Full scores" aside={settles(data, "full")}>
             <FillState seasonId={seasonId} couchId={couchId} data={data} />
-            {ep.questions > 0 && <QuestionCard episode={ep.number} count={ep.questions} onAsk={() => setAsk({ kind: "full", episode: ep.number })} />}
+            {ep.questions > 0 && <QuestionCard episode={ep.number} count={ep.questions} tiebreakAt={ep.tiebreakAt} onAsk={() => setAsk({ kind: "full", episode: ep.number })} />}
             <FullCard
               ep={ep}
               look={look}
@@ -235,6 +235,11 @@ function Plate({ kind, title, line, faces }: { kind: string; title: string; line
             <Face key={f.name} src={f.photo} name={f.name} className="size-14 rounded-[3px] ring-2 ring-plate" />
           ))}
         </span>
+      ) : faces ? (
+        // Shown, and nobody went home (step 6c): nothing hidden, everyone stays in.
+        <span data-nobody-face className="grid size-14 flex-none place-items-center rounded-[3px] bg-[#d9d5df] text-plate-foreground">
+          <UsersRound className="size-6" aria-hidden />
+        </span>
       ) : (
         <span data-hidden-face className="grid size-14 flex-none place-items-center rounded-[3px] bg-[linear-gradient(135deg,#8a8496,#4b4656)] text-white/80 blur-[0.5px]">
           <EyeOff className="size-6" aria-hidden />
@@ -322,8 +327,8 @@ function QuickCard({
                 data-wait-right
                 tone="must"
                 className="flex-1"
-                disabled={!names.some((o) => o.matched)}
-                onClick={() => onApplyWaiting(names.filter((o) => o.matched).map((o) => ({ castawayName: o.name, method: o.method })), waiting.id)}
+                disabled={names.length > 0 && !names.some((o) => o.matched)}
+                onClick={() => onApplyWaiting(names.length ? names.filter((o) => o.matched).map((o) => ({ castawayName: o.name, method: o.method })) : [{ nobody: true }], waiting.id)}
               >
                 It&apos;s right
               </Btn>
@@ -690,6 +695,8 @@ function ByHandSheet({ seasonId, couchId, episode, onClose, onNext }: { seasonId
   const cast = useBackstage(seasonId, couchId, episode, { show: true });
   const shown = cast.data?.shown;
   const [picked, setPicked] = useState<Map<string, string>>(new Map());
+  // Nobody went home (step 6c): the episode is marked like any other, with no one out. Tapping someone clears it.
+  const [nobody, setNobody] = useState(false);
   const methods = (shown?.methods ?? []).filter((m) => m !== "Other");
   const first = methods[0] ?? "Other";
   return (
@@ -707,12 +714,15 @@ function ByHandSheet({ seasonId, couchId, episode, onClose, onNext }: { seasonId
                   type="button"
                   aria-pressed={on}
                   data-out={c.name}
-                  onClick={() => setPicked((p) => {
-                    const next = new Map(p);
-                    if (next.has(c.name)) next.delete(c.name);
-                    else next.set(c.name, first);
-                    return next;
-                  })}
+                  onClick={() => {
+                    setNobody(false);
+                    setPicked((p) => {
+                      const next = new Map(p);
+                      if (next.has(c.name)) next.delete(c.name);
+                      else next.set(c.name, first);
+                      return next;
+                    });
+                  }}
                   className={`flex flex-col items-center gap-1 rounded-[3px] p-1 text-center text-[12px] font-semibold ${on ? "bg-foreground text-background" : ""}`}
                 >
                   <Face src={c.photo} name={c.name} className="aspect-square w-full rounded-[3px]" />
@@ -733,8 +743,32 @@ function ByHandSheet({ seasonId, couchId, episode, onClose, onNext }: { seasonId
               </div>
             </div>
           ))}
-          <Btn tone="must" wide className="mt-4" disabled={!picked.size} onClick={() => onNext([...picked].map(([castawayName, method]) => ({ castawayName, method })))}>
-            {picked.size ? "See what changes" : "Tap who went home"}
+          <button
+            type="button"
+            data-nobody
+            aria-pressed={nobody}
+            onClick={() => {
+              setNobody((v) => !v);
+              setPicked(new Map());
+            }}
+            className={`mt-3 flex min-h-12 w-full items-center gap-3 rounded-[3px] px-3 text-left text-[15px] font-semibold ${nobody ? "bg-foreground text-background" : "bg-background"}`}
+          >
+            <span className={`grid size-6 flex-none place-items-center rounded-[3px] ${nobody ? "bg-background text-foreground" : "outline-2 -outline-offset-2 outline-input"}`}>
+              {nobody && <Check className="size-4" strokeWidth={3} aria-hidden />}
+            </span>
+            <span>
+              Nobody went home
+              <small className={`block text-[12.5px] font-normal ${nobody ? "text-background/75" : "text-muted-foreground"}`}>A non-elimination episode: everyone stays in</small>
+            </span>
+          </button>
+          <Btn
+            tone="must"
+            wide
+            className="mt-4"
+            disabled={!picked.size && !nobody}
+            onClick={() => onNext(nobody ? [{ nobody: true }] : [...picked].map(([castawayName, method]) => ({ castawayName, method })))}
+          >
+            {picked.size || nobody ? "See what changes" : "Tap who went home"}
           </Btn>
         </div>
       )}

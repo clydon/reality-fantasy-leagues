@@ -99,3 +99,24 @@ test("an admin's decision stays as it is", () => {
   const r = one(idol([], { locked: true, live: true, factStatus: "canonical" }), [full("b", "riley", 2)]);
   assert.deepEqual([r.factStatus, r.live], ["canonical", true]);
 });
+
+test("nobody went home: any answer about who went home speaks to it (step 6c)", () => {
+  const noexit = (sources, extra = {}) => ({ id: "n1", kind: "noexit", castawayName: "", method: "", live: false, factStatus: "reported", locked: false, flags: [], sources, ...extra });
+  const nobody = (id, key, at) => ({ id, key, at, covers: { people: CAST, kinds: ["elimination", "noexit"] } });
+  assert.equal(coversFact({ people: CAST, kinds: ["elimination"] }, { kind: "noexit", castawayName: "" }), true);
+  assert.equal(coversFact({ people: CAST, kinds: null }, { kind: "noexit", castawayName: "" }), true);
+  assert.equal(coversFact({ people: CAST, kinds: ["event"] }, { kind: "noexit", castawayName: "" }), false);
+  assert.equal(coversFact({ only: true }, { kind: "noexit", castawayName: "" }), false);
+  // Entered by someone who watched it: in every league on its own.
+  const one_ = one(noexit([yes("a")]), [nobody("a", "alex", 1)]);
+  assert.deepEqual([one_.factStatus, one_.live], ["reported", true]);
+  // A quick check naming who went home is against it; a second "nobody" confirms it.
+  const split = one(noexit([yes("a")], { live: true }), [nobody("a", "alex", 1), quick("b", "riley", 2)]);
+  assert.deepEqual([split.factStatus, split.live], ["disputed", true]);
+  const two = one(noexit([yes("a"), yes("c")]), [nobody("a", "alex", 1), nobody("c", "sam", 3)]);
+  assert.deepEqual([two.factStatus, two.live], ["confirmed", true]);
+  // And saying nobody went home is against whoever someone else said left.
+  const out = { id: "e1", kind: "elimination", castawayName: "Brady", method: "Voted Out", live: false, factStatus: "reported", locked: false, flags: [], sources: [yes("b", "high", "Voted Out")] };
+  const against = one(out, [nobody("a", "alex", 1), quick("b", "riley", 2)]);
+  assert.deepEqual([against.factStatus, against.no], ["disputed", 1]);
+});

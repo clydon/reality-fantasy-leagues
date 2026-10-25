@@ -4,6 +4,9 @@ import type { Pool } from "pg";
 /** quick: who left and the headline; full: every result, staged for review; schedule: when the next episode airs
  *  and how long it runs (season_episodes), nothing to review. */
 export type BotKind = "quick" | "full" | "schedule";
+/** A run row's kind: a schedule's, or a tie-break (the full research again, when a result's been disputed a day; the
+ *  desk's switch) or a rulebook check (a show change the couches confirmed). */
+export type RunKind = BotKind | "tiebreak" | "rulebook";
 export interface BotScheduleRun {
   kind: BotKind;
   /** Minutes after the episode ends (its air time plus the season's episode length). */
@@ -46,8 +49,8 @@ export interface BotSend {
   quick(input: { seasonId: string; episode: number; answer: QuickAnswer; castNames: string[]; exitMethods: string[] }): Promise<
     { applied: true; leagues: number; researchId: string } | { applied: false; doubt: string; line: string }
   >;
-  /** The full results (researchFromPaste's run): sent as one source. */
-  full(input: { seasonId: string; episode: number; run: unknown }): Promise<{ researchId: string; facts: number; count: number }>;
+  /** The full results (researchFromPaste's run): sent as one source, the scheduled runs' (autopilot) or a tie-break's. */
+  full(input: { seasonId: string; episode: number; run: unknown; source: "autopilot" | "tiebreak" }): Promise<{ researchId: string; facts: number; count: number }>;
 }
 
 export const DEFAULT_SCHEDULE: BotScheduleRun[];
@@ -62,9 +65,9 @@ export function runNext(
   opts: { ask: Ask; send?: BotSend; now?: Date; dry?: boolean; seasonId?: string }
 ): Promise<
   | { job: null; next: Date | null }
-  | ({ job: { season: string; seasonNumber: number; episode: number; slot: string; kind: BotKind }; next: Date | null } & BotRunOutcome)
+  | ({ job: { season: string; seasonNumber: number; episode: number; slot: string; kind: RunKind }; next: Date | null } & BotRunOutcome)
 >;
-type DueRun = { episode: number; slot: string; kind: BotKind; after: number; at: Date; season: { id: string; slug: string; season_number: number } };
+type DueRun = { episode: number; slot: string; kind: RunKind; after: number | null; at: Date; season: { id: string; slug: string; season_number: number } };
 /** What's due now (each with its season row), earliest first. */
 export function listDue(pool: Pool, opts?: { now?: Date; seasonId?: string }): Promise<DueRun[]>;
 /** What's due now, and when the next run comes due (now if one already is; null when none is left). */
@@ -77,3 +80,20 @@ export function runJob(
 ): Promise<BotRunOutcome>;
 /** A season row the way runJob wants it (schedule, air clock), or undefined. */
 export function loadSeasonForJob(pool: Pool, seasonId: string): Promise<unknown>;
+
+/** How long a result stays disputed before its tie-break run. */
+export const TIEBREAK_AFTER_MS: number;
+export interface TiebreakQuestion {
+  seasonId: string;
+  episode: number;
+  flags: Date[];
+  disputed: boolean;
+  newest: Date | null;
+  tries: { started_at: Date; ok: boolean | null }[];
+}
+/** When an episode's tie-break comes due (`next`: its next try), or null when it has none to come. */
+export function tiebreakNext(q: Omit<TiebreakQuestion, "seasonId" | "episode">): { since: Date; due: Date; next: Date } | null;
+/** Whether the desk's tie-break switch is on. */
+export function tiebreakOn(pool: Pool): Promise<boolean>;
+/** Every episode with a question open on a shared result (or one season's), with its tie-break history. */
+export function tiebreakQuestions(pool: Pool, seasonId?: string | null): Promise<TiebreakQuestion[]>;

@@ -17,12 +17,20 @@
 // reaches every league on the season on its own, and a quick check it can't be sure of waits in Backstage and is
 // asked again. Without `send` (a test, a dry run) a quick answer is only kept on the run row and a full one staged
 // for an admin, as before.
+//
+// The tie-break run (step 6c part 2): when a shared result has been disputed for a day (a flag no answer has checked,
+// or sources that split), the bot asks the episode's full research once more, as a source of its own ("tiebreak"),
+// which settles most of them; what it doesn't settle reaches the admin's Inbox. It isn't any season's schedule: it's
+// the desk's switch (app_settings 'tiebreak', off by default), across every season, and its runs are planned with the
+// rest, so the VM's clock is told when one comes due (nextRunAt) and calls only then.
 const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const AutoResearch = require("./auto-research.js");
 const Research = require("./episode-research.js");
 
 const KINDS = ["quick", "full", "schedule"];
+// A tie-break's run rows (kind 'tiebreak', 0116) carry this slot.
+const TIEBREAK_SLOT = "tiebreak";
 const DEFAULT_SCHEDULE = [
   { kind: "quick", after: 5, on: true },
   { kind: "full", after: 60, on: true },
@@ -48,8 +56,10 @@ const FULL_RETRY_MS = 20 * MIN;
 // tries, for one that started late).
 const QUICK = { fastMs: 5 * MIN, fastForMs: 30 * MIN, slowMs: 15 * MIN, windowMs: 3 * 60 * MIN, maxTries: 20 };
 // How late a run is still worth doing at all (the VM was down, say). A quick check is news for hours; a
-// full one is useful for days.
-const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN };
+// full one is useful for days, and so is a tie-break.
+const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN };
+// A result disputed this long gets its tie-break run.
+const TIEBREAK_AFTER_MS = 24 * 60 * MIN;
 
 const slotOf = (run) => `${run.kind}@${run.after}`;
 
@@ -70,7 +80,7 @@ function nextTryAt(kind, due, tries) {
       next = last + (last - at < QUICK.fastForMs ? QUICK.fastMs : QUICK.slowMs);
       if (tries.length >= MAX_ATTEMPTS && next - at > QUICK.windowMs) return null;
     } else {
-      // A full run, and a schedule check: three tries, 20 minutes apart.
+      // A full run, a schedule check and a tie-break: three tries, 20 minutes apart.
       if (tries.length >= MAX_ATTEMPTS) return null;
       next = last + FULL_RETRY_MS;
     }
@@ -94,6 +104,96 @@ function slots({ schedule, since, airTimes, episodeMinutes = 0, history }) {
     }
   }
   return out;
+}
+
+// ---------- the tie-break ----------
+
+/**
+ * When an episode's tie-break comes due, or null when it has none to come. Pure.
+ *   flags      -- when each open flag on the episode was raised (a result's, or "something's missing")
+ *   disputed   -- a result in it is disputed (sources split), not decided by an admin
+ *   newest     -- when the newest answer for the episode came in (any answer; null: none)
+ *   tries      -- the episode's tie-break runs: { started_at, ok }
+ * The question opened with the oldest flag no answer has come in since; or, for a split, with the answer that split it,
+ * unless a tie-break already answered it (what one doesn't settle is the admin's). Due a day after it opened, then the
+ * full run's retry pace, counting only tries since it opened, so a flag raised after an earlier tie-break gets its own.
+ */
+function tiebreakNext({ flags = [], disputed = false, newest = null, tries = [] }) {
+  const after = newest ? new Date(newest).getTime() : null;
+  const waiting = flags.map((f) => new Date(f).getTime()).filter((t) => after === null || t > after);
+  let since = null;
+  if (waiting.length) since = Math.min(...waiting);
+  else if (disputed && after !== null && !tries.some((t) => t.ok === true)) since = after;
+  if (since === null) return null;
+  const due = new Date(since + TIEBREAK_AFTER_MS);
+  const next = nextTryAt("tiebreak", due, tries.filter((t) => new Date(t.started_at).getTime() >= since));
+  return next ? { since: new Date(since), due, next } : null;
+}
+
+/** Whether the desk's tie-break switch is on (app_settings 'tiebreak'; off by default). */
+async function tiebreakOn(pool) {
+  const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'tiebreak'");
+  return rows[0] ? rows[0].value === true : false;
+}
+
+/**
+ * Every episode with a question open on a shared result (any season, whatever its schedule; or one season's), with what
+ * tiebreakNext reads: [{ seasonId, episode, flags, disputed, newest, tries }]. One query for the questions, one for their
+ * history.
+ */
+async function tiebreakQuestions(pool, seasonId = null) {
+  const { rows } = await pool.query(
+    `WITH q AS (
+       SELECT d.season_id, d.episode_number, NULL::timestamptz AS flag_at, true AS disputed
+         FROM season_decisions d WHERE d.fact_status = 'disputed' AND d.locked_at IS NULL AND ($1::uuid IS NULL OR d.season_id = $1)
+       UNION ALL
+       SELECT x.season_id, x.episode_number, x.created_at, false
+         FROM fact_disputes x
+        WHERE x.status = 'open' AND ($1::uuid IS NULL OR x.season_id = $1)
+          AND (x.decision_id IS NULL OR EXISTS (SELECT 1 FROM season_decisions d WHERE d.id = x.decision_id AND d.locked_at IS NULL))
+     )
+     SELECT q.season_id, q.episode_number,
+            array_agg(q.flag_at) FILTER (WHERE q.flag_at IS NOT NULL) AS flags, bool_or(q.disputed) AS disputed,
+            (SELECT max(er.researched_at) FROM episode_research er JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number
+              WHERE ss.id = q.season_id AND er.episode_number = q.episode_number AND er.source <> 'combined' AND er.withdrawn_at IS NULL) AS newest
+       FROM q GROUP BY q.season_id, q.episode_number`,
+    [seasonId]
+  );
+  if (!rows.length) return [];
+  const { rows: history } = await pool.query(
+    "SELECT season_id, episode_number, started_at, ok FROM bot_research_runs WHERE kind = 'tiebreak' AND season_id = ANY($1::uuid[])",
+    [[...new Set(rows.map((r) => r.season_id))]]
+  );
+  return rows.map((r) => ({
+    seasonId: r.season_id,
+    episode: r.episode_number,
+    flags: r.flags || [],
+    disputed: !!r.disputed,
+    newest: r.newest,
+    tries: history.filter((h) => h.season_id === r.season_id && h.episode_number === r.episode_number),
+  }));
+}
+
+/** The tie-breaks due now and when the next comes due, while the desk's switch is on: { due: [job], next }. */
+async function planTiebreaks(pool, now) {
+  if (!(await tiebreakOn(pool))) return { due: [], next: null };
+  const t = now.getTime();
+  const due = [];
+  let next = null;
+  const seasons = new Map();
+  for (const q of await tiebreakQuestions(pool)) {
+    const at = tiebreakNext(q);
+    if (!at) continue;
+    const when = Math.max(at.next.getTime(), t);
+    if (when - at.due.getTime() > STALE_MS.tiebreak) continue;
+    if (at.next.getTime() <= t) {
+      if (!seasons.has(q.seasonId)) seasons.set(q.seasonId, await loadSeasonForJob(pool, q.seasonId));
+      const season = seasons.get(q.seasonId);
+      if (season) due.push({ episode: q.episode, slot: TIEBREAK_SLOT, kind: "tiebreak", after: null, at: at.due, season });
+    }
+    if (next === null || when < next) next = when;
+  }
+  return { due, next: next === null ? null : new Date(next) };
 }
 
 /** A schedule from a request body or the column, cleaned up; throws on anything malformed. */
@@ -302,6 +402,10 @@ async function planRuns(pool, { now = new Date(), seasonId } = {}) {
     const when = nextRunAt(input);
     if (when && AutoResearch.isSeasonLive(season, when) && (next === null || when < next)) next = when;
   }
+  // The tie-breaks (the desk's switch, across every season). One season asked about needs only its own.
+  const ties = await planTiebreaks(pool, now);
+  for (const job of ties.due) if (!seasonId || job.season.id === seasonId) due.push(job);
+  if (!seasonId && ties.next && (next === null || ties.next < next)) next = ties.next;
   return { due: due.sort((a, b) => a.at - b.at), next };
 }
 
@@ -405,8 +509,10 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
       problems: (run.problems || []).slice(0, 20),
     };
     if (send && !dry) {
-      const sent = await send.full({ seasonId: season.id, episode, run });
-      return finish(true, `${sent.count} of ${sent.facts} result(s) in every league${again ? " (the stored answers merged too)" : ""}`, { ...result, submission: sent.researchId, live: sent.count });
+      // A tie-break is the same full research, filed as a source of its own.
+      const sent = await send.full({ seasonId: season.id, episode, run, source: kind === "tiebreak" ? "tiebreak" : "autopilot" });
+      const lead = kind === "tiebreak" ? "Tie-break: " : "";
+      return finish(true, `${lead}${sent.count} of ${sent.facts} result(s) in every league${again ? " (the stored answers merged too)" : ""}`, { ...result, submission: sent.researchId, live: sent.count });
     }
     return finish(true, `${result.inserted} new result(s) to review${again ? " (merged into the earlier answers)" : ""}`, result);
   } catch (e) {
@@ -437,6 +543,10 @@ async function runNext(pool, { ask, send = null, now = new Date(), dry = false, 
 module.exports = {
   DEFAULT_SCHEDULE,
   MAX_ATTEMPTS,
+  TIEBREAK_AFTER_MS,
+  tiebreakNext,
+  tiebreakOn,
+  tiebreakQuestions,
   normalizeSchedule,
   dueRuns,
   nextRunAt,
