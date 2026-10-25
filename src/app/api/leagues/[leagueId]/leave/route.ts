@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { leftLeague } from "@/lib/server/couches";
+import { leaveProblem } from "@/lib/server/backstage-members";
 
 // Port of SurvivorDraft's server/routes/leagues.js POST /:leagueId/leave -- before the draft
 // starts, your roster slot is fully removed (it never held any points); once the draft has
@@ -20,6 +21,9 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   ]);
   if (!membership.rows.length) throw new HttpError(404, "You're not in this league");
   const playerId = membership.rows[0].player_id;
+  // A league always keeps a Commissioner (roles.ts): the last one hands it to someone before leaving.
+  const problem = await leaveProblem(leagueId, user.id);
+  if (problem) throw new HttpError(409, problem);
 
   const leagueRes = await pool.query("SELECT state FROM leagues WHERE id=$1", [leagueId]);
   if (!leagueRes.rows.length) throw new HttpError(404, "League not found");

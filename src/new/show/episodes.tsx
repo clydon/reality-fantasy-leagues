@@ -2,26 +2,24 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeftRight, ChevronRight, Clock, Eye } from "lucide-react";
+import { ChevronRight, Clock, Eye } from "lucide-react";
 import { airTime } from "../clock";
-import { WAIVERS } from "../fixtures/waivers";
-import type { EpisodeRow, GameNight } from "../data";
+import { useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverWeek } from "../data";
 import { gameColour, ordinal } from "../games";
-import { NavLink } from "../nav";
-import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
-import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
 import { first } from "./moves";
 import { Block, Face } from "./parts";
 import { useOpenReveal } from "./reveal";
+import { playsWaivers, WaiverEpisodeRow } from "./waivers";
 
 // Episodes (the mock's show.js tabEpisodes and episodePage, episode.js's locked row, waivers.js's row): this week's
 // episode and who's set for it, the next results to reveal, then every episode: one whose results are in but hidden
 // until you reveal (Reveal), one that's aired and waiting for results, and each one you've seen with who went home
 // and your line, opening its own page (?page=ep4: who went home, your games, the top scorers, what happened). Real
-// (GET /api/seasons/[id]/episodes, through the guard). On a fixture behind Preview: the waiver window's row (6a).
+// (GET /api/seasons/[id]/episodes, through the guard). A waiver week sits between the two episodes it falls between
+// (waivers.js's row): open, it goes to the Waivers page; run, to its own page in picking order (step 6a).
 
 /** "3 of 4 lineups set · 2 of 4 picked": who's set for the next episode in your games here, a line per kind. */
 function progressLine(show: ShowData): string | null {
@@ -50,6 +48,11 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   const eps = show.episodes;
   const openReveal = useOpenReveal();
   const progress = progressLine(show);
+  const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show));
+  // Each waiver week after the episode that opened it: in a newest-first list, just above that episode's row.
+  const weeks = (n: number) => (wv.data?.games ?? []).filter((w) => (w.run?.episode ?? w.period?.episode) === n && (w.run || (w.stage === "open" && (w.replace.length || w.swapsAllowed))));
+  const waiverRows = (list: WaiverWeek[]) =>
+    list.map((w) => <WaiverEpisodeRow key={w.leagueId} seasonId={seasonId} week={w} many={(wv.data?.games.length ?? 0) > 1} />);
   return (
     <>
       {up && show.header && (
@@ -93,34 +96,19 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
           <div aria-busy className="h-56 animate-pulse rounded-[4px] bg-card" />
         ) : (
           <>
-            {eps.episodes.map((e) =>
-              e.status === "hidden" ? (
-                <HiddenRow key={e.number} e={e} onReveal={() => openReveal(e.number)} />
-              ) : e.status === "waiting" ? (
-                <WaitingRow key={e.number} e={e} />
-              ) : (
-                <SeenRow key={e.number} e={e} />
-              )
-            )}
+            {eps.episodes.map((e) => (
+              <div key={e.number} className="contents">
+                {waiverRows(weeks(e.number))}
+                {e.status === "hidden" ? (
+                  <HiddenRow e={e} onReveal={() => openReveal(e.number)} />
+                ) : e.status === "waiting" ? (
+                  <WaitingRow e={e} />
+                ) : (
+                  <SeenRow e={e} />
+                )}
+              </div>
+            ))}
             {eps.episodes.length === 0 && <p className="border-t border-border py-4 text-sm text-muted-foreground">Nothing has aired yet.</p>}
-            <Preview id="show.waivers" tag={false} className="mt-1">
-              <NavLink
-                data-try
-                href={paths.showPage(seasonId, "waivers")}
-                className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[linear-gradient(90deg,rgba(255,197,49,.09),transparent)] px-2 text-left"
-              >
-                <span className="grid w-7 place-items-center text-chyron-line">
-                  <ArrowLeftRight className="size-5" aria-hidden />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <b className="block text-base font-semibold">Waivers · after Episode {WAIVERS.after}</b>
-                  <small className="mt-0.5 block text-[13px] text-muted-foreground">
-                    Due {WAIVERS.due} · replace {WAIVERS.replace}
-                  </small>
-                </span>
-                <span className="text-[15px] font-semibold text-chyron-line">Open</span>
-              </NavLink>
-            </Preview>
             {eps.toAir && (
               <div className="flex min-h-[68px] items-center gap-3 border-y border-border opacity-60">
                 <span className="type-num w-7 text-[28px] text-muted-foreground">{eps.toAir.from}</span>

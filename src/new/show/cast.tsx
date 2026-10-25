@@ -183,8 +183,8 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
 
 // ---------- the controls ----------
 
-/** Two thumbs on one track: from and to, capped at where you are. */
-function EpisodeSlider({ max, range, onChange }: { max: number; range: [number, number]; onChange: (r: [number, number]) => void }) {
+/** Two thumbs on one track: from and to, capped at where you are. The waiver picker uses it too. */
+export function EpisodeSlider({ max, range, onChange }: { max: number; range: [number, number]; onChange: (r: [number, number]) => void }) {
   const [live, setLive] = useState(range);
   const [a, b] = [Math.min(...live), Math.max(...live)];
   if (max < 2) return null;
@@ -225,8 +225,9 @@ function EpisodeSlider({ max, range, onChange }: { max: number; range: [number, 
   );
 }
 
-/** A native dropdown dressed as a field: any number of options fits (imported shows name their own stats). */
-function Select({ label, value, options, onChange, main }: { label: string; value: string; options: [string, string][]; onChange: (v: string) => void; main?: boolean }) {
+/** A native dropdown dressed as a field: any number of options fits (imported shows name their own stats). The waiver
+ *  picker uses it too. */
+export function Select({ label, value, options, onChange, main }: { label: string; value: string; options: [string, string][]; onChange: (v: string) => void; main?: boolean }) {
   const on = options.find((o) => o[0] === value) ?? options[0];
   return (
     <label
@@ -330,6 +331,12 @@ function Rank({ d, people, stat, beside, onTap, picking, isMine }: ViewProps & {
   const max = Math.max(1, ...rows.map((r) => r.n));
   return (
     <div data-rank={s.key}>
+      {/* Whose points they are: a Weekly Lineup's here, else the rulebook's suggestion. */}
+      {s.key === "points" && (
+        <p data-points-from className="mb-1.5 text-[12px] text-muted-foreground">
+          {d.pointsFrom ? `Points as ${d.pointsFrom} counts them` : "Points as the rulebook suggests them"}
+        </p>
+      )}
       {rows.map(({ c, n }, i) => (
         <Flip key={c.name} id={`rank-${c.first}`}>
           <button

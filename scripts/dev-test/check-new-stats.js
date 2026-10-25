@@ -171,6 +171,7 @@ const same = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringi
     await page.waitForTimeout(400);
     const firstRanked = () => page.locator("[data-rank] [data-cast]").first().getAttribute("data-cast");
     const topPoints = await firstRanked();
+    check((await page.locator("[data-points-from]").innerText()) === "Points as Lineup League counts them", "Rank by points says whose points they are");
     await page.locator('select[aria-label="Ranked by"]').selectOption("votedWithMajority");
     await page.waitForTimeout(600);
     check((await page.locator("[data-rank]").getAttribute("data-rank")) === "votedWithMajority" && (await page.locator('select[aria-label="Ranked by"]').locator("option:checked").textContent()) === "Voted with the majority", "Rank by a stat's full name");

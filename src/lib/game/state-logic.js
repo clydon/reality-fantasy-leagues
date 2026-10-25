@@ -2121,9 +2121,11 @@ class WaiverLogic {
       feasible: true, s, freeAgents: shared ? null : C - T * R,
       settings: {
         replaceRule: rule, replenishAt: Math.max(0, S - 1), waiverWindows, waiverProcessHours,
-        replenishOrderBy: feel === 'casual' ? 'leastPoints' : 'rolling', freeAgencyEnabled: true,
-        // Only Casual fills a missed replacement: elsewhere, no claim in means playing short.
-        autoFill: feel === 'casual', waiverFeel: feel,
+        // Simple waivers (docs/PLAN-new-design.md step 6a): lowest score picks first whatever the feel, and forgetting
+        // to pick gets you the most points left (the fallback) except in Competitive, where the spot stays empty.
+        // Leagues already running keep what they have until their commissioner picks a feel.
+        replenishOrderBy: 'leastPoints', freeAgencyEnabled: true,
+        autoFill: feel !== 'competitive', waiverFeel: feel,
       },
     };
   }

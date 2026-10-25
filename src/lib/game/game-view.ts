@@ -195,7 +195,8 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf): TableRow
   });
 }
 
-function castOf(view: LeagueState): CastFace[] {
+/** Every castaway as this copy of the league shows them (the waivers' faces too, waiver-view.ts). */
+export function castOf(view: LeagueState): CastFace[] {
   const type = StateLogic.getLeagueType(view);
   const episode = new Map(view.episodes.map((e) => [e.id, e.number]));
   const tribes = new Map((view.tribes || []).map((t) => [t.id, t]));

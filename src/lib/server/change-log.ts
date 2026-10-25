@@ -6,8 +6,8 @@ import type { LeagueState } from "@/lib/game/types";
 // Writing Recent changes (docs/PLAN-new-design.md step 5; db/migrations/0111): every change someone makes to a game for
 // others appends a line in the same transaction as the change: withLeagueLock's `change` (db.ts), or recordChange with
 // the write's own client. Reading them and Undo are league-changes.ts. Guards by blast radius: tier 1 (affects others,
-// reversible) and tier 2 (moves standings) carry their undo, open until the next episode airs; tier 3 arrives with step
-// 6a. A player's own moves (their lineup, their pick) are tier 0 and aren't logged. Lines are written to give nothing
+// reversible) and tier 2 (moves standings) carry their undo, open until the next episode airs; tier 3 (hard to undo:
+// someone taken out of the games, or leaving them) is restorable for 30 days. A player's own moves (their lineup, their pick) are tier 0 and aren't logged. Lines are written to give nothing
 // away: "Applied Episode 6's results to 3 games", never who went home. Kept apart from db.ts's imports' other way round.
 
 export type Tier = 0 | 1 | 2 | 3;
@@ -28,7 +28,32 @@ export interface RoleUndo {
   after: string;
 }
 
-export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo;
+/** Several settings put back at once (a waiver feel, Reset to recommended, Fine-tune). A field absent before is removed. */
+export interface SettingsSetUndo {
+  type: "settingsSet";
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+}
+
+/** A waiver run taken back (tier 2), while its free agency is still open (WaiverLogic.undo). */
+export interface WaiverRunUndo {
+  type: "waivers";
+  periodId: string;
+}
+
+/** Someone taken out of a game, or who left it (tier 3): their seat and membership come back. */
+export interface MemberUndo {
+  type: "member";
+  userId: string;
+  playerId: string;
+  name: string;
+  role: string;
+  seen: number | null;
+  /** Before the draft the seat went entirely (a new one comes back); after it, it was disabled and is reclaimed. */
+  removed: boolean;
+}
+
+export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo;
 
 export interface ChangeSpec {
   /** Who did it; null when it applied on its own. */
@@ -43,6 +68,8 @@ export interface ChangeSpec {
   undo?: ChangeUndo | null;
   /** One action across several games shares a batch (one line on the page). */
   batch?: string;
+  /** Until when Undo is open, when it isn't the next episode's airtime (tier 3: 30 days). */
+  undoUntil?: Date;
 }
 
 /** A change worked out once the write has run, from the league before and after it; null when there's nothing to log. */
@@ -80,7 +107,7 @@ export async function recordChange(client: PoolClient, leagueId: string, state: 
         spec.text,
         spec.detail ? JSON.stringify(spec.detail) : null,
         spec.undo ? JSON.stringify(spec.undo) : null,
-        spec.undo ? undoUntil(state, spec.episode) : null,
+        spec.undo ? (spec.undoUntil ?? undoUntil(state, spec.episode)) : null,
       ]
     );
     await client.query("RELEASE SAVEPOINT league_change");
@@ -130,6 +157,21 @@ export function settingsChange(userId: string, field: string): ChangeOf {
   };
 }
 
+// Settings Backstage never changes as a set, and the big ones a settings diff shouldn't carry.
+const NOT_A_SETTING = new Set(["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges", "declinedRuleChanges", "rulebook", "eventPoints"]);
+
+/** Several settings changed at once (tier 1): the line, and an Undo that puts every changed field back as it was. */
+export function settingsSetChange(userId: string, text: string, opts: { kind?: string; batch?: string } = {}): ChangeOf {
+  return (before, after) => {
+    const was = before.settings as unknown as Record<string, unknown>;
+    const now = after.settings as unknown as Record<string, unknown>;
+    const fields = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((k) => !NOT_A_SETTING.has(k) && JSON.stringify(was[k]) !== JSON.stringify(now[k]));
+    if (!fields.length) return null;
+    const pick = (o: Record<string, unknown>) => Object.fromEntries(fields.map((k) => [k, o[k] === undefined ? null : o[k]]));
+    return { userId, kind: opts.kind ?? "settings", tier: 1, text, batch: opts.batch, detail: { fields }, undo: { type: "settingsSet", before: pick(was), after: pick(now) } };
+  };
+}
+
 /** A change made for the game that isn't results or settings: the line only (`tier` 1 unless it moves standings). */
 export function plainChange(userId: string, kind: string, text: string, tier: Tier = 1): ChangeSpec {
   return { userId, kind, tier, text };
@@ -155,7 +197,7 @@ export function forPlayerChange(userId: string, actorPlayerId: string | null, pl
 const ROLE_WORDS: Record<string, string> = { commissioner: "a Commissioner", admin: "a Game admin", member: "a player" };
 
 /** A role change (tier 1), written inside setLeagueRole's transaction, with Undo that hands the old role back. */
-export async function roleChange(client: PoolClient, leagueId: string, actorId: string, userId: string, before: string, after: string): Promise<void> {
+export async function roleChange(client: PoolClient, leagueId: string, actorId: string, userId: string, before: string, after: string, batch?: string): Promise<void> {
   if (before === after) return;
   const { rows } = await client.query(
     `SELECT COALESCE(u.username, u.name) AS name, (SELECT state->'episodes' FROM leagues WHERE id = $1) AS episodes FROM "user" u WHERE u.id = $2`,
@@ -167,6 +209,7 @@ export async function roleChange(client: PoolClient, leagueId: string, actorId: 
     tier: 1,
     text: `Made ${rows[0]?.name ?? "someone"} ${ROLE_WORDS[after] ?? after}`,
     undo: { type: "role", userId, before, after },
+    batch,
   });
 }
 

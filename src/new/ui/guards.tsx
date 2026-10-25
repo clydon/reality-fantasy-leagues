@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { RotateCcw, ShieldCheck } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { RotateCcw, ShieldCheck, TriangleAlert } from "lucide-react";
 import type { PreviewLine } from "../data";
 import { Face } from "../show/parts";
 import { Avatar } from "./bars";
@@ -11,7 +11,9 @@ import { Sheet } from "./sheet";
 // Guards by blast radius (the mock's guards.js, docs/PLAN-new-design.md step 5). Tier 0, just you and fixable until
 // airtime: no guard. Tier 1, affects others and reversible: it happens at once, with Undo on the toast (ui/toast.tsx)
 // and in Recent changes. Tier 2, moves standings: this sheet first, saying what changes for the couch, then confirm;
-// Undo until the next episode airs. Tier 3 (hard to undo: a hold to confirm, archive first) comes with step 6a.
+// Undo until the next episode airs. Tier 3, hard to undo (someone taken out of the games, leaving them): HoldSheet, a
+// sentence saying what happens and a button you hold down, restorable from Recent changes for 30 days; an impossible
+// state (the last Commissioner leaving) is refused before anyone holds.
 
 export function GuardSheet({
   open,
@@ -19,6 +21,7 @@ export function GuardSheet({
   title,
   subtitle,
   lines,
+  body,
   loading,
   cta,
   undoNote,
@@ -30,6 +33,8 @@ export function GuardSheet({
   subtitle: string;
   /** What changes, from the server's dry run; null while it's worked out. */
   lines: PreviewLine[] | null;
+  /** What changes, said another way (a waiver run: how many picks are in, never what they are), in place of `lines`. */
+  body?: ReactNode;
   loading?: boolean;
   cta: string;
   undoNote: string;
@@ -42,6 +47,8 @@ export function GuardSheet({
       <div data-guard="2" className="flex flex-col gap-1.5">
         {lines === null || loading ? (
           <div aria-busy className="h-28 animate-pulse rounded-[3px] bg-background" />
+        ) : body ? (
+          body
         ) : lines.length ? (
           lines.map((l, i) => (
             <div key={i} className="flex items-center gap-2.5 rounded-[3px] bg-background p-2.5">
@@ -96,6 +103,125 @@ export function GuardSheet({
       <Btn wide className="mt-2" onClick={() => onOpenChange(false)}>
         Not yet
       </Btn>
+    </Sheet>
+  );
+}
+
+const HOLD_MS = 1400;
+
+/**
+ * Tier 3 (the mock's guards.js holdSheet): the consequence in a sentence, an easier way out when there is one (`alt`),
+ * and "Hold to …": pressed and held for 1.4 s (a tap does nothing), by pointer or by Space/Enter. `problem`: why it can't
+ * happen at all (the last Commissioner), in place of the button.
+ */
+export function HoldSheet({
+  open,
+  onOpenChange,
+  title,
+  consequence,
+  cta,
+  problem,
+  alt,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  /** What happens, in a sentence; null while it's worked out. */
+  consequence: string | null;
+  cta: string;
+  problem?: string | null;
+  alt?: { label: string; line: string; onClick: () => void };
+  onConfirm: () => Promise<void>;
+}) {
+  const [holding, setHolding] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const go = async () => {
+    setHolding(false);
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm();
+      onOpenChange(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const start = () => {
+    if (busy || holding) return;
+    setHolding(true);
+    timer.current = setTimeout(go, HOLD_MS);
+  };
+  const stop = () => {
+    clearTimeout(timer.current);
+    setHolding(false);
+  };
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle="This one is hard to undo">
+      <div data-guard="3">
+        {consequence === null ? (
+          <div aria-busy className="h-16 animate-pulse rounded-[3px] bg-background" />
+        ) : (
+          <p className="text-[16px] leading-snug">{consequence}</p>
+        )}
+        {alt && (
+          <>
+            <Btn wide className="mt-3.5" onClick={alt.onClick}>
+              {alt.label}
+            </Btn>
+            <p className="mt-1.5 text-center text-[13px] text-muted-foreground">{alt.line}</p>
+          </>
+        )}
+        {problem ? (
+          <p role="alert" data-guard-problem className="mt-4 flex items-start gap-2 rounded-[3px] bg-background p-3 text-[15px] font-semibold">
+            <TriangleAlert className="mt-0.5 size-[18px] flex-none text-chyron-line" aria-hidden />
+            {problem}
+          </p>
+        ) : (
+          <>
+            <button
+              type="button"
+              data-hold
+              disabled={consequence === null || busy}
+              aria-label={`Hold to ${cta}`}
+              onPointerDown={start}
+              onPointerUp={stop}
+              onPointerLeave={stop}
+              onPointerCancel={stop}
+              onKeyDown={(e) => {
+                if ((e.key === " " || e.key === "Enter") && !e.repeat) {
+                  e.preventDefault();
+                  start();
+                }
+              }}
+              onKeyUp={stop}
+              onContextMenu={(e) => e.preventDefault()}
+              className="relative mt-4 flex h-14 w-full select-none items-center justify-center overflow-hidden rounded-[3px] bg-live/15 text-[16px] font-extrabold text-foreground outline-1 -outline-offset-1 outline-live/60 [-webkit-touch-callout:none] disabled:opacity-60"
+            >
+              <span
+                aria-hidden
+                className="absolute inset-0 origin-left bg-live ease-linear"
+                style={{ transform: `scaleX(${holding ? 1 : 0})`, transitionProperty: "transform", transitionDuration: holding ? `${HOLD_MS}ms` : "180ms" }}
+              />
+              <span className="relative">{busy ? "One moment…" : holding ? "Keep holding…" : `Hold to ${cta}`}</span>
+            </button>
+            <p className="mt-2 text-center text-[13px] text-muted-foreground">Restorable for 30 days from Recent changes</p>
+          </>
+        )}
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        <Btn wide className="mt-3" onClick={() => onOpenChange(false)}>
+          Not now
+        </Btn>
+      </div>
     </Sheet>
   );
 }

@@ -241,3 +241,12 @@ never handles it: the user does the reset and the pasting.
   (`ai_briefs`, the classic flow's table: ~2 KB for the quick question, ~33 KB for the full one, expiring in a week) and
   pasting an answer is research's own paste (the same storage as before). No model is called and nothing costs money:
   copy and paste stays the free way.
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 6a, Backstage II. No migration, no new table, nothing
+  polled or scheduled. New reads, each once a visit (react-query keeps them 30 s, then refetches on focus): your waivers
+  (`/api/seasons/[id]/waivers`) when a show space opens for someone playing Outlast or Weekly Lineup there (Tonight's
+  "Waivers ran" plate and Episodes' row share it) and on the Waivers page: your games' states through `league-states.ts`
+  (hashes when unchanged), your own claim (one tiny `waiver_claims` row) and the stats' season facts (the same in-memory
+  read as `/stats`), ~5-15 KB out. Backstage's Waivers, Game settings, Scoring rules and Members pages read when they open,
+  for whoever runs a game there (~2-10 KB each; Scoring rules adds the rulebook row, Members one memberships query). Every
+  write is one league write plus its Recent changes line, as before; a removal or leave keeps its undo for 30 days (one
+  `league_changes` row per game). The run's "seen" mark is kept in the browser (localStorage), not the database.

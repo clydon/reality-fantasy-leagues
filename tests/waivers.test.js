@@ -162,12 +162,13 @@ test("recommend(): the plan's worked examples (C = 18, E = 13)", () => {
   assert.equal(rec({ type: "classic-draft", T: 4, R: 2 }).settings.replaceRule, "always");
 });
 
-test("recommend(): Classic's ladder skips only-when-short; auto-fill is Casual's alone", () => {
+test("recommend(): Classic's ladder skips only-when-short; the fallback pick is off only in Competitive", () => {
   // Last Survivor Standing (4 × 3 of 18): Casual replaces right away, Balanced waits for a window,
   // Competitive has none.
   const lss = (feel) => W.recommend({ C: 18, E: 13, type: "classic-draft", T: 4, R: 3, feel }).settings;
   assert.deepEqual(["casual", "balanced", "competitive"].map((f) => lss(f).replaceRule), ["always", "windows", "never"]);
-  assert.deepEqual(["casual", "balanced", "competitive"].map((f) => lss(f).autoFill), [true, false, false]);
+  assert.deepEqual(["casual", "balanced", "competitive"].map((f) => lss(f).autoFill), [true, true, false]);
+  assert.deepEqual(["casual", "balanced", "competitive"].map((f) => lss(f).replenishOrderBy), ["leastPoints", "leastPoints", "leastPoints"], "lowest score picks first");
 });
 
 test("recommend(): Casual and Competitive move it a step", () => {
@@ -178,12 +179,12 @@ test("recommend(): Casual and Competitive move it a step", () => {
   assert.equal(casual.waiverProcessHours, 48);
   assert.equal(casual.replenishOrderBy, "leastPoints");
   assert.equal(casual.autoFill, true);
-  assert.equal(W.recommend(base).settings.autoFill, false, "Balanced: a missed replacement isn't filled");
+  assert.equal(W.recommend(base).settings.autoFill, true, "Balanced: forget, and the most points left comes in");
   const comp = W.recommend({ ...base, feel: "competitive" }).settings;
   assert.equal(comp.replaceRule, "never", "one stricter than windows");
   assert.deepEqual(comp.waiverWindows, { schedule: "every", every: 2, swaps: 1 });
   assert.equal(comp.waiverProcessHours, 12, "4 or fewer teams");
-  assert.equal(comp.replenishOrderBy, "rolling");
+  assert.equal(comp.replenishOrderBy, "leastPoints");
   assert.equal(comp.autoFill, false, "miss the deadline, play short");
   // Every episode is as often as it gets.
   const fast = W.recommend({ C: 18, E: 13, type: "active-roster", shared: true, T: 5, R: 5, S: 3, feel: "competitive" }).settings;

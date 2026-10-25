@@ -52,20 +52,22 @@ export const PREVIEWS = {
   "show.suggest-fix": { step: "6b", title: "Suggest a fix", line: "Tell us what the rulebook got wrong; it's checked, then fixed for every couch." },
 
   // ---- pushed over a show ----
-  "show.waivers": { step: "6a", title: "Waivers", line: "Replace whoever's out, and swaps if your game allows them." },
   "show.draft": { step: "7", title: "The draft room", line: "Pick your team in turn; nobody's auto-picked." },
   "show.blind": { step: "7", title: "The blind draft", line: "Pick in private, then reveal together." },
 
-  // ---- Backstage (Results and Recent changes are real since step 5) ----
+  // ---- Backstage (Results and Recent changes are real since step 5; Waivers, Scoring rules, Members & roles and Game
+  // settings since 6a) ----
   "backstage.results-ways": {
     step: "6c",
     title: "How results get in",
     line: "Copy and paste (free), One tap (we ask ChatGPT for you) and Autopilot, for the whole couch.",
   },
-  "backstage.waivers": { step: "6a", title: "Waivers", line: "Open a waiver window, and how waivers run." },
-  "backstage.rules": { step: "6a", title: "Scoring rules", line: "The rulebook these games follow, or the couch's own." },
-  "backstage.members": { step: "6a", title: "Members & roles", line: "Who plays, who runs each game, join requests." },
-  "backstage.settings": { step: "6a", title: "Game settings", line: "Lineup size, joining, lock it down, end a game." },
+  "backstage.make-it-ours": {
+    step: "6b",
+    title: "Make it ours",
+    line: "The couch's own copy of the rulebook: choose what counts, add a moment, change the points.",
+  },
+  "backstage.end-game": { step: "10", title: "Archive or delete a game", line: "Keep it on the trophy shelf and stop scoring, or remove it for everyone." },
 
   // ---- you ----
   "settings.profile": { step: "15", title: "Your profile", line: "Your name, picture and colour." },

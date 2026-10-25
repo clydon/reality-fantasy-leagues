@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
-import { apiRoute } from "@/lib/server/api-route";
+import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { requireWaivers, waiverActor } from "@/lib/server/waiver-actor";
@@ -25,5 +24,5 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     const refused = StateLogic.WaiverLogic.freeAgencyMove(s, playerId, addId, dropId, Date.now());
     if (refused) throw new HttpError(refused.startsWith("They’re not a free agent") ? 409 : 400, refused);
   });
-  return NextResponse.json(state);
+  return stateResponse(req, state);
 });

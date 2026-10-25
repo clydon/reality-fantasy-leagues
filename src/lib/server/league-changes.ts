@@ -1,9 +1,10 @@
 import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import { undoResults } from "@/lib/game/results-changes";
-import type { ChangeUndo, Tier } from "./change-log";
+import type { LeagueState } from "@/lib/game/types";
+import type { ChangeUndo, MemberUndo, Tier } from "./change-log";
 import { isSuperAdminUser, type SessionUser } from "./auth-helpers";
-import { requireCouch } from "./couches";
+import { joinedLeague, requireCouch } from "./couches";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { setLeagueRole } from "./roles";
 import { games } from "./show-space";
@@ -176,14 +177,45 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
       continue;
     }
     await withLeagueLock(r.league_id, async (s, client) => {
+      const settings = s.settings as unknown as Record<string, unknown>;
       if (undo.type === "results") undoResults(s, undo);
-      else {
-        const now = (s.settings as unknown as Record<string, unknown>)[undo.field];
-        if (JSON.stringify(now ?? null) !== JSON.stringify(undo.after)) throw new HttpError(409, "That setting has changed since");
+      else if (undo.type === "settings") {
+        if (JSON.stringify(settings[undo.field] ?? null) !== JSON.stringify(undo.after)) throw new HttpError(409, "That setting has changed since");
         StateLogic.updateSettings(s, undo.field, undo.before);
-      }
+      } else if (undo.type === "settingsSet") {
+        if (Object.keys(undo.after).some((k) => JSON.stringify(settings[k] ?? null) !== JSON.stringify(undo.after[k]))) throw new HttpError(409, "Those settings have changed since");
+        for (const [k, v] of Object.entries(undo.before)) {
+          if (v === null) delete settings[k];
+          else settings[k] = v;
+        }
+        StateLogic.WaiverLogic.mirrorLegacy(s);
+      } else if (undo.type === "waivers") {
+        const p = StateLogic.WaiverLogic.current(s);
+        if (!p || p.id !== undo.periodId || p.phase !== "processed" || !p.run) throw new HttpError(409, "That waiver run can't be taken back any more");
+        const refused = StateLogic.WaiverLogic.undo(s);
+        if (refused) throw new HttpError(409, refused);
+      } else await restoreMember(s, client, r.league_id, undo);
       await mark(client);
     });
+    if (undo.type === "member") await joinedLeague(r.league_id, undo.userId);
   }
   return { undone: rows.length, text: rows[0].text };
+}
+
+/** Someone taken out of a game (or who left it) comes back: their seat (reclaimed, or a new one if it went before the draft) and membership. */
+async function restoreMember(s: LeagueState, client: PoolClient, leagueId: string, undo: MemberUndo): Promise<void> {
+  const { rows } = await client.query("SELECT 1 FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, undo.userId]);
+  if (rows.length) throw new HttpError(409, "They're back in already");
+  let playerId = undo.playerId;
+  const seat = s.players.find((p) => p.id === playerId);
+  if (seat?.disabled && (!seat.disabledFromUserId || seat.disabledFromUserId === undo.userId)) StateLogic.reclaimPlayer(s, playerId);
+  else if (undo.removed || !seat) playerId = StateLogic.addPlayer(s, undo.name).id;
+  else throw new HttpError(409, "Their seat has changed since");
+  await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through, explainer_seen_at) VALUES ($1, $2, $3, $4, $5, now())", [
+    leagueId,
+    undo.userId,
+    playerId,
+    undo.role,
+    undo.seen,
+  ]);
 }

@@ -15,6 +15,7 @@ import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
 import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./moves";
 import { Block, Face } from "./parts";
+import { WaiversRanPlate } from "./waivers";
 import { useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
 
@@ -31,6 +32,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
   const playing = show.games.some((g) => g.yourRole);
   return (
     <>
+      {playing && <WaiversRanPlate seasonId={seasonId} show={show} />}
       <PhaseHead show={show} />
       {playing && <AfterEpisode seasonId={seasonId} show={show} />}
       {playing && <YourMoves seasonId={seasonId} show={show} />}

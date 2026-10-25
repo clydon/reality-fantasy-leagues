@@ -4,7 +4,7 @@ import { useState } from "react";
 import { BookOpen, Check, ChevronRight, CircleQuestionMark, Eye, Grid3x3, Plus, X } from "lucide-react";
 import { dayOf, timeOf } from "../clock";
 import { THIS_WEEK } from "../fixtures/episode-games";
-import { useHowItWorks, type GameView, type TableRow } from "../data";
+import { useHowItWorks, useSeasonWaivers, type GameView, type TableRow, type WaiverWeek } from "../data";
 import { gameColour, GAME_STYLE, isGameName, ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
@@ -15,6 +15,7 @@ import { Sheet } from "../ui/sheet";
 import { faceIn, first } from "./moves";
 import { placeOf } from "./tonight";
 import { Block, Face, IconBox } from "./parts";
+import { playsWaivers, WaiversHowBody } from "./waivers";
 import { useOpenReveal } from "./reveal";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Your games' tables when
@@ -32,6 +33,8 @@ export function Games({ show }: { show: ShowData }) {
   const [player, setPlayer] = useState<{ row: TableRow; game: GameView } | null>(null);
   const [rules, setRules] = useState<GameView | null>(null);
   const name = (show.header?.show.name ?? "This show").replace(/^The /, "");
+  // How waivers work, under the rules of a game that has them (step 6a).
+  const wv = useSeasonWaivers(show.header?.seasonId ?? "", show.couch?.id ?? null, !!show.header && playsWaivers(show));
   return (
     <>
       {playing && show.episodes?.reveal && <AsOf show={show} />}
@@ -56,7 +59,7 @@ export function Games({ show }: { show: ShowData }) {
         </button>
       </Preview>
       <PlayerSheet open={player} onClose={() => setPlayer(null)} />
-      <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} />
+      <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
     </>
   );
 }
@@ -280,10 +283,11 @@ function TeamList({ g, team, label = true }: { g: GameView; team: string[]; labe
   );
 }
 
-function RulesSheet({ game, play, onGame }: { game: GameView | null; play: GameView[]; onGame: (g: GameView | null) => void }) {
+function RulesSheet({ game, play, onGame, waivers }: { game: GameView | null; play: GameView[]; onGame: (g: GameView | null) => void; waivers: WaiverWeek[] }) {
   const [last, setLast] = useState(game);
   if (game && game !== last) setLast(game);
   const shown = game ?? last;
+  const wv = shown ? waivers.find((w) => w.leagueId === shown.leagueId) : undefined;
   return (
     <Sheet open={!!game} onOpenChange={(o) => !o && onGame(null)} title={shown?.gameName ?? ""} subtitle={shown ? (shown.gameName === shown.name ? lineOf(shown) : shown.name) : undefined}>
       {shown && (
@@ -293,6 +297,12 @@ function RulesSheet({ game, play, onGame }: { game: GameView | null; play: GameV
               <li key={r}>{r}</li>
             ))}
           </ol>
+          {wv && (
+            <div className="mt-5">
+              <p className="type-caption mb-2 text-[15px] tracking-[0.04em]">Waivers here</p>
+              <WaiversHowBody how={wv.how} />
+            </div>
+          )}
           {play.length > 1 && (
             <div className="mt-4 flex flex-wrap gap-2">
               {play.map((g) => (

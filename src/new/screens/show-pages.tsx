@@ -4,7 +4,11 @@ import { ArrowLeftRight, Check, ChevronRight, CircleQuestionMark, Eye, KeyRound,
 import type { ReactNode } from "react";
 import { airTime } from "../clock";
 import { ChangesPage } from "../backstage/changes";
+import { MembersPage } from "../backstage/members";
 import { ResultsPage } from "../backstage/results";
+import { RulesPage } from "../backstage/rules";
+import { SettingsPage } from "../backstage/settings";
+import { WaiversAdminPage } from "../backstage/waivers";
 import { useBackstage, useChanges, type Backstage, type Need } from "../data";
 import { NavLink, useNav } from "../nav";
 import { BACKSTAGE_PAGES, paths, type BackstagePage } from "../routes";
@@ -18,17 +22,18 @@ import { isTabOf, useShow, type ShowData } from "./show-space";
 // Pages pushed over a show space (step 0c's shells): Backstage and its pages, waivers, the draft room and the
 // blind draft. Each is a route of its own, deeper than the show, so it pushes in from the right; back returns to
 // the tab you left. Backstage is steps 5 and 6a (mock backstage.js, guards.js): its home (Needs you, then its pages),
-// Results and Recent changes are real since step 5, the other four 6a's; waivers 6a (waivers.js), the drafts 7
-// (draft.js). Recent changes is the couch's to read, so players reach it too (the show's ⋯ menu).
+// Results and Recent changes since step 5, Waivers, Scoring rules, Members & roles and Game settings since 6a; the
+// player's Waivers page is show/waivers.tsx; the drafts are step 7's (draft.js). Recent changes is the couch's to read,
+// so players reach it too (the show's ⋯ menu).
 
 const PAGES = {
   results: { title: "Results", icon: CircleQuestionMark, detail: "Who went home, and full scores for every game" },
-  waivers: { title: "Waivers", icon: ArrowLeftRight, detail: "Open a waiver window, and how waivers run", preview: "backstage.waivers" },
-  rules: { title: "Scoring rules", icon: Trophy, detail: "The rulebook these games follow, or your own", preview: "backstage.rules" },
-  members: { title: "Members & roles", icon: Users, detail: "Who plays, who runs each game, join requests", preview: "backstage.members" },
-  settings: { title: "Game settings", icon: SlidersHorizontal, detail: "Lineup size, joining, lock it down, end a game", preview: "backstage.settings" },
+  waivers: { title: "Waivers", icon: ArrowLeftRight, detail: "Open a waiver window, and how waivers run" },
+  rules: { title: "Scoring rules", icon: Trophy, detail: "The rulebook these games follow, and each game's points" },
+  members: { title: "Members & roles", icon: Users, detail: "Who plays, and who runs each game" },
+  settings: { title: "Game settings", icon: SlidersHorizontal, detail: "Lineup size and who can join" },
   history: { title: "Recent changes", icon: RotateCcw, detail: "Everything changed in these games, with undo" },
-} as const satisfies Record<BackstagePage, { title: string; icon: LucideIcon; detail: string; preview?: PreviewId }>;
+} as const satisfies Record<BackstagePage, { title: string; icon: LucideIcon; detail: string }>;
 
 export function BackstageScreen({ seasonId, page }: { seasonId: string; page?: BackstagePage }) {
   const show = useShow(seasonId);
@@ -83,20 +88,12 @@ export function BackstageScreen({ seasonId, page }: { seasonId: string; page?: B
       </>
     );
   }
-  if (page === "results") {
-    return (
-      <>
-        {bar("Results", toBackstage, runThis)}
-        <ResultsPage seasonId={seasonId} show={show} />
-      </>
-    );
-  }
   if (page) {
-    const p = PAGES[page];
+    const Page = { results: ResultsPage, waivers: WaiversAdminPage, rules: RulesPage, members: MembersPage, settings: SettingsPage }[page];
     return (
       <>
-        <PageHeader title={p.title} back={{ label: "Backstage", parent: paths.backstage(seasonId) }} />
-        {"preview" in p && <Preview id={p.preview} className="mx-4 mt-5" />}
+        {bar(PAGES[page].title, toBackstage, runThis)}
+        <Page seasonId={seasonId} show={show} />
       </>
     );
   }
@@ -203,7 +200,6 @@ function AllClear({ data }: { data: Backstage }) {
 }
 
 const SHOW_PAGE_META = {
-  waivers: { title: "Waivers", preview: "show.waivers" },
   draft: { title: "Draft room", preview: "show.draft" },
   blind: { title: "Blind draft", preview: "show.blind" },
 } as const satisfies Record<string, { title: string; preview: PreviewId }>;

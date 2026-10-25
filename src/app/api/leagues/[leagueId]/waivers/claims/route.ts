@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-import { apiRoute } from "@/lib/server/api-route";
+import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { saveClaim } from "@/lib/server/waivers";
@@ -22,5 +21,5 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
     const saved = await saveClaim(client, leagueId, s, playerId, body, user.id);
     if (saved.error) throw new HttpError(400, saved.error);
   });
-  return NextResponse.json(state);
+  return stateResponse(req, state);
 });

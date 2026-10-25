@@ -2,9 +2,9 @@
 
 import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { BookOpen, Ellipsis, Eye, KeyRound, Bell, Plus, RotateCcw, Tv, UserPlus, Users } from "lucide-react";
+import { BookOpen, Ellipsis, Eye, KeyRound, Bell, LogOut, Plus, RotateCcw, Tv, UserPlus, Users } from "lucide-react";
 import { calm, justAired, ticks } from "../clock";
-import { chatCouch, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonEpisodes, useSeasonGames, useSpace, type GameRef, type GameView, type Need, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
+import { chatCouch, gameAdmin, useAfterReveal, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonEpisodes, useSeasonGames, useSpace, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
@@ -17,7 +17,10 @@ import { HowItWorksPage } from "../show/how-it-works";
 import { RevealScreen } from "../show/reveal";
 import { ShowStatsPage } from "../show/stats";
 import { Tonight } from "../show/tonight";
+import { WaiverOverlays } from "../show/waivers";
 import { Avatar, useNow } from "../ui/bars";
+import { HoldSheet } from "../ui/guards";
+import { toast } from "../ui/toast";
 import { usePushedPage } from "../ui/page";
 import { EmptyState, GuardChip, Row } from "../ui/parts";
 import { Preview } from "../ui/preview";
@@ -144,6 +147,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         <HowItWorksPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />
       )}
       {show.header && <ShowStatsPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} />}
+      <WaiverOverlays seasonId={seasonId} show={show} />
     </>
   );
 }
@@ -178,6 +182,9 @@ function useBackstageNeeds(seasonId: string, show: ShowData): Need[] {
  *  couch, the drafts, and what's still to come. */
 function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [open, setOpen] = useState(false);
+  const [leave, setLeave] = useState<OutPreview | null | false>(false);
+  const nav = useNav();
+  const refresh = useAfterReveal();
   const how = usePushedPage("how-it-works");
   const needs = useBackstageNeeds(seasonId, show);
   const name = show.header?.show.name ?? "This show";
@@ -229,8 +236,44 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
           {soon("show.invite", UserPlus, "Invite to this show", "A code; they join the couch too")}
           {soon("show.start-game", Plus, "Start a game", "Bingo night, predictions, a new league")}
           {soon("show.notifications", Bell, "Notifications", "Reminders, results and chat for this show")}
+          {show.couch && show.games.some((g) => g.yourRole) && (
+            <Row
+              icon={LogOut}
+              title="Leave these games"
+              detail="Your team stays in the standings; nobody plays it"
+              onClick={async () => {
+                setOpen(false);
+                setLeave(null);
+                try {
+                  setLeave(await gameAdmin.leave(seasonId, show.couch!.id, true));
+                } catch (e) {
+                  setLeave(false);
+                  toast((e as Error).message);
+                }
+              }}
+            />
+          )}
         </div>
       </Sheet>
+      {/* Tier 3: hard to undo, so a hold; never as a game's last Commissioner. */}
+      <HoldSheet
+        open={leave !== false}
+        onOpenChange={(o) => !o && setLeave(false)}
+        title="Leave these games?"
+        consequence={
+          leave
+            ? `You leave ${leave.games.join(", ")}. ${leave.drafted ? "Your team and points stay in the standings, but nobody plays it." : "Nothing's been drafted yet, so your seat just goes."} Whoever runs the games can bring you back.`
+            : null
+        }
+        problem={leave ? leave.problem : null}
+        cta="leave"
+        onConfirm={async () => {
+          await gameAdmin.leave(seasonId, show.couch!.id);
+          await refresh();
+          toast("You've left the games here");
+          nav.push(paths.home);
+        }}
+      />
     </>
   );
 }

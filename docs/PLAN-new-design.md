@@ -29,7 +29,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 3 | Cast explorer and stats, server-side spoiler guard | **done** 2026-10-24 on the branch (no migration) | Opus · high |
 | 4 | Chat, per couch and show, spoiler-folded | **done** 2026-10-24 on the branch (migration 0110 ships with 0b's) | Opus · medium |
 | 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | **done** 2026-10-25 on the branch (migration 0111 ships with 0b's) | Opus · high |
-| 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | not started | Opus · high |
+| 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | **done** 2026-10-25 on the branch (no migration) | Opus · high |
 | 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | not started | Opus · high |
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | not started | Opus · medium |
 | 7 | Draft room and blind draft | not started | Opus · medium |
@@ -134,9 +134,6 @@ Behaviour a session saw and left alone because it wasn't that step's to change. 
 the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
 step's As built.
 
-- **The dock's clock when only a waiver pickup is due** (step 1; for 6a). The dock says "Locks Tue 8:00 PM · in 3 days"
-  (airtime) even when the only thing due is a pickup, whose own deadline is sooner (Mon 8 PM). `show/dock.tsx`: say the
-  soonest move's deadline, as Tonight's cards do.
 - **Predictions are a text field** (step 1; for 12). Real predictions are free-text questions with free-text guesses
   (`Bet` has no options), so the sheet's Predictions tab has a field where the mock has chips. Step 12's Call it and
   polls could give a prediction options (a cast pick, yes / no) and bring the chips back.
@@ -161,16 +158,14 @@ step's As built.
   Steps 1–2's views read a league as it holds its results: a still-in Traitor's "As a Traitor, voted out a fellow Traitor"
   lifts their points on an episode's top scorers (`episode-view.ts scorersIn`) and names itself in a Weekly Lineup reveal's
   "why". `cast-stats.ts secretEvents` says which results give a role away, so those views could leave them out the same way.
-- **"Points" doesn't say whose** (step 3; for 6a). The explorer's Points are the couch's Weekly Lineup's, else the rulebook's
-  suggested (exclusive) values; `/stats` sends `pointsFrom`, and nothing shows it. 6a's Scoring rules (or a line under Rank)
-  could say "Points as Lineup League counts them".
 - **A season whose commissioners enter results has no shared stats** (step 3; for 6b). Stats count accepted
   `season_decisions`; a season with `results_by = 'leagues'` has none, so they come from the couch's game there, and someone
   on that show with no game sees "Nothing to show yet". 6b's one mode (every league receives the shared facts) ends this.
 - **Two names for one person** (step 1; for 15). The tables and who's set show a league's player name (alex), the couch
   line the account's (zt_nd_alex in the fixture), so a face can carry two initials. Step 15's profile (name, picture,
   colour) is the place to make one name win everywhere. Chat signs a message with the account's username, as classic
-  always has (zt_nd_riley next to the fixture's seeded "riley").
+  always has (zt_nd_riley next to the fixture's seeded "riley"); so do Recent changes' lines ("Made zt_nd_jordan a Game
+  admin"), while 6a's Members page uses the seat's name.
 - **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
   classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
   on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
@@ -203,16 +198,35 @@ step's As built.
   need keeping (`bot_research_runs.result` has them) and showing in Backstage.
 - **"Nobody went home" can't be marked** (step 5; for 6c). A quick check that says nobody left waits, and there's no way to
   mark an episode early with no elimination; the full results settle it. Rare (non-elimination episodes).
-- **Not in Recent changes yet** (step 5; for 6a, 7 and 6b). Logged: every classic results route, settings, roles, players,
+- **Not in Recent changes yet** (step 5; for 7, 9 and 6b). Logged: every classic results route, settings, roles, players,
   the cast and tribes, waivers (process, undo, window), the catch-up reveal, lineup locks, the draft's start, order and
   take-back, the finale's results, prediction questions, rule changes, scoring rules, renaming, linking and moves made for
   someone else. Not yet: a draft pick made for someone (`draft/pick`: step 7's "admins pick for someone" should log it),
-  invites and late-join starts (6a's Members), the hourly waiver job's own processing and a super-admin's membership edits
-  (6b's admin History). Classic's screens don't show the log (only the new design does) and its own Undo buttons don't
+  invites and late-join starts (step 9's join flow: 6a's Members has no invite of its own), the hourly waiver job's own
+  processing (a run it made is still taken back from Backstage › Waivers' Last run, which logs that) and a super-admin's
+  membership edits (6b's admin History). Classic's screens don't show the log (only the new design does) and its own Undo buttons don't
   mark lines undone.
-- **Backstage's setup jobs** (step 5; for 6a, 7, 9). Needs you lists results jobs only; classic's commissioner items (Add the
+- **Backstage's setup jobs** (step 5; for 7, 9). Needs you lists results jobs only; classic's commissioner items (Add the
   cast, Invite players, Draft not scheduled, a catch-up league's next reveal: `commissioner-items.ts`, the home's
-  `backstage`) link to classic pages, so they wait for the pages that fix them.
+  `backstage`) link to classic pages, so they wait for the pages that fix them (6a's pages fix none of them).
+- **Who can join is on or off** (step 6a; for 9). The mock's "Ask me first" and its join requests ("kat asked to join
+  Weekly Lineup · Let in") don't exist anywhere: Game settings' Who can join is classic's late joiners, Anyone on the couch
+  or Nobody new. Step 9's join flow is where a request would come from.
+- **No "Claim for them" in the new design** (step 6a; for 7). Classic lets a commissioner save a claim for someone (helping
+  over the phone, `waiver-actor.ts`); Backstage › Waivers shows who has picks in and nothing more. Step 7's "admins pick for
+  someone" could bring both (the claim stays private: Claim for sends a spot without reading theirs).
+- **No "Extend a day"** (step 6a; for 6b or later). The mock's Backstage › Waivers has it; the engine has no way to move a
+  week's deadline (a window's `processAt` is worked out from the schedule). Small: an override on the period.
+- **No "Lock it down"** (step 6a; for 10 or later). The mock's Game settings has a competitive switch (no late joins, no
+  catch-up, rules frozen); only the first means anything in the engine today (Who can join).
+- **Taking someone out takes them off the couch** (step 6a; for 9). The mock says "they stay on the couch"; the couch's
+  members are worked out from its leagues (`couches.ts` `pruneMembers`), so someone with no other game there leaves it.
+  Restoring them (Recent changes) puts them back on it.
+- **The run's "seen" mark is per device** (step 6a; for 15). Tonight's "Waivers ran" plate goes once you've watched the run
+  here (localStorage), so another phone shows it again until the week ends.
+- **Fewer starters trims lineups** (step 6a). Lowering Who scores each week keeps the first starters of a lineup already set
+  for the next episode; Undo puts the number back, not the trimmed starters (the lineup then reads "not set", so it's asked
+  for again).
 
 ## What exists, what's needed
 
@@ -1282,6 +1296,82 @@ compared with the old v2 port on `waivers-options.html`; checked by `scripts/dev
   Competitive; waiver order "lowest score first" in place of rolling for these leagues (confirm before
   changing a running league); the free swap and optional swaps map onto `replaceRule` + `waiverWindows.swaps`
   unchanged. Open question: under "No replacements", may a player spend an optional swap on someone out?
+
+### As built, step 6a (2026-10-25, on `new-design`)
+
+Backstage II is real: Simple waivers for players and whoever runs the game, Members & roles, Game settings and Scoring
+rules' read side, with tier 3's hold to confirm. No migration, nothing polled or scheduled (HOSTING.md's Changelog).
+- **Engine deltas** (`state-logic.js` `WaiverLogic.recommend`): every feel now sets "lowest score first" (`leastPoints`) and
+  the fallback pick (`autoFill`) is on for Casual and Balanced, off for Competitive. No running league was changed: a feel
+  only applies when whoever runs the game picks it (on the local copy none of the couch's leagues sat on a suggestion, so
+  classic's "Customized" label doesn't move for them). The plan's open question (may a player spend an optional swap on
+  someone out under No replacements?) is still open: the engine is unchanged there.
+- **The player's Waivers** (`src/lib/game/waiver-view.ts`, pure; `GET /api/seasons/[id]/waivers?couch=`,
+  `src/lib/server/season-waivers.ts`): per game with waivers, the week from your copy at your mark (a week opened by an
+  episode you haven't revealed is only "Reveal Episode N first"), who of yours to replace, your swaps, your team (still in
+  first) and who's free with the Cast tab's points and one positive tag (the season's facts, `seasonFactsFor`, so Outlast
+  shows real numbers too), your own picks a spot at a time (`readOwnClaim`, yours alone), the picking order (exclusive
+  games), the fallback, the last run in picking order with why, free agency's moves, and How it works (three answers and
+  the When moves happen lanes, `waiverHow`). Writes go through classic's `/waivers/claims` (`{ spot }`) and
+  `/waivers/free-agency`, which now answer `?quiet` with `{ ok }`.
+- **The Waivers page** (`src/new/show/waivers.tsx`, `/show/[id]/waivers?game=`): Due and its calm clock, "Replace Carter"
+  (yellow) and "Optional · 1 free swap" chips, your whole team with every button Swap (yellow on who's out), a set spot as
+  "Sharonda comes in" with its backups and Change, the fallback line, picking order as faces, How waivers work here, and a
+  bottom bar that keeps score. One picker for every swap with the Cast tab's own controls (its `EpisodeSlider` and
+  `Select`, now exported): ranked by any stat, filtered by group, your pick yellow, backups outlined (exclusive games only,
+  behind Choose backups), Clear my pick / Keep X. After the run: what you got, everyone's moves, Free agency (a sheet: who
+  comes in, then who goes), Past waivers and Watch the run again. A chip per game with waivers.
+- **The run plays like an episode:** Tonight's "Waivers ran" plate (until you've watched it, per device) opens the run's
+  reveal (`?page=waivers-run&wv=`: Waivers ran, you got, why not your first choice, everyone's moves, free agency is open);
+  Episodes has a row between the two episodes (open: to the Waivers page; run: "You got X for Y · N moves", to its own page
+  in picking order, `?page=waivers-ran`). The Games tab's Rules sheet carries the waiver answers and lanes under a game's
+  rules (How it works for the league).
+- **Backstage › Waivers** (`src/lib/server/backstage-games.ts`, `/api/seasons/[id]/backstage/waivers`; a Game admin's too):
+  the week as a plate (what it allows, with no names), Change / Turn off, Open a waiver window (three presets and Something
+  else; the couch is pushed as before; Undo on the toast when it opened a fresh week), who's picked (never what), Run now
+  (tier 2: a preview of how many picks are in, what happens to anyone who forgot, and free agency, nothing private; then a
+  line in Recent changes whose Undo takes the run back while free agency is open, `WaiverRunUndo`), the last run (its moves
+  only once you've revealed its episode) with Undo (a run the hourly job made is taken back directly, and logged), Waivers
+  settings (one choice of feel applied on tap with the toast's Undo; Fine-tune: the rule, windows and swaps, timing, the
+  fallback; a Commissioner's) and What players see.
+- **Game settings** (`/backstage/settings`): Weekly Lineup's starters (after the draft the team's size is fixed, so a starter
+  comes off the bench; fewer starters trim a lineup already set for the next episode), the bench and Outlast's team
+  (steppers before the draft, "Set at the draft" after), Who can join (Anyone on the couch / Nobody new: classic's late
+  joiners), each with a dot when changed and Reset to recommended (3 and 2, open); every change one batch with the toast's
+  Undo (`settingsSetChange`, a `SettingsSetUndo` of every field it moved). Replacing people who leave links to Waivers.
+- **Scoring rules, the read side** (`/backstage/rules`): "Following the Survivor rulebook" (the season's rulebook row when the
+  rulebooks flag is on, else the format), How it works over the page, and each game's points: Weekly Lineup by moment (R1's
+  `pointGroups` with the game's own points), Outlast and Survival Pool in words (`gameRules`).
+- **Members & roles** (`src/lib/server/backstage-members.ts`, `/backstage/members`, `PUT .../members/[userId]`, `POST
+  .../members/[userId]/remove`, `POST /api/seasons/[id]/leave`): who runs what (a game's sheet: a switch each, on = Game
+  admin; a Commissioner stays one until they hand it on), players named by their seat with their role in each game, a
+  member's sheet (Commissioner / Game admin / Player for every game of theirs you run, one batch with Undo). The last
+  Commissioner can't step down or leave: refused before anyone holds, in the API (409), and now in classic's `/leave` too
+  (0b's As built). **Tier 3** (`ui/guards.tsx` `HoldSheet`): a sentence saying what happens, a button held for 1.4 s (a tap
+  does nothing; Space or Enter held works too), "Restorable for 30 days from Recent changes". Taking someone out, or leaving
+  yourself (your own sheet, or the show's ⋯ menu for anyone who plays), does what classic's leave does in each game (before
+  the draft the seat goes; after it, it's disabled and keeps its team and points) and logs a `MemberUndo` open for 30 days
+  (`ChangeSpec.undoUntil`), which restores the seat (reclaimed, or a new one), the role and the mark. Invite is `show.invite`
+  (step 9).
+- **Recent changes** (`change-log.ts`, `league-changes.ts`): three new undo kinds (`settingsSet`, `waivers`, `member`), a batch
+  for `roleChange`, and `undoUntil` per change.
+- **Fixed from Noticed, not fixed:** the dock's clock when only a waiver pickup is due (it says the soonest deadline: "Due Tue
+  8:00 PM · in 2 days"), and "Points" doesn't say whose (the Cast tab's Rank by points says "Points as Lineup League counts
+  them", else "as the rulebook suggests them"; `check-new-stats.js` checks it, 57 PASS).
+- **Fixtures and Preview:** deleted `fixtures/waivers.ts` and the entries `show.waivers`, `backstage.waivers`, `backstage.rules`,
+  `backstage.members`, `backstage.settings`; added `backstage.make-it-ours` (6b: Make it ours, and changing the points) and
+  `backstage.end-game` (10: archive or delete a game).
+- **Changed from the mock:** Run now isn't yellow (the week runs on its own when it's due) and its preview says how many picks
+  are in rather than who gets whom (picks are private until they run, the commissioner included); no "Extend a day", "Claim
+  for them", join request or "Lock it down" (Noticed); Who can join has two choices; Members names people by their seat.
+- **Checks:** `scripts/dev-test/check-new-backstage-ii.js <outDir> [--width=390] [--keep]` (116 PASS at 390 and at 1280).
+  `tests/waiver-view.test.js` (6); `tests/waivers.test.js`' recommend tests follow the new feels.
+- **Noticed, left as is:** seven things, now in Noticed, not fixed: who can join is on or off, no Claim for them, no Extend a
+  day, no Lock it down, taking someone out takes them off the couch, the run's seen mark is per device, fewer starters trim
+  lineups.
+- **For step 6b:** Make it ours and changing the points go on Scoring rules (`src/new/backstage/rules.tsx`, the
+  `backstage.make-it-ours` Preview); a points change that rescores the season is tier 2 (`GuardSheet`'s `body` takes any
+  preview). `HoldSheet` is there for anything else that's hard to undo.
 
 ### Step 6b: results from everyone, disputes, house rulings, the admin; rulebooks phases 4–7
 

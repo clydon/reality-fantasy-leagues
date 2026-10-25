@@ -50,7 +50,10 @@ function DockFaces({ play, locked }: { play: GameView[] | null; locked?: boolean
 
 export function Dock({ show }: { show: ShowData }) {
   const up = show.upNext!;
-  const t = up.airAt ? Date.parse(up.airAt) : null;
+  const airs = up.airAt ? Date.parse(up.airAt) : null;
+  // The soonest deadline of what's due (a waiver pick is due before airtime), else airtime.
+  const dues = show.moves.map((m) => (m.deadline ? Date.parse(m.deadline) : null)).filter((d): d is number => d != null);
+  const t = dues.length ? Math.min(...dues) : airs;
   const now = useNow(t != null && ticks(t));
   const openReveal = useOpenReveal();
   const when = t != null ? `${airTime(t)} · ${calm(t, now)}` : null;
@@ -128,7 +131,7 @@ export function Dock({ show }: { show: ShowData }) {
         <b className="block truncate text-sm">{need ? dockWords(show.moves) : `All set for Episode ${up.number}`}</b>
         {when && (
           <small className="block text-[11.5px] tabular-nums text-plate-muted">
-            {need ? "Locks" : "Change until"} {when}
+            {need ? (t !== airs ? "Due" : "Locks") : "Change until"} {when}
           </small>
         )}
       </span>

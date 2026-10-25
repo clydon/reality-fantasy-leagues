@@ -11,6 +11,9 @@ import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
 import type { Backstage, Chosen, PasteResult } from "@/lib/server/backstage";
 import type { ChangeLine } from "@/lib/server/league-changes";
 import type { PreviewLine } from "@/lib/game/results-changes";
+import type { WaiverWeek } from "@/lib/game/waiver-view";
+import type { GameSettings, ScoringRules, WaiverAdminGame, WaiverAction } from "@/lib/server/backstage-games";
+import type { Members, OutPreview } from "@/lib/server/backstage-members";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -21,6 +24,9 @@ export type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
 export type { Backstage, BackstageEpisode, Chosen, Face, Need, PasteResult, ResultRow, Shown } from "@/lib/server/backstage";
 export type { ChangeLine } from "@/lib/server/league-changes";
 export type { PreviewLine } from "@/lib/game/results-changes";
+export type { WaiverFace, WaiverMove, WaiverRunView, WaiverWeek } from "@/lib/game/waiver-view";
+export type { GameRules, GameSettings, ScoringRules, WaiverAdminGame } from "@/lib/server/backstage-games";
+export type { Member, MemberGame, Members, OutPreview } from "@/lib/server/backstage-members";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -412,6 +418,64 @@ export const backstage = {
     post<{ undone: number; text: string }>(seasonUrl(seasonId, `/changes/${encodeURIComponent(batch)}/undo`, { couch: couchId })),
   /** Parks a long question at /b/<code> for an Open in ChatGPT / Grok link (api/briefs). */
   brief: (text: string) => post<{ code: string }>("/api/briefs", { text }),
+};
+
+// ---- Waivers (step 6a): your week in each game here, saved a spot at a time through the league routes; and Backstage
+// II's pages for whoever runs a game. Read when a page opens and after each write; nothing polls. ----
+
+/** Your waiver week in each game here (GET /api/seasons/[id]/waivers), as far as you've seen. */
+export function useSeasonWaivers(seasonId: string, couchId: string | null, enabled = true) {
+  const query = couchId ? `?couch=${encodeURIComponent(couchId)}` : "";
+  return useQuery({
+    queryKey: ["new-design", "waivers", seasonId, couchId],
+    queryFn: () => get<{ games: WaiverWeek[] }>(`/api/seasons/${seasonId}/waivers${query}`),
+    staleTime: 30_000,
+    enabled,
+  });
+}
+
+export const waivers = {
+  /** One spot's picks, first choice first (empty clears it): the rest of your claim stays. */
+  pick: (leagueId: string, dropId: string, addIds: string[]) => send(`/api/leagues/${leagueId}/waivers/claims`, "PUT", { spot: { dropId, addIds } }),
+  /** Free agency: instant, first come, first served. */
+  freeAgency: (leagueId: string, addId: string, dropId: string) => send(`/api/leagues/${leagueId}/waivers/free-agency`, "POST", { addId, dropId }),
+};
+
+const bsKey = (page: string, seasonId: string, couchId: string | null) => ["new-design", "bs2", page, seasonId, couchId] as const;
+
+function useBs<T>(page: string, seasonId: string, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: bsKey(page, seasonId, couchId),
+    queryFn: () => get<T>(seasonUrl(seasonId, `/backstage/${page}`, { couch: couchId ?? "" })),
+    enabled: !!couchId && enabled,
+    staleTime: 30_000,
+    retry: (n, e) => (e as { status?: number }).status !== 403 && n < 2,
+  });
+}
+
+export const useWaiversAdmin = (seasonId: string, couchId: string | null) => useBs<{ games: WaiverAdminGame[] }>("waivers", seasonId, couchId);
+export const useGameSettings = (seasonId: string, couchId: string | null) => useBs<{ games: GameSettings[] }>("settings", seasonId, couchId);
+export const useScoringRules = (seasonId: string, couchId: string | null) => useBs<ScoringRules>("rules", seasonId, couchId);
+export const useMembers = (seasonId: string, couchId: string | null) => useBs<Members>("members", seasonId, couchId);
+
+async function sendJson<T>(url: string, method: "PUT" | "PATCH" | "POST", body: unknown): Promise<T> {
+  const res = await fetch(url, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't save (${res.status})`), { status: res.status });
+  return out as T;
+}
+
+/** Backstage II's writes: each answers its batch in Recent changes, for the toast's Undo (null: nothing changed). */
+export const gameAdmin = {
+  waivers: <T = { batch: string | null }>(seasonId: string, couchId: string, leagueId: string, body: WaiverAction) =>
+    sendJson<T>(seasonUrl(seasonId, "/backstage/waivers", { couch: couchId }), "POST", { leagueId, ...body }),
+  settings: (seasonId: string, couchId: string, leagueId: string, body: { set?: Record<string, unknown>; reset?: "lineup" | "team" | "joining"; text?: string }) =>
+    sendJson<{ batch: string | null }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, ...body }),
+  role: (seasonId: string, couchId: string, userId: string, role: LeagueRole, leagueIds?: string[]) =>
+    sendJson<{ batch: string; games: number }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}`, { couch: couchId }), "PUT", { role, leagueIds }),
+  remove: (seasonId: string, couchId: string, userId: string, preview = false) =>
+    sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}/remove`, { couch: couchId }), "POST", { preview }),
+  leave: (seasonId: string, couchId: string, preview = false) => sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, "/leave", { couch: couchId }), "POST", { preview }),
 };
 
 // ---- which couch you're looking at: one hub shows one couch at a time (site-mock-decisions) ----
