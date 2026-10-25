@@ -11,7 +11,7 @@ import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
 import { HoldSheet } from "../ui/guards";
 import { EmptyState, SectionHead } from "../ui/parts";
-import { Preview } from "../ui/preview";
+import { openCouchSheet } from "../couch/couch-sheets";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 
@@ -87,11 +87,11 @@ export function MembersPage({ seasonId, show }: { seasonId: string; show: ShowDa
         <SectionHead
           title="Players"
           aside={
-            <Preview id="show.invite" tag={false}>
-              <button type="button" className="text-[15px] font-bold text-chyron-line">
+            show.couch && (
+              <button type="button" data-members-invite onClick={() => openCouchSheet({ kind: "invite", couchId: show.couch!.id })} className="text-[15px] font-bold text-chyron-line">
                 Invite
               </button>
-            </Preview>
+            )
           }
           flush
         />
@@ -243,7 +243,7 @@ function MemberSheet({
   const consequence = (o: OutPreview) =>
     `${member.you ? "You leave" : `${member.name} leaves`} ${o.games.join(", ")} on ${show_}. ${
       o.drafted ? `${member.you ? "Your" : "Their"} team and points stay in the standings, but nobody plays ${member.you ? "it" : "them"}.` : "Nothing's been drafted yet, so the seat just goes."
-    }${member.you ? " Whoever runs the games can bring you back." : ""}`;
+    } ${member.you ? "You stay on the couch, and whoever runs the games can bring you back." : "They stay on the couch."}`;
   return (
     <>
       <Sheet open={hold === false} onOpenChange={(o) => !o && onClose()} title={member.name} subtitle={`${show_}${show.couch ? ` · ${show.couch.name}` : ""}`}>

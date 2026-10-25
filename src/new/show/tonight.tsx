@@ -18,6 +18,7 @@ import { ShowArt } from "../ui/show-bar";
 import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./moves";
 import { Block, Face } from "./parts";
 import { WaiversRanPlate } from "./waivers";
+import { CatchUpSheet, CatchUpStrips } from "../couch/join-game";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
 
@@ -34,9 +35,12 @@ import { StatsCard } from "./stats";
 
 export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
+  const [catchUp, setCatchUp] = useState<GameView | null>(null);
   return (
     <>
       {playing && <WaiversRanPlate seasonId={seasonId} show={show} />}
+      {playing && <CatchUpStrips show={show} onOpen={setCatchUp} />}
+      <CatchUpSheet show={show} game={catchUp} onOpenChange={(o) => !o && setCatchUp(null)} />
       <PhaseHead show={show} />
       {playing && <AfterEpisode seasonId={seasonId} show={show} />}
       {playing && <FillItIn seasonId={seasonId} show={show} />}
@@ -275,7 +279,9 @@ function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) 
   // Who the chat's reveal lines say has revealed it (the frame polls this with the Chat tab's badge).
   const revealed = useChatBadge(seasonId, chatCouch(show), eps?.reveal?.episode ?? null).data?.revealed ?? [];
   if (!eps || show.upNext?.live) return null;
-  if (eps.reveal) {
+  // Catching up in step with it (step 9): the strip above reveals it, moving your linked games with it; one way, not two.
+  const inStep = !!eps.reveal && (show.play ?? []).some((g) => g.catchUp?.week === eps.reveal!.episode);
+  if (eps.reveal && !inStep) {
     const n = eps.reveal.episode;
     const early = eps.reveal.stage === "early";
     return (

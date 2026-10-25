@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ChartColumn, ChevronRight, CircleQuestionMark, Crown, Grid3x3, Plus, Repeat, Shield, ShieldCheck, Star, Trophy, Tv, Zap, type LucideIcon } from "lucide-react";
 import {
+  useCouchGames,
   useSeasonEpisodes,
   useSeasonStats,
   useStatsFor,
@@ -12,12 +13,14 @@ import {
   type CouchRecord,
   type Home,
   type HomeShow,
+  type JoinGame,
   type Plaque,
   type RankRow,
   type Rankings,
   type SeasonStats,
 } from "../data";
 import { HUB_THIS_WEEK } from "../fixtures/episode-games";
+import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
 import { TASTE, VERDICTS } from "../fixtures/verdicts";
 import { dayOf } from "../clock";
 import { gameColour, ordinal } from "../games";
@@ -138,7 +141,7 @@ export function CouchPages({ home, couch, hub }: { home: Home | undefined; couch
         <RankingsPage hub={hub} me={home?.user.id ?? ""} />
       </CouchPage>
       <CouchPage k="break">
-        <CommercialBreak hub={hub} home={home} />
+        <CommercialBreak hub={hub} home={home} couch={couch} />
       </CouchPage>
       <CouchPage k="numbers">
         <ByTheNumbers shows={shows} couch={couch} accolades={hub?.accolades ?? null} />
@@ -345,9 +348,14 @@ function RankingsPage({ hub, me }: { hub: CouchHub | undefined; me: string }) {
 
 const EP_ICON = { bingo: Grid3x3, poll: ChartColumn, quiz: CircleQuestionMark };
 
-function CommercialBreak({ hub, home }: { hub: CouchHub | undefined; home: Home | undefined }) {
+function CommercialBreak({ hub, home, couch }: { hub: CouchHub | undefined; home: Home | undefined; couch: Couch | null }) {
   const moves = movesByDue(home?.moves ?? []);
   const playing = hub?.games.filter((g) => !g.ended) ?? [];
+  // Games on the couch you're not in (step 9): join, ask, or see it's closed.
+  const all = useCouchGames(couch?.id ?? null);
+  const others = (all.data?.games ?? []).filter((g) => !g.ended && !g.you?.playing);
+  const [joining, setJoining] = useState<JoinGame | null>(null);
+  const labelOf = (seasonId: string | null) => all.data?.seasons.find((s) => s.seasonId === seasonId);
   return (
     <>
       <section className="relative mb-1 flex h-[190px] items-end">
@@ -392,6 +400,21 @@ function CommercialBreak({ hub, home }: { hub: CouchHub | undefined; home: Home 
           <p className="text-sm leading-normal text-muted-foreground">Nothing yet. A game on the couch is one tap to join once someone starts one.</p>
         )}
       </section>
+      {couch && others.length > 0 && (
+        <section className="mt-6 px-3" data-break-join>
+          <SectionHead title="Join a game" aside={`${others.length} ${others.length === 1 ? "game" : "games"}`} flush />
+          {others.map((g) => {
+            const s = labelOf(g.seasonId);
+            return (
+              <div key={g.leagueId}>
+                {s && <small className="mt-2 block text-[12.5px] font-semibold text-muted-foreground">{`${s.name.replace(/^The /, "")}${s.seasonNumber ? ` ${s.seasonNumber}` : ""}`}</small>}
+                <JoinGameRow couchId={couch.id} g={g} onJoin={setJoining} />
+              </div>
+            );
+          })}
+          <JoinGameSheet couchId={couch.id} game={joining} onOpenChange={(o) => !o && setJoining(null)} />
+        </section>
+      )}
       <section className="mt-6 px-3">
         <SectionHead title="This week only" aside="One night each" flush />
         <Preview id="hub.episode-games">

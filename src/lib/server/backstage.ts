@@ -7,6 +7,7 @@ import type { LeagueState, StagedResearchDecision } from "@/lib/game/types";
 import { buildQuickPrompt, parseQuickAnswer, tiebreakNext, tiebreakOn, tiebreakQuestions, type QuickAnswer } from "@db/bot-research.js";
 import { leagueResearchStatus, researchFromPasteForLeague, researchItems, resolveResearchContext } from "@db/episode-research.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
+import { requestsFor } from "./couch-joins";
 import { couchFillsResults, couchFlags, factLabel, fillState, openQuestions, sendResults, withNobodyOut, type SubmittedFact } from "./community-results";
 import { pool, HttpError } from "./db";
 import { inLeague, stagedForEpisode } from "./episode-research-apply";
@@ -125,15 +126,28 @@ export interface ResultRow extends Face {
   sources: number;
 }
 
+/** When someone asked: "Just now", "2 hours ago", "3 days ago". */
+function askedWhen(at: string, now = Date.now()): string {
+  const mins = Math.max(0, Math.round((now - Date.parse(at)) / 60000));
+  if (mins < 2) return "Just now";
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} ago`;
+}
+
 export interface Need {
-  id: "quick" | "full" | "waiting" | "question" | "draft";
-  /** The episode it's about (0 for a game's setup: its draft). */
+  id: "quick" | "full" | "waiting" | "question" | "draft" | "invite" | "request";
+  /** The episode it's about (0 for a game's setup: its draft, its players, someone asking to join). */
   episode: number;
   title: string;
   detail: string;
   /** A setup job's game, and where it's fixed (the draft room or the blind draft). */
   leagueId?: string;
   draft?: DraftKind;
+  /** Someone asking to join a game (step 9): Let in, or decline quietly. */
+  request?: { id: string; userId: string; name: string };
 }
 
 /** Full scores for an episode: who sent them and how far the sources agree ("filled in by riley · 2 sources agree"). */
@@ -310,6 +324,24 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
       detail: l.state.castaways.some((c) => c.status === "active") ? "Pick a time, or start it when everyone's in" : "Once the cast is in, pick a time",
       leagueId: l.game.leagueId,
       draft: kind,
+    });
+  }
+  // Step 9: a game with nobody to draft against yet (classic's "Invite players"), and people asking to join a game you run.
+  for (const l of loaded) {
+    const type = StateLogic.getLeagueType(l.state);
+    if (l.game.yourRole !== "commissioner" || !type.hasRoster || StateLogic.isDraftStarted(l.state)) continue;
+    const n = l.state.players.filter((p) => !p.disabled).length;
+    if (n < 2) out.needs.push({ id: "invite", episode: 0, title: `Invite people to ${l.game.gameName}`, detail: n === 1 ? "You're the only one in it so far" : "Nobody's in it yet", leagueId: l.game.leagueId });
+  }
+  const running = scope.games.filter((g) => g.yourRole === "commissioner" || g.yourRole === "admin");
+  for (const r of await requestsFor(running)) {
+    out.needs.push({
+      id: "request",
+      episode: 0,
+      title: `${r.name} asked to join ${r.gameName}`,
+      detail: `${r.newToCouch ? "New to the couch · " : ""}${askedWhen(r.at)}`,
+      leagueId: r.leagueId,
+      request: { id: r.id, userId: r.userId, name: r.name },
     });
   }
   if (coming && !coming.live) out.next = { number: coming.number, airAt: coming.airAt };

@@ -1709,6 +1709,12 @@ class RosterLogic {
     // quietly become a number that lets more through than the commissioner picked. See RevealLogic.
     if(field === 'revealedThroughEpisode') value = RevealLogic.normalize(value);
     if(field === 'allowLateJoiners') value = value !== false;
+    // Who can join (step 9): open, ask or locked. Classic's late-joiner switch follows it, so a game nobody new may
+    // join is closed in classic too (its join code gives an inactive seat).
+    if(field === 'joinMode'){
+      value = value === 'open' || value === 'ask' || value === 'locked' ? value : GhostLogic.recommendedJoinMode(state);
+      state.settings.allowLateJoiners = value !== 'locked';
+    }
     // Waiver settings, new and pre-v2, are checked and kept in step there.
     if(WaiverLogic.updateSetting(state, field, value)) return;
     // Switching ownership moves every point value still at the OLD mode's default to the new mode's
@@ -3370,6 +3376,25 @@ class GhostLogic {
   }
   // On unless a commissioner switched it off (absent = on, so it covers every league that predates it).
   static allowed(state){ return !(state.settings && state.settings.allowLateJoiners === false); }
+  // Whether castaways can be on several teams here (shared ownership, or a game with no teams at all: Survival Pool),
+  // so a new player takes nothing from anyone and may catch up on what they missed.
+  static sharedJoin(state){
+    return !getLeagueType(state).hasRoster || ownershipModeOf(state) === 'shared';
+  }
+  // Who can join (the new design's Game settings, step 9): 'open' anyone on the couch joins on their own, 'ask' they
+  // ask and whoever runs the game lets them in, 'locked' nobody new. settings.joinMode when set; else a game closed to
+  // late joiners is locked, and the recommended one for its ownership otherwise (shared open, exclusive ask). An exclusive
+  // game is never open (its castaways are one team's each), so it falls back to ask.
+  static joinMode(state){
+    // Classic's late-joiner switch off closes it, whatever was chosen here (they're kept in step: updateSettings).
+    if(!GhostLogic.allowed(state)) return 'locked';
+    const m = state.settings && state.settings.joinMode;
+    if(m === 'open' && GhostLogic.sharedJoin(state)) return m;
+    if(m === 'ask') return m;
+    return GhostLogic.recommendedJoinMode(state);
+  }
+  // Shared ownership (or no teams): anyone on the couch; exclusive: ask first.
+  static recommendedJoinMode(state){ return GhostLogic.sharedJoin(state) ? 'open' : 'ask'; }
   // The episodes a late joiner may start at: the league's first through the one after the latest with
   // results (starting there means joining live, nothing to catch up on).
   static startChoices(state){
@@ -3379,24 +3404,28 @@ class GhostLogic {
     return out;
   }
   // The cast a late joiner starting at `start` drafts from: everyone still in the game before that
-  // episode, whoever in the league owns them (a ghost's team is private, so nothing is taken).
-  static draftPool(state, start){
+  // episode, whoever in the league owns them (a ghost's team is private, so nothing is taken). `freeAgents`: only
+  // those nobody in the league owns, for someone let straight into an exclusive game (step 9: they're seen at once).
+  static draftPool(state, start, freeAgents){
     const before = SpoilerLogic.viewThrough(state, Math.max(0, start - 1));
-    return before.castaways.filter(c => c.status === 'active').map(c => c.id);
+    return before.castaways
+      .filter(c => c.status === 'active' && !(freeAgents && leagueOwnersOf(state, Core.getCastaway(state, c.id) || c).length))
+      .map(c => c.id);
   }
   // How many they draft: the league's roster size, or none for a league type with no draft.
   static teamSize(state){
     return getLeagueType(state).draftStrategy === NoDraftStrategy ? 0 : rosterSize(state);
   }
   // Starts a late joiner's season: their start episode and their team. Returns a reason on refusal.
-  static begin(state, playerId, start, castawayIds){
+  // opts.freeAgents: their team only from castaways nobody in the league owns (draftPool).
+  static begin(state, playerId, start, castawayIds, opts){
     const p = Core.getPlayer(state, playerId);
     if(!p || !p.lateJoin) return 'Not a late joiner';
     if(Number.isInteger(p.lateJoin.startEpisode)) return 'Already started';
     if(!GhostLogic.startChoices(state).includes(start)) return 'Pick an episode from the list';
     const ids = Array.isArray(castawayIds) ? castawayIds : [];
     const need = GhostLogic.teamSize(state);
-    const pool = GhostLogic.draftPool(state, start);
+    const pool = GhostLogic.draftPool(state, start, !!(opts && opts.freeAgents));
     if(new Set(ids).size !== ids.length) return 'Same pick listed twice';
     if(ids.some(id => !pool.includes(id))) return 'Pick from who was still in the game';
     // Late in a season there may be fewer left than a full roster; take everyone then.

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { ChartColumn, ChevronRight, Crown, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
-import type { Couch, CouchHub, FeedItem, Home, HomeShow, Move, PlayingGame, WeekProgress } from "../data";
-import { GET_GOING } from "../fixtures/couches";
+import { useInviteCode, type Couch, type CouchHub, type FeedItem, type Home, type HomeShow, type Move, type PlayingGame, type WeekProgress } from "../data";
+import { openCouchSheet } from "../couch/couch-sheets";
 import { ON_NOW } from "../fixtures/watch-along";
 import { COUCH_WATCHING, NUDGE } from "../fixtures/watching";
 import { PEOPLE, type Demo } from "../fixtures/people";
@@ -562,49 +562,74 @@ export function Feed({ hub }: { hub: CouchHub | undefined }) {
 
 // ---------- the foot, and the new couch's extras ----------
 
+/** The hub's foot: start a game (step 10) or join another couch with a code. */
 export function Foot() {
   return (
-    <Preview id="hub.foot" tag={false} className="mx-4 mt-8">
-      <div className="grid grid-cols-2 gap-2.5">
-        <Btn>
+    <div className="mx-4 mt-8 grid grid-cols-2 gap-2.5">
+      <Preview id="hub.start-game" tag={false}>
+        <Btn wide>
           <Plus className="size-5" aria-hidden />
           New league
         </Btn>
-        <Btn>
-          <Link2 className="size-5" aria-hidden />
-          Join a couch
-        </Btn>
-      </div>
-    </Preview>
+      </Preview>
+      <Btn data-foot-join onClick={() => openCouchSheet({ kind: "join" })}>
+        <Link2 className="size-5" aria-hidden />
+        Join a couch
+      </Btn>
+    </div>
   );
 }
 
-/** A new couch's first steps, numbered; the first is the one yellow (it's what to do now). */
-export function GetGoing({ couch }: { couch: Couch | null }) {
+/** One of Get the couch going's steps: its number (the first is the one yellow: it's what to do now), title and line. */
+function GoStep({ n, title, line, onClick }: { n: number; title: string; line: string; onClick?: () => void }) {
   return (
-    <Preview id="hub.get-going" className="mx-4 mb-3">
-      <div className="rounded-[4px] bg-plate p-3.5 text-plate-foreground">
-        <span className="type-caption inline-block bg-chyron py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
-          New couch
-        </span>
-        <b className="type-caption mt-2 block text-[30px]">Get the couch going</b>
-        {couch && <small className="block text-[13px] text-plate-muted">{couch.name}</small>}
-        <ol className="mt-2">
-          {GET_GOING.steps.map((s, i) => (
-            <li key={s.title} className="flex items-center gap-3 border-t border-plate-muted/20 py-2.5">
-              <span className={`type-num grid size-10 flex-none place-items-center rounded-[3px] text-[20px] ${i ? "bg-chyron-foreground text-white" : "bg-chyron text-chyron-foreground"}`}>
-                {i + 1}
-              </span>
-              <span className="min-w-0 flex-1">
-                <b className="block text-[15px] font-semibold">{s.title}</b>
-                <small className="block text-[12.5px] leading-snug text-plate-muted">{s.line}</small>
-              </span>
-              <ChevronRight className="size-5 flex-none" aria-hidden />
-            </li>
-          ))}
-        </ol>
+    <button type="button" data-go-step={n} onClick={onClick} className="flex w-full items-center gap-3 border-t border-plate-muted/20 py-2.5 text-left">
+      <span className={`type-num grid size-10 flex-none place-items-center rounded-[3px] text-[20px] ${n > 1 ? "bg-chyron-foreground text-white" : "bg-chyron text-chyron-foreground"}`}>{n}</span>
+      <span className="min-w-0 flex-1">
+        <b className="block text-[15px] font-semibold">{title}</b>
+        <small className="block text-[12.5px] leading-snug text-plate-muted">{line}</small>
+      </span>
+      <ChevronRight className="size-5 flex-none" aria-hidden />
+    </button>
+  );
+}
+
+/**
+ * A new couch's first steps (the mock's fresh.js): start a game (step 10), add the shows you watch (step 10), invite
+ * people (your code, and how many are on it).
+ */
+export function GetGoing({ home, couch }: { home: Home; couch: Couch | null }) {
+  const code = useInviteCode(couch?.id ?? null).data?.code;
+  const next = nextShow(home);
+  const startLine = next?.upNext
+    ? `Survival Pool needs no draft. It can start with Episode ${next.upNext.number}${next.upNext.airAt ? ` on ${new Date(next.upNext.airAt).toLocaleDateString("en-US", { weekday: "long" })}` : ""}.`
+    : "Survival Pool needs no draft: it can start with the next episode.";
+  return (
+    <section className="mx-4 mb-3 rounded-[4px] bg-plate p-3.5 text-plate-foreground" data-get-going>
+      <span className="type-caption inline-block bg-chyron py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
+        New couch
+      </span>
+      <b className="type-caption mt-2 block text-[30px]">Get the couch going</b>
+      {couch && <small className="block text-[13px] text-plate-muted">{couch.name}</small>}
+      <div className="mt-2">
+        <Preview id="hub.start-game" tag={false}>
+          <GoStep n={1} title="Start a game" line={startLine} />
+        </Preview>
+        <Preview id="hub.add-show" tag={false}>
+          <GoStep n={2} title="Add the other shows you watch" line="The couch sees what everyone's watching. That's where games start." />
+        </Preview>
+        {couch ? (
+          <GoStep
+            n={3}
+            title="Invite more people"
+            line={`${code ? `Send ${code}. ` : ""}${couch.members.length} on the couch so far.`}
+            onClick={() => openCouchSheet({ kind: "invite", couchId: couch.id })}
+          />
+        ) : (
+          <GoStep n={3} title="Bring your people" line="Start a couch and send the code, or join one with a code" onClick={() => openCouchSheet({ kind: "switch" })} />
+        )}
       </div>
-    </Preview>
+    </section>
   );
 }
 

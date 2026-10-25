@@ -385,7 +385,7 @@ function check(ok, what, detail = "") {
 
     // ---- Chat ----
     await tabTo("Chat");
-    check(await page.getByPlaceholder(/Message the/).isVisible(), "Chat has its composer");
+    check(await page.getByPlaceholder(/Message the/).waitFor({ timeout: 20_000 }).then(() => true, () => false), "Chat has its composer");
     check((await page.locator(".nd-dock").count()) === 0, "no dock on Chat");
     await collect();
     await fits("Chat");

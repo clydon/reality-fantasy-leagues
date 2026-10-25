@@ -78,7 +78,7 @@ function GrowHub({ home, couch, hub, newCouch }: { home: Home; couch: Couch | nu
   return (
     <>
       <StatusLine home={home} />
-      {newCouch && <GetGoing couch={couch} />}
+      {newCouch && <GetGoing home={home} couch={couch} />}
       {up && <UpNext home={home} show={up} couch={couch} />}
       <YourShows home={home} hub={hub} />
       <Guide />

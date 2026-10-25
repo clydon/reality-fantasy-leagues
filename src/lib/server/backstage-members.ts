@@ -4,7 +4,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { isSuperAdminUser, isUuid, type SessionUser } from "./auth-helpers";
 import { dropBlindPicksForPlayer } from "./blind-draft";
 import { roleChange, type ChangeSpec, type MemberUndo } from "./change-log";
-import { leftLeague } from "./couches";
+import { stayedOnCouch } from "./couches";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { couchGames } from "./league-changes";
 import { leagueStates } from "./league-states";
@@ -130,7 +130,7 @@ export async function setMemberRole(
  * disabled (its team and points stay in the standings, nobody plays it). Their membership goes; the last Commissioner
  * can't go. The line carries a MemberUndo, open for 30 days.
  */
-async function takeOut(leagueId: string, userId: string, spec: { actor: string; batch: string; text: string }): Promise<boolean> {
+export async function takeOut(leagueId: string, userId: string, spec: { actor: string; batch: string; text: string }): Promise<boolean> {
   let undo: MemberUndo | null = null;
   await withLeagueLock(
     leagueId,
@@ -166,7 +166,8 @@ async function takeOut(leagueId: string, userId: string, spec: { actor: string; 
         : null
   );
   if (!undo) return false;
-  await leftLeague(leagueId);
+  // They stay on the couch (step 9; the mock: "they stay on the couch"). Only leaving the couch takes them off.
+  await stayedOnCouch(leagueId, userId);
   return true;
 }
 
@@ -180,7 +181,7 @@ export interface OutPreview {
   problem: string | null;
 }
 
-async function outPreview(here: Game[], userId: string): Promise<OutPreview> {
+export async function outPreview(here: Game[], userId: string): Promise<OutPreview> {
   const theirs = await theirLeagues(userId, here.map((g) => g.leagueId));
   const games = here.filter((g) => theirs.has(g.leagueId));
   const { rows: who } = await pool.query(`SELECT COALESCE(username, name) AS name FROM "user" WHERE id = $1`, [userId]);

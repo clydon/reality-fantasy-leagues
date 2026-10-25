@@ -43,8 +43,9 @@ export const unitsOf = (d: DecisionFact): number | null => (d.units != null ? Nu
 export function applyDecision(state: LeagueState, d: DecisionFact, cast: CastRef): { detail?: LedgerDetail; skip?: string } {
   if (d.kind === "noexit") {
     // Nobody went home: the episode has results with no one out (EpisodeLogic.hasResults reads the mark).
-    const ep = StateLogic.ensureEpisodeNumber(state, d.episode_number, d.post_merge);
-    const detail: LedgerDetail = { episodeNumber: d.episode_number, castawayId: "", kind: "noexit" };
+    const n = d.episode_number;
+    const ep = StateLogic.ensureEpisodeNumber(state, n, d.post_merge);
+    const detail: LedgerDetail = { episodeNumber: n, castawayId: "", kind: "noexit" };
     if (ep.noExit) return { detail: { ...detail, preexisting: true } };
     StateLogic.setNoExit(state, ep.id, true);
     return { detail };

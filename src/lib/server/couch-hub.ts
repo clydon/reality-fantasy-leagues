@@ -8,7 +8,7 @@ import { withReactions } from "./chat";
 import { couchMembers, requireCouch } from "./couches";
 import { pool } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
-import { outOfGroupChat } from "./late-join";
+import { hiddenFromGroup } from "./late-join";
 import { leagueStates } from "./league-states";
 import { seasonSchedules } from "./schedule";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
@@ -219,7 +219,7 @@ async function feedFor(
     seasonHeaders([...new Set([...list.map((g) => g.seasonId), ...extra])]),
     // Per season, as its chat decides (couch-chat.ts chatScope): out of the conversation of the couch's games there.
     Promise.all(
-      [...new Set(list.map((g) => g.seasonId))].map(async (id) => [id, (await outOfGroupChat(list.filter((g) => g.seasonId === id).map((g) => g.leagueId))).has(user.id)] as const)
+      [...new Set(list.map((g) => g.seasonId))].map(async (id) => [id, (await hiddenFromGroup(list.filter((g) => g.seasonId === id).map((g) => g.leagueId))).has(user.id)] as const)
     ).then((xs) => new Set(xs.filter(([, o]) => o).map(([id]) => id))),
   ]);
   const markOf = new Map([...marks, ...moreMarks]);

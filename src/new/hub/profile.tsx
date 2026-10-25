@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronRight, KeyRound, Medal, Settings, Star, Users, Zap } from "lucide-react";
+import { ChevronRight, KeyRound, Medal, Settings, Star, Zap } from "lucide-react";
+import { couchLine, FaceStack, openCouchSheet } from "../couch/couch-sheets";
 import type { Couch, CouchHub } from "../data";
 import { useDesk, type Inbox } from "../desk/data";
 import { TASTE } from "../fixtures/verdicts";
@@ -14,7 +15,7 @@ import { ShowArt } from "../ui/show-bar";
 import { Sheet } from "../ui/sheet";
 
 // Your profile, from the hub's avatar (the mock's index.html profileSheet): your couch at the top (moved off the hub
-// on 2026-10-23; it opens the couch switcher, step 9), your numbers on this couch (step 8: titles, this year's ranking
+// on 2026-10-23; it opens the couch switcher, step 9: couch-sheets.tsx), your numbers on this couch (step 8: titles, this year's ranking
 // points, seasons played, your best show, predictions called, your best finish; couch-hub.ts, as far as you've seen),
 // Admin for site admins (the desk, step 6b part 2, with what needs them), and Settings. Your taste twin needs the
 // couch's ratings (step 12).
@@ -68,16 +69,39 @@ export function ProfileSheet({ open, onOpenChange, me, couch, hub }: { open: boo
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={me.name} subtitle={couch?.name}>
       {couch && (
-        <Preview id="hub.couch-switcher" tag={false} className="mb-3.5">
-          <button type="button" className="flex h-12 w-full items-center gap-2.5 rounded-[3px] bg-secondary pl-2 pr-3 text-left">
-            <span className="grid size-[30px] flex-none place-items-center rounded-[3px] bg-card text-muted-foreground">
-              <Users className="size-4" aria-hidden />
-            </span>
-            <b className="flex-1 truncate text-[15px] font-semibold">{couch.name}</b>
-            <small className="text-[13px] text-muted-foreground">{couch.members.length} on the couch</small>
-            <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
-          </button>
-        </Preview>
+        <button
+          type="button"
+          data-couch-line
+          onClick={() => {
+            onOpenChange(false);
+            openCouchSheet({ kind: "switch" });
+          }}
+          className="nd-press mb-3.5 flex min-h-12 w-full items-center gap-2.5 rounded-[3px] bg-secondary py-2 pl-2 pr-3 text-left"
+        >
+          <FaceStack people={couch.members} size={24} />
+          <span className="min-w-0 flex-1">
+            <b className="block truncate text-[15px] font-semibold">{couch.name}</b>
+            <small className="block truncate text-[12.5px] text-muted-foreground">{couchLine(couch)}</small>
+          </span>
+          <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+        </button>
+      )}
+      {!couch && (
+        <button
+          type="button"
+          data-couch-line
+          onClick={() => {
+            onOpenChange(false);
+            openCouchSheet({ kind: "switch" });
+          }}
+          className="nd-press mb-3.5 flex min-h-12 w-full items-center gap-2.5 rounded-[3px] bg-secondary px-3 py-2 text-left"
+        >
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px] font-semibold">No couch yet</b>
+            <small className="block text-[12.5px] text-muted-foreground">Start one for your people, or join one with a code</small>
+          </span>
+          <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+        </button>
       )}
       {couch && <YourNumbers hub={hub} />}
       {admin && (

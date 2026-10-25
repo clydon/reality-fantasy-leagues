@@ -34,7 +34,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | **done** 2026-10-25 on the branch, in two parts: how results get in (One tap, the ways, the bot's runs as sources, quick checks that wait; migration 0115) and settling without the admin (the tie-break run behind a desk switch that's off, "nobody went home", show changes the couches confirm, the desk's bot Settings; 0116); both ship with 0b's | Opus · xhigh |
 | 7 | Draft room and blind draft | **done** 2026-10-25 on the branch (migration 0117 ships with 0b's) | Opus · xhigh |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
-| 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | not started | Opus · xhigh |
+| 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **part 1 done** 2026-10-25 on the branch (couches and joining their games; migration 0119 ships with 0b's); part 2 the way in, part 3 solo | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | not started | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
@@ -159,16 +159,13 @@ step's As built.
 - **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
   classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
   on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
-- **A couch with two unlinked games on one season** (step 4; for 9 or 10, once a couch can start one). The new design shows
+- **A couch with two unlinked games on one season** (step 4; for 10, where a couch starts games: step 9's joins only join games that exist). The new design shows
   the couch one conversation (both games' chats) and posts into the first; classic shows each game's chat on its own, so
   someone only in the second game wouldn't see what was posted from the new design. Linking them (or posting where you
   play) would settle it. Today every couch has one linked group per season, so it can't happen yet.
 - **The fold goes by airtime** (step 4; for 14). Everything others said since an episode you haven't seen started airing
   is folded, which is right for weekly and nightly shows; a binge drop folds everything after the drop until you finish.
   Step 14's streaming shows could fold by the author's own progress at the time (what episode they were on) instead.
-- **Late joiners have no couch chat** (step 4; for 9). Kept from classic: someone catching up, or a ghost the league can't
-  see yet, gets "Chat opens later". The fold would keep them spoiler-safe now, but posting would show them to a league
-  that can't see them; step 9's join flow is where a couch member who isn't in the games yet joins the talk.
 - **Only the newest 300 messages** (step 4; for 13 or 15), as classic: nothing loads earlier ones.
 - **Classic's research isn't a source** (step 6b part 1; for C). Backstage's answers, a player's Fill it in, One tap and
   (since 6c) the bot's scheduled runs are submissions that settle facts for every couch; classic's commissioner research
@@ -216,24 +213,18 @@ step's As built.
   the cast and tribes, waivers (process, undo, window), the catch-up reveal, lineup locks, the draft's start, order,
   settings and take-back, a draft pick or lock-in made for someone and a waiver claim sent for someone (step 7), the
   finale's results, prediction questions, rule changes, scoring rules, renaming, linking and moves made for someone else.
-  Not yet: invites and late-join starts (step 9's join flow: 6a's Members has no invite of its own), the hourly waiver job's own
+  Since step 9 every join made in the new design is logged (and a let-in); not yet: classic's join by code and its late-join start (for C), the hourly waiver job's own
   processing (a run it made is still taken back from Backstage › Waivers' Last run, which logs that) and a super-admin's
   membership edits in classic's `/admin` (the desk's Hand it on is logged). Classic's screens don't show the log (only the new design does) and its own Undo buttons don't
   mark lines undone.
-- **Backstage's setup jobs** (step 5; the draft's since 7; the rest for 9 and 10). Needs you has results jobs and "Schedule
-  the Outlast draft" (step 7); classic's other commissioner items (Add the cast, Invite players, a catch-up league's next
-  reveal: `commissioner-items.ts`, the home's `backstage`) link to classic pages, so they wait for the pages that fix them
-  (step 9's invites and join, step 10's cast import).
-- **Who can join is on or off** (step 6a; for 9). The mock's "Ask me first" and its join requests ("kat asked to join
-  Weekly Lineup · Let in") don't exist anywhere: Game settings' Who can join is classic's late joiners, Anyone on the couch
-  or Nobody new. Step 9's join flow is where a request would come from.
+- **Backstage's setup jobs** (step 5; the draft's since 7, inviting since 9; the rest for 10 and C). Needs you has results
+  jobs, "Schedule the Outlast draft" (step 7), "Invite people to <game>" and join requests (step 9); classic's other
+  commissioner items (Add the cast, a catch-up league's next reveal: `commissioner-items.ts`, the home's `backstage`) link to
+  classic pages: step 10's cast import fixes the first, and the second is classic's RevealLogic catch-up mode (for C).
 - **No "Extend a day"** (step 6a; for 6b or later). The mock's Backstage › Waivers has it; the engine has no way to move a
   week's deadline (a window's `processAt` is worked out from the schedule). Small: an override on the period.
 - **No "Lock it down"** (step 6a; for 10 or later). The mock's Game settings has a competitive switch (no late joins, no
   catch-up, rules frozen); only the first means anything in the engine today (Who can join).
-- **Taking someone out takes them off the couch** (step 6a; for 9). The mock says "they stay on the couch"; the couch's
-  members are worked out from its leagues (`couches.ts` `pruneMembers`), so someone with no other game there leaves it.
-  Restoring them (Recent changes) puts them back on it.
 - **The run's "seen" mark is per device** (step 6a; for 15). Tonight's "Waivers ran" plate goes once you've watched the run
   here (localStorage), so another phone shows it again until the week ends.
 - **No quick-check switch for a couch** (step 6c part 1; for when Autopilot ships, the user's call; 6c part 2 left it). The mock's
@@ -268,12 +259,19 @@ step's As built.
   twins, the contrarian and never misses a rating (step 12's ratings), most reactions and most watch alongs (13), first to
   finish (14's streaming drops). `couch-standings.ts accoladesOf` is where they'd go; the profile's taste twin line is
   `hub.taste-twin` (12).
-- **Commercial break lists only your games** (step 8; for 9). "Every game on the couch · join any": games on the couch you
-  don't play aren't listed, since joining one is step 9's join flow (who can join, late joiners). `couch-hub.ts` reads them
-  all already (the rankings count them).
-- **Your numbers are per couch** (step 8; for 9 or 15). The profile shows titles, points and seasons on the couch you're
-  looking at (the hub's read is per couch); with several couches (step 9) someone may want them across all, or per couch
-  with the switcher.
+- **Classic's join code still makes a hidden ghost** (step 9; for C). Joining with a game's own code in classic makes a late
+  joiner the game can't see until its commissioner adds them, whatever its Who can join says (only Nobody new closes it,
+  through classic's switch, kept in step). The new design's joins are seen at once; such a ghost stays out of the couch chat.
+- **Join pushes open the new design** (step 9; for 15). "kat asked to join Outlast" links to the show's Backstage and "You're
+  in" to its Games tab, for someone on classic too (requests only come from the new design).
+- **No couch rename or hand-off** (step 9; for 15). Whoever started a couch owns it; nothing renames it or hands it on (the
+  mock has no screen for either). Leaving passes it to the next person (`ensureOwner`).
+- **Invite codes never expire** (step 9; for 15). Each person's code for a couch stays good (`couch_invites.expires_at` is
+  never set) and shows the couch's name, its first six people's usernames and its games to whoever has it (never results);
+  making a new code and retiring the old isn't built. A request waits until it's answered or taken back, and a quiet
+  decline lets them ask again.
+- **Get the couch going names your soonest show** (step 9; for 10). A new couch has no shows of its own until step 10's Add a
+  show, so its first step's line ("It can start with Episode 6 on Wednesday") is the soonest show you follow anywhere.
 - **An episode page can't open from a link** (step 8; for a later polish). Previously on's rows and Last time open the show's
   Episodes tab, a tap short of the episode: an episode page is a pushed page opened by a tap on Episodes, not from its URL
   (`?page=ep4` alone doesn't render it). Letting the page read its episode from the URL would let the hub, the feed and
@@ -2036,6 +2034,98 @@ Migration **0118** (`show_follows.early_night`) ships with 0b's (same rehearsal)
 - **For step 9:** the couch switcher (`hub.couch-switcher`), Get the couch going and the foot are still Preview; the hub
   read is per couch (`useCouchHub(couch.id)`), so switching couches is switching that id. Joining a game from Commercial
   break (Noticed) belongs with the join flow.
+
+### Step 9, in three parts
+
+1. **Couches and joining their games** (done, below): start / join / switch / leave a couch, invite codes, the couch
+   switcher, a couch's details, Get the couch going and the foot, the invite page for someone signed in, Settings' couches,
+   Invite from a show and from Backstage, joining a game mid-season by its Who can join (open / Ask me first / Nobody new),
+   requests in Backstage, live starts and catching up, and the Noticed items that were 9's.
+2. **The way in**: the landing page, first run (shows, where you are, save your shows, your people: `start.steps`), the
+   invite page signed out (`join.couch`: the couch first, then an account, then where you are), the real sign-in screen,
+   and Google sign-in through Better Auth behind config (no client id: no button; the user creates the OAuth app).
+   Mock: `landing.js`, `round2.js`.
+3. **Solo**: the public pools per season ("Survivor 51 · Everyone": Survival Pool and predictions, usernames only, no chat)
+   and the practice couch against computer players (Easy / Normal / Sharp, `bot-logic.js`). Mock: `solo.js`.
+
+### As built, step 9 part 1 (2026-10-25, on `new-design`): couches and joining their games
+
+Migration **0119** (ships with 0b's, same rehearsal): `couch_members.via` ('game' | 'couch') and `game_join_requests`.
+Nothing polls and nothing runs on a schedule (HOSTING.md).
+- **Being on a couch** (`couches.ts`): someone is on a couch because they play one of its games (`via 'game'`: 0101's
+  backfill, classic's joins, healCouches) or in its own right (`via 'couch'`: they started it, joined it with a code, or
+  were taken out of its games in the new design). Classic's leave still takes a 'game' member off once they're in none of
+  its games (`pruneMembers` only touches 'game' members); the new design's Leave these games and Backstage's Take out keep
+  them on it (`stayedOnCouch`, from Noticed: "the mock says they stay on the couch"); a league deleted in classic takes its
+  couch only when it has no games and nobody on it. Leaving the couch is its own action.
+- **`src/lib/server/couch-joins.ts`** (`/api/couches`, `/api/couches/join`, `/api/couches/invite/[code]`,
+  `/api/couches/[id]/invite|leave|games|games/[leagueId]|requests/[requestId]`): start a couch (a name up to 40, you own
+  it, at most 25 couches each), your own invite code per couch (six characters from 32 with no I, O, 0 or 1; "riley saved
+  you a seat" is whoever's code it is), what a code opens on (open signed out: the couch, its faces, its running seasons'
+  games and who may join each; nothing about results), joining with a code (a couch's invite, or any of its games' classic
+  join codes), leaving (tier 3: out of its games too through 6a's `takeOut`, each restorable from Recent changes for 30
+  days; never as a game's last Commissioner; the owner's role passes on; a couch with nobody and no games goes).
+- **Who can join** (engine, `GhostLogic.joinMode`, `settings.joinMode`): open (anyone on the couch), ask (Ask me first) or
+  locked (Nobody new). Recommended by ownership: castaways on several teams, or no teams at all (Survival Pool), are open;
+  exclusive ones ask (an exclusive game can't be open). Classic's late-joiner switch stays in step (locked = off) and its
+  off wins. Backstage › Game settings has the three (two for exclusive), saved at once with Undo (from Noticed: "Who can
+  join is on or off").
+- **Joining a game** (`joinGame`): before a game's underway, classic's join (into the draft); coming back to a seat you
+  left, your seat (classic's reclaim). Underway: shared games start live (the next episode) or catch up from the first;
+  exclusive ones start live with a team of free agents only (`GhostLogic.begin(..., { freeAgents })`). The new player is a
+  late joiner made visible at once (`GhostLogic.convert`: on the couch, joining isn't hiding). Catching up, the league
+  mark is the episode before the start; live, it stays at where you are (you reveal the rest as anyone behind does, so a
+  live join never moves your mark). The join sheet warns that a live start shows who's still in when you're behind.
+  Recent changes logs every join and let-in (from Noticed: "invites and late-join starts").
+- **Ask me first**: a request (`game_join_requests`, one open per person and game, take it back any time) reaches whoever
+  runs the game as a Backstage Needs you row (Let in, or decline quietly) and a push; a let-in is theirs to use once (they
+  then pick where they start and their team themselves) and pushes them. Backstage's Needs you also has "Invite people to
+  <game>" for a game with fewer than two players before its draft (from Noticed: "Backstage's setup jobs").
+- **Catching up** (`GameView.catchUp`, `POST /api/seasons/[id]/catchup`, `catchUpReveal`): Tonight's strip ("Catching
+  up · Episode 2 of 5"), a sheet with your move for that episode (Your moves, at that game) and "I've watched it · Reveal
+  Episode N" (one episode, in that game, which moves your linked games in step), what happened, then the next. Catching-up
+  games are left out of the season's "Results are in" (hub and show) so there's one way to each episode, and Tonight's
+  plate gives way to the strip when they're in step.
+- **The couch chat** lets in a late joiner the games can see (`hiddenFromGroup`; the fold keeps it spoiler-safe); only a
+  hidden ghost (classic's join) stays out; the hub's feed follows (from Noticed: "Late joiners have no couch chat").
+- **Screens** (`src/new/couch/`): `couch-sheets.tsx` (one host in the signed-in layout, `openCouchSheet` from anywhere: the
+  switcher, a couch's details with its members, your code on a plate with Copy and Send the link, seasons together and
+  Leave, Start a couch, Join a couch's six code boxes, the leave hold) and `join-game.tsx` (each game's row with Join / Ask
+  to join / Asked · Take back / Locked / Open, the join sheet: where you start, then Pick your team; the catch-up strip and
+  sheet). The profile's couch line opens the switcher (and "No couch yet" with none); Get the couch going (Invite more
+  people with your code; Start a game and Add the other shows stay Preview for step 10) and the foot (Join a couch real,
+  New league Preview for 10); Commercial break's Join a game (from Noticed: it listed only your games); a show's Games tab
+  lists the couch's games there you're not in; the show's ⋯ Invite to this show; Members & roles' Invite; Settings' Your
+  couches; `/join/[code]` (signed in: Join the couch, then its games; signed out: the couch and its games, the account step
+  still Preview for part 2). The home read now carries each couch's seasons (the switcher's "ZT Survivor 51 · 5 people").
+- **Fixtures and Preview:** deleted `fixtures/couches.ts` and the entries `hub.couch-switcher`, `hub.get-going`,
+  `hub.foot`, `settings.couches`, `show.invite`. Left for part 2: `start.steps`, `join.couch`.
+- **Changed from the mock:** the switcher's couch details are a sheet of their own (the mock's couchSheet) with Leave at
+  its foot; "Run it back" (Seasons together) is step 10's Start a game, so it isn't there; a new couch's code shows after
+  Start (the code is made by the server); the code plate copies the code and Send the link shares `/join/CODE`; Join on the
+  invite page is the one yellow (joining is the page's point), on Commercial break it's an outline (optional); joining
+  the couch is a tap on the invite page, not automatic on opening it; "Asked" has Take back; the seasons-together dot isn't
+  yellow (the yellow rule).
+- **Decided:** your numbers on the profile stay per couch, and the switcher switches them (Noticed asked); a couch-only
+  member is in the couch chat; leaving a couch takes you out of its games (a couch member with games elsewhere on it would
+  otherwise be a player nobody on the couch can see).
+- **Checks:** `scripts/dev-test/check-new-couches.js <outDir> [--width=390] [--keep] [--api]` (114 PASS at 390, on
+  new-fixture.js plus newcomers zt_nd_kat and zt_nd_lee): codes, the invite signed out, joining a couch, Who can join and
+  its settings, Ask me first through Let in, a live exclusive join with free agents, catching up in Survival Pool with the
+  classic pick route and the catch-up reveal, the couch chat, starting and leaving couches, Backstage's Take out keeping
+  jordan on the couch; then the browser (the couch line and switcher, details, the guarded leave, starting a couch and Get
+  the couch going, the code boxes, Backstage's request and Let in, Game settings' Who can join with Undo, Members' and the
+  show's Invite, Settings' couches and leaving one, lee's invite page, joining Weekly Lineup live with a team, kat's
+  catch-up strip and reveal, Commercial break's Join a game, the invite page signed out). `tests/late-joiners.test.js`
+  (+3: join modes, Survival Pool open, an exclusive join from free agents seen at once). `backup-fixture.js` has a
+  request and a couch-only member; backups take `game_join_requests`.
+  The rest pass on a restarted dev server: check-new-show (69), -shell (46), -hub (75), -reveal (49), -stats (57), -chat (52),
+  -backstage (67), -backstage-ii (116), -community (82), -desk (100), -ours (89), -results-ways (89), -settling (96), -draft (90),
+  check-foundation, check-preview and check-backup-restore; `npm test` 535 of 535; type-check and lint (src) clean. check-new-hub
+  now finds Get the couch going as a real section, and check-new-show waits for Chat's composer (a cold route compiles on first
+  use). The long-running dev server had kept stale compiles of step 6c's modules (settling failed while a fresh compile was
+  right): `touch next.config.ts` restarts it cleanly (memory testing-bank). Two one-line refactors in `decision-apply.ts` and
+  `results-changes.ts`, made while finding that, are kept (no change in behaviour).
 
 ## Step C: cutover
 

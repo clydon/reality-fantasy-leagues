@@ -344,3 +344,13 @@ never handles it: the user does the reset and the pasting.
   md5). Migration 0118 adds `show_follows.early_night` (JSONB): what your Weekly Lineup stood at when you revealed an
   episode early (the total, your starters' points, the table: a few hundred bytes), kept only until you've seen that
   episode's final scores, then cleared, so the morning update can show "so far +14 › final +22".
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 9 part 1, couches and joining their games. **Nothing
+  polls and nothing runs on a schedule.** Migration 0119 adds `couch_members.via` (a word per member) and
+  `game_join_requests` (one small row each time someone asks to join a game: who, which game, when it was answered and
+  how). `couch_invites` (from 0100) now gets rows: one code per person per couch, made the first time they open Invite
+  (a few dozen bytes each). New reads, each only when a screen or sheet opens: an invite page (`/api/couches/invite/[code]`,
+  open signed out: the couch, its members and its games' join rules, a hash check per game; a few KB), the couch's games
+  and who may join them (Commercial break, a show's Games tab when there's a game you're not in, the join sheet: a few KB),
+  and the catch-up reveal (one game's episode, like a reveal). The chat badge's 30-second poll asks a slightly different
+  question about late joiners (who the games can't see, instead of who's catching up) from the same league states, at the
+  same cost. Two new pushes, both rare: a join request to whoever runs the game, and "You're in" when they're let in.

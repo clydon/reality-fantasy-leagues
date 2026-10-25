@@ -213,7 +213,8 @@ export function previewLines(before: LeagueState, after: LeagueState, gameName: 
     });
   }
   // Nobody went home (step 6c): said once, whatever the game.
-  for (const e of after.episodes.filter((x) => x.noExit && !before.episodes.find((y) => y.number === x.number)?.noExit)) {
+  const hadNoExit = (n: number) => !!before.episodes.find((y) => y.number === n)?.noExit;
+  for (const e of after.episodes.filter((x) => x.noExit && !hadNoExit(x.number))) {
     lines.push({ face: { kind: "castaway", name: "Nobody", photo: null }, label: `Nobody went home in Episode ${e.number}`, change: "", dir: null });
   }
   const moved: { line: PreviewLine; size: number }[] = [];

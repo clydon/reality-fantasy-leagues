@@ -258,12 +258,17 @@ declare const StateLogic: {
     isUnderway(state: LeagueState): boolean;
     /** Late joining is on unless the commissioner switched it off. */
     allowed(state: LeagueState): boolean;
+    /** Castaways can be on several teams (or there are no teams): a new player takes nothing and may catch up. */
+    sharedJoin(state: LeagueState): boolean;
+    /** Who can join (step 9): settings.joinMode, else locked when late joining is off, else the recommended one. */
+    joinMode(state: LeagueState): "open" | "ask" | "locked";
+    recommendedJoinMode(state: LeagueState): "open" | "ask";
     startChoices(state: LeagueState): number[];
-    /** Castaway ids still in the game before episode `start`. */
-    draftPool(state: LeagueState, start: number): string[];
+    /** Castaway ids still in the game before episode `start` (`freeAgents`: only those nobody in the league owns). */
+    draftPool(state: LeagueState, start: number, freeAgents?: boolean): string[];
     teamSize(state: LeagueState): number;
     /** A reason on refusal, else null. */
-    begin(state: LeagueState, playerId: string, start: number, castawayIds: string[]): string | null;
+    begin(state: LeagueState, playerId: string, start: number, castawayIds: string[], opts?: { freeAgents?: boolean }): string | null;
     markCaughtUp(state: LeagueState, playerId: string, seenThrough: number): void;
     convert(state: LeagueState, playerId: string): boolean;
     /** The league as one viewer may see it; `full` keeps their week's results for the reveal. */

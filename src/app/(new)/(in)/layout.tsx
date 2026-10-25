@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { SessionProvider } from "@/new/session";
+import { CouchSheets } from "@/new/couch/couch-sheets";
 
 // The new design's signed-in routes: the hub, show spaces, settings. No session: sign in (classic's screen, which
 // comes back to "/", which sends the new design's people on to /home). Not yet approved (early access): classic's
@@ -17,5 +18,11 @@ export default async function SignedInLayout({ children }: { children: React.Rea
     isSuperAdmin: user.role === "admin",
     impersonating: !!(session.session as { impersonatedBy?: unknown }).impersonatedBy,
   };
-  return <SessionProvider me={me}>{children}</SessionProvider>;
+  // The couch sheets (switch, details, invite, start, join, leave: step 9) open from anywhere signed in.
+  return (
+    <SessionProvider me={me}>
+      {children}
+      <CouchSheets />
+    </SessionProvider>
+  );
 }

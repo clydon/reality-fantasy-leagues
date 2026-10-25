@@ -203,13 +203,16 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
     };
 
     // ---- the hub, in each shape ----
+    let going = false;
     for (const shape of ["focus", "grow", "new"]) {
       await hubReady(shape);
       await collect();
+      if (shape === "new") going = (await page.locator("[data-get-going]").count()) === 1;
       await fits(`hub (${shape})`);
       await shoot(`hub-${shape}`);
     }
-    check(seen.has("hub.guide") && seen.has("hub.get-going"), "the guide is on the hub, and a new couch gets Get the couch going");
+    // Get the couch going is real since step 9 (check-new-couches.js covers it).
+    check(seen.has("hub.guide") && going, "the guide is on the hub, and a new couch gets Get the couch going");
 
     // ---- the status line, Up next, posters and the feed ----
     await hubReady();

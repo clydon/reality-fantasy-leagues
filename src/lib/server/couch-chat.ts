@@ -6,7 +6,7 @@ import { authorName, MESSAGE_COLUMNS, messageText, withReactions } from "./chat"
 import { requireCouch, type CouchRole } from "./couches";
 import { pool, HttpError } from "./db";
 import { seenThrough } from "./guard";
-import { outOfGroupChat } from "./late-join";
+import { hiddenFromGroup } from "./late-join";
 import { notifyChat } from "./push-events";
 import { seasonSchedules } from "./schedule";
 import { games } from "./show-space";
@@ -31,7 +31,8 @@ export interface ChatScope {
   role: CouchRole | "viewer";
   /** Runs a game here, or owns the couch: can remove anyone's message, and reveal lines. */
   moderator: boolean;
-  /** A late joiner catching up, or someone the couch's games can't see yet (late-join.ts): no chat until then. */
+  /** Someone the couch's games can't see yet (a ghost, late-join.ts): no chat until then. Catching up in the open is
+   *  fine: the fold keeps it spoiler-safe (step 9). */
   out: boolean;
 }
 
@@ -44,7 +45,7 @@ export async function chatScope(user: SessionUser, seasonId: string, couchId: st
   if (!rows.length) throw new HttpError(404, "Season not found");
   const here = await games(user.id, { couchIds: [couchId], seasonId });
   const leagueIds = here.map((g) => g.leagueId);
-  const out = leagueIds.length ? (await outOfGroupChat(leagueIds)).has(user.id) : false;
+  const out = leagueIds.length ? (await hiddenFromGroup(leagueIds)).has(user.id) : false;
   return {
     couchId,
     seasonId,

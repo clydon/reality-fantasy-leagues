@@ -106,6 +106,7 @@ async function up(pool) {
   await pool.query(`INSERT INTO waiver_claims (league_id, period_id, player_id, pairs, updated_by) VALUES ($1, 'zt-p1', $2, '[]', $3)`, [roster, players[0].id, me]);
   await pool.query(`INSERT INTO blind_draft_picks (league_id, player_id, castaway_ids, locked_at) VALUES ($1, $2, '["k1", "k2"]', now())`, [classic, players[0].id]);
   await pool.query(`INSERT INTO draft_queues (league_id, player_id, castaway_ids) VALUES ($1, $2, '["k3", "k1"]')`, [classic, players[0].id]);
+  await pool.query(`INSERT INTO game_join_requests (league_id, user_id, decided_at, decided_by, outcome) VALUES ($1, $2, now(), $3, 'let-in')`, [classic, ann, me]);
   await pool.query(`INSERT INTO episode_team_notes (league_id, episode_number, player_id, why_text) VALUES ($1, 1, $2, 'zt: why')`, [classic, players[0].id]);
   const msg = (await one(`INSERT INTO chat_messages (league_id, user_id, author_name, type, text) VALUES ($1, $2, $3, 'message', 'zt hi') RETURNING id`, [classic, me, linked.USERNAME])).id;
   await pool.query(`INSERT INTO chat_messages (league_id, user_id, author_name, type, text, edited_at) VALUES ($1, $2, $3, 'message', 'zt hey', now())`, [poolLeague, ann, ANN]);
@@ -116,7 +117,7 @@ async function up(pool) {
   // Couches and follows (step 0b): the group is one couch, with an invite code, and both people follow the season.
   const couch = (await one(`INSERT INTO couches (name, created_by) VALUES ('ZT couch', $1) RETURNING id`, [me])).id;
   await pool.query("UPDATE leagues SET couch_id = $1 WHERE id = ANY($2::uuid[])", [couch, [classic, roster, poolLeague]]);
-  await pool.query(`INSERT INTO couch_members (couch_id, user_id, role) VALUES ($1, $2, 'owner'), ($1, $3, 'member')`, [couch, me, ann]);
+  await pool.query(`INSERT INTO couch_members (couch_id, user_id, role, via) VALUES ($1, $2, 'owner', 'game'), ($1, $3, 'member', 'couch')`, [couch, me, ann]);
   await pool.query(`INSERT INTO couch_invites (code, couch_id, created_by) VALUES ('ZTCOUCH1', $1, $2)`, [couch, me]);
   await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, 4), ($3, $2, 0)`, [me, season, ann]);
   // The couch's own chat about the season (step 4, migration 0110: no league), with a reaction, and how far it's read.

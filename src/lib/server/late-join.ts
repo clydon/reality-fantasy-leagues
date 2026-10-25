@@ -125,6 +125,25 @@ export async function outOfGroupChat(leagueIds: string[]): Promise<Set<string>> 
 }
 
 /**
+ * The new design's couch chat (step 9): the people a season's games can't see, a ghost in every one of them they're in.
+ * Someone catching up whom the games can see is in the talk: the couch chat folds what others said past where they are
+ * (chat-fold.ts), so it's spoiler-safe for them, which classic's league chat isn't (outOfGroupChat).
+ */
+export async function hiddenFromGroup(leagueIds: string[]): Promise<Set<string>> {
+  const { rows } = await pool.query("SELECT user_id, player_id, league_id FROM league_memberships WHERE league_id = ANY($1::uuid[])", [leagueIds]);
+  const states = await leagueStates(leagueIds);
+  const seen = new Set<string>();
+  const all = new Set<string>();
+  for (const r of rows) {
+    const state = states.get(r.league_id);
+    if (!state) continue;
+    all.add(r.user_id);
+    if (!StateLogic.GhostLogic.isGhost(StateLogic.getPlayer(state, r.player_id))) seen.add(r.user_id);
+  }
+  return new Set([...all].filter((id) => !seen.has(id)));
+}
+
+/**
  * Chat is the league's conversation: a ghost can't be part of it while the league can't see them, and
  * a late joiner catching up would be reading spoilers. True when this member is out of it.
  */

@@ -42,6 +42,8 @@ const GROUP_SLICES = {
   blind_draft_picks: "league_id = ANY($L::uuid[])",
   // The draft room's queues (0117): who each player starred, private like the blind picks.
   draft_queues: "league_id = ANY($L::uuid[])",
+  // Asking to join a game (0119, step 9): its requests, answered or not.
+  game_join_requests: "league_id = ANY($L::uuid[])",
   episode_team_notes: "league_id = ANY($L::uuid[])",
   league_applied_decisions: "league_id = ANY($L::uuid[])",
   // A couch's chat about a show it has no game on (migration 0110: no league, its couch and season) comes with the

@@ -78,7 +78,7 @@ function GameBlock({
 }) {
   const L = g.lineup;
   const lineupChanged = !!L && (L.starters !== L.rec.starters || (!g.draftStarted && L.bench !== L.rec.bench));
-  const joinChanged = g.joining.open !== g.joining.rec;
+  const joinChanged = g.joining.mode !== g.joining.rec;
   return (
     <section data-settings-game={g.gameName} className="mt-7 px-4">
       <div className="mb-3 flex items-center gap-3">
@@ -86,7 +86,7 @@ function GameBlock({
         <div className="min-w-0 flex-1">
           <h2 className="type-caption text-[24px] leading-none">{g.gameName}</h2>
           <small className="text-[13px] text-muted-foreground">
-            {g.name} · {g.shared ? "castaways can be on several teams" : "each castaway on one team"}
+            {g.name} · {g.gameType === "pickem" ? "everyone picks from the whole cast" : g.shared ? "castaways can be on several teams" : "each castaway on one team"}
           </small>
         </div>
       </div>
@@ -164,36 +164,48 @@ function GameBlock({
             <Dot on={joinChanged} />
           </h3>
           {joinChanged && g.commissioner && (
-            <button type="button" data-reset="joining" onClick={() => write(g, { reset: "joining" }, "Back to recommended: anyone on the couch can join")} className="text-[14px] font-bold">
+            <button
+              type="button"
+              data-reset="joining"
+              onClick={() => write(g, { reset: "joining" }, `Back to recommended: ${g.joining.rec === "open" ? "anyone on the couch can join" : "ask me first"}`)}
+              className="text-[14px] font-bold"
+            >
               Reset to recommended
             </button>
           )}
         </div>
         <small className="mb-2 block text-[13px] text-muted-foreground">
-          {g.shared ? "Castaways can be on several teams, so new players can jump in." : "Each castaway is on one team, so a new player drafts from who's left."}
+          {g.gameType === "pickem"
+            ? "There are no teams, so new players can jump in."
+            : g.joining.rec === "open"
+              ? "Castaways can be on several teams, so new players can jump in."
+              : "Each castaway is on one team, so new players need your OK."}
         </small>
         {(
           [
-            [true, "Anyone on the couch", "They can catch up on missed episodes"],
-            [false, "Nobody new", "The game is full for the season"],
+            ["open", "Anyone on the couch", "They can catch up on missed episodes", "Let anyone on the couch join"],
+            ["ask", "Ask me first", "You get a request to let them in", "Asks new players to ask first"],
+            ["locked", "Nobody new", "The game is full for the season", "Closed the game to new players"],
           ] as const
-        ).map(([open, t, d]) => (
+        )
+          .filter(([mode]) => mode !== "open" || g.joining.rec === "open")
+          .map(([mode, t, d, line]) => (
           <button
             key={t}
             type="button"
-            data-join={open ? "open" : "locked"}
-            aria-pressed={g.joining.open === open}
+            data-join={mode}
+            aria-pressed={g.joining.mode === mode}
             disabled={!g.commissioner}
-            onClick={() => g.joining.open !== open && write(g, { set: { allowLateJoiners: open }, text: open ? "Let anyone on the couch join" : "Closed the game to new players" }, `Saved: ${g.gameName} · ${t}`)}
+            onClick={() => g.joining.mode !== mode && write(g, { set: { joinMode: mode }, text: line }, `Saved: ${g.gameName} · ${t}`)}
             className="mb-1.5 flex w-full items-center gap-3 rounded-[3px] bg-background p-2.5 text-left"
           >
-            <i className={`grid size-5 flex-none place-items-center rounded-full border-2 ${g.joining.open === open ? "border-foreground" : "border-input"}`} aria-hidden>
-              {g.joining.open === open && <i className="size-2.5 rounded-full bg-foreground" />}
+            <i className={`grid size-5 flex-none place-items-center rounded-full border-2 ${g.joining.mode === mode ? "border-foreground" : "border-input"}`} aria-hidden>
+              {g.joining.mode === mode && <i className="size-2.5 rounded-full bg-foreground" />}
             </i>
             <span>
               <b className="block text-[15px]">
                 {t}
-                {open === g.joining.rec && <em className="type-caption ml-2 rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic">Recommended</em>}
+                {mode === g.joining.rec && <em className="type-caption ml-2 rounded-[2px] bg-secondary px-1.5 text-[11px] not-italic">Recommended</em>}
               </b>
               <small className="text-[13px] text-muted-foreground">{d}</small>
             </span>

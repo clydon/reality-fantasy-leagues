@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
@@ -37,14 +38,23 @@ export const GET = apiRoute(async (req) => {
   // Your shows: the seasons you follow, and those you play whether or not you follow them.
   const mine = follows.filter((f) => f.userId === user.id);
   const seasonIds = [...new Set([...mine.filter((f) => f.following).map((f) => f.seasonId), ...myGames.map((g) => g.seasonId).filter((id): id is string => !!id)])];
-  const [headers, schedules, moves] = await Promise.all([seasonHeaders(seasonIds), seasonSchedules(seasonIds), dueMoves(user.id)]);
+  // The couches' seasons too, for each couch's line in the switcher ("Survivor 51 · Traitors 5 · 4 people").
+  const couchSeasonIds = couchGames.map((g) => g.seasonId).filter((id): id is string => !!id);
+  const [headers, schedules, moves] = await Promise.all([seasonHeaders([...seasonIds, ...couchSeasonIds]), seasonSchedules(seasonIds), dueMoves(user.id)]);
   // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash; and each
   // game's state again (a hash each) for what its results ask of you.
-  const [progress, states, early] = await Promise.all([
+  const [progress, states, early, seats] = await Promise.all([
     progressOf(user, myGames),
     leagueStates(myGames.filter((g) => g.seasonId).map((g) => g.leagueId)),
     pool.query("SELECT season_id, early_seen FROM show_follows WHERE user_id = $1 AND early_seen IS NOT NULL", [user.id]),
+    pool.query("SELECT league_id, player_id FROM league_memberships WHERE user_id = $1", [user.id]),
   ]);
+  // A game you're catching up in (step 9) reveals from its own strip, not the hub's "Results are in".
+  const seatIn = new Map(seats.rows.map((r) => [r.league_id as string, r.player_id as string | null]));
+  const live = (g: Game) => {
+    const st = states.get(g.leagueId);
+    return !!st && !StateLogic.GhostLogic.isCatchingUp(st, seatIn.get(g.leagueId) ?? null);
+  };
   const earlySeen = new Map(early.rows.map((r) => [r.season_id as string, r.early_seen as number]));
   const now = new Date();
   const shows = [];
@@ -67,7 +77,7 @@ export const GET = apiRoute(async (req) => {
       progress: myGames.filter((g) => g.seasonId === id && progress.has(g.leagueId)).map((g) => ({ leagueId: g.leagueId, ...progress.get(g.leagueId)! })),
       // Results in past where you are (the hub leads with them), or the final scores of one you revealed early.
       results: resultsDue(
-        myGames.filter((g) => g.seasonId === id).map((g) => states.get(g.leagueId)).filter((st) => !!st),
+        myGames.filter((g) => g.seasonId === id && live(g)).map((g) => states.get(g.leagueId)).filter((st) => !!st),
         seen,
         earlySeen.get(id)
       ),
@@ -82,6 +92,11 @@ export const GET = apiRoute(async (req) => {
       yourRole: c.role,
       members: (members.get(c.id) ?? []).map((m) => ({ userId: m.userId, name: m.name, role: m.role, joinedAt: m.joinedAt, watching: watching(m.userId) })),
       games: couchGames.filter((g) => g.couchId === c.id).map(gameOut),
+      seasons: [...new Set(couchGames.filter((g) => g.couchId === c.id && g.seasonId).map((g) => g.seasonId as string))]
+        .map((id) => headers.get(id))
+        .filter((h) => !!h)
+        .sort((a, b) => (b.premiereDate ?? "").localeCompare(a.premiereDate ?? ""))
+        .map((h) => ({ seasonId: h.seasonId, label: `${h.show.name.replace(/^The /, "")}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`, status: h.status })),
     })),
     shows,
     // Leagues with no season in the catalog (a league still being set up), so they're not lost.

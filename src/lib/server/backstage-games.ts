@@ -439,6 +439,7 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
 
 // ---- Game settings ----
 
+// Recommended settings (Who can join's recommended one depends on ownership: GhostLogic.recommendedJoinMode).
 const REC = { activeSlots: 3, benchSlots: 2, teamSize: 3, allowLateJoiners: true };
 
 export interface GameSettings {
@@ -455,8 +456,8 @@ export interface GameSettings {
   lineup: { starters: number; bench: number; rec: { starters: number; bench: number } } | null;
   /** Outlast: the team's size, set at the draft. */
   team: { size: number; rec: number } | null;
-  /** Late joiners: anyone on the couch may join and catch up (else nobody new). */
-  joining: { open: boolean; rec: boolean };
+  /** Who can join (step 9): anyone on the couch (castaways on several teams: they catch up), ask me first, or nobody new. */
+  joining: { mode: "open" | "ask" | "locked"; rec: "open" | "ask" };
   /** Waivers' one line, for the row into its page; null without waivers. */
   waivers: string | null;
 }
@@ -483,7 +484,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
           ? { starters: StateLogic.ActiveRosterLogic.activeSlots(s), bench: StateLogic.ActiveRosterLogic.benchSlots(s), rec: { starters: REC.activeSlots, bench: REC.benchSlots } }
           : null,
         team: type.hasRoster && !type.hasActiveRoster ? { size: s.settings.teamSize, rec: REC.teamSize } : null,
-        joining: { open: StateLogic.GhostLogic.allowed(s), rec: REC.allowLateJoiners },
+        joining: { mode: StateLogic.GhostLogic.joinMode(s), rec: StateLogic.GhostLogic.recommendedJoinMode(s) },
         waivers: c ? `${RULE_WORDS[c.replaceRule]} · ${c.waiverWindows.swaps > 0 ? `${c.waiverWindows.swaps} optional swap${c.waiverWindows.swaps === 1 ? "" : "s"} per window` : "no optional swaps"}` : null,
       };
     }),
@@ -491,7 +492,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
 }
 
 // What Game settings may change, and the limits (the bench and Outlast's team are set at the draft).
-const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners"];
+const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode"];
 
 /** A Game settings change (`set`), or `reset`: that section back to recommended. Commissioner only; one batch with Undo. */
 export async function settingsWrite(
@@ -506,7 +507,7 @@ export async function settingsWrite(
       : body.reset === "team"
         ? { teamSize: REC.teamSize }
         : body.reset === "joining"
-          ? { allowLateJoiners: REC.allowLateJoiners }
+          ? { joinMode: "recommended" }
           : (body.set ?? {});
   if (!Object.keys(set).length || Object.keys(set).some((k) => !SETTING_FIELDS.includes(k))) throw new HttpError(400, `set may change ${SETTING_FIELDS.join(", ")}`);
   const batch = crypto.randomUUID();
@@ -518,6 +519,15 @@ export async function settingsWrite(
       for (const [k, v] of Object.entries(set)) {
         if (k === "allowLateJoiners") {
           StateLogic.updateSettings(s, k, v !== false);
+          continue;
+        }
+        // Who can join (step 9): open, ask or locked; anything else is the recommended one. An exclusive game can't be
+        // open (its castaways are one team's each, so whoever runs it lets people in).
+        if (k === "joinMode") {
+          const mode = v === "recommended" ? StateLogic.GhostLogic.recommendedJoinMode(s) : v;
+          if (mode !== "open" && mode !== "ask" && mode !== "locked") throw new HttpError(400, "Who can join is open, ask or locked");
+          if (mode === "open" && !StateLogic.GhostLogic.sharedJoin(s)) throw new HttpError(400, "Each castaway is on one team here, so new players need your OK");
+          StateLogic.updateSettings(s, k, mode);
           continue;
         }
         const n = Number(v);

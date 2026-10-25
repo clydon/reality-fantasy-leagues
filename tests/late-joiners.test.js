@@ -249,3 +249,43 @@ test("the action bar warns a catching-up player about their own week, and goes q
   GhostLogic.applyAs(s, id, 1, "ep2", (v) => StateLogic.setActiveRosterLineup(v, "ep2", id, ["f"]));
   assert.deepEqual(actionItems(s, id, 1), []);
 });
+
+// Step 9 (couches): who can join, and joining an exclusive game in the open.
+test("who can join: recommended by ownership, locked when late joining is off, and kept in step with classic's switch", () => {
+  const s = makeState(); // Active Roster, exclusive here
+  assert.equal(GhostLogic.sharedJoin(s), false);
+  assert.equal(GhostLogic.joinMode(s), "ask");
+  StateLogic.updateSettings(s, "ownershipMode", "shared");
+  assert.equal(GhostLogic.joinMode(s), "open");
+  StateLogic.updateSettings(s, "joinMode", "locked");
+  assert.equal(GhostLogic.joinMode(s), "locked");
+  assert.equal(s.settings.allowLateJoiners, false);
+  StateLogic.updateSettings(s, "joinMode", "ask");
+  assert.equal(GhostLogic.joinMode(s), "ask");
+  assert.equal(s.settings.allowLateJoiners, true);
+  // Classic switching late joiners off closes it whatever the new design said.
+  StateLogic.updateSettings(s, "allowLateJoiners", false);
+  assert.equal(GhostLogic.joinMode(s), "locked");
+  StateLogic.updateSettings(s, "joinMode", "nonsense");
+  assert.equal(GhostLogic.joinMode(s), "open", "anything else is the recommended one");
+});
+
+test("Survival Pool has no teams, so anyone may join it and catch up", () => {
+  const s = makeState();
+  StateLogic.updateSettings(s, "leagueTypeId", "pickem");
+  assert.equal(GhostLogic.sharedJoin(s), true);
+  assert.equal(GhostLogic.joinMode(s), "open");
+});
+
+test("joining an exclusive game in the open: a team from the free agents only, seen by everyone at once", () => {
+  const s = makeState(); // after episode 3: A, B (Ann), C out, D out... free agents still in: F
+  const id = joinGhost(s);
+  assert.deepEqual(GhostLogic.draftPool(s, 4, true), ["f"]);
+  assert.equal(GhostLogic.begin(s, id, 4, ["a"], { freeAgents: true }), "Pick from who was still in the game");
+  assert.equal(GhostLogic.begin(s, id, 4, ["f"], { freeAgents: true }), null);
+  assert.equal(GhostLogic.convert(s, id), true);
+  assert.equal(GhostLogic.isCatchingUp(s, id), false);
+  const ann = GhostLogic.viewFor(s, "p1", 3);
+  assert.ok(ann.players.some((p) => p.id === id), "everyone sees them");
+  assert.deepEqual(ann.castaways.find((c) => c.id === "f").ownerIds, [id]);
+});

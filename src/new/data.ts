@@ -21,6 +21,8 @@ import type { AskRun, Ways } from "@/lib/server/results-ways";
 import type { SeasonDraft } from "@/lib/server/season-draft";
 import type { CouchHub } from "@/lib/server/couch-hub";
 import type { ResultsDue } from "@/lib/game/results-due";
+import type { CouchInvite, CouchSeason, JoinGame, JoinOptions, LeaveCouch } from "@/lib/server/couch-joins";
+import type { CatchUpReveal } from "@/lib/server/season-episodes";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -45,6 +47,8 @@ export type { SeasonDraft } from "@/lib/server/season-draft";
 export type { CouchHub, FeedItem, PlayingGame } from "@/lib/server/couch-hub";
 export type { Accolade, CouchRecord, HeadToHead, Plaque, RankRow, Rankings, TrophyShelf, YourNumbers } from "@/lib/game/couch-standings";
 export type { EarlyNight } from "@/lib/server/season-episodes";
+export type { CouchInvite, CouchSeason, JoinGame, JoinOptions, LeaveCouch } from "@/lib/server/couch-joins";
+export type { CatchUpReveal } from "@/lib/server/season-episodes";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -122,6 +126,8 @@ export interface Couch {
   yourRole: "owner" | "member";
   members: { userId: string; name: string; role: "owner" | "member"; joinedAt: string; watching: string[] }[];
   games: GameRef[];
+  /** The seasons its games are on, newest first ("Survivor 51"), for its line in the switcher. */
+  seasons: { seasonId: string; label: string; status: string | null }[];
 }
 
 export interface Home {
@@ -734,3 +740,53 @@ export async function switchDesign(ui: "classic" | "new") {
   // A full load, on purpose: each design has its own shell.
   window.location.assign(ui === "new" ? "/home" : "/");
 }
+
+// ---- couches and joining their games (step 9; couch-joins.ts). Read when a sheet or page opens; nothing polls. ----
+
+const couchKey = (couchId: string | null, ...rest: unknown[]) => ["new-design", "couch", couchId, ...rest];
+
+/** Your invite code for a couch (made the first time). */
+export function useInviteCode(couchId: string | null, enabled = true) {
+  return useQuery({ queryKey: couchKey(couchId, "invite"), queryFn: () => get<{ code: string }>(`/api/couches/${couchId}/invite`), enabled: !!couchId && enabled, staleTime: Infinity });
+}
+
+/** What an invite code opens on: the couch, then its games and who may join each. Signed out too. */
+export function useCouchInvite(code: string) {
+  return useQuery({ queryKey: ["new-design", "invite", code], queryFn: () => get<CouchInvite>(`/api/couches/invite/${encodeURIComponent(code)}`), retry: false });
+}
+
+/** Every game on a couch and who may join it. */
+export function useCouchGames(couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: couchKey(couchId, "games"),
+    queryFn: () => get<{ seasons: CouchSeason[]; games: JoinGame[] }>(`/api/couches/${couchId}/games`),
+    enabled: !!couchId && enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** Before joining an underway game: where you can start, and (once a start's chosen) the castaways for your team. */
+export function useJoinOptions(couchId: string | null, leagueId: string | null, start: number | null) {
+  return useQuery({
+    queryKey: couchKey(couchId, "join", leagueId, start),
+    queryFn: () => get<JoinOptions>(`/api/couches/${couchId}/games/${leagueId}${start ? `?start=${start}` : ""}`),
+    enabled: !!couchId && !!leagueId,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export const couches = {
+  start: (name: string) => post<{ id: string; name: string; code: string }>("/api/couches", { name }),
+  join: (code: string) => post<{ couchId: string; name: string; already: boolean }>("/api/couches/join", { code }),
+  leave: (couchId: string, preview = false) => post<LeaveCouch>(`/api/couches/${couchId}/leave`, { preview }),
+  joinGame: (couchId: string, leagueId: string, body: { start?: number | null; team?: string[] }) =>
+    post<{ leagueId: string; seasonId: string | null; start: number | null; catchingUp: boolean }>(`/api/couches/${couchId}/games/${leagueId}`, { action: "join", ...body }),
+  ask: (couchId: string, leagueId: string) => post<{ asked: true }>(`/api/couches/${couchId}/games/${leagueId}`, { action: "ask" }),
+  withdraw: (couchId: string, leagueId: string) => post<{ asked: false }>(`/api/couches/${couchId}/games/${leagueId}`, { action: "withdraw" }),
+  answer: (couchId: string, requestId: string, letIn: boolean) => post<{ ok: true }>(`/api/couches/${couchId}/requests/${requestId}`, { letIn }),
+  /** Catching up: reveal the next episode of your own season in a game you joined late. */
+  catchUp: (seasonId: string, couchId: string | null, leagueId: string) => post<CatchUpReveal>(`/api/seasons/${seasonId}/catchup`, { leagueId, couch: couchId }),
+};
+
+/** After joining or leaving a couch or a game: everything the new design reads moves on. */
+export const useAfterCouch = useAfterReveal;

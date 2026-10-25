@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowLeftRight, CalendarClock, Check, ChevronRight, CircleQuestionMark, Eye, KeyRound, RotateCcw, SlidersHorizontal, Trophy, Users, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { ArrowLeftRight, CalendarClock, Check, ChevronRight, CircleQuestionMark, Eye, KeyRound, RotateCcw, SlidersHorizontal, Trophy, UserPlus, Users, X, type LucideIcon } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { airTime } from "../clock";
 import { ChangesPage } from "../backstage/changes";
 import { MembersPage } from "../backstage/members";
@@ -9,10 +9,13 @@ import { ResultsPage } from "../backstage/results";
 import { RulesPage } from "../backstage/rules";
 import { SettingsPage } from "../backstage/settings";
 import { WaiversAdminPage } from "../backstage/waivers";
-import { useBackstage, useChanges, type Backstage, type Need } from "../data";
+import { couches, useAfterCouch, useBackstage, useChanges, type Backstage, type Need } from "../data";
+import { openCouchSheet } from "../couch/couch-sheets";
+import { Avatar } from "../ui/bars";
 import { NavLink, useNav } from "../nav";
 import { BACKSTAGE_PAGES, paths, type BackstagePage } from "../routes";
-import { EmptyState, Row, SectionHead } from "../ui/parts";
+import { Btn, EmptyState, Row, SectionHead } from "../ui/parts";
+import { toast } from "../ui/toast";
 import { ShowBar } from "../ui/show-bar";
 import { isTabOf, useShow, type ShowData } from "./show-space";
 
@@ -120,7 +123,13 @@ function BackstageHome({ seasonId, show }: { seasonId: string; show: ShowData })
           ) : needs.length ? (
             <div className="flex flex-col">
               {needs.map((n) => (
-                <Job key={`${n.id}-${n.episode}-${n.leagueId ?? ""}`} seasonId={seasonId} need={n} games={games} />
+                n.id === "request" ? (
+                  <RequestJob key={n.request!.id} couchId={couchId} need={n} />
+                ) : n.id === "invite" ? (
+                  <InviteJob key={`invite-${n.leagueId}`} couchId={couchId} need={n} />
+                ) : (
+                  <Job key={`${n.id}-${n.episode}-${n.leagueId ?? ""}`} seasonId={seasonId} need={n} games={games} />
+                )
               ))}
             </div>
           ) : (
@@ -137,7 +146,7 @@ function BackstageHome({ seasonId, show }: { seasonId: string; show: ShowData })
           {BACKSTAGE_PAGES.map((key) => {
             const p = PAGES[key];
             const detail = key === "results" ? resultsLine(bs.data) : key === "history" && latest ? `${latest.who?.name ?? "On its own"} · ${latest.text}${latest.undone ? " · undone" : ""}` : p.detail;
-            return <Row key={key} href={paths.backstage(seasonId, key)} icon={p.icon} title={p.title} detail={detail} dot={key === "results" && needs.some((n) => n.id !== "draft")} />;
+            return <Row key={key} href={paths.backstage(seasonId, key)} icon={p.icon} title={p.title} detail={detail} dot={key === "results" && needs.some((n) => RESULTS_NEEDS.has(n.id))} />;
           })}
         </div>
       </section>
@@ -157,6 +166,69 @@ function resultsLine(data: Backstage | undefined): string {
   if (ep.stage === "none") return `Episode ${ep.number} · who went home isn't in yet`;
   if (ep.stage === "early") return `Episode ${ep.number} · who went home is in · full scores to come`;
   return `Episode ${ep.number} · final scores in · copy and paste, free`;
+}
+
+const RESULTS_NEEDS = new Set<Need["id"]>(["quick", "full", "waiting", "question"]);
+
+/**
+ * Someone asking to join a game you run (step 9; the mock's joinRulesBlock .req): their face, what they asked, Let in
+ * (they then join on their own: where they start, their team) or decline, quietly.
+ */
+function RequestJob({ couchId, need }: { couchId: string | null; need: Need }) {
+  const after = useAfterCouch();
+  const [busy, setBusy] = useState(false);
+  const r = need.request!;
+  const answer = async (letIn: boolean) => {
+    if (!couchId) return;
+    setBusy(true);
+    try {
+      await couches.answer(couchId, r.id, letIn);
+      await after();
+      toast(letIn ? `${r.name} can join now. They'll pick where they start.` : "Declined quietly");
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div data-job="request" data-request={r.name} className="flex min-h-[72px] items-center gap-3 border-b border-border py-2.5">
+      <Avatar id={r.userId} name={r.name} size={44} />
+      <span className="min-w-0 flex-1">
+        <b className="block text-[16px] leading-tight">{need.title}</b>
+        <small className="block text-[13px] text-muted-foreground">{need.detail}</small>
+      </span>
+      <Btn tone="must" className="h-11 px-3.5" disabled={busy} data-let-in onClick={() => answer(true)}>
+        Let in
+      </Btn>
+      <button type="button" aria-label={`Decline ${r.name}`} data-decline disabled={busy} onClick={() => answer(false)} className="grid size-11 flex-none place-items-center rounded-[3px] outline-1 -outline-offset-1 outline-input">
+        <X className="size-5" aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+/** A game with nobody to play against yet (classic's "Invite players"): your code for the couch. */
+function InviteJob({ couchId, need }: { couchId: string | null; need: Need }) {
+  return (
+    <button
+      type="button"
+      data-job="invite"
+      onClick={() => couchId && openCouchSheet({ kind: "invite", couchId })}
+      className="nd-press flex min-h-[72px] w-full items-center gap-3 border-b border-border py-2.5 text-left"
+    >
+      <span className="grid size-14 flex-none place-items-center rounded-[3px] bg-chyron text-chyron-foreground">
+        <UserPlus className="size-6" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="type-caption block text-[12px] tracking-[0.06em] text-muted-foreground">Setup</span>
+        <b className="block text-[16px] leading-tight">{need.title}</b>
+        <small className="block text-[13px] text-muted-foreground">{need.detail}</small>
+      </span>
+      <span className="text-[15px] font-bold text-chyron-line">Invite</span>
+      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+    </button>
+  );
 }
 
 /** A job (the mock's .job): the one yellow tag, what it is, and Check (a game's setup: Schedule, in its draft). */

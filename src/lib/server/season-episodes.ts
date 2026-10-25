@@ -55,6 +55,9 @@ export interface SeasonEpisodes {
   corrections: Correction[];
 }
 
+/** A game you joined late and are still catching up in (StateLogic.GhostLogic). */
+const catchingUpIn = (h: GameHere) => StateLogic.GhostLogic.isCatchingUp(h.state, h.playerId);
+
 /** The episodes you may be told about, merged across your games here (or, playing none, the season's own results). */
 export async function seasonEpisodes(user: SessionUser, seasonId: string, couchId: string | null): Promise<SeasonEpisodes> {
   const [{ seen, here }, schedules, follow] = await Promise.all([
@@ -70,7 +73,9 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
     return !!ep?.airAt && Date.parse(ep.airAt) + (ep.runtimeMin ?? DEFAULT_RUNTIME_MIN) * 60_000 <= now;
   };
   const mark = seen === EVERYTHING ? Number.POSITIVE_INFINITY : seen;
-  const states = here.map((h) => h.state);
+  // A game you're catching up in (step 9) reveals one episode at a time from its own strip on Tonight (catchUpReveal),
+  // so what's hidden and the reveal are the other games'.
+  const states = here.filter((h) => !catchingUpIn(h)).map((h) => h.state);
 
   // What you've seen: each episode once, its people and recap from the first game that has them (a Weekly Lineup's
   // for the scorers), every game's line.
@@ -105,7 +110,7 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   // The latest episode that's finished airing with no results in any of your games yet.
   const aired = (schedule?.episodes ?? []).filter((e) => finished(e.number)).map((e) => e.number);
   const last = aired.length ? Math.max(...aired) : 0;
-  const waiting = here.length && last > latest && !rows.some((r) => r.number === last) ? { episode: last, airAt: airAt(last) } : null;
+  const waiting = here.length && last > latestIn(here.map((h) => h.state)) && !rows.some((r) => r.number === last) ? { episode: last, airAt: airAt(last) } : null;
   if (waiting) rows.push({ number: waiting.episode, airAt: waiting.airAt, status: "waiting", stage: null });
   rows.sort((a, b) => b.number - a.number);
 
@@ -271,4 +276,34 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
     next: nextUp && stageAcross(states, nextUp) ? nextUp : null,
     soFar,
   };
+}
+
+export interface CatchUpReveal {
+  episode: number;
+  leagueId: string;
+  out: OutFace[];
+  game: RevealGame | null;
+  lineup: RevealPart["lineup"];
+  /** The next episode to catch up on, or null: caught up, playing live from here. */
+  next: number | null;
+}
+
+/**
+ * Catching up (step 9, the mock's catchupStep): reveal the next episode of your own season in one game you joined late,
+ * once you've made your move for it, and its beats in that game. One episode at a time (reveal.ts holds that line).
+ */
+export async function catchUpReveal(user: SessionUser, seasonId: string, couchId: string | null, leagueId: unknown): Promise<CatchUpReveal> {
+  const { here } = await gamesHere(user, seasonId, couchId);
+  const h = here.find((x) => x.game.leagueId === leagueId);
+  if (!h) throw new HttpError(404, "You don't play that game here");
+  const late = StateLogic.GhostLogic.lateJoinOf(h.state, h.playerId);
+  if (!late?.catchingUp) throw new HttpError(409, "You're caught up");
+  const { rows } = await pool.query("SELECT results_seen_through FROM league_memberships WHERE league_id = $1 AND user_id = $2", [h.game.leagueId, user.id]);
+  const n = ((rows[0]?.results_seen_through as number | null) ?? (late.startEpisode ?? 1) - 1) + 1;
+  await markRevealed(user, h.game.leagueId, h.playerId, n);
+  const after = (await gamesHere(user, seasonId, couchId)).here.find((x) => x.game.leagueId === h.game.leagueId);
+  if (!after) throw new HttpError(404, "You don't play that game here");
+  const part = revealIn(after.ref, after.state, after.playerId, n, after.userOf);
+  const still = StateLogic.GhostLogic.isCatchingUp(after.state, after.playerId);
+  return { episode: n, leagueId: h.game.leagueId, out: part?.out ?? [], game: part?.game ?? null, lineup: part?.lineup ?? null, next: still ? n + 1 : null };
 }

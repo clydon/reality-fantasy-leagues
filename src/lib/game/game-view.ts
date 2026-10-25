@@ -127,6 +127,8 @@ export interface GameView extends GameRefIn {
   revealFirst: number | null;
   /** A late joiner playing their own season (GhostLogic): their week is the episode after their mark. */
   catchingUp: boolean;
+  /** Catching up (step 9): the episode they're on (their week), and the latest the game has results for ("Episode 2 of 4"). */
+  catchUp: { week: number; latest: number } | null;
 }
 
 /** Whose user a seat is, for faces. */
@@ -142,6 +144,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
   const catchingUp = StateLogic.GhostLogic.isCatchingUp(full, playerId) && Number.isInteger(seen);
   const hidden = StateLogic.SpoilerLogic.hiddenEpisodes(full, seen);
   const table = tableOf(view, playerId, userOf);
+  const catchUp = catchingUp ? { week: (seen as number) + 1, latest: StateLogic.SpoilerLogic.latestWithResults(full) } : null;
   return {
     ...game,
     playerId,
@@ -156,6 +159,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
     progress: catchingUp ? null : weekProgress(full, playerId, userOf),
     revealFirst: hidden.length && !catchingUp ? hidden[0].number : null,
     catchingUp,
+    catchUp,
   };
 }
 

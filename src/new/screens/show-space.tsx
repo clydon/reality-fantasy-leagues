@@ -27,6 +27,7 @@ import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { ShowBar, TabBar } from "../ui/show-bar";
 import type { PreviewId } from "../preview";
+import { openCouchSheet } from "../couch/couch-sheets";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
@@ -258,7 +259,17 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
           {blind.length > 0 && (
             <Row href={`${paths.showPage(seasonId, "blind")}?game=${lead(blind).leagueId}`} icon={Eye} title="Blind draft" detail={draftLine(lead(blind))} />
           )}
-          {soon("show.invite", UserPlus, "Invite to this show", "A code; they join the couch too")}
+          {show.couch && (
+            <Row
+              icon={UserPlus}
+              title="Invite to this show"
+              detail={`A code; they join ${show.couch.name} too`}
+              onClick={() => {
+                setOpen(false);
+                openCouchSheet({ kind: "invite", couchId: show.couch!.id, show: [name.replace(/^The /, ""), show.header?.seasonNumber].filter(Boolean).join(" ") });
+              }}
+            />
+          )}
           {soon("show.start-game", Plus, "Start a game", "Bingo night, predictions, a new league")}
           {soon("show.notifications", Bell, "Notifications", "Reminders, results and chat for this show")}
           {show.couch && show.games.some((g) => g.yourRole) && (
@@ -287,7 +298,7 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
         title="Leave these games?"
         consequence={
           leave
-            ? `You leave ${leave.games.join(", ")}. ${leave.drafted ? "Your team and points stay in the standings, but nobody plays it." : "Nothing's been drafted yet, so your seat just goes."} Whoever runs the games can bring you back.`
+            ? `You leave ${leave.games.join(", ")}. ${leave.drafted ? "Your team and points stay in the standings, but nobody plays it." : "Nothing's been drafted yet, so your seat just goes."} You stay on the couch, and whoever runs the games can bring you back.`
             : null
         }
         problem={leave ? leave.problem : null}

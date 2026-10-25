@@ -12,9 +12,10 @@ import { groupDisplayName } from "./league-groups";
 // it follows, so each is best effort (logged on failure), and healCouches puts right whatever a failure, or a
 // league made outside the app (a fixture), left behind when its people next open the new design's home.
 //
-// For step 9: classic's leave takes someone off the couch once they're in none of its leagues, which is right
-// while couches are implicit; the new design's couch-only members (Join a couch) will need leaving a game and
-// leaving the couch kept apart.
+// Step 9 keeps leaving a game and leaving the couch apart. Someone is on a couch either because they play one of its
+// games (couch_members.via 'game') or in its own right ('couch': they started it, joined with its code, or were taken
+// out of its games in the new design, where they stay on the couch). Classic's leave takes a 'game' member off once
+// they're in none of its leagues, as it always has; a 'couch' member goes only by leaving the couch (couch-joins.ts).
 
 async function tx<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
@@ -40,7 +41,7 @@ async function inStep(what: string, fn: () => Promise<void>): Promise<void> {
 }
 
 /** A couch with members but no owner gets one: its maker if they're on it, else its earliest commissioner, else its earliest member (0101's rule). */
-async function ensureOwner(c: PoolClient, couchId: string) {
+export async function ensureOwner(c: PoolClient, couchId: string) {
   await c.query(
     `UPDATE couch_members cm SET role = 'owner'
        FROM (SELECT m.user_id FROM couch_members m JOIN couches co ON co.id = m.couch_id
@@ -65,10 +66,11 @@ async function addLeagueMembers(c: PoolClient, couchId: string, leagueId: string
   );
 }
 
-/** Off the couch: everyone in none of its leagues (the classic rule), then an owner if it lost its own. */
+/** Off the couch: everyone there only for its games who's in none of them now (the classic rule), then an owner if it
+ *  lost its own. Someone on the couch in its own right (via 'couch') stays. */
 async function pruneMembers(c: PoolClient, couchId: string) {
   await c.query(
-    `DELETE FROM couch_members cm WHERE cm.couch_id = $1
+    `DELETE FROM couch_members cm WHERE cm.couch_id = $1 AND cm.via = 'game'
         AND NOT EXISTS (SELECT 1 FROM league_memberships m JOIN leagues l ON l.id = m.league_id
                          WHERE l.couch_id = $1 AND m.user_id = cm.user_id)`,
     [couchId]
@@ -76,7 +78,7 @@ async function pruneMembers(c: PoolClient, couchId: string) {
   await ensureOwner(c, couchId);
 }
 
-async function newCouch(c: PoolClient, name: string, createdBy: string | null): Promise<string> {
+export async function newCouch(c: PoolClient, name: string, createdBy: string | null): Promise<string> {
   // Who can fill in its results starts as the desk's default for new couches (app_settings 'new_couch_fill', step 6b).
   const { rows } = await c.query(
     `INSERT INTO couches (name, created_by, results_by_anyone)
@@ -121,16 +123,35 @@ export function leftLeague(leagueId: string): Promise<void> {
   );
 }
 
-/** A league was deleted (its memberships went with it): its couch loses whoever that leaves in none, and goes if it has no games left. */
+/** A league was deleted (its memberships went with it): its couch loses whoever that leaves in none, and goes once it has
+ *  no games and nobody on it in its own right (a couch someone started or joined stays, games or not). */
 export function leagueDeleted(couchId: string | null): Promise<void> {
   if (!couchId) return Promise.resolve();
   return inStep(`deleted league's couch ${couchId}`, () =>
     tx(async (c) => {
-      const { rows } = await c.query("SELECT 1 FROM leagues WHERE couch_id = $1 LIMIT 1", [couchId]);
-      if (rows.length) await pruneMembers(c, couchId);
-      else await c.query("DELETE FROM couches WHERE id = $1", [couchId]);
+      await pruneMembers(c, couchId);
+      const { rows } = await c.query(
+        "SELECT EXISTS (SELECT 1 FROM leagues WHERE couch_id = $1) OR EXISTS (SELECT 1 FROM couch_members WHERE couch_id = $1) AS keep",
+        [couchId]
+      );
+      if (!rows[0].keep) await c.query("DELETE FROM couches WHERE id = $1", [couchId]);
     })
   );
+}
+
+/**
+ * The new design took someone out of a game, or they left it there (backstage-members.ts): they stay on the couch, as
+ * the mock has it. Once they're in none of its games they're on it in its own right, so classic's rule never prunes them.
+ */
+export function stayedOnCouch(leagueId: string, userId: string): Promise<void> {
+  return inStep(`stay on ${leagueId}'s couch`, async () => {
+    await pool.query(
+      `UPDATE couch_members cm SET via = 'couch' FROM leagues l
+        WHERE l.id = $1 AND cm.couch_id = l.couch_id AND cm.user_id = $2 AND cm.via = 'game'
+          AND NOT EXISTS (SELECT 1 FROM league_memberships m JOIN leagues o ON o.id = m.league_id WHERE o.couch_id = l.couch_id AND m.user_id = $2)`,
+      [leagueId, userId]
+    );
+  });
 }
 
 /**

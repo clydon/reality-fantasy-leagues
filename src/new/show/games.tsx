@@ -4,7 +4,8 @@ import { useState } from "react";
 import { BookOpen, Check, ChevronRight, CircleQuestionMark, Eye, Grid3x3, Plus, X } from "lucide-react";
 import { dayOf, timeOf } from "../clock";
 import { THIS_WEEK } from "../fixtures/episode-games";
-import { useHowItWorks, useSeasonWaivers, type GameView, type TableRow, type WaiverWeek } from "../data";
+import { useCouchGames, useHowItWorks, useSeasonWaivers, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
+import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
 import { gameColour, GAME_STYLE, isGameName, ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
@@ -30,6 +31,10 @@ const anchor = (g: GameView) => `game-${g.leagueId}`;
 
 export function Games({ show }: { show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
+  // Games on the couch here you're not in (step 9): join, ask, or see it's closed.
+  const couchGames = useCouchGames(show.couch?.id ?? null, show.games.some((g) => !g.yourRole));
+  const others = (couchGames.data?.games ?? []).filter((g) => g.seasonId === show.header?.seasonId && !g.ended && !g.you?.playing);
+  const [joining, setJoining] = useState<JoinGame | null>(null);
   const [player, setPlayer] = useState<{ row: TableRow; game: GameView } | null>(null);
   const [rules, setRules] = useState<GameView | null>(null);
   const name = (show.header?.show.name ?? "This show").replace(/^The /, "");
@@ -44,8 +49,18 @@ export function Games({ show }: { show: ShowData }) {
         ) : (
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
         )
-      ) : (
+      ) : others.length ? null : (
         <PlayIt name={name} />
+      )}
+      {show.couch && others.length > 0 && (
+        <Block title={playing ? "Also on the couch" : "Join a game"} aside={`${others.length} ${others.length === 1 ? "game" : "games"}`}>
+          <div data-games-join>
+            {others.map((g) => (
+              <JoinGameRow key={g.leagueId} couchId={show.couch!.id} g={g} strong={!playing} onJoin={setJoining} />
+            ))}
+          </div>
+          <JoinGameSheet couchId={show.couch.id} game={joining} onOpenChange={(o) => !o && setJoining(null)} />
+        </Block>
       )}
       <HowRow show={show} name={name} />
       <ThisWeek show={show} />

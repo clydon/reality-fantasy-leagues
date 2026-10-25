@@ -282,3 +282,36 @@ export function notifyInvite(leagueIds: string | string[], identifier: string, i
     };
   });
 }
+
+/**
+ * Someone on the couch asked to join a game whose Who can join is "Ask me first" (step 9): whoever runs it hears, with a
+ * link to the show's Backstage, where the request waits in Needs you.
+ */
+export function notifyJoinRequest(leagueId: string, seasonId: string | null, name: string, gameName: string) {
+  notifyAfter("memberJoined", async () => {
+    const { rows } = await pool.query("SELECT user_id FROM league_memberships WHERE league_id = $1 AND role IN ('commissioner', 'admin')", [leagueId]);
+    if (!rows.length) return null;
+    return {
+      userIds: rows.map((r) => r.user_id as string),
+      message: {
+        title: `${name} asked to join ${gameName}`,
+        body: "Let them in or not, from Backstage.",
+        url: seasonId ? `/show/${seasonId}/backstage` : link("/setup/players", leagueId),
+        tag: `join-request-${leagueId}`,
+      },
+    };
+  });
+}
+
+/** Whoever runs a game let someone in (step 9): they hear, with a link to the show, where they join it. */
+export function notifyLetIn(leagueId: string, seasonId: string | null, userId: string, byName: string, gameName: string) {
+  notifyAfter("memberJoined", async () => ({
+    userIds: [userId],
+    message: {
+      title: `You're in: ${gameName}`,
+      body: `${byName} let you in. Pick where you start.`,
+      url: seasonId ? `/show/${seasonId}/games` : link("/", leagueId),
+      tag: `let-in-${leagueId}`,
+    },
+  }));
+}
