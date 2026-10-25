@@ -137,6 +137,9 @@ export function applyResearchDecisions(state: LeagueState, episodeNumber: number
     out.events.push(...r.events.map((e) => ({ name: e.name, type: e.type })));
     out.skipped.push(...r.skipped);
     out.unresolved.push(...r.unresolved);
+    // The full results: whatever stage the episode was at (early: who went home), it's final now.
+    const ep = state.episodes.find((e) => e.number === episodeNumber);
+    if (ep && r.events.length) StateLogic.setResultsStage(state, ep.id, "final");
   }
 
   // Exile, roles and tribe moves have no import function of their own; the same per-person idempotency

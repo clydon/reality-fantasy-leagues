@@ -2,23 +2,26 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeftRight, ChevronRight } from "lucide-react";
+import { ArrowLeftRight, ChevronRight, Clock, Eye } from "lucide-react";
 import { airTime } from "../clock";
-import { CAST, EPISODES, SEEN, TRIBES, castaway } from "../fixtures/cast";
-import { FINALE, GAMES_FROM, HAPPENED, WAIVERS, YOUR_LINEUP, YOUR_PICKS, YOUR_SCORERS, YOUR_TEAM } from "../fixtures/episodes";
-import { GAME_STYLE, ordinal } from "../games";
+import { WAIVERS } from "../fixtures/waivers";
+import type { EpisodeRow, GameNight } from "../data";
+import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
+import { first } from "./moves";
 import { Block, Face } from "./parts";
+import { useOpenReveal } from "./reveal";
 
-// Episodes (the mock's show.js tabEpisodes and episodePage, waivers.js's row): this week's episode, then every
-// episode with who went home and what you scored, each opening its own page (?page=ep4). Real: this week's
-// episode, its art and time, and who's set for it in your games. On fixtures behind Preview: every episode and its
-// page (2), the waiver window's row (6a).
+// Episodes (the mock's show.js tabEpisodes and episodePage, episode.js's locked row, waivers.js's row): this week's
+// episode and who's set for it, the next results to reveal, then every episode: one whose results are in but hidden
+// until you reveal (Reveal), one that's aired and waiting for results, and each one you've seen with who went home
+// and your line, opening its own page (?page=ep4: who went home, your games, the top scorers, what happened). Real
+// (GET /api/seasons/[id]/episodes, through the guard). On a fixture behind Preview: the waiver window's row (6a).
 
 /** "3 of 4 lineups set · 2 of 4 picked": who's set for the next episode in your games here, a line per kind. */
 function progressLine(show: ShowData): string | null {
@@ -30,13 +33,23 @@ function progressLine(show: ShowData): string | null {
   return parts.length ? parts.join(" · ") : null;
 }
 
-const outIn = (e: number) => CAST.filter((c) => c.out === e);
-/** Where someone who left in episode e finished: everyone still in at the start of it, counted down. */
-const finished = (e: number) => CAST.length - CAST.filter((c) => c.out && c.out < e).length;
+/** An episode row's one line: your night in Weekly Lineup if you play it ("You +6 in Weekly Lineup"), else your first
+ *  game's, else how they left. */
+function rowLine(e: EpisodeRow): string {
+  const l = e.lines?.find((x) => x.gameType === "active-roster") ?? e.lines?.[0];
+  if (!l) return e.out?.length ? (e.out[0].method ?? "Out") : "Nothing recorded";
+  if (l.line === "Before the game started") return "Before your games started";
+  if (l.gameType === "active-roster") return `You ${l.big} in ${l.gameName}`;
+  if (l.gameType === "pickem") return l.big === "Survived" ? `Your ${l.gameName} pick survived` : `${l.gameName}: ${l.big.toLowerCase()}`;
+  return `${l.gameName}: ${l.big}`;
+}
 
 export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const up = show.upNext;
   const t = up?.airAt ? Date.parse(up.airAt) : null;
+  const eps = show.episodes;
+  const openReveal = useOpenReveal();
+  const progress = progressLine(show);
   return (
     <>
       {up && show.header && (
@@ -45,67 +58,148 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
             <ShowArt seasonId={seasonId} artUrl={show.header.show.artUrl} name={show.header.show.name} className="h-[60px] w-24 flex-none rounded-[3px] text-[13px]" />
             <div className="min-w-0">
               <b className="type-caption block text-[19px]">{up.live ? "On air now" : t != null ? `Airs ${airTime(t)}` : "Up next"}</b>
-              {progressLine(show) && <small className="block text-[13px] text-muted-foreground">{progressLine(show)}</small>}
+              {progress && <small className="block text-[13px] text-muted-foreground">{progress}</small>}
             </div>
           </div>
         </Block>
       )}
-      <Preview id="show.episodes" className="mx-2 mt-[26px] px-2 pb-1 pt-4">
+      {eps?.reveal && (
+        <section className="mt-[26px] px-4">
+          <button
+            type="button"
+            data-reveal-plate
+            onClick={() => openReveal(eps.reveal!.episode)}
+            className="nd-press flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
+          >
+            <span className="type-caption -mr-[13px] flex items-center whitespace-nowrap bg-chyron py-0 pl-[11px] pr-[22px] text-sm tracking-[0.04em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
+              Ep {eps.reveal.episode}
+            </span>
+            <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
+              <span className="type-caption text-[19px]">{eps.reveal.stage === "early" ? "Early results are in" : "Results are in"}</span>
+              <span className="text-[13px] text-plate-muted">Hidden until you reveal</span>
+            </span>
+            <span className="grid place-items-center px-3">
+              <ChevronRight className="size-5" aria-hidden />
+            </span>
+          </button>
+        </section>
+      )}
+      <section className="mt-[26px] px-4">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <h2 className="type-caption text-[24px]">Every episode</h2>
-          <span className="text-[13px] text-muted-foreground">{CAST.filter((c) => !c.out).length} still in</span>
+          {eps?.stillIn != null && <span className="text-[13px] text-muted-foreground">{eps.stillIn} still in</span>}
         </div>
-        <Preview id="show.waivers" tag={false} className="mb-1">
-          <NavLink
-            data-try
-            href={paths.showPage(seasonId, "waivers")}
-            className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[linear-gradient(90deg,rgba(255,197,49,.09),transparent)] px-2 text-left"
-          >
-            <span className="grid w-7 place-items-center text-chyron-line">
-              <ArrowLeftRight className="size-5" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <b className="block text-base font-semibold">Waivers · after Episode {WAIVERS.after}</b>
-              <small className="mt-0.5 block text-[13px] text-muted-foreground">
-                Due {WAIVERS.due} · replace {WAIVERS.replace}
-              </small>
-            </span>
-            <span className="text-[15px] font-semibold text-chyron-line">Open</span>
-          </NavLink>
-        </Preview>
-        {Array.from({ length: SEEN }, (_, k) => SEEN - k).map((e) => (
-          <EpisodeRow key={e} e={e} />
-        ))}
-        <div className="flex min-h-[68px] items-center gap-3 border-y border-border opacity-60">
-          <span className="type-num w-7 text-[28px] text-muted-foreground">{SEEN + 2}</span>
-          <span className="min-w-0 flex-1">
-            <b className="block text-base font-semibold">+ {EPISODES - SEEN - 1} still to air</b>
-            <small className="mt-0.5 block text-[13px] text-muted-foreground">
-              Episodes {SEEN + 2} to {EPISODES} · {FINALE}
-            </small>
-          </span>
-        </div>
-      </Preview>
-      <EpisodePage />
+        {!eps ? (
+          <div aria-busy className="h-56 animate-pulse rounded-[4px] bg-card" />
+        ) : (
+          <>
+            {eps.episodes.map((e) =>
+              e.status === "hidden" ? (
+                <HiddenRow key={e.number} e={e} onReveal={() => openReveal(e.number)} />
+              ) : e.status === "waiting" ? (
+                <WaitingRow key={e.number} e={e} />
+              ) : (
+                <SeenRow key={e.number} e={e} />
+              )
+            )}
+            {eps.episodes.length === 0 && <p className="border-t border-border py-4 text-sm text-muted-foreground">Nothing has aired yet.</p>}
+            <Preview id="show.waivers" tag={false} className="mt-1">
+              <NavLink
+                data-try
+                href={paths.showPage(seasonId, "waivers")}
+                className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[linear-gradient(90deg,rgba(255,197,49,.09),transparent)] px-2 text-left"
+              >
+                <span className="grid w-7 place-items-center text-chyron-line">
+                  <ArrowLeftRight className="size-5" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <b className="block text-base font-semibold">Waivers · after Episode {WAIVERS.after}</b>
+                  <small className="mt-0.5 block text-[13px] text-muted-foreground">
+                    Due {WAIVERS.due} · replace {WAIVERS.replace}
+                  </small>
+                </span>
+                <span className="text-[15px] font-semibold text-chyron-line">Open</span>
+              </NavLink>
+            </Preview>
+            {eps.toAir && (
+              <div className="flex min-h-[68px] items-center gap-3 border-y border-border opacity-60">
+                <span className="type-num w-7 text-[28px] text-muted-foreground">{eps.toAir.from}</span>
+                <span className="min-w-0 flex-1">
+                  <b className="block text-base font-semibold">
+                    {eps.toAir.to ? `+ ${eps.toAir.to - eps.toAir.from + 1} still to air` : "More to come"}
+                  </b>
+                  {eps.toAir.to && eps.toAir.to > eps.toAir.from && (
+                    <small className="mt-0.5 block text-[13px] text-muted-foreground">
+                      Episodes {eps.toAir.from} to {eps.toAir.to}
+                    </small>
+                  )}
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+      <EpisodePage show={show} />
     </>
   );
 }
 
-function EpisodeRow({ e }: { e: number }) {
-  const page = usePushedPage(`ep${e}`);
-  const out = outIn(e);
+function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
   return (
-    <button type="button" data-try data-ep={e} onClick={page.show} className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border text-left">
-      <span className="type-num w-7 text-[28px] text-muted-foreground">{e}</span>
-      <span className="flex">
-        {out.map((c, i) => (
-          <Face key={c.name} src={c.photo} out className={`size-10 rounded-[3px] shadow-[0_0_0_2px_var(--background)] ${i ? "-ml-3" : ""}`} />
-        ))}
+    <button
+      type="button"
+      data-ep-hidden={e.number}
+      onClick={onReveal}
+      className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[repeating-linear-gradient(135deg,transparent_0_10px,rgba(255,255,255,.025)_10px_20px)] text-left"
+    >
+      <span className="type-num w-7 text-[28px] text-muted-foreground">{e.number}</span>
+      <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-chyron-line">
+        <Eye className="size-5" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
-        <b className="block text-base font-semibold">{out.map((c) => c.first).join(" and ") || "No one"} out</b>
+        <b className="block text-base font-semibold">{e.stage === "early" ? "Early results are in" : "Results are in"}</b>
+        <small className="mt-0.5 block text-[13px] text-muted-foreground">Hidden until you reveal</small>
+      </span>
+      <span className="text-[15px] font-semibold text-chyron-line">Reveal</span>
+    </button>
+  );
+}
+
+function WaitingRow({ e }: { e: EpisodeRow }) {
+  return (
+    <div data-ep-waiting={e.number} className="flex min-h-[68px] items-center gap-3 border-t border-border">
+      <span className="type-num w-7 text-[28px] text-muted-foreground">{e.number}</span>
+      <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-muted-foreground">
+        <Clock className="size-5" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="block text-base font-semibold">Waiting for results</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
-          {e < GAMES_FROM ? "Before your games started" : `You +${YOUR_LINEUP[e] ?? 0} in Weekly Lineup`}
+          {e.airAt ? `Aired ${airTime(Date.parse(e.airAt))} · ` : ""}nothing is spoiled meanwhile
+        </small>
+      </span>
+    </div>
+  );
+}
+
+function SeenRow({ e }: { e: EpisodeRow }) {
+  const page = usePushedPage(`ep${e.number}`);
+  const out = e.out ?? [];
+  return (
+    <button type="button" data-ep={e.number} onClick={page.show} className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border text-left">
+      <span className="type-num w-7 text-[28px] text-muted-foreground">{e.number}</span>
+      {out.length > 0 && (
+        <span className="flex flex-none">
+          {out.slice(0, 3).map((c, i) => (
+            <Face key={c.id} src={c.photo} name={c.name} out className={`size-10 rounded-[3px] shadow-[0_0_0_2px_var(--background)] ${i ? "-ml-3" : ""}`} />
+          ))}
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-base font-semibold">{out.length ? `${out.map((c) => first(c.name)).join(" and ")} out` : "No one out"}</b>
+        <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">
+          {rowLine(e)}
+          {e.stage === "early" ? " · full scores to come" : ""}
         </small>
       </span>
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
@@ -114,89 +208,98 @@ function EpisodeRow({ e }: { e: number }) {
 }
 
 /** The episode page open over the tab, whichever it is (?page=ep4). */
-function EpisodePage() {
+function EpisodePage({ show }: { show: ShowData }) {
   const asked = /^ep(\d+)$/.exec(useSearchParams().get("page") ?? "");
   const ep = asked ? Number(asked[1]) : null;
   // Keep the last one while it slides away.
   const [shown, setShown] = useState(ep);
   if (ep != null && ep !== shown) setShown(ep);
   const page = usePushedPage(`ep${shown}`);
+  const e = show.episodes?.episodes.find((x) => x.number === shown && x.status === "seen") ?? null;
   return (
     <PushedPage open={ep != null} onClose={page.close} title={`Episode ${shown ?? ""}`} back="Episodes">
-      {shown != null && <EpisodeBody e={shown} />}
+      {e ? <EpisodeBody e={e} /> : <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>}
     </PushedPage>
   );
 }
 
-function GameLine({ game, big, line }: { game: keyof typeof GAME_STYLE; big: string; line: string }) {
+function GameLine({ l }: { l: GameNight }) {
   return (
     <div className="grid grid-cols-[118px_1fr] gap-x-2.5 gap-y-0.5 border-t border-border py-3">
-      <span className="type-caption row-span-2 self-center text-[13px] tracking-[0.04em]" style={{ color: GAME_STYLE[game].colour }}>
-        {game}
+      <span
+        className="type-caption row-span-2 self-center text-[13px] tracking-[0.04em]"
+        style={{ color: l.gameType === "predictions" ? "var(--muted-foreground)" : gameColour(l.gameName) }}
+      >
+        {l.gameName}
       </span>
-      <b className="text-lg">{big}</b>
-      <small className="block text-[13px] text-muted-foreground">{line}</small>
+      <b className="text-lg">{l.big}</b>
+      <small className="block text-[13px] text-muted-foreground">{l.line}</small>
     </div>
   );
 }
 
-function EpisodeBody({ e }: { e: number }) {
-  const out = outIn(e);
-  const scored = CAST.filter((c) => c.perEp[e - 1])
-    .sort((a, b) => b.perEp[e - 1] - a.perEp[e - 1])
-    .slice(0, 5);
-  const team = YOUR_TEAM.map(castaway);
-  const lost = team.filter((c) => c.out === e).length;
+function EpisodeBody({ e }: { e: EpisodeRow }) {
+  const out = e.out ?? [];
   return (
-    <Preview id="show.episode" className="mx-2 mb-10 mt-3 px-2 pb-4 pt-4">
+    <div data-episode-page={e.number} className="mb-10 mt-3 px-4 pb-4 pt-4">
+      {e.stage === "early" && (
+        <p className="mb-3 rounded-[3px] bg-card px-3 py-2.5 text-sm text-muted-foreground">Early results: who went home is in. Weekly Lineup&rsquo;s full scores come later.</p>
+      )}
       <div className="flex flex-col gap-2.5">
         {out.map((c) => (
-          <div key={c.name} className="flex min-h-[64px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
-            <Face src={c.photo} out className="w-16 flex-none" />
+          <div key={c.id} className="flex min-h-[64px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
+            <Face src={c.photo} name={c.name} out={c.knocked} className="w-16 flex-none text-2xl" />
             <span className="type-caption -mr-[13px] flex items-center bg-live py-0 pl-3 pr-[22px] text-sm tracking-[0.04em] text-live-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
               Out
             </span>
             <span className="flex flex-1 flex-col justify-center py-2 pl-5 pr-3">
               <b className="type-caption text-[19px]">{c.name}</b>
-              <small className="block text-[13px] text-plate-muted">
-                {c.how === "Quit" ? "Quit" : "Voted out"} · finished {ordinal(finished(e))}
-              </small>
+              <small className="block text-[13px] text-plate-muted">{[c.method, c.place ? `finished ${ordinal(c.place)}` : null].filter(Boolean).join(" · ")}</small>
             </span>
           </div>
         ))}
+        {out.length === 0 && <p className="text-[15px] text-muted-foreground">Nobody went home this episode.</p>}
       </div>
-      <section className="mt-[26px]">
-        <h2 className="type-caption mb-3 text-[24px]">Your games</h2>
-        <GameLine game="Weekly Lineup" big={e < GAMES_FROM ? "—" : `+${YOUR_LINEUP[e] ?? 0}`} line={YOUR_SCORERS[e] ?? "Before the game started"} />
-        <GameLine
-          game="Survival Pool"
-          big={e < GAMES_FROM ? "—" : "Survived"}
-          line={e < GAMES_FROM ? `Pool started Episode ${GAMES_FROM}` : `You picked ${YOUR_PICKS[e - GAMES_FROM] ?? "Kristin"}`}
-        />
-        <GameLine game="Outlast" big={lost ? "Lost one" : "All safe"} line={`${team.filter((c) => !c.out || c.out > e).length} of ${team.length} still in after this episode`} />
-      </section>
-      <section className="mt-[26px]">
-        <h2 className="type-caption mb-3 text-[24px]">Top scorers</h2>
-        {scored.map((c, i) => (
-          <div key={c.name} className="flex h-[52px] items-center gap-2.5 border-t border-border text-[15px] font-semibold">
-            <span className="type-num w-[22px] text-[22px] text-muted-foreground">{i + 1}</span>
-            <Face src={c.photo} className="size-[34px] rounded-[3px]" />
-            {c.name}
-            <span className="type-num ml-auto text-[22px]">+{c.perEp[e - 1]}</span>
-          </div>
-        ))}
-      </section>
-      <section className="mt-[26px]">
-        <h2 className="type-caption mb-3 text-[24px]">What happened</h2>
-        {(HAPPENED[e] ?? []).map(([what, tribe]) => (
-          <div key={what} className="flex h-12 items-center gap-3 border-t border-border">
-            <span className="type-caption w-[90px] text-sm text-muted-foreground">{what}</span>
-            <span className="rounded-[2px] px-2.5 py-1 text-sm font-bold" style={{ background: TRIBES[tribe], color: tribe === "Savu" ? "#fff" : "#121018" }}>
-              {tribe}
-            </span>
-          </div>
-        ))}
-      </section>
-    </Preview>
+      {(e.lines?.length ?? 0) > 0 && (
+        <section className="mt-[26px]">
+          <h2 className="type-caption mb-3 text-[24px]">Your games</h2>
+          {e.lines!.map((l) => (
+            <GameLine key={`${l.leagueId}-${l.gameType}`} l={l} />
+          ))}
+        </section>
+      )}
+      {(e.scorers?.length ?? 0) > 0 && (
+        <section className="mt-[26px]">
+          <h2 className="type-caption mb-3 text-[24px]">Top scorers</h2>
+          {e.scorers!.map((c, i) => (
+            <div key={c.name} className="flex h-[52px] items-center gap-2.5 border-t border-border text-[15px] font-semibold">
+              <span className="type-num w-[22px] text-[22px] text-muted-foreground">{i + 1}</span>
+              <Face src={c.photo} name={c.name} className="size-[34px] rounded-[3px] text-sm" />
+              {c.name}
+              <span className="type-num ml-auto text-[22px]">+{c.points}</span>
+            </div>
+          ))}
+        </section>
+      )}
+      {(e.happened?.length ?? 0) > 0 && (
+        <section className="mt-[26px]">
+          <h2 className="type-caption mb-3 text-[24px]">What happened</h2>
+          {e.happened!.map((h) => (
+            <div key={h.label} className="flex min-h-12 flex-wrap items-center gap-2 border-t border-border py-2">
+              <span className="type-caption w-[90px] text-sm text-muted-foreground">{h.label}</span>
+              {h.winners.map((w) => (
+                <span
+                  key={w.name}
+                  className={`rounded-[2px] px-2.5 py-1 text-sm font-bold ${w.colour ? "" : "bg-secondary"}`}
+                  style={w.colour ? { background: w.colour, color: "#121018" } : undefined}
+                >
+                  {w.name}
+                </span>
+              ))}
+            </div>
+          ))}
+        </section>
+      )}
+    </div>
   );
 }

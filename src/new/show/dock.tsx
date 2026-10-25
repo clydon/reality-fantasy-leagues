@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ArrowLeftRight, Check, ChevronRight, Lock, Plus } from "lucide-react";
+import { ArrowLeftRight, CalendarClock, Check, ChevronRight, Eye, Lock, Plus, Trophy } from "lucide-react";
 import { airTime, calm, ticks } from "../clock";
 import { moves as write, useAfterSave, type GameView, type Move } from "../data";
 import { NavLink } from "../nav";
@@ -9,19 +9,20 @@ import { paths, type ShowTab } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { useNow } from "../ui/bars";
 import { Btn } from "../ui/parts";
-import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { ordinal } from "../games";
 import { closeMoves, dockWords, faceIn, first, openMoves, sheetTabs, tabOf, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
 import { Face, IconBox } from "./parts";
+import { useOpenReveal } from "./reveal";
 
 // The moves dock (the mock's dock.js, option D): above the tab bar on Episodes, Games and Cast while you play a game
 // here, until airtime. Needs you (the one yellow: Set) → all set (Edit, change until airtime) → locked once it's on
 // (scores stay hidden). Its faces are your starters and your pick; its state and words come from your moves due
 // here and the schedule. It opens "Your moves", one sheet with a tab per game you play here (Weekly Lineup, Survival
 // Pool, Outlast's team) and Predictions, which saves through the league routes the classic app uses (lineups,
-// picks, predictions). Saving never locks; airtime does.
+// picks, predictions). Saving never locks; airtime does. After an episode it follows the results (stages.js):
+// results in (Reveal), just aired and waiting, then the morning update's final scores.
 
 /** Whether the dock shows on this tab: not on Chat, and on Tonight only once it's on (Tonight has its own cards). */
 export function dockShows(show: ShowData, tab: ShowTab) {
@@ -51,6 +52,7 @@ export function Dock({ show }: { show: ShowData }) {
   const up = show.upNext!;
   const t = up.airAt ? Date.parse(up.airAt) : null;
   const now = useNow(t != null && ticks(t));
+  const openReveal = useOpenReveal();
   const when = t != null ? `${airTime(t)} · ${calm(t, now)}` : null;
   const base = "nd-dock nd-fixed-x fixed bottom-[calc(76px+env(safe-area-inset-bottom,0px))] z-[28] mx-2.5 flex items-center gap-2.5 overflow-hidden rounded-[4px] py-[7px] pl-[9px] pr-[7px] text-left shadow-[0_12px_28px_rgba(0,0,0,.5)]";
 
@@ -66,6 +68,46 @@ export function Dock({ show }: { show: ShowData }) {
           <small className="block text-[11.5px] text-muted-foreground">Scores stay hidden until you reveal</small>
         </span>
       </div>
+    );
+  }
+  const eps = show.episodes;
+  const plain = `${base} bg-secondary text-foreground`;
+  const mark = (icon: ReactNode, cls = "bg-background/60") => <span className={`grid size-[34px] flex-none place-items-center rounded-[3px] ${cls}`}>{icon}</span>;
+  if (eps?.reveal) {
+    const n = eps.reveal.episode;
+    return (
+      <button type="button" data-dock="reveal" onClick={() => openReveal(n)} className={`${base} nd-press bg-plate text-plate-foreground`}>
+        {mark(<Eye className="size-4" aria-hidden />, "bg-plate-foreground text-chyron")}
+        <span className="min-w-0 flex-1 leading-tight">
+          <b className="block truncate text-sm">{eps.reveal.stage === "early" ? "Early results are in" : `Episode ${n} results are in`}</b>
+          <small className="block text-[11.5px] text-plate-muted">{eps.reveal.stage === "early" ? "Who went home · Pool · Outlast" : "Everything stays hidden until you reveal"}</small>
+        </span>
+        <span className="grid h-[38px] place-items-center rounded-[3px] bg-chyron px-3.5 text-sm font-extrabold text-chyron-foreground">Reveal</span>
+      </button>
+    );
+  }
+  if (eps?.waiting) {
+    return (
+      <div data-dock="waiting" className={plain}>
+        {mark(<CalendarClock className="size-4 text-chyron-line" aria-hidden />)}
+        <span className="min-w-0 flex-1 leading-tight">
+          <b className="block text-sm">Episode {eps.waiting.episode} just aired</b>
+          <small className="block text-[11.5px] text-muted-foreground">Results a little after it ends · nothing spoiled</small>
+        </span>
+      </div>
+    );
+  }
+  if (eps?.final) {
+    const n = eps.final.episode;
+    return (
+      <button type="button" data-dock="final" onClick={() => openReveal(n)} className={`${base} nd-press bg-plate text-plate-foreground`}>
+        {mark(<Trophy className="size-4" aria-hidden />, "bg-plate-foreground text-chyron")}
+        <span className="min-w-0 flex-1 leading-tight">
+          <b className="block truncate text-sm">Final scores are in</b>
+          <small className="block text-[11.5px] text-plate-muted">Episode {n} · every point counted</small>
+        </span>
+        <span className="grid h-[38px] place-items-center rounded-[3px] bg-background px-3.5 text-sm font-extrabold text-foreground">See</span>
+      </button>
     );
   }
   const need = show.moves.length > 0;
@@ -240,15 +282,23 @@ function MovesBody({
   );
 }
 
-/** Results you haven't revealed stand in the way: who went home decides what you can choose. The reveal is step 2's. */
+/** Results you haven't revealed stand in the way: who went home decides what you can choose. */
 function RevealFirst({ episode, what }: { episode: number; what: string }) {
+  const openReveal = useOpenReveal();
   return (
     <div className="rounded-[4px] bg-background p-4 outline-1 -outline-offset-1 outline-border">
       <b className="type-caption block text-[22px] leading-none">Reveal Episode {episode} first</b>
       <small className="mt-1.5 block text-sm leading-snug text-muted-foreground">Who went home decides {what}.</small>
-      <Preview id="show.reveal" tag={false} className="mt-3">
-        <Btn wide>Reveal Episode {episode}</Btn>
-      </Preview>
+      <Btn
+        wide
+        className="mt-3"
+        onClick={() => {
+          closeMoves();
+          openReveal(episode);
+        }}
+      >
+        Reveal Episode {episode}
+      </Btn>
     </div>
   );
 }

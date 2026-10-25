@@ -52,6 +52,12 @@ export function calm(t: number, now = Date.now()): string {
   return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
 }
 
+/** Aired within the last few hours: "just aired" is still true. */
+export function justAired(airAt: string | null | undefined, now = Date.now()): boolean {
+  const t = airAt ? Date.parse(airAt) : NaN;
+  return Number.isFinite(t) && now - t < 6 * 60 * 60 * 1000;
+}
+
 /** "Wed 8:05 PM · in 5 days". */
 export function calmWhen(t: number, now = Date.now()): string {
   return `${airTime(t)} · ${calm(t, now)}`;

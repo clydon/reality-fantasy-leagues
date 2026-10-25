@@ -241,6 +241,11 @@ export async function syncLeagueDecisions(
       [leagueId, d.id, d.decided_at, JSON.stringify(detail)]
     );
     result.applied++;
+    // A scoring moment is the full results: an episode at the early stage (who went home) is final now.
+    if (d.kind === "event") {
+      const ep = state.episodes.find((e) => e.number === d.episode_number);
+      if (ep) StateLogic.setResultsStage(state, ep.id, "final");
+    }
     if (d.kind === "elimination" && !detail.preexisting) {
       eliminationsChanged = true;
       const ep = state.episodes.find((e) => e.number === d.episode_number);

@@ -2798,6 +2798,22 @@ class EpisodeLogic {
     return !!ep && ((ep.events||[]).length > 0 || (ep.scoringEvents||[]).length > 0 || (ep.exiled||[]).length > 0
       || (ep.roles||[]).length > 0 || (ep.groups||[]).length > 0);
   }
+  // Results arrive in stages (docs/PLAN-new-design.md step 2): 'early' while only who went home is in (a quick
+  // check: Survival Pool and Outlast settle, Weekly Lineup scores so far), 'final' once the full results are
+  // (every scoring moment). Null with nothing in yet. The mark (ep.resultsStage = 'early') is set by whoever
+  // applies the early results and taken off when the full ones are applied; absent means final, which is every
+  // episode from before stages existed and any entered by hand.
+  static resultsStage(ep){
+    if(!EpisodeLogic.hasResults(ep)) return null;
+    return ep.resultsStage === 'early' ? 'early' : 'final';
+  }
+  static setResultsStage(state, epId, stage){
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep) return false;
+    if(stage === 'early') ep.resultsStage = 'early';
+    else delete ep.resultsStage;
+    return true;
+  }
   // Whether THIS league has started playing -- the League Settings lock on show, league type and
   // ownership, which exists so a switch can't orphan what the league has done in its current setup:
   // a draft, Pick'em picks, Active Roster lineups.
@@ -3235,6 +3251,7 @@ class SpoilerLogic {
     s.episodes.forEach(ep => {
       if(!ids.has(ep.id)) return;
       ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = [];
+      delete ep.resultsStage;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
       ep.resultsHidden = true;
@@ -3830,6 +3847,7 @@ return {
   GroupLogic, addGroupChange: GroupLogic.add, removeGroupChange: GroupLogic.remove,
   ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,
   ensureNextEpisode: EpisodeLogic.ensureNextEpisode, seasonUnderway: EpisodeLogic.seasonUnderway, episodeHasResults: EpisodeLogic.hasResults,
+  resultsStage: EpisodeLogic.resultsStage, setResultsStage: EpisodeLogic.setResultsStage,
   addBet: BetLogic.add, addBetToUpcoming: BetLogic.addToUpcoming, updateBet: BetLogic.update, removeBet: BetLogic.remove,
   MAX_BET_POINTS,
   addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,

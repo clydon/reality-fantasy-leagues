@@ -14,7 +14,7 @@
 //     works row opens the page (the season's view model, real faces), whose jump bar scrolls to What scores;
 //   - the hub's Up next: who's set, real;
 //   - the guard: sam, behind on results (seen 3 of 5), gets no standings, exits or cast changes past Episode 3 from
-//     /games or How it works, and the sheet asks them to reveal first;
+//     /games or How it works, and their pick waits on revealing Episode 4 (its button is the reveal: check-new-reveal.js);
 //   - Cast: Faces, Rank and By episode switch, a face opens their story, ?rank=<stat> opens Rank;
 //   - Chat: the messages and the composer, no dock;
 //   - a show alex doesn't play (the fixture's Traitors): Play it in place of the tables, no dock;
@@ -262,12 +262,12 @@ function check(ok, what, detail = "") {
     await page.locator("[data-ep='4']").click();
     await page.waitForURL(/\?page=ep4/);
     await page.waitForTimeout(600);
-    check(await page.locator('[data-preview="show.episode"]').isVisible(), "an episode row opens its page");
+    check(await page.locator('[data-episode-page]').isVisible(), "an episode row opens its page (real: who went home, your games)");
     await collect();
     await shoot("episode-4", "[role=dialog][aria-hidden=false]");
     await page.goBack();
     await page.waitForTimeout(600);
-    check(!page.url().includes("page=") && !(await page.locator('[data-preview="show.episode"]').isVisible()), "back closes it");
+    check(!page.url().includes("page=") && !(await page.locator('[data-episode-page]').isVisible()), "back closes it");
     // The guard chip's Change: where you are (a later step).
     await page.getByRole("button", { name: /Spoiler-safe/ }).click();
     await page.waitForTimeout(400);
@@ -335,13 +335,9 @@ function check(ok, what, detail = "") {
     await s.page.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "networkidle" });
     await s.page.locator("[data-tab=tonight]").waitFor({ timeout: 30_000 });
     await s.page.waitForTimeout(800);
-    const samCard = s.page.locator("[data-move]").first().getByRole("button");
-    if (await samCard.count()) await samCard.click();
-    else await s.page.locator("[data-done]").first().getByRole("button").click();
-    await s.page.getByRole("dialog").getByText("Your moves").waitFor();
-    await s.page.waitForTimeout(500);
-    check(await s.page.getByRole("dialog").getByText("Reveal Episode 4 first").isVisible(), "the sheet asks sam to reveal Episode 4 first");
-    await collect(s.page);
+    // Step 2: a move that waits on results sam hasn't revealed says so, and its button is the reveal.
+    const samCard = s.page.locator('[data-move^="pick-"]');
+    check(/After you reveal Episode 4/.test((await samCard.textContent()) || "") && (await samCard.getByRole("button", { name: "Reveal Episode 4" }).count()) === 1, "sam's pick waits on revealing Episode 4, and its button reveals it");
     await s.page.screenshot({ path: path.join(out, "moves-reveal-first.png") });
     await s.close();
     closers.pop();

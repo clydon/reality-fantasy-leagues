@@ -147,6 +147,8 @@ export interface Episode {
   /** Display-only: set on the viewer's copy when this episode's results are held back from them
    *  (StateLogic.SpoilerLogic.viewThrough). Never stored. */
   resultsHidden?: boolean;
+  /** 'early' while only who went home is in (StateLogic.resultsStage); absent once the full results are. */
+  resultsStage?: "early";
   /** When this episode airs (ISO), from the league's season schedule -- stamped by the server
    *  (src/lib/server/air-times.ts), absent without a schedule or while catching up. Lineups and
    *  picks lock at this moment. */

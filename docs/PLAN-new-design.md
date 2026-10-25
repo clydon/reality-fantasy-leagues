@@ -25,7 +25,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 0c | The new shell, Preview system, fixtures, motion | **done** 2026-10-24 on the branch (migration 0108 ships with 0b's) | Opus · high |
 | 0d | Hub and show space ported (fixtures behind Preview) | **done** 2026-10-24 on the branch (the hub, then the show space) | Opus · high |
 | 1 | Show space on real leagues: Tonight's move cards, Games tab, How it works | **done** 2026-10-24 on the branch (no migration) | Opus · high |
-| 2 | Episodes, staged results, the one reveal, share at the reveal | not started | Opus · high |
+| 2 | Episodes, staged results, the one reveal, share at the reveal | **done** 2026-10-24 on the branch (migration 0109 ships with 0b's) | Opus · high |
 | 3 | Cast explorer and stats, server-side spoiler guard | not started | Opus · high |
 | 4 | Chat, per couch and show, spoiler-folded | not started | Opus · medium |
 | 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | not started | Opus · high |
@@ -134,17 +134,28 @@ Behaviour a session saw and left alone because it wasn't that step's to change. 
 the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
 step's As built.
 
-- **Told a move is due while behind on results** (step 1; for step 2). Someone who hasn't revealed the latest results is
-  still told their lineup or pick is due (the home's moves: `action-items.js` reads the full state), and the card opens
-  "Reveal Episode N first" in the sheet. Classic's action bar and pick page do the same. Step 2's reveal could word the
-  card as one move ("Reveal Episode 4, then set your lineup"). `action-items.js` is shared with classic and the
-  reminder job (`db/reminders.js`), so change the new design's wording, not the item.
 - **The dock's clock when only a waiver pickup is due** (step 1; for 6a). The dock says "Locks Tue 8:00 PM · in 3 days"
   (airtime) even when the only thing due is a pickup, whose own deadline is sooner (Mon 8 PM). `show/dock.tsx`: say the
   soonest move's deadline, as Tonight's cards do.
 - **Predictions are a text field** (step 1; for 12). Real predictions are free-text questions with free-text guesses
   (`Bet` has no options), so the sheet's Predictions tab has a field where the mock has chips. Step 12's Call it and
   polls could give a prediction options (a cast pick, yes / no) and bring the chips back.
+- **Nothing makes early results yet** (step 2; for 5 and 6c). The stage exists (an episode's `resultsStage: "early"`,
+  `StateLogic.setResultsStage`) and every screen shows it, and applying full results (research apply, the season's
+  accepted scoring decisions) marks an episode final; but nothing applies only who went home. Step 5's quick check
+  ("Who went home?") and 6c's bot quick check (`db/bot-research.js` keeps its answer on the run row today) should apply
+  the eliminations and mark the episode early.
+- **The morning update replays the reveal** (step 2; for 5 or later). Final scores after an early reveal open the
+  episode's reveal again (who went home included), where the mock's sheet shows "so far +14 → final +22": nobody keeps
+  what the early reveal showed. Keeping the early total on `show_follows` (beside `early_seen`) would allow the delta.
+- **Who's revealed isn't shown** (step 2; for 4 or 15). The mock says "riley and sam have revealed · chat is folded for
+  you" under Results are in; the guard sends nobody's progress but your own (0b). Classic's chat line ("riley revealed
+  episode 5") already tells the couch, so step 4's chat or step 15's What your couch sees could make it a share level.
+- **The hub doesn't say results are in** (step 2; for 8). Up next keeps showing the next episode; the show bar, Tonight,
+  Episodes, Games and the dock say Results are in. The hub's status line and Up next could lead with the reveal.
+- **A show you don't play has only who went home** (step 2; for 3 and 10). Its Episodes come from the season's accepted
+  eliminations up to where you are (faces when the name matches `season_cast`), with no recap or scorers; step 3's stats
+  endpoint counts the rest, and step 10's Where you are moves the mark.
 - **Two names for one person** (step 1; for 15). The tables and who's set show a league's player name (alex), the couch
   line the account's (zt_nd_alex in the fixture), so a face can carry two initials. Step 15's profile (name, picture,
   colour) is the place to make one name win everywhere.
@@ -921,9 +932,62 @@ The show space plays on real leagues. No migration; nothing polled or scheduled 
   `check-preview.js` pass; `npm test` 468 pass plus the 3 known tour-commissioner failures; type-check clean, lint as
   before.
 - **Noticed, left as is:** four things, now in Noticed, not fixed (near the top): told a move is due while behind on
-  results, the dock's clock for a waiver pickup, predictions as a text field, two names for one person.
+  results (fixed in step 2), the dock's clock for a waiver pickup, predictions as a text field, two names for one person.
 - **For step 2:** `show.reveal` (the sheet's Reveal first) and the Episodes tab; `GameView.revealFirst` per game says what
   each still hides; `through` is each game's standings episode.
+
+### As built, step 2 (2026-10-24, on `new-design`)
+
+Episodes, results in stages and the one reveal are real. Migration **0109** (`show_follows.early_seen`) ships with 0b's.
+- **The stage** (engine, additive): an episode's `resultsStage: "early"` while only who went home is in; absent means
+  final (every episode from before, and anything entered by hand). `StateLogic.resultsStage(ep)` (null / early / final)
+  and `setResultsStage`; a viewer's copy (`SpoilerLogic.viewThrough`) drops it from episodes they haven't revealed.
+  Full results mark an episode final: `applyResearchDecisions` (a league's research apply) when it applies scoring
+  moments, and `syncLeagueDecisions` for each accepted scoring decision. Nothing marks one early yet (Noticed).
+- **Reads and the reveal** (`src/lib/server/season-episodes.ts`, on the pure `src/lib/game/episode-view.ts`):
+  `GET /api/seasons/[id]/episodes?couch=` (each episode you've seen with who went home, what happened, the top scorers and
+  your line per game; hidden ones only as "results are in" and their stage; the one that's finished airing with nothing
+  in; `reveal`, `waiting`, `final` (the morning update), still in, still to air; a show you don't play: the season's
+  accepted eliminations up to your mark). `POST /api/seasons/[id]/reveal { episode, couch }`: one reveal for every league
+  of yours on the season (any couch: where you are is yours), through `src/lib/server/reveal.ts` `markRevealed`, which is
+  classic's results-seen logic moved out of its route (linked leagues together, one chat line per chat, a late joiner a
+  week at a time; `show_follows` moves with each mark); then the beats from this couch's games: who went home, what
+  happened, your lineup, your other games and predictions, and the table before and after (Weekly Lineup once final,
+  else the pool's streaks, else Outlast). An episode already revealed answers again (its final scores). Revealing an early
+  episode sets `early_seen`; a final reveal clears it once that episode is final too. `src/lib/server/season-games.ts`
+  `gamesHere` is the shared loader (your games, their ready states, your marks) for /games, /episodes and the reveal.
+- **The reveal screen** (`src/new/show/reveal.tsx`, `?page=reveal`, back closes it): the opener ("Previously on the
+  couch", or "Final scores are in" for the morning update), What happened (when the format's recap has wins), the vote
+  card(s), Your Weekly Lineup (each starter's points and why, the total, "so far" when early), Your other games (the
+  streak from → to, Outlast's losses, predictions), the table moving into place with "You're tied 2nd with riley and sam."
+  Skip jumps to the last beat; Reveal Episode N+1 when there's more. **Share your night**: the card (show art, the couch's
+  name, Up to / Still / Down to, the line) leaves out who went home until "Say who went home" is on; Post to the couch is a
+  chat message in the first game's chat (the linked group's; step 4 makes it the couch's); Share image draws the card on a
+  canvas (1080 × 1350 PNG) for the phone's share sheet, or downloads it.
+- **By stage, everywhere:** Tonight leads with Results are in (the one yellow; a move waiting on the results reads "After
+  you reveal Episode 5 · closes Wed 8:00 PM" with Reveal as its button, which was step 1's Noticed item), Waiting for
+  results with the stage bar (Aired · Early results · Final scores), or the morning update (teal: good news, not a duty);
+  after a reveal, the episode's recap (out plate, Your night) until the next one airs. The show bar ("Ep 5 results are
+  in", "Ep 6 just aired"), Tonight's badge (+1), the dock (Reveal, just aired, Final scores · See), Games ("As of Episode 4 ·
+  Reveal to update every table"), the moves sheet's Reveal first (real now) and Episodes (the plate, hidden and waiting
+  rows, seen rows leading with your Weekly Lineup line, a real episode page) all follow the same data.
+- **Fixtures and Preview:** deleted `fixtures/episodes.ts` and the entries `show.episodes`, `show.episode`, `show.reveal`.
+  The waiver row's data moved to `fixtures/waivers.ts` (step 6a). Cast (3) and Chat (4) keep their fixtures.
+- **Changed from the mock:** no "riley and sam have revealed" line (the guard shares nobody's progress); the morning update
+  replays the reveal rather than a so-far → final sheet; the stage bar's first step says when it aired; the reveal marks
+  your leagues on another couch too (one person, one place in a season).
+- **Checks:** `scripts/dev-test/check-new-reveal.js <outDir> [--width=390] [--keep]` (44 PASS at 390, 44 at 1280: results
+  in on Tonight, Episodes, Games, the dock and the show bar; the beats; every league's mark, `show_follows` and the chat
+  lines; share without and with who went home, the card as a PNG, a post with no spoiler; the recap after; early → the
+  pool's table and `early_seen` → final → the morning update and its clearing; waiting; sam's guard). `check-new-show.js`
+  (69 at 390 and 69 at 1280; the episode page is `[data-episode-page]`), `check-new-shell.js` (46; its clock check reads "in N days" now, since past midnight UTC the fixture's day is a day ahead of the browser's), `check-new-hub.js`
+  (21) and `check-preview.js` pass, and so do classic's `check-foundation.js` and `check-waivers.js` (results-seen now goes through `reveal.ts`); `tests/episode-view.test.js` (5); `npm test` 473 pass plus the 3 known
+  tour-commissioner failures; type-check clean, lint as before.
+- **Noticed, left as is:** five things, now in Noticed, not fixed: nothing makes early results yet, the morning update
+  replays the reveal, who's revealed isn't shown, the hub doesn't say results are in, a show you don't play has only who
+  went home.
+- **For step 3:** `episode-view.ts` `outsOf` and `episodesSeen` read from your copy at your mark; the stats endpoint can
+  follow `season-episodes.ts`'s shape (your games' views, else the season's accepted decisions up to your mark).
 
 ### Step 6a: Backstage II, the game's own pages
 

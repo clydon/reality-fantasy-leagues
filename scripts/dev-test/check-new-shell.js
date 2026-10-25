@@ -154,7 +154,8 @@ function recordTransitions() {
     await page.waitForURL(`**/show/${sid}/tonight`);
     await moved("hub → show", "channel", "(nd-art)");
     await page.getByRole("heading", { level: 1 }).first().waitFor();
-    check(await page.getByText("Ep 6 · in 3 days").isVisible(), "the show bar's calm clock: Ep 6 · in 3 days");
+    // "in 3 days" by the database's date (the fixture's), "in 4" by the browser's once it's past midnight UTC.
+    check(await page.getByText(/^Ep 6 · in \d days$/).first().isVisible(), "the show bar's calm clock: Ep 6 · in N days");
     const tabs = (await page.locator("nav[aria-label=Show] a").allTextContents()).map((t) => t.replace(/\d+$/, ""));
     check(tabs.join(",") === "Tonight,Episodes,Games,Cast,Chat", "five tabs on a couch's show", tabs.join(","));
     // The moves due in this show's games, as the home counts them (how many depends on the day the fixture runs, and

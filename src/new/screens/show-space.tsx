@@ -3,8 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { BookOpen, Ellipsis, Eye, KeyRound, Bell, Plus, Tv, UserPlus, Users } from "lucide-react";
-import { calm, ticks } from "../clock";
-import { useCouchForSeason, useHome, useSeasonGames, useSpace, type GameRef, type GameView, type SeasonHeader, type UpNext } from "../data";
+import { calm, justAired, ticks } from "../clock";
+import { useCouchForSeason, useHome, useSeasonEpisodes, useSeasonGames, useSpace, type GameRef, type GameView, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
@@ -14,6 +14,7 @@ import { Dock, dockShows, MovesSheet } from "../show/dock";
 import { Episodes } from "../show/episodes";
 import { Games } from "../show/games";
 import { HowItWorksPage } from "../show/how-it-works";
+import { RevealScreen } from "../show/reveal";
 import { Tonight } from "../show/tonight";
 import { Avatar, useNow } from "../ui/bars";
 import { usePushedPage } from "../ui/page";
@@ -36,6 +37,7 @@ export function useShow(seasonId: string) {
   const couch = useCouchForSeason(home.data, seasonId);
   const space = useSpace(seasonId, couch?.id ?? null, !!home.data);
   const play = useSeasonGames(seasonId, couch?.id ?? null, !!home.data);
+  const episodes = useSeasonEpisodes(seasonId, couch?.id ?? null, !!home.data);
   const cached = home.data?.shows.find((s) => s.seasonId === seasonId);
   const header: SeasonHeader | undefined = space.data ?? cached;
   const games: GameRef[] = space.data?.games ?? cached?.games ?? [];
@@ -61,6 +63,8 @@ export function useShow(seasonId: string) {
     movesDue: moves.length,
     /** Your games here (game-view.ts), in the couch's order; null until they've come back. */
     play: (play.data?.games ?? null) as GameView[] | null,
+    /** The episodes as far as you've seen, the next to reveal, the one waiting (season-episodes.ts); null until back. */
+    episodes: (episodes.data ?? null) as SeasonEpisodes | null,
     notFound: (space.error as { status?: number } | null)?.status === 404,
     error: home.error ?? space.error,
   };
@@ -71,8 +75,9 @@ export type ShowData = ReturnType<typeof useShow>;
 /** Is this path one of this show's tabs? (Back from a page pushed over the show goes to whichever tab you left.) */
 export const isTabOf = (seasonId: string) => (prev: string) => prev.startsWith(`/show/${seasonId}/`) && isShowTab(prev.split("/")[3] ?? "");
 
-/** Where the next episode is, for the show bar: calm days, a ticking clock inside the last day, "On air" live. */
-function useAirStatus(upNext: UpNext | null, latestAired: number, episodeCount: number | null): ReactNode {
+/** Where the show is, for the show bar: on air, results to reveal or waiting for them, then where the next episode is
+ *  (calm days, a ticking clock inside the last day). */
+function useAirStatus(upNext: UpNext | null, latestAired: number, episodeCount: number | null, episodes: SeasonEpisodes | null): ReactNode {
   const t = upNext?.airAt ? Date.parse(upNext.airAt) : null;
   const now = useNow(t != null && ticks(t));
   if (upNext?.live) {
@@ -83,6 +88,8 @@ function useAirStatus(upNext: UpNext | null, latestAired: number, episodeCount: 
       </>
     );
   }
+  if (episodes?.reveal) return `Ep ${episodes.reveal.episode} ${episodes.reveal.stage === "early" ? "early results" : "results are in"}`;
+  if (episodes?.waiting) return `Ep ${episodes.waiting.episode} ${justAired(episodes.waiting.airAt) ? "just aired" : "aired"}`;
   if (upNext && t != null) return `Ep ${upNext.number} · ${calm(t, now)}`;
   if (episodeCount && latestAired >= episodeCount) return "Season over";
   if (latestAired) return `Ep ${latestAired} aired`;
@@ -96,7 +103,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
   const tab: ShowTab = isShowTab(seg) ? seg : "tonight";
   const show = useShow(seasonId);
   const nav = useNav();
-  const status = useAirStatus(show.upNext, show.latestAired, show.header?.episodeCount ?? null);
+  const status = useAirStatus(show.upNext, show.latestAired, show.header?.episodeCount ?? null, show.episodes);
 
   if (show.notFound) {
     return <EmptyState icon={Tv} title="Show not found" line="It may have been removed." />;
@@ -121,8 +128,9 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       )}
       <main style={{ paddingBottom: `calc(${foot}px + env(safe-area-inset-bottom, 0px))` }}>{children}</main>
       {dock && <Dock show={show} />}
-      <TabBar seasonId={seasonId} tabs={tabs} current={tab} badges={{ tonight: show.movesDue }} />
+      <TabBar seasonId={seasonId} tabs={tabs} current={tab} badges={{ tonight: show.movesDue + (show.episodes?.reveal ? 1 : 0) }} />
       <MovesSheet show={show} seasonId={seasonId} />
+      <RevealScreen show={show} seasonId={seasonId} />
       {show.header && (
         <HowItWorksPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />
       )}

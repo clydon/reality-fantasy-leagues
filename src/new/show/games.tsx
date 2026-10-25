@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Check, ChevronRight, CircleQuestionMark, Grid3x3, Plus, X } from "lucide-react";
+import { BookOpen, Check, ChevronRight, CircleQuestionMark, Eye, Grid3x3, Plus, X } from "lucide-react";
 import { dayOf, timeOf } from "../clock";
 import { THIS_WEEK } from "../fixtures/episode-games";
 import { useHowItWorks, type GameView, type TableRow } from "../data";
@@ -15,6 +15,7 @@ import { Sheet } from "../ui/sheet";
 import { faceIn, first } from "./moves";
 import { placeOf } from "./tonight";
 import { Block, Face, IconBox } from "./parts";
+import { useOpenReveal } from "./reveal";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Your games' tables when
 // you're in one (a pill per game, then each table; a row opens that person's team, Rules each game in plain words),
@@ -33,6 +34,7 @@ export function Games({ show }: { show: ShowData }) {
   const name = (show.header?.show.name ?? "This show").replace(/^The /, "");
   return (
     <>
+      {playing && show.episodes?.reveal && <AsOf show={show} />}
       {playing ? (
         show.play ? (
           <Standings play={show.play} onPlayer={(row, game) => setPlayer({ row, game })} onRules={setRules} />
@@ -56,6 +58,24 @@ export function Games({ show }: { show: ShowData }) {
       <PlayerSheet open={player} onClose={() => setPlayer(null)} />
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} />
     </>
+  );
+}
+
+/** Results are in that the tables don't show yet: they're as of your episode until you reveal. */
+function AsOf({ show }: { show: ShowData }) {
+  const openReveal = useOpenReveal();
+  const n = show.episodes!.reveal!.episode;
+  return (
+    <section className="mt-4 px-4">
+      <button type="button" data-as-of={n} onClick={() => openReveal(n)} className="nd-press flex min-h-[60px] w-full items-center gap-3 rounded-[4px] bg-card px-3 text-left">
+        <IconBox icon={Eye} className="bg-background text-chyron-line" />
+        <span className="min-w-0 flex-1">
+          <b className="block text-[15px] font-semibold">As of Episode {show.seenThrough ?? n - 1}</b>
+          <small className="block text-[13px] text-muted-foreground">Episode {n} is in. Reveal to update every table.</small>
+        </span>
+        <span className="text-[15px] font-semibold text-chyron-line">Reveal</span>
+      </button>
+    </section>
   );
 }
 

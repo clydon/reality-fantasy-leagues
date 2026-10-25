@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { gameView, weekProgress, type GameView, type WeekProgress } from "@/lib/game/game-view";
+import { gameView, weekProgress, type GameRefIn, type GameView, type UserOf, type WeekProgress } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool } from "./db";
@@ -47,30 +47,58 @@ function markFor(state: LeagueState, seat: Seat, seen: number): number | null {
   return seen === EVERYTHING ? null : seen;
 }
 
-export async function seasonGames(user: SessionUser, seasonId: string, couchId: string | null): Promise<{ seenThrough: number | null; games: GameView[] }> {
-  const here = (await games(user.id, couchId ? { couchIds: [couchId], seasonId } : { mine: true, seasonId })).filter((g) => g.yourRole);
+/** One of your games on a season, ready to read: its state (league-read.ts), your seat, your mark there, faces. */
+export interface GameHere {
+  game: Game;
+  ref: GameRefIn;
+  state: LeagueState;
+  playerId: string;
+  /** Your mark for this league (markFor): null when you see everything. */
+  mark: number | null;
+  userOf: UserOf;
+}
+
+/**
+ * Your games on a season (with `couchId`, that couch's that you play), each with its ready state and your mark, in
+ * the couch's order; and your season mark (guard.ts). Read by /games, /episodes and the reveal. One league's
+ * unreadable state costs that game, not the show space.
+ */
+export async function gamesHere(user: SessionUser, seasonId: string, couchId: string | null): Promise<{ seen: number; here: GameHere[] }> {
+  const list = (await games(user.id, couchId ? { couchIds: [couchId], seasonId } : { mine: true, seasonId })).filter((g) => g.yourRole);
   const seen = await seenThrough(user.id, seasonId);
-  const out: GameView[] = [];
-  if (here.length) {
-    const ids = here.map((g) => g.leagueId);
+  const here: GameHere[] = [];
+  if (list.length) {
+    const ids = list.map((g) => g.leagueId);
     const [{ mine, users }, states] = await Promise.all([seatsIn(user.id, ids), leagueStates(ids)]);
-    for (const g of here) {
+    for (const g of list) {
       const seat = mine.get(g.leagueId);
       const state = states.get(g.leagueId);
       if (!seat || !state) continue;
-      // One league's unreadable state costs that game, not the show space.
       try {
         const ready = await readyLeague(g.leagueId, state);
-        out.push(gameView(refOf(g), ready, seat.playerId, markFor(ready, seat, seen), (p) => users.get(g.leagueId)?.get(p) ?? null));
+        here.push({ game: g, ref: refOf(g), state: ready, playerId: seat.playerId, mark: markFor(ready, seat, seen), userOf: (p) => users.get(g.leagueId)?.get(p) ?? null });
       } catch (e) {
         console.error(`[season-games] league ${g.leagueId}:`, e);
       }
     }
   }
+  return { seen, here };
+}
+
+export async function seasonGames(user: SessionUser, seasonId: string, couchId: string | null): Promise<{ seenThrough: number | null; games: GameView[] }> {
+  const { seen, here } = await gamesHere(user, seasonId, couchId);
+  const out: GameView[] = [];
+  for (const h of here) {
+    try {
+      out.push(gameView(h.ref, h.state, h.playerId, h.mark, h.userOf));
+    } catch (e) {
+      console.error(`[season-games] league ${h.game.leagueId}:`, e);
+    }
+  }
   return { seenThrough: Number.isFinite(seen) ? seen : null, games: out };
 }
 
-function refOf(g: Game) {
+function refOf(g: Game): GameRefIn {
   return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole };
 }
 

@@ -5,8 +5,11 @@ import { useCallback, useSyncExternalStore } from "react";
 import { api } from "@/lib/api";
 import type { GameView, WeekProgress } from "@/lib/game/game-view";
 import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
+import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
+export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
+export type { EpisodeRow, SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show and its How it works, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -137,6 +140,44 @@ export function useSeasonGames(seasonId: string, couchId: string | null, enabled
     staleTime: 60_000,
     enabled,
   });
+}
+
+/** A show's episodes as far as you've seen, what's hidden until you reveal, what's waiting (GET .../episodes). */
+export function useSeasonEpisodes(seasonId: string, couchId: string | null, enabled = true) {
+  const query = couchId ? `?couch=${encodeURIComponent(couchId)}` : "";
+  return useQuery({
+    queryKey: ["new-design", "episodes", seasonId, couchId],
+    queryFn: () => get<SeasonEpisodes>(`/api/seasons/${seasonId}/episodes${query}`),
+    staleTime: 60_000,
+    enabled,
+  });
+}
+
+/** The one reveal: episode n in every game of yours on the show, at once; answers its beats (POST .../reveal). */
+export async function revealEpisode(seasonId: string, couchId: string | null, episode: number): Promise<SeasonReveal> {
+  const res = await fetch(`/api/seasons/${seasonId}/reveal`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ episode, couch: couchId }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `Couldn't reveal (${res.status})`);
+  return body as SeasonReveal;
+}
+
+/** Post to the couch's chat about this show (today a game's chat, shared by its linked games: step 4 makes it the couch's). */
+export async function postToCouch(leagueId: string, text: string) {
+  const res = await fetch(`/api/leagues/${leagueId}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Couldn't post (${res.status})`);
+  }
+}
+
+/** After a reveal: everything the new design reads moves on (where you are, the tables, the moves, the episodes). */
+export function useAfterReveal() {
+  const client = useQueryClient();
+  return useCallback(() => client.invalidateQueries({ queryKey: ["new-design"] }), [client]);
 }
 
 export interface HowItWorksPage {

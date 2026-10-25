@@ -42,9 +42,6 @@ export const PREVIEWS = {
   "hub.trophies": { step: "8", title: "Trophy shelf", line: "Every season the couch has finished." },
 
   // ---- a show space (ported in 0d; fixtures in src/new/fixtures/) ----
-  "show.episodes": { step: "2", title: "Every episode", line: "Who went home each episode, and what you scored." },
-  "show.episode": { step: "2", title: "An episode", line: "Who went home, your games, the top scorers, what happened." },
-  "show.reveal": { step: "2", title: "The reveal", line: "An episode's results, one beat at a time, when you're ready." },
   "show.cast": { step: "3", title: "The cast", line: "The cast by group, ranked by any stat, episode by episode." },
   "show.stats": { step: "3", title: "Stats", line: "Cast stats up to where you are, no game needed." },
   "show.chat": { step: "4", title: "Chat", line: "The couch's chat about this show, folded at where you are." },

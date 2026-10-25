@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Check, ChevronRight, Lock, Plus, Tv } from "lucide-react";
-import { airTime, calmWhen, dayOf, ticks, timeOf } from "../clock";
+import { Check, ChevronRight, Eye, Lock, Plus, Tv } from "lucide-react";
+import { airTime, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { BINGO_CARD } from "../fixtures/episode-games";
 import { SEEN, STATS, statBoard, unitFor } from "../fixtures/cast";
 import type { GameView } from "../data";
@@ -16,21 +16,25 @@ import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
 import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./moves";
 import { Block, Face } from "./parts";
+import { useOpenReveal } from "./reveal";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
 // Your moves as swipeable cards (open first with the one yellow button on the first, then what you've already set
 // as done cards with Change; all done starts with one "You're set" card), Extras this week (optional, no counts),
 // Watch along, your games and the cast's stats. No dock before airtime and no commissioner job (5B: Backstage and
-// a dot on the show's ⋯ carry it). Real: the heading, the cards (your moves due here, as the home lists them, and
-// your games' done moves), the predictions in Extras, your places. On fixtures behind Preview: bingo (12), Watch
-// along (13), the stats (3).
+// a dot on the show's ⋯ carry it). After an episode, by the results' stage (step 2): waiting for results (the
+// stage bar), results in (the one yellow: Reveal; a move that waits on them says so), the morning update once the
+// final scores land after an early reveal, and the last episode's recap until the next one airs. Real: all of it
+// but bingo (12), Watch along (13) and the stats (3), on fixtures behind Preview.
 
 export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
   return (
     <>
       <PhaseHead show={show} />
+      {playing && <AfterEpisode show={show} />}
       {playing && <YourMoves seasonId={seasonId} show={show} />}
+      {playing && <LastTime show={show} />}
       <Extras show={show} />
       <WatchAlongCard seasonId={seasonId} show={show} />
       {playing && <YourGames seasonId={seasonId} show={show} />}
@@ -46,7 +50,12 @@ function PhaseHead({ show }: { show: ShowData }) {
   const now = useNow(t != null && ticks(t));
   let title: ReactNode;
   let aside: string | null = null;
-  if (up?.live) {
+  const eps = show.episodes;
+  if (!up?.live && (eps?.reveal || eps?.waiting)) {
+    // An episode's results come first: in (to reveal), or not yet.
+    title = `Episode ${eps.reveal?.episode ?? eps.waiting!.episode}`;
+    aside = eps.reveal ? (eps.reveal.stage === "early" ? "Early results" : "Results") : justAired(eps.waiting!.airAt) ? "Just aired" : "Aired";
+  } else if (up?.live) {
     title = (
       <>
         <i className="size-[9px] animate-pulse rounded-full bg-live" aria-hidden />
@@ -78,7 +87,17 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const t = up?.airAt ? Date.parse(up.airAt) : null;
   const open = show.moves.filter(isRequired);
   const kinds = open.map((m) => m.kind);
-  const cards = open.map((m) => moveCard(m, seasonId, kinds.filter((k) => k === m.kind).length > 1));
+  // A move whose game is waiting on results you haven't revealed says so, and its button is the reveal.
+  const waitsOn = (leagueId: string) => show.play?.find((g) => g.leagueId === leagueId)?.revealFirst ?? null;
+  const cards = open.map((m) => {
+    const c = moveCard(m, seasonId, kinds.filter((k) => k === m.kind).length > 1);
+    const n = waitsOn(m.leagueId);
+    if (!n || (c.tab !== "lineup" && c.tab !== "pool")) return c;
+    const when = m.deadline ? ` · ${c.tab === "lineup" ? "locks" : "closes"} ${airTime(Date.parse(m.deadline))}` : "";
+    return { ...c, line: `After you reveal Episode ${n}${when}`, action: `Reveal Episode ${n}`, reveal: n };
+  });
+  // With results to reveal, the reveal plate above is the one yellow.
+  const quiet = !!show.episodes?.reveal;
   const done = show.play ? doneCards(show.play) : [];
   const due = open[0]?.deadline ? Date.parse(open[0].deadline) : t;
 
@@ -101,7 +120,7 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
       ...(cards.length || !up
         ? []
         : [{ key: "set", node: <SetCard title={`You're set for Episode ${up.number}`} line={t != null ? `Change anything until ${airTime(t)}` : "Change anything until it airs"} /> }]),
-      ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0} /> })),
+      ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0 && !quiet} /> })),
       ...done.map((c) => ({ key: c.key, node: <DoneMove card={c} /> })),
     ];
     // A new set of cards (a save made one done) starts back at the first, so what's still due is in view.
@@ -145,13 +164,18 @@ function MoveCards({ items }: { items: { key: string; node: ReactNode }[] }) {
 }
 
 /** A move still to make: its number, what it is, and its button (yellow only on the first). */
-function OpenCard({ card: c, n, must }: { card: MoveCard; n: number; must: boolean }) {
+function OpenCard({ card: c, n, must }: { card: MoveCard & { reveal?: number }; n: number; must: boolean }) {
+  const openReveal = useOpenReveal();
   return (
     <div data-move={c.key} className="flex w-full flex-col gap-1.5 rounded-[4px] bg-card p-4">
       <span className="type-num text-[30px] leading-none text-muted-foreground">{n}</span>
       <b className="type-caption text-[26px] leading-none">{c.title}</b>
       <small className="mb-2.5 block text-sm leading-snug text-muted-foreground">{c.line}</small>
-      {c.href ? (
+      {c.reveal ? (
+        <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => openReveal(c.reveal!)}>
+          {c.action}
+        </Btn>
+      ) : c.href ? (
         <BtnLink href={c.href} tone={must ? "must" : "optional"} wide className="mt-auto">
           {c.action}
         </BtnLink>
@@ -203,6 +227,150 @@ function DoneCard({ icon: Icon, title, line, action }: { icon: typeof Check; tit
       <small className="block mb-1 text-sm leading-snug text-muted-foreground">{line}</small>
       {action}
     </div>
+  );
+}
+
+// ---------- after an episode ----------
+
+/** The three stages of an episode's results, for the bar under Waiting and early results. */
+function StageBar({ episode, stage, airAt }: { episode: number; stage: "waiting" | "early" | "final"; airAt: string | null }) {
+  const steps: [typeof stage, string, string][] = [
+    ["waiting", "Aired", airAt ? (justAired(airAt) ? "Just now" : airTime(Date.parse(airAt))) : "It's out"],
+    ["early", "Early results", "Who went home"],
+    ["final", "Final scores", "Every point"],
+  ];
+  const at = steps.findIndex((s) => s[0] === stage);
+  return (
+    <div data-stage-bar={stage} className="mt-3 rounded-[4px] p-3.5 outline-1 -outline-offset-1 outline-border">
+      <span className="type-caption block text-[13px] tracking-[0.04em] text-muted-foreground">Episode {episode} results</span>
+      <div className="mt-2.5 grid grid-cols-3 gap-2">
+        {steps.map(([k, title, line], i) => (
+          <div key={k} aria-current={i === at ? "step" : undefined}>
+            <i className={`block h-1 rounded-[2px] ${i < at ? "bg-good" : i === at ? "bg-foreground" : "bg-secondary"}`} />
+            <b className={`mt-2 block text-[15px] ${i <= at ? "" : "text-muted-foreground"}`}>{title}</b>
+            <small className="block text-xs leading-snug text-muted-foreground">{line}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** What an episode's results need from you now: waiting for them, revealing them, or seeing its final scores. */
+function AfterEpisode({ show }: { show: ShowData }) {
+  const openReveal = useOpenReveal();
+  const eps = show.episodes;
+  if (!eps || show.upNext?.live) return null;
+  if (eps.reveal) {
+    const n = eps.reveal.episode;
+    const early = eps.reveal.stage === "early";
+    return (
+      <section className="mt-[26px] px-4">
+        <div data-results-in={n} className="relative isolate overflow-hidden rounded-[4px] p-4 shadow-[0_14px_30px_rgba(0,0,0,.4)]">
+          {show.header && <ShowArt seasonId={show.header.seasonId} artUrl={show.header.show.artUrl} name={show.header.show.name} className="absolute inset-0 -z-[2] size-full blur-[2px] brightness-[.4]" />}
+          <span className="type-caption inline-block bg-chyron py-1 pl-2 pr-4 text-xs tracking-[0.06em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
+            Episode {n}
+          </span>
+          <b className="type-caption mt-3 block text-[34px] leading-none text-white">{early ? "Early results are in" : "Results are in"}</b>
+          <small className="mt-2 block text-sm leading-snug text-white/85">
+            {early ? "Who went home, Survival Pool and Outlast. Weekly Lineup's full scores come later." : "Watched it? Reveal for every game at once. Nothing shows until then."}
+          </small>
+          <Btn tone="must" wide className="mt-4" onClick={() => openReveal(n)}>
+            <Eye className="size-5" aria-hidden />
+            Reveal Episode {n}
+          </Btn>
+        </div>
+        {early && <StageBar episode={n} stage="early" airAt={eps.episodes.find((e) => e.number === n)?.airAt ?? null} />}
+      </section>
+    );
+  }
+  if (eps.waiting) {
+    return (
+      <section className="mt-[26px] px-4">
+        <div data-waiting={eps.waiting.episode} className="flex items-start gap-3 rounded-[4px] bg-card p-4">
+          <span className="mt-1 grid size-6 flex-none place-items-center rounded-full bg-chyron-line/20">
+            <i className="size-2.5 animate-pulse rounded-full bg-chyron-line" />
+          </span>
+          <span>
+            <b className="type-caption block text-[24px] leading-none">Waiting for results</b>
+            <small className="mt-1.5 block text-sm leading-snug text-muted-foreground">Who went home usually lands a little after the episode ends. Nothing is spoiled in the meantime.</small>
+          </span>
+        </div>
+        <StageBar episode={eps.waiting.episode} stage="waiting" airAt={eps.waiting.airAt} />
+      </section>
+    );
+  }
+  if (eps.final) {
+    const n = eps.final.episode;
+    return (
+      <section className="mt-[26px] px-4">
+        <button
+          type="button"
+          data-morning={n}
+          onClick={() => openReveal(n)}
+          className="nd-press flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
+        >
+          {/* Good news, not a duty: teal (yellow is for what you must do). */}
+          <span className="type-caption -mr-[13px] flex items-center whitespace-nowrap bg-good py-0 pl-[11px] pr-[22px] text-sm tracking-[0.04em] text-good-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
+            Morning update
+          </span>
+          <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
+            <span className="text-[17px] font-bold">Final scores are in</span>
+            <span className="text-[13px] text-plate-muted">Episode {n} · every point counted</span>
+          </span>
+          <span className="grid place-items-center px-3">
+            <ChevronRight className="size-5" aria-hidden />
+          </span>
+        </button>
+      </section>
+    );
+  }
+  return null;
+}
+
+/** The last episode you've seen, until the next one airs: who went home and your night in each game. */
+function LastTime({ show }: { show: ShowData }) {
+  const eps = show.episodes;
+  const e = eps?.episodes[0];
+  if (!eps || eps.reveal || eps.waiting || !e || e.status !== "seen" || e.number < show.latestAired || show.upNext?.live) return null;
+  const lines = e.lines ?? [];
+  return (
+    <Block title={`Episode ${e.number}`} aside={e.stage === "early" ? "Early results" : "Results"}>
+      <div data-last-time={e.number} className="flex flex-col gap-2.5">
+        {(e.out ?? []).map((c) => (
+          <div key={c.id} className="flex min-h-[64px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
+            <Face src={c.photo} name={c.name} className="w-16 flex-none text-2xl" />
+            <span className="type-caption -mr-[13px] flex items-center bg-live py-0 pl-3 pr-[22px] text-sm tracking-[0.04em] text-live-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
+              Out
+            </span>
+            <span className="flex flex-1 flex-col justify-center py-2 pl-5 pr-3">
+              <b className="type-caption text-[19px]">{c.name}</b>
+              <small className="block text-[13px] text-plate-muted">{[c.method, c.place ? `finished ${ordinal(c.place)}` : null].filter(Boolean).join(" · ")}</small>
+            </span>
+          </div>
+        ))}
+        {lines.length > 0 && (
+          <div className="rounded-[4px] bg-card px-3.5 pb-1 pt-3">
+            <span className="type-caption block text-[13px] tracking-[0.04em] text-muted-foreground">Your night</span>
+            {lines.map((l) => (
+              <div key={`${l.leagueId}-${l.gameType}`} className="grid grid-cols-[110px_1fr] items-baseline gap-x-2.5 border-t border-border py-2.5 first-of-type:border-t-0">
+                <span className="type-caption text-[13px] tracking-[0.04em]" style={{ color: l.gameType === "predictions" ? "var(--muted-foreground)" : gameColour(l.gameName) }}>
+                  {l.gameName}
+                </span>
+                <span className="min-w-0">
+                  <b className="block text-[17px]">{l.big}</b>
+                  <small className="block truncate text-[13px] text-muted-foreground">{l.line}</small>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {e.out?.length === 0 && lines.length === 0 && <p className="text-sm text-muted-foreground">Nobody went home in Episode {e.number}.</p>}
+        <NavLink href={`${paths.show(show.header?.seasonId ?? "", "episodes")}?page=ep${e.number}`} replace className="flex h-11 items-center justify-center gap-1 rounded-[3px] font-bold outline-1 -outline-offset-1 outline-input">
+          What happened in Episode {e.number} <ChevronRight className="size-4" aria-hidden />
+        </NavLink>
+      </div>
+    </Block>
   );
 }
 

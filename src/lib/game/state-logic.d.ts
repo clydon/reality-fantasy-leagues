@@ -495,6 +495,10 @@ declare const StateLogic: {
    */
   seasonUnderway(state: LeagueState): boolean;
   episodeHasResults(ep: Episode): boolean;
+  /** Results in stages: 'early' (who went home only), 'final' (everything), null (nothing in yet). See EpisodeLogic. */
+  resultsStage(ep: Episode | null | undefined): "early" | "final" | null;
+  /** Marks an episode's results early, or final (the mark comes off). False for no such episode. */
+  setResultsStage(state: LeagueState, epId: string, stage: "early" | "final"): boolean;
   nextPlacementOrder(state: LeagueState): number;
   updateBet(state: LeagueState, epId: string, betId: string, field: string, value: unknown): void;
   removeBetPrediction(state: LeagueState, epId: string, betId: string, predId: string): void;

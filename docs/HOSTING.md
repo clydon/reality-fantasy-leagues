@@ -196,3 +196,12 @@ never handles it: the user does the reset and the pasting.
   reads one state and the season's rulebook row only when the page opens (~9 KB out). `/api/me/home` now also says
   who's set for each show (its games' states, read just after the moves' own read, so hashes only). Saves go through
   the classic lineup, pick and prediction routes, asked `?quiet` so they answer `{ ok }` instead of the whole state.
+- **2026-10-24, on the `new-design` branch (not deployed).** Step 2, episodes and the one reveal. Migration 0109 adds one
+  nullable column, `show_follows.early_seen` (a number per person per season, set only while an early reveal waits on its
+  final scores). An episode's stage rides in league state (`resultsStage: "early"` on an episode, a few bytes, absent
+  for every episode today). Nothing polled or scheduled. `/api/seasons/[id]/episodes` (once a visit, and on refocus after a
+  minute) reads your games' states through `league-states.ts` like `/games` (hashes when unchanged) and answers ~10-25 KB
+  for a 13-episode season; a show you don't play reads the season's accepted eliminations (a few rows). The reveal
+  (`POST /api/seasons/[id]/reveal`) is once per person per episode: classic's results-seen writes per league, one chat
+  line per chat, two small `show_follows` writes, then the states again (~10 KB out). Share your night's "Post to the
+  couch" is one ordinary chat message; its image is drawn in the browser (no server, no storage).
