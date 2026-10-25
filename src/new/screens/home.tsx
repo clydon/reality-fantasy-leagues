@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useCurrentCouch, useHome, type Couch, type Home } from "../data";
+import { useCouchHub, useCurrentCouch, useHome, type Couch, type CouchHub, type Home } from "../data";
 import { CouchPages, MoreOnTheCouch } from "../hub/couch-pages";
 import { Guide, StreamingRail } from "../hub/guide";
 import { ProfileSheet } from "../hub/profile";
@@ -16,6 +16,7 @@ import { Btn, EmptyState } from "../ui/parts";
 //     (a new couch), Up next, your shows, the guide, the feed, and a note of what shows up as the couch plays.
 //   focus first: the status line, Up next, who's on now, your shows, the "you both watch" nudge, the guide, the
 //     streaming rail, what the couch is watching, the feed, and More on the couch (six pages, one tap each).
+// The couch's own numbers (rankings, trophies, the feed, your numbers: couch-hub.ts) come in one read beside the home's.
 // `?hub=focus`, `?hub=grow` (a new member) or `?hub=new` (a brand-new couch) shows that shape, for a look.
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -30,6 +31,7 @@ export function HomeScreen() {
   const me = useMe();
   const { data: home, error, refetch } = useHome();
   const couch = useCurrentCouch(home);
+  const { data: hub } = useCouchHub(couch?.id ?? null);
   const asked = useSearchParams().get("hub");
   const [profile, setProfile] = useState(false);
   const shape = asked === "grow" || asked === "focus" ? asked : asked === "new" || grows(couch, me.id) ? "grow" : "focus";
@@ -42,46 +44,46 @@ export function HomeScreen() {
       ) : !home ? (
         <HomeSkeleton />
       ) : shape === "grow" ? (
-        <GrowHub home={home} couch={couch} newCouch={newCouch} />
+        <GrowHub home={home} couch={couch} hub={hub} newCouch={newCouch} />
       ) : (
-        <FocusHub home={home} couch={couch} />
+        <FocusHub home={home} couch={couch} hub={hub} />
       )}
-      <ProfileSheet open={profile} onOpenChange={setProfile} me={me} couch={couch} />
-      <CouchPages home={home} couch={couch} />
+      <ProfileSheet open={profile} onOpenChange={setProfile} me={me} couch={couch} hub={hub} />
+      <CouchPages home={home} couch={couch} hub={hub} />
     </div>
   );
 }
 
-function FocusHub({ home, couch }: { home: Home; couch: Couch | null }) {
+function FocusHub({ home, couch, hub }: { home: Home; couch: Couch | null; hub: CouchHub | undefined }) {
   const up = nextShow(home);
   return (
     <>
       <StatusLine home={home} />
       {up && <UpNext home={home} show={up} couch={couch} />}
       <OnNow />
-      <YourShows home={home} />
+      <YourShows home={home} hub={hub} />
       <BothWatch />
       <Guide />
       <StreamingRail />
       <CouchWatching />
-      <Feed />
-      <MoreOnTheCouch />
+      <Feed hub={hub} />
+      <MoreOnTheCouch home={home} hub={hub} />
       <Foot />
     </>
   );
 }
 
-function GrowHub({ home, couch, newCouch }: { home: Home; couch: Couch | null; newCouch: boolean }) {
+function GrowHub({ home, couch, hub, newCouch }: { home: Home; couch: Couch | null; hub: CouchHub | undefined; newCouch: boolean }) {
   const up = nextShow(home);
   return (
     <>
       <StatusLine home={home} />
       {newCouch && <GetGoing couch={couch} />}
       {up && <UpNext home={home} show={up} couch={couch} />}
-      <YourShows home={home} />
+      <YourShows home={home} hub={hub} />
       <Guide />
-      <Feed />
-      <GrowNote />
+      <Feed hub={hub} />
+      <GrowNote home={home} hub={hub} />
       <Foot />
     </>
   );

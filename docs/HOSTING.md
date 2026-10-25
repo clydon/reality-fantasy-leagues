@@ -331,3 +331,16 @@ never handles it: the user does the reset and the pasting.
   season. The pick timer (off by default) has no job of its own: when it runs out, any phone in the room asks the server,
   which checks the clock and, if the game says so, picks from their queue. The ⋯ menu reads the drafts once when it opens.
   Nudge sends one push (once a turn). Nothing runs on a schedule.
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 8, Hub I. **Nothing polls and nothing runs on a
+  schedule**: the hub still reads only when it opens (and after a reveal), never on a timer. Opening it is now two reads
+  instead of one: `/api/me/home` (as before, plus a hash check per league of yours, which league-states.ts answers from
+  its cache, and one small `show_follows` read, for "results are in" and the morning update) and the new
+  `/api/couches/[id]/hub` (power rankings, the trophy shelf, Commercial break's games, By the numbers' couch accolades,
+  your numbers and On the couch): a hash check per game on the couch, the couch's memberships, your mark per season, the
+  seasons' schedules, people's shared follows, a count of the couch's messages this month, and the newest 40 messages
+  with their reactions (folded past where you are, on the server). About 5-15 KB from Neon per open for a couch like the
+  live one, and two Vercel invocations; it's cached a minute in the browser. Previously on reads each show's episodes
+  and stats when you open it (the same reads the show space makes; stats are cached on the server by the decisions'
+  md5). Migration 0118 adds `show_follows.early_night` (JSONB): what your Weekly Lineup stood at when you revealed an
+  episode early (the total, your starters' points, the table: a few hundred bytes), kept only until you've seen that
+  episode's final scores, then cleared, so the morning update can show "so far +14 › final +22".

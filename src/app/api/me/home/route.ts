@@ -8,12 +8,16 @@ import { seenThrough } from "@/lib/server/guard";
 import { followsOf, games, seasonHeaders, type Game } from "@/lib/server/show-space";
 import { latestAired, seasonSchedules, upNext } from "@/lib/server/schedule";
 import { progressOf } from "@/lib/server/season-games";
+import { leagueStates } from "@/lib/server/league-states";
+import { resultsDue } from "@/lib/game/results-due";
 
 // The new design's home (docs/PLAN-new-design.md step 0b; the hub, step 8): your couches with their people and
 // games, the shows you follow or play with where you are in each and what's on next (and who's set for it, step 1),
-// and the moves due across your leagues (due-moves.ts, the same items as the classic action bar).
+// and the moves due across your leagues (due-moves.ts, the same items as the classic action bar), and per show what
+// its results ask of you (step 8: results in to reveal, or the morning update's final scores; results-due.ts).
 //
-// Spoiler-safe through guard.ts: it says nothing about results, only when episodes air and how far you are.
+// Spoiler-safe through guard.ts: it says nothing about results beyond that they're in (and at which stage), only when
+// episodes air and how far you are.
 // Others' follows are only those they share (a show watched privately isn't), and never how far they are.
 // Not polled yet: a screen that polls it should poll something smaller.
 export const GET = apiRoute(async (req) => {
@@ -34,8 +38,14 @@ export const GET = apiRoute(async (req) => {
   const mine = follows.filter((f) => f.userId === user.id);
   const seasonIds = [...new Set([...mine.filter((f) => f.following).map((f) => f.seasonId), ...myGames.map((g) => g.seasonId).filter((id): id is string => !!id)])];
   const [headers, schedules, moves] = await Promise.all([seasonHeaders(seasonIds), seasonSchedules(seasonIds), dueMoves(user.id)]);
-  // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash.
-  const progress = await progressOf(user, myGames);
+  // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash; and each
+  // game's state again (a hash each) for what its results ask of you.
+  const [progress, states, early] = await Promise.all([
+    progressOf(user, myGames),
+    leagueStates(myGames.filter((g) => g.seasonId).map((g) => g.leagueId)),
+    pool.query("SELECT season_id, early_seen FROM show_follows WHERE user_id = $1 AND early_seen IS NOT NULL", [user.id]),
+  ]);
+  const earlySeen = new Map(early.rows.map((r) => [r.season_id as string, r.early_seen as number]));
   const now = new Date();
   const shows = [];
   for (const id of seasonIds) {
@@ -55,6 +65,12 @@ export const GET = apiRoute(async (req) => {
       games: myGames.filter((g) => g.seasonId === id).map(gameOut),
       // Who's set for the next episode, per game with a weekly move (Up next shows the current couch's).
       progress: myGames.filter((g) => g.seasonId === id && progress.has(g.leagueId)).map((g) => ({ leagueId: g.leagueId, ...progress.get(g.leagueId)! })),
+      // Results in past where you are (the hub leads with them), or the final scores of one you revealed early.
+      results: resultsDue(
+        myGames.filter((g) => g.seasonId === id).map((g) => states.get(g.leagueId)).filter((st) => !!st),
+        seen,
+        earlySeen.get(id)
+      ),
     });
   }
 

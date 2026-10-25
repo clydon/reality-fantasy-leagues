@@ -256,7 +256,10 @@ const same = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringi
     // ---- the hub's By the numbers ----
     await page.goto(`${BASE}/home?page=numbers`, { waitUntil: "networkidle" });
     await page.locator("[data-numbers-row]").first().waitFor({ timeout: 20_000 });
-    check((await page.locator("[data-stat-deck] button").count()) >= 1 && (await page.locator('[role=dialog] [data-preview="hub.numbers"]').count()) === 1 && (await page.locator("[role=dialog] [data-preview]").count()) === 1, "By the numbers: real stat cards, only the couch accolades in Preview");
+    check(
+      (await page.locator("[data-stat-deck] button").count()) >= 1 && (await page.locator("[role=dialog] [data-accolade]").count()) >= 1 && (await page.locator("[role=dialog] [data-preview]").count()) === 0,
+      "By the numbers: real stat cards and the couch's accolades (step 8), nothing in Preview"
+    );
     await fits("By the numbers");
     await shot("hub-numbers");
     const row = page.locator(`[data-numbers-show="${sid}"] [data-numbers-row]`).first();

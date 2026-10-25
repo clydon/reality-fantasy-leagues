@@ -14,7 +14,7 @@ import { toast } from "../ui/toast";
 import { ordinal } from "../games";
 import { closeMoves, dockWords, faceIn, first, moveCard, openMoves, sheetTabs, tabOf, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
 import { Face, IconBox } from "./parts";
-import { useOpenReveal } from "./reveal";
+import { useOpenMorning, useOpenReveal } from "./reveal";
 
 // The moves dock (the mock's dock.js, option D): above the tab bar on Episodes, Games and Cast while you play a game
 // here, until airtime. Needs you (the one yellow: Set) → all set (Edit, change until airtime) → locked once it's on
@@ -56,6 +56,7 @@ export function Dock({ show }: { show: ShowData }) {
   const t = dues.length ? Math.min(...dues) : airs;
   const now = useNow(t != null && ticks(t));
   const openReveal = useOpenReveal();
+  const openMorning = useOpenMorning();
   const nav = useNav();
   const when = t != null ? `${airTime(t)} · ${calm(t, now)}` : null;
   // A draft due first (your turn, or your blind picks) opens the draft room rather than Your moves.
@@ -107,7 +108,7 @@ export function Dock({ show }: { show: ShowData }) {
   if (eps?.final) {
     const n = eps.final.episode;
     return (
-      <button type="button" data-dock="final" onClick={() => openReveal(n)} className={`${base} nd-press bg-plate text-plate-foreground`}>
+      <button type="button" data-dock="final" onClick={() => openMorning(n)} className={`${base} nd-press bg-plate text-plate-foreground`}>
         {mark(<Trophy className="size-4" aria-hidden />, "bg-plate-foreground text-chyron")}
         <span className="min-w-0 flex-1 leading-tight">
           <b className="block truncate text-sm">Final scores are in</b>

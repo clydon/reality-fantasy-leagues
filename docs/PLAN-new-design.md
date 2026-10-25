@@ -33,7 +33,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **done** 2026-10-25 on the branch, in three parts: results from everyone and disputes (migration 0112), the admin's desk and the rulebook editor (0113), Make it ours (0114); all ship with 0b's | Opus · high |
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | **done** 2026-10-25 on the branch, in two parts: how results get in (One tap, the ways, the bot's runs as sources, quick checks that wait; migration 0115) and settling without the admin (the tie-break run behind a desk switch that's off, "nobody went home", show changes the couches confirm, the desk's bot Settings; 0116); both ship with 0b's | Opus · xhigh |
 | 7 | Draft room and blind draft | **done** 2026-10-25 on the branch (migration 0117 ships with 0b's) | Opus · xhigh |
-| 8 | Hub I: focus-first hub, More on the couch and its six pages | not started | Opus · xhigh |
+| 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | not started | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | not started | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · xhigh |
@@ -140,13 +140,6 @@ step's As built.
 - **Predictions are a text field** (step 1; for 12). Real predictions are free-text questions with free-text guesses
   (`Bet` has no options), so the sheet's Predictions tab has a field where the mock has chips. Step 12's Call it and
   polls could give a prediction options (a cast pick, yes / no) and bring the chips back.
-- **The morning update replays the reveal** (step 2; for 8 or later). Final scores after an early reveal open the
-  episode's reveal again (who went home included), where the mock's sheet shows "so far +14 → final +22": nobody keeps
-  what the early reveal showed. Keeping the early total on `show_follows` (beside `early_seen`) would allow the delta.
-  Step 5 made early results real (Backstage's quick check), so this now happens for real; it's the reveal's to change,
-  not Backstage's.
-- **The hub doesn't say results are in** (step 2; for 8). Up next keeps showing the next episode; the show bar, Tonight,
-  Episodes, Games and the dock say Results are in. The hub's status line and Up next could lead with the reveal.
 - **Traitors 5's cast stores the faction as its tribe** (step 3; the tool is 6b part 2's, doing it is the user's call). Its
   `season_cast.tribe_name` is "Traitor" for the two original Traitors and "Faithful" for everyone else, and the one league on
   that season in the local copy (production's, 2026-10-16) has tribes named Traitor and Faithful, so classic's boards and
@@ -162,6 +155,7 @@ step's As built.
   colour) is the place to make one name win everywhere. Chat signs a message with the account's username, as classic
   always has (zt_nd_riley next to the fixture's seeded "riley"); so do Recent changes' lines ("Made zt_nd_jordan a Game
   admin") and 6b's "filled in by zt_nd_jordan", flags and house rulings, while 6a's Members page uses the seat's name.
+  Step 8's power rankings, records and accolades use the account's name; its feed signs messages as chat does.
 - **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
   classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
   on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
@@ -267,6 +261,23 @@ step's As built.
 - **The draft's points are the game's** (step 7; for a later polish). A draft after episodes have scored (a late league) shows
   each castaway's points as this game counts them (`castOf`), where the Cast tab and waivers count the season's facts.
   Drafts before the premiere (every one so far) show tribes instead.
+- **No "Biggest comeback" record** (step 8; for a later polish). The mock's trophy shelf has it ("8th to 1st · Traitors
+  4"); it needs each finished game's standings episode by episode (a table per episode, read once a season ends and kept),
+  which nothing keeps. The records are most titles, ran it back, longest pool streak and best average finish.
+- **Couch accolades are what today's data can say** (step 8; for 12, 13 and 14). The mock's By the numbers also has taste
+  twins, the contrarian and never misses a rating (step 12's ratings), most reactions and most watch alongs (13), first to
+  finish (14's streaming drops). `couch-standings.ts accoladesOf` is where they'd go; the profile's taste twin line is
+  `hub.taste-twin` (12).
+- **Commercial break lists only your games** (step 8; for 9). "Every game on the couch · join any": games on the couch you
+  don't play aren't listed, since joining one is step 9's join flow (who can join, late joiners). `couch-hub.ts` reads them
+  all already (the rankings count them).
+- **Your numbers are per couch** (step 8; for 9 or 15). The profile shows titles, points and seasons on the couch you're
+  looking at (the hub's read is per couch); with several couches (step 9) someone may want them across all, or per couch
+  with the switcher.
+- **An episode page can't open from a link** (step 8; for a later polish). Previously on's rows and Last time open the show's
+  Episodes tab, a tap short of the episode: an episode page is a pushed page opened by a tap on Episodes, not from its URL
+  (`?page=ep4` alone doesn't render it). Letting the page read its episode from the URL would let the hub, the feed and
+  pushes go straight there.
 - **Fewer starters trims lineups** (step 6a). Lowering Who scores each week keeps the first starters of a lineup already set
   for the next episode; Undo puts the number back, not the trimmed starters (the lineup then reads "not set", so it's asked
   for again).
@@ -1943,6 +1954,88 @@ The draft room and the blind draft are real, on the leagues' own drafts, which e
     settings page, the Studio light theme, and **What your couch sees** (Account): Everything (default) ·
     Just my games · Only what games need, with a live "what riley sees" preview and Customize toggles;
     per-show Watch privately stays. Enforced in 0b's `shares()`. Mock: `settings.js`, `share.js`.
+
+### As built, step 8 (2026-10-25, on `new-design`)
+
+The hub is on real data: the status line, Up next, your shows, the feed, your numbers and More on the couch's pages.
+Migration **0118** (`show_follows.early_night`) ships with 0b's (same rehearsal). Nothing polls or runs on a schedule
+(HOSTING.md: the hub's open is now two reads).
+- **Results lead** (from Noticed): `/api/me/home` shows carry `results` (pure `src/lib/game/results-due.ts`: `stageAcross`,
+  `latestIn`, `resultsDue`, shared with `season-episodes.ts` so both agree): the next episode to reveal and its stage, and
+  the morning update's episode. The status line leads with "Results are in · Survivor Episode 5 · 2 moves due" (yellow
+  dot), then moves due, then "Final scores are in" (teal), then You're all set. **Up next is needs-you first**: a show
+  with results to reveal (its plate "Reveal · Episode 5 results are in", the one yellow, tapping to the show's Tonight,
+  which leads with the reveal; a reveal is chosen there, never from the hub), then the show your soonest move is for,
+  then on now, then the soonest airing with its calm time; the morning update's plate is teal.
+- **The morning update** (from Noticed): revealing an episode early keeps your first Weekly Lineup's night on
+  `show_follows.early_night` (the total, your starters' points, the table) beside `early_seen`; once its final scores land,
+  Tonight's Morning update plate and the dock's See open a **sheet** (`MorningSheet` in `show/reveal.tsx`, the mock's
+  stages.js finalUpdate) instead of the reveal again: "So far last night 0 › Final +1", Added this morning (each starter
+  whose points rose, with why), the Weekly Lineup table moving from that night to final (`SeasonReveal.soFar`; the
+  reveal's table takes its before from the early night). Opening it is seeing them: it asks the reveal again, which
+  clears both columns. Classic's reveals still never set either.
+- **The couch's numbers**: `GET /api/couches/[id]/hub` (`src/lib/server/couch-hub.ts`) reads every game on the couch as you
+  may see it (`GhostLogic.viewFor` at your mark on its season, so a place, title or streak is never past where you are,
+  and a season ends for you only once you've seen it end; a game nobody's scored yet as far as you've seen doesn't count),
+  then pure `src/lib/game/couch-standings.ts`: **power rankings** (each game gives its players `placePoints`: 10 for first
+  down to 1 for last, normalised to the field, ties sharing the better place, so every game type weighs the same; a running
+  game counts where it stands; This year by the season's premiere year; who moved, against each game one episode back;
+  only people on the couch are ranked, computer players take places), **head to head** (every game you both play: above,
+  below, level), the **trophy shelf** (only once a season the couch played has ended: titles incl. shared firsts, a plaque
+  per finished game with who won and by how much on points, Ran it back when the same person won the show's previous
+  season of that game on the couch, records: most titles, ran it back, longest pool streak, best average finish), **your
+  numbers** and **couch accolades** (most shows on their list, the most-watched show, called it most, says the most this
+  month, on a streak: only shared follows, each only when it says something). Plus `games` (each of your games on the couch
+  with your place and whether it's ended) and **the feed**: the newest 40 messages of the couch's chats (each season's fold
+  on the server, as the chat folds: others' words since an episode you haven't seen aired are left out; reveal lines show,
+  as in chat; nothing for a late joiner catching up in that season's games), who joined a couch that was already going (not
+  its founders, not you) and who started watching something openly they don't play, newest 8.
+- **The hub's screens** (`src/new/hub/`): the status line and Up next (`sections.tsx`, with `data-status`/`data-upnext`);
+  **posters** ordered soonest airing first, each with your best place ("Best 1st", finished seasons too) and a corner that
+  flips it (a 3D turn, transform only) to your games there with your place in each and Open; **On the couch** (messages
+  with their reactions, revealed, joined, started watching; each opens that show's chat or Tonight; "Open chat");
+  **More on the couch** rows only once they have something (rankings after a scored episode, Previously on once you've
+  started a show, the trophy shelf once a season has ended) with live lines ("You lead the couch this year", "You're 2nd ·
+  12 back of riley", "3 games you're in · join any", "1 title · 3 seasons played"); the pages (`couch-pages.tsx`):
+  rankings (the big place, This year / All-time / Head to head, bars by show), Commercial break (You're playing: your
+  running games with your place, or yellow "Due Tue" with the move; This week only and Start a game stay Preview),
+  By the numbers (a couch accolade or two in the deck, a different pair each day, and every accolade under On the couch),
+  Previously on (one show at a time from its `/episodes` and `/stats`, both guarded: the cold open with "Up to Episode 5 ·
+  nothing past it", Last time as the vote-out card, the boot order as faces, still in by group, a secret faction as one
+  "Factions stay secret" group, episode by episode; a show without cast data gets its last episode as large type), the
+  trophy shelf (titles as the big number, plaques, records with who holds them). The **profile** has your numbers on this
+  couch (titles, this year's ranking points, seasons played, your best show, your place, best finish, predictions called).
+  The **grow note** turns each promise into a way to its page once it's there.
+- **Fixtures and Preview:** deleted `fixtures/hub.ts` and the entries `hub.profile`, `hub.feed`, `hub.grow-note`,
+  `hub.rankings`, `hub.break`, `hub.numbers`, `hub.previously`, `hub.trophies`. `hub.verdicts` moved to step 12 (its
+  fixture to `fixtures/verdicts.ts`, STEP 12, with the taste twin); new `hub.taste-twin` (12, the profile's line),
+  `hub.episode-games` (12, Commercial break's This week only; `HUB_THIS_WEEK` in `fixtures/episode-games.ts`) and
+  `hub.start-game` (10). Previously on's Watch along button reuses `hub.watch-along` (13).
+- **Changed from the mock:** the mock's posters no longer flip (a tap opens the show; its rear face is left over), so the
+  flip is the corner cue's and the rest of the poster opens the show; 1st places aren't yellow (the yellow rule); the
+  rankings' arrows compare each game one episode back (the mock's were made up); "Biggest comeback" isn't a record (it needs
+  the standings' history: Noticed); couch accolades are the ones the couch's data can say today (taste twins, reactions,
+  ratings and watch alongs wait for steps 12-13: Noticed); the feed has no "is typing" line and its reactions only show
+  (tap opens the chat); the profile's third number is Seasons played (Agree with the couch needs ratings); Previously on's
+  rows open the show's Episodes tab (an episode page can't open from a link yet: Noticed).
+- **Checks:** `scripts/dev-test/check-new-hub.js <outDir> [--width=390] [--keep]` (75 PASS at 390) on new-fixture.js plus the
+  new **`hub-fixture.js`** (ZT Survivor 49 and 50 finished on the couch: riley won both Outlasts, alex Survival Pool 50):
+  rankings recomputed from each season's own `/games` tables (all-time, this year, head to head), the trophy shelf and
+  records, your games and numbers, accolades (jordan's private follow left out), the feed's fold (the Traitors for alex,
+  Episode 4 on for sam), sam's rankings at his mark, the home's results, a 404 off the couch; then the browser: every shape,
+  the status line and Up next a week behind, posters' best place and flip, the feed, every row and page with real data, the
+  profile, the grow note's links, every `hub.*` entry still rendering, the channel change. `check-new-reveal.js` now holds
+  Episode 5's scoring back at the early stage and checks `early_night` and the morning update's sheet (49 PASS);
+  `check-new-shell.js` taps a Preview that's still one; `check-new-stats.js`' By the numbers has no Preview left.
+  `tests/couch-standings.test.js` (5: place points, rankings and moves, the trophy shelf and records, accolades,
+  results due). The hub check passes at 1280 too; and the rest pass: check-new-show (69), -shell (46), -stats (57), -chat
+  (52), -backstage (67), -backstage-ii (116), -community (82), -desk (100), -ours (89), -results-ways (89), -settling (96),
+  -draft (90), check-foundation and check-preview; `npm test` 532 of 532; type-check clean, lint as before.
+- **Noticed, left as is:** five things, now in Noticed, not fixed: Biggest comeback, the accolades that need later steps,
+  Commercial break lists only your games, your numbers are per couch, an episode page can't open from a link.
+- **For step 9:** the couch switcher (`hub.couch-switcher`), Get the couch going and the foot are still Preview; the hub
+  read is per couch (`useCouchHub(couch.id)`), so switching couches is switching that id. Joining a game from Commercial
+  break (Noticed) belongs with the join flow.
 
 ## Step C: cutover
 

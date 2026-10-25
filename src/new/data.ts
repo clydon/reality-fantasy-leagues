@@ -19,6 +19,8 @@ import type { ShowChange } from "@/lib/server/show-changes";
 import type { Members, OutPreview } from "@/lib/server/backstage-members";
 import type { AskRun, Ways } from "@/lib/server/results-ways";
 import type { SeasonDraft } from "@/lib/server/season-draft";
+import type { CouchHub } from "@/lib/server/couch-hub";
+import type { ResultsDue } from "@/lib/game/results-due";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -40,6 +42,9 @@ export type { Member, MemberGame, Members, OutPreview } from "@/lib/server/backs
 export type { AskRun, Ways } from "@/lib/server/results-ways";
 export type { DraftClock, DraftFace, DraftGame, DraftPick, DraftSeat } from "@/lib/game/draft-view";
 export type { SeasonDraft } from "@/lib/server/season-draft";
+export type { CouchHub, FeedItem, PlayingGame } from "@/lib/server/couch-hub";
+export type { Accolade, CouchRecord, HeadToHead, Plaque, RankRow, Rankings, TrophyShelf, YourNumbers } from "@/lib/game/couch-standings";
+export type { EarlyNight } from "@/lib/server/season-episodes";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -107,6 +112,8 @@ export interface HomeShow extends SeasonHeader {
   games: GameRef[];
   /** Who's set for the next episode, per game of yours here with a weekly move. */
   progress: (WeekProgress & { leagueId: string })[];
+  /** Results in past where you are, or the final scores of an episode you revealed early (step 8). */
+  results: ResultsDue;
 }
 
 export interface Couch {
@@ -147,6 +154,17 @@ const HOME_KEY = ["new-design", "home"] as const;
 
 export function useHome() {
   return useQuery({ queryKey: HOME_KEY, queryFn: () => get<Home>("/api/me/home"), staleTime: 60_000 });
+}
+
+/** The hub's couch (step 8): power rankings, the trophy shelf, its games, accolades, your numbers and the feed. Read
+ *  when the hub opens and kept for a minute; a reveal reads it again (useAfterReveal). */
+export function useCouchHub(couchId: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "couch-hub", couchId],
+    queryFn: () => get<CouchHub>(`/api/couches/${couchId}/hub`),
+    staleTime: 60_000,
+    enabled: !!couchId,
+  });
 }
 
 /** `enabled`: false until you know which couch to ask about (the home has to come back first). */

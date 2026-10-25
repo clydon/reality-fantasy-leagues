@@ -14,7 +14,7 @@ import { Dock, dockShows, MovesSheet } from "../show/dock";
 import { Episodes } from "../show/episodes";
 import { Games } from "../show/games";
 import { HowItWorksPage } from "../show/how-it-works";
-import { RevealScreen } from "../show/reveal";
+import { MorningSheet, RevealScreen } from "../show/reveal";
 import { ShowStatsPage } from "../show/stats";
 import { Tonight } from "../show/tonight";
 import { WaiverOverlays } from "../show/waivers";
@@ -143,6 +143,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       />
       <MovesSheet show={show} seasonId={seasonId} />
       <RevealScreen show={show} seasonId={seasonId} />
+      <MorningSheet show={show} seasonId={seasonId} />
       {show.header && (
         <HowItWorksPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />
       )}

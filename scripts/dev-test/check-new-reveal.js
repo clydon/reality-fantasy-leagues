@@ -9,9 +9,11 @@
 //      and moves alex to Episode 5 in every league of theirs on the season (the other couch's too) and in
 //      show_follows, with one chat line per chat; Share your night leaves out who went home until switched on, posts
 //      to the couch, and saves the card as an image; back, Tonight has Episode 5's recap.
-//   3. Stages: Episode 5 at the early stage (only who went home) reveals with Weekly Lineup "so far" and the pool's
-//      table; show_follows.early_seen waits on it; once final, Tonight's morning update and the dock say "Final
-//      scores are in", and seeing them clears it.
+//   3. Stages: Episode 5 at the early stage (only who went home: its scoring moments held back) reveals with Weekly
+//      Lineup "so far" and the pool's table; show_follows.early_seen and early_night (step 8: the so-far total, the
+//      starters and the table) wait on it; once final, Tonight's morning update and the dock say "Final scores are in",
+//      and the dock's See opens the morning update's sheet: so far last night against the final (as Episodes counts it),
+//      who added what this morning, the table; seeing it clears both.
 //   4. Waiting: with Episode 6 aired and no results, Tonight, Episodes and the dock say "Waiting for results".
 //   5. The guard: sam (seen 3) gets nothing past Episode 3 from /episodes, can't reveal past Episode 4, and gets
 //      Episode 4's beats from revealing it. A show alex doesn't play answers with nothing to reveal.
@@ -60,12 +62,19 @@ function check(ok, what, detail = "") {
     const marks = async (who) => (await pool.query("SELECT league_id, results_seen_through AS n FROM league_memberships WHERE user_id = $1", [fx.users[who]])).rows;
     const follow = async (who) => (await pool.query("SELECT seen_through, early_seen FROM show_follows WHERE user_id = $1 AND season_id = $2", [fx.users[who], sid])).rows[0];
     // Episode 5's stage in the lineup league: early (only who went home) or final.
+    // Early holds the episode's scoring moments back (only who went home is in); final puts them back.
+    let heldBack = null;
     const stage5 = async (stage) => {
       const { rows } = await pool.query("SELECT state FROM leagues WHERE id = $1", [L.lineup]);
       const s = rows[0].state;
       const ep = s.episodes.find((e) => e.number === 5);
-      if (stage === "early") ep.resultsStage = "early";
-      else delete ep.resultsStage;
+      if (stage === "early") {
+        ep.resultsStage = "early";
+        if (!heldBack) [heldBack, ep.scoringEvents] = [ep.scoringEvents || [], []];
+      } else {
+        delete ep.resultsStage;
+        if (heldBack) [ep.scoringEvents, heldBack] = [heldBack, null];
+      }
       await pool.query("UPDATE leagues SET state = $2 WHERE id = $1", [L.lineup, JSON.stringify(s)]);
     };
     await backTo("alex", 4);
@@ -99,6 +108,7 @@ function check(ok, what, detail = "") {
     const text = async (sel) => ((await page.locator(sel).first().textContent().catch(() => "")) || "").replace(/\s+/g, " ");
     const reveal = page.locator("[role=dialog][aria-label='The reveal']");
     /** Taps through the beats to the last, screenshotting each; returns the beats seen. */
+    const beatText = {};
     const playBeats = async (name) => {
       const beats = [];
       await reveal.locator("[data-beat]").first().waitFor({ timeout: 20_000 });
@@ -106,6 +116,7 @@ function check(ok, what, detail = "") {
         await page.waitForTimeout(900);
         const beat = await reveal.locator("[data-beat]").getAttribute("data-beat");
         beats.push(beat);
+        beatText[beat] = await text("[data-beat]");
         await shot(`${name}-${k}-${beat}`);
         if ((await reveal.getByRole("button", { name: /^Back to / }).count()) && (await reveal.getByRole("button", { name: /^Back to / }).isVisible())) break;
         await reveal.locator("[data-stage]").click();
@@ -203,6 +214,9 @@ function check(ok, what, detail = "") {
     check(/Survival Pool standings/.test(await text("[data-beat=table]")), "early: the pool's table moves, not the lineup's", await text("[data-beat=table]"));
     await backFromReveal();
     check((await follow("alex")).early_seen === 5, "show_follows.early_seen waits on Episode 5's final scores");
+    const night = (await pool.query("SELECT early_night FROM show_follows WHERE user_id = $1 AND season_id = $2", [fx.users.alex, sid])).rows[0].early_night;
+    const soFarShown = Number((/([+−-]?\d+(?:\.\d+)?)\s*so far/.exec(beatText.lineup || "") || [])[1]?.replace("−", "-"));
+    check(!!night && night.leagueId === L.lineup && night.total === soFarShown && night.table.length === 4, "and early_night keeps the so-far total the reveal showed, its starters and the table", JSON.stringify([night && night.total, soFarShown, beatText.lineup]));
     check((await page.locator("[data-morning]").count()) === 0, "no morning update while it's still early");
     await stage5("final");
     await go("tonight");
@@ -211,13 +225,24 @@ function check(ok, what, detail = "") {
     await go("episodes");
     check((await page.locator("[data-dock=final]").count()) === 1, "the dock says Final scores are in");
     await page.locator("[data-dock=final]").click();
-    await reveal.locator("[data-beat=open]").waitFor({ timeout: 20_000 });
-    check(/Final scores/.test(await text("[data-beat=open]")), "the morning update opens Episode 5's final scores");
-    await reveal.getByRole("button", { name: "Skip" }).click();
-    await page.waitForTimeout(800);
-    await shot("3-final-table");
-    await backFromReveal();
-    check((await follow("alex")).early_seen === null, "seeing the final scores clears it");
+    const morning = page.locator("[data-morning-sheet='5']");
+    await morning.locator("[data-morning-row]").first().waitFor({ timeout: 20_000 });
+    check((await reveal.isVisible()) === false, "the morning update is a sheet, not the reveal again");
+    const soFar = Number(await morning.locator("[data-so-far]").getAttribute("data-so-far"));
+    const finalTotal = Number(await morning.locator("[data-final-total]").getAttribute("data-final-total"));
+    // Episodes' line for Episode 5 in Weekly Lineup, now final: what the sheet's Final should say.
+    const epRows = await page.evaluate(async ([s, c]) => (await (await fetch(`/api/seasons/${s}/episodes?couch=${c}`)).json()).episodes, [sid, fx.couchId]);
+    const lineupLine = epRows.find((e) => e.number === 5)?.lines?.find((l) => l.gameType === "active-roster");
+    const counted = Number(String(lineupLine?.big ?? "").replace("−", "-").replace("+", ""));
+    check(soFar === night.total && finalTotal === counted && finalTotal !== soFar, "So far last night against Final: the early total, then every point (as Episodes counts it)", JSON.stringify([soFar, finalTotal, lineupLine]));
+    check((await morning.locator("[data-added]").count()) >= 1, "who added what this morning");
+    check((await morning.locator("[data-morning-row]").count()) === 4, "and the Weekly Lineup table");
+    await fits("the morning update");
+    await shot("3-morning-sheet");
+    await morning.getByRole("button", { name: "Done" }).click();
+    await page.waitForTimeout(700);
+    const cleared = (await pool.query("SELECT early_seen, early_night FROM show_follows WHERE user_id = $1 AND season_id = $2", [fx.users.alex, sid])).rows[0];
+    check(cleared.early_seen === null && cleared.early_night === null, "seeing the final scores clears it, early night and all");
     await go("tonight");
     check((await page.locator("[data-morning]").count()) === 0, "and the morning update is gone");
 

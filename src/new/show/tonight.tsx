@@ -18,7 +18,7 @@ import { ShowArt } from "../ui/show-bar";
 import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./moves";
 import { Block, Face } from "./parts";
 import { WaiversRanPlate } from "./waivers";
-import { useOpenReveal } from "./reveal";
+import { useOpenMorning, useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
@@ -270,6 +270,7 @@ const revealedWords = (who: string[]) =>
 /** What an episode's results need from you now: waiting for them, revealing them, or seeing its final scores. */
 function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const openReveal = useOpenReveal();
+  const openMorning = useOpenMorning();
   const eps = show.episodes;
   // Who the chat's reveal lines say has revealed it (the frame polls this with the Chat tab's badge).
   const revealed = useChatBadge(seasonId, chatCouch(show), eps?.reveal?.episode ?? null).data?.revealed ?? [];
@@ -326,7 +327,7 @@ function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) 
         <button
           type="button"
           data-morning={n}
-          onClick={() => openReveal(n)}
+          onClick={() => openMorning(n)}
           className="nd-press flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
         >
           {/* Good news, not a duty: teal (yellow is for what you must do). */}

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Send } from "lucide-react";
+import { ChevronRight, Send } from "lucide-react";
 import { chatCouch, postToCouch, revealEpisode, useAfterReveal, type SeasonReveal } from "../data";
 import { ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
@@ -22,6 +22,10 @@ import { Face } from "./parts";
 // moving. At the early stage (who went home only) the lineup reads "so far" and the pool's streaks move instead.
 // The last beat offers Share your night: a post to the couch, or a card for outside it that leaves out who went home
 // unless you say so. It's in the history (?page=reveal), so back closes it.
+//
+// The morning update (step 8; the mock's stages.js finalUpdate) is a sheet, not the reveal again: once an episode you
+// revealed early has its final scores, "So far last night +14 > Final +22", who added what this morning, and the table
+// moving from where it stood that night (show_follows.early_night). Nothing new to spoil: who went home was seen already.
 
 let asked: number | null = null;
 const listeners = new Set<() => void>();
@@ -49,6 +53,19 @@ function useAsked() {
     () => asked,
     () => null
   );
+}
+
+let morningAsked: number | null = null;
+const morningListeners = new Set<() => void>();
+
+function askMorning(n: number | null) {
+  morningAsked = n;
+  morningListeners.forEach((l) => l());
+}
+
+/** Opens the morning update for episode `n`: its final scores, after you revealed it early. */
+export function useOpenMorning() {
+  return (n: number) => askMorning(n);
 }
 
 const noop = () => () => {};
@@ -539,4 +556,131 @@ async function cardImage(show: ShowData, w: { tag: string; head: string; line: s
   }
   const blob = await new Promise<Blob>((ok, no) => canvas.toBlob((b) => (b ? ok(b) : no(new Error("no image"))), "image/png"));
   return new File([blob], "my-night.png", { type: "image/png" });
+}
+
+// ---------- the morning update ----------
+
+/**
+ * The morning update's sheet: opening it is seeing the final scores (it asks the reveal again, which clears the morning
+ * update everywhere). So far last night against the final, the starters whose points went up this morning, and the table
+ * from where it stood that night to where it ends.
+ */
+export function MorningSheet({ show, seasonId }: { show: ShowData; seasonId: string }) {
+  const n = useSyncExternalStore(
+    (l) => {
+      morningListeners.add(l);
+      return () => morningListeners.delete(l);
+    },
+    () => morningAsked,
+    () => null
+  );
+  const [read, setRead] = useState<{ n: number; r: SeasonReveal | null; error: string | null } | null>(null);
+  const after = useAfterReveal();
+  const couchId = show.couch?.id ?? null;
+  useEffect(() => {
+    if (n == null) return;
+    let live = true;
+    revealEpisode(seasonId, couchId, n)
+      .then((r) => {
+        if (!live) return;
+        setRead({ n, r, error: null });
+        after();
+      })
+      .catch((e: Error) => live && setRead({ n, r: null, error: e.message }));
+    return () => {
+      live = false;
+    };
+  }, [n, seasonId, couchId, after]);
+  const r = read && read.n === n ? read.r : null;
+  const error = read && read.n === n ? read.error : null;
+  const lineup = r?.lineup ?? null;
+  const soFar = r?.soFar ?? null;
+  const before = new Map((soFar?.starters ?? []).map((s) => [s.name, s.points]));
+  const added = lineup ? lineup.starters.filter((s) => s.points !== (before.get(s.name) ?? s.points)) : [];
+  const rows = [...(r?.table?.rows ?? [])].sort((a, b) => a.after.place - b.after.place || a.name.localeCompare(b.name));
+  return (
+    <Sheet
+      open={n != null}
+      onOpenChange={(o) => !o && askMorning(null)}
+      title="Final scores"
+      subtitle={n != null ? `Episode ${n}${lineup ? ` · ${lineup.gameName}` : ""} · every point counted` : undefined}
+    >
+      <div data-morning-sheet={n ?? undefined} className="pb-2">
+        {error ? (
+          <p className="py-4 text-sm text-muted-foreground">{error}</p>
+        ) : !r ? (
+          <div aria-busy className="h-40 animate-pulse rounded-[4px] bg-secondary" />
+        ) : (
+          <>
+            {lineup && soFar ? (
+              <div data-so-far={soFar.total} data-final-total={lineup.total} className="mt-1 flex items-center gap-3 rounded-[4px] bg-secondary px-3.5 py-3">
+                <span className="flex flex-col">
+                  <small className="text-xs text-muted-foreground">So far last night</small>
+                  <b className="type-num text-[34px] leading-none text-muted-foreground">{signed(soFar.total)}</b>
+                </span>
+                <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+                <span className="flex flex-col">
+                  <small className="text-xs text-muted-foreground">Final</small>
+                  <b className="type-num text-[34px] leading-none">{signed(lineup.total)}</b>
+                </span>
+              </div>
+            ) : lineup ? (
+              <div data-final-total={lineup.total} className="mt-1 flex items-baseline gap-3 rounded-[4px] bg-secondary px-3.5 py-3">
+                <b className="type-num text-[34px] leading-none">{signed(lineup.total)}</b>
+                <small className="text-sm text-muted-foreground">your {lineup.gameName}, final</small>
+              </div>
+            ) : (
+              <p className="mt-1 text-[15px] text-muted-foreground">Every game is final for Episode {r.episode}.</p>
+            )}
+            {lineup && soFar && (
+              <div className="mt-3">
+                <p className="type-caption mb-1.5 text-xs tracking-[0.06em] text-muted-foreground">{added.length ? "Added this morning" : "Nothing changed overnight"}</p>
+                {added.map((s) => {
+                  const gain = s.points - (before.get(s.name) ?? 0);
+                  return (
+                    <div key={s.name} data-added={s.name} className="flex items-center gap-3 border-t border-border py-2 first:border-t-0">
+                      <Face src={s.photo} name={s.name} className="size-10 flex-none rounded-[3px]" />
+                      <span className="min-w-0 flex-1">
+                        <b className="block text-[15px]">{first(s.name)}</b>
+                        <small className="block truncate text-[12.5px] text-muted-foreground">{s.why || "Nothing scored"}</small>
+                      </span>
+                      <b className={`type-num text-[22px] ${gain > 0 ? "text-good" : "text-live"}`}>{signed(gain)}</b>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {rows.length > 0 && (
+              <div className="mt-4">
+                <p className="type-caption mb-1.5 text-xs tracking-[0.06em] text-muted-foreground">{r.table!.gameName} standings</p>
+                {rows.map((x) => {
+                  const moved = x.after.place < x.before.place ? "up" : x.after.place > x.before.place ? "down" : null;
+                  return (
+                    <div key={x.playerId} data-morning-row={x.name} className={`flex h-12 items-center gap-3 rounded-[3px] px-2 ${x.you ? "bg-plate text-plate-foreground" : ""}`}>
+                      <span className="type-num w-8 text-[20px]">{x.after.rank}</span>
+                      <Avatar id={x.userId ?? x.playerId} name={x.name} size={26} />
+                      <b className="min-w-0 flex-1 truncate text-[15px]">{x.name}</b>
+                      {moved && (
+                        <span
+                          data-moved={moved}
+                          className={`text-xs ${moved === "up" ? "text-good" : x.you ? "text-plate-muted" : "text-muted-foreground"}`}
+                          aria-label={moved === "up" ? "Moved up" : "Moved down"}
+                        >
+                          {moved === "up" ? "▲" : "▼"}
+                        </span>
+                      )}
+                      <span className="type-num text-[22px]">{x.after.total}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <Btn tone="ink" wide className="mt-4" onClick={() => askMorning(null)}>
+              Done
+            </Btn>
+          </>
+        )}
+      </div>
+    </Sheet>
+  );
 }
