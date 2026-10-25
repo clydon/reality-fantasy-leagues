@@ -3,18 +3,19 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { plainChange } from "@/lib/server/change-log";
 
 // Port of SurvivorDraft's server/routes/episodes.js PATCH/DELETE /:epId/bets/:betId.
 export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string; betId: string }> }) => {
   const { leagueId, epId, betId } = await params;
-  const { membership } = await requireLeagueRole(req, leagueId, "member");
+  const { user, membership } = await requireLeagueRole(req, leagueId, "member");
   if (membership.role !== "commissioner") throw new HttpError(403, "Commissioner only");
   const { field, value } = (await req.json().catch(() => ({}))) as { field?: string; value?: unknown };
   if (!field) throw new HttpError(400, "field required");
 
   const state = await withLeagueLock(leagueId, (s) => {
     StateLogic.updateBet(s, epId, betId, field, value);
-  });
+  }, plainChange(user.id, "predictions", "Changed a prediction question", 2));
   return NextResponse.json(state);
 });
 
@@ -22,7 +23,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
 // under 2 guesses -- once a bet is eligible to pay out, only the commissioner can pull it.
 export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string; betId: string }> }) => {
   const { leagueId, epId, betId } = await params;
-  const { membership } = await requireLeagueRole(req, leagueId, "member");
+  const { user, membership } = await requireLeagueRole(req, leagueId, "member");
 
   const state = await withLeagueLock(leagueId, (s) => {
     const ep = s.episodes.find((e) => e.id === epId);
@@ -35,6 +36,6 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagu
       throw new HttpError(403, "Only the commissioner, or the prediction's creator before 2 guesses are in, can remove this prediction");
     }
     StateLogic.removeBet(s, epId, betId);
-  });
+  }, plainChange(user.id, "predictions", "Removed a prediction question"));
   return NextResponse.json(state);
 });

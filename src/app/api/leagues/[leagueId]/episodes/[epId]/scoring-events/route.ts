@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { applyHeldTribesIfDue } from "@/lib/server/season-cast";
+import { resultsChange } from "@/lib/server/change-log";
 
 // Active Roster only, commissioner-only: log one point-earning event for this episode (someone won
 // immunity, found an idol, ...). Manual entry is the primary path and always will be -- the wiki
@@ -14,7 +15,7 @@ import { applyHeldTribesIfDue } from "@/lib/server/season-cast";
 // see ActiveRosterLogic.addEvent's note on why mixing them would break Pick'em and episode deletion.
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string }> }) => {
   const { leagueId, epId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
   const { type, castawayId } = (await req.json().catch(() => ({}))) as { type?: string; castawayId?: string };
   if (!type || !castawayId) throw new HttpError(400, "type and castawayId required");
 
@@ -24,6 +25,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
       throw new HttpError(400, "Unknown event type, episode or castaway");
     }
     await applyHeldTribesIfDue(client, s);
-  });
+  }, resultsChange(user.id, { epId }, (n) => `Changed Episode ${n}'s results`));
   return NextResponse.json(state);
 });

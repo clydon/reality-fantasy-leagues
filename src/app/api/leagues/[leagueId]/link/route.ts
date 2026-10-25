@@ -5,6 +5,7 @@ import { pool, HttpError } from "@/lib/server/db";
 import { groupDisplayName, groupOrder, linkProblem } from "@/lib/server/league-groups";
 import { linkedLeague, unlinkedLeague } from "@/lib/server/couches";
 import type { LeagueState } from "@/lib/game/types";
+import { logChange } from "@/lib/server/change-log";
 
 // Linked leagues (db/migrations/0040, league-groups.ts): League Settings' "Linked leagues".
 //   GET    -- this league's group (in its order, with its favorite -- 0046), and the caller's other
@@ -112,6 +113,8 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   );
   // A linked group is one couch (couches.ts): the other league joins this one's.
   await linkedLeague(otherLeagueId, leagueId);
+  // Recent changes (step 5): in both games' logs.
+  for (const id of [leagueId, otherLeagueId]) await logChange(pool, id, { userId: user.id, kind: "league", tier: 1, text: "Linked two games: one reveal and one chat" });
   return NextResponse.json({ ok: true });
 });
 
@@ -163,6 +166,9 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagu
   );
   await pool.query("DELETE FROM league_groups g WHERE NOT EXISTS (SELECT 1 FROM leagues l WHERE l.group_id = g.id)");
   // Outside a group, a classic league is a couch of its own again (couches.ts).
-  if (was[0]?.group_id) await unlinkedLeague(leagueId, user.id);
+  if (was[0]?.group_id) {
+    await unlinkedLeague(leagueId, user.id);
+    await logChange(pool, leagueId, { userId: user.id, kind: "league", tier: 1, text: "Unlinked this game from the others" });
+  }
   return NextResponse.json({ ok: true });
 });

@@ -94,6 +94,16 @@ export function researchFromPaste(
 ): Promise<EpisodeResearchRun>;
 
 /**
+ * A league's research context for one episode: its show, season, cast names (the season's staged cast, else the
+ * league's own), terms and format. Throws (with a message fit to show) when the league has no show or season.
+ */
+export function resolveResearchContext(
+  pool: Pool,
+  leagueId: string,
+  episodeNumber: number
+): Promise<{ showId: string; showSlug: string; showName: string; season: number; seasonId: string | null; episodeNumber: number; castNames: string[]; terms: { castaways: string; castaway: string }; format: { id: string; exitMethods: string[] } }>;
+
+/**
  * The commissioner panel's read: coverage for one episode of the league's season and, unless everyone
  * is settled, the JSON paste prompt narrowed to just who isn't. `again` (once there's research): the
  * prompt asks about everyone, for a second pass that fills gaps. Read-only.
@@ -128,7 +138,7 @@ export function researchFromPasteForLeague(
   episodeNumber: number,
   notes: string,
   opts?: { again?: boolean; confirmed?: boolean }
-): Promise<EpisodeResearchRun & { coverage: ResearchCoverage }>;
+): Promise<EpisodeResearchRun & { coverage: ResearchCoverage; merged: { disagreements: string[] } | null }>;
 
 /**
  * Takes the research pasted for one episode back out: the shared stored answers and every staged

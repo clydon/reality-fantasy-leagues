@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole, isUuid } from "@/lib/server/auth-helpers";
 import { pool, withLeagueLock, HttpError } from "@/lib/server/db";
+import { plainChange } from "@/lib/server/change-log";
 
 type RouteParams = { leagueId: string; id: string };
 
@@ -46,7 +47,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
       "UPDATE wiki_proposals SET status='applied', resolved_at=now(), resolved_by=$2 WHERE id=$1",
       [id, user.id]
     );
-  });
+  }, plainChange(user.id, "results", "Applied results from the wiki", 2));
 
   return NextResponse.json({ state, kind, applied: summary });
 });

@@ -56,10 +56,12 @@ export const PREVIEWS = {
   "show.draft": { step: "7", title: "The draft room", line: "Pick your team in turn; nobody's auto-picked." },
   "show.blind": { step: "7", title: "The blind draft", line: "Pick in private, then reveal together." },
 
-  // ---- Backstage ----
-  "backstage.needs": { step: "5", title: "Needs you", line: "The jobs waiting for whoever runs a game here." },
-  "backstage.results": { step: "5", title: "Results", line: "How results get in, and what's applied to each game." },
-  "backstage.history": { step: "5", title: "Recent changes", line: "Everything changed in these games, with undo." },
+  // ---- Backstage (Results and Recent changes are real since step 5) ----
+  "backstage.results-ways": {
+    step: "6c",
+    title: "How results get in",
+    line: "Copy and paste (free), One tap (we ask ChatGPT for you) and Autopilot, for the whole couch.",
+  },
   "backstage.waivers": { step: "6a", title: "Waivers", line: "Open a waiver window, and how waivers run." },
   "backstage.rules": { step: "6a", title: "Scoring rules", line: "The rulebook these games follow, or the couch's own." },
   "backstage.members": { step: "6a", title: "Members & roles", line: "Who plays, who runs each game, join requests." },

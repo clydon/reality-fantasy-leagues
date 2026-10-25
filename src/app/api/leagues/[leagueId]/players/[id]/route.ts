@@ -5,11 +5,12 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, withLeagueLock, HttpError } from "@/lib/server/db";
 import { dropBlindPicksForPlayer } from "@/lib/server/blind-draft";
+import { plainChange } from "@/lib/server/change-log";
 
 // Port of SurvivorDraft's server/routes/roster.js PATCH/DELETE /players/:id -- commissioner-only.
 export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; id: string }> }) => {
   const { leagueId, id } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
   const { field, value } = (await req.json().catch(() => ({}))) as { field?: string; value?: unknown };
   if (!field) throw new HttpError(400, "field required");
   if (field === "automated") {
@@ -24,13 +25,13 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
 
   const state = await withLeagueLock(leagueId, (s) => {
     StateLogic.updatePlayer(s, id, field, value);
-  });
+  }, plainChange(user.id, "players", "Changed a player's details"));
   return NextResponse.json(state);
 });
 
 export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; id: string }> }) => {
   const { leagueId, id } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
 
   const state = await withLeagueLock(leagueId, async (s, client) => {
     StateLogic.removePlayer(s, id);
@@ -43,6 +44,6 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagu
       s,
       StateLogic.BlindDraftLogic.lockedPlayerIds(s).filter((pid) => pid !== id)
     );
-  });
+  }, plainChange(user.id, "players", "Removed a player", 3));
   return NextResponse.json(state);
 });

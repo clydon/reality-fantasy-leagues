@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 import { pool, HttpError } from "./db";
 
 // League roles (db/migrations/0105): Commissioner (results, waivers, rules and roles), Game admin (results and
@@ -22,8 +23,16 @@ export function lastCommissionerProblem(roles: { userId: string; role: string }[
   return roles.filter((r) => r.role === "commissioner").length > 1 ? null : "Every game needs a Commissioner. Hand it to someone first.";
 }
 
-/** Sets someone's role in a league, refusing to leave it without a Commissioner. */
-export async function setLeagueRole(leagueId: string, userId: string, role: unknown): Promise<LeagueRole> {
+/**
+ * Sets someone's role in a league, refusing to leave it without a Commissioner. `inside` runs in the same transaction,
+ * with the role it had: the Recent changes line (change-log.ts roleChange), or an undo marking itself done.
+ */
+export async function setLeagueRole(
+  leagueId: string,
+  userId: string,
+  role: unknown,
+  inside?: (client: PoolClient, before: LeagueRole) => Promise<void>
+): Promise<LeagueRole> {
   if (typeof role !== "string" || !LEAGUE_ROLES.includes(role as LeagueRole)) throw new HttpError(400, "role must be commissioner, admin or member");
   const client = await pool.connect();
   try {
@@ -34,6 +43,7 @@ export async function setLeagueRole(leagueId: string, userId: string, role: unkn
     const problem = lastCommissionerProblem(rows.map((r) => ({ userId: r.user_id, role: r.role })), userId, role as LeagueRole);
     if (problem) throw new HttpError(409, problem);
     await client.query("UPDATE league_memberships SET role = $3 WHERE league_id = $1 AND user_id = $2", [leagueId, userId, role]);
+    await inside?.(client, rows.find((r) => r.user_id === userId).role);
     await client.query("COMMIT");
     return role as LeagueRole;
   } catch (e) {

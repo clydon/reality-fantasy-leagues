@@ -17,6 +17,21 @@ export interface QuickAnswer {
   headline: string | null;
   sources: string[];
 }
+/** What the quick check's prompt reads of a research context (episode-research.js resolveResearchContext). */
+export interface QuickContext {
+  showName: string;
+  season: number;
+  episodeNumber: number;
+  castNames: string[];
+  terms?: { castaways?: string; castaway?: string };
+  format?: { exitMethods?: string[] };
+}
+/** The quick check's question: who left in this episode, and the headline, as a small fixed JSON. Backstage (step 5)
+ *  hands it to Ask an AI; the bot asks it on its schedule. */
+export function buildQuickPrompt(ctx: QuickContext, airedAt: Date | null, tz: string): string;
+/** The quick check's answer, each name matched to `castNames` where it can be. Throws when it isn't JSON. */
+export function parseQuickAnswer(text: string, castNames: string[]): QuickAnswer;
+
 export interface BotRunOutcome {
   ok: boolean;
   message: string;

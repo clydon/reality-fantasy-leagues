@@ -119,6 +119,12 @@ async function up(pool) {
   ])).id;
   await pool.query(`INSERT INTO chat_reactions (message_id, user_id, emoji) VALUES ($1, $2, '👍')`, [couchMsg, me]);
   await pool.query(`INSERT INTO couch_chat_reads (couch_id, season_id, user_id, last_read_at) VALUES ($1, $2, $3, now())`, [couch, season, me]);
+  // A line in Recent changes (0111), with its undo.
+  await pool.query(
+    `INSERT INTO league_changes (batch, league_id, user_id, kind, tier, episode, text, undo, undo_until)
+     VALUES (gen_random_uuid(), $1, $2, 'settings', 1, NULL, 'zt changed a setting', '{"type":"settings","field":"zt","before":1,"after":2}', now() + interval '1 day')`,
+    [classic, me]
+  );
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

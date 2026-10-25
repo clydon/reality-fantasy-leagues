@@ -3,12 +3,13 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { plainChange } from "@/lib/server/change-log";
 
 // Port of SurvivorDraft's server/routes/roster.js POST /import -- commissioner-only, whole-state
 // replace from a previously-exported backup, migrated forward before being saved.
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
   const raw = await req.json().catch(() => null);
   if (!raw || typeof raw !== "object") throw new HttpError(400, "Invalid league JSON");
 
@@ -16,6 +17,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     const migrated = StateLogic.migrateLeagueState(raw);
     Object.keys(s).forEach((k) => delete (s as unknown as Record<string, unknown>)[k]);
     Object.assign(s, migrated);
-  });
+  }, plainChange(user.id, "league", "Imported the game from a file", 3));
   return NextResponse.json(state);
 });

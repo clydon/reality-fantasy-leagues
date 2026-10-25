@@ -6,6 +6,7 @@ import { Bot, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
 import { ActButton, CopyButton } from "@/components/admin/admin-ui";
 import { cn } from "cn";
+import { chatLink } from "@/lib/ai-brief";
 
 // The "ask an AI" step of every copy-a-prompt, paste-the-answer flow, in one place:
 //
@@ -17,16 +18,7 @@ import { cn } from "cn";
 //      asking the chat to read it.
 //   3. Copy the prompt -- into any chat at all, and paste the answer back. Always works.
 
-const enc = encodeURIComponent;
-
-/** The one line the chat gets: phrased as the user's own request, which is what lets a chat act on the page. */
-export function briefLine(url: string, task?: string) {
-  return (
-    `I'm ${task ?? "setting something up"} in Game Your Show, a fantasy app for reality TV. ` +
-    `The app's full instructions for this are at ${url} . Please open that page and follow it closely: ` +
-    `it says what to search the web for, and exactly what format to reply in.`
-  );
-}
+export { briefLine } from "@/lib/ai-brief";
 
 export function AskAi({
   prompt,
@@ -88,7 +80,7 @@ function useChatGptLink(prompt: string | undefined, task?: string): string | und
   });
   const code = brief.data?.code;
   if (!code || settled !== prompt) return undefined;
-  return `https://chatgpt.com/?hints=search&q=${enc(briefLine(`${window.location.origin}/b/${code}`, task))}`;
+  return chatLink("chatgpt", `${window.location.origin}/b/${code}`, task);
 }
 
 /** Whole seconds since `since` (a mutation's submittedAt), ticking while `active`. */

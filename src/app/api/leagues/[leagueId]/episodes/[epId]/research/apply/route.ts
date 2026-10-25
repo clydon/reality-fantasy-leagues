@@ -5,6 +5,7 @@ import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { applyHeldTribesIfDue } from "@/lib/server/season-cast";
 import { notifyEpisodeResults } from "@/lib/server/push-events";
 import { researchableEpisode } from "@/lib/server/episode-research-panel";
+import { resultsChange } from "@/lib/server/change-log";
 import {
   appliedAnything,
   applyResearchDecisions,
@@ -60,7 +61,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     summary = applyResearchDecisions(s, ep.number, items);
     // Results landing can be the moment a live league reaches the episode the tribes were held for.
     if (appliedAnything(summary)) await applyHeldTribesIfDue(client, s);
-  });
+  }, resultsChange(user.id, { epId }, (n) => `Applied Episode ${n}'s results`));
 
   const result = summary as unknown as ResearchApplySummary;
   const ep = state.episodes.find((e) => e.number === epNumber);

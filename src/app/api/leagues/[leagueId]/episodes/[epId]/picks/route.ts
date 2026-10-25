@@ -3,6 +3,7 @@ import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { catchingUpMark } from "@/lib/server/late-join";
+import { forPlayerChange } from "@/lib/server/change-log";
 
 // Pick'em only: sets (or replaces) the caller's own weekly pick for this episode. Same
 // self-or-commissioner permission shape as the classic-draft bet-prediction routes this is
@@ -14,7 +15,7 @@ import { catchingUpMark } from "@/lib/server/late-join";
 // frontend is expected to not offer the invalid options in the first place.
 export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string }> }) => {
   const { leagueId, epId } = await params;
-  const { membership } = await requireLeagueRole(req, leagueId, "member");
+  const { user, membership } = await requireLeagueRole(req, leagueId, "member");
   const { playerId, castawayId } = (await req.json().catch(() => ({}))) as { playerId?: string; castawayId?: string };
   if (membership.role !== "commissioner" && playerId !== membership.playerId) {
     throw new HttpError(403, "You can only set your own pick");
@@ -27,6 +28,6 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
     if (mark === null) return StateLogic.setPickEmPick(s, epId, playerId, castawayId);
     const problem = StateLogic.GhostLogic.applyAs(s, playerId, mark, epId, (v) => StateLogic.setPickEmPick(v, epId, playerId, castawayId));
     if (problem) throw new HttpError(400, problem);
-  });
+  }, forPlayerChange(user.id, membership.playerId, playerId ?? "", "pick", (name) => `Made ${name}'s pick`));
   return stateResponse(req, state);
 });

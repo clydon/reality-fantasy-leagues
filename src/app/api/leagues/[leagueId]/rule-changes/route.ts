@@ -5,6 +5,7 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { syncLeagueDecisions } from "@/lib/server/season-decisions";
 import { syncLeagueChanges } from "@db/season-rule-changes.js";
+import { plainChange } from "@/lib/server/change-log";
 
 // A commissioner's say over the season's rule changes (docs/PLAN-season-rule-changes.md): adopt one
 // (with this league's points for its new events), decline it, or remove one adopted earlier. The
@@ -17,7 +18,7 @@ import { syncLeagueChanges } from "@db/season-rule-changes.js";
 //               later brings them back rather than finding them "already applied".
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
   const body = (await req.json().catch(() => ({}))) as { changeId?: unknown; action?: unknown; points?: unknown };
   const changeId = typeof body.changeId === "string" ? body.changeId : "";
   const action = body.action;
@@ -45,6 +46,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
         await client.query("DELETE FROM league_applied_decisions WHERE league_id=$1 AND detail->>'eventType' = ANY($2)", [leagueId, takenBack]);
       }
     }
-  });
+  }, plainChange(user.id, "rules", "Changed the season's rules", 2));
   return NextResponse.json(state);
 });

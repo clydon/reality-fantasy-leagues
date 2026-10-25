@@ -28,7 +28,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 2 | Episodes, staged results, the one reveal, share at the reveal | **done** 2026-10-24 on the branch (migration 0109 ships with 0b's) | Opus · high |
 | 3 | Cast explorer and stats, server-side spoiler guard | **done** 2026-10-24 on the branch (no migration) | Opus · high |
 | 4 | Chat, per couch and show, spoiler-folded | **done** 2026-10-24 on the branch (migration 0110 ships with 0b's) | Opus · medium |
-| 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | not started | Opus · high |
+| 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | **done** 2026-10-25 on the branch (migration 0111 ships with 0b's) | Opus · high |
 | 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | not started | Opus · high |
 | 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | not started | Opus · high |
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | not started | Opus · medium |
@@ -140,14 +140,15 @@ step's As built.
 - **Predictions are a text field** (step 1; for 12). Real predictions are free-text questions with free-text guesses
   (`Bet` has no options), so the sheet's Predictions tab has a field where the mock has chips. Step 12's Call it and
   polls could give a prediction options (a cast pick, yes / no) and bring the chips back.
-- **Nothing makes early results yet** (step 2; for 5 and 6c). The stage exists (an episode's `resultsStage: "early"`,
-  `StateLogic.setResultsStage`) and every screen shows it, and applying full results (research apply, the season's
-  accepted scoring decisions) marks an episode final; but nothing applies only who went home. Step 5's quick check
-  ("Who went home?") and 6c's bot quick check (`db/bot-research.js` keeps its answer on the run row today) should apply
-  the eliminations and mark the episode early.
-- **The morning update replays the reveal** (step 2; for 5 or later). Final scores after an early reveal open the
+- **The bot's quick check applies nothing** (step 2; for 6c). Step 5's quick check (Backstage: Ask an AI's answer
+  pasted, or who went home entered by hand) applies the eliminations and marks the episode early; the bot's own quick check
+  (`db/bot-research.js`) still only keeps its answer on the run row. 6c can hand it to `backstage.ts`'s apply (the
+  `applyToGames` path, as `pasteResults` does for a pasted quick check) for every couch on the season with a game there.
+- **The morning update replays the reveal** (step 2; for 8 or later). Final scores after an early reveal open the
   episode's reveal again (who went home included), where the mock's sheet shows "so far +14 → final +22": nobody keeps
   what the early reveal showed. Keeping the early total on `show_follows` (beside `early_seen`) would allow the delta.
+  Step 5 made early results real (Backstage's quick check), so this now happens for real; it's the reveal's to change,
+  not Backstage's.
 - **The hub doesn't say results are in** (step 2; for 8). Up next keeps showing the next episode; the show bar, Tonight,
   Episodes, Games and the dock say Results are in. The hub's status line and Up next could lead with the reveal.
 - **Traitors 5's cast stores the faction as its tribe** (step 3; for 6b, or a data fix the user approves now). Its
@@ -184,6 +185,34 @@ step's As built.
   see yet, gets "Chat opens later". The fold would keep them spoiler-safe now, but posting would show them to a league
   that can't see them; step 9's join flow is where a couch member who isn't in the games yet joins the talk.
 - **Only the newest 300 messages** (step 4; for 13 or 15), as classic: nothing loads earlier ones.
+- **Backstage's results don't reach the shared stats** (step 5; for 6b). Backstage applies a season's staged results
+  to the couch's games without accepting them (one couch deciding for every league on the season isn't its call), and
+  `/stats` counts accepted results only; so on a season that has accepted results (the fixture's, or Survivor 51's, where
+  an admin accepts them) the Cast tab counts only through the last accepted episode. 6b's Reported / Confirmed statuses
+  end it.
+- **An undone result the admin has accepted since stays out** (step 5; for 6b). On a season an admin decides, a result
+  applied from Backstage that the admin then accepts is filed in the sync's ledger as already there, so undoing it in
+  Backstage takes it out and the sync never puts it back. Rare (the admin accepts within a day; Undo is open until the next
+  episode); 6b's one mode settles who decides.
+- **Only Backstage's own paste applies on its own** (step 5; for 6b and 6c). What's trusted applies on its own when it comes
+  in through Backstage; the same results staged another way (another couch's paste, the bot's full run, the wiki) show as
+  waiting for you until you tick them. 6b (anyone fills in results) and 6c (One tap, Autopilot) should apply trusted
+  results when they arrive, through `backstage.ts` (`trustRows`, then the same apply), for every couch on the season.
+- **A quick check that waits isn't kept** (step 5; for 6c). Pasted and unsure (one source, a name we don't know), it waits
+  on the open page: whoever pasted it is there to Show me and say It's right or Not right. The bot's unsure answers will
+  need keeping (`bot_research_runs.result` has them) and showing in Backstage.
+- **"Nobody went home" can't be marked** (step 5; for 6c). A quick check that says nobody left waits, and there's no way to
+  mark an episode early with no elimination; the full results settle it. Rare (non-elimination episodes).
+- **Not in Recent changes yet** (step 5; for 6a, 7 and 6b). Logged: every classic results route, settings, roles, players,
+  the cast and tribes, waivers (process, undo, window), the catch-up reveal, lineup locks, the draft's start, order and
+  take-back, the finale's results, prediction questions, rule changes, scoring rules, renaming, linking and moves made for
+  someone else. Not yet: a draft pick made for someone (`draft/pick`: step 7's "admins pick for someone" should log it),
+  invites and late-join starts (6a's Members), the hourly waiver job's own processing and a super-admin's membership edits
+  (6b's admin History). Classic's screens don't show the log (only the new design does) and its own Undo buttons don't
+  mark lines undone.
+- **Backstage's setup jobs** (step 5; for 6a, 7, 9). Needs you lists results jobs only; classic's commissioner items (Add the
+  cast, Invite players, Draft not scheduled, a catch-up league's next reveal: `commissioner-items.ts`, the home's
+  `backstage`) link to classic pages, so they wait for the pages that fix them.
 
 ## What exists, what's needed
 
@@ -1140,6 +1169,91 @@ One chat per couch and show is real. Migration **0110** ships with 0b's (same re
   that list: who's revealed isn't shown (step 2's), on Tonight and in the chat.
 - **For step 5:** nothing in chat needs changing for Backstage; a results change the couch should hear about could be a
   reveal-style line in the couch's chat (`couch-chat.ts`), beside Recent changes' own log.
+
+### As built, step 5 (2026-10-25, on `new-design`)
+
+Backstage I is real: results with Ask an AI, applied to every game, trusted ones on their own (5B), Recent changes, and
+guards with undo for tiers 1 and 2. Migration **0111** (`league_changes`) ships with 0b's (same rehearsal).
+- **Recent changes** (`league_changes`, 0111): one row per league per change, a `batch` per action (results applied to three
+  games are one line), who (`user_id`), `kind`, `tier`, the episode, the line everyone reads (`text`, naming nobody who went
+  home), `detail`, and `undo` with `undo_until` (the next episode's airtime, else a week). Written by
+  `src/lib/server/change-log.ts` in the same transaction as the change, inside a savepoint so a line that can't be written
+  never takes the write down: `withLeagueLock(leagueId, mutator, change)` takes an optional third argument, a spec or a
+  function of the league before and after the mutation (not the bots' moves or the waiver clock around it).
+  `resultsChange` diffs the episode (`src/lib/game/results-changes.ts` `resultsDiff`: eliminations, scoring events, roles,
+  groups, exiles added and removed, and the stage before), so **every results write carries its exact undo**, Backstage's
+  and classic's alike; `settingsChange` (tier 1, undoable unless the field does more than set a value: show, season, the
+  reveal pointer, the waiver suggestion); `setLeagueRole` takes a hook run in its own transaction (`roleChange`, tier 1,
+  undoable); `forPlayerChange` logs a move made for someone else's seat and nothing for your own (tier 0); `logChange` for
+  writes outside the lock (scoring rules, renaming, linking). Read and undone by `src/lib/server/league-changes.ts`:
+  `GET /api/seasons/[id]/changes?couch=` (anyone on the couch; a line per batch, newest first, `undoable` for whoever runs
+  every game it touched) and `POST /api/seasons/[id]/changes/[batch]/undo?couch=` (each league under its lock, the row marked
+  undone in the same transaction; refused once the next episode has aired, and for results unless it's the newest change
+  to that episode: undo the later one first).
+- **Classic's writes log too:** every results route (eliminations, scoring events, roles, groups, an episode's edit or
+  delete, research apply, a wiki proposal), settings, roles, players (add, edit, remove, a late joiner let in or moved),
+  the cast and tribes (`leagueCastWrite` logs each cast change once), waivers (process, undo, window), the catch-up reveal,
+  lineup locks, the draft's start, order and take-back, the finale's results, prediction questions, the season's rule
+  changes, scoring rules, renaming, linking and unlinking, and lineups, picks and predictions made for someone else. What
+  isn't yet is in Noticed, not fixed.
+- **Results** (`src/lib/server/backstage.ts`, for whoever runs a game on the couch's season: Commissioner or Game admin;
+  a player gets 403, someone off the couch 404): `GET /api/seasons/[id]/backstage?couch=[&episode=][&show=1]` (the open
+  episodes, aired and not final in your games, each one's stage; Needs you; the newest who-went-home and full-results
+  batches; how many staged results wait; no names until `show=1`, which is Show me: who went home, what applied, what waits,
+  and who's still in for entering it yourself), `GET .../backstage/prompt?kind=quick|full` (the quick check is the bot's
+  own question, `buildQuickPrompt`, over who's still in; the full one is research's paste prompt, `leagueResearchStatus`),
+  `POST .../backstage/results` (an answer pasted back) and `POST .../backstage/apply` (results you chose; `preview: true`
+  is the tier-2 dry run). Applying goes through `decision-apply.ts` `applyDecision` into every game you run here that can
+  take the episode (a league catching up gets it when it reveals it), one league at a time under its lock, one batch,
+  classic's results push for eliminations. Who went home marks the episode early (when nothing else is in); any scoring
+  moment marks it final.
+- **Option 5B, what applies on its own** (`results-changes.ts`, pure): a quick check applies when it found the episode,
+  everyone it names is still in, it says how they left in the show's words and at least two sources agree (`quickVerdict`;
+  otherwise it waits with a reason that names nobody: one source, a name we don't know, how they left, nobody left). Full
+  results are staged for the season as before (shared, `researchFromPasteForLeague`), then the staged results not in your
+  games split by `trustRows`: high confidence, about someone the merged research didn't contradict itself on, and for who
+  went home, agreeing with whoever's already out in that episode. The trusted ones apply on their own; the rest wait to be
+  ticked. Nothing is shown: the answer says how many, the screen keeps names behind Show me.
+- **The screens** (the mock's backstage.js, askai.js, guards.js, refine.js's 5B): Backstage's home has **Needs you** (who
+  went home in Episode N, its full scores, N results waiting; else "You're all caught up" with the next airtime) and the
+  index (Results' and Recent changes' rows say where things stand; the other four are 6a's, still Preview). **Results**
+  (`src/new/backstage/results.tsx`, `?ep=`): Episode N: who went home (the quick check: Ask an AI, or "Watched it? Enter who
+  went home yourself"; then a plate with a blurred stand-in, "Applied on its own · Sources agreed · nothing shown to you",
+  Show me and Undo; after Show me, Not right), How results get in (Preview, 6c), Full scores (Fill in Episode N, the batch
+  that applied with its Undo, what waits with Show me and tick rows). **Ask an AI** (`src/new/backstage/ask-ai.tsx`): the
+  three-step track, Open in ChatGPT (the question parked at /b/<code>; Grok the other choice, remembered on the device),
+  Another AI? Copy the question, a spoiler note, Paste the answer (clipboard) with its own check ("Looks right: one person ·
+  2 sources", "answers for 18 people"), Use this answer; a 409 (another episode's answer) asks "It's right, use it". The link
+  text is shared with classic now (`src/lib/ai-brief.ts`). **Guards** (`src/new/ui/guards.tsx`): tier 2's sheet, the
+  server's dry run of what changes ("Cristian Chavez out · Outlast: riley loses them", "jordan · Weekly Lineup ▼ 3rd, -3",
+  "Everyone · Outlast +2 each", "alex · Survival Pool streak ends"), then confirm, with the undo note; tier 1 is the toast's
+  Undo (ui/toast.tsx had it). **Recent changes** (`src/new/backstage/changes.tsx`): "Visible to the couch", a line per
+  change (who, when, "moved standings", which games), Undo where you may, "Undone by …" after. The show's ⋯ menu has a dot
+  while Backstage needs you (its Backstage row says what) and Recent changes for everyone; Tonight still has no
+  commissioner job.
+- **Backups** take `league_changes` (`backup-common.js`, a `LATER_TABLES` entry since 0111); `backup-fixture.js` has a line.
+- **Fixtures and Preview:** step 5 had no fixture file; deleted the entries `backstage.needs`, `backstage.results`,
+  `backstage.history`; added `backstage.results-ways` (6c: How results get in).
+- **Changed from the mock:** the quick check has no on/off switch (nothing runs on its own until 6c's bot: here it's one
+  question you paste, and when its sources agree it applies without showing you); Needs you's job opens Results at its
+  episode; Recent changes strikes through an undone line and says who undid it; the preview folds identical lines ("Everyone
+  · Outlast +2 each"); the ⋯ menu's Backstage row names the job.
+- **Checks:** `scripts/dev-test/check-new-backstage.js <outDir> [--width=390] [--keep]` (66 PASS at 390 and at 1280).
+  `tests/results-changes.test.js` (6: the diff and its undo, a removal, the quick verdict, trust, the preview).
+  `check-new-chat.js`, `check-new-show.js`, `check-new-reveal.js`, `check-new-stats.js`, `check-new-shell.js` and
+  `check-new-hub.js` pass at 390 (52, 69, 44, 56, 46, 21), and `check-preview.js`; so do classic's checks on the routes that
+  now log (`check-waivers.js` 85, `check-foundation.js` with its role route, `check-research-again.js`, `check-decision-units.js`,
+  `check-tribe-swap.js`) and `check-backup-restore.js`; `npm test` 487 pass plus the 3 known tour-commissioner failures;
+  type-check clean; lint clean in `src` (repo-wide, the new check and test add only the `require()` findings every dev-test
+  script and test already has).
+- **Noticed, left as is:** seven things, now in Noticed, not fixed: Backstage's results don't reach the shared stats, an
+  undone result the admin has accepted since stays out, only Backstage's own paste applies on its own, a quick check that
+  waits isn't kept, "nobody went home" can't be marked, what isn't in Recent changes yet, Backstage's setup jobs. Fixed from
+  that list: nothing made early results (the bot's half stays, for 6c).
+- **For step 6a:** the Members, Settings and Waivers pages' writes already log through the classic routes (settings and
+  roles with Undo: `POST .../changes/[batch]/undo` takes them back); their toasts can carry it (`toast(text, { undo })`) and
+  tier 3's hold to confirm is still to build (`ui/guards.tsx` is where it goes). Leaving a league as its last commissioner
+  isn't blocked yet (0b's As built).
 
 ### Step 6a: Backstage II, the game's own pages
 

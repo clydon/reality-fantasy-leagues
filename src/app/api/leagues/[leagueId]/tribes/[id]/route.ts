@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { leagueCastWrite } from "@/lib/server/season-cast-write";
+import { plainChange } from "@/lib/server/change-log";
 
 // Port of SurvivorDraft's server/routes/roster.js PATCH/DELETE /tribes/:id -- commissioner-only.
 // A starting tribe's NAME is part of the season's cast (docs/PLAN-universal-season-cast.md), so renaming
@@ -24,7 +25,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
 
   const state = await withLeagueLock(leagueId, (s) => {
     StateLogic.updateTribe(s, id, field, value);
-  });
+  }, plainChange(user.id, "cast", "Changed a tribe"));
   return NextResponse.json(state);
 });
 

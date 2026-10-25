@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { episodeChange } from "@/lib/server/change-log";
 
 // Active Roster only, commissioner-only: freeze this episode's lineups (POST) or reopen them
 // (DELETE). Explicitly a commissioner action rather than something derived from whether the episode
@@ -14,22 +15,22 @@ import { withLeagueLock, HttpError } from "@/lib/server/db";
 // set theirs) otherwise has no way back; it's deliberately commissioner-only for the same reason.
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string }> }) => {
   const { leagueId, epId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
 
   const state = await withLeagueLock(leagueId, (s) => {
     if (!StateLogic.getLeagueType(s).hasActiveRoster) throw new HttpError(400, "This league type has no active roster");
     if (!StateLogic.lockActiveRosterLineups(s, epId)) throw new HttpError(400, "Lineups are already locked");
-  });
+  }, episodeChange(user.id, epId, "lineups", (n) => `Locked lineups for Episode ${n}`, 1));
   return NextResponse.json(state);
 });
 
 export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string }> }) => {
   const { leagueId, epId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
 
   const state = await withLeagueLock(leagueId, (s) => {
     if (!StateLogic.getLeagueType(s).hasActiveRoster) throw new HttpError(400, "This league type has no active roster");
     if (!StateLogic.unlockActiveRosterLineups(s, epId)) throw new HttpError(400, "Lineups aren't locked");
-  });
+  }, episodeChange(user.id, epId, "lineups", (n) => `Unlocked lineups for Episode ${n}`, 1));
   return NextResponse.json(state);
 });

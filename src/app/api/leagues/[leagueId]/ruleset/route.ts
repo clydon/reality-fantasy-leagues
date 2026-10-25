@@ -6,6 +6,7 @@ import { isBuiltInFormat, DEFAULT_FORMAT } from "@/lib/game/formats/index.js";
 import { getLeagueRuleset } from "@db/league-rulesets.js";
 import { forkLeagueRuleset, editLeagueRuleset, abandonLeagueRuleset } from "@/lib/server/league-rulesets";
 import type { FormatData } from "@/lib/game/formats/index";
+import { logChange } from "@/lib/server/change-log";
 
 type RouteParams = { leagueId: string };
 const FORK_KINDS = ["builtin", "show_format", "league_ruleset", "scratch"];
@@ -47,25 +48,28 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
       : { from: body.from as "builtin" | "show_format" | "league_ruleset", sourceId: body.sourceId!, name: body.name };
   const result = await forkLeagueRuleset(leagueId, source, user.id);
   if ("refused" in result) return NextResponse.json({ error: "Those rules aren't usable yet", problems: result.refused }, { status: 409 });
+  await logChange(pool, leagueId, { userId: user.id, kind: "rules", tier: 2, text: "Made the scoring rules the game's own" });
   return NextResponse.json({ ruleset: result.created }, { status: 201 });
 });
 
 // Edits this league's own copy. 404 if it doesn't have one yet -- fork first.
 export const PATCH = apiRoute(async (req, { params }: { params: Promise<RouteParams> }) => {
   const { leagueId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
   const body = (await req.json().catch(() => ({}))) as { data?: unknown };
   if (!body.data || typeof body.data !== "object" || Array.isArray(body.data)) throw new HttpError(400, "data required");
   const result = await editLeagueRuleset(leagueId, body.data as FormatData);
   if ("notFound" in result) throw new HttpError(404, "This league doesn't have its own ruleset yet");
   if ("refused" in result) return NextResponse.json({ error: "Those rules aren't usable yet", problems: result.refused }, { status: 409 });
+  await logChange(pool, leagueId, { userId: user.id, kind: "rules", tier: 2, text: "Changed the scoring rules" });
   return NextResponse.json({ ruleset: result.updated });
 });
 
 // Abandons this league's own copy and reverts to following its show's format as-is.
 export const DELETE = apiRoute(async (req, { params }: { params: Promise<RouteParams> }) => {
   const { leagueId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
   const outcome = await abandonLeagueRuleset(leagueId);
+  await logChange(pool, leagueId, { userId: user.id, kind: "rules", tier: 2, text: "Went back to the show's scoring rules" });
   return NextResponse.json(outcome);
 });

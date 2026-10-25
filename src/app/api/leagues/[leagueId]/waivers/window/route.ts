@@ -6,6 +6,7 @@ import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { openWindow } from "@/lib/server/waivers";
 import { windowSnapshot, type WindowSnapshot } from "@/lib/server/waiver-pushes";
 import { notifyWaiverWindow } from "@/lib/server/push-events";
+import { plainChange } from "@/lib/server/change-log";
 
 // The commissioner's Open a waiver window (docs/PLAN-waivers-v2.md): body { swaps, replace? } -- how many
 // castaways each player may swap, 0 up to the roster size ("All"), and whether those who are out can be
@@ -32,7 +33,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     if (r.error !== undefined) throw new HttpError(/processed/.test(r.error) ? 409 : 400, r.error);
     done.periodId = r.period.id;
     done.trimmed = r.trimmed;
-  });
+  }, plainChange(user.id, "waivers", "Changed the waiver window"));
   if (done.periodId) notifyWaiverWindow(leagueId, state, done.before, done.periodId, done.trimmed, user.id);
   return NextResponse.json(state);
 });

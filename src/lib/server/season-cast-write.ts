@@ -386,6 +386,18 @@ async function setHold(
   await log(null, "tribes_hold", show(rows[0]?.tribes_from_episode ?? null), show(hold));
 }
 
+/** Each cast change as a line in Recent changes. */
+const CAST_WORDS: Record<CastOp["type"], string> = {
+  add: "Added someone to the cast",
+  update: "Edited the cast",
+  remove: "Removed someone from the cast",
+  import: "Imported the cast",
+  "tribe-rename": "Renamed a tribe",
+  "tribe-remove": "Removed a tribe",
+  finish: "Finished setting up the cast",
+  "tribes-hold": "Changed when the tribes show",
+};
+
 /**
  * The whole of a league cast route: castWrite inside the league's lock, falling back to `own` (what the
  * route always did) for a league with no season, then the push to the season's other leagues once the
@@ -399,14 +411,20 @@ export async function leagueCastWrite(
   own: (state: LeagueState) => void,
   alsoManaged?: (state: LeagueState, applied: ReturnType<typeof applyCastToState>) => void
 ) {
-  const after: { push?: () => Promise<CastApplyResult[]>; applied?: ReturnType<typeof applyCastToState> } = {};
-  const state = await withLeagueLock(leagueId, async (s, client) => {
-    const w = await castWrite(client, leagueId, s, userId, typeof op === "function" ? op(s) : op);
-    if (!w) return own(s);
-    after.push = w.push;
-    after.applied = w.applied;
-    alsoManaged?.(s, w.applied);
-  });
+  const after: { push?: () => Promise<CastApplyResult[]>; applied?: ReturnType<typeof applyCastToState>; op?: CastOp } = {};
+  const state = await withLeagueLock(
+    leagueId,
+    async (s, client) => {
+      after.op = typeof op === "function" ? op(s) : op;
+      const w = await castWrite(client, leagueId, s, userId, after.op);
+      if (!w) return own(s);
+      after.push = w.push;
+      after.applied = w.applied;
+      alsoManaged?.(s, w.applied);
+    },
+    // Recent changes (step 5): one line for the cast change, in this league's own log.
+    () => (after.op ? { userId, kind: "cast", tier: after.op.type === "remove" || after.op.type === "tribe-remove" ? 3 : 1, text: CAST_WORDS[after.op.type] } : null)
+  );
   const reached = after.push ? await after.push() : null;
   return { state, applied: after.applied ?? null, reached };
 }

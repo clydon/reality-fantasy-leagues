@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { notifyNewBet } from "@/lib/server/push-events";
+import { plainChange } from "@/lib/server/change-log";
 
 // Port of SurvivorDraft's server/routes/episodes.js POST /:epId/bets -- any member can propose a
 // bet, not just the commissioner. Pushes everyone else so they can guess.
@@ -23,7 +24,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
         ? StateLogic.addBetToUpcoming(s, label, points, membership.playerId)
         : StateLogic.addBet(s, epId, label, points, membership.playerId);
     if (!bet) throw new HttpError(404, "Episode not found");
-  });
+  }, plainChange(user.id, "predictions", "Added a prediction question"));
   notifyNewBet(leagueId, label.trim(), user.id);
   return NextResponse.json(state);
 });

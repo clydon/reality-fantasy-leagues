@@ -159,7 +159,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
   };
 }
 
-function tableOf(view: LeagueState, me: string, userOf: UserOf): TableRow[] {
+export function tableOf(view: LeagueState, me: string, userOf: UserOf): TableRow[] {
   const type = StateLogic.getLeagueType(view);
   const pool = type.hasWeeklyPicks;
   const key = (r: ScoreRow) => (pool ? [r.longestStreak ?? 0, r.total] : [r.total]);

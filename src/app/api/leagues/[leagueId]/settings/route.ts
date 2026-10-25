@@ -9,6 +9,7 @@ import { syncLeagueDecisions } from "@/lib/server/season-decisions";
 import { syncLeagueFormat } from "@db/show-formats.js";
 import { syncLeagueChanges } from "@db/season-rule-changes.js";
 import { syncLeagueRulebook } from "@db/rulebooks.js";
+import { settingsChange } from "@/lib/server/change-log";
 
 // Set by the server from the league's show (below, and the admin show route), never by a request: a
 // league's rules are its show's, and stored format data is validated on approval, not here.
@@ -24,7 +25,7 @@ const SERVER_OWNED = ["showFormat", "showFormatData", "leagueRulesetData", "seas
 // StateLogic.updateSettings already understands).
 export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
   const { field, value } = (await req.json().catch(() => ({}))) as { field?: string; value?: unknown };
   if (!field) throw new HttpError(400, "field required");
   if (SERVER_OWNED.includes(field)) throw new HttpError(400, `${field} follows the league's show; pick a show instead`);
@@ -74,6 +75,6 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
       // belong to this league).
       await syncLeagueDecisions(client, leagueId, s);
     }
-  });
+  }, settingsChange(user.id, field));
   return NextResponse.json(state);
 });

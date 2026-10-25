@@ -8,6 +8,9 @@ import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
 import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
 import type { SeasonStats } from "@/lib/server/season-stats";
 import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
+import type { Backstage, Chosen, PasteResult } from "@/lib/server/backstage";
+import type { ChangeLine } from "@/lib/server/league-changes";
+import type { PreviewLine } from "@/lib/game/results-changes";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -15,6 +18,9 @@ export type { EpisodeRow, SeasonEpisodes, SeasonReveal } from "@/lib/server/seas
 export type { CastStat, Pattern, StatDef } from "@/lib/game/cast-stats";
 export type { SeasonStats } from "@/lib/server/season-stats";
 export type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
+export type { Backstage, BackstageEpisode, Chosen, Face, Need, PasteResult, ResultRow, Shown } from "@/lib/server/backstage";
+export type { ChangeLine } from "@/lib/server/league-changes";
+export type { PreviewLine } from "@/lib/game/results-changes";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -265,6 +271,9 @@ export function useAfterReveal() {
   return useCallback(() => client.invalidateQueries({ queryKey: ["new-design"] }), [client]);
 }
 
+/** After results go in or come back out (Backstage, Recent changes): the same, everything moves on. */
+export const useAfterResults = useAfterReveal;
+
 export interface HowItWorksPage {
   how: HowItWorks;
   cast: { name: string; photo: string | null; colour: string | null }[];
@@ -352,6 +361,58 @@ export function useAfterSave() {
     [client]
   );
 }
+
+// ---- Backstage (step 5): results for whoever runs a game here, and Recent changes for the couch. Read when a page opens
+// and after each write; nothing polls. ----
+
+const seasonUrl = (seasonId: string, rest: string, query: Record<string, string>) => `/api/seasons/${seasonId}${rest}?${new URLSearchParams(query)}`;
+
+async function post<T>(url: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't save (${res.status})`), { status: res.status });
+  return out as T;
+}
+
+/** Backstage for this couch's season (GET .../backstage): the open episodes, what needs you, where results stand. `show`: Show me. */
+export function useBackstage(seasonId: string, couchId: string | null, episode: number | null, opts: { show?: boolean; enabled?: boolean } = {}) {
+  const query: Record<string, string> = { couch: couchId ?? "" };
+  if (episode) query.episode = String(episode);
+  if (opts.show) query.show = "1";
+  return useQuery({
+    queryKey: ["new-design", "backstage", seasonId, couchId, episode, !!opts.show],
+    queryFn: () => get<Backstage>(seasonUrl(seasonId, "/backstage", query)),
+    enabled: !!couchId && opts.enabled !== false,
+    staleTime: 30_000,
+    retry: (n, e) => (e as { status?: number }).status !== 403 && n < 2,
+  });
+}
+
+/** Recent changes to the couch's games here (GET .../changes), for everyone on the couch. */
+export function useChanges(seasonId: string, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "changes", seasonId, couchId],
+    queryFn: () => get<{ lines: ChangeLine[]; runs: boolean }>(seasonUrl(seasonId, "/changes", { couch: couchId ?? "" })),
+    enabled: !!couchId && enabled,
+    staleTime: 30_000,
+  });
+}
+
+/** Backstage's writes. After each, everything the new design reads moves on (results reach the games, the tables, the log). */
+export const backstage = {
+  prompt: (seasonId: string, couchId: string, episode: number, kind: "quick" | "full", again = false) =>
+    get<{ prompt: string | null; task: string }>(seasonUrl(seasonId, "/backstage/prompt", { couch: couchId, episode: String(episode), kind, ...(again ? { again: "1" } : {}) })),
+  paste: (seasonId: string, couchId: string, body: { episode: number; kind: "quick" | "full"; answer: string; again?: boolean; confirmed?: boolean }) =>
+    post<PasteResult>(seasonUrl(seasonId, "/backstage/results", { couch: couchId }), body),
+  preview: (seasonId: string, couchId: string, body: { episode: number; items: Chosen[]; quick?: boolean }) =>
+    post<{ lines: PreviewLine[]; games: number }>(seasonUrl(seasonId, "/backstage/apply", { couch: couchId }), { ...body, preview: true }),
+  apply: (seasonId: string, couchId: string, body: { episode: number; items: Chosen[]; quick?: boolean }) =>
+    post<{ games: number; skipped: string[]; batch: string }>(seasonUrl(seasonId, "/backstage/apply", { couch: couchId }), body),
+  undo: (seasonId: string, couchId: string, batch: string) =>
+    post<{ undone: number; text: string }>(seasonUrl(seasonId, `/changes/${encodeURIComponent(batch)}/undo`, { couch: couchId })),
+  /** Parks a long question at /b/<code> for an Open in ChatGPT / Grok link (api/briefs). */
+  brief: (text: string) => post<{ code: string }>("/api/briefs", { text }),
+};
 
 // ---- which couch you're looking at: one hub shows one couch at a time (site-mock-decisions) ----
 // Per device for now (step 9 brings the couch switcher); a stale id just falls back to the first couch.

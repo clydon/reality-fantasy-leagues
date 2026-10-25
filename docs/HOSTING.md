@@ -229,3 +229,15 @@ never handles it: the user does the reset and the pasting.
   than read on every poll. Posting writes one row (into the couch's first game on the show, so classic's chat shows it);
   reading writes `couch_chat_reads` and classic's `chat_reads` for the couch's games there. Backups take the couch's chat
   and its reads with the leagues (`scripts/backup-leagues.js`).
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 5, Backstage I. Migration 0111 adds `league_changes`
+  (Recent changes): a row per league per change someone makes for others (results, settings, roles, the cast, waivers, the
+  draft's start), ~0.3-1 KB each (a results change keeps its exact undo: a line per result it added, ~100 bytes each). A couch
+  playing three games makes maybe 10-20 rows a week, so ~1 MB a season; nothing prunes them yet (an `undo` older than its
+  `undo_until` could be nulled if it ever matters). Each logged write adds one insert and, for results and settings, one copy
+  of the league state in memory (no extra read). Nothing polls or runs on a schedule: Backstage's read
+  (`/api/seasons/[id]/backstage`) runs when a show space, Backstage or its Results page opens, for whoever runs a game
+  there only (the ⋯ menu's dot; react-query keeps it 30 s, then refetches on focus; your games' states through `league-states.ts`, the season's staged results for the open episode, two small reads of
+  `league_changes`; ~2-6 KB out), and Recent changes when its page opens (~1-10 KB). Ask an AI parks its question as a brief
+  (`ai_briefs`, the classic flow's table: ~2 KB for the quick question, ~33 KB for the full one, expiring in a week) and
+  pasting an answer is research's own paste (the same storage as before). No model is called and nothing costs money:
+  copy and paste stays the free way.

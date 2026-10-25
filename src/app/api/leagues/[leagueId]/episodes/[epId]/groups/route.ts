@@ -3,13 +3,14 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { resultsChange } from "@/lib/server/change-log";
 
 // Records by hand that someone changed tribe/team this episode (a swap, the merge, new teams, a new
 // partner) -- the commissioner's path for a league the season's admin decisions don't cover, same as
 // logging an elimination by hand. A blank group means they now play on their own. Commissioner-only.
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string; epId: string }> }) => {
   const { leagueId, epId } = await params;
-  const { membership } = await requireLeagueRole(req, leagueId, "member");
+  const { user, membership } = await requireLeagueRole(req, leagueId, "member");
   if (membership.role !== "commissioner") throw new HttpError(403, "Commissioner only");
   const { castawayId, group } = (await req.json().catch(() => ({}))) as { castawayId?: string; group?: string | null };
   if (!castawayId) throw new HttpError(400, "castawayId required");
@@ -20,6 +21,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     if (!StateLogic.addGroupChange(s, epId, castawayId, name || null)) {
       throw new HttpError(400, "Couldn't record that move -- they may already have one this episode");
     }
-  });
+  }, resultsChange(user.id, { epId }, (n) => `Changed Episode ${n}'s results`));
   return NextResponse.json(state);
 });

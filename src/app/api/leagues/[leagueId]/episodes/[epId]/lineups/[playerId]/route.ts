@@ -3,6 +3,7 @@ import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { catchingUpMark } from "@/lib/server/late-join";
+import { forPlayerChange } from "@/lib/server/change-log";
 
 // Active Roster only: set which of a player's castaways are ACTIVE for this episode. A member sets
 // their own; the commissioner can set anyone's, same shape as the bet-prediction and pick'em routes.
@@ -13,7 +14,7 @@ import { catchingUpMark } from "@/lib/server/late-join";
 export const PUT = apiRoute(
   async (req, { params }: { params: Promise<{ leagueId: string; epId: string; playerId: string }> }) => {
     const { leagueId, epId, playerId } = await params;
-    const { membership } = await requireLeagueRole(req, leagueId, "member");
+    const { user, membership } = await requireLeagueRole(req, leagueId, "member");
     const { castawayIds } = (await req.json().catch(() => ({}))) as { castawayIds?: string[] };
     if (!Array.isArray(castawayIds)) throw new HttpError(400, "castawayIds required");
     if (membership.role !== "commissioner" && playerId !== membership.playerId) {
@@ -31,7 +32,7 @@ export const PUT = apiRoute(
             );
       if (problem) throw new HttpError(400, problem);
       if (mark === null) StateLogic.setActiveRosterLineup(s, epId, playerId, castawayIds);
-    });
+    }, forPlayerChange(user.id, membership.playerId, playerId, "lineup", (name) => `Set ${name}'s lineup`));
     return stateResponse(req, state);
   }
 );

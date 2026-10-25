@@ -5,6 +5,7 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { applyHeldTribesIfDue } from "@/lib/server/season-cast";
 import { notifyEpisodeResults } from "@/lib/server/push-events";
+import { resultsChange } from "@/lib/server/change-log";
 
 // Port of SurvivorDraft's server/routes/episodes.js POST /:epId/eliminations -- commissioner-only.
 // Pushes the result to the rest of the league (no chat line any more -- see migration 0040).
@@ -24,7 +25,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     StateLogic.addElimination(s, epId, castawayId, method, juryVotes ?? null);
     // Logging a result can be the moment a live league reaches the episode the tribes were held for.
     await applyHeldTribesIfDue(client, s);
-  });
+  }, resultsChange(user.id, { epId }, (n) => `Entered who went home in Episode ${n}`));
 
   const ep = state.episodes.find((e) => e.id === epId);
   const castaway = castawayId ? StateLogic.getCastaway(state, castawayId) : null;

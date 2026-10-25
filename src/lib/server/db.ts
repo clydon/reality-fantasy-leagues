@@ -6,6 +6,7 @@ import { stampAirTimes } from "./air-times";
 import { runBots } from "./bots";
 import { syncWaivers } from "./waivers";
 import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiver-pushes";
+import { recordChange, type ChangeOf } from "./change-log";
 import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
@@ -28,9 +29,14 @@ export const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL }
 // blind_draft_picks and the resulting reveal is written into `state` -- both under the same row
 // lock, so two players locking at the same moment can't both observe "not everyone yet" or both
 // trigger the reveal. Every other caller ignores the second argument and is unaffected.
+//
+// `change` (docs/PLAN-new-design.md step 5): a write someone makes for others (results, settings, the cast) appends its
+// line to Recent changes in this same transaction (change-log.ts), worked out from the league before and after the
+// mutation alone (not the bots' moves or the waiver clock around it). Results changes carry their exact undo.
 export async function withLeagueLock(
   leagueId: string,
-  mutatorFn: (state: LeagueState, client: PoolClient) => void | Promise<void>
+  mutatorFn: (state: LeagueState, client: PoolClient) => void | Promise<void>,
+  change?: ChangeOf
 ): Promise<LeagueState> {
   const client = await pool.connect();
   try {
@@ -44,7 +50,9 @@ export async function withLeagueLock(
     // Then the waiver clock, so the mutation sees the week as it stands now: a claim saved after its
     // week processed is refused rather than slipped in (waivers.js).
     await syncWaivers(client, leagueId, state);
+    const before = change ? structuredClone(state) : null;
     await mutatorFn(state, client);
+    const spec = change && before ? (typeof change === "function" ? change(before, state) : change) : null;
     // Every write leaves the league with an episode to play next (bets and picks always have
     // somewhere to go; nobody creates episodes by hand). See EpisodeLogic.ensureNextEpisode.
     StateLogic.ensureNextEpisode(state);
@@ -53,6 +61,11 @@ export async function withLeagueLock(
     // Then any computer player's move this opened up (a turn, a new episode's lineup). See bots.ts.
     await runBots(client, leagueId, state);
     await client.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), leagueId]);
+    if (spec) {
+      // The next episode may be new since the mutation (ensureNextEpisode): stamped, so Undo stays open until it airs.
+      await stampAirTimes(client, state);
+      await recordChange(client, leagueId, state, spec);
+    }
     await client.query("COMMIT");
     // A waiver week that processed here -- its time came (lazily, on this write or a load), or the
     // commissioner's Process now -- is announced once it's committed (waiver-pushes.js). The hourly job

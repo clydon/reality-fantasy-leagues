@@ -18,7 +18,7 @@ import { groupLeagueIds } from "@/lib/server/league-groups";
 // one the room has already seen the episode (and may have scored it).
 // The reveal for one league, in one lock. `expectFrom` (linked leagues): only if that league was at
 // the same episode as the one revealing.
-async function revealNextIn(leagueId: string, expectFrom?: number) {
+async function revealNextIn(leagueId: string, userId: string, expectFrom?: number) {
   let revealed: number | null = null;
   let tribed: string[] = [];
   let applied = 0;
@@ -61,22 +61,22 @@ async function revealNextIn(leagueId: string, expectFrom?: number) {
       [s.settings.showId, String(s.settings.wikiSeason)]
     );
     seasonId = rows.length ? rows[0].id : null;
-  });
+  }, (_b, a) => ({ userId, kind: "results", tier: 2, text: `Revealed Episode ${StateLogic.RevealLogic.revealedThrough(a)} for the game` }));
 
   return { state, revealed: revealed as number | null, tribed, applied, skipped, seasonId: seasonId as string | null };
 }
 
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
-  await requireLeagueRole(req, leagueId, "commissioner");
+  const { user } = await requireLeagueRole(req, leagueId, "commissioner");
 
-  const { state, revealed, tribed, applied, skipped, seasonId } = await revealNextIn(leagueId);
+  const { state, revealed, tribed, applied, skipped, seasonId } = await revealNextIn(leagueId, user.id);
 
   // Linked leagues (league-groups.ts) reveal together: each one that was at the same episode
   // reveals this one too. One that isn't in step (or isn't catching up) is left as it is.
   if (revealed !== null) {
     for (const id of await groupLeagueIds(leagueId)) {
-      if (id !== leagueId) await revealNextIn(id, revealed - 1).catch(() => {});
+      if (id !== leagueId) await revealNextIn(id, user.id, revealed - 1).catch(() => {});
     }
   }
 

@@ -50,6 +50,7 @@ const GROUP_SLICES = {
   couch_chat_reads: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[])) AND season_id = ANY($S::uuid[])",
   wiki_proposals: "league_id = ANY($L::uuid[])",
   wiki_proposal_items: "league_id = ANY($L::uuid[])",
+  league_changes: "league_id = ANY($L::uuid[])",
   shows: "id IN (SELECT show_id FROM show_seasons WHERE id = ANY($S::uuid[]))",
   show_formats: "id IN (SELECT s.format FROM shows s JOIN show_seasons ss ON ss.show_id = s.id WHERE ss.id = ANY($S::uuid[]))",
   show_seasons: "id = ANY($S::uuid[])",

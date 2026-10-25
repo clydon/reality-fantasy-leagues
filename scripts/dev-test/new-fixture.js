@@ -110,7 +110,9 @@ async function down(pool) {
     [userIds]
   );
   const { rows: groups } = await pool.query(`SELECT DISTINCT group_id FROM leagues WHERE slug LIKE 'zt-nd-%' AND group_id IS NOT NULL`);
-  await pool.query(`DELETE FROM leagues WHERE slug LIKE 'zt-nd-%'`); // memberships cascade
+  await pool.query(`DELETE FROM leagues WHERE slug LIKE 'zt-nd-%'`); // memberships and Recent changes cascade
+  // Questions Backstage parked for Ask an AI (they'd only lose their author with the users, and expire in a week).
+  await pool.query(`DELETE FROM ai_briefs WHERE created_by = ANY($1::text[])`, [userIds]);
   if (groups.length) await pool.query(`DELETE FROM league_groups WHERE id = ANY($1::uuid[])`, [groups.map((g) => g.group_id)]);
   if (couches.length) await pool.query(`DELETE FROM couches WHERE id = ANY($1::uuid[])`, [couches.map((c) => c.id)]);
   await pool.query(`DELETE FROM shows WHERE slug IN ($1, $2)`, [SHOW, TRAITORS]); // seasons and follows go with them

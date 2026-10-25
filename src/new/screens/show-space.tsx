@@ -2,9 +2,9 @@
 
 import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { BookOpen, Ellipsis, Eye, KeyRound, Bell, Plus, Tv, UserPlus, Users } from "lucide-react";
+import { BookOpen, Ellipsis, Eye, KeyRound, Bell, Plus, RotateCcw, Tv, UserPlus, Users } from "lucide-react";
 import { calm, justAired, ticks } from "../clock";
-import { chatCouch, useChatBadge, useCouchForSeason, useHome, useSeasonEpisodes, useSeasonGames, useSpace, type GameRef, type GameView, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
+import { chatCouch, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonEpisodes, useSeasonGames, useSpace, type GameRef, type GameView, type Need, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
@@ -167,10 +167,19 @@ function CouchLine({ show }: { show: ShowData }) {
   );
 }
 
-/** The show's ⋯ menu: Backstage for whoever runs a game here, the drafts, and what's still to come. */
+/** What needs whoever runs a game here (Backstage's results jobs, step 5): a dot on the ⋯ menu and its Backstage row. */
+function useBackstageNeeds(seasonId: string, show: ShowData): Need[] {
+  const runs = show.runs.length > 0;
+  const bs = useBackstage(seasonId, show.couch?.id ?? null, null, { enabled: runs });
+  return runs ? (bs.data?.needs ?? []) : [];
+}
+
+/** The show's ⋯ menu: Backstage for whoever runs a game here (with a dot when it needs you), Recent changes for the
+ *  couch, the drafts, and what's still to come. */
 function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [open, setOpen] = useState(false);
   const how = usePushedPage("how-it-works");
+  const needs = useBackstageNeeds(seasonId, show);
   const name = show.header?.show.name ?? "This show";
   const runNames = [...new Set(show.runs.map((g) => g.gameName))].join(" and ");
   const soon = (id: PreviewId, icon: typeof Bell, title: string, detail: string) => (
@@ -180,8 +189,9 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   );
   return (
     <>
-      <button type="button" aria-label="Show menu" onClick={() => setOpen(true)} className="relative grid size-11 place-items-center rounded-[3px] text-white">
+      <button type="button" aria-label={needs.length ? "Show menu: Backstage needs you" : "Show menu"} onClick={() => setOpen(true)} className="relative grid size-11 place-items-center rounded-[3px] text-white">
         <Ellipsis className="size-5" aria-hidden />
+        {needs.length > 0 && <i data-menu-dot className="absolute right-1.5 top-2 size-2.5 rounded-full bg-chyron ring-2 ring-[rgba(16,14,21,.9)]" aria-hidden />}
       </button>
       <Sheet
         open={open}
@@ -193,7 +203,14 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
             the screen. Closing it first would cut the move short (Base UI closes synchronously). */}
         <div className="flex flex-col">
           {show.runs.length > 0 && (
-            <Row href={paths.backstage(seasonId)} icon={KeyRound} iconClass="bg-foreground text-background" title="Backstage" detail={`You run ${runNames}`} />
+            <Row
+              href={paths.backstage(seasonId)}
+              icon={KeyRound}
+              iconClass="bg-foreground text-background"
+              title="Backstage"
+              detail={needs.length ? needs[0].title : `You run ${runNames}`}
+              dot={needs.length > 0}
+            />
           )}
           <Row
             icon={BookOpen}
@@ -204,6 +221,9 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
               how.show();
             }}
           />
+          {show.couch && show.games.length > 0 && (
+            <Row href={paths.backstage(seasonId, "history")} icon={RotateCcw} title="Recent changes" detail="What's changed in these games, and who changed it" />
+          )}
           <Row href={paths.showPage(seasonId, "draft")} icon={Users} title="Draft room" detail="Pick your team in turn" />
           <Row href={paths.showPage(seasonId, "blind")} icon={Eye} title="Blind draft" detail="Pick in private, reveal together" />
           {soon("show.invite", UserPlus, "Invite to this show", "A code; they join the couch too")}

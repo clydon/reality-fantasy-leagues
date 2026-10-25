@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { leagueCastWrite } from "@/lib/server/season-cast-write";
+import { plainChange } from "@/lib/server/change-log";
 
 // The fields that are the season's cast (docs/PLAN-universal-season-cast.md): on a league with a season
 // they're written to the season cast and reach every league on it (season-cast-write.ts). Anything else
@@ -26,7 +27,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
   }
   const state = await withLeagueLock(leagueId, (s) => {
     StateLogic.updateCastaway(s, id, field, value);
-  });
+  }, plainChange(user.id, "cast", "Edited the cast"));
   return NextResponse.json(state);
 });
 
