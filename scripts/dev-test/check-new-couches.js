@@ -483,7 +483,7 @@ async function newcomer(pool, who) {
       await O.page.goto(`${BASE}/join/${code}`);
       await O.page.locator('[data-join-page="ZT Survivor 51"]').waitFor({ timeout: 30_000 });
       const games0 = await O.page.locator("[data-join-game]").count();
-      check(games0 === 3 && (await O.page.locator("[data-preview='join.couch']").count()) === 1, "signed out: the couch and its games (making an account is part 2's)", `${games0}`);
+      check(games0 === 3 && (await O.page.locator("[data-invite-way-in] [data-join-couch]").count()) === 1, "signed out: the couch and its games, and Join (making the account: check-new-way-in.js)", `${games0}`);
       await fits("the invite page signed out", O.page);
       await shot("invite-signed-out", O.page);
       const bad = O.errors.filter((e) => !/Failed to load resource/.test(e));

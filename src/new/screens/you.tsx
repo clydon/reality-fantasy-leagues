@@ -1,24 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeftRight, ChevronLeft, KeyRound, LayoutTemplate, LogOut, MonitorSmartphone, Plus } from "lucide-react";
-import { logOut } from "@/lib/auth-client";
+import { ArrowLeftRight, KeyRound, LayoutTemplate, LogOut, MonitorSmartphone, Plus } from "lucide-react";
+import { logOutTo } from "@/lib/auth-client";
+import type { WayIn } from "@/lib/server/way-in";
 import { couches as couchApi, setCouch, switchDesign, useAfterCouch, useCouchInvite, useCurrentCouch, useHome, type JoinGame } from "../data";
 import { couchLine, FaceStack, openCouchSheet } from "../couch/couch-sheets";
 import { JoinGameRow, JoinGameSheet, joinLine } from "../couch/join-game";
 import { gameColour } from "../games";
 import { NavLink, useNav } from "../nav";
-import { paths, START_STEPS } from "../routes";
+import { paths } from "../routes";
 import { useMe } from "../session";
 import { Avatar, PageHeader, Wordmark } from "../ui/bars";
 import { Btn, BtnLink, EmptyState, Row, SectionHead } from "../ui/parts";
 import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
+import { InviteWayIn } from "../welcome/invite";
 
-// Settings (/settings), first run (/start/[step]) and joining a couch (/join/[code]). Settings has your couches (step 9)
-// and going back to the classic design; the rest is step 15 (mock settings.js). The join page is real for someone signed
-// in (step 9 part 1); signing up from it, and first run, are part 2 (round2.js, landing.js).
+// Settings (/settings) and joining a couch (/join/[code]). Settings has your couches (step 9) and going back to the
+// classic design; the rest is step 15 (mock settings.js). The join page is real signed in (step 9 part 1) and for
+// someone new (part 2: welcome/invite.tsx makes the account). First run is welcome/first-run.tsx.
 
 export function SettingsScreen() {
   const me = useMe();
@@ -94,62 +96,19 @@ export function SettingsScreen() {
             detail="Every screen as it's designed, with demo people. Opens in a new tab."
             onClick={() => window.open("/mock", "_blank", "noopener")}
           />
-          <Row icon={LogOut} title="Sign out" onClick={() => logOut()} />
+          <Row icon={LogOut} title="Sign out" onClick={() => logOutTo(paths.welcome)} />
         </div>
       </section>
     </div>
   );
 }
 
-const START = [
-  { title: "What are you watching?", line: "Pick as many as you like. Play them with friends, or just follow along." },
-  { title: "Where are you in them?", line: "So nothing past your episode ever shows." },
-  { title: "Save your shows", line: "An account keeps your shows and games on every device." },
-  { title: "Bring your people", line: "Start a couch, join one with a code, or keep it just you." },
-];
-
-export function StartScreen({ step }: { step: number }) {
-  const nav = useNav();
-  const s = START[step - 1];
-  const last = step === START_STEPS;
-  return (
-    <div className="flex min-h-dvh flex-col pb-[calc(16px+env(safe-area-inset-bottom,0px))]">
-      <header className="flex items-center gap-3 px-2.5 pt-[calc(8px+env(safe-area-inset-top,0px))]">
-        <button
-          type="button"
-          aria-label="Back"
-          onClick={() => (step > 1 ? nav.back(paths.start(step - 1)) : nav.back(paths.home))}
-          className="grid size-11 place-items-center rounded-[3px]"
-        >
-          <ChevronLeft className="size-5" aria-hidden />
-        </button>
-        <div className="flex flex-1 gap-1.5" aria-hidden>
-          {Array.from({ length: START_STEPS }, (_, i) => (
-            <i key={i} className={`h-1 flex-1 rounded-full ${i < step ? "bg-chyron-line" : "bg-secondary"}`} />
-          ))}
-        </div>
-        <span className="pr-2 text-[13px] font-semibold text-muted-foreground">
-          {step} of {START_STEPS}
-        </span>
-      </header>
-      <h1 className="type-caption px-4 pt-6 text-[44px] leading-[.95]">{s.title}</h1>
-      <p className="px-4 pt-3 text-[15px] leading-snug text-muted-foreground">{s.line}</p>
-      <Preview id="start.steps" className="mx-4 mt-6" />
-      <div className="mt-auto px-4 pt-6">
-        <Btn tone="must" wide onClick={() => nav.push(last ? paths.home : paths.start(step + 1))}>
-          {last ? "Done" : "Next"}
-        </Btn>
-      </div>
-    </div>
-  );
-}
-
 /**
  * An invite (/join/[code]; the mock's round2.js joinRoute): the couch first (whose code, who's on it), then joining it,
- * then its games, each saying who may join (Join, Ask to join, Locked). Signed out it shows the couch; signing up from
- * here is part 2 (`join.couch`).
+ * then its games, each saying who may join (Join, Ask to join, Locked). Someone new (signed out, back from making an
+ * account with ?welcome=1, or not let in yet) joins through welcome/invite.tsx: an account, where you are, the couch.
  */
-export function JoinScreen({ code }: { code: string }) {
+export function JoinScreen({ code, way, welcome }: { code: string; way: WayIn; welcome: boolean }) {
   const q = useCouchInvite(code.toUpperCase());
   const after = useAfterCouch();
   const nav = useNav();
@@ -159,12 +118,19 @@ export function JoinScreen({ code }: { code: string }) {
   if (q.error) {
     return (
       <div className="pb-16">
-        <PageHeader title="Join a couch" back={{ label: "Home", parent: paths.home }} />
-        <EmptyState icon={KeyRound} title="No couch with that code" line={`Check ${code.toUpperCase()} with whoever sent it.`} action={<BtnLink href={paths.home}>Home</BtnLink>} />
+        <PageHeader title="Join a couch" back={{ label: "Home", parent: way.me ? paths.home : paths.welcome }} />
+        <EmptyState
+          icon={KeyRound}
+          title="No couch with that code"
+          line={`Check ${code.toUpperCase()} with whoever sent it.`}
+          action={<BtnLink href={way.me ? paths.home : paths.welcome}>{way.me ? "Home" : "Game Your Show"}</BtnLink>}
+        />
       </div>
     );
   }
   const lead = inv?.seasons[0];
+  // Someone new: signed out, back from making an account, or not let in yet (early access).
+  const newcomer = !way.me || welcome || !way.me.approved;
   return (
     <div className="pb-16" data-join-page={inv?.couch.name ?? ""}>
       <section className="relative isolate overflow-hidden px-4 pb-6 pt-[calc(14px+env(safe-area-inset-top,0px))]">
@@ -174,7 +140,7 @@ export function JoinScreen({ code }: { code: string }) {
             <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(22,20,29,.35),rgba(22,20,29,.82)_55%,var(--background))]" />
           </>
         )}
-        <NavLink href={paths.home} aria-label="Home" className="inline-block">
+        <NavLink href={way.me ? paths.home : paths.welcome} aria-label="Home" className="inline-block">
           <Wordmark />
         </NavLink>
         <span className="type-caption mt-[88px] block w-fit bg-chyron py-1 pl-[7px] pr-3.5 text-[13px] tracking-[0.06em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
@@ -197,6 +163,8 @@ export function JoinScreen({ code }: { code: string }) {
               <p className="text-[15px] leading-snug text-muted-foreground" data-on-couch>
                 You&rsquo;re on the couch: its chat, its TV guide, its watch alongs. Each game decides who can play.
               </p>
+            ) : newcomer ? (
+              <InviteWayIn code={code} inv={inv} way={way} welcome={welcome} />
             ) : inv.signedIn ? (
               <>
                 <p className="text-[15px] leading-snug text-muted-foreground">Join the couch for its chat, its TV guide and its watch alongs. Each game decides who can play.</p>
@@ -223,11 +191,7 @@ export function JoinScreen({ code }: { code: string }) {
                   {busy ? "Joining…" : `Join ${inv.couch.name}`}
                 </Btn>
               </>
-            ) : (
-              <Preview id="join.couch" className="mt-1">
-                <p className="p-3 text-[15px] leading-snug text-muted-foreground">Make an account to join {inv.couch.name}, then say where you are in its shows.</p>
-              </Preview>
-            )}
+            ) : null}
           </section>
           {inv.seasons.map((s) => (
             <section key={s.seasonId} className="mt-7 px-4" data-join-season={s.seasonId}>

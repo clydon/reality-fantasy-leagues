@@ -10,6 +10,7 @@ import type { SeasonStats } from "@/lib/server/season-stats";
 import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
 import type { Backstage, Chosen, PasteResult } from "@/lib/server/backstage";
 import type { EpisodeResults } from "@/lib/server/episode-results";
+import type { CatalogSeason } from "@/lib/server/way-in";
 import type { ChangeLine } from "@/lib/server/league-changes";
 import type { PreviewLine } from "@/lib/game/results-changes";
 import type { WaiverWeek } from "@/lib/game/waiver-view";
@@ -790,3 +791,15 @@ export const couches = {
 
 /** After joining or leaving a couch or a game: everything the new design reads moves on. */
 export const useAfterCouch = useAfterReveal;
+
+// ---- the way in (step 9 part 2; way-in.ts): first run's catalog, open signed out, and saving its shows ----
+
+export type { CatalogSeason } from "@/lib/server/way-in";
+
+/** Every season first run can pick: on now or coming up first (the wall), then the rest (found by searching). */
+export function useCatalog() {
+  return useQuery({ queryKey: ["new-design", "catalog"], queryFn: () => get<{ seasons: CatalogSeason[] }>("/api/catalog"), staleTime: 300_000 });
+}
+
+/** First run's shows for the account just made (or signed into), and the new design as the one it opens on. */
+export const saveFirstRun = (follows: { seasonId: string; seenThrough: number }[]) => post<{ saved: number }>("/api/me/first-run", { follows, ui: "new" });

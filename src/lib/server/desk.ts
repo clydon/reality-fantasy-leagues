@@ -5,6 +5,8 @@ import { confirmAt, settleEverything } from "./community-results";
 import { pool, HttpError } from "./db";
 import { autopilotSeasons, nudgeBotClock, tiebreakReach } from "./desk-bot";
 import { deskNotices } from "./show-changes";
+import { signupMode, waitingCount } from "./way-in";
+import { SIGNUP_MODES, type SignupMode } from "@/lib/signups";
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin): results settle by
 // community, and the admin is the exception desk. Three tabs from the profile menu: Inbox (only what the community
@@ -82,6 +84,8 @@ export interface DeskSettings {
   tiebreak: { on: boolean; hours: number; reach: string[] };
   /** Autopilot's trial: the seasons whose bot schedule is on, and what each checks (each season's page changes it). */
   autopilot: { id: string; name: string; line: string }[];
+  /** Who gets in (step 9 part 2, src/lib/signups.ts), and how many new accounts are waiting to. */
+  signups: { mode: SignupMode; waiting: number };
 }
 
 async function setting(key: string): Promise<unknown> {
@@ -106,6 +110,7 @@ export async function deskSettings(): Promise<DeskSettings> {
     rulebooks: { everywhere: (await setting("rulebooks")) === true, seasons: live },
     tiebreak: { on: await tiebreakOn(pool), hours: TIEBREAK_AFTER_MS / 3600000, reach: await tiebreakReach() },
     autopilot: await autopilotSeasons(),
+    signups: { mode: await signupMode(), waiting: await waitingCount() },
   };
 }
 
@@ -116,7 +121,10 @@ const putSetting = (key: string, value: unknown) =>
   ]);
 
 /** Changes one setting (with its undo in History); the Confirmed threshold settles every community fact again. */
-export async function setDeskSetting(user: SessionUser, body: { confirmAt?: unknown; newCouchesAnyone?: unknown; tiebreak?: unknown }): Promise<DeskSettings> {
+export async function setDeskSetting(
+  user: SessionUser,
+  body: { confirmAt?: unknown; newCouchesAnyone?: unknown; tiebreak?: unknown; signups?: unknown }
+): Promise<DeskSettings> {
   const was = await deskSettings();
   if (body.confirmAt !== undefined) {
     const n = Number(body.confirmAt);
@@ -161,8 +169,32 @@ export async function setDeskSetting(user: SessionUser, body: { confirmAt?: unkn
       nudgeBotClock();
     }
   }
+  // Who gets in: an account made from now on waits for an admin, gets in with an invite, or gets in.
+  if (body.signups !== undefined) {
+    if (!SIGNUP_MODES.includes(body.signups as SignupMode)) throw new HttpError(400, "signups is approve, invites or open");
+    const mode = body.signups as SignupMode;
+    if (mode !== was.signups.mode) {
+      await putSetting("signups", mode);
+      await logDesk(pool, {
+        entity: "settings",
+        entityId: "signups",
+        action: "set",
+        text: SIGNUP_LINES[mode],
+        before: was.signups.mode,
+        after: mode,
+        undo: { type: "setting", key: "signups", value: was.signups.mode },
+        userId: user.id,
+      });
+    }
+  }
   return deskSettings();
 }
+
+const SIGNUP_LINES: Record<SignupMode, string> = {
+  approve: "Who gets in: every new account waits for an admin",
+  invites: "Who gets in: an invite lets people in, anyone else waits",
+  open: "Who gets in: anyone who makes an account",
+};
 
 /** Puts a setting back (History's Undo). */
 export async function restoreSetting(key: string, value: unknown, userId: string): Promise<void> {
@@ -173,12 +205,18 @@ export async function restoreSetting(key: string, value: unknown, userId: string
   else if (key === "tiebreak") {
     await putSetting("tiebreak", value === true);
     nudgeBotClock();
-  } else throw new HttpError(409, "That setting can't be put back here");
+  } else if (key === "signups" && SIGNUP_MODES.includes(value as SignupMode)) await putSetting("signups", value);
+  else throw new HttpError(409, "That setting can't be put back here");
 }
 
 /** The desk's Settings lines, newest first. */
 export const settingsLines = async () =>
-  byNewest([...(await deskLines("settings", "confirm_at")), ...(await deskLines("settings", "new_couch_fill")), ...(await deskLines("settings", "tiebreak"))]);
+  byNewest([
+    ...(await deskLines("settings", "confirm_at")),
+    ...(await deskLines("settings", "new_couch_fill")),
+    ...(await deskLines("settings", "tiebreak")),
+    ...(await deskLines("settings", "signups")),
+  ]);
 
 // ---------- Inbox ----------
 

@@ -163,14 +163,19 @@ export async function couchInvite(rawCode: unknown, viewer: SessionUser | null):
   };
 }
 
-/** Join a couch with a code. Already on it: nothing changes (except you're on it in your own right now). */
-export async function joinCouch(user: SessionUser, rawCode: unknown): Promise<{ couchId: string; name: string; already: boolean }> {
+/**
+ * Join a couch with a code. Already on it: nothing changes (except you're on it in your own right now). `letIn`: an
+ * account still waiting to get in (early access) whose invite lets it in (the desk's Who gets in, step 9 part 2), let
+ * in with the join.
+ */
+export async function joinCouch(user: SessionUser, rawCode: unknown, opts: { letIn?: boolean } = {}): Promise<{ couchId: string; name: string; already: boolean }> {
   const found = await couchOfCode(normalizeCode(rawCode));
   if (!found) throw new HttpError(404, "No couch with that code. Check it with whoever sent it.");
   const { rows: count } = await pool.query("SELECT count(*)::int AS n FROM couch_members WHERE user_id = $1", [user.id]);
   return tx(async (c) => {
     const { rows } = await c.query("SELECT name FROM couches WHERE id = $1 FOR UPDATE", [found.couchId]);
     if (!rows.length) throw new HttpError(404, "No couch with that code. Check it with whoever sent it.");
+    if (opts.letIn) await c.query(`UPDATE "user" SET approved = true WHERE id = $1`, [user.id]);
     const { rows: was } = await c.query("SELECT via FROM couch_members WHERE couch_id = $1 AND user_id = $2", [found.couchId, user.id]);
     if (!was.length && count[0].n >= MAX_COUCHES) throw new HttpError(429, `You're on ${MAX_COUCHES} couches. Leave one first.`);
     await c.query(

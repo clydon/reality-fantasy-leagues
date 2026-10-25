@@ -16,6 +16,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | **GitHub** (`clydon/reality-fantasy-leagues`, **public since 2026-10-24**) | The code; Actions runs the hourly job (`auto-research.yml`: auto-research, reminders, waivers) and the nightly wiki sync | Free; Actions minutes unlimited while public | $0 |
 | healthchecks.io | Emails when the bot's daily self-test fails | Free | $0 |
 | Resend | Sign-up and password emails | not checked | $0? |
+| Google Cloud OAuth client (**not made yet**: the user's, step 9 part 2) | Continue with Google on the new design's way in. Off until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (no keys, no button) | Free (sign-in only: the email, profile and openid scopes, no verification review needed) | $0 |
 | Anthropic API | Paid auto-research (Claude), only for seasons switched on | Pay per use | per episode researched |
 | Domain `gameyourshow.com` | Bought 2026-10-12 | not recorded | yearly |
 
@@ -99,6 +100,12 @@ measured; measure from Neon's usage a week after a change):
 | New design, Backstage › Results while a One tap runs (`/backstage/ways`) | 4 s, only while one runs | ~1 KB |
 | New design, an episode page while the bot adds a show change (`/api/seasons/[id]/show-changes/[n]`) | 4 s, only while it's added (~1-3 min) | under 1 KB |
 | New design, the open draft room (`/api/seasons/[id]/draft?v=`) | 4 s while a turn-based draft is live; 15 s while a draft waits to start or people lock in a blind draft; not once it's done | ~1-2 KB (a hash check per game, a few small reads: your seat, queue and mark); the answer is 16 characters when nothing changed, else the draft (~10-20 KB) |
+
+**The way in (new design, step 9 part 2)** polls nothing. First run's catalog (`/api/catalog`, open signed out: every
+curated season with how far it's aired, a few KB) is the same for everyone, so Vercel's edge keeps it for five minutes
+(`s-maxage=300`): crawlers and first-time visitors don't reach Neon more than once every five minutes for it. The
+landing (`/welcome`) reads nothing from Neon (its faces and numbers are a static file); its show tiles come from that
+cached catalog.
 
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
@@ -354,3 +361,12 @@ never handles it: the user does the reset and the pasting.
   and the catch-up reveal (one game's episode, like a reveal). The chat badge's 30-second poll asks a slightly different
   question about late joiners (who the games can't see, instead of who's catching up) from the same league states, at the
   same cost. Two new pushes, both rare: a join request to whoever runs the game, and "You're in" when they're let in.
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 9 part 2, the way in. **No migration, nothing polls,
+  nothing runs on a schedule.** New reads: the catalog (`/api/catalog`, signed out, cached at the edge for 5 minutes,
+  a few KB), and first run's save (`POST /api/me/first-run`: one `show_follows` row per show picked, and
+  `user_settings.ui`), once per new account. A new setting, `app_settings 'signups'` (the desk's Who gets in: approve /
+  invites / open; unset means approve, as early access has been). A new service once the user makes it: a **Google
+  OAuth client** for Continue with Google (free; Better Auth keeps each Google sign-in's tokens in `account`, encrypted
+  now with `account.encryptOAuthTokens`: a few hundred bytes per Google account). Password resets and email
+  verification go through Resend as before (a sign-up that gives an email gets one verification email; nothing new is
+  sent otherwise).

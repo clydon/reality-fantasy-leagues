@@ -43,3 +43,13 @@ export async function logOut() {
   // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   window.location.href = "/";
 }
+
+/** logOut, landing somewhere else: the new design's front door is /welcome (docs/PLAN-new-design.md step 9 part 2). */
+export async function logOutTo(to: string) {
+  try {
+    await signOut();
+  } catch {
+    // ignored on purpose, as logOut
+  }
+  window.location.href = to;
+}

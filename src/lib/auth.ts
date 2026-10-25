@@ -2,6 +2,30 @@ import { betterAuth } from "better-auth";
 import { username, admin } from "better-auth/plugins";
 import { Pool } from "pg";
 import { isPlaceholderEmail } from "@/lib/no-email";
+import { signupModeOf } from "@/lib/signups";
+
+const authPool = new Pool({
+  connectionString: process.env.AUTH_DATABASE_URL,
+});
+
+// Google sign-in (docs/PLAN-new-design.md step 9 part 2), only once its OAuth app's keys are in the environment: without
+// them there's no provider, and the way in shows no Google button (way-in.ts googleOn). Its redirect URI is
+// BETTER_AUTH_URL + /api/auth/callback/google. Apple needs a paid developer account, so it waits.
+function socialProviders() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  return clientId && clientSecret ? { google: { clientId, clientSecret, prompt: "select_account" as const } } : {};
+}
+
+// Who gets in (src/lib/signups.ts, the desk's Settings): with sign-ups open, a new account is let in as it's made.
+async function openSignups(): Promise<boolean> {
+  try {
+    const { rows } = await authPool.query("SELECT value FROM app_settings WHERE key = 'signups'");
+    return signupModeOf(rows[0]?.value) === "open";
+  } catch {
+    return false;
+  }
+}
 
 // This app's OWN, and now ONLY, account system -- the real identity behind everything in this
 // repo (leagues, players, admin), not a parallel system nobody's league memberships are attached
@@ -15,9 +39,7 @@ import { isPlaceholderEmail } from "@/lib/no-email";
 // with a real reset-password flow (not magic-link-only) -- researched as the better-supported
 // 2026 community choice rather than defaulting to older training-data familiarity with NextAuth.
 export const auth = betterAuth({
-  database: new Pool({
-    connectionString: process.env.AUTH_DATABASE_URL,
-  }),
+  database: authPool,
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [
@@ -44,14 +66,25 @@ export const auth = betterAuth({
   },
   // A username-only account (no real email -- see no-email.ts) has nothing to verify and could
   // never satisfy requireEmailVerification below, so it's created pre-verified. Applies to every
-  // creation path (signup, admin-created users) since this runs at the adapter level.
+  // creation path (signup, admin-created users) since this runs at the adapter level. An account
+  // made with Google keeps Google's word on its email. With sign-ups open (the desk's Who gets in),
+  // it's approved as it's made.
   databaseHooks: {
     user: {
       create: {
-        before: async (user) => ({ data: { ...user, emailVerified: isPlaceholderEmail(user.email) } }),
+        before: async (user) => ({
+          data: {
+            ...user,
+            emailVerified: isPlaceholderEmail(user.email) || user.emailVerified === true,
+            ...((await openSignups()) ? { approved: true } : {}),
+          },
+        }),
       },
     },
   },
+  socialProviders: socialProviders(),
+  // Sign-in only needs who you are: the provider's tokens are kept (Better Auth stores them) but encrypted.
+  account: { encryptOAuthTokens: true },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

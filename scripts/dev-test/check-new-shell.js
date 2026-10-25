@@ -231,7 +231,9 @@ function recordTransitions() {
     await moved("hub → Settings", "push");
     await snap("settings");
     await page.goto(BASE + "/start/1", { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: "Next" }).click();
+    // First run (step 9 part 2) wants a show picked before Next.
+    await page.locator("[data-show-wall] [data-pick]").first().click();
+    await page.locator("[data-next]").click();
     await page.waitForURL("**/start/2");
     await moved("first run 1 → 2", "push");
     await snap("start-2");

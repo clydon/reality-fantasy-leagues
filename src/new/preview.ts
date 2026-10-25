@@ -55,9 +55,8 @@ export const PREVIEWS = {
     line: "Notifications by moment, spoiler safety, your preferred AI, appearance and help.",
   },
 
-  // ---- getting in ----
-  "start.steps": { step: "9", title: "First run", line: "Pick your shows, say where you are, save them, bring your people." },
-  "join.couch": { step: "9", title: "Joining a couch", line: "The couch you're invited to, then where you are in its shows." },
+  // ---- getting in (first run, the invite and sign-in are real since step 9 part 2) ----
+  "start.add-show": { step: "10", title: "Add a show", line: "Any show on TV, added by name and followed straight away." },
 } satisfies Record<string, PreviewEntry>;
 
 export type PreviewId = keyof typeof PREVIEWS;

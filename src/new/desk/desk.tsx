@@ -144,10 +144,17 @@ function FindTab() {
   );
 }
 
+/** Who gets in (src/lib/signups.ts): the desk's three ways, each with what it means. */
+const SIGNUPS = [
+  ["approve", "You let each one in", "Every new account waits until a site admin lets it in. Early access, as it's been."],
+  ["invites", "Invites let people in", "Someone who joins a couch with its code gets in straight away. Anyone else waits for you."],
+  ["open", "Anyone gets in", "Every new account plays straight away."],
+] as const;
+
 function SettingsTab() {
   const q = useDesk<{ settings: DeskSettings; history: DeskLine[] }>("/settings");
   const after = useAfterDesk();
-  const [sheet, setSheet] = useState<"confirm" | "couches" | "tiebreak" | null>(null);
+  const [sheet, setSheet] = useState<"confirm" | "couches" | "tiebreak" | "signups" | null>(null);
   if (!q.data) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
   const s = q.data.settings;
   const put = async (body: Record<string, unknown>, done: string) => {
@@ -185,6 +192,13 @@ function SettingsTab() {
       </Section>
       <Section title="Couches">
         <Row title="Who fills in results, for new couches" detail={s.newCouchesAnyone ? "Anyone on the couch" : "Only people who run games"} onClick={() => setSheet("couches")} />
+      </Section>
+      <Section title="People">
+        <Row
+          title="Who gets in"
+          detail={`${SIGNUPS.find(([m]) => m === s.signups.mode)?.[1] ?? ""}${s.signups.waiting ? ` · ${s.signups.waiting} waiting` : ""}`}
+          onClick={() => setSheet("signups")}
+        />
       </Section>
       <Section title="Rulebooks">
         <div data-rulebooks-status className="rounded-[4px] bg-card p-3.5 text-[14px] leading-snug">
@@ -231,6 +245,19 @@ function SettingsTab() {
         </div>
         <p data-tiebreak-reach className="mt-3 text-[13px] leading-snug text-muted-foreground">
           {s.tiebreak.reach.length ? `It reaches every season with shared results. Airing now: ${s.tiebreak.reach.join(", ")}.` : "It reaches every season with shared results. Nothing is airing now."}
+        </p>
+      </Sheet>
+      <Sheet open={sheet === "signups"} onOpenChange={(o) => !o && setSheet(null)} title="Who gets in" subtitle="When someone makes an account">
+        <div className="flex flex-col gap-2">
+          {SIGNUPS.map(([v, t, d]) => (
+            <button key={v} type="button" data-signups={v} aria-pressed={s.signups.mode === v} onClick={() => put({ signups: v }, `Who gets in: ${t.toLowerCase()}`)} className={`nd-press rounded-[3px] p-3.5 text-left ${s.signups.mode === v ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}>
+              <b className="block text-[16px]">{t}</b>
+              <small className="text-[13px] leading-snug text-muted-foreground">{d}</small>
+            </button>
+          ))}
+        </div>
+        <p data-signups-waiting className="mt-3 text-[13px] leading-snug text-muted-foreground">
+          {s.signups.waiting ? `${s.signups.waiting} ${s.signups.waiting === 1 ? "account is" : "accounts are"} waiting. Let them in from classic's Admin › Users for now.` : "Nobody's waiting to get in."} Changing this never lets in anyone already waiting.
         </p>
       </Sheet>
       <Sheet open={sheet === "couches"} onOpenChange={(o) => !o && setSheet(null)} title="New couches" subtitle="Who fills in results, until the couch changes it">

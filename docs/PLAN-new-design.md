@@ -34,7 +34,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | **done** 2026-10-25 on the branch, in two parts: how results get in (One tap, the ways, the bot's runs as sources, quick checks that wait; migration 0115) and settling without the admin (the tie-break run behind a desk switch that's off, "nobody went home", show changes the couches confirm, the desk's bot Settings; 0116); both ship with 0b's | Opus · xhigh |
 | 7 | Draft room and blind draft | **done** 2026-10-25 on the branch (migration 0117 ships with 0b's) | Opus · xhigh |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
-| 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **part 1 done** 2026-10-25 on the branch (couches and joining their games; migration 0119 ships with 0b's); part 2 the way in, part 3 solo | Opus · xhigh |
+| 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **parts 1 and 2 done** 2026-10-25 on the branch (couches and joining their games, migration 0119 ships with 0b's; the way in: landing, first run, the invite signed out, sign-in, Google behind config, no migration); part 3 solo next | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | not started | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
@@ -279,6 +279,21 @@ step's As built.
 - **Fewer starters trims lineups** (step 6a). Lowering Who scores each week keeps the first starters of a lineup already set
   for the next episode; Undo puts the number back, not the trimmed starters (the lineup then reads "not set", so it's asked
   for again).
+- **Letting someone in is still classic's** (step 9 part 2; for C or a desk step). With Who gets in at You let each one in, a
+  waiting account is approved from classic's Admin › Users; the desk only counts them ("1 waiting"). An Inbox row with Let in
+  would do it in the new design.
+- **An emailed link opened on another phone loses first run's picks** (step 9 part 2; for a later polish). The shows picked
+  before the account wait on the phone that picked them until the account signs in there; opening the confirmation link in
+  another browser (a mail app's own, say) signs in without them, and they're added later from Add a show (step 10). Holding
+  them on the server against the new account (a short-lived row keyed by the sign-up) would carry them anywhere.
+- **The reset link opens classic's page** (step 9 part 2; for C). Forgot password's email links to classic's
+  `/reset-password`, which then offers classic's sign-in; C gives it a new-design screen.
+- **A username-only account can't add Google later** (step 9 part 2; for 15). Linking a Google sign-in to an account goes by
+  a verified email the two share; an account made with a username alone has none. Account settings (step 15) could link one
+  from inside a signed-in account (Better Auth's `linkSocial`).
+- **First run lists the curated shows only** (step 9 part 2; for 10). The catalog is every season of a show an admin set up;
+  a show a player researched for their own league isn't offered to anyone else, and a show with no season yet (Big Brother,
+  Love Island... on the local copy) can't be followed: step 10's Add a show makes the season.
 
 ## What exists, what's needed
 
@@ -2041,7 +2056,7 @@ Migration **0118** (`show_follows.early_night`) ships with 0b's (same rehearsal)
    switcher, a couch's details, Get the couch going and the foot, the invite page for someone signed in, Settings' couches,
    Invite from a show and from Backstage, joining a game mid-season by its Who can join (open / Ask me first / Nobody new),
    requests in Backstage, live starts and catching up, and the Noticed items that were 9's.
-2. **The way in**: the landing page, first run (shows, where you are, save your shows, your people: `start.steps`), the
+2. **The way in** (done, below): the landing page, first run (shows, where you are, save your shows, your people: `start.steps`), the
    invite page signed out (`join.couch`: the couch first, then an account, then where you are), the real sign-in screen,
    and Google sign-in through Better Auth behind config (no client id: no button; the user creates the OAuth app).
    Mock: `landing.js`, `round2.js`.
@@ -2127,6 +2142,87 @@ Nothing polls and nothing runs on a schedule (HOSTING.md).
   right): `touch next.config.ts` restarts it cleanly (memory testing-bank). Two one-line refactors in `decision-apply.ts` and
   `results-changes.ts`, made while finding that, are kept (no change in behaviour).
 
+### As built, step 9 part 2 (2026-10-25, on `new-design`): the way in
+
+No migration; nothing polls or runs on a schedule (HOSTING.md: the catalog read, cached at the edge; the Google OAuth client
+is a service once the user makes it). New: `src/lib/server/way-in.ts`, `src/lib/signups.ts`, `src/new/way-in.ts` (pure),
+`src/new/welcome/` (landing, first-run, sign-in, invite, account, hooks, welcome.css), `/api/catalog`, `/api/me/first-run`.
+- **Where the new front door lives (decided):** the landing is **`/welcome`** and sign-in **`/signin`**, both new-design
+  routes (`NEW_DESIGN_PREFIXES`, so AuthGate leaves them alone). Classic's signed-out `"/"` landing and its `/sign-in` stay the
+  front door until step C (C points them here); `/welcome` is `noindex` until then. next.config's redirect of `"/"` is
+  unchanged. The signed-in layout now sends someone with no session to `/signin` (was classic's `/sign-in`) and an account
+  early access hasn't let in to `/start/4` (was classic's pending screen). The new design's Sign out lands on `/welcome`
+  (`logOutTo`).
+- **The landing** (`landing.tsx` + `welcome.css`, the mock's landing.js and landing.css ported, tokens mapped to Night): the
+  hero (rolling show name, Start free, Join with a code, the cast wall), the ticker and six sections (three taps, ways to
+  play, the couch and watch along, spoiler-safe with Survivor 49's race behind Reveal, any show, free and questions), the
+  last call and the footer. Faces and numbers from classic's `showcase.json`. Step 1's show tiles are the catalog's first
+  three shows: a tap starts first run with that season picked (`startWith`). Join with a code opens the code sheet, then
+  `/join/CODE`. Signed in (a session cookie), the top offers Open the app instead of Sign in and Start free.
+- **First run** (`first-run.tsx`, `/start/1..4`): 1 the wall (the catalog's seasons on now or coming up) and Search any show
+  (**covers every season in the catalog: the curated shows' seasons, finished ones included; anything else is step 10's Add
+  a show**, shown as the Preview `start.add-show` when nothing matches); 2 where you are, a stepper each capped at what's
+  aired ("Seen through Episode 3 of 5", "Caught up through Episode 5"), a season not on yet "Premieres Nov 4" with no
+  stepper, everything starting at Haven't started; 3 Save your shows = the account (Better Auth's username plugin: a
+  username, an email if you like, a password; Continue with Google only when it's set up); 4 your people: Start a couch and
+  Join a friend's couch (part 1's `NewCouchSheet` / `JoinCouchSheet`, now exported) or Just me for now (the hub; solo is part
+  3). The picks wait on the device (`localStorage gys.firstRun`, a week) through making the account, a Google round trip or
+  an emailed link, then `POST /api/me/first-run` follows each openly with where you are (never past what's aired) and makes
+  the new design the one the account opens on (with this device's `gys_ui` cookie). Signed in already, step 3 is skipped.
+- **Who gets in (decided: the gate stays as it was unless the desk changes it):** since 0058 every new account waits for a
+  site admin, so the way in would have ended "You're on the list" for everyone new. It's now the desk's **People › Who gets
+  in** (`app_settings 'signups'`): **You let each one in** (approve: the default, unset, exactly as before), **Invites let
+  people in** (joining a couch with its code lets a waiting account in, in the join's transaction; anyone else waits) and
+  **Anyone gets in** (open: let in as the account's made, by auth.ts's create hook), with the waiting count, History and
+  Undo. A waiting account may save its own first-run shows and nothing else (`requireAuth` refuses the rest);
+  `/api/couches/join` takes a session and refuses a waiting account unless invites let it in. It sees "You're on the list"
+  at `/start/4` (with Join a friend's couch when invites let people in) and on an invite.
+- **The invite signed out** (`invite.tsx`, the `join.couch` Preview made real): the couch first (part 1's page), then Join
+  opens Make an account ("Free. Then you're on ZT Survivor 51."), then "Where are you in ZT Survivor 51?" (each running
+  season of the couch, starting at Haven't started), then it saves those follows and joins the couch, and the page shows its
+  games to join. Google or an emailed link comes back with `?welcome=1`, which carries on from where you are. Not let in:
+  "You're on the list: once you're in, open this invite again". "Already have an account? Sign in" goes to
+  `/signin?next=/join/CODE`.
+- **Sign-in** (`sign-in.tsx`): username or email and password (`signInWithIdentifier`), mistakes in plain words, then on to
+  `?next=` (`safeNext`: only this site's paths, never `/api` or another host) or the design the account opens on (GET
+  /api/me), or the list for a waiting account; signed in already, Open the app or Sign in as someone else. **Forgot
+  password** is Better Auth's `requestPasswordReset` (the link opens classic's `/reset-password`): emailed through Resend when
+  `RESEND_API_KEY` is set (production), written to the server's console in local dev (as auth.ts always did), and on a
+  deployment without the key the sheet says plainly that it can't send email and to ask the site admin. A username-only
+  account has no email: ask the admin, as classic says.
+- **Google, behind config:** auth.ts adds the provider only when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are both set
+  (`prompt: select_account`), and the screens get `googleOn()` from the server: no keys, no button. Better Auth's callback is
+  `BETTER_AUTH_URL` + `/api/auth/callback/google` (checked: with placeholder keys in a scratch process it builds Google's URL
+  with that redirect URI and the email/profile/openid scopes), so the OAuth client (a Web application) registers
+  `http://localhost:3000/api/auth/callback/google` and `https://www.gameyourshow.com/api/auth/callback/google` as redirect URIs
+  and `http://localhost:3000` and `https://www.gameyourshow.com` as JavaScript origins (production's `BETTER_AUTH_URL` must be
+  the www host; the apex 308s there), and its keys go in `.env.local` and in Vercel's Production environment variables. Tokens
+  are encrypted (`account.encryptOAuthTokens`). The create
+  hook now keeps a provider's verified email (it forced every real email unverified, which would have made a Google sign-up
+  wait for our own verification email). A verified Google email that matches a verified account signs into it (Better Auth's
+  default linking). A Google account has no username: the username sheet asks for one on `/start` and `/join` (closing it
+  keeps Google's name). Apple needs a paid developer account, so there's no Apple button.
+- **Changed from the mock:** no Apple button; the email is optional (classic's sign-up rules; an email has to be confirmed
+  before the account signs in, so "Check your email" sits between step 3 and step 4); the landing's game cards use Survivor
+  49 (finished) where the mock used Survivor 51's points and survivors, so the front door never says how an airing season is
+  going; the invite's where-you-are starts at Haven't started (the mock started it caught up: one tap from a spoiler); the
+  wall has only what's on now or coming up (two seasons on the local copy), finished seasons are found by searching; a show
+  tile on the landing picks its season.
+- **Fixtures and Preview:** removed `start.steps` and `join.couch`; new `start.add-show` (step 10).
+- **Checks:** `scripts/dev-test/check-new-way-in.js <outDir> [--width=390] [--keep] [--api]` (84 PASS at 390; on new-fixture.js
+  plus its own curated "ZT Way In" show, seasons 7 airing and 8 coming up, and the desk's `zt_nd_desk`; sign-ups are
+  `zt_nd_wi_` usernames with `@example.invalid` emails or a username alone; refuses a RESEND_API_KEY; puts Who gets in back):
+  the catalog signed out, every Who gets in mode through the desk's API, a waiting account's first-run save and refusals, an
+  email sign-up's verification, then in the browser the landing, first run both ways (a username ending on the list and
+  joining from there; an email, verified, signed in, saved, Start a couch), sign-in (a wrong password, Forgot password, ?next=,
+  Open the app), the invite signed out (waiting, then let in) and the desk's setting. `tests/way-in.test.js` (7: stored picks,
+  saves capped at what's aired, where-you-are words, usernames from an email, safeNext, routes, who gets in).
+  `check-new-couches.js` now expects the invite's real Join signed out, and `check-new-shell.js` picks a show before first
+  run's Next. The rest pass, one at a time: check-new-couches (114), -hub (75), -shell (46), -show (69), -reveal (49), -stats
+  (57), -chat (52), -backstage (67), -backstage-ii (116), -community (82), -desk (100), -ours (89), -results-ways (89),
+  -settling (96), -draft (90), check-foundation, check-preview and check-backup-restore; `npm test` 542 of 542; type-check and
+  lint (src) clean.
+
 ## Step C: cutover
 
 - `ui='new'` for everyone; classic routes and components removed (the shell `auth-gate.tsx`, the league
@@ -2142,6 +2238,10 @@ Nothing polls and nothing runs on a schedule (HOSTING.md).
   and routes (archived into a backup table first), and `shows.format` reads. Same two-deploy order.
 - `src/new/preview.ts` and `src/new/fixtures/` must already be empty; delete them, `<Preview>`, and
   `check-preview.js`.
+- The front door (step 9 part 2): signed out, `"/"` becomes the new landing (`/welcome`, or move it to `"/"`) and classic's
+  `/sign-in` and `/account` send people to `/signin` and `/start/1`; take `/welcome`'s `noindex` off and give it the FAQ
+  JSON-LD and canonical classic's landing has; move `showcase.json` out of `src/components/landing/` before classic's landing
+  goes; the reset link's page (`/reset-password`, classic's) gets a new-design screen.
 - DESIGN.md, README, HANDOFF and the User Manual doc updated; a What's New entry (user approves the copy).
 
 ## Open decisions (recommendations first)

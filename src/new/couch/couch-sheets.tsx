@@ -284,7 +284,8 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
 
 // ---------- start one ----------
 
-function NewCouchSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+/** Start a couch: its name, then its code to send (also first run's last step). */
+export function NewCouchSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [made, setMade] = useState<{ id: string; name: string; code: string } | null>(null);
@@ -353,7 +354,8 @@ function NewCouchSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o
 
 const CODE_LEN = 6;
 
-function JoinCouchSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+/** Join a couch with a code, then its invite page (also first run's last step, where a code can let a waiting account in). */
+export function JoinCouchSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [chars, setChars] = useState<string[]>(Array(CODE_LEN).fill(""));
   const [state, setState] = useState<{ ok?: boolean; line: string } | null>(null);
   const [busy, setBusy] = useState(false);

@@ -3,15 +3,16 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { SessionProvider } from "@/new/session";
 import { CouchSheets } from "@/new/couch/couch-sheets";
+import { paths, START_STEPS } from "@/new/routes";
 
-// The new design's signed-in routes: the hub, show spaces, settings. No session: sign in (classic's screen, which
-// comes back to "/", which sends the new design's people on to /home). Not yet approved (early access): classic's
-// "/" shows the waiting screen. The endpoints these screens read check the session themselves; this is the door.
+// The new design's signed-in routes: the hub, show spaces, settings. No session: the new design's sign-in (step 9 part
+// 2), which comes back to the hub. Not let in yet (early access): first run's last step, which says you're on the list.
+// The endpoints these screens read check the session themselves; this is the door.
 export default async function SignedInLayout({ children }: { children: React.ReactNode }) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/sign-in");
+  if (!session) redirect(paths.signin());
   const user = session.user as typeof session.user & { username?: string | null; role?: string | null; approved?: boolean };
-  if (user.approved === false) redirect("/");
+  if (user.approved === false && user.role !== "admin") redirect(paths.start(START_STEPS));
   const me = {
     id: user.id,
     name: user.username || user.name,
