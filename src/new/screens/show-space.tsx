@@ -15,6 +15,7 @@ import { Episodes } from "../show/episodes";
 import { Games } from "../show/games";
 import { HowItWorksPage } from "../show/how-it-works";
 import { RevealScreen } from "../show/reveal";
+import { ShowStatsPage } from "../show/stats";
 import { Tonight } from "../show/tonight";
 import { Avatar, useNow } from "../ui/bars";
 import { usePushedPage } from "../ui/page";
@@ -28,7 +29,7 @@ import type { PreviewId } from "../preview";
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
 // the tab bar, and what opens over them: Your moves, How it works. Ported from the mock in 0d (show.js, dock.js,
 // refine.js tabTonight, gamestab.js, explorer.js, rulebook.js howPage); on real leagues since step 1 (your moves, the
-// tables, How it works), the rest on fixtures behind Preview.
+// tables, How it works), the cast and its stats since step 3, the rest on fixtures behind Preview.
 
 /** Everything a show's screens share: the couch it opens with, its header (from the home's cache until its own
  *  read comes back), its games, whether you run one of them, and your games as you play them (moves, tables). */
@@ -134,6 +135,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       {show.header && (
         <HowItWorksPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />
       )}
+      {show.header && <ShowStatsPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} />}
     </>
   );
 }
@@ -220,7 +222,7 @@ export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab })
       {tab === "tonight" && <Tonight seasonId={seasonId} show={show} />}
       {tab === "episodes" && <Episodes seasonId={seasonId} show={show} />}
       {tab === "games" && <Games show={show} />}
-      {tab === "cast" && <Cast show={show} />}
+      {tab === "cast" && <Cast seasonId={seasonId} show={show} />}
       {tab === "chat" && <Chat show={show} />}
       <Sheet open={where} onOpenChange={setWhere} title="Where you are" subtitle={show.header.show.name}>
         <Preview id="show.where" />

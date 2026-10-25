@@ -4,7 +4,6 @@ import { useState, type ReactNode } from "react";
 import { Check, ChevronRight, Eye, Lock, Plus, Tv } from "lucide-react";
 import { airTime, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { BINGO_CARD } from "../fixtures/episode-games";
-import { SEEN, STATS, statBoard, unitFor } from "../fixtures/cast";
 import type { GameView } from "../data";
 import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
@@ -17,6 +16,7 @@ import { ShowArt } from "../ui/show-bar";
 import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./moves";
 import { Block, Face } from "./parts";
 import { useOpenReveal } from "./reveal";
+import { StatsCard } from "./stats";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
 // Your moves as swipeable cards (open first with the one yellow button on the first, then what you've already set
@@ -25,7 +25,7 @@ import { useOpenReveal } from "./reveal";
 // a dot on the show's ⋯ carry it). After an episode, by the results' stage (step 2): waiting for results (the
 // stage bar), results in (the one yellow: Reveal; a move that waits on them says so), the morning update once the
 // final scores land after an early reveal, and the last episode's recap until the next one airs. Real: all of it
-// but bingo (12), Watch along (13) and the stats (3), on fixtures behind Preview.
+// but bingo (12) and Watch along (13), on fixtures behind Preview; the stats card is stats.tsx's (step 3).
 
 export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
@@ -38,7 +38,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       <Extras show={show} />
       <WatchAlongCard seasonId={seasonId} show={show} />
       {playing && <YourGames seasonId={seasonId} show={show} />}
-      <StatsCard seasonId={seasonId} />
+      <StatsCard seasonId={seasonId} show={show} />
     </>
   );
 }
@@ -496,70 +496,5 @@ function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
         </Preview>
       </div>
     </section>
-  );
-}
-
-// ---------- Stats ----------
-
-function StatRows({ statKey }: { statKey: string }) {
-  const rows = statBoard(statKey).slice(0, 3);
-  if (!rows.length) return <p className="text-[13px] text-muted-foreground">Nothing yet</p>;
-  return (
-    <>
-      {rows.map((r, i) => (
-        <div key={r.c.name} className={`flex min-h-10 items-center gap-2 border-t border-border ${r.out ? "opacity-50" : ""}`}>
-          <span className="type-num w-4 text-base text-muted-foreground">{i + 1}</span>
-          <Face src={r.c.photo} out={!!r.out} className="size-[30px] rounded-[3px]" />
-          <span className="flex min-w-0 flex-1 flex-col text-sm font-semibold">
-            {r.c.first}
-            {r.out ? <small className="block text-[10px] text-muted-foreground">Out · Ep {r.out}</small> : null}
-          </span>
-          <b className="type-num text-lg">{r.n}</b>
-        </div>
-      ))}
-    </>
-  );
-}
-
-function StatsCard({ seasonId }: { seasonId: string }) {
-  const [lead, a, b] = [STATS[1], STATS[2], STATS[3]];
-  const top = statBoard(lead.key)[0];
-  return (
-    <Preview id="show.stats" className="mx-2 mb-2 mt-[26px] px-2 pb-3 pt-4">
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="type-caption text-[24px]">Stats</h2>
-        <span className="text-[13px] text-muted-foreground">Up to Episode {SEEN} · no game needed</span>
-      </div>
-      {top && (
-        <NavLink data-try href={`${paths.show(seasonId, "cast")}?rank=${lead.key}`} replace className="nd-press flex items-center gap-3 rounded-[4px] bg-plate p-2.5 text-plate-foreground">
-          <Face src={top.c.photo} className="size-16 flex-none rounded-[3px]" />
-          <span className="min-w-0">
-            <span className="type-caption inline-block bg-plate-foreground py-[3px] pl-1.5 pr-3 text-[11px] tracking-[0.06em] text-plate [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]">
-              Stat of the week
-            </span>
-            <b className="type-caption mt-1 block text-[20px]">{lead.name}</b>
-            <small className="block text-[13px] text-plate-muted">
-              {top.c.first} · {top.n} {unitFor(lead.unit, top.n)}
-            </small>
-          </span>
-        </NavLink>
-      )}
-      <div className="mt-3.5 grid grid-cols-2 gap-3.5">
-        {[a, b].map((s) => (
-          <div key={s.key} className="min-w-0">
-            <span className="type-caption mb-1 block min-h-[26px] text-[13px] text-muted-foreground">{s.name}</span>
-            <StatRows statKey={s.key} />
-          </div>
-        ))}
-      </div>
-      <NavLink
-        data-try
-        href={`${paths.show(seasonId, "cast")}?rank=${lead.key}`}
-        replace
-        className="mt-2.5 flex h-11 items-center justify-center gap-1 rounded-[3px] font-bold outline-1 -outline-offset-1 outline-input"
-      >
-        All {STATS.length - 1} stats <ChevronRight className="size-4" aria-hidden />
-      </NavLink>
-    </Preview>
   );
 }

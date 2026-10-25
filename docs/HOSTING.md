@@ -205,3 +205,11 @@ never handles it: the user does the reset and the pasting.
   (`POST /api/seasons/[id]/reveal`) is once per person per episode: classic's results-seen writes per league, one chat
   line per chat, two small `show_follows` writes, then the states again (~10 KB out). Share your night's "Post to the
   couch" is one ordinary chat message; its image is drawn in the browser (no server, no storage).
+- **2026-10-24, on the `new-design` branch (not deployed).** Step 3, the cast explorer and stats. No migration, no new
+  table, nothing polled or scheduled. `/api/seasons/[id]/stats` is read when the Cast tab, Tonight's Stats card, a stats page
+  or By the numbers opens (once per show, then cached five minutes in the browser), and when the episode slider lets go;
+  it answers ~5-15 KB (a cast of 18-24 over a season). It reads the season's cast (~20 small rows) and its accepted
+  results: those are kept in the server's memory per season while unchanged, checked each time by one row (a count and an
+  md5 the database works out), so a slider's every range and everyone on a couch cost the check rather than the few
+  hundred rows (~40-60 KB at a season's end) again; plus one league state through `league-states.ts` (a hash when
+  unchanged). A show you don't play builds its Episodes from the same read. Share this is one ordinary chat message.

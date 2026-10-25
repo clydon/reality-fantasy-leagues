@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueDecisionSync, LeagueState } from "@/lib/game/types";
+import { applyDecision, orderPlacementsByEpisode, undoDetail, unitsOf, type CastRef, type DecisionRow, type LedgerDetail } from "@/lib/game/decision-apply";
 import { pool, withLeagueLock } from "./db";
 import { applyHeldTribesIfDue } from "./season-cast";
 import { notifyEpisodeResults } from "./push-events";
@@ -21,32 +22,8 @@ import { notifyEpisodeResults } from "./push-events";
 // league-decided to admin-decided has a cutoff (results_admin_since): only decisions settled at or after
 // it are in scope, and anything settled before it is left as each league has it, never pushed and never
 // undone.
-
-interface DecisionRow {
-  id: string;
-  episode_number: number;
-  post_merge: boolean;
-  kind: "elimination" | "event" | "exiled" | "role" | "group";
-  castaway_name: string;
-  method: string;
-  event_type: string;
-  /** A finalist elimination's jury votes received (0036), when research found them. */
-  jury_votes: number | null;
-  /** An event's count (0106: 3 home runs), when research reported one. NUMERIC, so text. */
-  units: string | null;
-  applied: { castawayName?: string; method?: string; eventType?: string } | null;
-  decided_at: Date;
-}
-
-interface LedgerDetail {
-  episodeNumber: number;
-  castawayId: string;
-  kind: DecisionRow["kind"];
-  eventType?: string;
-  eventId?: string;
-  /** The league already had this result, so undoing the decision leaves it alone. */
-  preexisting?: boolean;
-}
+//
+// Applying one decision (and undoing it) is pure: src/lib/game/decision-apply.ts, which the new design's stats share.
 
 /** The season a league is playing and who decides its results, or null. */
 async function seasonForLeague(
@@ -64,102 +41,11 @@ async function seasonForLeague(
   return rows.length ? rows[0] : null;
 }
 
-type CastRef = { id: string; name: string }[];
-
 /** The season's cast rows, for resolving staged names through each league's link (findSeasonCastaway). */
 export async function seasonCastRefs(client: PoolClient, seasonId: string | null): Promise<CastRef> {
   if (!seasonId) return [];
   const { rows } = await client.query<{ id: string; name: string }>("SELECT id, name FROM season_cast WHERE season_id=$1", [seasonId]);
   return rows;
-}
-
-const unitsOf = (d: DecisionRow): number | null => (d.units != null ? Number(d.units) : null);
-
-function applyDecision(state: LeagueState, d: DecisionRow, cast: CastRef): { detail?: LedgerDetail; skip?: string } {
-  const name = d.applied?.castawayName || d.castaway_name;
-  // By the season cast link first (docs/PLAN-universal-season-cast.md, piece 7); the loose name match
-  // only for a league not linked yet.
-  const { castaway, ambiguous } = StateLogic.Core.findSeasonCastaway(state, name, cast);
-  if (!castaway) return { skip: ambiguous ? `matches more than one castaway (${ambiguous.join(", ")})` : "not in this league's cast" };
-
-  const ep = StateLogic.ensureEpisodeNumber(state, d.episode_number, d.post_merge);
-  const base = { episodeNumber: d.episode_number, castawayId: castaway.id, kind: d.kind };
-
-  if (d.kind === "elimination") {
-    const method = d.applied?.method || d.method;
-    if (castaway.status === "eliminated") {
-      if ((ep.events || []).some((e) => e.castawayId === castaway.id)) {
-        // Already there (entered by hand, say): still take a jury count it doesn't have yet.
-        const ev = ep.events.find((e) => e.castawayId === castaway.id);
-        if (ev && ev.juryVotes == null && d.jury_votes != null) StateLogic.setJuryVotes(state, ep.id, castaway.id, d.jury_votes);
-        return { detail: { ...base, preexisting: true } };
-      }
-      return { skip: "already eliminated in a different episode in this league" };
-    }
-    StateLogic.addElimination(state, ep.id, castaway.id, method, d.jury_votes);
-    return { detail: base };
-  }
-  if (d.kind === "event") {
-    const type = d.applied?.eventType || d.event_type;
-    const existing = (ep.scoringEvents || []).find((e) => e.type === type && e.castawayId === castaway.id);
-    if (existing) {
-      // Already there (entered by hand, say): still take a count it doesn't have yet.
-      if (existing.units == null && unitsOf(d) != null) StateLogic.ActiveRosterLogic.setEventUnits(state, ep.id, existing.id, unitsOf(d));
-      return { detail: { ...base, eventType: type, eventId: existing.id, preexisting: true } };
-    }
-    const ev = StateLogic.ActiveRosterLogic.addEvent(state, ep.id, type, castaway.id, unitsOf(d));
-    if (!ev) return { skip: `"${type}" isn't a recognized scoring event` };
-    return { detail: { ...base, eventType: type, eventId: ev.id } };
-  }
-  if (d.kind === "group") {
-    // `applied.method` can legitimately be "" (corrected to "no group"), so it's checked for presence
-    // rather than truthiness.
-    const group = d.applied && d.applied.method !== undefined ? d.applied.method : d.method;
-    if ((ep.groups || []).some((g) => g.castawayId === castaway.id)) return { detail: { ...base, preexisting: true } };
-    StateLogic.addGroupChange(state, ep.id, castaway.id, group || null);
-    return { detail: base };
-  }
-  if (d.kind === "role") {
-    const role = d.applied?.method || d.method;
-    if ((ep.roles || []).some((r) => r.castawayId === castaway.id)) return { detail: { ...base, preexisting: true } };
-    if (!StateLogic.addRole(state, ep.id, castaway.id, role)) return { skip: `"${role}" isn't a role this league's show has` };
-    return { detail: base };
-  }
-  if ((ep.exiled || []).some((x) => x.castawayId === castaway.id)) return { detail: { ...base, preexisting: true } };
-  StateLogic.addExiled(state, ep.id, castaway.id);
-  return { detail: base };
-}
-
-function undoDetail(state: LeagueState, detail: LedgerDetail) {
-  if (detail.preexisting) return;
-  const ep = state.episodes.find((e) => e.number === detail.episodeNumber);
-  if (!ep) return;
-  if (detail.kind === "elimination") {
-    if ((ep.events || []).some((e) => e.castawayId === detail.castawayId)) {
-      StateLogic.removeElimination(state, ep.id, detail.castawayId);
-    }
-  } else if (detail.kind === "event") {
-    if (detail.eventId) StateLogic.removeScoringEvent(state, ep.id, detail.eventId);
-  } else if (detail.kind === "role") {
-    StateLogic.removeRole(state, ep.id, detail.castawayId);
-  } else if (detail.kind === "group") {
-    StateLogic.removeGroupChange(state, ep.id, detail.castawayId);
-  } else {
-    StateLogic.removeExiled(state, ep.id, detail.castawayId);
-  }
-}
-
-// Placement is "order of elimination", and addElimination hands out the next number -- so a season
-// whose episodes were accepted out of order (episode 3 before 2) would rank the episode-3 boot above
-// the episode-2 one. Re-deriving it from episode order after a sync keeps it right whatever order
-// the admin worked in. Only when every eliminated castaway has a known exit episode, so a league with
-// hand-entered history from before exit episodes were recorded is left exactly as it is.
-export function orderPlacementsByEpisode(state: LeagueState) {
-  const epNumber = new Map(state.episodes.map((e) => [e.id, e.number]));
-  const out = state.castaways.filter((c) => c.status === "eliminated" && typeof c.placementOrder === "number");
-  if (out.some((c) => !c.exitEpisodeId || !epNumber.has(c.exitEpisodeId))) return;
-  out.sort((a, b) => epNumber.get(a.exitEpisodeId!)! - epNumber.get(b.exitEpisodeId!)! || a.placementOrder! - b.placementOrder!);
-  out.forEach((c, i) => (c.placementOrder = i + 1));
 }
 
 /**

@@ -26,7 +26,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 0d | Hub and show space ported (fixtures behind Preview) | **done** 2026-10-24 on the branch (the hub, then the show space) | Opus · high |
 | 1 | Show space on real leagues: Tonight's move cards, Games tab, How it works | **done** 2026-10-24 on the branch (no migration) | Opus · high |
 | 2 | Episodes, staged results, the one reveal, share at the reveal | **done** 2026-10-24 on the branch (migration 0109 ships with 0b's) | Opus · high |
-| 3 | Cast explorer and stats, server-side spoiler guard | not started | Opus · high |
+| 3 | Cast explorer and stats, server-side spoiler guard | **done** 2026-10-24 on the branch (no migration) | Opus · high |
 | 4 | Chat, per couch and show, spoiler-folded | not started | Opus · medium |
 | 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | not started | Opus · high |
 | 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | not started | Opus · high |
@@ -153,9 +153,22 @@ step's As built.
   episode 5") already tells the couch, so step 4's chat or step 15's What your couch sees could make it a share level.
 - **The hub doesn't say results are in** (step 2; for 8). Up next keeps showing the next episode; the show bar, Tonight,
   Episodes, Games and the dock say Results are in. The hub's status line and Up next could lead with the reveal.
-- **A show you don't play has only who went home** (step 2; for 3 and 10). Its Episodes come from the season's accepted
-  eliminations up to where you are (faces when the name matches `season_cast`), with no recap or scorers; step 3's stats
-  endpoint counts the rest, and step 10's Where you are moves the mark.
+- **Traitors 5's cast stores the faction as its tribe** (step 3; for 6b, or a data fix the user approves now). Its
+  `season_cast.tribe_name` is "Traitor" for the two original Traitors and "Faithful" for everyone else, and the one league on
+  that season in the local copy (production's, 2026-10-16) has tribes named Traitor and Faithful, so classic's boards and
+  anything showing that league's tribes tell who the Traitors are. The stats ignore a group named for a role (cast-stats.ts),
+  but the data wants clearing: the wiki read's `castNote` already says a faction is never a tribe. 6b's admin (a season's
+  cast under Find) is the natural place, with that league's tribes fixed through the cast sync.
+- **The league views still show role-revealing results** (step 3; for 6b or whichever step next touches a Traitors league).
+  Steps 1–2's views read a league as it holds its results: a still-in Traitor's "As a Traitor, voted out a fellow Traitor"
+  lifts their points on an episode's top scorers (`episode-view.ts scorersIn`) and names itself in a Weekly Lineup reveal's
+  "why". `cast-stats.ts secretEvents` says which results give a role away, so those views could leave them out the same way.
+- **"Points" doesn't say whose** (step 3; for 6a). The explorer's Points are the couch's Weekly Lineup's, else the rulebook's
+  suggested (exclusive) values; `/stats` sends `pointsFrom`, and nothing shows it. 6a's Scoring rules (or a line under Rank)
+  could say "Points as Lineup League counts them".
+- **A season whose commissioners enter results has no shared stats** (step 3; for 6b). Stats count accepted
+  `season_decisions`; a season with `results_by = 'leagues'` has none, so they come from the couch's game there, and someone
+  on that show with no game sees "Nothing to show yet". 6b's one mode (every league receives the shared facts) ends this.
 - **Two names for one person** (step 1; for 15). The tables and who's set show a league's player name (alex), the couch
   line the account's (zt_nd_alex in the fixture), so a face can carry two initials. Step 15's profile (name, picture,
   colour) is the place to make one name win everywhere.
@@ -988,6 +1001,72 @@ Episodes, results in stages and the one reveal are real. Migration **0109** (`sh
   went home.
 - **For step 3:** `episode-view.ts` `outsOf` and `episodesSeen` read from your copy at your mark; the stats endpoint can
   follow `season-episodes.ts`'s shape (your games' views, else the season's accepted decisions up to your mark).
+
+### As built, step 3 (2026-10-24, on `new-design`)
+
+The cast explorer and its stats are real, for anyone on a show, playing or not. No migration; nothing polled or scheduled
+(HOSTING.md's Changelog has the reads).
+- **`GET /api/seasons/[id]/stats?from=&to=&couch=`** (`src/lib/server/season-stats.ts`): counted from the season's **accepted**
+  results (`season_decisions`; never pending ones) up to where you are (`guard.ts seenThrough`), the range clamped to it. The
+  pure half is `src/lib/game/cast-stats.ts`: `seasonFacts` applies the decisions to an empty league holding the season's
+  cast, through `src/lib/game/decision-apply.ts` (the classic sync's `applyDecision`, `undoDetail` and
+  `orderPlacementsByEpisode`, moved out of `season-decisions.ts` unchanged so both apply a result the same way), so the
+  engine scores them, implied events included (voted out, jury votes); `castStats` gives each castaway's events and points
+  per episode over the range, the stats by their **full names from the rulebook** (its moments' labels, the ones How it
+  works uses; the ways out are left to Faces), `featured` (the Stats card's order: something from your latest episode with
+  one clear leader on two or more), and **Patterns** from the rulebook's shape rather than one show's names (a group win by
+  group, people voted out who had survived votes before, how many who got an advantage are still in). Points are the
+  couch's game here, picked as How it works picks it (a Weekly Lineup you play first: its points and ownership;
+  `pointsFrom` names it), else the season's rulebook's suggested points. A season with no accepted results (its
+  commissioners enter them) counts from that game's own results as you've seen them. The season's decisions are kept per
+  server and season while unchanged (one row checks: a count and an md5 the database works out), and only the columns a result needs.
+- **The guard, secrets included:** a show with a secret role has no groups unless its format has real ones, and never one
+  named for a role (Traitors 5's cast carries the faction as its tribe: Noticed); a role is told only for someone who has
+  left by your episode, and so is any result that gives one away (`secretEvents`: whatever a rule awards by testing a role
+  or a role answer, whatever's named for one, and the secret role's own moments: "As a Traitor, voted out a fellow Traitor",
+  "Considered for murder", which only happens to a Faithful). A role is never a filter.
+- **Cast** (`src/new/show/cast.tsx`): Faces by the groups people are on now (else Still in), then Out ("Out · Ep 2 ·
+  Traitor" once told); Rank by any stat by its full name with Beside it, Patterns, Compare two (every stat over the range)
+  and Share this (posts "ZT Survivor 51 stats · ranked by points · Episodes 1–5" to the couch's chat when you play here,
+  else the phone's share sheet with a link that reopens the view: `?rank=&from=&to=`); By episode's heatmap from points per
+  episode. The slider stops at where you are, and a new range asks the server again (the last range's numbers stay up
+  meanwhile). A face's story is the season so far: their group ("started on" after a swap), a role or "stays secret until
+  they leave", each episode's results, how they left and the points. Your team is your games' teams. Empty states for
+  nothing seen yet and no cast yet.
+- **Tonight's Stats card and the stats page** (`src/new/show/stats.tsx`): the stat of the week (opens the page at it), two
+  short boards, All N stats. The page (`?page=stats&stat=`, the "sorted pages"): the spoiler chip, See everyone ranked by
+  this (into Rank), the stat you came for with everyone who has it, every other stat's top five (a heading re-sorts by it).
+- **By the numbers** (the hub's page, `hub/couch-pages.tsx`): its cast stats are real: stat cards for each show you follow
+  (leaders on two or more, a show at a time, five at most) and every stat by show, each opening that show's stats page over
+  the hub (`&season=`), back to By the numbers. Only the couch accolade card is still Preview (`hub.numbers`, now titled
+  Couch accolades, step 8).
+- **A show you don't play** has What happened on its episodes now, from the same facts (`episode-view.ts`
+  `seasonEpisodesSeen`): step 2's Noticed item.
+- `usePushedPage(key, owns)` has `showWith({ … })` for a page's own query params (`stat`, `season`), dropped when it closes.
+- **Fixtures and Preview:** deleted `fixtures/cast.ts` and the entries `show.cast` and `show.stats`; of By the numbers,
+  `fixtures/hub.ts` keeps only `COUCH_ACCOLADES`. `new-fixture.js`: three starting tribes; the zt Survivor's cast approved
+  and its accepted results the lineup league's own (results by leagues, so nothing syncs from them); the zt Traitors gets a
+  made-up cast whose faction rides as its tribe, and results through 3 (two Traitors, one banished in 2, the other's
+  role-revealing result in 2).
+- **Changed from the mock:** the stats are the rulebook's moments ("Zero votes at Tribal Council", not "Never written down"),
+  one per moment (no "Most votes against" adding two together), each counted in "times" (a count of units, like innings,
+  has no word); Share posts to the chat (the mock's feed is step 8); a show you don't play has no Stats tab of its own,
+  since Cast is the explorer for everyone (as the mock's explorer.js decided).
+- **Checks:** `scripts/dev-test/check-new-stats.js <outDir> [--width=390] [--keep]` (56 PASS at 390: every count against the
+  database's own rows, points against `/games`, ranges and clamping, sam's guard, the Traitors' secret role for riley,
+  jordan and casey, a couch you're not on, a show you don't play's episodes, a result accepted since counted on the next read; the Cast tab's views, story, Rank, a pattern, the slider asking again, Compare,
+  Share into the chat, `?rank=&from=&to=`; the Stats card, the stats page and its link into Rank; By the numbers and its stats
+  page over the hub; sam's slider; the Traitors' Cast). `tests/cast-stats.test.js` (4: facts score as the league they came
+  from, ranges, nothing past your mark, the Traitors' secrets). `check-new-show.js` (Cast on real stats), `check-new-reveal.js`,
+  `check-new-shell.js`, `check-new-hub.js` and `check-preview.js` pass; so do classic's `check-decision-units.js` and
+  `check-tribe-swap.js` (the moved `applyDecision`); `npm test` 477 pass plus the 3 known tour-commissioner failures;
+  type-check clean, lint as before.
+- **Noticed, left as is:** four things, now in Noticed, not fixed: Traitors 5's cast stores the faction as its tribe (and one
+  league on the local copy shows it), the league views still show role-revealing results, "Points" doesn't say whose, and a
+  season whose commissioners enter results has no shared stats. Fixed from that list: a show you don't play has only who went
+  home (step 2's).
+- **For step 4:** Share this and the reveal's Post to the couch write to the first game's chat (the linked group's); step 4
+  makes them the couch's.
 
 ### Step 6a: Backstage II, the game's own pages
 

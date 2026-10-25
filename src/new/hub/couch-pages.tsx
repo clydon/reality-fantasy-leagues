@@ -17,27 +17,29 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { useStatsFor, type Couch, type Home, type HomeShow, type SeasonStats } from "../data";
 import {
+  COUCH_ACCOLADES,
   PLAYING,
   PREVIOUSLY,
   RANKINGS,
   RANKING_SHOWS,
   SHOW_COLOUR,
-  STAT_DECK,
-  STAT_LISTS,
   THIS_WEEK,
   TROPHIES,
   VERDICTS,
 } from "../fixtures/hub";
 import { GAME_STYLE, ordinal } from "../games";
 import type { PreviewId } from "../preview";
+import { HubStatsPage, statBoard, statOf, unitFor, useStatsPage } from "../show/stats";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { Row, SectionHead } from "../ui/parts";
 import { Preview } from "../ui/preview";
 import { DemoAvatar } from "./sections";
 
 // More on the couch (the mock's refine.js and couchpages.js): six rows on the hub, each opening a page pushed over it
-// (?page=), so the back gesture closes it. The pages are on fixtures until step 8 (Hub I).
+// (?page=), so the back gesture closes it. The pages are on fixtures until step 8 (Hub I), except By the numbers' cast
+// stats (step 3): its stat cards and every stat by show are real, each opening that show's stats page.
 
 const PAGES = {
   rankings: { title: "Power rankings", line: "Where everyone stands this year", icon: Trophy, preview: "hub.rankings" },
@@ -69,19 +71,25 @@ export function MoreOnTheCouch() {
   );
 }
 
-function CouchPage({ k, children }: { k: PageKey; children: ReactNode }) {
+/** `real`: the page is on real data, and marks its own previewed parts. */
+function CouchPage({ k, real, children }: { k: PageKey; real?: boolean; children: ReactNode }) {
   const page = usePushedPage(k);
   return (
     <PushedPage open={page.open} onClose={page.close} title={PAGES[k].title} back="Home">
-      <Preview id={PAGES[k].preview} className="mx-2 mb-10 mt-3">
-        <div className="pb-4">{children}</div>
-      </Preview>
+      {real ? (
+        <div className="mb-10 mt-3 pb-4">{children}</div>
+      ) : (
+        <Preview id={PAGES[k].preview} className="mx-2 mb-10 mt-3">
+          <div className="pb-4">{children}</div>
+        </Preview>
+      )}
     </PushedPage>
   );
 }
 
-/** The six pages, mounted with the hub (each opens over it). */
-export function CouchPages() {
+/** The six pages, mounted with the hub (each opens over it), and the stats page By the numbers opens. */
+export function CouchPages({ home, couch }: { home: Home | undefined; couch: Couch | null }) {
+  const shows = statShows(home);
   return (
     <>
       <CouchPage k="rankings">
@@ -90,9 +98,10 @@ export function CouchPages() {
       <CouchPage k="break">
         <CommercialBreak />
       </CouchPage>
-      <CouchPage k="numbers">
-        <ByTheNumbers />
+      <CouchPage k="numbers" real>
+        <ByTheNumbers shows={shows} couch={couch} />
       </CouchPage>
+      <HubStatsPage couchId={couch?.id ?? null} names={new Map(shows.map((s) => [s.seasonId, s.show.name]))} />
       <CouchPage k="verdicts">
         <Verdicts />
       </CouchPage>
@@ -271,60 +280,159 @@ function CommercialBreak() {
 
 // ---------- By the numbers ----------
 
-function ByTheNumbers() {
+/** The shows By the numbers counts: the ones you follow and have started (or see everything of). */
+function statShows(home: Home | undefined): HomeShow[] {
+  return (home?.shows ?? []).filter((s) => s.following && s.seenThrough !== 0);
+}
+
+const showLabel = (s: HomeShow) => `${s.show.name}${s.seasonNumber ? ` ${s.seasonNumber}` : ""}`;
+
+/** One stat card: a leader's photo, the show, the stat, their name and count. */
+function StatCard({
+  photo,
+  chip,
+  stat,
+  who,
+  line,
+  n,
+  onClick,
+  className = "w-[calc(100%-44px)] flex-none snap-center",
+}: {
+  photo: ReactNode;
+  chip: ReactNode;
+  stat: string;
+  who: string;
+  line: string;
+  n?: number;
+  onClick?: () => void;
+  className?: string;
+}) {
+  const Tag = onClick ? "button" : "div";
+  return (
+    <Tag
+      {...(onClick ? { type: "button" as const, onClick } : {})}
+      className={`relative block aspect-[3/3.7] overflow-hidden rounded-[4px] bg-card text-left text-white shadow-[0_14px_34px_rgba(0,0,0,.45)] ${className}`}
+    >
+      {photo}
+      <span className="absolute left-2.5 top-2.5 flex items-center gap-1.5 rounded-[3px] bg-[rgba(16,14,21,.75)] py-1 pl-1 pr-2 text-xs font-bold">{chip}</span>
+      <span className="type-caption absolute bottom-[86px] left-0 max-w-[92%] bg-secondary py-[7px] pl-3 pr-[22px] text-[15px] tracking-[0.05em] [clip-path:polygon(0_0,100%_0,calc(100%_-_12px)_100%,0_100%)]">
+        {stat}
+      </span>
+      <span className="absolute inset-x-0 bottom-0 flex min-h-[86px] items-end gap-3 bg-plate px-3.5 py-2.5 text-plate-foreground">
+        <span className="min-w-0 flex-1">
+          <b className="type-caption block truncate text-[32px] leading-none">{who}</b>
+          <small className="mt-1 block text-[13px] text-plate-muted">{line}</small>
+        </span>
+        {n != null && <span className="type-num text-[64px] leading-[.8]">{n}</span>}
+      </span>
+    </Tag>
+  );
+}
+
+/** By the numbers: a deck of stat cards (each show's leaders, the couch's accolades), then every stat by show, each
+ *  opening that show's stats page sorted by it. Spoiler-safe: every show's stats are counted up to where you are. */
+function ByTheNumbers({ shows, couch }: { shows: HomeShow[]; couch: Couch | null }) {
+  const reads = useStatsFor(
+    shows.map((s) => s.seasonId),
+    couch?.id ?? null
+  );
+  const page = useStatsPage();
+  const counted = shows
+    .map((s, i) => ({ s, d: reads[i]?.data }))
+    .filter((x): x is { s: HomeShow; d: SeasonStats } => !!x.d && x.d.through > 0 && x.d.stats.length > 1);
+  // The deck: each show's featured stats whose leader has two or more, a show at a time, five at most.
+  const decks = counted.map(({ s, d }) => d.featured.map((key) => ({ s, stat: statOf(d, key), top: statBoard(d, key)[0] })).filter((c) => c.top && c.top.n >= 2));
+  const deck = Array.from({ length: Math.max(0, ...decks.map((x) => x.length)) }, (_, i) => decks.map((x) => x[i]).filter(Boolean))
+    .flat()
+    .slice(0, 5);
+  const loading = reads.some((r) => r.isPending && r.fetchStatus !== "idle");
   return (
     <>
       <SpoilerSafe />
-      <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-3 pb-1 pt-3.5 [scrollbar-width:none]">
-        {STAT_DECK.map((c) => (
-          <div key={c.stat} className="relative aspect-[3/3.7] w-[calc(100%-44px)] flex-none snap-center overflow-hidden rounded-[4px] bg-card text-white shadow-[0_14px_34px_rgba(0,0,0,.45)]">
-            {"couch" in c ? (
-              <span className="absolute inset-x-0 bottom-[86px] top-0 grid place-items-center bg-[linear-gradient(160deg,var(--secondary),var(--background))] text-muted-foreground">
-                <Crown className="size-[88px]" strokeWidth={1.2} aria-hidden />
-              </span>
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element -- fixture photo from the published mock
-              <img src={c.photo} alt="" className="absolute inset-0 size-full object-cover [object-position:center_20%]" />
-            )}
-            <span className="absolute left-2.5 top-2.5 flex items-center gap-1.5 rounded-[3px] bg-[rgba(16,14,21,.75)] py-1 pl-1 pr-2 text-xs font-bold">
-              {"couch" in c ? (
-                "On the couch"
-              ) : (
+      {/* Drawn once the shows' stats are in: a snapping row keeps to the card it first snapped to, so a card arriving
+          ahead of it would open the deck part-way along. */}
+      {loading ? (
+        <div className="mx-3 mt-3.5 aspect-[3/3.7] w-[calc(100%-44px)] animate-pulse rounded-[4px] bg-card" aria-busy />
+      ) : (
+        <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-3 pb-1 pt-3.5 [scrollbar-width:none]" data-stat-deck>
+          {deck.map(({ s, stat, top }) => (
+            <StatCard
+              key={`${s.seasonId}-${stat.key}`}
+              onClick={() => page.openAt(stat.key, s.seasonId)}
+              photo={
+                top.c.photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- cast photos come from anywhere a show's cast was imported from
+                  <img src={top.c.photo} alt="" className="absolute inset-0 size-full object-cover [object-position:center_20%]" />
+                ) : (
+                  <span className="absolute inset-x-0 bottom-[86px] top-0 bg-[linear-gradient(160deg,var(--secondary),var(--background))]" />
+                )
+              }
+              chip={
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- fixture art from the published mock */}
-                  <img src={c.showArt} alt="" className="size-[22px] rounded-[2px] object-cover" />
-                  {c.show}
+                  {s.show.artUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element -- show art from the catalog
+                    <img src={s.show.artUrl} alt="" className="size-[22px] rounded-[2px] object-cover" />
+                  )}
+                  {showLabel(s)}
                 </>
-              )}
-            </span>
-            <span className="type-caption absolute bottom-[86px] left-0 max-w-[92%] bg-secondary py-[7px] pl-3 pr-[22px] text-[15px] tracking-[0.05em] [clip-path:polygon(0_0,100%_0,calc(100%_-_12px)_100%,0_100%)]">
-              {c.stat}
-            </span>
-            <span className="absolute inset-x-0 bottom-0 flex min-h-[86px] items-end gap-3 bg-plate px-3.5 py-2.5 text-plate-foreground">
-              <span className="min-w-0 flex-1">
-                <b className="type-caption block text-[32px] leading-none">{c.who}</b>
-                <small className="mt-1 block text-[13px] text-plate-muted">{"couch" in c ? c.line : `${c.unit} · see everyone`}</small>
-              </span>
-              {!("couch" in c) && <span className="type-num text-[64px] leading-[.8]">{c.n}</span>}
-            </span>
-          </div>
-        ))}
-      </div>
-      {STAT_LISTS.map((s) => (
-        <section key={s.show} className="mt-6 px-3">
-          <SectionHead title={s.show} aside={`Up to Ep ${s.upTo}`} flush />
-          {s.rows.map((r) => (
-            <div key={r.stat} className="flex min-h-[58px] items-center gap-3 border-t border-border">
-              {/* eslint-disable-next-line @next/next/no-img-element -- fixture photo from the published mock */}
-              <img src={r.photo} alt="" className="size-[38px] rounded-[3px] object-cover [object-position:center_20%]" />
-              <span className="min-w-0 flex-1">
-                <b className="block text-[15px]">{r.stat}</b>
-                <small className="block text-[12.5px] text-muted-foreground">{r.who} leads</small>
-              </span>
-              <b className="type-num text-[24px]">{r.n}</b>
-              <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
-            </div>
+              }
+              stat={stat.name}
+              who={top.c.first}
+              line={`${unitFor(stat.unit, top.n) || "so far"} · see everyone`}
+              n={top.n}
+            />
           ))}
+          <Preview id="hub.numbers" className="w-[calc(100%-44px)] flex-none snap-center">
+            {COUCH_ACCOLADES.slice(0, 1).map((c) => (
+              <StatCard
+                key={c.stat}
+                className="w-full"
+                photo={
+                  <span className="absolute inset-x-0 bottom-[86px] top-0 grid place-items-center bg-[linear-gradient(160deg,var(--secondary),var(--background))] text-muted-foreground">
+                    <Crown className="size-[88px]" strokeWidth={1.2} aria-hidden />
+                  </span>
+                }
+                chip="On the couch"
+                stat={c.stat}
+                who={c.who}
+                line={c.line}
+              />
+            ))}
+          </Preview>
+        </div>
+      )}
+      {!loading && !counted.length && (
+        <p className="mx-3 mt-6 text-sm leading-normal text-muted-foreground">Cast stats fill in as you watch: every number is counted up to the episode you&apos;re on in each show.</p>
+      )}
+      {counted.map(({ s, d }) => (
+        <section key={s.seasonId} className="mt-6 px-3" data-numbers-show={s.seasonId}>
+          <SectionHead title={showLabel(s)} aside={`Up to Ep ${d.through}`} flush />
+          {d.stats
+            .filter((st) => st.key !== "points")
+            .map((st) => ({ st, top: statBoard(d, st.key)[0] }))
+            .filter((r) => r.top)
+            .map(({ st, top }) => (
+              <button
+                key={st.key}
+                type="button"
+                data-numbers-row={st.key}
+                onClick={() => page.openAt(st.key, s.seasonId)}
+                className="flex min-h-[58px] w-full items-center gap-3 border-t border-border text-left"
+              >
+                {top.c.photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- cast photos come from anywhere a show's cast was imported from
+                  <img src={top.c.photo} alt="" className="size-[38px] flex-none rounded-[3px] object-cover [object-position:center_20%]" />
+                ) : (
+                  <span className="type-caption grid size-[38px] flex-none place-items-center rounded-[3px] bg-secondary text-muted-foreground">{top.c.first.slice(0, 1)}</span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <b className="block text-[15px] leading-snug">{st.name}</b>
+                  <small className="block text-[12.5px] text-muted-foreground">{top.c.first} leads</small>
+                </span>
+                <b className="type-num text-[24px]">{top.n}</b>
+                <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+              </button>
+            ))}
         </section>
       ))}
     </>

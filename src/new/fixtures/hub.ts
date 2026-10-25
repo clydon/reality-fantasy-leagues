@@ -1,12 +1,12 @@
 // The hub's own data, from the mock (index.html, refine.js, couchpages.js, stats.js): the feed (On the couch), your
-// profile's numbers, and the six pages of More on the couch. Step 8 (Hub I) makes them real.
+// profile's numbers, and the six pages of More on the couch (By the numbers' cast stats are real since step 3). Step 8
+// (Hub I) makes them real.
 import type { GameName } from "../games";
 import { art, castPhoto, type Demo } from "./people";
 
 export const STEP = "8";
 
 const s51 = (name: string) => castPhoto("survivor-51", name);
-const t5 = (name: string) => castPhoto("the-traitors-us-5", name);
 
 export const SHOW_COLOUR = { Survivor: "#f2804b", Traitors: "#c23a4b", Challenge: "#5089c9" } as const;
 
@@ -71,37 +71,9 @@ export const THIS_WEEK: { title: string; line: string; art: string; position: st
   { title: "Survivor 49 trivia", line: "3 questions · riley got 2", art: art("survivor"), position: "64% 50%", icon: "quiz" },
 ];
 
-/** By the numbers: a deck of stat cards, then every stat by show. */
-export const STAT_DECK: ({ show: string; showArt: string; stat: string; who: string; photo: string; n: number; unit: string } | { couch: true; stat: string; who: Demo; line: string })[] = [
-  { show: "Survivor 51", showArt: art("survivor"), stat: "Voted with the majority", who: "Maggie", photo: s51("Maggie Nestor"), n: 2, unit: "times" },
-  { show: "Survivor 51", showArt: art("survivor"), stat: "Never written down", who: "Devin", photo: s51("Devin Way"), n: 3, unit: "tribals" },
-  { couch: true, stat: "Most shows on their list", who: "riley", line: "7 shows · 3 nobody else watches" },
-  { show: "Traitors 5", showArt: art("traitors"), stat: "Shields won", who: "Abby", photo: t5("Abby Lee"), n: 1, unit: "shield" },
-  { show: "Survivor 51", showArt: art("survivor"), stat: "Tribe immunity wins", who: "Cristian", photo: s51("Cristian Chavez"), n: 3, unit: "wins" },
-];
-export const STAT_LISTS: { show: string; upTo: number; rows: { stat: string; who: string; photo: string; n: number }[] }[] = [
-  {
-    show: "Survivor 51",
-    upTo: 4,
-    rows: [
-      { stat: "Voted with the majority", who: "Maggie", photo: s51("Maggie Nestor"), n: 2 },
-      { stat: "Never written down", who: "Devin", photo: s51("Devin Way"), n: 3 },
-      { stat: "Most votes against", who: "Jenna", photo: s51("Jenna Doore"), n: 2 },
-      { stat: "Survived votes against", who: "Danny", photo: s51("Danny Kilby"), n: 1 },
-      { stat: "Tribe immunity wins", who: "Cristian", photo: s51("Cristian Chavez"), n: 3 },
-      { stat: "Reward wins", who: "Brady", photo: s51("Brady Booker"), n: 2 },
-      { stat: "Idols found", who: "Brady", photo: s51("Brady Booker"), n: 1 },
-    ],
-  },
-  {
-    show: "Traitors 5",
-    upTo: 3,
-    rows: [
-      { stat: "Never voted for at the Round Table", who: "Abbey", photo: t5("Abbey Benjamin"), n: 1 },
-      { stat: "Shields won", who: "Abby", photo: t5("Abby Lee"), n: 1 },
-      { stat: "Survived votes at the Round Table", who: "Kim", photo: t5("Kim Daily"), n: 1 },
-    ],
-  },
+/** By the numbers' couch accolades (step 8: they need the couch's own data); its cast stats are real since step 3. */
+export const COUCH_ACCOLADES: { stat: string; who: Demo; line: string }[] = [
+  { stat: "Most shows on their list", who: "riley", line: "7 shows · 3 nobody else watches" },
 ];
 
 /** Couch verdicts: how the couch rated the latest episode you've seen of each show. */

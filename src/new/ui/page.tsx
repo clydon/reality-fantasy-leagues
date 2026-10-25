@@ -13,17 +13,24 @@ import { ChevronLeft } from "lucide-react";
 
 let openedHere: string | null = null;
 
-/** Whether `key`'s page is open, and opening or closing it. */
-export function usePushedPage(key: string) {
+/** Whether `key`'s page is open, and opening or closing it. `owns`: query params that are the page's own (a stats
+ *  page's `?stat=`), set by showWith and dropped with it. */
+export function usePushedPage(key: string, owns: string[] = []) {
   const params = useSearchParams();
+  const push = (extra: Record<string, string>) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("page", key);
+    for (const k of owns) url.searchParams.delete(k);
+    for (const [k, v] of Object.entries(extra)) url.searchParams.set(k, v);
+    openedHere = key;
+    window.history.pushState(null, "", url);
+  };
   return {
     open: params.get("page") === key,
     show() {
-      const url = new URL(window.location.href);
-      url.searchParams.set("page", key);
-      openedHere = key;
-      window.history.pushState(null, "", url);
+      push({});
     },
+    showWith: push,
     close() {
       // Opened by a tap here: going back is closing it. Opened from a link or a reload: just drop it from the URL.
       if (openedHere === key) {
@@ -32,6 +39,7 @@ export function usePushedPage(key: string) {
       } else {
         const url = new URL(window.location.href);
         url.searchParams.delete("page");
+        for (const k of owns) url.searchParams.delete(k);
         window.history.replaceState(null, "", url);
       }
     },

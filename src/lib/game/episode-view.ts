@@ -162,6 +162,15 @@ export function episodesSeen(game: GameRefIn, full: LeagueState, me: string, see
     });
 }
 
+/** A show you don't play: each episode of the season's results (cast-stats.ts seasonFacts, built up to where you are),
+ *  who went home and what happened, with no game's lines or scorers. */
+export function seasonEpisodesSeen(facts: LeagueState): EpisodeSeen[] {
+  return [...facts.episodes]
+    .filter((ep) => StateLogic.episodeHasResults(ep))
+    .sort((a, b) => b.number - a.number)
+    .map((ep) => ({ number: ep.number, stage: StateLogic.resultsStage(ep) ?? "final", out: outsOf(facts, ep), happened: happenedIn(facts, ep), scorers: [], lines: [] }));
+}
+
 // ---------- the reveal ----------
 
 export interface RevealStarter {

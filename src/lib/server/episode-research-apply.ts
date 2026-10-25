@@ -1,7 +1,7 @@
 import type { PoolClient, Pool } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState, ResearchApplySummary, ResearchDecisionKind, StagedResearchDecision } from "@/lib/game/types";
-import { orderPlacementsByEpisode } from "./season-decisions";
+import { orderPlacementsByEpisode } from "@/lib/game/decision-apply";
 
 export type { ResearchApplySummary, StagedResearchDecision };
 

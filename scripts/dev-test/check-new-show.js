@@ -15,7 +15,8 @@
 //   - the hub's Up next: who's set, real;
 //   - the guard: sam, behind on results (seen 3 of 5), gets no standings, exits or cast changes past Episode 3 from
 //     /games or How it works, and their pick waits on revealing Episode 4 (its button is the reveal: check-new-reveal.js);
-//   - Cast: Faces, Rank and By episode switch, a face opens their story, ?rank=<stat> opens Rank;
+//   - Cast (real since step 3; check-new-stats.js checks its numbers): Faces, Rank and By episode switch, a face opens
+//     their story, a re-sort runs Flip, ?rank=<stat> opens Rank;
 //   - Chat: the messages and the composer, no dock;
 //   - a show alex doesn't play (the fixture's Traitors): Play it in place of the tables, no dock;
 //   - every show.* entry of the Preview registry (src/new/preview.ts) renders somewhere, a Preview tap says Coming
@@ -358,14 +359,19 @@ function check(ok, what, detail = "") {
     await closeSheet();
     await page.locator("[data-view=rank]").click();
     await page.waitForTimeout(500);
-    check(await page.getByText("Ranked by").isVisible(), "Rank switches in (data-try)");
+    check(await page.getByText("Ranked by").isVisible(), "Rank switches in");
     await shoot("cast-rank");
     const firstRanked = () => page.locator("[data-cast]").first().getAttribute("data-cast");
     const top = await firstRanked();
-    await page.evaluate(() => (window.__vt.length = 0));
-    await page.locator('select[aria-label="Ranked by"]').selectOption("clean");
-    await page.waitForTimeout(700);
-    const sorted = await page.evaluate(() => window.__vt.at(-1) || null);
+    // The first stat (by its full name, from the rulebook) whose leader isn't the points leader.
+    let sorted = null;
+    for (const stat of (await page.locator('select[aria-label="Ranked by"] option').evaluateAll((os) => os.map((o) => o.value))).slice(1)) {
+      await page.evaluate(() => (window.__vt.length = 0));
+      await page.locator('select[aria-label="Ranked by"]').selectOption(stat);
+      await page.waitForTimeout(700);
+      sorted = await page.evaluate(() => window.__vt.at(-1) || null);
+      if ((await firstRanked()) !== top) break;
+    }
     check((await firstRanked()) !== top, "ranking by another stat re-sorts the cast", `${top} stayed first`);
     check(!!sorted && sorted.anims.some((a) => a.includes("nd-flip")), "each face moves to its new place (Flip)", JSON.stringify(sorted && sorted.anims.slice(0, 4)));
     await page.locator("[data-view=heat]").click();
@@ -373,9 +379,9 @@ function check(ok, what, detail = "") {
     check(await page.locator("table").isVisible(), "By episode switches in");
     await fits("Cast, By episode");
     await page.screenshot({ path: path.join(out, "cast-heat.png") });
-    await page.goto(`${BASE}/show/${sid}/cast?rank=majority`, { waitUntil: "networkidle" });
-    await page.locator("[data-tab=cast]").waitFor();
-    check((await page.locator("[data-view=rank]").getAttribute("aria-selected")) === "true", "?rank= opens Rank (Tonight's Stats card)");
+    await page.goto(`${BASE}/show/${sid}/cast?rank=votedWithMajority`, { waitUntil: "networkidle" });
+    await page.locator("[data-rank]").waitFor();
+    check((await page.locator("[data-view=rank]").getAttribute("aria-selected")) === "true", "?rank= opens Rank (the stats page's link)");
 
     // ---- Chat ----
     await tabTo("Chat");

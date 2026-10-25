@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { episodesSeen, revealIn, type EpisodeSeen, type Happened, type OutFace, type RevealGame, type RevealPart, type RevealTable } from "@/lib/game/episode-view";
+import { episodesSeen, revealIn, seasonEpisodesSeen, type EpisodeSeen, type Happened, type OutFace, type RevealGame, type RevealPart, type RevealTable } from "@/lib/game/episode-view";
 import type { LeagueState } from "@/lib/game/types";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import type { SessionUser } from "./auth-helpers";
@@ -8,6 +8,7 @@ import { EVERYTHING } from "./guard";
 import { markRevealed } from "./reveal";
 import { DEFAULT_RUNTIME_MIN, seasonSchedules } from "./schedule";
 import { gamesHere, type GameHere } from "./season-games";
+import { seasonFactsFor } from "./season-stats";
 
 // A season's episodes and its one reveal, for the new design's show space (docs/PLAN-new-design.md step 2):
 //   GET  /api/seasons/[id]/episodes   every episode as far as you've seen (who went home, what happened, the top
@@ -99,7 +100,7 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
     // Linked games often ask the same prediction: say it once.
     ep.lines = ep.lines.filter((l, i) => l.gameType !== "predictions" || ep.lines.findIndex((x) => x.gameType === l.gameType && x.big === l.big && x.line === l.line) === i);
   }
-  if (!here.length) for (const ep of await seasonResults(seasonId, mark)) seenRows.set(ep.number, ep);
+  if (!here.length) for (const ep of await notPlaying(user, seasonId, couchId, mark)) seenRows.set(ep.number, ep);
 
   const rows: EpisodeRow[] = [...seenRows.values()].map((ep) => ({ ...ep, airAt: airAt(ep.number), status: "seen" as const }));
   const latest = latestIn(states);
@@ -131,7 +132,14 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   };
 }
 
-/** Playing nothing here: who went home each episode up to your mark, from the season's accepted results. */
+/** Playing nothing here: each episode of the season's results up to your mark, who went home and what happened (the facts
+ *  the stats count, season-stats.ts); with no approved cast to apply them to, who went home from the accepted results. */
+async function notPlaying(user: SessionUser, seasonId: string, couchId: string | null, mark: number): Promise<EpisodeSeen[]> {
+  const seen = seasonEpisodesSeen((await seasonFactsFor(user, seasonId, couchId)).facts);
+  return seen.length ? seen : seasonResults(seasonId, mark);
+}
+
+/** Who went home each episode up to your mark, from the season's accepted results. */
 async function seasonResults(seasonId: string, mark: number): Promise<EpisodeSeen[]> {
   const { rows } = await pool.query(
     `SELECT d.episode_number AS n, COALESCE(d.applied->>'castawayName', d.castaway_name) AS name, COALESCE(d.applied->>'method', d.method) AS method,

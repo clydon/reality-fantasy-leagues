@@ -2,10 +2,13 @@
 // the live one after 0101 and 0103. Three linked leagues (Outlast, Weekly Lineup, Survival Pool) on a zt
 // show's season 51, four people on all three (the mock's demo names: alex runs them, riley is a Game admin in
 // the lineup league), results through episode 5 and everyone revealed through 5 except sam (3). Weekly at
-// 8 PM Eastern, 90 minutes, with episode 6 three days from today.
+// 8 PM Eastern, 90 minutes, with episode 6 three days from today. Three starting tribes (Toka, Savu, Dina); the
+// season's cast is approved and its accepted results (season_decisions) are the lineup league's, for the stats.
 //
-// Also, for sharing and access checks: a zt Traitors season that riley follows openly and jordan privately; and
-// a league outside the group on the same season, on its own couch ("ZT Extra": alex and casey), ready to link.
+// Also, for sharing and access checks: a zt Traitors season that riley follows openly (through 2) and jordan
+// privately (through 4), with a made-up cast whose faction rides as its tribe and results through 3 (two Traitors,
+// one banished in 2, the other's "voted out a fellow Traitor" in 2: the stats' secret-role guard); and a league
+// outside the group on the same season, on its own couch ("ZT Extra": alex and casey), ready to link.
 //
 //   node scripts/dev-test/new-fixture.js up      create (or refresh) it, print the logins
 //   node scripts/dev-test/new-fixture.js down    remove every row it made
@@ -41,14 +44,50 @@ const FACES = [
   "mike-pinsky", "ori-jean-charles", "sharonda-cox",
 ];
 const nameOf = (slug) => slug.split("-").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+// Three starting tribes, dealt in turn (the demo builder merges them at episode 6).
+const TRIBES = [["toka", "Toka", "#e0b23a"], ["savu", "Savu", "#9b6bd0"], ["dina", "Dina", "#f3214a"]];
 const data = {
   id: "zt-nd", showId: SHOW, showName: "ZT Survivor", seasonName: "ZT Survivor 51", episodeCount: EPISODES,
   players: ["alex", "riley", "jordan", "sam"].map((key) => ({ key, name: key, color: "#888" })),
+  groups: TRIBES.map(([key, name, color]) => ({ key, name, color })),
   castaways: FACES.map((slug, i) => ({
-    key: `k${i}`, name: nameOf(slug), placement: i + 1, photoUrl: `/mock/showcase/img/survivor-51/${slug}.jpg`,
+    key: `k${i}`, name: nameOf(slug), placement: i + 1, photoUrl: `/mock/showcase/img/survivor-51/${slug}.jpg`, groupKey: TRIBES[i % 3][0],
     exitEpisode: Math.min(i + 1, EPISODES), exitMethod: i === 17 ? "Sole Survivor" : "Voted Out",
   })),
 };
+
+// The zt Traitors' cast (step 3's stats guard), made-up people: its wiki-style cast carries the faction as a tribe,
+// as Traitors 5's real one does. Episode 1: Hana and Ivo are the Traitors, Bea is murdered; episode 2: Ivo is
+// banished, Hana (still in) votes out her fellow Traitor, Cal wins a shield; episode 3: nothing riley (on 2) may see.
+const TRAITORS_CAST = ["Ada Moss", "Bea Lund", "Cal Ortiz", "Dev Rao", "Eli Park", "Fay Quinn", "Gus Hale", "Hana Kim", "Ivo Petrov", "Jo Wren"];
+const TRAITOR = new Set(["Hana Kim", "Ivo Petrov"]);
+const TRAITORS_RESULTS = [
+  [1, "role", "Hana Kim", "Traitor", ""], [1, "role", "Ivo Petrov", "Traitor", ""],
+  [1, "elimination", "Bea Lund", "Murdered", ""],
+  ...TRAITORS_CAST.filter((n) => n !== "Bea Lund").map((n) => [1, "event", n, "", "zeroVotes"]),
+  [2, "elimination", "Ivo Petrov", "Banished", ""],
+  [2, "event", "Hana Kim", "", "turnedOnTraitor"], [2, "event", "Cal Ortiz", "", "shieldWon"], [2, "event", "Dev Rao", "", "survivedRoundTable"],
+  [3, "elimination", "Cal Ortiz", "Murdered", ""], [3, "event", "Eli Park", "", "shieldWon"],
+];
+
+/** A season's accepted results, as an admin's review leaves them (season_decisions), from a league's episodes. */
+function decisionsFrom(state) {
+  const name = new Map(state.castaways.map((c) => [c.id, c.name]));
+  return state.episodes.flatMap((ep) => [
+    ...(ep.events || []).map((e) => [ep.number, "elimination", name.get(e.castawayId), e.method, ""]),
+    ...(ep.scoringEvents || []).map((e) => [ep.number, "event", name.get(e.castawayId), "", e.type]),
+  ]);
+}
+
+async function insertResults(pool, seasonId, rows) {
+  for (const [n, kind, who, method, eventType] of rows) {
+    await pool.query(
+      `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, event_type, status, from_research, decided_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'accepted', true, now())`,
+      [seasonId, n, kind, who, method, eventType]
+    );
+  }
+}
 const LEAGUES = [
   ["outlast", "zt-nd-outlast", "Couch Cup", "classic-draft"],
   ["lineup", "zt-nd-lineup", "Lineup League", "active-roster"],
@@ -134,6 +173,22 @@ async function up(pool) {
     await pool.query(`INSERT INTO couch_members (couch_id, user_id, role) VALUES ($1, $2, $3)`, [couch, users[who], who === "alex" ? "owner" : "member"]);
     await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, $3)`, [users[who], season, SEEN[who]]);
   }
+  // The season's cast and its accepted results through episode 5 (the stats count these: season-stats.ts), from the
+  // lineup league's own, so both agree. Results by leagues (the column's default), so no league is synced from them.
+  const lineupState = (await one(`SELECT state FROM leagues WHERE id = $1`, [leagues.lineup])).state;
+  for (const [i, slug] of FACES.entries()) {
+    await pool.query(`INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order) VALUES ($1, $2, $3, $4, $5)`, [
+      season, nameOf(slug), TRIBES[i % 3][1], `/mock/showcase/img/survivor-51/${slug}.jpg`, i,
+    ]);
+  }
+  await pool.query(`UPDATE show_seasons SET cast_approved_at = now() WHERE id = $1`, [season]);
+  await insertResults(pool, season, decisionsFrom(lineupState));
+  for (const [i, who] of TRAITORS_CAST.entries()) {
+    await pool.query(`INSERT INTO season_cast (season_id, name, tribe_name, sort_order) VALUES ($1, $2, $3, $4)`, [traitorsSeason, who, TRAITOR.has(who) ? "Traitor" : "Faithful", i]);
+  }
+  await pool.query(`UPDATE show_seasons SET cast_approved_at = now() WHERE id = $1`, [traitorsSeason]);
+  await insertResults(pool, traitorsSeason, TRAITORS_RESULTS);
+
   await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, 2)`, [users.riley, traitorsSeason]);
   await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through, private) VALUES ($1, $2, 4, true)`, [users.jordan, traitorsSeason]);
 

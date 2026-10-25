@@ -47,7 +47,7 @@ export function HomeScreen() {
         <FocusHub home={home} couch={couch} />
       )}
       <ProfileSheet open={profile} onOpenChange={setProfile} me={me} couch={couch} />
-      <CouchPages />
+      <CouchPages home={home} couch={couch} />
     </div>
   );
 }

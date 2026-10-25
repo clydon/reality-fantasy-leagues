@@ -1,18 +1,21 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useSyncExternalStore } from "react";
 import { api } from "@/lib/api";
 import type { GameView, WeekProgress } from "@/lib/game/game-view";
 import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
 import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
+import type { SeasonStats } from "@/lib/server/season-stats";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
 export type { EpisodeRow, SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
+export type { CastStat, Pattern, StatDef } from "@/lib/game/cast-stats";
+export type { SeasonStats } from "@/lib/server/season-stats";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
-// on a show and its How it works, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
+// on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
 // league routes the classic app uses. Nothing here polls: a screen that polls should poll something smaller
 // (docs/HOSTING.md).
 
@@ -183,6 +186,38 @@ export function useAfterReveal() {
 export interface HowItWorksPage {
   how: HowItWorks;
   cast: { name: string; photo: string | null; colour: string | null }[];
+}
+
+/**
+ * A show's cast stats, up to where you are (GET /api/seasons/[id]/stats), counted over Episodes `range` (null: all of
+ * them). A new range keeps showing the last one's numbers until its own come back, so the slider never blanks the view.
+ */
+export function useSeasonStats(seasonId: string, couchId: string | null, range: [number, number] | null = null, enabled = true) {
+  const query = new URLSearchParams();
+  if (couchId) query.set("couch", couchId);
+  if (range) {
+    query.set("from", String(range[0]));
+    query.set("to", String(range[1]));
+  }
+  return useQuery({
+    queryKey: ["new-design", "stats", seasonId, couchId, range?.[0] ?? null, range?.[1] ?? null],
+    queryFn: () => get<SeasonStats>(`/api/seasons/${seasonId}/stats${query.size ? `?${query}` : ""}`),
+    staleTime: 5 * 60_000,
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Several shows' stats at once, over all you've seen of each (By the numbers): the same reads as useSeasonStats. */
+export function useStatsFor(seasonIds: string[], couchId: string | null, enabled = true) {
+  return useQueries({
+    queries: seasonIds.map((id) => ({
+      queryKey: ["new-design", "stats", id, couchId, null, null],
+      queryFn: () => get<SeasonStats>(`/api/seasons/${id}/stats${couchId ? `?couch=${encodeURIComponent(couchId)}` : ""}`),
+      staleTime: 5 * 60_000,
+      enabled,
+    })),
+  });
 }
 
 /** How it works for a show, told from the couch's games there (GET /api/seasons/[id]/how-it-works). */

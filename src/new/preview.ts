@@ -36,14 +36,12 @@ export const PREVIEWS = {
   "hub.foot": { step: "9", title: "New league, Join a couch", line: "Start a game or join another couch." },
   "hub.rankings": { step: "8", title: "Power rankings", line: "Where everyone stands this year." },
   "hub.break": { step: "8", title: "Commercial break", line: "Every game on the couch." },
-  "hub.numbers": { step: "8", title: "By the numbers", line: "Cast stats and couch accolades." },
+  "hub.numbers": { step: "8", title: "Couch accolades", line: "Who called it, who's on a streak, who watches most." },
   "hub.verdicts": { step: "8", title: "Couch verdicts", line: "How the couch rated each episode." },
   "hub.previously": { step: "8", title: "Previously on", line: "The story so far, up to where you are." },
   "hub.trophies": { step: "8", title: "Trophy shelf", line: "Every season the couch has finished." },
 
   // ---- a show space (ported in 0d; fixtures in src/new/fixtures/) ----
-  "show.cast": { step: "3", title: "The cast", line: "The cast by group, ranked by any stat, episode by episode." },
-  "show.stats": { step: "3", title: "Stats", line: "Cast stats up to where you are, no game needed." },
   "show.chat": { step: "4", title: "Chat", line: "The couch's chat about this show, folded at where you are." },
   "show.episode-games": { step: "12", title: "This week's games", line: "Bingo, Who goes home? and trivia for each episode." },
   "show.make-it-a-game": { step: "10", title: "Make it a game", line: "Play this show with your couch." },
