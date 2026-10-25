@@ -31,18 +31,18 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | **done** 2026-10-25 on the branch (migration 0111 ships with 0b's) | Opus · high |
 | 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | **done** 2026-10-25 on the branch (no migration) | Opus · high |
 | 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **done** 2026-10-25 on the branch, in three parts: results from everyone and disputes (migration 0112), the admin's desk and the rulebook editor (0113), Make it ours (0114); all ship with 0b's | Opus · high |
-| 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | not started | Opus · medium |
-| 7 | Draft room and blind draft | not started | Opus · medium |
+| 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | not started | Opus · xhigh |
+| 7 | Draft room and blind draft | not started | Opus · xhigh |
 | — | **Switch the couch to the new design by default** | — | — |
-| 8 | Hub I: focus-first hub, More on the couch and its six pages | not started | Opus · high |
-| 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | not started | Opus · high |
-| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | not started | Opus · high |
-| 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · high |
-| 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · high |
-| 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · high |
-| 14 | Streaming shows and the rail | not started | Opus · medium |
-| 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · medium |
-| C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · high |
+| 8 | Hub I: focus-first hub, More on the couch and its six pages | not started | Opus · xhigh |
+| 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | not started | Opus · xhigh |
+| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | not started | Opus · xhigh |
+| 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · xhigh |
+| 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
+| 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
+| 14 | Streaming shows and the rail | not started | Opus · xhigh |
+| 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
+| C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · xhigh |
 
 Steps 1–7 bring the new design to parity with what the couch plays today; after them the couch switches to
 it. Steps 8–15 are new features and can be reordered. Desktop layouts come after step 15 (until then the new

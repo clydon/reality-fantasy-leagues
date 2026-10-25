@@ -5,7 +5,9 @@
 //
 //   node scripts/session-loop.js                     carry on (a paused or waiting session first, else the last hand-off)
 //   node scripts/session-loop.js --prompt "..."      start from this prompt   (or --prompt-file <path>)
-//     --model opus --effort high                     for the first session (later ones use what each hand-off says)
+//     --model opus --effort xhigh                    every session runs at this, from now on (saved in state.json),
+//                                                    whatever a hand-off recommends; either one alone is fine
+//     --follow-handoffs                              drop that: each session runs at what the hand-off before it says
 //     --max-sessions 5                               stop after this many (default 20)
 //     --budget-usd 40                                a cap per session (claude --max-budget-usd)
 //     --pause-at 0.9                                 before a session, wait while the 5-hour usage window is this full
@@ -95,7 +97,8 @@ const readState = () => {
     return { next: null, pending: null, history: [], limits: null };
   }
 };
-const writeState = (s) => fs.writeFileSync(STATE, JSON.stringify(s, null, 2));
+// A dry run reads the state and never writes it.
+const writeState = (s) => process.argv.includes("--dry-run") || fs.writeFileSync(STATE, JSON.stringify(s, null, 2));
 
 function command(cmd) {
   fs.mkdirSync(DIR, { recursive: true });
@@ -114,7 +117,8 @@ function command(cmd) {
     console.log(`Sessions run: ${s.history.length} · $${total.toFixed(2)}`);
     for (const h of s.history.slice(-5)) console.log(`  ${h.at.slice(0, 16).replace("T", " ")}  ${h.name}  $${(h.cost || 0).toFixed(2)}  ${h.sessionId ?? ""}`);
     if (s.pending) console.log(`Waiting: ${s.pending.name} (${s.pending.sessionId}) · ${s.pending.paused ? "paused" : s.pending.question ? "has a question for you" : "stopped"}`);
-    if (s.next) console.log(`Next: ${s.next.name} · ${s.next.model} · ${s.next.effort}`);
+    if (s.next) console.log(`Next: ${s.next.name}`);
+    console.log(s.fixed ? `Every session runs at: ${s.fixed.model ?? "the hand-off's model"} · ${s.fixed.effort ?? "the hand-off's effort"}` : "Each session runs at what the hand-off before it recommends.");
     if (s.limits) console.log(`Usage: ${limitLine(s.limits)}`);
     if (fs.existsSync(GALLERY)) console.log(`Screenshots: ${fileUrl(GALLERY)}`);
     if (fs.existsSync(PAUSE)) console.log("PAUSE is set: the loop is paused.");
@@ -430,6 +434,7 @@ function args() {
     budget: val("--budget-usd"),
     pauseAt: Number(val("--pause-at") ?? 0.9),
     permissionMode: val("--permission-mode") ?? "auto",
+    followHandoffs: a.includes("--follow-handoffs"),
     thinking: a.includes("--thinking"),
     dryRun: a.includes("--dry-run"),
   };
@@ -451,9 +456,15 @@ async function main() {
     writeState(state);
   };
 
+  // The model and effort: a standing choice (--model / --effort, kept in state.json) beats what a hand-off recommends.
+  if (opts.followHandoffs) state.fixed = null;
+  if (opts.model || opts.effort) state.fixed = { ...(state.fixed ?? {}), ...(opts.model ? { model: opts.model } : {}), ...(opts.effort ? { effort: opts.effort } : {}) };
+  const at = (r) => ({ ...r, model: state.fixed?.model ?? r.model, effort: state.fixed?.effort ?? r.effort });
+  console.log(dim(state.fixed ? `Every session: ${state.fixed.model ?? "hand-off's model"} · ${state.fixed.effort ?? "hand-off's effort"}` : "Each session at what its hand-off recommends."));
+
   // What runs first: a prompt you gave, a session left paused or waiting on you, or the last hand-off.
   let run = null;
-  if (opts.prompt) run = { prompt: opts.prompt, model: opts.model ?? "opus", effort: opts.effort ?? "high", name: "From --prompt" };
+  if (opts.prompt) run = at({ prompt: opts.prompt, model: "opus", effort: "xhigh", name: "From --prompt" });
   else if (state.pending) {
     const p = state.pending;
     console.log(yellow(`\n${p.question ? "A session is waiting for you" : "A session was stopped partway"}: ${p.name} (${p.sessionId})`));
@@ -461,9 +472,9 @@ async function main() {
     const answer = await ask(p.question ? "Your answer (blank to stop): " : 'Enter to resume it, type a message to send it instead, or "skip" to start the next one: ');
     if (answer === "q" || (p.question && !answer)) return;
     if (!p.question && answer.toLowerCase() === "skip") state.pending = null;
-    else run = { name: p.name, model: p.model, effort: p.effort, resume: p.sessionId, prompt: answer || CARRY_ON };
+    else run = at({ name: p.name, model: p.model, effort: p.effort, resume: p.sessionId, prompt: answer || CARRY_ON });
   }
-  if (!run && state.next) run = { ...state.next, model: opts.model ?? state.next.model, effort: opts.effort ?? state.next.effort };
+  if (!run && state.next) run = at(state.next);
   if (!run) {
     console.log('Nothing to run: pass --prompt "..." or --prompt-file <path> (the seed prompt a session handed you).');
     return;
@@ -562,7 +573,7 @@ async function main() {
         console.log(red("\nThe hand-off repeats this session's own prompt: stopping. Run the loop again to answer it."));
         return;
       }
-      run = { prompt: h.prompt, model: h.model || run.model, effort: EFFORTS.includes(h.effort) ? h.effort : run.effort, name: h.name || `Session ${n + 1}` };
+      run = at({ prompt: h.prompt, model: h.model || run.model, effort: EFFORTS.includes(h.effort) ? h.effort : run.effort, name: h.name || `Session ${n + 1}` });
       state.next = run;
       state.pending = null;
       writeState(state);
