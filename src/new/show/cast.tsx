@@ -2,7 +2,7 @@
 
 import { startTransition, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeftRight, ChevronDown, ChevronRight, Eye, Send, Users, Zap } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, ChevronRight, Ellipsis, Eye, Send, Users, Zap } from "lucide-react";
 import { chatCouch, postToCouch, useSeasonStats, type CastStat, type Pattern, type SeasonStats } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Flip } from "../ui/flip";
@@ -10,6 +10,7 @@ import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Face } from "./parts";
+import { DisputeSheet } from "./something-wrong";
 import { statOf, statValue, unitFor, yourTeam } from "./stats";
 
 // Cast: the stats explorer (the mock's explorer.js, decided 2026-10-23; docs/PLAN-new-design.md step 3), for anyone,
@@ -45,6 +46,7 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [filter, setFilter] = useState("all");
   const [picking, setPicking] = useState<string[] | null>(null);
   const [story, setStory] = useState<string | null>(null);
+  const [flagging, setFlagging] = useState<{ episode: number; who: string } | null>(null);
   const [compare, setCompare] = useState<[string, string] | null>(null);
   // Same people, new places: re-sorts and filters move each face from its old spot (ui/flip.tsx).
   const move = (fn: () => void) => startTransition(fn);
@@ -175,7 +177,21 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
         )}
         {view === "heat" && <Heat d={d} people={people} onTap={tap} />}
       </section>
-      <StorySheet d={all} name={story} title={show.header?.show.name ?? ""} onClose={() => setStory(null)} />
+      <StorySheet
+        d={all}
+        name={story}
+        title={show.header?.show.name ?? ""}
+        onClose={() => setStory(null)}
+        onFlag={
+          couchId
+            ? (episode, who) => {
+                setStory(null);
+                setTimeout(() => setFlagging({ episode, who }), 230);
+              }
+            : null
+        }
+      />
+      {flagging && couchId && <DisputeSheet seasonId={seasonId} couchId={couchId} episode={flagging.episode} who={flagging.who} onClose={() => setFlagging(null)} />}
       <CompareSheet d={d} pair={compare} title={show.header?.show.name ?? ""} onClose={() => setCompare(null)} />
     </>
   );
@@ -424,8 +440,9 @@ function useKept<T>(value: T | null): T | null {
 }
 
 /** Their season so far, episode by episode: what the results recorded and what it scored. From the whole season's
- *  stats, whatever the slider says. */
-function StorySheet({ d, name, title, onClose }: { d: SeasonStats; name: string | null; title: string; onClose: () => void }) {
+ *  stats, whatever the slider says. A result the shared check has from one source so far says so (step 6b), and each
+ *  episode with something recorded can be flagged ("Something wrong?"). */
+function StorySheet({ d, name, title, onClose, onFlag }: { d: SeasonStats; name: string | null; title: string; onClose: () => void; onFlag: ((episode: number, who: string) => void) | null }) {
   const kept = useKept(name);
   const c = kept ? d.cast.find((x) => x.name === kept) : null;
   const names = new Map(d.stats.map((s) => [s.key, s.name]));
@@ -456,11 +473,24 @@ function StorySheet({ d, name, title, onClose }: { d: SeasonStats; name: string 
               const ev = c.events.filter(([ep]) => ep === e).map(([, k]) => names.get(k) ?? k);
               const gone = c.out !== null && e > c.out;
               const left = c.out === e;
+              const unsure = d.unsure?.[e]?.[c.name];
               return (
-                <div key={e} className="flex min-h-11 items-center gap-2.5 border-b border-border py-1.5 text-[13px] leading-snug">
+                <div key={e} data-story-ep={e} className="flex min-h-11 items-center gap-2.5 border-b border-border py-1.5 text-[13px] leading-snug">
                   <span className="type-num grid size-[26px] flex-none place-items-center rounded-[3px] bg-secondary text-[15px]">{e}</span>
-                  <span className="flex-1">{[...ev, left ? (c.how ?? "Left the game") : null].filter(Boolean).join(" · ") || (gone ? "Already out" : "Nothing recorded")}</span>
+                  <span className="flex-1">
+                    {[...ev, left ? (c.how ?? "Left the game") : null].filter(Boolean).join(" · ") || (gone ? "Already out" : "Nothing recorded")}
+                    {unsure && (
+                      <i data-unsure={unsure} className="ml-1.5 whitespace-nowrap rounded-[2px] bg-secondary px-1.5 py-px text-[11px] font-bold not-italic text-muted-foreground">
+                        {unsure === "disputed" ? "Disputed" : "1 source"}
+                      </i>
+                    )}
+                  </span>
                   <b className="type-num text-base">{gone ? "" : c.perEp[e - 1]}</b>
+                  {onFlag && !gone && (ev.length > 0 || left) && (
+                    <button type="button" data-story-flag={e} aria-label={`Something wrong in Episode ${e}`} onClick={() => onFlag(e, c.name)} className="-mr-2 grid size-11 flex-none place-items-center text-muted-foreground">
+                      <Ellipsis className="size-5" aria-hidden />
+                    </button>
+                  )}
                 </div>
               );
             })}

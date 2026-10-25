@@ -38,7 +38,7 @@ export interface ResearchApplyItem {
 export async function stagedForEpisode(db: Pool | PoolClient, seasonId: string, episodeNumber: number): Promise<StagedResearchDecision[]> {
   const { rows } = await db.query(
     `SELECT id, kind, castaway_name, method, event_type, jury_votes, units, confidence, sources, status,
-            from_wiki, from_research, post_merge, applied
+            from_wiki, from_research, post_merge, applied, fact_status
        FROM season_decisions
       WHERE season_id=$1 AND episode_number=$2
       ORDER BY (kind = 'elimination') DESC, created_at ASC`,
@@ -63,6 +63,7 @@ export async function stagedForEpisode(db: Pool | PoolClient, seasonId: string, 
     fromWiki: r.from_wiki,
     fromResearch: r.from_research,
     postMerge: r.post_merge,
+    factStatus: r.fact_status ?? null,
   }));
 }
 

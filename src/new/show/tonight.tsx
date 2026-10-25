@@ -4,13 +4,15 @@ import { useState, type ReactNode } from "react";
 import { Check, ChevronRight, Eye, Lock, MessageCircle, Plus, Tv } from "lucide-react";
 import { airTime, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { BINGO_CARD } from "../fixtures/episode-games";
-import { chatCouch, useChatBadge, type GameView } from "../data";
+import { AskAiSheet, checkFull } from "../backstage/ask-ai";
+import { backstage, chatCouch, useAfterResults, useChatBadge, type GameView } from "../data";
 import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { useNow } from "../ui/bars";
 import { Btn, BtnLink } from "../ui/parts";
+import { toast } from "../ui/toast";
 import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
 import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./moves";
@@ -26,7 +28,9 @@ import { StatsCard } from "./stats";
 // a dot on the show's ⋯ carry it). After an episode, by the results' stage (step 2): waiting for results (the
 // stage bar), results in (the one yellow: Reveal; a move that waits on them says so), the morning update once the
 // final scores land after an early reveal, and the last episode's recap until the next one airs. Real: all of it
-// but bingo (12) and Watch along (13), on fixtures behind Preview; the stats card is stats.tsx's (step 3).
+// but bingo (12) and Watch along (13), on fixtures behind Preview; the stats card is stats.tsx's (step 3). Results from
+// everyone (step 6b): a player who has seen an episode with only its early results gets a quiet "Full scores need one
+// paste · Fill it in" when the couch lets anyone fill them in.
 
 export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
@@ -35,6 +39,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       {playing && <WaiversRanPlate seasonId={seasonId} show={show} />}
       <PhaseHead show={show} />
       {playing && <AfterEpisode seasonId={seasonId} show={show} />}
+      {playing && <FillItIn seasonId={seasonId} show={show} />}
       {playing && <YourMoves seasonId={seasonId} show={show} />}
       {playing && <LastTime show={show} />}
       <Extras show={show} />
@@ -340,6 +345,44 @@ function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) 
     );
   }
   return null;
+}
+
+/** A player's quiet ask (step 6b): Episode N's full scores need one paste, and anyone on the couch can do it. */
+function FillItIn({ seasonId, show }: { seasonId: string; show: ShowData }) {
+  const [open, setOpen] = useState(false);
+  const refresh = useAfterResults();
+  const n = show.episodes?.fill?.episode ?? null;
+  const couchId = show.couch?.id ?? null;
+  if (!n || !couchId) return null;
+  return (
+    <section className="mt-[26px] px-4">
+      <button type="button" data-fill-it={n} onClick={() => setOpen(true)} className="nd-press flex min-h-[64px] w-full items-center gap-3 rounded-[4px] bg-card p-3.5 text-left outline-1 -outline-offset-1 outline-input">
+        <span className="min-w-0 flex-1">
+          <b className="block text-[16px]">Full scores need one paste</b>
+          <small className="block text-[13px] text-muted-foreground">Episode {n} · anyone on the couch can do it · about 2 minutes</small>
+        </span>
+        <span className="text-[15px] font-bold">Fill it in</span>
+      </button>
+      <AskAiSheet
+        open={open}
+        onOpenChange={setOpen}
+        title={`Fill in Episode ${n}`}
+        what={`Your AI searches the web for everything that happened in Episode ${n}, then answers in a format we can read. Paste it back and every game on the couch scores.`}
+        seasonId={seasonId}
+        couchId={couchId}
+        episode={n}
+        kind="full"
+        check={checkFull}
+        onUse={async (answer, opts) => {
+          const r = await backstage.paste(seasonId, couchId, { episode: n, kind: "full", answer, ...opts });
+          setOpen(false);
+          await refresh();
+          if (r.kind !== "full") return;
+          toast(r.applied ? "Thanks! Every game on the couch is scored" : `Thanks! ${r.waiting} ${r.waiting === 1 ? "result waits" : "results wait"} for whoever runs the games`);
+        }}
+      />
+    </section>
+  );
 }
 
 /** The last episode you've seen, until the next one airs: who went home and your night in each game. */

@@ -51,6 +51,10 @@ const GROUP_SLICES = {
   wiki_proposals: "league_id = ANY($L::uuid[])",
   wiki_proposal_items: "league_id = ANY($L::uuid[])",
   league_changes: "league_id = ANY($L::uuid[])",
+  // Results from everyone (0112): a game's house rulings, and its season's sources and flags.
+  league_rulings: "league_id = ANY($L::uuid[])",
+  fact_sources: "decision_id IN (SELECT id FROM season_decisions WHERE season_id = ANY($S::uuid[]))",
+  fact_disputes: "season_id = ANY($S::uuid[])",
   shows: "id IN (SELECT show_id FROM show_seasons WHERE id = ANY($S::uuid[]))",
   show_formats: "id IN (SELECT s.format FROM shows s JOIN show_seasons ss ON ss.show_id = s.id WHERE ss.id = ANY($S::uuid[]))",
   show_seasons: "id = ANY($S::uuid[])",

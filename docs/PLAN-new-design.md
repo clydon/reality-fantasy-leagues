@@ -30,7 +30,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 4 | Chat, per couch and show, spoiler-folded | **done** 2026-10-24 on the branch (migration 0110 ships with 0b's) | Opus · medium |
 | 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | **done** 2026-10-25 on the branch (migration 0111 ships with 0b's) | Opus · high |
 | 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | **done** 2026-10-25 on the branch (no migration) | Opus · high |
-| 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | not started | Opus · high |
+| 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **part 1 done** 2026-10-25 on the branch: results from everyone and disputes (migration 0112 ships with 0b's); part 2 (the admin and the rulebook editor) and part 3 (Make it ours) to come | Opus · high |
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | not started | Opus · medium |
 | 7 | Draft room and blind draft | not started | Opus · medium |
 | — | **Switch the couch to the new design by default** | — | — |
@@ -148,7 +148,7 @@ step's As built.
   not Backstage's.
 - **The hub doesn't say results are in** (step 2; for 8). Up next keeps showing the next episode; the show bar, Tonight,
   Episodes, Games and the dock say Results are in. The hub's status line and Up next could lead with the reveal.
-- **Traitors 5's cast stores the faction as its tribe** (step 3; for 6b, or a data fix the user approves now). Its
+- **Traitors 5's cast stores the faction as its tribe** (step 3; for 6b part 2, or a data fix the user approves now). Its
   `season_cast.tribe_name` is "Traitor" for the two original Traitors and "Faithful" for everyone else, and the one league on
   that season in the local copy (production's, 2026-10-16) has tribes named Traitor and Faithful, so classic's boards and
   anything showing that league's tribes tell who the Traitors are. The stats ignore a group named for a role (cast-stats.ts),
@@ -158,14 +158,11 @@ step's As built.
   Steps 1–2's views read a league as it holds its results: a still-in Traitor's "As a Traitor, voted out a fellow Traitor"
   lifts their points on an episode's top scorers (`episode-view.ts scorersIn`) and names itself in a Weekly Lineup reveal's
   "why". `cast-stats.ts secretEvents` says which results give a role away, so those views could leave them out the same way.
-- **A season whose commissioners enter results has no shared stats** (step 3; for 6b). Stats count accepted
-  `season_decisions`; a season with `results_by = 'leagues'` has none, so they come from the couch's game there, and someone
-  on that show with no game sees "Nothing to show yet". 6b's one mode (every league receives the shared facts) ends this.
 - **Two names for one person** (step 1; for 15). The tables and who's set show a league's player name (alex), the couch
   line the account's (zt_nd_alex in the fixture), so a face can carry two initials. Step 15's profile (name, picture,
   colour) is the place to make one name win everywhere. Chat signs a message with the account's username, as classic
   always has (zt_nd_riley next to the fixture's seeded "riley"); so do Recent changes' lines ("Made zt_nd_jordan a Game
-  admin"), while 6a's Members page uses the seat's name.
+  admin") and 6b's "filled in by zt_nd_jordan", flags and house rulings, while 6a's Members page uses the seat's name.
 - **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
   classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
   on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
@@ -180,19 +177,29 @@ step's As built.
   see yet, gets "Chat opens later". The fold would keep them spoiler-safe now, but posting would show them to a league
   that can't see them; step 9's join flow is where a couch member who isn't in the games yet joins the talk.
 - **Only the newest 300 messages** (step 4; for 13 or 15), as classic: nothing loads earlier ones.
-- **Backstage's results don't reach the shared stats** (step 5; for 6b). Backstage applies a season's staged results
-  to the couch's games without accepting them (one couch deciding for every league on the season isn't its call), and
-  `/stats` counts accepted results only; so on a season that has accepted results (the fixture's, or Survivor 51's, where
-  an admin accepts them) the Cast tab counts only through the last accepted episode. 6b's Reported / Confirmed statuses
-  end it.
-- **An undone result the admin has accepted since stays out** (step 5; for 6b). On a season an admin decides, a result
-  applied from Backstage that the admin then accepts is filed in the sync's ledger as already there, so undoing it in
-  Backstage takes it out and the sync never puts it back. Rare (the admin accepts within a day; Undo is open until the next
-  episode); 6b's one mode settles who decides.
-- **Only Backstage's own paste applies on its own** (step 5; for 6b and 6c). What's trusted applies on its own when it comes
-  in through Backstage; the same results staged another way (another couch's paste, the bot's full run, the wiki) show as
-  waiting for you until you tick them. 6b (anyone fills in results) and 6c (One tap, Autopilot) should apply trusted
-  results when they arrive, through `backstage.ts` (`trustRows`, then the same apply), for every couch on the season.
+- **Only the new design's answers are sources** (step 6b part 1; for 6c and 6b part 2). Backstage's quick check, hand
+  entries, ticks and full pastes (and a player's Fill it in) are submissions that settle facts for every couch; the bot's
+  runs (`db/bot-research.js`), classic's commissioner research panel, the admin's research and paste in Admin › Shows, and
+  the wiki still stage pending results the old way, so they're never a source and never apply on their own. 6c's One tap and
+  Autopilot should send through `community-results.ts` `sendResults` (source `bot` / `autopilot`); part 2's admin decides
+  whether the admin's own research is a source or a canonical decision.
+- **No tie-break run** (step 6b part 1; for 6c). The plan's "a dispute open a day triggers one tie-break run" needs a
+  scheduled bot run (and Survivor 51's bot runs only the schedule check, the user's call); until then a flag waits for
+  someone to Check it again from Backstage (one more answer about everyone settles it), and a split waits for part 2's admin.
+- **A split has nowhere to go yet** (step 6b part 1; for 6b part 2). When an answer leaves a fact tied (as many sources and
+  flags against as for), it stays disputed, keeping what it had, until another answer comes; the admin's Inbox is where it
+  should land.
+- **One person, one source** (step 6b part 1; for 6b part 2). Sources are counted by person, so two accounts on one couch
+  pasting the same wrong answer confirm it for every couch. House rulings take away a couch's reason to, and the admin can
+  override (part 2); its Settings' Confirmed threshold (the mock's) could ask for two couches instead.
+- **Undo leaves what another answer also says** (step 6b part 1; for a later polish). Taking your answer back keeps any
+  result another source still reports (it's still a source's word), but the toast says only "Undone"; it could say "3
+  results still stand: another answer reports them".
+- **A correction that adds can't be refused** (step 6b part 1; for 6b part 3). Keep our old result works for a result the
+  shared check took out or changed; one it newly confirmed (Devin's idol, after two answers) has no "we don't count this".
+- **Flags don't notify** (step 6b part 1; for 15). "You'll hear how it went" is the flag's status: Backstage's Flags from your
+  couch (for whoever runs a game) and "you flagged this" on the episode's sheet. A push when a flag settles belongs with
+  notifications by moment.
 - **A quick check that waits isn't kept** (step 5; for 6c). Pasted and unsure (one source, a name we don't know), it waits
   on the open page: whoever pasted it is there to Show me and say It's right or Not right. The bot's unsure answers will
   need keeping (`bot_research_runs.result` has them) and showing in Backstage.
@@ -1418,6 +1425,87 @@ rules' read side, with tier 3's hold to confirm. No migration, nothing polled or
 
 The largest step: plan on about three sessions (results and disputes; the admin and the rulebook editor;
 Make it ours).
+
+### As built, step 6b part 1 (2026-10-25, on `new-design`): results from everyone and disputes
+
+Every answer anyone sends is a source of its own, shared with every couch on the season; a fact's status follows its
+sources and flags; what's trusted reaches every league through the season sync; a correction comes out everywhere with a
+line; a house ruling keeps the old result in one couch's games. Migration **0112** ships with 0b's (same rehearsal).
+- **Data (0112, additive):** `episode_research` keeps one row per submission (`source` paste / quick / hand / bot /
+  autopilot / tiebreak, `submitted_by`, `couch_id`, `covers` = who and what it answered for, `withdrawn_at`) beside the
+  per-episode combined row (`source = 'combined'`: what every prompt narrows on and classic reads; the unique index is now
+  partial on it, and every reader filters to it). `season_decisions.fact_status` (reported / confirmed / disputed /
+  canonical / removed) with `locked_at`/`locked_by`; the old `status` stays the switch for "in every league" (accepted =
+  live), so classic, the stats and the sync read it unchanged. Conversion: accepted → canonical (locked), rejected →
+  removed (locked), **pending left with no status: never carried, shown, counted or applied** (local copy: 800 canonical,
+  238 pending untouched; a newer full answer for an episode withdraws its old unreviewed rows, as classic's restaging always
+  did). New `fact_sources` (which submission said yes, and how), `fact_disputes` (who flagged what, why, note, link; open →
+  kept / upheld / checked), `league_rulings` (a league's kept version of a corrected fact), `couches.results_by_anyone` (Who
+  can fill them in, default anyone). Classic's admin accept and reject dual-write canonical and removed. Backups take the
+  three tables (`backup-common.js` LATER_TABLES since 0112; `backup-fixture.js` has a row in each).
+- **Settling** (`src/lib/game/fact-status.ts`, pure; `tests/fact-status.test.js`, 9): sources are counted by who sent them
+  (a person, or `bot:<run>`), each one's newest answer that covers the fact; an answer is against a fact when it answered for
+  that person and kind and didn't report it (who went home answers only for eliminations, a ticked result only for itself).
+  Reported = one source and nobody against; confirmed = more for than against; removed = nothing left supporting it, or more
+  against; disputed = a split, or a flag no answer has checked yet. Flags are one voice together (they tip a split, never
+  outvote the sources) and close as kept or upheld when a later answer settles them. Live: canonical and confirmed; reported
+  only when trusted (a high-confidence source and no answer for the episode saying otherwise, which keeps step 5's rule that a
+  full answer's second boot waits); disputed keeps what it had ("nothing changes until it's settled"). Methods go by majority
+  (an elimination's, a tribe move's); a tie keeps the fact's own.
+- **Sending** (`src/lib/server/community-results.ts`): `submit` files the row, upserts the facts (adopting a never-reviewed
+  row, leaving an admin's decision locked), adds its sources and settles the episode under an advisory lock; `sendResults`
+  then runs the season sync for every league on the season. All of Backstage's paths go through it (`backstage.ts`): the
+  quick check (when trusted), entered by hand and "It's right" (`hand`, covering everyone still in), the full paste (now always
+  asked about everyone: stored research settles nobody, since each answer is a source; the paste's own parsed answer is its
+  row, the combined row is merged as before) and ticking a waiting result (a `hand` vouch: confident, so it applies
+  everywhere, where step 5 applied it to the couch's games only). Waiting = reported or disputed and not live.
+- **One mode** (`season-decisions.ts`): the sync runs for every season. On an admin season it pushes everything accepted, as
+  before; on a `results_by = 'leagues'` season only facts someone submitted (what an admin only curated there stays out, as it
+  always did). It marks each episode it changed: final once a scoring moment is in or someone sent the full answer, early
+  while only who went home is. The answer's own couch gets one Recent changes line (results.quick / results.full) whose Undo
+  (`{ type: "submission" }`) withdraws the answer and syncs again, for whoever runs every game it touched or whoever sent it;
+  other couches get no line for an arrival. A **correction** (something a league had, taken out or changed) leaves a
+  `results.correction` line in every league it reached ("Episode N corrected"; the facts and each player's points in
+  `detail`; no undo). Undo's newest-first rule now skips lines with no Undo of their own.
+- **Fixed from Noticed, not fixed:** Backstage's results reach the shared stats; an undone result an admin has accepted
+  since stays in (the admin's decision is locked, so withdrawing the answer leaves it); any couch's paste applies on its own
+  for every couch on the season (the bot's half is 6c's); a season whose commissioners enter results gets shared stats from
+  whatever anyone sends.
+- **Anyone fills in:** `fillScope` lets a player send the full results when the couch allows it and they've seen the episode
+  (who went home stays with whoever runs the games). Tonight's quiet "Full scores need one paste · Fill it in" (the episodes
+  read's `fill`: a player who has seen an episode with only its early results) opens the same Ask an AI sheet ("Thanks! Every
+  game on the couch is scored"). Backstage › Results' Full scores: Who can fill them in (a sheet, the toast's Undo, a
+  `settings.fill` line) and each recent episode "filled in by riley · Confirmed · 2 sources agree" ("filled in on another
+  couch", unnamed, when it wasn't this one).
+- **"Something wrong?"** (`flagResult`, `POST /api/seasons/[id]/disputes`; `src/new/show/something-wrong.tsx`): at the foot
+  of every episode page, and a ⋯ on each episode of a castaway's story (the Cast tab, whose story now marks "1 source" or
+  "Disputed" from the stats read's `unsure`): one sheet in three steps, who (faces with how many results) → which result
+  (each with "1 source", "2 sources agree", "you flagged this") or Something's missing → why (Didn't happen / Wrong person /
+  Wrong episode / Something else, a note, a link) → Send ("Sent. 1 other flagged this too."). Only once you've seen the
+  episode (403 before); one open flag per person per result. `GET /api/seasons/[id]/results/[n]` (`episode-results.ts`)
+  serves the episode's facts with their status, leaving out secret roles and role-revealing results for anyone still in.
+  Backstage's Needs you asks "A result in Episode N is disputed · one more answer settles it" (no names, so whether or not
+  you've watched); Results has a "Check it again" card (Ask an AI about everyone) and Flags from your couch.
+- **Corrections and house rulings** (`src/lib/server/rulings.ts`): the Episodes tab's "Episode N corrected" row and the
+  episode's Corrected plate ("Eric · Reward win, taken out · Lineup League: you −1.5"); Backstage's Corrections with Keep our
+  old result (tier 2, `POST .../backstage/rulings` with `preview`: the result itself, each game's moves and "Your players · See
+  the ruling on Episode N"; then one `results.ruling` batch whose Undo drops it) and Drop the ruling (`DELETE`). A ruling
+  covers every game of yours the correction reached (linked games together); the sync applies its `keeps` in place of the
+  shared fact there; the shared facts and stats never see it; the episode says "House ruling (alex)".
+- **Fixtures and Preview:** none added or removed (`show.suggest-fix` is How it works' rulebook fix, part 2;
+  `backstage.make-it-ours` is part 3).
+- **Changed from the mock:** a player is asked to fill in only once they've seen the episode (the answer says everything);
+  a flag settles by the next answer from anyone (6c's tie-break run would send it on its own); "You'll hear how it went" is
+  the flag's status in Backstage and on the episode, not a notification (step 15); the Corrected plate says what changed and
+  your points, not how many sources and flags agreed; Recent changes says a correction is "From the shared check".
+- **Before it ships:** besides 0b's rehearsal, 0112 swaps `episode_research`'s unique index for a partial one, so between the
+  migration and the new code serving, an older deploy's research upsert fails (minutes, on a rare action: bot research only
+  checks schedules).
+- **Checks:** `scripts/dev-test/check-new-community.js <outDir> [--width=390] [--keep]` (82 PASS at 390): two couches on one
+  season, the quick check reaching both, a player filling in from Tonight, the couch's setting, flags from the episode page and
+  the API, the other couch's check (kept, upheld, split), the correction everywhere, a house ruling and dropping it, the
+  sender's Undo, the never-reviewed result never surfacing (and no real season's pending result given a status), the
+  screens. `tests/fact-status.test.js`; `tests/episode-research-apply.test.js`'s fake client knows the sync's new queries.
 
 ### Step 6c: how results get in
 

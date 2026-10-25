@@ -53,7 +53,21 @@ export interface MemberUndo {
   removed: boolean;
 }
 
-export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo;
+/** An answer someone sent taken back (step 6b): it stops counting as a source, and every league follows. */
+export interface SubmissionUndo {
+  type: "submission";
+  researchId: string;
+  episode: number;
+}
+
+/** A house ruling dropped (step 6b): the shared result applies in this league again. */
+export interface RulingUndo {
+  type: "ruling";
+  decisionId: string;
+  episode: number;
+}
+
+export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo | SubmissionUndo | RulingUndo;
 
 export interface ChangeSpec {
   /** Who did it; null when it applied on its own. */

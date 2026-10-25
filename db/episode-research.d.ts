@@ -138,7 +138,29 @@ export function researchFromPasteForLeague(
   episodeNumber: number,
   notes: string,
   opts?: { again?: boolean; confirmed?: boolean }
-): Promise<EpisodeResearchRun & { coverage: ResearchCoverage; merged: { disagreements: string[] } | null }>;
+): Promise<EpisodeResearchRun & { coverage: ResearchCoverage; merged: { disagreements: string[] } | null; id: string | null; format: unknown; submitted: EpisodeResearch }>;
+
+/** One staged result, as stageDecisions takes it. */
+export interface ResearchItem {
+  episode: number;
+  postMerge: boolean;
+  kind: "elimination" | "event" | "exiled" | "role" | "group";
+  name: string;
+  method: string;
+  eventType: string;
+  juryVotes: number | null;
+  units: number | null;
+  confidence: "high" | "medium" | "low";
+  sources: string[];
+}
+
+/** The results one set of answers implies (a run's combined answers, or one submission's own: step 6b). */
+export function researchItems(
+  pool: Pool,
+  seasonId: string,
+  run: { showId: string; season: number; episodeNumber: number; format: unknown },
+  payload: unknown
+): Promise<ResearchItem[]>;
 
 /**
  * Takes the research pasted for one episode back out: the shared stored answers and every staged

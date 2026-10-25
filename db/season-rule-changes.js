@@ -102,7 +102,7 @@ async function researchFlags(db, seasonId) {
   const { rows } = await db.query(
     `SELECT er.episode_number, er.payload->>'rulesNote' AS note
        FROM episode_research er JOIN show_seasons ss ON er.show_id = ss.show_id AND er.season_number = ss.season_number
-      WHERE ss.id=$1 AND coalesce(er.payload->>'rulesNote', '') <> ''
+      WHERE ss.id=$1 AND er.source = 'combined' AND coalesce(er.payload->>'rulesNote', '') <> ''
         AND er.episode_number > coalesce((SELECT max(checked_through) FROM season_rule_changes
                                            WHERE season_id=$1 AND status IN ('approved', 'no_change')), 0)
       ORDER BY er.episode_number`,

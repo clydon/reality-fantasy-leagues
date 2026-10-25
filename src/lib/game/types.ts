@@ -620,6 +620,8 @@ export interface StagedResearchDecision {
   leagueName?: string;
   /** An admin corrected the row (season_decisions.applied): the values above are the corrected ones. */
   corrected?: boolean;
+  /** The community's status (db/migrations/0112): null for a result staged before it and never reviewed. */
+  factStatus?: "reported" | "confirmed" | "disputed" | "canonical" | "removed" | null;
 }
 
 /** GET/POST /api/leagues/[leagueId]/episodes/[epId]/research. */

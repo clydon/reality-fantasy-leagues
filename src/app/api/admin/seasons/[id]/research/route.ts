@@ -158,7 +158,7 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ id: s
   let leaguesUndone = 0;
   if (everything) {
     const { rowCount } = await pool.query(
-      `UPDATE season_decisions SET status='rejected', decided_at=now(), decided_by=$3
+      `UPDATE season_decisions SET status='rejected', decided_at=now(), decided_by=$3, fact_status='removed', locked_at=now(), locked_by=$3
         WHERE season_id=$1 AND episode_number=$2 AND status='accepted'`,
       [id, episode, user.id]
     );

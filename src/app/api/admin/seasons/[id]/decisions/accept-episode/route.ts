@@ -22,7 +22,8 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   }
 
   const { rowCount } = await pool.query(
-    `UPDATE season_decisions SET status='accepted', decided_at=now(), decided_by=$3, applied=NULL
+    `UPDATE season_decisions SET status='accepted', decided_at=now(), decided_by=$3, applied=NULL,
+            fact_status='canonical', locked_at=now(), locked_by=$3
       WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND ($4::uuid[] IS NULL OR id = ANY($4::uuid[]))`,
     [id, episode, user.id, ids]
   );

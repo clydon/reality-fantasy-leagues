@@ -3,9 +3,11 @@ import { episodesSeen, revealIn, seasonEpisodesSeen, type EpisodeSeen, type Happ
 import type { LeagueState } from "@/lib/game/types";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import type { SessionUser } from "./auth-helpers";
+import { couchFillsResults } from "./community-results";
 import { pool, HttpError } from "./db";
 import { EVERYTHING } from "./guard";
 import { markRevealed } from "./reveal";
+import { couchCorrections, type Correction } from "./rulings";
 import { DEFAULT_RUNTIME_MIN, seasonSchedules } from "./schedule";
 import { gamesHere, type GameHere } from "./season-games";
 import { seasonFactsFor } from "./season-stats";
@@ -46,6 +48,10 @@ export interface SeasonEpisodes {
   final: { episode: number } | null;
   stillIn: number | null;
   toAir: { from: number; to: number | null } | null;
+  /** A player's quiet "Full scores need one paste" (step 6b): the newest episode you've seen with only its early results, when the couch lets anyone fill them in. */
+  fill: { episode: number } | null;
+  /** Corrections the shared check made to the couch's games, for episodes you've seen (step 6b). */
+  corrections: Correction[];
 }
 
 /** An episode's stage across these games: early if any of them only has its early results. */
@@ -121,6 +127,10 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const count = schedule?.episodeCount ?? null;
   const highest = Math.max(0, ...rows.map((r) => r.number), last);
   const view = here[0] ? StateLogic.GhostLogic.viewFor(here[0].state, here[0].playerId, here[0].mark) : null;
+  // Whoever runs a game fills results in from Backstage; anyone else gets the quiet ask, once they've seen the episode.
+  const runs = here.some((h) => h.game.yourRole === "commissioner" || h.game.yourRole === "admin");
+  const earlySeen = rows.filter((r) => r.status === "seen" && r.stage === "early").map((r) => r.number);
+  const fill = couchId && here.length && !runs && earlySeen.length && (await couchFillsResults(couchId)) ? { episode: Math.max(...earlySeen) } : null;
   return {
     seenThrough: Number.isFinite(seen) ? seen : null,
     episodes: rows,
@@ -129,6 +139,8 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
     final: early && early <= mark && stageAcross(states, early) === "final" ? { episode: early } : null,
     stillIn: view ? view.castaways.filter((c) => c.status !== "eliminated").length : null,
     toAir: count === null || highest < count ? { from: highest + 1, to: count } : null,
+    fill,
+    corrections: couchId && here.length ? await couchCorrections(here.map((h) => h.game.leagueId), mark, user.id) : [],
   };
 }
 

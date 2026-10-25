@@ -51,7 +51,9 @@ function canonicalName(castState, name) {
  *              a wiki read covers the whole season)
  *
  * Decided rows keep their decision: a re-read only moves PENDING rows, so it can never undo what an
- * admin already decided. It does still record that this source (also) reported the fact.
+ * admin already decided. It does still record that this source (also) reported the fact. A fact the community's
+ * submissions settle (fact_status, db/migrations/0112; src/lib/server/community-results.ts) counts as decided here:
+ * its sources move it, never a re-read.
  *
  * A pending row this source proposed last time but not this time is withdrawn -- the source changed
  * its mind (a corrected wiki table, a re-research) and there's nothing left to review. A row the
@@ -82,19 +84,19 @@ async function stageDecisions(pool, seasonId, items, source, refId, scope = {}) 
            extraction_id = COALESCE(EXCLUDED.extraction_id, season_decisions.extraction_id),
            research_id   = COALESCE(EXCLUDED.research_id, season_decisions.research_id),
            sources       = CASE WHEN EXCLUDED.from_research THEN EXCLUDED.sources ELSE season_decisions.sources END,
-           method        = CASE WHEN season_decisions.status = 'pending' THEN EXCLUDED.method ELSE season_decisions.method END,
+           method        = CASE WHEN season_decisions.status = 'pending' AND season_decisions.fact_status IS NULL THEN EXCLUDED.method ELSE season_decisions.method END,
            -- A finalist's jury count (0036): updated while pending; on a decision already made, only
            -- filled in when it had none (the wiki's elimination was accepted before research knew the
            -- count) -- syncLeagueDecisions then tops up the leagues' elimination with it.
-           jury_votes    = CASE WHEN season_decisions.status = 'pending' THEN COALESCE(EXCLUDED.jury_votes, season_decisions.jury_votes)
+           jury_votes    = CASE WHEN season_decisions.status = 'pending' AND season_decisions.fact_status IS NULL THEN COALESCE(EXCLUDED.jury_votes, season_decisions.jury_votes)
                                 ELSE COALESCE(season_decisions.jury_votes, EXCLUDED.jury_votes) END,
            -- A count (0106: 3 home runs), the same way: a re-read moves a pending one, never a decided one.
-           units         = CASE WHEN season_decisions.status = 'pending' THEN COALESCE(EXCLUDED.units, season_decisions.units)
+           units         = CASE WHEN season_decisions.status = 'pending' AND season_decisions.fact_status IS NULL THEN COALESCE(EXCLUDED.units, season_decisions.units)
                                 ELSE COALESCE(season_decisions.units, EXCLUDED.units) END,
            -- Merge status: the wiki's read wins while it's pending; research (which asks "merged") can
            -- only turn it on, so an episode it couldn't place doesn't undo what the wiki said.
-           post_merge    = CASE WHEN season_decisions.status = 'pending' AND (EXCLUDED.from_wiki OR EXCLUDED.post_merge) THEN EXCLUDED.post_merge ELSE season_decisions.post_merge END,
-           confidence    = CASE WHEN season_decisions.status = 'pending'
+           post_merge    = CASE WHEN season_decisions.status = 'pending' AND season_decisions.fact_status IS NULL AND (EXCLUDED.from_wiki OR EXCLUDED.post_merge) THEN EXCLUDED.post_merge ELSE season_decisions.post_merge END,
+           confidence    = CASE WHEN season_decisions.status = 'pending' AND season_decisions.fact_status IS NULL
                                  AND $14::int > (CASE season_decisions.confidence WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END)
                                 THEN EXCLUDED.confidence ELSE season_decisions.confidence END
          RETURNING id, (xmax = 0) AS inserted`,
@@ -127,11 +129,11 @@ async function stageDecisions(pool, seasonId, items, source, refId, scope = {}) 
     const params = scope.episode != null ? [seasonId, ids, scope.episode] : [seasonId, ids];
     await client.query(
       `UPDATE season_decisions SET ${flag} = false
-        WHERE season_id=$1 AND status='pending' AND ${flag} AND NOT (id = ANY($2::uuid[])) ${episodeFilter}`,
+        WHERE season_id=$1 AND status='pending' AND ${flag} AND NOT (id = ANY($2::uuid[])) ${episodeFilter} AND fact_status IS NULL`,
       params
     );
     const { rowCount } = await client.query(
-      "DELETE FROM season_decisions WHERE season_id=$1 AND status='pending' AND NOT from_wiki AND NOT from_research",
+      "DELETE FROM season_decisions WHERE season_id=$1 AND status='pending' AND NOT from_wiki AND NOT from_research AND fact_status IS NULL",
       [seasonId]
     );
     withdrawn = rowCount;

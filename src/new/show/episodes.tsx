@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, Clock, Eye } from "lucide-react";
 import { airTime } from "../clock";
-import { useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverWeek } from "../data";
+import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverWeek } from "../data";
 import { gameColour, ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
@@ -12,6 +12,7 @@ import { ShowArt } from "../ui/show-bar";
 import { first } from "./moves";
 import { Block, Face } from "./parts";
 import { useOpenReveal } from "./reveal";
+import { CorrectionPlates, CorrectionRow, SomethingWrong } from "./something-wrong";
 import { playsWaivers, WaiverEpisodeRow } from "./waivers";
 
 // Episodes (the mock's show.js tabEpisodes and episodePage, episode.js's locked row, waivers.js's row): this week's
@@ -19,7 +20,9 @@ import { playsWaivers, WaiverEpisodeRow } from "./waivers";
 // until you reveal (Reveal), one that's aired and waiting for results, and each one you've seen with who went home
 // and your line, opening its own page (?page=ep4: who went home, your games, the top scorers, what happened). Real
 // (GET /api/seasons/[id]/episodes, through the guard). A waiver week sits between the two episodes it falls between
-// (waivers.js's row): open, it goes to the Waivers page; run, to its own page in picking order (step 6a).
+// (waivers.js's row): open, it goes to the Waivers page; run, to its own page in picking order (step 6a). A correction the
+// shared check made to the couch's games is a line of its own at the top, and a plate on the episode's page, which ends
+// with "Something wrong in this episode?" (step 6b, something-wrong.tsx).
 
 /** "3 of 4 lineups set · 2 of 4 picked": who's set for the next episode in your games here, a line per kind. */
 function progressLine(show: ShowData): string | null {
@@ -96,6 +99,9 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
           <div aria-busy className="h-56 animate-pulse rounded-[4px] bg-card" />
         ) : (
           <>
+            {(eps.corrections ?? []).map((c) => (
+              <CorrectionRow key={`${c.episode}-${c.decisionId}`} c={c} />
+            ))}
             {eps.episodes.map((e) => (
               <div key={e.number} className="contents">
                 {waiverRows(weeks(e.number))}
@@ -127,7 +133,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
           </>
         )}
       </section>
-      <EpisodePage show={show} />
+      <EpisodePage seasonId={seasonId} show={show} />
     </>
   );
 }
@@ -196,7 +202,7 @@ function SeenRow({ e }: { e: EpisodeRow }) {
 }
 
 /** The episode page open over the tab, whichever it is (?page=ep4). */
-function EpisodePage({ show }: { show: ShowData }) {
+function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const asked = /^ep(\d+)$/.exec(useSearchParams().get("page") ?? "");
   const ep = asked ? Number(asked[1]) : null;
   // Keep the last one while it slides away.
@@ -206,7 +212,7 @@ function EpisodePage({ show }: { show: ShowData }) {
   const e = show.episodes?.episodes.find((x) => x.number === shown && x.status === "seen") ?? null;
   return (
     <PushedPage open={ep != null} onClose={page.close} title={`Episode ${shown ?? ""}`} back="Episodes">
-      {e ? <EpisodeBody e={e} /> : <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>}
+      {e ? <EpisodeBody seasonId={seasonId} couchId={show.couch?.id ?? null} e={e} /> : <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>}
     </PushedPage>
   );
 }
@@ -226,10 +232,12 @@ function GameLine({ l }: { l: GameNight }) {
   );
 }
 
-function EpisodeBody({ e }: { e: EpisodeRow }) {
+function EpisodeBody({ seasonId, couchId, e }: { seasonId: string; couchId: string | null; e: EpisodeRow }) {
   const out = e.out ?? [];
+  const results = useEpisodeResults(seasonId, couchId, e.number);
   return (
     <div data-episode-page={e.number} className="mb-10 mt-3 px-4 pb-4 pt-4">
+      <CorrectionPlates results={results.data} />
       {e.stage === "early" && (
         <p className="mb-3 rounded-[3px] bg-card px-3 py-2.5 text-sm text-muted-foreground">Early results: who went home is in. Weekly Lineup&rsquo;s full scores come later.</p>
       )}
@@ -288,6 +296,7 @@ function EpisodeBody({ e }: { e: EpisodeRow }) {
           ))}
         </section>
       )}
+      <SomethingWrong seasonId={seasonId} couchId={couchId} episode={e.number} />
     </div>
   );
 }

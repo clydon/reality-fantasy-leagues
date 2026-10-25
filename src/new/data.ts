@@ -9,6 +9,7 @@ import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes"
 import type { SeasonStats } from "@/lib/server/season-stats";
 import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
 import type { Backstage, Chosen, PasteResult } from "@/lib/server/backstage";
+import type { EpisodeResults } from "@/lib/server/episode-results";
 import type { ChangeLine } from "@/lib/server/league-changes";
 import type { PreviewLine } from "@/lib/game/results-changes";
 import type { WaiverWeek } from "@/lib/game/waiver-view";
@@ -21,7 +22,9 @@ export type { EpisodeRow, SeasonEpisodes, SeasonReveal } from "@/lib/server/seas
 export type { CastStat, Pattern, StatDef } from "@/lib/game/cast-stats";
 export type { SeasonStats } from "@/lib/server/season-stats";
 export type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
-export type { Backstage, BackstageEpisode, Chosen, Face, Need, PasteResult, ResultRow, Shown } from "@/lib/server/backstage";
+export type { Backstage, BackstageEpisode, Chosen, Face, FillLine, Need, PasteResult, ResultRow, Shown } from "@/lib/server/backstage";
+export type { EpisodeResult, EpisodeResults } from "@/lib/server/episode-results";
+export type { Correction } from "@/lib/server/rulings";
 export type { ChangeLine } from "@/lib/server/league-changes";
 export type { PreviewLine } from "@/lib/game/results-changes";
 export type { WaiverFace, WaiverMove, WaiverRunView, WaiverWeek } from "@/lib/game/waiver-view";
@@ -406,9 +409,9 @@ export function useChanges(seasonId: string, couchId: string | null, enabled = t
 
 /** Backstage's writes. After each, everything the new design reads moves on (results reach the games, the tables, the log). */
 export const backstage = {
-  prompt: (seasonId: string, couchId: string, episode: number, kind: "quick" | "full", again = false) =>
-    get<{ prompt: string | null; task: string }>(seasonUrl(seasonId, "/backstage/prompt", { couch: couchId, episode: String(episode), kind, ...(again ? { again: "1" } : {}) })),
-  paste: (seasonId: string, couchId: string, body: { episode: number; kind: "quick" | "full"; answer: string; again?: boolean; confirmed?: boolean }) =>
+  prompt: (seasonId: string, couchId: string, episode: number, kind: "quick" | "full") =>
+    get<{ prompt: string | null; task: string }>(seasonUrl(seasonId, "/backstage/prompt", { couch: couchId, episode: String(episode), kind })),
+  paste: (seasonId: string, couchId: string, body: { episode: number; kind: "quick" | "full"; answer: string; confirmed?: boolean }) =>
     post<PasteResult>(seasonUrl(seasonId, "/backstage/results", { couch: couchId }), body),
   preview: (seasonId: string, couchId: string, body: { episode: number; items: Chosen[]; quick?: boolean }) =>
     post<{ lines: PreviewLine[]; games: number }>(seasonUrl(seasonId, "/backstage/apply", { couch: couchId }), { ...body, preview: true }),
@@ -418,7 +421,40 @@ export const backstage = {
     post<{ undone: number; text: string }>(seasonUrl(seasonId, `/changes/${encodeURIComponent(batch)}/undo`, { couch: couchId })),
   /** Parks a long question at /b/<code> for an Open in ChatGPT / Grok link (api/briefs). */
   brief: (text: string) => post<{ code: string }>("/api/briefs", { text }),
+  /** Keeps a corrected result's old version in your games (a house ruling); `preview` says what changes first. */
+  keep: (seasonId: string, couchId: string, decisionId: string) => post<{ games: number; batch: string }>(seasonUrl(seasonId, "/backstage/rulings", { couch: couchId }), { decisionId }),
+  keepPreview: (seasonId: string, couchId: string, decisionId: string) =>
+    post<{ lines: PreviewLine[]; games: number }>(seasonUrl(seasonId, "/backstage/rulings", { couch: couchId }), { decisionId, preview: true }),
+  drop: async (seasonId: string, couchId: string, decisionId: string) => {
+    const res = await fetch(seasonUrl(seasonId, "/backstage/rulings", { couch: couchId, decision: decisionId }), { method: "DELETE" });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't save (${res.status})`), { status: res.status });
+    return out as { games: number };
+  },
+  /** Who can fill in results on the couch: anyone on it, or only people who run games. */
+  setFill: (seasonId: string, couchId: string, anyone: boolean) => sendJson<{ anyone: boolean }>(seasonUrl(seasonId, "/backstage/fill", { couch: couchId }), "PUT", { anyone }),
 };
+
+// ---- Results from everyone (step 6b): an episode's shared results with how sure the shared check is, and "Something
+// wrong?". Read when an episode page or its dispute sheet opens; nothing polls. ----
+
+/** One episode's shared results (GET /api/seasons/[id]/results/[n]): its people and results, corrections, house rulings. */
+export function useEpisodeResults(seasonId: string, couchId: string | null, episode: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "results", seasonId, couchId, episode],
+    queryFn: () => get<EpisodeResults>(seasonUrl(seasonId, `/results/${episode}`, { couch: couchId ?? "" })),
+    enabled: !!couchId && !!episode && enabled,
+    staleTime: 30_000,
+    retry: (n, e) => (e as { status?: number }).status !== 403 && n < 2,
+  });
+}
+
+/** Flags a result (or something missing): it goes to the shared check, and nothing changes until it's settled. */
+export const flagResult = (
+  seasonId: string,
+  couchId: string,
+  body: { episode: number; decisionId?: string; reason: "didnt-happen" | "wrong-person" | "wrong-episode" | "other" | "missing"; note?: string; link?: string }
+) => post<{ others: number; status: string | null }>(seasonUrl(seasonId, "/disputes", { couch: couchId }), body);
 
 // ---- Waivers (step 6a): your week in each game here, saved a spot at a time through the league routes; and Backstage
 // II's pages for whoever runs a game. Read when a page opens and after each write; nothing polls. ----

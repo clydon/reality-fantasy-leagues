@@ -1224,7 +1224,7 @@ async function stillInGame(pool, showId, season, episodeNumber, castNames) {
     if (ep.number < episodeNumber) for (const el of ep.eliminations || []) gone.add(el.name);
   }
   const { rows: prior } = await pool.query(
-    "SELECT payload FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number < $3",
+    "SELECT payload FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number < $3 AND source = 'combined'",
     [showId, season, episodeNumber]
   );
   for (const r of prior) for (const c of (r.payload && r.payload.castaways) || []) if (c.leftTheGame === "yes") gone.add(c.name);
@@ -1393,7 +1393,7 @@ function betAnswersFrom(parsed, bets) {
  */
 async function storedBetAnswer(pool, { showId, season, episodeNumber, label }) {
   const { rows } = await pool.query(
-    "SELECT payload, researched_at FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3",
+    "SELECT payload, researched_at FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND source = 'combined'",
     [showId, season, episodeNumber]
   );
   if (!rows.length) return { researched: false, answer: null };
@@ -1410,7 +1410,7 @@ async function cachedResearch(pool, showId, season, episodeNumber, formatId, opt
   if (opts.force) return null;
   const { rows } = await pool.query(
     `SELECT id, payload, provenance, researched_at FROM episode_research
-      WHERE show_id=$1 AND season_number=$2 AND episode_number=$3`,
+      WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND source = 'combined'`,
     [showId, season, episodeNumber]
   );
   if (!rows.length) return null;
@@ -1545,7 +1545,7 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
   const { rows } = await pool.query(
     `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance)
      VALUES ($1,$2,$3,$4::jsonb,$5::jsonb)
-     ON CONFLICT (show_id, season_number, episode_number)
+     ON CONFLICT (show_id, season_number, episode_number) WHERE source = 'combined'
      DO UPDATE SET payload=EXCLUDED.payload, provenance=EXCLUDED.provenance, researched_at=now()
      RETURNING id`,
     [ctx.showId, ctx.season, ctx.episodeNumber, JSON.stringify(payload), JSON.stringify(provenance)]
@@ -1630,7 +1630,7 @@ async function storeMergedResearch(pool, ctx, payload, provenance, mergeOpts = {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`episode_research:${ctx.showId}:${ctx.season}:${ctx.episodeNumber}`]);
     const { rows: prior } = await client.query(
-      "SELECT payload, provenance, researched_at FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3",
+      "SELECT payload, provenance, researched_at FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND source = 'combined'",
       [ctx.showId, ctx.season, ctx.episodeNumber]
     );
     const sameFormat = prior.length && ((prior[0].provenance && prior[0].provenance.format) || Formats.DEFAULT_FORMAT) === provenance.format;
@@ -1651,7 +1651,7 @@ async function storeMergedResearch(pool, ctx, payload, provenance, mergeOpts = {
     const { rows } = await client.query(
       `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance)
        VALUES ($1,$2,$3,$4::jsonb,$5::jsonb)
-       ON CONFLICT (show_id, season_number, episode_number)
+       ON CONFLICT (show_id, season_number, episode_number) WHERE source = 'combined'
        DO UPDATE SET payload=EXCLUDED.payload, provenance=EXCLUDED.provenance, researched_at=now()
        RETURNING id`,
       [ctx.showId, ctx.season, ctx.episodeNumber, JSON.stringify(merged.payload), JSON.stringify(fullProvenance)]
@@ -1740,14 +1740,25 @@ function candidatesFor(payload, format, episode) {
 async function stageResearchDecisions(pool, run, opts = {}) {
   const seasonId = run.seasonId || (await decisions.seasonIdFor(pool, run.showId, run.season));
   if (!seasonId) throw new Error(`${run.showSlug} season ${run.season} isn't in the catalog.`);
+  const items = await researchItems(pool, seasonId, run, run.payload);
+  if (opts.dry || !run.id) return { inserted: 0, updated: 0, withdrawn: 0, total: items.length, dry: true };
+  const r = await decisions.stageDecisions(pool, seasonId, items, "research", run.id, { episode: run.episodeNumber });
+  return { ...r, total: items.length };
+}
+
+/**
+ * The results one set of answers implies, as stageDecisions takes them: what stageResearchDecisions stages for the
+ * combined answers, and what one submission reports (step 6b: a paste's own answers, src/lib/server/community-results.ts).
+ */
+async function researchItems(pool, seasonId, run, payload) {
   const castState = await decisions.seasonCastState(pool, seasonId);
   const { rows: merge } = await pool.query(
     "SELECT bool_or(post_merge) AS post_merge FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND from_wiki",
     [seasonId, run.episodeNumber]
   );
   // Research answers it itself now (`merged`); a wiki-staged flag from before that is still honoured.
-  const postMerge = (run.payload && run.payload.merged === "yes") || !!(merge[0] && merge[0].post_merge);
-  const items = candidatesFor(run.payload, run.format, run.episodeNumber).map((c) => ({
+  const postMerge = (payload && payload.merged === "yes") || !!(merge[0] && merge[0].post_merge);
+  return candidatesFor(payload, run.format, run.episodeNumber).map((c) => ({
     episode: run.episodeNumber,
     postMerge,
     kind: c.kind,
@@ -1759,9 +1770,6 @@ async function stageResearchDecisions(pool, run, opts = {}) {
     confidence: c.confidence,
     sources: c.sources,
   }));
-  if (opts.dry || !run.id) return { inserted: 0, updated: 0, withdrawn: 0, total: items.length, dry: true };
-  const r = await decisions.stageDecisions(pool, seasonId, items, "research", run.id, { episode: run.episodeNumber });
-  return { ...r, total: items.length };
 }
 
 /** Re-stages every episode already researched for a season, from the stored answers -- no search,
@@ -1771,7 +1779,7 @@ async function stageCachedSeasonResearch(pool, seasonId) {
     `SELECT er.id, er.episode_number, er.payload, er.provenance, s.id AS show_id, s.slug, s.format, ss.season_number
        FROM show_seasons ss
        JOIN shows s ON s.id = ss.show_id
-       JOIN episode_research er ON er.show_id = s.id AND er.season_number = ss.season_number
+       JOIN episode_research er ON er.show_id = s.id AND er.season_number = ss.season_number AND er.source = 'combined'
       WHERE ss.id = $1
       ORDER BY er.episode_number`,
     [seasonId]
@@ -2029,7 +2037,7 @@ function researchCoverage(stored, castNames, formatId) {
 
 async function storedResearchFor(pool, ctx) {
   const { rows } = await pool.query(
-    "SELECT payload, provenance, researched_at FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3",
+    "SELECT payload, provenance, researched_at FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND source = 'combined'",
     [ctx.showId, ctx.season, ctx.episodeNumber]
   );
   return rows[0] || null;
@@ -2196,7 +2204,7 @@ function pasteEpisodeMismatch(parsed, episodeNumber, { siblings = [], leagueEpis
 // What stored research says of each episode of the season, for pasteEpisodeMismatch.
 async function siblingEpisodeFacts(pool, ctx) {
   const { rows } = await pool.query(
-    "SELECT episode_number, payload->>'episodeTitle' AS title, payload->>'airDate' AS air_date, payload->>'summary' AS summary FROM episode_research WHERE show_id=$1 AND season_number=$2",
+    "SELECT episode_number, payload->>'episodeTitle' AS title, payload->>'airDate' AS air_date, payload->>'summary' AS summary FROM episode_research WHERE show_id=$1 AND season_number=$2 AND source = 'combined'",
     [ctx.showId, ctx.season]
   );
   return rows;
@@ -2217,16 +2225,16 @@ async function clearLeagueResearch(pool, leagueId, episodeNumber) {
     await client.query("BEGIN");
     // The same lock a merging paste takes, so a clear can't land in the middle of one.
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`episode_research:${ctx.showId}:${ctx.season}:${episodeNumber}`]);
-    const gone = await client.query("DELETE FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3", key);
+    const gone = await client.query("DELETE FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND source = 'combined'", key);
     await client.query("DELETE FROM episode_text_chunks WHERE show_id=$1 AND season_number=$2 AND episode_number=$3", key);
     let withdrawn = 0;
     if (ctx.seasonId) {
       await client.query(
-        "UPDATE season_decisions SET from_research = false WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND from_research",
+        "UPDATE season_decisions SET from_research = false WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND from_research AND fact_status IS NULL",
         [ctx.seasonId, episodeNumber]
       );
       const del = await client.query(
-        "DELETE FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND NOT from_wiki AND NOT from_research",
+        "DELETE FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND status='pending' AND NOT from_wiki AND NOT from_research AND fact_status IS NULL",
         [ctx.seasonId, episodeNumber]
       );
       withdrawn = del.rowCount;
@@ -2345,7 +2353,8 @@ async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
 
   // A second pass that contradicts the first on whether something happened: the reviewer decides.
   if (stored.merged && stored.merged.disagreements && stored.merged.disagreements.length) review.problems.push(...stored.merged.disagreements);
-  const result = { ...ctx, ...review, payload, provenance: stored.provenance, cached: false, id: stored.id, merged: stored.merged || null };
+  // `submitted`: this paste's own answers, before they were folded into the stored ones (step 6b keeps each as a source).
+  const result = { ...ctx, ...review, payload, submitted: parsed, provenance: stored.provenance, cached: false, id: stored.id, merged: stored.merged || null };
   return { ...result, decisions: await stageResearchDecisions(pool, result, opts) };
 }
 
@@ -2530,6 +2539,7 @@ module.exports = {
   itemsFromChecklist,
   candidatesFor,
   stageResearchDecisions,
+  researchItems,
   stageCachedSeasonResearch,
   runResearch,
   providerFor,

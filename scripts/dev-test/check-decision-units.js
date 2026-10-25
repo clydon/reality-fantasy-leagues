@@ -62,7 +62,7 @@ async function research(pool, { seasonId, show }, homeRuns) {
   const payload = { castaways: [person("Ann Example", { homeRun: homeRuns, inningsPitched: 6.67 }), person("Bo Example", { homeRun: 0 }), person("Cy Example", {})] };
   const { rows } = await pool.query(
     `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance) VALUES ($1,$2,1,$3,'{}')
-     ON CONFLICT (show_id, season_number, episode_number) DO UPDATE SET payload=EXCLUDED.payload RETURNING id`,
+     ON CONFLICT (show_id, season_number, episode_number) WHERE source = 'combined' DO UPDATE SET payload=EXCLUDED.payload RETURNING id`,
     [show, SEASON, JSON.stringify(payload)]
   );
   return ER.stageResearchDecisions(pool, { id: rows[0].id, seasonId, episodeNumber: 1, payload, format: formatForRulebook(data) });

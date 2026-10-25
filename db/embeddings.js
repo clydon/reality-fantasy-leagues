@@ -183,7 +183,7 @@ async function suggestAnswer(pool, { showId, season, episodeNumber, question }) 
   // fails, the error says why rather than pretending nothing was researched.
   const { rows: researched } = await pool.query(
     `SELECT er.payload, er.provenance, s.format FROM episode_research er JOIN shows s ON s.id = er.show_id
-      WHERE er.show_id=$1 AND er.season_number=$2 AND er.episode_number=$3`,
+      WHERE er.show_id=$1 AND er.season_number=$2 AND er.episode_number=$3 AND er.source = 'combined'`,
     [showId, season, episodeNumber]
   );
   if (!researched.length) return { status: "no-research", answer: null, confidence: null, castawayName: null, similarity: null };

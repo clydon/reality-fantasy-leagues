@@ -13,6 +13,7 @@ import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { AskAiSheet, checkFull, checkQuick } from "./ask-ai";
+import { Corrections, CouchFlags, FillState, QuestionCard } from "./community";
 
 // Backstage › Results (the mock's backstage.js bsResults with refine.js's 5B and bot.js's ways, docs/PLAN-new-design.md
 // step 5), for whoever runs a game here. Two passes over one episode, both through Ask an AI (copy and paste, free):
@@ -20,7 +21,9 @@ import { AskAiSheet, checkFull, checkQuick } from "./ask-ai";
 // (every moment: Weekly Lineup's points, final). What its sources agree on applies to every game here on its own and
 // shows you nothing (option 5B), so you can still watch it fresh: Show me and Undo are there. What they disagree on waits
 // for you to tick, then a preview of what changes (tier 2) before it applies. How results get in (One tap, Autopilot) is
-// step 6c's; who can fill them in, step 6b's.
+// step 6c's. Results from everyone (step 6b): every answer is shared with every couch on the season, so the full scores
+// say who filled them in and how far the sources agree; who can fill them in is the couch's (community.tsx), and so are
+// the corrections the shared check made and any house ruling.
 
 type Ask = { kind: "quick" | "full"; episode: number } | null;
 
@@ -57,7 +60,7 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
     }
   };
 
-  const onUse = async (answer: string, opts: { again: boolean; confirmed: boolean }) => {
+  const onUse = async (answer: string, opts: { confirmed: boolean }) => {
     if (!ask) return;
     const r = await backstage.paste(seasonId, couchId, { episode: ask.episode, kind: ask.kind, answer, ...opts });
     setAsk(null);
@@ -109,6 +112,8 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
           </Block>
           <Preview id="backstage.results-ways" className="mx-4 mt-6" />
           <Block title="Full scores" aside={settles(data, "full")}>
+            <FillState seasonId={seasonId} couchId={couchId} data={data} />
+            {ep.questions > 0 && <QuestionCard episode={ep.number} count={ep.questions} onAsk={() => setAsk({ kind: "full", episode: ep.number })} />}
             <FullCard
               ep={ep}
               look={look}
@@ -122,10 +127,13 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
           <p className="px-4 pt-6 text-[13px] leading-relaxed text-muted-foreground">
             One paste covers {games === 1 ? "your game" : `all ${games} games`} here: {data.games.map((g) => g.name).join(", ")}.
             {ep.later.length ? ` ${ep.later.join(" and ")} ${ep.later.length === 1 ? "is" : "are"} catching up, and get Episode ${ep.number} when it's revealed there.` : ""}
+            {" Results are shared with every couch on this show: what any of them sends reaches your games too, and what's wrong can be flagged from any episode."}
             {data.resultsBy === "admin" ? " An admin also checks this season's results; what they accept reaches your games on its own." : ""}
           </p>
         </>
       )}
+      <Corrections seasonId={seasonId} couchId={couchId} corrections={data.corrections} />
+      <CouchFlags flags={data.flags} />
 
       {ask && (
         <AskAiSheet

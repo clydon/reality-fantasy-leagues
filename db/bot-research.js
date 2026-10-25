@@ -367,7 +367,7 @@ async function runJob(pool, job, { ask, dry = false } = {}) {
     const { prompt } = await Research.buildPasteImportPrompt(pool, season.slug, season.season_number, episode, { structured: true });
     const { answer } = await ask(prompt);
     const { rows: prior } = await pool.query(
-      "SELECT 1 FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3",
+      "SELECT 1 FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND source = 'combined'",
       [season.show_id, season.season_number, episode]
     );
     // A second pass (the 9-hour run, or after someone pasted their own) fills in field by field

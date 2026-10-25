@@ -46,7 +46,7 @@ export interface AskAiProps {
   kind: "quick" | "full";
   check: AnswerCheck;
   /** Sends the answer; throws with the reason (a 409 asks whether it really is this episode). */
-  onUse: (answer: string, opts: { again: boolean; confirmed: boolean }) => Promise<void>;
+  onUse: (answer: string, opts: { confirmed: boolean }) => Promise<void>;
 }
 
 export function AskAiSheet(props: AskAiProps) {
@@ -60,16 +60,15 @@ export function AskAiSheet(props: AskAiProps) {
 function AskAiBody({ what, spoiler, seasonId, couchId, episode, kind, check, onUse }: AskAiProps) {
   const [app, setApp] = useState<ChatApp>(readPref);
   const [step, setStep] = useState<0 | 1 | 2>(0);
-  const [again, setAgain] = useState(false);
   const [answer, setAnswer] = useState("");
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<{ text: string; mismatch: boolean } | null>(null);
 
   // The question, parked as a brief for the chat links.
   const asked = useQuery({
-    queryKey: ["new-design", "ask-ai", seasonId, couchId, episode, kind, again],
+    queryKey: ["new-design", "ask-ai", seasonId, couchId, episode, kind],
     queryFn: async () => {
-      const q = await backstage.prompt(seasonId, couchId, episode, kind, again);
+      const q = await backstage.prompt(seasonId, couchId, episode, kind);
       return { ...q, link: q.prompt ? `${window.location.origin}/b/${(await backstage.brief(q.prompt)).code}` : null };
     },
     staleTime: 5 * 60_000,
@@ -94,7 +93,7 @@ function AskAiBody({ what, spoiler, seasonId, couchId, episode, kind, check, onU
     setSending(true);
     setProblem(null);
     try {
-      await onUse(answer, { again, confirmed });
+      await onUse(answer, { confirmed });
     } catch (e) {
       const err = e as Error & { status?: number };
       setProblem({ text: err.message, mismatch: err.status === 409 });
@@ -153,12 +152,7 @@ function AskAiBody({ what, spoiler, seasonId, couchId, episode, kind, check, onU
               {failed}
             </p>
           ) : question && !question.prompt ? (
-            <div className="mt-4 rounded-[3px] bg-background p-3 text-sm leading-snug">
-              Research has already answered for everyone in Episode {episode}.
-              <Btn className="mt-3" wide onClick={() => setAgain(true)}>
-                Ask about everyone again
-              </Btn>
-            </div>
+            <div className="mt-4 rounded-[3px] bg-background p-3 text-sm leading-snug">There&apos;s nobody left to ask about in Episode {episode}.</div>
           ) : (
             <>
               <a

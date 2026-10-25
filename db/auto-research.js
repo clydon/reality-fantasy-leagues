@@ -30,7 +30,7 @@ async function loadSeasons(pool, where = "ss.auto_research", params = []) {
             -- The wiki's dates with research-confirmed starts over them, and confirmed lengths (0067).
             sad.air_dates AS wiki_air_dates, sad.runtimes AS episode_runtimes,
             COALESCE((SELECT array_agg(er.episode_number) FROM episode_research er
-                       WHERE er.show_id = s.id AND er.season_number = ss.season_number), '{}') AS researched
+                       WHERE er.show_id = s.id AND er.season_number = ss.season_number AND er.source = 'combined'), '{}') AS researched
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
        LEFT JOIN season_air_dates sad ON sad.season_id = ss.id
       WHERE ${where}`,

@@ -125,6 +125,17 @@ async function up(pool) {
      VALUES (gen_random_uuid(), $1, $2, 'settings', 1, NULL, 'zt changed a setting', '{"type":"settings","field":"zt","before":1,"after":2}', now() + interval '1 day')`,
     [classic, me]
   );
+  // Results from everyone (0112): a couch's submission sourcing the season's result, a flag on it, and a house ruling.
+  const sent = (await one(
+    `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance, source, submitted_by, couch_id, covers)
+     VALUES ($1, 1, 1, '{"facts": []}', '{}', 'paste', $2, $3, '{"people": ["Castaway 0"], "kinds": null}') RETURNING id`,
+    [show, ann, couch]
+  )).id;
+  await pool.query(`INSERT INTO fact_sources (decision_id, research_id, method, confidence) VALUES ($1, $2, '', 'high')`, [decision, sent]);
+  await pool.query(`INSERT INTO fact_disputes (season_id, episode_number, decision_id, user_id, couch_id, reason, note) VALUES ($1, 1, $2, $3, $4, 'didnt-happen', 'zt: it was the other one')`, [
+    season, decision, ann, couch,
+  ]);
+  await pool.query(`INSERT INTO league_rulings (league_id, decision_id, keeps, ruled_by) VALUES ($1, $2, '{"kind": "exiled"}', $3)`, [classic, decision, me]);
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

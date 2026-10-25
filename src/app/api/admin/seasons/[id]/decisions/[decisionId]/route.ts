@@ -75,7 +75,9 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<RoutePara
   }
 
   await pool.query(
-    `UPDATE season_decisions SET status=$2, decided_at=now(), decided_by=$3, applied=$4::jsonb WHERE id=$1`,
+    `UPDATE season_decisions SET status=$2, decided_at=now(), decided_by=$3, applied=$4::jsonb,
+            fact_status=CASE WHEN $2 = 'accepted' THEN 'canonical' ELSE 'removed' END, locked_at=now(), locked_by=$3
+      WHERE id=$1`,
     [decisionId, body.action === "accept" ? "accepted" : "rejected", user.id, JSON.stringify(applied)]
   );
   const leagues = await syncSeasonLeagues(id, user.id);

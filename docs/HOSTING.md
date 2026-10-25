@@ -250,3 +250,14 @@ never handles it: the user does the reset and the pasting.
   for whoever runs a game there (~2-10 KB each; Scoring rules adds the rulebook row, Members one memberships query). Every
   write is one league write plus its Recent changes line, as before; a removal or leave keeps its undo for 30 days (one
   `league_changes` row per game). The run's "seen" mark is kept in the browser (localStorage), not the database.
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 6b part 1, results from everyone. Migration 0112: every
+  answer sent is kept as its own `episode_research` row (a full answer's parsed JSON, ~10-30 KB; who went home or a tick,
+  under 1 KB), plus `fact_sources` (~100 bytes per result per answer), `fact_disputes` and `league_rulings` (a few rows a
+  season). Two couches filling in every episode of a 13-episode season is under 1 MB. Nothing polls or runs on a schedule.
+  The cost that grows is writes: an answer now brings every league on the season in line (the season sync: each league
+  locked, read and written once, about what an admin's Accept already did for Survivor 51), where step 5 wrote only the
+  couch's games, and a correction adds a `league_changes` row per league it reaches. New reads, each once a visit: an
+  episode's page reads its shared results (`/api/seasons/[id]/results/[n]`: the episode's facts, sources, flags, the couch's
+  corrections and rulings; ~2-6 KB), the episodes read adds one corrections query, Backstage's read adds who filled each
+  recent episode in, the open questions and the couch's flags (~1-3 KB), and the stats read one query for its "1 source"
+  marks.

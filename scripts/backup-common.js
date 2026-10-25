@@ -11,11 +11,12 @@ const crypto = require("crypto");
 const LEAGUE_TABLES = [
   "leagues", "league_memberships", "league_groups", "couches", "couch_members", "couch_invites", "league_invites", "league_rulesets", "waiver_claims",
   "blind_draft_picks", "episode_team_notes", "league_applied_decisions", "chat_messages", "chat_reactions",
-  "chat_reads", "couch_chat_reads", "wiki_proposals", "wiki_proposal_items", "league_changes",
+  "chat_reads", "couch_chat_reads", "wiki_proposals", "wiki_proposal_items", "league_changes", "league_rulings",
 ];
 const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
   "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions", "season_episodes", "show_follows",
+  "fact_sources", "fact_disputes",
 ];
 const PEOPLE_TABLES = ["user", "user_settings", "notification_prefs"];
 const TABLES = [...LEAGUE_TABLES, ...SEASON_TABLES, ...PEOPLE_TABLES];
@@ -30,6 +31,9 @@ const LATER_TABLES = {
   show_follows: { since: "0102", fill: "0103_show_follows_backfill.sql" },
   couch_chat_reads: { since: "0110", fill: null },
   league_changes: { since: "0111", fill: null },
+  fact_sources: { since: "0112", fill: null },
+  fact_disputes: { since: "0112", fill: null },
+  league_rulings: { since: "0112", fill: null },
 };
 
 /** Whether the database has this table. */

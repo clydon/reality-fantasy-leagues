@@ -51,6 +51,14 @@ function fakeClient(world) {
         return { rows: [] };
       }
       if (q.includes("FROM season_cast sc")) return { rows: [] };
+      // Step 6b's: no house rulings, no submissions, the decisions a correction names, and its line (league_changes).
+      if (q.startsWith("SELECT decision_id, keeps, created_at FROM league_rulings")) return { rows: [] };
+      if (q.startsWith("SELECT DISTINCT episode_number AS n FROM episode_research")) return { rows: [] };
+      if (q.startsWith("SELECT couch_id FROM leagues")) return { rows: [{ couch_id: null }] };
+      if (q.startsWith("SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, jury_votes, units, applied, decided_at FROM season_decisions WHERE id = ANY")) {
+        return { rows: world.decisions.filter((d) => params[0].includes(d.id)) };
+      }
+      if (/^(SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT|INSERT INTO league_changes)/.test(q)) return { rows: [] };
       // No season cast rows: names resolve by the loose fallback, as before the links existed.
       if (q.startsWith("SELECT id, name FROM season_cast WHERE season_id")) return { rows: [] };
       throw new Error("unexpected query: " + q.slice(0, 120));

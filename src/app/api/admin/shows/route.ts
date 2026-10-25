@@ -60,7 +60,7 @@ export const GET = apiRoute(async (req) => {
                   'researchedEpisodes', COALESCE((
                     SELECT json_agg(er.episode_number ORDER BY er.episode_number)
                       FROM episode_research er
-                     WHERE er.show_id = s.id AND er.season_number = ss.season_number
+                     WHERE er.show_id = s.id AND er.season_number = ss.season_number AND er.source = 'combined'
                   ), '[]'::json)
                 ) ORDER BY ss.season_number DESC
               ) FILTER (WHERE ss.id IS NOT NULL),

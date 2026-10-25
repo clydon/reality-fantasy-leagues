@@ -7,6 +7,7 @@ import type { LeagueSettings, LeagueState } from "@/lib/game/types";
 import { rulebookForLeague, seasonRulebook } from "@db/rulebooks.js";
 import { resolveFormat } from "@db/show-formats.js";
 import type { SessionUser } from "./auth-helpers";
+import { unsettledFacts } from "./community-results";
 import { pool } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
 import { leagueStates } from "./league-states";
@@ -31,6 +32,8 @@ export interface SeasonStats extends CastStats {
   seenThrough: number | null;
   /** Whose points "Points" are: a game's (its name), else the rulebook's suggestion. */
   pointsFrom: string | null;
+  /** Results the shared check isn't sure of yet (step 6b): by episode, then person, "reported" (1 source) or "disputed". */
+  unsure: Record<number, Record<string, "reported" | "disputed">>;
 }
 
 /** What a facts state takes from a game's settings: what scores, and how. */
@@ -132,5 +135,11 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
 export async function seasonStats(user: SessionUser, seasonId: string, couchId: string | null, range: { from?: string | null; to?: string | null }): Promise<SeasonStats> {
   const f = await seasonFactsFor(user, seasonId, couchId);
   const stats = castStats(f.facts, { seen: f.mark, book: f.book, from: range.from, to: range.to, colours: f.colours });
-  return { ...stats, seenThrough: Number.isFinite(f.seen) ? f.seen : null, pointsFrom: f.pointsFrom };
+  const unsure = await unsettledFacts(seasonId, f.mark);
+  return {
+    ...stats,
+    seenThrough: Number.isFinite(f.seen) ? f.seen : null,
+    pointsFrom: f.pointsFrom,
+    unsure: Object.fromEntries([...unsure].map(([n, people]) => [n, Object.fromEntries(people)])),
+  };
 }
