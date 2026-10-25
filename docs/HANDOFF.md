@@ -22,6 +22,8 @@ end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds produc
 production's database).
 
 ## Next: moving the app onto the new design (plan written 2026-10-23)
+Steps can run back to back, unattended: `node scripts/session-loop.js` (its header comment says how: each session hands off to the next, stops only for a question, and can be paused and resumed).
+
 **Read [PLAN-new-design.md](PLAN-new-design.md) first.** One database, no data transfer (the new screens read and
 write the same leagues), additive migrations, the classic app running beside the new one until the couch switches,
 and a Preview overlay (`<Preview step>`) on anything still on fixtures. Its Status table says what step is next; each
