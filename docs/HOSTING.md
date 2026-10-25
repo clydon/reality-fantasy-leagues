@@ -261,3 +261,15 @@ never handles it: the user does the reset and the pasting.
   corrections and rulings; ~2-6 KB), the episodes read adds one corrections query, Backstage's read adds who filled each
   recent episode in, the open questions and the couch's flags (~1-3 KB), and the stats read one query for its "1 source"
   marks.
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 6b part 2, the admin's desk and the rulebook editor.
+  Migration 0113: `admin_changes` (one row per desk change with its undo, under 1 KB; a handful a week),
+  `rulebook_suggestions` (a note each), two lock columns and `show_seasons.rulebook_live`. Nothing polls or runs on a
+  schedule. Every desk read is a site admin opening a page: the Inbox (a few small queries and four counts over the week's
+  results, ~1-3 KB; also when a site admin opens the profile menu), Find (at most ~40 rows), each page ~2-10 KB, a
+  rulebook's ~30-60 KB (its blocks as they are now and How it works). Writes: deciding a result or overriding a castaway
+  brings every league on the season in line (the season or cast sync, as an admin's Accept already did); switching a
+  season's leagues onto its rulebook adds `settings.rulebook` to their state (+5-14 KB each, R3's figure, which the 15 s
+  state poll's hash check absorbs) and every later save rewrites it; Fix a mistake also reads the season's pasted answers
+  again (one pass over a few dozen rows). Save as a starting point adds one library rulebook (~30 KB). Changing Confirmed
+  needs settles every community result again but syncs only seasons where something moved. Backups now include
+  `rulebooks` (~30 KB a season) and `rulebook_edits`.

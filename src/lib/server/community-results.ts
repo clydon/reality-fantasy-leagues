@@ -1,7 +1,9 @@
 import crypto from "crypto";
 import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
+import { researchItems } from "@db/episode-research.js";
 import { canonicalName, seasonCastState } from "@db/season-decisions.js";
+import { seasonFormat } from "@db/season-rule-changes.js";
 import { settleEpisode, sourcesLine, type Covers, type FactInput, type FactOutcome, type FactStatus, type Flag, type Submission } from "@/lib/game/fact-status";
 import type { LeagueState } from "@/lib/game/types";
 import { isUuid, type SessionUser } from "./auth-helpers";
@@ -55,6 +57,13 @@ export interface Settled {
 
 const lockKey = (seasonId: string, episode: number) => `facts:${seasonId}:${episode}`;
 
+/** How many sources confirm a fact (the desk's Settings, app_settings 'confirm_at'; 2 by default). */
+export async function confirmAt(db: { query: PoolClient["query"] } = pool): Promise<number> {
+  const { rows } = await db.query("SELECT value FROM app_settings WHERE key = 'confirm_at'");
+  const n = Number(rows[0]?.value);
+  return Number.isInteger(n) && n >= 2 ? n : 2;
+}
+
 async function seasonKey(client: PoolClient, seasonId: string): Promise<{ showId: string; season: number }> {
   const { rows } = await client.query("SELECT show_id, season_number FROM show_seasons WHERE id = $1", [seasonId]);
   if (!rows.length) throw new HttpError(404, "Season not found");
@@ -84,54 +93,7 @@ export async function submit(input: SubmitInput): Promise<{ researchId: string; 
       ]
     );
     const researchId: string = rows[0].id;
-    const seen = new Set<string>();
-    const facts: string[] = [];
-    // The season cast's own spelling, so the same person from any couch lands on one fact.
-    const castState = await seasonCastState(client, input.seasonId);
-    for (const given of input.facts) {
-      const f = { ...given, castawayName: canonicalName(castState, given.castawayName) };
-      const identity = `${f.kind}|${f.castawayName.toLowerCase()}|${f.eventType ?? ""}`;
-      if (seen.has(identity)) continue;
-      seen.add(identity);
-      // A result staged before and never reviewed (no fact_status) takes this source's version; one an admin decided
-      // keeps its decision (canonical or removed, locked).
-      const { rows: d } = await client.query(
-        `INSERT INTO season_decisions
-           (season_id, episode_number, post_merge, kind, castaway_name, method, event_type, confidence, from_research, research_id,
-            sources, jury_votes, units, status, fact_status, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10, $11, $12, 'pending', 'reported', clock_timestamp())
-         ON CONFLICT (season_id, episode_number, kind, castaway_name, event_type) DO UPDATE SET
-           method = CASE WHEN season_decisions.fact_status IS NULL AND season_decisions.status = 'pending' THEN EXCLUDED.method ELSE season_decisions.method END,
-           confidence = CASE WHEN season_decisions.fact_status IS NULL AND season_decisions.status = 'pending' THEN EXCLUDED.confidence ELSE season_decisions.confidence END,
-           jury_votes = COALESCE(season_decisions.jury_votes, EXCLUDED.jury_votes),
-           units = COALESCE(season_decisions.units, EXCLUDED.units),
-           post_merge = season_decisions.post_merge OR EXCLUDED.post_merge,
-           from_research = true,
-           locked_at = CASE WHEN season_decisions.fact_status IS NULL AND season_decisions.status <> 'pending' THEN COALESCE(season_decisions.decided_at, now()) ELSE season_decisions.locked_at END,
-           fact_status = COALESCE(season_decisions.fact_status,
-             CASE season_decisions.status WHEN 'accepted' THEN 'canonical' WHEN 'rejected' THEN 'removed' ELSE 'reported' END)
-         RETURNING id`,
-        [
-          input.seasonId,
-          input.episode,
-          !!f.postMerge,
-          f.kind,
-          f.castawayName,
-          f.method ?? "",
-          f.eventType ?? "",
-          f.confidence ?? "high",
-          researchId,
-          f.sources ?? [],
-          Number.isInteger(f.juryVotes) ? f.juryVotes : null,
-          f.units != null && Number.isFinite(f.units) && f.units > 0 ? f.units : null,
-        ]
-      );
-      facts.push(d[0].id);
-      await client.query(
-        `INSERT INTO fact_sources (decision_id, research_id, method, confidence) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-        [d[0].id, researchId, f.method ?? "", f.confidence ?? "high"]
-      );
-    }
+    const facts = await fileFacts(client, input.seasonId, input.episode, researchId, input.facts);
     const settled = await settle(client, input.seasonId, key, input.episode);
     await client.query("COMMIT");
     return { researchId, settled, facts };
@@ -141,6 +103,60 @@ export async function submit(input: SubmitInput): Promise<{ researchId: string; 
   } finally {
     client.release();
   }
+}
+
+/** Files the facts one submission reports and its sources for them (a fact new to the season is reported; a result staged
+ *  before and never reviewed takes this version; one an admin decided keeps its decision). Inside the caller's transaction. */
+async function fileFacts(client: PoolClient, seasonId: string, episode: number, researchId: string, given: SubmittedFact[]): Promise<string[]> {
+  const seen = new Set<string>();
+  const facts: string[] = [];
+  // The season cast's own spelling, so the same person from any couch lands on one fact.
+  const castState = await seasonCastState(client, seasonId);
+  for (const one of given) {
+    const f = { ...one, castawayName: canonicalName(castState, one.castawayName) };
+    const identity = `${f.kind}|${f.castawayName.toLowerCase()}|${f.eventType ?? ""}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    // A result staged before and never reviewed (no fact_status) takes this source's version; one an admin decided
+    // keeps its decision (canonical or removed, locked).
+    const { rows: d } = await client.query(
+      `INSERT INTO season_decisions
+         (season_id, episode_number, post_merge, kind, castaway_name, method, event_type, confidence, from_research, research_id,
+          sources, jury_votes, units, status, fact_status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, $10, $11, $12, 'pending', 'reported', clock_timestamp())
+       ON CONFLICT (season_id, episode_number, kind, castaway_name, event_type) DO UPDATE SET
+         method = CASE WHEN season_decisions.fact_status IS NULL AND season_decisions.status = 'pending' THEN EXCLUDED.method ELSE season_decisions.method END,
+         confidence = CASE WHEN season_decisions.fact_status IS NULL AND season_decisions.status = 'pending' THEN EXCLUDED.confidence ELSE season_decisions.confidence END,
+         jury_votes = COALESCE(season_decisions.jury_votes, EXCLUDED.jury_votes),
+         units = COALESCE(season_decisions.units, EXCLUDED.units),
+         post_merge = season_decisions.post_merge OR EXCLUDED.post_merge,
+         from_research = true,
+         locked_at = CASE WHEN season_decisions.fact_status IS NULL AND season_decisions.status <> 'pending' THEN COALESCE(season_decisions.decided_at, now()) ELSE season_decisions.locked_at END,
+         fact_status = COALESCE(season_decisions.fact_status,
+           CASE season_decisions.status WHEN 'accepted' THEN 'canonical' WHEN 'rejected' THEN 'removed' ELSE 'reported' END)
+       RETURNING id`,
+      [
+        seasonId,
+        episode,
+        !!f.postMerge,
+        f.kind,
+        f.castawayName,
+        f.method ?? "",
+        f.eventType ?? "",
+        f.confidence ?? "high",
+        researchId,
+        f.sources ?? [],
+        Number.isInteger(f.juryVotes) ? f.juryVotes : null,
+        f.units != null && Number.isFinite(f.units) && f.units > 0 ? f.units : null,
+      ]
+    );
+    facts.push(d[0].id);
+    await client.query(
+      `INSERT INTO fact_sources (decision_id, research_id, method, confidence) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+      [d[0].id, researchId, f.method ?? "", f.confidence ?? "high"]
+    );
+  }
+  return facts;
 }
 
 interface FactRow {
@@ -199,7 +215,7 @@ async function inputsFor(db: PoolClient | typeof pool, seasonId: string, key: { 
 /** Settles one episode's facts again from their sources and flags, and writes what moved. Inside the caller's transaction. */
 async function settle(client: PoolClient, seasonId: string, key: { showId: string; season: number }, episode: number): Promise<Settled> {
   const { facts, submissions, inputs, flags } = await inputsFor(client, seasonId, key, episode);
-  const outcomes = settleEpisode(inputs, submissions);
+  const outcomes = settleEpisode(inputs, submissions, { confirmAt: await confirmAt(client) });
   const out: Settled = { live: [], out: [], changed: [] };
   for (const o of outcomes) {
     const f = facts.find((x) => x.id === o.id)!;
@@ -231,7 +247,7 @@ async function settle(client: PoolClient, seasonId: string, key: { showId: strin
 }
 
 /** Settles one episode again on its own (a flag, a withdrawal), in a transaction under the episode's lock. */
-async function settleNow(seasonId: string, episode: number, before?: (client: PoolClient) => Promise<void>): Promise<Settled> {
+export async function settleNow(seasonId: string, episode: number, before?: (client: PoolClient) => Promise<void>): Promise<Settled> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -294,6 +310,57 @@ export async function withdrawResults(researchId: string, couchId: string | null
   return settled;
 }
 
+/**
+ * Re-derives what every answer for the season from `fromEpisode` on says, under the season's rules now (a rulebook
+ * fixed, or changed from that episode): each submission's own answers are read again into facts and sources, each
+ * episode settled again, then every league brought in line, with a correction line wherever a result came out. Who
+ * went home and hand entries say only what they said, so they stay; results an admin decided stay as decided.
+ */
+export async function restageSeason(seasonId: string, fromEpisode: number, actorId: string | null): Promise<{ episodes: number[]; answers: number }> {
+  const { rows: subs } = await pool.query<{ id: string; episode_number: number; payload: unknown; show_id: string; season_number: number }>(
+    `SELECT er.id, er.episode_number, er.payload, er.show_id, er.season_number FROM episode_research er
+       JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number
+      WHERE ss.id = $1 AND er.episode_number >= $2 AND er.withdrawn_at IS NULL AND er.source IN ('paste', 'bot', 'autopilot', 'tiebreak')
+      ORDER BY er.episode_number, er.researched_at`,
+    [seasonId, Math.max(1, fromEpisode)]
+  );
+  const episodes = [...new Set(subs.map((s) => s.episode_number))];
+  for (const n of episodes) {
+    const format = await seasonFormat(pool, seasonId, { episode: n });
+    const items = new Map<string, SubmittedFact[]>();
+    for (const s of subs.filter((x) => x.episode_number === n)) {
+      const read = await researchItems(pool, seasonId, { showId: s.show_id, season: s.season_number, episodeNumber: n, format }, s.payload);
+      items.set(s.id, read.map((i) => ({ kind: i.kind, castawayName: i.name, method: i.method, eventType: i.eventType, units: i.units, juryVotes: i.juryVotes, postMerge: i.postMerge, confidence: i.confidence, sources: i.sources })));
+    }
+    await settleNow(seasonId, n, async (client) => {
+      for (const [id, facts] of items) {
+        await client.query("DELETE FROM fact_sources WHERE research_id = $1", [id]);
+        await fileFacts(client, seasonId, n, id, facts);
+      }
+    });
+  }
+  if (episodes.length) await syncSeasonLeagues(seasonId, actorId);
+  return { episodes, answers: subs.length };
+}
+
+/**
+ * Settles again every episode with facts the community still has a say in (the Confirmed threshold changed; a canonical
+ * one is the admin's), and syncs only the seasons where something went in, came out or changed.
+ */
+export async function settleEverything(actorId: string | null): Promise<{ seasons: number; episodes: number }> {
+  const { rows } = await pool.query<{ season_id: string; episode_number: number }>(
+    `SELECT DISTINCT d.season_id, d.episode_number FROM season_decisions d
+      WHERE d.fact_status IN ('reported', 'confirmed', 'disputed', 'removed') AND d.locked_at IS NULL ORDER BY 1, 2`
+  );
+  const moved = new Set<string>();
+  for (const r of rows) {
+    const settled = await settleNow(r.season_id, r.episode_number);
+    if (settled.live.length || settled.out.length || settled.changed.length) moved.add(r.season_id);
+  }
+  for (const s of moved) await syncSeasonLeagues(s, actorId);
+  return { seasons: moved.size, episodes: rows.length };
+}
+
 // ---- reading the shared facts ----
 
 export interface FactView {
@@ -318,7 +385,7 @@ export async function episodeFacts(seasonId: string, episode: number, viewerId: 
   try {
     const key = await seasonKey(client, seasonId);
     const { facts, submissions, inputs, flags } = await inputsFor(client, seasonId, key, episode, { locked: true });
-    const outcomes = new Map<string, FactOutcome>(settleEpisode(inputs, submissions).map((o) => [o.id, o]));
+    const outcomes = new Map<string, FactOutcome>(settleEpisode(inputs, submissions, { confirmAt: await confirmAt(client) }).map((o) => [o.id, o]));
     // Results an admin decided before 0112 (or a fixture's) carry no fact_status: canonical when accepted.
     const { rows: legacy } = await client.query<FactRow>(
       `SELECT id, kind, castaway_name, method, event_type, status, 'canonical'::text AS fact_status, true AS locked

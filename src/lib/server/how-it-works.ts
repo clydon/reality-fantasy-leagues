@@ -5,7 +5,8 @@ import { howItWorks, type HowItWorks } from "@/lib/game/formats/rulebook-describ
 import type { RulebookUpdate } from "@/lib/game/formats/rulebook-describe";
 import type { GameFormat } from "@/lib/game/formats/index";
 import { publicMediaSrc } from "@/lib/game/selectors";
-import { knownPhaseStarts, lineage, rulebookForLeague, seasonRulebook, type Rulebook } from "@db/rulebooks.js";
+import { blocksAt } from "@/lib/game/formats/rulebook-patch.js";
+import { inForceEdits, knownPhaseStarts, lineage, rulebookForLeague, seasonRulebook, type Rulebook } from "@db/rulebooks.js";
 import { resolveFormat } from "@db/show-formats.js";
 import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
@@ -19,7 +20,9 @@ import { games, seasonHeaders } from "./show-space";
 // the season's own, else its show's format. Spoiler-safe through guard.ts: `seen` is the reader's mark, so a phase
 // they haven't reached shows only its condition and a later update is counted, never told; the format a game plays
 // by is read from their own copy of the league (GhostLogic.viewFor), which leaves out a rule change from an episode
-// they haven't seen. "Who's playing" is the season's faces, in the groups they started in.
+// they haven't seen. "Who's playing" is the season's faces, in the groups they started in. A rulebook the desk edited
+// (step 6b part 2) reads as it stood at the reader's episode: a change from a later one is only counted on the timeline,
+// and what it added (a new twist) isn't on the page yet.
 
 export interface HowItWorksPage {
   how: HowItWorks;
@@ -66,7 +69,11 @@ export async function seasonHowItWorks(user: SessionUser, seasonId: string, couc
     updates.push({ episode: 1, kind: "start", detail: `Plays by the ${format.name.replace(/^The /, "")} rulebook.` });
   }
 
-  const book = row?.blocks ? { blocks: row.blocks, aliases: row.aliases } : rulebookFor(format.id, format.data);
+  // A game still on its show's format (its season's leagues don't play by rulebooks yet) is told the format it plays.
+  const plays = !(game && state) || !!state.settings.rulebook || row?.compiledSource === "legacy";
+  const edits = row && plays ? await inForceEdits(pool, row.id) : [];
+  for (const e of edits) updates.push({ episode: e.fromEpisode, kind: "showChanged", detail: e.summary ?? "" });
+  const book = row?.blocks && plays ? { blocks: blocksAt(row.blocks, edits, mark ?? Infinity), aliases: row.aliases } : rulebookFor(format.id, format.data);
   const phaseStarts = row && Object.keys(row.phaseStarts || {}).length ? row.phaseStarts : await knownPhaseStarts(pool, seasonId, book.blocks);
   const line = row ? await lineage(pool, row.id) : null;
   const how = howItWorks(book.blocks, {

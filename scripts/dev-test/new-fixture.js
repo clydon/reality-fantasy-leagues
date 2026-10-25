@@ -110,12 +110,24 @@ async function down(pool) {
     [userIds]
   );
   const { rows: groups } = await pool.query(`SELECT DISTINCT group_id FROM leagues WHERE slug LIKE 'zt-nd-%' AND group_id IS NOT NULL`);
+  // The desk's history (step 6b part 2) names what it changed by id, with no foreign key: the fixture's seasons, their
+  // rulebooks, results and cast, its couches, and anything zt_nd people changed.
+  await pool.query(
+    `DELETE FROM admin_changes WHERE user_id = ANY($1::text[]) OR entity_id = ANY($2::text[]) OR entity_id IN (
+       SELECT ss.id::text FROM show_seasons ss JOIN shows sh ON sh.id = ss.show_id WHERE sh.slug IN ($3, $4)
+       UNION SELECT r.id::text FROM rulebooks r JOIN show_seasons ss ON ss.id = r.season_id JOIN shows sh ON sh.id = ss.show_id WHERE sh.slug IN ($3, $4)
+       UNION SELECT d.id::text FROM season_decisions d JOIN show_seasons ss ON ss.id = d.season_id JOIN shows sh ON sh.id = ss.show_id WHERE sh.slug IN ($3, $4)
+       UNION SELECT c.id::text FROM season_cast c JOIN show_seasons ss ON ss.id = c.season_id JOIN shows sh ON sh.id = ss.show_id WHERE sh.slug IN ($3, $4))`,
+    [userIds, couches.map((c) => c.id), SHOW, TRAITORS]
+  );
   await pool.query(`DELETE FROM leagues WHERE slug LIKE 'zt-nd-%'`); // memberships and Recent changes cascade
   // Questions Backstage parked for Ask an AI (they'd only lose their author with the users, and expire in a week).
   await pool.query(`DELETE FROM ai_briefs WHERE created_by = ANY($1::text[])`, [userIds]);
   if (groups.length) await pool.query(`DELETE FROM league_groups WHERE id = ANY($1::uuid[])`, [groups.map((g) => g.group_id)]);
   if (couches.length) await pool.query(`DELETE FROM couches WHERE id = ANY($1::uuid[])`, [couches.map((c) => c.id)]);
   await pool.query(`DELETE FROM shows WHERE slug IN ($1, $2)`, [SHOW, TRAITORS]); // seasons and follows go with them
+  // A starting point the desk saved from one of its seasons' rulebooks lives in the library, with no season.
+  await pool.query("DELETE FROM rulebooks WHERE owner_kind = 'library' AND (name LIKE 'ZT Survivor%' OR name LIKE 'ZT Traitors%')");
   await pool.query(`DELETE FROM "user" WHERE username LIKE 'zt\\_nd\\_%'`); // sessions, accounts, follows cascade
 }
 

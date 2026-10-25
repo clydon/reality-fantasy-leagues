@@ -30,7 +30,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 4 | Chat, per couch and show, spoiler-folded | **done** 2026-10-24 on the branch (migration 0110 ships with 0b's) | Opus · medium |
 | 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | **done** 2026-10-25 on the branch (migration 0111 ships with 0b's) | Opus · high |
 | 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | **done** 2026-10-25 on the branch (no migration) | Opus · high |
-| 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **part 1 done** 2026-10-25 on the branch: results from everyone and disputes (migration 0112 ships with 0b's); part 2 (the admin and the rulebook editor) and part 3 (Make it ours) to come | Opus · high |
+| 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **parts 1 and 2 done** 2026-10-25 on the branch: results from everyone and disputes (migration 0112), the admin's desk and the rulebook editor (migration 0113); both ship with 0b's. Part 3 (Make it ours) to come | Opus · high |
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | not started | Opus · medium |
 | 7 | Draft room and blind draft | not started | Opus · medium |
 | — | **Switch the couch to the new design by default** | — | — |
@@ -148,12 +148,12 @@ step's As built.
   not Backstage's.
 - **The hub doesn't say results are in** (step 2; for 8). Up next keeps showing the next episode; the show bar, Tonight,
   Episodes, Games and the dock say Results are in. The hub's status line and Up next could lead with the reveal.
-- **Traitors 5's cast stores the faction as its tribe** (step 3; for 6b part 2, or a data fix the user approves now). Its
+- **Traitors 5's cast stores the faction as its tribe** (step 3; the tool is 6b part 2's, doing it is the user's call). Its
   `season_cast.tribe_name` is "Traitor" for the two original Traitors and "Faithful" for everyone else, and the one league on
   that season in the local copy (production's, 2026-10-16) has tribes named Traitor and Faithful, so classic's boards and
-  anything showing that league's tribes tell who the Traitors are. The stats ignore a group named for a role (cast-stats.ts),
-  but the data wants clearing: the wiki read's `castNote` already says a faction is never a tribe. 6b's admin (a season's
-  cast under Find) is the natural place, with that league's tribes fixed through the cast sync.
+  anything showing that league's tribes tell who the Traitors are. The stats ignore a group named for a role (cast-stats.ts).
+  The desk's season page now says so and has Not a group for each (off the cast and out of the league, undoable); left
+  alone on the local copy and production until the user does it there.
 - **The league views still show role-revealing results** (step 3; for 6b or whichever step next touches a Traitors league).
   Steps 1–2's views read a league as it holds its results: a still-in Traitor's "As a Traitor, voted out a fellow Traitor"
   lifts their points on an episode's top scorers (`episode-view.ts scorersIn`) and names itself in a Weekly Lineup reveal's
@@ -177,21 +177,34 @@ step's As built.
   see yet, gets "Chat opens later". The fold would keep them spoiler-safe now, but posting would show them to a league
   that can't see them; step 9's join flow is where a couch member who isn't in the games yet joins the talk.
 - **Only the newest 300 messages** (step 4; for 13 or 15), as classic: nothing loads earlier ones.
-- **Only the new design's answers are sources** (step 6b part 1; for 6c and 6b part 2). Backstage's quick check, hand
+- **Only the new design's answers are sources** (step 6b part 1; for 6c and C). Backstage's quick check, hand
   entries, ticks and full pastes (and a player's Fill it in) are submissions that settle facts for every couch; the bot's
   runs (`db/bot-research.js`), classic's commissioner research panel, the admin's research and paste in Admin › Shows, and
   the wiki still stage pending results the old way, so they're never a source and never apply on their own. 6c's One tap and
-  Autopilot should send through `community-results.ts` `sendResults` (source `bot` / `autopilot`); part 2's admin decides
-  whether the admin's own research is a source or a canonical decision.
+  Autopilot should send through `community-results.ts` `sendResults` (source `bot` / `autopilot`). The desk's decisions are
+  canonical (part 2), as classic's accept and reject are; the admin's research and paste in classic Admin › Shows retire at
+  cutover.
 - **No tie-break run** (step 6b part 1; for 6c). The plan's "a dispute open a day triggers one tie-break run" needs a
   scheduled bot run (and Survivor 51's bot runs only the schedule check, the user's call); until then a flag waits for
-  someone to Check it again from Backstage (one more answer about everyone settles it), and a split waits for part 2's admin.
-- **A split has nowhere to go yet** (step 6b part 1; for 6b part 2). When an answer leaves a fact tied (as many sources and
-  flags against as for), it stays disputed, keeping what it had, until another answer comes; the admin's Inbox is where it
-  should land.
-- **One person, one source** (step 6b part 1; for 6b part 2). Sources are counted by person, so two accounts on one couch
-  pasting the same wrong answer confirm it for every couch. House rulings take away a couch's reason to, and the admin can
-  override (part 2); its Settings' Confirmed threshold (the mock's) could ask for two couches instead.
+  someone to Check it again from Backstage (one more answer about everyone settles it), and since part 2 a flag nothing
+  checked for a day, and any split, reaches the admin's Inbox.
+- **One person, one source** (step 6b part 1; for a later step). Sources are counted by person, so two accounts on one couch
+  pasting the same wrong answer confirm it for every couch. House rulings take away a couch's reason to, the admin can
+  decide it (part 2), and Settings' Confirmed needs can ask for 3 or 4; counting couches instead of people is still open.
+- **Show changes aren't community-confirmed** (step 6b part 2; for 6b part 3 or 6c). The plan's "Something the rulebook
+  doesn't have" on an episode page (It's new / Not new, a second couch agreeing adds it from that episode) isn't built: the
+  desk's The show changed is the only way a rulebook changes from an episode on. Until it is, a rulebook's Lock holds back
+  nothing the desk doesn't already control.
+- **A couch's own copy doesn't get the desk's changes** (step 6b part 2; for 6b part 3). Saving pushes to the leagues that
+  follow the season's rulebook; a league with its own copy keeps it as it was. Make it ours promises "fixes still reach
+  you" and "show changes ask first".
+- **The repeat-moment check is loose** (R2's `reviewRulebook`; for step 10's new-show flow). A custom moment whose words are
+  all in a built one's is left out as a repeat, so a first research of the Traitors would drop "As a Faithful, voted out a
+  Faithful" (it reads as "…voted out a Traitor at Round Table"). Check for changes keeps the rulebook's own moments
+  (part 2); a new show has none to keep. Telling the roles apart (a differing noun) would fix it.
+- **The desk's Settings is short** (step 6b part 2; for 6c and C). The mock's research model and prompts, Autopilot trial
+  and What's New aren't there; classic's `/admin` still has them until cutover. A person's page only looks (no reset,
+  remove or make admin) for the same reason.
 - **Undo leaves what another answer also says** (step 6b part 1; for a later polish). Taking your answer back keeps any
   result another source still reports (it's still a source's word), but the toast says only "Undone"; it could say "3
   results still stand: another answer reports them".
@@ -211,7 +224,7 @@ step's As built.
   someone else. Not yet: a draft pick made for someone (`draft/pick`: step 7's "admins pick for someone" should log it),
   invites and late-join starts (step 9's join flow: 6a's Members has no invite of its own), the hourly waiver job's own
   processing (a run it made is still taken back from Backstage › Waivers' Last run, which logs that) and a super-admin's
-  membership edits (6b's admin History). Classic's screens don't show the log (only the new design does) and its own Undo buttons don't
+  membership edits in classic's `/admin` (the desk's Hand it on is logged). Classic's screens don't show the log (only the new design does) and its own Undo buttons don't
   mark lines undone.
 - **Backstage's setup jobs** (step 5; for 7, 9). Needs you lists results jobs only; classic's commissioner items (Add the
   cast, Invite players, Draft not scheduled, a catch-up league's next reveal: `commissioner-items.ts`, the home's
@@ -1506,6 +1519,86 @@ line; a house ruling keeps the old result in one couch's games. Migration **0112
   the API, the other couch's check (kept, upheld, split), the correction everywhere, a house ruling and dropping it, the
   sender's Undo, the never-reviewed result never surfacing (and no real season's pending result given a status), the
   screens. `tests/fact-status.test.js`; `tests/episode-research-apply.test.js`'s fake client knows the sync's new queries.
+
+### As built, step 6b part 2 (2026-10-25, on `new-design`): the admin's desk and the rulebook editor
+
+The admin is the exception desk, from the profile menu: an Inbox of only what the couches couldn't settle, one Find over
+everything with a page each (Override, Lock, History with undo), and Settings. A rulebook's page is its editor, and a
+change saves as Fix a mistake or The show changed. Migration **0113** ships with 0b's (same rehearsal).
+- **Data (0113, additive):** `admin_changes` (every desk change: what, its before, and how to undo it; History reads it),
+  `rulebooks.locked_at/locked_by`, `season_cast.locked_at`, `show_seasons.rulebook_live` (one season's leagues play by its
+  rulebook while the global `rulebooks` flag stays off; `db/rulebooks.js` `seasonLive`), `rulebook_suggestions`. Backups
+  now take `rulebooks` and `rulebook_edits` (left out while every rulebook was a legacy mirror; R3's note) and both new
+  tables (`backup-common.js` LATER_TABLES; `backup-fixture.js` has a row in each, and a season's and a league's rulebook
+  for the two new key cycles). The restore's cycle-breaker now picks only a table that's in a cycle (it used to defer any
+  stuck table: `chat_messages` broke its scope check) and a column no CHECK reads first (`rulebooks_owner_shape` needs a
+  season's `season_id`, so `show_seasons.rulebook_id` fills in afterwards). A full local backup restores and matches.
+- **The desk** (`/desk`, `/desk/find`, `/desk/settings`, `/desk/<fact|season|castaway|couch|person|show|rulebook>/<id>`;
+  `src/new/desk/`; `/api/desk/*`, `src/lib/server/desk*.ts`): site admins only (`user.role = 'admin'`; everyone else gets
+  403 and "The desk is for site admins"). The profile menu has an Admin row, "N need you", for them (the Inbox is read when
+  the sheet opens). **Inbox:** a disputed result no answer is waiting on (a split), a flag a day old that nothing checked
+  (where 6c's tie-break run would go first), a couch whose games have players and no Commissioner (a site admin who plays
+  one runs it, as in classic), a phase that starts "when the show says so" or "when N are left" on an airing season with
+  no confirmed start, and suggested fixes; then the week's self-running numbers. **Find:** shows, seasons and their
+  rulebooks, cast, couches, people and results; empty, what's airing.
+- **A result:** who said it happened and who didn't (each answer that spoke for that person: who, which couch, how), the
+  flags, where it counts; It happened / It didn't happen (previewed, then canonical or removed and locked: every league on
+  the season follows, its flags close as kept or upheld), "Something else: edit the fact" (who, how they left, which
+  moment: an override in `applied`, canonical), Reopen (a result someone sent: unlocked and settled again from its
+  sources), and History's Undo (the row as it was, settled again). Classic's admin accept and reject still dual-write.
+- **A season and its cast:** the rulebook (live or not), the groups (one named like a secret role says it gives the role
+  away), the cast and each episode's results. **Not a group** takes a faction-as-tribe off the season's cast and out of
+  every league on it (each league's tribe removed, with a Recent changes line saying why), previewed; Undo puts it back on
+  the same people. A castaway's Override (name, group, photo) writes the season cast and runs the cast sync, so a rename
+  reaches every league in place (castaways linked to the season cast, which every real league's are); Lock stops a
+  commissioner's cast entry changing them while their game is still making the season's cast (`season-cast-write.ts`).
+- **A couch:** its games and who runs each; a game nobody runs is handed to someone who plays it (Commissioner, with a
+  Recent changes line); Override who fills in its results. A person's and a show's pages are for looking up.
+- **Settings:** Confirmed needs (2 to 4 sources, `app_settings.confirm_at`, read by the settling; changing it settles every
+  community result again and syncs only seasons where something moved: canonical ones are never touched), who fills in
+  results on new couches (`new_couch_fill`, read by `couches.ts` when a couch is made), where rulebooks are on, History.
+- **The rulebook editor** (rulebooks phases 4–6; `src/new/desk/rulebook.tsx`, `desk-rulebooks.ts`): the parts as they read
+  now, each opening its own questions and choices from `rulebook-schema.js` (what kind, who's playing, the season's phases
+  and finale, each episode's segments with the moments they make switched on or off, ways out with their points, twists by
+  type, what scores with its suggested points and added moments), so the editor, the research prompt and the validator
+  can't drift. Changes collect as a draft with what's wrong (`blocksProblems`) and what changed (`opLines`) in a bar at the
+  foot; Save asks: **Fix a mistake** (folded into the base blocks, and every answer pasted for the season is read again
+  with it, `restageSeason`, so every couch is rescored from the start; house rulings keep theirs) or **The show changed**
+  from episode N (2 or later, and not before the last change: a `rulebook_edits` row compiled in from N by
+  `rulebook-patch.js` `mergeAtEpisode`, so earlier episodes keep their moments and rules). **Leagues play by it** switches
+  the season's leagues onto the rulebook (each through `syncLeagueRulebook` under its lock; an unedited one scores the same,
+  R3's proof) and back; once on, every save reaches them (as it saves, a league at a time: no `rulebook_pushes` table,
+  which R3 expected, since a season has a handful of leagues). Confirm when a phase started (from the Inbox), Read it (How it
+  works, all of it), **Check for changes** (R2's rulebook prompt with this rulebook as the starting point; the pasted answer
+  reviewed, what it would change listed, Use these changes puts them in the draft), suggested fixes (Fixed it, Dismiss),
+  Lock, the Timeline, History with undo (a fix's blocks back; a show change withdrawn), Save as a starting point (a library
+  copy with every change folded in). `rulebook-patch.js` (diff, apply, the rulebook at an episode, a change's lines, the
+  merge; `tests/rulebook-patch.test.js`, 5) and `db/rulebooks.js` `saveChain` (base and changes compiled as one).
+- **How it works** reads the rulebook as it stood at your episode: a change from a later one is counted on the timeline,
+  never told, and what it added isn't on the page yet. "Something off? Suggest a fix" is real (what it's about, what's off,
+  Send: to the Inbox); `show.suggest-fix` left the Preview registry.
+- **Fixed on the way:** `reviewRulebook` left out a custom moment whose words a built one's contain, so checking a
+  rulebook again would have offered to delete moments it deliberately has (Survivor's "Learned of an idol or advantage
+  privately", five of the Traitors'); `keep` (the rulebook's own moments) stops that, and every season rulebook now comes
+  back from the review unchanged. `settleEverything` touched canonical results' episodes and synced every season; it now
+  settles only community results and syncs where something moved. A suggestion with no couch stored an empty id.
+- **Fixed from Noticed, not fixed:** a split now lands in the Inbox; Traitors 5's faction-as-tribe has its tool (the data
+  itself is the user's call, below).
+- **Changed from the mock:** a suggested fix goes to the admin (the mock: "if another couch agrees, it's fixed for
+  everyone"; community-confirmed changes are noticed below), so Lock's line says couches suggest and you change; Settings
+  has no research model, prompts, Autopilot trial or What's New yet (6c and later); a part's Override is the part's own
+  editor, and the change's kind is asked once, at Save.
+- **Local copy:** the Inbox lists Survivor 51's couch and S49 Active Roster as having no one running them, because the
+  copy has no site admin account (their creator's Commissioner seats went with it). On production, open the Inbox once the
+  branch ships: a real couch listed there is handed on from its page.
+- **Checks:** `scripts/dev-test/check-new-desk.js <outDir> [--width=390] [--keep]` (100 PASS at 390): a commissioner
+  refused; jordan's Suggest a fix; the Inbox from the profile menu (a split, a stranded couch, a phase, the suggestion); a
+  result decided, undone, removed, reopened, edited; Find, a castaway's Override, Undo and Lock; handing a game on; the
+  Traitors' Not a group with its preview and undo; the rulebook's phase, a fix and a show change in the editor, Leagues
+  play by it, How it works counting a later change, a fix reaching the games, the change undone, Check for changes, a
+  suggestion, Lock, a starting point; Settings; every real league and result as it was; the screens. It makes its own zt
+  admin, links the fixture's castaways to the season cast (as real leagues are) and puts back the two settings it changes.
+  `tests/rulebook-research.test.js` (keep), `tests/rulebooks-db.test.js` (the season's switch is read).
 
 ### Step 6c: how results get in
 

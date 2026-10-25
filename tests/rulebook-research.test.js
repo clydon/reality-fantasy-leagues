@@ -95,6 +95,12 @@ test("the review tidies what doesn't change meaning, and says so", () => {
   assert.match(w, /The Swap: when the show says so \(it started in episode 4: season data\)/);
 });
 
+test("checking a rulebook again keeps the moments it already has, even ones a built moment looks like", () => {
+  const r = R.reviewRulebook(answer(), { keep: ["Received a jury vote"] });
+  assert.deepEqual(r.blocks.customMoments.map((m) => m.id), ["receivedAJuryVote", "gotInAFight"]);
+  assert.match(at(r.warnings).join("\n"), /Won the Immunity Duel: left out/, "a new repeat is still left out");
+});
+
 test("a bad answer keeps its rows, each problem on its row", () => {
   const a = answer();
   a.segments[2].voters = "theStudioAudience";

@@ -79,13 +79,17 @@ export function coversFact(covers: Covers, fact: Pick<FactInput, "kind" | "casta
   return covers.people.some((p) => lower(p) === name);
 }
 
-/** Every fact of one episode, from its submissions (withdrawn ones left out by the caller), sources and flags. */
-export function settleEpisode(facts: FactInput[], submissions: Submission[]): FactOutcome[] {
+/**
+ * Every fact of one episode, from its submissions (withdrawn ones left out by the caller), sources and flags.
+ * `confirmAt`: how many sources it takes to confirm a fact (the desk's Settings; 2 by default).
+ */
+export function settleEpisode(facts: FactInput[], submissions: Submission[], opts: { confirmAt?: number } = {}): FactOutcome[] {
   const byId = new Map(submissions.map((s) => [s.id, s]));
-  return facts.map((f) => settleFact(f, submissions, byId));
+  const need = Number.isInteger(opts.confirmAt) && (opts.confirmAt as number) >= 2 ? (opts.confirmAt as number) : 2;
+  return facts.map((f) => settleFact(f, submissions, byId, need));
 }
 
-function settleFact(f: FactInput, submissions: Submission[], byId: Map<string, Submission>): FactOutcome {
+function settleFact(f: FactInput, submissions: Submission[], byId: Map<string, Submission>, need: number): FactOutcome {
   const said = new Map(f.sources.filter((s) => byId.has(s.researchId)).map((s) => [s.researchId, s]));
   // Every answer that speaks to this fact: it reported it, or it answered for the person and didn't.
   const speaking = submissions.filter((s) => said.has(s.id) || coversFact(s.covers, f));
@@ -123,7 +127,8 @@ function settleFact(f: FactInput, submissions: Submission[], byId: Map<string, S
   else if (waiting) status = "disputed";
   else {
     const no = N + voice;
-    status = no === 0 ? (Y >= 2 ? "confirmed" : "reported") : Y > no ? "confirmed" : no > Y ? "removed" : "disputed";
+    // Confirmed takes `need` sources; a majority short of that is still a question.
+    status = no === 0 ? (Y >= need ? "confirmed" : "reported") : Y > no ? (Y >= need ? "confirmed" : "disputed") : no > Y ? "removed" : "disputed";
   }
   if (status !== "disputed") base.settle = checked.map((x) => ({ id: x.id, status: status === "removed" ? "upheld" : "kept" }));
 

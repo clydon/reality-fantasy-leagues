@@ -68,6 +68,24 @@ export type SyncResult = {
 };
 
 export function rulebooksOn(db: Db): Promise<boolean>;
+/** The flag, or the season's own switch (show_seasons.rulebook_live). */
+export function seasonLive(db: Db, seasonId: string | null): Promise<boolean>;
+
+export interface RulebookEdit {
+  id: string;
+  kind: "show_changed" | "fix" | "league";
+  fromEpisode: number;
+  ops: import("@/lib/game/formats/rulebook-patch").RulebookOp[];
+  summary: string | null;
+  source: string;
+  createdBy: string | null;
+  at: string;
+}
+/** In-force show-changed edits, by the episode they start. */
+export function inForceEdits(db: Db, id: string): Promise<RulebookEdit[]>;
+export function compileChain(row: Rulebook, blocks: RulebookBlocks, edits: RulebookEdit[], phaseStarts: Record<string, number>): { data: FormatData | null; problems: string[]; warnings: string[] };
+/** Saves the base blocks (and phase starts), compiling with every in-force edit; the version moves on. */
+export function saveChain(db: Db, id: string, opts?: { blocks?: RulebookBlocks; phaseStarts?: Record<string, number>; userId?: string | null }): Promise<{ rulebook: Rulebook; warnings: string[] } | Refused | null>;
 export function setRulebooksOn(db: Db, on: boolean): Promise<void>;
 export function sameData(a: unknown, b: unknown): boolean;
 export function legacyBase(settings: RuleSettings | null | undefined): { data: FormatData; reader: RulebookReader };

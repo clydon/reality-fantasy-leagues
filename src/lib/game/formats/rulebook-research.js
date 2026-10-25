@@ -215,7 +215,7 @@ function parseRulebookAnswer(answer) {
  * the schema number, missing or non-camelCase ids (made from names, kept unique), references given by a name
  * instead of an id, groups given as "none". Every row is kept, problems and all.
  */
-function reviewRulebook(answer, { castNames = [] } = {}) {
+function reviewRulebook(answer, { castNames = [], keep = [] } = {}) {
   const blocks = JSON.parse(JSON.stringify(isObj(answer) ? answer : {}));
   const warnings = [];
   if (blocks.schema !== SCHEMA_VERSION) {
@@ -340,8 +340,9 @@ function reviewRulebook(answer, { castNames = [] } = {}) {
 
   const problems = blocksProblems(blocks);
   problems.push(...spoilers(blocks, castNames, warnings));
-  // A moment added by hand that a built one already is would score twice: left out.
-  const repeats = repeatedMoments(blocks);
+  // A moment added by hand that a built one already is would score twice: left out. One the rulebook being checked
+  // already has (`keep`, by label) was a person's call, kept.
+  const repeats = repeatedMoments(blocks, keep);
   if (repeats.length) {
     const gone = new Set(repeats.map((r) => r.id));
     blocks.customMoments = list(blocks.customMoments).filter((m) => !(isObj(m) && gone.has(m.id)));
@@ -418,8 +419,9 @@ const wordsOf = (s) =>
 // One says all the other does ("Received a jury vote" and "Each jury vote received"), in two words or more.
 const repeats = (a, b) => a.size >= 2 && b.size >= 2 && ([...a].every((w) => b.has(w)) || [...b].every((w) => a.has(w)));
 
-/** A moment added by hand that says what a built one already does. */
-function repeatedMoments(blocks) {
+/** A moment added by hand that says what a built one already does (bar `keep`'s labels). */
+function repeatedMoments(blocks, keep = []) {
+  const kept = new Set(keep.map((l) => String(l).trim().toLowerCase()));
   let built;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js
@@ -429,7 +431,7 @@ function repeatedMoments(blocks) {
   }
   const out = [];
   for (const m of list(blocks.customMoments)) {
-    if (!isObj(m)) continue;
+    if (!isObj(m) || kept.has(String(m.label || '').trim().toLowerCase())) continue;
     const w = wordsOf(m.label);
     const same = built.find((b) => repeats(w, wordsOf(b.label)));
     if (same) out.push({ id: m.id, at: `customMoments[${m.id}]`, message: `${m.label}: left out, already built as "${same.label}"` });

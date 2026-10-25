@@ -1,0 +1,43 @@
+"use client";
+
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+// The desk's reads and writes (docs/PLAN-new-design.md step 6b part 2): each page reads its /api/desk route when it
+// opens (nothing polls), and after a write every desk read moves on.
+
+export type { Inbox, InboxItem, FoundItem, DeskSettings, DeskLine } from "@/lib/server/desk";
+export type { DeskFact, DeskSource } from "@/lib/server/desk-facts";
+export type { DeskSeason, DeskCastaway } from "@/lib/server/desk-cast";
+export type { DeskCouch, DeskPerson, DeskShow } from "@/lib/server/desk-couches";
+export type { DeskRulebook, DeskRulebookEdit } from "@/lib/server/desk-rulebooks";
+
+const KEY = ["new-design", "desk"] as const;
+
+async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`/api/desk${path}`, init);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(body.error || `Request failed (${res.status})`), { status: res.status });
+  return body as T;
+}
+
+/** One desk read, e.g. useDesk<Inbox>("/inbox"). */
+export function useDesk<T>(path: string | null) {
+  return useQuery({
+    queryKey: [...KEY, path],
+    queryFn: () => call<T>(path!),
+    enabled: !!path,
+    staleTime: 15_000,
+    retry: (n, e) => (e as { status?: number }).status !== 403 && (e as { status?: number }).status !== 404 && n < 2,
+  });
+}
+
+/** A desk write; the answer is the page as it is now (or what the action says). */
+export const deskSend = <T>(path: string, body: unknown, method: "POST" | "PUT" = "POST") =>
+  call<T>(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+/** After a desk write: every desk read, and anything the new design shows of what changed. */
+export function useAfterDesk() {
+  const client = useQueryClient();
+  return useCallback(() => client.invalidateQueries({ queryKey: ["new-design"] }), [client]);
+}

@@ -28,7 +28,9 @@ const Formats = require("../src/lib/game/formats/index.js");
 const { rulebookFor } = require("../src/lib/game/formats/blocks/index.js");
 const { blocksFromFormat } = require("../src/lib/game/formats/rulebook-from-format.js");
 const { compileRulebook } = require("../src/lib/game/formats/rulebook-compile.js");
+const { applyOps, mergeAtEpisode } = require("../src/lib/game/formats/rulebook-patch.js");
 const { blocksProblems, kindOf } = require("../src/lib/game/formats/rulebook-schema.js");
+const { formatProblems } = require("../src/lib/game/formats/define.js");
 const ShowFormats = require("./show-formats.js");
 
 // ---------- the flag ----------
@@ -39,6 +41,17 @@ const FLAG = "rulebooks";
 async function rulebooksOn(db) {
   const { rows } = await db.query("SELECT value FROM app_settings WHERE key=$1", [FLAG]);
   return rows.length > 0 && rows[0].value === true;
+}
+
+/**
+ * Whether a season's leagues play by its rulebook: the flag (every season), or the season's own switch (0113's
+ * show_seasons.rulebook_live: a season can go first, step 6b part 2's desk).
+ */
+async function seasonLive(db, seasonId) {
+  if (await rulebooksOn(db)) return true;
+  if (!seasonId) return false;
+  const { rows } = await db.query("SELECT rulebook_live FROM show_seasons WHERE id=$1", [seasonId]);
+  return !!(rows[0] && rows[0].rulebook_live);
 }
 
 async function setRulebooksOn(db, on) {
@@ -245,6 +258,73 @@ async function setPhaseStart(db, id, phaseId, episode) {
   return { rulebook: await updateRulebook(db, id, { phaseStarts, compiled: data }, { bump: true }) };
 }
 
+// ---------- edits (step 6b part 2: rulebook-patch.js) ----------
+
+/** A rulebook's in-force "show changed" edits, in the order they start: [{ id, fromEpisode, ops, ... }]. Ones migrated
+ *  from season_rule_changes aren't in it: leagues still layer those as adopted changes (formatOf). */
+async function inForceEdits(db, id) {
+  const { rows } = await db.query(
+    `SELECT id, kind, from_episode, ops, summary, source, created_by, approved_at, created_at FROM rulebook_edits
+      WHERE rulebook_id=$1 AND status='in_force' AND kind='show_changed' AND source <> 'migration'
+      ORDER BY from_episode, approved_at NULLS LAST, created_at`,
+    [id]
+  );
+  return rows.map((r) => ({ id: r.id, kind: r.kind, fromEpisode: r.from_episode, ops: r.ops || [], summary: r.summary, source: r.source, createdBy: r.created_by, at: r.approved_at || r.created_at }));
+}
+
+/**
+ * What a rulebook compiles to with its edits: its base blocks on its base (the legacy freeze), then each edit's ops on
+ * the blocks, compiled, and merged in from its episode (mergeAtEpisode), so episodes before it keep their rules.
+ * -> { data, problems, warnings }; problems name the edit they came from.
+ */
+function compileChain(row, blocks, edits, phaseStarts) {
+  const first = compileRow(row, blocks, phaseStarts);
+  if (first.problems.length) return first;
+  const warnings = [...first.warnings];
+  let data = first.data;
+  let b = blocks;
+  for (const e of edits) {
+    b = applyOps(b, e.ops);
+    const next = compileRow(row, b, phaseStarts);
+    if (next.problems.length) return { data: null, problems: next.problems.map((p) => `From episode ${e.fromEpisode}: ${p}`), warnings };
+    warnings.push(...next.warnings.map((w) => `From episode ${e.fromEpisode}: ${w}`));
+    data = mergeAtEpisode(data, next.data, e.fromEpisode);
+  }
+  const p = formatProblems(data);
+  return p.length ? { data: null, problems: p, warnings } : { data, problems: [], warnings };
+}
+
+/**
+ * Saves a rulebook's base blocks (a fix: it was always like this) and/or its edits, compiling the chain. Refused with
+ * located problems unless the base is a usable rulebook and every version compiles clean. Switches it to 'blocks', moves
+ * the version on. `phaseStarts` too when given. -> { rulebook, warnings } | { refused } | null.
+ */
+async function saveChain(db, id, { blocks, phaseStarts, userId } = {}) {
+  const row = await getRulebook(db, id);
+  if (!row) return null;
+  const base = blocks || row.blocks;
+  const problems = blocksProblems(base);
+  if (problems.length) return { refused: problems };
+  const edits = await inForceEdits(db, id);
+  for (const e of edits) {
+    const p = blocksProblems(applyOps(base, edits.filter((x) => x.fromEpisode <= e.fromEpisode).reduce((acc, x) => acc.concat(x.ops), [])));
+    if (p.length) return { refused: p.map((x) => ({ ...x, message: `From episode ${e.fromEpisode}: ${x.message}` })) };
+  }
+  const starts = phaseStarts || row.phaseStarts || {};
+  const { data, problems: compileProblems, warnings } = compileChain(row, base, edits, starts);
+  if (compileProblems.length) return { refused: compileProblems.map((message) => ({ at: "compiled", message })) };
+  const rulebook = await updateRulebook(
+    db,
+    id,
+    {
+      blocks: base, compiled: data, compiledSource: "blocks", kind: kindOf(base), phaseStarts: starts,
+      provenance: { ...row.provenance, editedAt: new Date().toISOString(), editedBy: userId || null },
+    },
+    { bump: true }
+  );
+  return { rulebook, warnings };
+}
+
 // ---------- who uses it ----------
 
 /**
@@ -331,7 +411,7 @@ async function compiledFor(db, id) {
  * overrides the flag (a check).
  */
 async function seasonRulebookFormat(db, seasonId, { formatId, on } = {}) {
-  if (!seasonId || !(on === undefined ? await rulebooksOn(db) : on)) return null;
+  if (!seasonId || !(on === undefined ? await seasonLive(db, seasonId) : on)) return null;
   const head = await one(
     db,
     `SELECT r.id, r.compiled_source, r.compiled->>'id' AS data_id FROM rulebooks r JOIN show_seasons ss ON ss.rulebook_id = r.id
@@ -534,21 +614,21 @@ async function ensureLeagueRulebook(db, leagueId, settings, { parent = null } = 
 
 /**
  * Brings a league's settings.rulebook in step (`settings` is mutated), under the caller's lock on the league:
- * with the flag off, takes it out; on, writes { id, version, data, reader } from the league's own rulebook or its
+ * with the flag off (and its season's own switch off), takes it out; on, writes { id, version, data, reader } from the league's own rulebook or its
  * season's, making or refreshing those first. A legacy rulebook is written only when it's exactly what the league
  * plays by without it (legacyBase); otherwise the league stays on the old path and the result says why.
  *
  * -> { written, removed?, id?, version?, source?: 'own' | 'season', reason?, mismatch? }
  */
 async function syncLeagueRulebook(db, leagueId, settings, { on } = {}) {
-  const enabled = on === undefined ? await rulebooksOn(db) : on;
+  const seasonId = await seasonIdOf(db, settings);
+  const enabled = on === undefined ? await seasonLive(db, seasonId) : on;
   const had = !!settings.rulebook;
   const off = (extra) => {
     delete settings.rulebook;
     return { written: false, removed: had, ...extra };
   };
   if (!enabled) return off({});
-  const seasonId = await seasonIdOf(db, settings);
   const season = seasonId ? await ensureSeasonRulebook(db, seasonId) : null;
   const own = await ensureLeagueRulebook(db, leagueId, settings, { parent: season && season.row });
   const row = own.row || (season && season.row);
@@ -601,7 +681,7 @@ async function refreshShowRulebooks(db, slug) {
 }
 
 module.exports = {
-  rulebooksOn, setRulebooksOn, sameData, legacyBase, readerOf,
+  rulebooksOn, seasonLive, setRulebooksOn, sameData, legacyBase, readerOf, inForceEdits, compileChain, saveChain,
   getRulebook, listLibrary, seasonRulebook, seasonIdOf, rulebookForLeague, createRulebook, copyRulebook, saveBlocks, setPhaseStart,
   leaguesUsing, lineage, compiledFor, seasonRulebookFormat,
   sourceFor, ensureTemplate, ensureLibraryEntry, knownPhaseStarts, ensureSeasonRulebook, ensureLeagueRulebook,

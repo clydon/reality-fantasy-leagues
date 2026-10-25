@@ -2,8 +2,9 @@
 // holds (scripts/backup-common.js) has rows: a zt show, season and format of its own; a second person;
 // cast, results, research, rule and cast changes, wiki reads and proposals; invites, a ruleset, waiver claims,
 // blind picks, team notes, chat with a reaction and reads (and the couch's own chat about the season, with its
-// read: step 4); settings and notification prefs. Also both foreign
-// key cycles (the group's favourite league, a league's ruleset) and one league outside the group that a cast
+// read: step 4); settings and notification prefs; rulebooks (the season's, with a show change and a suggested fix, a
+// league's own copy, a library starting point) and a line in the desk's history (step 6b part 2). Also the foreign
+// key cycles (the group's favourite league, a league's ruleset, a season's and a league's rulebook) and one league outside the group that a cast
 // change points at, so a --group backup has a reference to settle.
 //
 //   node scripts/dev-test/backup-fixture.js up      create (or refresh) it, print the group id
@@ -23,6 +24,9 @@ const ANN = "zt_bk_ann";
 async function down(pool) {
   await pool.query("DELETE FROM shows WHERE slug = $1", [SHOW]); // seasons, cast, results, research, wiki reads go with it
   await pool.query("DELETE FROM show_formats WHERE id = $1", [FORMAT]);
+  // Neither hangs off the show: the desk's history names things by id, and a library rulebook has no season.
+  await pool.query("DELETE FROM admin_changes WHERE text LIKE 'zt:%'");
+  await pool.query("DELETE FROM rulebooks WHERE owner_kind = 'library' AND name LIKE 'zt %'");
   await linked.down(pool); // every zt- league (zt-outside included), the group, zt_tester
   await pool.query(`DELETE FROM "user" WHERE username = $1`, [ANN]);
 }
@@ -136,6 +140,22 @@ async function up(pool) {
     season, decision, ann, couch,
   ]);
   await pool.query(`INSERT INTO league_rulings (league_id, decision_id, keeps, ruled_by) VALUES ($1, $2, '{"kind": "exiled"}', $3)`, [classic, decision, me]);
+  // Rulebooks (0107; backed up since step 6b part 2) and the desk (0113): the season's, edited, which the season points
+  // back at; a league's own copy, which the league points back at; a starting point in the library; a show change, a
+  // suggested fix, and the desk's line for the change.
+  const book = (await one(`INSERT INTO rulebooks (name, owner_kind, season_id, status, blocks, version) VALUES ('ZT rulebook', 'season', $1, 'in_force', '{"kind": "competition"}', 2) RETURNING id`, [season])).id;
+  await pool.query("UPDATE show_seasons SET rulebook_id = $1 WHERE id = $2", [book, season]);
+  const own = (await one(
+    `INSERT INTO rulebooks (name, owner_kind, league_id, season_id, status, blocks, parent_kind, parent_id) VALUES ('ZT own copy', 'league', $1, $2, 'in_force', '{"kind": "competition"}', 'rulebook', $3) RETURNING id`,
+    [classic, season, book]
+  )).id;
+  await pool.query("UPDATE leagues SET rulebook_id = $1 WHERE id = $2", [own, classic]);
+  await pool.query(`INSERT INTO rulebooks (name, owner_kind, is_template, status, blocks) VALUES ('zt starting point', 'library', true, 'in_force', '{"kind": "competition"}')`);
+  await pool.query(`INSERT INTO rulebook_edits (rulebook_id, kind, from_episode, status, summary, base_version, created_by) VALUES ($1, 'show_changed', 3, 'in_force', 'zt: a new twist', 1, $2)`, [book, me]);
+  await pool.query(`INSERT INTO rulebook_suggestions (rulebook_id, season_id, user_id, couch_id, about, note) VALUES ($1, $2, $3, $4, 'segment', 'zt: reward is only some weeks')`, [
+    book, season, ann, couch,
+  ]);
+  await pool.query(`INSERT INTO admin_changes (entity, entity_id, action, text, undo, user_id) VALUES ('rulebook', $1, 'showChanged', 'zt: the show changed from Episode 3', '{"type": "rulebookEdit"}', $2)`, [book, me]);
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

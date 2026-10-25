@@ -18,4 +18,5 @@ export function buildRulebookPrompt(opts: { show: string; season?: string; airin
 export function parseRulebookAnswer(answer: string): Record<string, unknown>;
 /** Every top-level JSON object in a text, in order (braces counted outside strings). */
 export function jsonObjectsIn(text: string): string[];
-export function reviewRulebook(answer: unknown, opts?: { castNames?: string[] }): RulebookReview;
+/** `keep`: the labels of custom moments the rulebook being checked already has (never left out as a repeat). */
+export function reviewRulebook(answer: unknown, opts?: { castNames?: string[]; keep?: string[] }): RulebookReview;

@@ -42,12 +42,26 @@ function insertOrder(fks, tables) {
   while (remaining.length) {
     let next = remaining.filter((t) => !open(t).length);
     if (!next.length) {
-      // A cycle (leagues and league_groups, leagues and league_rulesets): the table with fewest open
-      // references, all of them nullable, goes in first with those filled in afterwards.
+      // A cycle (leagues and league_groups, leagues and league_rulesets, a season or a league and its rulebook): of
+      // the tables in one (a table only waiting behind a cycle isn't), the one with fewest open references, all of
+      // them nullable, goes in first with those filled in afterwards; one no CHECK constraint reads before one that is.
+      const inCycle = (t) => {
+        const seen = new Set();
+        const stack = open(t).map((f) => f.refTable);
+        while (stack.length) {
+          const u = stack.pop();
+          if (u === t) return true;
+          if (seen.has(u)) continue;
+          seen.add(u);
+          stack.push(...open(u).map((f) => f.refTable));
+        }
+        return false;
+      };
       const pick = remaining
+        .filter(inCycle)
         .map((t) => ({ t, cols: open(t) }))
         .filter((c) => c.cols.every((f) => !f.notNull))
-        .sort((a, b) => a.cols.length - b.cols.length)[0];
+        .sort((a, b) => Number(a.cols.some((f) => f.checked)) - Number(b.cols.some((f) => f.checked)) || a.cols.length - b.cols.length)[0];
       if (!pick) throw new Error(`no insert order: ${remaining.join(", ")} point at each other through required columns`);
       deferred.push(...pick.cols);
       next = [pick.t];

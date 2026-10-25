@@ -77,7 +77,12 @@ async function pruneMembers(c: PoolClient, couchId: string) {
 }
 
 async function newCouch(c: PoolClient, name: string, createdBy: string | null): Promise<string> {
-  const { rows } = await c.query("INSERT INTO couches (name, created_by) VALUES ($1, $2) RETURNING id", [name.slice(0, 80), createdBy]);
+  // Who can fill in its results starts as the desk's default for new couches (app_settings 'new_couch_fill', step 6b).
+  const { rows } = await c.query(
+    `INSERT INTO couches (name, created_by, results_by_anyone)
+     VALUES ($1, $2, COALESCE((SELECT value <> 'false'::jsonb FROM app_settings WHERE key = 'new_couch_fill'), true)) RETURNING id`,
+    [name.slice(0, 80), createdBy]
+  );
   return rows[0].id as string;
 }
 

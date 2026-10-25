@@ -5,6 +5,8 @@
 //   /show/[seasonId]/[tab]                   a show space's five tabs (depth 1)
 //   /show/[seasonId]/backstage|draft|blind|waivers   pushed over the show (depth 2; a Backstage page is 3)
 //   /settings, /start/[step], /join/[code]   their own screens (depth 1)
+//   /desk, /desk/find, /desk/settings         the admin's desk, its three tabs (depth 1, site admins: step 6b part 2)
+//   /desk/[kind]/[id]                        one thing on the desk: a fact, a season, a castaway, a rulebook... (depth 2)
 //
 // Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
 
@@ -13,7 +15,7 @@
 export const UI_COOKIE = "gys_ui";
 
 /** The paths the new design owns. AuthGate (classic's shell) leaves these alone. */
-export const NEW_DESIGN_PREFIXES = ["/home", "/show", "/settings", "/start", "/join"] as const;
+export const NEW_DESIGN_PREFIXES = ["/home", "/show", "/settings", "/start", "/join", "/desk"] as const;
 
 export function isNewDesignRoute(pathname: string): boolean {
   return NEW_DESIGN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -49,7 +51,15 @@ export const paths = {
   showPage: (seasonId: string, page: "draft" | "blind" | "waivers") => `/show/${seasonId}/${page}`,
   start: (step: number) => `/start/${step}`,
   join: (code: string) => `/join/${code}`,
+  desk: (tab?: "find" | "settings") => `/desk${tab ? `/${tab}` : ""}`,
+  deskItem: (kind: DeskKind, id: string) => `/desk/${kind}/${id}`,
 };
+
+/** The desk's tabs, and the kinds of thing it has a page for. */
+export const DESK_TABS = ["inbox", "find", "settings"] as const;
+export const DESK_KINDS = ["fact", "season", "castaway", "couch", "person", "show", "rulebook"] as const;
+export type DeskKind = (typeof DESK_KINDS)[number];
+export const isDeskKind = (v: string): v is DeskKind => (DESK_KINDS as readonly string[]).includes(v);
 
 /**
  * How a navigation moves the screen:
@@ -78,6 +88,8 @@ export function depthOf(href: string): number {
     case "start":
     case "join":
       return 1;
+    case "desk":
+      return p[1] && !(DESK_TABS as readonly string[]).includes(p[1]) ? 2 : 1;
     default:
       return 0;
   }

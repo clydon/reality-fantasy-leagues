@@ -55,6 +55,18 @@ const GROUP_SLICES = {
   league_rulings: "league_id = ANY($L::uuid[])",
   fact_sources: "decision_id IN (SELECT id FROM season_decisions WHERE season_id = ANY($S::uuid[]))",
   fact_disputes: "season_id = ANY($S::uuid[])",
+  // Rulebooks (0107, backed up since step 6b part 2): the seasons' and the leagues' own, every library one (the
+  // starting points they come from: a handful), their edits and suggested fixes, and what the desk changed about any
+  // of it (0113: an entity id, no foreign key), the site's settings with it.
+  rulebooks: `season_id = ANY($S::uuid[]) OR league_id = ANY($L::uuid[]) OR owner_kind = 'library'`,
+  rulebook_edits: `rulebook_id IN (SELECT id FROM rulebooks WHERE season_id = ANY($S::uuid[]) OR league_id = ANY($L::uuid[]) OR owner_kind = 'library')`,
+  rulebook_suggestions: "season_id = ANY($S::uuid[])",
+  admin_changes: `entity = 'settings'
+      OR (entity = 'season' AND entity_id IN (SELECT id::text FROM show_seasons WHERE id = ANY($S::uuid[])))
+      OR (entity = 'rulebook' AND entity_id IN (SELECT id::text FROM rulebooks WHERE season_id = ANY($S::uuid[]) OR league_id = ANY($L::uuid[])))
+      OR (entity = 'fact' AND entity_id IN (SELECT id::text FROM season_decisions WHERE season_id = ANY($S::uuid[])))
+      OR (entity = 'castaway' AND entity_id IN (SELECT id::text FROM season_cast WHERE season_id = ANY($S::uuid[])))
+      OR (entity = 'couch' AND entity_id IN (SELECT couch_id::text FROM leagues WHERE id = ANY($L::uuid[])))`,
   shows: "id IN (SELECT show_id FROM show_seasons WHERE id = ANY($S::uuid[]))",
   show_formats: "id IN (SELECT s.format FROM shows s JOIN show_seasons ss ON ss.show_id = s.id WHERE ss.id = ANY($S::uuid[]))",
   show_seasons: "id = ANY($S::uuid[])",

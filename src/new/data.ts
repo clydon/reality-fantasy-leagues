@@ -456,6 +456,10 @@ export const flagResult = (
   body: { episode: number; decisionId?: string; reason: "didnt-happen" | "wrong-person" | "wrong-episode" | "other" | "missing"; note?: string; link?: string }
 ) => post<{ others: number; status: string | null }>(seasonUrl(seasonId, "/disputes", { couch: couchId }), body);
 
+/** "Something off? Suggest a fix" from How it works (step 6b part 2): it goes to the admin's Inbox; nothing changes until they fix the rulebook. */
+export const suggestRulebookFix = (seasonId: string, couchId: string | null, body: { about: "segment" | "wayOut" | "scores" | "other"; note: string }) =>
+  post<{ ok: true }>(seasonUrl(seasonId, "/rulebook/suggest", { couch: couchId ?? "" }), body);
+
 // ---- Waivers (step 6a): your week in each game here, saved a spot at a time through the league routes; and Backstage
 // II's pages for whoever runs a game. Read when a page opens and after each write; nothing polls. ----
 

@@ -292,6 +292,9 @@ export async function castWrite(
       await log(rows[0].id, "added", null, name);
     } else if (op.type === "update") {
       const c = linkedRow(op.castawayId);
+      // Locked on the admin's desk (step 6b part 2, db/migrations/0113): only an admin changes them now.
+      const { rows: lock } = await client.query("SELECT locked_at FROM season_cast WHERE id=$1", [c.seasonCastId]);
+      if (lock[0]?.locked_at) throw new HttpError(403, `An admin has locked ${c.name}. Ask an admin to change them.`);
       if (op.field === "name") {
         const name = String(op.value ?? "").trim();
         if (!name) throw new HttpError(400, "A name can't be empty.");

@@ -16,7 +16,7 @@ const LEAGUE_TABLES = [
 const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
   "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions", "season_episodes", "show_follows",
-  "fact_sources", "fact_disputes",
+  "fact_sources", "fact_disputes", "rulebooks", "rulebook_edits", "rulebook_suggestions", "admin_changes",
 ];
 const PEOPLE_TABLES = ["user", "user_settings", "notification_prefs"];
 const TABLES = [...LEAGUE_TABLES, ...SEASON_TABLES, ...PEOPLE_TABLES];
@@ -34,6 +34,12 @@ const LATER_TABLES = {
   fact_sources: { since: "0112", fill: null },
   fact_disputes: { since: "0112", fill: null },
   league_rulings: { since: "0112", fill: null },
+  // Rulebooks were left out until one could be edited (step 6b part 2): a database from before has its backfill's
+  // legacy copies, which ensureSeasonRulebook makes again when a season is next read.
+  rulebooks: { since: "0107", fill: null },
+  rulebook_edits: { since: "0107", fill: null },
+  rulebook_suggestions: { since: "0113", fill: null },
+  admin_changes: { since: "0113", fill: null },
 };
 
 /** Whether the database has this table. */
@@ -73,7 +79,8 @@ async function primaryKeyOf(db, table) {
 async function foreignKeys(db) {
   const { rows } = await db.query(
     `SELECT c.conrelid::regclass::text AS tbl, c.confrelid::regclass::text AS ref, c.confdeltype AS del,
-            array_length(c.conkey, 1) AS n, a.attname AS col, a.attnotnull AS not_null, fa.attname AS ref_col
+            array_length(c.conkey, 1) AS n, a.attname AS col, a.attnotnull AS not_null, fa.attname AS ref_col,
+            EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = c.conrelid AND k.contype = 'c' AND a.attnum = ANY(k.conkey)) AS checked
        FROM pg_constraint c
        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
        JOIN pg_attribute fa ON fa.attrelid = c.confrelid AND fa.attnum = c.confkey[1]
@@ -83,7 +90,9 @@ async function foreignKeys(db) {
   const bare = (t) => t.replace(/^public\./, "").replace(/^"(.*)"$/, "$1");
   return rows.map((r) => {
     if (r.n !== 1) throw new Error(`${r.tbl}: a multi-column foreign key; backup-common.js only handles single columns`);
-    return { table: bare(r.tbl), column: r.col, refTable: bare(r.ref), refColumn: r.ref_col, onDelete: r.del, notNull: r.not_null };
+    // checked: a CHECK constraint reads the column (rulebooks_owner_shape needs a season's season_id), so a restore
+    // can't leave it empty for a moment.
+    return { table: bare(r.tbl), column: r.col, refTable: bare(r.ref), refColumn: r.ref_col, onDelete: r.del, notNull: r.not_null, checked: r.checked };
   });
 }
 

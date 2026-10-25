@@ -52,12 +52,13 @@ test("the merge counts as confirmed only on a clean switch in the season's accep
   assert.equal(db.asked.length, 0, "a rulebook with no merge doesn't ask");
 });
 
-test("with the flag off, syncing a league only takes settings.rulebook out", async () => {
-  const db = fakeDb((sql) => (/app_settings/.test(sql) ? [{ value: false }] : null));
+test("with the flag off and its season not switched on, syncing a league only takes settings.rulebook out", async () => {
+  const db = fakeDb((sql) => (/app_settings/.test(sql) ? [{ value: false }] : /rulebook_live/.test(sql) ? [{ rulebook_live: false }] : /JOIN shows/.test(sql) ? [{ id: "s51" }] : null));
   const settings = { showId: "survivor", wikiSeason: 51, rulebook: { id: "x", version: 1, data: {}, reader: "survivor" } };
   assert.deepEqual(await R.syncLeagueRulebook(db, "league", settings), { written: false, removed: true });
   assert.ok(!("rulebook" in settings));
-  assert.equal(db.asked.length, 1, "nothing but the flag is read");
+  assert.ok(db.asked.every((sql) => /^\s*SELECT/i.test(sql)), "nothing is written");
+  assert.ok(db.asked.some((sql) => /rulebook_live/.test(sql)), "its season's own switch is read (step 6b part 2)");
   assert.deepEqual(await R.syncLeagueRulebook(fakeDb(() => null), "league", settings, { on: false }), { written: false, removed: false });
 });
 

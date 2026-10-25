@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { BookOpen, ChevronRight, CircleQuestionMark, Crown, Gavel, Shuffle, Trophy, Users, Zap } from "lucide-react";
-import { useHowItWorks, type HowItWorksPage } from "../data";
+import { suggestRulebookFix, useHowItWorks, type HowItWorksPage } from "../data";
 import { PushedPage, usePushedPage } from "../ui/page";
-import { Preview } from "../ui/preview";
+import { Btn, Chip } from "../ui/parts";
+import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
+import { toast } from "../ui/toast";
 import { Face, IconBox } from "./parts";
 
 // How it works (the mock's rulebook.js howPage), for everyone: a page pushed over the show from its ⋯ menu and the
@@ -13,7 +15,8 @@ import { Face, IconBox } from "./parts";
 // each episode as a rundown, the season as a cell per episode with its phases (future ones by their condition), who's
 // playing, ways out, twists, what scores, and the rulebook's updates (later ones counted, never told). Served per
 // season through the guard (GET /api/seasons/[id]/how-it-works: the rulebook the couch's games play by, at your
-// episode), read once the page opens. Suggesting a fix is step 6b's.
+// episode), read once the page opens. "Something off? Suggest a fix" sends a note to the admin's Inbox (step 6b part 2);
+// the desk's rulebook page reads the same body (HowItWorksBody) with nothing to suggest.
 
 const STAKE: Record<string, string> = {
   reward: "text-chyron-line outline-chyron-line",
@@ -42,7 +45,7 @@ export function HowItWorksPage({
     <PushedPage open={how.open} onClose={how.close} title="How it works" back={name.replace(/^The /, "")}>
       <div data-how className="mx-2 mb-10 mt-3 pb-6">
         {page.data ? (
-          <HowBody page={page.data} seasonId={seasonId} name={name} seasonNumber={seasonNumber} artUrl={artUrl} />
+          <HowItWorksBody page={page.data} seasonId={seasonId} name={name} seasonNumber={seasonNumber} artUrl={artUrl} suggest={{ couchId }} />
         ) : page.error ? (
           <p className="px-2 pt-6 text-sm text-muted-foreground">How it works didn&rsquo;t load. Try again in a moment.</p>
         ) : (
@@ -63,9 +66,25 @@ function Head({ jump, title, aside }: { jump?: string; title: string | null; asi
   );
 }
 
-function HowBody({ page, seasonId, name, seasonNumber, artUrl }: { page: HowItWorksPage; seasonId: string; name: string; seasonNumber: number | null; artUrl: string | null }) {
+/** How it works itself; `suggest`: the couch it's read from, for Suggest a fix (none on the desk). */
+export function HowItWorksBody({
+  page,
+  seasonId,
+  name,
+  seasonNumber,
+  artUrl,
+  suggest,
+}: {
+  page: HowItWorksPage;
+  seasonId: string;
+  name: string;
+  seasonNumber: number | null;
+  artUrl: string | null;
+  suggest?: { couchId: string | null };
+}) {
   const { how, cast } = page;
   const top = useRef<HTMLDivElement>(null);
+  const [fixing, setFixing] = useState(false);
   const jump = (key: string) => {
     const el = top.current?.querySelector<HTMLElement>(`[data-jump-to="${key}"]`);
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -291,15 +310,79 @@ function HowBody({ page, seasonId, name, seasonNumber, artUrl }: { page: HowItWo
           {how.lineage}
         </p>
       )}
-      <Preview id="show.suggest-fix" tag={false} className="mx-2 mt-3">
-        <button
-          type="button"
-          className="flex h-12 w-full items-center gap-2 rounded-[3px] px-3 text-[15px] font-semibold text-muted-foreground outline-1 -outline-offset-1 outline-input"
-        >
-          <CircleQuestionMark className="size-[18px]" aria-hidden />
-          Something off? Suggest a fix
-        </button>
-      </Preview>
+      {suggest && (
+        <>
+          <button
+            type="button"
+            data-suggest-fix
+            onClick={() => setFixing(true)}
+            className="mx-2 mt-3 flex h-12 w-[calc(100%-16px)] items-center gap-2 rounded-[3px] px-3 text-[15px] font-semibold text-muted-foreground outline-1 -outline-offset-1 outline-input"
+          >
+            <CircleQuestionMark className="size-[18px]" aria-hidden />
+            Something off? Suggest a fix
+          </button>
+          {fixing && <SuggestFixSheet seasonId={seasonId} couchId={suggest.couchId} name={short} onClose={() => setFixing(false)} />}
+        </>
+      )}
     </div>
+  );
+}
+
+const ABOUT = [
+  ["segment", "A part of an episode"],
+  ["wayOut", "A way out"],
+  ["scores", "Something that scores"],
+  ["other", "Something else"],
+] as const;
+
+/** The mock's rbFixSheet: what it's about, what's off, Send. It reaches the admin's Inbox; the rulebook changes only when they fix it. */
+function SuggestFixSheet({ seasonId, couchId, name, onClose }: { seasonId: string; couchId: string | null; name: string; onClose: () => void }) {
+  const [about, setAbout] = useState<(typeof ABOUT)[number][0] | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <Sheet open onOpenChange={(o) => !o && onClose()} title="Suggest a fix" subtitle={`${name}'s rulebook`}>
+      <div data-suggest-sheet>
+        <div className="flex flex-wrap gap-2">
+          {ABOUT.map(([k, label]) => (
+            <Chip key={k} data-about={k} on={about === k} className="h-11" onClick={() => setAbout(k)}>
+              {label}
+            </Chip>
+          ))}
+        </div>
+        <label className="mt-4 block">
+          <span className="type-caption block text-[13px] tracking-[0.04em] text-muted-foreground">What&apos;s off?</span>
+          <textarea
+            data-suggest-note
+            rows={3}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="e.g. Reward challenges are only some episodes this season"
+            className="mt-1.5 w-full rounded-[3px] bg-background p-3 text-base outline-1 -outline-offset-1 outline-input"
+          />
+        </label>
+        <Btn
+          data-suggest-send
+          tone="must"
+          wide
+          className="mt-3"
+          disabled={!about || !note.trim() || busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await suggestRulebookFix(seasonId, couchId, { about: about!, note });
+              toast("Sent. The admin checks it, then fixes it for every couch.");
+              onClose();
+            } catch (e) {
+              toast((e as Error).message);
+              setBusy(false);
+            }
+          }}
+        >
+          Send
+        </Btn>
+        <p className="mt-2 text-center text-[13px] text-muted-foreground">Nothing changes until it&apos;s fixed. When it is, every couch gets it.</p>
+      </div>
+    </Sheet>
   );
 }

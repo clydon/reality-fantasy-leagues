@@ -1,18 +1,24 @@
 "use client";
 
-import { ChevronRight, Settings, Star, Users, Zap } from "lucide-react";
+import { ChevronRight, KeyRound, Settings, Star, Users, Zap } from "lucide-react";
 import type { Couch } from "../data";
+import { useDesk, type Inbox } from "../desk/data";
 import { PROFILE } from "../fixtures/hub";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
+import { useMe } from "../session";
 import { Row } from "../ui/parts";
 import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 
 // Your profile, from the hub's avatar (the mock's index.html profileSheet): your couch at the top (moved off the hub
-// on 2026-10-23; it opens the couch switcher, step 9), your numbers (step 8), and Settings.
+// on 2026-10-23; it opens the couch switcher, step 9), your numbers (step 8), Admin for site admins (the desk, step 6b
+// part 2, with what needs them), and Settings.
 
 export function ProfileSheet({ open, onOpenChange, me, couch }: { open: boolean; onOpenChange: (open: boolean) => void; me: { name: string }; couch: Couch | null }) {
+  const admin = useMe().isSuperAdmin;
+  const inbox = useDesk<Inbox>(admin && open ? "/inbox" : null);
+  const needs = inbox.data?.items.length ?? 0;
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={me.name} subtitle={couch?.name}>
       {couch && (
@@ -50,6 +56,18 @@ export function ProfileSheet({ open, onOpenChange, me, couch }: { open: boolean;
           </div>
         </div>
       </Preview>
+      {admin && (
+        <NavLink href={paths.desk()} data-admin-row className="nd-press mt-3.5 flex min-h-[60px] items-center gap-3 rounded-[3px] bg-card px-3">
+          <span className="grid size-9 flex-none place-items-center rounded-[3px] bg-foreground text-background">
+            <KeyRound className="size-[18px]" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px]">Admin</b>
+            <small className="block text-[13px] text-muted-foreground">{inbox.data ? (needs ? `${needs} need${needs === 1 ? "s" : ""} you` : "Nothing needs you") : "Inbox, Find and Settings"}</small>
+          </span>
+          <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
+        </NavLink>
+      )}
       <NavLink
         href={paths.settings}
         className="nd-press mt-3.5 flex h-[52px] items-center justify-center gap-2 rounded-[3px] bg-card text-[15px] font-bold outline-1 -outline-offset-1 outline-input"

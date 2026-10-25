@@ -49,7 +49,6 @@ export const PREVIEWS = {
   "show.invite": { step: "9", title: "Invite to this show", line: "A code for this show; they join the couch too." },
   "show.start-game": { step: "10", title: "Start a game", line: "A season game or an episode game for this show." },
   "show.notifications": { step: "15", title: "Notifications for this show", line: "Lineup reminders, results, chat." },
-  "show.suggest-fix": { step: "6b", title: "Suggest a fix", line: "Tell us what the rulebook got wrong; it's checked, then fixed for every couch." },
 
   // ---- pushed over a show ----
   "show.draft": { step: "7", title: "The draft room", line: "Pick your team in turn; nobody's auto-picked." },
