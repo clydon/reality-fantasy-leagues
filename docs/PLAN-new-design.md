@@ -30,7 +30,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 4 | Chat, per couch and show, spoiler-folded | **done** 2026-10-24 on the branch (migration 0110 ships with 0b's) | Opus · medium |
 | 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | **done** 2026-10-25 on the branch (migration 0111 ships with 0b's) | Opus · high |
 | 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | **done** 2026-10-25 on the branch (no migration) | Opus · high |
-| 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **parts 1 and 2 done** 2026-10-25 on the branch: results from everyone and disputes (migration 0112), the admin's desk and the rulebook editor (migration 0113); both ship with 0b's. Part 3 (Make it ours) to come | Opus · high |
+| 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **done** 2026-10-25 on the branch, in three parts: results from everyone and disputes (migration 0112), the admin's desk and the rulebook editor (0113), Make it ours (0114); all ship with 0b's | Opus · high |
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | not started | Opus · medium |
 | 7 | Draft room and blind draft | not started | Opus · medium |
 | — | **Switch the couch to the new design by default** | — | — |
@@ -191,13 +191,17 @@ step's As built.
 - **One person, one source** (step 6b part 1; for a later step). Sources are counted by person, so two accounts on one couch
   pasting the same wrong answer confirm it for every couch. House rulings take away a couch's reason to, the admin can
   decide it (part 2), and Settings' Confirmed needs can ask for 3 or 4; counting couches instead of people is still open.
-- **Show changes aren't community-confirmed** (step 6b part 2; for 6b part 3 or 6c). The plan's "Something the rulebook
-  doesn't have" on an episode page (It's new / Not new, a second couch agreeing adds it from that episode) isn't built: the
-  desk's The show changed is the only way a rulebook changes from an episode on. Until it is, a rulebook's Lock holds back
-  nothing the desk doesn't already control.
-- **A couch's own copy doesn't get the desk's changes** (step 6b part 2; for 6b part 3). Saving pushes to the leagues that
-  follow the season's rulebook; a league with its own copy keeps it as it was. Make it ours promises "fixes still reach
-  you" and "show changes ask first".
+- **Show changes aren't community-confirmed** (step 6b part 2; for 6c, with research's runs). The plan's "Something the
+  rulebook doesn't have" on an episode page (It's new / Not new, a second couch agreeing adds it from that episode) isn't
+  built: the desk's The show changed is the only way a rulebook changes from an episode on (couches with their own copy are
+  asked first, part 3). Until it is, a rulebook's Lock holds back nothing the desk doesn't already control.
+- **Points are for the whole season** (step 6b part 3; for step 10 or later). The mock's Scoring rules saves points "From
+  Episode 6" or "Rescore the season"; the engine keeps one number per moment (`settings.eventPoints`, read by ~20 places,
+  classic's screens among them, none with the episode to hand), so a change always scores the season again. Points by
+  episode would need that history. Its Casual / Standard / Competitive presets aren't built either.
+- **The rulebooks flag's off-walk takes copies out too** (step 6b part 3; for C). `scripts/rulebooks-flag.js off` tells every
+  league `on: false`, so a couch's own copy stops playing until its next change re-syncs it. Fine for an emergency switch;
+  at cutover the flag goes and so does the walk.
 - **The repeat-moment check is loose** (R2's `reviewRulebook`; for step 10's new-show flow). A custom moment whose words are
   all in a built one's is left out as a repeat, so a first research of the Traitors would drop "As a Faithful, voted out a
   Faithful" (it reads as "…voted out a Traitor at Round Table"). Check for changes keeps the rulebook's own moments
@@ -208,8 +212,6 @@ step's As built.
 - **Undo leaves what another answer also says** (step 6b part 1; for a later polish). Taking your answer back keeps any
   result another source still reports (it's still a source's word), but the toast says only "Undone"; it could say "3
   results still stand: another answer reports them".
-- **A correction that adds can't be refused** (step 6b part 1; for 6b part 3). Keep our old result works for a result the
-  shared check took out or changed; one it newly confirmed (Devin's idol, after two answers) has no "we don't count this".
 - **Flags don't notify** (step 6b part 1; for 15). "You'll hear how it went" is the flag's status: Backstage's Flags from your
   couch (for whoever runs a game) and "you flagged this" on the episode's sheet. A push when a flag settles belongs with
   notifications by moment.
@@ -1599,6 +1601,63 @@ change saves as Fix a mistake or The show changed. Migration **0113** ships with
   suggestion, Lock, a starting point; Settings; every real league and result as it was; the screens. It makes its own zt
   admin, links the fixture's castaways to the season cast (as real leagues are) and puts back the two settings it changes.
   `tests/rulebook-research.test.js` (keep), `tests/rulebooks-db.test.js` (the season's switch is read).
+
+### As built, step 6b part 3 (2026-10-25, on `new-design`): Make it ours
+
+A couch can make its season's rulebook its own from Backstage › Scoring rules: choose what counts, add moments the couch
+answers, take or skip the show's changes, change the points, and follow the season's rulebook again any time. The desk's
+fixes and show changes reach the copies, and a correction that adds can now be refused. Migration **0114** ships with 0b's.
+- **The copy** (`src/lib/server/ours.ts`): one per couch and season, for the couch's games there that you run as a
+  Commissioner (a game on a classic ruleset copy keeps it, and says so). It's a league-owned rulebook (0107) whose
+  provenance says `ours`, owned by the first of those games and pointed at by each (`leagues.rulebook_id`), copied with the
+  season's in-force show changes and compiled from its blocks (R3: an unedited one scores exactly the same). Those games
+  play by it whether or not their season's leagues are on rulebooks (`db/rulebooks.js` `oursOf`; `syncLeagueRulebook` is
+  on for a league with one), which is what makes it useful to the real couch today. `pushShowFormat` no longer passes the
+  global flag when it's off, which stripped a season switched on in part 2 as well as a copy (fixed). Rules are a
+  Commissioner's: a Game admin sees the page, can't change it, and can't undo its lines.
+- **What counts:** every moment the rulebook counts, bar ways out (how people leave the game) and the couch's own,
+  grouped by the part that builds it; switching one off is `momentNotes[id].off` on the copy (one map, whatever builds the
+  moment; the validator lets an off note name a moment a later show change brings). It leaves the compiled rules, so it
+  isn't asked and, by a new engine rule, a game playing by a rulebook scores a moment its rules don't have as 0, so the
+  results stay and switching it back counts them again. Previewed (each game's moves), then a line with Undo.
+- **A moment the couch answers** (Add a moment: what happens, once an episode or every time, suggested points −5 to +5):
+  a custom moment answered by the league, on the copy. On each episode's page, once you've seen it, "Your couch's moments"
+  lets anyone who plays here tick who did it (tapped again for each time); whoever runs the games settles it alone,
+  otherwise two people agreeing do (`src/lib/game/couch-answers.ts`, `tests/couch-answers.test.js`; migration 0114
+  `couch_answers`; `src/lib/server/couch-answers.ts`, `GET/POST /api/seasons/[id]/couch-moments/[n]`). What's settled goes
+  into every game on the copy as that moment's results (scoring events marked `couch`, replaced as answers change), with
+  a line in Recent changes; nothing reaches another couch or the shared stats. Taking the moment out is previewed. A couch
+  event scores nothing once its game's rules don't have it (after Follow it again), so Undo brings it back as it was.
+- **The show's changes ask first:** the desk's The show changed on a season's rulebook reaches each copy as a draft edit;
+  Scoring rules shows it once you've seen its episode ("1 update from Episode 6 · It shows once you've seen it" before,
+  and it can't be answered then), with Add it (previewed; in force from its episode) or Skip. The desk withdrawing it
+  withdraws it from the copies (out of their games if it was added). The desk's **Fix a mistake** reaches every copy as
+  it is: its ops on the copy's base where they still apply, the suggested points and notes key by key, so the couch's own
+  choices stay; each game gets a line.
+- **Change the points** (Weekly Lineup, a Commissioner's): steppers on each moment, "N moments changed · For the whole
+  season", the preview, one line with Undo (`pointsWrite`; points aren't a plain setting, so they have their own line). The
+  engine keeps one number per moment, so the season is always scored again (below).
+- **Follow it again:** previewed with what goes back (moments you turned off count again, your own moments go, points
+  stay as you set them) and each game's moves; the copy is archived, the games follow the season's rulebook if its leagues
+  are on it, else their show's rules. Undo brings the copy back.
+- **A correction that adds** (from Noticed): a result someone sent (it has sources: the shared check, or the desk deciding
+  one) that comes into an episode a game already had final results for now leaves a `results.correction` line ("added");
+  one an admin enters by hand (classic's Accept, a fact at a time) is still results coming in, not a correction; Backstage › Results' card says "Added: Ori ·
+  Found an idol" and offers "Don't count it in our games", a house ruling whose `keeps.absent` the sync honours (previewed
+  through the ledger's own undo). The episode page says it doesn't count in your games.
+- **Also:** Scoring rules reads a rulebook as it stood at your episode (it read the base, missing a show change); GuardSheet
+  takes a `head` said before the moves.
+- **Fixed from Noticed, not fixed:** a couch's own copy now gets the desk's changes; a correction that adds can be refused.
+- **Fixtures and Preview:** `backstage.make-it-ours` is gone (check-new-backstage-ii opens the real sheet).
+- **Changed from the mock:** no Casual / Standard / Competitive presets and no "From Episode 6" for points (Noticed); the
+  couch's answers settle on the episode page, not "after each episode" in a prompt; a moment the rulebook itself switches
+  off isn't in What counts (it can't be switched on there).
+- **Checks:** `scripts/dev-test/check-new-ours.js <outDir> [--width=390] [--keep]` (89 PASS at 390): following, Make it ours
+  in the browser (one copy, three games, couch B untouched, every table the same), what counts with its preview and Undo,
+  a moment the couch answers (one waits, sam refused, two agree, a runner settles, the games count it in couch A only),
+  the desk's show changes asking first (one hidden until seen) and its fix reaching the copy, Change the points with Undo,
+  Follow it again (every table as at the start) and its Undo, refusing a correction that adds, nothing real moved, the
+  screens. `backup-common.js` and `backup-fixture.js` take `couch_answers`.
 
 ### Step 6c: how results get in
 

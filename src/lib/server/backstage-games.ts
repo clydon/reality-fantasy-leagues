@@ -4,11 +4,13 @@ import { rulebookFor } from "@/lib/game/formats/blocks/index.js";
 import { pointGroups } from "@/lib/game/formats/rulebook-describe.js";
 import type { PointGroup } from "@/lib/game/formats/rulebook-describe";
 import { castOf } from "@/lib/game/game-view";
+import { previewLines, type PreviewLine } from "@/lib/game/results-changes";
 import { gameRules } from "@/lib/game/game-rules";
 import type { LeagueState, ReplaceRule, WaiverFeel, WaiverWindows } from "@/lib/game/types";
 import { waiverHow, type WaiverWeek } from "@/lib/game/waiver-view";
 import { windowLine } from "@/lib/game/waiver-words.js";
-import { lineage, rulebookForLeague } from "@db/rulebooks.js";
+import { blocksAt } from "@/lib/game/formats/rulebook-patch.js";
+import { inForceEdits, lineage, rulebookForLeague } from "@db/rulebooks.js";
 import { isSuperAdminUser } from "./auth-helpers";
 import type { BackstageScope } from "./backstage";
 import { plainChange, settingsSetChange, type ChangeSpec } from "./change-log";
@@ -20,6 +22,7 @@ import { notifyWaiverWindow } from "./push-events";
 import type { Game } from "./show-space";
 import { windowSnapshot, type WindowSnapshot } from "./waiver-pushes";
 import { openWindow, processNow } from "./waivers";
+import { ourRules, type OurRules } from "./ours";
 
 // Backstage II (docs/PLAN-new-design.md step 6a): the game's own pages for whoever runs it. Waivers (the week running,
 // who has picks in, Run now, a window, the feel and Fine-tune), Game settings (lineup size, who can join, each with
@@ -518,6 +521,60 @@ export async function settingsWrite(
   return { batch: changed ? batch : null };
 }
 
+// ---- Scoring rules: a game's points ----
+
+/**
+ * Change the points (step 6b part 3): Weekly Lineup's points for some of its moments, for the whole season (the engine
+ * keeps one number per moment, so every episode is scored again). Commissioner only; `preview` says what moves first
+ * (tier 2), then one batch with Undo.
+ */
+export async function pointsWrite(
+  scope: BackstageScope,
+  leagueId: unknown,
+  body: { points?: unknown; preview?: boolean }
+): Promise<{ lines: PreviewLine[] } | { batch: string | null }> {
+  const game = gameIn(scope, leagueId, { commissioner: true });
+  if (game.gameType !== "active-roster") throw new HttpError(400, "Only Weekly Lineup scores by moment");
+  const s0 = (await leagueStates([game.leagueId])).get(game.leagueId) as LeagueState | undefined;
+  if (!s0) throw new HttpError(404, "League not found");
+  const known = new Set(StateLogic.formatOf(s0).events.map((e: { id: string }) => e.id));
+  const given = body.points && typeof body.points === "object" ? Object.entries(body.points as Record<string, unknown>) : [];
+  if (!given.length) throw new HttpError(400, "Nothing changed");
+  const points: Record<string, number> = {};
+  for (const [id, v] of given) {
+    const n = Number(v);
+    if (!known.has(id)) throw new HttpError(400, `"${id}" isn't one of this game's moments`);
+    if (!Number.isFinite(n) || n < -50 || n > 50) throw new HttpError(400, "Points are -50 to 50");
+    points[id] = StateLogic.roundPoints(n);
+  }
+  const apply = (s: LeagueState) => StateLogic.updateSettings(s, "eventPoints", { ...(s.settings.eventPoints ?? {}), ...points });
+  if (body.preview) {
+    const after = structuredClone(s0);
+    apply(after);
+    const { rows: seats } = await pool.query("SELECT player_id, user_id FROM league_memberships WHERE league_id = $1 AND player_id IS NOT NULL", [game.leagueId]);
+    const users = new Map(seats.map((r) => [r.player_id, r.user_id]));
+    return { lines: previewLines(s0, after, game.gameName, (p) => users.get(p) ?? null) };
+  }
+  const batch = crypto.randomUUID();
+  let changed = false;
+  const n = Object.keys(points).length;
+  // Points aren't a plain setting (settingsSetChange leaves them out): their own line, and an Undo that puts them back.
+  await withLeagueLock(game.leagueId, apply, (b, a) => {
+    if (JSON.stringify(b.settings.eventPoints ?? null) === JSON.stringify(a.settings.eventPoints ?? null)) return null;
+    changed = true;
+    return {
+      userId: scope.user.id,
+      kind: "rules.points",
+      tier: 2,
+      text: `Changed the points for ${n} ${n === 1 ? "moment" : "moments"}: the season is scored again`,
+      batch,
+      detail: { fields: ["eventPoints"] },
+      undo: { type: "settingsSet", before: { eventPoints: b.settings.eventPoints ?? null }, after: { eventPoints: a.settings.eventPoints ?? null } },
+    };
+  });
+  return { batch: changed ? batch : null };
+}
+
 // ---- Scoring rules: the read side ----
 
 export interface GameRules {
@@ -535,6 +592,8 @@ export interface ScoringRules {
   /** "ZT Survivor 51" (a rulebook row) or the show's format ("Survivor"). */
   rulebook: { name: string; season: boolean; following: number };
   games: GameRules[];
+  /** Make it ours (step 6b part 3): following the season's rulebook or the couch's own copy, and the copy's choices. */
+  ours: OurRules;
 }
 
 export async function scoringRules(scope: BackstageScope): Promise<ScoringRules> {
@@ -553,7 +612,8 @@ export async function scoringRules(scope: BackstageScope): Promise<ScoringRules>
         ? { name: row.name, season: true, following: line?.following ?? 1 }
         : { name: format.name.replace(/^The /, ""), season: false, following: 0 };
     }
-    const book = row?.blocks ? { blocks: row.blocks, aliases: row.aliases } : rulebookFor(format.id, format.data);
+    // The rulebook as it stood at your episode: a show change from a later one isn't on the page yet.
+    const book = row?.blocks ? { blocks: blocksAt(row.blocks, await inForceEdits(pool, row.id), mark ?? Infinity), aliases: row.aliases } : rulebookFor(format.id, format.data);
     const weekly = l.game.gameType === "active-roster";
     games.push({
       leagueId: l.game.leagueId,
@@ -572,5 +632,5 @@ export async function scoringRules(scope: BackstageScope): Promise<ScoringRules>
       lines: weekly ? [] : gameRules(view),
     });
   }
-  return { rulebook: rulebook ?? { name: "this show", season: false, following: 0 }, games };
+  return { rulebook: rulebook ?? { name: "this show", season: false, following: 0 }, games, ours: await ourRules(scope) };
 }

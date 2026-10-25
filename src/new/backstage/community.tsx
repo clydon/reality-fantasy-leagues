@@ -17,9 +17,11 @@ import { toast } from "../ui/toast";
 const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}`;
 const first = (name: string) => name.split(" ")[0];
 
-/** "Removed: Brady · Found an idol", "Changed: Mike · Voted Out → Quit". */
+/** "Removed: Brady · Found an idol", "Added: Devin · Found an idol", "Changed: Mike · Voted Out → Quit". */
 export function correctionTitle(c: Pick<Correction, "name" | "label" | "change" | "to">): string {
-  return c.change === "removed" ? `Removed: ${first(c.name)} · ${c.label}` : `Changed: ${first(c.name)} · ${c.label} → ${c.to?.split(" · ").pop() ?? ""}`;
+  if (c.change === "removed") return `Removed: ${first(c.name)} · ${c.label}`;
+  if (c.change === "added") return `Added: ${first(c.name)} · ${c.label}`;
+  return `Changed: ${first(c.name)} · ${c.label} → ${c.to?.split(" · ").pop() ?? ""}`;
 }
 
 /** Who can fill them in, then each recent episode that someone has filled in, and how far its sources agree. */
@@ -150,7 +152,7 @@ export function Corrections({ seasonId, couchId, corrections }: { seasonId: stri
                   <p data-ruling className="mt-2 flex gap-2 text-[13px] leading-snug">
                     <KeyRound className="mt-0.5 size-4 flex-none" aria-hidden />
                     <span>
-                      <b>House ruling{c.ruling.by ? ` (${c.ruling.by})` : ""}</b> The old result still counts in your games. Your players see this ruling on Episode {c.episode}.
+                      <b>House ruling{c.ruling.by ? ` (${c.ruling.by})` : ""}</b> {c.change === "added" ? "It doesn't count in your games." : "The old result still counts in your games."} Your players see this ruling on Episode {c.episode}.
                     </span>
                   </p>
                   <Btn data-drop-ruling className="mt-2.5 h-10 px-3 text-[14px]" onClick={() => drop(c)}>
@@ -159,7 +161,7 @@ export function Corrections({ seasonId, couchId, corrections }: { seasonId: stri
                 </>
               ) : (
                 <Btn data-keep-old className="mt-2.5 h-10 px-3 text-[14px]" onClick={() => setKeeping(c)}>
-                  Keep our old result
+                  {c.change === "added" ? "Don't count it in our games" : "Keep our old result"}
                 </Btn>
               )}
             </div>
@@ -189,7 +191,7 @@ function KeepSheet({ seasonId, couchId, correction, onClose, onDone }: { seasonI
     <GuardSheet
       open
       onOpenChange={(o) => !o && onClose()}
-      title="Keep your old result?"
+      title={correction.change === "added" ? "Leave it out of your games?" : "Keep your old result?"}
       subtitle={failed ?? "A house ruling: your games only. Shared stats stay correct."}
       lines={failed ? [] : lines}
       cta="Keep it as a house ruling"

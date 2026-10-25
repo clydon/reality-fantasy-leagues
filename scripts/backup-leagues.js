@@ -61,6 +61,8 @@ const GROUP_SLICES = {
   rulebooks: `season_id = ANY($S::uuid[]) OR league_id = ANY($L::uuid[]) OR owner_kind = 'library'`,
   rulebook_edits: `rulebook_id IN (SELECT id FROM rulebooks WHERE season_id = ANY($S::uuid[]) OR league_id = ANY($L::uuid[]) OR owner_kind = 'library')`,
   rulebook_suggestions: "season_id = ANY($S::uuid[])",
+  // Make it ours (0114): what the group's couches answered for their own moments on its seasons.
+  couch_answers: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[])) AND season_id = ANY($S::uuid[])",
   admin_changes: `entity = 'settings'
       OR (entity = 'season' AND entity_id IN (SELECT id::text FROM show_seasons WHERE id = ANY($S::uuid[])))
       OR (entity = 'rulebook' AND entity_id IN (SELECT id::text FROM rulebooks WHERE season_id = ANY($S::uuid[]) OR league_id = ANY($L::uuid[])))

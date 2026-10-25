@@ -4,7 +4,8 @@
 // blind picks, team notes, chat with a reaction and reads (and the couch's own chat about the season, with its
 // read: step 4); settings and notification prefs; rulebooks (the season's, with a show change and a suggested fix, a
 // league's own copy, a library starting point) and a line in the desk's history (step 6b part 2). Also the foreign
-// key cycles (the group's favourite league, a league's ruleset, a season's and a league's rulebook) and one league outside the group that a cast
+// key cycles (the group's favourite league, a league's ruleset, a season's and a league's rulebook); and an answer the
+// couch gave for one of its own moments (step 6b part 3) and one league outside the group that a cast
 // change points at, so a --group backup has a reference to settle.
 //
 //   node scripts/dev-test/backup-fixture.js up      create (or refresh) it, print the group id
@@ -156,6 +157,7 @@ async function up(pool) {
     book, season, ann, couch,
   ]);
   await pool.query(`INSERT INTO admin_changes (entity, entity_id, action, text, undo, user_id) VALUES ('rulebook', $1, 'showChanged', 'zt: the show changed from Episode 3', '{"type": "rulebookEdit"}', $2)`, [book, me]);
+  await pool.query(`INSERT INTO couch_answers (couch_id, season_id, episode_number, moment_id, user_id, picks) VALUES ($1, $2, 1, 'criedAtTribal', $3, '[{"name": "Castaway 0"}]')`, [couch, season, ann]);
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

@@ -21,7 +21,8 @@ export async function pushShowFormat(slug: string): Promise<number> {
   for (const league of leagues) {
     await withLeagueLock(league.id, async (s, client) => {
       setLeagueFormat(s.settings, id, data);
-      await syncLeagueRulebook(client, league.id, s.settings, { on });
+      // With the flag off, the league's own season switch or its couch's own copy still decides (step 6b).
+      await syncLeagueRulebook(client, league.id, s.settings, { on: on || undefined });
     });
   }
   return leagues.length;

@@ -67,7 +67,22 @@ export interface RulingUndo {
   episode: number;
 }
 
-export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo | SubmissionUndo | RulingUndo;
+/**
+ * The couch's own rulebook (step 6b part 3), taken back in each game it reached: made ours (the games follow the
+ * season's again), followed again (the copy comes back), its blocks changed (what counts, a moment of its own: the base
+ * as it was, while the copy is still at `version`), or a show change added or skipped (the edit's status back).
+ */
+export interface RulebookUndo {
+  type: "rulebook";
+  action: "ours" | "follow" | "blocks" | "edit";
+  rulebookId: string;
+  before?: unknown;
+  version?: number;
+  editId?: string;
+  status?: { before: string; after: string };
+}
+
+export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo | SubmissionUndo | RulingUndo | RulebookUndo;
 
 export interface ChangeSpec {
   /** Who did it; null when it applied on its own. */

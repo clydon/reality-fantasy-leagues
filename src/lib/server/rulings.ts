@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import StateLogic from "@/lib/game/state-logic.js";
-import { applyDecision, orderPlacementsByEpisode, type DecisionFact } from "@/lib/game/decision-apply";
+import { applyDecision, orderPlacementsByEpisode, undoDetail, type DecisionFact, type LedgerDetail } from "@/lib/game/decision-apply";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import { previewLines, type PreviewLine } from "@/lib/game/results-changes";
 import type { LeagueState } from "@/lib/game/types";
@@ -14,7 +14,9 @@ import { seasonCastRefs, syncLeagueDecisions, type CorrectedFact } from "./seaso
 // and each player's points. These read them back for a couch: the episode's plate, the line in Episodes, and Backstage ›
 // Results' Corrections, where whoever runs the games may keep the old result as a HOUSE RULING (league_rulings): previewed
 // first (tier 2), for every game of theirs it reached at once (linked leagues rule together), shown to their players on the
-// episode, and never in the shared facts or stats. Dropping it lets the correction apply.
+// episode, and never in the shared facts or stats. Dropping it lets the correction apply. A correction that ADDS (a result
+// the shared check confirmed after the episode's results were in, step 6b part 3) is refused the same way: the ruling
+// keeps it out (`keeps.absent`).
 
 export interface Correction {
   episode: number;
@@ -23,7 +25,7 @@ export interface Correction {
   name: string;
   /** "Found an idol", "Voted Out". */
   label: string;
-  change: "removed" | "changed";
+  change: "removed" | "changed" | "added";
   /** What it says now, when it changed ("Brady Booker · Quit"). */
   to: string | null;
   /** Your points in each game it changed. */
@@ -80,6 +82,7 @@ export async function couchCorrections(leagueIds: string[], seen: number, viewer
     for (const f of r.detail.facts) {
       const d = current.get(f.id);
       const stillTrue = f.change === "removed" ? d?.status !== "accepted" : d?.status === "accepted";
+      // An addition is still true while the result is in; a later answer can only take it out again.
       if (!stillTrue) continue;
       const key = `${r.episode}|${f.id}`;
       let c = out.get(key);
@@ -141,15 +144,22 @@ export async function keepOldResult(scope: BackstageScope, decisionId: string, o
     const client = await pool.connect();
     try {
       const refs = await seasonCastRefs(client, scope.seasonId);
-      // First the result itself, as your games will count it again.
+      // First the result itself, as your games will count it again (or, for one the check added, won't).
       const any = states.get(rows[0].league_id) as LeagueState | undefined;
       const who = any?.castaways.find((c) => c.name === fact.name);
-      const lines: PreviewLine[] = [{ face: { kind: "castaway", name: fact.name, photo: publicMediaSrc(who?.photoUrl) }, label: `${fact.name.split(" ")[0]} · ${fact.label} · Episode ${episode}`, change: "Counts here", dir: null }];
+      const absent = (keeps as { absent?: boolean }).absent === true;
+      const lines: PreviewLine[] = [{ face: { kind: "castaway", name: fact.name, photo: publicMediaSrc(who?.photoUrl) }, label: `${fact.name.split(" ")[0]} · ${fact.label} · Episode ${episode}`, change: absent ? "Not counted here" : "Counts here", dir: null }];
+      const { rows: ledger } = absent
+        ? await client.query("SELECT league_id, detail FROM league_applied_decisions WHERE decision_id = $1 AND league_id = ANY($2::uuid[])", [decisionId, rows.map((r) => r.league_id)])
+        : { rows: [] as { league_id: string; detail: LedgerDetail }[] };
       for (const r of rows) {
         const before = states.get(r.league_id) as LeagueState | undefined;
         if (!before) continue;
         const after = structuredClone(before);
-        applyDecision(after, keeps, refs);
+        if (absent) {
+          const entry = ledger.find((x) => x.league_id === r.league_id);
+          if (entry) undoDetail(after, entry.detail);
+        } else applyDecision(after, keeps, refs);
         if (keeps.kind === "elimination") orderPlacementsByEpisode(after);
         const game = scope.games.find((g) => g.leagueId === r.league_id);
         lines.push(...previewLines(before, after, game?.gameName ?? r.league_name, (p) => users.get(p) ?? null));
@@ -177,7 +187,7 @@ export async function keepOldResult(scope: BackstageScope, decisionId: string, o
         kind: "results.ruling",
         tier: 2,
         episode,
-        text: `House ruling: kept Episode ${episode}'s old result`,
+        text: (keeps as { absent?: boolean }).absent ? `House ruling: Episode ${episode}'s added result doesn't count here` : `House ruling: kept Episode ${episode}'s old result`,
         batch,
         detail: { decisionId, name: fact.name, label: fact.label },
         undo: { type: "ruling", decisionId, episode },
@@ -215,7 +225,7 @@ export async function dropRuling(scope: BackstageScope, decisionId: string): Pro
 }
 
 /** A league's rulings for an episode, for its page: "House ruling (alex): Brady's idol still counts here". */
-export async function rulingsFor(leagueIds: string[], episode: number): Promise<{ decisionId: string; leagueId: string; by: string | null; name: string; label: string }[]> {
+export async function rulingsFor(leagueIds: string[], episode: number): Promise<{ decisionId: string; leagueId: string; by: string | null; name: string; label: string; absent: boolean }[]> {
   if (!leagueIds.length) return [];
   const { rows } = await pool.query(
     `SELECT r.decision_id, r.league_id, COALESCE(u.username, u.name) AS who, r.keeps
@@ -228,6 +238,6 @@ export async function rulingsFor(leagueIds: string[], episode: number): Promise<
     const state = states.get(r.league_id) as LeagueState | undefined;
     const k = r.keeps as DecisionFact;
     const label = k.kind === "event" ? (state ? StateLogic.formatOf(state).events.find((e) => e.id === k.event_type)?.label : null) ?? k.event_type : k.method || k.kind;
-    return { decisionId: r.decision_id, leagueId: r.league_id, by: r.who, name: k.castaway_name, label };
+    return { decisionId: r.decision_id, leagueId: r.league_id, by: r.who, name: k.castaway_name, label, absent: (r.keeps as { absent?: boolean }).absent === true };
   });
 }

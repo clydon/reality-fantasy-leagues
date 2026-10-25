@@ -12,7 +12,8 @@
 //                 integer; an amount that needn't be whole (innings pitched, a judge's score) a number.
 //                 Either scores per unit (rulebook-compile.js, rules.js `per`).
 //   auto          known without asking about it: from how someone left, a role, or other answers
-//   off           only with { includeOff: true }: built, but switched off (momentsOff)
+//   off           only with { includeOff: true }: built, but switched off (momentsOff, or a couch's own copy's
+//                 momentNotes[id].off: Make it ours, step 6b part 3)
 //
 // Ids are `${itemId}${Template}` ("immunityChallengeWon"), or the item's own id for a way out and a moment
 // added by hand, so they never change when something is renamed. Suggested points come from the template
@@ -205,8 +206,11 @@ function momentsFor(blocks, { includeOff = false } = {}) {
   const points = (blocks.points && typeof blocks.points === 'object' && blocks.points) || {};
   const notes = (blocks.momentNotes && typeof blocks.momentNotes === 'object' && blocks.momentNotes) || {};
   const kind = kindOf(blocks);
+  // Switched off where it's built, or by a note (a couch's own copy chooses what counts whatever builds it).
+  const isOff = (m) => !!m.off || !!(notes[m.id] && notes[m.id].off);
   return all
-    .filter((m) => includeOff || !m.off)
+    .filter((m) => includeOff || !isOff(m))
+    .map((m) => (isOff(m) && !m.off ? { ...m, off: true } : m))
     .map((m) => {
       const note = notes[m.id] || {};
       // Who answers: a moment added by hand says; a built one is research's unless research rated it otherwise.

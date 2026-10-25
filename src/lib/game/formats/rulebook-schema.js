@@ -12,7 +12,8 @@
 //     twists:   [{ id, type, name, summary?, ...that type's answers }],
 //     customMoments: [{ id, label, question?, during?: { segment } | { twist }, counted, answeredBy, reliability? }],
 //     points:   { [momentId]: number | { exclusive, shared } },   suggested-point overrides
-//     momentNotes: { [momentId]: { reliability?, answeredBy? } }, research's rating of a built moment
+//     momentNotes: { [momentId]: { reliability?, answeredBy?, off? } }, research's rating of a built moment;
+//               off: a couch's own copy doesn't count it (Make it ours)
 //     leftOut:  ['anything that didn't fit, one sentence each'] }
 //
 // Every answer with fixed choices is an OPT list here, each option [value, label, help]: the editor shows
@@ -569,7 +570,9 @@ function blocksProblems(blocks) {
       if (o === undefined) continue;
       if (!isObj(o)) { add(field, `${field} should be a map of moments`); continue; }
       for (const [id, v] of Object.entries(o)) {
-        if (!known.has(id)) add(`${field}.${id}`, `"${id}" isn't one of this rulebook's moments`);
+        // A couch's own copy can stop counting a moment a later show change brings (it's in the rulebook from then on).
+        const offOnly = field === 'momentNotes' && isObj(v) && v.off === true && Object.keys(v).length === 1;
+        if (!known.has(id) && !offOnly) add(`${field}.${id}`, `"${id}" isn't one of this rulebook's moments`);
         else if (field === 'points' && !(Number.isFinite(v) || (isObj(v) && Number.isFinite(v.exclusive) && Number.isFinite(v.shared)))) add(`${field}.${id}`, `${id}: points should be a number`);
       }
     }

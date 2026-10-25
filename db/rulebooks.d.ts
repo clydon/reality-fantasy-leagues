@@ -132,3 +132,5 @@ export function ensureLeagueRulebook(
 export function syncLeagueRulebook(db: Db, leagueId: string, settings: RuleSettings, opts?: { on?: boolean }): Promise<SyncResult>;
 export function syncLeagueRow(pool: Pool, leagueId: string, opts?: { on?: boolean }): Promise<(SyncResult & { saved: boolean }) | null>;
 export function refreshShowRulebooks(db: Db, slug: string): Promise<number>;
+/** The couch's own copy (Make it ours) this league plays by, or null. */
+export function oursOf(db: Db, leagueId: string): Promise<Rulebook | null>;

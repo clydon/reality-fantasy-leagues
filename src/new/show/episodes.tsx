@@ -12,6 +12,7 @@ import { ShowArt } from "../ui/show-bar";
 import { first } from "./moves";
 import { Block, Face } from "./parts";
 import { useOpenReveal } from "./reveal";
+import { CouchMomentsCard } from "./couch-moments";
 import { CorrectionPlates, CorrectionRow, SomethingWrong } from "./something-wrong";
 import { playsWaivers, WaiverEpisodeRow } from "./waivers";
 
@@ -296,6 +297,7 @@ function EpisodeBody({ seasonId, couchId, e }: { seasonId: string; couchId: stri
           ))}
         </section>
       )}
+      <CouchMomentsCard seasonId={seasonId} couchId={couchId} episode={e.number} />
       <SomethingWrong seasonId={seasonId} couchId={couchId} episode={e.number} />
     </div>
   );

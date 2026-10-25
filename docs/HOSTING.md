@@ -273,3 +273,10 @@ never handles it: the user does the reset and the pasting.
   again (one pass over a few dozen rows). Save as a starting point adds one library rulebook (~30 KB). Changing Confirmed
   needs settles every community result again but syncs only seasons where something moved. Backups now include
   `rulebooks` (~30 KB a season) and `rulebook_edits`.
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 6b part 3, Make it ours. Migration 0114: `couch_answers`
+  (one row per person per couch moment per episode, under 200 bytes). A couch that makes its rulebook its own adds one
+  rulebook row (~30 KB) and puts `settings.rulebook` into each of its games' state (+5-14 KB each, R3's figure; the real
+  couch's three games would carry it if they made it theirs); every change to the copy rewrites that in each game. Nothing
+  polls or runs on a schedule. New reads, each once a visit: Scoring rules adds the copy's half (a few small queries,
+  ~1-3 KB), and an episode's page asks for the couch's own moments (one small read; empty for a couch without any). An
+  answer writes one row and, when it settles something, each of the couch's games once.

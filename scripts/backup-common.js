@@ -11,7 +11,7 @@ const crypto = require("crypto");
 const LEAGUE_TABLES = [
   "leagues", "league_memberships", "league_groups", "couches", "couch_members", "couch_invites", "league_invites", "league_rulesets", "waiver_claims",
   "blind_draft_picks", "episode_team_notes", "league_applied_decisions", "chat_messages", "chat_reactions",
-  "chat_reads", "couch_chat_reads", "wiki_proposals", "wiki_proposal_items", "league_changes", "league_rulings",
+  "chat_reads", "couch_chat_reads", "wiki_proposals", "wiki_proposal_items", "league_changes", "league_rulings", "couch_answers",
 ];
 const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
@@ -40,6 +40,7 @@ const LATER_TABLES = {
   rulebook_edits: { since: "0107", fill: null },
   rulebook_suggestions: { since: "0113", fill: null },
   admin_changes: { since: "0113", fill: null },
+  couch_answers: { since: "0114", fill: null },
 };
 
 /** Whether the database has this table. */

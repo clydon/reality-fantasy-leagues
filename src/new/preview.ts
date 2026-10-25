@@ -61,11 +61,6 @@ export const PREVIEWS = {
     title: "How results get in",
     line: "Copy and paste (free), One tap (we ask ChatGPT for you) and Autopilot, for the whole couch.",
   },
-  "backstage.make-it-ours": {
-    step: "6b",
-    title: "Make it ours",
-    line: "The couch's own copy of the rulebook: choose what counts, add a moment, change the points.",
-  },
   "backstage.end-game": { step: "10", title: "Archive or delete a game", line: "Keep it on the trophy shelf and stop scoring, or remove it for everyone." },
 
   // ---- you ----

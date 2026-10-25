@@ -80,16 +80,23 @@ export interface SyncOptions {
 
 type SyncResult = { applied: number; undone: number; skipped: { name: string; why: string }[]; eliminatedEpisodeIds: string[]; episodes: number[] };
 
-/** A fact as it was, for a correction's line and a house ruling to keep. */
-export type KeptFact = Pick<DecisionRow, "episode_number" | "post_merge" | "kind" | "castaway_name" | "method" | "event_type" | "jury_votes" | "units" | "applied">;
+/**
+ * A fact as it was, for a correction's line and a house ruling to keep. `absent`: the league keeps it out (a result the
+ * shared check added after the episode's results were in, step 6b part 3): the rest says what it was.
+ */
+export type KeptFact = Pick<DecisionRow, "episode_number" | "post_merge" | "kind" | "castaway_name" | "method" | "event_type" | "jury_votes" | "units" | "applied"> & {
+  absent?: true;
+};
 
 /** What a correction did to one fact, for the episode's plate. */
 export interface CorrectedFact {
   id: string;
   name: string;
   label: string;
-  change: "removed" | "changed";
+  /** Taken out, changed, or added to an episode whose results the game already had. */
+  change: "removed" | "changed" | "added";
   to: string | null;
+  /** What the game had: for one added, what came in, kept out by a ruling (`absent`). */
   was: KeptFact;
 }
 
@@ -127,15 +134,16 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
 
   const gate = StateLogic.RevealLogic.revealedThrough(state);
   const { rows: accepted } = seasonId
-    ? await client.query<DecisionRow & { fact_status: string | null }>(
-        `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, jury_votes, units, applied, decided_at, fact_status
+    ? await client.query<DecisionRow & { fact_status: string | null; sourced: boolean }>(
+        `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, jury_votes, units, applied, decided_at, fact_status,
+                EXISTS (SELECT 1 FROM fact_sources f WHERE f.decision_id = season_decisions.id) AS sourced
            FROM season_decisions WHERE season_id=$1 AND status='accepted' AND ($2::int IS NULL OR episode_number <= $2)
             AND ($3::timestamptz IS NULL OR decided_at >= $3)
             AND ($4 OR EXISTS (SELECT 1 FROM fact_sources f WHERE f.decision_id = season_decisions.id))
           ORDER BY episode_number ASC, (kind = 'elimination') DESC, created_at ASC`,
         [seasonId, gate, since, season!.resultsBy === "admin"]
       )
-    : { rows: [] as (DecisionRow & { fact_status: string | null })[] };
+    : { rows: [] as (DecisionRow & { fact_status: string | null; sourced: boolean })[] };
   // House rulings: this league keeps the result as it was, in place of the shared one (accepted or not).
   const { rows: rulings } = await client.query<{ decision_id: string; keeps: KeptFact; created_at: Date }>(
     "SELECT decision_id, keeps, created_at FROM league_rulings WHERE league_id=$1",
@@ -145,7 +153,7 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
   const shared = accepted.filter((d) => !ruled.has(d.id));
   const decisions: DecisionRow[] = [
     ...shared,
-    ...rulings.filter((r) => gate === null || r.keeps.episode_number <= gate).map((r) => ({ ...r.keeps, id: r.decision_id, decided_at: r.created_at })),
+    ...rulings.filter((r) => !r.keeps.absent && (gate === null || r.keeps.episode_number <= gate)).map((r) => ({ ...r.keeps, id: r.decision_id, decided_at: r.created_at })),
   ].sort((a, b) => a.episode_number - b.episode_number || Number(b.kind === "elimination") - Number(a.kind === "elimination"));
   const byId = new Map(decisions.map((d) => [d.id, d]));
 
@@ -212,6 +220,10 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
   }
   for (const row of ledger) if (!stale.includes(row)) current.add(row.decision_id);
 
+  // An episode whose results the game already had in full: a result someone sent arriving there now is a correction too
+  // (it adds). One an admin entered by hand (classic's Accept, a fact at a time) is still results coming in, not a correction.
+  const sourced = new Set(accepted.filter((d) => d.sourced).map((d) => d.id));
+  const finalBefore = new Set(before.episodes.filter((e) => StateLogic.episodeHasResults(e) && StateLogic.resultsStage(e) === "final").map((e) => e.number));
   for (const d of decisions) {
     if (current.has(d.id)) continue;
     const { detail, skip } = applyDecision(state, d, cast);
@@ -226,6 +238,11 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
     );
     result.applied++;
     if (!detail.preexisting) touched.add(d.episode_number);
+    if (!detail.preexisting && finalBefore.has(d.episode_number) && sourced.has(d.id) && !was.has(d.id) && !ruled.has(d.id) && !opts.noCorrections && d.kind === "event") {
+      const list = corrected.get(d.episode_number) ?? [];
+      list.push({ id: d.id, name: d.applied?.castawayName || d.castaway_name, label: labelOf(state, d), change: "added", to: null, was: { ...keptOf(d), absent: true } });
+      corrected.set(d.episode_number, list);
+    }
     if (d.kind === "elimination" && !detail.preexisting) {
       eliminationsChanged = true;
       const ep = state.episodes.find((e) => e.number === d.episode_number);

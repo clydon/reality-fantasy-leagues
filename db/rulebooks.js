@@ -336,7 +336,8 @@ async function leaguesUsing(db, id) {
   if (!row) return null;
   const pick = "SELECT l.id, l.name, l.slug FROM leagues l";
   if (row.owner_kind === "league") {
-    const { rows } = await db.query(`${pick} WHERE l.id=$1`, [row.league_id]);
+    // Its own league, and any other game of the couch that shares it (Make it ours).
+    const { rows } = await db.query(`${pick} WHERE l.id=$1 OR l.rulebook_id=$2 ORDER BY l.name`, [row.league_id, id]);
     return { following: [], ownCopies: rows };
   }
   let following = [];
@@ -577,6 +578,9 @@ async function ensureLeagueRulebook(db, leagueId, settings, { parent = null } = 
   const data = settings && settings.leagueRulesetData;
   const league = await one(db, "SELECT ruleset_id, rulebook_id FROM leagues WHERE id=$1", [leagueId]);
   if (!league) return { row: null, change: "unchanged" };
+  // A couch's own copy (Make it ours, step 6b part 3) is shared by its games: whichever one owns the row.
+  const ours = await oursOf(db, leagueId);
+  if (ours) return { row: ours, change: "unchanged" };
   const found = rowOut(await one(db, "SELECT * FROM rulebooks WHERE owner_kind='league' AND league_id=$1 AND status <> 'archived'", [leagueId]));
   const mirrored = found && found.compiledSource === "legacy" && found.provenance && found.provenance.from === "league_rulesets";
   if (!data) {
@@ -613,8 +617,23 @@ async function ensureLeagueRulebook(db, leagueId, settings, { parent = null } = 
 }
 
 /**
+ * The couch's own copy this league plays by (Make it ours: provenance.ours, owned by one of the couch's games and
+ * pointed at by each), or null.
+ */
+async function oursOf(db, leagueId) {
+  return rowOut(
+    await one(
+      db,
+      `SELECT r.* FROM rulebooks r JOIN leagues l ON l.rulebook_id = r.id
+        WHERE l.id=$1 AND r.owner_kind='league' AND r.status <> 'archived' AND r.provenance->>'ours' = 'true'`,
+      [leagueId]
+    )
+  );
+}
+
+/**
  * Brings a league's settings.rulebook in step (`settings` is mutated), under the caller's lock on the league:
- * with the flag off (and its season's own switch off), takes it out; on, writes { id, version, data, reader } from the league's own rulebook or its
+ * with the flag off (and its season's own switch off, and no own copy made by its couch), takes it out; on, writes { id, version, data, reader } from the league's own rulebook or its
  * season's, making or refreshing those first. A legacy rulebook is written only when it's exactly what the league
  * plays by without it (legacyBase); otherwise the league stays on the old path and the result says why.
  *
@@ -622,7 +641,8 @@ async function ensureLeagueRulebook(db, leagueId, settings, { parent = null } = 
  */
 async function syncLeagueRulebook(db, leagueId, settings, { on } = {}) {
   const seasonId = await seasonIdOf(db, settings);
-  const enabled = on === undefined ? await seasonLive(db, seasonId) : on;
+  // A couch that made the rulebook its own plays by its copy whether or not its season's leagues are on rulebooks.
+  const enabled = on === undefined ? (await seasonLive(db, seasonId)) || !!(await oursOf(db, leagueId)) : on;
   const had = !!settings.rulebook;
   const off = (extra) => {
     delete settings.rulebook;
@@ -685,5 +705,5 @@ module.exports = {
   getRulebook, listLibrary, seasonRulebook, seasonIdOf, rulebookForLeague, createRulebook, copyRulebook, saveBlocks, setPhaseStart,
   leaguesUsing, lineage, compiledFor, seasonRulebookFormat,
   sourceFor, ensureTemplate, ensureLibraryEntry, knownPhaseStarts, ensureSeasonRulebook, ensureLeagueRulebook,
-  syncLeagueRulebook, syncLeagueRow, refreshShowRulebooks,
+  syncLeagueRulebook, syncLeagueRow, refreshShowRulebooks, oursOf,
 };

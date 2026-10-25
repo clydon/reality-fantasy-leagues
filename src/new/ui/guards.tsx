@@ -22,6 +22,7 @@ export function GuardSheet({
   subtitle,
   lines,
   body,
+  head,
   loading,
   cta,
   undoNote,
@@ -35,6 +36,8 @@ export function GuardSheet({
   lines: PreviewLine[] | null;
   /** What changes, said another way (a waiver run: how many picks are in, never what they are), in place of `lines`. */
   body?: ReactNode;
+  /** Said first, above what moves (Follow it again: what goes back to the season's). */
+  head?: ReactNode;
   loading?: boolean;
   cta: string;
   undoNote: string;
@@ -45,6 +48,7 @@ export function GuardSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle={subtitle}>
       <div data-guard="2" className="flex flex-col gap-1.5">
+        {head}
         {lines === null || loading ? (
           <div aria-busy className="h-28 animate-pulse rounded-[3px] bg-background" />
         ) : body ? (

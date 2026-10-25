@@ -12,7 +12,7 @@
 //      Waivers page after the run, a shared game's swap through the picker, free agency.
 //   5. Game settings (starters with the bench following after the draft, Reset to recommended, who can join with Undo,
 //      the end-a-game Preview, a Game admin refused), Scoring rules' read side (the rulebook, How it works, the points,
-//      Make it ours as Preview).
+//      Make it ours opens its sheet: check-new-ours.js covers it, since step 6b part 3).
 //   6. Members & roles: named as the games name them, a game's sheet (share it), a role for all three games with Undo,
 //      the last Commissioner refused (stepping down, leaving here and in classic), tier 3's hold (a tap does nothing, a
 //      hold removes, Recent changes restores for 30 days), and leaving from the show's ⋯ menu.
@@ -356,8 +356,11 @@ const first = (name) => name.split(" ")[0];
     check(true, "How it works opens over it");
     await page.keyboard.press("Escape");
     await page.waitForTimeout(500);
-    await page.locator("[data-preview='backstage.make-it-ours']").first().click();
-    check(/Coming soon: Make it ours/.test(await toasted(/Coming soon/)), "Make it ours: Preview (6b)");
+    await page.locator("[data-make-ours]").click();
+    await page.locator("[data-ours-sheet]").waitFor();
+    check(true, "Make it ours opens its sheet (check-new-ours.js makes it)");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(500);
     await fits("Scoring rules");
     await shot("rules");
 

@@ -671,7 +671,13 @@ class ActiveRosterLogic {
   // Points for one event type: the league's own value if set, else the catalog default. A type
   // explicitly set to 0 stays 0 (that's how a commissioner switches a category off), which is why
   // this tests for a number rather than using `||`.
+  //
+  // A league playing by a rulebook (settings.rulebook) scores nothing for a moment its rules don't have, whatever
+  // its points say: a couch's own copy that stopped counting a moment (docs/PLAN-new-design.md step 6b part 3)
+  // keeps the results it recorded, so counting it again is only switching it back on. Leagues on a show's format
+  // or a ruleset copy are as they always were.
   static pointsFor(state, type){
+    if(state.settings && state.settings.rulebook && !formatOf(state).events.some(e => e.id === type)) return 0;
     const configured = state.settings && state.settings.eventPoints ? state.settings.eventPoints[type] : undefined;
     if(typeof configured === 'number' && Number.isFinite(configured)) return configured;
     const def = formatOf(state).events.find(e => e.id === type);
@@ -681,6 +687,9 @@ class ActiveRosterLogic {
   // than one (a `per` rule's count, formats/rules.js: 3 home runs, 6.67 innings). One unit is the type's
   // points exactly.
   static eventPoints(state, ev){
+    // One of a couch's own moments (Make it ours) counts only while the league's rules have it: following the
+    // season's rulebook again leaves the couch's answers in place, scoring nothing, so Undo can count them again.
+    if(ev && ev.couch && !formatOf(state).events.some(e => e.id === ev.type)) return 0;
     const units = ev && Number.isFinite(ev.units) && ev.units > 0 ? ev.units : 1;
     const points = ActiveRosterLogic.pointsFor(state, ev.type);
     return units === 1 ? points : points * units;

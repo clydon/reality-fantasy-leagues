@@ -14,6 +14,7 @@ import type { ChangeLine } from "@/lib/server/league-changes";
 import type { PreviewLine } from "@/lib/game/results-changes";
 import type { WaiverWeek } from "@/lib/game/waiver-view";
 import type { GameSettings, ScoringRules, WaiverAdminGame, WaiverAction } from "@/lib/server/backstage-games";
+import type { CouchMoments } from "@/lib/server/couch-answers";
 import type { Members, OutPreview } from "@/lib/server/backstage-members";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
@@ -29,6 +30,8 @@ export type { ChangeLine } from "@/lib/server/league-changes";
 export type { PreviewLine } from "@/lib/game/results-changes";
 export type { WaiverFace, WaiverMove, WaiverRunView, WaiverWeek } from "@/lib/game/waiver-view";
 export type { GameRules, GameSettings, ScoringRules, WaiverAdminGame } from "@/lib/server/backstage-games";
+export type { OurRules } from "@/lib/server/ours";
+export type { CouchMoments } from "@/lib/server/couch-answers";
 export type { Member, MemberGame, Members, OutPreview } from "@/lib/server/backstage-members";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
@@ -517,6 +520,37 @@ export const gameAdmin = {
     sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}/remove`, { couch: couchId }), "POST", { preview }),
   leave: (seasonId: string, couchId: string, preview = false) => sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, "/leave", { couch: couchId }), "POST", { preview }),
 };
+
+// ---- Make it ours (step 6b part 3): Scoring rules' writes, each a Commissioner's, `preview` first where standings can move ----
+
+const rulesUrl = (seasonId: string, couchId: string) => seasonUrl(seasonId, "/backstage/rules", { couch: couchId });
+type Moved = { lines: PreviewLine[] };
+type Batch = { batch: string | null };
+export const ourRules = {
+  make: (seasonId: string, couchId: string) => post<{ batch: string; games: number }>(rulesUrl(seasonId, couchId), { action: "ours" }),
+  followPreview: (seasonId: string, couchId: string) => post<Moved & { off: number; own: number }>(rulesUrl(seasonId, couchId), { action: "follow", preview: true }),
+  follow: (seasonId: string, couchId: string) => post<Batch>(rulesUrl(seasonId, couchId), { action: "follow" }),
+  counts: (seasonId: string, couchId: string, off: string[], preview = false) => post<Moved & Batch>(rulesUrl(seasonId, couchId), { action: "counts", off, preview }),
+  add: (seasonId: string, couchId: string, add: { label: string; counted: "yesNo" | "eachTime"; points: number }) => post<Batch>(rulesUrl(seasonId, couchId), { action: "moment", add }),
+  remove: (seasonId: string, couchId: string, id: string, preview = false) => post<Moved & Batch>(rulesUrl(seasonId, couchId), { action: "moment", remove: id, preview }),
+  update: (seasonId: string, couchId: string, edit: string, take: boolean, preview = false) => post<Moved & Batch>(rulesUrl(seasonId, couchId), { action: "update", edit, take, preview }),
+  points: (seasonId: string, couchId: string, leagueId: string, points: Record<string, number>, preview = false) =>
+    post<Moved & Batch>(rulesUrl(seasonId, couchId), { action: "points", leagueId, points, preview }),
+};
+
+/** The couch's own moments in an episode you've seen, with your answer and what's settled (none: the couch has none). */
+export function useCouchMoments(seasonId: string, couchId: string | null, episode: number, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "couch-moments", seasonId, couchId, episode],
+    queryFn: () => get<CouchMoments>(seasonUrl(seasonId, `/couch-moments/${episode}`, { couch: couchId ?? "" })),
+    enabled: !!couchId && enabled,
+    staleTime: 30_000,
+    retry: (n, e) => (e as { status?: number }).status !== 403 && n < 2,
+  });
+}
+
+export const answerCouchMoment = (seasonId: string, couchId: string, episode: number, moment: string, picks: { name: string; times?: number }[]) =>
+  post<CouchMoments>(seasonUrl(seasonId, `/couch-moments/${episode}`, { couch: couchId }), { moment, picks });
 
 // ---- which couch you're looking at: one hub shows one couch at a time (site-mock-decisions) ----
 // Per device for now (step 9 brings the couch switcher); a stale id just falls back to the first couch.

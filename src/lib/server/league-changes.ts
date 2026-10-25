@@ -7,6 +7,7 @@ import { isSuperAdminUser, type SessionUser } from "./auth-helpers";
 import { withdrawResults } from "./community-results";
 import { joinedLeague, requireCouch } from "./couches";
 import { pool, withLeagueLock, HttpError } from "./db";
+import { undoRulebookChange } from "./ours";
 import { setLeagueRole } from "./roles";
 import { syncLeagueDecisions } from "./season-decisions";
 import { games } from "./show-space";
@@ -173,6 +174,9 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
   if (rows.some((r) => !r.undo)) throw new HttpError(409, "This one can't be undone here");
   if (rows.some((r) => !r.undo_until || r.undo_until.getTime() <= Date.now())) throw new HttpError(409, "Too late to undo: the next episode has aired");
   if (!canUndo(rows, runs, await latestResults(ids), user.id)) throw new HttpError(409, "Undo the later change to this episode first");
+  // The rules are a Commissioner's (step 6b part 3): a Game admin runs results and waivers, not the rulebook.
+  const commissioner = new Set(here.filter((g) => isSuperAdminUser(user) || g.yourRole === "commissioner").map((g) => g.leagueId));
+  if (rows.some((r) => r.undo?.type === "rulebook" && !commissioner.has(r.league_id))) throw new HttpError(403, "Only a Commissioner changes the rules");
 
   // An answer someone sent (step 6b): taken back once, for every league on the season, then its lines are marked.
   const first = rows[0].undo!;
@@ -217,6 +221,7 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
         const refused = StateLogic.WaiverLogic.undo(s);
         if (refused) throw new HttpError(409, refused);
       } else if (undo.type === "member") await restoreMember(s, client, r.league_id, undo);
+      else if (undo.type === "rulebook") await undoRulebookChange(client, r.league_id, s, undo);
       await mark(client);
     });
     if (undo.type === "member") await joinedLeague(r.league_id, undo.userId);

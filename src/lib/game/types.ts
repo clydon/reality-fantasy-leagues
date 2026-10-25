@@ -133,6 +133,8 @@ export interface ScoringEvent {
   /** How many it counts for, when more than one: a count research reported (3 home runs, 6.67 innings).
    *  Its points are the type's times this (ActiveRosterLogic.eventPoints). */
   units?: number;
+  /** One of the couch's own moments, as the couch settled it (src/lib/server/couch-answers.ts): replaced as answers change. */
+  couch?: boolean;
 }
 
 export interface PickEmPick {

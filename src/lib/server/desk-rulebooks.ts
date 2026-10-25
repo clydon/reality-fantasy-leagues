@@ -9,6 +9,7 @@ import { restageSeason } from "./community-results";
 import { requireCouch } from "./couches";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
+import { reachCopies } from "./ours";
 import { latestAired, seasonSchedules } from "./schedule";
 
 // A rulebook on the desk (docs/PLAN-new-design.md step 6b part 2; rulebooks phases 4-6; the mock's rulebook.js
@@ -209,6 +210,7 @@ export async function saveRulebook(
     if (!saved) throw new HttpError(404, "Rulebook not found");
     if ("refused" in saved) throw refused(saved.refused);
     await logDesk(pool, { entity: "rulebook", entityId: id, action: "fix", text: `Fixed a mistake: ${summary}`, before: { version: r.version }, undo: { type: "rulebookBase", id, blocks: r.blocks }, userId: user.id });
+    await reachCopies(id, { kind: "fix", ops, before: now, after: blocks }, user.id);
   } else if (body.kind === "show_changed") {
     const n = Number(body.fromEpisode);
     const last = Math.max(1, ...edits.map((e) => e.fromEpisode));
@@ -225,6 +227,8 @@ export async function saveRulebook(
       throw refused(saved && "refused" in saved ? saved.refused : []);
     }
     await logDesk(pool, { entity: "rulebook", entityId: id, action: "showChanged", text: `The show changed from Episode ${n}: ${summary}`, undo: { type: "rulebookEdit", id, editId: made[0].id, from: n }, userId: user.id });
+    // A couch's own copy is asked first: Add it or Skip, from its Scoring rules.
+    await reachCopies(id, { kind: "show_changed", editId: made[0].id }, user.id);
     from = n;
   } else throw new HttpError(400, "kind is fix or show_changed");
   const push = await pushRulebook(id);
@@ -238,10 +242,13 @@ export async function undoRulebook(userId: string, undo: { type: string; id: str
   if (undo.type === "rulebookBase" && undo.blocks) {
     const saved = await saveChain(pool, undo.id, { blocks: undo.blocks, userId });
     if (!saved || "refused" in saved) throw new HttpError(409, "The rulebook has changed too much since to put that back");
+    // The fix comes back out of the couches' copies the same way it went in.
+    await reachCopies(undo.id, { kind: "fix", ops: diffBlocks(r.blocks, undo.blocks), before: r.blocks, after: undo.blocks }, userId);
   } else if (undo.type === "rulebookEdit" && undo.editId) {
     await pool.query("UPDATE rulebook_edits SET status = 'withdrawn', updated_at = now() WHERE id = $1", [undo.editId]);
     const saved = await saveChain(pool, undo.id, { userId });
     if (!saved || "refused" in saved) throw new HttpError(409, "Withdrawing that change would leave a later one with nothing to change");
+    await reachCopies(undo.id, { kind: "withdrawn", editId: undo.editId }, userId);
   } else throw new HttpError(409, "That can't be undone here");
   await pushRulebook(undo.id);
   if (r.seasonId) await restageSeason(r.seasonId, undo.type === "rulebookEdit" ? (undo.from ?? 1) : 1, userId);

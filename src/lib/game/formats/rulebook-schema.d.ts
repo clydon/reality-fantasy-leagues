@@ -92,7 +92,8 @@ export interface RulebookBlocks {
   twists?: RulebookTwist[];
   customMoments?: RulebookCustomMoment[];
   points?: Record<string, Points>;
-  momentNotes?: Record<string, { reliability?: "reliable" | "usually" | "patchy"; answeredBy?: "research" | "league" }>;
+  /** off: a couch's own copy doesn't count it (Make it ours). */
+  momentNotes?: Record<string, { reliability?: "reliable" | "usually" | "patchy"; answeredBy?: "research" | "league"; off?: boolean }>;
   leftOut?: string[];
 }
 

@@ -18,10 +18,16 @@ import { Face } from "./parts";
 
 const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}`;
 
-/** "Brady's idol removed" said plainly: "Brady · Found an idol, taken out" / "Mike · Voted Out → Quit". */
+/** "Brady's idol removed" said plainly: "Brady · Found an idol, taken out" / "Devin · Found an idol, added" / "Mike · Voted Out → Quit". */
 export function correctionWhat(c: Pick<Correction, "name" | "label" | "change" | "to">): string {
-  return c.change === "removed" ? `${first(c.name)} · ${c.label}, taken out` : `${first(c.name)} · ${c.label} → ${c.to?.split(" · ").pop() ?? ""}`;
+  if (c.change === "removed") return `${first(c.name)} · ${c.label}, taken out`;
+  if (c.change === "added") return `${first(c.name)} · ${c.label}, added`;
+  return `${first(c.name)} · ${c.label} → ${c.to?.split(" · ").pop() ?? ""}`;
 }
+
+/** What a house ruling does here: keeps the old result, or keeps an added one out. */
+const rulingLine = (c: Pick<Correction, "change">) =>
+  c.change === "added" ? "It doesn't count in your games. The shared results count it." : "The old result still counts in your games. The shared results don't count it.";
 
 /** Your points from it, game by game: "Weekly Lineup: you −4". */
 const yours = (c: Correction) => c.you.filter((y) => y.delta).map((y) => `${y.game}: you ${signed(y.delta)}`);
@@ -40,7 +46,11 @@ export function CorrectionRow({ c }: { c: Correction }) {
           Episode {c.episode} corrected{c.ruling ? " · house ruling" : ""}
         </b>
         <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">
-          {c.ruling ? `${correctionWhat(c).replace(", taken out", "")} still counts here` : [correctionWhat(c), ...mine].join(" · ")}
+          {c.ruling
+            ? c.change === "added"
+              ? `${correctionWhat(c).replace(", added", "")} doesn't count here`
+              : `${correctionWhat(c).replace(", taken out", "")} still counts here`
+            : [correctionWhat(c), ...mine].join(" · ")}
         </small>
       </span>
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
@@ -65,7 +75,7 @@ export function CorrectionPlates({ results }: { results: EpisodeResults | undefi
               <p data-house-ruling className="mt-2 flex gap-2 text-[13px] leading-snug">
                 <KeyRound className="mt-0.5 size-4 flex-none" aria-hidden />
                 <span>
-                  <b>House ruling{c.ruling.by ? ` (${c.ruling.by})` : ""}</b> The old result still counts in your games. The shared results don&apos;t count it.
+                  <b>House ruling{c.ruling.by ? ` (${c.ruling.by})` : ""}</b> {rulingLine(c)}
                 </span>
               </p>
             )}
