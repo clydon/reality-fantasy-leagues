@@ -7,17 +7,19 @@ import type { GameView, WeekProgress } from "@/lib/game/game-view";
 import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
 import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
 import type { SeasonStats } from "@/lib/server/season-stats";
+import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
 export type { EpisodeRow, SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
 export type { CastStat, Pattern, StatDef } from "@/lib/game/cast-stats";
 export type { SeasonStats } from "@/lib/server/season-stats";
+export type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
-// league routes the classic app uses. Nothing here polls: a screen that polls should poll something smaller
-// (docs/HOSTING.md).
+// league routes the classic app uses. Only the couch chat polls (step 4), and it polls something small: the open chat
+// a 32-character version every 5 s, the Chat tab's badge a count every 30 s (docs/HOSTING.md).
 
 export type LeagueRole = "commissioner" | "admin" | "member";
 
@@ -168,13 +170,93 @@ export async function revealEpisode(seasonId: string, couchId: string | null, ep
   return body as SeasonReveal;
 }
 
-/** Post to the couch's chat about this show (today a game's chat, shared by its linked games: step 4 makes it the couch's). */
-export async function postToCouch(leagueId: string, text: string) {
-  const res = await fetch(`/api/leagues/${leagueId}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Couldn't post (${res.status})`);
-  }
+// ---- the couch's chat about a show (GET/POST /api/seasons/[id]/chat?couch=, couch-chat.ts) ----
+
+const chatUrl = (seasonId: string, couchId: string, rest = "", query: Record<string, string> = {}) =>
+  `/api/seasons/${seasonId}/chat${rest}?${new URLSearchParams({ couch: couchId, ...query })}`;
+
+async function chatSend<T = unknown>(url: string, method: "POST" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error || `Couldn't send (${res.status})`);
+  return out as T;
+}
+
+/** Post to the couch's chat about this show: Share this, the reveal's Post to the couch, and the composer. */
+export async function postToCouch(seasonId: string, couchId: string, text: string): Promise<ChatLine> {
+  return (await chatSend<{ message: ChatLine }>(chatUrl(seasonId, couchId), "POST", { text })).message;
+}
+
+export type ChatRead = CouchChat | { out: true };
+
+/**
+ * The couch's chat about this show, folded past where you are (unfolded through `unfold` once you've asked), polled
+ * every 5 s while it's on screen. Each poll sends the version it has, and an unchanged chat keeps what's here.
+ */
+export function useCouchChat(seasonId: string, couchId: string | null, unfold: number | null) {
+  const client = useQueryClient();
+  const key = ["new-design", "chat", seasonId, couchId, unfold] as const;
+  return useQuery({
+    queryKey: key,
+    queryFn: async (): Promise<ChatRead> => {
+      const have = client.getQueryData<ChatRead>(key);
+      const v = have && "v" in have ? have.v : null;
+      const query: Record<string, string> = {};
+      if (unfold) query.unfold = String(unfold);
+      if (v) query.v = v;
+      const body = await get<ChatRead | { unchanged: true; v: string }>(chatUrl(seasonId, couchId as string, "", query));
+      return "unchanged" in body && have ? have : (body as ChatRead);
+    },
+    enabled: !!couchId,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
+    // Show them asks again with `unfold`: the folded chat stays up until the unfolded one is back (this show's only).
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[2] === seasonId && prevQuery?.queryKey[3] === couchId ? prev : undefined),
+  });
+}
+
+/**
+ * The Chat tab's badge: how many messages you haven't read (a count, every 30 s where `poll`); with `reveal`, who the
+ * chat's reveal lines say has revealed that episode. Shared by the frame and Tonight (one query, the frame polls it).
+ */
+export function useChatBadge(seasonId: string, couchId: string | null, reveal: number | null, poll = false) {
+  const query: Record<string, string> = reveal ? { reveal: String(reveal) } : {};
+  return useQuery({
+    queryKey: ["new-design", "chat-badge", seasonId, couchId, reveal],
+    queryFn: () => get<{ unread: number; revealed?: string[] }>(chatUrl(seasonId, couchId as string, "/unread", query)),
+    enabled: !!couchId,
+    staleTime: 20_000,
+    refetchInterval: poll ? 30_000 : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** The couch whose chat a show has: none when you're on your own there (no Chat tab). */
+export const chatCouch = (show: { solo: boolean; couch: { id: string } | null }) => (show.solo ? null : (show.couch?.id ?? null));
+
+/** What you can do in the couch's chat; each refreshes the open chat (and the badge, for a read). */
+export function useChatActions(seasonId: string, couchId: string | null) {
+  const client = useQueryClient();
+  const refresh = () => client.invalidateQueries({ queryKey: ["new-design", "chat", seasonId, couchId] });
+  const at = (id: string, rest = "") => chatUrl(seasonId, couchId as string, `/${encodeURIComponent(id)}${rest}`);
+  return {
+    async post(text: string) {
+      const line = await postToCouch(seasonId, couchId as string, text);
+      await refresh();
+      return line;
+    },
+    react: (id: string, emoji: string) => chatSend(at(id, "/react"), "POST", { emoji }).then(refresh),
+    edit: (id: string, text: string) => chatSend(at(id), "PATCH", { text }).then(refresh),
+    remove: (id: string) => chatSend(at(id), "DELETE").then(refresh),
+    async read(upTo: string) {
+      await chatSend(chatUrl(seasonId, couchId as string, "/read"), "POST", { at: upTo });
+      client.setQueriesData<{ unread: number; revealed?: string[] }>({ queryKey: ["new-design", "chat-badge", seasonId, couchId] }, (d) => (d ? { ...d, unread: 0 } : d));
+    },
+  };
 }
 
 /** After a reveal: everything the new design reads moves on (where you are, the tables, the moves, the episodes). */

@@ -10,6 +10,11 @@
 // one banished in 2, the other's "voted out a fellow Traitor" in 2: the stats' secret-role guard); and a league
 // outside the group on the same season, on its own couch ("ZT Extra": alex and casey), ready to link.
 //
+// The couch's chat (step 4), timed around the airings: riley, jordan and sam talking before, during and after
+// episodes 4 and 5 across the three linked leagues (one conversation), their reveal lines and a few reactions; and,
+// on the Traitors (a show the couch only watches, no league), jordan and riley on the couch's own chat. Nothing is
+// alex's, so a check can count what alex posts.
+//
 //   node scripts/dev-test/new-fixture.js up      create (or refresh) it, print the logins
 //   node scripts/dev-test/new-fixture.js down    remove every row it made
 //
@@ -204,11 +209,60 @@ async function up(pool) {
   }
   await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, 5)`, [users.casey, season]);
 
+  await seedChat(pool, { couch, season, traitorsSeason, leagues, users });
+
   console.log(`[zt] up: sign in as ${PEOPLE.map(username).join(" / ")} (password ${PASSWORD}); couch "ZT Survivor 51", 3 linked leagues, episode 6 in 3 days`);
   return { couchId: couch, extraCouchId: extraCouch, seasonId: season, traitorsSeasonId: traitorsSeason, groupId: group, leagues, users };
 }
 
-module.exports = { up, down, PEOPLE, PASSWORD, username };
+// The couch's chat: [where, who, type, text, episode (whose airtime it's timed from; null for now), offset].
+const CHAT = [
+  ["outlast", "riley", "message", "Carter is running this camp already", 4, "-1 day"],
+  ["lineup", "jordan", "message", "tribal is going to be chaos", 4, "-2 hours"],
+  ["pool", "riley", "message", "THAT blindside. I had Brady in my Pool", 4, "40 minutes"],
+  ["outlast", "riley", "reveal", "riley revealed episode 4", 4, "1 day"],
+  ["lineup", "jordan", "reveal", "jordan revealed episode 4", 4, "1 day 2 hours"],
+  ["outlast", "sam", "message", "who are we starting this week", 5, "-1 day"],
+  ["outlast", "riley", "message", "Carter, Mike, Danny. Not telling you why.", 5, "-3 hours"],
+  ["lineup", "jordan", "message", "that vote was cold", 5, "50 minutes"],
+  ["pool", "riley", "message", "called it. Carter was never safe", 5, "55 minutes"],
+  ["outlast", "riley", "reveal", "riley revealed episode 5", 5, "12 hours"],
+  ["lineup", "jordan", "reveal", "jordan revealed episode 5", 5, "14 hours"],
+  ["outlast", "jordan", "message", "anyone rewatching before Tuesday?", null, "-2 hours"],
+];
+// The Traitors, which the couch watches without a game: riley is on 2, jordan on 4.
+const TRAITORS_CHAT = [
+  ["riley", "the castle looks unreal this season", 2, "-2 days"],
+  ["jordan", "that round table was brutal", 3, "1 hour"],
+  ["jordan", "no way the shield goes to Eli again", 3, "2 days"],
+];
+
+async function seedChat(pool, { couch, season, traitorsSeason, leagues, users }) {
+  // When episode n airs, from the season's own schedule (weekly from the premiere, as schedule.ts works it out).
+  const at = `CASE WHEN $2::int IS NULL THEN now() ELSE (((premiere_date + ($2::int - 1) * 7) + air_time) AT TIME ZONE air_tz) END + $3::interval`;
+  const ids = [];
+  for (const [where, who, type, text, n, offset] of CHAT) {
+    const { rows } = await pool.query(
+      `INSERT INTO chat_messages (league_id, user_id, author_name, type, text, created_at)
+       SELECT $4, $5, $6, $7, $8, ${at} FROM show_seasons WHERE id = $1 RETURNING id`,
+      [season, n, offset, leagues[where], users[who], who, type, text]
+    );
+    ids.push(rows[0].id);
+  }
+  const react = (i, who, emoji) => pool.query(`INSERT INTO chat_reactions (message_id, user_id, emoji) VALUES ($1, $2, $3)`, [ids[i], users[who], emoji]);
+  await react(0, "jordan", "😂");
+  await react(0, "sam", "😂");
+  await react(2, "jordan", "😮");
+  for (const [who, text, n, offset] of TRAITORS_CHAT) {
+    await pool.query(
+      `INSERT INTO chat_messages (couch_id, season_id, user_id, author_name, type, text, created_at)
+       SELECT $4, $1, $5, $6, 'message', $7, ${at} FROM show_seasons WHERE id = $1`,
+      [traitorsSeason, n, offset, couch, users[who], who, text]
+    );
+  }
+}
+
+module.exports = { up, down, PEOPLE, PASSWORD, username, CHAT, TRAITORS_CHAT };
 
 if (require.main === module) {
   if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("new-fixture runs against a local database only");

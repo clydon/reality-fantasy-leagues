@@ -39,6 +39,8 @@ const run = (script, ...args) => {
     assert.equal(manifest.leagues.length, 3, "the group's three leagues, not zt-outside");
     for (const t of TABLES) assert.ok(manifest.tables[t].rows > 0, `${t} has rows, so the round trip covers it`);
     assert.ok(!JSON.stringify(manifest).includes("zt-pass"), "no passwords");
+    const chat = JSON.parse(fs.readFileSync(path.join(dir, "chat_messages.json"), "utf8"));
+    assert.ok(chat.some((m) => !m.league_id && m.couch_id), "the couch's own chat about the season (0110) comes with it");
     for (const t of ["account", "session"]) assert.ok(!fs.existsSync(path.join(dir, `${t}.json`)), `no ${t} table`);
 
     r = run("restore-leagues.js", dir, "--into=restore_zt_check", "--drop");
@@ -59,8 +61,8 @@ const run = (script, ...args) => {
     assert.match(r.out, new RegExp(`${leagues[0].slug} .*DIFFERENT`), "and that league's state hash differs");
     assert.doesNotMatch(r.out, /league_memberships .*NOT WHAT/, "only the changed file is flagged");
 
-    // A backup from before step 0b's migrations (as production's is until they ship): no couch or follow files,
-    // no couch_id on the leagues. The restore fills them in from the leagues, as the migrations did.
+    // A backup from before step 0b's migrations (as production's is until they ship): no couch, follow or couch
+    // chat read files, no couch_id on the leagues, no couch chat. The restore fills them in from the leagues, as the migrations did.
     const before0b = path.join(tmp, "before-0b");
     fs.cpSync(dir, before0b, { recursive: true });
     const m0 = JSON.parse(fs.readFileSync(path.join(before0b, "manifest.json"), "utf8"));
@@ -68,13 +70,24 @@ const run = (script, ...args) => {
       fs.rmSync(path.join(before0b, `${t}.json`));
       delete m0.tables[t];
     }
-    const leagueLines = JSON.parse(fs.readFileSync(path.join(before0b, "leagues.json"), "utf8")).map((row) => {
-      delete row.couch_id;
-      return JSON.stringify(row);
-    });
-    fs.writeFileSync(path.join(before0b, "leagues.json"), `[\n${leagueLines.join(",\n")}\n]\n`, "utf8");
-    m0.tables.leagues.columns = m0.tables.leagues.columns.filter((c) => c !== "couch_id");
-    m0.tables.leagues.hash = hashLines(leagueLines);
+    // A table's file as that database would have written it: some rows, some columns.
+    const rewrite = (t, keep, dropCols) => {
+      const lines = JSON.parse(fs.readFileSync(path.join(before0b, `${t}.json`), "utf8"))
+        .filter(keep)
+        .map((row) => {
+          for (const c of dropCols) delete row[c];
+          return JSON.stringify(row);
+        });
+      fs.writeFileSync(path.join(before0b, `${t}.json`), `[\n${lines.join(",\n")}\n]\n`, "utf8");
+      m0.tables[t].columns = m0.tables[t].columns.filter((c) => !dropCols.includes(c));
+      m0.tables[t].hash = hashLines(lines);
+      m0.tables[t].rows = lines.length;
+    };
+    rewrite("leagues", () => true, ["couch_id"]);
+    // Nor the couch's own chat (0110): only league chat, and no couch or season on a message.
+    const couchChat = new Set(JSON.parse(fs.readFileSync(path.join(before0b, "chat_messages.json"), "utf8")).filter((m) => !m.league_id).map((m) => m.id));
+    rewrite("chat_messages", (m) => !!m.league_id, ["couch_id", "season_id"]);
+    rewrite("chat_reactions", (r) => !couchChat.has(r.message_id), []);
     m0.migrations = m0.migrations.filter((v) => v < "0100");
     fs.writeFileSync(path.join(before0b, "manifest.json"), JSON.stringify(m0, null, 2));
     r = run("restore-leagues.js", before0b, "--into=restore_zt_check", "--drop");

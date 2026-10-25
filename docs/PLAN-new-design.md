@@ -27,7 +27,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 1 | Show space on real leagues: Tonight's move cards, Games tab, How it works | **done** 2026-10-24 on the branch (no migration) | Opus · high |
 | 2 | Episodes, staged results, the one reveal, share at the reveal | **done** 2026-10-24 on the branch (migration 0109 ships with 0b's) | Opus · high |
 | 3 | Cast explorer and stats, server-side spoiler guard | **done** 2026-10-24 on the branch (no migration) | Opus · high |
-| 4 | Chat, per couch and show, spoiler-folded | not started | Opus · medium |
+| 4 | Chat, per couch and show, spoiler-folded | **done** 2026-10-24 on the branch (migration 0110 ships with 0b's) | Opus · medium |
 | 5 | Backstage I: results (trusted results apply on their own), Recent changes, guards and undo | not started | Opus · high |
 | 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | not started | Opus · high |
 | 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | not started | Opus · high |
@@ -148,9 +148,6 @@ step's As built.
 - **The morning update replays the reveal** (step 2; for 5 or later). Final scores after an early reveal open the
   episode's reveal again (who went home included), where the mock's sheet shows "so far +14 → final +22": nobody keeps
   what the early reveal showed. Keeping the early total on `show_follows` (beside `early_seen`) would allow the delta.
-- **Who's revealed isn't shown** (step 2; for 4 or 15). The mock says "riley and sam have revealed · chat is folded for
-  you" under Results are in; the guard sends nobody's progress but your own (0b). Classic's chat line ("riley revealed
-  episode 5") already tells the couch, so step 4's chat or step 15's What your couch sees could make it a share level.
 - **The hub doesn't say results are in** (step 2; for 8). Up next keeps showing the next episode; the show bar, Tonight,
   Episodes, Games and the dock say Results are in. The hub's status line and Up next could lead with the reveal.
 - **Traitors 5's cast stores the faction as its tribe** (step 3; for 6b, or a data fix the user approves now). Its
@@ -171,7 +168,22 @@ step's As built.
   on that show with no game sees "Nothing to show yet". 6b's one mode (every league receives the shared facts) ends this.
 - **Two names for one person** (step 1; for 15). The tables and who's set show a league's player name (alex), the couch
   line the account's (zt_nd_alex in the fixture), so a face can carry two initials. Step 15's profile (name, picture,
-  colour) is the place to make one name win everywhere.
+  colour) is the place to make one name win everywhere. Chat signs a message with the account's username, as classic
+  always has (zt_nd_riley next to the fixture's seeded "riley").
+- **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
+  classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
+  on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
+- **A couch with two unlinked games on one season** (step 4; for 9 or 10, once a couch can start one). The new design shows
+  the couch one conversation (both games' chats) and posts into the first; classic shows each game's chat on its own, so
+  someone only in the second game wouldn't see what was posted from the new design. Linking them (or posting where you
+  play) would settle it. Today every couch has one linked group per season, so it can't happen yet.
+- **The fold goes by airtime** (step 4; for 14). Everything others said since an episode you haven't seen started airing
+  is folded, which is right for weekly and nightly shows; a binge drop folds everything after the drop until you finish.
+  Step 14's streaming shows could fold by the author's own progress at the time (what episode they were on) instead.
+- **Late joiners have no couch chat** (step 4; for 9). Kept from classic: someone catching up, or a ghost the league can't
+  see yet, gets "Chat opens later". The fold would keep them spoiler-safe now, but posting would show them to a league
+  that can't see them; step 9's join flow is where a couch member who isn't in the games yet joins the talk.
+- **Only the newest 300 messages** (step 4; for 13 or 15), as classic: nothing loads earlier ones.
 
 ## What exists, what's needed
 
@@ -1067,6 +1079,67 @@ The cast explorer and its stats are real, for anyone on a show, playing or not. 
   home (step 2's).
 - **For step 4:** Share this and the reveal's Post to the couch write to the first game's chat (the linked group's); step 4
   makes them the couch's.
+
+### As built, step 4 (2026-10-24, on `new-design`)
+
+One chat per couch and show is real. Migration **0110** ships with 0b's (same rehearsal).
+- **The scope** (`src/lib/server/couch-chat.ts`): a couch's chat about a season is every message in the couch's games on it
+  (`league_id`: classic's linked-group chat, so both designs show the same conversation) plus what was said where the couch
+  has no game yet. Migration 0110 makes `chat_messages.league_id` nullable and adds `couch_id` and `season_id` (set only on
+  those, with a check that a message has one or the other), and `couch_chat_reads`. Posting goes into the couch's first
+  game on the show, so classic shows it and pushes it as before; a show the couch only watches gets the couch and season.
+- **The fold, on the server** (`src/lib/game/chat-fold.ts`, pure): once an episode you haven't seen has aired, everyone
+  else's messages from its airtime on are sent with no words or reactions (who and when only); your own and the reveal
+  lines show. Classic's rule (`SpoilerLogic.chatWindow`) on the season's schedule (`schedule.ts`, kept a minute per server),
+  so a watch-only show folds the same way, by your follow's mark. **Show them** (`&unfold=<latest>`) unfolds through the
+  episode that was latest when you tapped; what's said once the next one airs folds again. The fold says who the chat's
+  own reveal lines say has revealed it.
+- **Routes** (`/api/seasons/[id]/chat?couch=`): GET (`&v=` answers `{ unchanged }`, an md5 worked out in the database, as
+  classic's; `&unfold=`), POST, `/read` (the couch's mark and classic's `chat_reads` for its games there), `/unread`
+  (the badge's count, `&reveal=N` adding who has revealed N), `/[messageId]` PATCH and DELETE, `/[messageId]/react`.
+  Your own message, or anyone's for whoever runs a game here or owns the couch; a reveal line only by them; a message in
+  another couch's chat is 404. A late joiner catching up (or a ghost) is out of the chat, as classic. A site admin
+  who isn't on the couch reads it and can't post.
+- **Shared with classic** (`src/lib/server/chat.ts`): `messageText`, `authorName`, `toggleReaction`, `editMessage`,
+  `mayChange`; classic's league routes use them and answer as before. **Fixed in classic:** its react route never checked
+  that the message was in the league's chat (any member could react to any message id); it does now.
+- **The Chat tab** (`src/new/show/chat.tsx`, the mock's tabChat and wChat): day lines, runs of one person (the name and time
+  in the first bubble, the face beside the last), yours in bone, reveal lines as "riley revealed Episode 5", reactions under
+  the bubble, a message's sheet (six quick reactions, any emoji behind +, Copy, Edit, Delete), the composer above the tab
+  bar (grows to five lines, Enter sends, lifted over the keyboard by the visual viewport), opening at the newest and
+  following new ones unless you've scrolled up. **One fold** where the first folded message was: "5 messages since Episode
+  4 aired", "riley and jordan have revealed it" (else "From jordan. They unfold when you've seen it."), Reveal Episode N
+  (when you play) and Show them, both outlines. Polls every 5 s while open (not in a background tab); reading it clears the
+  badge here and in classic. "Message the Survivor 51 couch", or "Message the couch about The Traitors 5" on a show the
+  couch only watches.
+- **The badge and Tonight:** a show space polls the Chat tab's count every 30 s (the open chat's own poll replaces it).
+  Tonight's Results are in says "riley and jordan have revealed · chat is folded for you" from the chat's reveal lines: step
+  2's Noticed item (who's revealed isn't shown), without sending anyone's progress the chat doesn't already say.
+- **Share this (Cast) and the reveal's Post to the couch** write to the couch's chat about the show (`postToCouch(seasonId,
+  couchId, text)`), from anyone on a couch with others there, playing or not; on your own, Share this opens the phone's share
+  sheet and the reveal's share has only Share image.
+- **Backups** take the couch's own chat and `couch_chat_reads` (`backup-common.js` `LATER_TABLES` since 0110; a `--group`
+  backup takes the couch's chat about the group's seasons); `backup-fixture.js` has both and `check-backup-restore.js`
+  passes, its before-0b copy now without couch chat too.
+- **Fixtures and Preview:** deleted `fixtures/chat.ts` and the entry `show.chat`. `new-fixture.js` now seeds the couch's chat,
+  timed around episodes 4 and 5 across the three leagues (riley, jordan and sam, their reveal lines, reactions), and a chat
+  on the zt Traitors the couch watches without a game; none of it is alex's (`CHAT`, `TRAITORS_CHAT` exported).
+- **Changed from the mock:** the fold has its two buttons and names who has revealed (the mock's was one line, "4 messages
+  after Episode 5 aired · reveal or tap to show"); bubbles carry the time beside the name; the send button is grey (yellow is
+  for what you must do).
+- **Checks:** `scripts/dev-test/check-new-chat.js <outDir> [--width=390] [--keep]` (52 PASS at 390 and at 1280:
+  one conversation from three leagues, `?v=`, a couch you're not on; sam's fold with no words sent, his own and the reveal
+  lines, who has revealed, `&unfold=5` and `&unfold=4`; the badge, reads moving both marks, classic's badge agreeing; a post
+  into the first game and classic showing it, editing, removing, reactions, a message from another couch here and in
+  classic's react route; the Traitors' watch-only chat for riley, jordan and alex and a post there with no league; in the
+  browser: the tab with no Preview, days, reveal lines, opening at the newest above the composer, the badge on Tonight and
+  gone on Chat, reading on open, Enter sends, the poll's `{ unchanged }`, a reaction and an edit from the sheet; sam's
+  Tonight line, his fold and Show them; riley's Traitors chat). `tests/chat-fold.test.js` (4). `check-new-show.js`, `check-new-reveal.js`, `check-new-stats.js` and `check-new-shell.js` pass at 390 and 1280 (69, 44, 56 and 46/47), `check-new-hub.js` and `check-preview.js` pass; so do classic's `check-chat-polls.js --ui` (its routes now share `chat.ts`), `check-backup-restore.js` and `check-decision-units.js`; `npm test` 481 pass plus the 3 known tour-commissioner failures; type-check clean, lint as before.
+- **Noticed, left as is:** five things, now in Noticed, not fixed: chat pushes are still classic's, a couch with two unlinked
+  games on one season, the fold goes by airtime, late joiners have no couch chat, only the newest 300 messages. Fixed from
+  that list: who's revealed isn't shown (step 2's), on Tonight and in the chat.
+- **For step 5:** nothing in chat needs changing for Backstage; a results change the couch should hear about could be a
+  reveal-style line in the couch's chat (`couch-chat.ts`), beside Recent changes' own log.
 
 ### Step 6a: Backstage II, the game's own pages
 

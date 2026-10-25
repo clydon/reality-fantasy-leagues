@@ -3,7 +3,7 @@
 import { startTransition, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeftRight, ChevronDown, ChevronRight, Eye, Send, Users, Zap } from "lucide-react";
-import { postToCouch, useSeasonStats, type CastStat, type Pattern, type SeasonStats } from "../data";
+import { chatCouch, postToCouch, useSeasonStats, type CastStat, type Pattern, type SeasonStats } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Flip } from "../ui/flip";
 import { EmptyState } from "../ui/parts";
@@ -83,10 +83,11 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const share = async () => {
     const name = show.header ? `${show.header.show.name}${show.header.seasonNumber ? ` ${show.header.seasonNumber}` : ""}` : "This show";
     const text = `${name} stats · ranked by ${ranked.name.toLowerCase()} · Episodes ${from === to ? from : `${from}–${to}`}`;
-    const leagueId = show.play?.[0]?.leagueId ?? null;
+    // The couch's chat about this show when there's a couch to tell; on your own, the phone's share sheet.
+    const couchId = chatCouch(show);
     try {
-      if (leagueId) {
-        await postToCouch(leagueId, text);
+      if (couchId) {
+        await postToCouch(seasonId, couchId, text);
         toast("Shared with the couch · in its chat");
       } else {
         const url = `${window.location.origin}${window.location.pathname}?rank=${encodeURIComponent(ranked.key)}&from=${from}&to=${to}`;

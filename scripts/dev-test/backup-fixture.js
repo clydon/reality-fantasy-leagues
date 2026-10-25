@@ -1,7 +1,8 @@
 // Dev-only test bank: linked-fixture.js's group of three leagues, filled so that every table a league backup
 // holds (scripts/backup-common.js) has rows: a zt show, season and format of its own; a second person;
 // cast, results, research, rule and cast changes, wiki reads and proposals; invites, a ruleset, waiver claims,
-// blind picks, team notes, chat with a reaction and reads; settings and notification prefs. Also both foreign
+// blind picks, team notes, chat with a reaction and reads (and the couch's own chat about the season, with its
+// read: step 4); settings and notification prefs. Also both foreign
 // key cycles (the group's favourite league, a league's ruleset) and one league outside the group that a cast
 // change points at, so a --group backup has a reference to settle.
 //
@@ -112,6 +113,12 @@ async function up(pool) {
   await pool.query(`INSERT INTO couch_members (couch_id, user_id, role) VALUES ($1, $2, 'owner'), ($1, $3, 'member')`, [couch, me, ann]);
   await pool.query(`INSERT INTO couch_invites (code, couch_id, created_by) VALUES ('ZTCOUCH1', $1, $2)`, [couch, me]);
   await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, 4), ($3, $2, 0)`, [me, season, ann]);
+  // The couch's own chat about the season (step 4, migration 0110: no league), with a reaction, and how far it's read.
+  const couchMsg = (await one(`INSERT INTO chat_messages (couch_id, season_id, user_id, author_name, type, text) VALUES ($1, $2, $3, $4, 'message', 'zt couch hi') RETURNING id`, [
+    couch, season, ann, ANN,
+  ])).id;
+  await pool.query(`INSERT INTO chat_reactions (message_id, user_id, emoji) VALUES ($1, $2, '👍')`, [couchMsg, me]);
+  await pool.query(`INSERT INTO couch_chat_reads (couch_id, season_id, user_id, last_read_at) VALUES ($1, $2, $3, now())`, [couch, season, me]);
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

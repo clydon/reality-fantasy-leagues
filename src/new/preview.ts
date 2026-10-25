@@ -42,7 +42,6 @@ export const PREVIEWS = {
   "hub.trophies": { step: "8", title: "Trophy shelf", line: "Every season the couch has finished." },
 
   // ---- a show space (ported in 0d; fixtures in src/new/fixtures/) ----
-  "show.chat": { step: "4", title: "Chat", line: "The couch's chat about this show, folded at where you are." },
   "show.episode-games": { step: "12", title: "This week's games", line: "Bingo, Who goes home? and trivia for each episode." },
   "show.make-it-a-game": { step: "10", title: "Make it a game", line: "Play this show with your couch." },
   "show.watch-along": { step: "13", title: "Watch along", line: "Watch with the couch, live or on your own time." },

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Send } from "lucide-react";
-import { postToCouch, revealEpisode, useAfterReveal, type SeasonReveal } from "../data";
+import { chatCouch, postToCouch, revealEpisode, useAfterReveal, type SeasonReveal } from "../data";
 import { ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
@@ -398,12 +398,14 @@ function ShareSheet({ open, onOpenChange, r, show }: { open: boolean; onOpenChan
   const [withOut, setWithOut] = useState(false);
   const [busy, setBusy] = useState(false);
   const words = cardWords(r, show, withOut);
-  const leagueId = r.table?.leagueId ?? r.games[0]?.leagueId ?? show.play?.[0]?.leagueId ?? null;
+  // The couch's chat about this show (none on your own: then only the image).
+  const couchId = chatCouch(show);
+  const seasonId = show.header?.seasonId ?? null;
   const post = async () => {
-    if (!leagueId) return;
+    if (!couchId || !seasonId) return;
     setBusy(true);
     try {
-      await postToCouch(leagueId, [words.head, words.line, words.out].filter(Boolean).join(" · "));
+      await postToCouch(seasonId, couchId, [words.head, words.line, words.out].filter(Boolean).join(" · "));
       onOpenChange(false);
       toast("Posted to the couch chat");
     } catch (e) {
@@ -463,14 +465,16 @@ function ShareSheet({ open, onOpenChange, r, show }: { open: boolean; onOpenChan
           <i className={`absolute top-1 size-5 rounded-full bg-white transition-transform ${withOut ? "translate-x-6" : "translate-x-1"}`} />
         </span>
       </button>
-      <div className="mt-2 grid grid-cols-2 gap-2 pb-1">
+      <div className={`mt-2 grid gap-2 pb-1 ${couchId ? "grid-cols-2" : ""}`}>
         <Btn onClick={image}>
           <Send className="size-[18px]" aria-hidden />
           Share image
         </Btn>
-        <Btn tone="must" onClick={post} disabled={busy || !leagueId}>
-          Post to the couch
-        </Btn>
+        {couchId && (
+          <Btn tone="must" onClick={post} disabled={busy}>
+            Post to the couch
+          </Btn>
+        )}
       </div>
     </Sheet>
   );

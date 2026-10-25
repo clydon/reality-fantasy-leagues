@@ -78,7 +78,7 @@ scales up under load). So what matters is how often something wakes it, not how 
 | Hourly GitHub job (when it runs) | ~6 min an hour | ~18 |
 | Bot research clock, after 2026-10-24 | each episode night's runs, plus a check-in every 6 h | ~3 per show airing |
 | Bot research clock, before (a call every 2 min) | around the clock | ~180 (over the allowance) |
-| People with the app open | while they're on it, plus 5 minutes | the rest: ~20 in Oct 1-24 (35.4 total, less ~11 for the hourly job until it stopped and ~3 for the clock's first night) |
+| People with the app open (classic, or a new-design show space: its Chat badge polls) | while they're on it, plus 5 minutes | the rest: ~20 in Oct 1-24 (35.4 total, less ~11 for the hourly job until it stopped and ~3 for the clock's first night) |
 | Admin bot-research runs panel | polls every 60 s while open | admin only |
 
 **Neon transfer** is bytes queries send back. Polls dominate it. Per screen open on a league (estimates, not
@@ -91,9 +91,13 @@ measured; measure from Neon's usage a week after a change):
 | Your moves (`/api/me/actions`) | 30 s | ~1-2 KB (hashes; full states only when changed) |
 | Open chat (`/chat?v=`) | 5 s | under 1 KB when nothing changed |
 | **Per open screen** | | **~1 MB an hour** (it was ~70 MB an hour before 2026-10-24) |
+| New design, a show space: the Chat tab's badge (`/api/seasons/[id]/chat/unread`) | 30 s | under 1 KB (a count) |
+| New design, the open Chat tab (`/api/seasons/[id]/chat?v=`) | 5 s, in place of the badge | under 1 KB when nothing changed (32 characters) |
+| **Per open new-design screen** | | **~0.1 MB an hour** on a show space, ~0.5 MB on its Chat tab; nothing on the hub |
 
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
-chat page (its 5-second poll replaces the badge's).
+chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
+none on the hub.
 
 **Rough scale, so the first wall is visible:** 100 couches of 4, each person with a screen open 3 hours a week,
 is about 5,200 screen-hours a month: ~5 GB of Neon transfer (the free limit) and ~3M Vercel invocations (three
@@ -213,3 +217,15 @@ never handles it: the user does the reset and the pasting.
   md5 the database works out), so a slider's every range and everyone on a couch cost the check rather than the few
   hundred rows (~40-60 KB at a season's end) again; plus one league state through `league-states.ts` (a hash when
   unchanged). A show you don't play builds its Episodes from the same read. Share this is one ordinary chat message.
+- **2026-10-24, on the `new-design` branch (not deployed).** Step 4, one chat per couch and show. Migration 0110 makes
+  `chat_messages.league_id` nullable and adds two nullable columns (`couch_id`, `season_id`, set only on a message about a
+  show the couch watches without a game) and a small table, `couch_chat_reads` (a row per person per couch and show they've
+  read): a few bytes a message, nothing more per league. The new design's **first polls**: a show space asks the Chat tab's
+  badge every 30 s (a count worked out in the database, plus who's revealed the episode you're on when one's waiting: a few
+  short reveal lines), and the open Chat tab asks every 5 s with its version, like classic's (`?v=`, an md5 of the messages
+  and reactions in the database, so an unchanged chat sends 32 characters; the newest 300 only when it changed, ~30-60 KB for
+  a busy week). Neither runs in a background tab. While someone has a show space open, Neon stays awake as it does for an
+  open classic screen. The fold needs each episode's air time: kept in the server's memory per season for a minute rather
+  than read on every poll. Posting writes one row (into the couch's first game on the show, so classic's chat shows it);
+  reading writes `couch_chat_reads` and classic's `chat_reads` for the couch's games there. Backups take the couch's chat
+  and its reads with the leagues (`scripts/backup-leagues.js`).

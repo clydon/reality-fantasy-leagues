@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { BookOpen, Ellipsis, Eye, KeyRound, Bell, Plus, Tv, UserPlus, Users } from "lucide-react";
 import { calm, justAired, ticks } from "../clock";
-import { useCouchForSeason, useHome, useSeasonEpisodes, useSeasonGames, useSpace, type GameRef, type GameView, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
+import { chatCouch, useChatBadge, useCouchForSeason, useHome, useSeasonEpisodes, useSeasonGames, useSpace, type GameRef, type GameView, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
@@ -29,7 +29,8 @@ import type { PreviewId } from "../preview";
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
 // the tab bar, and what opens over them: Your moves, How it works. Ported from the mock in 0d (show.js, dock.js,
 // refine.js tabTonight, gamestab.js, explorer.js, rulebook.js howPage); on real leagues since step 1 (your moves, the
-// tables, How it works), the cast and its stats since step 3, the rest on fixtures behind Preview.
+// tables, How it works), the cast and its stats since step 3, the couch's chat since step 4, the rest on fixtures behind
+// Preview.
 
 /** Everything a show's screens share: the couch it opens with, its header (from the home's cache until its own
  *  read comes back), its games, whether you run one of them, and your games as you play them (moves, tables). */
@@ -105,6 +106,8 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
   const show = useShow(seasonId);
   const nav = useNav();
   const status = useAirStatus(show.upNext, show.latestAired, show.header?.episodeCount ?? null, show.episodes);
+  // The Chat tab's badge, every 30 s (the open chat polls its own instead, and reading it clears this).
+  const badge = useChatBadge(seasonId, chatCouch(show), show.episodes?.reveal?.episode ?? null, tab !== "chat");
 
   if (show.notFound) {
     return <EmptyState icon={Tv} title="Show not found" line="It may have been removed." />;
@@ -129,7 +132,12 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       )}
       <main style={{ paddingBottom: `calc(${foot}px + env(safe-area-inset-bottom, 0px))` }}>{children}</main>
       {dock && <Dock show={show} />}
-      <TabBar seasonId={seasonId} tabs={tabs} current={tab} badges={{ tonight: show.movesDue + (show.episodes?.reveal ? 1 : 0) }} />
+      <TabBar
+        seasonId={seasonId}
+        tabs={tabs}
+        current={tab}
+        badges={{ tonight: show.movesDue + (show.episodes?.reveal ? 1 : 0), chat: tab === "chat" ? 0 : (badge.data?.unread ?? 0) }}
+      />
       <MovesSheet show={show} seasonId={seasonId} />
       <RevealScreen show={show} seasonId={seasonId} />
       {show.header && (
@@ -223,7 +231,7 @@ export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab })
       {tab === "episodes" && <Episodes seasonId={seasonId} show={show} />}
       {tab === "games" && <Games show={show} />}
       {tab === "cast" && <Cast seasonId={seasonId} show={show} />}
-      {tab === "chat" && <Chat show={show} />}
+      {tab === "chat" && <Chat seasonId={seasonId} show={show} />}
       <Sheet open={where} onOpenChange={setWhere} title="Where you are" subtitle={show.header.show.name}>
         <Preview id="show.where" />
       </Sheet>

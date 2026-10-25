@@ -1,6 +1,7 @@
 // Backs up everything the couch has played, before the new design changes anything (docs/PLAN-new-design.md,
 // step 0a): the leagues with their state, members, groups, invites, rulesets, waiver claims, blind draft
-// picks, team notes, applied results and chat; their couches (step 0b); their seasons' shows, formats, cast,
+// picks, team notes, applied results and chat (the couch's own chat about a show too, step 4); their couches (step 0b);
+// their seasons' shows, formats, cast,
 // results, rule changes, research, wiki reads and who follows them; and the people those rows point at (user,
 // settings, notification prefs: never sessions, accounts or passwords). A database from before step 0b's
 // migrations has no couches or follows yet, and its backup goes without them.
@@ -41,9 +42,12 @@ const GROUP_SLICES = {
   blind_draft_picks: "league_id = ANY($L::uuid[])",
   episode_team_notes: "league_id = ANY($L::uuid[])",
   league_applied_decisions: "league_id = ANY($L::uuid[])",
-  chat_messages: "league_id = ANY($L::uuid[])",
-  chat_reactions: "message_id IN (SELECT id FROM chat_messages WHERE league_id = ANY($L::uuid[]))",
+  // A couch's chat about a show it has no game on (migration 0110: no league, its couch and season) comes with the
+  // couch when it's about one of the group's seasons; a database from before 0110 has only league chat.
+  chat_messages: (cols) => CHAT_IN(cols),
+  chat_reactions: (cols, chatCols) => `message_id IN (SELECT id FROM chat_messages WHERE ${CHAT_IN(chatCols)})`,
   chat_reads: "league_id = ANY($L::uuid[])",
+  couch_chat_reads: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[])) AND season_id = ANY($S::uuid[])",
   wiki_proposals: "league_id = ANY($L::uuid[])",
   wiki_proposal_items: "league_id = ANY($L::uuid[])",
   shows: "id IN (SELECT show_id FROM show_seasons WHERE id = ANY($S::uuid[]))",
@@ -60,6 +64,12 @@ const GROUP_SLICES = {
       JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number WHERE ss.id = ANY($S::uuid[]))`,
   wiki_extractions: "(show_id, season_number) IN (SELECT show_id, season_number FROM show_seasons WHERE id = ANY($S::uuid[]))",
 };
+function CHAT_IN(chatCols) {
+  return chatCols.includes("couch_id")
+    ? "(league_id = ANY($L::uuid[]) OR (league_id IS NULL AND couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[])) AND season_id = ANY($S::uuid[])))"
+    : "league_id = ANY($L::uuid[])";
+}
+
 // Rows another table points at that a slice can miss (a result read from a wiki extraction of another
 // season, say) are added; people are only ever added this way.
 const PULLED = ["wiki_extractions", "user"];
@@ -128,7 +138,13 @@ async function main() {
       if (!C.LATER_TABLES[table]) throw new Error(`the database has no ${table} table`);
       console.log(`[backup] no ${table} table (it comes with migration ${C.LATER_TABLES[table].since}): left out`);
     }
-    for (const table of [...C.LEAGUE_TABLES, ...C.SEASON_TABLES].filter((t) => present.includes(t))) await take(table, groupId ? GROUP_SLICES[table] : "TRUE");
+    // A slice can depend on the table's columns (chat_messages before and after 0110).
+    const chatCols = await C.columnsOf(db, "chat_messages");
+    const sliceOf = async (table) => {
+      const slice = GROUP_SLICES[table];
+      return typeof slice === "function" ? slice(await C.columnsOf(db, table), chatCols) : slice;
+    };
+    for (const table of [...C.LEAGUE_TABLES, ...C.SEASON_TABLES].filter((t) => present.includes(t))) await take(table, groupId ? await sliceOf(table) : "TRUE");
 
     // Rows pointed at from outside their slice, then the people every row so far points at.
     for (const table of PULLED) {
@@ -143,7 +159,7 @@ async function main() {
       } else if (want.size) {
         // Only in --group mode (every row is already in otherwise). Read again whole, so it stays in key order.
         const before = lines[table].length;
-        await take(table, `(${GROUP_SLICES[table]}) OR id = ANY($X::uuid[])`, [...want]);
+        await take(table, `(${await sliceOf(table)}) OR id = ANY($X::uuid[])`, [...want]);
         console.log(`[backup] ${table}: +${lines[table].length - before} rows pointed at from outside their seasons`);
       }
     }

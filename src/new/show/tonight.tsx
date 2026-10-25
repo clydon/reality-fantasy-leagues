@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Check, ChevronRight, Eye, Lock, Plus, Tv } from "lucide-react";
+import { Check, ChevronRight, Eye, Lock, MessageCircle, Plus, Tv } from "lucide-react";
 import { airTime, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { BINGO_CARD } from "../fixtures/episode-games";
-import type { GameView } from "../data";
+import { chatCouch, useChatBadge, type GameView } from "../data";
 import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -32,7 +32,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
   return (
     <>
       <PhaseHead show={show} />
-      {playing && <AfterEpisode show={show} />}
+      {playing && <AfterEpisode seasonId={seasonId} show={show} />}
       {playing && <YourMoves seasonId={seasonId} show={show} />}
       {playing && <LastTime show={show} />}
       <Extras show={show} />
@@ -256,10 +256,16 @@ function StageBar({ episode, stage, airAt }: { episode: number; stage: "waiting"
   );
 }
 
+/** "riley", "riley and sam", "riley, sam and jordan" … "have revealed". */
+const revealedWords = (who: string[]) =>
+  `${who.length <= 2 ? who.join(" and ") : `${who.slice(0, -1).join(", ")} and ${who[who.length - 1]}`} ${who.length === 1 ? "has" : "have"} revealed`;
+
 /** What an episode's results need from you now: waiting for them, revealing them, or seeing its final scores. */
-function AfterEpisode({ show }: { show: ShowData }) {
+function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const openReveal = useOpenReveal();
   const eps = show.episodes;
+  // Who the chat's reveal lines say has revealed it (the frame polls this with the Chat tab's badge).
+  const revealed = useChatBadge(seasonId, chatCouch(show), eps?.reveal?.episode ?? null).data?.revealed ?? [];
   if (!eps || show.upNext?.live) return null;
   if (eps.reveal) {
     const n = eps.reveal.episode;
@@ -275,6 +281,12 @@ function AfterEpisode({ show }: { show: ShowData }) {
           <small className="mt-2 block text-sm leading-snug text-white/85">
             {early ? "Who went home, Survival Pool and Outlast. Weekly Lineup's full scores come later." : "Watched it? Reveal for every game at once. Nothing shows until then."}
           </small>
+          {revealed.length > 0 && (
+            <small data-revealed className="mt-2 flex items-start gap-1.5 text-[13px] font-semibold leading-snug text-white/85">
+              <MessageCircle className="mt-px size-3.5 flex-none" aria-hidden />
+              {revealedWords(revealed)} · chat is folded for you
+            </small>
+          )}
           <Btn tone="must" wide className="mt-4" onClick={() => openReveal(n)}>
             <Eye className="size-5" aria-hidden />
             Reveal Episode {n}

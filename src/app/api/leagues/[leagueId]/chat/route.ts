@@ -3,7 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { outOfChat, outOfGroupChat } from "@/lib/server/late-join";
 import { pool, HttpError } from "@/lib/server/db";
-import { withReactions } from "@/lib/server/chat";
+import { authorName, MESSAGE_COLUMNS, messageText, withReactions } from "@/lib/server/chat";
 import { notifyChat } from "@/lib/server/push-events";
 import { groupLeagueIds } from "@/lib/server/league-groups";
 
@@ -75,16 +75,14 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   const { user, membership } = await requireLeagueRole(req, leagueId, "member");
   if (await outOfChat(leagueId, membership.playerId)) throw new HttpError(403, "Chat opens once you're in the league");
   const { text: rawText } = (await req.json().catch(() => ({}))) as { text?: string };
-  const text = (rawText || "").trim();
-  if (!text) throw new HttpError(400, "Message text required");
-  if (text.length > 2000) throw new HttpError(400, "Message is too long");
+  const text = messageText(rawText);
 
-  const authorName = (user as { username?: string | null }).username || user.name;
+  const name = authorName(user as { name: string; username?: string | null });
   const { rows } = await pool.query(
     `INSERT INTO chat_messages (league_id, user_id, author_name, type, text) VALUES ($1,$2,$3,'message',$4)
-     RETURNING id, user_id, author_name, type, text, created_at, edited_at`,
-    [leagueId, user.id, authorName, text]
+     RETURNING ${MESSAGE_COLUMNS}`,
+    [leagueId, user.id, name, text]
   );
-  notifyChat(leagueId, user.id, authorName, text);
+  notifyChat(leagueId, user.id, name, text);
   return NextResponse.json({ message: { ...rows[0], reactions: {} } });
 });
