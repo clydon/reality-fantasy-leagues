@@ -18,6 +18,7 @@ import { placeOf } from "./tonight";
 import { Block, Face, IconBox } from "./parts";
 import { playsWaivers, WaiversHowBody } from "./waivers";
 import { useOpenReveal } from "./reveal";
+import { SoloGames } from "./solo";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Your games' tables when
 // you're in one (a pill per game, then each table; a row opens that person's team, Rules each game in plain words),
@@ -49,9 +50,11 @@ export function Games({ show }: { show: ShowData }) {
         ) : (
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
         )
-      ) : others.length ? null : (
+      ) : others.length || show.solo ? null : (
         <PlayIt name={name} />
       )}
+      {/* On your own (step 9 part 3): the season's public pool and your practice couch, when you're solo. */}
+      {show.solo && <SoloGames show={show} />}
       {show.couch && others.length > 0 && (
         <Block title={playing ? "Also on the couch" : "Join a game"} aside={`${others.length} ${others.length === 1 ? "game" : "games"}`}>
           <div data-games-join>
@@ -64,15 +67,17 @@ export function Games({ show }: { show: ShowData }) {
       )}
       <HowRow show={show} name={name} />
       <ThisWeek show={show} />
-      <Preview id="show.start-game" className="mx-4 mt-[26px]">
-        <button type="button" className="flex w-full items-center gap-3 p-4 text-left">
-          <Plus className="size-6 flex-none" aria-hidden />
-          <span>
-            <b className="block text-base">Start a game</b>
-            <small className="block text-[13px] leading-snug text-muted-foreground">A season game, bingo, a poll or trivia. Anyone on the couch can.</small>
-          </span>
-        </button>
-      </Preview>
+      {!show.solo && (
+        <Preview id="show.start-game" className="mx-4 mt-[26px]">
+          <button type="button" className="flex w-full items-center gap-3 p-4 text-left">
+            <Plus className="size-6 flex-none" aria-hidden />
+            <span>
+              <b className="block text-base">Start a game</b>
+              <small className="block text-[13px] leading-snug text-muted-foreground">A season game, bingo, a poll or trivia. Anyone on the couch can.</small>
+            </span>
+          </button>
+        </Preview>
+      )}
       <PlayerSheet open={player} onClose={() => setPlayer(null)} />
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
     </>
@@ -101,6 +106,8 @@ function AsOf({ show }: { show: ShowData }) {
 
 /** What sits at the end of a row before its total: Outlast's team, the pool's last picks, the lineup's last week. */
 function RowExtras({ g, r }: { g: GameView; r: TableRow }) {
+  // A public pool's strangers: a name and a streak (usernames only, step 9 part 3).
+  if (g.solo === "public" && !r.you) return null;
   if (g.gameType === "pickem") {
     return (
       <>
@@ -139,7 +146,7 @@ function Standings({ play, onPlayer, onRules }: { play: GameView[]; onPlayer: (r
             className="flex h-10 flex-none items-center gap-2 rounded-[3px] border-l-[3px] bg-card px-3 text-sm font-semibold"
             style={{ borderLeftColor: gameColour(g.gameName) }}
           >
-            {twin(g) ? g.name : g.gameName}
+            {g.solo === "public" ? "Everyone" : twin(g) ? g.name : g.gameName}
             <b className="type-num text-[20px]">{placeOf(g)}</b>
           </button>
         ))}
@@ -150,7 +157,9 @@ function Standings({ play, onPlayer, onRules }: { play: GameView[]; onPlayer: (r
             <span className="w-1 self-stretch rounded-[2px]" style={{ background: gameColour(g.gameName) }} aria-hidden />
             <div className="min-w-0 flex-1">
               <h2 className="type-caption text-[26px]">{g.gameName}</h2>
-              <small className="mt-1 block text-[13px] text-muted-foreground">{twin(g) ? g.name : lineOf(g)}</small>
+              <small className="mt-1 block text-[13px] text-muted-foreground">
+                {g.solo === "public" ? `Everyone · ${g.players} ${g.players === 1 ? "person" : "people"}` : g.solo === "practice" ? "Practice couch · against computer players" : twin(g) ? g.name : lineOf(g)}
+              </small>
             </div>
             <button type="button" onClick={() => onRules(g)} className="px-1 py-2 text-[15px] font-semibold">
               Rules
@@ -162,6 +171,7 @@ function Standings({ play, onPlayer, onRules }: { play: GameView[]; onPlayer: (r
               key={r.playerId}
               type="button"
               data-player={r.name}
+              disabled={g.solo === "public" && !r.you}
               onClick={() => onPlayer(r, g)}
               className={`flex min-h-14 items-center gap-2.5 border-t text-left ${r.you ? "-mx-2 w-[calc(100%+16px)] rounded-[2px] border-transparent bg-secondary px-2" : "w-full border-border"}`}
             >
@@ -170,6 +180,7 @@ function Standings({ play, onPlayer, onRules }: { play: GameView[]; onPlayer: (r
               <span className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold">
                 <span className="truncate">{r.name}</span>
                 {r.you && <span className="type-caption rounded-[2px] bg-foreground px-1.5 py-0.5 text-[10px] tracking-[0.06em] text-background">You</span>}
+                {r.bot && <span className="type-caption rounded-[2px] bg-secondary px-1.5 py-0.5 text-[10px] tracking-[0.06em] text-muted-foreground">Computer</span>}
               </span>
               <span className="ml-auto flex flex-none gap-[3px]">
                 <RowExtras g={g} r={r} />

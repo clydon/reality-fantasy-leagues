@@ -64,7 +64,7 @@ export interface GameHere {
  * unreadable state costs that game, not the show space.
  */
 export async function gamesHere(user: SessionUser, seasonId: string, couchId: string | null): Promise<{ seen: number; here: GameHere[] }> {
-  const list = (await games(user.id, couchId ? { couchIds: [couchId], seasonId } : { mine: true, seasonId })).filter((g) => g.yourRole);
+  const list = (await games(user.id, couchId ? { couchIds: [couchId], seasonId, withSolo: true } : { mine: true, seasonId })).filter((g) => g.yourRole);
   const seen = await seenThrough(user.id, seasonId);
   const here: GameHere[] = [];
   if (list.length) {
@@ -99,7 +99,7 @@ export async function seasonGames(user: SessionUser, seasonId: string, couchId: 
 }
 
 function refOf(g: Game): GameRefIn {
-  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole };
+  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, yourRole: g.yourRole, solo: g.solo };
 }
 
 /**
@@ -117,7 +117,7 @@ export async function progressOf(user: SessionUser, these: Game[]): Promise<Map<
     const state = states.get(g.leagueId);
     if (!state) continue;
     try {
-      const p = weekProgress(state, seats.get(g.leagueId)?.playerId ?? null, (id) => users.get(g.leagueId)?.get(id) ?? null);
+      const p = weekProgress(state, seats.get(g.leagueId)?.playerId ?? null, (id) => users.get(g.leagueId)?.get(id) ?? null, { counts: g.solo === "public" });
       if (p) out.set(g.leagueId, p);
     } catch (e) {
       console.error(`[season-games] progress ${g.leagueId}:`, e);

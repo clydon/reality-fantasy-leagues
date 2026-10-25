@@ -11,6 +11,7 @@ import type { ChatLine, CouchChat } from "@/lib/server/couch-chat";
 import type { Backstage, Chosen, PasteResult } from "@/lib/server/backstage";
 import type { EpisodeResults } from "@/lib/server/episode-results";
 import type { CatalogSeason } from "@/lib/server/way-in";
+import type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from "@/lib/server/solo";
 import type { ChangeLine } from "@/lib/server/league-changes";
 import type { PreviewLine } from "@/lib/game/results-changes";
 import type { WaiverWeek } from "@/lib/game/waiver-view";
@@ -50,6 +51,8 @@ export type { Accolade, CouchRecord, HeadToHead, Plaque, RankRow, Rankings, Trop
 export type { EarlyNight } from "@/lib/server/season-episodes";
 export type { CouchInvite, CouchSeason, JoinGame, JoinOptions, LeaveCouch } from "@/lib/server/couch-joins";
 export type { CatchUpReveal } from "@/lib/server/season-episodes";
+export type { CallMove } from "@/lib/game/game-view";
+export type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from "@/lib/server/solo";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -69,6 +72,8 @@ export interface GameRef {
   seasonId: string | null;
   groupId: string | null;
   yourRole: LeagueRole | null;
+  /** A game on no couch (step 9 part 3): a season's public pool, or your practice couch against computer players. */
+  solo?: "public" | "practice" | null;
 }
 
 export interface SeasonHeader {
@@ -803,3 +808,40 @@ export function useCatalog() {
 
 /** First run's shows for the account just made (or signed into), and the new design as the one it opens on. */
 export const saveFirstRun = (follows: { seasonId: string; seenThrough: number }[]) => post<{ saved: number }>("/api/me/first-run", { follows, ui: "new" });
+
+// ---- playing solo (step 9 part 3; solo.ts): a season's public pool and your practice couch. Read when the hub, a show's
+// Games tab or the pool's page opens; nothing polls. The pool's pick goes through `moves.pick`, as every Survival Pool's. ----
+
+/** Each of your shows' pool and practice couch (the solo hub's Play on your own). */
+export function useSolo(enabled = true) {
+  return useQuery({ queryKey: ["new-design", "solo"], queryFn: () => get<{ seasons: SoloSeason[] }>("/api/me/solo"), staleTime: 60_000, enabled });
+}
+
+/** A season's public pool for you: can you join, how many are in, and yours (the top ten and you). */
+export function usePool(seasonId: string, enabled = true) {
+  return useQuery({ queryKey: ["new-design", "pool", seasonId], queryFn: () => get<PoolInfo>(`/api/seasons/${seasonId}/pool`), staleTime: 30_000, enabled });
+}
+
+/** Your practice couch on a season, or whether you can start one. */
+export function usePractice(seasonId: string, enabled = true) {
+  return useQuery({ queryKey: ["new-design", "practice", seasonId], queryFn: () => get<PracticeInfo>(`/api/seasons/${seasonId}/practice`), staleTime: 30_000, enabled });
+}
+
+async function remove<T>(url: string): Promise<T> {
+  const res = await fetch(url, { method: "DELETE" });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't save (${res.status})`), { status: res.status });
+  return out as T;
+}
+
+export const solo = {
+  join: (seasonId: string) => post<{ leagueId: string; start: number }>(`/api/seasons/${seasonId}/pool`, { action: "join" }),
+  leave: (seasonId: string) => post<{ left: true }>(`/api/seasons/${seasonId}/pool`, { action: "leave" }),
+  /** Who goes home? for the open episode; null takes it back. */
+  call: (seasonId: string, castawayId: string | null) => post<{ call: string | null }>(`/api/seasons/${seasonId}/pool`, { action: "call", castawayId }),
+  startPractice: (seasonId: string, game: PracticeGame, level: BotLevel) => post<{ leagueId: string }>(`/api/seasons/${seasonId}/practice`, { game, level }),
+  endPractice: (seasonId: string) => remove<{ ended: true }>(`/api/seasons/${seasonId}/practice`),
+};
+
+/** After joining or leaving a pool, a call, or starting or ending a practice couch: everything moves on (the moves, the games). */
+export const useAfterSolo = useAfterReveal;

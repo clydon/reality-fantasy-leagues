@@ -1,0 +1,95 @@
+// Playing solo (docs/PLAN-new-design.md step 9 part 3): a season's public pool (Survival Pool with a weekly Who goes home?
+// call, PickEmLogic's calls; its table the top ten and you, who's picked a count) and the practice couch's teams. On a
+// made-up demo season, so no database is needed. Run with `npm test`.
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const path = require("path");
+const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
+const { gameView, poolTop, POOL_TOP } = jiti("../src/lib/game/game-view.ts");
+const { practiceTeams } = jiti("../src/lib/game/practice.ts");
+const S = require("../src/lib/game/state-logic.js");
+
+const EPISODES = 12;
+const CURSOR = 5; // results through episode 5; episode 6 is this week
+const seats = (n) => Array.from({ length: n }, (_, i) => ({ key: `p${i}`, name: `player${i}`, color: "#000" }));
+const data = (players) => ({
+  id: "test", showId: "survivor", showName: "Test", seasonName: "Test", episodeCount: EPISODES, players,
+  castaways: Array.from({ length: 18 }, (_, i) => ({
+    key: `k${i}`, name: `Castaway ${i}`, placement: i + 1,
+    exitEpisode: Math.min(i + 1, EPISODES), exitMethod: i === 17 ? "Sole Survivor" : "Voted Out",
+  })),
+});
+const pool = (n = 3) => {
+  const s = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data(seats(n)), "pickem", CURSOR))));
+  s.settings.calls = true;
+  return s;
+};
+const ep = (s, n) => s.episodes.find((e) => e.number === n);
+const ref = { leagueId: "l-pool", name: "Test 1 · Everyone", gameType: "pickem", gameName: "Survival Pool", yourRole: "member", solo: "public" };
+const userOf = (p) => `user-${p}`;
+
+test("Who goes home?: one call a week of anyone still in, closed once decided, right when they left that episode", () => {
+  const s = pool();
+  const me = s.players[0].id;
+  const six = ep(s, 6);
+  const still = s.castaways.filter((c) => c.status === "active");
+  const gone = s.castaways.find((c) => c.status === "eliminated");
+  assert.ok(S.pickEmCallsOn(s));
+  S.setPickEmCall(s, six.id, me, gone.id);
+  assert.equal(S.pickEmCallFor(s, six.id, me), null, "nobody already out");
+  S.setPickEmCall(s, six.id, me, still[0].id);
+  S.setPickEmCall(s, six.id, me, still[1].id);
+  assert.equal(S.pickEmCallFor(s, six.id, me).castawayId, still[1].id, "one call, changed in place");
+  assert.equal(six.calls.length, 1);
+  assert.deepEqual(S.pickEmCallHistory(s, me), { rows: [{ episode: 6, castawayId: still[1].id, correct: null }], right: 0 });
+  // Episode 6: the one called goes home.
+  six.events.push({ castawayId: still[1].id, method: "Voted Out" });
+  const c = S.getCastaway(s, still[1].id);
+  c.status = "eliminated";
+  c.exitEpisodeId = six.id;
+  assert.ok(S.pickEmDecided(six));
+  S.setPickEmCall(s, six.id, me, still[2].id);
+  assert.equal(S.pickEmCallFor(s, six.id, me).castawayId, still[1].id, "closed once it's decided");
+  assert.equal(S.pickEmCallHistory(s, me).right, 1);
+  // Calls off (a couch's Survival Pool): nothing to call.
+  const off = pool();
+  off.settings.calls = false;
+  S.setPickEmCall(off, ep(off, 6).id, off.players[0].id, still[0].id);
+  assert.equal(S.pickEmCallFor(off, ep(off, 6).id, off.players[0].id), null);
+  assert.equal(gameView(ref, off, off.players[0].id, CURSOR, userOf).call, null);
+});
+
+test("a public pool's table: the top ten and you with your neighbours, the field counted, who's picked a count", () => {
+  const s = pool(30);
+  const me = s.players[20].id;
+  const g = gameView(ref, s, me, CURSOR, userOf);
+  assert.equal(g.players, 30);
+  assert.ok(g.table.length <= POOL_TOP + 3);
+  assert.ok(g.table.some((r) => r.you));
+  assert.ok(g.table.filter((r) => !r.you).every((r) => r.picks.every((p) => p.correct !== null)), "nobody else's pick before it's decided");
+  assert.equal(g.progress.of, 30);
+  assert.deepEqual(g.progress.people, [], "strangers aren't named");
+  assert.ok(g.call && g.call.episode === 6 && g.call.open);
+  assert.equal(g.from, 1);
+  // The same league on a couch shows everyone.
+  const couch = gameView({ ...ref, solo: null }, s, me, CURSOR, userOf);
+  assert.equal(couch.table.length, 30);
+  assert.equal(couch.progress.people.length, 30);
+});
+
+test("poolTop keeps the first ten, then you and either side of you", () => {
+  const rows = Array.from({ length: 30 }, (_, i) => ({ place: i + 1, you: i === 14 }));
+  assert.deepEqual(poolTop(rows).map((r) => r.place), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 14, 15, 16]);
+  const top = rows.map((r, i) => ({ ...r, you: i === 3 }));
+  assert.equal(poolTop(top).length, 10);
+});
+
+test("a practice couch's teams fit who's still in, four teams of at least two", () => {
+  assert.deepEqual(practiceTeams("active-roster", 13), { activeSlots: 2, benchSlots: 1 });
+  assert.deepEqual(practiceTeams("active-roster", 20), { activeSlots: 3, benchSlots: 2 });
+  assert.deepEqual(practiceTeams("active-roster", 16), { activeSlots: 3, benchSlots: 1 });
+  assert.deepEqual(practiceTeams("classic-draft", 18), { teamSize: 4 });
+  assert.deepEqual(practiceTeams("classic-draft", 12), { teamSize: 3 });
+  assert.equal(practiceTeams("classic-draft", 7), null);
+});

@@ -34,7 +34,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | **done** 2026-10-25 on the branch, in two parts: how results get in (One tap, the ways, the bot's runs as sources, quick checks that wait; migration 0115) and settling without the admin (the tie-break run behind a desk switch that's off, "nobody went home", show changes the couches confirm, the desk's bot Settings; 0116); both ship with 0b's | Opus · xhigh |
 | 7 | Draft room and blind draft | **done** 2026-10-25 on the branch (migration 0117 ships with 0b's) | Opus · xhigh |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
-| 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **parts 1 and 2 done** 2026-10-25 on the branch (couches and joining their games, migration 0119 ships with 0b's; the way in: landing, first run, the invite signed out, sign-in, Google behind config, no migration); part 3 solo next | Opus · xhigh |
+| 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | not started | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
@@ -251,7 +251,9 @@ step's As built.
   nudged). A turn with no timer reads as "hasn't picked yet" after 3 minutes, when Nudge and Pick for them come up.
 - **The draft's points are the game's** (step 7; for a later polish). A draft after episodes have scored (a late league) shows
   each castaway's points as this game counts them (`castOf`), where the Cast tab and waivers count the season's facts.
-  Drafts before the premiere (every one so far) show tribes instead.
+  Drafts before the premiere (every one so far) show tribes instead. Since step 9 part 3 a practice couch started
+  mid-season is such a draft: an Outlast practice shows every castaway still in at the same "7 pts so far" (the boot order
+  before the game's own start), which says nothing; the season's facts, or nothing before `startEpisode`, would.
 - **No "Biggest comeback" record** (step 8; for a later polish). The mock's trophy shelf has it ("8th to 1st · Traitors
   4"); it needs each finished game's standings episode by episode (a table per episode, read once a season ends and kept),
   which nothing keeps. The records are most titles, ran it back, longest pool streak and best average finish.
@@ -291,6 +293,24 @@ step's As built.
 - **A username-only account can't add Google later** (step 9 part 2; for 15). Linking a Google sign-in to an account goes by
   a verified email the two share; an account made with a username alone has none. Account settings (step 15) could link one
   from inside a signed-in account (Better Auth's `linkSocial`).
+- **The pool's Who goes home? is the pool's own** (step 9 part 3; for 12). A public pool's weekly call lives in its league
+  (`episode.calls`, `settings.calls`), graded from the season's results; step 12's Who goes home? is an episode game every
+  couch gets. One call per person and episode would be the better model: step 12 could keep its calls per person (the
+  pool reading yours) or read the pool's, rather than asking the same question twice.
+- **A public pool is one league's state** (step 9 part 3; for growth, the user's call on paid hosting). Every player's picks
+  and calls sit in one row, read whole by anyone's next read after any pick (~2 KB a player), so a pool stops at 100
+  ("The pool is full"; HOSTING.md). Past that, picks and calls in a table of their own (a row per person and episode) and
+  the board as a SQL read of the top ten and you; or a second pool for the season.
+- **Solo games are for curated competition shows** (step 9 part 3; for 10). A pool and a practice couch need a show an admin
+  set up (`created_by` NULL), its cast approved and an episode still to air; a series, talk show or sport, or a show a
+  player set up for their own league, gets neither (`soloBlocked`). Step 10's Start a game that fits is where they'd come.
+- **Only solo players are offered them** (step 9 part 3, the mock's; for a later step). The pool's card and the practice
+  couch's are on the solo hub and on a show's Games tab when you're solo (`show.solo`: no couch, or a couch of one).
+  Someone on a couch can't find them (the API would let them), though a pool or practice couch they joined while solo
+  stays with their games on that show. Commercial break or the Games tab could offer the pool to everyone.
+- **A practice couch is in classic's list** (step 9 part 3; for C). Classic's league menu shows it as an ordinary league with
+  computer players (classic plays bots), where it works, though it says nothing about being practice; the public pool is
+  left out of classic's list. C removes the list.
 - **First run lists the curated shows only** (step 9 part 2; for 10). The catalog is every season of a show an admin set up;
   a show a player researched for their own league isn't offered to anyone else, and a show with no season yet (Big Brother,
   Love Island... on the local copy) can't be followed: step 10's Add a show makes the season.
@@ -2060,8 +2080,8 @@ Migration **0118** (`show_follows.early_night`) ships with 0b's (same rehearsal)
    invite page signed out (`join.couch`: the couch first, then an account, then where you are), the real sign-in screen,
    and Google sign-in through Better Auth behind config (no client id: no button; the user creates the OAuth app).
    Mock: `landing.js`, `round2.js`.
-3. **Solo**: the public pools per season ("Survivor 51 · Everyone": Survival Pool and predictions, usernames only, no chat)
-   and the practice couch against computer players (Easy / Normal / Sharp, `bot-logic.js`). Mock: `solo.js`.
+3. **Solo** (done, below): the public pools per season ("Survivor 51 · Everyone": Survival Pool and predictions, usernames
+   only, no chat) and the practice couch against computer players (Easy / Normal / Sharp, `bot-logic.js`). Mock: `solo.js`.
 
 ### As built, step 9 part 1 (2026-10-25, on `new-design`): couches and joining their games
 
@@ -2224,6 +2244,95 @@ is a service once the user makes it). New: `src/lib/server/way-in.ts`, `src/lib/
   (57), -chat (52), -backstage (67), -backstage-ii (116), -community (82), -desk (100), -ours (89), -results-ways (89),
   -settling (96), -draft (90), check-foundation, check-preview and check-backup-restore; `npm test` 542 of 542; type-check and
   lint (src) clean.
+
+### As built, step 9 part 3 (2026-10-25, on `new-design`): solo
+
+Migration **0120** (ships with 0b's, same rehearsal): `leagues.solo` ('public' | 'practice', NULL for every couch's game) and
+`leagues.solo_season_id`, a CHECK that a solo game has no couch, and two unique indexes (one pool per season; one practice
+couch per person and season). Nothing polls and nothing runs on a schedule (HOSTING.md: a pool's size and what reading it
+costs). New: `src/lib/server/solo.ts`, `src/lib/game/practice.ts` (pure), `/api/me/solo`, `/api/seasons/[id]/pool`,
+`/api/seasons/[id]/practice`, `src/new/show/solo.tsx`, `src/new/hub/solo-hub.tsx`.
+- **How a public pool is stored (decided):** a season's pool ("Survivor 51 · Everyone") is an ordinary league **owned by no
+  couch** (`couch_id` NULL, `solo = 'public'`, `created_by` NULL), made by the first person to tap Join (`INSERT ... ON
+  CONFLICT` against the per-season index, so two first taps make one). It's Survival Pool (`pickem`) with `settings.calls`
+  on and `startEpisode` the next episode to air when it's made. Its seats are accounts' usernames, every seat a member's:
+  nobody runs it. Joining (`joinPool`) adds a seat seen at once, starting at the episode whose pick is still open (its own
+  `lateJoin.startEpisode`, so earlier episodes are history, not missed picks; never catching up, which would let anyone look
+  results up and pick past them); leaving takes the seat and its picks away (`removePlayer`, under the league lock), and
+  joining again starts from the next episode. A pool holds **100** (`POOL_CAP`; "The pool is full").
+- **How it scores:** through the engine and the season's shared results, as every game does. The season sync already
+  reaches every league on a season (`syncSeasonLeagues`), so what any couch sends, the bot's runs and the desk's decisions
+  arrive in the pool with everyone else's games; the reveal (`revealSeason`, through `gamesHere`) marks it with the rest of
+  your games on the show. Ranked as every Survival Pool is (the longest streak, then right picks).
+- **Predictions = Who goes home?** (the mock's "One tap a week on who goes home"): real predictions are free-text bets a
+  Commissioner grades, and a pool has nobody to grade, so the engine gained a call beside the pick (`PickEmLogic.setCall /
+  callFor / callHistory`, `episode.calls`, behind `settings.calls`): anyone still in, closed at airtime with the pick, right
+  when that person left in that episode (not the winner), graded from the same results, shown as "N called" beside the
+  streak and never counted in it. Couches' Survival Pools have it off. `game-view.ts` carries it as the `call` move.
+- **What someone behind sees (spoiler-safe on the server):** the pool is one of their games, read like any through
+  `gamesHere` → `gameView` at their mark (`guard.ts seenThrough`): the board stops at their episode, nobody they haven't
+  seen leave is out, and with results in past their mark the pick and call wait behind "Episode 4 is in · Reveal"
+  (`revealFirst`). Joining while behind says so first ("its picks show who's still in", as part 1's live join warns).
+  Nobody else's pick or call is sent before it's decided (the table's rule), and a stranger's decided picks don't show on
+  the Games tab's table either (a name and a streak). The game view now has `from` (the first episode it counts for you),
+  so a standing ("top 20%", "You're 2nd") shows only once one of its episodes is decided.
+- **How big its reads stay:** what reaches the browser is the top ten, you and either side of you (`poolTop`, POOL_TOP 10),
+  `players` (the field's size) and who's picked as a count (`weekProgress(..., { counts })`: nobody named). What it reads
+  from Neon is the whole state (~2 KB a player), fetched again by anyone's next read after any pick changes it: hence the
+  cap (HOSTING.md). Past 100 the picks would move into a table of their own.
+- **No chat, usernames only, out of classic:** a pool has no couch, so no couch chat; classic's chat routes answer nothing
+  and refuse a message (`late-join.ts outOfChat`); classic's league list leaves it out (`/api/me`, which would otherwise
+  read its whole state on every load); its classic join code is refused (`joinLeague`: a pool joins from its show, a
+  practice couch is its maker's); nobody is pushed when someone joins. Its players get the usual results pushes.
+- **The practice couch:** `startPractice` makes a league on no couch (`solo = 'practice'`, `created_by` you), Weekly Lineup
+  or Outlast, you and three computer players (`BOT_NAMES` Ada, Max, Ivy; `player.automated`, `botLevel` casual / solid /
+  sharp for Easy / Normal / Sharp, all three the same), added before the season's results arrive so nobody's a late joiner;
+  exclusive ownership (a turn-based draft) with teams fitted to who's still in (`practiceTeams`: Weekly Lineup 3 starting
+  and 2 on the bench when there's room, fewer late in a season; Outlast up to four; refused under teams of two);
+  `startEpisode` the next to air; the draft order shuffled and the draft open at once, so the bots before you have picked
+  by the time the draft room opens (`paths.showPage(..., "draft")?game=`, step 7's room). **The bots take their turns**
+  where they always have: inside every league write (`withLeagueLock` → `bots.ts runBots`: your pick, the season sync's
+  results, the waiver clock) and on a read with a move waiting (`readyLeague`), so they draft as you do and set each
+  episode's lineup once results land; no job. You're a member of it, not its Commissioner (it has no Backstage: nothing to
+  run). End it from its sheet (the league goes). Never counted toward a couch (rankings, trophies and the feed read
+  couches' games).
+- **Where they show (`show-space.ts games({ withSolo })`):** your solo games are yours wherever you look at the season: the
+  show space with a couch lists them after the couch's games (moves, the dock, Tonight, the reveal, the draft room), never
+  in a couch's own reads. `healCouches` leaves them on no couch (it would have made each one a couch). The Games tab's
+  tables show the pool as "Everyone · N people" and the practice couch's computer players tagged Computer.
+- **The solo hub** (`/home` with no couch, `data-hub="solo"`; first run's "Just me for now" lands here): Welcome, Watching
+  solo (opens Start a couch), the status line and Up next when something's due or airing, the guide (Preview, 11), Your
+  shows, **Play on your own** (each followed season's pool, two at most, soonest first, then your practice couch or one to
+  start, with a show choice when several can: real), **On your own** (Watch along Preview 13, trivia Preview 12, Who's
+  scoring → the show's Cast tab: real), **Better with friends** (the three season games, each a sheet with Start a couch)
+  and the foot (Join a couch). A show's **Games tab when you're solo** has On your own (the pool's card and the practice
+  couch's) under the tables, no Start a game, and the pool's page (`?page=pool`, pushed: Everyone and Join; once in, your
+  streak and standing, Your pick, Who goes home?, the board, Leave the pool).
+- **Changed from the mock:** the pool's predictions are one Who goes home? a week (the mock's sheet was step 12's
+  predictSheet); Better with friends lists the three season games (Weekly Bingo and Weekly Calls come with step 12); the
+  hub keeps the status line and Up next when something's due (the mock's solo hub had neither, and a pool pick due needs a
+  way there); the practice sheet's game lines don't promise team sizes (they depend on who's left); Join on the pool's page
+  and Start the draft are the one yellow (each is its page's point); the computer players' level reads Easy / Normal /
+  Sharp in the new design, casual / solid / sharp in the engine and classic (unchanged).
+- **What's left of solo for later steps:** the guide (11) and Add a show (10) on the solo hub; Watch along (13); trivia,
+  Rate it and Call it (12, also the solo Tonight's "Just for you", which isn't built: a solo player's Tonight is the
+  ordinary one, with the pool's pick and the practice couch's lineup as move cards); Weekly Bingo and Weekly Calls in
+  Better with friends (12); pools and practice couches for other kinds of show (10). Noticed, not fixed has the rest.
+- **Checks:** `scripts/dev-test/check-new-solo.js <outDir> [--width=390] [--keep] [--api]` (92 PASS at 390) on the new
+  **`solo-fixture.js`** (a curated "ZT Solo" show, slug zt-so-solo, created_by NULL: season 51 airing with who went home in
+  1-5 decided by an admin, season 50 finished; zt_so_alex, riley and jordan on Episode 5, sam on 3; `addExit` for the next
+  episode; `down` also removes every solo game on its seasons). It runs the season sync in its own process through jiti,
+  with `next-after-stub.js` standing in for next/server's `after()` (no request scope in a script). Covers the solo read,
+  the pool's making, joins, the pick and call, privacy, classic's guards, sam behind, the practice draft with the bots,
+  Episode 6's results scoring both, leaving, a full pool, a finished season, Outlast practice sizes, ending; then the
+  browser (the solo hub, Start a couch and Better with friends' sheets, the pool's page with a pick and a call, the Games
+  tab, ending a practice and starting an Outlast one into its draft room, jordan joining again, sam's reveal first) and
+  every real league's state unchanged. `tests/solo.test.js` (4: calls, the pool's table, poolTop, practiceTeams).
+  The rest pass, one at a time: check-new-way-in (85), -couches (114), -hub (75), -draft (90), -settling (96), -results-ways
+  (89), -ours (89), -desk (100), -community (82), -backstage (67), -backstage-ii (116), -show (69), -shell (46), -reveal
+  (49), -stats (57), -chat (52), check-foundation, check-preview and check-backup-restore; `npm test` 546 of 546;
+  type-check clean, lint (src) as before (one classic error in `use-sheet-swipe.ts`, untouched). Someone on no couch now
+  gets the solo hub where they got the grow hub with Get the couch going; no check depended on that.
 
 ## Step C: cutover
 

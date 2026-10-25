@@ -1159,6 +1159,46 @@ class PickEmLogic {
     if(!ep) return;
     ep.picks = (ep.picks||[]).filter(pk=>pk.playerId!==playerId);
   }
+
+  // Who goes home? (a public pool's prediction, docs/PLAN-new-design.md step 9 part 3; settings.calls): beside the pick of
+  // who survives, one call a week of who leaves. Stored like the picks (`episode.calls: {playerId, castawayId}[]`, one per
+  // player, upserted), closed at airtime, anyone still in, no cycle rule. Right when the person called left in that
+  // episode (not the season's winner, who leaves only by winning). Counted beside the streak, never in it: the pool still
+  // ranks by its streak.
+  static callsOn(state){ return !!(state && state.settings && state.settings.calls) && !!getLeagueType(state).hasWeeklyPicks; }
+  static callFor(state, epId, playerId){
+    const ep = PickEmLogic.findEpisode(state, epId);
+    return ep ? (ep.calls||[]).find(c=>c.playerId===playerId) || null : null;
+  }
+  static setCall(state, epId, playerId, castawayId){
+    if(!PickEmLogic.callsOn(state)) return;
+    const ep = PickEmLogic.findEpisode(state, epId);
+    const c = Core.getCastaway(state, castawayId);
+    if(!ep || !c || !Core.getPlayer(state, playerId) || c.status!=='active' || !inPlay(state, ep.number)) return;
+    if(hasAired(ep) || PickEmLogic.decided(ep)) return;
+    ep.calls = ep.calls || [];
+    const existing = ep.calls.find(x=>x.playerId===playerId);
+    if(existing) existing.castawayId = castawayId;
+    else ep.calls.push({playerId, castawayId});
+  }
+  static removeCall(state, epId, playerId){
+    const ep = PickEmLogic.findEpisode(state, epId);
+    if(ep && ep.calls) ep.calls = ep.calls.filter(x=>x.playerId!==playerId);
+  }
+  // A player's calls oldest first (decided ones with whether they were right, plus any still waiting) and how many were.
+  static callHistory(state, playerId){
+    const rows = [];
+    let right = 0;
+    [...state.episodes].filter(ep => ep.number >= GhostLogic.startFor(state, playerId)).sort((a,b) => a.number - b.number).forEach(ep => {
+      const call = (ep.calls||[]).find(x => x.playerId === playerId);
+      if(!call) return;
+      if(!PickEmLogic.decided(ep)){ rows.push({ episode: ep.number, castawayId: call.castawayId, correct: null }); return; }
+      const correct = (ep.events||[]).some(ev => ev.castawayId === call.castawayId && !isWinnerExit(state, ev.method));
+      if(correct) right++;
+      rows.push({ episode: ep.number, castawayId: call.castawayId, correct });
+    });
+    return { rows, right };
+  }
 }
 
 // ---------- League type + show registries ----------
@@ -3939,6 +3979,8 @@ return {
   pickEmPickFor: PickEmLogic.pickFor, pickEmEligibility: PickEmLogic.eligibility, pickEmHistory: PickEmLogic.history,
   pickEmUpcomingEpisode: PickEmLogic.upcomingEpisode, pickEmDecided: PickEmLogic.decided, currentEpisode,
   setPickEmPick: PickEmLogic.setPick, removePickEmPick: PickEmLogic.removePick,
+  pickEmCallsOn: PickEmLogic.callsOn, pickEmCallFor: PickEmLogic.callFor, setPickEmCall: PickEmLogic.setCall, removePickEmCall: PickEmLogic.removeCall,
+  pickEmCallHistory: PickEmLogic.callHistory,
 
   // ---- domain classes: reference these directly in new code instead of the flat aliases above ----
   // ScoringLogic/DraftLogic are thin league-type dispatchers (see the "League types" comment near

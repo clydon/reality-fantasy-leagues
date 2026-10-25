@@ -188,6 +188,8 @@ export interface Episode {
   // initializes it, migrateLeagueState backfills it on old saves) but only ever populated for a
   // 'pickem' league.
   picks: PickEmPick[];
+  // A public pool's Who goes home? calls (PickEmLogic.setCall, settings.calls): one per player, the same shape as picks.
+  calls?: PickEmPick[];
   // Active Roster only, all three always present (EpisodeLogic.add initializes them,
   // migrateLeagueState backfills old saves).
   //
@@ -218,6 +220,8 @@ export interface LeagueRulebook {
 
 export interface LeagueSettings {
   teamSize: number;
+  /** Survival Pool: a weekly Who goes home? call beside the pick (a season's public pool, step 9 part 3). */
+  calls?: boolean;
   bonusEnabled: boolean;
   /** Mid-season priority: "rolling" reverse-draft waiver list (default), or standings each round. */
   replenishOrderBy: "rolling" | "mostPoints" | "leastPoints";

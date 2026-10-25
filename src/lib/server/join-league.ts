@@ -38,9 +38,11 @@ export async function joinLeague(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { rows } = await client.query("SELECT id, name, state FROM leagues WHERE id=$1 FOR UPDATE", [leagueId]);
+    const { rows } = await client.query("SELECT id, name, state, solo FROM leagues WHERE id=$1 FOR UPDATE", [leagueId]);
     if (!rows.length) throw new HttpError(404, "League not found");
     const league = rows[0];
+    // A public pool is joined from its show's Games tab, a practice couch is its maker's alone (solo.ts).
+    if (league.solo) throw new HttpError(403, league.solo === "public" ? "Join this pool from its show's Games tab" : "That's someone's practice couch");
 
     const existing = await client.query("SELECT id FROM league_memberships WHERE league_id=$1 AND user_id=$2", [league.id, user.id]);
     if (existing.rows.length) throw new HttpError(409, "You're already in that league");

@@ -585,6 +585,14 @@ declare const StateLogic: {
   currentEpisode(state: LeagueState): Episode | null;
   setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string): void;
   removePickEmPick(state: LeagueState, epId: string, playerId: string): void;
+  /** Whether this Survival Pool takes a weekly Who goes home? call (settings.calls). */
+  pickEmCallsOn(state: LeagueState): boolean;
+  pickEmCallFor(state: LeagueState, epId: string, playerId: string): PickEmPick | null;
+  /** Who you think goes home this episode: anyone still in, until it airs. A no-op otherwise. */
+  setPickEmCall(state: LeagueState, epId: string, playerId: string, castawayId: string): void;
+  removePickEmCall(state: LeagueState, epId: string, playerId: string): void;
+  /** A player's calls oldest first (correct null while undecided) and how many were right. */
+  pickEmCallHistory(state: LeagueState, playerId: string): { rows: { episode: number; castawayId: string; correct: boolean | null }[]; right: number };
 };
 
 export default StateLogic;

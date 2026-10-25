@@ -149,6 +149,9 @@ export async function hiddenFromGroup(leagueIds: string[]): Promise<Set<string>>
  */
 export async function outOfChat(leagueId: string, playerId: string | null | undefined): Promise<boolean> {
   if (!playerId) return false;
+  // A season's public pool has no chat at all (solo.ts: usernames only).
+  const { rows } = await pool.query("SELECT solo FROM leagues WHERE id = $1", [leagueId]);
+  if (rows[0]?.solo === "public") return true;
   const state = await leagueState(leagueId);
   if (!state) return false;
   return StateLogic.GhostLogic.isCatchingUp(state, playerId) || StateLogic.GhostLogic.isGhost(StateLogic.getPlayer(state, playerId));

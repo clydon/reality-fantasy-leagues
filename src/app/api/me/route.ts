@@ -22,7 +22,7 @@ export const GET = apiRoute(async (req) => {
        JOIN leagues l ON l.id = m.league_id
        LEFT JOIN league_groups g ON g.id = l.group_id
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
-      WHERE m.user_id=$1
+      WHERE m.user_id=$1 AND l.solo IS DISTINCT FROM 'public'
       ORDER BY l.name`,
     [user.id]
   );

@@ -107,6 +107,19 @@ curated season with how far it's aired, a few KB) is the same for everyone, so V
 landing (`/welcome`) reads nothing from Neon (its faces and numbers are a static file); its show tiles come from that
 cached catalog.
 
+**Playing solo (new design, step 9 part 3)** polls nothing and runs nothing on a schedule. A season's **public pool**
+("Survivor 51 · Everyone") is one league whose state holds every player: about **2 KB per player per season** (a seat, a
+pick and a Who goes home? call each episode; measured: 195 KB for 100 players at a season's end, 573 KB for 300). Every
+pick or call changes its hash, so the next read of it by anyone (their hub, the show space, the pool's page) fetches the
+whole state again. At 100 players opening something that reads it ~5 times a week, that's roughly 500 reads × ~100 KB
+(the season's middle) = **~200 MB of Neon transfer a month**; at 300 it would be ~1.8 GB, a third of the allowance, which
+is why a pool holds at most **100** (`POOL_CAP` in `solo.ts`; "The pool is full"). Past that the picks would move into a
+table of their own (one row per person and episode) and the board become a SQL read of the top ten and you. What a pool's
+reads *send to the browser* stays small however big it gets: the top ten, you and your neighbours, and who's picked as a
+count. A **practice couch** is an ordinary small league (you and three computer players, ~20-40 KB like any) per person
+per season; the computer players take their turns inside the writes and reads that already happen (a pick, results
+arriving, someone opening the game), so they wake nothing.
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub.
@@ -370,3 +383,13 @@ never handles it: the user does the reset and the pasting.
   now with `account.encryptOAuthTokens`: a few hundred bytes per Google account). Password resets and email
   verification go through Resend as before (a sign-up that gives an email gets one verification email; nothing new is
   sent otherwise).
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 9 part 3, solo. **Nothing polls and nothing runs on a
+  schedule.** Migration 0120 adds `leagues.solo` ('public' | 'practice') and `leagues.solo_season_id`. New stored data:
+  a **public pool** per season (one league made by its first Join; ~2 KB per player per season in its state, capped at
+  100 players, so at most ~200 KB a pool) and a **practice couch** per person per season (an ordinary small league with
+  three computer players). The pool is read in full after any pick or call changes it (league-states.ts' hash check
+  otherwise): ~200 MB of Neon transfer a month for a full pool's 100 people (What uses each limit). New reads, each when
+  a screen opens: `/api/me/solo` (the solo hub: per show you follow, its pool and your practice couch), `/api/seasons/
+  [id]/pool` and `/practice` (the Games tab and the pool's page). The computer players' moves happen inside writes and
+  reads that already happen (bots.ts in withLeagueLock; league-read.ts readyLeague), so nothing new wakes the database.
+  A pool's players get the usual results pushes from the season sync (as any league's do); nobody hears who joined.

@@ -28,6 +28,7 @@ import { Sheet } from "../ui/sheet";
 import { ShowBar, TabBar } from "../ui/show-bar";
 import type { PreviewId } from "../preview";
 import { openCouchSheet } from "../couch/couch-sheets";
+import { PoolPage } from "../show/solo";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
@@ -149,6 +150,8 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         <HowItWorksPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />
       )}
       {show.header && <ShowStatsPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} />}
+      {/* The season's public pool (step 9 part 3), pushed from the Games tab or the solo hub (?page=pool). */}
+      <PoolPage show={show} />
       <WaiverOverlays seasonId={seasonId} show={show} />
     </>
   );

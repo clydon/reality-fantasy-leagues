@@ -7,17 +7,19 @@ import { CouchPages, MoreOnTheCouch } from "../hub/couch-pages";
 import { Guide, StreamingRail } from "../hub/guide";
 import { ProfileSheet } from "../hub/profile";
 import { BothWatch, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, OnNow, StatusLine, UpNext, YourShows } from "../hub/sections";
+import { SoloHub } from "../hub/solo-hub";
 import { useMe } from "../session";
 import { TopBar } from "../ui/bars";
 import { Btn, EmptyState } from "../ui/parts";
 
-// The hub (/home; the mock's refine.js wireHub), in its two shapes:
+// The hub (/home; the mock's refine.js wireHub), in its two shapes, or solo (on no couch: hub/solo-hub.tsx, step 9 part 3):
 //   grows with you: a new member's first week, or a couch with no games yet. The status line, Get the couch going
 //     (a new couch), Up next, your shows, the guide, the feed, and a note of what shows up as the couch plays.
 //   focus first: the status line, Up next, who's on now, your shows, the "you both watch" nudge, the guide, the
 //     streaming rail, what the couch is watching, the feed, and More on the couch (six pages, one tap each).
 // The couch's own numbers (rankings, trophies, the feed, your numbers: couch-hub.ts) come in one read beside the home's.
-// `?hub=focus`, `?hub=grow` (a new member) or `?hub=new` (a brand-new couch) shows that shape, for a look.
+// `?hub=focus`, `?hub=grow` (a new member) or `?hub=new` (a brand-new couch) shows that shape, for a look; with no couch
+// it's always the solo hub.
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 
@@ -34,7 +36,7 @@ export function HomeScreen() {
   const { data: hub } = useCouchHub(couch?.id ?? null);
   const asked = useSearchParams().get("hub");
   const [profile, setProfile] = useState(false);
-  const shape = asked === "grow" || asked === "focus" ? asked : asked === "new" || grows(couch, me.id) ? "grow" : "focus";
+  const shape = home && home.couches.length === 0 ? "solo" : asked === "grow" || asked === "focus" ? asked : asked === "new" || grows(couch, me.id) ? "grow" : "focus";
   const newCouch = asked === "new" || (asked !== "grow" && (!couch || couch.games.length === 0));
   return (
     <div className="pb-[110px]" data-hub={home ? shape : undefined}>
@@ -43,6 +45,8 @@ export function HomeScreen() {
         <EmptyState title="Couldn't load your couch" line={error.message} action={<Btn wide onClick={() => refetch()}>Try again</Btn>} />
       ) : !home ? (
         <HomeSkeleton />
+      ) : shape === "solo" ? (
+        <SoloHub home={home} />
       ) : shape === "grow" ? (
         <GrowHub home={home} couch={couch} hub={hub} newCouch={newCouch} />
       ) : (

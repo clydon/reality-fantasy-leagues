@@ -23,7 +23,8 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
   if (couchId) await requireCouch(user, couchId);
   await healCouches(user.id);
 
-  const gamesHere = await games(user.id, couchId ? { couchIds: [couchId], seasonId } : { mine: true, seasonId });
+  // A couch's games here, and your own solo games (a public pool, a practice couch: step 9 part 3) after them.
+  const gamesHere = await games(user.id, couchId ? { couchIds: [couchId], seasonId, withSolo: true } : { mine: true, seasonId });
   const [schedules, seen, { rows: follow }] = await Promise.all([
     seasonSchedules([seasonId]),
     seenThrough(user.id, seasonId),

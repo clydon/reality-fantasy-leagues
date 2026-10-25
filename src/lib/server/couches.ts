@@ -214,14 +214,15 @@ export function unlinkedLeague(leagueId: string, userId: string): Promise<void> 
 /**
  * Puts right this person's couches before the new design reads them: a league of theirs with no couch gets
  * one (its group's, if the group has one; else a new one, named as 0101 names them), and they're on the couch
- * of every league they're in. A read with nothing to fix costs one query.
+ * of every league they're in. A read with nothing to fix costs one query. A solo game (a public pool, a practice
+ * couch: leagues.solo, step 9 part 3) is on no couch on purpose and is left alone.
  */
 export async function healCouches(userId: string): Promise<void> {
   const { rows } = await pool.query(
     `SELECT l.id, l.couch_id, (cm.user_id IS NOT NULL) AS on_couch
        FROM league_memberships m JOIN leagues l ON l.id = m.league_id
        LEFT JOIN couch_members cm ON cm.couch_id = l.couch_id AND cm.user_id = m.user_id
-      WHERE m.user_id = $1 AND (l.couch_id IS NULL OR cm.user_id IS NULL)`,
+      WHERE m.user_id = $1 AND l.solo IS NULL AND (l.couch_id IS NULL OR cm.user_id IS NULL)`,
     [userId]
   );
   for (const r of rows) {

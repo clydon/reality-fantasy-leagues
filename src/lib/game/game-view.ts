@@ -52,6 +52,10 @@ export interface TableRow {
   last: string[];
   /** Survival Pool: picks oldest first. Only decided ones, except your own. */
   picks: { episode: number; castawayId: string | null; correct: boolean | null }[];
+  /** A computer player (bot-logic.js): a practice couch's. */
+  bot: boolean;
+  /** A public pool's Who goes home? calls that were right (settings.calls), else 0. */
+  calls: number;
 }
 
 export interface LineupMove {
@@ -84,6 +88,18 @@ export interface PickMove {
   streak: number;
 }
 
+/** A public pool's Who goes home? (PickEmLogic.setCall): the same episode as the pick, anyone still in. */
+export interface CallMove {
+  epId: string;
+  episode: number;
+  airsAt: string | null;
+  open: boolean;
+  call: string | null;
+  available: string[];
+  /** Calls of yours that were right so far. */
+  right: number;
+}
+
 export interface PredictionMove {
   epId: string;
   episode: number;
@@ -109,18 +125,29 @@ export interface GameRefIn {
   gameType: string;
   gameName: string;
   yourRole: string | null;
+  /** A game on no couch (step 9 part 3): a season's public pool, or your practice couch against computer players. */
+  solo?: "public" | "practice" | null;
 }
+
+/** A public pool's table: the top ten, you and whoever's either side of you (it can hold hundreds). */
+export const POOL_TOP = 10;
 
 export interface GameView extends GameRefIn {
   playerId: string;
   /** Standings are through this episode: they move when you reveal. */
   through: number;
+  /** The first episode this game counts for you (its start, or yours as a late joiner): standings mean something once
+   *  `through` reaches it. */
+  from: number;
   table: TableRow[];
   you: TableRow | null;
+  /** Everyone on the table, when `table` is a public pool's top and you (else table.length). */
+  players: number;
   rules: string[];
   cast: CastFace[];
   lineup: LineupMove | null;
   pick: PickMove | null;
+  call: CallMove | null;
   predictions: PredictionMove[];
   progress: WeekProgress | null;
   /** Results you haven't revealed stand in the way of this week's lineup or pick: the first of them. */
@@ -143,29 +170,42 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
   const type = StateLogic.getLeagueType(view);
   const catchingUp = StateLogic.GhostLogic.isCatchingUp(full, playerId) && Number.isInteger(seen);
   const hidden = StateLogic.SpoilerLogic.hiddenEpisodes(full, seen);
-  const table = tableOf(view, playerId, userOf);
+  const everyone = tableOf(view, playerId, userOf);
+  const isPublic = game.solo === "public";
+  const table = isPublic ? poolTop(everyone) : everyone;
   const catchUp = catchingUp ? { week: (seen as number) + 1, latest: StateLogic.SpoilerLogic.latestWithResults(full) } : null;
   return {
     ...game,
     playerId,
     through: StateLogic.SpoilerLogic.latestWithResults(view),
+    from: StateLogic.GhostLogic.startFor(view, playerId),
     table,
     you: table.find((r) => r.you) ?? null,
+    players: everyone.length,
     rules: gameRules(view),
     cast: castOf(view),
     lineup: type.hasActiveRoster ? lineupOf(view, playerId) : null,
     pick: type.hasWeeklyPicks ? pickOf(view, playerId) : null,
+    call: StateLogic.pickEmCallsOn(view) ? callOf(view, playerId) : null,
     predictions: catchingUp ? [] : predictionsOf(view, playerId),
-    progress: catchingUp ? null : weekProgress(full, playerId, userOf),
+    progress: catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic }),
     revealFirst: hidden.length && !catchingUp ? hidden[0].number : null,
     catchingUp,
     catchUp,
   };
 }
 
+/** A public pool's rows: the top POOL_TOP, then you and your neighbours when you're further down. */
+export function poolTop(rows: TableRow[]): TableRow[] {
+  const i = rows.findIndex((r) => r.you);
+  return rows.filter((r, j) => j < POOL_TOP || (i >= POOL_TOP && Math.abs(j - i) <= 1));
+}
+
 export function tableOf(view: LeagueState, me: string, userOf: UserOf): TableRow[] {
   const type = StateLogic.getLeagueType(view);
   const pool = type.hasWeeklyPicks;
+  const calls = StateLogic.pickEmCallsOn(view);
+  const bots = new Set(view.players.filter((p) => p.automated).map((p) => p.id));
   const key = (r: ScoreRow) => (pool ? [r.longestStreak ?? 0, r.total] : [r.total]);
   const rows = [...StateLogic.computeScores(view)].sort((a, b) => {
     const [x, y] = [key(a), key(b)];
@@ -195,6 +235,8 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf): TableRow
             .rows.filter((p) => you || p.correct !== null)
             .map((p) => ({ episode: p.episode, castawayId: p.castawayId, correct: p.correct }))
         : [],
+      bot: bots.has(r.playerId),
+      calls: calls ? StateLogic.pickEmCallHistory(view, r.playerId).right : 0,
     };
   });
 }
@@ -261,6 +303,21 @@ function pickOf(view: LeagueState, me: string): PickMove | null {
   };
 }
 
+/** Who goes home? for the pick's episode: anyone still in, closed with the pick. */
+function callOf(view: LeagueState, me: string): CallMove | null {
+  const { ep, open } = pickWindow(view);
+  if (!ep) return null;
+  return {
+    epId: ep.id,
+    episode: ep.number,
+    airsAt: ep.airsAt ?? null,
+    open,
+    call: StateLogic.pickEmCallFor(view, ep.id, me)?.castawayId ?? null,
+    available: view.castaways.filter((c) => c.status === "active").map((c) => c.id),
+    right: StateLogic.pickEmCallHistory(view, me).right,
+  };
+}
+
 /** Open predictions (the home's prediction move, action-items.js): unsettled, on an episode with no results yet. */
 function predictionsOf(view: LeagueState, me: string): PredictionMove[] {
   if (!view.settings.bonusEnabled) return [];
@@ -288,9 +345,10 @@ function predictionsOf(view: LeagueState, me: string): PredictionMove[] {
 /**
  * Who's set for this week's move: lineups set (Weekly Lineup) or picks made (Survival Pool), counted over the
  * league's own players (no late joiner it can't see). Nothing about results, so it reads the real state; null for
- * a game with no weekly move. Also the hub's Up next (/api/me/home).
+ * a game with no weekly move. Also the hub's Up next (/api/me/home). `counts`: the numbers only, nobody named (a public
+ * pool, where the people are strangers and can be hundreds).
  */
-export function weekProgress(full: LeagueState, viewerId: string | null, userOf: UserOf): WeekProgress | null {
+export function weekProgress(full: LeagueState, viewerId: string | null, userOf: UserOf, opts: { counts?: boolean } = {}): WeekProgress | null {
   const s = StateLogic.GhostLogic.viewFor(full, viewerId, null);
   const type = StateLogic.getLeagueType(s);
   const players = s.players.filter((p) => p.active !== false && !p.disabled && !p.ghost);
@@ -311,5 +369,5 @@ export function weekProgress(full: LeagueState, viewerId: string | null, userOf:
     episode = ep.number;
     list = people((id) => !!StateLogic.pickEmPickFor(s, ep.id, id));
   } else return null;
-  return { label, episode, done: list.filter((p) => p.done).length, of: list.length, people: list };
+  return { label, episode, done: list.filter((p) => p.done).length, of: list.length, people: opts.counts ? [] : list };
 }
