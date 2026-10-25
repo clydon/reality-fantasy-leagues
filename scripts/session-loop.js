@@ -24,7 +24,9 @@
 //
 // Output: each session's messages and a line per tool call print here as they happen; the raw events go to
 // .session-loop/logs/<time>-<name>.jsonl and a readable copy to the .txt beside it (gitignored). Every session is saved,
-// so `claude --resume <id>` opens one in the usual app (its id is in its header line).
+// so `claude --resume <id>` opens one in the usual app (its id is in its header line). Every screenshot a session looks
+// at is copied to .session-loop/screens/<session>/ with a link printed under its line, and .session-loop/screens.html
+// shows them all, newest session first, refreshing itself (open it in a browser and leave it open).
 //
 // How a session hands off: it's started with --append-system-prompt-file .session-loop/protocol.md (written here), so it
 // ends its final message with a ```session-loop block: {"status":"next","prompt":...,"model":...,"effort":...},
@@ -44,6 +46,9 @@ const STATE = path.join(DIR, "state.json");
 const PROTOCOL = path.join(DIR, "protocol.md");
 const STOP = path.join(DIR, "STOP");
 const PAUSE = path.join(DIR, "PAUSE");
+const SCREENS = path.join(DIR, "screens");
+const GALLERY = path.join(DIR, "screens.html");
+const IMAGE = /\.(png|jpe?g|gif|webp)$/i;
 
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 // Never from the loop, whatever a prompt says: shipping is the user's call (CLAUDE.md, the plan's Rules).
@@ -111,6 +116,7 @@ function command(cmd) {
     if (s.pending) console.log(`Waiting: ${s.pending.name} (${s.pending.sessionId}) · ${s.pending.paused ? "paused" : s.pending.question ? "has a question for you" : "stopped"}`);
     if (s.next) console.log(`Next: ${s.next.name} · ${s.next.model} · ${s.next.effort}`);
     if (s.limits) console.log(`Usage: ${limitLine(s.limits)}`);
+    if (fs.existsSync(GALLERY)) console.log(`Screenshots: ${fileUrl(GALLERY)}`);
     if (fs.existsSync(PAUSE)) console.log("PAUSE is set: the loop is paused.");
     if (fs.existsSync(STOP)) console.log("STOP is set: the loop stops after the current session.");
   }
@@ -151,6 +157,48 @@ function toolLine(name, input = {}) {
     input.skill ||
     "";
   return `${name}${what ? `: ${oneLine(what)}` : ""}`;
+}
+
+// ---- screenshots: every image a session looks at, copied where you can see it ----
+
+const fileUrl = (p) => `file:///${path.resolve(p).replace(/\\/g, "/").replace(/^\//, "")}`;
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+/** Copies an image a session read into .session-loop/screens/<session>/, and redraws the gallery. -> the copy's path. */
+function keepScreen(src, folder) {
+  try {
+    const dir = path.join(SCREENS, folder);
+    fs.mkdirSync(dir, { recursive: true });
+    const n = fs.readdirSync(dir).length + 1;
+    const dest = path.join(dir, `${String(n).padStart(3, "0")}-${path.basename(src)}`);
+    fs.copyFileSync(src, dest);
+    drawGallery();
+    return dest;
+  } catch {
+    return null;
+  }
+}
+
+/** .session-loop/screens.html: every session's screenshots, newest session first, refreshing itself every 10 s. */
+function drawGallery() {
+  const sessions = fs.existsSync(SCREENS) ? fs.readdirSync(SCREENS).sort().reverse() : [];
+  const body = sessions
+    .map((s) => {
+      const shots = fs.readdirSync(path.join(SCREENS, s)).filter((f) => IMAGE.test(f)).sort().reverse();
+      const cards = shots
+        .map((f) => `<a href="screens/${esc(s)}/${esc(f)}" target="_blank"><img loading="lazy" src="screens/${esc(s)}/${esc(f)}" alt=""><span>${esc(f.replace(/^\d+-/, ""))}</span></a>`)
+        .join("");
+      return `<section><h2>${esc(s)}</h2><div class="grid">${cards}</div></section>`;
+    })
+    .join("");
+  fs.writeFileSync(
+    GALLERY,
+    `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="10"><title>Session screenshots</title>
+<style>body{font:14px system-ui,sans-serif;background:#16141d;color:#eee;margin:16px}h2{font-size:15px;margin:24px 0 8px;color:#bbb}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}a{color:#ccc;text-decoration:none;font-size:12px}
+img{width:100%;border-radius:4px;background:#222;display:block;margin-bottom:4px}</style>
+<h1 style="font-size:18px">Screenshots the sessions looked at <small style="color:#888">(newest first, refreshes every 10 s)</small></h1>${body || "<p>None yet.</p>"}`
+  );
 }
 
 // ---- keys while a session runs: p pause, s stop after this one, q / Ctrl+C quit ----
@@ -289,7 +337,15 @@ function runSession({ prompt, model, effort, name, resume, opts, logBase, onLimi
         for (const c of e.message?.content ?? []) {
           if (c.type === "text" && c.text.trim()) say(`\n${c.text.trim()}\n`);
           else if (c.type === "thinking" && opts.thinking && c.thinking) say(dim(c.thinking.trim()));
-          else if (c.type === "tool_use") say(dim(`[${clock()}]   ▸ ${toolLine(c.name, c.input)}`));
+          else if (c.type === "tool_use") {
+            say(dim(`[${clock()}]   ▸ ${toolLine(c.name, c.input)}`));
+            // A screenshot it looked at: kept for the gallery, with a link to click here.
+            const file = c.name === "Read" && c.input?.file_path;
+            if (file && IMAGE.test(file) && fs.existsSync(file)) {
+              const kept = keepScreen(file, path.basename(logBase));
+              if (kept) say(`            🖼  ${fileUrl(kept)}`);
+            }
+          }
         }
       } else if (e.type === "user") {
         for (const c of e.message?.content ?? []) {
@@ -387,6 +443,8 @@ async function main() {
   fs.mkdirSync(LOGS, { recursive: true });
   fs.writeFileSync(PROTOCOL, PROTOCOL_TEXT);
   if (fs.existsSync(PAUSE)) fs.rmSync(PAUSE); // starting the loop is resuming it
+  if (!fs.existsSync(GALLERY)) drawGallery();
+  console.log(dim(`Screenshots the sessions look at: ${fileUrl(GALLERY)}`));
   const state = readState();
   const saveLimits = (l) => {
     state.limits = { ...l, at: new Date().toISOString() };
