@@ -18,6 +18,7 @@ import type { CouchMoments } from "@/lib/server/couch-answers";
 import type { ShowChange } from "@/lib/server/show-changes";
 import type { Members, OutPreview } from "@/lib/server/backstage-members";
 import type { AskRun, Ways } from "@/lib/server/results-ways";
+import type { SeasonDraft } from "@/lib/server/season-draft";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -37,6 +38,8 @@ export type { CouchMoments } from "@/lib/server/couch-answers";
 export type { ShowChange } from "@/lib/server/show-changes";
 export type { Member, MemberGame, Members, OutPreview } from "@/lib/server/backstage-members";
 export type { AskRun, Ways } from "@/lib/server/results-ways";
+export type { DraftClock, DraftFace, DraftGame, DraftPick, DraftSeat } from "@/lib/game/draft-view";
+export type { SeasonDraft } from "@/lib/server/season-draft";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -516,6 +519,56 @@ export const waivers = {
   /** Free agency: instant, first come, first served. */
   freeAgency: (leagueId: string, addId: string, dropId: string) => send(`/api/leagues/${leagueId}/waivers/free-agency`, "POST", { addId, dropId }),
 };
+
+// ---- the drafts (step 7): the draft room and the blind draft ----
+
+/** How often the open draft room asks again: every 4 s while a turn-based draft is live, 15 s while one waits to start
+ *  or people lock in, never once every draft here is done (docs/HOSTING.md). */
+export function draftPoll(d: SeasonDraft | undefined): number | false {
+  if (!d) return false;
+  if (d.games.some((g) => g.kind === "snake" && g.phase === "live")) return 4_000;
+  return d.games.some((g) => g.phase !== "done") ? 15_000 : false;
+}
+
+/**
+ * The drafts on a show (GET /api/seasons/[id]/draft): each game of yours with a draft, as far as you've seen. `poll`: the
+ * open room asks again (draftPoll) with the version it has, and an unchanged draft keeps what's here.
+ */
+export function useSeasonDraft(seasonId: string, couchId: string | null, opts: { poll?: boolean; enabled?: boolean } = {}) {
+  const client = useQueryClient();
+  const key = ["new-design", "draft", seasonId, couchId] as const;
+  return useQuery({
+    queryKey: key,
+    queryFn: async (): Promise<SeasonDraft> => {
+      const have = client.getQueryData<SeasonDraft>(key);
+      const q = new URLSearchParams();
+      if (couchId) q.set("couch", couchId);
+      if (have && opts.poll) q.set("v", have.v);
+      const body = await get<SeasonDraft | { unchanged: true; v: string }>(`/api/seasons/${seasonId}/draft${q.size ? `?${q}` : ""}`);
+      return "unchanged" in body && have ? have : (body as SeasonDraft);
+    },
+    enabled: opts.enabled ?? true,
+    staleTime: 3_000,
+    refetchInterval: opts.poll ? (q) => draftPoll(q.state.data) : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+export type DraftAction =
+  | { action: "pick"; castawayId: string; n: number }
+  | { action: "lock"; playerId: string; castawayIds: string[] }
+  | { action: "unlock"; playerId: string }
+  | { action: "queue"; castawayIds: string[] }
+  | { action: "start" }
+  | { action: "order"; order: string[] }
+  | { action: "settings"; timer?: number; away?: "wait" | "queue"; scheduledAt?: string | null }
+  | { action: "undoLast" }
+  | { action: "nudge"; n: number }
+  | { action: "expire"; n: number };
+
+/** A draft write (POST .../draft): answers its line's batch in Recent changes when it made one (the toast's Undo). */
+export const draftAct = (seasonId: string, leagueId: string, body: DraftAction) =>
+  post<{ ok: true; batch?: string | null; pushed?: boolean; picked?: boolean; queue?: string[] }>(`/api/seasons/${seasonId}/draft`, { leagueId, ...body });
 
 const bsKey = (page: string, seasonId: string, couchId: string | null) => ["new-design", "bs2", page, seasonId, couchId] as const;
 

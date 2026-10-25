@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, Check, ChevronRight, CircleHelp, Clock, Settings, Users, Zap, type LucideIcon } from "lucide-react";
 import { airTime } from "../clock";
-import { backstage, gameAdmin, useWaiversAdmin, type WaiverAdminGame } from "../data";
+import { backstage, gameAdmin, useWaiversAdmin, type WaiverAdminGame, type WaiverWeek } from "../data";
 import { gameColour } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -22,7 +22,105 @@ import { Face, IconBox } from "../show/parts";
 // before everyone has watched), who has picks in (never what they are: picks are private until they run), Run now (tier 2:
 // a preview first, Undo while free agency is open) and the last run. How waivers work is one choice of feel (Casual ·
 // Balanced · Competitive, applied on tap with Undo) with the rest under Fine-tune; Open a waiver window is three presets.
-// A Game admin runs the week; the feel and Fine-tune are a Commissioner's.
+// A Game admin runs the week; the feel and Fine-tune are a Commissioner's. Pick for them (step 7): someone who hasn't put
+// picks in, helped over the phone; you see their spots and who's free, never what they picked.
+
+/** Pick for them: one spot of theirs and who comes in, sent for them; the rest of their picks stay as they are. */
+function ClaimFor({ seasonId, couchId, game, who, onClose }: { seasonId: string; couchId: string; game: WaiverAdminGame; who: { playerId: string; name: string } | null; onClose: () => void }) {
+  const after = useAfter();
+  const view = useQuery({
+    queryKey: ["new-design", "bs2", "claim-for", game.leagueId, who?.playerId ?? null],
+    queryFn: () => gameAdmin.waivers<{ week: WaiverWeek }>(seasonId, couchId, game.leagueId, { action: "claimView", playerId: who!.playerId }),
+    enabled: !!who,
+    staleTime: 10_000,
+    retry: false,
+  });
+  const week = view.data?.week ?? null;
+  const failed = view.error ? (view.error as Error).message : null;
+  const [chosen, setSpot] = useState<string | null>(null);
+  const spot = chosen ?? week?.replace[0] ?? null;
+  const [add, setAdd] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const first = (n: string) => n.split(" ")[0];
+  const spots = week ? [...week.replace, ...(week.swapsAllowed ? week.team.filter((f) => f.out == null && !week.replace.includes(f.id)).map((f) => f.id) : [])] : [];
+  const face = (id: string) => week?.team.find((f) => f.id === id);
+  return (
+    <Sheet open={!!who} onOpenChange={(o) => !o && onClose()} title={who ? `Pick for ${who.name}` : "Pick for them"} subtitle={`${game.name} · you won't see what they picked`}>
+      <div data-claim-for>
+        {failed ? (
+          <p className="py-4 text-sm text-muted-foreground">{failed}</p>
+        ) : !week ? (
+          <div aria-busy className="h-40 animate-pulse rounded-[4px] bg-secondary" />
+        ) : !spots.length ? (
+          <p className="py-4 text-sm text-muted-foreground">{who?.name} has nobody to replace this week, and no swaps.</p>
+        ) : (
+          <>
+            <p className="type-caption mb-2 text-[13px] tracking-[0.06em] text-muted-foreground">{week.replace.length ? "Who goes" : "Swap out"}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {spots.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  data-claim-spot={id}
+                  aria-pressed={spot === id}
+                  onClick={() => setSpot(id)}
+                  className={`flex h-9 items-center rounded-[2px] px-3 text-sm font-semibold ${spot === id ? (week.replace.includes(id) ? "bg-chyron text-chyron-foreground" : "bg-foreground text-background") : "bg-secondary"}`}
+                >
+                  {week.replace.includes(id) ? "Replace" : "Swap"} {first(face(id)?.name ?? "someone")}
+                </button>
+              ))}
+            </div>
+            <p className="type-caption mb-1 mt-5 text-[13px] tracking-[0.06em] text-muted-foreground">Who comes in</p>
+            <ul className="max-h-[42dvh] overflow-y-auto">
+              {week.free.map((f) => (
+                <li key={f.id}>
+                  <button
+                    type="button"
+                    data-claim-add={f.id}
+                    aria-pressed={add === f.id}
+                    onClick={() => setAdd(add === f.id ? null : f.id)}
+                    className={`flex min-h-14 w-full items-center gap-3 border-t border-border px-1 text-left ${add === f.id ? "bg-[rgba(255,197,49,.12)]" : ""}`}
+                  >
+                    <Face src={f.photo} name={f.name} className="size-10 rounded-[3px]" />
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate text-[15px]">{f.name}</b>
+                      <small className="block truncate text-[13px] text-muted-foreground">{[f.group?.name, f.tag].filter(Boolean).join(" · ")}</small>
+                    </span>
+                    {add === f.id && <Check className="size-5 text-chyron-line" strokeWidth={3} aria-hidden />}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-[13px] leading-snug text-muted-foreground">It goes in as their pick for this spot, in place of anything they picked for it. Their other picks stay.</p>
+            <Btn
+              tone="must"
+              wide
+              className="mt-3"
+              data-claim-send
+              disabled={!spot || !add || busy}
+              onClick={async () => {
+                if (!who || !spot || !add) return;
+                setBusy(true);
+                try {
+                  await gameAdmin.waivers(seasonId, couchId, game.leagueId, { action: "claimFor", playerId: who.playerId, dropId: spot, addIds: [add] });
+                  await after();
+                  toast(`Sent ${first(who.name)}'s pick: it's in their waivers`);
+                  onClose();
+                } catch (e) {
+                  toast((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Send {who ? `${first(who.name)}'s` : "their"} pick
+            </Btn>
+          </>
+        )}
+      </div>
+    </Sheet>
+  );
+}
 
 const FEEL_WORDS = {
   casual: "Forgiving. Nobody falls behind for bad luck.",
@@ -77,6 +175,7 @@ export function WaiversAdminPage({ seasonId, show }: { seasonId: string; show: S
 
 function GameWaivers({ seasonId, couchId, g }: { seasonId: string; couchId: string; g: WaiverAdminGame }) {
   const [opening, setOpening] = useState(false);
+  const [helping, setHelping] = useState<{ playerId: string; name: string } | null>(null);
   const [settings, setSettings] = useState(false);
   const [how, setHow] = useState(false);
   // Run now's preview (tier 2): false closed, null while it's asked.
@@ -171,7 +270,16 @@ function GameWaivers({ seasonId, couchId, g }: { seasonId: string; couchId: stri
                     <Check className="size-4" strokeWidth={3} aria-hidden />
                     In
                   </span>
-                ) : null}
+                ) : g.revealFirst ? null : (
+                  <button
+                    type="button"
+                    data-claim-for-open={c.name}
+                    onClick={() => setHelping({ playerId: c.playerId, name: c.name })}
+                    className="nd-press flex h-10 items-center rounded-[3px] px-3 text-[14px] font-bold outline-1 -outline-offset-1 outline-input"
+                  >
+                    Pick for them
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -252,6 +360,7 @@ function GameWaivers({ seasonId, couchId, g }: { seasonId: string; couchId: stri
       </section>
 
       <OpenWindowSheet open={opening} onOpenChange={setOpening} seasonId={seasonId} couchId={couchId} g={g} />
+      <ClaimFor key={helping?.playerId ?? "none"} seasonId={seasonId} couchId={couchId} game={g} who={helping} onClose={() => setHelping(null)} />
       <SettingsSheet open={settings} onOpenChange={setSettings} seasonId={seasonId} couchId={couchId} g={g} onUndo={undoBatch} />
       <WaiversHow open={how} onOpenChange={setHow} how={g.how} gameName={g.gameName} />
       <GuardSheet

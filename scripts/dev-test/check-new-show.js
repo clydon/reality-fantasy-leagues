@@ -44,8 +44,8 @@ const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith("--"));
 if (!out) throw new Error("usage: check-new-show.js <outDir> [--width=390] [--keep]");
 const width = Number((args.find((a) => a.startsWith("--width=")) || "--width=390").slice(8));
-// Pages pushed over the show have their own placeholders, checked by check-new-shell.js.
-const ELSEWHERE = ["show.draft", "show.blind"];
+// Pages pushed over the show used to have placeholders of their own; the drafts are real since step 7 (check-new-draft.js).
+const ELSEWHERE = [];
 const REQUIRED = ["lineup", "pickup", "pick", "draftTurn", "blindDraft"];
 const BET = "Will an idol be played?";
 

@@ -105,6 +105,7 @@ async function up(pool) {
   await pool.query(`INSERT INTO league_invites (league_id, invited_by, identifier, player_id) VALUES ($1, $2, 'zt_someone', $3)`, [classic, me, players[2].id]);
   await pool.query(`INSERT INTO waiver_claims (league_id, period_id, player_id, pairs, updated_by) VALUES ($1, 'zt-p1', $2, '[]', $3)`, [roster, players[0].id, me]);
   await pool.query(`INSERT INTO blind_draft_picks (league_id, player_id, castaway_ids, locked_at) VALUES ($1, $2, '["k1", "k2"]', now())`, [classic, players[0].id]);
+  await pool.query(`INSERT INTO draft_queues (league_id, player_id, castaway_ids) VALUES ($1, $2, '["k3", "k1"]')`, [classic, players[0].id]);
   await pool.query(`INSERT INTO episode_team_notes (league_id, episode_number, player_id, why_text) VALUES ($1, 1, $2, 'zt: why')`, [classic, players[0].id]);
   const msg = (await one(`INSERT INTO chat_messages (league_id, user_id, author_name, type, text) VALUES ($1, $2, $3, 'message', 'zt hi') RETURNING id`, [classic, me, linked.USERNAME])).id;
   await pool.query(`INSERT INTO chat_messages (league_id, user_id, author_name, type, text, edited_at) VALUES ($1, $2, $3, 'message', 'zt hey', now())`, [poolLeague, ann, ANN]);

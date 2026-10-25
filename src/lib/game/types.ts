@@ -268,6 +268,10 @@ export interface LeagueSettings {
   finaleWinnerPoints: number;
   finalePredictionScope: string;
   draftScheduledAt?: string | null;
+  /** The turn-based draft's pick timer in seconds: 0 (off, the default), 120 or 60. */
+  draftTimer?: number;
+  /** When the pick timer runs out: wait for them (the default), or pick the first still free from their queue. */
+  draftAway?: "wait" | "queue";
   leagueTypeId: string;
   /** The catalog show's slug. Null on a new league until the commissioner picks one. */
   showId: string | null;
@@ -895,6 +899,19 @@ export interface BlindDraftState {
   revealedAt: string | null;
 }
 
+/** One pick of a turn-based draft, in its own log (state-logic.js SnakeDraftStrategy.pick). */
+export interface DraftLogEntry {
+  /** The overall pick it was made at (1-based). */
+  n: number;
+  playerId: string;
+  castawayId: string;
+  at: string;
+  /** The account that made it for them (a commissioner or Game admin). */
+  by?: string;
+  /** The pick timer ran out and it came from their queue. */
+  auto?: boolean;
+}
+
 // A completed pickup (replenish) or add/drop (trade): Transactions. MidSeasonLogic.applyPickup /
 // applyAddDrop append one of these; only Undo last waiver run and the spoiler views take one back.
 export interface MidSeasonLogEntry {
@@ -1060,6 +1077,13 @@ export interface LeagueState {
   draftOrder: string[];
   draftPicksMade: number;
   draftForceStarted: boolean;
+  /** When the draft was opened by hand, and when the turn now on the clock began (each pick and take-back stamps it). */
+  draftStartedAt?: string;
+  draftTurnAt?: string;
+  /** The turn-based draft's picks in order; drafts from before it have none. */
+  draftLog?: DraftLogEntry[];
+  /** Whoever runs the game nudged the player on the clock (one per turn: the next pick clears it). */
+  draftNudge?: { n: number; at: string; by: string };
   blindDraft: BlindDraftState;
   settings: LeagueSettings;
 }

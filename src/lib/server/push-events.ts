@@ -45,6 +45,18 @@ export function notifyDraftTurn(leagueId: string, state: LeagueState, actorUserI
   });
 }
 
+/** Whoever runs the game nudged the player on the clock (the draft room's Nudge): one push to them. False: no account. */
+export async function notifyDraftNudge(leagueId: string, playerId: string, byName: string): Promise<boolean> {
+  const userIds = await userIdsForPlayers(leagueId, [playerId]);
+  if (!userIds.length) return false;
+  const name = await leagueName(leagueId);
+  notifyAfter("draftTurn", async () => ({
+    userIds,
+    message: { title: "You're on the clock", body: `${byName} nudged you: it's your turn to draft in ${name}.`, url: link("/draft", leagueId), tag: `draft-${leagueId}` },
+  }));
+  return true;
+}
+
 /**
  * Someone was eliminated. Spoiler protection (results-seen.ts) splits the audience: anyone who opted
  * out gets who went home, listing everyone out so far this episode so repeat boots collapse; everyone

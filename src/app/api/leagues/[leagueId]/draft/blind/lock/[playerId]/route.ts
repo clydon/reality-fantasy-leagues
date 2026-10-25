@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
-import { withLeagueLock, HttpError } from "@/lib/server/db";
-import { readOwnPicks, unlockBlindPicks } from "@/lib/server/blind-draft";
+import { HttpError } from "@/lib/server/db";
+import { readOwnPicks } from "@/lib/server/blind-draft";
+import { unlockBlindFor } from "@/lib/server/draft";
 
 type RouteParams = { leagueId: string; playerId: string };
 
@@ -26,21 +26,9 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<RouteParam
 });
 
 // Withdraw a not-yet-revealed submission so it can be redone (a misclick shouldn't need a whole
-// league reset). Self-or-commissioner, same as locking in.
+// league reset). Self, or whoever runs the game, same as locking in (draft.ts).
 export const DELETE = apiRoute(async (req, { params }: { params: Promise<RouteParams> }) => {
   const { leagueId, playerId } = await params;
-  const { membership } = await requireLeagueRole(req, leagueId, "member");
-  if (membership.role !== "commissioner" && playerId !== membership.playerId) {
-    throw new HttpError(403, "You can only withdraw your own picks");
-  }
-
-  const state = await withLeagueLock(leagueId, async (s, client) => {
-    // Nothing to withdraw from once the reveal has happened -- ownership is in ownerIds by then, and
-    // unwinding it is a commissioner job (undraft/reset), not a self-serve one.
-    if (StateLogic.BlindDraftLogic.isRevealed(s)) {
-      throw new HttpError(400, "The draft has already been revealed");
-    }
-    await unlockBlindPicks(client, leagueId, s, playerId);
-  });
-  return NextResponse.json(state);
+  const actor = await requireLeagueRole(req, leagueId, "member");
+  return NextResponse.json(await unlockBlindFor(actor, leagueId, playerId));
 });

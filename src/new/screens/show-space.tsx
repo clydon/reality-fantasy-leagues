@@ -3,8 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { BookOpen, Ellipsis, Eye, KeyRound, Bell, LogOut, Plus, RotateCcw, Tv, UserPlus, Users } from "lucide-react";
-import { calm, justAired, ticks } from "../clock";
-import { chatCouch, gameAdmin, useAfterReveal, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonEpisodes, useSeasonGames, useSpace, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
+import { airTime, calm, justAired, ticks } from "../clock";
+import { chatCouch, gameAdmin, useAfterReveal, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
@@ -178,8 +178,22 @@ function useBackstageNeeds(seasonId: string, show: ShowData): Need[] {
   return runs ? (bs.data?.needs ?? []) : [];
 }
 
+/** A draft's line on the ⋯ menu: where it stands for you. */
+function draftLine(g: DraftGame): string {
+  const at = g.scheduledAt ? Date.parse(g.scheduledAt) : null;
+  if (g.phase === "waiting") return at ? `${g.name} · starts ${airTime(at)}` : `${g.name} · not started yet`;
+  if (g.phase === "done") return `${g.name} · done · see the teams`;
+  if (g.kind === "blind") {
+    const left = g.seats.length - g.locked.length;
+    return g.you && g.locked.includes(g.you) ? `You're in · waiting for ${left}` : "Pick your team in private";
+  }
+  if (g.clock?.playerId === g.you) return "You're up";
+  const who = g.seats.find((s) => s.playerId === g.clock?.playerId)?.name ?? "someone";
+  return `${who} is picking · round ${g.clock?.round ?? 1}`;
+}
+
 /** The show's ⋯ menu: Backstage for whoever runs a game here (with a dot when it needs you), Recent changes for the
- *  couch, the drafts, and what's still to come. */
+ *  couch, the drafts (for games that have one), and what's still to come. */
 function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [open, setOpen] = useState(false);
   const [leave, setLeave] = useState<OutPreview | null | false>(false);
@@ -187,6 +201,12 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const refresh = useAfterReveal();
   const how = usePushedPage("how-it-works");
   const needs = useBackstageNeeds(seasonId, show);
+  // The drafts, read when the menu opens (a game with a team to draft: Outlast, Weekly Lineup).
+  const drafting = show.games.some((g) => g.yourRole && (g.gameType === "classic-draft" || g.gameType === "active-roster"));
+  const drafts = useSeasonDraft(seasonId, show.couch?.id ?? null, { enabled: open && drafting }).data?.games ?? [];
+  const room = drafts.filter((g) => g.kind === "snake");
+  const blind = drafts.filter((g) => g.kind === "blind");
+  const lead = (list: DraftGame[]) => list.find((g) => g.phase === "live") ?? list.find((g) => g.phase === "waiting") ?? list[0];
   const name = show.header?.show.name ?? "This show";
   const runNames = [...new Set(show.runs.map((g) => g.gameName))].join(" and ");
   const soon = (id: PreviewId, icon: typeof Bell, title: string, detail: string) => (
@@ -231,8 +251,12 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
           {show.couch && show.games.length > 0 && (
             <Row href={paths.backstage(seasonId, "history")} icon={RotateCcw} title="Recent changes" detail="What's changed in these games, and who changed it" />
           )}
-          <Row href={paths.showPage(seasonId, "draft")} icon={Users} title="Draft room" detail="Pick your team in turn" />
-          <Row href={paths.showPage(seasonId, "blind")} icon={Eye} title="Blind draft" detail="Pick in private, reveal together" />
+          {room.length > 0 && (
+            <Row href={`${paths.showPage(seasonId, "draft")}?game=${lead(room).leagueId}`} icon={Users} title="Draft room" detail={draftLine(lead(room))} />
+          )}
+          {blind.length > 0 && (
+            <Row href={`${paths.showPage(seasonId, "blind")}?game=${lead(blind).leagueId}`} icon={Eye} title="Blind draft" detail={draftLine(lead(blind))} />
+          )}
           {soon("show.invite", UserPlus, "Invite to this show", "A code; they join the couch too")}
           {soon("show.start-game", Plus, "Start a game", "Bingo night, predictions, a new league")}
           {soon("show.notifications", Bell, "Notifications", "Reminders, results and chat for this show")}

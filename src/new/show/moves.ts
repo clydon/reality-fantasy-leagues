@@ -45,9 +45,9 @@ export function moveCard(m: Move, seasonId: string, twin: boolean): MoveCard {
     case "pickup":
       return { key, title: m.text, line: `${when ? `Due ${when} · ` : ""}you pick who comes in${which}`, action: "Pick who comes in", href: paths.showPage(seasonId, "waivers") };
     case "draftTurn":
-      return { key, title: "Your turn to draft", line: m.leagueName, action: "Draft", href: paths.showPage(seasonId, "draft") };
+      return { key, title: "Your turn to draft", line: m.leagueName, action: "Draft", href: `${paths.showPage(seasonId, "draft")}?game=${m.leagueId}` };
     case "blindDraft":
-      return { key, title: "Lock in your draft picks", line: `Pick in private, reveal together${which}`, action: "Pick my team", href: paths.showPage(seasonId, "blind") };
+      return { key, title: "Lock in your draft picks", line: `Pick in private, reveal together${which}`, action: "Pick my team", href: `${paths.showPage(seasonId, "blind")}?game=${m.leagueId}` };
     default:
       return { key, title: m.text, line: m.leagueName, action: "Open", tab: "lineup" };
   }

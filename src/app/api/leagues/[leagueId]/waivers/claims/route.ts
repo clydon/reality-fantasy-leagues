@@ -1,6 +1,7 @@
 import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
+import { forPlayerChange } from "@/lib/server/change-log";
 import { saveClaim } from "@/lib/server/waivers";
 import { requireWaivers, waiverActor } from "@/lib/server/waiver-actor";
 
@@ -15,11 +16,21 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   const { user, membership } = await requireLeagueRole(req, leagueId, "member");
   const body = (await req.json().catch(() => ({}))) as { playerId?: unknown; pairs?: unknown; pickupIds?: unknown; dropId?: unknown; addIds?: unknown };
 
-  const state = await withLeagueLock(leagueId, async (s, client) => {
-    requireWaivers(s);
-    const playerId = await waiverActor(user.id, leagueId, membership, s, body.playerId);
-    const saved = await saveClaim(client, leagueId, s, playerId, body, user.id);
-    if (saved.error) throw new HttpError(400, saved.error);
-  });
+  let actedFor = "";
+  const state = await withLeagueLock(
+    leagueId,
+    async (s, client) => {
+      requireWaivers(s);
+      const playerId = await waiverActor(user.id, leagueId, membership, s, body.playerId);
+      actedFor = playerId;
+      const saved = await saveClaim(client, leagueId, s, playerId, body, user.id);
+      if (saved.error) throw new HttpError(400, saved.error);
+    },
+    // A claim sent for someone else is a line in Recent changes, naming nobody they picked.
+    (before, after) => {
+      const change = forPlayerChange(user.id, membership.playerId, actedFor, "waivers", (name) => `Sent ${name}'s waiver pick`);
+      return typeof change === "function" ? change(before, after) : change;
+    }
+  );
   return stateResponse(req, state);
 });

@@ -220,6 +220,11 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
         if (!p || p.id !== undo.periodId || p.phase !== "processed" || !p.run) throw new HttpError(409, "That waiver run can't be taken back any more");
         const refused = StateLogic.WaiverLogic.undo(s);
         if (refused) throw new HttpError(409, refused);
+      } else if (undo.type === "draftPick") {
+        // Only the draft's last pick comes back (the one after it was made with it gone from the board).
+        const last = s.draftLog?.[s.draftLog.length - 1];
+        if (!last || last.castawayId !== undo.castawayId || last.n !== undo.n || s.draftPicksMade !== undo.n) throw new HttpError(409, "Picks came after it: take those back first");
+        StateLogic.undraft(s, undo.castawayId);
       } else if (undo.type === "member") await restoreMember(s, client, r.league_id, undo);
       else if (undo.type === "rulebook") await undoRulebookChange(client, r.league_id, s, undo);
       await mark(client);

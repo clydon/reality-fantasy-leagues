@@ -32,7 +32,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 6a | Backstage II: Simple waivers, members and roles, game settings, Scoring rules (read side) | **done** 2026-10-25 on the branch (no migration) | Opus · high |
 | 6b | Community results, disputes, house rulings, admin; rulebooks phases 4–7 | **done** 2026-10-25 on the branch, in three parts: results from everyone and disputes (migration 0112), the admin's desk and the rulebook editor (0113), Make it ours (0114); all ship with 0b's | Opus · high |
 | 6c | How results get in: copy and paste, One tap, Autopilot (coming soon) | **done** 2026-10-25 on the branch, in two parts: how results get in (One tap, the ways, the bot's runs as sources, quick checks that wait; migration 0115) and settling without the admin (the tie-break run behind a desk switch that's off, "nobody went home", show changes the couches confirm, the desk's bot Settings; 0116); both ship with 0b's | Opus · xhigh |
-| 7 | Draft room and blind draft | not started | Opus · xhigh |
+| 7 | Draft room and blind draft | **done** 2026-10-25 on the branch (migration 0117 ships with 0b's) | Opus · xhigh |
 | — | **Switch the couch to the new design by default** | — | — |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | not started | Opus · xhigh |
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | not started | Opus · xhigh |
@@ -215,23 +215,21 @@ step's As built.
 - **"Nobody went home" never applies on its own** (step 6c part 2; for a later polish). A quick check that says nobody left
   always waits for It's right, however many sources it has (a check run too early can find nothing and say so); entered by
   hand, or in a full answer, it applies like any result. Two couches' quick checks saying nobody could confirm it instead.
-- **Not in Recent changes yet** (step 5; for 7, 9 and 6b). Logged: every classic results route, settings, roles, players,
-  the cast and tribes, waivers (process, undo, window), the catch-up reveal, lineup locks, the draft's start, order and
-  take-back, the finale's results, prediction questions, rule changes, scoring rules, renaming, linking and moves made for
-  someone else. Not yet: a draft pick made for someone (`draft/pick`: step 7's "admins pick for someone" should log it),
-  invites and late-join starts (step 9's join flow: 6a's Members has no invite of its own), the hourly waiver job's own
+- **Not in Recent changes yet** (step 5; for 9 and 6b). Logged: every classic results route, settings, roles, players,
+  the cast and tribes, waivers (process, undo, window), the catch-up reveal, lineup locks, the draft's start, order,
+  settings and take-back, a draft pick or lock-in made for someone and a waiver claim sent for someone (step 7), the
+  finale's results, prediction questions, rule changes, scoring rules, renaming, linking and moves made for someone else.
+  Not yet: invites and late-join starts (step 9's join flow: 6a's Members has no invite of its own), the hourly waiver job's own
   processing (a run it made is still taken back from Backstage › Waivers' Last run, which logs that) and a super-admin's
   membership edits in classic's `/admin` (the desk's Hand it on is logged). Classic's screens don't show the log (only the new design does) and its own Undo buttons don't
   mark lines undone.
-- **Backstage's setup jobs** (step 5; for 7, 9). Needs you lists results jobs only; classic's commissioner items (Add the
-  cast, Invite players, Draft not scheduled, a catch-up league's next reveal: `commissioner-items.ts`, the home's
-  `backstage`) link to classic pages, so they wait for the pages that fix them (6a's pages fix none of them).
+- **Backstage's setup jobs** (step 5; the draft's since 7; the rest for 9 and 10). Needs you has results jobs and "Schedule
+  the Outlast draft" (step 7); classic's other commissioner items (Add the cast, Invite players, a catch-up league's next
+  reveal: `commissioner-items.ts`, the home's `backstage`) link to classic pages, so they wait for the pages that fix them
+  (step 9's invites and join, step 10's cast import).
 - **Who can join is on or off** (step 6a; for 9). The mock's "Ask me first" and its join requests ("kat asked to join
   Weekly Lineup · Let in") don't exist anywhere: Game settings' Who can join is classic's late joiners, Anyone on the couch
   or Nobody new. Step 9's join flow is where a request would come from.
-- **No "Claim for them" in the new design** (step 6a; for 7). Classic lets a commissioner save a claim for someone (helping
-  over the phone, `waiver-actor.ts`); Backstage › Waivers shows who has picks in and nothing more. Step 7's "admins pick for
-  someone" could bring both (the claim stays private: Claim for sends a spot without reading theirs).
 - **No "Extend a day"** (step 6a; for 6b or later). The mock's Backstage › Waivers has it; the engine has no way to move a
   week's deadline (a window's `processAt` is worked out from the schedule). Small: an override on the period.
 - **No "Lock it down"** (step 6a; for 10 or later). The mock's Game settings has a competitive switch (no late joins, no
@@ -255,9 +253,17 @@ step's As built.
 - **Nobody can undo the bot's own answer** (step 6c part 1; for C or a later desk step; 6c part 2 left it). An Autopilot answer has no
   couch, so no couch gets its line or its Undo (like another couch's answer); a wrong one is flagged ("Something wrong?") and
   settled by the next answer, or decided on the desk. The desk could offer "withdraw this answer" on a result's page.
-- **The commissioner tour's test fails** (seen in step 6c part 1, failing at HEAD before it; for 7 or a classic fix).
-  `tests/tour-commissioner.test.js`' three tests stop in the tour's draft (`S.freeAgents(s)[0]` is undefined while drafting
-  `buildCommissionerState()`'s league). Not looked into; the other 513 tests pass.
+- **Pushes open classic's pages** (step 4 for chat, step 7 for the draft; before the couch switches, or 15). "You're on the
+  clock", a draft Nudge, results and chat pushes link to classic's routes (`/draft?league=`, `/chat`, ...), so someone on the
+  new design lands in classic from a notification. Before the couch switches, a push should open the new design for people
+  on it: classic's routes could send someone with `ui='new'` to the show (and the draft room, with its `?game=`).
+- **The pick timer needs someone in the room** (step 7, as designed). There's no job: when a turn's time runs out, a phone with
+  the draft room open asks the server, which checks the clock and picks from their queue if the game says so. With nobody in
+  the room, the pick waits until someone opens it (whoever's on the clock is pushed when their turn starts, and can be
+  nudged). A turn with no timer reads as "hasn't picked yet" after 3 minutes, when Nudge and Pick for them come up.
+- **The draft's points are the game's** (step 7; for a later polish). A draft after episodes have scored (a late league) shows
+  each castaway's points as this game counts them (`castOf`), where the Cast tab and waivers count the season's facts.
+  Drafts before the premiere (every one so far) show tribes instead.
 - **Fewer starters trims lineups** (step 6a). Lowering Who scores each week keeps the first starters of a lineup already set
   for the next episode; Undo puts the number back, not the trimmed starters (the lineup then reads "not set", so it's asked
   for again).
@@ -1820,6 +1826,67 @@ schedule check), and the tie-break switch is off, so nothing new runs on product
   unchanged. It stops if another local season has bot research on or a question open (the tie-break plans every season).
   `fake-bot.js` knows the rulebook prompt (kind `rulebook`). `tests/bot-research.test.js` (`tiebreakNext`),
   `tests/fact-status.test.js` and `tests/results-changes.test.js` (nobody went home).
+
+### As built, step 7 (2026-10-25, on `new-design`)
+
+The draft room and the blind draft are real, on the leagues' own drafts, which ends parity. Migration **0117**
+(`draft_queues`) ships with 0b's (same rehearsal). The couch's real leagues were never touched (their drafts are done).
+- **Engine** (`state-logic.js`): a turn-based draft keeps its own log (`draftLog`: the pick number, who, whom, `by` when
+  someone made it for them, `auto` when the timer did), stamps when the turn on the clock began (`draftTurnAt`; a start by
+  hand also `draftStartedAt`), and each pick clears a nudge (`draftNudge`, one a turn). `draftToCurrentTurn(s, id, { by,
+  auto })`; a take-back drops its entry. Settings `draftTimer` (0 off, 120, 60) and `draftAway` (wait, queue). Classic's
+  picks log the same way; a draft from before the log shows its picks without names.
+- **The view** (`src/lib/game/draft-view.ts`, pure): each game with a draft, for one viewer at their mark: snake or blind, the
+  phase (waiting, live, done), the seats in order, the cast by tribe (points once an episode has scored), every pick's
+  owner, the picks with who made them for someone, the clock (since, when the timer runs out, nudged), owners, teams, your
+  queue, Undo last pick's availability; for a blind draft who's locked in and your own picks back to you, and nobody's
+  team before the reveal. A late draft past results you haven't revealed asks you to reveal them first.
+- **The writes** (`src/lib/server/draft.ts`) are shared by classic's league routes (`/draft/pick`, `/draft/force-start`,
+  `/draft/blind/lock[/id]`) and the new `GET/POST /api/seasons/[id]/draft` (`season-draft.ts`; POST pick, lock, unlock, queue,
+  start, order, settings, undoLast, nudge, expire, answering `{ ok, batch }` and never the league). A Game admin can pick
+  and lock in for someone (classic too); Start, the order, the settings and Undo last pick are a Commissioner's. A pick made
+  for someone is a line in Recent changes with Undo while it's still the draft's last (`DraftPickUndo`), a lock-in for
+  someone a line naming no picks, and Start, the order, the settings (with Undo) and Undo last pick lines too. A pick meant
+  for an earlier turn, a castaway someone has and someone else's turn are refused with the reason (classic's pick used to
+  do nothing). Your queue lives in `draft_queues`, read for your own seat only (like `blind_draft_picks`), and is backed up
+  with the league.
+- **The pick timer has no job.** When a turn's time runs out, a phone in the room posts `expire`; the server checks the clock
+  and, with "Pick from their queue", drafts their first still free (a line nobody made, with Undo); otherwise the draft
+  waits. Whoever runs the game then sees "sam hasn't picked yet · Time's up" (or, with no timer, after 3 minutes) with Nudge
+  (one push, once a turn) and Pick for sam. Polled while open (HOSTING.md): 4 s live, 15 s waiting, not once done.
+- **The screens** (`src/new/show/draft.tsx`, `/show/[id]/draft?game=` and `/blind?game=`): the draft room (the ticker of recent
+  picks with "by alex", the clock card that pulses yellow on your turn, the order as faces, Available / Teams / Your queue,
+  tribe chips and Show taken, stars, the confirm bar, "Helping riley? Pick for them" and its for-bar, Draft settings: the
+  start time, the pick timer, what happens when it runs out, Shuffle and Undo last pick), before the start (the order with
+  Shuffle, Pick a time, Start the draft now, the cast to star), Draft complete ("Couch Cup is set", how many picks were made
+  for someone else, the teams rising in), and the blind draft (who's in, your slots, Lock in, Change, Pick for someone left,
+  then the teams turning over, once per device). Tonight's cards and the dock go to the room with `?game=` (a draft due first
+  makes the dock's button "Draft"), and the ⋯ menu's Draft room and Blind draft rows show only for games with that kind of
+  draft, with where each stands (read when the menu opens).
+- **Backstage:** "Schedule the Outlast draft" in Needs you (a Commissioner's, until the draft has a time or starts), to the
+  draft room. **Pick for them** in Backstage › Waivers beside anyone without picks in: their week as they'd see it (their
+  spots and who's free, never their picks; your own mark guards it), one spot sent for them (`claimView`, `claimFor` through
+  `saveClaim { spot }`), a line naming nobody picked. Classic's claim for someone is open to Game admins and logged too.
+- **Fixed from Noticed, not fixed:** a draft pick made for someone wasn't logged; no Claim for them; Backstage's setup jobs
+  (the draft's; the rest wait for 9 and 10); the commissioner tour's test (it predated the tour's rebuild on Survivor 51: the
+  league starts with no cast and `stageResults` takes the episode; rewritten, and its "opens Episode 2" dropped, since the
+  tour's own schedule opens it).
+- **Fixtures and Preview:** deleted the entries `show.draft` and `show.blind` and the placeholder page (`ShowPageScreen`); no
+  fixtures were step 7's.
+- **Changed from the mock:** Pick for X sits on the clock card only once a turn drags on, with a quiet "Helping X? Pick for
+  them" under it before that (whoever runs the game can always pick); the away rules are two (Wait for them, recommended;
+  Pick from their queue) and show only with a timer; the blind draft's "Reveal now (admin)" is Pick for sam (it locks in for
+  whoever's left; nothing reveals without everyone); the screens before the start aren't in the mock; picks show the overall
+  pick number ("Round 2 · pick 7").
+- **Checks:** `scripts/dev-test/check-new-draft.js <outDir> [--width=390] [--keep]` (90 PASS at 390) on the new
+  `draft-fixture.js` (a zt couch about to draft: Outlast's turn-based draft in the mock's order and Weekly Lineup's blind
+  draft, 4 each, neither scheduled) and new-fixture.js for Pick for them. `tests/draft-view.test.js` (7);
+  `tests/tour-commissioner.test.js` passes again (527 of 527); `check-backup-restore.js` covers `draft_queues`.
+- **Noticed, left as is:** pushes open classic's pages (worth settling before the couch switches), the pick timer needs
+  someone in the room, the draft's points are the game's.
+- **The switch (needs the user's OK):** steps 1–7 are done. Switching the couch means the branch reaches production: a fresh
+  backup and the Neon branch rehearsal of 0100–0117 (0b's As built: the user's terminal), merging `new-design` into master
+  and deploying, then `ui='new'` for the three members, classic one tap away, and a week's watch before step C.
 
 ## Steps 8–15: beyond parity
 

@@ -50,10 +50,6 @@ export const PREVIEWS = {
   "show.start-game": { step: "10", title: "Start a game", line: "A season game or an episode game for this show." },
   "show.notifications": { step: "15", title: "Notifications for this show", line: "Lineup reminders, results, chat." },
 
-  // ---- pushed over a show ----
-  "show.draft": { step: "7", title: "The draft room", line: "Pick your team in turn; nobody's auto-picked." },
-  "show.blind": { step: "7", title: "The blind draft", line: "Pick in private, then reveal together." },
-
   // ---- Backstage (Results and Recent changes are real since step 5; Waivers, Scoring rules, Members & roles and Game
   // settings since 6a; How results get in since 6c) ----
   "backstage.end-game": { step: "10", title: "Archive or delete a game", line: "Keep it on the trophy shelf and stop scoring, or remove it for everyone." },

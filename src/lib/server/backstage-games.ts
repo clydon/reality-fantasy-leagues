@@ -7,7 +7,7 @@ import { castOf } from "@/lib/game/game-view";
 import { previewLines, type PreviewLine } from "@/lib/game/results-changes";
 import { gameRules } from "@/lib/game/game-rules";
 import type { LeagueState, ReplaceRule, WaiverFeel, WaiverWindows } from "@/lib/game/types";
-import { waiverHow, type WaiverWeek } from "@/lib/game/waiver-view";
+import { waiverHow, waiverWeek, type WaiverWeek } from "@/lib/game/waiver-view";
 import { windowLine } from "@/lib/game/waiver-words.js";
 import { blocksAt } from "@/lib/game/formats/rulebook-patch.js";
 import { inForceEdits, lineage, rulebookForLeague } from "@db/rulebooks.js";
@@ -21,7 +21,7 @@ import { leagueStates } from "./league-states";
 import { notifyWaiverWindow } from "./push-events";
 import type { Game } from "./show-space";
 import { windowSnapshot, type WindowSnapshot } from "./waiver-pushes";
-import { openWindow, processNow } from "./waivers";
+import { openWindow, processNow, saveClaim } from "./waivers";
 import { ourRules, type OurRules } from "./ours";
 
 // Backstage II (docs/PLAN-new-design.md step 6a): the game's own pages for whoever runs it. Waivers (the week running,
@@ -282,7 +282,9 @@ export type WaiverAction =
   | { action: "run" }
   | { action: "undo" }
   | { action: "feel"; feel: WaiverFeel }
-  | { action: "set"; set: Record<string, unknown> };
+  | { action: "set"; set: Record<string, unknown> }
+  | { action: "claimView"; playerId: string }
+  | { action: "claimFor"; playerId: string; dropId: string; addIds: string[] };
 
 // Fine-tune's fields, and what each may be (WaiverLogic.updateSetting checks the values).
 const WAIVER_FIELDS = ["replaceRule", "waiverWindows", "autoFill", "waiverProcessHours", "replenishOrderBy", "freeAgencyEnabled"];
@@ -309,6 +311,41 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
       until: p.closesAt,
       shared: state.settings.ownershipMode === "shared",
     };
+  }
+
+  // Claim for them (step 7; classic's commissioner "Claim for"): someone who hasn't put picks in, helped over the phone.
+  // Their week as they'd see it (their spots, who's free), never their claim; then one spot's picks sent for them, the
+  // rest of their claim kept (waivers.js saveClaim { spot }). Only once you've seen the week's episode yourself.
+  if (body.action === "claimView" || body.action === "claimFor") {
+    const mark = await markOf(scope);
+    const check = (s: LeagueState) => {
+      const p = W.current(s);
+      if (!p || p.phase !== "open") throw new HttpError(409, "Waivers aren't open");
+      if (mark !== null && p.episode > mark) throw new HttpError(409, `Reveal Episode ${p.episode} first`);
+      if (!W.rotation(s).includes(body.playerId)) throw new HttpError(404, "They aren't in this week's waivers");
+    };
+    if (body.action === "claimView") {
+      const state = await readyLeague(id, (await leagueStates([id])).get(id)!);
+      check(state);
+      const users = (await usersByLeague([id])).get(id) ?? new Map();
+      const week = waiverWeek({ leagueId: id, name: game.name, gameType: game.gameType, gameName: game.gameName, yourRole: game.yourRole }, state, body.playerId, mark, (p) => users.get(p) ?? null, null);
+      if (!week) throw new HttpError(409, "Waivers aren't open");
+      return { week };
+    }
+    if (typeof body.dropId !== "string" || !Array.isArray(body.addIds)) throw new HttpError(400, "Choose who to drop and who to add");
+    let name = "someone";
+    await withLeagueLock(
+      id,
+      async (s, client) => {
+        check(s);
+        name = s.players.find((x) => x.id === body.playerId)?.name ?? name;
+        const saved = await saveClaim(client, id, s, body.playerId, { spot: { dropId: body.dropId, addIds: body.addIds } }, user);
+        if (saved.error) throw new HttpError(400, saved.error);
+      },
+      // Nobody's names: the picks are private until they run, theirs and whoever sent them.
+      () => plainChange(user, "waivers", `Sent ${name}'s waiver pick`)
+    );
+    return { batch: null };
   }
 
   if (body.action === "window") {

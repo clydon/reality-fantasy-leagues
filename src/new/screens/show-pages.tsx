@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRight, Check, ChevronRight, CircleQuestionMark, Eye, KeyRound, RotateCcw, SlidersHorizontal, Trophy, Users, type LucideIcon } from "lucide-react";
+import { ArrowLeftRight, CalendarClock, Check, ChevronRight, CircleQuestionMark, Eye, KeyRound, RotateCcw, SlidersHorizontal, Trophy, Users, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { airTime } from "../clock";
 import { ChangesPage } from "../backstage/changes";
@@ -12,19 +12,16 @@ import { WaiversAdminPage } from "../backstage/waivers";
 import { useBackstage, useChanges, type Backstage, type Need } from "../data";
 import { NavLink, useNav } from "../nav";
 import { BACKSTAGE_PAGES, paths, type BackstagePage } from "../routes";
-import { PageHeader } from "../ui/bars";
 import { EmptyState, Row, SectionHead } from "../ui/parts";
-import { Preview } from "../ui/preview";
 import { ShowBar } from "../ui/show-bar";
-import type { PreviewId } from "../preview";
 import { isTabOf, useShow, type ShowData } from "./show-space";
 
-// Pages pushed over a show space (step 0c's shells): Backstage and its pages, waivers, the draft room and the
-// blind draft. Each is a route of its own, deeper than the show, so it pushes in from the right; back returns to
-// the tab you left. Backstage is steps 5 and 6a (mock backstage.js, guards.js): its home (Needs you, then its pages),
-// Results and Recent changes since step 5, Waivers, Scoring rules, Members & roles and Game settings since 6a; the
-// player's Waivers page is show/waivers.tsx; the drafts are step 7's (draft.js). Recent changes is the couch's to read,
-// so players reach it too (the show's ⋯ menu).
+// Backstage, pushed over a show space: a route of its own, deeper than the show, so it pushes in from the right; back
+// returns to the tab you left. Steps 5 and 6a (mock backstage.js, guards.js): its home (Needs you, then its pages),
+// Results and Recent changes since step 5, Waivers, Scoring rules, Members & roles and Game settings since 6a. The other
+// pages pushed over a show have files of their own: the player's Waivers (show/waivers.tsx), and the draft room and the
+// blind draft (show/draft.tsx, step 7). Recent changes is the couch's to read, so players reach it too (the show's ⋯
+// menu).
 
 const PAGES = {
   results: { title: "Results", icon: CircleQuestionMark, detail: "Who went home, and full scores for every game" },
@@ -123,7 +120,7 @@ function BackstageHome({ seasonId, show }: { seasonId: string; show: ShowData })
           ) : needs.length ? (
             <div className="flex flex-col">
               {needs.map((n) => (
-                <Job key={`${n.id}-${n.episode}`} seasonId={seasonId} need={n} games={games} />
+                <Job key={`${n.id}-${n.episode}-${n.leagueId ?? ""}`} seasonId={seasonId} need={n} games={games} />
               ))}
             </div>
           ) : (
@@ -140,7 +137,7 @@ function BackstageHome({ seasonId, show }: { seasonId: string; show: ShowData })
           {BACKSTAGE_PAGES.map((key) => {
             const p = PAGES[key];
             const detail = key === "results" ? resultsLine(bs.data) : key === "history" && latest ? `${latest.who?.name ?? "On its own"} · ${latest.text}${latest.undone ? " · undone" : ""}` : p.detail;
-            return <Row key={key} href={paths.backstage(seasonId, key)} icon={p.icon} title={p.title} detail={detail} dot={key === "results" && needs.length > 0} />;
+            return <Row key={key} href={paths.backstage(seasonId, key)} icon={p.icon} title={p.title} detail={detail} dot={key === "results" && needs.some((n) => n.id !== "draft")} />;
           })}
         </div>
       </section>
@@ -162,23 +159,25 @@ function resultsLine(data: Backstage | undefined): string {
   return `Episode ${ep.number} · final scores in · copy and paste, free`;
 }
 
-/** A job (the mock's .job): the one yellow tag, what it is, and Check. */
+/** A job (the mock's .job): the one yellow tag, what it is, and Check (a game's setup: Schedule, in its draft). */
 function Job({ seasonId, need, games }: { seasonId: string; need: Need; games: number }) {
+  const setup = need.id === "draft";
+  const Icon = setup ? CalendarClock : CircleQuestionMark;
   return (
     <NavLink
-      href={`${paths.backstage(seasonId, "results")}?ep=${need.episode}`}
+      href={setup ? `${paths.showPage(seasonId, need.draft === "blind" ? "blind" : "draft")}?game=${need.leagueId}` : `${paths.backstage(seasonId, "results")}?ep=${need.episode}`}
       data-job={need.id}
       className="nd-press flex min-h-[72px] items-center gap-3 border-b border-border py-2.5"
     >
       <span className="grid size-14 flex-none place-items-center rounded-[3px] bg-chyron text-chyron-foreground">
-        <CircleQuestionMark className="size-6" aria-hidden />
+        <Icon className="size-6" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="type-caption block text-[12px] tracking-[0.06em] text-muted-foreground">{games > 1 ? `All ${games} games` : "Your game"}</span>
+        <span className="type-caption block text-[12px] tracking-[0.06em] text-muted-foreground">{setup ? "Setup" : games > 1 ? `All ${games} games` : "Your game"}</span>
         <b className="block text-[16px] leading-tight">{need.title}</b>
         <small className="block text-[13px] text-muted-foreground">{need.detail}</small>
       </span>
-      <span className="text-[15px] font-bold text-chyron-line">Check</span>
+      <span className="text-[15px] font-bold text-chyron-line">{setup ? "Schedule" : "Check"}</span>
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
     </NavLink>
   );
@@ -199,21 +198,3 @@ function AllClear({ data }: { data: Backstage }) {
   );
 }
 
-const SHOW_PAGE_META = {
-  draft: { title: "Draft room", preview: "show.draft" },
-  blind: { title: "Blind draft", preview: "show.blind" },
-} as const satisfies Record<string, { title: string; preview: PreviewId }>;
-
-export function ShowPageScreen({ seasonId, page }: { seasonId: string; page: keyof typeof SHOW_PAGE_META }) {
-  const show = useShow(seasonId);
-  const meta = SHOW_PAGE_META[page];
-  return (
-    <>
-      <PageHeader
-        title={meta.title}
-        back={{ label: show.header?.show.name.replace(/^The /, "") ?? "Back", parent: paths.show(seasonId), accepts: isTabOf(seasonId) }}
-      />
-      <Preview id={meta.preview} className="mx-4 mt-5" />
-    </>
-  );
-}

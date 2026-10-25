@@ -98,6 +98,7 @@ measured; measure from Neon's usage a week after a change):
 | New design, One tap asking (`/api/seasons/[id]/backstage/ask?run=`) | 2.5 s, only while the bot answers (~1-2 min) | under 1 KB (the run's row) |
 | New design, Backstage › Results while a One tap runs (`/backstage/ways`) | 4 s, only while one runs | ~1 KB |
 | New design, an episode page while the bot adds a show change (`/api/seasons/[id]/show-changes/[n]`) | 4 s, only while it's added (~1-3 min) | under 1 KB |
+| New design, the open draft room (`/api/seasons/[id]/draft?v=`) | 4 s while a turn-based draft is live; 15 s while a draft waits to start or people lock in a blind draft; not once it's done | ~1-2 KB (a hash check per game, a few small reads: your seat, queue and mark); the answer is 16 characters when nothing changed, else the draft (~10-20 KB) |
 
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
@@ -319,3 +320,14 @@ never handles it: the user does the reset and the pasting.
   it's in). The rulebook's edit is written like the desk's The show changed (its version moves on; leagues on rulebooks
   rewrite `settings.rulebook`). The desk's season page reads the season's bot schedule and its last 6 runs (~1-2 KB).
   Nothing else polls; "nobody went home" is a fact like any other (one row, applied by the season sync).
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 7, the draft room and the blind draft. Migration 0117:
+  `draft_queues` (each player's starred castaways in a game: a handful of ids, one row per player per game with a draft;
+  backed up with the league). League state gains the draft's own log (`draftLog`: one small entry a pick, ~100 bytes, so
+  ~1-2 KB for a 16-pick draft) and two timestamps. **The draft room polls** while it's open (`/api/seasons/[id]/draft?v=`):
+  every 4 s while a turn-based draft is live, every 15 s while a draft waits to start or a blind draft waits for people
+  to lock in, and not at all once every draft on the show is done; each poll is a hash check per league (league-states.ts)
+  plus a few small reads (your seat, your queue, your mark), and an unchanged draft answers its 16-character version. A
+  draft is an evening's thing: four people in the room for an hour is ~3,600 calls (Vercel) and a few MB from Neon, once a
+  season. The pick timer (off by default) has no job of its own: when it runs out, any phone in the room asks the server,
+  which checks the clock and, if the game says so, picks from their queue. The ⋯ menu reads the drafts once when it opens.
+  Nudge sends one push (once a turn). Nothing runs on a schedule.

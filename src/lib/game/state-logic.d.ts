@@ -472,7 +472,8 @@ declare const StateLogic: {
   freeAgents(state: LeagueState): Castaway[];
   reorderDraft(state: LeagueState, fromIndex: number, toIndex: number): void;
   moveDraftOrder(state: LeagueState, index: number, delta: number): void;
-  draftToCurrentTurn(state: LeagueState, castawayId: string): void;
+  /** `by`: the account picking for whoever's on the clock; `auto`: the pick timer ran out (from their queue). */
+  draftToCurrentTurn(state: LeagueState, castawayId: string, opts?: { by?: string; auto?: boolean }): void;
   undraft(state: LeagueState, castawayId: string): void;
   forceStartDraft(state: LeagueState): void;
   addEpisode(state: LeagueState): Episode;

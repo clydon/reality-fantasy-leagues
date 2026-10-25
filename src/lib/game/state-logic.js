@@ -455,7 +455,7 @@ class SnakeDraftStrategy {
     const scheduled = state.settings.draftScheduledAt;
     return !!(scheduled && Date.now() >= new Date(scheduled).getTime());
   }
-  static forceStart(state){ state.draftForceStarted = true; }
+  static forceStart(state){ state.draftForceStarted = true; stampDraftTurn(state, true); }
   static reorder(state, fromIdx, toIdx){
     if(fromIdx===toIdx) return;
     const [moved] = state.draftOrder.splice(fromIdx, 1);
@@ -467,23 +467,45 @@ class SnakeDraftStrategy {
     const arr = state.draftOrder;
     [arr[idx], arr[target]] = [arr[target], arr[idx]];
   }
-  static pick(state, castawayId){
+  // `opts.by`: the account that made the pick for whoever's on the clock (a commissioner or Game admin helping someone
+  // over the phone); `opts.auto`: the pick timer ran out and it came from their queue. Both go in the draft's log.
+  static pick(state, castawayId, opts){
     const turn = SnakeDraftStrategy.currentTurn(state);
     const c = Core.getCastaway(state, castawayId);
     if(!turn || turn.isComplete || !c || leagueOwnersOf(state, c).length) return;
     Core.setOwner(state, castawayId, turn.playerId);
     c.acquiredVia = 'draft';
     state.draftPicksMade++;
+    const entry = { n: turn.overallPickNumber, playerId: turn.playerId, castawayId, at: new Date().toISOString() };
+    if(opts && opts.by) entry.by = opts.by;
+    if(opts && opts.auto) entry.auto = true;
+    if(!Array.isArray(state.draftLog)) state.draftLog = [];
+    state.draftLog.push(entry);
+    stampDraftTurn(state);
   }
   static undo(state, castawayId){
     const c = Core.getCastaway(state, castawayId);
     if(!c || c.status!=='active') return;
     if(c.acquiredVia==='draft'){
       state.draftPicksMade = Math.max(0, state.draftPicksMade - 1);
+      if(Array.isArray(state.draftLog)) state.draftLog = state.draftLog.filter(e => e.castawayId !== castawayId);
+      stampDraftTurn(state);
     }
     Core.setOwner(state, castawayId, null);
     c.acquiredVia = null;
   }
+}
+
+// The turn-based draft's clock (the new design's draft room): when the turn now on the clock began, which a pick timer
+// counts from, stamped by the start, each pick and each take-back; a nudge belongs to one turn, so it goes with it.
+// `started` also records when the draft was opened by hand. The log of picks (draftLog) is the draft's own record, in
+// order, kept beside ownership: who took whom at which pick, and who made a pick for someone. Drafts from before it have
+// none, and their picks show without names.
+function stampDraftTurn(state, started){
+  const now = new Date().toISOString();
+  state.draftTurnAt = now;
+  if(started && !state.draftStartedAt) state.draftStartedAt = now;
+  delete state.draftNudge;
 }
 
 // ---------- NoDraftStrategy: the 'pickem' league type's (non-)draft mechanic ----------
@@ -629,7 +651,7 @@ class BlindDraftStrategy {
     const scheduled = state.settings.draftScheduledAt;
     return !!(scheduled && Date.now() >= new Date(scheduled).getTime());
   }
-  static forceStart(state){ state.draftForceStarted = true; }
+  static forceStart(state){ state.draftForceStarted = true; stampDraftTurn(state, true); }
   static reorder(){ /* no turn order */ }
   static move(){ /* no turn order */ }
   static pick(){ /* submissions go through BlindDraftLogic + the blind-draft routes */ }
@@ -1290,7 +1312,7 @@ class DraftLogic {
   static forceStart(state){ return getLeagueType(state).draftStrategy.forceStart(state); }
   static reorder(state, fromIdx, toIdx){ return getLeagueType(state).draftStrategy.reorder(state, fromIdx, toIdx); }
   static move(state, idx, delta){ return getLeagueType(state).draftStrategy.move(state, idx, delta); }
-  static pick(state, castawayId){ return getLeagueType(state).draftStrategy.pick(state, castawayId); }
+  static pick(state, castawayId, opts){ return getLeagueType(state).draftStrategy.pick(state, castawayId, opts); }
   static undo(state, castawayId){ return getLeagueType(state).draftStrategy.undo(state, castawayId); }
 }
 
@@ -1707,6 +1729,10 @@ class RosterLogic {
       value = clean;
     }
     if(field === 'defaultBetPoints') value = clampBetPoints(value);
+    // The turn-based draft's pick timer (seconds: off, 2 minutes or 60 seconds) and what happens when it runs out
+    // (wait for them, or pick from their queue). Casual first: off and wait.
+    if(field === 'draftTimer') value = [60, 120].includes(Number(value)) ? Number(value) : 0;
+    if(field === 'draftAway') value = value === 'queue' ? 'queue' : 'wait';
     if(field === 'startEpisode'){
       const n = Math.floor(Number(value));
       value = Number.isFinite(n) && n >= 1 ? n : 1;

@@ -40,6 +40,8 @@ const GROUP_SLICES = {
   league_rulesets: "league_id = ANY($L::uuid[]) OR id IN (SELECT ruleset_id FROM leagues WHERE id = ANY($L::uuid[]))",
   waiver_claims: "league_id = ANY($L::uuid[])",
   blind_draft_picks: "league_id = ANY($L::uuid[])",
+  // The draft room's queues (0117): who each player starred, private like the blind picks.
+  draft_queues: "league_id = ANY($L::uuid[])",
   episode_team_notes: "league_id = ANY($L::uuid[])",
   league_applied_decisions: "league_id = ANY($L::uuid[])",
   // A couch's chat about a show it has no game on (migration 0110: no league, its couch and season) comes with the

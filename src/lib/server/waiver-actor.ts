@@ -3,12 +3,14 @@ import type { LeagueState } from "@/lib/game/types";
 import type { LeagueMembership } from "./auth-helpers";
 import { HttpError } from "./http-error";
 import { resultsSeenThrough } from "./results-seen";
+import { roleAtLeast } from "./roles";
 
 // Who a waiver request acts for (docs/PLAN-midseason-waivers.md). A member acts for their own player;
 // the commissioner may name another ("Claim for Dee"). Acting for yourself needs the week's episode
 // revealed first: whether you're owed a pickup would give away that one of yours left, so claims and
 // free-agency moves wait until you've seen it. A commissioner acting for someone else isn't held to
-// that player's mark (they can't see the claim's contents anyway).
+// that player's mark (they can't see the claim's contents anyway). A Game admin runs waivers too, so
+// they may claim for someone as well (step 7's admins pick for someone).
 export async function waiverActor(
   userId: string,
   leagueId: string,
@@ -18,7 +20,7 @@ export async function waiverActor(
 ): Promise<string> {
   const forOther = typeof requested === "string" && requested && requested !== membership.playerId;
   if (forOther) {
-    if (membership.role !== "commissioner") throw new HttpError(403, "Only the commissioner can claim for someone else");
+    if (!roleAtLeast(membership.role, "admin")) throw new HttpError(403, "Only whoever runs the game can claim for someone else");
     if (!StateLogic.getPlayer(state, requested)) throw new HttpError(404, "No such player");
     return requested;
   }

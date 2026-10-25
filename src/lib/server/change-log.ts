@@ -82,7 +82,15 @@ export interface RulebookUndo {
   status?: { before: string; after: string };
 }
 
-export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo | SubmissionUndo | RulingUndo | RulebookUndo;
+/** A draft pick made for someone (step 7), taken back while it's still the draft's last: they're on the clock again. */
+export interface DraftPickUndo {
+  type: "draftPick";
+  castawayId: string;
+  playerId: string;
+  n: number;
+}
+
+export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo | SubmissionUndo | RulingUndo | RulebookUndo | DraftPickUndo;
 
 export interface ChangeSpec {
   /** Who did it; null when it applied on its own. */

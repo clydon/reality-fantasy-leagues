@@ -1,5 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import { applyDecision, orderPlacementsByEpisode, type CastRef, type DecisionFact } from "@/lib/game/decision-apply";
+import { draftKind, type DraftKind } from "@/lib/game/draft-view";
 import { exitMethodFor, previewLines, QUICK_DOUBTS, quickVerdict, type PreviewLine, type QuickDoubt } from "@/lib/game/results-changes";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import type { LeagueState, StagedResearchDecision } from "@/lib/game/types";
@@ -125,10 +126,14 @@ export interface ResultRow extends Face {
 }
 
 export interface Need {
-  id: "quick" | "full" | "waiting" | "question";
+  id: "quick" | "full" | "waiting" | "question" | "draft";
+  /** The episode it's about (0 for a game's setup: its draft). */
   episode: number;
   title: string;
   detail: string;
+  /** A setup job's game, and where it's fixed (the draft room or the blind draft). */
+  leagueId?: string;
+  draft?: DraftKind;
 }
 
 /** Full scores for an episode: who sent them and how far the sources agree ("filled in by riley · 2 sources agree"). */
@@ -294,6 +299,19 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
     corrections: await couchCorrections(scope.games.map((g) => g.leagueId), seen, scope.user.id),
     flags: await couchFlags(scope.seasonId, scope.couchId, seen, loaded[0] ? (f) => factLabel(loaded[0].state, f) : undefined),
   };
+  // Setup (step 7): a draft that hasn't a time to start is the Commissioner's (classic's "Draft not scheduled").
+  for (const l of loaded) {
+    const kind = draftKind(l.state);
+    if (!kind || l.game.yourRole !== "commissioner" || StateLogic.isDraftStarted(l.state) || l.state.settings.draftScheduledAt) continue;
+    out.needs.push({
+      id: "draft",
+      episode: 0,
+      title: `Schedule the ${l.game.gameName} draft`,
+      detail: l.state.castaways.some((c) => c.status === "active") ? "Pick a time, or start it when everyone's in" : "Once the cast is in, pick a time",
+      leagueId: l.game.leagueId,
+      draft: kind,
+    });
+  }
   if (coming && !coming.live) out.next = { number: coming.number, airAt: coming.airAt };
   else if (coming?.live) out.next = { number: coming.number + 1, airAt: schedule?.episodes.find((e) => e.number === coming.number + 1)?.airAt ?? null };
   if (!loaded.length || !aired) return out;

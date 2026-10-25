@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { ArrowLeftRight, CalendarClock, Check, ChevronRight, Eye, Lock, Plus, Trophy } from "lucide-react";
 import { airTime, calm, ticks } from "../clock";
 import { moves as write, useAfterSave, type GameView, type Move } from "../data";
-import { NavLink } from "../nav";
+import { NavLink, useNav } from "../nav";
 import { paths, type ShowTab } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { useNow } from "../ui/bars";
@@ -12,7 +12,7 @@ import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { ordinal } from "../games";
-import { closeMoves, dockWords, faceIn, first, openMoves, sheetTabs, tabOf, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
+import { closeMoves, dockWords, faceIn, first, moveCard, openMoves, sheetTabs, tabOf, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
 import { Face, IconBox } from "./parts";
 import { useOpenReveal } from "./reveal";
 
@@ -56,7 +56,11 @@ export function Dock({ show }: { show: ShowData }) {
   const t = dues.length ? Math.min(...dues) : airs;
   const now = useNow(t != null && ticks(t));
   const openReveal = useOpenReveal();
+  const nav = useNav();
   const when = t != null ? `${airTime(t)} · ${calm(t, now)}` : null;
+  // A draft due first (your turn, or your blind picks) opens the draft room rather than Your moves.
+  const lead = show.moves[0];
+  const draftHref = lead && (lead.kind === "draftTurn" || lead.kind === "blindDraft") ? moveCard(lead, show.header?.seasonId ?? "", false).href : null;
   const base = "nd-dock nd-fixed-x fixed bottom-[calc(76px+env(safe-area-inset-bottom,0px))] z-[28] mx-2.5 flex items-center gap-2.5 overflow-hidden rounded-[4px] py-[7px] pl-[9px] pr-[7px] text-left shadow-[0_12px_28px_rgba(0,0,0,.5)]";
 
   if (up.live) {
@@ -116,7 +120,11 @@ export function Dock({ show }: { show: ShowData }) {
   const need = show.moves.length > 0;
   const faces = <DockFaces play={show.play} />;
   return (
-    <button type="button" onClick={() => openMoves(tabOf(show.moves[0]), show.moves[0]?.leagueId ?? null)} className={`${base} nd-press bg-plate text-plate-foreground`}>
+    <button
+      type="button"
+      onClick={() => (draftHref ? nav.push(draftHref) : openMoves(tabOf(show.moves[0]), show.moves[0]?.leagueId ?? null))}
+      className={`${base} nd-press bg-plate text-plate-foreground`}
+    >
       {show.play?.some((g) => (g.lineup?.starters.length || g.pick?.pick) && !g.revealFirst) ? (
         faces
       ) : (
@@ -136,7 +144,7 @@ export function Dock({ show }: { show: ShowData }) {
         )}
       </span>
       <span className={`grid h-[38px] place-items-center rounded-[3px] px-3.5 text-sm font-extrabold ${need ? "bg-chyron text-chyron-foreground" : "bg-background text-foreground"}`}>
-        {need ? "Set" : "Edit"}
+        {need ? (draftHref ? "Draft" : "Set") : "Edit"}
       </span>
     </button>
   );
