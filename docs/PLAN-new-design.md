@@ -36,7 +36,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **done** 2026-10-26 on the branch, in three parts (part 2 split in two): watching (migration 0121; TV listings from TVmaze on demand), Make it a game to a set-up show with its rulebook and cast (0122), Start a game that fits and archive or delete a game (0123), rulebooks phase 8: the library, the desk's New show, Fits these games, Take it over and Looks right to us (0124); all ship with 0b's | Opus · xhigh |
-| 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · xhigh |
+| 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | in three parts (the step 11 section): part 1 finished 2026-10-26 on the branch (the guide on the couch's shows and Hide from guide; migration 0125 ships with 0b's); part 2 (all of TV and the daily job) next, then part 3 (planned nights) | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
 | 14 | Streaming shows and the rail | not started | Opus · xhigh |
@@ -305,16 +305,16 @@ step's As built.
 - **A practice couch is in classic's list** (step 9 part 3; for C). Classic's league menu shows it as an ordinary league with
   computer players (classic plays bots), where it works, though it says nothing about being practice; the public pool is
   left out of classic's list. C removes the list.
-- **A season made from its listing goes stale** (step 10 part 1; for 11). It's read from TVmaze when it's made, and again only
+- **A season made from its listing goes stale** (step 10 part 1; for 11 part 2). It's read from TVmaze when it's made, and again only
   when someone adds the show a day or more later: its status (coming up, on now, finished), episode count and moved air times
   otherwise stay as they were. Step 11's daily job is the place to keep listing seasons current.
-- **A listed show's next season isn't offered** (step 10 part 1; for 11). Once a show made from a listing is here, Add a show
+- **A listed show's next season isn't offered** (step 10 part 1; for 11 part 2). Once a show made from a listing is here, Add a show
   hides that listing and offers the show's seasons here, so when its next season starts nobody can add it from the search
   (tapping the finished one follows that). Step 11's job could make each listed show's new season as the listings announce it.
 - **Nobody's progress on a show you watch** (step 10 part 1, the guard's rule since 0b; for 15). The mock's Who's watching and
   The couch is watching say "caught up", "On Episode 5", "2 ahead"; the new design sends nobody else's progress, so they list
   who watches and what they play. Step 15's What your couch sees could let people share how far they are.
-- **A show added by name has no schedule** (step 10 part 1; for 11 or a desk step). A show the listings don't have is a name and
+- **A show added by name has no schedule** (step 10 part 1; for 11 part 2 or a desk step). A show the listings don't have is a name and
   an empty first season: no episodes or air times, so where you are can't be set and nothing's "up next". The desk (Find › the
   show) could fill it in or link it to a listing later.
 - **The review can't be edited** (step 10 part 2a; part 3 left it; for a later step). Make it a game's review changes only the
@@ -341,12 +341,6 @@ step's As built.
 - **A made season's cast is the desk's** (step 10 part 2a; for a later step). It's approved and finished at Looks right
   (`cast_locked_at`), so someone missing from ChatGPT's or the listing's cast is added by the desk (Find › the season), not a
   commissioner; a photo ChatGPT couldn't find is a letter. A "someone's missing" flag like Something wrong? would reach the desk.
-- **The catalog is read on every signed-in page** (step 10 part 1's watching sheets, `useCatalog` in `watching/sheets.tsx`; for
-  11 or a later polish). Mounted in the signed-in layout, it asks `/api/catalog` as any page opens (twice in development, React's
-  strict mode), and one of the two can stay pending in Chromium for many seconds (the route answers in ~40 ms to curl; it's
-  publicly cacheable, so the browser's cache lock is the likely holder). Harmless to people, but a check waiting for network
-  idle times out: check-new-draft's finished draft room did, at HEAD too (step 10 part 2a made it wait for `load`). Reading the
-  catalog only when Add a show opens would end both.
 - **A sport says Episode outside Start a game** (step 10 part 2b; for part 3 or a later polish). The rulebook's `parts` ("race",
   "game") reaches Start a game's sheet, its lines and its push; the show space still says Episode everywhere else (the Episodes
   tab, Tonight, the dock, the reveal: the mock's rbVocab renames them all). The season header could carry the rulebook's part
@@ -366,6 +360,11 @@ step's As built.
 - **Tell the couch uses the invite setting** (step 10 part 2b; for 15). "alex started a game for Survivor" goes to people who
   allow league invites (push-core's `invite`), linking to the show's Games tab; notifications by moment (step 15) could give it a
   moment of its own.
+- **After midnight is the next day** (step 11 part 1; for part 2 or a later polish). The guide puts an episode on the calendar day
+  it starts, in the phone's time zone, so a talk show at 12:37 AM sits at the top of the next day's column; TV listings put it
+  under the night before. Part 2's Also on (late-night listings) will show more of it: a day could run to 3 AM.
+- **The guide says Paused under reduced motion** (step 0d's port, seen in step 11 part 1; for a later polish). With reduced motion
+  the guide never rolls, but its status still reads "Paused" (grey dot), as if it would; it could say nothing then.
 - **Posters are TVmaze's medium image** (step 10 part 1; for a later polish). 210 by 295, soft in the tall show bar; TVmaze's
   other size is the upload itself, often over a megabyte. A resized copy we keep (or Vercel's image optimisation, which has
   limits of its own) would sharpen it.
@@ -2789,6 +2788,96 @@ Nothing polls and nothing runs on a schedule (HOSTING.md). New: `src/lib/game/fo
   (67), -backstage-ii (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview
   and check-backup-restore; `npm test` 571 of 571; type-check clean; lint (src) as before (the old error in classic's
   `use-sheet-swipe.ts` and the old warning in `episode-results.ts`).
+
+### Step 11, in three parts
+
+Too big for one session (written 2026-10-26, at its start). Each part ends with its As built, its Preview entries out and the
+checks passing; step 11 is marked done after part 3.
+
+1. **The guide on the couch's shows, and Hide from guide.** "This week on the couch" (the mock's index.html guideDays and card,
+   tvguide.js) made real for your shows and the couch's: seven days from today in the phone's own time zone (Today, or Tonight
+   after 5 PM, with the Now line; Tomorrow; then the weekday), each episode from its season's schedule (`schedule.ts`:
+   research's starts, the listings' `season_episodes` rows, else weekly from the premiere), never a title or a result. Your
+   shows full, one you watch but don't play dashed, a couch show you don't follow faded a step more; faces of who on the couch
+   watches it; a dot when one of your moves is due for it; On now while it airs; Same time when two start together; "Nothing
+   tonight · Next up"; a streaming season dropping this week as one card ("All 8 drop"). A card opens the show; a couch show
+   you don't follow opens its sheet (Add to my shows, Hide from guide, Open the show). **Hide from guide** (migration 0125
+   `guide_hidden`: a person's hidden shows, by show or by listing): "N hidden" under the guide and its sheet with Show again;
+   your own shows can't be hidden. The home read carries each show's week. From Noticed: the catalog read on every signed-in
+   page (read only when Add a show opens). Backups take `guide_hidden`. Preview: `hub.guide` narrows to its Also on half
+   (`hub.all-of-tv`, part 2). Check: `check-new-guide.js` on a new `guide-fixture.js`.
+2. **All of TV, and the daily job.** `tv_listings` (migration 0126): eight days of the US schedule and streaming drops in
+   English from TVmaze's `/schedule` and `/schedule/web` (no news), refreshed once a day by a job that rides on the bot
+   clock's calls (`/api/cron/bot-research` with CRON_SECRET: the VM already calls it at least every six hours, and each call
+   wakes Neon anyway; the refresh runs after the response, at most once a day, never in a call that ran a bot job), plus
+   `/api/cron/listings` (CRON_SECRET) for checks and a run by hand. The same job keeps listing seasons current (Noticed: "A
+   season made from its listing goes stale", through TVmaze's `/updates/shows`), makes a listed show's next season when the
+   listings announce it (Noticed: "A listed show's next season isn't offered"; a set-up show's plays by last season's rulebook,
+   step 10 part 3), and links a show added by name to a listing in the week's schedule with the same name (Noticed: "A show
+   added by name has no schedule"). The guide's **Also on**: what else is on that evening, shorter and faded, the most watched
+   few per day and "N more on TV" (the evening in a sheet), each with Add to my shows (Add a show's listing path) and Hide from
+   guide, read from `/api/listings/week` (the same for everyone, cached at the edge an hour). fake-listings.js learns
+   `/schedule`, `/schedule/web` and `/updates/shows`. HOSTING.md: the job, the table, the read. Preview out: `hub.all-of-tv`.
+3. **Planned nights.** Plan a watch along (the mock's watching.js inviteWatch and streaming.js plans): the live airing or a
+   shared start, for the next episode or another, inviting people on the couch (migration 0127 `watch_plans`,
+   `watch_plan_people`), from the show's Tonight and ⋯ menu and a guide card's sheet; the guide tags the airing ("Watch
+   along") or shows the night as a card of its own; I'm in / Can't make it, Cancel; a push to those invited and a line on the
+   hub's feed. Watch along itself stays step 13 (its Join and Open stay Preview). Backups take the plans. Marks step 11 done.
+
+### As built, step 11 part 1 (2026-10-26, on `new-design`): the guide on the couch's shows, and Hide from guide
+
+Migration **0125** (ships with 0b's, same rehearsal): `guide_hidden`, a person's hidden shows (a show here, with its listing's
+id when it has one, or a TV listing nobody has made a show of). Nothing polls and nothing runs on a schedule (HOSTING.md). New:
+`src/lib/game/guide.ts` (pure), `src/lib/server/guide.ts`, `POST /api/me/guide/hidden`; `src/new/hub/guide.tsx` rewritten.
+- **The week** (the mock's guideDays and card): the home read gives each of your shows and the couch's a `week` (`guide.ts
+  weekOf`): the episodes airing from a day and a bit back to eight days on, when each starts and how long it runs, never a title
+  (a listing carries one for every episode). The phone lays them out (`guideWeek`, in its own time zone, by calendar day, so the
+  US clock change on Nov 1 doesn't move a day): Today (Tonight after 5 PM) with the Now line above the first thing still on,
+  Tomorrow, then the weekday; shows starting at the same moment in one Same time group (yours first, then the couch's); a double
+  episode, or a streaming season's whole drop, as one card ("All 8 drop": a binge season's episodes share its `drop_at`); On now
+  while it airs; the due dot on the episode one of your moves is for; faces of who on the couch watches it (its people's open
+  follows, so a private follow is on nobody else's guide); "Nothing today · Next up" (the next thing this week) when today's
+  empty, else "Nothing on". The fade ladder: yours in full, one you watch without a game dashed, a couch show you don't follow
+  dashed and faded. A card of yours opens the show (its art grows into the show bar); a couch show's opens its sheet: when, who on
+  the couch watches it, Add to my shows (where you are, then it's yours), Hide from guide, Open the show. A show without art
+  shows its first letter, faint. The minute moves on in the browser (the Now line, On now); nothing is read again. The solo hub's
+  guide is "This week", your shows only.
+- **Hide from guide** (tvguide.js): a couch show you don't follow (from part 2, a listing too), by any of its seasons: every
+  season of the show, and its listing; your own shows (watched or played, any season) are refused (409). The toast has Undo; the
+  foot's "N hidden" (its own line) opens Hidden from your guide with Show again. The home read carries `guideHidden`, and a hide
+  writes the answer into the cached home (`useSetGuideHidden`), so nothing is read again. The foot says what dashed and faded
+  mean, each only when the week has one.
+- **From Noticed:** the catalog is read only once Add a show opens (`useCatalog(enabled)`), not on every signed-in page.
+- **Backups** hold `guide_hidden`, sliced to the group's people and to its shows or listings (a restored row never points at a
+  show the backup doesn't hold); `backup-fixture.js` has a row of each.
+- **Fixtures and Preview:** `fixtures/guide.ts` is only Also on now (`ALSO_ON`, by day); `hub.guide` became `hub.all-of-tv`
+  (part 2), drawn in each day's column under the real cards, its tag on the first.
+- **Changed from the mock:** a card of yours opens the show, not an episode sheet (its Tonight says the same and more); "Dashed:
+  not playing yet" and "Faded: not on your shows" both show when the week has both (tvguide.js swapped one for the other); a
+  drop's tag isn't yellow (the yellow rule, as 0d's port had it); the hidden count is a line of its own; faces are the account's
+  initials (Noticed's two names, step 15).
+- **Checks:** `scripts/dev-test/check-new-guide.js <outDir> [--width=390] [--keep] [--api]` (58 PASS at 390) on new-fixture.js
+  plus the new **`guide-fixture.js`** (ZT Late Show nightly, which alex and riley watch; ZT Live Now on the air, alex's private
+  follow; ZT Drop Show, all eight in two days, riley's and jordan's; ZT Same Night, alex's, starting with the couch's Traitors):
+  the week's data (no titles, the drop at one moment, Same time), privacy (alex's private show nowhere in riley's home, jordan's
+  private Traitors not in alex's), Hide from guide's rules (a couch show, own shows refused, bad requests, a listing, a listing
+  that's a show here, Show again), then the browser as alex (seven days, the Now line above On now, Same time yours first, All 8
+  drop, the due dot, dashed and faded, the legend, the hub not reading the catalog until Add a show opens, Also on's Preview, the
+  couch show's sheet, Hide with Undo, 1 hidden and Show again, Add to my shows from the guide, a card opening its show) and as
+  casey (hiding the Late Show leaves Nothing today · Next up). `tests/guide.test.js` (6, the clock change included).
+  check-new-hub and check-new-shell look for `hub.all-of-tv` now (and check-new-shell finds the show's poster on Your shows, not
+  any link holding its art: the guide's card is one too). The check passes at 1280 too; and the rest pass, one at a time:
+  check-new-library (91), -start-game (75), -make-it (81), -watching (114), -solo (92), -way-in (85), -couches (114), -hub (75),
+  -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100), -community (82), -backstage (67), -backstage-ii
+  (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview and
+  check-backup-restore; `npm test` 577 of 577; type-check clean; lint (src) as before (the old error in classic's
+  `use-sheet-swipe.ts` and the old warning in `episode-results.ts`).
+- **Noticed, left as is:** two, now in Noticed, not fixed: after midnight is the next day, and the guide says Paused under
+  reduced motion. Taken out: the catalog read on every signed-in page (fixed, above).
+- **For part 2:** Also on is `AlsoOn` in guide.tsx, from `ALSO_ON`; the real one comes from the listings read, less your shows
+  and the couch's (every season header now carries `show.tvmazeId`) and what's hidden (`guideHidden`'s listing rows;
+  `guide.hideListing` and the endpoint's `{ tvmazeId, name }` are there). The foot's legend and "N hidden" already count
+  listings.
 
 ## Step C: cutover
 

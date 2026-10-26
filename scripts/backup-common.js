@@ -18,6 +18,7 @@ const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
   "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions", "season_episodes", "show_follows",
   "fact_sources", "fact_disputes", "rulebooks", "rulebook_edits", "rulebook_suggestions", "admin_changes", "rulebook_checks",
+  "guide_hidden",
 ];
 const PEOPLE_TABLES = ["user", "user_settings", "notification_prefs"];
 const TABLES = [...LEAGUE_TABLES, ...SEASON_TABLES, ...PEOPLE_TABLES];
@@ -46,6 +47,7 @@ const LATER_TABLES = {
   draft_queues: { since: "0117", fill: null },
   game_join_requests: { since: "0119", fill: null },
   rulebook_checks: { since: "0124", fill: null },
+  guide_hidden: { since: "0125", fill: null },
 };
 
 /** Whether the database has this table. */

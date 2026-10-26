@@ -127,7 +127,10 @@ type Step = { kind: "season"; s: WhereSeason; ready: boolean } | { kind: "listin
 function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { data: home } = useHome();
   const couch = useCurrentCouch(home);
-  const listed = useCatalog().data?.seasons;
+  // Read once Add a show opens, not on every page it's mounted on (step 11, from Noticed).
+  const [asked, setAsked] = useState(open);
+  if (open && !asked) setAsked(true);
+  const listed = useCatalog(asked).data?.seasons;
   const catalog = useMemo(() => listed ?? [], [listed]);
   const refresh = useAfterWatching();
   const [q, setQ] = useState("");

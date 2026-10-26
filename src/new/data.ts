@@ -31,6 +31,7 @@ import type { ListingSeason } from "@/lib/server/listings";
 import type { MakeState } from "@/lib/server/make-game";
 import type { Started, StartOptions } from "@/lib/server/start-game";
 import type { DeletePreview, EndGame } from "@/lib/server/end-game";
+import type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -62,6 +63,7 @@ export type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from 
 export type { MakeReview, MakeState } from "@/lib/server/make-game";
 export type { StartChoice, Started, StartOptions } from "@/lib/server/start-game";
 export type { DeletePreview, EndGame } from "@/lib/server/end-game";
+export type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -105,6 +107,8 @@ export interface SeasonHeader {
     kind: "competition" | "series" | "talk" | "sport";
     artUrl: string | null;
     terms: { castaway: string | null; tribe: string | null };
+    /** Its TV listing (step 10), so the guide knows the same show in the listings (step 11). */
+    tvmazeId?: number | null;
   };
 }
 
@@ -141,6 +145,8 @@ export interface HomeShow extends SeasonHeader {
   results: ResultsDue;
   /** The hub's "you both watch" nudge was answered for this show (step 10). */
   nudgeOff?: boolean;
+  /** Its episodes around this week, for the guide (step 11): when each starts, never a title. */
+  week: WeekEpisode[];
 }
 
 export interface Couch {
@@ -156,6 +162,7 @@ export interface Couch {
 export interface CouchShow extends SeasonHeader {
   upNext: UpNext | null;
   latestAired: number;
+  week: WeekEpisode[];
 }
 
 export interface Home {
@@ -167,6 +174,8 @@ export interface Home {
   unscheduled: GameRef[];
   moves: Move[];
   backstage: { leagueId: string; leagueName: string; text: string }[];
+  /** What you've hidden from the guide (step 11); your own shows always show. */
+  guideHidden: HiddenShow[];
 }
 
 export interface Space extends SeasonHeader {
@@ -831,8 +840,9 @@ export const useAfterCouch = useAfterReveal;
 export type { CatalogSeason } from "@/lib/server/way-in";
 
 /** Every season first run can pick: on now or coming up first (the wall), then the rest (found by searching). */
-export function useCatalog() {
-  return useQuery({ queryKey: ["new-design", "catalog"], queryFn: () => get<{ seasons: CatalogSeason[] }>("/api/catalog"), staleTime: 300_000 });
+/** `enabled`: false until it's needed (Add a show reads it only once it opens: step 11, from Noticed). */
+export function useCatalog(enabled = true) {
+  return useQuery({ queryKey: ["new-design", "catalog"], queryFn: () => get<{ seasons: CatalogSeason[] }>("/api/catalog"), staleTime: 300_000, enabled });
 }
 
 /** First run's shows for the account just made (or signed into), and the new design as the one it opens on. A show from the
@@ -879,6 +889,21 @@ export const watching = {
 
 /** After adding, following or moving where you are: everything moves on (the hub, the show, what you can see). */
 export const useAfterWatching = useAfterReveal;
+
+// ---- the TV guide (step 11; guide.ts): Hide from guide. The guide itself comes with the home read; nothing polls. ----
+
+export const guide = {
+  /** Hide a show here (by one of its seasons, or itself) from your guide, or bring it back. Answers what's hidden now. */
+  hide: (show: { seasonId: string } | { showId: string }, hidden: boolean) => post<{ hidden: HiddenShow[] }>("/api/me/guide/hidden", { ...show, hidden }),
+  /** The same for a TV listing nobody has made a show of (part 2's Also on). */
+  hideListing: (tvmazeId: number, name: string, hidden: boolean) => post<{ hidden: HiddenShow[] }>("/api/me/guide/hidden", { tvmazeId, name, hidden }),
+};
+
+/** After Hide from guide: the home's hidden list, put in place without reading the home again. */
+export function useSetGuideHidden() {
+  const client = useQueryClient();
+  return useCallback((hidden: HiddenShow[]) => client.setQueryData<Home>(HOME_KEY, (h) => (h ? { ...h, guideHidden: hidden } : h)), [client]);
+}
 
 // ---- playing solo (step 9 part 3; solo.ts): a season's public pool and your practice couch. Read when the hub, a show's
 // Games tab or the pool's page opens; nothing polls. The pool's pick goes through `moves.pick`, as every Survival Pool's. ----

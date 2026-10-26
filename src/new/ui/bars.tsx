@@ -10,13 +10,17 @@ import { Preview } from "./preview";
 
 /** Someone's square: their initial on their colour (the mock's .av). Colour from their id until people pick one. */
 const AV_COLOURS = ["#35b5a5", "#a76bb0", "#f2804b", "#5089c9", "#e0b23a", "#e86f9a"];
-export function Avatar({ id, name, size = 34, colour }: { id: string; name: string; size?: number; colour?: string }) {
+/** Someone's colour, from their id (the guide's small faces use it too). */
+export function avatarColour(id: string): string {
   let h = 0;
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return AV_COLOURS[h % AV_COLOURS.length];
+}
+export function Avatar({ id, name, size = 34, colour }: { id: string; name: string; size?: number; colour?: string }) {
   return (
     <span
       className="type-num grid flex-none place-items-center rounded-[3px] text-[#121018]"
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.46), background: colour ?? AV_COLOURS[h % AV_COLOURS.length] }}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.46), background: colour ?? avatarColour(id) }}
       aria-hidden
     >
       {name.slice(0, 1).toUpperCase()}

@@ -68,7 +68,7 @@ function FocusHub({ home, couch, hub }: { home: Home; couch: Couch | null; hub: 
       <OnNow />
       <YourShows home={home} hub={hub} />
       <BothWatch home={home} couch={couch} />
-      <Guide />
+      <Guide home={home} couch={couch} />
       <StreamingRail />
       <CouchWatching home={home} couch={couch} />
       <Feed hub={hub} />
@@ -87,7 +87,7 @@ function GrowHub({ home, couch, hub, newCouch }: { home: Home; couch: Couch | nu
       {up && <UpNext home={home} show={up} couch={couch} />}
       <YourShows home={home} hub={hub} />
       <BothWatch home={home} couch={couch} />
-      <Guide />
+      <Guide home={home} couch={couch} />
       <CouchWatching home={home} couch={couch} />
       <Feed hub={hub} />
       <GrowNote home={home} hub={hub} />

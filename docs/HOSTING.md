@@ -3,7 +3,7 @@
 **Keep this current.** Update it in the same commit as any change that adds or changes polling, a scheduled
 job, stored data, or a service, and whenever usage is checked (date the numbers). It exists so that, when a
 free plan stops being enough, choosing the cheapest fit is arithmetic, not research. Last updated
-**2026-10-25**.
+**2026-10-26**.
 
 ## The stack
 
@@ -125,7 +125,8 @@ arriving, someone opening the game), so they wake nothing.
 **Watching (new design, step 10 part 1)** polls nothing and runs nothing on a schedule. **Add a show's search** asks
 `/api/listings/search?q=` once typing pauses (300 ms): one Vercel invocation per query, nothing from Neon, the answer kept
 at the edge for an hour per query (a minute when TVmaze didn't answer), and one TVmaze call when it isn't cached. Its other
-suggestions come from the catalog (`/api/catalog`, already cached at the edge for 5 minutes), which now lists **every**
+suggestions come from the catalog (`/api/catalog`, already cached at the edge for 5 minutes; since step 11 part 1 read only
+once Add a show opens, where before every signed-in page asked for it), which now lists **every**
 show's seasons, not only the curated ones: about 250 bytes a season from Neon per uncached read, so it grows with each
 show people add (fine at hundreds of seasons; past ~1,000, at most 12 uncached reads an hour, it would approach 1-2 GB of
 transfer a month, and the search should move to the server). **Adding a show** nobody has added before is two TVmaze calls
@@ -154,6 +155,14 @@ rulebook (~20-60 KB). "Looks right to us" is one tiny row per couch per made rul
 and a show the desk looked at two columns on its row. A set-up show's next season copies last season's rulebook once (~20-60
 KB) when anything first reads it. New show makes a show as Add a show does (the same TVmaze calls) and asks our bot as Make
 it a game does (Bot capacity); starting from a template asks the bot at most the cast question.
+
+**The TV guide (new design, step 11 part 1)** polls nothing and runs nothing on a schedule. Its week comes with the hub's home
+read (`/api/me/home`, read when the hub opens): each show's episodes from a day back to eight days on, cut from the schedules
+that read already fetched for Up next, so nothing more from Neon but one tiny query for what you've hidden; it sends ~60 bytes
+an episode more to the browser (a weekly show 1-2, a nightly one ~10, a streaming drop its episode count: a few hundred bytes to
+a couple of KB per open). The browser lays the week out and moves the clock on each minute without asking the server. **Hide
+from guide** is one small row per hidden show per person (`guide_hidden`, migration 0125, ~100 bytes), written when someone
+hides one. All of TV (part 2) and its daily job aren't built yet.
 
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
@@ -462,3 +471,9 @@ never handles it: the user does the reset and the pasting.
   most). A starting point the desk saves is one rulebook copy (~20-60 KB); a set-up show's next season copies last season's
   rulebook once. A made show's stored format no longer becomes a library template whenever its season is read (it did on
   the branch since 2a; nothing reached production).
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 11 part 1, the TV guide on the couch's shows. **Nothing
+  polls and nothing runs on a schedule.** Migration 0125: `guide_hidden` (one ~100-byte row per show someone hides from their
+  guide). The hub's home read now carries each show's week (when its episodes air, cut from schedules it already read: no
+  more from Neon, ~60 bytes an episode to the browser) and what you've hidden (one tiny query). One read fewer everywhere:
+  the catalog (`/api/catalog`) is asked only once Add a show opens, not by every signed-in page. Part 2 (all of TV, a
+  `tv_listings` table and its daily refresh) and part 3 (planned nights) will add their own lines.

@@ -212,7 +212,8 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
       await shoot(`hub-${shape}`);
     }
     // Get the couch going is real since step 9 (check-new-couches.js covers it).
-    check(seen.has("hub.guide") && going, "the guide is on the hub, and a new couch gets Get the couch going");
+    // The guide is real since step 11 part 1 (check-new-guide.js); its Also on half is still Preview until part 2.
+    check((await page.locator("[data-guide]").count()) === 1 && seen.has("hub.all-of-tv") && going, "the guide is on the hub, and a new couch gets Get the couch going");
 
     // ---- the status line, Up next, posters and the feed ----
     await hubReady();

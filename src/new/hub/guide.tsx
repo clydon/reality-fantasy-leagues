@@ -1,17 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Plus } from "lucide-react";
-import { GUIDE, type GuideCard } from "../fixtures/guide";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { EyeOff, Plus } from "lucide-react";
+import { episodeLine, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuideShow } from "@/lib/game/guide";
+import { guide as guideApi, useSetGuideHidden, type Couch, type CouchShow, type HiddenShow, type Home } from "../data";
+import { ALSO_ON, type AlsoOnCard } from "../fixtures/guide";
 import { PEOPLE } from "../fixtures/people";
 import { RAIL } from "../fixtures/streaming";
+import { NavLink } from "../nav";
+import { paths } from "../routes";
+import { airTime, timeOf } from "../clock";
+import { avatarColour } from "../ui/bars";
+import { Btn } from "../ui/parts";
 import { Preview } from "../ui/preview";
+import { Sheet } from "../ui/sheet";
+import { ShowArt } from "../ui/show-bar";
+import { toast } from "../ui/toast";
+import { openWatching } from "../watching/sheets";
+import { namesOf, showOfMove } from "./sections";
 
-// "This week on the couch", the TV guide (the mock's index.html guideDays / card, tvguide.js), and Streaming on the
-// couch (streaming.js) under it. Both on fixtures until steps 11 and 14.
+// "This week on the couch", the TV guide (the mock's index.html guideDays / card, tvguide.js, streaming.js's drop days), and
+// Streaming on the couch (streaming.js) under it. The guide is real since step 11 part 1: your shows and the couch's, from
+// the home read's `week` (when each episode airs, never a title), laid out by the pure src/lib/game/guide.ts in the phone's
+// own time zone; Hide from guide (guide.ts on the server). Also on, the rest of TV, is part 2's (still a fixture); the rail
+// is step 14's.
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
 /**
  * The guide rolls on its own once you reach it (not while it's the first thing you see: the critique, 2026-10-23),
@@ -64,146 +80,451 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
   return rolling;
 }
 
-function Card({ c, short, height }: { c: GuideCard; short?: boolean; height?: number }) {
+/** The clock the guide is drawn at, moved on each minute (the Now line, On now); nothing is read again. */
+function useMinute(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
+
+/** Whether a hidden row is this show (by the show, or by its listing). */
+const hides = (h: HiddenShow, show: { id: string; tvmazeId?: number | null }) => (h.showId != null && h.showId === show.id) || (h.tvmazeId != null && h.tvmazeId === show.tvmazeId);
+
+/** Your shows (what you follow or play) and the couch's you don't follow (what its people watch openly), as the guide takes them. */
+export function guideShows(home: Home, couch: Couch | null): GuideShow[] {
+  const members = couch?.members ?? [];
+  const facesOf = (seasonId: string) => members.filter((m) => m.watching.includes(seasonId)).map((m) => ({ userId: m.userId, name: m.name }));
+  // The episode each of your moves is for (Up next's when the move doesn't say).
+  const due = new Map<string, number>();
+  for (const m of home.moves) {
+    const s = showOfMove(home, m);
+    const n = m.episode ?? s?.upNext?.number;
+    if (s && n != null && !(due.get(s.seasonId)! <= n)) due.set(s.seasonId, n);
+  }
+  const yours: GuideShow[] = home.shows
+    .filter((s) => s.following || s.games.length)
+    .map((s) => ({
+      seasonId: s.seasonId,
+      name: plain(s.show.name),
+      seasonNumber: s.seasonNumber,
+      artUrl: s.show.artUrl,
+      release: s.release,
+      week: s.week ?? [],
+      tie: s.games.length ? "plays" : "watches",
+      faces: facesOf(s.seasonId),
+      dueEpisode: due.get(s.seasonId) ?? null,
+    }));
+  const hidden = home.guideHidden ?? [];
+  const theirs: GuideShow[] = (home.couchShows ?? [])
+    .filter((s) => members.some((m) => m.userId !== home.user.id && m.watching.includes(s.seasonId)) && !hidden.some((h) => hides(h, s.show)))
+    .map((s) => ({
+      seasonId: s.seasonId,
+      name: plain(s.show.name),
+      seasonNumber: s.seasonNumber,
+      artUrl: s.show.artUrl,
+      release: s.release,
+      week: s.week ?? [],
+      tie: "couch",
+      faces: facesOf(s.seasonId),
+      dueEpisode: null,
+    }));
+  return [...yours, ...theirs];
+}
+
+/** What's hidden, less anything that's yours now (your own shows always show). */
+function hiddenNow(home: Home): HiddenShow[] {
+  const mine = home.shows.filter((s) => s.following || s.games.length).map((s) => s.show);
+  return (home.guideHidden ?? []).filter((h) => !mine.some((s) => hides(h, s)));
+}
+
+/** "Tonight" (after 5 PM) or "Today", "Tomorrow", then the weekday. */
+function dayLabel(d: GuideDay, now: number): string {
+  if (d.offset === 0) return new Date(now).getHours() >= 17 ? "Tonight" : "Today";
+  return d.offset === 1 ? "Tomorrow" : DAY[new Date(d.start).getDay()];
+}
+
+/** Who's on a card: their initials on their colours, four at most. */
+function Faces({ faces }: { faces: GuideCard["faces"] }) {
+  if (!faces.length) return null;
   return (
-    <button
-      type="button"
-      className={`relative isolate flex flex-col justify-end overflow-hidden rounded-[3px] bg-card text-left text-white ${
-        short ? "h-[66px] px-2 py-1.5 opacity-80 outline-1 -outline-offset-1 outline-white/10 [filter:saturate(.3)_brightness(.78)]" : "px-[9px] py-2"
-      } ${c.watchOnly ? "outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-white/45" : ""}`}
-      style={{ height: short ? undefined : (height ?? 104) }}
-    >
-      {c.art ? (
-        // eslint-disable-next-line @next/next/no-img-element -- fixture art from the published mock
-        <img
-          src={c.art}
-          alt=""
-          className={`absolute inset-0 -z-[2] size-full object-cover ${c.watchOnly ? "[filter:saturate(.35)_brightness(.8)]" : ""}`}
-          style={{ objectPosition: c.position }}
-        />
-      ) : (
-        <span className="type-caption absolute inset-0 -z-[2] grid place-items-center bg-[linear-gradient(150deg,#3a3548,#16141d)] text-[34px] text-white/20">
-          {c.name[0]}
-        </span>
-      )}
-      <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,.15)_0%,rgba(10,8,14,.55)_48%,rgba(10,8,14,.92)_100%)]" />
-      <span
-        className={`rounded-[2px] bg-[rgba(10,8,14,.72)] font-extrabold backdrop-blur-sm ${short ? "mb-0.5 self-start px-[5px] py-0.5 text-[10px]" : "absolute left-2 top-[7px] px-1.5 py-[3px] text-[11px]"}`}
-      >
-        {c.time}
-      </span>
-      {c.due && <i className="absolute right-2 top-2 size-[9px] rounded-full bg-live shadow-[0_0_0_2px_rgba(255,255,255,.8)]" aria-label="A move is due" />}
-      {c.tag && (
+    <span className="flex flex-none pl-[3px]" aria-label={`${namesOf(faces.map((f) => f.name))} watch it`}>
+      {faces.slice(0, 4).map((f) => (
         <span
-          className={`type-caption mb-1 self-start py-[3px] pl-1.5 pr-2.5 text-[10px] tracking-[0.06em] [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)] ${
-            c.tag.tone === "good" ? "bg-good text-good-foreground" : "bg-secondary text-foreground"
-          }`}
+          key={f.userId}
+          className="-ml-[3px] grid size-3.5 place-items-center rounded-[2px] text-[8px] font-extrabold text-[#121018] shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]"
+          style={{ background: avatarColour(f.userId) }}
         >
-          {c.tag.text}
+          {f.name[0]?.toUpperCase()}
         </span>
-      )}
-      <span className={`type-caption leading-[.95] [text-shadow:0_1px_8px_rgba(0,0,0,.5)] ${short ? "text-sm" : "text-[17px]"}`}>{c.name}</span>
-      <span className={`mt-[3px] flex items-center justify-between gap-1 font-semibold opacity-85 ${short ? "text-[10px]" : "text-[11px]"}`}>
-        <span>{c.sub}</span>
-        {c.faces && (
-          <span className="flex">
-            {c.faces.map((p) => (
-              <span
-                key={p}
-                className="-ml-[3px] grid size-3.5 place-items-center rounded-[2px] text-[8px] font-extrabold text-[#121018] shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]"
-                style={{ background: PEOPLE[p] }}
-              >
-                {p[0].toUpperCase()}
-              </span>
-            ))}
-          </span>
-        )}
-      </span>
-    </button>
+      ))}
+    </span>
   );
 }
 
-export function Guide() {
+const CARD =
+  "relative isolate flex w-full flex-col justify-end overflow-hidden rounded-[3px] bg-card px-[9px] py-2 text-left text-white transition-transform duration-300 active:scale-[.97]";
+// The fade ladder (tvguide.css): yours in full, dashed when you watch without playing, faded a step more when it isn't yours.
+const DASHED = "outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-white/45";
+const FADED = "opacity-80 [filter:saturate(.3)_brightness(.78)]";
+
+/** A card's art, or with none (a show added by name, a listing without a poster) its first letter, faint (tvguide.css g-noart). */
+function GuideArt({ id, c, className = "" }: { id: string; c: Pick<GuideCard, "artUrl" | "name" | "drop">; className?: string }) {
+  return c.artUrl ? (
+    <ShowArt seasonId={id} artUrl={c.artUrl} name={c.name} position={c.drop ? "center 25%" : "center"} className={`absolute inset-0 -z-[2] size-full ${className}`} />
+  ) : (
+    <span data-art={id} aria-hidden className="type-caption absolute inset-0 -z-[2] grid place-items-center bg-[linear-gradient(150deg,#3a3548,#16141d)] text-[34px] text-white/20">
+      {c.name.replace(/^the\s+/i, "")[0]?.toUpperCase()}
+    </span>
+  );
+}
+
+function CardBody({ c, now }: { c: GuideCard; now: number }) {
+  return (
+    <>
+      <GuideArt id={`guide-${c.key}`} c={c} className={c.tie !== "plays" ? "[filter:saturate(.35)_brightness(.8)]" : ""} />
+      <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,.15)_0%,rgba(10,8,14,.55)_48%,rgba(10,8,14,.92)_100%)]" />
+      <span
+        className={`absolute left-2 top-[7px] flex items-center gap-[5px] rounded-[2px] px-1.5 py-[3px] text-[11px] font-extrabold backdrop-blur-sm ${
+          c.live ? "bg-live text-live-foreground" : "bg-[rgba(10,8,14,.72)]"
+        }`}
+      >
+        {c.live && <i className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />}
+        {c.live ? "On now" : timeOf(c.at)}
+      </span>
+      {c.due && <i data-due className="absolute right-2 top-2 size-[9px] rounded-full bg-live shadow-[0_0_0_2px_rgba(255,255,255,.8)]" aria-label="A move is due" />}
+      {c.drop != null && (
+        <span className="type-caption mb-1 self-start bg-secondary py-[3px] pl-1.5 pr-2.5 text-[10px] tracking-[0.06em] text-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]">
+          All {c.drop} drop
+        </span>
+      )}
+      <span className="type-caption line-clamp-2 text-[17px] leading-[.95] [text-shadow:0_1px_8px_rgba(0,0,0,.5)]">{c.name}</span>
+      <span className="mt-[3px] flex items-center justify-between gap-1 text-[11px] font-semibold opacity-85">
+        <span className="truncate">{c.at < now && !c.live && !c.drop ? `${episodeLine(c)} · aired` : episodeLine(c)}</span>
+        <Faces faces={c.faces} />
+      </span>
+    </>
+  );
+}
+
+/** A card: your show opens it (its art grows into the show bar); a couch show you don't follow opens its sheet. */
+function Card({ c, now, height = 104, onCouch }: { c: GuideCard; now: number; height?: number; onCouch: (c: GuideCard) => void }) {
+  const cls = `${CARD} ${c.tie !== "plays" ? DASHED : ""} ${c.tie === "couch" ? FADED : ""}`;
+  const data = { "data-guide-card": c.key, "data-tie": c.tie, "data-live": c.live || undefined, "data-drop": c.drop ?? undefined };
+  const label = `${c.name}, ${c.drop ? `all ${c.drop} episodes drop` : episodeLine(c)}, ${c.live ? "on now" : airTime(c.at)}${c.tie === "couch" ? ", not on your shows" : ""}`;
+  return c.tie === "couch" ? (
+    <button type="button" {...data} aria-label={label} className={cls} style={{ height }} onClick={() => onCouch(c)}>
+      <CardBody c={c} now={now} />
+    </button>
+  ) : (
+    <NavLink href={paths.show(c.seasonId)} channel {...data} aria-label={label} className={cls} style={{ height }}>
+      <CardBody c={c} now={now} />
+    </NavLink>
+  );
+}
+
+/** Today with nothing on: what's next this week ("Nothing tonight · Next up"). */
+function NextUpCard({ c, evening, onCouch }: { c: GuideCard; evening: boolean; onCouch: (c: GuideCard) => void }) {
+  const body = (
+    <>
+      <GuideArt id={`guide-next-${c.key}`} c={c} className="[filter:saturate(.5)_brightness(.7)]" />
+      <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,.3)_0%,rgba(10,8,14,.92)_100%)]" />
+      <span className="absolute left-2 top-[7px] rounded-[2px] bg-[rgba(10,8,14,.72)] px-1.5 py-[3px] text-[11px] font-extrabold backdrop-blur-sm">
+        Nothing {evening ? "tonight" : "today"}
+      </span>
+      <span className="type-caption text-[11px] tracking-[0.06em] text-muted-foreground">Next up</span>
+      <span className="type-caption line-clamp-2 text-[17px] leading-[.95]">{c.name}</span>
+      <span className="mt-[3px] truncate text-[11px] font-semibold opacity-85">{airTime(c.at)}</span>
+    </>
+  );
+  const cls = `${CARD} h-[104px]`;
+  return c.tie === "couch" ? (
+    <button type="button" data-guide-next className={cls} onClick={() => onCouch(c)}>
+      {body}
+    </button>
+  ) : (
+    <NavLink href={paths.show(c.seasonId)} data-guide-next className={cls}>
+      {body}
+    </NavLink>
+  );
+}
+
+/** Also on, the rest of TV that evening: part 2's (a fixture until then). */
+function AlsoOn({ cards, tag }: { cards: AlsoOnCard[]; tag: boolean }) {
+  if (!cards.length) return null;
+  return (
+    <Preview id="hub.all-of-tv" tag={tag} className="-mx-[3px] flex flex-col gap-[7px] p-[3px]">
+      <div className="type-caption mt-0.5 flex h-3.5 items-center gap-1.5 text-[10px] tracking-[0.08em] text-muted-foreground after:h-px after:flex-1 after:bg-border">
+        Also on
+      </div>
+      {cards.map((c) => (
+        <span
+          key={c.name}
+          className="relative isolate flex h-[66px] flex-col justify-end overflow-hidden rounded-[3px] bg-card px-2 py-1.5 text-white opacity-80 outline-1 -outline-offset-1 outline-white/10 [filter:saturate(.3)_brightness(.78)]"
+        >
+          {c.art ? (
+            // eslint-disable-next-line @next/next/no-img-element -- fixture art from the published mock
+            <img src={c.art} alt="" className="absolute inset-0 -z-[2] size-full object-cover" />
+          ) : (
+            <span className="type-caption absolute inset-0 -z-[2] grid place-items-center bg-[linear-gradient(150deg,#3a3548,#16141d)] text-[34px] text-white/20">{c.name[0]}</span>
+          )}
+          <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,.15)_0%,rgba(10,8,14,.55)_48%,rgba(10,8,14,.92)_100%)]" />
+          <span className="mb-0.5 self-start rounded-[2px] bg-[rgba(10,8,14,.72)] px-[5px] py-0.5 text-[10px] font-extrabold">{c.time}</span>
+          <span className="type-caption text-sm leading-[.95]">{c.name}</span>
+          <span className="mt-px text-[10px] font-semibold opacity-85">{c.sub}</span>
+        </span>
+      ))}
+    </Preview>
+  );
+}
+
+function Day({ d, i, now, week, onCouch }: { d: GuideDay; i: number; now: number; week: GuideDay[]; onCouch: (c: GuideCard) => void }) {
+  const date = new Date(d.start);
+  const evening = new Date(now).getHours() >= 17;
+  const next = d.offset === 0 && !d.slots.length ? nextUpAfter(week, 0) : null;
+  const nowLine = (
+    <div data-guide-now className="type-caption flex h-3.5 flex-none items-center gap-1.5 text-[11px] tracking-[0.06em] text-chyron-line after:h-0.5 after:flex-1 after:bg-chyron-line">
+      Now {timeOf(now)}
+    </div>
+  );
+  return (
+    <div data-guide-day={d.offset} className={`flex flex-none flex-col gap-[7px] border-l border-border px-[5px] ${i ? "w-[162px]" : "w-[165px] border-l-0 pl-2"}`}>
+      <div className="flex h-6 items-baseline gap-1.5 whitespace-nowrap px-[3px] pb-1 pt-0.5">
+        <b
+          className={`type-caption text-[17px] ${i ? "" : "bg-chyron py-[3px] pl-1.5 pr-3 text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]"}`}
+        >
+          {dayLabel(d, now)}
+        </b>
+        <span className="text-xs font-semibold text-muted-foreground">
+          {d.offset < 2 ? `${DAY[date.getDay()]} ` : ""}
+          {MON[date.getMonth()]} {date.getDate()}
+        </span>
+      </div>
+      {d.slots.map((sl, k) => (
+        <div key={Array.isArray(sl) ? sl[0].key : sl.key} className="contents">
+          {d.nowAt === k && nowLine}
+          {Array.isArray(sl) ? (
+            <div data-guide-same className="flex flex-col gap-[5px] border-l-[3px] border-chyron-line pl-2">
+              <em className="type-caption flex h-3 justify-between text-[11px] not-italic tracking-[0.06em] text-chyron-line">
+                <span>Same time</span>
+                <span>{timeOf(sl[0].at)}</span>
+              </em>
+              {sl.map((c) => (
+                <Card key={c.key} c={c} now={now} height={86} onCouch={onCouch} />
+              ))}
+            </div>
+          ) : (
+            <Card c={sl} now={now} onCouch={onCouch} />
+          )}
+        </div>
+      ))}
+      {d.nowAt != null && d.nowAt >= d.slots.length && d.slots.length > 0 && nowLine}
+      {!d.slots.length &&
+        (next ? (
+          <>
+            {nowLine}
+            <NextUpCard c={next} evening={evening} onCouch={onCouch} />
+          </>
+        ) : (
+          <div className="grid h-14 place-items-center rounded-[3px] border border-dashed border-border text-[13px] text-muted-foreground">Nothing on</div>
+        ))}
+      <AlsoOn cards={ALSO_ON[d.offset] ?? []} tag={i === 0} />
+    </div>
+  );
+}
+
+/** The guide: the week rolling by, the foot (what dashed and faded mean, what's hidden, Add a show), and its sheets. */
+export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
   const reel = useRef<HTMLDivElement>(null);
   const rolling = useRoll(reel);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const evening = new Date().getHours() >= 17;
-  const nowLabel = new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const now = useMinute();
+  const shows = useMemo(() => guideShows(home, couch), [home, couch]);
+  const week = useMemo(() => guideWeek(shows, now), [shows, now]);
+  const hidden = hiddenNow(home);
+  const [couchCard, setCouchCard] = useState<GuideCard | null>(null);
+  const [hiddenOpen, setHiddenOpen] = useState(false);
+  const ties = new Set(week.flatMap((d) => d.slots.flatMap((sl) => (Array.isArray(sl) ? sl : [sl]).map((c) => c.tie))));
+  const legend = [ties.has("watches") ? "Dashed: not playing yet" : null, ties.has("couch") ? "Faded: not on your shows" : null].filter(Boolean).join(" · ");
   return (
-    <section className="mt-8">
+    <section className="mt-8" data-guide>
       <div className="mb-2.5 flex items-baseline justify-between px-4">
-        <h2 className="type-caption text-[24px]">This week on the couch</h2>
+        <h2 className="type-caption text-[24px]">{couch ? "This week on the couch" : "This week"}</h2>
         <span className="flex h-8 items-center gap-1.5 text-xs font-semibold text-muted-foreground">
           <i className={`size-[7px] rounded-full ${rolling ? "bg-good" : "bg-input"}`} aria-hidden />
           {rolling ? "Rolling" : "Paused"}
         </span>
       </div>
-      <Preview id="hub.guide" className="mx-2">
-        <div
-          ref={reel}
-          className="flex overflow-x-auto pb-1.5 pt-2 [scrollbar-width:none] [mask-image:linear-gradient(90deg,transparent,#000_14px,#000_calc(100%_-_24px),transparent)]"
+      <div
+        ref={reel}
+        className="mx-2 flex overflow-x-auto pb-1.5 pt-2 [scrollbar-width:none] [mask-image:linear-gradient(90deg,transparent,#000_14px,#000_calc(100%_-_24px),transparent)]"
+      >
+        {week.map((d, i) => (
+          <Day key={d.offset} d={d} i={i} now={now} week={week} onCouch={setCouchCard} />
+        ))}
+      </div>
+      <div data-guide-foot className="flex items-center justify-between gap-3 px-4 pt-1 text-[13px] text-muted-foreground">
+        <span className="flex min-w-0 flex-col items-start">
+          {legend && <span className="leading-snug">{legend}</span>}
+          {hidden.length > 0 && (
+            <button type="button" data-guide-hidden onClick={() => setHiddenOpen(true)} className="flex h-9 items-center gap-1.5 font-bold text-foreground underline-offset-2 hover:underline">
+              <EyeOff className="size-4" aria-hidden />
+              {hidden.length} hidden
+            </button>
+          )}
+        </span>
+        <button
+          type="button"
+          data-guide-add
+          onClick={() => openWatching({ kind: "add" })}
+          className="nd-press flex h-10 flex-none items-center gap-1 rounded-[3px] px-2.5 text-sm font-semibold text-foreground outline-1 -outline-offset-1 outline-input"
         >
-          {GUIDE.map((d, i) => {
-            const date = new Date(today);
-            date.setDate(date.getDate() + d.offset);
-            const label = d.offset === 0 ? (evening ? "Tonight" : "Today") : d.offset === 1 ? "Tomorrow" : DAY[date.getDay()];
-            return (
-              <div key={d.offset} className={`flex flex-none flex-col gap-[7px] border-l border-border px-[5px] ${i ? "w-[162px]" : "w-[165px] border-l-0 pl-2"}`}>
-                <div className="flex h-6 items-baseline gap-1.5 whitespace-nowrap px-[3px] pb-1 pt-0.5">
-                  <b
-                    className={`type-caption text-[17px] ${i ? "" : "bg-chyron py-[3px] pl-1.5 pr-3 text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_7px)_100%,0_100%)]"}`}
-                  >
-                    {label}
-                  </b>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    {d.offset < 2 ? `${DAY[date.getDay()]} ` : ""}
-                    {MON[date.getMonth()]} {date.getDate()}
-                  </span>
-                </div>
-                {d.mine.map((m, k) => (
-                  <div key={k} className="contents">
-                    {d.nowBefore === k && (
-                      <div className="type-caption flex h-3.5 items-center gap-1.5 text-[11px] tracking-[0.06em] text-chyron-line after:h-0.5 after:flex-1 after:bg-chyron-line">
-                        Now {nowLabel}
-                      </div>
-                    )}
-                    {Array.isArray(m) ? (
-                      <div className="flex flex-col gap-[5px] border-l-[3px] border-chyron-line pl-2">
-                        <em className="type-caption flex h-3 justify-between text-[11px] not-italic tracking-[0.06em] text-chyron-line">
-                          <span>Same time</span>
-                          <span>{m[0].time}</span>
-                        </em>
-                        {m.map((c) => (
-                          <Card key={c.name} c={c} height={86} />
-                        ))}
-                      </div>
-                    ) : (
-                      <Card c={m} />
-                    )}
-                  </div>
-                ))}
-                <div className="type-caption mt-0.5 flex h-3.5 items-center gap-1.5 text-[10px] tracking-[0.08em] text-muted-foreground after:h-px after:flex-1 after:bg-border">
-                  Also on
-                </div>
-                {d.also.map((c) => (
-                  <Card key={c.name} c={c} short />
-                ))}
-              </div>
-            );
-          })}
-        </div>
-        <div className="flex items-center justify-between px-2 pb-1 pt-1 text-[13px] text-muted-foreground">
-          <span>Faded: not on your shows</span>
-          <span className="flex h-10 items-center gap-1 rounded-[3px] px-2.5 text-sm font-semibold text-foreground outline-1 -outline-offset-1 outline-input">
-            <Plus className="size-4" aria-hidden />
-            Add a show
-          </span>
-        </div>
-      </Preview>
+          <Plus className="size-4" aria-hidden />
+          Add a show
+        </button>
+      </div>
+      <CouchShowSheet home={home} couch={couch} card={couchCard} onOpenChange={(o) => !o && setCouchCard(null)} />
+      <HiddenSheet open={hiddenOpen} onOpenChange={setHiddenOpen} hidden={hidden} />
     </section>
   );
 }
+
+/** Hide a show here from your guide (or bring it back), with Undo. */
+function useHide() {
+  const setHidden = useSetGuideHidden();
+  const run = async (show: { seasonId: string } | { showId: string }, name: string, hidden: boolean) => {
+    try {
+      setHidden((await guideApi.hide(show, hidden)).hidden);
+      toast(hidden ? `${name} is hidden from your guide` : `${name} is back on your guide`, hidden ? { undo: () => void run(show, name, false) } : {});
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+  return run;
+}
+
+/** A couch show you don't follow (the mock's tvShowSheet and episode sheet): when it's on, who watches it, Add to my shows,
+ *  Hide from guide, or open it. */
+function CouchShowSheet({ home, couch, card, onOpenChange }: { home: Home; couch: Couch | null; card: GuideCard | null; onOpenChange: (o: boolean) => void }) {
+  const hide = useHide();
+  // The last one asked about, kept while the sheet slides away.
+  const [shown, setShown] = useState(card);
+  if (card && card !== shown) setShown(card);
+  const c = card ?? shown;
+  const show: CouchShow | undefined = c ? home.couchShows.find((s) => s.seasonId === c.seasonId) : undefined;
+  const who = c ? (couch?.members ?? []).filter((m) => m.userId !== home.user.id && m.watching.includes(c.seasonId)).map((m) => m.name) : [];
+  const when = c ? `${c.drop ? `All ${c.drop} drop` : "On"} ${airTime(c.at)} · ${c.seasonNumber != null ? `Season ${c.seasonNumber} · ` : ""}${c.drop ? `${c.drop} episodes` : `Episode ${c.numbers[0]}`}` : undefined;
+  return (
+    <Sheet open={!!card} onOpenChange={onOpenChange} title={c?.name ?? ""} subtitle={when}>
+      {c && (
+        <div data-guide-sheet={c.seasonId}>
+          <div className="relative isolate mb-3 flex h-[150px] items-end overflow-hidden rounded-[4px] p-3">
+            <ShowArt seasonId={`guide-sheet-${c.seasonId}`} artUrl={c.artUrl} name={c.name} className="absolute inset-0 -z-[2] size-full" />
+            {/* With no art, the art is the name already. */}
+            {c.artUrl && (
+              <>
+                <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(16,14,21,.05),rgba(16,14,21,.85))]" />
+                <b className="type-caption text-[26px] text-white">{c.name}</b>
+              </>
+            )}
+          </div>
+          <p className="mb-3 text-[15px] leading-snug text-muted-foreground">
+            {who.length ? `${namesOf(who)} ${who.length === 1 ? "watches" : "watch"} it.` : "Someone on the couch watches it."} Add it to your shows and the couch sees you do.
+          </p>
+          <div className="flex flex-col gap-2.5">
+            <Btn
+              tone="ink"
+              wide
+              data-guide-follow
+              disabled={!show}
+              onClick={() => {
+                if (!show) return;
+                onOpenChange(false);
+                openWatching({
+                  kind: "where",
+                  target: {
+                    seasonId: show.seasonId,
+                    label: `${plain(show.show.name)}${show.seasonNumber ? ` ${show.seasonNumber}` : ""}`,
+                    show: plain(show.show.name),
+                    artUrl: show.show.artUrl,
+                    artPosition: "center",
+                    aired: show.latestAired,
+                    status: show.status === "upcoming" || show.status === "completed" ? show.status : "airing",
+                    premiere: show.premiereDate,
+                    seen: 0,
+                    following: false,
+                    plays: false,
+                  },
+                });
+              }}
+            >
+              <Plus className="size-5" aria-hidden />
+              Add to my shows
+            </Btn>
+            <Btn
+              wide
+              data-guide-hide
+              onClick={() => {
+                onOpenChange(false);
+                void hide({ seasonId: c.seasonId }, c.name, true);
+              }}
+            >
+              <EyeOff className="size-5" aria-hidden />
+              Hide from guide
+            </Btn>
+            <NavLink href={paths.show(c.seasonId)} className="grid h-11 place-items-center text-sm font-semibold text-muted-foreground underline-offset-2 hover:underline">
+              Open the show
+            </NavLink>
+          </div>
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+/** "N hidden" (the mock's hiddenSheet): each hidden show with Show again. */
+function HiddenSheet({ open, onOpenChange, hidden }: { open: boolean; onOpenChange: (o: boolean) => void; hidden: HiddenShow[] }) {
+  const setHidden = useSetGuideHidden();
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    if (open && !hidden.length) onOpenChange(false);
+  }, [open, hidden.length, onOpenChange]);
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title="Hidden from your guide" subtitle="They stay off the guide until you bring them back">
+      <div data-guide-hidden-list>
+        {hidden.map((h) => {
+          const key = h.showId ?? `tv:${h.tvmazeId}`;
+          return (
+            <div key={key} data-hidden-row={h.name} className="flex min-h-[58px] items-center gap-3 border-b border-border">
+              <b className="min-w-0 flex-1 truncate text-[15px]">{h.name}</b>
+              <button
+                type="button"
+                disabled={busy === key}
+                onClick={async () => {
+                  setBusy(key);
+                  try {
+                    const out = h.showId ? await guideApi.hide({ showId: h.showId }, false) : await guideApi.hideListing(h.tvmazeId!, h.name, false);
+                    setHidden(out.hidden);
+                    toast(`${h.name} is back on your guide`);
+                  } catch (e) {
+                    toast((e as Error).message);
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+                className="nd-press h-10 flex-none rounded-[3px] px-3 text-sm font-semibold outline-1 -outline-offset-1 outline-input disabled:opacity-50"
+              >
+                Show again
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </Sheet>
+  );
+}
+
 
 const RAIL_TAG = {
   you: "bg-chyron py-0.5 pl-[5px] pr-[9px] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]",

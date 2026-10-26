@@ -55,7 +55,7 @@ export function SoloHub({ home }: { home: Home }) {
           <UpNext home={home} show={up} couch={null} />
         </div>
       )}
-      <Guide />
+      <Guide home={home} couch={null} />
       <YourShows home={home} hub={undefined} />
       <PlayOnYourOwn home={home} />
       <OnYourOwn home={home} />

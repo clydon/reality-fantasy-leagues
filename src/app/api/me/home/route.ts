@@ -8,6 +8,7 @@ import { dueMoves } from "@/lib/server/due-moves";
 import { seenThrough } from "@/lib/server/guard";
 import { followsOf, games, seasonHeaders, type Game } from "@/lib/server/show-space";
 import { latestAired, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
+import { hiddenFor, weekOf } from "@/lib/server/guide";
 import { progressOf } from "@/lib/server/season-games";
 import { leagueStates } from "@/lib/server/league-states";
 import { resultsDue } from "@/lib/game/results-due";
@@ -16,7 +17,8 @@ import { resultsDue } from "@/lib/game/results-due";
 // games, the shows you follow or play with where you are in each and what's on next (and who's set for it, step 1),
 // and the moves due across your leagues (due-moves.ts, the same items as the classic action bar), and per show what
 // its results ask of you (step 8: results in to reveal, or the morning update's final scores; results-due.ts), and the
-// couches' shows you don't follow (step 10: The couch is watching).
+// couches' shows you don't follow (step 10: The couch is watching). The guide (step 11): each show's episodes around this
+// week (when each starts, never a title) and what you've hidden from it.
 //
 // Spoiler-safe through guard.ts: it says nothing about results beyond that they're in (and at which stage), only when
 // episodes air and how far you are.
@@ -45,10 +47,11 @@ export const GET = apiRoute(async (req) => {
   const theirs = [...new Set(follows.filter((f) => f.userId !== user.id && f.following && !f.private).map((f) => f.seasonId))].filter(
     (id) => !seasonIds.includes(id)
   );
-  const [headers, schedules, moves] = await Promise.all([
+  const [headers, schedules, moves, guideHidden] = await Promise.all([
     seasonHeaders([...seasonIds, ...couchSeasonIds, ...theirs]),
     seasonSchedules([...seasonIds, ...theirs]),
     dueMoves(user.id),
+    hiddenFor(user.id),
   ]);
   // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash; and each
   // game's state again (a hash each) for what its results ask of you.
@@ -87,6 +90,8 @@ export const GET = apiRoute(async (req) => {
       seenThrough: Number.isFinite(seen) ? seen : null,
       upNext: ((u) => (u ? titledFor(u, seen) : null))(upNext(schedule, now)),
       latestAired: latestAired(schedule, now),
+      // The guide's episodes (step 11): when each airs around this week, no titles.
+      week: weekOf(schedule, now),
       games: myGames.filter((g) => g.seasonId === id).map(gameOut),
       // Who's set for the next episode, per game with a weekly move (Up next shows the current couch's).
       progress: myGames.filter((g) => g.seasonId === id && progress.has(g.leagueId)).map((g) => ({ leagueId: g.leagueId, ...progress.get(g.leagueId)! })),
@@ -119,12 +124,19 @@ export const GET = apiRoute(async (req) => {
       .map((id) => headers.get(id))
       .filter((h) => !!h)
       // Not yours: nothing seen, so no episode's title.
-      .map((h) => ({ ...h, upNext: ((u) => (u ? titledFor(u, 0) : null))(upNext(schedules.get(h.seasonId), now)), latestAired: latestAired(schedules.get(h.seasonId), now) })),
+      .map((h) => ({
+        ...h,
+        upNext: ((u) => (u ? titledFor(u, 0) : null))(upNext(schedules.get(h.seasonId), now)),
+        latestAired: latestAired(schedules.get(h.seasonId), now),
+        week: weekOf(schedules.get(h.seasonId), now),
+      })),
     // Leagues with no season in the catalog (a league still being set up), so they're not lost.
     unscheduled: myGames.filter((g) => !g.seasonId).map(gameOut),
     moves: moves.items,
     // The leagues you run's own to-dos: Backstage and the dot on a show's menu (step 5), never Tonight.
     backstage: moves.commish,
+    // What you've hidden from the guide (step 11): shows here and TV listings; your own shows always show.
+    guideHidden,
   });
 });
 

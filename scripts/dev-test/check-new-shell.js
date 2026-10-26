@@ -136,8 +136,9 @@ function recordTransitions() {
     check(new URL(page.url()).pathname === "/home" && (await cookie()) === "new", "a device without the cookie gets there too, and gets the cookie");
 
     // ---- the hub ----
-    // The show's card on Your shows: the link holding its art (Up next and the status line link there too).
-    const card = page.locator(`a[href="/show/${sid}/tonight"]:has([data-art])`);
+    // The show's card on Your shows: the link holding its art (Up next and the status line link there too, and since step 11
+    // the guide's card for its next episode).
+    const card = page.locator(`[data-poster="${sid}"] a[href="/show/${sid}/tonight"]:has([data-art])`);
     await card.first().waitFor({ timeout: 30_000 });
     check((await card.count()) === 1, "the hub lists the couch's show once, as a card");
     await page.getByRole("button", { name: "Your profile" }).click();
@@ -146,8 +147,8 @@ function recordTransitions() {
     await page.waitForTimeout(400);
     await page.evaluate(() => (window.__vt.length = 0));
     await snap("home");
-    await page.locator('[data-preview="hub.guide"]').click();
-    check(await page.getByText("Coming soon: The TV guide").isVisible(), "a Preview tap says Coming soon");
+    await page.locator('[data-preview="hub.all-of-tv"]').first().click();
+    check(await page.getByText("Coming soon: All of TV in the guide").isVisible(), "a Preview tap says Coming soon");
 
     // ---- into the show: the channel change ----
     await card.click();
