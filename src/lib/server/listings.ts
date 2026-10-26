@@ -1,4 +1,5 @@
 import { airedOf, episodesOf, hitOf, pickSeason, seasonStatus, type ListingHit, type TvEpisode, type TvSeason, type TvShow } from "@/lib/game/listing";
+import type { TvCastRow } from "@/lib/game/make-game";
 
 // TV listings from TVmaze (docs/PLAN-new-design.md step 10 part 1; docs/HOSTING.md): free, no key, CC BY-SA (credited with
 // a link back wherever it's shown), at least 20 calls every 10 seconds per IP. Asked only when someone searches Add a show
@@ -58,6 +59,11 @@ export async function showListing(id: number, base = TVMAZE): Promise<{ show: Tv
 /** One season's episodes. */
 export async function seasonListing(tvSeasonId: number, base = TVMAZE): Promise<TvEpisode[]> {
   return (await tv<TvEpisode[]>(base, `/seasons/${tvSeasonId}/episodes`)) ?? [];
+}
+
+/** A show's main cast (TVmaze's /shows/:id/cast: people and the characters they play), for Make it a game (step 10 part 2a). */
+export async function showCast(id: number, base = TVMAZE): Promise<TvCastRow[]> {
+  return (await tv<TvCastRow[]>(base, `/shows/${id}/cast`)) ?? [];
 }
 
 export interface ListingSeason {

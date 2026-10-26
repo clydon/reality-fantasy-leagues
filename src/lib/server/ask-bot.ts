@@ -22,6 +22,8 @@ export const askBotConfigured = URLS.length > 0 && !!KEY;
 /** Which bot to ask: `bot` (a development server's stand-in, from botFor) instead of the configured list. */
 export interface BotChoice {
   bot?: string;
+  /** How long this ask may take, at most (default: the route's whole budget): two asks in one request share it. */
+  budgetMs?: number;
 }
 
 const urlsFor = (o: BotChoice = {}) => (o.bot ? [o.bot] : URLS);
@@ -78,7 +80,7 @@ export async function askBotStatus(o: BotChoice = {}): Promise<{ available: bool
 
 export async function askBot(prompt: string, o: BotChoice = {}): Promise<{ answer: string; seconds: number }> {
   if (!configured(o)) throw new HttpError(404, "The ask-AI bot isn't set up here.");
-  const deadline = Date.now() + BUDGET_MS;
+  const deadline = Date.now() + Math.min(BUDGET_MS, o.budgetMs ?? BUDGET_MS);
   const failures: string[] = [];
   for (const url of urlsFor(o)) {
     const left = deadline - Date.now();

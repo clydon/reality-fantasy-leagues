@@ -19,12 +19,13 @@ import { Block, Face, IconBox } from "./parts";
 import { playsWaivers, WaiversHowBody } from "./waivers";
 import { useOpenReveal } from "./reveal";
 import { SoloGames } from "./solo";
+import { useOpenMake } from "./make-game";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Your games' tables when
 // you're in one (a pill per game, then each table; a row opens that person's team, Rules each game in plain words),
 // How it works, this week's one-night games and Start a game; a show you don't play gets Play it. Real: the tables
 // (your games through the guard: game-view.ts), each game's rules (its settings: game-rules.ts), How it works' row.
-// On fixtures behind Preview: the episode games (12), Start a game and Play it (10).
+// On fixtures behind Preview: the episode games (12) and Start a game (10 part 2b). Make it a game is real (10 part 2a).
 
 /** A game's line under its name: what it is, for a game the new design knows. */
 const lineOf = (g: GameView) => (isGameName(g.gameName) ? GAME_STYLE[g.gameName].line : g.name);
@@ -50,7 +51,8 @@ export function Games({ show }: { show: ShowData }) {
         ) : (
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
         )
-      ) : others.length || show.solo ? null : (
+      ) : others.length || (show.solo && show.ready) ? null : (
+        // Solo too, while nobody's set it up: anyone can make a show a game (step 10 part 2a).
         <PlayIt show={show} />
       )}
       {/* On your own (step 9 part 3): the season's public pool and your practice couch, when you're solo. */}
@@ -346,30 +348,46 @@ function RulesSheet({ game, play, onGame, waivers }: { game: GameView | null; pl
 
 // ---------- a show you don't play ----------
 
-/** A show with no game of yours (the mock's playplate): Play it when it's set up as a game, else Make it a game. Both are
- *  part 2's (still Preview). */
+/** What the plate says a show of each kind could be (the mock's rbPlate), before it's a game. */
+const MAKE_LINE: Record<string, string> = {
+  competition: "One question to ChatGPT finds the cast and what scores. Then Survival Pool or a draft.",
+  series: "Draft the cast, start three each week, and score what they get up to. One question to ChatGPT sets it up.",
+  talk: "A bingo card and two calls every show, all season. One question to ChatGPT sets it up.",
+  sport: "Draft who's competing and start some each event, or pick one to finish well. One question to ChatGPT sets it up.",
+};
+
+/** A show with no game of yours (the mock's playplate and rulebook.js rbPlate): Make it a game when nobody has set it up
+ *  (step 10 part 2a), else Play it, whose Start a game is part 2b's (still Preview). */
 export function PlayIt({ show }: { show: ShowData }) {
+  const openMake = useOpenMake();
   const h = show.header;
   const name = (h?.show.name ?? "This show").replace(/\s*\([^)]*\)\s*$/, "").replace(/^The /, "");
   const label = `${name}${h?.seasonNumber ? ` ${h.seasonNumber}` : ""}`;
   const watchers = (show.people ?? []).filter((p) => p.watching).length;
+  const button = "nd-press mt-3 flex h-[52px] items-center justify-center rounded-[3px] bg-plate-foreground px-4 text-[15px] font-bold text-plate";
   return (
-    <Preview id="show.make-it-a-game" className="mx-4 mt-[26px]">
-      <div data-play-it={show.ready ? "play" : "make"} className="rounded-[4px] bg-plate p-4 text-plate-foreground shadow-plate">
-        <span className="type-caption inline-block bg-plate-foreground py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] text-plate [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
-          {show.ready ? "Play it" : "Not a game yet"}
-        </span>
-        <h3 className="type-caption mt-2 text-[28px]">{show.ready ? `${label} with your couch` : `Make ${label} a game`}</h3>
-        <p className="mt-1 text-sm leading-snug text-plate-muted">
-          {show.ready
-            ? "Survival Pool starts from the next episode, no draft. Or draft a team from this cast."
-            : `One question to ChatGPT finds the cast and what scores. Then pick a game that fits.${watchers > 1 ? " Everyone who watches it can play." : " Every couch can play it after."}`}
-        </p>
-        <button type="button" className="nd-press mt-3 flex h-[52px] items-center justify-center rounded-[3px] bg-plate-foreground px-4 text-[15px] font-bold text-plate">
-          {show.ready ? "Start a game" : "Make it a game"}
+    <div data-play-it={show.ready ? "play" : "make"} className="mx-4 mt-[26px] rounded-[4px] bg-plate p-4 text-plate-foreground shadow-plate">
+      <span className="type-caption inline-block bg-plate-foreground py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] text-plate [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
+        {show.ready ? "Play it" : "Not a game yet"}
+      </span>
+      <h3 className="type-caption mt-2 text-[28px]">{show.ready ? `${label} with your couch` : `Make ${label} a game`}</h3>
+      <p className="mt-1 text-sm leading-snug text-plate-muted">
+        {show.ready
+          ? "Survival Pool starts from the next episode, no draft. Or draft a team from this cast."
+          : `${MAKE_LINE[h?.show.kind ?? "competition"] ?? MAKE_LINE.competition}${watchers > 1 ? " Everyone who watches it can play." : " Every couch can play it after."}`}
+      </p>
+      {show.ready ? (
+        <Preview id="show.start-game" tag={false} className="mt-3 w-fit">
+          <button type="button" className={`${button} mt-0`}>
+            Start a game
+          </button>
+        </Preview>
+      ) : (
+        <button type="button" data-make-it onClick={openMake} className={button}>
+          Make it a game
         </button>
-      </div>
-    </Preview>
+      )}
+    </div>
   );
 }
 

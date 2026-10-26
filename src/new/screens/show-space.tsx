@@ -29,6 +29,7 @@ import { ShowBar, TabBar } from "../ui/show-bar";
 import type { PreviewId } from "../preview";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { PoolPage } from "../show/solo";
+import { MakeGamePage, useOpenMake } from "../show/make-game";
 import { openWatching, type WhereTarget } from "../watching/sheets";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
@@ -190,6 +191,8 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       {show.header && <ShowStatsPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} />}
       {/* The season's public pool (step 9 part 3), pushed from the Games tab or the solo hub (?page=pool). */}
       <PoolPage show={show} />
+      {/* Make it a game (step 10 part 2a), pushed from the Games tab, Tonight's plate or the ⋯ menu (?page=make). */}
+      {show.header && <MakeGamePage show={show} />}
       <WaiverOverlays seasonId={seasonId} show={show} />
     </>
   );
@@ -257,6 +260,7 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const nav = useNav();
   const refresh = useAfterReveal();
   const how = usePushedPage("how-it-works");
+  const openMake = useOpenMake();
   const needs = useBackstageNeeds(seasonId, show);
   // The drafts, read when the menu opens (a game with a team to draft: Outlast, Weekly Lineup).
   const drafting = show.games.some((g) => g.yourRole && (g.gameType === "classic-draft" || g.gameType === "active-roster"));
@@ -328,7 +332,19 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
               }}
             />
           )}
-          {soon("show.start-game", Plus, "Start a game", "Bingo night, predictions, a new league")}
+          {show.ready ? (
+            soon("show.start-game", Plus, "Start a game", "Bingo night, predictions, a new league")
+          ) : (
+            <Row
+              icon={Plus}
+              title="Make it a game"
+              detail="One question to ChatGPT sets it up for every couch"
+              onClick={() => {
+                setOpen(false);
+                openMake();
+              }}
+            />
+          )}
           {soon("show.notifications", Bell, "Notifications", "Reminders, results and chat for this show")}
           {show.couch && show.games.some((g) => g.yourRole) && (
             <Row

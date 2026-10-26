@@ -16,7 +16,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | **GitHub** (`clydon/reality-fantasy-leagues`, **public since 2026-10-24**) | The code; Actions runs the hourly job (`auto-research.yml`: auto-research, reminders, waivers) and the nightly wiki sync | Free; Actions minutes unlimited while public | $0 |
 | healthchecks.io | Emails when the bot's daily self-test fails | Free | $0 |
 | Resend | Sign-up and password emails | not checked | $0? |
-| **TVmaze** API (`api.tvmaze.com`, new design step 10 part 1, on the branch) | TV listings for Add a show: the show search as you type, and a show's seasons and episode air times when someone adds it. Asked only then, never on a timer (step 11's daily schedule job is still to come) | Free, no key. Data is CC BY-SA (credited with a link back on Add a show); at least 20 calls every 10 seconds per IP, else HTTP 429; posters hotlinked from its image CDN (allowed) | $0 |
+| **TVmaze** API (`api.tvmaze.com`, new design step 10 part 1, on the branch) | TV listings for Add a show: the show search as you type, a show's seasons and episode air times when someone adds it, and its cast when someone makes a series or talk show a game (step 10 part 2a). Asked only then, never on a timer (step 11's daily schedule job is still to come) | Free, no key. Data is CC BY-SA (credited with a link back on Add a show); at least 20 calls every 10 seconds per IP, else HTTP 429; posters hotlinked from its image CDN (allowed) | $0 |
 | Google Cloud OAuth client (**not made yet**: the user's, step 9 part 2) | Continue with Google on the new design's way in. Off until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (no keys, no button) | Free (sign-in only: the email, profile and openid scopes, no verification review needed) | $0 |
 | Anthropic API | Paid auto-research (Claude), only for seasons switched on | Pay per use | per episode researched |
 | Domain `gameyourshow.com` | Bought 2026-10-12 | not recorded | yearly |
@@ -100,6 +100,7 @@ measured; measure from Neon's usage a week after a change):
 | New design, One tap asking (`/api/seasons/[id]/backstage/ask?run=`) | 2.5 s, only while the bot answers (~1-2 min) | under 1 KB (the run's row) |
 | New design, Backstage › Results while a One tap runs (`/backstage/ways`) | 4 s, only while one runs | ~1 KB |
 | New design, an episode page while the bot adds a show change (`/api/seasons/[id]/show-changes/[n]`) | 4 s, only while it's added (~1-3 min) | under 1 KB |
+| New design, Make it a game while our bot asks (`/api/seasons/[id]/make?poll=1`) | 3 s, only while the bot asks (~2-4 min, once per show set up) | under 200 bytes (a version: one small row); the page reads the whole review (~10-20 KB) only when it moves |
 | New design, the open draft room (`/api/seasons/[id]/draft?v=`) | 4 s while a turn-based draft is live; 15 s while a draft waits to start or people lock in a blind draft; not once it's done | ~1-2 KB (a hash check per game, a few small reads: your seat, queue and mark); the answer is 16 characters when nothing changed, else the draft (~10-20 KB) |
 
 **The way in (new design, step 9 part 2)** polls nothing. First run's catalog (`/api/catalog`, open signed out: every
@@ -149,11 +150,16 @@ push the last one's results about an hour back; a second bot (the PC fallback, o
 One tap (new design, step 6c) adds one question per tap: who went home (~48 s) or the full results (~2 min). Results
 are shared per season, so an episode needs at most one of each from any couch (a second tap joins the one running),
 unless a dispute asks again: the tie-break run (step 6c part 2, off until switched on) is one more full question for an
-episode disputed a day, and a show change the couches confirm one rulebook question (~1-3 min).
+episode disputed a day, and a show change the couches confirm one rulebook question (~1-3 min). Make it a game (step 10
+part 2a) asks once per show anyone sets up: how it works (the rulebook question, ~1-3 min), then who's in it (~1 min; not
+asked for a series or a talk show whose cast the TV listing has); at most 5 attempts per person a day, and a second tap
+joins the one running.
 
 **Vercel function time (One tap):** the bot is asked after the tap's request has answered (`after()`), so a function
 stays alive while it waits, up to the route's 300 s (typically 40-120 s). That's mostly waiting: little Active CPU, but
-provisioned memory for the whole wait (about 1 GB × 2 minutes per full-results tap).
+provisioned memory for the whole wait (about 1 GB × 2 minutes per full-results tap). Make it a game's ask works the same
+way, both its questions in one request when they fit in 300 s (else the open page asks for the second in a request of its
+own): about 1 GB × 2-4 minutes per show set up.
 
 ## Levers, cheapest first
 
@@ -417,3 +423,10 @@ never handles it: the user does the reset and the pasting.
   New stored data per added show: ~1 KB for the show, a season row and ~100 bytes per episode; at most 10 new shows per
   person a day. The catalog now lists every show's seasons (it grows as people add shows; What uses each limit says when
   that starts to matter). Posters are hotlinked from TVmaze's CDN at its medium size (~25 KB).
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 10 part 2a, Make it a game. **One new poll, only while
+  our bot asks** (`/api/seasons/[id]/make?poll=1` every 3 s, a version of under 200 bytes, a few minutes once per show set
+  up); nothing runs on a schedule. Migration 0122: `show_setups` (one row per attempt at setting a show up: ChatGPT's two
+  answers kept as text, ~10-40 KB, at most 5 attempts per person a day). Setting a show up stores its season's rulebook
+  (blocks and compiled rules, ~20-60 KB), the same rules as a stored format (`show_formats`, ~10-30 KB, so older readers
+  agree), the season's cast (`season_cast`, ~200 bytes a person) and a desk History line. Our bot is asked one or two
+  questions per show set up (Bot capacity); TVmaze one more call (`/shows/:id/cast`) for a series or talk show.

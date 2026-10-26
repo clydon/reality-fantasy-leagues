@@ -226,7 +226,38 @@ export function BetaChip() {
   );
 }
 
+/** A question that isn't an episode's results (Make it a game's two, step 10 part 2a): its cache key and how to fetch it. */
+export interface AskAiQuestion {
+  key: readonly unknown[];
+  load: () => Promise<{ prompt: string | null; task: string }>;
+}
+
+type BodyProps = Pick<AskAiProps, "what" | "spoiler" | "check" | "onUse"> & { tag: string; question: AskAiQuestion; empty?: string };
+
+/** Copy and paste on its own, in a sheet (Make it a game's questions: our bot is the page's own button there). */
+export function AskAiPasteSheet({ open, onOpenChange, title, subtitle, ...body }: BodyProps & { open: boolean; onOpenChange: (open: boolean) => void; title: string; subtitle?: string }) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle={subtitle ?? "Ask an AI · free · about 2 minutes"}>
+      {open && <AskAiBodyOf {...body} />}
+    </Sheet>
+  );
+}
+
 function AskAiBody({ what, spoiler, seasonId, couchId, episode, kind, check, onUse }: AskAiProps) {
+  return (
+    <AskAiBodyOf
+      what={what}
+      spoiler={spoiler}
+      check={check}
+      onUse={onUse}
+      tag={kind}
+      empty={`There's nobody left to ask about in Episode ${episode}.`}
+      question={{ key: ["new-design", "ask-ai", seasonId, couchId, episode, kind], load: () => backstage.prompt(seasonId, couchId, episode, kind) }}
+    />
+  );
+}
+
+function AskAiBodyOf({ what, spoiler, check, onUse, tag, question: ask, empty }: BodyProps) {
   const [app, setApp] = useState<ChatApp>(readPref);
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [answer, setAnswer] = useState("");
@@ -235,9 +266,9 @@ function AskAiBody({ what, spoiler, seasonId, couchId, episode, kind, check, onU
 
   // The question, parked as a brief for the chat links.
   const asked = useQuery({
-    queryKey: ["new-design", "ask-ai", seasonId, couchId, episode, kind],
+    queryKey: ask.key,
     queryFn: async () => {
-      const q = await backstage.prompt(seasonId, couchId, episode, kind);
+      const q = await ask.load();
       return { ...q, link: q.prompt ? `${window.location.origin}/b/${(await backstage.brief(q.prompt)).code}` : null };
     },
     staleTime: 5 * 60_000,
@@ -293,7 +324,7 @@ function AskAiBody({ what, spoiler, seasonId, couchId, episode, kind, check, onU
   };
 
   return (
-    <div data-ask-ai={kind} className="flex flex-col">
+    <div data-ask-ai={tag} className="flex flex-col">
       <ol className="mb-4 flex gap-1.5" aria-label="Steps">
         {["Open", "It answers", "Paste it back"].map((t, i) => (
           <li
@@ -321,7 +352,7 @@ function AskAiBody({ what, spoiler, seasonId, couchId, episode, kind, check, onU
               {failed}
             </p>
           ) : question && !question.prompt ? (
-            <div className="mt-4 rounded-[3px] bg-background p-3 text-sm leading-snug">There&apos;s nobody left to ask about in Episode {episode}.</div>
+            <div className="mt-4 rounded-[3px] bg-background p-3 text-sm leading-snug">{empty ?? "There's nothing to ask about."}</div>
           ) : (
             <>
               <a

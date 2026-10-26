@@ -128,6 +128,9 @@ async function down(pool) {
   await pool.query(`DELETE FROM shows WHERE slug IN ($1, $2)`, [SHOW, TRAITORS]); // seasons and follows go with them
   // Shows zt_nd people added (step 10's Add a show: from a check's stand-in listings, fake-listings.js, or by name).
   await pool.query(`DELETE FROM shows WHERE slug LIKE 'zt-%' AND (created_by = ANY($1::text[]) OR (tvmaze_id >= 990000 AND tvmaze_id < 1000000))`, [userIds]);
+  // Their rules, kept as a stored format too when Make it a game set one up (step 10 part 2a; its rulebook and cast went
+  // with the season).
+  await pool.query("DELETE FROM show_formats WHERE id LIKE 'made-zt-%'");
   // A starting point the desk saved from one of its seasons' rulebooks lives in the library, with no season.
   await pool.query("DELETE FROM rulebooks WHERE owner_kind = 'library' AND (name LIKE 'ZT Survivor%' OR name LIKE 'ZT Traitors%')");
   await pool.query(`DELETE FROM "user" WHERE username LIKE 'zt\\_nd\\_%'`); // sessions, accounts, follows cascade

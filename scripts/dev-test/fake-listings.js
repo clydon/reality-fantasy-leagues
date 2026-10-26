@@ -3,6 +3,7 @@
 //   GET /search/shows?q=        every show whose name holds the words (case-insensitive), TVmaze's { score, show } rows
 //   GET /shows/:id?embed=seasons  the show with _embedded.seasons
 //   GET /seasons/:id/episodes   that season's episodes
+//   GET /shows/:id/cast         the show's main cast (people and the characters they play), for Make it a game
 // Shows are made relative to today, so "aired" stays true whenever the check runs.
 //
 //   const tv = await require("./fake-listings").start();          // or start({ shows: [...] })
@@ -48,14 +49,20 @@ function shows(now = Date.now()) {
     season: { id: 9900041, number: 1, name: "", episodeOrder: 4, premiereDate: date(now - 2 * DAY), endDate: date(now - 2 * DAY) },
     episodes: [1, 2, 3, 4].map((n) => ({ id: 990004100 + n, season: 1, number: n, type: "regular", name: `Part ${n}`, airdate: date(now - 2 * DAY), airtime: "", airstamp: iso(now - 2 * DAY), runtime: 50 })),
   };
+  const person = (name, character, image) => ({ person: { id: 0, name, image: image ? { medium: image } : null }, character: character ? { id: 0, name: character, image: null } : null, self: character === "Self", voice: false });
+  const crew = weekly(9900061, 2, 12, 4, now);
+  const race = weekly(9900071, 2026, 20, 6, now);
   const special = { id: 990001199, season: 1, number: null, type: "significant_special", name: "Reunion", airdate: date(now + 30 * DAY), airtime: "21:00", airstamp: iso(now + 30 * DAY), runtime: 60 };
   shack1.episodes.push(special);
   return [
     { show: { id: 990001, name: "ZT Love Shack", type: "Reality", genres: ["Romance"], status: "Running", premiered: shack1.season.premiereDate, network: null, webChannel: us, image: { medium: art("love-island"), original: art("love-island") }, url: "https://www.tvmaze.com/shows/990001", schedule: { time: "21:00", days: ["Monday"] } }, seasons: [shack0, shack1] },
     { show: { id: 990003, name: "ZT Love Shack", type: "Reality", genres: ["Romance"], status: "Ended", premiered: "2015-06-07", network: uk, webChannel: null, image: null, url: "https://www.tvmaze.com/shows/990003", schedule: { time: "21:00", days: ["Monday"] } }, seasons: [weekly(9900031, 1, 8, 8, now - 300 * DAY)] },
     { show: { id: 990002, name: "ZT Traitors", type: "Reality", genres: ["Mystery"], status: "Running", premiered: "2023-01-12", network: us, webChannel: null, image: { medium: art("traitors"), original: art("traitors") }, url: "https://www.tvmaze.com/shows/990002", schedule: { time: "21:00", days: ["Thursday"] } }, seasons: [traitors5] },
-    { show: { id: 990004, name: "ZT Drop Show", type: "Scripted", genres: ["Drama"], status: "Running", premiered: drop.season.premiereDate, network: null, webChannel: { name: "ZT Stream", country: null }, image: null, url: "https://www.tvmaze.com/shows/990004", schedule: { time: "", days: [] } }, seasons: [drop] },
-    { show: { id: 990005, name: "ZT Old Show", type: "Talk Show", genres: [], status: "Ended", premiered: old1.season.premiereDate, ended: old2.season.endDate, network: us, webChannel: null, image: null, url: "https://www.tvmaze.com/shows/990005", schedule: { time: "23:30", days: ["Friday"] } }, seasons: [old1, old2] },
+    { show: { id: 990004, name: "ZT Drop Show", type: "Scripted", genres: ["Drama"], status: "Running", premiered: drop.season.premiereDate, network: null, webChannel: { name: "ZT Stream", country: null }, image: null, url: "https://www.tvmaze.com/shows/990004", schedule: { time: "", days: [] } }, seasons: [drop], cast: [person("Lee Actor", "Nora Vale", null), person("Max Player", "Dr. Ives", null)] },
+    { show: { id: 990005, name: "ZT Old Show", type: "Talk Show", genres: [], status: "Ended", premiered: old1.season.premiereDate, ended: old2.season.endDate, network: us, webChannel: null, image: null, url: "https://www.tvmaze.com/shows/990005", schedule: { time: "23:30", days: ["Friday"] } }, seasons: [old1, old2], cast: [person("Pat Host", "Self"), person("Robin Regular", "Self"), person("Sam Sidekick", "Bandleader")] },
+    { show: { id: 990011, name: "ZT Yacht Life", type: "Reality", genres: ["Travel"], status: "Running", premiered: crew.season.premiereDate, network: us, webChannel: null, image: { medium: art("below-deck"), original: art("below-deck") }, url: "https://www.tvmaze.com/shows/990011", schedule: { time: "20:00", days: ["Monday"] } }, seasons: [crew],
+      cast: [person("Cap Rivers", "Captain"), person("Dee Chief", "Chief Stew"), person("Bo Sun", "Bosun"), person("Ash Deck", "Self"), person("Kit Galley", "Chef")] },
+    { show: { id: 990012, name: "ZT Grand Prix", type: "Sports", genres: [], status: "Running", premiered: race.season.premiereDate, network: us, webChannel: null, image: { medium: art("f1"), original: art("f1") }, url: "https://www.tvmaze.com/shows/990012", schedule: { time: "15:00", days: ["Sunday"] } }, seasons: [race], cast: [] },
   ];
 }
 
@@ -79,6 +86,11 @@ async function start(opts = {}) {
       const s = tv.shows.find((x) => x.show.id === Number(m[1]));
       if (!s) return send(404, { name: "Not Found" });
       return send(200, { ...s.show, _embedded: { seasons: s.seasons.map((x) => x.season) } });
+    }
+    if ((m = u.pathname.match(/^\/shows\/(\d+)\/cast$/))) {
+      const s = tv.shows.find((x) => x.show.id === Number(m[1]));
+      if (!s) return send(404, { name: "Not Found" });
+      return send(200, s.cast || []);
     }
     if ((m = u.pathname.match(/^\/seasons\/(\d+)\/episodes$/))) {
       for (const s of tv.shows) for (const x of s.seasons) if (x.season.id === Number(m[1])) return send(200, x.episodes);

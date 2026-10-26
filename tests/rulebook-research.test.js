@@ -101,6 +101,23 @@ test("checking a rulebook again keeps the moments it already has, even ones a bu
   assert.match(at(r.warnings).join("\n"), /Won the Immunity Duel: left out/, "a new repeat is still left out");
 });
 
+test("a repeat is the same words: a role or a word said twice tells two moments apart", () => {
+  const traitors = require("../src/lib/game/formats/blocks/traitors.blocks.js");
+  const b = JSON.parse(JSON.stringify(traitors.blocks));
+  const moment = (id, label) => ({ id, label, counted: "yesNo", answeredBy: "research" });
+  b.customMoments = [
+    moment("faithfulOutFaithful", "As a Faithful, voted out a Faithful"),
+    moment("votedOutAFaithful", "Voted out a Faithful"),
+    moment("banishedTraitor", "Banished as a Traitor"),
+    moment("zeroVotes", "Zero votes at the Round Table"),
+  ];
+  const r = R.reviewRulebook(b);
+  assert.deepEqual(r.blocks.customMoments.map((m) => m.id), ["faithfulOutFaithful", "votedOutAFaithful"], "a Faithful voting out a Faithful isn't a Faithful voting out a Traitor; who did it is a role");
+  const w = at(r.warnings).join("\n");
+  assert.match(w, /Banished as a Traitor: left out, already built as "Banished as a Traitor"/);
+  assert.match(w, /Zero votes at the Round Table: left out, already built as "Zero votes at Round Table"/);
+});
+
 test("a bad answer keeps its rows, each problem on its row", () => {
   const a = answer();
   a.segments[2].voters = "theStudioAudience";

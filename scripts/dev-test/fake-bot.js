@@ -10,13 +10,15 @@
 // No database, no server of the app's own: it's only the bot's side. The app reads the header in botFor (ask-bot.ts).
 const http = require("http");
 
-/** What kind of question a prompt is: the quick check, the full research, the schedule check, or the rulebook prompt
- *  (step 6c part 2: what a show change the couches confirmed adds). */
+/** What kind of question a prompt is: the quick check, the full research, the schedule check, the rulebook prompt (step
+ *  6c part 2: what a show change the couches confirmed adds), or Make it a game's two (step 10 part 2a): how a new show
+ *  works ("setup", the rulebook prompt with no change) and who's in it ("cast"). */
 function kindOf(prompt) {
   if (/Start from this skeleton/.test(prompt)) return "full";
   if (/Answer two things/.test(prompt) && /Who left the game in this episode/.test(prompt)) return "quick";
   if (/when does episode \d+ air/i.test(prompt)) return "schedule";
-  if (/as a rulebook for a fantasy game/.test(prompt)) return "rulebook";
+  if (/as a rulebook for a fantasy game/.test(prompt)) return /changed how the game is played/.test(prompt) ? "rulebook" : "setup";
+  if (/List the full starting cast of/.test(prompt)) return "cast";
   return "other";
 }
 

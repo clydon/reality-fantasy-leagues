@@ -53,7 +53,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       <Extras show={show} />
       <WatchAlongCard seasonId={seasonId} show={show} />
       {!playing && <WhosWatching show={show} />}
-      {!playing && !show.solo && <PlayIt show={show} />}
+      {!playing && (!show.solo || !show.ready) && <PlayIt show={show} />}
       {playing && <YourGames seasonId={seasonId} show={show} />}
       <StatsCard seasonId={seasonId} show={show} />
     </>

@@ -18,8 +18,8 @@
 //   In a real browser at --width (390 by default), as alex: The couch is watching (not on your list first; Add to my shows
 //   asks where you are and stays on the hub), the "you both watch" nudge (the most people first, Not now, then the next),
 //   Add a show (suggestions, the listings as you type, a listing's where you are, Add as a new show, already on your list),
-//   a show with no game (Not a game yet, the spoiler chip, Who's watching without anyone private, Make it a game still
-//   Preview, the ⋯ menu's Watch privately, Where you are and Remove from my shows), a show you don't follow (who watches
+//   a show with no game (Not a game yet, the spoiler chip, Who's watching without anyone private, Make it a game's
+//   plate (check-new-make-it.js takes it from there), the ⋯ menu's Watch privately, Where you are and Remove from my shows), a show you don't follow (who watches
 //   it, Add to my shows); then a newcomer's first run picking a listing and a name. Nothing wider than the screen; no page
 //   errors. Screenshots go to <outDir>.
 //
@@ -319,8 +319,8 @@ async function newcomer(pool, who, approved = true) {
       check((await nudge.getAttribute("data-nudge").catch(() => null)) === ss.id && /You and zt_nd_riley both watch ZT Love Shack/.test(nudge2) && /Make it a game/.test(nudge2), "then the next: ZT Love Shack, not a game yet, so Make it a game", nudge2.replace(/\n/g, " | "));
       await page.locator("[data-nudge-go]").click();
       await page.waitForURL(`**/show/${ss.id}/games`);
-      check((await page.locator('[data-preview="show.make-it-a-game"]').count()) === 1, "its button opens the show's Games tab, where Make it a game is (still Preview: part 2)");
-      await shot("make-it-a-game-preview", page);
+      check((await page.locator('[data-play-it="make"] [data-make-it]').count()) === 1, "its button opens the show's Games tab, where Make it a game is (step 10 part 2a)");
+      await shot("make-it-a-game", page);
 
       // ---- Add a show ----
       await page.goto(`${BASE}/home?hub=focus`);
@@ -395,7 +395,7 @@ async function newcomer(pool, who, approved = true) {
       check(/you're on Ep 3/.test(await page.locator("[data-following]").innerText()), "the spoiler chip: he's on Episode 3");
       const watchers = await page.locator("[data-whos-watching] [data-watcher]").evaluateAll((els) => els.map((e) => e.getAttribute("data-watcher")));
       check(watchers.join() === "zt_nd_alex,zt_nd_riley", "Who's watching: him, then riley (never how far)", watchers.join());
-      check((await page.locator('[data-preview="show.make-it-a-game"] [data-play-it="make"]').count()) === 1, "Make it a game (still Preview: part 2)");
+      check((await page.locator('[data-play-it="make"] [data-make-it]').count()) === 1, "Make it a game (real since step 10 part 2a)");
       await fits("a show with no game", page);
       await shot("no-game-tonight", page);
       await page.getByRole("button", { name: /^Show menu/ }).click();

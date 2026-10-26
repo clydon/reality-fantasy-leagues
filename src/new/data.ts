@@ -28,6 +28,7 @@ import type { CatchUpReveal } from "@/lib/server/season-episodes";
 import type { ListingHit } from "@/lib/game/listing";
 import type { AddedShow } from "@/lib/server/add-show";
 import type { ListingSeason } from "@/lib/server/listings";
+import type { MakeState } from "@/lib/server/make-game";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -56,6 +57,7 @@ export type { CouchInvite, CouchSeason, JoinGame, JoinOptions, LeaveCouch } from
 export type { CatchUpReveal } from "@/lib/server/season-episodes";
 export type { CallMove } from "@/lib/game/game-view";
 export type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from "@/lib/server/solo";
+export type { MakeReview, MakeState } from "@/lib/server/make-game";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -903,3 +905,41 @@ export const solo = {
 
 /** After joining or leaving a pool, a call, or starting or ending a practice couch: everything moves on (the moves, the games). */
 export const useAfterSolo = useAfterReveal;
+
+// ---- Make it a game (step 10 part 2a; make-game.ts): a show that isn't a game yet, set up from ChatGPT's answers. Read
+// when the page opens; while our bot asks, only a version is polled (every 3 s), and the page reads it whole when it moves. ----
+
+/** Make it a game for this season: who's at it, what's been found, the review. */
+export function useMake(seasonId: string, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "make", seasonId, couchId],
+    queryFn: () => get<MakeState>(seasonUrl(seasonId, "/make", couchId ? { couch: couchId } : {})),
+    enabled,
+    staleTime: 0,
+  });
+}
+
+/** While our bot asks: the version (one small row), every 3 s, so the page knows when to read it again. */
+export function useMakePoll(seasonId: string, on: boolean) {
+  return useQuery({
+    queryKey: ["new-design", "make-poll", seasonId],
+    queryFn: () => get<{ v: string; asking: boolean; stage: string | null }>(seasonUrl(seasonId, "/make", { poll: "1" })),
+    enabled: on,
+    refetchInterval: on ? 3000 : false,
+    staleTime: 0,
+  });
+}
+
+const makeUrl = (seasonId: string, couchId: string | null) => seasonUrl(seasonId, "/make", couchId ? { couch: couchId } : {});
+
+export const make = {
+  /** Ask ChatGPT for me (`again`: ask how it works, or who's in it, over); continue: the cast, when the first ask ran out of time. */
+  ask: (seasonId: string, couchId: string | null, again?: "rules" | "cast") => post<MakeState>(makeUrl(seasonId, couchId), { action: "ask", again }),
+  carryOn: (seasonId: string, couchId: string | null) => post<MakeState>(makeUrl(seasonId, couchId), { action: "continue" }),
+  paste: (seasonId: string, couchId: string | null, part: "rules" | "cast", answer: string) => post<MakeState>(makeUrl(seasonId, couchId), { action: "paste", part, answer }),
+  kind: (seasonId: string, couchId: string | null, kind: string, start: string | null) => post<MakeState>(makeUrl(seasonId, couchId), { action: "kind", kind, start }),
+  restart: (seasonId: string, couchId: string | null, part: "all" | "cast") => post<MakeState>(makeUrl(seasonId, couchId), { action: "restart", part }),
+  confirm: (seasonId: string, couchId: string | null) => post<MakeState>(makeUrl(seasonId, couchId), { action: "confirm" }),
+  /** A question to copy into your own chat. */
+  prompt: (seasonId: string, part: "rules" | "cast") => get<{ prompt: string; task: string }>(seasonUrl(seasonId, "/make", { prompt: part })),
+};

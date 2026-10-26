@@ -412,21 +412,48 @@ function spoilers(blocks, castNames, warnings) {
   return problems;
 }
 
-// "Won a reward challenge" -> { won, reward, challeng }: the words that matter, roughly stemmed ("receiving" and
-// "received", "vote" and "votes", read alike), to tell a repeat.
+// "Won a reward challenge" -> { won: 1, reward: 1, challeng: 1 }: the words that matter, roughly stemmed ("receiving" and
+// "received", "vote" and "votes", read alike), counted, to tell a repeat.
 const STOP = new Set(['a', 'an', 'the', 'was', 'were', 'is', 'got', 'each', 'their', 'at', 'in', 'of', 'by', 'for', 'to', 'as', 'and', 'on', 'with', 'from', 'despite']);
 const stem = (w) => w.replace(/(ing|ed)$/, '').replace(/e?s$/, '').replace(/e$/, '');
-const wordsOf = (s) =>
-  new Set(
-    String(s || '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
-      .split(' ')
-      .filter((w) => w && !STOP.has(w))
-      .map(stem)
-  );
-// One says all the other does ("Received a jury vote" and "Each jury vote received"), in two words or more.
-const repeats = (a, b) => a.size >= 2 && b.size >= 2 && ([...a].every((w) => b.has(w)) || [...b].every((w) => a.has(w)));
+const wordsOf = (s) => {
+  const out = new Map();
+  for (const w of String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .filter((x) => x && !STOP.has(x))
+    .map(stem)) {
+    out.set(w, (out.get(w) || 0) + 1);
+  }
+  return out;
+};
+const size = (a) => [...a.values()].reduce((n, c) => n + c, 0);
+// What `big` says beyond `small`, when `small` says nothing `big` doesn't (each word as many times); else null.
+const beyond = (small, big) => {
+  if ([...small].some(([w, c]) => (big.get(w) || 0) < c)) return null;
+  return [...big.keys()].filter((w) => big.get(w) > (small.get(w) || 0));
+};
+// One says all the other does ("Received a jury vote" and "Each jury vote received"), in two words or more, and whatever
+// the longer one says beyond it never names a role or a group: "As a Faithful, voted out a Faithful" isn't "As a Faithful,
+// voted out a Traitor at Round Table" (a word said twice counts twice), and "Voted out a Faithful" isn't "As a Traitor,
+// voted out a Faithful" (the longer one names who did it).
+const repeats = (a, b, nouns) => {
+  if (size(a) < 2 || size(b) < 2) return false;
+  const extra = beyond(a, b) ?? beyond(b, a);
+  return !!extra && !extra.some((w) => nouns.has(w));
+};
+
+/** The words that tell people apart in a rulebook: its secret roles, and what its groups and cast are called. */
+function nounsOf(blocks) {
+  const out = new Set();
+  const add = (s) => {
+    for (const w of wordsOf(s).keys()) out.add(w);
+  };
+  for (const t of list(blocks.twists)) if (isObj(t) && t.type === 'secretRole') list(t.roles).forEach(add);
+  if (isObj(blocks.cast) && isObj(blocks.cast.groups)) add(blocks.cast.groups.singular);
+  return out;
+}
 
 /** A moment added by hand that says what a built one already does (bar `keep`'s labels). */
 function repeatedMoments(blocks, keep = []) {
@@ -438,11 +465,12 @@ function repeatedMoments(blocks, keep = []) {
   } catch {
     return [];
   }
+  const nouns = nounsOf(blocks);
   const out = [];
   for (const m of list(blocks.customMoments)) {
     if (!isObj(m) || kept.has(String(m.label || '').trim().toLowerCase())) continue;
     const w = wordsOf(m.label);
-    const same = built.find((b) => repeats(w, wordsOf(b.label)));
+    const same = built.find((b) => repeats(w, wordsOf(b.label), nouns));
     if (same) out.push({ id: m.id, at: `customMoments[${m.id}]`, message: `${m.label}: left out, already built as "${same.label}"` });
   }
   return out;

@@ -32,9 +32,8 @@ export const PREVIEWS = {
   "hub.episode-games": { step: "12", title: "This week's games", line: "Bingo, Who goes home?, polls and trivia, one night each." },
   "hub.start-game": { step: "10", title: "Start a game", line: "A season game, bingo, a poll or trivia. Anyone on the couch can." },
 
-  // ---- a show space (ported in 0d; fixtures in src/new/fixtures/) ----
+  // ---- a show space (ported in 0d; fixtures in src/new/fixtures/; Make it a game is real since step 10 part 2a) ----
   "show.episode-games": { step: "12", title: "This week's games", line: "Bingo, Who goes home? and trivia for each episode." },
-  "show.make-it-a-game": { step: "10", title: "Make it a game", line: "Play this show with your couch." },
   "show.watch-along": { step: "13", title: "Watch along", line: "Watch with the couch, live or on your own time." },
   "show.start-game": { step: "10", title: "Start a game", line: "A season game or an episode game for this show." },
   "show.notifications": { step: "15", title: "Notifications for this show", line: "Lineup reminders, results, chat." },

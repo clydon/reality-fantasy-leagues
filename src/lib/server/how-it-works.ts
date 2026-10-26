@@ -76,6 +76,12 @@ export async function seasonHowItWorks(user: SessionUser, seasonId: string, couc
   const book = row?.blocks && plays ? { blocks: blocksAt(row.blocks, edits, mark ?? Infinity), aliases: row.aliases } : rulebookFor(format.id, format.data);
   const phaseStarts = row && Object.keys(row.phaseStarts || {}).length ? row.phaseStarts : await knownPhaseStarts(pool, seasonId, book.blocks);
   const line = row ? await lineage(pool, row.id) : null;
+  // A rulebook someone made with Make it a game (step 10 part 2a) says so, and that it's new until another couch checks it.
+  let made: string | null = null;
+  if (row?.provenance?.from === "made") {
+    const { rows: by } = await pool.query(`SELECT COALESCE(username, name) AS who FROM "user" WHERE id = $1`, [row.createdBy]);
+    made = `Made with ChatGPT${by[0]?.who ? ` by ${by[0].who}` : ""}${row.reviewStatus === "unreviewed" ? " · new until another couch checks it" : ""}`;
+  }
   const how = howItWorks(book.blocks, {
     compiled: format.data,
     aliases: book.aliases,
@@ -86,7 +92,7 @@ export async function seasonHowItWorks(user: SessionUser, seasonId: string, couc
     phaseStarts,
     castCount: cast.length || undefined,
     updates,
-    lineage: row ? `${row.name}${line && line.following > 1 ? ` · ${line.following} games play by it` : ""}` : null,
+    lineage: made ?? (row ? `${row.name}${line && line.following > 1 ? ` · ${line.following} games play by it` : ""}` : null),
   });
   return { how, cast };
 }

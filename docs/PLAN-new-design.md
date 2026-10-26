@@ -35,7 +35,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 7 | Draft room and blind draft | **done** 2026-10-25 on the branch (migration 0117 ships with 0b's) | Opus · xhigh |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
-| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **in progress**, in three parts (the plan's step 10 section): part 1, watching, finished 2026-10-25 (migration 0121 ships with 0b's; TV listings from TVmaze on demand); then Make it a game (2), the library and the new-show flow (3) | Opus · xhigh |
+| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **in progress**, in three parts (the plan's step 10 section), part 2 split in two: part 1, watching, finished 2026-10-25 (migration 0121; TV listings from TVmaze on demand); part 2a, Make it a game to a set-up show with its rulebook and cast, finished 2026-10-25 (migration 0122); both ship with 0b's. Next 2b (Start a game that fits, archive or delete a game), then 3 (the library and the new-show flow) | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
@@ -159,7 +159,7 @@ step's As built.
 - **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
   classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
   on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
-- **A couch with two unlinked games on one season** (step 4; for 10 part 2, where a couch starts games: step 9's joins only join games that exist). The new design shows
+- **A couch with two unlinked games on one season** (step 4; for 10 part 2b, where a couch starts games: step 9's joins only join games that exist). The new design shows
   the couch one conversation (both games' chats) and posts into the first; classic shows each game's chat on its own, so
   someone only in the second game wouldn't see what was posted from the new design. Linking them (or posting where you
   play) would settle it. Today every couch has one linked group per season, so it can't happen yet.
@@ -192,10 +192,6 @@ step's As built.
 - **The rulebooks flag's off-walk takes copies out too** (step 6b part 3; for C). `scripts/rulebooks-flag.js off` tells every
   league `on: false`, so a couch's own copy stops playing until its next change re-syncs it. Fine for an emergency switch;
   at cutover the flag goes and so does the walk.
-- **The repeat-moment check is loose** (R2's `reviewRulebook`; for step 10 part 2, Make it a game's first research of a show). A custom moment whose words are
-  all in a built one's is left out as a repeat, so a first research of the Traitors would drop "As a Faithful, voted out a
-  Faithful" (it reads as "…voted out a Traitor at Round Table"). Check for changes keeps the rulebook's own moments
-  (part 2); a new show has none to keep. Telling the roles apart (a differing noun) would fix it.
 - **The desk's Settings is still short** (step 6b part 2, 6c part 2; for C). The tie-break switch and Autopilot's trial (each
   season's bot schedule) are there now; the research model and prompts and What's New aren't (not small: classic's `/admin`
   still has them until cutover), nor a season's episode length (classic's Setup). A person's page only looks (no reset,
@@ -217,13 +213,15 @@ step's As built.
   processing (a run it made is still taken back from Backstage › Waivers' Last run, which logs that) and a super-admin's
   membership edits in classic's `/admin` (the desk's Hand it on is logged). Classic's screens don't show the log (only the new design does) and its own Undo buttons don't
   mark lines undone.
-- **Backstage's setup jobs** (step 5; the draft's since 7, inviting since 9; the cast import for 10 part 2, the rest for C). Needs you has results
-  jobs, "Schedule the Outlast draft" (step 7), "Invite people to <game>" and join requests (step 9); classic's other
-  commissioner items (Add the cast, a catch-up league's next reveal: `commissioner-items.ts`, the home's `backstage`) link to
-  classic pages: step 10's cast import fixes the first, and the second is classic's RevealLogic catch-up mode (for C).
+- **Backstage's setup jobs** (step 5; the draft's since 7, inviting since 9; for C). Needs you has results jobs, "Schedule the
+  Outlast draft" (step 7), "Invite people to <game>" and join requests (step 9); classic's other commissioner items (Add the
+  cast, a catch-up league's next reveal: `commissioner-items.ts`, the home's `backstage`) link to classic pages. Since step 10
+  part 2a a show made a game gets its season's cast with it, so Add the cast only comes up for a season with none (a set-up
+  show's later season: see "A set-up show's next season"); a catch-up league's next reveal is classic's RevealLogic catch-up
+  mode (for C).
 - **No "Extend a day"** (step 6a; for 6b or later). The mock's Backstage › Waivers has it; the engine has no way to move a
   week's deadline (a window's `processAt` is worked out from the schedule). Small: an override on the period.
-- **No "Lock it down"** (step 6a; for 10 or later). The mock's Game settings has a competitive switch (no late joins, no
+- **No "Lock it down"** (step 6a; for 10 part 2b, beside archive in Game settings, or later). The mock's Game settings has a competitive switch (no late joins, no
   catch-up, rules frozen); only the first means anything in the engine today (Who can join).
 - **The run's "seen" mark is per device** (step 6a; for 15). Tonight's "Waivers ran" plate goes once you've watched the run
   here (localStorage), so another phone shows it again until the week ends.
@@ -272,7 +270,7 @@ step's As built.
   never set) and shows the couch's name, its first six people's usernames and its games to whoever has it (never results);
   making a new code and retiring the old isn't built. A request waits until it's answered or taken back, and a quiet
   decline lets them ask again.
-- **Get the couch going names your soonest show** (step 9; for 10 part 2, with Start a game). Add a show is real since step 10
+- **Get the couch going names your soonest show** (step 9; for 10 part 2b, with Start a game). Add a show is real since step 10
   part 1, but the line belongs with the step's Start a game, so its first step's line ("It can start with Episode 6 on Wednesday") is the soonest show you follow anywhere.
 - **An episode page can't open from a link** (step 8; for a later polish). Previously on's rows and Last time open the show's
   Episodes tab, a tap short of the episode: an episode page is a pushed page opened by a tap on Episodes, not from its URL
@@ -301,7 +299,7 @@ step's As built.
   and calls sit in one row, read whole by anyone's next read after any pick (~2 KB a player), so a pool stops at 100
   ("The pool is full"; HOSTING.md). Past that, picks and calls in a table of their own (a row per person and episode) and
   the board as a SQL read of the top ten and you; or a second pool for the season.
-- **Solo games are for curated competition shows** (step 9 part 3; for 10 part 2). A pool and a practice couch need a show an admin
+- **Solo games are for curated competition shows** (step 9 part 3; for 10 part 2b). A pool and a practice couch need a show an admin
   set up (`created_by` NULL), its cast approved and an episode still to air; a series, talk show or sport, or a show a
   player set up for their own league, gets neither (`soloBlocked`). Step 10's Start a game that fits is where they'd come.
 - **Only solo players are offered them** (step 9 part 3, the mock's; for a later step). The pool's card and the practice
@@ -326,6 +324,34 @@ step's As built.
 - **Anyone let in can make shows** (step 10 part 1; for part 3 or a desk step). Up to 10 a day each, in everyone's search; from a
   listing they're real shows, by name they're only checked against the names already here. The desk's Find reaches them
   (archive); an Inbox kind for shows added by name (part 3 adds Inbox kinds) would let the admin look them over.
+- **New until another couch checks it, and nothing checks it** (step 10 part 2a; for part 3). A rulebook made with Make it a game
+  is `review_status` unreviewed and How it works says "new until another couch checks it", but nothing yet lets someone on
+  another couch check it, or the desk take it over (phase 8's "a player-made rulebook the desk can take over"). Part 3's desk
+  (Inbox kind, Take it over) is the place; a "Looks right to us" on How it works for another couch could be the check.
+- **The review can't be edited** (step 10 part 2a; for part 3 or later). Make it a game's review changes only the kind; a wrong
+  part, way out or points needs the desk's rulebook editor after it's set up (Fix a mistake) or a couch's Make it ours. The
+  mock has none either; the library and new-show flow (part 3) could offer the editor's parts to its maker before Looks right.
+- **A set-up show's next season** (step 10 part 2a; for 11 or part 3). `shows.set_up_at` is the show's, so a later season of a
+  show someone made a game (added from its listing once it starts: Noticed's "A listed show's next season isn't offered") is
+  ready with no rulebook or cast of its own: its leagues would play by the show's stored format (`made-<slug>`, the first
+  season's rules) and Backstage asks to Add the cast. Make it a game could offer "Same as last season?" for it.
+- **The stored format doesn't follow the rulebook** (step 10 part 2a; for C). A made show's rules are also its `show_formats` row
+  (so classic's paths read them), written once at Looks right. The season plays by its rulebook (`rulebook_live`), whose later
+  edits (a show change, a desk fix) don't reach that row; only something reading the show's format the old way would see the
+  first version. C retires `show_formats` (rulebooks phase 9).
+- **Anyone can start someone else's attempt over** (step 10 part 2a; for a later polish). One attempt per season is shared, so
+  whoever opens it can Change the kind, paste over it or Start over while it's open (not while our bot asks), and Looks right
+  is anyone's too. Low stakes (it's only a draft until set up, and five a day each), but the starter could be the only one to
+  start it over for a day.
+- **A made season's cast is the desk's** (step 10 part 2a; for a later step). It's approved and finished at Looks right
+  (`cast_locked_at`), so someone missing from ChatGPT's or the listing's cast is added by the desk (Find › the season), not a
+  commissioner; a photo ChatGPT couldn't find is a letter. A "someone's missing" flag like Something wrong? would reach the desk.
+- **The catalog is read on every signed-in page** (step 10 part 1's watching sheets, `useCatalog` in `watching/sheets.tsx`; for
+  11 or a later polish). Mounted in the signed-in layout, it asks `/api/catalog` as any page opens (twice in development, React's
+  strict mode), and one of the two can stay pending in Chromium for many seconds (the route answers in ~40 ms to curl; it's
+  publicly cacheable, so the browser's cache lock is the likely holder). Harmless to people, but a check waiting for network
+  idle times out: check-new-draft's finished draft room did, at HEAD too (step 10 part 2a made it wait for `load`). Reading the
+  catalog only when Add a show opens would end both.
 - **Posters are TVmaze's medium image** (step 10 part 1; for a later polish). 210 by 295, soft in the tall show bar; TVmaze's
   other size is the upload itself, often over a megabyte. A resized copy we keep (or Vercel's image optimisation, which has
   limits of its own) would sharpen it.
@@ -2383,6 +2409,22 @@ the checks passing; step 10 is marked done after part 3.
    set-up competition (Noticed: "Solo games are for curated competition shows"). **Archive or delete a game** (Backstage ›
    Game settings: archive keeps it on the trophy shelf and stops scoring; delete is tier 3, restorable 30 days). Preview
    out: `hub.start-game`, `show.make-it-a-game`, `show.start-game`, `backstage.end-game`.
+
+   **Part 2 in two (split 2026-10-25, at its start; too big for one session):**
+   - **2a, Make it a game → a set-up show.** The Make it a game page (Ask ChatGPT for me through our bot, free; Copy and
+     paste it yourself behind it; the review with the kind as one line and Change, the cast, each episode, what scores, where
+     results come from, the games that fit), from the Games tab's plate, Tonight's and the ⋯ menu. The rulebook prompt with
+     the nearest template as its skeleton (the same show's other season, else a library rulebook or built-in by name, else by
+     kind), the repeat-moment check made strict (Noticed), the cast from TVmaze's `/shows/:id/cast` for a series or talk
+     show and from ChatGPT's cast prompt otherwise (Noticed: "Backstage's setup jobs", the cast import). Looks right sets
+     the show up for everyone: the season's rulebook from blocks (its maker its creator, new until checked), the season on
+     its rulebook (`rulebook_live`), the approved season cast, `shows.set_up_at` and its kind. Preview out:
+     `show.make-it-a-game`.
+   - **2b, Start a game that fits, and archive or delete a game.** Everything else above: `rulebook-fits.js gamesFor`, Start
+     a game per kind (the sport's draft of athletes and "Race"), linked to the couch's games on the season, Tell the couch,
+     every entry point (the Games tab and Tonight's plate, the ⋯ menu, the hub's nudge, Get the couch going, the hub's foot,
+     Commercial break, Run it back), pools and practice couches for any set-up competition, archive or delete. Preview out:
+     `hub.start-game`, `show.start-game`, `backstage.end-game`.
 3. **Rulebooks phase 8: the library and the new-show flow** (`PLAN-rulebooks-implementation.md` 7.9, 7.10, 7.12, 7.13 on the
    desk): the library of starting templates by kind (Save as template, the proposed ones dashed until two real shows share
    a shape), the desk's own New show flow, "Fits these games" on a rulebook's page, a player-made rulebook the desk can take
@@ -2486,6 +2528,75 @@ layout beside the couch sheets).
   (`show.make-it-a-game`, `show.start-game`); a show made here has `shows.listing` (its TVmaze type, network, country) and a
   guessed `shows.kind` for the review's one line; `set_up_at` is what Make it a game sets; the listings proxy and
   `fake-listings.js` are there to reuse (TVmaze's `/shows/:id/cast` could seed the cast import).
+
+### As built, step 10 part 2a (2026-10-25, on `new-design`): Make it a game
+
+Part 2 was split at its start (above: 2a, Make it a game to a set-up show; 2b, Start a game that fits and archive or delete).
+Migration **0122** (ships with 0b's, same rehearsal): `show_setups`, one attempt per season at setting its show up (shared by
+everyone who opens it; ChatGPT's two answers kept as text, the kind chosen with Change, the stage, who finished it). One new
+poll while our bot asks, nothing on a schedule (HOSTING.md). New: `src/lib/game/make-game.ts` (pure), `src/lib/server/make-game.ts`,
+`GET/POST /api/seasons/[id]/make`, `src/new/show/make-game.tsx`; `listings.ts showCast`; `ask-bot.ts` asks take a `budgetMs`.
+- **The page** (the mock's rulebook.js makeGame, `?page=make`, pushed over the show) from the Games tab's and Tonight's plate
+  (`data-play-it="make"`, its words by the listing's kind, solo players too while nobody's set it up) and the ⋯ menu's Make
+  it a game (Start a game stays there as Preview for a show that's set up). **Ask ChatGPT for me** (free; only while our bot
+  answers its health check) leads, **Copy and paste it yourself** behind it. Asking shows what's found a line at a time ("5
+  crew members · How an episode runs: 6 parts · N things that score · A series · reality"), you can leave, and a second tap
+  (anyone's, any couch) joins the ask in flight; the one who started it is named only to their own couch. Copy and paste is
+  two steps through Ask an AI's sheet (now `AskAiPasteSheet`, the same body with any question: `AskAiQuestion`): how it
+  works, then who's in it (skipped when the listing has the cast), then Check what it found.
+- **The two questions.** How it works is R6's rulebook prompt with **the nearest rulebook as its skeleton** (`templateFor`: one we
+  have by the show's name, e.g. Below Deck Mediterranean starts from Below Deck's, Survivor anything from Survivor's; else by the
+  listing's kind: a scripted series from Scrubs', a reality series (Documentary) from Below Deck's, talk from SNL's; **none**
+  for a show the listings call Reality, which can be a competition or a series, nor for a sport: a wrong-shaped skeleton costs
+  more than none). Who's in it is the cast prompt (`cast-prompt.js`) read against the answer's terms and groups, except a
+  **series or talk show with a TV listing, whose cast is TVmaze's** `/shows/:id/cast` (`castFromListing`: a scripted series'
+  characters, who plays them as the line; else the people, their role as the line). Our bot asks after the response
+  (`after()`): both questions in one request when 90 s are left for the second, else it pauses at "who's in it" and the open
+  page carries on (`continue`).
+- **The review** is worked out from the answers each time it's read: the kind ChatGPT said (else the listing's guess), unless
+  someone chose another; `withKind` empties what the kind hides (a talk show's ways out and twists) and adds a way to win
+  when it becomes a competition without one, so **Change loses nothing ChatGPT found** (changing back restores it); a name in
+  the rulebook is taken out (`scrubNames`: the sentence, or the item); what doesn't fit is left out and listed (`salvage`: a
+  moment, twist, way out or part of an episode with a problem; a way out keeps its name without a dropped part as its cause);
+  what can't be (the cast's shape, the season) says "This answer can't be used" with Ask again / Start over. One line for the
+  kind with Change (the four kinds, our guess marked, a series picks Reality or Scripted), the cast (six, +N more), each
+  episode, what scores (six), where results come from, the games that fit (R1's `howItWorks` view: its `games`), and See how
+  the whole season works (How it works on the answers, `?page=make-how`, at your episode: a phase the season reached isn't
+  told early). The kinds that need a cast (all but talk) can't be set up without one.
+- **Looks right** sets the show up for every couch, in one transaction: the season's rulebook from the blocks (`created_by` the
+  maker, `review_status` unreviewed, `provenance.from` 'made' with how and from which template; its parent the template's
+  library row; the season's old auto-made rulebook archived), **`show_seasons.rulebook_live`** (its leagues play by it), the
+  season's cast approved and finished (`cast_locked_at`: the desk changes it from there), the compiled rules as the show's
+  **stored format too** (`show_formats` `made-<slug>`, `shows.format`) so every older reader of a show's format reads the same
+  rules, and `shows.set_up_at`, its kind and its words (castaway/tribe terms); the attempt is kept as who set it up, and the
+  desk's History has a line. A second Looks right is refused. How it works then says "Made with ChatGPT by alex · new until
+  another couch checks it". Classic's show picker lists the show (set up), and the Games tab's plate becomes Play it (Start a
+  game: 2b, Preview).
+- **Limits:** five attempts per person a day; our bot's asks are the One tap kind (HOSTING.md's Bot capacity).
+- **From Noticed:** the repeat-moment check is strict now (`rulebook-research.js`: word counts, so "As a Faithful, voted out a
+  Faithful" isn't "…voted out a Traitor", and a longer label naming a role or group isn't a repeat; tested on the Traitors'
+  blocks); Backstage's setup job "Add the cast" is done for a show made a game (its cast is set up with it; Noticed keeps the rest).
+- **Changed from the mock:** "Looks right · make it a game" (the mock's "pick a game" opens Start a game, 2b's); You can play
+  lists the season games only (the mock adds "plus bingo and calls every episode": step 12); the review's lede says "From
+  ChatGPT's answer and the TV listing"; nothing says how many are already out (the guard). Solo players get the plate too.
+- **Checks:** `scripts/dev-test/check-new-make-it.js <outDir> [--width=390] [--keep] [--api]` (81 PASS at 390) on new-fixture.js
+  with `fake-listings.js` (new: `/shows/:id/cast`, ZT Yacht Life 990011 a reality series with its crew, ZT Grand Prix 990012 a
+  sport with nobody listed; casts on ZT Drop Show and ZT Old Show) and `fake-bot.js` (kinds `setup` and `cast`; `rulebook` is
+  still the show-change prompt): refusals before an answer, the skeleton chosen, asking/joining/polling, the review, Change
+  both ways, Looks right in the database, a sport's two questions, carrying on, a failed ask, the bot down, copy and paste with
+  a name taken out and a moment left out, an unusable answer, a talk show, five a day; then the browser (from the Games tab
+  with the bot, the kind sheet, How it works, Looks right; copy and paste from Tonight; the ⋯ menu). `tests/make-game.test.js`
+  (5) and `tests/rulebook-research.test.js` (+1). new-fixture's down also removes `made-zt-%` stored formats. check-new-watching
+  and check-new-show now expect the real plate; check-new-draft opens the finished draft room waiting for `load` (it failed at
+  HEAD too: Noticed's "The catalog is read on every signed-in page"). The rest pass, one at a time: check-new-watching (114),
+  -show (69), -solo (92), -way-in (85), -couches (114), -hub (75), -draft (90), -settling (96), -results-ways (89), -ours (89),
+  -desk (100), -community (82), -backstage (67), -backstage-ii (116), -shell (46), -reveal (49), -stats (57), -chat (52),
+  check-foundation, check-preview and check-backup-restore; `npm test` 560 of 560; type-check clean; lint (src) as before (an
+  old error in classic's `use-sheet-swipe.ts`, untouched since master's league tabs, and the old warning in `episode-results.ts`).
+- **For 2b:** the plate's Play it, the Done view and the ⋯ menu still have Start a game as Preview (`show.start-game`); a made
+  season's rulebook is `rulebook_live` and its show's stored format is the same rules, so a league started on it (2b) plays by
+  them through `syncLeagueRulebook` (call it when a game is made) and `syncLeagueFormat`; `shows.kind` is the chosen kind (and
+  the rulebook's `blocks.start` the series' starting point) for `gamesFor`; the sport's "Race" is the rulebook's `parts`.
 
 ## Step C: cutover
 

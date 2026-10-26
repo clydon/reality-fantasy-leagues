@@ -395,7 +395,7 @@ function check(ok, what, detail = "") {
     await page.goto(`${BASE}/show/${fx.traitorsSeasonId}/games`, { waitUntil: "networkidle" });
     await page.locator("[data-tab=games]").waitFor({ timeout: 30_000 });
     await page.waitForTimeout(600);
-    check(await page.locator('[data-preview="show.make-it-a-game"]').isVisible(), "a show you don't play: Play it, in place of the tables");
+    check(await page.locator('[data-play-it="play"]').isVisible(), "a show you don't play: Play it, in place of the tables");
     check((await page.locator(".nd-dock").count()) === 0 && (await page.locator("[data-table]").count()) === 0, "no tables and no dock there");
     await collect();
     await fits("Games, a show you don't play");

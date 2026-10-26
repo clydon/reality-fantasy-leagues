@@ -253,7 +253,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     g = await game("alex", "outlast");
     check(g.phase === "done" && g.teams.every((t) => t.castawayIds.length === 4) && g.madeFor === 1, "played out: four each, one pick made for someone (riley's for sam was taken back)", `${g.phase} ${g.madeFor}`);
     check(!((await as.alex.call("GET", "/api/me/home")).body.moves ?? []).some((m) => m.kind === "draftTurn"), "no draft move left");
-    await page.goto(`${BASE}/show/${sid}/draft?game=${L.outlast}`, { waitUntil: "networkidle" });
+    // "load", not "networkidle": a signed-in page's catalog read (step 10 part 1) can leave a request pending here (Noticed).
+    await page.goto(`${BASE}/show/${sid}/draft?game=${L.outlast}`, { waitUntil: "load" });
     await page.locator("[data-draft-done]").waitFor();
     const done = await page.locator("[data-draft-done]").innerText();
     check(/Couch Cup\s*is set/i.test(done) && /16 picks · 1 made for someone else/.test(done), "Draft complete: Couch Cup is set, 16 picks · 1 made for someone else", done.slice(0, 120));
