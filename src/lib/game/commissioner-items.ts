@@ -22,8 +22,8 @@ export function commissionerItems(state: LeagueState): CommissionerItem[] {
   // An archived game (step 10 part 2b) has nothing left to set up.
   if (state.settings.archivedAt) return items;
 
-  // Weekly Calls (step 12 part 2) plays without a cast: nothing to add.
-  if (state.castaways.length === 0 && !StateLogic.isDraftStarted(state) && !type.hasCalls) {
+  // Weekly Calls and Weekly Bingo (step 12) play without a cast: nothing to add.
+  if (state.castaways.length === 0 && !StateLogic.isDraftStarted(state) && !type.hasCalls && !type.hasBingo) {
     items.push({
       id: "cast",
       title: "Add the cast",

@@ -102,6 +102,13 @@ const GROUP_SLICES = {
   // what they said happened on a talk show's.
   episode_calls: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
   episode_call_says: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
+  // Bingo and trivia (0130, step 12 part 3): the group's people's cards on its seasons' episodes and what they ticked (Weekly
+  // Bingo counts them, and a talk show's ticks are says), and their trivia plays on its seasons' shows.
+  bingo_cards: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
+  bingo_marks: `card_id IN (SELECT id FROM bingo_cards WHERE season_id = ANY($S::uuid[])
+      AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[])))`,
+  trivia_plays: `show_id IN (SELECT show_id FROM show_seasons WHERE id = ANY($S::uuid[]))
+      AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))`,
   // The couch's polls (0129): the group's couches' polls on its seasons, and their votes.
   couch_polls: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[])) AND season_id = ANY($S::uuid[])",
   couch_poll_votes: `poll_id IN (SELECT id FROM couch_polls WHERE couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[]))

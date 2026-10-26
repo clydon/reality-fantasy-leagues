@@ -32,6 +32,8 @@ export interface MoveCard {
   leagueId?: string;
   href?: string;
   call?: number;
+  /** Opens the bingo card for this episode (Weekly Bingo, step 12 part 3). */
+  bingo?: number;
 }
 
 /** A required move as Tonight's card. `twin`: another move of the same kind is due here (two leagues), so name it. */
@@ -84,6 +86,14 @@ export function doneCards(play: GameView[]): MoveCard[] {
       const until = c.airsAt ? ` · change until ${airTime(Date.parse(c.airsAt))}` : "";
       cards.push({ key: `calls-done-${g.leagueId}`, title: "Your calls are in", line: `Weekly Calls${until}${which}`, action: "Change", call: c.episode, leagueId: g.leagueId });
     }
+    // Weekly Bingo has nothing to set before a show: its card is ready (the mock's rbGameJob), and ticks open at airtime.
+    const b = g.bingo;
+    if (g.gameType === "weekly-bingo" && b) {
+      const line = b.open
+        ? `${b.ticked ? `${b.ticked} ticked${b.lines ? ` · ${b.lines} ${b.lines === 1 ? "line" : "lines"}` : ""}` : "Tap squares as it happens"}${which}`
+        : `Opens ${b.airsAt ? airTime(Date.parse(b.airsAt)) : "at airtime"} · tap squares as it happens${which}`;
+      cards.push({ key: `bingo-${g.leagueId}`, title: `Your card for Episode ${b.episode}`, line, action: "Open my card", bingo: b.episode, leagueId: g.leagueId });
+    }
     const p = g.pick;
     if (p && p.open && p.pick) {
       cards.push({
@@ -119,8 +129,8 @@ export function sheetTabs(play: GameView[]): SheetTab[] {
     ...play.filter((g) => g.gameType === "active-roster").map((g) => tab(g, "lineup")),
     ...play.filter((g) => g.gameType === "pickem").map((g) => tab(g, "pool")),
     ...(play.some((g) => g.predictions.length) ? [{ key: "predict", kind: "predict" as const, label: "Predictions", leagueId: null }] : []),
-    // Weekly Calls' calls are Call it's sheet (calls.tsx), not a tab here.
-    ...play.filter((g) => g.gameType !== "active-roster" && g.gameType !== "pickem" && g.gameType !== "weekly-calls").map((g) => tab(g, "outlast")),
+    // Weekly Calls' calls are Call it's sheet (calls.tsx), Weekly Bingo's cards the bingo sheet (bingo.tsx): neither is a tab here.
+    ...play.filter((g) => !["active-roster", "pickem", "weekly-calls", "weekly-bingo"].includes(g.gameType)).map((g) => tab(g, "outlast")),
   ];
 }
 

@@ -107,12 +107,25 @@ export interface CallMove {
   right: number;
 }
 
-/** What a game reads of its players' calls (they aren't in its state): each one's right calls, your move, and (Weekly Calls)
- *  the episode its table is through. */
+/** Weekly Bingo's card to hand (step 12 part 3; bingo.ts): the next episode you'd watch once it's aired, else the next to air. */
+export interface BingoMove {
+  episode: number;
+  airsAt: string | null;
+  /** It's aired: tick squares as it happens. */
+  open: boolean;
+  /** Squares you've ticked on it, and the lines they make. */
+  ticked: number;
+  lines: number;
+}
+
+/** What a game reads of its players' calls or bingo cards (they aren't in its state): each one's right calls (Weekly Bingo: lines
+ *  that count), your move, and (Weekly Calls, Weekly Bingo) the episode its table is through and whether the season's over. */
 export interface GameCalls {
   right: (playerId: string) => number;
   move: CallMove | null;
+  bingo?: BingoMove | null;
   through?: number;
+  ended?: boolean;
 }
 
 export interface PredictionMove {
@@ -180,6 +193,8 @@ export interface GameView extends GameRefIn {
   lineup: LineupMove | null;
   pick: PickMove | null;
   call: CallMove | null;
+  /** Weekly Bingo's card to hand (step 12 part 3). */
+  bingo: BingoMove | null;
   predictions: PredictionMove[];
   progress: WeekProgress | null;
   /** Results you haven't revealed stand in the way of this week's lineup or pick: the first of them. */
@@ -209,7 +224,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
   return {
     ...game,
     playerId,
-    through: type.hasCalls ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view),
+    through: type.hasCalls || type.hasBingo ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view),
     from: StateLogic.GhostLogic.startFor(view, playerId),
     table,
     you: table.find((r) => r.you) ?? null,
@@ -219,6 +234,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
     lineup: type.hasActiveRoster ? lineupOf(view, playerId) : null,
     pick: type.hasWeeklyPicks ? pickOf(view, playerId) : null,
     call: calls?.move ?? null,
+    bingo: calls?.bingo ?? null,
     predictions: catchingUp ? [] : predictionsOf(view, playerId),
     progress: catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic }),
     revealFirst: hidden.length && !catchingUp ? hidden[0].number : null,
@@ -233,11 +249,12 @@ export function poolTop(rows: TableRow[]): TableRow[] {
   return rows.filter((r, j) => j < POOL_TOP || (i >= POOL_TOP && Math.abs(j - i) <= 1));
 }
 
-/** `right`: each player's right calls (Call it), for Weekly Calls' table and a pool's "N called"; none read, none counted. */
+/** `right`: each player's right calls (Call it), for Weekly Calls' table and a pool's "N called", or their lines (Weekly Bingo's
+ *  table); none read, none counted. */
 export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (playerId: string) => number = () => 0): TableRow[] {
   const type = StateLogic.getLeagueType(view);
   const pool = type.hasWeeklyPicks;
-  const callsGame = !!type.hasCalls;
+  const callsGame = !!type.hasCalls || !!type.hasBingo;
   const calls = StateLogic.pickEmCallsOn(view) || callsGame;
   const bots = new Set(view.players.filter((p) => p.automated).map((p) => p.id));
   const key = (r: ScoreRow) => (callsGame ? [right(r.playerId)] : pool ? [r.longestStreak ?? 0, r.total] : [r.total]);

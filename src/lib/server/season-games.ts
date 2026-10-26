@@ -2,6 +2,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { gameView, weekProgress, type GameRefIn, type GameView, type UserOf, type WeekProgress } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
+import { leagueBingo } from "./bingo";
 import { leagueCalls } from "./calls";
 import { pool } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
@@ -99,9 +100,11 @@ export async function seasonGames(user: SessionUser, seasonId: string, couchId: 
   return { seenThrough: Number.isFinite(seen) ? seen : null, games: out };
 }
 
-/** One of your games as you may see it, with the calls it reads (step 12 part 2: a pool's Who goes home?, Weekly Calls). */
+/** One of your games as you may see it, with the calls or bingo cards it reads (step 12: a pool's Who goes home?, Weekly Calls,
+ *  Weekly Bingo). */
 export async function viewWithCalls(user: SessionUser, seasonId: string, h: GameHere): Promise<GameView> {
-  const calls = await leagueCalls({ state: h.state, couchId: h.game.couchId, seasonId, playerId: h.playerId, userId: user.id, mark: h.mark, userOf: h.userOf }).catch((e) => {
+  const o = { state: h.state, couchId: h.game.couchId, seasonId, playerId: h.playerId, userId: user.id, mark: h.mark, userOf: h.userOf };
+  const calls = await (StateLogic.getLeagueType(h.state).hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
     console.error(`[season-games] calls ${h.game.leagueId}:`, e);
     return null;
   });

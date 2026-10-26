@@ -74,9 +74,9 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
     seasonSchedules([seasonId]),
     pool.query("SELECT early_seen FROM show_follows WHERE user_id = $1 AND season_id = $2", [user.id, seasonId]),
   ]);
-  // A game scored from calls (Weekly Calls, step 12 part 2) has no results of its own: its show's episodes list as a show you
-  // only watch does, every one that's aired.
-  const here = all.filter((h) => !StateLogic.getLeagueType(h.state).hasCalls);
+  // A game scored from calls or bingo cards (Weekly Calls, Weekly Bingo: step 12) has no results of its own: its show's episodes
+  // list as a show you only watch does, every one that's aired.
+  const here = all.filter((h) => !StateLogic.getLeagueType(h.state).hasCalls && !StateLogic.getLeagueType(h.state).hasBingo);
   const schedule = schedules.get(seasonId);
   const airAt = (n: number) => schedule?.episodes.find((e) => e.number === n)?.airAt ?? null;
   const now = Date.now();

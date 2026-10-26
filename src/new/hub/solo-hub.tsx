@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronRight, CircleQuestionMark, Plus, Tv, Users } from "lucide-react";
-import { useSolo, type Home, type SoloSeason } from "../data";
+import { useMyTrivia, useSolo, type Home, type SoloSeason } from "../data";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { GAME_STYLE, type GameName } from "../games";
 import { NavLink, useNav } from "../nav";
@@ -12,14 +12,15 @@ import { Btn, SectionHead } from "../ui/parts";
 import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { PoolCard, PracticeCard, PracticeSheet, poolShown, practiceShown, type PracticeSeason } from "../show/solo";
+import { openTrivia } from "../show/trivia";
 import { Foot, nextShow, StatusLine, UpNext, YourShows } from "./sections";
 import { Guide } from "./guide";
 
 // The solo hub (docs/PLAN-new-design.md step 9 part 3; the mock's round2.js soloHub + solo.js): someone on no couch, first
 // run's "Just me for now". Welcome, Watching solo (start a couch), what's due and Up next when something is, the guide
 // (step 11), your shows, Play on your own (each show's public pool and your practice couch: real), On your own (Watch along
-// for 13 and trivia for 12 stay Preview; Who's scoring is the cast), Better with friends (the season games, and Start a
-// couch), the foot.
+// for 13 stays Preview; this week's trivia on one of your shows since step 12 part 3; Who's scoring is the cast), Better with
+// friends (the season games, and Start a couch), the foot.
 
 export function SoloHub({ home }: { home: Home }) {
   const due = home.moves.length > 0 || home.shows.some((s) => s.results?.reveal || s.results?.final);
@@ -94,9 +95,11 @@ function PlayOnYourOwn({ home }: { home: Home }) {
   );
 }
 
-/** Things to do alone: Watch along (13), trivia (12), and the cast ranked up to your episode. */
+/** Things to do alone: Watch along (13), this week's trivia on one of your shows (step 12 part 3), and the cast ranked up to your
+ *  episode. */
 function OnYourOwn({ home }: { home: Home }) {
   const first = home.shows[0];
+  const round = useMyTrivia(null).data?.rounds[0] ?? null;
   const art = first?.show.artUrl ?? null;
   const tile = "flex w-[176px] flex-none flex-col overflow-hidden rounded-[4px] bg-card text-left";
   const pic = (icon: typeof Tv, colour: string) => {
@@ -126,15 +129,15 @@ function OnYourOwn({ home }: { home: Home }) {
             </span>
           </button>
         </Preview>
-        <Preview id="hub.episode-games" tag={false} className="flex-none">
-          <button type="button" className={tile}>
+        {round && (
+          <button type="button" className={`${tile} nd-press`} data-solo-trivia={round.showId} onClick={() => openTrivia({ seasonId: round.seasonId, couchId: null })}>
             {pic(CircleQuestionMark, "var(--chyron)")}
             <span className="p-3">
-              <b className="block text-[15px] font-semibold">Trivia</b>
-              <small className="block text-[13px] leading-snug text-muted-foreground">Three questions from a past season</small>
+              <b className="block text-[15px] font-semibold">{round.title}</b>
+              <small className="block text-[13px] leading-snug text-muted-foreground">{round.played ? `You got ${round.played.score} of ${round.played.of} this week` : round.line}</small>
             </span>
           </button>
-        </Preview>
+        )}
         {first && (
           <NavLink href={paths.show(first.seasonId, "cast")} className={`${tile} nd-press`} data-solo-cast>
             {pic(Users, "#8f84d8")}
@@ -200,4 +203,5 @@ const FRIENDS: Record<GameName, string> = {
   "Weekly Lineup": "Draft a team, then start your best three before each episode. Points come from what they do on the night. Play against your couch, or practise against computer players first.",
   "Survival Pool": "No draft: each episode, pick someone you think survives, never the same person twice. Play with your couch, or against everyone in a season's public pool.",
   "Weekly Calls": "A talk show's game: before each show, two calls about what will happen in it (a surprise cameo? someone breaks?). The couch says what happened as it watches; most right by the finale wins.",
+  "Weekly Bingo": "A talk show's other game: a new bingo card every show, nine of its moments. Tick them as they happen; three in a row is a line, and the couch agreeing it happened makes it count. Most lines by the finale wins.",
 };

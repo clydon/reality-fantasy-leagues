@@ -225,6 +225,21 @@ for each Weekly Calls game; the home read adds one small read per Weekly Calls g
 your calls). Grades are never stored: each read works them out from the season's results (or, a talk show's, what the couch
 said). Backed up with the couch's games (`backup-leagues.js`).
 
+**Bingo, trivia and Weekly Bingo (new design, step 12 part 3)** poll nothing and run nothing on a schedule. A bingo card is kept
+only from its first tick (`bingo_cards`, migration 0130: nine squares as JSON, ~600 bytes), each tick a tiny row (`bingo_marks`,
+~40 bytes): a couch of four playing every episode of five weekly shows, ticking five squares each, is about 1,000 cards and
+5,000 ticks a year (~0.8 MB). A trivia play is ~300 bytes (`trivia_plays`, one per person, show and week). Nothing sends a push
+(Tell the couch is a chat message the person posts). The reads: a bingo row or sheet reads its episode when it opens (the
+season's rulebook, your card and ticks, a count of who's playing; once you've seen it the couch's cards and the season's results
+or says for that episode: a few small queries, a few KB), kept 30 s, and each tick answers with the card; a tick on a talk show
+also re-reads its calls (a tick is a say). Trivia reads when its row or sheet opens: the season's stats facts for at most two of
+the show's seasons (season-stats.ts, whose accepted results are kept per server by a fingerprint), and the couch's scores.
+`/api/me/trivia` (Commercial break, and the solo hub's On your own, kept 60 s) works out the round for up to six of your shows
+until it has three: at most about a dozen of those stats reads per open, the heaviest new read (a cache per person and week
+would make it one; Noticed). Commercial break's This week only adds each show's rulebook and card (two small queries a show).
+Weekly Bingo adds two small queries to the games and hub reads (its players' cards and ticks on the season, the results or says
+they need). Lines are never stored: each read works them out. All three tables are backed up with the couch's games.
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub.
@@ -566,3 +581,9 @@ never handles it: the user does the reset and the pasting.
   small queries each); games that count calls (a public pool, Weekly Calls) add two small queries to the games and hub reads, and
   the home read one small read per Weekly Calls game. A public pool's Who goes home? moved out of its league's state into
   `episode_calls` (the pool's state is a little smaller).
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 12 part 3, bingo, trivia and Weekly Bingo. **Nothing polls and
+  nothing runs on a schedule.** Migration 0130: `bingo_cards` (~600 bytes, kept from a card's first tick), `bingo_marks` (~40 bytes
+  a tick) and `trivia_plays` (~300 bytes a person, show and week); all backed up. No pushes. A bingo row or sheet and trivia read
+  when they open (a few small queries; trivia reads the stats facts of up to two seasons); `/api/me/trivia` (Commercial break, the
+  solo hub) reads up to about a dozen seasons' facts per open; Commercial break's This week only gains two small queries a show;
+  Weekly Bingo adds two small queries to the games and hub reads.

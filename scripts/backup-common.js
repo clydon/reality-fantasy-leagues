@@ -18,7 +18,7 @@ const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
   "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions", "season_episodes", "show_follows",
   "fact_sources", "fact_disputes", "rulebooks", "rulebook_edits", "rulebook_suggestions", "admin_changes", "rulebook_checks",
-  "guide_hidden", "episode_ratings", "episode_calls", "episode_call_says",
+  "guide_hidden", "episode_ratings", "episode_calls", "episode_call_says", "bingo_cards", "bingo_marks", "trivia_plays",
 ];
 const PEOPLE_TABLES = ["user", "user_settings", "notification_prefs"];
 const TABLES = [...LEAGUE_TABLES, ...SEASON_TABLES, ...PEOPLE_TABLES];
@@ -55,6 +55,9 @@ const LATER_TABLES = {
   episode_call_says: { since: "0129", fill: null },
   couch_polls: { since: "0129", fill: null },
   couch_poll_votes: { since: "0129", fill: null },
+  bingo_cards: { since: "0130", fill: null },
+  bingo_marks: { since: "0130", fill: null },
+  trivia_plays: { since: "0130", fill: null },
 };
 
 /** Whether the database has this table. */

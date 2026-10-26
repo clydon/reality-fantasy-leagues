@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Check, ChevronRight, Eye, EyeOff, Lock, MessageCircle, Plus, Tv } from "lucide-react";
+import { Check, ChevronRight, Eye, EyeOff, Grid3x3, Lock, MessageCircle, Plus, Tv } from "lucide-react";
 import { airTime, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
-import { BINGO_CARD } from "../fixtures/episode-games";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
 import { backstage, chatCouch, useAfterResults, useChatBadge, type GameView, type PasteResult } from "../data";
 import { gameColour, ordinal } from "../games";
@@ -29,6 +28,7 @@ import { StatsCard } from "./stats";
 import { rateLabel, RateRow } from "./rate";
 import { CallResultRow, CallRow, openCall } from "./calls";
 import { PollRow } from "./polls";
+import { bingoEpisode as toBingo, BingoRow, openBingo, type BingoTarget } from "./bingo";
 import { useSeasonPolls } from "../data";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
@@ -39,9 +39,10 @@ import { useSeasonPolls } from "../data";
 // a dot on the show's ⋯ carry it). After an episode, by the results' stage (step 2): waiting for results (the
 // stage bar), results in (the one yellow: Reveal; a move that waits on them says so), the morning update once the
 // final scores land after an early reveal, and the last episode's recap until the next one airs. Real: all of it
-// but bingo (12) and Watch along (13), on fixtures behind Preview; the stats card is stats.tsx's (step 3); Rate it in Extras
+// but Watch along (13), on fixtures behind Preview; the stats card is stats.tsx's (step 3); Rate it in Extras
 // (step 12 part 1: the latest episode you've seen, rate.tsx); Call it for the next episode and the couch's open polls in Extras
-// (part 2: calls.tsx, polls.tsx), Weekly Calls' calls a move card. Results from
+// (part 2: calls.tsx, polls.tsx), Weekly Calls' calls a move card; your bingo card in Extras, and in Tonight while it's on (part
+// 3: bingo.tsx), Weekly Bingo's a card in Your moves. Results from
 // everyone (step 6b): a player who has seen an episode with only its early results gets a quiet "Full scores need one
 // paste · Fill it in" when the couch lets anyone fill them in.
 
@@ -57,6 +58,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       {!playing && <Following show={show} />}
       {playing && <AfterEpisode seasonId={seasonId} show={show} />}
       {playing && <FillItIn seasonId={seasonId} show={show} />}
+      <OnTonight show={show} />
       {playing && <YourMoves seasonId={seasonId} show={show} />}
       {playing && <LastTime show={show} />}
       <Extras show={show} />
@@ -210,8 +212,9 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
   // With results to reveal, the reveal plate above is the one yellow.
   const quiet = !!show.episodes?.reveal;
   const done = show.play ? doneCards(show.play) : [];
-  // Weekly Calls' cards open Call it for their episode (step 12 part 2).
+  // Weekly Calls' cards open Call it for their episode (step 12 part 2), Weekly Bingo's its card (part 3).
   const onCall = (episode: number) => openCall({ seasonId, couchId: show.couch?.id ?? null, episode, label: rateLabel(show), solo: show.solo });
+  const onBingo = (episode: number) => openBingo({ seasonId, couchId: show.couch?.id ?? null, episode, label: rateLabel(show), solo: show.solo });
   const due = open[0]?.deadline ? Date.parse(open[0].deadline) : t;
 
   let body: ReactNode;
@@ -234,7 +237,7 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
         ? []
         : [{ key: "set", node: <SetCard title={`You're set for Episode ${up.number}`} line={t != null ? `Change anything until ${airTime(t)}` : "Change anything until it airs"} /> }]),
       ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0 && !quiet} onCall={onCall} /> })),
-      ...done.map((c) => ({ key: c.key, node: <DoneMove card={c} onCall={onCall} /> })),
+      ...done.map((c) => ({ key: c.key, node: <DoneMove card={c} onCall={onCall} onBingo={onBingo} /> })),
     ];
     // A new set of cards (a save made one done) starts back at the first, so what's still due is in view.
     body = <MoveCards key={items.map((it) => it.key).join()} items={items} />;
@@ -305,16 +308,22 @@ function OpenCard({ card: c, n, must, onCall }: { card: MoveCard & { reveal?: nu
   );
 }
 
-/** A move you've made that can still change. */
-function DoneMove({ card: c, onCall }: { card: MoveCard; onCall: (episode: number) => void }) {
+/** A move you've made that can still change; or Weekly Bingo's card, ready for the show (a card's icon, not a tick). */
+function DoneMove({ card: c, onCall, onBingo }: { card: MoveCard; onCall: (episode: number) => void; onBingo: (episode: number) => void }) {
   return (
     <div data-done={c.key} className="flex w-full flex-col gap-1.5 rounded-[4px] bg-background p-4 outline-1 -outline-offset-1 outline-border">
-      <span className="grid size-[30px] place-items-center rounded-full bg-good/20 text-good">
-        <Check className="size-4" strokeWidth={2.6} aria-hidden />
-      </span>
+      {c.bingo ? (
+        <span className="grid size-[30px] place-items-center rounded-[3px] bg-secondary">
+          <Grid3x3 className="size-4" aria-hidden />
+        </span>
+      ) : (
+        <span className="grid size-[30px] place-items-center rounded-full bg-good/20 text-good">
+          <Check className="size-4" strokeWidth={2.6} aria-hidden />
+        </span>
+      )}
       <b className="type-caption text-[26px] leading-none">{c.title}</b>
       <small className="mb-2.5 block text-sm leading-snug text-muted-foreground">{c.line}</small>
-      <Btn wide className="mt-auto" onClick={() => (c.call ? onCall(c.call) : openMoves(c.tab ?? "lineup", c.leagueId ?? null))}>
+      <Btn wide className="mt-auto" onClick={() => (c.bingo ? onBingo(c.bingo) : c.call ? onCall(c.call) : openMoves(c.tab ?? "lineup", c.leagueId ?? null))}>
         {c.action}
       </Btn>
     </div>
@@ -582,14 +591,16 @@ function toCall(show: ShowData): number | null {
 
 function Extras({ show }: { show: ShowData }) {
   const up = show.upNext;
-  const t = up?.airAt ? Date.parse(up.airAt) : null;
   const predictions = show.moves.filter((m) => m.kind === "prediction");
   const rate = toRate(show);
   const call = toCall(show);
+  // Your bingo card (Weekly Bingo's is a card in Your moves), and how the latest you've seen went once you ticked it.
+  const bingo = show.games.some((g) => g.yourRole && g.gameType === "weekly-bingo") ? null : toBingo(show);
   const couchId = show.couch?.id ?? null;
   // The couch's polls still open on this show (step 12 part 2): yours to vote in until it airs.
   const polls = useSeasonPolls(show.header?.seasonId ?? null, couchId, !show.solo && !!couchId);
-  if (up?.live) return null;
+  const open = (polls.data?.polls ?? []).some((p) => p.open);
+  if (up?.live || (!predictions.length && !call && !rate && !bingo && !open)) return null;
   return (
     <Block title="Extras this week" aside="Optional">
       {predictions.map((m) => (
@@ -607,9 +618,29 @@ function Extras({ show }: { show: ShowData }) {
       {rate && show.header && show.ready && (
         <CallResultRow target={{ seasonId: show.header.seasonId, couchId, episode: rate, label: rateLabel(show), solo: show.solo }} need="mine" />
       )}
-      <Preview id="show.episode-games" tag={false} className="-mx-2 px-2">
-        <ExtraRow title={BINGO_CARD.title} line={`Ready for ${t != null ? dayOf(t, true) : "the next episode"} · ${BINGO_CARD.line}`} state={BINGO_CARD.state} />
-      </Preview>
+      {bingo && show.header && (
+        <BingoRow target={bingoTarget(show, bingo)} title={up && bingo === up.number ? "Your bingo card" : undefined} />
+      )}
+      {rate && show.header && show.ready && rate !== bingo && <BingoRow target={bingoTarget(show, rate)} need="mine" />}
+    </Block>
+  );
+}
+
+const bingoTarget = (show: ShowData, episode: number): BingoTarget => ({
+  seasonId: show.header!.seasonId,
+  couchId: show.couch?.id ?? null,
+  episode,
+  label: rateLabel(show),
+  solo: show.solo,
+});
+
+/** While the episode's on (the mock's during phase): your bingo card, tick it as it happens. */
+function OnTonight({ show }: { show: ShowData }) {
+  const up = show.upNext;
+  if (!up?.live || toBingo(show) !== up.number || !show.header) return null;
+  return (
+    <Block title="Tonight" aside="On air">
+      <BingoRow target={bingoTarget(show, up.number)} />
     </Block>
   );
 }
@@ -677,6 +708,7 @@ export function yourLine(g: GameView): string {
   if (!me) return "Not on the table yet";
   if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
   if (g.gameType === "weekly-calls") return `${me.total} ${me.total === 1 ? "call" : "calls"} right`;
+  if (g.gameType === "weekly-bingo") return `${me.total} ${me.total === 1 ? "line" : "lines"}`;
   if (g.gameType === "active-roster") return `${me.total} pts`;
   const team = me.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c);
   return `${team.filter((c) => !c.knocked).length} of ${team.length} still in`;

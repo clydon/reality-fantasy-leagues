@@ -1,0 +1,210 @@
+"use client";
+
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ChevronRight, CircleQuestionMark } from "lucide-react";
+import { triviaApi, useAfterTrivia, useTrivia, type TriviaQuestion, type TriviaRound } from "../data";
+import { Btn } from "../ui/parts";
+import { Sheet } from "../ui/sheet";
+import { toast } from "../ui/toast";
+import { Face, IconBox } from "./parts";
+
+// Trivia (docs/PLAN-new-design.md step 12 part 3; the mock's index.html triviaSheet, gamestab.js, couchpages.js and round2.js's
+// "Survivor 49 trivia · 3 questions from the real season"), opened from anywhere signed in with openTrivia: this week's three
+// questions about a show's seasons you've seen (the server deals them: trivia.ts), one at a time with faces; right goes green,
+// wrong shakes and shows the answer; then your score against the couch's ("You beat riley's 2"). The week's first play counts;
+// Play again is just for fun. Also the row that opens it (the Games tab's This week).
+
+export type TriviaTarget = { seasonId: string; couchId: string | null };
+
+type Store = { target: TriviaTarget | null; n: number };
+let store: Store = { target: null, n: 0 };
+const listeners = new Set<() => void>();
+const emit = () => listeners.forEach((l) => l());
+const SERVER: Store = { target: null, n: 0 };
+
+/** Open this week's trivia on a season's show. */
+export function openTrivia(target: TriviaTarget) {
+  store = { ...store, target: null };
+  emit();
+  setTimeout(() => {
+    store = { target, n: store.n + 1 };
+    emit();
+  }, 30);
+}
+
+const close = () => {
+  store = { ...store, target: null };
+  emit();
+};
+
+/** The sheet's host, in the signed-in layout. */
+export function TriviaSheets() {
+  const { target, n } = useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => store,
+    () => SERVER
+  );
+  return <TriviaSheet key={n} target={target} onOpenChange={(o) => !o && close()} />;
+}
+
+/** "You beat riley's 2", "Level with riley", "riley still holds the couch record", or how you did on your own. */
+function againstCouch(r: TriviaRound, score: number, of: number): string {
+  const best = r.couch[0];
+  if (!best) return r.scope === "couch" ? "First on the couch to play it this week" : score === of ? "Every one right" : `${score} of ${of}`;
+  if (score > best.score) return `You beat ${best.name}'s ${best.score}`;
+  if (score === best.score) return `Level with ${best.name}`;
+  return `${best.name} still holds the couch record`;
+}
+
+function TriviaSheet({ target, onOpenChange }: { target: TriviaTarget | null; onOpenChange: (open: boolean) => void }) {
+  const open = !!target;
+  const q = useTrivia(target?.seasonId ?? null, target?.couchId ?? null, open);
+  const r = q.data;
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title={r?.title ?? "Trivia"} subtitle={r?.line}>
+      {q.isPending && open ? (
+        <div aria-busy className="h-[320px] animate-pulse rounded-[4px] bg-secondary" />
+      ) : !r || !target ? (
+        <p className="py-4 text-sm text-muted-foreground">Couldn&apos;t load it. Try again in a moment.</p>
+      ) : !r.questions.length ? (
+        <p className="py-4 text-[15px] leading-snug" data-trivia-none>
+          Nothing to ask yet. Trivia comes from a season you&apos;ve seen to the end, or the one you&apos;re on once someone&apos;s gone home.
+        </p>
+      ) : (
+        <Round target={target} r={r} />
+      )}
+    </Sheet>
+  );
+}
+
+/** The questions one at a time, then the score. Played already this week: the score first, and Play again. */
+function Round({ target, r }: { target: TriviaTarget; r: TriviaRound }) {
+  const after = useAfterTrivia();
+  const [at, setAt] = useState(r.played ? r.questions.length : 0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [tapped, setTapped] = useState<string | null>(null);
+  const [replay, setReplay] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+  const done = at >= r.questions.length;
+  const answer = (q: TriviaQuestion, key: string) => {
+    if (tapped) return;
+    setTapped(key);
+    const next = { ...answers, [q.id]: key };
+    setAnswers(next);
+    timer.current = setTimeout(async () => {
+      setTapped(null);
+      setAt((n) => n + 1);
+      if (at + 1 >= r.questions.length && !r.played && !replay) {
+        try {
+          after(target.seasonId, target.couchId, await triviaApi.play(target.seasonId, target.couchId, next));
+        } catch (e) {
+          toast((e as Error).message);
+        }
+      }
+    }, 1100);
+  };
+  if (done) {
+    const score = replay || !r.played ? r.questions.filter((q) => answers[q.id] === q.answer).length : r.played.score;
+    const of = replay || !r.played ? r.questions.length : r.played.of;
+    return (
+      <div data-trivia-sheet data-trivia-done className="pb-2">
+        <div className="nd-beat py-2 text-center">
+          <b data-trivia-score className="type-num block text-[96px] leading-none text-chyron-line">
+            {score}/{of}
+          </b>
+          <p className="mt-1.5 text-[17px] font-semibold" data-trivia-against>
+            {replay ? "Just for fun: your first go this week counts" : againstCouch(r, score, of)}
+          </p>
+          {r.couch.length > 0 && (
+            <p className="mt-1.5 text-sm text-muted-foreground" data-trivia-couch>
+              {r.couch
+                .slice(0, 3)
+                .map((p) => `${p.name} ${p.score}`)
+                .join(" · ")}
+            </p>
+          )}
+        </div>
+        <Btn
+          tone="ink"
+          wide
+          className="mt-4"
+          data-trivia-again
+          onClick={() => {
+            setReplay(true);
+            setAnswers({});
+            setAt(0);
+          }}
+        >
+          Play again
+        </Btn>
+      </div>
+    );
+  }
+  const q = r.questions[at];
+  return (
+    <div data-trivia-sheet data-trivia-q={q.id}>
+      <div className="mb-3.5 flex gap-1" aria-hidden>
+        {r.questions.map((x, i) => (
+          <i key={x.id} className={`h-1 flex-1 rounded-[1px] ${i <= at ? "bg-chyron" : "bg-border"}`} />
+        ))}
+      </div>
+      <p className="text-[20px] font-bold leading-[1.3]" data-trivia-lead>
+        {q.lead}
+      </p>
+      {q.what && <p className="mt-1 text-[16px] font-semibold text-muted-foreground">{q.what}</p>}
+      <div className="mt-3.5 flex flex-col gap-2">
+        {q.options.map((o) => {
+          const right = tapped && o.key === q.answer;
+          const wrong = tapped === o.key && o.key !== q.answer;
+          return (
+            <button
+              key={o.key}
+              type="button"
+              data-trivia-option={o.label}
+              disabled={!!tapped}
+              onClick={() => answer(q, o.key)}
+              className={`flex min-h-14 w-full items-center gap-3 rounded-[3px] px-3.5 text-left text-base font-semibold transition-[background,transform] duration-200 disabled:opacity-100 ${
+                right ? "bg-good text-good-foreground" : wrong ? "nd-shake bg-live text-live-foreground" : "bg-secondary"
+              }`}
+            >
+              <Face src={o.photo} name={o.label} className="size-10 flex-none rounded-[2px] text-[16px]" />
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- where it opens from ----------
+
+/** This week's round on a show: "Survivor 49 trivia · 3 questions from the real season", or your score once you've played. */
+export function TriviaRow({ target, icon }: { target: TriviaTarget; icon?: boolean }) {
+  const q = useTrivia(target.seasonId, target.couchId);
+  const r = q.data;
+  if (!r || !r.questions.length) return null;
+  const best = r.couch[0];
+  const line = r.played ? `You got ${r.played.score} of ${r.played.of}${best ? ` · ${best.name} got ${best.score}` : ""}` : `${r.line}${best ? ` · ${best.name} got ${best.score}` : ""}`;
+  return (
+    <button
+      type="button"
+      data-trivia-row={r.showId}
+      data-trivia-played={r.played ? "yes" : "no"}
+      onClick={() => openTrivia(target)}
+      className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left"
+    >
+      {icon && <IconBox icon={CircleQuestionMark} />}
+      <span className="min-w-0 flex-1">
+        <b className="block text-[15px] font-semibold">{r.title}</b>
+        <small className="mt-0.5 block text-[13px] text-muted-foreground">{line}</small>
+      </span>
+      <span className="text-[13px] font-semibold text-muted-foreground">{r.played ? "Played" : "Play"}</span>
+      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+    </button>
+  );
+}

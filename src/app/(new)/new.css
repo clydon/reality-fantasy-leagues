@@ -437,3 +437,65 @@ html[data-nav="right"] .nd-dock {
     animation: none;
   }
 }
+
+/* Bingo (show/bingo.tsx; the mock's .sq, .bingo-banner): a ticked square takes a stamp, a finished line pops, and "Bingo!" lands
+   on the card. Trivia (show/trivia.tsx; the mock's .q-opt): a wrong answer shakes. */
+@keyframes nd-stamp {
+  from {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+@keyframes nd-line {
+  50% {
+    transform: scale(1.12);
+  }
+}
+@keyframes nd-banner {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  18%,
+  70% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes nd-shake {
+  25% {
+    transform: translateX(-6px);
+  }
+  75% {
+    transform: translateX(6px);
+  }
+}
+.nd-stamp::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 2px solid rgba(18, 16, 24, 0.45);
+  border-radius: 50%;
+  animation: nd-stamp 0.35s cubic-bezier(0.34, 1.45, 0.64, 1);
+  pointer-events: none;
+}
+.nd-line {
+  animation: nd-line 0.6s cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+.nd-banner {
+  animation: nd-banner 1.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.nd-shake {
+  animation: nd-shake 0.4s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-stamp::after,
+  .nd-line,
+  .nd-shake,
+  .nd-banner {
+    animation: none;
+  }
+}

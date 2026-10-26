@@ -5,9 +5,11 @@ import { SessionProvider } from "@/new/session";
 import { CouchSheets } from "@/new/couch/couch-sheets";
 import { StartGameSheets } from "@/new/couch/start-game";
 import { PlanSheets } from "@/new/couch/watch-plans";
+import { BingoSheets } from "@/new/show/bingo";
 import { CallSheets } from "@/new/show/calls";
 import { PollSheets } from "@/new/show/polls";
 import { RateSheets } from "@/new/show/rate";
+import { TriviaSheets } from "@/new/show/trivia";
 import { WatchingSheets } from "@/new/watching/sheets";
 import { paths, START_STEPS } from "@/new/routes";
 
@@ -27,7 +29,7 @@ export default async function SignedInLayout({ children }: { children: React.Rea
   };
   // The couch sheets (switch, details, invite, start, join, leave: step 9), the watching ones (Add a show, where you are:
   // step 10), Start a game (step 10 part 2b), planned nights (step 11 part 3), Rate it (step 12 part 1), Call it and the couch's
-  // polls (part 2) open from anywhere signed in.
+  // polls (part 2), bingo and trivia (part 3) open from anywhere signed in.
   return (
     <SessionProvider me={me}>
       {children}
@@ -38,6 +40,8 @@ export default async function SignedInLayout({ children }: { children: React.Rea
       <RateSheets />
       <CallSheets />
       <PollSheets />
+      <BingoSheets />
+      <TriviaSheets />
     </SessionProvider>
   );
 }

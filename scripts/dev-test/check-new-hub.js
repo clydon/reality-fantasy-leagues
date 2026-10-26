@@ -261,7 +261,7 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
         await page.locator(`${body} [data-rank-tab="year"]`).click();
       } else if (key === "break") {
         check((await page.locator(`${body} [data-playing]`).count()) === 3, "Commercial break: the three games you're playing (not the finished ones)");
-        check((await page.locator(`${body} [data-preview="hub.episode-games"]`).count()) === 1 && (await page.locator(`${body} [data-break-start]`).count()) === 1, "episode games (12) stay Preview; Start a game is real (10 part 2b)");
+        check((await page.locator(`${body} [data-preview]`).count()) === 0 && (await page.locator(`${body} [data-break-week]`).count()) === 1 && (await page.locator(`${body} [data-break-start]`).count()) === 1, "This week only is real (step 12), and Start a game (10 part 2b): nothing on Preview");
       } else if (key === "numbers") {
         await page.locator(`${body} [data-accolades]`).waitFor({ timeout: 20_000 });
         check((await page.locator(`${body} [data-accolade-row]`).count()) === alexHub.accolades.length, "By the numbers: the couch's accolades");

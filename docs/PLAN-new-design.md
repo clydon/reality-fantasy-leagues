@@ -37,7 +37,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **done** 2026-10-26 on the branch, in three parts (part 2 split in two): watching (migration 0121; TV listings from TVmaze on demand), Make it a game to a set-up show with its rulebook and cast (0122), Start a game that fits and archive or delete a game (0123), rulebooks phase 8: the library, the desk's New show, Fits these games, Take it over and Looks right to us (0124); all ship with 0b's | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | **done** 2026-10-26 on the branch, in three parts: the guide on the couch's shows and Hide from guide (migration 0125), all of TV in the guide and the daily listings job on the bot clock's calls (0126), planned nights (0127); all ship with 0b's | Opus · xhigh |
-| 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | in progress on the branch, in three parts (the plan's step 12 section): part 1, Rate it and couch verdicts (migration 0128); part 2, Call it, polls and Weekly Calls (0129) | Opus · xhigh |
+| 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
 | 14 | Streaming shows and the rail | not started | Opus · xhigh |
 | 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
@@ -257,21 +257,36 @@ step's As built.
 - **A rating can't be taken back** (step 12 part 1; for a later polish). Rating an episode again changes your stars, and a take can
   be removed, but nothing removes the rating itself (`episode_ratings` has no delete). A "Clear my rating" on the sheet would be
   one DELETE.
-- **A talk show's calls are only the couch's say** (step 12 part 2; for part 3 or a later step). A talk show's moments ("The host
-  sings") have no results, so its calls wait for two on the couch to say what happened (alone on the show, your own say). Research
-  still answers them the next morning (the rulebook compiles them as episode questions, KINDS.talk's "ChatGPT checks the next
-  morning"), but nothing reads those answers; and part 3's bingo marks (squares ticked as it happens) could count as says.
+- **A talk show's calls are only the couch's say** (step 12 part 2; part 3 added bingo; for a later step). A talk show's moments
+  ("The host sings") have no results, so its calls and bingo squares wait for two on the couch to say what happened (alone on the
+  show, your own say); since part 3 a bingo tick from someone who's seen the episode is a say. Research still answers them the next
+  morning (the rulebook compiles them as episode questions, KINDS.talk's "ChatGPT checks the next morning"), but nothing reads those
+  answers.
 - **An episode's moment call follows the rulebook as it is** (step 12 part 2; for a later polish). Which moment an episode asks
   about is worked out from the season's rulebook each time it's read, so a rulebook edit while calls are open (a desk fix, a show
   change) can swap an open episode's moment: calls made on the old one are kept and still count (they're stored by their moment),
   but the sheet no longer shows them. Keeping each episode's questions once its first call is made would hold them still.
 - **Polls don't notify** (step 12 part 2; for 15). Starting a poll pushes nobody (as a planned night's Tell the couch would); the
   couch finds it in Tonight's Extras, the Games tab and Commercial break. Notifications by moment could send "riley started a poll".
-- **Weekly Calls never finishes** (step 12 part 2; for part 3, whose Weekly Bingo needs the same). Its league has no results, so
-  `StateLogic.seasonEnded` never says it's over: after the season it stays under You're playing, never reaches the trophy shelf or
-  Run it back (archiving it is the way out). Ending it with the season's last episode (the schedule's count) would.
-- **Weekly Calls' table says "Standings move when you reveal"** (step 12 part 2; for a later polish). A talk show has nothing to
-  reveal: its table moves as you mark episodes watched and the couch says what happened. The Games tab's footnote could say so.
+- **A tick only ever says yes** (step 12 part 3; for a later polish). On a talk show a bingo square settles when two on the couch
+  tick it or say so (alone on the show, your own tick); nothing says a moment didn't happen except the two Call it moments' "It
+  didn't", so a square that didn't happen stays "still settling" (its lines never count, rightly), and one only you noticed waits for
+  someone else on the couch who follows the show, even one not playing Weekly Bingo. A seen card's unticked squares could count as
+  "didn't happen" after a day, or the card could offer "It didn't" on a square.
+- **Trivia's answers ride with its questions** (step 12 part 3; for a later polish). A round is graded on the server, but its answers
+  reach the phone with the questions so the sheet can show right and wrong at once; someone reading them in the browser's tools
+  would win the week. Checking each answer as it's tapped (a request each) would keep them on the server.
+- **Your trivia reads a dozen seasons' facts** (step 12 part 3; for a later polish or paid hosting). `/api/me/trivia` (Commercial
+  break, the solo hub's On your own, kept 60 s) works out the round on up to six of your shows until three have one, each from the
+  stats facts of up to two seasons (HOSTING.md). A round kept per person, show and week (it's the same all week unless your marks
+  move) would make it one read.
+- **Bingo doesn't notify** (step 12 part 3; for 15). "riley got a line" pushes nobody; Tell the couch (a chat message whoever got it
+  chooses to send) is the only word of it.
+- **Bingo in a watch along** (step 12 part 3; for 13). Others' ticks wait until you've seen the episode, so watching live together
+  each of you sees only your own card; a watch along knows who's at the same moment and could show the couch's ticks to them.
+- **A past season counts for trivia only if it's marked** (step 12 part 3; for 15 or a later polish). Trivia asks about a finished
+  season only when your follow says you've seen it to the end (the seasons classic leagues played were backfilled into follows in
+  0b); a season someone watched before joining is nobody's mark, and first run asks where you are only in current seasons.
 - **Predictions guess their chips from their words** (step 12 part 2; for C). A prediction has no options of its own (classic's
   propose has none), so "Who …?" gets the cast still in and "Will …?" Yes / No (`game-view.ts predictionKind`); "Which tribe wins?"
   or a question about someone already out gets words. A propose flow in the new design could let its proposer choose.
@@ -3288,6 +3303,106 @@ CallsScoringStrategy that leaves everyone at 0, `hasCalls`); PickEmLogic's own c
 - **For part 3:** bingo and trivia, Commercial break's and the Games tab's last Previews (`fixtures/episode-games.ts`), Weekly
   Bingo (`rulebook-fits.js` SOON, a league type beside `weekly-calls`, `leagueCalls`'s shape for its table), and Weekly Calls'
   ending with the season (Noticed). A bingo mark on a talk show's moment could count as that person's say (`episode_call_says`).
+
+### As built, step 12 part 3 (2026-10-26, on `new-design`): bingo, trivia and Weekly Bingo
+
+Migration **0130** (ships with 0b's, same rehearsal): `bingo_cards` (a person's card per season and episode, its nine squares as
+JSON, kept from its first tick), `bingo_marks` (a tick per square) and `trivia_plays` (a person's play per show and week: score,
+questions, answers). Nothing polls and nothing runs on a schedule (HOSTING.md). New: `src/lib/game/seeded.ts` (a repeatable
+shuffle), `src/lib/game/bingo.ts` (pure: `bingoMoments`, `dealCard`, `countLines`, `firstLineAt`, `truthOf`),
+`src/lib/game/trivia.ts` (pure: `triviaRound`, `scoreRound`, `weekOf`), `src/lib/server/bingo.ts` (`GET/POST
+/api/seasons/[id]/bingo/[n]?couch=`, `bingoLines`, `bingoMove`, `weekBingo`, `leagueBingo`), `src/lib/server/trivia.ts` (`GET/POST
+/api/seasons/[id]/trivia?couch=`, `GET /api/me/trivia?couch=`), `src/new/show/bingo.tsx` (`openBingo`, `BingoSheets` in
+(in)/layout, `BingoRow`, `BingoResults`, `bingoEpisode`), `src/new/show/trivia.tsx` (`openTrivia`, `TriviaSheets`, `TriviaRow`), the
+mock's stamp, line, banner and shake in new.css. Engine: a league type `weekly-bingo` (NoDraftStrategy, CallsScoringStrategy,
+`hasBingo`). calls.ts gains `saysOn` (the says that count, bingo ticks among them), `endedThrough`, and exports its scope helpers.
+- **The card (decided):** three by three, the centre free, eight of the show's moments (the ones Call it goes round, all of them:
+  `callMoments`, what research answers or on a talk show what the couch says; never a way out, a secret role's or the couch's
+  own), dealt per person and episode from a seed, so everyone's differs. A show with fewer than eight moments gets free squares in
+  the gaps, never a whole line of them (the SNL sample's six: three free); under four, no bingo ("not enough of the show's
+  moments"). Kept as it was dealt from your first tick (a rulebook change can't reshuffle it); before that it's dealt each read and
+  nothing is stored. The mock's 5×5 had made-up squares ("Jeff says dig deep") nothing could settle; no show here has 24 moments.
+- **Ticks:** from the episode's airtime on (before it the card is ready to look at, "Ticks open Sun 8:00 PM"), on any square but
+  the free one, ticked and unticked as long as you like; a card for the next episode to air or any that's aired. Three in a row
+  (down, across, corner to corner) is a line, and the sheet says Bingo! on your ticks at once.
+- **What counts:** a square counts once you ticked it and it happened: the season's results say so once every result for the
+  episode is in (`episodeFacts`' events, the calls' own rule for a moment), or on a talk show the couch does (calls.ts
+  `settleSays`: two agreeing and more than say otherwise; alone on the show, your own). **A tick from someone who has seen the
+  episode is their say that it happened**: `saysOn` reads `episode_call_says` and the ticks together, so bingo settles a talk
+  show's calls too (half of Noticed's "A talk show's calls are only the couch's say"), and a say of your own on the moment wins
+  over your tick. A tick never says something didn't happen (Noticed). A line counts once its three squares do; a square that
+  didn't happen spoils its lines; one that happened that you didn't tick isn't yours (dashed on the card). Lines are worked out
+  every read, never stored.
+- **Spoiler-safe on the server:** the squares are moments, never a name or anything about an episode, so your own card shows for
+  any episode that's aired or is next, and your ticks are yours. Nobody else's card, tick or line, and nothing settled about a
+  square, leaves the server until you've seen the episode (guard.ts seenThrough): before, only how many on the couch have ticked a
+  square ("2 more on the couch are playing"). The couch is its people who follow the show openly, as for ratings and calls; solo or
+  on a couch of one, just your card. Who got a line first: the earliest line finished (its last tick) that still stands or waits.
+- **Tell the couch:** with a line, on a couch, the sheet offers a chat message from you ("Bingo! 1 line on ZT Survivor 51 Episode
+  7"), folded for anyone who hasn't seen the episode as chat is. The mock posted it by itself; here it's a button.
+- **Where bingo shows:** Tonight's Extras ("Your bingo card · Ready for Sunday · ticks open at airtime" for the next episode,
+  "Episode 6 bingo · tap squares as it happens" for an aired one you haven't seen, and "Episode 6 bingo: 1 line · You got a line
+  first" for the latest you've seen once you ticked it); while the episode's on, a Tonight block ("On air") with your card above
+  Your moves (the mock's during phase); the Games tab's This week; Commercial break's This week only (each show's card for its
+  next episode); the episode page's Bingo.
+- **Weekly Bingo is startable:** `rulebook-fits.js` gives it `weekly-bingo`, and `SOON` is empty (every game that fits starts); a
+  talk show recommends it first (KINDS.talk's order). An ordinary league on the couch, its table each player's lines from its start
+  through the latest show that's aired and you've seen (`leagueBingo`, as Weekly Calls), the hub's rankings counting them; nothing
+  due before a show (no home move: Your moves shows "Your card for Episode 6 · Opens Sun 11:30 PM · tap squares as it happens ·
+  Open my card", with a card's icon rather than a tick); never "fill in the results" or "Add the cast"; out of classic's list. Its
+  colour is the mock's purple; Better with friends lists it; its rules say how a square counts.
+- **A talk game ends with its season (from Noticed):** Weekly Calls and Weekly Bingo are over once the season's last episode (its
+  episode count) is within what's aired and you've seen (`endedThrough`): the hub puts them on the trophy shelf with Run it back,
+  and the couch's games list takes nobody new; a season with no episode count runs on. Their Games tab footnote says "Standings
+  move as you watch and the couch says what happened" (from Noticed).
+- **Trivia (decided):** three questions a week (from Monday, UTC) about a show, the same for everyone who's seen the same: who won,
+  who left first, who scored the most points, who did a moment most ("Who did this most in ZT Survivor 50? · Won the Immunity
+  challenge"), who lasted longer of two, who scored more of two; four faces (two for A or B), never a tie. Only from the show's
+  newest season that's over, seen to its end and that someone left (the stats' own facts at your mark: `seasonFactsFor`,
+  `castStats`, the couch's game's points), and the season you're on as far as you've seen it (only who left first and who lasted
+  longer of two who've both left). Named for the season its questions are about ("ZT Survivor 50 trivia · 3 questions from the real
+  season", "ZT Solo 51 trivia · 2 questions so far"). Graded on the server against the round as it stands for you; the week's first
+  play is kept and Play again is for fun; the couch's scores this week beside yours ("You beat riley's 1", "Level with riley",
+  "riley still holds the couch record"); nobody sees more than a score.
+- **Where trivia shows:** the Games tab's This week (a row), Commercial break's This week only (a card per show with a round, three
+  at most: "3 questions · riley got 1", "You got 3 of 3"), the solo hub's On your own (this week's round on one of your shows).
+- **Fixed on the way:** Start a game's dot for Weekly Calls was the mock's yellow (only for what you must do); both talk games take
+  their colours from games.ts now.
+- **Fixtures and Preview:** deleted `fixtures/episode-games.ts` and the entries `hub.episode-games` and `show.episode-games`.
+- **Backups** take all three tables (the group's people's cards and ticks on its seasons, their trivia plays on its seasons'
+  shows); `backup-fixture.js` has a card with two ticks and a play.
+- **Changed from the mock:** 3×3 cards of the show's moments, so squares can be settled (above); Tell the couch a button; before
+  you've seen an episode, how many on the couch are playing rather than "sam has 3 · riley has 2" (others' ticks wait for your
+  mark); trivia from the facts we have (the mock's "most points in Survivor 49" and "first voted out of Survivor 51" are among
+  them), its "Posted to the couch chat" left out.
+- **Checks:** `scripts/dev-test/check-new-episode-games.js` grew part 3 (285 PASS at 390, with parts 1 and 2) on the same fixtures plus
+  hub-fixture.js (ZT Survivor 49 and 50, finished): a card for the next episode (its moments and no names, dealt the same twice,
+  each person's own, nothing to tick or keep before airtime), ticks and lines on an aired episode against its results, the couch's
+  cards and who got a line first only for someone who's seen it (sam on 3 and casey: a count), the refusals; the talk show's ticks
+  agreeing, a tick settling a call, a say of your own winning; Weekly Bingo (start, join, nothing due, its card ready then open,
+  lines once both have seen it, the hub), both talk games ending with a five-episode season and running on in a longer one; trivia
+  (Survivor 50 for alex, 49 for sam who hasn't finished 50, 51 so far for casey, riley's first play kept, the refusals);
+  Commercial break; then the browser as alex (Tonight's rows, the seen and ready sheets, the episode page, This week, trivia to
+  3/3, Commercial break, the talk show's Weekly Bingo card and table, Episode 7 put on air: Tonight's card, a line, Bingo!, Tell
+  the couch) and zt_so_alex (the solo hub's trivia). `tests/bingo.test.js` (5), `tests/trivia.test.js` (5). Updated for this part:
+  check-new-hub (Commercial break has no Preview), check-new-start-game and check-new-library (Weekly Bingo startable),
+  tests/start-game. The rest pass, one at a time: check-new-plans (102), -listings (75), -guide (57), -library (91), -start-game
+  (75), -make-it (81), -watching (114), -solo (92), -way-in (85), -couches (114), -hub (75), -draft (90), -settling (96),
+  -results-ways (89), -ours (89), -desk (100), -community (82), -backstage (67), -backstage-ii (116), -show (69), -shell (46),
+  -reveal (49), -stats (57), -chat (52), check-foundation, check-preview (step 12 done, nothing of it on Preview) and
+  check-backup-restore; `npm test` 608 of 608; type-check clean; lint (src) as before (the old error in classic's
+  `use-sheet-swipe.ts` and the old warning in `episode-results.ts`). Seen at 390 in the browser: the bingo sheet (ready, ticking
+  with Bingo! and Tell the couch, seen with the couch's cards), Tonight's rows and its on-air block, the episode page's Bingo, This
+  week, the trivia sheet (a question, the score), Commercial break's cards, the talk show's Weekly Bingo card and table, the solo
+  hub's trivia.
+- **Noticed, left as is:** six, now in Noticed, not fixed: a tick only ever says yes, trivia's answers ride with its questions, your
+  trivia reads a dozen seasons' facts, bingo doesn't notify, bingo in a watch along, and a past season counts for trivia only if
+  it's marked. Out of Noticed: Weekly Calls never finishing and its table's "reveal" footnote; "A talk show's calls are only the
+  couch's say" now counts bingo ticks.
+- **For step 13:** Watch along should carry your bingo card (the mock's "your bingo card and lineup come with you": `openBingo` for
+  its episode, and the Tonight block's row), and could show the couch's ticks live to whoever's watching the same episode together
+  (they've all reached that moment; Noticed); its end's "How was Episode N?" opens `openRate`. Call it closes at airtime, so a
+  watch along has nothing of Call it's to carry but how it went once you've seen it.
 
 ## Step C: cutover
 

@@ -6,8 +6,8 @@ export type SeasonGameKey = "survivalPool" | "weeklyLineup" | "outlast" | "weekl
 export interface GameFit {
   key: SeasonGameKey;
   name: string;
-  /** settings.leagueTypeId it plays as; null: not a league type yet (step 12 part 3's bingo). */
-  type: "pickem" | "active-roster" | "classic-draft" | "weekly-calls" | null;
+  /** settings.leagueTypeId it plays as; null: not a league type yet. */
+  type: "pickem" | "active-roster" | "classic-draft" | "weekly-calls" | "weekly-bingo" | null;
   fits: boolean;
   /** What it needs from a rulebook, for the doesn't-fit line. */
   needs: string;

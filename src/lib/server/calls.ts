@@ -72,7 +72,7 @@ export interface EpisodeCalls {
 }
 
 /** Someone who follows the call's season openly (guard.ts visibleFollows): a condition on `c`. */
-const OPEN = "EXISTS (SELECT 1 FROM show_follows f WHERE f.user_id = c.user_id AND f.season_id = c.season_id AND f.following AND NOT f.private)";
+export const OPEN = "EXISTS (SELECT 1 FROM show_follows f WHERE f.user_id = c.user_id AND f.season_id = c.season_id AND f.following AND NOT f.private)";
 
 const QUESTION_RE = /^(out|m:[\w.-]{1,100})$/;
 
@@ -167,13 +167,13 @@ function stillInAt(cast: SeasonCastRow[], facts: Map<number, EpisodeFacts>, n: n
 }
 
 /** The next episode to air (calls are open for it), from the schedule: the first with an air time still to come. */
-function openEpisode(schedule: SeasonSchedule | undefined, now: Date): { number: number; airAt: string } | null {
+export function openEpisode(schedule: SeasonSchedule | undefined, now: Date): { number: number; airAt: string } | null {
   for (const ep of schedule?.episodes ?? []) if (ep.airAt && Date.parse(ep.airAt) > now.getTime()) return { number: ep.number, airAt: ep.airAt };
   return null;
 }
 
 /** A couch with someone else on it who shares the show is the calls' scope; else (solo, a couch of one) just you. */
-async function scopeOf(user: SessionUser, couchId: string | null): Promise<string | null> {
+export async function scopeOf(user: SessionUser, couchId: string | null): Promise<string | null> {
   if (!couchId) return null;
   await requireCouch(user, couchId);
   const { rows } = await pool.query("SELECT count(*)::int AS n FROM couch_members WHERE couch_id = $1", [couchId]);
@@ -181,10 +181,51 @@ async function scopeOf(user: SessionUser, couchId: string | null): Promise<strin
 }
 
 /** The couch's people who share a season (follow it openly), always yourself: a WHERE fragment on `c`, with $me and $couch. */
-const SHARED = (me: string, couch: string) => `(c.user_id = ${me} OR (c.user_id IN (SELECT user_id FROM couch_members WHERE couch_id = ${couch}) AND ${OPEN}))`;
+export const SHARED = (me: string, couch: string) => `(c.user_id = ${me} OR (c.user_id IN (SELECT user_id FROM couch_members WHERE couch_id = ${couch}) AND ${OPEN}))`;
+
+export type SayRow = { user_id: string; episode: number; question: string; happened: boolean };
+
+/**
+ * What people said happened on a season's episodes ($1 the season, $2 the episodes), for a call or a bingo square the couch
+ * settles (a talk show's): their says, and every square ticked on a bingo card (step 12 part 3) by someone who has seen that
+ * episode, as their say that it happened (a say of their own on it wins). `scope`: a WHERE fragment on `c` (user_id, season_id).
+ */
+const SAYS = (scope: string) => `SELECT c.user_id, c.episode, c.question, c.happened FROM (
+    SELECT user_id, season_id, episode, question, happened FROM episode_call_says WHERE season_id = $1 AND episode = ANY($2::int[])
+    UNION ALL
+    SELECT b.user_id, b.season_id, b.episode, b.squares->(m.square::int)->>'key', true
+      FROM bingo_cards b JOIN bingo_marks m ON m.card_id = b.id
+      JOIN show_follows sf ON sf.user_id = b.user_id AND sf.season_id = b.season_id AND sf.seen_through >= b.episode
+     WHERE b.season_id = $1 AND b.episode = ANY($2::int[]) AND b.squares->(m.square::int)->>'key' <> 'free'
+       AND NOT EXISTS (SELECT 1 FROM episode_call_says s WHERE s.user_id = b.user_id AND s.season_id = b.season_id AND s.episode = b.episode
+                         AND s.question = b.squares->(m.square::int)->>'key')
+  ) c WHERE ${scope}`;
+
+/**
+ * The says on these episodes that count for someone: a viewer's (the couch's people who share the show, and them; with no couch,
+ * theirs), a couch's (its people who share the show), or just these people's own.
+ */
+export async function saysOn(seasonId: string, episodes: number[], who: { viewer: string; couch: string | null } | { couch: string } | { users: string[] }): Promise<SayRow[]> {
+  if (!episodes.length) return [];
+  const [scope, params] =
+    "viewer" in who
+      ? who.couch
+        ? [SHARED("$3", "$4"), [who.viewer, who.couch]]
+        : ["c.user_id = $3", [who.viewer]]
+      : "users" in who
+        ? ["c.user_id = ANY($3::text[])", [who.users]]
+        : [`c.user_id IN (SELECT user_id FROM couch_members WHERE couch_id = $3) AND ${OPEN}`, [who.couch]];
+  const { rows } = await pool.query(SAYS(scope), [seasonId, episodes, ...params]);
+  return rows.map((r) => ({ user_id: r.user_id, episode: r.episode, question: r.question, happened: !!r.happened }));
+}
+
+/** A game scored outside its state (Weekly Calls, Weekly Bingo) is over once its season's last episode is within `through`. */
+export function endedThrough(schedule: SeasonSchedule | undefined, through: number): boolean {
+  return !!schedule?.episodeCount && through >= schedule.episodeCount;
+}
 
 /** How many on a couch, other than `userId`, share a season (follow it openly): with none, your own say settles a call. */
-async function othersSharing(couchId: string, seasonId: string, userId: string | null): Promise<number> {
+export async function othersSharing(couchId: string, seasonId: string, userId: string | null): Promise<number> {
   const { rows } = await pool.query(
     `SELECT count(*)::int AS n FROM couch_members m JOIN show_follows f ON f.user_id = m.user_id AND f.season_id = $2 AND f.following AND NOT f.private
       WHERE m.couch_id = $1 AND m.user_id IS DISTINCT FROM $3`,
@@ -296,18 +337,13 @@ async function readCalls(user: SessionUser, seasonId: string, n: number, ctx: Co
   return out;
 }
 
-/** Everyone's says on these episodes who counts for this viewer: the couch's people who share the show, and you. */
+/** Everyone's says on these episodes who counts for this viewer: the couch's people who share the show, and you (bingo ticks too). */
 async function saysFor(userId: string, seasonId: string, couch: string | null, episodes: number[]) {
-  const { rows } = await pool.query(
-    `SELECT c.user_id, c.episode, c.question, c.happened FROM episode_call_says c
-      WHERE c.season_id = $1 AND c.episode = ANY($2::int[]) AND ${couch ? SHARED("$3", "$4") : "c.user_id = $3"}`,
-    couch ? [seasonId, episodes, userId, couch] : [seasonId, episodes, userId]
-  );
-  return rows as { user_id: string; episode: number; question: string; happened: boolean }[];
+  return saysOn(seasonId, episodes, { viewer: userId, couch });
 }
 
 /** What's settled of an episode's says, by question: two on the couch agreeing, or (alone on the show) your own. */
-function settledSays(says: { user_id: string; episode: number; question: string; happened: boolean }[], n: number, me: string, alone: boolean): Map<string, CallSay> {
+export function settledSays(says: SayRow[], n: number, me: string, alone: boolean): Map<string, CallSay> {
   const out = new Map<string, CallSay>();
   const here = says.filter((s) => s.episode === n);
   for (const key of new Set(here.map((s) => s.question))) {
@@ -408,12 +444,7 @@ export async function callRights(
   // A talk show's calls are settled by what the couch says (its people who share the show); with no couch, by your own say.
   const said = new Map<string, "yes" | "no" | null>();
   if (talk) {
-    const { rows: says } = await pool.query(
-      `SELECT c.user_id, c.episode, c.question, c.happened FROM episode_call_says c
-        WHERE c.season_id = $1 AND c.episode = ANY($2::int[])
-          AND ${opts.couchId ? `c.user_id IN (SELECT user_id FROM couch_members WHERE couch_id = $3) AND ${OPEN}` : "c.user_id = ANY($3::text[])"}`,
-      [seasonId, episodes, opts.couchId ?? userIds]
-    );
+    const says = await saysOn(seasonId, episodes, opts.couchId ? { couch: opts.couchId } : { users: userIds });
     const alone = !opts.couchId || (await othersSharing(opts.couchId, seasonId, null)) <= 1;
     const at = (s: { user_id: string; episode: number; question: string }) => (opts.couchId ? `${s.episode}|${s.question}` : `${s.user_id}|${s.episode}|${s.question}`);
     for (const k of new Set(says.map(at))) said.set(k, settleSays(says.filter((s) => at(s) === k).map((s) => !!s.happened), alone));
@@ -492,12 +523,14 @@ export async function leagueCalls(o: {
     }
     return { right, move: poolCallOf(view, mine, right(o.playerId)) };
   }
-  // Weekly Calls: through the latest show that's aired and you've seen; your move is the next show's calls.
+  // Weekly Calls: through the latest show that's aired and you've seen; your move is the next show's calls; over once the season's
+  // last show is within that (Noticed's "Weekly Calls never finishes").
   const [schedule, made] = await Promise.all([seasonSchedules([o.seasonId], now).then((m) => m.get(o.seasonId)), callsMade(o.userId, o.seasonId, now)]);
   const aired = latestAired(schedule, now);
   return {
     right,
     through: Math.min(through, aired),
+    ended: endedThrough(schedule, Math.min(through, aired)),
     move: made ? { epId: "", episode: made.episode, airsAt: made.airAt, open: true, call: null, available: [], made: made.made, of: made.of, right: o.playerId ? right(o.playerId) : 0 } : null,
   };
 }

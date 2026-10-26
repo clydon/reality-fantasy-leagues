@@ -29,7 +29,7 @@
 //   back; polls (start on the cast or your own options, the refusals, votes hidden until it closes, three at most on an episode,
 //   only its starter takes it down, sam behind sees none); Commercial break's This week only; predictions' chips (a Who
 //   question gets who's still in, a Will question Yes and No, anything else words); Weekly Calls on the talk show (startable
-//   now, Weekly Bingo still coming; riley joins; its move on the hub until both calls are made; its game at 0; out of classic's
+//   now, and Weekly Bingo since part 3; riley joins; its move on the hub until both calls are made; its game at 0; out of classic's
 //   list). In the browser before it airs: alex's Call it from Tonight (faces, Yes / No, Lock in), the Games tab's This week (Call
 //   it, the polls, Start a poll with options of his own), a vote changed, the Predictions tab's chips, Commercial break's cards,
 //   the talk show's Weekly Calls card and Start a game sheet.
@@ -39,6 +39,22 @@
 //   by two saying what happened, Weekly Calls' table by right calls, on the hub too; and on solo-fixture.js, a public pool's
 //   Who goes home? and Call it's are the same call, counted once its person goes home. In the browser: Tonight's row for how
 //   Episode 6's calls went and the sheet, the poll's results, the talk show's row and the Weekly Calls table.
+//
+// Part 3 is bingo, trivia, Commercial break's This week only and Weekly Bingo (bingo.ts, trivia.ts), on the same fixtures plus
+// hub-fixture.js (ZT Survivor 49 and 50, finished and seen to the end):
+//   API: a card for the next episode (three by three, the centre free, the show's moments and no names, dealt the same way twice,
+//   each person's own, nothing to tick until it airs, nothing kept until a first tick); on Episode 6 (aired): ticks, a line
+//   through the centre once both squares happened, a square that didn't happen counting for nothing, the couch's cards and who got
+//   a line first (only for someone who's seen it: sam on 3 and casey see their own cards, a count, nothing else), the refusals; on
+//   the talk show, two ticks agreeing settle a square, a tick is a say (it settles a call again), a say of your own wins over your
+//   tick; Weekly Bingo (startable, recommended first, from Episode 5, riley joins, nothing due, out of classic's list, its card
+//   ready then open, lines counting once both have seen the episode, the hub), both talk games ending with the season's last show
+//   (on the trophy shelf, nobody new joins) and running on in a longer one; trivia (three questions about Survivor 50 for alex,
+//   Survivor 49 for sam who hasn't finished 50, Survivor 51 so far for casey with nothing past her mark, riley's 1 of 3 kept as the
+//   week's first play, the refusals); Commercial break's cards and rounds. In the browser: alex's Tonight (your bingo card, ready;
+//   Episode 6's line), the seen sheet and the ready one, the Games tab's This week (the card, trivia), playing trivia to 3/3,
+//   Commercial break's cards, the talk show's Weekly Bingo card in Your moves and its table, Episode 7 on air (Tonight's card,
+//   ticking a line, Bingo!, Tell the couch); and zt_so_alex's solo hub trivia.
 //
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-new-episode-games.js <outDir> [--width=390] [--keep] [--api]
@@ -53,6 +69,7 @@ const { open, api, BASE } = require("./browser");
 const fixture = require("./new-fixture");
 const soloFixture = require("./solo-fixture");
 const talkFixture = require("./talk-fixture");
+const hubFixture = require("./hub-fixture");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-new-episode-games runs against a local database only");
@@ -352,7 +369,7 @@ function check(ok, what, detail = "") {
     r = await as.alex.call("GET", `/api/seasons/${tk.seasonId}/start${q(A)}`);
     const wcFit = r.body.games?.find((g) => g.key === "weeklyCalls");
     const wbFit = r.body.games?.find((g) => g.key === "weeklyBingo");
-    check(r.body.kind === "talk" && wcFit?.fits && wcFit.soon === null && wcFit.type === "weekly-calls" && wbFit?.soon === "12", "a talk show: Weekly Calls starts now, Weekly Bingo still coming", JSON.stringify(r.body.games));
+    check(r.body.kind === "talk" && wcFit?.fits && wcFit.soon === null && wcFit.type === "weekly-calls" && wbFit?.soon === null && wbFit.type === "weekly-bingo", "a talk show: Weekly Calls starts now (and Weekly Bingo, since part 3)", JSON.stringify(r.body.games));
     r = await as.alex.call("POST", `/api/seasons/${tk.seasonId}/start${q(A)}`, { game: "weeklyCalls", tell: false });
     const WC = r.body.leagueId;
     check(r.status === 200 && r.body.gameName === "Weekly Calls" && r.body.from === 4, "alex starts Weekly Calls, from Episode 4", JSON.stringify(r.body));
@@ -418,6 +435,8 @@ function check(ok, what, detail = "") {
       await pg.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
       const row = pg.locator('[data-rate-row="5"]');
       await row.waitFor({ timeout: 30_000 });
+      // The row says rated once the Episodes read is in (slower on a cold compile).
+      await pg.locator('[data-rate-row="5"][data-rated="yes"]').waitFor({ timeout: 20_000 }).catch(() => {});
       await pg.waitForTimeout(800);
       const rowText = await row.innerText();
       check((await row.getAttribute("data-rated")) === "yes" && /You gave Episode 5/.test(rowText) && /3\.7/.test(rowText), "Tonight's Extras: Episode 5, rated, the couch's 3.7", rowText);
@@ -630,7 +649,7 @@ function check(ok, what, detail = "") {
       await cp.locator(`[data-poll-row="${P1}"]`).waitFor({ timeout: 20_000 });
       await cp.waitForTimeout(800);
       check((await cp.locator(`[data-this-week] [data-poll-row]`).count()) === 2 && /You voted/.test(await cp.locator(`[data-poll-row="${P1}"]`).innerText()), "This week: Call it, both polls (alex voted in his)", await cp.locator("[data-this-week]").innerText());
-      check((await cp.locator("[data-this-week] [data-preview]").count()) >= 1, "bingo and trivia still Preview (part 3)");
+      check((await cp.locator("[data-this-week] [data-preview]").count()) === 0 && (await cp.locator('[data-this-week] [data-bingo-row="6"]').count()) === 1, "and Episode 6's bingo card (part 3): nothing on Preview", await cp.locator("[data-this-week]").innerText());
       await cp.locator("[data-this-week]").scrollIntoViewIfNeeded();
       await C1.shot("games-this-week");
       await C1.wide("the Games tab");
@@ -857,6 +876,400 @@ function check(ok, what, detail = "") {
       await C2.shot("talk-table");
       await C2.wide("Weekly Calls' table");
       check(C2.errors().length === 0, "no page errors (alex, after the episode)", C2.errors().join(" | "));
+    }
+
+    // ================= part 3: bingo, trivia, Commercial break's This week only, Weekly Bingo =================
+    // Survivor: Episode 6 aired a day ago (alex, riley and jordan have seen it, sam is on 3), 7 is in three days. The talk show's 4
+    // aired a day ago (alex and riley have seen it). hub-fixture.js adds ZT Survivor 49 and 50, finished, seen to the end.
+    const hubFx = await hubFixture.up(pool, fx);
+    const bingoOf = (who, n, season = sid, couch = A) => as[who].call("GET", `/api/seasons/${season}/bingo/${n}${q(couch)}`);
+    const tick = (who, n, square, ticked = true, season = sid, couch = A) => as[who].call("POST", `/api/seasons/${season}/bingo/${n}${q(couch)}`, { square, ticked });
+    const cardsOf = async (who, season = sid) => (await pool.query("SELECT episode FROM bingo_cards WHERE user_id = $1 AND season_id = $2", [U[who], season])).rows.map((x) => x.episode);
+    const castNames = new Set(castRows.map((x) => x.name));
+    const happened = (season, n, key, name) =>
+      pool.query(
+        `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, event_type, status, from_research, decided_at) VALUES ($1, $2, 'event', $3, '', $4, 'accepted', true, now())
+         ON CONFLICT DO NOTHING`,
+        [season, n, name, key.slice(2)]
+      );
+    const at = (card, key) => card.squares.findIndex((s) => s.key === key);
+    const personOf = (body, who) => body.people.find((p) => p.name === u(who));
+
+    // ---------- bingo: a card for the next episode ----------
+    let bg = await bingoOf("alex", 7);
+    check(
+      bg.status === 200 && bg.body.status === "ready" && bg.body.squares.length === 9 && bg.body.squares[4].key === "free" && bg.body.squares.filter((s) => s.key === "free").length === 1,
+      "bingo, Episode 7 (next to air): a card ready, three by three, the centre free",
+      JSON.stringify(bg.body).slice(0, 300)
+    );
+    check(
+      bg.body.squares.every((s) => s.key === "free" || /^m:/.test(s.key)) && !bg.body.squares.some((s) => castNames.has(s.label)) && bg.body.truth === null && bg.body.ticked.length === 0,
+      "its squares are the show's moments: no names, nothing about the episode",
+      bg.body.squares.map((s) => s.label).join(" | ")
+    );
+    check(JSON.stringify((await bingoOf("alex", 7)).body.squares) === JSON.stringify(bg.body.squares), "dealt the same way twice");
+    check(JSON.stringify((await bingoOf("riley", 7)).body.squares) !== JSON.stringify(bg.body.squares), "riley's card is her own");
+    r = await tick("alex", 7, 0);
+    check(r.status === 409 && /opens when Episode 7 starts/.test(r.body.error), "ticking before it airs: 409", JSON.stringify(r.body));
+    r = await bingoOf("alex", 8);
+    check(r.status === 409, "a card further ahead: 409");
+    check(!(await cardsOf("alex")).length, "nothing kept until a first tick");
+
+    // ---------- bingo on an episode that's aired: ticks, lines, the couch's cards ----------
+    let b6 = (await bingoOf("alex", 6)).body;
+    check(b6.status === "open" && Array.isArray(b6.truth) && b6.truth[4] === "yes" && b6.by === "results" && b6.people.length === 0, "Episode 6 (aired, alex has seen it): open to tick, and how each square went", JSON.stringify(b6).slice(0, 300));
+    const rb6 = (await bingoOf("riley", 6)).body;
+    // The results say the squares beside the centre happened: alex's row (3, 5) and riley's column (1, 7).
+    for (const k of new Set([b6.squares[3].key, b6.squares[5].key, rb6.squares[1].key, rb6.squares[7].key])) await happened(sid, 6, k, STAY.label);
+    r = await tick("alex", 6, 3);
+    check(r.status === 200 && r.body.ticked.join() === "3" && (await cardsOf("alex")).includes(6), "alex ticks a square: his card is kept from his first tick", JSON.stringify(r.body.ticked));
+    const kept = (await pool.query("SELECT squares FROM bingo_cards WHERE user_id = $1 AND season_id = $2 AND episode = 6", [U.alex, sid])).rows[0].squares;
+    check(JSON.stringify(kept) === JSON.stringify(b6.squares), "kept as it was dealt");
+    r = await tick("alex", 6, 5);
+    check(r.body.lines.ticked === 1 && r.body.lines.standing === 1 && r.body.truth[3] === "yes" && r.body.truth[5] === "yes", "his row through the free centre: a line, both squares happened", JSON.stringify(r.body.lines));
+    const noAt = r.body.truth.findIndex((x, i) => x === "no" && i !== 3 && i !== 5);
+    if (noAt >= 0) {
+      r = await tick("alex", 6, noAt);
+      check(r.body.truth[noAt] === "no" && r.body.lines.standing === 1 && r.body.ticked.length === 3, "a tick on what didn't happen counts for nothing", JSON.stringify(r.body.lines));
+      r = await tick("alex", 6, noAt, false);
+      check(r.body.ticked.join() === "3,5", "and unticked again");
+    }
+    await new Promise((res) => setTimeout(res, 60));
+    await tick("riley", 6, 1);
+    r = await tick("riley", 6, 7);
+    check(r.body.lines.standing === 1, "riley's column: a line too");
+    r = await bingoOf("alex", 6);
+    check(
+      r.body.first?.userId === U.alex && r.body.people[0]?.name === u("alex") && personOf(r.body, "riley")?.lines === 1 && !personOf(r.body, "jordan"),
+      "the couch's cards, his first: alex got a line first, riley 1 line (jordan didn't play)",
+      JSON.stringify({ first: r.body.first, people: r.body.people })
+    );
+    r = await bingoOf("riley", 6);
+    check(r.body.first?.name === u("alex") && r.body.people[0]?.name === u("riley"), "riley sees alex got a line first", JSON.stringify(r.body.first));
+    r = await bingoOf("sam", 6);
+    check(
+      r.body.status === "open" && r.body.truth === null && r.body.people.length === 0 && r.body.first === null && r.body.catchUp === 6 && r.body.playing === 2,
+      "sam (on 3): his own card to tick, that 2 on the couch are playing, nothing of their ticks or how it went",
+      JSON.stringify(r.body).slice(0, 300)
+    );
+    r = await tick("sam", 6, r.body.squares[0].key === "free" ? 1 : 0);
+    check(r.status === 200 && r.body.truth === null && r.body.lines.standing === 0, "sam ticks as he watches: still nothing settled for him");
+    r = await bingoOf("casey", 6, sid, X);
+    check(r.status === 200 && r.body.truth === null && r.body.people.length === 0 && r.body.playing <= 1, "casey (on 5, her own couch): nothing of this couch's cards", JSON.stringify(r.body).slice(0, 200));
+    r = await tick("alex", 6, 4);
+    check(r.status === 400 && /free/.test(r.body.error), "ticking the free square: 400");
+    r = await tick("alex", 6, 9);
+    check(r.status === 400, "a square that isn't one: 400");
+    r = await as.alex.call("POST", `/api/seasons/${sid}/bingo/6${q(A)}`, { square: 1 });
+    check(r.status === 400, "ticked must be true or false: 400");
+    r = await bingoOf("riley", 6, sid, X);
+    check(r.status === 404, "a couch you're not on: 404");
+    check(!(await cardsOf("jordan")).length, "jordan never ticked: no card kept for him");
+
+    // ---------- bingo on a talk show: the couch says what happened, and a tick is a say ----------
+    const t4 = (await bingoOf("alex", 4, tk.seasonId)).body;
+    check(
+      t4.by === "couch" && !t4.alone && t4.squares.filter((s) => s.key === "free").length === 3 && t4.squares.filter((s) => s.key !== "free").length === 6,
+      "the talk show's card: its six moments and three free squares, settled by the couch",
+      JSON.stringify(t4.squares)
+    );
+    const rt4 = (await bingoOf("riley", 4, tk.seasonId)).body;
+    const loose = t4.squares.find((s) => s.key !== "free" && !tq.some((x) => x.key === s.key));
+    r = await tick("alex", 4, at(t4, loose.key), true, tk.seasonId);
+    check(r.body.truth[at(t4, loose.key)] === null, "alex ticks a moment nobody else has said: it waits for a second", JSON.stringify(r.body.truth));
+    await tick("riley", 4, at(rt4, loose.key), true, tk.seasonId);
+    r = await bingoOf("alex", 4, tk.seasonId);
+    check(r.body.truth[at(t4, loose.key)] === "yes", "riley ticks it too: two agreeing settle it");
+    await callIt("riley", 4, { said: { [tq[0].key]: null } }, tk.seasonId);
+    c = await callsOf("alex", 4, tk.seasonId);
+    check(c.body.verdicts?.[tq[0].key]?.state === "waiting", "riley takes back her say on a call: it waits again", JSON.stringify(c.body.verdicts));
+    await tick("riley", 4, at(rt4, tq[0].key), true, tk.seasonId);
+    c = await callsOf("alex", 4, tk.seasonId);
+    check(
+      JSON.stringify(c.body.verdicts?.[tq[0].key]) === JSON.stringify({ state: "known", right: ["yes"] }) && c.body.says?.[tq[0].key]?.yes === 2,
+      "her tick on her card is her say: the call is settled again",
+      JSON.stringify(c.body.says)
+    );
+    await tick("alex", 4, at(t4, tq[1].key), true, tk.seasonId);
+    c = await callsOf("alex", 4, tk.seasonId);
+    check(c.body.says?.[tq[1].key]?.no === 2 && c.body.says[tq[1].key].yes === 0, "a say of your own wins over your tick (alex said it didn't happen)", JSON.stringify(c.body.says?.[tq[1].key]));
+    r = await bingoOf("alex", 4, tk.seasonId);
+    check(r.body.truth[at(t4, tq[1].key)] === "no", "so his tick on it is crossed out");
+
+    // ---------- Weekly Bingo, the talk show's other season game ----------
+    r = await as.alex.call("GET", `/api/seasons/${tk.seasonId}/start${q(A)}`);
+    const wbFit3 = r.body.games?.find((g) => g.key === "weeklyBingo");
+    check(wbFit3?.fits && wbFit3.soon === null && wbFit3.type === "weekly-bingo" && r.body.games[0].key === "weeklyBingo", "a talk show: Weekly Bingo starts now, recommended first", JSON.stringify(r.body.games));
+    r = await as.alex.call("POST", `/api/seasons/${tk.seasonId}/start${q(A)}`, { game: "weeklyBingo", tell: false });
+    const WB = r.body.leagueId;
+    check(r.status === 200 && r.body.gameName === "Weekly Bingo" && r.body.from === 5, "alex starts Weekly Bingo, from Episode 5", JSON.stringify(r.body));
+    check((await pool.query("SELECT state->'settings'->>'leagueTypeId' AS t FROM leagues WHERE id = $1", [WB])).rows[0]?.t === "weekly-bingo", "a league that plays as weekly-bingo");
+    r = await as.riley.call("POST", `/api/couches/${A}/games/${WB}`, { action: "join", start: null });
+    check(r.status === 200, "riley joins it", JSON.stringify(r.body));
+    const wbGame = async (who = "alex") => (await as[who].call("GET", `/api/seasons/${tk.seasonId}/games${q(A)}`)).body.games?.find((g) => g.leagueId === WB);
+    let wbg = await wbGame();
+    check(
+      wbg?.gameType === "weekly-bingo" && wbg.table.length === 2 && wbg.table.every((x) => x.total === 0) && wbg.bingo?.episode === 5 && wbg.bingo.open === false && wbg.rules.some((x) => /bingo card/.test(x)),
+      "its game: two players at 0, his card for Episode 5 ready, its rules",
+      JSON.stringify(wbg).slice(0, 400)
+    );
+    home = (await as.alex.call("GET", "/api/me/home")).body;
+    check(!home.moves.some((m) => m.leagueId === WB) && !home.backstage.some((b) => b.leagueId === WB), "nothing due for it: no move, no results or cast to fill in");
+    check(!((await as.alex.call("GET", "/api/me")).body.leagues ?? []).some((l) => l.id === WB), "and classic's league list leaves it out");
+    // Episode 5 airs: the talk show a week back (5 aired a day ago, 6 in six days).
+    await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 7 WHERE id = $1", [tk.seasonId]);
+    wbg = await wbGame();
+    check(wbg.bingo?.episode === 5 && wbg.bingo.open === true, "Episode 5 has aired: his card for it is open", JSON.stringify(wbg.bingo));
+    let a5 = (await bingoOf("alex", 5, tk.seasonId)).body;
+    const lineAt = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]].find((l) => l.filter((i) => a5.squares[i].key !== "free").length === 2);
+    const lineKeys = lineAt.filter((i) => a5.squares[i].key !== "free").map((i) => a5.squares[i].key);
+    for (const k of lineKeys) await tick("alex", 5, at(a5, k), true, tk.seasonId);
+    const r5 = (await bingoOf("riley", 5, tk.seasonId)).body;
+    for (const k of lineKeys) await tick("riley", 5, at(r5, k), true, tk.seasonId);
+    wbg = await wbGame();
+    check(wbg.table.every((x) => x.total === 0) && wbg.through === 4, "before they've marked it watched, nothing counts (the table's through Episode 4)", JSON.stringify(wbg.table));
+    for (const who of ["alex", "riley"]) await pool.query("UPDATE show_follows SET seen_through = 5 WHERE user_id = $1 AND season_id = $2", [U[who], tk.seasonId]);
+    a5 = (await bingoOf("alex", 5, tk.seasonId)).body;
+    const ar5 = (await bingoOf("riley", 5, tk.seasonId)).body;
+    wbg = await wbGame();
+    const rowOf = (who) => wbg.table.find((x) => x.name === u(who));
+    check(
+      a5.lines.standing >= 1 && wbg.through === 5 && rowOf("alex")?.total === a5.lines.standing && rowOf("riley")?.total === ar5.lines.standing && /^T?1$/.test(wbg.table[0].rank),
+      "both seen it: their ticks agree, so alex's line counts; the table is their lines through Episode 5",
+      JSON.stringify({ alex: a5.lines, riley: ar5.lines, table: wbg.table.map((x) => [x.name, x.total, x.rank]) })
+    );
+    const hubWb = (await hub("alex")).games.find((g) => g.leagueId === WB);
+    check(hubWb?.through === 5 && !!hubWb.rank, "the hub counts it", JSON.stringify(hubWb));
+    // The season's last show (Noticed's "Weekly Calls never finishes"): with five episodes, both talk games are over.
+    await pool.query("UPDATE show_seasons SET episode_count = 5 WHERE id = $1", [tk.seasonId]);
+    let hb = await hub("alex");
+    check(
+      hb.games.find((g) => g.leagueId === WB)?.ended === true && hb.games.find((g) => g.leagueId === WC)?.ended === true && (hb.trophies?.plaques ?? []).some((p) => p.leagueId === WB),
+      "the season's last show seen: Weekly Bingo and Weekly Calls are over, and on the trophy shelf",
+      JSON.stringify(hb.games.filter((g) => g.leagueId === WB || g.leagueId === WC))
+    );
+    r = await as.alex.call("GET", `/api/couches/${A}/games`);
+    check(r.body.games?.find((g) => g.leagueId === WB)?.ended === true, "nobody new joins it");
+    await pool.query("UPDATE show_seasons SET episode_count = 20 WHERE id = $1", [tk.seasonId]);
+    hb = await hub("alex");
+    check(hb.games.find((g) => g.leagueId === WB)?.ended === false, "a longer season: it runs on");
+
+    // ---------- trivia ----------
+    const S50 = hubFx.seasons.s50;
+    const S49 = hubFx.seasons.s49;
+    const triviaOf = (who, couch = A, season = sid) => as[who].call("GET", `/api/seasons/${season}/trivia${q(couch)}`);
+    const play = (who, answers, couch = A, season = sid) => as[who].call("POST", `/api/seasons/${season}/trivia${q(couch)}`, { answers });
+    const exitOf = new Map(
+      (await pool.query("SELECT castaway_name, episode_number FROM season_decisions WHERE season_id = $1 AND kind = 'elimination' AND status = 'accepted'", [sid])).rows.map((x) => [x.castaway_name, x.episode_number])
+    );
+    // sam hasn't finished Survivor 50.
+    await pool.query("UPDATE show_follows SET seen_through = 10 WHERE user_id = $1 AND season_id = $2", [U.sam, S50]);
+    const tv = (await triviaOf("alex")).body;
+    check(
+      tv.title === "ZT Survivor 50 trivia" && tv.line === "3 questions from the real season" && tv.questions.length === 3 && tv.questions.every((x) => x.options.some((o) => o.key === x.answer) && x.options.length >= 2),
+      "trivia: three questions about Survivor 50, finished and seen to the end, each answer among its faces",
+      JSON.stringify(tv).slice(0, 400)
+    );
+    check(tv.questions.some((x) => x.id.includes(S50)) && tv.questions.every((x) => x.id.includes(S50) || x.id.includes(sid)), "only about Survivor 50 (and 51 as far as he's seen)", tv.questions.map((x) => x.id).join());
+    const ts = (await triviaOf("sam")).body;
+    check(ts.title === "ZT Survivor 49 trivia" && !ts.questions.some((x) => x.id.includes(S50)) && ts.questions.length >= 1, "sam hasn't finished Survivor 50: his round is Survivor 49's", `${ts.title}: ${ts.questions.map((x) => x.id).join()}`);
+    const sam51 = ts.questions.filter((x) => x.id.includes(sid));
+    check(
+      sam51.every((x) => (exitOf.get(x.answer) ?? 99) <= 3 && (!x.id.startsWith("longer:") || x.options.every((o) => (exitOf.get(o.key) ?? 99) <= 3))),
+      "nothing about Survivor 51 past his Episode 3",
+      JSON.stringify(sam51)
+    );
+    const tc = (await triviaOf("casey", X)).body;
+    check(
+      tc.title === "ZT Survivor 51 trivia" && /so far$/.test(tc.line) && tc.questions.length >= 1 && tc.questions.every((x) => /^(first|longer):/.test(x.id) && (exitOf.get(x.answer) ?? 99) <= 5),
+      "casey (no finished season): Survivor 51 as far as she's seen, only who left first and who lasted longer",
+      `${tc.title} · ${tc.line}: ${tc.questions.map((x) => x.id).join()}`
+    );
+    const answersFor = (round, right) => Object.fromEntries(round.questions.map((x, i) => [x.id, i < right ? x.answer : x.options.find((o) => o.key !== x.answer).key]));
+    const rv = (await triviaOf("riley")).body;
+    r = await play("riley", answersFor(rv, 1));
+    check(r.status === 200 && r.body.played?.score === 1 && r.body.played.of === 3, "riley plays: 1 of 3", JSON.stringify(r.body.played));
+    r = await play("riley", answersFor(rv, 3));
+    check(r.body.played?.score === 1, "playing again doesn't change it: the week's first play counts");
+    r = await play("riley", "all of them");
+    check(r.status === 400, "answers that aren't { question: option }: 400");
+    r = await play("riley", { "not-a-question": "Kristin" });
+    check(r.status === 400, "no answer to any of its questions: 400");
+    const triviaRows = (await pool.query("SELECT score, questions, week, season_id FROM trivia_plays WHERE user_id = $1", [U.riley])).rows;
+    check(triviaRows.length === 1 && triviaRows[0].season_id === S50, "one play kept, named for Survivor 50", JSON.stringify(triviaRows));
+    if (apiOnly) {
+      r = await play("alex", answersFor(tv, 3));
+      check(r.body.played?.score === 3 && r.body.couch[0]?.name === u("riley") && r.body.couch[0].score === 1, "alex plays: 3 of 3, beside riley's 1", JSON.stringify(r.body));
+    }
+
+    // ---------- Commercial break's This week only ----------
+    const wk3 = (await as.alex.call("GET", `/api/couches/${A}/this-week`)).body;
+    const wSurv = wk3.shows.find((s) => s.seasonId === sid);
+    const wTalk = wk3.shows.find((s) => s.seasonId === tk.seasonId);
+    check(wSurv?.bingo?.episode === 7 && wSurv.bingo.open === false && wTalk?.bingo?.episode === 6, "This week only: each show's card for its next episode", JSON.stringify(wk3.shows.map((s) => [s.label, s.bingo])));
+    const mine3 = (await as.alex.call("GET", `/api/me/trivia${q(A)}`)).body.rounds;
+    check(mine3.some((x) => x.title === "ZT Survivor 50 trivia" && x.best?.name === u("riley") && x.best.score === 1 && x.questions === 3), "and this week's trivia, with riley's 1", JSON.stringify(mine3));
+
+    if (!apiOnly) {
+      // ================= part 3 in the browser =================
+      const D = await browse("alex");
+      const dp = D.pg;
+      await dp.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
+      const ready = dp.locator('[data-bingo-row="7"]');
+      await ready.waitFor({ timeout: 30_000 });
+      const look = dp.locator('[data-bingo-row="6"]');
+      await look.waitFor({ timeout: 20_000 });
+      await dp.waitForTimeout(800);
+      check(/Your bingo card/.test(await ready.innerText()) && /Ready for .* ticks open at airtime/.test(await ready.innerText()) && /Ready/.test(await ready.innerText()), "Tonight's Extras: your bingo card for Episode 7, ready", await ready.innerText());
+      check(/Episode 6 bingo: 1 line/.test(await look.innerText()) && /You got a line first/.test(await look.innerText()), "and Episode 6: 1 line, you got a line first", await look.innerText());
+      await look.scrollIntoViewIfNeeded();
+      await D.shot("tonight-bingo");
+      await look.click();
+      const s6 = dp.locator('[data-bingo-sheet="6"][data-bingo-status="seen"]');
+      await s6.waitFor({ timeout: 20_000 });
+      await dp.waitForTimeout(600);
+      check(
+        (await s6.locator('[data-square="3"][data-ticked="yes"][data-truth="yes"]').count()) === 1 && (await s6.locator('[data-square="5"][data-ticked="yes"][data-truth="yes"]').count()) === 1,
+        "the sheet: his two squares ticked, and they happened"
+      );
+      check((await dp.locator("[data-bingo-score]").innerText()).includes("1") && /You got a line first/.test(await dp.locator("[data-bingo-first]").innerText()) && (await s6.locator(`[data-bingo-person="${u("riley")}"]`).count()) === 1, "his lines, who got one first, riley's card", await s6.innerText());
+      await D.shot("bingo-seen");
+      await D.wide("the bingo sheet");
+      await dp.keyboard.press("Escape");
+      await D.closed();
+      await ready.click();
+      const s7 = dp.locator('[data-bingo-sheet="7"][data-bingo-status="ready"]');
+      await s7.waitFor({ timeout: 20_000 });
+      await dp.waitForTimeout(500);
+      check((await s7.locator("[data-square][disabled]").count()) === 9 && /Ticks open/.test(await dp.locator("[data-bingo-line]").innerText()), "Episode 7's card: nothing to tick until it airs", await dp.locator("[data-bingo-line]").innerText());
+      await D.shot("bingo-ready");
+      await dp.keyboard.press("Escape");
+      await D.closed();
+      // The episode page's Bingo: Episode 5's (the fixture moves marks without a reveal, so 6 has no page), once he's ticked it.
+      const b5 = (await bingoOf("alex", 5)).body;
+      await tick("alex", 5, b5.squares.findIndex((s) => s.key !== "free"));
+      await dp.goto(`${BASE}/show/${sid}/episodes`, { waitUntil: "load" });
+      await dp.locator('[data-ep="5"]').waitFor({ timeout: 30_000 });
+      await dp.waitForTimeout(800);
+      await dp.locator('[data-ep="5"]').click();
+      const epBingo = dp.locator('[data-episode-bingo] [data-bingo-row="5"]');
+      await epBingo.waitFor({ timeout: 20_000 });
+      await epBingo.scrollIntoViewIfNeeded();
+      await dp.waitForTimeout(500);
+      check(/Episode 5 bingo/.test(await epBingo.innerText()), "the episode page: its Bingo, once he's played it", await epBingo.innerText());
+      await D.shot("episode-bingo");
+      // The Games tab's This week: the card and this week's trivia.
+      await dp.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
+      const trow = dp.locator("[data-this-week] [data-trivia-row]");
+      await trow.waitFor({ timeout: 30_000 });
+      await dp.locator('[data-this-week] [data-bingo-row="7"]').waitFor({ timeout: 20_000 });
+      await dp.waitForTimeout(800);
+      check(/ZT Survivor 50 trivia/.test(await trow.innerText()) && /riley got 1/.test(await trow.innerText()) && (await dp.locator("[data-this-week] [data-preview]").count()) === 0, "This week: Episode 7's card and Survivor 50 trivia (riley got 1); nothing on Preview", await dp.locator("[data-this-week]").innerText());
+      await dp.locator("[data-this-week]").scrollIntoViewIfNeeded();
+      await D.shot("games-this-week-3");
+      await trow.click();
+      for (const [i, x] of tv.questions.entries()) {
+        const qa = dp.locator(`[data-trivia-q="${x.id}"]`);
+        await qa.waitFor({ timeout: 20_000 });
+        await dp.waitForTimeout(300);
+        await qa.locator(`[data-trivia-option="${x.answer}"]`).click();
+        if (i === 0) {
+          await dp.waitForTimeout(250);
+          await D.shot("trivia-right");
+        }
+      }
+      const done = dp.locator("[data-trivia-done]");
+      await done.waitFor({ timeout: 20_000 });
+      await dp.waitForTimeout(800);
+      check((await dp.locator("[data-trivia-score]").innerText()) === "3/3" && /You beat .*riley's 1/.test(await dp.locator("[data-trivia-against]").innerText()), "trivia: 3/3, you beat riley's 1", await done.innerText());
+      await D.shot("trivia-done");
+      await D.wide("the trivia sheet");
+      await dp.keyboard.press("Escape");
+      await D.closed();
+      const alexPlay = (await pool.query("SELECT score FROM trivia_plays WHERE user_id = $1", [U.alex])).rows[0];
+      check(alexPlay?.score === 3, "his play is kept: 3", JSON.stringify(alexPlay));
+      // Commercial break.
+      await dp.goto(`${BASE}/home?hub=focus`, { waitUntil: "load" });
+      const brk = dp.locator('[data-more="break"] button').first();
+      await brk.waitFor({ timeout: 30_000 });
+      await dp.waitForTimeout(800);
+      await brk.click();
+      const cardB = dp.locator(`[data-week-bingo="${sid}"]`);
+      await cardB.waitFor({ timeout: 30_000 });
+      await dp.locator("[data-week-trivia]").first().waitFor({ timeout: 20_000 });
+      await dp.waitForTimeout(800);
+      check(/Episode 7 bingo/i.test(await cardB.innerText()) && /You got 3 of 3/.test(await dp.locator("[data-week-trivia]").first().innerText()) && (await dp.locator(`[data-week-bingo="${tk.seasonId}"]`).count()) === 1, "Commercial break: each show's card, and trivia (you got 3 of 3)", await dp.locator("[data-break-week]").innerText());
+      await dp.locator("[data-break-week]").scrollIntoViewIfNeeded();
+      await D.shot("break-this-week");
+      await D.wide("Commercial break");
+      // The talk show: Weekly Bingo's card in Your moves, and its table.
+      await dp.goto(`${BASE}/show/${tk.seasonId}/tonight`, { waitUntil: "load" });
+      const wcard = dp.locator(`[data-done="bingo-${WB}"]`);
+      await wcard.waitFor({ timeout: 30_000 });
+      await dp.waitForTimeout(800);
+      check(/Your card for Episode 6/i.test(await wcard.innerText()) && /tap squares as it happens/.test(await wcard.innerText()), "the talk show's Tonight: Weekly Bingo's card for Episode 6 in Your moves", await wcard.innerText());
+      await D.shot("talk-tonight-bingo");
+      await dp.goto(`${BASE}/show/${tk.seasonId}/games`, { waitUntil: "load" });
+      const wbRow = dp.locator(`[data-table="${WB}"] [data-player="${u("alex")}"]`);
+      await wbRow.waitFor({ timeout: 30_000 });
+      await dp.waitForTimeout(600);
+      check(new RegExp(`${a5.lines.standing}\\s*$`).test(await wbRow.innerText()) && /Standings move as you watch/.test(await dp.locator("main").innerText()), "Weekly Bingo's table: his lines, and standings move as you watch", await wbRow.innerText());
+      await D.shot("talk-bingo-table");
+      // While it's on: Survivor's Episode 7 airing ten minutes ago.
+      await pool.query(
+        `UPDATE show_seasons SET premiere_date = ((now() AT TIME ZONE air_tz) - interval '10 minutes')::date - 42, air_time = ((now() AT TIME ZONE air_tz) - interval '10 minutes')::time WHERE id = $1`,
+        [sid]
+      );
+      await dp.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
+      const liveRow = dp.locator('[data-bingo-row="7"][data-bingo-row-status="open"]');
+      await liveRow.waitFor({ timeout: 30_000 });
+      await dp.waitForTimeout(800);
+      check(/Tonight/i.test(await dp.locator("main").innerText()) && /Tap squares as it happens/.test(await liveRow.innerText()) && !(await dp.locator("main").innerText()).match(/Extras this week/i), "on air: Tonight's bingo card, tap squares as it happens (no Extras)", await liveRow.innerText());
+      await D.shot("tonight-on-air");
+      await liveRow.click();
+      const s7live = dp.locator('[data-bingo-sheet="7"][data-bingo-status="open"]');
+      await s7live.waitFor({ timeout: 20_000 });
+      await dp.waitForTimeout(500);
+      await s7live.locator('[data-square="3"]').click();
+      await dp.waitForTimeout(400);
+      await s7live.locator('[data-square="5"]').click();
+      await dp.locator("[data-bingo-banner]").waitFor({ timeout: 5_000 });
+      check((await s7live.locator('[data-square="3"][data-ticked="yes"]').count()) === 1, "a tap ticks a square; a row says Bingo!");
+      await D.shot("bingo-line");
+      await dp.locator("[data-bingo-tell]").waitFor({ timeout: 10_000 });
+      await dp.waitForTimeout(1600);
+      await D.shot("bingo-tell");
+      await dp.locator("[data-bingo-tell]").click();
+      await dp.waitForTimeout(1200);
+      check(/Told the couch/.test(await D.statuses()), "Tell the couch: posted in its chat", await D.statuses());
+      const said = (await pool.query("SELECT text FROM chat_messages WHERE user_id = $1 AND text LIKE 'Bingo!%' ORDER BY created_at DESC LIMIT 1", [U.alex])).rows[0];
+      check(/Bingo! 1 line on ZT Survivor.* Episode 7/.test(said?.text ?? ""), "the couch chat has it", said?.text);
+      await dp.keyboard.press("Escape");
+      await D.closed();
+      r = await bingoOf("alex", 7);
+      check(r.body.ticked.join() === "3,5" && r.body.lines.ticked === 1, "his ticks are kept");
+      r = await bingoOf("riley", 7);
+      check(r.body.people.length === 0 && r.body.truth === null && r.body.playing === 1, "riley (on 6): that one on the couch is playing Episode 7, nothing of his card", JSON.stringify(r.body).slice(0, 200));
+      check(D.errors().length === 0, "no page errors (alex, part 3)", D.errors().join(" | "));
+
+      // ---------- solo: trivia on your own ----------
+      const SB = await open({ user: soloFixture.username("alex"), pass: PASSWORD, width, height: 844, motion: "off" });
+      closers.push(SB.close);
+      await SB.page.context().addInitScript(noBadge);
+      await SB.page.emulateMedia({ reducedMotion: "reduce" });
+      await SB.page.goto(`${BASE}/home`, { waitUntil: "load" });
+      const tile = SB.page.locator("[data-solo-trivia]");
+      await tile.waitFor({ timeout: 30_000 });
+      await SB.page.waitForTimeout(800);
+      check(/ZT Solo 51 trivia/.test(await tile.innerText()) && /so far/.test(await tile.innerText()), "the solo hub's On your own: ZT Solo 51 trivia, so far", await tile.innerText());
+      await tile.scrollIntoViewIfNeeded();
+      await SB.page.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-solo-trivia-tile.png`) });
+      await tile.click();
+      await SB.page.locator("[data-trivia-sheet]").waitFor({ timeout: 20_000 });
+      await SB.page.waitForTimeout(600);
+      check((await SB.page.locator("[data-trivia-option]").count()) >= 2, "it opens the round");
+      await SB.page.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-solo-trivia.png`) });
+      check(SB.errors.filter((x) => !/favicon/.test(x)).length === 0, "no page errors (solo trivia)", SB.errors.join(" | "));
     }
   } catch (e) {
     console.error(e);

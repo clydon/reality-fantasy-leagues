@@ -6,7 +6,7 @@
 //   API:
 //   - what fits each kind (rulebook-fits.js through GET /start): a competition all three (Survival Pool recommended), a
 //     series Weekly Lineup (draft the crew), a sport the draft of athletes and Survival Pool (its own word for an event), a
-//     talk show Weekly Calls (startable since step 12 part 2) and Weekly Bingo coming with part 3; the doesn't-fit line; who
+//     talk show Weekly Bingo and Weekly Calls (both startable since step 12); the doesn't-fit line; who
 //     watches it; where it starts;
 //     a show that isn't a game yet, and a season that's over (with the show's next season to run it back on);
 //   - starting one: jordan's Weekly Lineup on ZT Survivor 51 (from Episode 6, linked into the couch's group, the couch told:
@@ -216,12 +216,12 @@ function lateNight(shows) {
     const lo = (await opts("alex", late)).body;
     const talkGame = (k) => lo.games.find((g) => g.key === k);
     check(
-      lo.kind === "talk" && keys(lo) === "weeklyBingo,weeklyCalls" && talkGame("weeklyBingo").soon === "12" && talkGame("weeklyCalls").soon === null && talkGame("weeklyCalls").type === "weekly-calls",
-      "a talk show: Weekly Calls starts now (step 12 part 2), Weekly Bingo comes with part 3",
+      lo.kind === "talk" && keys(lo) === "weeklyBingo,weeklyCalls" && talkGame("weeklyBingo").soon === null && talkGame("weeklyBingo").type === "weekly-bingo" && talkGame("weeklyCalls").soon === null && talkGame("weeklyCalls").type === "weekly-calls",
+      "a talk show: Weekly Bingo and Weekly Calls both start (step 12)",
       JSON.stringify(lo.games)
     );
     check(/^Drafts need a cast that scores week to week\. ZT Late Night's games are one show at a time, all season\.$/.test(lo.noFit), "and drafts don't fit it", lo.noFit);
-    check((await start("alex", late, { game: "weeklyBingo" })).status === 409 && (await start("alex", late, { game: "weeklyLineup" })).status === 400, "neither can start yet; a draft is refused");
+    check((await start("alex", late, { game: "weeklyLineup" })).status === 400, "a draft is refused");
     const oo = (await opts("alex", oldShow)).body;
     check(oo.blocked === "Make ZT Old Show a game first", "a show that isn't a game yet: Make it a game first", oo.blocked);
 
@@ -386,7 +386,7 @@ function lateNight(shows) {
       await page.getByRole("button", { name: /Show menu/ }).click();
       await page.getByRole("button", { name: /Start a game/ }).last().click();
       await page.locator('[data-start-sheet="talk"]').waitFor();
-      check((await sheet.locator("[data-start-game][disabled]").count()) === 1 && (await sheet.locator("[data-start-go][disabled]").count()) === 0, "a talk show: Weekly Calls can start, Weekly Bingo shown coming soon");
+      check((await sheet.locator("[data-start-game][disabled]").count()) === 0 && (await sheet.locator("[data-start-go][disabled]").count()) === 0, "a talk show: Weekly Bingo and Weekly Calls can both start");
       await shot("start-talk");
       await page.keyboard.press("Escape");
 

@@ -11,6 +11,7 @@ const GAME_NAMES: Record<string, string> = {
   "active-roster": "Weekly Lineup",
   pickem: "Survival Pool",
   "weekly-calls": "Weekly Calls",
+  "weekly-bingo": "Weekly Bingo",
 };
 
 /** A league type's name in the new design ("Weekly Lineup"), from settings.leagueTypeId. */

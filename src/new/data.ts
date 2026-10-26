@@ -37,6 +37,8 @@ import type { PlanAnswerOut, PlanHow, PlanOptions, WatchPlan } from "@/lib/serve
 import type { EpisodeVerdict, ShowVerdict } from "@/lib/server/ratings";
 import type { EpisodeCalls } from "@/lib/server/calls";
 import type { Poll, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
+import type { EpisodeBingo } from "@/lib/server/bingo";
+import type { TriviaCard, TriviaRound } from "@/lib/server/trivia";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -75,6 +77,11 @@ export type { Taste, Twin } from "@/lib/game/ratings";
 export type { CallPerson, CallSay, EpisodeCalls } from "@/lib/server/calls";
 export type { CallOption, CallQuestion, Verdict } from "@/lib/game/calls";
 export type { Poll, PollOption, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
+export type { BingoPerson, EpisodeBingo } from "@/lib/server/bingo";
+export type { BingoSquare, LineCount, Truth } from "@/lib/game/bingo";
+export type { BingoMove } from "@/lib/game/game-view";
+export type { TriviaCard, TriviaRound } from "@/lib/server/trivia";
+export type { TriviaOption, TriviaQuestion } from "@/lib/game/trivia";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -1187,6 +1194,76 @@ export function useAfterPoll() {
     (seasonId: string, couchId: string, polls: SeasonPolls) => {
       client.setQueryData(["new-design", "polls", seasonId, couchId], polls);
       void client.invalidateQueries({ queryKey: ["new-design", "this-week"] });
+    },
+    [client]
+  );
+}
+
+// ---- bingo and trivia (step 12 part 3; bingo.ts, trivia.ts). A card is read when its sheet or row opens, and answered by each
+// tick; trivia when its sheet, row or Commercial break opens. Nothing polls. ----
+
+/** One episode's bingo card: yours, what you've ticked; once you've seen it, how the squares went and the couch's cards. */
+export function useEpisodeBingo(seasonId: string | null, couchId: string | null, episode: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "bingo", seasonId, couchId, episode],
+    queryFn: () => get<EpisodeBingo>(seasonUrl(seasonId!, `/bingo/${episode}`, couchQuery(couchId))),
+    enabled: enabled && !!seasonId && !!episode,
+    staleTime: 30_000,
+    retry: (n, e) => n < 2 && ![403, 404, 409].includes((e as { status?: number }).status ?? 0),
+  });
+}
+
+export const bingoApi = {
+  tick: (seasonId: string, couchId: string | null, episode: number, square: number, ticked: boolean) =>
+    post<EpisodeBingo>(seasonUrl(seasonId, `/bingo/${episode}`, couchQuery(couchId)), { square, ticked }),
+};
+
+/** After a tick: the card put in place, and what counts it read again (the games' tables, Commercial break; on a talk show a tick
+ *  is a say, so the calls too). */
+export function useAfterBingo() {
+  const client = useQueryClient();
+  return useCallback(
+    (b: EpisodeBingo, couchId: string | null) => {
+      client.setQueryData(["new-design", "bingo", b.seasonId, couchId, b.episode], b);
+      void client.invalidateQueries({ queryKey: ["new-design", "games", b.seasonId] });
+      void client.invalidateQueries({ queryKey: ["new-design", "this-week"] });
+      if (b.by === "couch") void client.invalidateQueries({ queryKey: ["new-design", "calls", b.seasonId] });
+    },
+    [client]
+  );
+}
+
+/** This week's trivia round on a season's show: its questions, your score once you've played, the couch's scores. */
+export function useTrivia(seasonId: string | null, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "trivia", seasonId, couchId],
+    queryFn: () => get<TriviaRound>(seasonUrl(seasonId!, "/trivia", couchQuery(couchId))),
+    enabled: enabled && !!seasonId,
+    staleTime: 60_000,
+  });
+}
+
+/** The trivia rounds on your shows this week (Commercial break, the solo hub). */
+export function useMyTrivia(couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "my-trivia", couchId],
+    queryFn: () => get<{ rounds: TriviaCard[] }>(`/api/me/trivia${couchId ? `?couch=${couchId}` : ""}`),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export const triviaApi = {
+  play: (seasonId: string, couchId: string | null, answers: Record<string, string>) => post<TriviaRound>(seasonUrl(seasonId, "/trivia", couchQuery(couchId)), { answers }),
+};
+
+/** After a round's played: the round put in place, the lists that show its score read again. */
+export function useAfterTrivia() {
+  const client = useQueryClient();
+  return useCallback(
+    (seasonId: string, couchId: string | null, round: TriviaRound) => {
+      client.setQueryData(["new-design", "trivia", seasonId, couchId], round);
+      void client.invalidateQueries({ queryKey: ["new-design", "my-trivia"] });
     },
     [client]
   );

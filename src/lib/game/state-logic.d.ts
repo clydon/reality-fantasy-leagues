@@ -52,6 +52,8 @@ export interface LeagueType {
   hasActiveRoster: boolean;
   /** Weekly Calls: scored from each person's calls (Call it, src/lib/server/calls.ts), which aren't in the state. */
   hasCalls?: boolean;
+  /** Weekly Bingo: scored from each person's bingo lines (src/lib/server/bingo.ts), which aren't in the state either. */
+  hasBingo?: boolean;
 }
 
 export interface Show {

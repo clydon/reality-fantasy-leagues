@@ -1,5 +1,7 @@
 import { publicMediaSrc } from "@/lib/game/selectors";
 import { isUuid, type SessionUser } from "./auth-helpers";
+import type { BingoMove } from "@/lib/game/game-view";
+import { weekBingo } from "./bingo";
 import { callsMade, episodeFacts, seasonBook } from "./calls";
 import { requireCouch } from "./couches";
 import { HttpError, pool } from "./db";
@@ -249,11 +251,14 @@ export interface ThisWeekShow {
   airAt: string;
   /** Your calls on it: how many of its questions you've called, of how many (null: it isn't a game, so no calls). */
   calls: { made: number; of: number } | null;
+  /** Your bingo card this week (step 12 part 3): the episode you'd watch next once it's aired, else this one; null: no bingo. */
+  bingo: BingoMove | null;
 }
 
 /**
  * Commercial break's This week only (the mock's hubplus.js breakHTML): for each show you follow or play that has an episode
- * coming up, Call it and how far you've got with it, and the couch's polls you may see. Read when the page opens.
+ * coming up, Call it and how far you've got with it, your bingo card (part 3), and the couch's polls you may see. Read when the
+ * page opens.
  */
 export async function couchThisWeek(user: SessionUser, couchIdIn: string, now = new Date()): Promise<{ shows: ThisWeekShow[]; polls: Poll[] }> {
   const couchId = await onCouch(user, couchIdIn);
@@ -281,7 +286,8 @@ export async function couchThisWeek(user: SessionUser, couchIdIn: string, now = 
       const made = await callsMade(user.id, id, now).catch(() => null);
       if (made && made.of) calls = { made: made.made, of: made.of };
     }
-    shows.push({ seasonId: id, label: labelOf(h), artUrl: h.show.artUrl, episode: open.number, airAt: open.airAt, calls });
+    const bingo = h.ready ? await weekBingo(user.id, id, mark === EVERYTHING ? Number.POSITIVE_INFINITY : mark, schedules.get(id), now).catch(() => null) : null;
+    shows.push({ seasonId: id, label: labelOf(h), artUrl: h.show.artUrl, episode: open.number, airAt: open.airAt, calls, bingo });
   }
   shows.sort((a, b) => Date.parse(a.airAt) - Date.parse(b.airAt));
   const { rows } = await pool.query(

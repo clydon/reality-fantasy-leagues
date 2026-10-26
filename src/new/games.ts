@@ -8,6 +8,8 @@ export const GAME_STYLE = {
   "Survival Pool": { colour: "#35b5a5", line: "Pick one survivor each episode. Never the same twice." },
   // The mock's predictions pink (its Weekly Calls was yellow, which is only for what you must do).
   "Weekly Calls": { colour: "#e56b9f", line: "Two calls every show. Most right by the finale wins." },
+  // The mock's GAMES.wbingo.
+  "Weekly Bingo": { colour: "#a76bb0", line: "A new card every show. Most lines by the finale wins." },
 } as const;
 
 export type GameName = keyof typeof GAME_STYLE;

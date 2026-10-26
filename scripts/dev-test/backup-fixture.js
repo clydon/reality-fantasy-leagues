@@ -181,6 +181,15 @@ async function up(pool) {
     [couch, season, ann]
   )).id;
   await pool.query(`INSERT INTO couch_poll_votes (poll_id, user_id, option) VALUES ($1, $2, '1'), ($1, $3, '2')`, [poll, ann, me]);
+  // Bingo and trivia (0130): the tester's card for Episode 1 with two squares ticked, and ann's trivia play on the show.
+  const card = (await one(
+    `INSERT INTO bingo_cards (user_id, season_id, episode, squares) VALUES ($1, $2, 1, '[{"key": "m:idolPlayed", "label": "Played an idol"}, {"key": "free", "label": "Free"}]') RETURNING id`,
+    [me, season]
+  )).id;
+  await pool.query(`INSERT INTO bingo_marks (card_id, square) VALUES ($1, 0), ($1, 2)`, [card]);
+  await pool.query(`INSERT INTO trivia_plays (user_id, show_id, week, season_id, score, questions, answers) VALUES ($1, $2, '2026-10-26', $3, 2, 3, '{"winner:zt": "Castaway 0"}')`, [
+    ann, show, season,
+  ]);
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

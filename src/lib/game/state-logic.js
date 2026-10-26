@@ -414,7 +414,8 @@ class PickEmScoringStrategy {
 // Weekly Calls (docs/PLAN-new-design.md step 12 part 2): a talk show's season game, scored from each person's calls
 // (Call it), which live in the episode_calls table, not in a league's state, as a couch's calls are one per person and
 // episode whatever game reads them. So in here everyone is level at 0; the server's game view counts the calls
-// (src/lib/server/calls.ts callRights) and ranks the table by them (game-view.ts tableOf).
+// (src/lib/server/calls.ts callRights) and ranks the table by them (game-view.ts tableOf). Weekly Bingo (part 3) is the
+// same, scored from each person's bingo lines (bingo_cards, src/lib/server/bingo.ts bingoLines).
 class CallsScoringStrategy {
   static compute(state){
     return state.players.map(p => ({playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]}));
@@ -1239,6 +1240,22 @@ const LEAGUE_TYPES = {
     hasWeeklyPicks: false,
     hasActiveRoster: false,
     hasCalls: true
+  },
+  // The talk show's other season game (step 12 part 3): no draft and no team, a new bingo card every show (bingo.ts), most
+  // lines by the finale wins. The cards aren't in the state either (CallsScoringStrategy).
+  'weekly-bingo': {
+    id: 'weekly-bingo',
+    name: 'Weekly Bingo',
+    description: 'No draft, no team -- a new bingo card every show, ticked as it happens. Most lines by the finale wins.',
+    draftStrategy: NoDraftStrategy,
+    scoringStrategy: CallsScoringStrategy,
+    supportsReplenish: false,
+    supportsTrade: false,
+    supportsFinalePredictions: false,
+    hasRoster: false,
+    hasWeeklyPicks: false,
+    hasActiveRoster: false,
+    hasBingo: true
   },
   'active-roster': {
     id: 'active-roster',

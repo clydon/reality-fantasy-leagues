@@ -15,6 +15,7 @@ import { useOpenReveal } from "./reveal";
 import { CouchMomentsCard } from "./couch-moments";
 import { openRate, rateLabel, RateRow, VerdictMark, type RateTarget } from "./rate";
 import { CallResults } from "./calls";
+import { BingoResults } from "./bingo";
 import { ShowChangeCard } from "./show-change";
 import { CorrectionPlates, CorrectionRow, SomethingWrong } from "./something-wrong";
 import { playsWaivers, WaiverEpisodeRow } from "./waivers";
@@ -350,6 +351,7 @@ function EpisodeBody({ seasonId, couchId, e, seasonName, rate }: { seasonId: str
         <RateRow target={rate} verdict={e.verdict} />
       </section>
       <CallResults target={rate} />
+      <BingoResults target={rate} />
       <CouchMomentsCard seasonId={seasonId} couchId={couchId} episode={e.number} />
       <ShowChangeCard seasonId={seasonId} couchId={couchId} episode={e.number} seasonName={seasonName} />
       <SomethingWrong seasonId={seasonId} couchId={couchId} episode={e.number} />

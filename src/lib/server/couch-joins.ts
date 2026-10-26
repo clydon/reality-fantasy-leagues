@@ -13,7 +13,8 @@ import { EVERYTHING, seenThrough } from "./guard";
 import { joinLeague } from "./join-league";
 import { leagueStates } from "./league-states";
 import { notifyJoinRequest, notifyLetIn, notifyMemberJoined } from "./push-events";
-import { latestAired, seasonSchedules, upNext } from "./schedule";
+import { latestAired, seasonSchedules, upNext, type SeasonSchedule } from "./schedule";
+import { endedThrough } from "./calls";
 import { games, seasonHeaders, type Game } from "./show-space";
 
 // Couches you start, join and leave, and joining the games on them (docs/PLAN-new-design.md step 9; the mock's round2.js
@@ -253,12 +254,19 @@ export interface JoinGame {
   you: { playing: boolean; asked: boolean; letIn: boolean } | null;
 }
 
+/** Its season is over: a winner, or nobody left; for a game scored outside its state, its season's last episode has aired. */
+function gameOver(s: LeagueState, schedule: SeasonSchedule | undefined): boolean {
+  const type = StateLogic.getLeagueType(s);
+  return type.hasCalls || type.hasBingo ? endedThrough(schedule, latestAired(schedule)) : StateLogic.seasonEnded(s);
+}
+
 /** Every game on a couch with who may join it, in the couch's order. */
 async function couchGameList(viewer: SessionUser | null, couchId: string): Promise<JoinGame[]> {
   const list = await games(viewer?.id ?? "", { couchIds: [couchId] });
   if (!list.length) return [];
   const ids = list.map((g) => g.leagueId);
-  const [states, { rows: memberRows }, { rows: asks }] = await Promise.all([
+  const seasonIds = [...new Set(list.map((g) => g.seasonId).filter((id): id is string => !!id))];
+  const [states, { rows: memberRows }, { rows: asks }, schedules] = await Promise.all([
     leagueStates(ids),
     pool.query(
       `SELECT m.league_id, m.role, COALESCE(u.username, u.name) AS name FROM league_memberships m JOIN "user" u ON u.id = m.user_id
@@ -272,6 +280,7 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
           [ids, viewer.id]
         )
       : Promise.resolve({ rows: [] as { league_id: string; decided_at: Date | null; outcome: string | null }[] }),
+    seasonSchedules(seasonIds),
   ]);
   const out: JoinGame[] = [];
   for (const g of list) {
@@ -292,8 +301,9 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       players: s.players.filter((p) => !p.disabled && !G.isGhost(p)).length,
       teamSize: G.teamSize(s),
       runners: memberRows.filter((m) => m.league_id === g.leagueId && (m.role === "commissioner" || m.role === "admin")).map((m) => m.name as string),
-      // An archived game (step 10 part 2b) takes nobody new, as a season that's over doesn't.
-      ended: StateLogic.seasonEnded(s) || g.archived,
+      // An archived game (step 10 part 2b) takes nobody new, as a season that's over doesn't. A game scored outside its state
+      // (Weekly Calls, Weekly Bingo: step 12) is over once its season's last episode has aired.
+      ended: gameOver(s, g.seasonId ? schedules.get(g.seasonId) : undefined) || g.archived,
       you: viewer ? { playing: !!g.yourRole, asked: !!ask && !ask.decided_at, letIn: ask?.outcome === "let-in" } : null,
     });
   }

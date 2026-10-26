@@ -7,7 +7,7 @@
 //   Survival Pool   someone going home most episodes, or a result to        most competitions; a sport (a pick survives
 //                   survive each event                                       a race by scoring in it)
 //   Weekly Bingo,   one show at a time, all season                          talk, variety or awards (step 12's bingo,
-//   Weekly Calls                                                             shown, not started yet; and Call it, calls.ts)
+//   Weekly Calls                                                             bingo.ts, and Call it, calls.ts)
 //
 // Start a game offers only what fits, in the kind's order (the first is recommended), and says why the rest don't. Pure,
 // plain CommonJS like everything in formats/.
@@ -18,11 +18,11 @@ const { momentsFor } = require('./rulebook-moments.js');
 
 const list = (v) => (Array.isArray(v) ? v : []);
 
-/** The league type each season game plays as (settings.leagueTypeId); null: not a league type yet (step 12 part 3's bingo). */
-const GAME_TYPES = { survivalPool: 'pickem', weeklyLineup: 'active-roster', outlast: 'classic-draft', weeklyBingo: null, weeklyCalls: 'weekly-calls' };
+/** The league type each season game plays as (settings.leagueTypeId). */
+const GAME_TYPES = { survivalPool: 'pickem', weeklyLineup: 'active-roster', outlast: 'classic-draft', weeklyBingo: 'weekly-bingo', weeklyCalls: 'weekly-calls' };
 
-/** The step that brings a game that can't be started yet. */
-const SOON = { weeklyBingo: '12' };
+/** The step that brings a game that can't be started yet (none since step 12 part 3: every game that fits starts). */
+const SOON = {};
 
 const NEEDS = {
   weeklyLineup: 'a cast whose moments score week to week',

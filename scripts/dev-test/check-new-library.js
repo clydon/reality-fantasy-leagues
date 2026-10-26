@@ -15,7 +15,7 @@
 //   - New show (the desk's): a listing made without following it; started from the template (make-game.ts's template path:
 //     the cast from the listing), set up checked as it's made, its parent the template, How it works "Made from the ZT Yacht
 //     Life rulebook"; alex starts a Weekly Lineup on it (a series, end to end); a talk show through our bot: Fits these games
-//     (Weekly Calls, startable since step 12 part 2, and Weekly Bingo coming with part 3) and How it works (a talk show, end to end);
+//     (Weekly Bingo and Weekly Calls, both startable since step 12) and How it works (a talk show, end to end);
 //   - a set-up show's next season (New season on its show page): last season's rulebook, every change folded in, live;
 //   - a show alex added by name: in the Inbox; the desk's show page; Looks fine (Undo brings it back); Archive;
 //   - two race series made games: the Race series shape goes from proposed to earned; the earned template's examples
@@ -301,14 +301,14 @@ const RULEBOOKS = "SELECT id, version, is_template, status, review_status, md5(b
     const nBook = await seasonBook(night);
     p = await page(nBook.id);
     check(nBook.kind === "talk" && nBook.review_status === "reviewed", "a talk show made a game from the desk (our bot)", `${nBook.kind} ${nBook.review_status}`);
-    // Weekly Calls starts since step 12 part 2; Weekly Bingo comes with part 3.
-    check(p.fits.filter((g) => g.fits).map((g) => `${g.key}:${g.soon}`).join() === "weeklyBingo:12,weeklyCalls:null" && p.fits.filter((g) => !g.fits).length === 3, "Fits these games: Weekly Bingo (with step 12 part 3) and Weekly Calls; the drafts don't", JSON.stringify(p.fits.map((g) => [g.key, g.fits, g.soon])));
+    // Weekly Calls starts since step 12 part 2, Weekly Bingo since part 3.
+    check(p.fits.filter((g) => g.fits).map((g) => `${g.key}:${g.soon}`).join() === "weeklyBingo:null,weeklyCalls:null" && p.fits.filter((g) => !g.fits).length === 3, "Fits these games: Weekly Bingo and Weekly Calls; the drafts don't", JSON.stringify(p.fits.map((g) => [g.key, g.fits, g.soon])));
     h = await how("alex", night, A);
     const so = (await as.alex.call("GET", `/api/seasons/${night}/start?couch=${A}`)).body;
     check(h.how.kind?.key === "talk" || /talk/i.test(JSON.stringify(h.how.kind)), "How it works: a talk show", JSON.stringify(h.how.kind));
     check(
-      so.kind === "talk" && so.games.filter((g) => g.fits).map((g) => `${g.key}:${g.soon}`).join() === "weeklyBingo:12,weeklyCalls:null",
-      "a talk show end to end: Start a game offers its two games, Weekly Calls now and Weekly Bingo with step 12 part 3",
+      so.kind === "talk" && so.games.filter((g) => g.fits).map((g) => `${g.key}:${g.soon}`).join() === "weeklyBingo:null,weeklyCalls:null",
+      "a talk show end to end: Start a game offers its two games, both startable",
       JSON.stringify(so.games?.map((g) => [g.key, g.fits, g.soon]))
     );
 

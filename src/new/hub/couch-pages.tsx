@@ -6,6 +6,7 @@ import {
   useCouchGames,
   useCouchThisWeek,
   useCouchVerdicts,
+  useMyTrivia,
   useSeasonEpisodes,
   useSeasonStats,
   useStatsFor,
@@ -22,7 +23,6 @@ import {
   type SeasonStats,
   type ShowVerdict,
 } from "../data";
-import { HUB_THIS_WEEK } from "../fixtures/episode-games";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
 import { openStartGame } from "../couch/start-game";
 import { airTime, dayOf } from "../clock";
@@ -34,6 +34,8 @@ import { Face } from "../show/parts";
 import { openRate } from "../show/rate";
 import { openCall } from "../show/calls";
 import { openPoll, pollWords } from "../show/polls";
+import { openBingo } from "../show/bingo";
+import { openTrivia } from "../show/trivia";
 import { verdictText } from "@/lib/game/ratings";
 import { Avatar } from "../ui/bars";
 import { PushedPage, usePushedPage } from "../ui/page";
@@ -47,7 +49,8 @@ import { movesByDue } from "./sections";
 // (couch-hub.ts): power rankings, Commercial break's games, By the numbers (cast stats since step 3, the couch's
 // accolades now), Previously on (each show's story up to where you are) and the trophy shelf (once a season has ended).
 // Couch verdicts are real since step 12 part 1 (the couch's ratings, ratings.ts); Commercial break's This week only has each
-// show's Call it and the couch's polls since part 2 (calls.ts, polls.ts couchThisWeek); its bingo and trivia are part 3's (Preview).
+// show's Call it and the couch's polls since part 2 (calls.ts, polls.ts couchThisWeek), and each show's bingo card and this week's
+// trivia since part 3 (bingo.ts, trivia.ts).
 
 const PAGES = {
   rankings: { title: "Power rankings", line: "Where everyone stands this year", icon: Trophy },
@@ -351,7 +354,6 @@ function RankingsPage({ hub, me }: { hub: CouchHub | undefined; me: string }) {
 
 // ---------- Commercial break ----------
 
-const EP_ICON = { bingo: Grid3x3, poll: ChartColumn, quiz: CircleQuestionMark };
 
 /** A This week only card: the show's art, an icon, what it is and a line (the mock's .cb-card.ep). */
 function WeekCard({ seasonId, artUrl, name, icon: Icon, title, line, onClick, ...rest }: { seasonId: string; artUrl: string | null; name: string; icon: LucideIcon; title: string; line: string; onClick?: () => void } & Record<`data-${string}`, string>) {
@@ -370,8 +372,10 @@ function WeekCard({ seasonId, artUrl, name, icon: Icon, title, line, onClick, ..
 
 function CommercialBreak({ hub, home, couch }: { hub: CouchHub | undefined; home: Home | undefined; couch: Couch | null }) {
   const moves = movesByDue(home?.moves ?? []);
-  // This week only (step 12 part 2): each of your shows' Call it and the couch's polls; read when the page opens.
+  // This week only (step 12): each of your shows' bingo card and Call it, the couch's polls, this week's trivia; read when the page
+  // opens.
   const week = useCouchThisWeek(couch?.id ?? null);
+  const trivia = useMyTrivia(couch?.id ?? null);
   const artOf = (seasonId: string) => week.data?.shows.find((s) => s.seasonId === seasonId)?.artUrl ?? home?.shows.find((s) => s.seasonId === seasonId)?.show.artUrl ?? null;
   const playing = hub?.games.filter((g) => !g.ended) ?? [];
   // Games on the couch you're not in (step 9): join, ask, or see it's closed.
@@ -442,6 +446,24 @@ function CommercialBreak({ hub, home, couch }: { hub: CouchHub | undefined; home
         <SectionHead title="This week only" aside="One night each" flush />
         <div className="grid grid-cols-2 gap-2 p-1" data-break-week>
           {(week.data?.shows ?? [])
+            .filter((s) => s.bingo)
+            .map((s) => {
+              const b = s.bingo!;
+              return (
+                <WeekCard
+                  key={`bingo-${s.seasonId}`}
+                  data-week-bingo={s.seasonId}
+                  seasonId={s.seasonId}
+                  artUrl={s.artUrl}
+                  name={s.label}
+                  icon={Grid3x3}
+                  title={`Episode ${b.episode} bingo`}
+                  line={b.open ? `${s.label} · ${b.ticked ? `${b.ticked} ticked` : "tap squares as it happens"}` : `${s.label} · opens ${b.airsAt ? airTime(Date.parse(b.airsAt)) : "at airtime"}`}
+                  onClick={() => openBingo({ seasonId: s.seasonId, couchId: couch?.id ?? null, episode: b.episode, label: s.label, solo: false })}
+                />
+              );
+            })}
+          {(week.data?.shows ?? [])
             .filter((s) => s.calls)
             .map((s) => (
               <WeekCard
@@ -470,26 +492,25 @@ function CommercialBreak({ hub, home, couch }: { hub: CouchHub | undefined; home
                 onClick={() => openPoll({ kind: "vote", seasonId: p.seasonId, couchId: couch.id, pollId: p.id })}
               />
             ))}
+          {(trivia.data?.rounds ?? []).map((r) => (
+            <WeekCard
+              key={`trivia-${r.showId}`}
+              data-week-trivia={r.showId}
+              seasonId={r.seasonId}
+              artUrl={r.artUrl ?? artOf(r.seasonId)}
+              name={r.title}
+              icon={CircleQuestionMark}
+              title={r.title}
+              line={r.played ? `You got ${r.played.score} of ${r.played.of}${r.best ? ` · ${r.best.name} got ${r.best.score}` : ""}` : `${r.questions} questions${r.best ? ` · ${r.best.name} got ${r.best.score}` : ""}`}
+              onClick={() => openTrivia({ seasonId: r.seasonId, couchId: couch?.id ?? null })}
+            />
+          ))}
         </div>
-        <Preview id="hub.episode-games">
-          <div className="grid grid-cols-2 gap-2 p-1">
-            {HUB_THIS_WEEK.map((e) => {
-              const Icon = EP_ICON[e.icon];
-              return (
-                <div key={e.title} className="relative isolate flex aspect-[1/1.05] flex-col justify-end overflow-hidden rounded-[4px] p-2.5 text-white">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- fixture art from the published mock */}
-                  <img src={e.art} alt="" className="absolute inset-0 -z-[2] size-full object-cover" style={{ objectPosition: e.position }} />
-                  <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(16,14,21,.2),rgba(16,14,21,.92)_70%)]" />
-                  <span className="absolute left-2.5 top-2.5 grid size-[34px] place-items-center rounded-[3px] bg-plate text-plate-foreground">
-                    <Icon className="size-[18px]" aria-hidden />
-                  </span>
-                  <b className="type-caption text-[19px] leading-none">{e.title}</b>
-                  <small className="mt-1 text-xs opacity-85">{e.line}</small>
-                </div>
-              );
-            })}
-          </div>
-        </Preview>
+        {week.data && trivia.data && !week.data.shows.some((s) => s.bingo || s.calls) && !week.data.polls.length && !trivia.data.rounds.length && (
+          <p className="px-1 text-sm leading-normal text-muted-foreground" data-break-week-none>
+            Nothing this week: your shows&apos; bingo cards and calls come with their next episodes.
+          </p>
+        )}
         <button
           type="button"
           data-break-start
