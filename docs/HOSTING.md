@@ -201,6 +201,16 @@ when it opens (`/api/seasons/[id]/plans`: the season's header and schedule, the 
 An answer, a plan or calling one off answers with your couches' plans, put into the cached home, so the home isn't read
 again. Backed up with the couch's games (`backup-leagues.js`).
 
+**Rate it and the couch verdict (new design, step 12 part 1)** poll nothing and run nothing on a schedule. A rating is one small
+row (`episode_ratings`, migration 0128, ~100 bytes, ~250 with a take): a couch of four rating every episode of five weekly shows
+is about a thousand rows a year (~0.2 MB). Rating sends nothing to anyone (no push). The reads: the Episodes read gains one small
+grouped query (each episode's average and count through your mark: a few bytes an episode); the rate sheet reads its episode
+when it opens (two small queries); Couch verdicts reads when its page opens (two small grouped queries over your shows); and the
+hub's read gains one query for your taste twin, Agree with the couch and the rating accolades, sent from Neon compactly (one row
+per person and season with its episodes and stars as one short string, "1:4,2:5": a couch of four with ten shows of twenty
+episodes rated is ~5 KB per hub open, where plain rows would be ~50 KB) plus one small query for your marks. Backed up with the
+couch's games (`backup-leagues.js`).
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub.
@@ -530,3 +540,8 @@ never handles it: the user does the reset and the pasting.
   backed up). One web push to each person invited when a night is planned (push-core, the `invite` setting). The home read
   gains one small query (your couches' nights still to come), the hub's feed one more, and the plan sheet a few small reads
   when it opens (`/api/seasons/[id]/plans`); writes answer with the plans, so the home isn't read again.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 12 part 1, Rate it and the couch verdict. **Nothing polls and
+  nothing runs on a schedule.** Migration 0128: `episode_ratings` (a ~100-250-byte row per person and episode rated; backed up).
+  No pushes. The Episodes read gains one small grouped query, the hub's read one compact query for your taste and the rating
+  accolades (~5 KB at a couch of four with a year of ratings) and one for your marks, and the rate sheet and Couch verdicts a
+  couple of small reads when they open.

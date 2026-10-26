@@ -26,6 +26,7 @@ import { openStartGame } from "../couch/start-game";
 import { openPlan, PlanInvite, PlanPlates } from "../couch/watch-plans";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
+import { rateLabel, RateRow } from "./rate";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
 // Your moves as swipeable cards (open first with the one yellow button on the first, then what you've already set
@@ -35,7 +36,8 @@ import { StatsCard } from "./stats";
 // a dot on the show's ⋯ carry it). After an episode, by the results' stage (step 2): waiting for results (the
 // stage bar), results in (the one yellow: Reveal; a move that waits on them says so), the morning update once the
 // final scores land after an early reveal, and the last episode's recap until the next one airs. Real: all of it
-// but bingo (12) and Watch along (13), on fixtures behind Preview; the stats card is stats.tsx's (step 3). Results from
+// but bingo (12) and Watch along (13), on fixtures behind Preview; the stats card is stats.tsx's (step 3); Rate it in Extras
+// (step 12 part 1: the latest episode you've seen, rate.tsx). Results from
 // everyone (step 6b): a player who has seen an episode with only its early results gets a quiet "Full scores need one
 // paste · Fill it in" when the couch lets anyone fill them in.
 
@@ -550,16 +552,31 @@ function ExtraRow({ title, line, state, onClick }: { title: string; line: string
   );
 }
 
+/** The episode Rate it asks about: the latest you've seen that has aired (step 12 part 1), on a show you follow or play. */
+function toRate(show: ShowData): number | null {
+  const playing = show.games.some((g) => g.yourRole);
+  if (!show.header || (!show.following && !playing)) return null;
+  const n = Math.min(show.seenThrough ?? show.latestAired, show.latestAired);
+  return n >= 1 ? n : null;
+}
+
 function Extras({ show }: { show: ShowData }) {
   const up = show.upNext;
   const t = up?.airAt ? Date.parse(up.airAt) : null;
   const predictions = show.moves.filter((m) => m.kind === "prediction");
+  const rate = toRate(show);
   if (up?.live) return null;
   return (
     <Block title="Extras this week" aside="Optional">
       {predictions.map((m) => (
         <ExtraRow key={m.leagueId} title={m.text} line={`Closes at airtime · ${m.leagueName}`} state="Open" onClick={() => openMoves("predict")} />
       ))}
+      {rate && show.header && (
+        <RateRow
+          target={{ seasonId: show.header.seasonId, couchId: show.couch?.id ?? null, episode: rate, label: rateLabel(show), solo: show.solo }}
+          verdict={show.episodes?.episodes.find((e) => e.number === rate)?.verdict}
+        />
+      )}
       <Preview id="show.episode-games" tag={false} className="-mx-2 px-2">
         <ExtraRow title={BINGO_CARD.title} line={`Ready for ${t != null ? dayOf(t, true) : "the next episode"} · ${BINGO_CARD.line}`} state={BINGO_CARD.state} />
       </Preview>

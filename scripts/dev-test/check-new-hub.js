@@ -267,7 +267,9 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
         check((await page.locator(`${body} [data-accolade-row]`).count()) === alexHub.accolades.length, "By the numbers: the couch's accolades");
         check((await page.locator(`${body} [data-accolade]`).count()) >= 1, "and one in the deck");
       } else if (key === "verdicts") {
-        check(await page.locator(`${body} [data-preview="hub.verdicts"]`).isVisible(), "Couch verdicts stay Preview until step 12's ratings");
+        // Real since step 12 part 1 (check-new-episode-games.js has the ratings): a panel for each show alex has started.
+        await page.locator(`${body} [data-verdict-show]`).first().waitFor({ timeout: 20_000 });
+        check((await page.locator(`${body} [data-verdict-show]`).count()) >= 1 && (await page.locator(`${body} [data-preview]`).count()) === 0, "Couch verdicts: a panel per show alex has started, no Preview");
       } else if (key === "previously") {
         await page.locator(`${body} [data-po-last]`).first().waitFor({ timeout: 20_000 });
         const where = await page.locator(`${body} [data-previously]`).getAttribute("data-previously");

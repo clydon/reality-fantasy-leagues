@@ -4,30 +4,31 @@ import { ChevronRight, KeyRound, Medal, Settings, Star, Zap } from "lucide-react
 import { couchLine, FaceStack, openCouchSheet } from "../couch/couch-sheets";
 import type { Couch, CouchHub } from "../data";
 import { useDesk, type Inbox } from "../desk/data";
-import { TASTE } from "../fixtures/verdicts";
 import { ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { useMe } from "../session";
 import { Row } from "../ui/parts";
-import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
 import { Sheet } from "../ui/sheet";
 
 // Your profile, from the hub's avatar (the mock's index.html profileSheet): your couch at the top (moved off the hub
 // on 2026-10-23; it opens the couch switcher, step 9: couch-sheets.tsx), your numbers on this couch (step 8: titles, this year's ranking
 // points, seasons played, your best show, predictions called, your best finish; couch-hub.ts, as far as you've seen),
-// Admin for site admins (the desk, step 6b part 2, with what needs them), and Settings. Your taste twin needs the
-// couch's ratings (step 12).
+// Admin for site admins (the desk, step 6b part 2, with what needs them), and Settings. Since step 12 part 1 your taste on the
+// couch from its ratings (ratings.ts): Agree with the couch in place of seasons played once there's enough to say, and your
+// taste twin.
 
 /** Your numbers on the couch, or a line saying they fill in as it plays. */
 function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
   if (!hub) return <div aria-busy className="h-[180px] animate-pulse rounded-[4px] bg-card" />;
   const y = hub.you;
+  const agree = hub.taste.agree;
+  const twin = hub.taste.twin;
   const stats: [string, string][] = [
     [String(y.titles), y.titles === 1 ? "Title" : "Titles"],
     [String(y.points), "Ranking points"],
-    [String(y.seasons), y.seasons === 1 ? "Season played" : "Seasons played"],
+    agree ? [`${agree.pct}%`, "Agree with the couch"] : [String(y.seasons), y.seasons === 1 ? "Season played" : "Seasons played"],
   ];
   return (
     <div data-your-numbers>
@@ -35,7 +36,7 @@ function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
         {stats.map(([n, label]) => (
           <div key={label} className="rounded-[3px] bg-secondary px-2.5 py-2">
             <b className="type-num block text-[28px]">{n}</b>
-            <small className="text-xs text-muted-foreground">{label}</small>
+            <small className="block text-xs leading-snug text-muted-foreground">{label}</small>
           </div>
         ))}
       </div>
@@ -54,9 +55,11 @@ function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
         {y.place && <Row icon={Star} title={`${y.place.startsWith("T") ? `Tied ${ordinal(Number(y.place.slice(1)))}` : ordinal(Number(y.place))} on the couch this year`} detail={`${y.points} ranking points`} />}
         {y.bestFinish && <Row icon={Medal} title={`Best finish: ${ordinal(Number(y.bestFinish.rank))}`} detail={`${y.bestFinish.gameName} · ${y.bestFinish.label}`} />}
         {y.called > 0 && <Row icon={Zap} title={`Called it: ${y.called} ${y.called === 1 ? "prediction" : "predictions"} right`} detail="In every game on the couch, as far as you've seen" />}
-        <Preview id="hub.taste-twin" tag={false}>
-          <Row icon={Star} title={TASTE.title.replace(/\.$/, "")} detail={TASTE.short} />
-        </Preview>
+        {twin && (
+          <span data-taste-twin className="contents">
+            <Row icon={Star} title={`Taste twin: ${twin.name}`} detail={twin.line} />
+          </span>
+        )}
       </div>
     </div>
   );

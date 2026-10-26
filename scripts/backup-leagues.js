@@ -96,6 +96,8 @@ const GROUP_SLICES = {
   season_rule_changes: "season_id = ANY($S::uuid[])",
   season_episodes: "season_id = ANY($S::uuid[])",
   show_follows: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
+  // Rate it (0128, step 12 part 1): the group's people's stars and takes for its seasons' episodes, as their follows are.
+  episode_ratings: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
   episode_research: "(show_id, season_number) IN (SELECT show_id, season_number FROM show_seasons WHERE id = ANY($S::uuid[]))",
   episode_research_items: `league_id = ANY($L::uuid[]) AND research_id IN (SELECT er.id FROM episode_research er
       JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number WHERE ss.id = ANY($S::uuid[]))`,

@@ -171,6 +171,8 @@ async function up(pool) {
     [couch, season, ann]
   )).id;
   await pool.query(`INSERT INTO watch_plan_people (plan_id, user_id, answer, invited, answered_at) VALUES ($1, $2, 'in', false, now()), ($1, $3, 'in', true, now())`, [night, ann, me]);
+  // Rate it (0128): the tester's stars and take for Episode 1, ann's stars.
+  await pool.query(`INSERT INTO episode_ratings (user_id, season_id, episode, stars, take) VALUES ($1, $3, 1, 4, 'zt: a good one'), ($2, $3, 1, 3, NULL)`, [me, ann, season]);
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

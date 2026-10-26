@@ -7,6 +7,7 @@ import { couchFillsResults } from "./community-results";
 import { pool, HttpError } from "./db";
 import { EVERYTHING } from "./guard";
 import { markRevealed } from "./reveal";
+import { seasonVerdicts, type EpisodeVerdictLine } from "./ratings";
 import { couchCorrections, type Correction } from "./rulings";
 import { DEFAULT_RUNTIME_MIN, seasonSchedules } from "./schedule";
 import { gamesHere, type GameHere } from "./season-games";
@@ -40,6 +41,9 @@ export interface EpisodeRow extends Partial<Omit<EpisodeSeen, "number" | "stage"
   watched?: boolean;
   /** Its title from the listings, once you've seen it (a title can give an episode away). */
   title?: string | null;
+  /** Rate it (step 12 part 1): the couch's verdict and your stars, on an episode you've seen (ratings.ts seasonVerdicts; the
+   *  couch's people who share the show, or everyone on Game Your Show's with nobody else on the couch). */
+  verdict?: EpisodeVerdictLine;
 }
 
 export interface SeasonEpisodes {
@@ -133,6 +137,9 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const runs = here.some((h) => h.game.yourRole === "commissioner" || h.game.yourRole === "admin");
   const earlySeen = rows.filter((r) => r.status === "seen" && r.stage === "early").map((r) => r.number);
   const fill = couchId && here.length && !runs && earlySeen.length && (await couchFillsResults(couchId)) ? { episode: Math.max(...earlySeen) } : null;
+  // Each episode you've seen with its verdict (only through your mark: seasonVerdicts reads nothing past it).
+  const verdicts = await seasonVerdicts(user.id, seasonId, couchId, mark);
+  for (const r of rows) if (r.status === "seen" || (r.status === "aired" && r.watched)) r.verdict = verdicts.get(r.number) ?? { avg: null, n: 0, mine: null };
   return {
     seenThrough: Number.isFinite(seen) ? seen : null,
     episodes: rows,

@@ -52,6 +52,22 @@ export async function seenThrough(userId: string, seasonId: string, db: Queryabl
   );
 }
 
+/**
+ * seenThrough for every season this person has a mark on (their follows, and the seasons they play), in one query; someone
+ * who sees results straight away has each season asked as seenThrough asks it. A season not in the map is episode 0.
+ */
+export async function seenThroughAll(userId: string, db: Queryable = pool): Promise<Map<string, number>> {
+  const { rows } = await db.query(
+    `SELECT f.season_id, f.seen_through,
+            COALESCE((SELECT show_results_immediately FROM user_settings WHERE user_id = $1), false) AS immediate
+       FROM show_follows f WHERE f.user_id = $1`,
+    [userId]
+  );
+  const out = new Map<string, number>();
+  for (const r of rows) out.set(r.season_id as string, r.immediate ? await seenThrough(userId, r.season_id, db) : progressFrom(r.seen_through, false, []));
+  return out;
+}
+
 /** What can be said of an episode: its number when it's within what they've seen, else null. */
 export function withinSeen(episode: number | null | undefined, seen: number): number | null {
   return Number.isInteger(episode) && (episode as number) <= seen ? (episode as number) : null;

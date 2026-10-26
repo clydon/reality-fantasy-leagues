@@ -13,6 +13,7 @@ import { first } from "./moves";
 import { Block, Face } from "./parts";
 import { useOpenReveal } from "./reveal";
 import { CouchMomentsCard } from "./couch-moments";
+import { openRate, rateLabel, RateRow, VerdictMark, type RateTarget } from "./rate";
 import { ShowChangeCard } from "./show-change";
 import { CorrectionPlates, CorrectionRow, SomethingWrong } from "./something-wrong";
 import { playsWaivers, WaiverEpisodeRow } from "./waivers";
@@ -24,7 +25,8 @@ import { playsWaivers, WaiverEpisodeRow } from "./waivers";
 // (GET /api/seasons/[id]/episodes, through the guard). A waiver week sits between the two episodes it falls between
 // (waivers.js's row): open, it goes to the Waivers page; run, to its own page in picking order (step 6a). A correction the
 // shared check made to the couch's games is a line of its own at the top, and a plate on the episode's page, which ends
-// with "Something wrong in this episode?" (step 6b, something-wrong.tsx).
+// with "Something wrong in this episode?" (step 6b, something-wrong.tsx). Each episode you've seen carries the couch's verdict
+// and your stars (step 12 part 1, rate.tsx): a show you only watch opens Rate it from the row, a show you play from its page.
 
 /** "3 of 4 lineups set · 2 of 4 picked": who's set for the next episode in your games here, a line per kind. */
 function progressLine(show: ShowData): string | null {
@@ -54,6 +56,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   const openReveal = useOpenReveal();
   const progress = progressLine(show);
   const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show));
+  const rateFor = (n: number): RateTarget => ({ seasonId, couchId: show.couch?.id ?? null, episode: n, label: rateLabel(show), solo: show.solo });
   // Each waiver week after the episode that opened it: in a newest-first list, just above that episode's row.
   const weeks = (n: number) => (wv.data?.games ?? []).filter((w) => (w.run?.episode ?? w.period?.episode) === n && (w.run || (w.stage === "open" && (w.replace.length || w.swapsAllowed))));
   const waiverRows = (list: WaiverWeek[]) =>
@@ -112,9 +115,9 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 ) : e.status === "waiting" ? (
                   <WaitingRow e={e} />
                 ) : e.status === "aired" ? (
-                  <AiredRow e={e} />
+                  <AiredRow e={e} solo={show.solo} onRate={() => openRate(rateFor(e.number))} />
                 ) : (
-                  <SeenRow e={e} />
+                  <SeenRow e={e} solo={show.solo} />
                 )}
               </div>
             ))}
@@ -163,10 +166,11 @@ function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
   );
 }
 
-/** An episode of a show you only watch, with no results to show (step 10): when it aired, and whether you've seen it. */
-function AiredRow({ e }: { e: EpisodeRow }) {
-  return (
-    <div data-ep-aired={e.number} data-watched={e.watched ? "yes" : "no"} className="flex min-h-[68px] items-center gap-3 border-t border-border">
+/** An episode of a show you only watch, with no results to show (step 10): when it aired, and whether you've seen it. One
+ *  you've seen opens Rate it (step 12 part 1), with the couch's verdict on the row. */
+function AiredRow({ e, solo, onRate }: { e: EpisodeRow; solo: boolean; onRate: () => void }) {
+  const body = (
+    <>
       <span className={`type-num w-7 text-[28px] ${e.watched ? "" : "text-muted-foreground"}`}>{e.number}</span>
       <span className="min-w-0 flex-1">
         <b className="block text-base font-semibold">{e.title ?? `Episode ${e.number}`}</b>
@@ -175,7 +179,20 @@ function AiredRow({ e }: { e: EpisodeRow }) {
           {e.watched ? "You've seen it" : "Not seen yet"}
         </small>
       </span>
-    </div>
+    </>
+  );
+  if (!e.watched) {
+    return (
+      <div data-ep-aired={e.number} data-watched="no" className="flex min-h-[68px] items-center gap-3 border-t border-border">
+        {body}
+      </div>
+    );
+  }
+  return (
+    <button type="button" data-ep-aired={e.number} data-watched="yes" onClick={onRate} className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border text-left">
+      {body}
+      <VerdictMark v={e.verdict} solo={solo} rate />
+    </button>
   );
 }
 
@@ -196,7 +213,7 @@ function WaitingRow({ e }: { e: EpisodeRow }) {
   );
 }
 
-function SeenRow({ e }: { e: EpisodeRow }) {
+function SeenRow({ e, solo }: { e: EpisodeRow; solo: boolean }) {
   const page = usePushedPage(`ep${e.number}`);
   const out = e.out ?? [];
   return (
@@ -216,6 +233,7 @@ function SeenRow({ e }: { e: EpisodeRow }) {
           {e.stage === "early" ? " · full scores to come" : ""}
         </small>
       </span>
+      <VerdictMark v={e.verdict} solo={solo} />
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
     </button>
   );
@@ -233,7 +251,13 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
   return (
     <PushedPage open={ep != null} onClose={page.close} title={`Episode ${shown ?? ""}`} back="Episodes">
       {e ? (
-        <EpisodeBody seasonId={seasonId} couchId={show.couch?.id ?? null} e={e} seasonName={show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season"} />
+        <EpisodeBody
+          seasonId={seasonId}
+          couchId={show.couch?.id ?? null}
+          e={e}
+          seasonName={show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season"}
+          rate={{ seasonId, couchId: show.couch?.id ?? null, episode: e.number, label: rateLabel(show), solo: show.solo }}
+        />
       ) : (
         <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>
       )}
@@ -256,7 +280,7 @@ function GameLine({ l }: { l: GameNight }) {
   );
 }
 
-function EpisodeBody({ seasonId, couchId, e, seasonName }: { seasonId: string; couchId: string | null; e: EpisodeRow; seasonName: string }) {
+function EpisodeBody({ seasonId, couchId, e, seasonName, rate }: { seasonId: string; couchId: string | null; e: EpisodeRow; seasonName: string; rate: RateTarget }) {
   const out = e.out ?? [];
   const results = useEpisodeResults(seasonId, couchId, e.number);
   return (
@@ -320,6 +344,10 @@ function EpisodeBody({ seasonId, couchId, e, seasonName }: { seasonId: string; c
           ))}
         </section>
       )}
+      <section className="mt-[26px]" data-episode-rate>
+        <h2 className="type-caption mb-1 text-[24px]">How was it?</h2>
+        <RateRow target={rate} verdict={e.verdict} />
+      </section>
       <CouchMomentsCard seasonId={seasonId} couchId={couchId} episode={e.number} />
       <ShowChangeCard seasonId={seasonId} couchId={couchId} episode={e.number} seasonName={seasonName} />
       <SomethingWrong seasonId={seasonId} couchId={couchId} episode={e.number} />

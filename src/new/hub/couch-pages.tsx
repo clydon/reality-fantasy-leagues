@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { ChartColumn, ChevronRight, CircleQuestionMark, Crown, Grid3x3, Plus, Repeat, RotateCcw, Shield, ShieldCheck, Star, Trophy, Tv, Zap, type LucideIcon } from "lucide-react";
 import {
   useCouchGames,
+  useCouchVerdicts,
   useSeasonEpisodes,
   useSeasonStats,
   useStatsFor,
@@ -18,30 +19,32 @@ import {
   type RankRow,
   type Rankings,
   type SeasonStats,
+  type ShowVerdict,
 } from "../data";
 import { HUB_THIS_WEEK } from "../fixtures/episode-games";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
 import { openStartGame } from "../couch/start-game";
-import { TASTE, VERDICTS } from "../fixtures/verdicts";
 import { dayOf } from "../clock";
 import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { HubStatsPage, statBoard, statOf, unitFor, useStatsPage } from "../show/stats";
 import { Face } from "../show/parts";
+import { openRate } from "../show/rate";
+import { verdictText } from "@/lib/game/ratings";
 import { Avatar } from "../ui/bars";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { Row, SectionHead } from "../ui/parts";
 import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
-import { DemoAvatar, movesByDue } from "./sections";
+import { movesByDue } from "./sections";
 
 // More on the couch (the mock's refine.js and couchpages.js): rows on the hub, each opening a page pushed over it
 // (?page=), so the back gesture closes it. Real since step 8 (Hub I), from the couch's own games as you may see them
 // (couch-hub.ts): power rankings, Commercial break's games, By the numbers (cast stats since step 3, the couch's
 // accolades now), Previously on (each show's story up to where you are) and the trophy shelf (once a season has ended).
-// Couch verdicts need the couch's ratings (step 12) and stay on fixtures until then; so do Commercial break's episode
-// games (12) and Start a game (10).
+// Couch verdicts are real since step 12 part 1 (the couch's ratings, ratings.ts); Commercial break's episode games are still
+// step 12's (Preview).
 
 const PAGES = {
   rankings: { title: "Power rankings", line: "Where everyone stands this year", icon: Trophy },
@@ -78,7 +81,9 @@ function rowLines(home: Home, hub: CouchHub | undefined): Partial<Record<PageKey
   const said = hub?.rankings ? standing(hub.rankings.year, home.user.id) : null;
   const n = hub?.games.filter((g) => !g.ended).length ?? 0;
   const t = hub?.trophies;
+  const rated = hub?.taste.shows ?? 0;
   return {
+    verdicts: rated ? `How the couch rated ${rated} ${rated === 1 ? "show" : "shows"}` : undefined,
     rankings: said ? (said === "You lead the couch" ? "You lead the couch this year" : said) : undefined,
     break: hub ? (n ? `${n} ${n === 1 ? "game" : "games"} you're in · join any` : undefined) : undefined,
     trophies: t ? `${t.titles} ${t.titles === 1 ? "title" : "titles"} · ${t.seasons} ${t.seasons === 1 ? "season" : "seasons"} played` : undefined,
@@ -149,11 +154,7 @@ export function CouchPages({ home, couch, hub }: { home: Home | undefined; couch
       </CouchPage>
       <HubStatsPage couchId={couch?.id ?? null} names={new Map(shows.map((s) => [s.seasonId, s.show.name]))} />
       <CouchPage k="verdicts">
-        <Preview id="hub.verdicts" className="mx-2">
-          <div className="pb-4">
-            <Verdicts />
-          </div>
-        </Preview>
+        <Verdicts couch={couch} hub={hub} />
       </CouchPage>
       <CouchPage k="previously">
         <PreviouslyOn shows={shows} couch={couch} />
@@ -648,58 +649,94 @@ function ByTheNumbers({ shows, couch, accolades }: { shows: HomeShow[]; couch: C
   );
 }
 
-// ---------- Couch verdicts (step 12: the couch's ratings) ----------
+// ---------- Couch verdicts (step 12 part 1: the couch's ratings, ratings.ts) ----------
 
-function Verdicts() {
+/**
+ * Couch verdicts (the mock's couchpages.js verdictsPage): a critics' panel per show you've started, for the latest episode
+ * you've seen: the big score, everyone's stars (yours, or Rate), a take on a plate, the score episode by episode; then your
+ * taste twin and the couch's contrarian. Read when the page opens; nothing past where you are in each show.
+ */
+function Verdicts({ couch, hub }: { couch: Couch | null; hub: CouchHub | undefined }) {
+  const open = usePushedPage("verdicts").open;
+  const v = useCouchVerdicts(couch?.id ?? null, open);
+  const twin = hub?.taste.twin ?? null;
+  const contrarian = hub?.accolades.find((a) => a.key === "contrarian") ?? null;
   return (
     <>
       <SpoilerSafe />
-      {VERDICTS.map((v) => (
-        <section key={v.show} className="mx-3 mt-[22px] border-b border-border pb-5">
-          <div className="relative isolate flex min-h-[150px] items-end overflow-hidden rounded-[4px] p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element -- fixture art from the published mock */}
-            <img src={v.art} alt="" className="absolute inset-0 -z-[2] size-full object-cover" style={{ objectPosition: v.position }} />
-            <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(90deg,rgba(16,14,21,.95)_35%,rgba(16,14,21,.2))]" />
-            <div>
-              <span className="type-caption block text-[13px] tracking-[0.06em] text-muted-foreground">
-                {v.show} · Episode {v.episode}
-              </span>
-              <b className="type-num mt-1.5 block text-[84px] leading-[.78]">{v.score}</b>
-              <small className="mt-1 block text-[13px] text-muted-foreground">★ couch rating · from {v.from}</small>
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
-            <span className="flex items-center gap-1.5">
-              <DemoAvatar who="alex" size={30} />
-              <span className="flex h-[30px] items-center rounded-[3px] px-2.5 text-[13px] font-bold outline-1 -outline-offset-1 outline-input">Rate</span>
-            </span>
-            {v.ratings.map(([who, r]) => (
-              <span key={who} className="flex items-center gap-1.5">
-                <DemoAvatar who={who} size={30} />
-                <b className="type-num text-[17px]">★ {r}</b>
-              </span>
-            ))}
-          </div>
-          <div className="mt-3 flex min-h-12 items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
-            <span className="type-caption -mr-[13px] flex items-center bg-secondary py-0 pl-[11px] pr-[22px] text-[13px] text-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
-              {v.take.who}
-            </span>
-            <span className="flex flex-1 items-center py-2 pl-5 pr-2.5 text-sm">&ldquo;{v.take.text}&rdquo;</span>
-          </div>
-          <div className="mt-3.5 flex h-16 items-end gap-1.5" aria-label="Couch rating by episode">
-            {v.byEpisode.map((r, i) => (
-              <span key={i} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
-                <i className={`block min-h-1 w-full rounded-t-[2px] ${i === v.byEpisode.length - 1 ? "bg-foreground" : "bg-input"}`} style={{ height: `${(r - 3) * 40}%` }} />
-                <small className="text-[11px] text-muted-foreground">{v.episode - v.byEpisode.length + i + 1}</small>
-              </span>
-            ))}
-          </div>
-        </section>
-      ))}
-      <How icon={Star} lead={TASTE.title}>
-        {TASTE.line}
+      {!v.data ? (
+        <div aria-busy className="mx-3 mt-[22px] h-[260px] animate-pulse rounded-[4px] bg-card" />
+      ) : v.data.shows.length ? (
+        v.data.shows.map((s) => <VerdictPanel key={s.seasonId} s={s} couchId={couch?.id ?? null} />)
+      ) : (
+        <p className="mx-3 mt-6 text-sm leading-normal text-muted-foreground">
+          Once you&apos;ve seen an episode, rate it from the show&apos;s Tonight: the couch&apos;s verdict for each show you watch lands here.
+        </p>
+      )}
+      <How icon={Star} lead={twin ? `Taste twin: ${twin.name}.` : "Taste twins."}>
+        {twin ? `${twin.line}.` : "Rate a few episodes the couch watches too, and whoever rates most like you shows up here."}
+        {contrarian && ` ${contrarian.who} is the couch's contrarian: ${contrarian.line}.`}
       </How>
     </>
+  );
+}
+
+function VerdictPanel({ s, couchId }: { s: ShowVerdict; couchId: string | null }) {
+  // You're first among them once you've rated it.
+  const others = s.mine !== null ? s.people.slice(1) : s.people;
+  const rate = () => openRate({ seasonId: s.seasonId, couchId, episode: s.episode, label: s.label, solo: false });
+  const top = Math.max(...s.byEpisode.map((b) => b.avg ?? 0), 0);
+  return (
+    <section data-verdict-show={s.seasonId} className="mx-3 mt-[22px] border-b border-border pb-5">
+      <div className="relative isolate flex min-h-[150px] items-end overflow-hidden rounded-[4px] p-3">
+        <ShowArt seasonId={s.seasonId} artUrl={s.artUrl} name={s.label} className="absolute inset-0 -z-[2] size-full" />
+        <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(90deg,rgba(16,14,21,.95)_35%,rgba(16,14,21,.2))]" />
+        <div>
+          <span className="type-caption block text-[13px] tracking-[0.06em] text-muted-foreground">
+            {s.label} · Episode {s.episode}
+          </span>
+          <b data-verdict-score className="type-num mt-1.5 block text-[84px] leading-[.78]">
+            {verdictText(s.avg)}
+          </b>
+          <small className="mt-1 block text-[13px] text-muted-foreground">{s.n ? `★ couch rating · from ${s.n}` : "Nobody's rated it yet"}</small>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
+        {s.mine === null && (
+          <button type="button" data-verdict-rate onClick={rate} className="nd-press flex h-11 items-center rounded-[3px] px-3.5 text-sm font-bold outline-1 -outline-offset-1 outline-input">
+            Rate Episode {s.episode}
+          </button>
+        )}
+        {s.people.map((p) => (
+          <button key={p.userId} type="button" onClick={rate} data-verdict-person={p.name} className="flex min-h-11 items-center gap-1.5" aria-label={`${p.name}: ${p.stars} stars`}>
+            <Avatar id={p.userId} name={p.name} size={30} />
+            <b className="type-num text-[17px]">★ {p.stars}</b>
+          </button>
+        ))}
+      </div>
+      {s.take && (
+        <div data-verdict-take className="mt-3 flex min-h-12 items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
+          <span className="type-caption -mr-[13px] flex items-center bg-secondary py-0 pl-[11px] pr-[22px] text-[13px] text-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
+            {s.take.name}
+          </span>
+          <span className="flex flex-1 items-center py-2 pl-5 pr-2.5 text-sm [overflow-wrap:anywhere]">&ldquo;{s.take.text}&rdquo;</span>
+        </div>
+      )}
+      {s.byEpisode.length > 1 && (
+        <div className="mt-3.5 flex h-16 items-end gap-1.5" aria-label="Couch rating by episode" data-verdict-bars>
+          {s.byEpisode.map((b, i) => (
+            <span key={b.episode} className="flex h-full flex-1 flex-col items-center justify-end gap-1" title={b.avg === null ? `Episode ${b.episode}: not rated` : `Episode ${b.episode}: ${verdictText(b.avg)}`}>
+              <i
+                className={`block min-h-1 w-full rounded-t-[2px] ${i === s.byEpisode.length - 1 ? "bg-foreground" : "bg-input"}`}
+                style={{ height: b.avg === null || !top ? "4px" : `${Math.max(8, ((b.avg - 1) / 4) * 100)}%` }}
+              />
+              <small className="text-[11px] text-muted-foreground">{b.episode}</small>
+            </span>
+          ))}
+        </div>
+      )}
+      {others.length === 0 && s.mine !== null && <p className="mt-2 text-[13px] text-muted-foreground">You&apos;re first · the couch verdict fills in as they rate</p>}
+    </section>
   );
 }
 

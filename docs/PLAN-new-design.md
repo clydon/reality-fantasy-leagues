@@ -37,7 +37,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **done** 2026-10-26 on the branch, in three parts (part 2 split in two): watching (migration 0121; TV listings from TVmaze on demand), Make it a game to a set-up show with its rulebook and cast (0122), Start a game that fits and archive or delete a game (0123), rulebooks phase 8: the library, the desk's New show, Fits these games, Take it over and Looks right to us (0124); all ship with 0b's | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | **done** 2026-10-26 on the branch, in three parts: the guide on the couch's shows and Hide from guide (migration 0125), all of TV in the guide and the daily listings job on the bot clock's calls (0126), planned nights (0127); all ship with 0b's | Opus · xhigh |
-| 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
+| 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | in progress on the branch, in three parts (the plan's step 12 section): part 1, Rate it and couch verdicts (migration 0128) | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
 | 14 | Streaming shows and the rail | not started | Opus · xhigh |
 | 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
@@ -252,10 +252,19 @@ step's As built.
 - **No "Biggest comeback" record** (step 8; for a later polish). The mock's trophy shelf has it ("8th to 1st · Traitors
   4"); it needs each finished game's standings episode by episode (a table per episode, read once a season ends and kept),
   which nothing keeps. The records are most titles, ran it back, longest pool streak and best average finish.
-- **Couch accolades are what today's data can say** (step 8; for 12, 13 and 14). The mock's By the numbers also has taste
-  twins, the contrarian and never misses a rating (step 12's ratings), most reactions and most watch alongs (13), first to
-  finish (14's streaming drops). `couch-standings.ts accoladesOf` is where they'd go; the profile's taste twin line is
-  `hub.taste-twin` (12).
+- **Couch accolades are what today's data can say** (step 8; ratings' since step 12 part 1; for 13 and 14). The mock's By the
+  numbers also has most reactions and most watch alongs (13) and first to finish (14's streaming drops). `couch-standings.ts
+  accoladesOf` is where they'd go (the ratings' are `ratings.ts ratingAccolades`: taste twins, the contrarian, never misses a
+  rating).
+- **A rating can't be taken back** (step 12 part 1; for a later polish). Rating an episode again changes your stars, and a take can
+  be removed, but nothing removes the rating itself (`episode_ratings` has no delete). A "Clear my rating" on the sheet would be
+  one DELETE.
+- **The verdict's faces are initials** (step 12 part 1; for 15). Everyone's stars on the rate sheet and Couch verdicts are an
+  avatar's letter and colour (the mock's faces), so two people with the same initial are told apart by colour only (every zt_nd_
+  person in the fixtures is a Z). Step 15's profile picture would put a face there; the takes say names.
+- **The sheet's taste twin comes from the hub** (step 12 part 1; for a later polish). "You agree with the couch · taste twin:
+  riley" names the twin only when the couch's hub was read in this visit (it reads the cached `/api/couches/[id]/hub`); opened
+  straight from a show, the sheet says "You agree with the couch".
 - **Classic's join code still makes a hidden ghost** (step 9; for C). Joining with a game's own code in classic makes a late
   joiner the game can't see until its commissioner adds them, whatever its Who can join says (only Nobody new closes it,
   through classic's switch, kept in step). The new design's joins are seen at once; such a ghost stays out of the couch chat.
@@ -3060,6 +3069,118 @@ the signed-in layout, `PlanPlates`, `PlanInvite`); `src/lib/game/guide.ts` gains
 - **Step 11 is done.** For step 12: Commercial break, Tonight's Extras and the Games tab still carry step 12's Previews
   (`hub.episode-games`, `show.episode-games`, `hub.verdicts`, `hub.taste-twin`); Noticed has its items (predictions as chips, the
   pool's Who goes home? as a per-person call, couch accolades from ratings). Migration 0128 is next.
+
+### Step 12, in three parts
+
+Too big for one session (written 2026-10-26, at its start). Each part ends with its As built, its Preview entries and fixtures
+out and the checks passing; step 12 is marked done after part 3. One check grows with the parts:
+`scripts/dev-test/check-new-episode-games.js`.
+
+1. **Rate it, couch verdicts and the taste twin.** `episode_ratings` (migration 0128): one to five stars and an optional one-line
+   take per person and episode, only for an episode that's aired and that you've seen (your mark). Rate it on Tonight (Extras,
+   for the latest episode you've seen; a show you only watch too), each episode you've seen on Episodes (the couch's score and
+   yours), the episode page, and the rate sheet (the mock's rateSheet and rate5: the stars, then the couch verdict with everyone's
+   stars and takes, "You agree with the couch" or the contrarian's line). Solo, the verdict is everyone on Game Your Show's
+   (the mock's soloTonight). On the hub: Couch verdicts made real (the mock's couchpages.js verdictsPage: per show you've started,
+   the latest episode you've seen, the big score, everyone's stars, a take on a plate, the score by episode), your taste twin
+   and Agree with the couch on the profile, and the couch accolades ratings can say (taste twins, the contrarian, never misses a
+   rating; from Noticed). Spoiler-safe: a rating, a take or a verdict about an episode only for someone who's seen it, and only
+   from people on the couch who share that show. Preview out: `hub.verdicts`, `hub.taste-twin` (and `fixtures/verdicts.ts`).
+2. **Call it and polls.** Call it at couch level (the mock's callSheet and predictSheet): a call per person and episode (who goes
+   home, and the show's other one-tap calls), private until airtime, graded from the season's shared results, with the public
+   pool's Who goes home? read as the same call (Noticed: "the pool's Who goes home? is the pool's own"); a prediction's options
+   as chips (a cast pick, yes / no: Noticed's "Predictions are a text field"); polls anyone on the couch starts for an episode
+   (the mock's pollSheet and banishSheet), votes hidden until the poll closes; **Weekly Calls**, the talk-show season game built
+   from Call it (`rulebook-fits.js` stops saying `soon` for it).
+3. **Bingo and trivia, and Commercial break's episode games.** `bingo_cards` and `bingo_marks` (a card per person and episode from
+   the show's moments, marks while you watch, lines; a mark only for someone who's seen the episode), trivia (questions from a
+   finished season's facts: the mock's triviaSheet), Commercial break's This week only, the Games tab's This week and Tonight's
+   bingo row on real data, the solo hub's trivia, and **Weekly Bingo** (the talk show's other season game). Preview out:
+   `hub.episode-games`, `show.episode-games` (and `fixtures/episode-games.ts`). Marks step 12 done.
+
+### As built, step 12 part 1 (2026-10-26, on `new-design`): Rate it, couch verdicts and the taste twin
+
+Migration **0128** (ships with 0b's, same rehearsal): `episode_ratings` (a person's one to five stars and optional one-line take,
+140 characters at most, per season and episode). Nothing polls and nothing runs on a schedule (HOSTING.md). New:
+`src/lib/game/ratings.ts` (pure: the average, you against the couch, the taste twin, agreeing with the couch, the accolades),
+`src/lib/server/ratings.ts`, `GET/POST /api/seasons/[id]/ratings/[n]?couch=`, `GET /api/couches/[id]/verdicts`,
+`src/new/show/rate.tsx` (`openRate`, `RateSheets` in the signed-in layout, `RateRow`, `VerdictMark`, `rateLabel`); `guard.ts`
+gains `seenThroughAll` (every season's mark in one query).
+- **A rating (decided):** a person's, not a couch's (as where you are is): one per episode, counted on every couch they're on;
+  whole stars, 1 to 5 (the mock's taps; its half stars were made up); a take is optional, tidied, 140 characters, `""` takes it
+  away and stars alone keep it. Only for an episode you've seen (your mark: 403 otherwise), and with spoiler protection off
+  (results straight away) only one that's aired (409). Rating again changes it; nothing removes it (Noticed).
+- **Whose verdict:** the couch's when someone else is on it: the average of everyone on it who rated the episode and follows the
+  show openly (guard.ts visibleFollows), you included. On no couch or a couch of one (`show.solo`) it's everyone on Game Your
+  Show's, a number only: strangers' names and takes never leave the server. A private watcher's stars count for nobody else,
+  not even in everyone's average (on an app this size a count could say who). Beside a couch's verdict, everyone's is a quiet
+  line once more than the couch has rated it.
+- **Spoiler-safe on the server:** a rating, a take or a verdict about an episode only for someone who's seen it. The sheet's read
+  is 403 past your mark; the Episodes read carries a verdict only on rows you've seen (`EpisodeRow.verdict`; `seasonVerdicts`
+  reads nothing past your mark); Couch verdicts shows each show at the latest episode you've seen and that's aired; the hub's
+  taste and accolades count only episodes within your mark on each season (in the check, sam on 3 sees the couch's taste twins
+  "on 3 of 3 episodes" where alex sees "3 of 5"). A rating says you've seen that episode, as a reveal line in chat does; step
+  15's What your couch sees ("Only what games need") could hide ratings.
+- **The rate sheet** (the mock's watching.js rateSheet, episode.js rate5 and the watch along's rate-it, one sheet opened with
+  `openRate`): "How was Episode 5?", "Survivor 51 · then the couch verdict"; five stars (a tap saves; they move at once); before
+  you rate, "3 on the couch rated it · tap your stars to see the couch verdict" (the verdict waits for your stars here, as the
+  mock's rate5 said, so nobody's anchored; Episodes and Couch verdicts show it without, as the mock's later pages do); then the
+  verdict on a plate rising into place (the mock's .verdict: the Couch verdict tag, the average, "from 3 on the couch", one line:
+  "You agree with the couch · taste twin: riley" within a star of everyone else's average, "Spicy. You're the contrarian this
+  week" a star and a half or more off, "You're the first on the couch to rate it"; everyone's stars as faces; the takes, others'
+  first; everyone on Game Your Show), your one-line take with Post, and Done (Not now before you rate). Solo: Everyone's verdict,
+  "from 3 on Game Your Show", "You agree with everyone" or "Spicy. Everyone else saw it differently".
+- **Where it opens:** Tonight's Extras this week, for the latest episode you've seen that's aired, on a show you follow or play
+  ("Rate Episode 5 · Two seconds, then the couch verdict", then "You gave Episode 5 ★★★★ · The couch says ★ 3.7 · from 3",
+  Rated; solo, "then see how everyone rated it"); Episodes, where each episode you've seen carries the couch's ★ and "you 4" (on
+  a show you only watch with no results, the row opens Rate it, and says Rate while nobody has); the episode page's How was it?;
+  Couch verdicts' Rate Episode N and its faces.
+- **The hub:** **Couch verdicts** is real (`useCouchVerdicts`, read when the page opens): each show you follow and have started,
+  the ones the couch rated lately first, six at most, at the latest episode you've seen: the big score, "★ couch rating · from 3"
+  (or Nobody's rated it yet), Rate Episode N until you have, everyone's stars, a take on a plate (the newest someone else wrote,
+  else yours), the score episode by episode (the last eight); then the footnote, your taste twin and the couch's contrarian. Its
+  row on More on the couch says "How the couch rated N shows". The hub's read (`couch-hub.ts`, `couchTaste`) gains `taste`: your
+  **taste twin** (the person on the couch closest to you on average, three or more episodes in common and a star apart at most:
+  "The same stars on 6 of 8 episodes", or "Within a star on 7 of 8 episodes" when under half are the same), **Agree with the
+  couch** (how many of your rated episodes were within a star of everyone else's average, over three or more that someone else
+  rated too) and how many shows have a verdict; and three **accolades** for By the numbers (from Noticed): Taste twins (the
+  couch's closest pair, ¾ of a star apart at most), The contrarian (a star or more off everyone else on average, over episodes
+  three or more rated) and Never misses a rating (four or more of one show's episodes in a row). Its ratings come from Neon
+  compactly: one row per person and season, the episodes and stars as one short string ("1:4,2:5"). The **profile**: Agree with
+  the couch takes Seasons played's place once there's enough to say (the mock's third number), and Taste twin: riley is a row.
+- **Fixtures and Preview:** deleted `fixtures/verdicts.ts` and the entries `hub.verdicts` and `hub.taste-twin`. `hub.episode-games`
+  and `show.episode-games` (`fixtures/episode-games.ts`) are parts 2 and 3's.
+- **Backups** take `episode_ratings` (the group's people's ratings on its seasons, sliced as their follows are; `backup-common.js`,
+  `backup-leagues.js`); `backup-fixture.js` has two.
+- **Changed from the mock:** whole stars; the sheet doesn't close itself after a tap (it has a take now, and Done); Rate it on a
+  show you only watch sits in Extras this week as on a show you play (the mock's watch-only Tonight had an "Every episode · Skip
+  any, no deadlines" block with it and Call it: part 2 can put Call it beside it); the verdict waits for your stars on the sheet
+  only; everyone's stars are the avatars' initials (Noticed); the solo verdict is everyone's with no names or takes; the bars run
+  from one star to five (the mock's from three); the twin's line counts the same stars or within a star (the mock's "within half
+  a star" needs half stars).
+- **Checks:** `scripts/dev-test/check-new-episode-games.js <outDir> [--width=390] [--keep] [--api]` (92 PASS at 390) on
+  new-fixture.js plus solo-fixture.js, the check that grows with step 12's parts: the refusals (an episode past your mark, stars,
+  takes, a season or couch that isn't yours, results-straight-away still only what's aired), takes kept and taken away, each
+  verdict (the couch's, another couch's, everyone's with no couch, a private watcher's stars and take counted nowhere), the
+  Episodes read (alex's, sam's behind), the hub's taste and accolades (alex's, sam's within his mark, riley's), Couch verdicts
+  (alex's, sam's, riley's two shows), solo; then the browser as alex (Tonight's row, the sheet, three stars and a take, Episodes'
+  marks, the episode page, the hub's row and Couch verdicts, the profile, By the numbers), sam (Rate Episode 3, the verdict
+  waiting for his stars, nothing about 4 or 5), riley (the Traitors, a show she only watches) and zt_so_alex (solo, everyone's
+  verdict). `tests/ratings.test.js` (5). Updated: check-new-hub (Couch verdicts real). The rest pass, one at a time: check-new-plans (102),
+  -listings (75), -guide (57), -library (91), -start-game (75), -make-it (81), -watching (114), -solo (92), -way-in (85), -couches
+  (114), -hub (75), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100, after `touch next.config.ts`: a stale
+  compile failed its "every league renames him" in the batch, as in step 11 part 3), -community (82), -backstage (67),
+  -backstage-ii (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview and
+  check-backup-restore; `npm test` 591 of 591; type-check clean; lint (src) as before (the old error in classic's
+  `use-sheet-swipe.ts` and the old warning in `episode-results.ts`). Seen at 390 in the browser: Tonight's row, the rate sheet
+  (before and after rating, a take, solo's), Episodes' marks, the episode page, Couch verdicts, the profile and By the numbers.
+- **Noticed, left as is:** three, now in Noticed, not fixed: a rating can't be taken back, the verdict's faces are initials, and
+  the sheet's taste twin comes from the hub's read. Couch accolades from ratings came out of Noticed's accolades item.
+- **For part 2:** Call it and polls. The rate sheet's host (`openRate`/`RateSheets`) is the pattern for the call sheet; Extras this
+  week is where Call it's row sits beside Rate it (on a show you only watch too); rows keyed (person, season, episode) and read
+  through `seenThrough` are how a call can be kept per person; the hub's `taste`/accolades shape is where a "called it" accolade
+  from calls would join. Watch along's end (step 13: "How was Episode N?" with a take) should open `openRate` rather than build a
+  second rating.
 
 ## Step C: cutover
 

@@ -34,6 +34,7 @@ import type { DeletePreview, EndGame } from "@/lib/server/end-game";
 import type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 import type { WeekListing } from "@/lib/game/tv-listings";
 import type { PlanAnswerOut, PlanHow, PlanOptions, WatchPlan } from "@/lib/server/watch-plans";
+import type { EpisodeVerdict, ShowVerdict } from "@/lib/server/ratings";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -67,6 +68,8 @@ export type { StartChoice, Started, StartOptions } from "@/lib/server/start-game
 export type { DeletePreview, EndGame } from "@/lib/server/end-game";
 export type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 export type { PlanAnswer, PlanEpisode, PlanHow, PlanOptions, PlanPerson, WatchPlan } from "@/lib/server/watch-plans";
+export type { EpisodeVerdict, EpisodeVerdictLine, RatingFace, ShowVerdict } from "@/lib/server/ratings";
+export type { Taste, Twin } from "@/lib/game/ratings";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -1055,6 +1058,50 @@ export function useSetPlans() {
       client.setQueryData<Home>(HOME_KEY, (h) => (h ? { ...h, plans } : h));
       void client.invalidateQueries({ queryKey: ["new-design", "plans"] });
       void client.invalidateQueries({ queryKey: ["new-design", "couch-hub"] });
+    },
+    [client]
+  );
+}
+
+// ---- Rate it (step 12 part 1; ratings.ts): one to five stars and a take for an episode you've seen, and the couch verdict.
+// Each episode's verdict comes with the Episodes read; the rate sheet reads its episode when it opens, Couch verdicts its
+// page when that opens. Nothing polls. ----
+
+/** One episode's verdict, for the rate sheet (GET .../ratings/[n]). */
+export function useEpisodeVerdict(seasonId: string | null, couchId: string | null, episode: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "verdict", seasonId, couchId, episode],
+    queryFn: () => get<EpisodeVerdict>(seasonUrl(seasonId!, `/ratings/${episode}`, couchId ? { couch: couchId } : {})),
+    enabled: enabled && !!seasonId && !!episode,
+    staleTime: 30_000,
+  });
+}
+
+/** Couch verdicts: the latest episode you've seen of each show you've started, and how the couch rated it. */
+export function useCouchVerdicts(couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "verdicts", couchId],
+    queryFn: () => get<{ shows: ShowVerdict[] }>(`/api/couches/${couchId}/verdicts`),
+    enabled: enabled && !!couchId,
+    staleTime: 30_000,
+  });
+}
+
+export const ratingsApi = {
+  rate: (seasonId: string, couchId: string | null, episode: number, body: { stars: number; take?: string }) =>
+    post<EpisodeVerdict>(seasonUrl(seasonId, `/ratings/${episode}`, couchId ? { couch: couchId } : {}), body),
+};
+
+/** After a rating: the sheet's answer put in place, and what shows it read again (the episodes' verdicts, the hub's taste,
+ *  Couch verdicts). */
+export function useAfterRating() {
+  const client = useQueryClient();
+  return useCallback(
+    (v: EpisodeVerdict, couchId: string | null) => {
+      client.setQueryData(["new-design", "verdict", v.seasonId, couchId, v.episode], v);
+      void client.invalidateQueries({ queryKey: ["new-design", "episodes", v.seasonId] });
+      void client.invalidateQueries({ queryKey: ["new-design", "couch-hub"] });
+      void client.invalidateQueries({ queryKey: ["new-design", "verdicts"] });
     },
     [client]
   );

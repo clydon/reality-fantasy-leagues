@@ -18,7 +18,7 @@ const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
   "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions", "season_episodes", "show_follows",
   "fact_sources", "fact_disputes", "rulebooks", "rulebook_edits", "rulebook_suggestions", "admin_changes", "rulebook_checks",
-  "guide_hidden",
+  "guide_hidden", "episode_ratings",
 ];
 const PEOPLE_TABLES = ["user", "user_settings", "notification_prefs"];
 const TABLES = [...LEAGUE_TABLES, ...SEASON_TABLES, ...PEOPLE_TABLES];
@@ -50,6 +50,7 @@ const LATER_TABLES = {
   guide_hidden: { since: "0125", fill: null },
   watch_plans: { since: "0127", fill: null },
   watch_plan_people: { since: "0127", fill: null },
+  episode_ratings: { since: "0128", fill: null },
 };
 
 /** Whether the database has this table. */
