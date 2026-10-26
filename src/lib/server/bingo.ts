@@ -11,6 +11,7 @@ import { HttpError, pool } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
+import { notifyBingoLines } from "./push-events";
 
 // Bingo (docs/PLAN-new-design.md step 12 part 3; migration 0130 bingo_cards, bingo_marks; the pure rules are bingo.ts):
 //   GET  /api/seasons/[id]/bingo/[n]?couch=   your card for an episode (the next to air, or one that's aired), what you've
@@ -28,6 +29,8 @@ import { seasonHeaders, type SeasonHeader } from "./show-space";
 // happened: the season's results say so (every
 // result in), or on a talk show the couch does (calls.ts settleSays: two agreeing; a tick from someone who's seen the episode is
 // their say, so bingo settles a talk show's calls too). Read when a sheet or row opens; nothing polls (docs/HOSTING.md).
+// A line that counts is a notice (step 15 part 2, bingoLinesOn): its owner and the couch-mates playing that episode hear, once
+// each, and only once they've seen it.
 
 export interface BingoPerson {
   userId: string;
@@ -249,6 +252,9 @@ export async function tickBingo(user: SessionUser, seasonId: string, couchId: st
   }
   if (body.ticked) await pool.query("INSERT INTO bingo_marks (card_id, square) VALUES ($1, $2) ON CONFLICT DO NOTHING", [card!.id, square]);
   else await pool.query("DELETE FROM bingo_marks WHERE card_id = $1 AND square = $2", [card!.id, square]);
+  // A tick can finish a line once what happened is settled: yours, or on a talk show (where a tick from someone who's seen it is
+  // a say) anyone's on the episode. An untick finishes nothing.
+  if (body.ticked) notifyBingoLines({ seasonId, episode: n, lines: () => bingoLinesOn(seasonId, n, ctx.talk ? undefined : [user.id], ctx.book) });
   // Watching it together: the session moves on, so the others' open cards read again (step 13 part 3).
   if (ctx.couch) {
     await pool.query(
@@ -259,6 +265,50 @@ export async function tickBingo(user: SessionUser, seasonId: string, couchId: st
     );
   }
   return readBingo(user, seasonId, n, ctx);
+}
+
+/**
+ * Who has a bingo line that counts on an episode now (step 15 part 2's notices): each card's owner with one, their name, whether
+ * they follow the show openly (only then does the couch hear of it, as everywhere bingo shows), and their couch-mates with a card
+ * on the episode. On a talk show a line is settled by a couch's says, so it counts on any couch they're on. `only`: just these
+ * people's cards (a tick changes only its own, where results settle the squares).
+ */
+export async function bingoLinesOn(seasonId: string, n: number, only?: string[], bookIn?: CallBook): Promise<{ userId: string; name: string; shares: boolean; mates: string[] }[]> {
+  const { rows } = await pool.query(
+    `SELECT c.user_id, COALESCE(u.username, u.name) AS name,
+            COALESCE((SELECT f.following AND NOT f.private FROM show_follows f WHERE f.user_id = c.user_id AND f.season_id = c.season_id), false) AS shares
+       FROM bingo_cards c JOIN "user" u ON u.id = c.user_id
+      WHERE c.season_id = $1 AND c.episode = $2 AND EXISTS (SELECT 1 FROM bingo_marks m WHERE m.card_id = c.id)`,
+    [seasonId, n]
+  );
+  const owners = rows.filter((r) => !only || only.includes(r.user_id));
+  if (!owners.length) return [];
+  const book = bookIn ?? (await seasonBook(seasonId));
+  const { rows: mates } = await pool.query<{ owner: string; mate: string; couch_id: string }>(
+    "SELECT a.user_id AS owner, b.user_id AS mate, a.couch_id FROM couch_members a JOIN couch_members b ON b.couch_id = a.couch_id AND b.user_id <> a.user_id WHERE a.user_id = ANY($1::text[])",
+    [owners.map((r) => r.user_id)]
+  );
+  const playing = new Set(rows.map((r) => r.user_id as string));
+  const lines = new Map<string, number>();
+  if (kindOf(book.blocks) === "talk") {
+    for (const o of owners) {
+      const couches = [...new Set(mates.filter((m) => m.owner === o.user_id).map((m) => m.couch_id))];
+      for (const c of couches.length ? couches : [null]) {
+        const got = (await bingoLines(seasonId, [o.user_id], { from: n, through: n, couchId: c, book })).get(o.user_id) ?? 0;
+        lines.set(o.user_id, Math.max(lines.get(o.user_id) ?? 0, got));
+      }
+    }
+  } else {
+    for (const [u, l] of await bingoLines(seasonId, owners.map((r) => r.user_id), { from: n, through: n, couchId: null, book })) lines.set(u, l);
+  }
+  return owners
+    .filter((o) => (lines.get(o.user_id) ?? 0) > 0)
+    .map((o) => ({
+      userId: o.user_id as string,
+      name: o.name as string,
+      shares: !!o.shares,
+      mates: [...new Set(mates.filter((m) => m.owner === o.user_id && playing.has(m.mate)).map((m) => m.mate))],
+    }));
 }
 
 // ---------- Weekly Bingo ----------

@@ -21,11 +21,12 @@ export const POST = apiRoute(async (req) => {
     [user.id],
     def ? def.id : "draftTurn",
     def
-      ? { ...def.sample, url: "/account", tag: `push-test-${def.id}` }
+      ? { ...def.sample, url: "/account", next: "/settings", tag: `push-test-${def.id}` }
       : {
           title: "Notifications are working",
           body: "You'll get alerts like this when something happens in your leagues.",
           url: "/account",
+          next: "/settings",
           tag: "push-test",
         },
     { ignorePrefs: true }

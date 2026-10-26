@@ -28,17 +28,27 @@ const HOUR = 3600 * 1000;
 const REMIND_BEFORE = 6 * HOUR;
 const DEFAULT_TZ = "America/New_York";
 
-// ---- Times, in the season's zone (a push can't know the reader's) ----
+// ---- Times: in the reader's own zone when their phone has said it (user_settings.tz, step 15 part 2), else the season's ----
 
-/** The league's season's time zone, the one its air times are in. */
-async function seasonTz(db, state) {
+/** The league's season (the new design's links go to it) and its time zone, the one its air times are in. */
+async function seasonOf(db, state) {
   const { showId, wikiSeason } = state.settings || {};
-  if (!showId || wikiSeason == null) return DEFAULT_TZ;
+  if (!showId || wikiSeason == null) return { id: null, tz: DEFAULT_TZ };
   const { rows } = await db.query(
-    "SELECT ss.air_tz FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug=$1 AND ss.season_number=$2",
+    "SELECT ss.id, ss.air_tz FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug=$1 AND ss.season_number=$2",
     [showId, wikiSeason]
   );
-  return (rows[0] && rows[0].air_tz) || DEFAULT_TZ;
+  return { id: (rows[0] && rows[0].id) || null, tz: (rows[0] && rows[0].air_tz) || DEFAULT_TZ };
+}
+
+/** The league's season's time zone. */
+async function seasonTz(db, state) {
+  return (await seasonOf(db, state)).tz;
+}
+
+/** The new design's Waivers page for the league's season. */
+function waiversNext(seasonId) {
+  return seasonId ? `/show/${seasonId}/waivers` : "/home";
 }
 
 /** "Tue 8:00 PM EDT"; `day: false` gives "8:00 PM EDT". */
@@ -82,7 +92,7 @@ async function leagueName(db, leagueId) {
  */
 async function members(db, leagueId, state) {
   const { rows } = await db.query(
-    `SELECT m.user_id, m.player_id, m.results_seen_through, COALESCE(us.show_results_immediately, false) AS immediate
+    `SELECT m.user_id, m.player_id, m.results_seen_through, COALESCE(us.show_results_immediately, false) AS immediate, us.tz
        FROM league_memberships m LEFT JOIN user_settings us ON us.user_id = m.user_id
       WHERE m.league_id=$1 AND m.player_id IS NOT NULL`,
     [leagueId]
@@ -93,7 +103,7 @@ async function members(db, leagueId, state) {
     .map((r) => {
       const late = StateLogic.GhostLogic.lateJoinOf(state, r.player_id);
       const mark = Number.isInteger(r.results_seen_through) ? r.results_seen_through : -1;
-      return { userId: r.user_id, playerId: r.player_id, seen: r.immediate && !late ? Infinity : mark };
+      return { userId: r.user_id, playerId: r.player_id, seen: r.immediate && !late ? Infinity : mark, tz: r.tz || null };
     });
 }
 
@@ -171,12 +181,12 @@ function processedMessages(state, period, name, people) {
 /** Sends "Waivers processed" for `period`. Never throws (it runs after the write has committed). */
 async function sendProcessed(db, leagueId, state, period, opts = {}) {
   try {
-    const [name, people] = await Promise.all([leagueName(db, leagueId), members(db, leagueId, state)]);
+    const [name, people, season] = await Promise.all([leagueName(db, leagueId), members(db, leagueId, state), seasonOf(db, state)]);
     const msgs = processedMessages(state, period, name, people);
     for (const { userId, message } of msgs) {
-      const full = { ...message, url: link(message.url, leagueId), tag: `waivers-${leagueId}` };
+      const full = { ...message, url: link(message.url, leagueId), next: waiversNext(season.id), tag: `waivers-${leagueId}`, seasonId: season.id };
       if (opts.log) opts.log(`${opts.dry ? "(dry) " : ""}${userId} -- ${full.title}: ${full.body}`);
-      if (!opts.dry) await sendPush(db, [userId], "waivers", full);
+      if (!opts.dry) await sendPush(db, [userId], "waivers", full, { seasonId: season.id });
     }
     return msgs.length;
   } catch (e) {
@@ -200,7 +210,7 @@ async function remindWaivers(db, league, now, opts = {}) {
   const left = Date.parse(p.processAt) - now;
   if (!(left > 0 && left <= REMIND_BEFORE)) return 0;
   const n = p.episode;
-  const tz = await seasonTz(db, state);
+  const season = await seasonOf(db, state);
   let sent = 0;
   for (const m of await members(db, league.id, state)) {
     let kind;
@@ -221,13 +231,15 @@ async function remindWaivers(db, league, now, opts = {}) {
       if (!rowCount) continue;
     }
     const message = {
-      title: `Claims due at ${clock(p.processAt, tz, false)}`,
+      title: `Claims due at ${clock(p.processAt, m.tz || season.tz, false)}`,
       body,
       url: link(kind === "waiverPickup" ? `${waiversHref(state)}/pickup` : waiversHref(state), league.id),
+      next: waiversNext(season.id),
       tag: `waivers-${league.id}`,
+      seasonId: season.id,
     };
     if (opts.log) opts.log(`${opts.dry ? "(dry) " : ""}${m.userId} -- ${message.title}: ${message.body}`);
-    if (!opts.dry) await sendPush(db, [m.userId], "waiverReminder", message);
+    if (!opts.dry) await sendPush(db, [m.userId], "waiverReminder", message, { seasonId: season.id });
     sent++;
   }
   return sent;
@@ -245,7 +257,8 @@ async function nudgeMessage(db, leagueId, state, playerId, byName) {
   if (!p) return null;
   const m = (await members(db, leagueId, state)).filter((x) => x.playerId === playerId);
   if (!m.length) return null;
-  const [name, tz] = await Promise.all([leagueName(db, leagueId), seasonTz(db, state)]);
+  const [name, season] = await Promise.all([leagueName(db, leagueId), seasonOf(db, state)]);
+  const tz = m[0].tz || season.tz;
   const n = p.episode;
   const what =
     m[0].seen < n
@@ -259,8 +272,11 @@ async function nudgeMessage(db, leagueId, state, playerId, byName) {
       title: p.hold || !p.processAt ? "Waivers are open" : `Claims due ${clock(p.processAt, tz)}`,
       body: `${name}: ${byName} nudged you. ${what}`,
       url: link(waiversHref(state), leagueId),
+      next: waiversNext(season.id),
       tag: `waivers-${leagueId}`,
+      seasonId: season.id,
     },
+    seasonId: season.id,
   };
 }
 
@@ -288,7 +304,8 @@ function windowMessages(state, before, period, name, people, trimmed, tz, opts =
   const url = waiversHref(state);
   const cut = new Set(trimmed || []);
   const timed = period.phase === "open" && !period.hold && period.processAt;
-  const due = timed ? `claims due ${clock(period.processAt, tz)}` : "claims are open";
+  // Each reader's own zone when their phone has said it.
+  const dueFor = (m) => (timed ? `claims due ${clock(period.processAt, m.tz || tz)}` : "claims are open");
   const on = period.phase === "open" && W.isWindow(period);
   const line = on ? windowLine(state, period) : "";
   const changed = !!before && before.id === period.id;
@@ -301,15 +318,15 @@ function windowMessages(state, before, period, name, people, trimmed, tz, opts =
     let body;
     if (on && cut.has(m.playerId)) {
       title = "Your claim changed";
-      body = `${name}: the waiver window changed, so claims it no longer allows came out. Check yours${timed ? ` before ${clock(period.processAt, tz)}` : ""}.`;
+      body = `${name}: the waiver window changed, so claims it no longer allows came out. Check yours${timed ? ` before ${clock(period.processAt, m.tz || tz)}` : ""}.`;
     } else if (!on && cut.has(m.playerId)) {
       title = closed ? "Your claims came out" : "Your swaps came out";
       body = `${name}: the waiver window was turned off, so your ${closed ? "claims" : "swaps"} came out.`;
     } else if (on && !same) {
       title = line ? `Waiver window open: ${line}` : "Waiver window open";
       body = m.seen < n
-        ? `${name}: ${due}. Reveal Episode ${n} first to make yours.`
-        : `${name}: ${changed ? "changed" : "optional"} · ${due}.`;
+        ? `${name}: ${dueFor(m)}. Reveal Episode ${n} first to make yours.`
+        : `${name}: ${changed ? "changed" : "optional"} · ${dueFor(m)}.`;
     } else if (!on && before) {
       title = "Waiver window off";
       body = `${name}: your commissioner turned it off. ${closed ? "Nothing to claim this week." : "No swaps this week."}`;
@@ -328,12 +345,12 @@ async function sendWindow(db, leagueId, state, before, periodId, trimmed, opts =
   try {
     const period = W.periods(state).find((p) => p.id === periodId);
     if (!period) return 0;
-    const [name, people, tz] = await Promise.all([leagueName(db, leagueId), members(db, leagueId, state), seasonTz(db, state)]);
-    const msgs = windowMessages(state, before, period, name, people, trimmed, tz, opts);
+    const [name, people, season] = await Promise.all([leagueName(db, leagueId), members(db, leagueId, state), seasonOf(db, state)]);
+    const msgs = windowMessages(state, before, period, name, people, trimmed, season.tz, opts);
     for (const { userId, message } of msgs) {
-      const full = { ...message, url: link(message.url, leagueId), tag: `waivers-${leagueId}` };
+      const full = { ...message, url: link(message.url, leagueId), next: waiversNext(season.id), tag: `waivers-${leagueId}`, seasonId: season.id };
       if (opts.log) opts.log(`${opts.dry ? "(dry) " : ""}${userId} -- ${full.title}: ${full.body}`);
-      if (!opts.dry) await sendPush(db, [userId], "waivers", full);
+      if (!opts.dry) await sendPush(db, [userId], "waivers", full, { seasonId: season.id });
     }
     return msgs.length;
   } catch (e) {
@@ -345,14 +362,15 @@ async function sendWindow(db, leagueId, state, before, periodId, trimmed, opts =
 // ---- The results push's extra line ----
 
 /** " Waivers process Tue 8:00 PM EDT." when episode `n`'s results opened this week, else "". It goes
- *  out every week, to everyone, so it says nothing about who left. */
-async function resultsLine(db, state, n) {
+ *  out every week, to everyone, so it says nothing about who left. `tz`: the reader's zone, else the season's. */
+async function resultsLine(db, state, n, tz) {
   const p = W.enabled(state) ? W.current(state) : null;
   if (!p || p.episode !== n || p.phase !== "open" || p.hold || !p.processAt) return "";
-  return ` Waivers process ${clock(p.processAt, await seasonTz(db, state))}.`;
+  return ` Waivers process ${clock(p.processAt, tz || (await seasonTz(db, state)))}.`;
 }
 
 module.exports = {
+  seasonOf,
   seasonTz,
   clock,
   snapshot,

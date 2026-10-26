@@ -8,6 +8,7 @@ import { pool, HttpError, withLeagueLock } from "./db";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { leagueStates } from "./league-states";
 import { googleOn } from "./way-in";
+import { readNotify, saveNotify, type NotifySettings } from "./notify-prefs";
 
 // Your profile and your account settings in the new design (docs/PLAN-new-design.md step 15 part 1; the mock's settings.js):
 // your name, colour and picture, Hide scores until I reveal, your AI for results, and what your account signs in with.
@@ -33,6 +34,8 @@ export interface Profile {
   hideScores: boolean;
   /** "Survivor 49": the first season you played, for the me card's "since". */
   since: string | null;
+  /** What we notify you about (step 15 part 2): each moment on or off, and Couch chat's choice. */
+  notify: NotifySettings;
   account: {
     username: string | null;
     /** Your real email (never a username-only account's stand-in). */
@@ -46,7 +49,7 @@ export interface Profile {
 
 /** Your profile and settings (GET /api/me/profile). */
 export async function readProfile(user: SessionUser): Promise<Profile> {
-  const [{ rows }, { rows: first }] = await Promise.all([
+  const [{ rows }, { rows: first }, notify] = await Promise.all([
     pool.query(
       `SELECT u.username, u.name, u.email, s.colour, s.ai, COALESCE(s.show_results_immediately, false) AS immediate,
               (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture,
@@ -62,6 +65,7 @@ export async function readProfile(user: SessionUser): Promise<Profile> {
         ORDER BY ss.premiere_date NULLS LAST, ss.season_number LIMIT 1`,
       [user.id]
     ),
+    readNotify(user.id),
   ]);
   const r = rows[0];
   if (!r) throw new HttpError(404, "No such account");
@@ -72,6 +76,7 @@ export async function readProfile(user: SessionUser): Promise<Profile> {
     ai: AI_CHOICES.includes(r.ai) ? (r.ai as AiChoice) : "chatgpt",
     hideScores: !r.immediate,
     since: first[0] ? `${(first[0].name as string).replace(/^The /, "")}${first[0].season_number ? ` ${first[0].season_number}` : ""}` : null,
+    notify,
     account: {
       username: (r.username as string | null) ?? null,
       email: realEmail(r.email as string) ?? null,
@@ -87,11 +92,16 @@ function mayChange(session: Session) {
 }
 
 /**
- * Your colour, AI or spoiler setting (PUT /api/me/profile). Only what's sent changes; null colour goes back to the one your
- * id picks.
+ * Your colour, AI, spoiler setting or a notification moment (PUT /api/me/profile). Only what's sent changes; null colour goes
+ * back to the one your id picks.
  */
-export async function saveSettings(session: Session, body: { colour?: unknown; ai?: unknown; hideScores?: unknown }): Promise<void> {
+export async function saveSettings(session: Session, body: { colour?: unknown; ai?: unknown; hideScores?: unknown; notify?: unknown }): Promise<void> {
   mayChange(session);
+  if (body.notify !== undefined) {
+    if (!body.notify || typeof body.notify !== "object") throw new HttpError(400, "notify: { moment, on } or { chat }");
+    await saveNotify(session.user.id, body.notify as { moment?: unknown; on?: unknown; chat?: unknown });
+    if (Object.keys(body).length === 1) return;
+  }
   const sets: string[] = [];
   const args: unknown[] = [session.user.id];
   if ("colour" in body) {

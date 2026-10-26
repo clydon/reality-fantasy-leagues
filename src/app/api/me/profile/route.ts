@@ -11,11 +11,12 @@ export const GET = apiRoute(async (req) => {
   return NextResponse.json(await readProfile(user));
 });
 
-// Body: any of { name, colour, ai, hideScores }; only what's sent changes. A new name is your username (checked as sign-up
-// checks it), your seat's name in every league you play and the name on your messages. Answers the profile as it now is.
+// Body: any of { name, colour, ai, hideScores, notify: { moment, on } | { chat } }; only what's sent changes. A new name is your
+// username (checked as sign-up checks it), your seat's name in every league you play and the name on your messages. Answers the
+// profile as it now is.
 export const PUT = apiRoute(async (req) => {
   const session = await requireAuthSession(req);
-  const body = (await req.json().catch(() => ({}))) as { name?: unknown; colour?: unknown; ai?: unknown; hideScores?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { name?: unknown; colour?: unknown; ai?: unknown; hideScores?: unknown; notify?: unknown };
   const { name, ...rest } = body;
   if (name === undefined && !Object.keys(rest).length) throw new HttpError(400, "Nothing to change");
   if (name !== undefined) await rename(req, session, name);

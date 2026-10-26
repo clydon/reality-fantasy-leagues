@@ -319,6 +319,29 @@ columns from two LEFT JOINs on tables keyed by person) and one small query for y
 Better Auth's update, one league write per league you play (`withLeagueLock`, renaming your seat) and one UPDATE of your messages'
 signature. Rename, Hand it on and a new code are one or two small writes each.
 
+**Notifications by moment (new design, step 15 part 2)** poll nothing and run nothing on a schedule. Every push, from either design and
+from the hourly jobs, goes through one sender (`push-core.js sendPush`). **Web pushes are free**: our own VAPID keys, carried by the
+browser's push service (Google's for Chrome and Android, Apple's for an installed iPhone app); each is one HTTPS request per device from
+the function already handling the write that caused it, after its response (`after()`). What a push costs Neon: one small query for its
+readers (their design, time zone, switches, and what they've turned off for this show), then per reader the words' own reads (the spoiler
+guard's mark, one or two small queries; for results, which of two keys they have) and one INSERT into the bell, then one query for the
+devices. **What pushes now:** everything classic sent, but results once per person however many linked games they play (three games'
+results were three pushes, now one), worded per reader; and new: Final scores are in (the full results, the morning after: so at most two
+results notices an episode per show), the couch chat on a show the couch only watches and to people on the couch who follow without
+playing (on the new design), a poll, a bingo line, a flag settled, a game started and a watch along planned (both rode on classic's invite
+push before), someone joining your couch, and a watch along called off. **The call-off waits:** after Call it off, the function stays up
+8 s (the toast's Undo is 5 s) before deciding whether to tell anyone: wall time, no CPU, a few a season. **Stored:** `notifications` (the
+bell; ~300-500 bytes a row, worded per person, each push's reader gets one whatever their switches say; chat isn't kept): for a couch of
+four on two shows, roughly 15-25 notices a person a week, so ~100 rows (~40 KB) a person at the 30-day cap, which is kept by the insert
+itself taking that person's older rows; **not backed up** (notices, not the game). `waiver_runs_seen`: one ~60-byte row per person per
+waiver run watched; not backed up (a seen mark). `notification_prefs.chat` and `.shows`, `user_settings.tz` and `.notes_read_at`,
+`fact_disputes.told_at`: a few bytes each, backed up with their tables. **Reads:** the home read gains one indexed count (the bell's dot)
+and writes the phone's time zone only when it changed (as does classic's `/api/me`); the bell reads its list when it opens (up to 50
+rows, ~10-20 KB, each row's guard mark from one query for all your seasons) and marks it read with one small write; a show's
+Notifications reads one small row when its sheet opens; Settings' moments come with the profile read (one more small query). Tonight's
+Waivers ran plate's seen mark comes with the waivers read (one small query), and watching a run is one tiny insert. After it writes, the
+season sync reads the bingo cards on the episodes it touched (a few rows) and claims the flags it settled (one UPDATE).
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub, 14 in a watch along while its clock runs (its own 12, and the 2 of the show space's Chat badge under it), 5 while
@@ -698,3 +721,10 @@ never handles it: the user does the reset and the pasting.
   nothing runs on a schedule; no pushes.** Migration 0135: `user_settings.colour` and `.ai` (backed up) and `user_pictures` (~10-30 KB a
   person who chooses a picture; not backed up), read through `/api/people/[id]/picture?v=`, which browsers keep for good. The home read
   carries each couch member's colour and picture version; Settings reads your profile when it opens.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 15 part 2, notifications by moment. **Nothing polls and nothing runs on
+  a schedule.** One sender for every push (`push-core.js`), worded per reader through the spoiler guard, in their time zone, opening the
+  design they're on; results once per person per stage however many games (was once per league), plus new pushes: Final scores are in,
+  watch-only couch chat, polls, bingo lines, flags settled, a game started, a watch along planned or called off (8 s after, past its
+  Undo), someone joining your couch. Migration 0136: `notifications` (the bell, ~40 KB a person at its 30-day cap; not backed up),
+  `waiver_runs_seen` (not backed up), `notification_prefs.chat`/`.shows`, `user_settings.tz`/`.notes_read_at`, `fact_disputes.told_at`
+  (backed up with their tables). The home read gains the bell's count and keeps the phone's time zone (written only when it changes).

@@ -29,6 +29,15 @@ export class ApiError extends Error {
 // standalone-backend plan in project memory. That migration is done; every call in this file
 // hits this repo's own routes now, and login/signOut go through Better Auth's client
 // (auth-client.ts) directly rather than through here at all.
+/** The time zone this phone is in ("America/Los_Angeles"), or "" when the browser doesn't say. */
+export function phoneTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    return "";
+  }
+}
+
 async function localFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
@@ -99,7 +108,8 @@ export interface LeagueStateResponse {
 // Mutation routes below return the raw updated LeagueState directly (res.json(state)), not
 // wrapped in an envelope -- matches server/routes/episodes.js exactly, same contract app.js uses.
 export const api = {
-  me: () => localFetch<MeResponse>("/api/me"),
+  // ?tz=: the time zone this phone is in, kept so a push says the reader's time (docs/PLAN-new-design.md step 15 part 2).
+  me: () => localFetch<MeResponse>(`/api/me?tz=${encodeURIComponent(phoneTimeZone())}`),
   myActions: () =>
     localFetch<{
       items: (ActionItem & { leagueId: string; leagueName: string })[];

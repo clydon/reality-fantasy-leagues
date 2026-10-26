@@ -4,7 +4,7 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { outOfChat, outOfGroupChat } from "@/lib/server/late-join";
 import { pool, HttpError } from "@/lib/server/db";
 import { authorName, insertMessage, messageText, withReactions } from "@/lib/server/chat";
-import { notifyChat } from "@/lib/server/push-events";
+import { notifyCouchChat } from "@/lib/server/push-events";
 import { groupLeagueIds } from "@/lib/server/league-groups";
 
 // Port of SurvivorDraft's server/routes/chat.js GET/POST /. A linked league's chat is its whole
@@ -69,7 +69,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
   return NextResponse.json({ messages: await withReactions(rows), reads: visibleReads, v });
 });
 
-// Pushes everyone else in the league (one notification per league, kept up to date).
+// Pushes everyone else in the conversation (one notification per conversation on a device, kept up to date).
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
   const { user, membership } = await requireLeagueRole(req, leagueId, "member");
@@ -80,6 +80,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   const name = authorName(user as { name: string; username?: string | null });
   // chat.ts keeps the author's mark where the new design's fold goes by it (a streaming season's game).
   const message = await insertMessage(user as { id: string; name: string; username?: string | null }, { leagueId }, text);
-  notifyChat(leagueId, user.id, name, text);
+  // The couch's conversation hears it, in both designs, as it would show them it (push-events.ts notifyCouchChat).
+  notifyCouchChat({ messageId: message.id, authorId: user.id, authorName: name, text, leagueId });
   return NextResponse.json({ message: { ...message, reactions: {} } });
 });

@@ -9,6 +9,7 @@ import { StreamingRail } from "../hub/streaming";
 import { ProfileSheet } from "../hub/profile";
 import { BothWatch, CouchWatching, Feed, Foot, GetGoing, GrowNote, nextShow, OnNow, StatusLine, UpNext, YourShows } from "../hub/sections";
 import { SoloHub } from "../hub/solo-hub";
+import { NotesBell } from "../hub/notes";
 import { useMe } from "../session";
 import { TopBar } from "../ui/bars";
 import { Btn, EmptyState } from "../ui/parts";
@@ -42,7 +43,7 @@ export function HomeScreen() {
   const newCouch = asked === "new" || (asked !== "grow" && (!couch || couch.games.length === 0));
   return (
     <div className="pb-[110px]" data-hub={home ? shape : undefined}>
-      <TopBar me={me} onProfile={() => setProfile(true)} />
+      <TopBar me={me} onProfile={() => setProfile(true)} bell={<NotesBell />} />
       {error ? (
         <EmptyState title="Couldn't load your couch" line={error.message} action={<Btn wide onClick={() => refetch()}>Try again</Btn>} />
       ) : !home ? (

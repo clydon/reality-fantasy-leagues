@@ -57,6 +57,9 @@ export async function enablePushOnThisDevice(): Promise<void> {
   const permission = await Notification.requestPermission();
   if (permission !== "granted") throw new Error("Notification permission was not granted.");
 
+  // The root layout registers the worker in production builds only; turning notifications on registers it if it isn't
+  // (a dev server, or the very first visit before the registrar ran), rather than waiting for one that never comes.
+  if (!(await navigator.serviceWorker.getRegistration())) await navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" });
   const registration = await navigator.serviceWorker.ready;
   let sub = await registration.pushManager.getSubscription();
   if (!sub) {

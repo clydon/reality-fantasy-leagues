@@ -2,7 +2,7 @@ import { after } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import { pool } from "./db";
-import { sendPush, type NotificationType, type PushMessage } from "./push-core";
+import { sendPush, type NotificationType, type PushWords } from "./push-core";
 
 // Game concepts -> the accounts behind them. Pushes go to USERS (their devices), while league state
 // talks about PLAYERS; league_memberships is the bridge between the two. A player with no linked
@@ -50,14 +50,17 @@ export async function leagueName(leagueId: string): Promise<string> {
 //
 // Call this only AFTER the triggering write has committed: after() callbacks run even when the
 // request goes on to fail, and a push for a pick that was rolled back would be a lie.
+//
+// `message` may be worded per reader (push-core.js: the guard decides what each may be told, in their own time zone, opening
+// the design they're on); `seasonId` is the season it's about, for that show's own switches and the bell's art.
 export function notifyAfter(
   type: NotificationType,
-  resolve: () => Promise<{ userIds: string[]; message: PushMessage } | null>
+  resolve: () => Promise<{ userIds: string[]; message: PushWords; seasonId?: string | null; bell?: boolean } | null>
 ): void {
   after(async () => {
     try {
       const target = await resolve();
-      if (target && target.userIds.length) await sendPush(pool, target.userIds, type, target.message);
+      if (target && target.userIds.length) await sendPush(pool, target.userIds, type, target.message, { seasonId: target.seasonId ?? null, bell: target.bell });
     } catch (e) {
       console.error(`[push] ${type} notification failed:`, e);
     }

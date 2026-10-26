@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
+import { loopback } from "@/lib/server/push-core";
 
 interface SubscriptionBody {
   endpoint?: string;
@@ -19,7 +20,8 @@ export const POST = apiRoute(async (req) => {
   const endpoint = body.endpoint;
   const p256dh = body.keys?.p256dh;
   const auth = body.keys?.auth;
-  if (!endpoint || !p256dh || !auth || !/^https:\/\//.test(endpoint)) {
+  // A real push service is https; a dev server also takes a check's loopback stand-in (scripts/dev-test/fake-push.js).
+  if (!endpoint || !p256dh || !auth || !(/^https:\/\//.test(endpoint) || loopback(endpoint))) {
     throw new HttpError(400, "Invalid push subscription");
   }
   await pool.query(

@@ -7,7 +7,7 @@ import { requireCouch, type CouchRole } from "./couches";
 import { pool, HttpError } from "./db";
 import { seenThrough } from "./guard";
 import { hiddenFromGroup } from "./late-join";
-import { notifyChat } from "./push-events";
+import { notifyCouchChat } from "./push-events";
 import { seasonSchedules } from "./schedule";
 import { games } from "./show-space";
 
@@ -182,8 +182,8 @@ export async function postCouchChat(user: SessionUser, scope: ChatScope, rawText
     scope.postTo ? { leagueId: scope.postTo, seasonId: scope.seasonId } : { couchId: scope.couchId, seasonId: scope.seasonId },
     text
   );
-  // The game's chat tells its players as classic does. A show the couch only watches has no pushes yet (step 15).
-  if (scope.postTo) notifyChat(scope.postTo, user.id, name, text);
+  // Everyone in the conversation hears, as it would show them it (step 15 part 2: folded, quiet or not at all).
+  notifyCouchChat({ messageId: m.id, authorId: user.id, authorName: name, text, leagueId: scope.postTo, couchId: scope.couchId, seasonId: scope.seasonId });
   return { id: m.id, userId: m.user_id, name: m.author_name, type: "message", text: m.text, at: new Date(m.created_at).toISOString(), edited: false, reactions: {} };
 }
 

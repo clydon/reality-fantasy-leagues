@@ -16,7 +16,7 @@ import { linkProblem } from "./league-groups";
 import { leagueStates } from "./league-states";
 import { makeLeague } from "./new-game";
 import { copyOf } from "./ours";
-import { notifyAfter } from "./push-targets";
+import { notifyGameStarted } from "./push-events";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 
@@ -297,19 +297,18 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
   });
   await followLeagueProgress(user.id, leagueId);
 
-  // Tell the couch: one push to everyone else on it, to the show's Games tab.
+  // Tell the couch: one push to everyone else on it, to the show's Games tab (its own moment since step 15 part 2: On the couch).
   const audience = body.tell === false ? [] : (await couchMembers([couch])).get(couch)?.filter((m) => m.userId !== user.id).map((m) => m.userId) ?? [];
-  if (audience.length) {
-    notifyAfter("invite", async () => ({
-      userIds: audience,
-      message: {
-        title: `${starter} started a game for ${opts.show}`,
-        body: `${choice.name} on ${opts.label}, from ${opts.part.singular === "episode" ? "Episode" : opts.part.singular.replace(/^./, (c) => c.toUpperCase())} ${opts.from}. Join from the Games tab.`,
-        url: `/show/${seasonId}/games`,
-        tag: `started-${leagueId}`,
-      },
-    }));
-  }
+  notifyGameStarted({
+    userIds: audience,
+    seasonId,
+    leagueId,
+    starter,
+    show: opts.show,
+    gameName: choice.name,
+    label: opts.label,
+    from: `${opts.part.singular === "episode" ? "Episode" : opts.part.singular.replace(/^./, (c) => c.toUpperCase())} ${opts.from}`,
+  });
   return { leagueId, name, gameName: choice.name, from: opts.from, linked, told: audience.length };
 }
 

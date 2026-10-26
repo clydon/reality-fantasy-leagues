@@ -12,7 +12,7 @@ import { followLeagueProgress } from "./follows";
 import { EVERYTHING, seenThrough } from "./guard";
 import { joinLeague } from "./join-league";
 import { leagueStates } from "./league-states";
-import { notifyJoinRequest, notifyLetIn, notifyMemberJoined } from "./push-events";
+import { notifyCouchJoined, notifyJoinRequest, notifyLetIn, notifyMemberJoined } from "./push-events";
 import { latestAired, seasonSchedules, upNext, type SeasonSchedule } from "./schedule";
 import { endedThrough } from "./calls";
 import { games, seasonHeaders, type Game } from "./show-space";
@@ -212,7 +212,7 @@ export async function joinCouch(user: SessionUser, rawCode: unknown, opts: { let
   const found = await couchOfCode(normalizeCode(rawCode));
   if (!found) throw new HttpError(404, "No couch with that code. Check it with whoever sent it.");
   const { rows: count } = await pool.query("SELECT count(*)::int AS n FROM couch_members WHERE user_id = $1", [user.id]);
-  return tx(async (c) => {
+  const joined = await tx(async (c) => {
     const { rows } = await c.query("SELECT name FROM couches WHERE id = $1 FOR UPDATE", [found.couchId]);
     if (!rows.length) throw new HttpError(404, "No couch with that code. Check it with whoever sent it.");
     if (opts.letIn) await c.query(`UPDATE "user" SET approved = true WHERE id = $1`, [user.id]);
@@ -226,6 +226,9 @@ export async function joinCouch(user: SessionUser, rawCode: unknown, opts: { let
     await ensureOwner(c, found.couchId);
     return { couchId: found.couchId, name: rows[0].name as string, already: was.length > 0 };
   });
+  // Everyone already on it hears (step 15 part 2: Invites and join requests), once it's committed.
+  if (!joined.already) notifyCouchJoined(joined.couchId, user.id, nameOf(user));
+  return joined;
 }
 
 export interface LeaveCouch {

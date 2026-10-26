@@ -11,7 +11,7 @@
 //   - hiding scores is the guard's own setting (show_results_immediately): seenThrough null while off;
 //   - the couch: only whoever runs it renames it or hands it on (refused for anyone else, and for someone not on it), a
 //     new code retires your old one (it stops opening the couch) and leaves everyone else's.
-//   In a real browser at --width (390 by default), as alex: Settings in the mock's order with only parts 2-4's three Previews
+//   In a real browser at --width (390 by default), as alex: Settings in the mock's order with only parts 3-4's two Previews
 //   left, the profile sheet (a colour with Undo, a picture shrunk in the browser and shown on every face of his, a taken name
 //   refused, a new one saved and shown at once), Hide scores with Undo, Your AI for results leading each Ask an AI sheet
 //   (Ask each time: both apps; I'll copy and paste: the copy first; Grok), the couch's sheet (Rename with Undo, a new code,
@@ -259,7 +259,7 @@ function check(ok, what, detail = "") {
         heads.join("|")
       );
       const previews = await pg.locator("[data-preview]").evaluateAll((els) => els.map((e) => e.getAttribute("data-preview")));
-      check(previews.join() === "settings.notifications,settings.sharing,settings.appearance", "only parts 2-4's three are still Preview", previews.join());
+      check(previews.join() === "settings.sharing,settings.appearance", "only parts 3-4's two are still Preview (part 2 made notifications real)", previews.join());
       check((await pg.locator("[data-setting=hide-scores]").getAttribute("aria-checked")) === "true", "Hide scores until I reveal is on");
       check((await pg.locator("[data-choice=chatgpt]").getAttribute("aria-checked")) === "true", "ChatGPT is his AI (Recommended)");
       check(!(await pg.locator("[data-settings-account]").innerText()).includes("Google"), "no Google row while it isn't set up");

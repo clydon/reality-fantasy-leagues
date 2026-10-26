@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
-import { requireAuth } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
 import { couchMembers, healCouches } from "@/lib/server/couches";
 import { weeklyCallMoves } from "@/lib/server/calls";
@@ -14,6 +13,8 @@ import { plansFor } from "@/lib/server/watch-plans";
 import { progressOf } from "@/lib/server/season-games";
 import { leagueStates } from "@/lib/server/league-states";
 import { resultsDue } from "@/lib/game/results-due";
+import { keepTimeZone, unreadNotes } from "@/lib/server/notify-prefs";
+import { isImpersonating, requireAuthSession } from "@/lib/server/auth-helpers";
 
 // The new design's home (docs/PLAN-new-design.md step 0b; the hub, step 8): your couches with their people and
 // games, the shows you follow or play with where you are in each and what's on next (and who's set for it, step 1),
@@ -27,8 +28,13 @@ import { resultsDue } from "@/lib/game/results-due";
 // episodes air and how far you are.
 // Others' follows are only those they share (a show watched privately isn't), and never how far they are.
 // Not polled yet: a screen that polls it should poll something smaller.
+//
+// Notifications (step 15 part 2): how many notices are new in the bell since you last looked (`notes`), and `?tz=` keeps the
+// time zone your phone is in, so a push says your time (written only when it's changed).
 export const GET = apiRoute(async (req) => {
-  const user = await requireAuth(req);
+  const session = await requireAuthSession(req);
+  const user = session.user;
+  if (!isImpersonating(session)) await keepTimeZone(user.id, new URL(req.url).searchParams.get("tz"));
   await healCouches(user.id);
 
   const { rows: couchRows } = await pool.query(
@@ -36,7 +42,7 @@ export const GET = apiRoute(async (req) => {
     [user.id]
   );
   const couchIds = couchRows.map((c) => c.id as string);
-  const [members, couchGames, myGames, face] = await Promise.all([
+  const [members, couchGames, myGames, face, notes] = await Promise.all([
     couchMembers(couchIds),
     games(user.id, { couchIds }),
     games(user.id, { mine: true }),
@@ -46,6 +52,7 @@ export const GET = apiRoute(async (req) => {
          FROM "user" u LEFT JOIN user_settings s ON s.user_id = u.id LEFT JOIN user_pictures p ON p.user_id = u.id WHERE u.id = $1`,
       [user.id]
     ),
+    unreadNotes(user.id),
   ]);
   const people = [user.id, ...[...members.values()].flat().map((m) => m.userId)];
   const follows = await followsOf(user.id, people);
@@ -168,6 +175,8 @@ export const GET = apiRoute(async (req) => {
     guideHidden,
     // Your couches' planned nights still to come (step 11 part 3): the guide, a show's Tonight.
     plans,
+    // The bell (step 15 part 2): how many notices are new since you last looked.
+    notes: { unread: notes },
   });
 });
 

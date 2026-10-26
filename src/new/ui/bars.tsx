@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Bell, ChevronLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { colourOf, pictureUrl } from "@/lib/people";
 import { usePerson } from "../data";
 import { useNav } from "../nav";
-import { Preview } from "./preview";
 
 // The new design's top bars: the hub's (the wordmark, notifications, you) and a pushed page's (back, a centred
 // title, an action on the right). A show's own bar is show-bar.tsx.
@@ -58,17 +57,13 @@ export function Wordmark() {
   );
 }
 
-/** The hub's top: the wordmark, notifications, and you (your profile: your couch, your numbers, Settings). */
-export function TopBar({ me, onProfile }: { me: { id: string; name: string }; onProfile: () => void }) {
+/** The hub's top: the wordmark, notifications (`bell`: the hub's NotesBell), and you (your profile: your couch, your numbers, Settings). */
+export function TopBar({ me, onProfile, bell }: { me: { id: string; name: string }; onProfile: () => void; bell?: ReactNode }) {
   return (
     <header className="flex items-center justify-between px-4 pb-1 pt-[calc(14px+env(safe-area-inset-top,0px))]">
       <Wordmark />
       <div className="flex items-center gap-1.5">
-        <Preview id="hub.notifications" tag={false}>
-          <button type="button" aria-label="Notifications" className="grid size-11 place-items-center rounded-[3px] hover:bg-card">
-            <Bell className="size-5" aria-hidden />
-          </button>
-        </Preview>
+        {bell}
         <button type="button" onClick={onProfile} aria-label="Your profile" className="nd-press grid size-11 place-items-center rounded-[3px]">
           <Avatar id={me.id} name={me.name} />
         </button>

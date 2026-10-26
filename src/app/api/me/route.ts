@@ -4,6 +4,7 @@ import { isApprovedUser, requireSession } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
 import { groupDisplayName } from "@/lib/server/league-groups";
 import { uiOf, withUiCookie } from "@/lib/server/ui-choice";
+import { keepTimeZone } from "@/lib/server/notify-prefs";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 
@@ -15,6 +16,8 @@ import type { LeagueState } from "@/lib/game/types";
 // every league regardless of personal membership.
 export const GET = apiRoute(async (req) => {
   const { user, session } = await requireSession(req);
+  // The time zone this phone is in (`?tz=`, step 15 part 2), so a push says the reader's time; written only when it's changed.
+  if (!(session as { impersonatedBy?: unknown }).impersonatedBy) await keepTimeZone(user.id, new URL(req.url).searchParams.get("tz"));
   const { rows } = await pool.query(
     `SELECT l.id, l.name, l.join_code, m.role, l.state, l.group_id, l.group_position, g.favorite_league_id,
             g.name AS group_name, s.name AS show_name

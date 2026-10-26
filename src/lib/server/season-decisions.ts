@@ -7,7 +7,7 @@ import { resultsDiff } from "@/lib/game/results-changes";
 import { recordChange, type ChangeUndo } from "./change-log";
 import { pool, withLeagueLock } from "./db";
 import { applyHeldTribesIfDue } from "./season-cast";
-import { notifyEpisodeResults } from "./push-events";
+import { notifyBingoLines, notifyEpisodeResults, notifyFlagsSettled } from "./push-events";
 
 // Applying a season's ACCEPTED episode decisions (db/migrations/0019) to its leagues.
 //
@@ -335,7 +335,11 @@ async function logSync(client: PoolClient, leagueId: string, before: LeagueState
 /**
  * Syncs every league playing a season -- what an admin decision, or an answer someone sent, triggers. One league
  * failing (a lock timeout, a league deleted mid-loop) is reported against that league and never denies the others.
- * Live leagues that gained an elimination get the usual episode-results push.
+ *
+ * Then the notices it makes (step 15 part 2): each episode whose results came in or moved on (its stage changed: a correction
+ * isn't news) is offered to the results push (Early results are in, Final scores are in: once per person and stage, so three
+ * linked games are one notice), anyone whose bingo card on an episode it touched now has a line hears, and whoever raised a
+ * flag the settling decided hears how it went.
  */
 export async function syncSeasonLeagues(seasonId: string, actorUserId: string | null, opts: SyncOptions = {}): Promise<(LeagueDecisionSync & { couchId: string | null; episodes: number[] })[]> {
   const { rows: leagues } = await pool.query(
@@ -348,14 +352,22 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
   );
   const sync = { ...opts, correctionBatch: opts.correctionBatch ?? crypto.randomUUID() };
   const results: (LeagueDecisionSync & { couchId: string | null; episodes: number[] })[] = [];
+  const bingoAfter = new Set<number>();
   for (const league of leagues) {
     try {
       let out: SyncResult | null = null;
+      // Each episode's results stage before, so only results that came in or moved on are news (a correction isn't).
+      let before = new Map<number, string | null>();
       const state = await withLeagueLock(league.id, async (s, client) => {
+        before = new Map(s.episodes.map((e) => [e.number, StateLogic.resultsStage(e)]));
         out = await syncLeagueDecisions(client, league.id, s, sync);
       });
       const r = out as unknown as SyncResult;
-      for (const epId of r.eliminatedEpisodeIds) notifyEpisodeResults(league.id, state, epId, actorUserId);
+      for (const ep of state.episodes) {
+        const stage = StateLogic.resultsStage(ep);
+        if (stage && stage !== (before.get(ep.number) ?? null)) notifyEpisodeResults(league.id, state, ep.id, actorUserId);
+      }
+      for (const n of r.episodes) bingoAfter.add(n);
       results.push({ leagueId: league.id, leagueName: league.name, couchId: league.couch_id, applied: r.applied, undone: r.undone, skipped: r.skipped, episodes: r.episodes });
     } catch (e) {
       results.push({
@@ -370,7 +382,30 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
       });
     }
   }
+  try {
+    // Bingo is loaded only when a sync has an episode to look at (it reads the season's rulebook: a heavier module graph).
+    for (const n of bingoAfter) notifyBingoLines({ seasonId, episode: n, lines: async () => (await import("./bingo")).bingoLinesOn(seasonId, n) });
+    await tellSettledFlags(seasonId);
+  } catch (e) {
+    console.error(`[sync] notices for ${seasonId} failed:`, e);
+  }
   return results;
+}
+
+/**
+ * The flags on a season that have settled since their raisers were last told (fact_disputes.told_at, migration 0136), claimed
+ * in one statement so a second sync can't tell them twice, and told (push-events.ts notifyFlagsSettled).
+ */
+export async function tellSettledFlags(seasonId: string): Promise<number> {
+  const { rows } = await pool.query(
+    `UPDATE fact_disputes x SET told_at = now()
+      WHERE x.season_id = $1 AND x.status <> 'open' AND x.told_at IS NULL AND x.user_id IS NOT NULL
+      RETURNING x.id, x.user_id, x.episode_number, x.status,
+                (SELECT d.castaway_name || ' · ' || COALESCE(NULLIF(d.method, ''), NULLIF(d.event_type, ''), d.kind) FROM season_decisions d WHERE d.id = x.decision_id) AS what`,
+    [seasonId]
+  );
+  notifyFlagsSettled(rows.map((r) => ({ id: r.id, userId: r.user_id, seasonId, episode: r.episode_number, status: r.status, what: r.what ?? null })));
+  return rows.length;
 }
 
 /** How many leagues play a season. */

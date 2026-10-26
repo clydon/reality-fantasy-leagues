@@ -23,10 +23,8 @@ import { HoldSheet } from "../ui/guards";
 import { toast } from "../ui/toast";
 import { usePushedPage } from "../ui/page";
 import { EmptyState, GuardChip, Row } from "../ui/parts";
-import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { ShowBar, TabBar } from "../ui/show-bar";
-import type { PreviewId } from "../preview";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { PoolPage } from "../show/solo";
 import { MakeGamePage, useOpenMake } from "../show/make-game";
@@ -34,6 +32,7 @@ import { openWatching, type WhereTarget } from "../watching/sheets";
 import { openStartGame } from "../couch/start-game";
 import { openPlan, PlanIcon } from "../couch/watch-plans";
 import { WatchAlongPage } from "../show/watch-along";
+import { ShowNotifySheet } from "../show/notify-sheet";
 import { ownPace } from "@/lib/game/streaming";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
@@ -289,9 +288,11 @@ function draftLine(g: DraftGame): string {
 }
 
 /** The show's ⋯ menu: Backstage for whoever runs a game here (with a dot when it needs you), Recent changes for the
- *  couch, the drafts (for games that have one), Plan a watch along (step 11 part 3), and what's still to come. */
+ *  couch, the drafts (for games that have one), Plan a watch along (step 11 part 3), and this show's Notifications (step 15
+ *  part 2). */
 function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [open, setOpen] = useState(false);
+  const [notify, setNotify] = useState(false);
   const [leave, setLeave] = useState<OutPreview | null | false>(false);
   const nav = useNav();
   const refresh = useAfterReveal();
@@ -306,11 +307,6 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const lead = (list: DraftGame[]) => list.find((g) => g.phase === "live") ?? list.find((g) => g.phase === "waiting") ?? list[0];
   const name = show.header?.show.name ?? "This show";
   const runNames = [...new Set(show.runs.map((g) => g.gameName))].join(" and ");
-  const soon = (id: PreviewId, icon: typeof Bell, title: string, detail: string) => (
-    <Preview id={id} tag={false} className="my-1">
-      <Row icon={icon} title={title} detail={detail} onClick={() => {}} />
-    </Preview>
-  );
   return (
     <>
       <button type="button" aria-label={needs.length ? "Show menu: Backstage needs you" : "Show menu"} onClick={() => setOpen(true)} className="relative grid size-11 place-items-center rounded-[3px] text-white">
@@ -402,7 +398,15 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
               }}
             />
           )}
-          {soon("show.notifications", Bell, "Notifications", "Reminders, results and chat for this show")}
+          <Row
+            icon={Bell}
+            title="Notifications"
+            detail="Reminders, results and chat for this show"
+            onClick={() => {
+              setOpen(false);
+              setNotify(true);
+            }}
+          />
           {show.couch && show.games.some((g) => g.yourRole) && (
             <Row
               icon={LogOut}
@@ -441,6 +445,7 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
           nav.push(paths.home);
         }}
       />
+      <ShowNotifySheet seasonId={seasonId} open={notify} onOpenChange={setNotify} />
     </>
   );
 }

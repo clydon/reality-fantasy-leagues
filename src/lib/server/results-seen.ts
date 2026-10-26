@@ -48,10 +48,3 @@ export async function markResultsSeen(userId: string, leagueId: string, n: numbe
   await followLeagueProgress(userId, leagueId);
 }
 
-/** Splits accounts into those who see results immediately (opted out) and those protected from them. */
-export async function splitBySpoilerProtection(userIds: string[]): Promise<{ immediate: string[]; protectedIds: string[] }> {
-  if (!userIds.length) return { immediate: [], protectedIds: [] };
-  const { rows } = await pool.query("SELECT user_id FROM user_settings WHERE user_id = ANY($1::text[]) AND show_results_immediately", [userIds]);
-  const out = new Set(rows.map((r) => r.user_id as string));
-  return { immediate: userIds.filter((id) => out.has(id)), protectedIds: userIds.filter((id) => !out.has(id)) };
-}

@@ -40,7 +40,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | **done** 2026-10-26 on the branch, in three parts: watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing (each open watch along's clock kept on the server; 0132), together sessions and planned nights (one clock for everyone in a planned night's watch along, Up next's planned night, a shared start's own time, bingo ticks and the two accolades; 0133); all ship with 0b's | Opus · xhigh |
 | 14 | Streaming shows and the rail | **done** 2026-10-26 on the branch, in two parts: streaming on the couch (the release model, the rail, the show space; no migration), the fold by progress, first to finish and daily streaming off Also on (migration 0134, which ships with 0b's) | Opus · high |
-| 15 | Notifications by moment, account settings, What your couch sees | in progress on the branch, in four parts: your settings and your profile (part 1 finished 2026-10-26, migration 0135, ships with 0b's), notifications by moment, what your couch sees, Studio and the rest | Opus · xhigh |
+| 15 | Notifications by moment, account settings, What your couch sees | in progress on the branch, in four parts: your settings and your profile (part 1 finished 2026-10-26, migration 0135), notifications by moment (part 2 finished 2026-10-26, migration 0136), what your couch sees, Studio and the rest; 0135 and 0136 ship with 0b's | Opus · xhigh |
 | — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
 | C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · xhigh |
 
@@ -162,9 +162,6 @@ step's As built.
 - **No tour in the new design** (step 15 part 1; for C or a later step). The mock's Help has Take the tour again ("5 minutes on a practice
   season"); classic's guided tour is classic's, so Settings has How each game works and Report a problem only. The practice couch (step 9
   part 3) is the nearest thing.
-- **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
-  classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
-  on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
 - **Only the newest 300 messages** (step 4; for 15: step 13 part 1 left it, a watch along has its own stream), as classic: nothing
   loads earlier ones.
 - **Classic's research isn't a source** (step 6b part 1; for C). Backstage's answers, a player's Fill it in, One tap and
@@ -199,9 +196,6 @@ step's As built.
 - **Undo leaves what another answer also says** (step 6b part 1; for a later polish). Taking your answer back keeps any
   result another source still reports (it's still a source's word), but the toast says only "Undone"; it could say "3
   results still stand: another answer reports them".
-- **Flags don't notify** (step 6b part 1; for 15). "You'll hear how it went" is the flag's status: Backstage's Flags from your
-  couch (for whoever runs a game) and "you flagged this" on the episode's sheet. A push when a flag settles belongs with
-  notifications by moment.
 - **"Nobody went home" never applies on its own** (step 6c part 2; for a later polish). A quick check that says nobody left
   always waits for It's right, however many sources it has (a check run too early can find nothing and say so); entered by
   hand, or in a full answer, it applies like any result. Two couches' quick checks saying nobody could confirm it instead.
@@ -224,8 +218,6 @@ step's As built.
 - **No "Lock it down"** (step 6a; 10 part 2b left it; for 15 or a later polish). The mock's Game settings has a competitive switch
   (no late joins, no catch-up, rules frozen); only the first means anything in the engine today (Who can join's Nobody new, per
   game). "Rules frozen" would refuse a Commissioner's own Scoring rules and Make it ours for the season: a setting nothing reads yet.
-- **The run's "seen" mark is per device** (step 6a; for 15). Tonight's "Waivers ran" plate goes once you've watched the run
-  here (localStorage), so another phone shows it again until the week ends.
 - **No quick-check switch for a couch** (step 6c part 1; for when Autopilot ships, the user's call; 6c part 2 left it). The mock's
   Quick check card has a switch ("Our bot checks who went home about 5 minutes after the episode, and keeps checking until
   it's sure. Always free."). The bot's schedule is per season and an admin's (Survivor 51 runs only the schedule check, the
@@ -240,10 +232,6 @@ step's As built.
 - **Nobody can undo the bot's own answer** (step 6c part 1; for C or a later desk step; 6c part 2 left it). An Autopilot answer has no
   couch, so no couch gets its line or its Undo (like another couch's answer); a wrong one is flagged ("Something wrong?") and
   settled by the next answer, or decided on the desk. The desk could offer "withdraw this answer" on a result's page.
-- **Pushes open classic's pages** (step 4 for chat, step 7 for the draft; for 15, which comes before the switch). "You're on the
-  clock", a draft Nudge, results and chat pushes link to classic's routes (`/draft?league=`, `/chat`, ...), so someone on the
-  new design lands in classic from a notification. Before the couch switches, a push should open the new design for people
-  on it: classic's routes could send someone with `ui='new'` to the show (and the draft room, with its `?game=`).
 - **The pick timer needs someone in the room** (step 7, as designed). There's no job: when a turn's time runs out, a phone with
   the draft room open asks the server, which checks the clock and picks from their queue if the game says so. With nobody in
   the room, the pick waits until someone opens it (whoever's on the clock is pushed when their turn starts, and can be
@@ -273,8 +261,6 @@ step's As built.
   about is worked out from the season's rulebook each time it's read, so a rulebook edit while calls are open (a desk fix, a show
   change) can swap an open episode's moment: calls made on the old one are kept and still count (they're stored by their moment),
   but the sheet no longer shows them. Keeping each episode's questions once its first call is made would hold them still.
-- **Polls don't notify** (step 12 part 2; for 15). Starting a poll pushes nobody (as a planned night's Tell the couch would); the
-  couch finds it in Tonight's Extras, the Games tab and Commercial break. Notifications by moment could send "riley started a poll".
 - **A tick only ever says yes** (step 12 part 3; for a later polish). On a talk show a bingo square settles when two on the couch
   tick it or say so (alone on the show, your own tick); nothing says a moment didn't happen except the two Call it moments' "It
   didn't", so a square that didn't happen stays "still settling" (its lines never count, rightly), and one only you noticed waits for
@@ -287,8 +273,6 @@ step's As built.
   break, the solo hub's On your own, kept 60 s) works out the round on up to six of your shows until three have one, each from the
   stats facts of up to two seasons (HOSTING.md). A round kept per person, show and week (it's the same all week unless your marks
   move) would make it one read.
-- **Bingo doesn't notify** (step 12 part 3; for 15). "riley got a line" pushes nobody; Tell the couch (a chat message whoever got it
-  chooses to send) is the only word of it.
 - **A past season counts for trivia only if it's marked** (step 12 part 3; for 15 or a later polish). Trivia asks about a finished
   season only when your follow says you've seen it to the end (the seasons classic leagues played were backfilled into follows in
   0b); a season someone watched before joining is nobody's mark, and first run asks where you are only in current seasons.
@@ -301,8 +285,6 @@ step's As built.
 - **Classic's join code still makes a hidden ghost** (step 9; for C). Joining with a game's own code in classic makes a late
   joiner the game can't see until its commissioner adds them, whatever its Who can join says (only Nobody new closes it,
   through classic's switch, kept in step). The new design's joins are seen at once; such a ghost stays out of the couch chat.
-- **Join pushes open the new design** (step 9; for 15). "kat asked to join Outlast" links to the show's Backstage and "You're
-  in" to its Games tab, for someone on classic too (requests only come from the new design).
 - **An episode page can't open from a link** (step 8; for a later polish). Previously on's rows and Last time open the show's
   Episodes tab, a tap short of the episode: an episode page is a pushed page opened by a tap on Episodes, not from its URL
   (`?page=ep4` alone doesn't render it). Letting the page read its episode from the URL would let the hub, the feed and
@@ -393,15 +375,6 @@ step's As built.
   a `leagues` season whose earlier results were entered in each league by classic's research (none on the local copy: Survivor
   51 and Traitors 5 are `admin`), its cast would show people already out as still in. The check sets its fixture season to
   `admin`, as production's live seasons are.
-- **Tell the couch uses the invite setting** (step 10 part 2b; since step 11 part 3 a planned night's invites too; for 15). "alex
-  started a game for Survivor" and "alex planned a watch along" go to people who allow league invites (push-core's `invite`),
-  linking to the show's Games tab or Tonight; notifications by moment (step 15) could give each a moment of its own.
-- **A called-off night tells nobody** (step 11 part 3; for 15). Calling off a watch along has no push (it has Undo, and a push sent
-  before an Undo would be wrong), so whoever said I'm in finds it gone from Tonight and the guide; nor is whoever planned it told
-  when someone answers (they see it on the plate). Notifications by moment could send "called off" once the Undo has passed.
-- **A plan's push says the show's time zone** (step 11 part 3; for 15). The server can't know the phone's zone, so the invite reads
-  "Thu 8:00 PM EDT" in the season's own zone (as the waiver pushes do); the app shows the phone's. A zone kept per person (step
-  15's settings) would let pushes say the reader's time.
 - **One night per couch and episode** (step 11 part 3; for a later polish). Two people wanting different nights for the same episode can't
   both plan it (one going per couch and episode): the second sees the first and says I'm in. (Since step 13 part 3 a shared start can be
   any day and time, so the one night can be the one that suits.)
@@ -479,6 +452,22 @@ step's As built.
   tap. A show's running time without ads isn't kept anywhere.
 - **Nobody can hide a reaction** (step 13 part 1; for a later step). Comments and GIFs (GIPHY's PG-13 at most) reach the couch as
   said; there's no report or hide, as in chat, beyond taking back your own.
+- **Answers to a plan push nobody** (step 11 part 3; step 15 part 2 left it; for a later polish). Whoever planned a watch along sees
+  I'm in and Can't make it on its plate, not in a notification (a push for every answer would be noise); a summary the morning of the
+  night could say who's in.
+- **Classic's league invites can't be answered in the new design** (step 15 part 2; for C). Inviting someone by name to a game (classic's
+  commissioner screens) is answered on classic's Dashboard; its push now opens the hub for someone on the new design, which has nowhere to
+  accept it. The new design's way in is a couch code; C retires classic's invites or gives them a row in Needs you.
+- **Quiet on episode nights is quiet until you catch up** (step 15 part 2, the mock's "Catch up when you reveal"; for a later polish).
+  Quiet means a message folded for you isn't pushed, and the fold is the chat's (chat-fold.ts): someone several episodes behind on a show
+  gets no chat pushes for it until they've caught up, not only on the night. Every message pushes the folded ones (who, never what).
+- **The bell doesn't say which couch** (step 15 part 2; for a later polish). It lists all your notices together, newest first, with the
+  show's art: someone on two couches that both watch a show can't tell which couch a poll or a planned night was on. A couch's name on
+  the row (only when you're on more than one) would.
+- **A real phone's push service is untried** (step 15 part 2; the user's, after the merge). The check turns notifications on through a
+  stand-in PushManager whose subscription is fake-push.js's (no check may reach Google's or Apple's push service); the new design's Turn on
+  runs the same push-client code classic's Account settings does, which works on the couch's phones today. After the merge, someone turns
+  them on from Settings on a real phone (an installed iPhone app, an Android phone) and sees a push arrive.
 - **Posters are TVmaze's medium image** (step 10 part 1; for a later polish). 210 by 295, soft in the tall show bar; TVmaze's
   other size is the upload itself, often over a megabyte. A resized copy we keep (or Vercel's image optimisation, which has
   limits of its own) would sharpen it.
@@ -4037,6 +4026,105 @@ code), `src/new/settings/` (settings.tsx, sheets.tsx), `scripts/dev-test/check-n
   words (classic's spoiler split is `splitBySpoilerProtection`, which part 2 replaces with the guard's words per reader); the settings
   page's `settings.notifications` Preview is where its section goes, and the account's AI and spoiler switch show how a setting saves
   (`profileApi.save`, `useAfterProfile`). Migration 0136 is next.
+
+### As built, step 15 part 2 (2026-10-26, on `new-design`): notifications by moment
+
+Migration **0136** (ships with 0b's, same rehearsal): `notifications` (the bell: a notice per person, worded for them, with `spoils` and
+`safe` for one that names a result, and a `key` that makes it once per person; **not backed up**, decided: notices, not the game),
+`waiver_runs_seen` (**not backed up**: a seen mark), and `user_settings.tz` / `.notes_read_at`, `notification_prefs.chat` / `.shows`,
+`fact_disputes.told_at` (backfilled as told for every flag already settled, so nobody hears about an old one), all backed up with their
+tables. Nothing polls or runs on a schedule (HOSTING.md). New: `src/lib/moments.js` (+ `.d.ts`; pure, required by push-core.js under
+bare node and imported by the new design), `src/lib/server/notify-prefs.ts`, `GET/POST /api/me/notifications`, `GET/PUT
+/api/seasons/[id]/notifications`, `POST /api/seasons/[id]/waivers` (`{ seen }`), `src/new/settings/notify.tsx` and `controls.tsx`
+(SwitchRow and Choice moved out of settings.tsx), `src/new/hub/notes.tsx`, `src/new/show/notify-sheet.tsx`,
+`scripts/dev-test/fake-push.js`, `scripts/dev-test/check-new-notify.js`, `tests/notify.test.js`.
+- **One sender** (`push-core.js sendPush`, still CommonJS for the hourly jobs) for every push of both designs and the jobs. Its `message`
+  may be a function of the reader (`{ userId, ui, tz, chat }`), which is where push-events.ts lets the guard decide each reader's words
+  (`guard.ts seenThrough`); classic's `splitBySpoilerProtection` is gone. It keeps a notice in the bell for everyone it's for, whatever
+  their switches (a `key` someone already has: neither kept nor pushed again), then pushes only where the reader's switches let it
+  (`moments.js pushAllowed`: the type, its moment for this show, `anyOf`), opening the design the reader is on (`next` for the new design,
+  `url` for classic: `user_settings.ui`). The new design's own moments (`NEW_ONLY`: a poll, a night planned or called off, a game started,
+  a bingo line, a flag settled) aren't pushed to someone on classic, whose screens can't open them (they're kept in the bell for the day
+  they switch). Chat is never kept (the Chat tab has its count). In development only, a loopback http endpoint is delivered over plain
+  http (`loopback`: fake-push.js; web-push speaks only https), and `/api/me/push-subscriptions` takes one.
+- **The moments** (the mock's; `moments.js MOMENTS`) are classic's types grouped: Lineup reminders (reminder, waiverReminder, draftTurn,
+  waivers), Early results are in (episodeResults), Final scores are in (finalScores, new; betResult; flagSettled), Invites and join
+  requests (invite, memberJoined, couchJoined), and two the mock didn't have, for what Noticed asked to push: On the couch (gameStarted,
+  planned, planOff, poll, newBet, bingoLine) and Backstage (resultsDue, wikiReview; shown to whoever runs a game); then Couch chat. A moment
+  is on while any of its types is; switching it writes all of them in `notification_prefs.disabled`, as classic's switches always have, so
+  the two designs agree (classic's list leaves out NEW_ONLY). Couch chat: Every message, Quiet on episode nights (recommended, and the
+  default in both designs: NULL), Never (= classic's chat type off). **Changed from the mock:** draft turns and waivers ride on Lineup
+  reminders (the mock had no row for them), predictions graded and flags settled on Final scores, and the two rows above are new.
+- **Decided: one spoiler switch.** The mock's second, "No results in notifications", isn't built: a push's words are the guard's for its
+  reader, so with Hide scores until I reveal on (part 1's switch) a push says "Episode 6 results are in", never who went home, and with it
+  off it names them, as the app does. A second switch could only say "names in the app, none in pushes"; Settings' line under the moments
+  says how it works.
+- **Results by stage, once per person** (`notifyEpisodeResults`): keys `results:<season>:<n>` (early, or both when the results arrive
+  final at once, pushed if either moment is on) and `final:<season>:<n>`, so three linked games, and another couch's game on the season,
+  are one notice per person and stage. The season sync offers an episode only when its stage changed (a correction isn't news); classic's
+  own result routes still call it per elimination (the keys make it once). Seen: "Episode 6: Cristian Chavez went home", "Final scores the
+  morning after." / "See where you stand."; not seen: "Episode 6 results are in · Reveal when you've watched." The waiver line ("Waivers
+  process Tue 5:00 PM PDT.") in the reader's zone.
+- **The couch chat everywhere** (`notifyCouchChat`, from both designs' post routes; Noticed's chat pushes are still classic's): the
+  conversation's readers are its games' players (and classic's linked group) and, on the new design, anyone on the couch who follows the
+  show, a show the couch only watches included. Each is worded by the chat's own fold (`chat-fold.ts isFolded` at their mark): folded, "alex
+  sent a message. It may be about Episode 4: catch up when you reveal." (by mark: "from further along"), never the text; on Quiet a folded
+  message isn't pushed. One notification per conversation on a device. Classic readers hear only their games' chat, and not while catching
+  up there.
+- **New pushes** (Noticed's): a **poll** (`notifyPoll`: the couch's followers who may see it, seen the episode before); a **bingo line**
+  (`bingo.ts bingoLinesOn`: after the sync, for the episodes it touched, and after a tick, any card's on a talk show; its owner and the
+  couch-mates with a card on the episode, only once they've seen it and only if the owner follows openly; a key per owner); a **flag
+  settled** (`season-decisions.ts tellSettledFlags` claims `told_at` after every sync: upheld "You were right about Episode 6", kept "…'s
+  result stands", a missing one "was checked again"); **someone joining your couch** (`notifyCouchJoined`); **Tell the couch** as its own
+  `gameStarted`, a **planned night** as `planned` (each reader's time: "Sat 5:00 PM PDT"), and a **night called off**
+  (`notifyPlanOff`: the request's own after() waits 8 s, past the toast's 5 s Undo, then tells whoever was invited or in, only if it's still
+  off at the same moment).
+- **Times in the reader's zone**: `user_settings.tz` kept from the new design's home read (`?tz=`) and classic's `/api/me?tz=`, written
+  only when it changes (never while viewing as someone); waiver pushes, the results' waiver line and plan pushes say it, else the season's
+  zone. **Links by design**: every push has `next` (the draft room with `?game=`, Waivers, Tonight, Games, Chat, Episodes, Backstage's
+  Results or Members, Settings, the hub) beside classic's `url`.
+- **The bell** (the hub's top bar, `hub/notes.tsx`): a dot and "Notifications: N new" from the home read's `notes.unread` (one indexed
+  count; never polled); tapped, it reads `/api/me/notifications` (up to 50 from the last 30 days, with the show's art; each row through the
+  guard again, so one past your mark now reads its safe words), marks them read once the list is in (the new ones keep their mark while
+  it's open: the plan's "read when it opens", so the mock's Mark all read isn't there), and a row opens where it's about. A notice older than
+  30 days goes when a newer one is written for that person.
+- **A show's Notifications** (its ⋯ menu, `show/notify-sheet.tsx`): the six moments a show can have, on or off for that show (every
+  season of it: `notification_prefs.shows`), with Undo; one that's off in Settings shows off and says so; chat's row says Settings' choice.
+- **Settings' What we notify you about** (`settings/notify.tsx`): this phone (can't / add to Home Screen first on iPhone / blocked / off /
+  on, with Turn on and Turn off through classic's push-client; `enablePushOnThisDevice` now registers the service worker when nothing has,
+  so Turn on no longer waits forever on a dev server), the moments with Undo, Couch chat's three, and a line on what a push may say.
+- **Tonight's "Waivers ran" seen per account** (from Noticed): `waiver_runs_seen`, the waivers read's `seen`, and the run's Done says so
+  (`useMarkRunSeen`: the plate goes at once here, and on another phone at its next read).
+- **Fixtures and Preview:** `settings.notifications`, `hub.notifications` and `show.notifications` are gone; `settings.sharing` (part 3) and
+  `settings.appearance` (part 4) are the registry's last two.
+- **Checks:** `scripts/dev-test/check-new-notify.js <outDir> [--width=390] [--keep] [--api]` (126 PASS at 390, 94 the API half)
+  on new-fixture.js with **fake-push.js** (a loopback stand-in push service: a P-256 key pair and auth secret per subscription, the dev
+  server's encrypted, VAPID-signed request decrypted with web-push's http_ece, a forgotten one answered 410): time zones kept, the moments
+  and classic's switches agreeing, a show's own, the chat in both designs (folded, Quiet, Never, watch-only, a show's chat off), a waiver
+  run's push and the plate seen on a second phone, results early and final once per person for three games and worded by the guard, a
+  show's moment and classic's own switch off with the bell keeping it, the bell read back through the guard, a poll, a game started, a
+  night planned in two zones and called off (and Undone in time), kat joining, a flag settled on the desk, a bingo line, the bell's count
+  and list and 30-day pruning; then the browser as alex (Settings' section, this phone turned on through a stand-in PushManager and a test
+  push reaching it, a moment and Couch chat with Undo, a Preview tap, the bell's dot, list and read, a row opening the poll's show, a
+  show's Notifications with Undo). `tests/notify.test.js` (5: the moments over the types, and the sender's per-reader words, bell, keys,
+  design links and NEW_ONLY). Updated: check-new-settings (two Previews left), check-new-shell (the bell opens Notifications; the Preview
+  tap moved to check-new-notify). The rest pass, one at a time: check-new-settings (110), -streaming (114), -watch-along (276), -episode-games (285), -plans (104),
+  -listings (77), -guide (57), -library (91), -start-game (75), -make-it (81), -watching (114), -solo (92), -way-in (85), -couches (114),
+  -hub (77), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100), -community (82), -backstage (67), -backstage-ii
+  (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), classic's check-chat-polls --ui (its chat route changed),
+  check-foundation, check-preview and check-backup-restore; `npm test` 640 of 640; type-check clean; lint (src) as before (the old error
+  in classic's `use-sheet-swipe.ts` and the old warning in `episode-results.ts`). Seen at 390: Settings' section before and after Turn on,
+  the hub's bell and its list, a show's Notifications.
+- **Noticed, left as is:** five, now in Noticed, not fixed: answers to a plan push nobody, classic's league invites can't be answered in
+  the new design, Quiet on episode nights is quiet until you catch up, the bell doesn't say which couch, a real phone's push service is
+  untried. Taken out: chat pushes are still classic's, flags don't notify, polls don't notify, bingo doesn't notify, the run's seen mark is
+  per device, pushes open classic's pages, join pushes open the new design, Tell the couch uses the invite setting, a called-off night
+  tells nobody, a plan's push says the show's time zone (all above).
+- **For part 3 (What your couch sees):** share.js's levels go in `guard.ts shares` (rule 3); the notices that say what someone did
+  ("riley got a bingo line", "riley started a poll", someone joining) should answer to it too (push-events.ts builds each from who did it,
+  so a `shares` check per reader fits in the words function), and Settings' `settings.sharing` Preview is where its section goes. Its
+  Noticed: nobody's progress on a show you watch, who's on now can't be turned off, a past season counts for trivia only if it's marked.
+  Migration 0137 is next.
 
 ## Step C: cutover
 

@@ -22,24 +22,14 @@ export const PREVIEWS = {
   // ---- the hub (ported in 0d; fixtures in src/new/fixtures/; its status line, Up next, your shows, the feed, your
   // numbers and More on the couch's pages are real since step 8; the couch switcher, Get the couch going and the foot since
   // step 9; Add a show, the "you both watch" nudge and The couch is watching since step 10; Start a game since 10 part 2b; the
-// TV guide on the couch's shows since step 11 part 1, all of TV in it since part 2; Couch verdicts and the taste twin since step
-// 12 part 1; Call it and the couch's polls in Commercial break's This week only since part 2, its bingo and trivia since part 3;
-// Watch along from Up next, Previously on and the solo hub since step 13 part 1, On now since part 2; Streaming on the couch since
-// step 14 part 1) ----
-  "hub.notifications": { step: "15", title: "Notifications", line: "What's happened on your couch since you last looked." },
+  // TV guide on the couch's shows since step 11 part 1, all of TV in it since part 2; Couch verdicts and the taste twin since step
+  // 12 part 1; Call it and the couch's polls in Commercial break's This week only since part 2, its bingo and trivia since part 3;
+  // Watch along from Up next, Previously on and the solo hub since step 13 part 1, On now since part 2; Streaming on the couch since
+  // step 14 part 1; the bell since step 15 part 2) and a show space (all real since step 15 part 2: its ⋯ menu's Notifications)
+  // have nothing left here.
 
-  // ---- a show space (ported in 0d; fixtures in src/new/fixtures/; Make it a game is real since step 10 part 2a, Start a game
-  // since part 2b; bingo and trivia since step 12 part 3; Watch along on your own time since step 13 part 1, together since part 3) ----
-  "show.notifications": { step: "15", title: "Notifications for this show", line: "Lineup reminders, results, chat." },
-
-
-  // ---- Settings (real since step 15 part 1: your profile, spoilers, your AI, couches, help, your account; these three are
-  // parts 2, 3 and 4's) ----
-  "settings.notifications": {
-    step: "15",
-    title: "Notifications by moment",
-    line: "Lineup reminders, early results, final scores, invites, and how much of the couch chat reaches you.",
-  },
+  // ---- Settings (real since step 15 part 1: your profile, spoilers, your AI, couches, help, your account; What we notify you
+  // about since part 2; these two are parts 3 and 4's) ----
   "settings.sharing": {
     step: "15",
     title: "What your couch sees",

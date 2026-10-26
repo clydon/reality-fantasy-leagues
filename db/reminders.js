@@ -121,14 +121,17 @@ async function remindLeague(pool, league, seasons, now, opts) {
     }
     if (!fresh.length) continue;
     // One push per person per league, listing everything still open.
+    // Classic's page for the first thing still open, or (the new design, step 15 part 2) the show's Tonight, where its moves are.
     const message = {
       title: `${league.name}: episode ${ep.number} airs ${whenText(airAt, now)}`,
       body: fresh.map((it) => it.text).join(" · "),
       url: `${fresh[0].href.split("#")[0] || "/"}?league=${encodeURIComponent(league.id)}`,
+      next: `/show/${season.id}/tonight`,
       tag: `reminder-${league.id}`,
+      seasonId: season.id,
     };
     console.log(`[reminders] ${opts.dry ? "(dry) " : ""}${m.user_id} -- ${message.title}: ${message.body}`);
-    if (!opts.dry) await sendPush(pool, [m.user_id], "reminder", message);
+    if (!opts.dry) await sendPush(pool, [m.user_id], "reminder", message, { seasonId: season.id });
     sent++;
   }
   return sent;
@@ -172,10 +175,12 @@ async function remindResults(pool, league, seasons, now, opts) {
       title: `${league.name}: episode ${ep.number} needs its results`,
       body: "Nothing's in yet. Copy the question into any AI chat, paste its answer back, then apply.",
       url: `${resultsHref(state, ep)}?league=${encodeURIComponent(league.id)}`,
+      next: `/show/${season.id}/backstage/results?ep=${ep.number}`,
       tag: `results-${league.id}`,
+      seasonId: season.id,
     };
     console.log(`[reminders] ${opts.dry ? "(dry) " : ""}${m.user_id} -- ${message.title}`);
-    if (!opts.dry) await sendPush(pool, [m.user_id], "resultsDue", message);
+    if (!opts.dry) await sendPush(pool, [m.user_id], "resultsDue", message, { seasonId: season.id });
     sent++;
   }
   return sent;

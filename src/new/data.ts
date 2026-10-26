@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useSyncExternalStore } from "react";
-import { api } from "@/lib/api";
+import { api, phoneTimeZone } from "@/lib/api";
 import type { GameView, WeekProgress } from "@/lib/game/game-view";
 import type { HowItWorks } from "@/lib/game/formats/rulebook-describe";
 import type { SeasonEpisodes, SeasonReveal } from "@/lib/server/season-episodes";
@@ -43,6 +43,8 @@ import type { OnNow, Reaction, SessionWrite, TogetherAnswer, WatchCard, WatchRea
 import type { GifHit } from "@/lib/server/gifs";
 import type { Gif, TogetherChange, WatchMode } from "@/lib/game/watch-along";
 import type { AiChoice, Profile } from "@/lib/server/profile";
+import type { Note, ShowNotify } from "@/lib/server/notify-prefs";
+import type { ChatMode, MomentId } from "@/lib/moments";
 import type { Face as PersonFace } from "@/lib/people";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
@@ -211,6 +213,8 @@ export interface Home {
   guideHidden: HiddenShow[];
   /** Your couches' planned nights still to come (step 11 part 3): the guide, a show's Tonight. */
   plans: WatchPlan[];
+  /** The bell (step 15 part 2): how many notices are new since you last looked. */
+  notes?: { unread: number };
 }
 
 export interface Space extends SeasonHeader {
@@ -232,8 +236,11 @@ async function get<T>(path: string): Promise<T> {
 
 const HOME_KEY = ["new-design", "home"] as const;
 
+/** The home read, saying the time zone this phone is in (kept so a push says your time: step 15 part 2). */
+const homeUrl = () => `/api/me/home?tz=${encodeURIComponent(phoneTimeZone())}`;
+
 export function useHome() {
-  return useQuery({ queryKey: HOME_KEY, queryFn: () => get<Home>("/api/me/home"), staleTime: 60_000 });
+  return useQuery({ queryKey: HOME_KEY, queryFn: () => get<Home>(homeUrl()), staleTime: 60_000 });
 }
 
 /** The hub's couch (step 8): power rankings, the trophy shelf, its games, accolades, your numbers and the feed. Read
@@ -610,13 +617,15 @@ export function useSeasonWaivers(seasonId: string, couchId: string | null, enabl
   const query = couchId ? `?couch=${encodeURIComponent(couchId)}` : "";
   return useQuery({
     queryKey: ["new-design", "waivers", seasonId, couchId],
-    queryFn: () => get<{ games: WaiverWeek[] }>(`/api/seasons/${seasonId}/waivers${query}`),
+    queryFn: () => get<{ games: WaiverWeek[]; seen: string[] }>(`/api/seasons/${seasonId}/waivers${query}`),
     staleTime: 30_000,
     enabled,
   });
 }
 
 export const waivers = {
+  /** You've watched a game's run: its plate goes on every phone of yours (step 15 part 2). */
+  seen: (seasonId: string, leagueId: string, periodId: string) => post<{ ok: true }>(`/api/seasons/${seasonId}/waivers`, { seen: { leagueId, periodId } }),
   /** One spot's picks, first choice first (empty clears it): the rest of your claim stays. */
   pick: (leagueId: string, dropId: string, addIds: string[]) => send(`/api/leagues/${leagueId}/waivers/claims`, "PUT", { spot: { dropId, addIds } }),
   /** Free agency: instant, first come, first served. */
@@ -888,7 +897,7 @@ export function useAiChoice(): AiChoice {
 
 /** A face as the home read has it: you, or someone on one of your couches. Only watches the home that's been read. */
 export function usePerson(userId: string): PersonFace | null {
-  const { data } = useQuery({ queryKey: HOME_KEY, queryFn: () => get<Home>("/api/me/home"), enabled: false, select: (h: Home) => faceIn(h, userId) });
+  const { data } = useQuery({ queryKey: HOME_KEY, queryFn: () => get<Home>(homeUrl()), enabled: false, select: (h: Home) => faceIn(h, userId) });
   return data ?? null;
 }
 
@@ -902,8 +911,9 @@ function faceIn(h: Home, userId: string): PersonFace | null {
 }
 
 export const profileApi = {
-  /** Any of your name, colour, AI or spoiler setting; answers the profile as it now is. */
-  save: (body: { name?: string; colour?: string | null; ai?: AiChoice; hideScores?: boolean }) => sendJson<Profile>("/api/me/profile", "PUT", body),
+  /** Any of your name, colour, AI, spoiler setting or a notification moment; answers the profile as it now is. */
+  save: (body: { name?: string; colour?: string | null; ai?: AiChoice; hideScores?: boolean; notify?: { moment: MomentId; on: boolean } | { chat: ChatMode } }) =>
+    sendJson<Profile>("/api/me/profile", "PUT", body),
   /** Your picture, already made small (256 by 256). Answers its version. */
   picture: async (image: Blob): Promise<{ picture: number }> => {
     const res = await fetch("/api/me/picture", { method: "PUT", headers: { "content-type": image.type }, body: image });
@@ -934,6 +944,34 @@ export function useAfterProfile() {
 
 /** After joining or leaving a couch or a game: everything the new design reads moves on. */
 export const useAfterCouch = useAfterReveal;
+
+// ---- notifications (step 15 part 2; notify-prefs.ts): the bell, read when it opens (its count rides on the home read, never
+// polled), and a show's own switches, read when its sheet opens ----
+
+export type { Note, ShowNotify } from "@/lib/server/notify-prefs";
+
+export function useNotes(enabled: boolean) {
+  return useQuery({ queryKey: ["new-design", "notes"], queryFn: () => get<{ notes: Note[]; readAt: string | null }>("/api/me/notifications"), enabled, staleTime: 0 });
+}
+
+export function useShowNotify(seasonId: string, enabled: boolean) {
+  return useQuery({ queryKey: ["new-design", "show-notify", seasonId], queryFn: () => get<ShowNotify>(`/api/seasons/${seasonId}/notifications`), enabled, staleTime: 30_000 });
+}
+
+export const notesApi = {
+  /** You've looked: the bell's count starts again. */
+  read: () => post<{ ok: true }>("/api/me/notifications", { read: true }),
+  /** One of a show's moments on or off for that show alone. */
+  show: (seasonId: string, moment: MomentId, on: boolean) => sendJson<ShowNotify>(`/api/seasons/${seasonId}/notifications`, "PUT", { moment, on }),
+};
+
+/** After opening the bell: its count on the home read goes (the home reads again in the background). */
+export function useAfterNotesRead() {
+  const qc = useQueryClient();
+  return useCallback(() => {
+    qc.setQueryData<Home>(HOME_KEY, (h) => (h ? { ...h, notes: { unread: 0 } } : h));
+  }, [qc]);
+}
 
 // ---- the way in (step 9 part 2; way-in.ts): first run's catalog, open signed out, and saving its shows ----
 

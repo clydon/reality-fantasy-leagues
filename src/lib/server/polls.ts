@@ -8,6 +8,7 @@ import { HttpError, pool } from "./db";
 import { EVERYTHING, seenThrough, seenThroughAll } from "./guard";
 import { seasonSchedules, type SeasonSchedule } from "./schedule";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
+import { notifyPoll } from "./push-events";
 
 // The couch's polls (docs/PLAN-new-design.md step 12 part 2; migration 0129 couch_polls, couch_poll_votes; the mock's
 // index.html pollSheet and banishSheet): anyone on a couch starts one for a show's next episode ("Who does the couch think
@@ -19,7 +20,8 @@ import { seasonHeaders, type SeasonHeader } from "./show-space";
 //
 // Spoiler-safe on the server: a poll for Episode N is only for someone who has seen Episode N - 1 (its cast is who's still in);
 // its votes are hidden from everyone until it closes (only how many have voted), and after it only reach someone who has
-// seen Episode N. Nobody is pushed (Noticed: polls don't notify). Nothing polls (docs/HOSTING.md).
+// seen Episode N. Starting one tells the couch's people who may see it (step 15 part 2: On the couch). Nothing polls
+// (docs/HOSTING.md).
 
 export interface PollOption {
   key: string;
@@ -210,6 +212,8 @@ export async function startPoll(user: SessionUser, seasonId: string, couchIdIn: 
     `INSERT INTO couch_polls (couch_id, season_id, episode, question, cast_poll, options, created_by, closes_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
     [couchId, seasonId, open.number, question, body.cast === true, JSON.stringify(options), user.id, open.airAt]
   );
+  const by = (user as { username?: string | null }).username || user.name;
+  notifyPoll({ pollId: rows[0].id, couchId, seasonId, episode: open.number, question, byUserId: user.id, byName: by });
   return { id: rows[0].id as string, ...(await seasonPolls(user, seasonId, couchId, now)) };
 }
 

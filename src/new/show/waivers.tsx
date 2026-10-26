@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
@@ -49,41 +49,32 @@ function useAfterWaivers() {
     ]);
 }
 
-// ---- the run's "seen" mark: per device, so Tonight's "Waivers ran" plate goes once you've watched it ----
+// ---- the run's "seen" mark: your account's (step 15 part 2; it was per device), so Tonight's "Waivers ran" plate goes on every
+// phone once you've watched it on one. The waivers read says which runs you've seen; watching one says so, the plate going at once. ----
 
-const SEEN_KEY = "gys.waivers-seen";
-const seenListeners = new Set<() => void>();
-function readSeen(): string {
-  try {
-    return localStorage.getItem(SEEN_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-function markSeen(periodId: string) {
-  try {
-    const list = readSeen().split(",").filter(Boolean);
-    if (!list.includes(periodId)) localStorage.setItem(SEEN_KEY, [...list.slice(-20), periodId].join(","));
-  } catch {
-    // Private mode: the plate just stays until the week ends.
-  }
-  seenListeners.forEach((l) => l());
-}
-export function useRunSeen(): (periodId: string) => boolean {
-  const raw = useSyncExternalStore(
-    (l) => {
-      seenListeners.add(l);
-      return () => seenListeners.delete(l);
+/** Whether you've watched a game's run, from the waivers read's `seen` ("<leagueId>:<periodId>"). */
+const runSeen = (seen: string[] | undefined, leagueId: string, periodId: string) => !!seen?.includes(`${leagueId}:${periodId}`);
+
+/** You've watched a run: every waivers read here knows at once, and the server keeps it for your other phones. */
+function useMarkRunSeen(seasonId: string) {
+  const qc = useQueryClient();
+  return useCallback(
+    (leagueId: string, periodId: string) => {
+      const key = `${leagueId}:${periodId}`;
+      qc.setQueriesData<{ games: WaiverWeek[]; seen: string[] }>({ queryKey: ["new-design", "waivers", seasonId] }, (d) =>
+        d && !d.seen.includes(key) ? { ...d, seen: [...d.seen, key] } : d
+      );
+      write.seen(seasonId, leagueId, periodId).catch(() => {
+        // Not kept: the plate comes back on the next read, which is all that's lost.
+      });
     },
-    readSeen,
-    () => "*"
+    [qc, seasonId]
   );
-  return (periodId) => raw === "*" || raw.split(",").includes(periodId);
 }
 
 /** A run you haven't watched yet, in a week still going: Tonight's "Waivers ran" plate. */
-export function unseenRun(weeks: WaiverWeek[] | undefined, seen: (periodId: string) => boolean): WaiverWeek | null {
-  return weeks?.find((w) => w.run && w.period?.id === w.run.periodId && w.stage === "processed" && !seen(w.run.periodId)) ?? null;
+export function unseenRun(weeks: WaiverWeek[] | undefined, seen: string[] | undefined): WaiverWeek | null {
+  return weeks?.find((w) => w.run && w.period?.id === w.run.periodId && w.stage === "processed" && !runSeen(seen, w.leagueId, w.run.periodId)) ?? null;
 }
 
 /** Whether you play a game here that can have waivers (Outlast, Weekly Lineup), so it's worth asking. */
@@ -138,9 +129,8 @@ export function WaiverEpisodeRow({ seasonId, week, many }: { seasonId: string; w
 /** Tonight's "Waivers ran" plate (the mock's tabTonight): a run you haven't watched, while its week is still going. */
 export function WaiversRanPlate({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show));
-  const seen = useRunSeen();
   const replay = usePushedPage("waivers-run", ["wv"]);
-  const week = unseenRun(wv.data?.games, seen);
+  const week = unseenRun(wv.data?.games, wv.data?.seen);
   if (!week?.run) return null;
   const mine = week.run.moves.find((m) => m.you && m.outcome === "got" && m.add);
   return (
@@ -173,7 +163,7 @@ export function WaiverOverlays({ seasonId, show }: { seasonId: string; show: Sho
   const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show));
   return (
     <>
-      <WaiverRunScreen weeks={wv.data?.games ?? null} />
+      <WaiverRunScreen seasonId={seasonId} weeks={wv.data?.games ?? null} />
       <WaiverRunPage weeks={wv.data?.games ?? null} />
     </>
   );
@@ -239,7 +229,7 @@ export function WaiversScreen({ seasonId }: { seasonId: string }) {
           <Week key={week.leagueId} seasonId={seasonId} show={show} week={week} />
         </>
       )}
-      <WaiverRunScreen weeks={data.data?.games ?? null} />
+      <WaiverRunScreen seasonId={seasonId} weeks={data.data?.games ?? null} />
       <WaiverRunPage weeks={data.data?.games ?? null} />
     </>
   );
@@ -926,8 +916,9 @@ export function WaiversHowBody({ how }: { how: WaiverWeek["how"] }) {
 // ---------- the run plays like an episode ----------
 
 /** The run's reveal (the mock's wvReveal): `?page=waivers-run&wv=<league>`, back closes it. Mounted on Tonight and Waivers. */
-export function WaiverRunScreen({ weeks }: { weeks: WaiverWeek[] | null }) {
+export function WaiverRunScreen({ seasonId, weeks }: { seasonId: string; weeks: WaiverWeek[] | null }) {
   const page = usePushedPage("waivers-run", ["wv"]);
+  const markSeen = useMarkRunSeen(seasonId);
   const wv = useSearchParams().get("wv");
   const mounted = useSyncExternalStore(
     () => () => {},
@@ -944,7 +935,7 @@ export function WaiverRunScreen({ weeks }: { weeks: WaiverWeek[] | null }) {
       aria-label="Waivers ran"
       className={`nd-fixed-x fixed inset-y-0 z-[75] flex flex-col bg-[#0b0a10] text-foreground transition-[opacity,visibility] duration-300 motion-reduce:transition-none ${page.open ? "visible opacity-100" : "invisible opacity-0"}`}
     >
-      {page.open && week?.run && <RunBeats key={week.run.periodId} week={week} onClose={page.close} />}
+      {page.open && week?.run && <RunBeats key={week.run.periodId} week={week} onSeen={() => markSeen(week.leagueId, week.run!.periodId)} onClose={page.close} />}
     </div>,
     document.body
   );
@@ -954,7 +945,7 @@ function Kick({ children }: { children: ReactNode }) {
   return <span className="type-caption mb-3 block text-[15px] tracking-[0.06em] text-muted-foreground">{children}</span>;
 }
 
-function RunBeats({ week, onClose }: { week: WaiverWeek; onClose: () => void }) {
+function RunBeats({ week, onSeen, onClose }: { week: WaiverWeek; onSeen: () => void; onClose: () => void }) {
   const [k, setK] = useState(0);
   const run = week.run!;
   const mine = run.moves.filter((m) => m.you && m.outcome === "got" && m.add);
@@ -1044,7 +1035,7 @@ function RunBeats({ week, onClose }: { week: WaiverWeek; onClose: () => void }) 
   ];
   const last = k >= beats.length - 1;
   const done = () => {
-    markSeen(run.periodId);
+    onSeen();
     onClose();
   };
   return (

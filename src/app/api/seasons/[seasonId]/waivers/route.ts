@@ -3,7 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth, isUuid } from "@/lib/server/auth-helpers";
 import { HttpError, pool } from "@/lib/server/db";
 import { requireCouch } from "@/lib/server/couches";
-import { seasonWaivers } from "@/lib/server/season-waivers";
+import { markRunSeen, seasonWaivers } from "@/lib/server/season-waivers";
 
 // Your waivers on a show (docs/PLAN-new-design.md step 6a): with `?couch=` that couch's games here that you play, else all
 // of yours. Each game's week: who of yours to replace, optional swaps, your team, who's free, your own picks, the picking
@@ -18,4 +18,12 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
   const couchId = new URL(req.url).searchParams.get("couch");
   if (couchId) await requireCouch(user, couchId);
   return NextResponse.json(await seasonWaivers(user, seasonId, couchId));
+});
+
+// { seen: { leagueId, periodId } }: you've watched that run (step 15 part 2), on every phone of yours from now on.
+export const POST = apiRoute(async (req) => {
+  const user = await requireAuth(req);
+  const body = (await req.json().catch(() => ({}))) as { seen?: unknown };
+  await markRunSeen(user, body.seen);
+  return NextResponse.json({ ok: true });
 });

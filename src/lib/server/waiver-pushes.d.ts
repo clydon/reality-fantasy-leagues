@@ -15,8 +15,12 @@ export interface WaiverMember {
   userId: string;
   playerId: string;
   seen: number;
+  /** Their phone's time zone (user_settings.tz), else null. */
+  tz?: string | null;
 }
 
+/** The league's season (null when it isn't in the catalog) and its time zone (America/New_York when it has none). */
+export function seasonOf(db: Db, state: LeagueState): Promise<{ id: string | null; tz: string }>;
 /** The league's season's time zone (America/New_York when it has none). */
 export function seasonTz(db: Db, state: LeagueState): Promise<string>;
 /** "Tue 8:00 PM EDT", or "8:00 PM EDT" without the day. */
@@ -54,7 +58,7 @@ export function nudgeMessage(
   state: LeagueState,
   playerId: string,
   byName: string
-): Promise<{ userIds: string[]; message: PushMessage } | null>;
+): Promise<{ userIds: string[]; message: PushMessage; seasonId: string | null } | null>;
 /** The running week as a window before the commissioner's change, or null when none is open. */
 export interface WindowSnapshot {
   id: string;
@@ -83,6 +87,6 @@ export function sendWindow(
   trimmed: string[],
   opts?: { actorUserId?: string | null; dry?: boolean; log?: (line: string) => void }
 ): Promise<number>;
-/** " Waivers process Tue 8:00 PM EDT." when episode n's results opened this week, else "". */
-export function resultsLine(db: Db, state: LeagueState, n: number): Promise<string>;
+/** " Waivers process Tue 8:00 PM EDT." when episode n's results opened this week, else "": in `tz` (the reader's) when given. */
+export function resultsLine(db: Db, state: LeagueState, n: number, tz?: string | null): Promise<string>;
 export const REMIND_BEFORE: number;

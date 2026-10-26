@@ -2,14 +2,15 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { couchMembers, requireCouch, type CouchMember } from "./couches";
 import { pool, HttpError } from "./db";
 import { seenThrough } from "./guard";
-import { notifyAfter } from "./push-targets";
+import { notifyPlanned, notifyPlanOff } from "./push-events";
 import { DEFAULT_RUNTIME_MIN, latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { followsOf, games, seasonHeaders, type SeasonHeader } from "./show-space";
 
 // Planned nights (docs/PLAN-new-design.md step 11 part 3; the mock's watching.js inviteWatch and streaming.js plans;
 // db/migrations/0127): someone on a couch plans a watch along for an episode, the live airing or a shared start at a time
 // they pick, and invites people on the couch. Each says I'm in or Can't make it (anyone else on the couch can join it too),
-// and whoever planned it can call it off (with Undo). The invited get one push; the hub's feed has a line; the guide tags the
+// and whoever planned it can call it off (with Undo). The invited get one push (in their own time zone), and a night called off
+// tells them once its Undo has passed (step 15 part 2); the hub's feed has a line; the guide tags the
 // airing or shows the night as a card of its own (the pure src/lib/game/guide.ts). Its watch along, one clock for everyone in it,
 // is step 13 part 3's (watch-along.ts togetherRead/togetherWrite): opening it says you're in.
 //
@@ -78,7 +79,7 @@ export interface PlanOptions {
   show: string;
   artUrl: string | null;
   release: "weekly" | "nightly" | "binge";
-  /** The season's own time zone (the push's times are in it). */
+  /** The season's own time zone. */
   airTz: string;
   episodes: PlanEpisode[];
   /** The episode the sheet starts on: your next one. */
@@ -272,7 +273,7 @@ export async function planOptions(user: SessionUser, seasonId: string, couchIdIn
   };
 }
 
-/** "Wed 8:00 PM EDT", in the show's own zone: a push can't know the phone's. */
+/** "Wed 8:00 PM EDT", in the show's own zone (a refusal's words; a push says the reader's: push-events.ts readerClock). */
 function clock(t: number, tz: string): string {
   return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(t)).replace(", ", " ");
 }
@@ -336,19 +337,8 @@ export async function planNight(
     throw e;
   }
 
-  // One push to everyone invited, to the show (where I'm in is), in the show's own time zone.
-  const host = nameOf(user);
-  const label = labelOf(h);
-  const when = clock(at, schedule?.airTz ?? "America/New_York");
-  notifyAfter("invite", async () => ({
-    userIds: invite,
-    message: {
-      title: `${host} planned a watch along`,
-      body: `${label} · Episode ${episode} · ${how === "live" ? "the live airing" : "starting together"}, ${when}. Are you in?`,
-      url: `/show/${seasonId}/tonight`,
-      tag: `plan-${id}`,
-    },
-  }));
+  // One push to everyone invited, to the show (where I'm in is), the time in each one's own zone (step 15 part 2).
+  notifyPlanned({ planId: id, userIds: invite, seasonId, host: nameOf(user), episode: episode as number, live: how === "live", at });
   const plans = await yourPlans(user.id, now);
   const plan = plans.find((p) => p.id === id) ?? (await planById(user, id, now)).plan;
   return { plan, plans, told: invite.length };
@@ -391,18 +381,24 @@ export async function inPlan(planId: string, userId: string): Promise<void> {
   );
 }
 
-/** Call it off, or bring it back (Undo) (POST /api/plans/[id] { cancel }): whoever planned it. */
+/**
+ * Call it off, or bring it back (Undo) (POST /api/plans/[id] { cancel }): whoever planned it. Called off, whoever was invited or
+ * said I'm in hears once its Undo has passed (push-events.ts notifyPlanOff).
+ */
 export async function cancelPlan(user: SessionUser, planId: string, cancel: unknown, now = new Date()): Promise<PlanAnswerOut> {
   if (typeof cancel !== "boolean") throw new HttpError(400, "cancel must be true or false");
   const { row, plan } = await planById(user, planId, now);
   if (row.created_by !== user.id) throw new HttpError(403, "Only whoever planned it can call it off");
   if (!cancel && Date.parse(plan.endsAt) <= now.getTime()) throw new HttpError(409, "That night's over");
+  let cancelledAt: Date | null = null;
   try {
-    await pool.query(`UPDATE watch_plans SET cancelled_at = ${cancel ? "COALESCE(cancelled_at, now())" : "NULL"} WHERE id = $1`, [planId]);
+    const { rows } = await pool.query(`UPDATE watch_plans SET cancelled_at = ${cancel ? "COALESCE(cancelled_at, now())" : "NULL"} WHERE id = $1 RETURNING cancelled_at`, [planId]);
+    cancelledAt = rows[0]?.cancelled_at ?? null;
   } catch (e) {
     if ((e as { code?: string }).code === "23505") throw new HttpError(409, `Someone has planned Episode ${row.episode} since`);
     throw e;
   }
+  if (cancel && cancelledAt && !row.cancelled_at) notifyPlanOff({ planId, byUserId: user.id, byName: nameOf(user), cancelledAt: new Date(cancelledAt).toISOString() });
   return answered(user, planId, now);
 }
 

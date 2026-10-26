@@ -4,7 +4,7 @@
 //     "/" goes to /home from then on, by the cookie, and through AuthGate on a device without it;
 //   - the hub's show card changes the channel into the show (its art grows into the show bar), the tabs slide
 //     sideways with the show bar and tab bar still, Backstage and its pages push in and pop back, How it works
-//     is a page pushed over the show that the back gesture closes, a Preview tap says "Coming soon", the guard
+//     is a page pushed over the show that the back gesture closes, the hub's bell opens Notifications, the guard
 //     chip says where you are, first run steps forward;
 //   - every navigation is a view transition of the right kind (html[data-nav], and the CSS animations that ran);
 //   - "Back to the classic design" lands on classic's "/" and stays there.
@@ -147,9 +147,13 @@ function recordTransitions() {
     await page.waitForTimeout(400);
     await page.evaluate(() => (window.__vt.length = 0));
     await snap("home");
-    // Watch along is real since step 13 part 1: the bell (step 15's) is still a Preview.
-    await page.locator('[data-preview="hub.notifications"]').first().click();
-    check(await page.getByText("Coming soon: Notifications").isVisible(), "a Preview tap says Coming soon");
+    // The bell is real since step 15 part 2 (the hub has no Preview left; check-new-notify.js taps one of Settings' instead).
+    await page.locator("[data-bell]").click();
+    await page.locator("[data-notes-sheet]").waitFor();
+    check(await page.getByRole("dialog").getByText("Notifications").first().isVisible(), "the bell opens Notifications");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(400);
+    await page.evaluate(() => (window.__vt.length = 0));
 
     // ---- into the show: the channel change ----
     await card.click();
