@@ -191,13 +191,35 @@ export interface AlsoOnExclude {
   names: string[];
 }
 
+/** A streaming show on this many different days of the week's listings, an episode at a time, is a daily one. */
+export const DAILY_STREAMING_DAYS = 4;
+
+/**
+ * Daily streaming shows (step 14 part 2): a show whose streaming episodes come one at a time on DAILY_STREAMING_DAYS or more
+ * different days of the week (a streaming soap's weekdays). With no air time each is a "Streaming" card in every day's Also
+ * on, often among the most watched, though nobody's waiting for a day's episode of it; a twice-weekly show is at most three
+ * days of the nine the week's read holds. A season dropped whole (several episodes at once) is one day's and stays.
+ */
+export function dailyStreaming(listings: Pick<WeekListing, "tvmazeId" | "airAt" | "binge" | "numbers">[]): Set<number> {
+  const days = new Map<number, Set<string>>();
+  for (const l of listings) {
+    if (!l.binge || l.numbers.length > 1) continue;
+    const seen = days.get(l.tvmazeId) ?? new Set<string>();
+    seen.add(l.airAt.slice(0, 10));
+    days.set(l.tvmazeId, seen);
+  }
+  return new Set([...days].filter(([, d]) => d.size >= DAILY_STREAMING_DAYS).map(([id]) => id));
+}
+
 /**
  * Each guide day's evening on TV, less what's excluded. A day is the guide's (from 3 AM: guide.ts), its evening from 5 PM to
  * its end, and a drop counts all day. Today leaves out what's already over. The few are the most watched (TVmaze's weight),
- * shown in time order.
+ * shown in time order. A daily streaming show's episodes aren't in it (dailyStreaming); a whole season's drop is.
  */
 export function alsoOn(listings: WeekListing[], days: { offset: number; start: number }[], exclude: AlsoOnExclude, now: number, few = ALSO_ON_FEW): AlsoOnDay[] {
+  const daily = dailyStreaming(listings);
   const items: AlsoOnItem[] = listings
+    .filter((l) => !(daily.has(l.tvmazeId) && l.binge && l.numbers.length <= 1))
     .filter((l) => !exclude.ids.has(l.tvmazeId) && !exclude.names.some((name) => sameShow(name, l)))
     .map((l) => {
       const at = Date.parse(l.airAt);

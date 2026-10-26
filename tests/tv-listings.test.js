@@ -126,6 +126,32 @@ test("Also on: each guide day's evening, less what's excluded; today without wha
   assert.deepEqual(named.all.map((l) => l.tvmazeId), [12], "by name: the American one left out, the British one stays");
 });
 
+test("Also on leaves out daily streaming shows; a whole season's drop and a weekly streaming show stay", () => {
+  const week = G.guideWeek([], NOW);
+  const stream = { binge: true, network: "Peacock", type: "Scripted" };
+  const listings = [
+    // A streaming soap: an episode each weekday, the most watched of all.
+    ...[26, 27, 28, 29, 30].map((d, i) => L(20, local(d, 3), { ...stream, numbers: [100 + i], weight: 99 })),
+    // A twice-weekly streaming show: Monday and Thursday (three days of a nine-day week at most).
+    ...[26, 29].map((d, i) => L(21, local(d, 3), { ...stream, numbers: [4 + i], weight: 80 })),
+    // A weekly one, and a season dropped whole.
+    L(22, local(27, 3), { ...stream, numbers: [6], weight: 70 }),
+    L(23, local(28, 3), { ...stream, numbers: [1, 2, 3, 4, 5, 6, 7, 8], network: "Netflix", weight: 60 }),
+    L(24, local(26, 20), { weight: 50 }),
+  ];
+  assert.deepEqual([...T.dailyStreaming(listings)], [20], "only the soap is daily");
+  assert.equal(T.dailyStreaming(listings.filter((l) => l.tvmazeId !== 20 || Date.parse(l.airAt) < local(29, 0).getTime())).size, 0, "three days of it: not yet");
+  const days = T.alsoOn(listings, week, { ids: new Set(), names: [] }, NOW);
+  const ids = (d) => d.all.map((l) => l.tvmazeId);
+  assert.deepEqual(ids(days[0]), [21, 24], "today: the twice-weekly show and the evening's, not the soap");
+  assert.deepEqual(ids(days[1]), [22], "tomorrow: the weekly streaming show");
+  assert.deepEqual(ids(days[2]), [23], "the drop stays as its drop day");
+  assert.ok(days.every((d) => !d.few.some((l) => l.tvmazeId === 20)), "the soap is never among the few");
+  // A daily show that drops a batch at once: that day's batch stays.
+  const batch = [...listings, L(20, local(31, 3), { ...stream, numbers: [105, 106, 107], weight: 99 })];
+  assert.deepEqual(T.alsoOn(batch, week, { ids: new Set(), names: [] }, NOW)[5].all.map((l) => l.tvmazeId), [20]);
+});
+
 test("a listing's line: never a title; a daily show's year-numbered season left out", () => {
   assert.equal(T.listingLine({ season: 35, numbers: [8], binge: false, network: "ABC" }), "S35 · ABC");
   assert.equal(T.listingLine({ season: 2026, numbers: [96], binge: false, network: "NBC" }), "NBC");

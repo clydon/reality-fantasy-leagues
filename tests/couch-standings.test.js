@@ -113,6 +113,21 @@ test("couch accolades: only shared follows, only when they say something", () =>
   assert.deepEqual(accoladesOf({ people, follows: [], messages: new Map([["di", 2]]), games: [] }), [], "nothing worth naming yet");
 });
 
+test("first to finish: the newest first finish on the couch, in days from the drop", () => {
+  const DAY = 24 * 3600 * 1000;
+  const drop = Date.parse("2026-10-01T07:00:00Z");
+  const first = (finishes) => accoladesOf({ people, follows: [], messages: new Map(), games: [], firstFinishes: finishes }).find((x) => x.key === "first-finish");
+  const a = first([
+    { userId: "bo", showName: "Severance", at: drop + 4 * DAY + 3600_000, dropAt: drop },
+    { userId: "ann", showName: "Older Show", at: drop - 30 * DAY, dropAt: drop - 33 * DAY },
+  ]);
+  assert.deepEqual(a && { stat: a.stat, who: a.who, userId: a.userId, line: a.line }, { stat: "First to finish", who: "bo", userId: "bo", line: "Severance, in 4 days" });
+  assert.equal(first([{ userId: "cy", showName: "Fast", at: drop + 5 * 3600_000, dropAt: drop }]).line, "Fast, in a day", "within the day");
+  assert.equal(first([{ userId: "cy", showName: "Undated", at: drop, dropAt: null }]).line, "Undated", "no drop time: just the show");
+  assert.equal(first([{ userId: "stranger", showName: "X", at: drop, dropAt: drop }]), undefined, "someone not on the couch");
+  assert.equal(first([]), undefined);
+});
+
 test("results due: the next episode to reveal by stage, and the morning update once its final scores land", () => {
   const data = {
     id: "t", showId: "survivor", showName: "T", seasonName: "T", episodeCount: 12,

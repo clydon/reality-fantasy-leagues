@@ -226,13 +226,15 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
 /**
  * By the numbers' couch accolades: what people share (open follows), how much they've said this month, the games; and the watch
  * along's (step 13 part 3): reactions said to the couch and episodes watched along on it this month, only on shows each follows
- * openly (as their reactions and who's on now are heard), counted, never which.
+ * openly (as their reactions and who's on now are heard), counted, never which. First to finish (step 14 part 2): each streaming
+ * season's earliest on the couch to reach its last episode (show_follows.finished_at), among you and those who follow it openly,
+ * only on seasons you've finished yourself (so it says nothing your finale's verdict doesn't) and two or more of them watch.
  */
 async function accoladesFor(user: SessionUser, couchId: string, people: Person[], list: Game[], standings: GameStanding[]): Promise<Accolade[]> {
   const follows = (await followsOf(user.id, people.map((p) => p.userId))).filter((f) => f.following && !f.private);
   const OPENLY = (who: string, season: string) =>
     `EXISTS (SELECT 1 FROM show_follows f WHERE f.user_id = ${who} AND f.season_id = ${season} AND f.following AND NOT f.private)`;
-  const [headers, { rows }, { rows: reacted }, { rows: along }] = await Promise.all([
+  const [headers, { rows }, { rows: reacted }, { rows: along }, { rows: finishes }] = await Promise.all([
     seasonHeaders(follows.map((f) => f.seasonId)),
     pool.query(
       `SELECT user_id, count(*)::int AS n FROM chat_messages
@@ -257,8 +259,26 @@ async function accoladesFor(user: SessionUser, couchId: string, people: Person[]
         GROUP BY p.user_id`,
       [couchId]
     ),
+    pool.query(
+      `WITH counted AS (
+         SELECT f.season_id, f.user_id, f.finished_at FROM show_follows f
+          WHERE f.user_id = ANY($1::text[]) AND (f.user_id = $2 OR (f.following AND NOT f.private)))
+       SELECT DISTINCT ON (c.season_id) c.user_id, c.finished_at, ss.drop_at, s.name AS show_name
+         FROM counted c JOIN show_seasons ss ON ss.id = c.season_id JOIN shows s ON s.id = ss.show_id
+        WHERE ss.release = 'binge' AND c.finished_at IS NOT NULL AND ss.episode_count > 0
+          AND EXISTS (SELECT 1 FROM show_follows me WHERE me.user_id = $2 AND me.season_id = c.season_id AND me.seen_through >= ss.episode_count)
+          AND (SELECT count(*) FROM counted o WHERE o.season_id = c.season_id) >= 2
+        ORDER BY c.season_id, c.finished_at`,
+      [[...new Set([user.id, ...people.map((p) => p.userId)])], user.id]
+    ),
   ]);
   return accoladesOf({
+    firstFinishes: finishes.map((r) => ({
+      userId: r.user_id as string,
+      showName: (r.show_name as string).replace(/^The /, ""),
+      at: new Date(r.finished_at).getTime(),
+      dropAt: r.drop_at ? new Date(r.drop_at).getTime() : null,
+    })),
     reactions: new Map(reacted.map((r) => [r.user_id as string, r.n as number])),
     watchAlongs: new Map(along.map((r) => [r.user_id as string, r.n as number])),
     people,
@@ -289,7 +309,7 @@ async function feedFor(
   const seasonOf = new Map(list.map((g) => [g.leagueId, g.seasonId]));
   const ids = list.map((g) => g.leagueId);
   const { rows: said } = await pool.query(
-    `SELECT id, league_id, season_id, user_id, author_name, type, text, created_at FROM chat_messages
+    `SELECT id, league_id, season_id, user_id, author_name, type, text, created_at, author_seen FROM chat_messages
       WHERE (league_id = ANY($1::uuid[]) OR (league_id IS NULL AND couch_id = $2)) AND type IN ('message', 'reveal')
       ORDER BY created_at DESC LIMIT 40`,
     [ids, couchId]

@@ -321,10 +321,23 @@ export interface Accolade {
   line: string;
 }
 
+/** A streaming season's first to finish on the couch (step 14 part 2), from show_follows.finished_at. */
+export interface FirstFinish {
+  userId: string;
+  showName: string;
+  /** When they reached its last episode (ms). */
+  at: number;
+  /** When it dropped (ms), or null when nothing says. */
+  dropAt: number | null;
+}
+
+const DAY_MS = 24 * 3600 * 1000;
+
 /**
  * The couch's own accolades: who follows the most shows (only what they share), the show the most people watch, who's
  * called the most predictions, who talks most this month, who reacts most in watch alongs and who watches along most this
- * month (step 13 part 3), who's on the longest Survival Pool run now. Each only when it says something (a count worth naming).
+ * month (step 13 part 3), who's on the longest Survival Pool run now, and who was first to finish a streaming season (step
+ * 14 part 2: the newest such first). Each only when it says something (a count worth naming).
  */
 export function accoladesOf(opts: {
   people: Person[];
@@ -337,6 +350,8 @@ export function accoladesOf(opts: {
   reactions?: Map<string, number>;
   /** Episodes watched along on the couch in the last 30 days, by person (on shows they follow openly). */
   watchAlongs?: Map<string, number>;
+  /** Each streaming season's first to finish, only seasons the viewer has finished (couch-hub.ts says who may be counted). */
+  firstFinishes?: FirstFinish[];
 }): Accolade[] {
   const { people, follows, messages, games } = opts;
   const member = new Map(people.map((p) => [p.userId, p]));
@@ -379,5 +394,18 @@ export function accoladesOf(opts: {
   let run: { who: string; n: number; label: string } | null = null;
   for (const g of games) if (!g.ended && g.through > 0) for (const r of g.rows) if (r.userId && member.has(r.userId) && (r.streak ?? 0) > (run?.n ?? 1)) run = { who: r.userId, n: r.streak!, label: g.label };
   if (run) out.push({ key: "streak", stat: "On a streak", who: member.get(run.who)!.name, userId: run.who, line: `${run.n} in a row · ${run.label} Survival Pool` });
+
+  // The mock's "First to finish · jordan · Severance, in 4 days": the newest first finish.
+  const first = (opts.firstFinishes ?? []).filter((f) => member.has(f.userId)).sort((a, b) => b.at - a.at)[0];
+  if (first) {
+    const days = first.dropAt != null ? Math.max(1, Math.round((first.at - first.dropAt) / DAY_MS)) : null;
+    out.push({
+      key: "first-finish",
+      stat: "First to finish",
+      who: member.get(first.userId)!.name,
+      userId: first.userId,
+      line: days == null ? first.showName : `${first.showName}, in ${days === 1 ? "a day" : `${days} days`}`,
+    });
+  }
   return out;
 }

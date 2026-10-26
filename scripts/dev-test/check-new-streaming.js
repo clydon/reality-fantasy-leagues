@@ -1,4 +1,4 @@
-// Dev-only check for streaming shows and the rail (docs/PLAN-new-design.md step 14 part 1), against the dev server, on
+// Dev-only check for streaming shows and the rail (docs/PLAN-new-design.md step 14 parts 1 and 2), against the dev server, on
 // new-fixture.js's couch ("ZT Survivor 51": alex, riley, jordan and sam; casey on alex's other couch, "ZT Extra") plus
 // streaming-fixture.js (seasons watched at your own pace: ZT Severed alex is on 3 of, ZT Fresh Drop sam's, ZT Old Wire a finished
 // weekly season jordan watches with a planned night, ZT Done Binge alex finished and riley streams, ZT Coming Soon dropping in
@@ -9,6 +9,11 @@
 //     says aired, never live, even minutes after the drop); a planned night on it is a shared start (the live airing: 409);
 //   - privacy: sam's private Secret Stream in nobody else's home; casey sees only what alex (on her couch) streams;
 //     On now names riley on Severed for the couch.
+//   - part 2, the fold by progress: a message keeps its author's mark only on a season watched at its own pace (Severed, Old
+//     Wire; not Survivor's weekly season, nor classic's route there), a watch along's episode when that's further; others' folded
+//     while their author had seen past you (no words, the copy's byMark), the airtime fold for a message without one, Show them,
+//     the hub's feed folding the same, and the mark never sent; first to finish: finished_at kept by where you are (set, cleared
+//     going back) and by a game's reveal, By the numbers' First to finish only for who has finished, counting open follows only.
 //   In a real browser at --width (390 by default), as alex: the rail under the guide in the mock's order (Severed's Continue ·
 //   Ep 4 with his progress, Fresh Drop's new drop, Old Wire's planned night, Done Binge's "You finished it", Coming Soon's drop
 //   day), See all 5 and its sheet, "1 waiting", riley is on now, a ＋ only on what isn't his, no Preview, a couch show hidden from
@@ -18,7 +23,8 @@
 //   pace, You finished it with nothing to plan, the follow card's words, Episodes' "All 10 out · Apple TV+" from Episode 1 down
 //   and the drop as one line); the ＋ on a new drop (where you are, then it's his, staying on the hub); a drop minutes old (no
 //   On air anywhere, a new drop on the rail); as sam (his private one on his rail only); as casey; as zt_so_alex on the solo hub
-//   ("Streaming", just him). Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
+//   ("Streaming", just him); part 2: Severed's Chat tab folded "from further along" and Show them, By the numbers' First to
+//   finish. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-new-streaming.js <outDir> [--width=390] [--keep] [--api]
@@ -68,7 +74,7 @@ function check(ok, what, detail = "") {
     await pool.query(`UPDATE shows SET art_url = '/mock/showcase/art/survivor.jpg' WHERE slug = 'zt-nd-survivor'`);
     await pool.query(`UPDATE shows SET art_url = '/mock/showcase/art/traitors.jpg' WHERE slug = 'zt-nd-traitors'`);
     const as = {};
-    for (const who of ["alex", "riley", "sam", "casey"]) as[who] = await api({ user: fixture.username(who), pass: PASSWORD });
+    for (const who of ["alex", "riley", "jordan", "sam", "casey"]) as[who] = await api({ user: fixture.username(who), pass: PASSWORD });
     as.solo = await api({ user: soloFixture.username("alex"), pass: soloFixture.PASSWORD });
     const home = async (who) => (await as[who].call("GET", "/api/me/home")).body;
     const all = (h) => [...h.shows, ...h.couchShows];
@@ -133,6 +139,122 @@ function check(ok, what, detail = "") {
     r = await as.alex.call("GET", `/api/couches/${fx.couchId}/now`);
     const rileyOn = r.body.now?.find((w) => w.seasonId === S.severed);
     check(r.status === 200 && rileyOn?.name === fixture.username("riley") && rileyOn.episode === 6 && rileyOn.live === false, "On now: riley watching along Severed's Episode 6 (streaming: never 'live')", JSON.stringify(r.body.now));
+
+    // ---------- part 2: the fold by progress ----------
+    const cols = (
+      await pool.query(
+        `SELECT table_name, column_name FROM information_schema.columns
+          WHERE (table_name = 'chat_messages' AND column_name = 'author_seen') OR (table_name = 'show_follows' AND column_name = 'finished_at')`
+      )
+    ).rows;
+    check(cols.length === 2, "migration 0134: chat_messages.author_seen and show_follows.finished_at");
+    const say = async (who, seasonId, text) => (await as[who].call("POST", `/api/seasons/${seasonId}/chat?couch=${fx.couchId}`, { text })).body.message;
+    const markOf = async (id) => (await pool.query("SELECT author_seen FROM chat_messages WHERE id = $1", [id])).rows[0]?.author_seen;
+    const chatOf = async (who, seasonId, q = "") => (await as[who].call("GET", `/api/seasons/${seasonId}/chat?couch=${fx.couchId}${q}`)).body;
+    const said = {};
+    const lineOf = (c, text) => c.messages.find((m) => m.id === said[text]);
+    for (const [who, text] of [["riley", "S-RILEY six"], ["jordan", "S-JORDAN nine"], ["sam", "S-SAM starting"], ["alex", "S-ALEX three"]]) said[text] = (await say(who, S.severed, text)).id;
+    const marks = await Promise.all(Object.values(said).map(markOf));
+    check(marks.join() === "6,9,0,3", "Severed (a drop): each message keeps its author's mark (riley 6, jordan 9, sam 0, alex 3)", marks.join());
+    let c = await chatOf("alex", S.severed);
+    const foldedIds = c.messages.filter((m) => m.folded).map((m) => m.id);
+    check(
+      c.fold?.byMark === true && c.fold.count === 2 && foldedIds.sort().join() === [said["S-RILEY six"], said["S-JORDAN nine"]].sort().join() && c.fold.episode === 4,
+      "alex (on 3): riley's and jordan's folded (they'd seen further), by their marks",
+      JSON.stringify(c.fold)
+    );
+    check(
+      c.messages.filter((m) => m.folded).every((m) => m.text === null && !Object.keys(m.reactions).length) && lineOf(c, "S-SAM starting")?.text === "S-SAM starting" && lineOf(c, "S-ALEX three")?.text === "S-ALEX three",
+      "folded: who and when, no words; sam's (on 0) and his own show"
+    );
+    check(!/author_?seen/i.test(JSON.stringify(c)), "the mark itself is never sent");
+    const v1 = c.v;
+    c = await chatOf("riley", S.severed);
+    check(c.fold?.count === 1 && c.messages.find((m) => m.folded)?.id === said["S-JORDAN nine"], "riley (on 6): only jordan's folded", JSON.stringify(c.fold));
+    c = await chatOf("jordan", S.severed);
+    check(c.fold?.count === 0 && !c.messages.some((m) => m.folded), "jordan (on 9): nothing folded", JSON.stringify(c.fold));
+    c = await chatOf("alex", S.severed, "&unfold=6");
+    check(c.fold?.count === 1 && c.messages.find((m) => m.folded)?.id === said["S-JORDAN nine"], "alex's Show them through 6: riley's shows, jordan's (9) still folded");
+    c = await chatOf("alex", S.severed, "&unfold=10");
+    check(c.fold?.count === 0 && lineOf(c, "S-JORDAN nine")?.text === "S-JORDAN nine", "through 10 (the latest): everything shows");
+    // A message from before 0134 (no mark) folds by airtime: everything since the drop, for anyone not finished.
+    const old = (
+      await pool.query(
+        `INSERT INTO chat_messages (couch_id, season_id, user_id, author_name, type, text, created_at) VALUES ($1, $2, $3, $4, 'message', 'S-OLD no mark', now() - interval '1 day') RETURNING id`,
+        [fx.couchId, S.severed, fx.users.sam, fixture.username("sam")]
+      )
+    ).rows[0].id;
+    c = await chatOf("alex", S.severed);
+    check(c.fold?.count === 3 && c.messages.find((m) => m.id === old)?.folded === true && c.fold.byMark === false && c.v !== v1, "a message with no mark: the airtime fold (folded since the drop), and the copy says so");
+    c = await chatOf("jordan", S.severed);
+    check(c.messages.find((m) => m.id === old)?.folded === true, "even for jordan on 9 (Episode 10 is out)");
+    await pool.query("DELETE FROM chat_messages WHERE id = $1", [old]);
+    // A watch along open on Episode 5 (alex is on 3): what he says carries 5.
+    const along = (
+      await pool.query(
+        "INSERT INTO watch_sessions (season_id, episode, couch_id, started_by, mode, clock_ms, running_since) VALUES ($1, 5, $2, $3, 'stream', 600000, now()) RETURNING id",
+        [S.severed, fx.couchId, fx.users.alex]
+      )
+    ).rows[0].id;
+    await pool.query("INSERT INTO watch_session_people (session_id, user_id) VALUES ($1, $2)", [along, fx.users.alex]);
+    said["S-ALEX along"] = (await say("alex", S.severed, "S-ALEX along")).id;
+    check((await markOf(said["S-ALEX along"])) === 5, "watching Episode 5 along: his message carries 5, not his mark of 3");
+    await pool.query("DELETE FROM watch_sessions WHERE id = $1", [along]);
+    await pool.query("DELETE FROM chat_messages WHERE id = $1", [said["S-ALEX along"]]);
+    // Old Wire, a finished weekly season nobody plays (from 2002): its messages carry marks too; alex (not on it) has jordan's folded.
+    const wireLine = (await say("jordan", S.wire, "W-JORDAN four")).id;
+    check((await markOf(wireLine)) === 4, "Old Wire (finished, no game): jordan's message carries 4");
+    c = await chatOf("alex", S.wire);
+    check(c.fold?.byMark === true && c.messages.find((m) => m.id === wireLine)?.folded === true, "alex (not watching it) has it folded, by its mark", JSON.stringify(c.fold));
+    // A weekly season with games: no mark (the airtime fold), whether posted here or in classic.
+    const weekly = (await say("alex", fx.seasonId, "N-ALEX weekly")).id;
+    check(!!weekly && (await markOf(weekly)) === null, "Survivor's weekly season: no mark (the airtime fold)");
+    const leagueId = Object.values(fx.leagues)[0];
+    r = await as.alex.call("POST", `/api/leagues/${leagueId}/chat`, { text: "N-ALEX classic" });
+    check(r.status === 200 && (await markOf(r.body.message.id)) === null && !("author_seen" in r.body.message), "classic's chat route: posts through the same place, no mark on a weekly season, none sent", JSON.stringify(r.body.message));
+    r = await as.alex.call("GET", `/api/leagues/${leagueId}/chat`);
+    check(r.status === 200 && !/author_seen/.test(JSON.stringify(r.body)), "classic's chat read never sends a mark");
+    // The hub's feed folds the same.
+    r = await as.alex.call("GET", `/api/couches/${fx.couchId}/hub`);
+    const feedTexts = (r.body.feed ?? []).filter((i) => i.kind === "said").map((i) => i.text ?? "");
+    check(feedTexts.includes("S-SAM starting") && !feedTexts.some((t) => /S-RILEY|S-JORDAN|W-JORDAN/.test(t)), "the hub's feed: sam's line, never riley's, jordan's or Old Wire's", feedTexts.join(" | "));
+
+    // ---------- part 2: first to finish ----------
+    const finishedOf = async (who, season) => (await pool.query("SELECT finished_at FROM show_follows WHERE user_id = $1 AND season_id = $2", [fx.users[who], season])).rows[0]?.finished_at ?? null;
+    const firstFinish = async (who) => ((await as[who].call("GET", `/api/couches/${fx.couchId}/hub`)).body.accolades ?? []).find((a) => a.key === "first-finish") ?? null;
+    let ff = await firstFinish("alex");
+    check(ff?.stat === "First to finish" && ff.who === fixture.username("alex") && ff.line === "ZT Done Binge, in 5 days", "alex (finished Done Binge, which riley watches too): First to finish, him, in 5 days", JSON.stringify(ff));
+    check(!(await firstFinish("riley")), "riley (on 2 of 8): no First to finish, not even alex's");
+    r = await as.jordan.call("PUT", `/api/me/follows/${S.severed}`, { seenThrough: 10 });
+    const jordanAt = await finishedOf("jordan", S.severed);
+    check(r.status === 200 && !!jordanAt && Date.now() - new Date(jordanAt).getTime() < 5 * MIN, "jordan reaches Severed's last episode: finished_at kept", String(jordanAt));
+    ff = await firstFinish("jordan");
+    check(ff?.who === fixture.username("jordan") && ff.line === "ZT Severed, in 20 days", "jordan's By the numbers: first to finish Severed, in 20 days", JSON.stringify(ff));
+    check((await firstFinish("alex"))?.line === "ZT Done Binge, in 5 days", "alex (on 3 of Severed) still sees only his Done Binge: nothing about Severed");
+    await as.jordan.call("PUT", `/api/me/follows/${S.severed}`, { seenThrough: 9 });
+    check((await finishedOf("jordan", S.severed)) === null, "moving back from the end takes it away");
+    await as.jordan.call("PUT", `/api/me/follows/${S.severed}`, { seenThrough: 10 });
+    check(!!(await finishedOf("jordan", S.severed)), "and reaching it again keeps it again");
+    // sam finished it privately, earlier: nobody else counts him; to himself he was first.
+    await pool.query(
+      `INSERT INTO show_follows (user_id, season_id, seen_through, following, private, finished_at) VALUES ($1, $2, 10, true, true, now() - interval '19 days')`,
+      [fx.users.sam, S.severed]
+    );
+    await as.alex.call("PUT", `/api/me/follows/${S.severed}`, { seenThrough: 10 });
+    ff = await firstFinish("alex");
+    check(ff?.who === fixture.username("jordan") && ff.line === "ZT Severed, in 20 days", "alex finishes Severed too: jordan was first (the newest first finish; sam's private one not counted)", JSON.stringify(ff));
+    ff = await firstFinish("sam");
+    check(ff?.who === fixture.username("sam") && ff.line === "ZT Severed, in a day", "sam's own: he was first, in a day", JSON.stringify(ff));
+    await as.alex.call("PUT", `/api/me/follows/${S.severed}`, { seenThrough: 3 });
+    await as.jordan.call("PUT", `/api/me/follows/${S.severed}`, { seenThrough: 9 });
+    await pool.query("DELETE FROM show_follows WHERE user_id = $1 AND season_id = $2", [fx.users.sam, S.severed]);
+    // A game's reveal (followLeagueProgress) keeps it too: sam (on 3) reveals Survivor's Episode 4, its last for a moment.
+    const count0 = (await pool.query("SELECT episode_count FROM show_seasons WHERE id = $1", [fx.seasonId])).rows[0].episode_count;
+    await pool.query("UPDATE show_seasons SET episode_count = 4 WHERE id = $1", [fx.seasonId]);
+    r = await as.sam.call("POST", `/api/seasons/${fx.seasonId}/reveal`, { episode: 4, couch: fx.couchId });
+    const samAt = await finishedOf("sam", fx.seasonId);
+    await pool.query("UPDATE show_seasons SET episode_count = $2 WHERE id = $1", [fx.seasonId, count0]);
+    check(r.status === 200 && !!samAt, "a game's reveal reaching the last episode keeps finished_at (followLeagueProgress)", `${r.status} ${samAt}`);
 
     if (!apiOnly) {
       const noBadge = () => {
@@ -341,6 +463,35 @@ function check(ok, what, detail = "") {
       await A.hub();
       await rail.scrollIntoViewIfNeeded();
       check((await tagOf(S.soon))[0] === "new" && (await chip(S.soon).getAttribute("data-rail-rank")) === "1", "the rail: Coming Soon is a new drop now");
+
+      // ---------- part 2 in the browser: the fold by progress, first to finish ----------
+      await pg.goto(`${BASE}/show/${S.severed}/chat`, { waitUntil: "load" });
+      const fold = pg.locator("[data-fold]");
+      await fold.waitFor({ timeout: 30_000 });
+      await pg.waitForTimeout(800);
+      const foldText = ((await fold.textContent()) ?? "").replace(/\s+/g, " ");
+      check(
+        /2 messages from further along/.test(foldText) && new RegExp(`From ${fixture.username("riley")} and ${fixture.username("jordan")}\\. They unfold as you catch up\\.`).test(foldText),
+        "Severed's Chat: 2 messages from further along, from riley and jordan",
+        foldText
+      );
+      const chatText = await pg.locator("main").textContent();
+      check(/S-SAM starting/.test(chatText) && /S-ALEX three/.test(chatText) && !/S-RILEY|S-JORDAN/.test(chatText), "sam's and his own show; riley's and jordan's words aren't on the page");
+      await A.shot("severed-chat-fold");
+      await A.wide("Severed's Chat");
+      await fold.getByRole("button", { name: "Show them" }).click();
+      await pg.getByText("S-JORDAN nine").waitFor({ timeout: 15_000 });
+      check((await pg.locator("[data-fold]").count()) === 0 && /S-RILEY six/.test(await pg.locator("main").textContent()), "Show them: both show");
+      await A.shot("severed-chat-shown");
+      await pg.goto(`${BASE}/home?hub=focus&page=numbers`, { waitUntil: "load" });
+      const ffRow = pg.locator("[data-couch-page='numbers'] [data-accolade-row='first-finish']");
+      await ffRow.waitFor({ timeout: 30_000 });
+      await pg.waitForTimeout(800);
+      const ffText = ((await ffRow.textContent()) ?? "").replace(/\s+/g, " ");
+      check(/First to finish/.test(ffText) && new RegExp(`${fixture.username("alex")} · ZT Done Binge, in 5 days`).test(ffText), "By the numbers: First to finish · alex · ZT Done Binge, in 5 days", ffText);
+      await ffRow.scrollIntoViewIfNeeded();
+      await A.shot("numbers-first-finish");
+      await A.wide("By the numbers");
       check(A.errors().length === 0, "no page errors (alex)", A.errors().join(" | "));
 
       // ---------- sam: his private one ----------

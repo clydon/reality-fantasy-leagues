@@ -7,9 +7,10 @@
 //   ZT Fresh Drop    all 6 dropped two days ago on Netflix: sam streams it, alex doesn't (a new drop with a ＋).
 //   ZT Old Wire      a finished weekly season from 2002 (13 episodes), nobody plays it: jordan watches it openly and planned
 //                    Episode 2 for tomorrow 9 PM (the couch's planned night).
-//   ZT Done Binge    dropped 40 days ago on Hulu: alex finished it, riley streams it ("You finished it").
+//   ZT Done Binge    dropped 40 days ago on Hulu: alex finished it five days after the drop (show_follows.finished_at, as
+//                    follows.ts keeps it from 0134 on), riley streams it ("You finished it"; alex was first to finish).
 //   ZT Coming Soon   all 8 drop in three days at 9 PM Eastern on HBO Max: alex and riley follow it (an upcoming drop, "1 waiting").
-//   ZT Alone Binge   dropped 60 days ago: only alex, who finished it (not on the rail).
+//   ZT Alone Binge   dropped 60 days ago: only alex, who finished it (not on the rail; no "first" with nobody else).
 //   ZT Secret Stream dropped 10 days ago: sam watches it PRIVATELY (on sam's rail, nobody else's).
 // So alex's rail is Severed, Fresh Drop, Old Wire, Done Binge, Coming Soon (See all 5).
 //
@@ -68,8 +69,10 @@ async function up(pool, fx) {
         [await show(key), number, new Date(dropAt).getTime() > Date.now() ? "upcoming" : "completed", new Date(dropAt).toISOString(), count]
       )
     ).id;
-  const follow = (who, season, seen = 0, priv = false) =>
-    pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through, following, private) VALUES ($1, $2, $3, true, $4)`, [users[who], season, seen, priv]);
+  const follow = (who, season, seen = 0, priv = false, finishedAt = null) =>
+    pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through, following, private, finished_at) VALUES ($1, $2, $3, true, $4, $5)`, [
+      users[who], season, seen, priv, finishedAt && new Date(finishedAt).toISOString(),
+    ]);
   const plan = async (season, episode, at, host, ins) => {
     const id = (
       await one(`INSERT INTO watch_plans (couch_id, season_id, episode, how, starts_at, created_by) VALUES ($1, $2, $3, 'start', $4, $5) RETURNING id`, [
@@ -102,7 +105,7 @@ async function up(pool, fx) {
   await follow("jordan", seasons.wire, 4);
 
   seasons.done = await binge("done", 4, 8, now - 40 * DAY);
-  await follow("alex", seasons.done, 8);
+  await follow("alex", seasons.done, 8, false, now - 35 * DAY);
   await follow("riley", seasons.done, 2);
 
   const dropAt = await easternAt(pool, 3, "21:00");
@@ -111,7 +114,7 @@ async function up(pool, fx) {
   await follow("riley", seasons.soon, 0);
 
   seasons.alone = await binge("alone", 1, 6, now - 60 * DAY);
-  await follow("alex", seasons.alone, 6);
+  await follow("alex", seasons.alone, 6, false, now - 58 * DAY);
 
   seasons.secret = await binge("secret", 1, 6, now - 10 * DAY);
   await follow("sam", seasons.secret, 1, true);

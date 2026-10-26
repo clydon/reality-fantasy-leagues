@@ -3,7 +3,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { outOfChat, outOfGroupChat } from "@/lib/server/late-join";
 import { pool, HttpError } from "@/lib/server/db";
-import { authorName, MESSAGE_COLUMNS, messageText, withReactions } from "@/lib/server/chat";
+import { authorName, insertMessage, messageText, withReactions } from "@/lib/server/chat";
 import { notifyChat } from "@/lib/server/push-events";
 import { groupLeagueIds } from "@/lib/server/league-groups";
 
@@ -78,11 +78,8 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   const text = messageText(rawText);
 
   const name = authorName(user as { name: string; username?: string | null });
-  const { rows } = await pool.query(
-    `INSERT INTO chat_messages (league_id, user_id, author_name, type, text) VALUES ($1,$2,$3,'message',$4)
-     RETURNING ${MESSAGE_COLUMNS}`,
-    [leagueId, user.id, name, text]
-  );
+  // chat.ts keeps the author's mark where the new design's fold goes by it (a streaming season's game).
+  const message = await insertMessage(user as { id: string; name: string; username?: string | null }, { leagueId }, text);
   notifyChat(leagueId, user.id, name, text);
-  return NextResponse.json({ message: { ...rows[0], reactions: {} } });
+  return NextResponse.json({ message: { ...message, reactions: {} } });
 });

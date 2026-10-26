@@ -11,7 +11,8 @@
 //   GET /updates/shows?since=day  { id: when } for every show, or only `tv.updated`'s ids when a check sets it; when is now,
 //                               or `tv.changedAt[id]` (seconds) when a check sets one
 // Shows are made relative to today, so "aired" stays true whenever the check runs. The schedules are worked out from the
-// shows (so a show a check pushes airs too); `oneNight` makes a show with one season airing at a given moment.
+// shows (so a show a check pushes airs too); `oneNight` makes a show with one season airing at a given moment, `daily` a
+// streaming show with an episode a day (step 14 part 2: a streaming soap, which the guide's Also on leaves out).
 //
 //   const tv = await require("./fake-listings").start();          // or start({ shows: [...] })
 //   // point the dev server at it: header  x-gys-listings: tv.url   (next dev only, loopback only)
@@ -80,6 +81,32 @@ function oneNight(id, name, at, o = {}) {
           id: seasonId * 100 + (o.first ?? 1) + i, season: o.season ?? 1, number: (o.first ?? 1) + i, type: "regular", name: `Secret ${name} title ${i + 1}`,
           airdate: premiere, airtime: o.drop ? "" : eastern(t).time, airstamp: new Date(t).toISOString(), runtime: o.drop ? null : (o.runtime ?? 60),
         })),
+      },
+    ],
+  };
+}
+
+/**
+ * A streaming show with one new episode a day for `days` days from `from` (a Date or ms), each with no air time (TVmaze's
+ * daily streaming soaps): on the service `web` ({ name, country: code or null }; a US one by default), popularity `weight`.
+ */
+function daily(id, name, from, days, o = {}) {
+  const t = new Date(from).getTime();
+  const seasonId = id * 10 + 1;
+  const web = o.web ?? { name: "ZT Daily Stream", country: "US" };
+  const webChannel = { name: web.name, country: web.country ? { name: web.country, code: web.country, timezone: ZONE } : null };
+  return {
+    show: {
+      id, name, type: o.type ?? "Scripted", language: "English", genres: [], status: "Running", premiered: eastern(t).date, weight: o.weight ?? 50,
+      network: null, webChannel, image: null, url: `https://www.tvmaze.com/shows/${id}`, schedule: { time: "", days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] },
+    },
+    seasons: [
+      {
+        season: { id: seasonId, number: 1, name: "", episodeOrder: null, premiereDate: eastern(t).date, endDate: null },
+        episodes: Array.from({ length: days }, (_, i) => {
+          const at = t + i * DAY;
+          return { id: seasonId * 100 + i + 1, season: 1, number: i + 1, type: "regular", name: `Secret ${name} title ${i + 1}`, airdate: eastern(at).date, airtime: "", airstamp: iso(at), runtime: 30 };
+        }),
       },
     ],
   };
@@ -182,4 +209,4 @@ async function start(opts = {}) {
   return tv;
 }
 
-module.exports = { start, shows, oneNight, eastern };
+module.exports = { start, shows, oneNight, daily, eastern };

@@ -295,6 +295,18 @@ is watching already asked for; the solo hub has no couch and doesn't ask). Every
 (`show_seasons.drop_at`) and its listing's service (`shows.listing->>'network'`): two short fields more per season in the home, space and
 couch reads, a few dozen bytes each. A streaming season is never "on the air" (`schedule.ts upNext`), which only takes things away.
 
+**The fold by progress, first to finish and daily streaming off Also on (new design, step 14 part 2)** poll nothing and run nothing on
+a schedule. Migration 0134 adds two columns: `chat_messages.author_seen` (how far a message's author had seen, kept only on a season
+watched at its own pace, NULL elsewhere: 4 bytes) and `show_follows.finished_at` (when someone first reached a season's last episode: 8
+bytes a follow). Both go in the backups with their tables (`backup-common.js` reads each table's columns as they are): a restored chat
+folds the same and the accolade keeps its times. **Posting a message** (either design, `chat.ts insertMessage`) reads a little before it
+writes: the season's release and status (one small query, where a weekly season stops), and on a season watched at your own pace your
+mark and any watch along you've had open in the last three hours (two or three small queries; a finished weekly season also its
+schedule). Messages are typed by people, so it's a handful of reads a day. The open Chat tab's 5 s poll is unchanged when nothing has
+moved (32 characters); when something has, its read carries one more small number per message, kept on the server. The hub's read
+gains one small query (First to finish: the couch's finishes on streaming seasons you've finished). Daily streaming shows leave Also on
+in the browser: the week's read and `tv_listings` are unchanged.
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub, 14 in a watch along while its clock runs (its own 12, and the 2 of the show space's Chat badge under it), 5 while
@@ -665,3 +677,8 @@ never handles it: the user does the reset and the pasting.
 - **2026-10-26, on the `new-design` branch (not deployed).** Step 14 part 1, streaming shows and the rail. **Nothing new: no read, no
   poll, nothing on a schedule, no migration, no pushes.** The rail is drawn from the hub's home read and its On now read; season headers
   carry two more short fields (the drop time and the listing's service).
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 14 part 2, the fold by progress, first to finish and daily streaming
+  off Also on. **Nothing polls and nothing runs on a schedule; no pushes.** Migration 0134: `chat_messages.author_seen` and
+  `show_follows.finished_at` (a number and a time; both backed up with their tables). Posting a chat message reads one to four small
+  things more (the season, and on a streaming or finished season the author's mark and open watch along); the hub's read gains one small
+  query (First to finish). Also on leaves daily streaming shows out in the browser.

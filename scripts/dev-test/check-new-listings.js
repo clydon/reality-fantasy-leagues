@@ -13,7 +13,8 @@
 //     with a rulebook); shows linked by name: one added by name takes the listing's season (its number, its episodes), one
 //     with a schedule only gains the link.
 //   In a real browser at --width (390 by default), as alex: tomorrow's Also on (the most watched three in time order, his
-//   own Late Show and the couch's Traitors left out), "2 more on TV" and the evening sheet (after midnight is the night
+//   own Late Show and the couch's Traitors left out, and since step 14 part 2 a daily streaming soap, the most watched, kept in
+//   tv_listings but on no day of Also on), "2 more on TV" and the evening sheet (after midnight is the night
 //   before's), a listing's sheet, Hide from guide with Undo, hiding from the evening sheet and Show again, Add to my shows
 //   from the evening sheet (where you are, then it's his: on his guide, out of Also on), the show added by name on his guide
 //   at its listing's time, a drop's day ("Streaming"), the TVmaze credit, no titles anywhere; nothing wider than the screen,
@@ -109,6 +110,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       N(990109, "ZT Foreign", at(2, 12), { web: { name: "ZT Stream", country: null }, drop: true, language: "Korean", weight: 99 }),
       N(990110, "ZT Hide Me", at(2, 20), { weight: 99, art: art("big-brother") }),
       N(990112, "ZT Old Listing", Date.now() - 60 * DAY, { weight: 10 }),
+      // A streaming soap (step 14 part 2): an episode every day, the most watched of all; never in Also on.
+      fakeListings.daily(990114, "ZT Daily Soap", at(0, 6), 8, { weight: 99 }),
     ];
     const tv = await fakeListings.start({ shows: [...fakeListings.shows(), ...extra] });
     closers.push(tv.close);
@@ -211,6 +214,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check(["ZT Prime A", "ZT Prime B", "ZT Prime C", "ZT Prime D", "ZT After Midnight", "ZT Late Show", "ZT Named Show", "ZT Hide Me"].every((n) => has(n).length === 1), "the evening's airings are in, after midnight too", rows.map((x) => x.name).join(","));
     check(has("ZT Stream Drop").length === 3 && has("ZT Stream Drop").every((x) => x.binge && x.network === "ZT Stream" && x.country === null), "a worldwide service's drop: its three episodes, as a drop");
     check(["ZT Morning", "ZT News Hour", "ZT Abroad", "ZT Foreign"].every((n) => !has(n).length), "never daytime, the news, a service abroad or another language");
+    check(has("ZT Daily Soap").length >= 6 && has("ZT Daily Soap").every((x) => x.binge), "a daily streaming show's episodes are kept (the guide's Also on leaves them out)", String(has("ZT Daily Soap").length));
     check(has("ZT Prime A")[0]?.weight === 95, "each with its popularity");
     const cols = (await pool.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'tv_listings'")).rows.map((c) => c.column_name);
     check(!cols.some((c) => /title|summary/.test(c)), "tv_listings has no title (nothing an episode's about)", cols.join(","));
@@ -316,6 +320,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const allAlso = await pg.locator("[data-also-on] [data-listing]").evaluateAll((xs) => xs.map((x) => x.getAttribute("data-tvmaze")));
       check(!allAlso.includes("990101") && !allAlso.includes("990002"), "his Late Show and the couch's Traitors aren't in Also on", allAlso.join());
       check(!allAlso.some((x) => ["990105", "990106", "990108", "990109"].includes(x)), "nor daytime, news, abroad or another language");
+      check(!allAlso.includes("990114"), "nor the daily streaming soap, on any day (step 14 part 2), though it's the most watched", allAlso.join());
       const namedCard = pg.locator(`[data-guide-card="${namedSeason.id}:1"]`);
       check((await namedCard.count()) === 1 && /7:00 PM/.test(await namedCard.textContent()), "ZT Named Show (added by name) is on his guide tomorrow at 7 PM", await namedCard.textContent().catch(() => ""));
       check(/TV listings from\s*TVmaze/.test(await pg.locator("[data-guide-credit]").textContent()), "the guide credits TVmaze");

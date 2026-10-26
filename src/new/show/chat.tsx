@@ -242,7 +242,8 @@ function Line({ item, me, onOpen, onReact }: { item: Extract<Item, { kind: "line
   );
 }
 
-/** Messages folded for you: who said something since an episode you haven't seen aired, and the way to see them. */
+/** Messages folded for you: who said something since an episode you haven't seen aired (or, on a season watched at its own
+ *  pace, who had seen further than you when they wrote), and the way to see them. */
 function Fold({
   lines,
   fold,
@@ -258,10 +259,12 @@ function Fold({
 }) {
   const who = [...new Set(lines.map((l) => l.name))];
   const count = lines.length;
-  const title = `${count} ${count === 1 ? "message" : "messages"}${fold ? ` since Episode ${fold.episode} aired` : ""}`;
+  const title = `${count} ${count === 1 ? "message" : "messages"}${!fold ? "" : fold.byMark ? " from further along" : ` since Episode ${fold.episode} aired`}`;
   const sub = fold?.revealed.length
     ? `${names(fold.revealed)} ${fold.revealed.length === 1 ? "has" : "have"} revealed it`
-    : `From ${names(who)}. They unfold when you've seen it.`;
+    : fold?.byMark
+      ? `From ${names(who)}. They unfold as you catch up.`
+      : `From ${names(who)}. They unfold when you've seen it.`;
   return (
     <div data-fold={fold?.episode ?? ""} className="mt-2 rounded-[4px] border border-dashed border-input px-3 py-2.5 text-[13px] text-muted-foreground">
       <div className="flex items-start gap-2">

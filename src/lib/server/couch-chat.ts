@@ -1,8 +1,8 @@
 import crypto from "crypto";
-import { foldFor, isFolded, revealedBy, type AirTime } from "@/lib/game/chat-fold";
+import { byAuthorMark, foldFor, isFolded, revealedBy, type AirTime } from "@/lib/game/chat-fold";
 import type { ChatReaction } from "@/lib/game/types";
 import { isSuperAdminUser, isUuid, type SessionUser } from "./auth-helpers";
-import { authorName, MESSAGE_COLUMNS, messageText, withReactions } from "./chat";
+import { authorName, insertMessage, MESSAGE_COLUMNS, messageText, withReactions } from "./chat";
 import { requireCouch, type CouchRole } from "./couches";
 import { pool, HttpError } from "./db";
 import { seenThrough } from "./guard";
@@ -17,7 +17,8 @@ import { games } from "./show-space";
 // couch_id and season_id, migration 0110). The new design posts into the couch's first game there when it has one.
 //
 // Spoiler-safe on the server (guard.ts, chat-fold.ts): once an episode you haven't seen has aired, everyone else's
-// messages from its airtime on are sent without their text or reactions, until you ask (`unfold`). Kept small for
+// messages from its airtime on are sent without their text or reactions, until you ask (`unfold`); on a season watched
+// at its own pace (step 14 part 2), a message carrying its author's mark only while that's past yours. Kept small for
 // its 5-second poll, as classic's is (docs/HOSTING.md): `v` fingerprints what the answer is built from, worked out in
 // the database, so an unchanged chat sends 32 characters.
 
@@ -97,8 +98,9 @@ export interface CouchChat {
   /** The newest 300, oldest first. */
   messages: ChatLine[];
   /** Past an episode you haven't seen: which one, the latest aired (what "Show them" unfolds through), how many
-   *  messages are folded, and who the chat's own reveal lines say has revealed it. Null when nothing's past you. */
-  fold: { episode: number; latest: number; count: number; revealed: string[] } | null;
+   *  messages are folded, and who the chat's own reveal lines say has revealed it. `byMark`: every folded one is folded by
+   *  its author's mark (a season watched at its own pace), not by airtime. Null when nothing's past you. */
+  fold: { episode: number; latest: number; count: number; revealed: string[]; byMark: boolean } | null;
   you: { userId: string; canPost: boolean; moderator: boolean };
   v: string;
 }
@@ -130,20 +132,25 @@ export async function readCouchChat(
   const fold = foldFor(episodes, seen, opts.unfold ?? null);
   const v = crypto
     .createHash("md5")
-    .update([fp.rows[0].v, fold ? `${fold.episode}:${fold.latest}:${fold.from}` : "-", scope.role, scope.moderator].join("|"))
+    .update([fp.rows[0].v, fold ? `${fold.episode}:${fold.latest}:${fold.from}:${fold.mark}` : "-", scope.role, scope.moderator].join("|"))
     .digest("hex");
   if (opts.v === v) return { unchanged: true, v };
 
+  // author_seen decides the fold here and is never sent (ChatLine has no place for it).
   const { rows } = await pool.query(
-    `SELECT * FROM (SELECT ${MESSAGE_COLUMNS} FROM chat_messages WHERE ${where} AND type <> 'system' ORDER BY created_at DESC LIMIT 300) recent ORDER BY created_at ASC`,
+    `SELECT * FROM (SELECT ${MESSAGE_COLUMNS}, author_seen FROM chat_messages WHERE ${where} AND type <> 'system' ORDER BY created_at DESC LIMIT 300) recent ORDER BY created_at ASC`,
     params
   );
   const shown = rows.filter((m) => !isFolded(m, fold, user.id));
   const reacted = new Map((await withReactions(shown)).map((m) => [m.id, m.reactions]));
   let count = 0;
+  let byMark = true;
   const messages: ChatLine[] = rows.map((m) => {
     const folded = isFolded(m, fold, user.id);
-    if (folded) count++;
+    if (folded) {
+      count++;
+      byMark &&= byAuthorMark(m);
+    }
     return {
       id: m.id,
       userId: m.user_id,
@@ -158,7 +165,7 @@ export async function readCouchChat(
   });
   return {
     messages,
-    fold: fold ? { episode: fold.episode, latest: fold.latest, count, revealed: revealedBy(rows, fold.episode, user.id) } : null,
+    fold: fold ? { episode: fold.episode, latest: fold.latest, count, revealed: revealedBy(rows, fold.episode, user.id), byMark: count > 0 && byMark } : null,
     you: { userId: user.id, canPost: scope.role !== "viewer", moderator: scope.moderator },
     v,
   };
@@ -170,15 +177,14 @@ export async function postCouchChat(user: SessionUser, scope: ChatScope, rawText
   if (scope.out) throw new HttpError(403, "Chat opens once you're caught up and in the game");
   const text = messageText(rawText);
   const name = authorName(user as { name: string; username?: string | null });
-  const { rows } = await pool.query(
-    `INSERT INTO chat_messages (league_id, couch_id, season_id, user_id, author_name, type, text) VALUES ($1, $2, $3, $4, $5, 'message', $6)
-     RETURNING ${MESSAGE_COLUMNS}`,
-    [scope.postTo, scope.postTo ? null : scope.couchId, scope.postTo ? null : scope.seasonId, user.id, name, text]
+  const m = await insertMessage(
+    user as { id: string; name: string; username?: string | null },
+    scope.postTo ? { leagueId: scope.postTo, seasonId: scope.seasonId } : { couchId: scope.couchId, seasonId: scope.seasonId },
+    text
   );
   // The game's chat tells its players as classic does. A show the couch only watches has no pushes yet (step 15).
   if (scope.postTo) notifyChat(scope.postTo, user.id, name, text);
-  const m = rows[0];
-  return { id: m.id, userId: m.user_id, name: m.author_name, type: m.type, text: m.text, at: new Date(m.created_at).toISOString(), edited: false, reactions: {} };
+  return { id: m.id, userId: m.user_id, name: m.author_name, type: "message", text: m.text, at: new Date(m.created_at).toISOString(), edited: false, reactions: {} };
 }
 
 /** A message in this conversation, for reacting, editing or removing; 404 when it isn't one. */

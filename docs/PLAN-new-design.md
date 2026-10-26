@@ -39,7 +39,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | **done** 2026-10-26 on the branch, in three parts: the guide on the couch's shows and Hide from guide (migration 0125), all of TV in the guide and the daily listings job on the bot clock's calls (0126), planned nights (0127); all ship with 0b's | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | **done** 2026-10-26 on the branch, in three parts: watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing (each open watch along's clock kept on the server; 0132), together sessions and planned nights (one clock for everyone in a planned night's watch along, Up next's planned night, a shared start's own time, bingo ticks and the two accolades; 0133); all ship with 0b's | Opus · xhigh |
-| 14 | Streaming shows and the rail | in progress, in two parts (written at its start): part 1, streaming on the couch (the release model, the rail, the show space; no migration), done 2026-10-26 on the branch; part 2, the fold by progress, first to finish and streaming off Also on (0134), next | Opus · high |
+| 14 | Streaming shows and the rail | **done** 2026-10-26 on the branch, in two parts: streaming on the couch (the release model, the rail, the show space; no migration), the fold by progress, first to finish and daily streaming off Also on (migration 0134, which ships with 0b's) | Opus · high |
 | 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
 | — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
 | C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · xhigh |
@@ -156,9 +156,6 @@ step's As built.
 - **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
   classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
   on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
-- **The fold goes by airtime** (step 4; for 14 part 2). Everything others said since an episode you haven't seen started airing
-  is folded, which is right for weekly and nightly shows; a binge drop folds everything after the drop until you finish.
-  Step 14's streaming shows could fold by the author's own progress at the time (what episode they were on) instead.
 - **Only the newest 300 messages** (step 4; for 15: step 13 part 1 left it, a watch along has its own stream), as classic: nothing
   loads earlier ones.
 - **Classic's research isn't a source** (step 6b part 1; for C). Backstage's answers, a player's Fill it in, One tap and
@@ -250,11 +247,11 @@ step's As built.
 - **No "Biggest comeback" record** (step 8; for a later polish). The mock's trophy shelf has it ("8th to 1st · Traitors
   4"); it needs each finished game's standings episode by episode (a table per episode, read once a season ends and kept),
   which nothing keeps. The records are most titles, ran it back, longest pool streak and best average finish.
-- **Couch accolades are what today's data can say** (step 8; ratings' since step 12 part 1, the watch along's since step 13 part 3; for 14
-  part 2 (first to finish) and a later polish). The mock's By the numbers also has first to finish (14's streaming drops) and Called it most from calls (since step
-  12 part 2: `calls.ts callRights` per season, as the profile's "Called it" still counts only league predictions). `couch-standings.ts
-  accoladesOf` is where they'd go (the ratings' are `ratings.ts ratingAccolades`: taste twins, the contrarian, never misses a rating; most
-  reactions and most watch alongs are `accoladesOf`'s since 13 part 3).
+- **Couch accolades are what today's data can say** (step 8; ratings' since step 12 part 1, the watch along's since step 13 part 3, first to
+  finish since 14 part 2; for a later polish). The mock's By the numbers also has Called it most from calls (since step 12 part 2:
+  `calls.ts callRights` per season, as the profile's "Called it" still counts only league predictions). `couch-standings.ts accoladesOf` is
+  where it'd go (the ratings' are `ratings.ts ratingAccolades`: taste twins, the contrarian, never misses a rating; most reactions, most watch
+  alongs and first to finish are `accoladesOf`'s).
 - **A rating can't be taken back** (step 12 part 1; for a later polish). Rating an episode again changes your stars, and a take can
   be removed, but nothing removes the rating itself (`episode_ratings` has no delete). A "Clear my rating" on the sheet would be
   one DELETE.
@@ -346,7 +343,9 @@ step's As built.
   step 13 part 2 is who's watching along right now ("riley is watching Episode 7 now", her clock on your bar): only someone who
   follows the show openly, on the couch they opened it on (its As built says what it reveals and to whom). Since step 14 part 1 the
   streaming rail keeps to it too: who streams a show and who's on now, never the mock's "riley Ep 6", "3 ahead" or "2 on the couch
-  watched".
+  watched". Since step 14 part 2 two things say a little more: First to finish (only to someone who has finished the season themselves:
+  who got to the end first, and how many days after the drop), and the chat's fold by progress, which folds a message while its author
+  had seen further than you when they wrote it (that they were ahead then, never by how much).
 - **Who's on now can't be turned off** (step 13 part 2; for 15). Watching along a show you follow openly tells the couch you're on
   and which episode, as reactions are heard; Watch privately is the only way out today. The mock's What your couch sees has When I'm
   watching (share.js's `now`, on in Everything, off in Just my games and Only what games need): `watchersOn` is where it'd apply. Since
@@ -419,6 +418,14 @@ step's As built.
 - **Call it skips a streaming season after its drop** (step 14 part 1; for a later polish). Call it asks about the next episode to air
   and closes at its airtime; once every episode is out there's nothing to air, so a streaming season gets no calls (the mock's "Call it
   before Episode 4"). A call that closes at each person's own mark (before you watch it) would bring it back, graded as now.
+- **The fold by progress trusts the mark** (step 14 part 2; for a later polish). On a season watched at your own pace a message folds by how
+  far its author had marked when they wrote (or the episode they had open in a watch along in the last three hours), so someone who watches
+  Episode 5 on the service without the app and talks about it before marking it seen writes "at 4", and it shows to someone else on 4. The
+  composer could ask "You're on Episode 4: seen 5?" when someone on a drop posts, or a message could carry the episode it's about. Someone
+  who sees results straight away (on a season they play) writes with no mark, so their messages fold by airtime there.
+- **First to finish starts with 0134** (step 14 part 2; as designed). `show_follows.finished_at` is kept from now on, so someone who reached
+  a season's end before has no time and isn't counted (nothing backfills it: on production no one follows a streaming season yet; they
+  come with step 10's Add a show). Where you are is your word: setting it to the last episode counts as finishing.
 - **The desk can't make a season a streaming drop** (step 14 part 1; for a later desk step). Only a listing makes a season `binge`
   (listing.ts `releaseOf`: three or more regular episodes on one day); a season the desk makes, or a show added by name, is weekly, and
   the desk's season page has no release or drop time to set.
@@ -434,9 +441,6 @@ step's As built.
   sports live) would get most of it.
 - **"The most watched" is TVmaze's popularity** (step 11 part 2, as designed). Also on's few are the evening's highest TVmaze
   `weight` (how many people follow a show there, worldwide), not ratings; nothing better is free.
-- **Daily streaming shows are on every day** (step 11 part 2; for 14 part 2). A streaming show with a new episode each weekday (Peacock's
-  soaps) has no air time, so it's a "Streaming" listing in each day's Also on, often among the few. Step 14's rail could take
-  streaming listings off the guide.
 - **The job's changes aren't in the desk's History** (step 11 part 2; for a later desk step). A season the listings job makes (a
   listed show's next season), a season it reads again and a show it links by name aren't logged anywhere a person sees: the desk's
   show page shows the result, not when it happened or why. Nor can the desk unlink a show linked to the wrong listing (Add a
@@ -3860,6 +3864,67 @@ No migration, no new read, poll, job or stored row (HOSTING.md). New: `src/lib/g
   a message's author mark is written in one place), first to finish (couch-standings.ts `accoladesOf`, couch-hub.ts `accoladesFor`;
   `show_follows` has no time of reaching an episode yet), and Also on's streaming listings (tv-listings.ts `alsoOn`/`scheduleRows`).
   `ownPace` (src/lib/game/streaming.ts) says which seasons fold by progress. Migration 0134 is next.
+
+### As built, step 14 part 2 (2026-10-26, on `new-design`): the fold by progress, first to finish, daily streaming off Also on
+
+Migration **0134** (ships with 0b's, same rehearsal): `chat_messages.author_seen` and `show_follows.finished_at`. **Backups:** both
+columns go in with their tables (backup-common.js reads each table's columns as they are, and a backup from before simply hasn't got
+them, restoring as NULL: the airtime fold and no finish time, which is what the database had then). No new poll, job or table; a message's
+post reads a little more and the hub's read one small query more (HOSTING.md). Step 14 is done.
+- **The fold by progress** (chat-fold.ts, from Noticed "The fold goes by airtime"): on a season watched at its own pace a message keeps
+  its author's mark when they wrote it, and it's folded for you while that's past where you are (or what you've unfolded through: `Fold`
+  gains `mark`); a message with no mark folds by airtime as before. So on a drop, what someone on Episode 3 says shows to everyone on 3 or
+  further, and what someone on 9 says folds for them until they're on 9. **When a message keeps a mark** (`marksAuthor`, decided at
+  writing): on `ownPace` seasons (a drop, or a finished season with no game in this conversation: a game's chat is a game here), but a
+  finished weekly season only once a week has passed since its last episode aired (decided: in its finale week people talk about what
+  they saw on the night whatever their marks say, so those messages keep folding by airtime for good). Weekly seasons and every message
+  from before 0134 have none. **The mark** (`chat.ts authorMark`): the guard's `seenThrough`, or the episode the author had open in a watch
+  along in the last three hours when that's further (decided: someone watching Episode 4 along talks about it before End marks it seen);
+  none for someone who sees results straight away (Infinity says nothing). **Written in one place**: `chat.ts insertMessage`, which
+  classic's league chat route and `couch-chat.ts postCouchChat` both post through (classic's route answered as before). The mark is
+  never sent: `MESSAGE_COLUMNS` leaves it out, the couch chat reads it beside them only to fold, and the hub's feed (`feedFor`) folds the
+  same way. The Chat tab's fold says "2 messages from further along · From riley and jordan. They unfold as you catch up." when every
+  folded message is folded by its mark (`fold.byMark`), else "since Episode N aired" as before; Show them works the same (through the
+  latest out: on a drop, everything).
+- **First to finish** (the mock's hubplus.js "First to finish · jordan · Severance, in 4 days"): `show_follows.finished_at`, kept by
+  follows.ts, the one place `seen_through` is written (`followLeagueProgress` for a game's reveal, classic's too; `setFollow` for where
+  you are, a watch along's End and rating an episode): set when the mark first reaches the season's `episode_count`, cleared when where
+  you are moves back from it. By the numbers (`couch-hub.ts accoladesFor`, `couch-standings.ts accoladesOf`): the newest of the couch's
+  first finishes on streaming seasons (`release 'binge'`), counting you and whoever follows it openly (never a private watcher, to anyone
+  but themselves), only on seasons **you've finished yourself** (your follow's mark at the end) and two or more of those watch (a first
+  among one isn't). "ZT Done Binge, in 5 days" (from the drop; "in a day" under a day and a half). Shown in the deck now and then and in
+  On the couch's list, like every couch accolade.
+- **Daily streaming shows leave Also on** (tv-listings.ts `dailyStreaming`, from Noticed "Daily streaming shows are on every day"): a show
+  whose streaming episodes come one at a time on four or more different days of the week's listings (a twice-weekly one is at most three
+  of the nine days the read holds); its single-episode drops are left out of every day's Also on, the few and the evening sheet. A whole
+  season's drop (several episodes at once) stays as its drop day, a weekly streaming show stays. Decided in the browser, on the week's
+  read: the job and `tv_listings` are unchanged.
+- **Changed from the mock:** the fold has its words for a drop ("from further along") where the mock had one fold by airtime; First to
+  finish says the account's name, as every accolade does (Noticed: two names for one person).
+- **Checks:** `check-new-streaming.js` grew part 2 (114 PASS at 390, from 80): 0134's columns; marks kept on Severed (riley 6, jordan 9,
+  sam 0, alex 3) and Old Wire, none on Survivor's weekly season or through classic's route there; alex on 3 has riley's and jordan's folded
+  with no words, sam's and his own shown, the mark never sent (couch chat or classic's read); riley on 6 only jordan's; jordan nothing;
+  Show them through 6 and through 10; a message with no mark folding by airtime (byMark false); a watch along on Episode 5 stamping 5; the
+  hub's feed folding the same; finished_at set, cleared going back, set again, and kept by a game's reveal; First to finish for alex (his
+  Done Binge, in 5 days), none for riley, jordan's Severed (in 20 days) not shown to alex until he finishes it too, sam's private earlier
+  finish counted only for himself; in the browser at 390, Severed's Chat tab ("2 messages from further along", Show them) and By the
+  numbers' First to finish. `streaming-fixture.js` gives its finishes a `finished_at`. `check-new-listings.js` adds a daily streaming soap
+  (fake-listings.js `daily`), the evening's most watched, kept in `tv_listings` and on no day of Also on (77 PASS, from 75). Unit tests:
+  `tests/chat-fold.test.js` (7: the fold by progress, Show them, when a message keeps a mark), `tests/tv-listings.test.js` (7: daily
+  streaming), `tests/couch-standings.test.js` (6: first to finish). The rest pass, one at a time: check-new-watch-along (276),
+  -episode-games (285), -plans (104), -guide (57), -library (91), -start-game (75), -make-it (81), -watching (114), -solo (92), -way-in
+  (85), -couches (114), -hub (77), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100; its castaway Override
+  assertion missed once in the batch and passed alone, as Noticed says), -community (82), -backstage (67), -backstage-ii (116), -show
+  (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview (step 14 done; only step 15's Previews left)
+  and check-backup-restore; classic's `check-chat-polls.js --ui` (its route posts through `insertMessage` now); `npm test` 632 of 632;
+  type-check clean; lint (src) as before (the old error in classic's `use-sheet-swipe.ts` and the old warning in `episode-results.ts`).
+  Seen at 390 in the browser: Severed's Chat tab folded from further along and shown, By the numbers' First to finish.
+- **Noticed, left as is:** two, now in Noticed, not fixed: the fold by progress trusts the mark, and first to finish starts with 0134.
+  Taken out: the fold goes by airtime and daily streaming shows are on every day (both fixed, above); couch accolades and nobody's
+  progress brought up to date.
+- **For step 15:** What your couch sees (share.js) is where First to finish and the fold by progress would answer to a sharing level
+  (both say something about how far someone is); `watchersOn` is still where When I'm watching would apply. Chat pushes are still
+  classic's (`couch-chat.ts postCouchChat`, now posting through `chat.ts insertMessage`). Migration 0135 is next.
 
 ## Step C: cutover
 

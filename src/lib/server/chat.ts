@@ -1,15 +1,66 @@
-import { pool, HttpError } from "./db";
+import { marksAuthor } from "@/lib/game/chat-fold";
+import { ownPace } from "@/lib/game/streaming";
 import type { ChatMessage, ChatReaction } from "@/lib/game/types";
+import { pool, HttpError } from "./db";
+import { seenThrough } from "./guard";
+import { LEAGUE_SEASON_JOIN } from "./league-season";
+import { seasonSchedules } from "./schedule";
 
 type RawMessage = Omit<ChatMessage, "reactions">;
 
 // What the two chat APIs share: classic's league chat (/api/leagues/[id]/chat, a linked group's conversation) and
 // the new design's couch chat about a show (/api/seasons/[id]/chat, couch-chat.ts), which is the same rows seen
-// through a couch and season. Both validate, react, edit and remove through here, so a message behaves the same
+// through a couch and season. Both post, validate, react, edit and remove through here, so a message behaves the same
 // whichever design wrote it.
 
-/** The columns a message is sent with. */
+/** The columns a message is sent with (never author_seen: how far someone had seen is nobody else's). */
 export const MESSAGE_COLUMNS = "id, user_id, author_name, type, text, created_at, edited_at";
+
+/** Where a message goes: a game's chat, or a couch's about a season it has no game on (couch-chat.ts). */
+export type ChatPlace = { leagueId: string; seasonId?: string } | { leagueId?: null; couchId: string; seasonId: string };
+
+/**
+ * How far the author had seen when they wrote, kept on the message (chat_messages.author_seen, migration 0134) where the couch
+ * chat's fold goes by it: a season watched at its own pace (chat-fold.ts marksAuthor; a game's chat is a game "in the
+ * conversation"). Their mark (guard.ts seenThrough), or the episode they had open in a watch along in the last few hours when
+ * that's further: someone watching Episode 4 along talks about it before End marks it seen. Null: the fold goes by airtime (a
+ * weekly season, or someone who sees results straight away, whose mark says nothing).
+ */
+export async function authorMark(userId: string, place: ChatPlace): Promise<number | null> {
+  const played = !!place.leagueId;
+  const { rows } = await pool.query(
+    place.leagueId && !place.seasonId
+      ? `SELECT ss.id, ss.release, ss.status FROM leagues l ${LEAGUE_SEASON_JOIN} WHERE l.id = $1`
+      : "SELECT id, release, status FROM show_seasons WHERE id = $1",
+    [place.seasonId ?? place.leagueId]
+  );
+  const season = rows[0] as { id: string; release: "weekly" | "nightly" | "binge"; status: string | null } | undefined;
+  if (!season || !ownPace({ ...season, played })) return null;
+  const episodes = season.release === "binge" ? [] : ((await seasonSchedules([season.id])).get(season.id)?.episodes ?? []);
+  if (!marksAuthor({ ...season, played }, episodes)) return null;
+  const [seen, { rows: along }] = await Promise.all([
+    seenThrough(userId, season.id),
+    pool.query(
+      `SELECT max(s.episode)::int AS n FROM watch_session_people p JOIN watch_sessions s ON s.id = p.session_id
+        WHERE p.user_id = $1 AND s.season_id = $2 AND p.seen_at > now() - interval '3 hours'`,
+      [userId, season.id]
+    ),
+  ]);
+  if (!Number.isFinite(seen)) return null;
+  return Math.max(seen, (along[0]?.n as number | null) ?? 0);
+}
+
+/** Posts a message, signed with the author's name and, where the fold goes by it, their mark (authorMark). */
+export async function insertMessage(user: { id: string; name: string; username?: string | null }, place: ChatPlace, text: string): Promise<RawMessage> {
+  const mark = await authorMark(user.id, place);
+  const couch = "couchId" in place && !place.leagueId ? place : null;
+  const { rows } = await pool.query(
+    `INSERT INTO chat_messages (league_id, couch_id, season_id, user_id, author_name, type, text, author_seen)
+     VALUES ($1, $2, $3, $4, $5, 'message', $6, $7) RETURNING ${MESSAGE_COLUMNS}`,
+    [couch ? null : place.leagueId, couch?.couchId ?? null, couch?.seasonId ?? null, user.id, authorName(user), text, mark]
+  );
+  return rows[0];
+}
 
 /** A message's text, trimmed; refused when empty or too long. */
 export function messageText(raw: unknown): string {
