@@ -147,8 +147,9 @@ function recordTransitions() {
     await page.waitForTimeout(400);
     await page.evaluate(() => (window.__vt.length = 0));
     await snap("home");
-    await page.locator('[data-preview="hub.watch-along"]').first().click();
-    check(await page.getByText("Coming soon: Watch along").isVisible(), "a Preview tap says Coming soon");
+    // Watch along is real since step 13 part 1: the bell (step 15's) is still a Preview.
+    await page.locator('[data-preview="hub.notifications"]').first().click();
+    check(await page.getByText("Coming soon: Notifications").isVisible(), "a Preview tap says Coming soon");
 
     // ---- into the show: the channel change ----
     await card.click();

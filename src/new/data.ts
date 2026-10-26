@@ -39,6 +39,9 @@ import type { EpisodeCalls } from "@/lib/server/calls";
 import type { Poll, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
 import type { EpisodeBingo } from "@/lib/server/bingo";
 import type { TriviaCard, TriviaRound } from "@/lib/server/trivia";
+import type { Reaction, WatchCard, WatchRead } from "@/lib/server/watch-along";
+import type { GifHit } from "@/lib/server/gifs";
+import type { Gif } from "@/lib/game/watch-along";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -82,6 +85,9 @@ export type { BingoSquare, LineCount, Truth } from "@/lib/game/bingo";
 export type { BingoMove } from "@/lib/game/game-view";
 export type { TriviaCard, TriviaRound } from "@/lib/server/trivia";
 export type { TriviaOption, TriviaQuestion } from "@/lib/game/trivia";
+export type { Reaction, WatchCard, WatchFace, WatchRead, WatchStatus } from "@/lib/server/watch-along";
+export type { GifHit } from "@/lib/server/gifs";
+export type { Gif, ReactKind, ReactionKind } from "@/lib/game/watch-along";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -1268,3 +1274,30 @@ export function useAfterTrivia() {
     [client]
   );
 }
+
+// ---- Watch along (step 13 part 1; watch-along.ts). Tonight's card reads when the show opens; the watch along reads the reactions
+// between two moments when it opens or its clock jumps, and polls the ones since while its clock runs (watch-along.tsx). ----
+
+/** Tonight's Watch along card: the episode you'd watch along, and who on the couch left reactions on it (a count). */
+export function useWatchCard(seasonId: string | null, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "watch-card", seasonId, couchId],
+    queryFn: () => get<WatchCard>(seasonUrl(seasonId!, "/watch", couchQuery(couchId))),
+    enabled: enabled && !!seasonId,
+    staleTime: 60_000,
+  });
+}
+
+export const watchApi = {
+  /** The reactions on an episode after `since` (ms; -1 from the start) through your clock's `at`; `open` adds pins and the count. */
+  read: (seasonId: string, couchId: string | null, episode: number, at: number, since: number, open = false) =>
+    get<WatchRead>(seasonUrl(seasonId, `/watch/${episode}`, { ...couchQuery(couchId), at: String(Math.floor(at)), since: String(Math.floor(since)), ...(open ? { open: "1" } : {}) })),
+  say: (seasonId: string, couchId: string | null, episode: number, body: { at: number; kind: string; text?: string; gif?: Gif }) =>
+    post<{ reaction: Reaction }>(seasonUrl(seasonId, `/watch/${episode}`, couchQuery(couchId)), { ...body, at: Math.floor(body.at) }),
+  unsay: async (seasonId: string, episode: number, id: string) => {
+    const res = await fetch(`/api/seasons/${seasonId}/watch/${episode}/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't take it back (${res.status})`), { status: res.status });
+  },
+  gifs: (q: string) => get<{ gifs: GifHit[] }>(`/api/gifs${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`),
+};

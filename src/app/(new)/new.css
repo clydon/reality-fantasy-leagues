@@ -499,3 +499,62 @@ html[data-nav="right"] .nd-dock {
     animation: none;
   }
 }
+/* Watch along (show/watch-along.tsx; the mock's .wa, .cm, .fx): the layer rises over the show like a curtain going up, a comment
+   rises into the stream, and a reaction floats up and away with whoever sent it. Reduced motion: they just appear and fade. */
+@keyframes nd-wa-in {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes nd-wa-rise {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+}
+@keyframes nd-wa-float {
+  0% {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+  }
+  12% {
+    transform: translate(0, -30px) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--sway, 0px), -280px) scale(0.9);
+    opacity: 0;
+  }
+}
+@keyframes nd-wa-fade {
+  12%,
+  70% {
+    opacity: 1;
+  }
+  0%,
+  100% {
+    opacity: 0;
+  }
+}
+.nd-wa-in {
+  animation: nd-wa-in 0.6s cubic-bezier(0.7, 0, 0.2, 1);
+}
+.nd-wa-rise {
+  animation: nd-wa-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.nd-wa-float {
+  animation: nd-wa-float 2.6s cubic-bezier(0.2, 0.6, 0.3, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-wa-in,
+  .nd-wa-rise {
+    animation: none;
+  }
+  .nd-wa-float {
+    bottom: 40%;
+    animation: nd-wa-fade 2.6s linear forwards;
+  }
+}

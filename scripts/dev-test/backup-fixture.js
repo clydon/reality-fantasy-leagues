@@ -190,6 +190,14 @@ async function up(pool) {
   await pool.query(`INSERT INTO trivia_plays (user_id, show_id, week, season_id, score, questions, answers) VALUES ($1, $2, '2026-10-26', $3, 2, 3, '{"winner:zt": "Castaway 0"}')`, [
     ann, show, season,
   ]);
+  // Watch along (0131): ann's comment and a GIF said to the couch at moments of Episode 1, and the tester's reaction on their own.
+  await pool.query(
+    `INSERT INTO watch_reactions (season_id, episode, runtime_ms, user_id, couch_id, kind, text, gif) VALUES
+       ($1, 1, 61000, $2, $3, 'text', 'zt: that cold open', NULL),
+       ($1, 1, 95000, $2, $3, 'gif', NULL, '{"id": "zt1", "url": "https://media.giphy.com/media/zt1/200w.gif", "w": 200, "h": 150, "title": "zt"}'),
+       ($1, 1, 120500, $4, NULL, 'fire', NULL, NULL)`,
+    [season, ann, couch, me]
+  );
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

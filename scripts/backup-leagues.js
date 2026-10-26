@@ -109,6 +109,10 @@ const GROUP_SLICES = {
       AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[])))`,
   trivia_plays: `show_id IN (SELECT show_id FROM show_seasons WHERE id = ANY($S::uuid[]))
       AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))`,
+  // Watch along (0131, step 13 part 1): what the group's couches said while watching its seasons' episodes, and what its people
+  // said watching on their own (no couch: only theirs).
+  watch_reactions: `season_id = ANY($S::uuid[]) AND (couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[]))
+      OR (couch_id IS NULL AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))))`,
   // The couch's polls (0129): the group's couches' polls on its seasons, and their votes.
   couch_polls: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[])) AND season_id = ANY($S::uuid[])",
   couch_poll_votes: `poll_id IN (SELECT id FROM couch_polls WHERE couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[]))

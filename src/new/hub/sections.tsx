@@ -240,15 +240,14 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
         </NavLink>
         <div className="flex items-center justify-between gap-2.5">
           {progress && !reveal ? <WhoIsSet progress={progress} /> : <span />}
-          <Preview id="hub.watch-along" tag={false}>
-            <button
-              type="button"
-              className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[3px] bg-[rgba(16,14,21,.7)] px-3 text-[13px] font-bold text-white outline-1 -outline-offset-1 outline-white/25 backdrop-blur-sm"
-            >
-              <Tv className="size-4" aria-hidden />
-              Watch along
-            </button>
-          </Preview>
+          <NavLink
+            href={paths.watch(show.seasonId)}
+            data-upnext-watch
+            className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[3px] bg-[rgba(16,14,21,.7)] px-3 text-[13px] font-bold text-white outline-1 -outline-offset-1 outline-white/25 backdrop-blur-sm"
+          >
+            <Tv className="size-4" aria-hidden />
+            Watch along
+          </NavLink>
         </div>
       </div>
     </section>

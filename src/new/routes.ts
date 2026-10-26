@@ -53,6 +53,8 @@ export const paths = {
   signin: (next?: string) => (next ? `/signin?next=${encodeURIComponent(next)}` : "/signin"),
   settings: "/settings",
   show: (seasonId: string, tab: ShowTab = "tonight") => `/show/${seasonId}/${tab}`,
+  /** The show's Tonight with its watch along open (step 13): your next episode, or `ep`. */
+  watch: (seasonId: string, ep?: number | null) => `/show/${seasonId}/tonight?page=watch${ep ? `&ep=${ep}` : ""}`,
   backstage: (seasonId: string, page?: string) => `/show/${seasonId}/backstage${page ? `/${page}` : ""}`,
   showPage: (seasonId: string, page: "draft" | "blind" | "waivers") => `/show/${seasonId}/${page}`,
   start: (step: number) => `/start/${step}`,

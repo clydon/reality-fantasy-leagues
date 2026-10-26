@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Check, ChevronRight, Eye, EyeOff, Grid3x3, Lock, MessageCircle, Plus, Tv } from "lucide-react";
+import { Check, ChevronRight, Eye, EyeOff, Grid3x3, Lock, MessageCircle, Plus } from "lucide-react";
 import { airTime, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
 import { backstage, chatCouch, useAfterResults, useChatBadge, type GameView, type PasteResult } from "../data";
@@ -15,7 +15,6 @@ import { PlayIt } from "./games";
 import { Avatar, useNow } from "../ui/bars";
 import { Btn, BtnLink, GuardChip } from "../ui/parts";
 import { toast } from "../ui/toast";
-import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
 import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./moves";
 import { Block, Face } from "./parts";
@@ -29,17 +28,18 @@ import { rateLabel, RateRow } from "./rate";
 import { CallResultRow, CallRow, openCall } from "./calls";
 import { PollRow } from "./polls";
 import { bingoEpisode as toBingo, BingoRow, openBingo, type BingoTarget } from "./bingo";
+import { WatchAlongCard } from "./watch-along";
 import { useSeasonPolls } from "../data";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
 // Your moves as swipeable cards (open first with the one yellow button on the first, then what you've already set
 // as done cards with Change; all done starts with one "You're set" card), Extras this week (optional, no counts),
-// Watch along (and the couch's planned nights, step 11 part 3), your games and the cast's stats. No dock before airtime and
+// Watch along (step 13: watch-along.tsx; and the couch's planned nights, step 11 part 3), your games and the cast's stats. No dock before airtime and
 // no commissioner job (5B: Backstage and
 // a dot on the show's ⋯ carry it). After an episode, by the results' stage (step 2): waiting for results (the
 // stage bar), results in (the one yellow: Reveal; a move that waits on them says so), the morning update once the
-// final scores land after an early reveal, and the last episode's recap until the next one airs. Real: all of it
-// but Watch along (13), on fixtures behind Preview; the stats card is stats.tsx's (step 3); Rate it in Extras
+// final scores land after an early reveal, and the last episode's recap until the next one airs. All real: the stats card is
+// stats.tsx's (step 3); Rate it in Extras
 // (step 12 part 1: the latest episode you've seen, rate.tsx); Call it for the next episode and the couch's open polls in Extras
 // (part 2: calls.tsx, polls.tsx), Weekly Calls' calls a move card; your bingo card in Extras, and in Tonight while it's on (part
 // 3: bingo.tsx), Weekly Bingo's a card in Your moves. Results from
@@ -58,11 +58,12 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       {!playing && <Following show={show} />}
       {playing && <AfterEpisode seasonId={seasonId} show={show} />}
       {playing && <FillItIn seasonId={seasonId} show={show} />}
+      <WatchAlongCard seasonId={seasonId} show={show} place="lead" />
       <OnTonight show={show} />
       {playing && <YourMoves seasonId={seasonId} show={show} />}
       {playing && <LastTime show={show} />}
       <Extras show={show} />
-      <WatchAlongCard seasonId={seasonId} show={show} />
+      <WatchAlongCard seasonId={seasonId} show={show} place="below" />
       <PlannedNights seasonId={seasonId} show={show} />
       {!playing && <WhosWatching show={show} />}
       {!playing && (!show.solo || !show.ready) && <PlayIt show={show} />}
@@ -645,44 +646,7 @@ function OnTonight({ show }: { show: ShowData }) {
   );
 }
 
-// ---------- Watch along ----------
-
-function WatchAlongCard({ seasonId, show }: { seasonId: string; show: ShowData }) {
-  const up = show.upNext;
-  const t = up?.airAt ? Date.parse(up.airAt) : null;
-  if (!show.header) return null;
-  return (
-    <Preview id="show.watch-along" className="mx-4 mt-[26px]">
-      <button
-        type="button"
-        className="nd-press relative isolate flex min-h-[150px] w-full flex-col justify-end gap-1 overflow-hidden rounded-[4px] p-3.5 text-left text-white shadow-[0_14px_30px_rgba(0,0,0,.4)]"
-      >
-        <ShowArt seasonId={seasonId} artUrl={show.header.show.artUrl} name={show.header.show.name} className="absolute inset-0 -z-[2] size-full" />
-        <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(16,14,21,.1),rgba(16,14,21,.9))]" />
-        <span
-          className={`type-caption mb-auto flex items-center gap-1.5 self-start py-1 pl-2 pr-4 text-xs tracking-[0.06em] [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)] ${
-            up?.live ? "bg-live text-live-foreground" : "bg-good text-good-foreground"
-          }`}
-        >
-          {up?.live ? (
-            <>
-              <i className="size-[7px] animate-pulse rounded-full bg-current" aria-hidden />
-              On air
-            </>
-          ) : t != null ? (
-            airTime(t)
-          ) : (
-            <>
-              <Tv className="size-3.5" aria-hidden /> Any time
-            </>
-          )}
-        </span>
-        <b className="type-caption text-[32px]">Watch along</b>
-        <small className="block text-[13px] opacity-90">Start when your episode starts · the couch&rsquo;s comments land as you reach them</small>
-      </button>
-    </Preview>
-  );
-}
+// ---------- Watch along: watch-along.tsx (step 13) ----------
 
 /** The couch's planned nights for this show (step 11 part 3; the mock's w-plan), and Plan a watch along when your next episode
  *  has none. On a couch only. */

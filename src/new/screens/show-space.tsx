@@ -33,6 +33,7 @@ import { MakeGamePage, useOpenMake } from "../show/make-game";
 import { openWatching, type WhereTarget } from "../watching/sheets";
 import { openStartGame } from "../couch/start-game";
 import { openPlan, PlanIcon } from "../couch/watch-plans";
+import { WatchAlongPage } from "../show/watch-along";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
@@ -196,6 +197,8 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
       <PoolPage show={show} />
       {/* Make it a game (step 10 part 2a), pushed from the Games tab, Tonight's plate or the ⋯ menu (?page=make). */}
       {show.header && <MakeGamePage show={show} />}
+      {/* Watch along (step 13), over the show from Tonight's card, the hub or a link (?page=watch&ep=). */}
+      <WatchAlongPage show={show} />
       <WaiverOverlays seasonId={seasonId} show={show} />
     </>
   );

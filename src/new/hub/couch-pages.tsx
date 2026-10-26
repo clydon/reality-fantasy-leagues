@@ -40,7 +40,6 @@ import { verdictText } from "@/lib/game/ratings";
 import { Avatar } from "../ui/bars";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { Row, SectionHead } from "../ui/parts";
-import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
 import { movesByDue } from "./sections";
 
@@ -963,12 +962,14 @@ function PreviouslyOn({ shows, couch }: { shows: HomeShow[]; couch: Couch | null
               </NavLink>
             ))}
           </section>
-          <Preview id="hub.watch-along" tag={false} className="mx-3 mt-6">
-            <button type="button" className="flex h-12 w-full items-center justify-center gap-2 rounded-[3px] text-[15px] font-bold outline-1 -outline-offset-1 outline-input">
-              <Tv className="size-5" aria-hidden />
-              Watch along · Episode {last.number + 1}
-            </button>
-          </Preview>
+          <NavLink
+            href={paths.watch(s.seasonId)}
+            data-po-watch
+            className="nd-press mx-3 mt-6 flex h-12 items-center justify-center gap-2 rounded-[3px] text-[15px] font-bold outline-1 -outline-offset-1 outline-input"
+          >
+            <Tv className="size-5" aria-hidden />
+            Watch along · Episode {last.number + 1}
+          </NavLink>
         </>
       )}
     </div>

@@ -9,7 +9,6 @@ import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { Avatar } from "../ui/bars";
 import { Btn, SectionHead } from "../ui/parts";
-import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { PoolCard, PracticeCard, PracticeSheet, poolShown, practiceShown, type PracticeSeason } from "../show/solo";
 import { openTrivia } from "../show/trivia";
@@ -18,8 +17,8 @@ import { Guide } from "./guide";
 
 // The solo hub (docs/PLAN-new-design.md step 9 part 3; the mock's round2.js soloHub + solo.js): someone on no couch, first
 // run's "Just me for now". Welcome, Watching solo (start a couch), what's due and Up next when something is, the guide
-// (step 11), your shows, Play on your own (each show's public pool and your practice couch: real), On your own (Watch along
-// for 13 stays Preview; this week's trivia on one of your shows since step 12 part 3; Who's scoring is the cast), Better with
+// (step 11), your shows, Play on your own (each show's public pool and your practice couch: real), On your own (Watch along on
+// one of your shows since step 13 part 1; this week's trivia on one of your shows since step 12 part 3; Who's scoring is the cast), Better with
 // friends (the season games, and Start a couch), the foot.
 
 export function SoloHub({ home }: { home: Home }) {
@@ -100,7 +99,9 @@ function PlayOnYourOwn({ home }: { home: Home }) {
 function OnYourOwn({ home }: { home: Home }) {
   const first = home.shows[0];
   const round = useMyTrivia(null).data?.rounds[0] ?? null;
-  const art = first?.show.artUrl ?? null;
+  // Watch along (step 13): the first of your shows with an episode out you haven't seen, else what's on next.
+  const watch = home.shows.find((s) => s.following && s.seenThrough !== null && s.seenThrough < s.latestAired) ?? nextShow(home) ?? first ?? null;
+  const art = (watch ?? first)?.show.artUrl ?? null;
   const tile = "flex w-[176px] flex-none flex-col overflow-hidden rounded-[4px] bg-card text-left";
   const pic = (icon: typeof Tv, colour: string) => {
     const Icon = icon;
@@ -120,15 +121,15 @@ function OnYourOwn({ home }: { home: Home }) {
     <section className="mt-8">
       <SectionHead title="On your own" />
       <div className="flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-        <Preview id="hub.watch-along" tag={false} className="flex-none">
-          <button type="button" className={tile}>
+        {watch && (
+          <NavLink href={paths.watch(watch.seasonId)} className={`${tile} nd-press`} data-solo-watch={watch.seasonId}>
             {pic(Tv, "var(--good)")}
             <span className="p-3">
               <b className="block text-[15px] font-semibold">Watch along</b>
               <small className="block text-[13px] leading-snug text-muted-foreground">Pause, rewind, react, rate it after</small>
             </span>
-          </button>
-        </Preview>
+          </NavLink>
+        )}
         {round && (
           <button type="button" className={`${tile} nd-press`} data-solo-trivia={round.showId} onClick={() => openTrivia({ seasonId: round.seasonId, couchId: null })}>
             {pic(CircleQuestionMark, "var(--chyron)")}

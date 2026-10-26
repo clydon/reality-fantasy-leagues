@@ -13,7 +13,7 @@
 //     in, Can't make it, someone not invited joining, the host can't say no, nobody off the couch), the hub's feed line, a
 //     live plan following the schedule when it moves, calling it off (only whoever planned it), Undo, Undo refused once
 //     someone has planned that episode since, and a night that's over.
-//   In a real browser at --width (390 by default): as alex, Tonight's plate (Open stays Preview: Watch along is step 13's),
+//   In a real browser at --width (390 by default): as alex, Tonight's plate (Open stays Preview: watching together is step 13 part 3's),
 //   the ⋯ menu's Plan a watch along (the episode chips, the planned one shown as it stands, the live airing, a shared start's
 //   day and time, the invite chips), sending it, the plan's sheet (who's in, Call it off with the toast's Undo), the hub's
 //   guide (an airing tagged Watch along, a shared start as a card of its own that opens the plan, I'm in from it), a couch
@@ -283,7 +283,7 @@ function check(ok, what, detail = "") {
       await pg.waitForTimeout(800);
       const plateText = await plate.innerText();
       check(/Episode 6/.test(plateText) && /live airing/i.test(plateText) && (await plate.getAttribute("data-plan-you")) === "host", "Tonight: his plan's plate (Episode 6, the live airing)", plateText);
-      check((await plate.locator("[data-preview='show.watch-along']").count()) === 1, "its Open is Preview (Watch along is step 13's)");
+      check((await plate.locator("[data-preview='show.watch-together']").count()) === 1, "its Open is Preview (watching together is step 13 part 3's)");
       check((await pg.locator("[data-plan-invite]").count()) === 0, "no Plan a watch along row: Episode 6 has one");
       await plate.scrollIntoViewIfNeeded();
       await A.shot("tonight-plate");

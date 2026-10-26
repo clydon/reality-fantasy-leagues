@@ -45,7 +45,8 @@ const out = args.find((a) => !a.startsWith("--"));
 if (!out) throw new Error("usage: check-new-show.js <outDir> [--width=390] [--keep]");
 const width = Number((args.find((a) => a.startsWith("--width=")) || "--width=390").slice(8));
 // Pages pushed over the show used to have placeholders of their own; the drafts are real since step 7 (check-new-draft.js).
-const ELSEWHERE = [];
+// Previews that only show where this fixture has nothing: a planned night's Open (step 13 part 3's), checked by check-new-plans.js.
+const ELSEWHERE = ["show.watch-together"];
 const REQUIRED = ["lineup", "pickup", "pick", "draftTurn", "blindDraft"];
 const BET = "Will an idol be played?";
 

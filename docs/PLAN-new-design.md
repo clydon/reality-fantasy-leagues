@@ -38,7 +38,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **done** 2026-10-26 on the branch, in three parts (part 2 split in two): watching (migration 0121; TV listings from TVmaze on demand), Make it a game to a set-up show with its rulebook and cast (0122), Start a game that fits and archive or delete a game (0123), rulebooks phase 8: the library, the desk's New show, Fits these games, Take it over and Looks right to us (0124); all ship with 0b's | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | **done** 2026-10-26 on the branch, in three parts: the guide on the couch's shows and Hide from guide (migration 0125), all of TV in the guide and the daily listings job on the bot clock's calls (0126), planned nights (0127); all ship with 0b's | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
-| 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
+| 13 | Watch along: pinned reactions, GIFs, together sessions | in progress on the branch, in three parts (written 2026-10-26): watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing, together sessions and planned nights | Opus · xhigh |
 | 14 | Streaming shows and the rail | not started | Opus · xhigh |
 | 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
 | — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
@@ -159,7 +159,8 @@ step's As built.
 - **The fold goes by airtime** (step 4; for 14). Everything others said since an episode you haven't seen started airing
   is folded, which is right for weekly and nightly shows; a binge drop folds everything after the drop until you finish.
   Step 14's streaming shows could fold by the author's own progress at the time (what episode they were on) instead.
-- **Only the newest 300 messages** (step 4; for 13 or 15), as classic: nothing loads earlier ones.
+- **Only the newest 300 messages** (step 4; for 15: step 13 part 1 left it, a watch along has its own stream), as classic: nothing
+  loads earlier ones.
 - **Classic's research isn't a source** (step 6b part 1; for C). Backstage's answers, a player's Fill it in, One tap and
   (since 6c) the bot's scheduled runs are submissions that settle facts for every couch; classic's commissioner research
   panel, the admin's research and paste in Admin › Shows, and the wiki still stage pending results the old way, so they're
@@ -249,8 +250,9 @@ step's As built.
 - **No "Biggest comeback" record** (step 8; for a later polish). The mock's trophy shelf has it ("8th to 1st · Traitors
   4"); it needs each finished game's standings episode by episode (a table per episode, read once a season ends and kept),
   which nothing keeps. The records are most titles, ran it back, longest pool streak and best average finish.
-- **Couch accolades are what today's data can say** (step 8; ratings' since step 12 part 1; for 13 and 14). The mock's By the
-  numbers also has most reactions and most watch alongs (13) and first to finish (14's streaming drops), and Called it most (calls
+- **Couch accolades are what today's data can say** (step 8; ratings' since step 12 part 1; for 13 part 3 and 14). The mock's By the
+  numbers also has most reactions and most watch alongs (13 part 3: `watch_reactions` has the first since part 1) and first to finish
+  (14's streaming drops), and Called it most (calls
   since step 12 part 2: `calls.ts callRights` per season, as the profile's "Called it" still counts only league predictions). `couch-standings.ts
   accoladesOf` is where they'd go (the ratings' are `ratings.ts ratingAccolades`: taste twins, the contrarian, never misses a
   rating).
@@ -282,8 +284,9 @@ step's As built.
   move) would make it one read.
 - **Bingo doesn't notify** (step 12 part 3; for 15). "riley got a line" pushes nobody; Tell the couch (a chat message whoever got it
   chooses to send) is the only word of it.
-- **Bingo in a watch along** (step 12 part 3; for 13). Others' ticks wait until you've seen the episode, so watching live together
-  each of you sees only your own card; a watch along knows who's at the same moment and could show the couch's ticks to them.
+- **Bingo in a watch along** (step 12 part 3; for 13 part 3). Others' ticks wait until you've seen the episode, so watching live together
+  each of you sees only your own card; a watch along knows who's at the same moment and could show the couch's ticks to them. Since
+  step 13 part 1 the watch along opens your card (Bingo), still only yours.
 - **A past season counts for trivia only if it's marked** (step 12 part 3; for 15 or a later polish). Trivia asks about a finished
   season only when your follow says you've seen it to the end (the seasons classic leagues played were backfilled into follows in
   0b); a season someone watched before joining is nobody's mark, and first run asks where you are only in current seasons.
@@ -398,12 +401,12 @@ step's As built.
 - **A plan's push says the show's time zone** (step 11 part 3; for 15). The server can't know the phone's zone, so the invite reads
   "Thu 8:00 PM EDT" in the season's own zone (as the waiver pushes do); the app shows the phone's. A zone kept per person (step
   15's settings) would let pushes say the reader's time.
-- **A shared start is an evening on four days** (step 11 part 3, the mock's chips; for 13 or a later polish). The plan sheet offers
+- **A shared start is an evening on four days** (step 11 part 3, the mock's chips; for 13 part 3 or a later polish). The plan sheet offers
   8 to 10 PM on the four days from when the episode's out; a weekend afternoon or a later week needs a time picker. Two people
   wanting different nights for the same episode can't both plan it (one going per couch and episode): the second sees the first
   and says I'm in.
-- **Up next doesn't mention a planned night** (step 11 part 3; for 13). The hub's Up next still carries Watch along's Preview
-  button; a night planned for its episode could show there ("Watch along · 3 going"), with step 13's Join.
+- **Up next doesn't mention a planned night** (step 11 part 3; for 13 part 3). The hub's Up next has Watch along (real since step 13
+  part 1, on your own time); a night planned for its episode could show there ("Watch along · 3 going"), with part 3's Join.
 - **Network times are the East's** (step 11 part 2; for a later polish). TVmaze's US schedule gives a network show's Eastern airing,
   and Also on shows that moment in the phone's zone, so on the West Coast an 8 PM network show reads 5 PM, though most networks
   air it at 8 PM Pacific on tape delay (a live event doesn't). Shows here are right (a season's air time is in its own zone);
@@ -423,6 +426,19 @@ step's As built.
   `/api/cron/listings?run=1` is one file (`vercel.json`), about 0.6 CU-hours a month: written up in HOSTING.md, not set up.
 - **The guide says Paused under reduced motion** (step 0d's port, seen in step 11 part 1; for a later polish). With reduced motion
   the guide never rolls, but its status still reads "Paused" (grey dot), as if it would; it could say nothing then.
+- **A watch along's clock is the watcher's word** (step 13 part 1, as designed). The couch's reactions are held 30 s behind the moment
+  the phone says its clock is at, and never past what has aired since airtime; End, +10s or Set the time move it on, and the server
+  sends what was said up to there, as where you are on Episodes is yours to say. Nothing past your next episode leaves the server.
+- **Live on TV starts at 0:00** (step 13 part 1; for part 2). The clock starts when you tap it, so joining a live airing late means
+  Set the time or +10s (behind is safe: reactions only come later). Part 2's Join the live airing could start it from airtime, or
+  from someone on the couch already watching.
+- **What you said is taken back only from the stream** (step 13 part 1; for a later polish). The × is on your own lines while they're
+  among the six shown; once they've scrolled away, or you've closed it, nothing lists what you said on an episode.
+- **The watch along's length is the slot's** (step 13 part 1; for a later polish). The bar and the automatic End come from the
+  schedule's episode length (Survivor 51's 90 minutes, ads included), so streaming without ads the bar never fills and End is yours to
+  tap. A show's running time without ads isn't kept anywhere.
+- **Nobody can hide a reaction** (step 13 part 1; for a later step). Comments and GIFs (GIPHY's PG-13 at most) reach the couch as
+  said; there's no report or hide, as in chat, beyond taking back your own.
 - **Posters are TVmaze's medium image** (step 10 part 1; for a later polish). 210 by 295, soft in the tall show bar; TVmaze's
   other size is the upload itself, often over a megabyte. A resized copy we keep (or Vercel's image optimisation, which has
   limits of its own) would sharpen it.
@@ -3403,6 +3419,121 @@ mock's stamp, line, banner and shake in new.css. Engine: a league type `weekly-b
   its episode, and the Tonight block's row), and could show the couch's ticks live to whoever's watching the same episode together
   (they've all reached that moment; Noticed); its end's "How was Episode N?" opens `openRate`. Call it closes at airtime, so a
   watch along has nothing of Call it's to carry but how it went once you've seen it.
+
+### Step 13, in three parts
+
+Too big for one session (written 2026-10-26, at its start). Each part ends with its As built, its Preview entries and fixtures
+out and the checks passing; step 13 is marked done after part 3. One check grows with the parts:
+`scripts/dev-test/check-new-watch-along.js`.
+
+1. **Watch along on your own time: reactions pinned to runtime.** `watch_reactions` (migration 0131: season, episode, runtime_ms,
+   user, the couch it was said to, kind, text, gif): a comment, one of four quick reactions or a GIF, said at a moment of an
+   episode. The watch along screen (the mock's index.html openWatch and watching.js's wrap of it): a clock you start when your
+   episode starts (Streaming, or Live on TV with Ad break), Pause, −10 s and +10 s, Set the time, End; the couch's reactions
+   arriving 30 s after their moment as you reach it, never before (the server sends only what's at least 30 s behind your
+   position, and nothing about an episode past your next one), the stream of comments, reactions floating up, pins on the
+   progress bar for what you've passed; the screen kept on (wake lock); your bingo card from it (`openBingo`); its end, "How was
+   Episode N?" (I've seen it on a show you watch, Reveal your scores on one you play, then `openRate`). GIFs from GIPHY behind
+   config (Tenor's API closed on 2026-06-30): no `GIPHY_API_KEY`, no GIF button. It polls only while it's open and its clock runs,
+   reading the reactions since the runtime it has. Where it opens: Tonight's Watch along card (who on the couch left reactions
+   there and how many), Up next's Watch along, Previously on's, the solo hub's. Preview out: `show.watch-along` and
+   `hub.watch-along`; a planned night's Open becomes `show.watch-together` (part 3's).
+2. **Who's on now, and the live airing.** `watch_sessions` (migration 0132): each open watch along keeps its clock on the server
+   (written when it starts, pauses or moves, and a heartbeat while it's open), so the couch sees who's watching right now: the
+   watch along's "riley is watching now · 40s ahead" with her mark on the bar, Tonight's card, the hub's On now strip (Preview
+   `hub.on-now` and `fixtures/watch-along.ts` out); the live airing's clock from airtime ("Join the live airing"), and catching
+   your clock up to someone's. Only the couch's people who share the show see it, never a private watcher.
+3. **Together sessions and planned nights.** A shared clock and pause for everyone (a session several people are in: whoever
+   pauses pauses it for all, its version polled every few seconds while open), a planned night's Open and Join starting or joining
+   it (the live airing's clock, or "3, 2, 1" for a shared start; late arrivals watch along after), Up next's planned night
+   ("Watch along · 3 going" with Join: from Noticed), a shared start's own time (from Noticed), the couch's bingo ticks to whoever's
+   watching that episode together (from Noticed), and the couch accolades most reactions and most watch alongs (from Noticed).
+   Preview out: `show.watch-together`. Marks step 13 done.
+
+### As built, step 13 part 1 (2026-10-26, on `new-design`): watch along on your own time
+
+Migration **0131** (ships with 0b's, same rehearsal): `watch_reactions` (season, episode, `runtime_ms`, user, the couch it was said
+to or none, `kind`, `text`, `gif`). **One new poll, only while a watch along's clock runs** (HOSTING.md); nothing on a schedule, no
+pushes. New: `src/lib/game/watch-along.ts` (pure: `watchEpisode`, `mayWatch`, `othersThrough`, the clock `clockAt`/`runClock`/
+`stopClock`/`moveClock`, `runtimeText`/`parseRuntime`, `cleanGif`/`giphyUrl`, `leftLine`), `src/lib/server/watch-along.ts`
+(`GET /api/seasons/[id]/watch?couch=` Tonight's card; `GET/POST /api/seasons/[id]/watch/[n]?couch=&at=&since=&open=1`; `DELETE
+.../watch/[n]/[reactionId]`), `src/lib/server/gifs.ts` + `GET /api/gifs?q=`, `src/new/show/watch-along.tsx` (`WatchAlongCard`,
+`WatchAlongPage` in the show space's frame, `useOpenWatch`), `paths.watch(seasonId, ep?)`, the layer's motion in new.css.
+- **A reaction (decided):** a comment (one line, 200 characters), one of the mock's four quick reactions (fire, laugh, side-eye,
+  iconic) or a GIF, pinned to where your clock is in the episode and said **to the couch you're watching with** (as chat is per couch
+  and show; on no couch it's yours alone, and on a couch of one it waits for whoever joins). Only the couch's people who follow the
+  show openly are heard (a private watcher's, or someone's who doesn't follow it, stay theirs; guard.ts visibleFollows' rule), and
+  only on that couch: ZT Extra never hears what the main couch said. Yours can be taken back (the × on your line). At most 12 in ten
+  seconds and 1,500 an episode.
+- **Spoiler-safe on the server:** you watch along an episode you've seen or your next one (`mayWatch`: 403 past it), once it's
+  aired; the next to air opens as "soon" with nothing in it (409 for saying anything). The couch's reactions reach you only once
+  your clock is **30 s past their moment** (`othersThrough`: at 1:29.999 riley's 1:00 isn't sent, at 1:30 it is), and never past
+  what has aired since airtime (a clock ahead of a live airing is held to it); your own come back at once. The clock is the watcher's
+  word (Noticed). A reaction says what that person was watching, as a rating says they've seen it.
+- **The watch along** (the mock's index.html openWatch, wrapped by watching.js): a layer over the show space (`?page=watch&ep=N`,
+  so the hub and a link open it), rising like a curtain. The start: the show's art, "Watch Episode 4 with the couch" (solo "your
+  way"), Streaming, no ads / Live on TV, Pick up at 23:10 when you've been here before (kept per episode in the browser), who left
+  reactions; before airtime the choices wait ("Opens Thu 8:00 PM"). Then the clock (it follows the episode; Pause; Live TV's Ad
+  break holds it), the bar with a pin for each comment and GIF you've passed, "Comments and reactions arrive 30 s after the moment,
+  never before it" (and, alone or watching privately, that what you say stays yours), the stream of the last six comments and GIFs
+  (yours in yellow, with ×), quick reactions floating up with who sent them, the bar of four reactions and GIF, −10s / Pause / Ad
+  break, +10s / Set the time / End, and "Say something at 12:03". **Screen stays on** (the Wake Lock API while it's open, taken again
+  when the tab comes back; the chip only when it's held). **Bingo** opens your card for the episode over it. It reads what was said
+  in the 90 s before your clock when it opens or jumps, then every 5 s what's new since, only while the clock runs and the tab is in
+  front.
+- **The end** (End, or the clock reaching the episode's length): "How was Episode N?" On a show you only watch, five stars: a tap
+  marks it seen (where you are) if it wasn't, rates it and opens Rate it's sheet with the verdict (`openRate`, as step 12 part 1 asked).
+  On one you play and haven't revealed: Reveal your scores (the one yellow) when its results are in, else "Your scores come with the
+  results"; rating waits for the reveal. Back to Tonight; Keep watching.
+- **Where it opens:** Tonight's Watch along card (real now): your next episode, "riley and jordan left 5 reactions · they show up as
+  you reach them" (a count and names, never what), "Be the first" with none, "Live · Thu 8:00 PM" before it airs; **while it's on air
+  the card leads Tonight** (the mock's during phase: "On air · Episode 6", above Tonight's bingo and Your moves). The hub's Up next
+  Watch along, Previously on's "Watch along · Episode 6" and the solo hub's On your own tile (your first show with an episode out you
+  haven't seen, else what's on next) open the show with it (`paths.watch`).
+- **GIFs** are GIPHY's, behind config like Continue with Google (Tenor's API, the plan's other choice, closed on 2026-06-30): no
+  `GIPHY_API_KEY`, no GIF button and `/api/gifs` 404s. The picker (Send a GIF: trending, then search as you type, "Powered by
+  GIPHY", PG-13 at most) asks our server, which asks GIPHY (edge-cached an hour per search); a GIF reaction keeps only GIPHY's own
+  link (`giphyUrl`: https on media*.giphy.com or i.giphy.com), never another site's. **For the user:** make a GIPHY developer account
+  (developers.giphy.com › Create an App › API), copy its key, add `GIPHY_API_KEY` to Vercel (Production) and to `.env.local` for
+  local; never commit it. It starts as a beta key (100 calls an hour, plenty for a few couches with the edge cache); GIPHY's
+  production key is applied for from its dashboard when that's not enough.
+- **Fixtures and Preview:** `show.watch-along` and `hub.watch-along` are gone (Tonight, Up next, Previously on, the solo hub are
+  real); a planned night's Open and its sheet's Open the watch along are `show.watch-together` (part 3: one clock for everyone in
+  it). `hub.on-now` and `fixtures/watch-along.ts` are part 2's.
+- **Backups** take `watch_reactions` (what the group's couches said on its seasons, and its people's own with no couch;
+  `backup-common.js`, `backup-leagues.js`); `backup-fixture.js` has a comment, a GIF and a quick reaction.
+- **Changed from the mock:** no "At the opening credits" (nothing says when a show's credits run; Set the time instead, minutes and
+  seconds); the cast stickers are gone (watching.js had already swapped them for GIFs); the near line "riley is watching now · 40s
+  ahead" and her face on the bar are part 2's; Live on TV starts at 0:00 (Noticed); the end's stars save through Rate it and open its
+  sheet rather than drawing the verdict on the end screen; on a show you play you reveal before you rate.
+- **Checks:** `scripts/dev-test/check-new-watch-along.js <outDir> [--width=390] [--keep] [--api]` (117 PASS at 390) on
+  new-fixture.js and solo-fixture.js, with the new **`fake-gifs.js`** (a GIPHY stand-in: trending, search, its own SVG pictures,
+  reached with `x-gys-gifs` under `next dev` from a loopback address; the check refuses a `GIPHY_API_KEY`): the card, every refusal,
+  30 s late and never early to the millisecond, your own at once, what's new since a runtime, the pins and count, another couch, no
+  couch, a private watcher, someone not following, taking one back, too many at once, Episode 6 on air (live, nothing past what's
+  aired, sam behind), GIFs with and without; then the browser as sam (the card, the start, the wake lock (a stand-in records the
+  request: headless Chromium refuses the real one), Set the time, riley's comments 30 s late with their pins, her fire floating up on
+  a poll, a laugh, a comment, a GIF from the picker, taking one back, Pause, −10s, Bingo, End with Reveal your scores, Close letting
+  the screen go, Pick up at), riley (no GIFs: no button; the Traitors, a show she only watches: four stars mark Episode 3 seen and
+  open the verdict), alex (Episode 6 on air leading Tonight, Live TV, Ad break, saying something, riley's 4:00 at 4:40, Up next's and
+  Previously on's Watch along) and zt_so_sam (the solo hub's tile, alone). `tests/watch-along.test.js` (7). Updated: check-new-shell
+  (its Preview tap is the bell now), check-new-plans (a plate's Open is `show.watch-together`), check-new-show (`show.watch-together`
+  only shows on a planned night, which check-new-plans covers). The rest pass, one at a time: check-new-episode-games (285), -plans
+  (102), -listings (75), -guide (57), -library (91), -start-game (75), -make-it (81), -watching (114), -solo (92), -way-in (85),
+  -couches (114), -hub (75), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100), -community (82), -backstage
+  (67), -backstage-ii (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview (step 13
+  in progress: `hub.on-now`, `show.watch-together` and `fixtures/watch-along.ts` left) and check-backup-restore; `npm test` 615 of
+  615; type-check clean; lint (src) as before (the old error in classic's `use-sheet-swipe.ts` and the old warning in
+  `episode-results.ts`). Seen at 390 in the browser: Tonight's card (aired, and leading Tonight on air), the start (and Pick up at),
+  the watch along running (comments, a GIF, the stream), the GIF sheet, Bingo over it, the end (Reveal your scores; stars on a show
+  you only watch, then the verdict), Live TV with Ad break, Previously on's button, the solo hub's tile and the watch along alone.
+- **Noticed, left as is:** five, now in Noticed, not fixed: a watch along's clock is the watcher's word, Live on TV starts at 0:00,
+  what you said is taken back only from the stream, the watch along's length is the slot's, and nobody can hide a reaction. Bingo in a
+  watch along, Up next's planned night, a shared start's days and the accolades now say part 3.
+- **For part 2:** who's on now and the live airing. The watch along's poll (`watchApi.read`, every `POLL_MS` while the clock runs) is
+  where presence can ride (an answer could carry who's watching that episode now) rather than a second poll; `Clock` and its
+  run/stop/move are what a session keeps on the server; Live on TV's start (`start("live", 0)`) is where "Join the live airing" goes;
+  the card's live line (`WatchAlongCard`) and the hub's `OnNow` (sections.tsx, on `fixtures/watch-along.ts`) wait for it.
 
 ## Step C: cutover
 

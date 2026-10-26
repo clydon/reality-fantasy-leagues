@@ -22,7 +22,7 @@ import { openCouchSheet } from "./couch-sheets";
 //         streaming season or an episode that's aired is always a shared start), who on the couch to invite (those who watch
 //         it, by default), Send invites (one push to each).
 //   plan  One planned night: when, who's in, I'm in / Can't make it, and for whoever planned it Call it off (Undo). Opening
-//         the watch along itself is step 13's (Preview).
+//         it together (one clock for everyone in it) is step 13 part 3's (Preview); on your own time it's Tonight's Watch along.
 // Also the plate a show's Tonight and a couch show's sheet carry for each plan (PlanPlates), and the row that plans one
 // (PlanInvite). The plans come with the home read (watch-plans.ts); a write puts the answer's list back in it.
 
@@ -128,8 +128,8 @@ export function PlanPlates({ plans, me }: { plans: WatchPlan[]; me: string }) {
             </button>
             <span className="flex flex-none items-center pr-3">
               {yours ? (
-                // Opening the watch along itself is step 13's.
-                <Preview id="show.watch-along" tag={false}>
+                // Opening it together (one clock for everyone in it) is step 13 part 3.
+                <Preview id="show.watch-together" tag={false}>
                   <span className="grid h-11 place-items-center rounded-[3px] bg-plate-foreground px-4 text-[15px] font-bold text-plate">Open</span>
                 </Preview>
               ) : p.you === "out" ? (
@@ -469,7 +469,7 @@ function PlanSheet({ planId, onOpenChange }: { planId: string | null; onOpenChan
           </div>
           <div className="mt-3 flex flex-col gap-2.5">
             {p.you === "host" || p.you === "in" ? (
-              <Preview id="show.watch-along" tag={false}>
+              <Preview id="show.watch-together" tag={false}>
                 <Btn tone="ink" wide>
                   <Tv className="size-5" aria-hidden />
                   Open the watch along

@@ -18,6 +18,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | Resend | Sign-up and password emails | not checked | $0? |
 | **TVmaze** API (`api.tvmaze.com`, new design step 10 part 1, on the branch) | TV listings for Add a show: the show search as you type, a show's seasons and episode air times when someone adds it, and its cast when someone makes a series or talk show a game (step 10 part 2a). Since step 11 part 2, also once a day by the listings job (the week's schedules for the guide's Also on, what changed, new seasons): about 17-20 calls a day, on the bot clock's calls, never on a timer of its own | Free, no key. Data is CC BY-SA (credited with a link back on Add a show, the guide and its sheets); at least 20 calls every 10 seconds per IP, else HTTP 429 (the job spaces its calls 0.7 s apart); posters hotlinked from its image CDN (allowed) | $0 |
 | Google Cloud OAuth client (**not made yet**: the user's, step 9 part 2) | Continue with Google on the new design's way in. Off until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (no keys, no button) | Free (sign-in only: the email, profile and openid scopes, no verification review needed) | $0 |
+| **GIPHY** API (**no key yet**: the user's, new design step 13 part 1, on the branch) | GIFs in a watch along: what's trending and a search, asked by our server (`/api/gifs`, kept at the edge an hour per search); the pictures load from GIPHY's media CDN straight into the browser. Off until `GIPHY_API_KEY` is set (no key, no GIF button). Tenor, the other choice, closed its API on 2026-06-30 | Free. A new key is a beta key: 100 calls an hour (each distinct search, and trending, at most once an hour per edge region); past that, GIPHY's production key (applied for from its dashboard, reviewed, and they may talk pricing). "Powered by GIPHY" shown under the picker; ratings PG-13 at most | $0 |
 | Anthropic API | Paid auto-research (Claude), only for seasons switched on | Pay per use | per episode researched |
 | Domain `gameyourshow.com` | Bought 2026-10-12 | not recorded | yearly |
 
@@ -102,6 +103,7 @@ measured; measure from Neon's usage a week after a change):
 | New design, Backstage › Results while a One tap runs (`/backstage/ways`) | 4 s, only while one runs | ~1 KB |
 | New design, an episode page while the bot adds a show change (`/api/seasons/[id]/show-changes/[n]`) | 4 s, only while it's added (~1-3 min) | under 1 KB |
 | New design, Make it a game while our bot asks (`/api/seasons/[id]/make?poll=1`) | 3 s, only while the bot asks (~2-4 min, once per show set up) | under 200 bytes (a version: one small row); the page reads the whole review (~10-20 KB) only when it moves |
+| New design, a watch along while its clock runs (`/api/seasons/[id]/watch/[n]?at=&since=`) | 5 s, only while its clock runs and the tab is in front (not paused, not in an ad break, not before you start) | under 1 KB when nobody said anything new (a few small queries: your mark, the couch, the reactions since the runtime it has, through 30 s behind your clock); ~200 bytes a new comment, more for a GIF's link |
 | New design, the open draft room (`/api/seasons/[id]/draft?v=`) | 4 s while a turn-based draft is live; 15 s while a draft waits to start or people lock in a blind draft; not once it's done | ~1-2 KB (a hash check per game, a few small reads: your seat, queue and mark); the answer is 16 characters when nothing changed, else the draft (~10-20 KB) |
 
 **The way in (new design, step 9 part 2)** polls nothing. First run's catalog (`/api/catalog`, open signed out: every
@@ -240,9 +242,26 @@ would make it one; Noticed). Commercial break's This week only adds each show's 
 Weekly Bingo adds two small queries to the games and hub reads (its players' cards and ticks on the season, the results or says
 they need). Lines are never stored: each read works them out. All three tables are backed up with the couch's games.
 
+**Watch along (new design, step 13 part 1)** polls only while someone is watching along with its clock running. A reaction is one
+small row (`watch_reactions`, migration 0131: ~150 bytes for a quick reaction, ~250-400 for a comment, ~400 for a GIF, which keeps
+GIPHY's link, never the picture): a couch of four watching every episode of five weekly shows together and saying something every
+minute or so is about 15,000 rows a year (~5 MB; a busy couch could be a few times that). The watch along reads the couch's
+reactions between two moments: when it opens or its clock jumps (Set the time, ±10 s), what was said in the 90 s before your clock
+plus the pins (each comment's moment, a few bytes each) and the couch's count; then **every 5 s while the clock runs**, only what's
+new since the runtime it has read (an unchanged answer is a few hundred bytes). Paused, in an ad break, before you start or with the
+tab behind another, it asks nothing. Each poll is a few small queries (the session, your mark, the couch, the reactions by an index
+on season, episode, couch and runtime); the season's air times are kept in the server's memory for 30 s rather than read each time.
+An hour's episode watched start to finish is ~720 polls (Vercel invocations) and well under 1 MB from Neon, and it keeps Neon awake
+while it's open, as an open chat does. Tonight's Watch along card reads once when the show opens (`/api/seasons/[id]/watch`: the
+episode to watch along and the couch's count, two small queries). Saying something is one insert (at most 12 in ten seconds,
+1,500 an episode, per person). **GIFs** are GIPHY's: the picker asks `/api/gifs` (what's trending when it opens, then a search as you
+type, 350 ms after you stop), which our server asks GIPHY once per search an hour (edge-cached, `s-maxage=3600`), and the pictures
+load from GIPHY's CDN in the browser (not through us: no Vercel bandwidth). No push, nothing on a schedule. Backed up with the
+couch's games (`backup-leagues.js`).
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
-none on the hub.
+none on the hub, 14 in a watch along while its clock runs (its own 12, and the 2 of the show space's Chat badge under it).
 
 **Rough scale, so the first wall is visible:** 100 couches of 4, each person with a screen open 3 hours a week,
 is about 5,200 screen-hours a month: ~5 GB of Neon transfer (the free limit) and ~3M Vercel invocations (three
@@ -587,3 +606,10 @@ never handles it: the user does the reset and the pasting.
   when they open (a few small queries; trivia reads the stats facts of up to two seasons); `/api/me/trivia` (Commercial break, the
   solo hub) reads up to about a dozen seasons' facts per open; Commercial break's This week only gains two small queries a show;
   Weekly Bingo adds two small queries to the games and hub reads.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 13 part 1, watch along on your own time. **One new poll, only
+  while someone watches along with its clock running** (`/api/seasons/[id]/watch/[n]?at=&since=` every 5 s: the reactions since the
+  runtime it has, under 1 KB when nothing's new; paused, before you start or in a hidden tab, nothing); nothing runs on a schedule.
+  Migration 0131: `watch_reactions` (~150-400 bytes a reaction; backed up). A new service once the user makes a key: **GIPHY**
+  (`GIPHY_API_KEY`; no key, no GIFs): searches asked by our server and kept at the edge an hour, pictures loaded from GIPHY's CDN in
+  the browser; a beta key allows 100 calls an hour. Tonight reads one more small thing when a show opens (its Watch along card). No
+  pushes.
