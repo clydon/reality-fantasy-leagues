@@ -6,7 +6,8 @@ import { notifyAfter, userIdsForPlayers, leagueMemberUserIds, leagueName } from 
 import { sendPush, type PushMessage, type PushReader } from "./push-core";
 import { groupLeagueIds } from "./league-groups";
 import { hiddenFromGroup, outOfGroupChat } from "./late-join";
-import { EVERYTHING, seenThrough } from "./guard";
+import { EVERYTHING, seenThrough, shares } from "./guard";
+import { AUTHOR_SEEN } from "./chat";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { seasonSchedules } from "./schedule";
 import { after } from "next/server";
@@ -348,7 +349,8 @@ export function notifyCouchChat(posted: ChatPosted) {
             [couchId, seasonId]
           )
         : Promise.resolve({ rows: [] as { user_id: string }[] }),
-      pool.query("SELECT user_id, type, created_at, author_seen FROM chat_messages WHERE id = $1", [posted.messageId]),
+      // Its author's mark only while they share Where I am (chat.ts AUTHOR_SEEN): the words never say they were further along otherwise.
+      pool.query(`SELECT user_id, type, created_at, ${AUTHOR_SEEN} FROM chat_messages WHERE id = $1`, [posted.messageId]),
       couchId ? pool.query("SELECT name FROM couches WHERE id = $1", [couchId]) : Promise.resolve({ rows: [] as { name: string }[] }),
     ]);
     const message = msg[0];
@@ -636,10 +638,11 @@ export function notifyPoll(o: { pollId: string; couchId: string; seasonId: strin
 
 /**
  * Bingo lines on an episode (step 12 part 3's cards): each person with a line hears "You got a bingo line", and the people on
- * their couches who have a card on that episode hear "riley got a bingo line" (riley only if she follows the show openly). Only
- * anyone who has seen the episode: a line says which of its moments happened. `lines`: who has a line now (bingo.ts).
+ * their couches who have a card on that episode hear "riley got a bingo line", only if riley shares her games on the show with
+ * that reader (guard.ts shares, asked per reader: she follows it openly, as everywhere bingo shows; step 15 part 3). Only anyone
+ * who has seen the episode: a line says which of its moments happened. `lines`: who has a line now (bingo.ts).
  */
-export function notifyBingoLines(o: { seasonId: string; episode: number; lines: () => Promise<{ userId: string; name: string; shares: boolean; mates: string[] }[]> }) {
+export function notifyBingoLines(o: { seasonId: string; episode: number; lines: () => Promise<{ userId: string; name: string; mates: string[] }[]> }) {
   notifyAfter("bingoLine", async () => {
     const lines = await o.lines();
     if (!lines.length) return null;
@@ -649,15 +652,18 @@ export function notifyBingoLines(o: { seasonId: string; episode: number; lines: 
     const about = new Map<string, { userId: string; name: string }[]>();
     for (const l of lines) {
       about.set(l.userId, [...(about.get(l.userId) ?? []), { userId: l.userId, name: l.name }]);
-      if (l.shares) for (const m of l.mates) if (m !== l.userId) about.set(m, [...(about.get(m) ?? []), { userId: l.userId, name: l.name }]);
+      for (const m of l.mates) if (m !== l.userId) about.set(m, [...(about.get(m) ?? []), { userId: l.userId, name: l.name }]);
     }
     return {
       userIds: [...about.keys()],
       seasonId: o.seasonId,
       message: async (reader: PushReader) => {
         if ((await seenThrough(reader.userId, o.seasonId)) < o.episode) return null;
-        const told = await keysOf(reader.userId, (about.get(reader.userId) ?? []).map((a) => `bingo:${o.seasonId}:${o.episode}:${a.userId}`));
-        const fresh = (about.get(reader.userId) ?? []).filter((a) => !told.has(`bingo:${o.seasonId}:${o.episode}:${a.userId}`));
+        // Only whoever shares their games here with this reader (yours always).
+        const mine = [];
+        for (const a of about.get(reader.userId) ?? []) if (await shares(reader.userId, a.userId, { kind: "play", seasonId: o.seasonId })) mine.push(a);
+        const told = await keysOf(reader.userId, mine.map((a) => `bingo:${o.seasonId}:${o.episode}:${a.userId}`));
+        const fresh = mine.filter((a) => !told.has(`bingo:${o.seasonId}:${o.episode}:${a.userId}`));
         const first = fresh.find((a) => a.userId === reader.userId) ?? fresh[0];
         if (!first) return null;
         const yours = first.userId === reader.userId;

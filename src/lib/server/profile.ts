@@ -3,15 +3,18 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { auth } from "@/lib/auth";
 import { realEmail } from "@/lib/no-email";
 import { isPaletteColour } from "@/lib/people";
+import { sharingFrom, SHARE_SWITCHES, type ShareSwitch, type Sharing } from "@/lib/sharing";
 import { isImpersonating, isSuperAdminUser, type Session, type SessionUser } from "./auth-helpers";
 import { pool, HttpError, withLeagueLock } from "./db";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { leagueStates } from "./league-states";
+import { sharingOf } from "./guard";
 import { googleOn } from "./way-in";
 import { readNotify, saveNotify, type NotifySettings } from "./notify-prefs";
 
 // Your profile and your account settings in the new design (docs/PLAN-new-design.md step 15 part 1; the mock's settings.js):
-// your name, colour and picture, Hide scores until I reveal, your AI for results, and what your account signs in with.
+// your name, colour and picture, Hide scores until I reveal, your AI for results, and what your account signs in with; and What
+// your couch sees (step 15 part 3: the four switches, src/lib/sharing.ts, and what they let out of you, in your own words).
 //
 // One name: your username is the name your couch sees (the way in says so), and saving a new one renames your seat in every
 // league you play (classic's tables and the new design's then agree) and signs your old messages with it. One face: your
@@ -36,6 +39,9 @@ export interface Profile {
   since: string | null;
   /** What we notify you about (step 15 part 2): each moment on or off, and Couch chat's choice. */
   notify: NotifySettings;
+  /** What your couch sees (step 15 part 3): the four switches, and a line each on what one lets out ("alex is on Episode 4 of
+   *  Survivor 51"), from your own shows, ratings and reactions where you have any (only shows you follow openly). */
+  sharing: { on: Sharing; lines: Record<ShareSwitch, string> };
   account: {
     username: string | null;
     /** Your real email (never a username-only account's stand-in). */
@@ -69,14 +75,16 @@ export async function readProfile(user: SessionUser): Promise<Profile> {
   ]);
   const r = rows[0];
   if (!r) throw new HttpError(404, "No such account");
+  const name = (r.username as string | null) || (r.name as string);
   return {
-    name: (r.username as string | null) || (r.name as string),
+    name,
     colour: isPaletteColour(r.colour) ? r.colour : null,
     picture: r.picture == null ? null : Number(r.picture),
     ai: AI_CHOICES.includes(r.ai) ? (r.ai as AiChoice) : "chatgpt",
     hideScores: !r.immediate,
     since: first[0] ? `${(first[0].name as string).replace(/^The /, "")}${first[0].season_number ? ` ${first[0].season_number}` : ""}` : null,
     notify,
+    sharing: { on: (await sharingOf([user.id])).get(user.id)!, lines: await sharingLines(user.id, name) },
     account: {
       username: (r.username as string | null) ?? null,
       email: realEmail(r.email as string) ?? null,
@@ -86,16 +94,58 @@ export async function readProfile(user: SessionUser): Promise<Profile> {
   };
 }
 
+/**
+ * What each switch of What your couch sees lets out of you, as someone on your couch would read it: from the show you follow openly
+ * that you moved along most lately, your latest rating and the show you reacted on most (only shows you follow openly: a show you
+ * watch privately is never shared). Where you have none, what it would share.
+ */
+async function sharingLines(userId: string, name: string): Promise<Record<ShareSwitch, string>> {
+  const { rows } = await pool.query(
+    `WITH open AS (
+       SELECT f.season_id, f.seen_through, f.updated_at, ss.episode_count,
+              regexp_replace(regexp_replace(s.name, '^The ', ''), '\\s*\\([^)]*\\)\\s*$', '') || COALESCE(' ' || ss.season_number, '') AS label
+         FROM show_follows f JOIN show_seasons ss ON ss.id = f.season_id JOIN shows s ON s.id = ss.show_id
+        WHERE f.user_id = $1 AND f.following AND NOT f.private
+     )
+     SELECT (SELECT row_to_json(x) FROM (SELECT label, seen_through AS seen, episode_count AS count FROM open WHERE seen_through > 0
+               ORDER BY updated_at DESC LIMIT 1) x) AS "where",
+            (SELECT label FROM open ORDER BY updated_at DESC LIMIT 1) AS now,
+            (SELECT row_to_json(x) FROM (SELECT o.label, r.episode, r.stars FROM episode_ratings r JOIN open o ON o.season_id = r.season_id
+               WHERE r.user_id = $1 ORDER BY r.updated_at DESC LIMIT 1) x) AS rated,
+            (SELECT row_to_json(x) FROM (SELECT o.label, count(*)::int AS n FROM watch_reactions w JOIN open o ON o.season_id = w.season_id
+               WHERE w.user_id = $1 GROUP BY o.label ORDER BY n DESC, o.label LIMIT 1) x) AS reacted`,
+    [userId]
+  );
+  const x = rows[0] ?? {};
+  const where = x.where as { label: string; seen: number; count: number | null } | null;
+  const rated = x.rated as { label: string; episode: number; stars: number } | null;
+  const reacted = x.reacted as { label: string; n: number } | null;
+  const lines: Record<ShareSwitch, string> = {
+    where: where
+      ? where.count && where.seen >= where.count
+        ? `${name} finished ${where.label}`
+        : `${name} is on Episode ${where.seen} of ${where.label}`
+      : `What ${name} watches, and how far ${name} is`,
+    now: x.now ? `${name} is watching ${x.now} now` : `When ${name} is watching along`,
+    ratings: rated ? `${name} rated ${rated.label} Episode ${rated.episode} ★${rated.stars}` : `${name}'s episode ratings`,
+    reactions: reacted ? `${name} left ${reacted.n} ${reacted.n === 1 ? "reaction" : "reactions"} on ${reacted.label}` : `${name}'s watch along reactions`,
+  };
+  return Object.fromEntries(SHARE_SWITCHES.map((k) => [k, lines[k]])) as Record<ShareSwitch, string>;
+}
+
 /** Someone viewing the app as you (an admin's "Viewing as") can look, not change who you are. */
 function mayChange(session: Session) {
   if (isImpersonating(session)) throw new HttpError(403, "You're viewing as someone. Their profile is theirs to change.");
 }
 
 /**
- * Your colour, AI, spoiler setting or a notification moment (PUT /api/me/profile). Only what's sent changes; null colour goes
- * back to the one your id picks.
+ * Your colour, AI, spoiler setting, a notification moment or What your couch sees (PUT /api/me/profile). Only what's sent changes;
+ * null colour goes back to the one your id picks. `sharing`: { preset } (all, games, min) or any of the four switches.
  */
-export async function saveSettings(session: Session, body: { colour?: unknown; ai?: unknown; hideScores?: unknown; notify?: unknown }): Promise<void> {
+export async function saveSettings(
+  session: Session,
+  body: { colour?: unknown; ai?: unknown; hideScores?: unknown; notify?: unknown; sharing?: unknown }
+): Promise<void> {
   mayChange(session);
   if (body.notify !== undefined) {
     if (!body.notify || typeof body.notify !== "object") throw new HttpError(400, "notify: { moment, on } or { chat }");
@@ -118,6 +168,14 @@ export async function saveSettings(session: Session, body: { colour?: unknown; a
     if (typeof body.hideScores !== "boolean") throw new HttpError(400, "hideScores must be true or false");
     args.push(!body.hideScores);
     sets.push(`show_results_immediately = $${args.length}`);
+  }
+  if ("sharing" in body) {
+    const next = sharingFrom(body.sharing, (await sharingOf([session.user.id])).get(session.user.id)!);
+    if (!next) throw new HttpError(400, "sharing: { preset: all, games or min } or any of where, now, ratings, reactions as true or false");
+    for (const k of SHARE_SWITCHES) {
+      args.push(next[k]);
+      sets.push(`share_${k} = $${args.length}`);
+    }
   }
   if (!sets.length) throw new HttpError(400, "Nothing to change");
   // A first row gets the column defaults for whatever isn't sent (classic's /api/me/settings writes the same row).

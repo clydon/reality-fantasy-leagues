@@ -1,5 +1,6 @@
 import { BEAT_WRITE_MS, COUNTDOWN_MS, MAX_RUNTIME_MS, PRESENT_MS, type TogetherChange, type Watcher, type WatchMode } from "@/lib/game/watch-along";
 import { pool } from "./db";
+import { sharesSql } from "./guard";
 
 // Who's on now (docs/PLAN-new-design.md step 13 part 2; migration 0132 watch_sessions and watch_session_people): each open watch
 // along keeps its clock here, written when it starts, pauses, moves or ends, with a heartbeat while it's open and in front (the
@@ -7,9 +8,10 @@ import { pool } from "./db";
 // heartbeat is under PRESENT_MS old and they haven't left; a closed tab or a phone gone to sleep just drops out, worked out when
 // read (nothing sweeps them). watch-along.ts checks who may write and read; this is the SQL.
 //
-// Presence is progress ("riley is watching Episode 7 now" says how far she is), so it's shown as reactions are heard: only someone
-// who follows the show openly (show_follows following and not private: never a private watcher), only on the couch they opened it
-// on (a session alone is nobody else's), and only to the rest of that couch. Never what happens in the episode.
+// Presence is progress ("riley is watching Episode 7 now" says how far she is), so it's shown only for someone who follows the show
+// openly (never a private watcher) and shares When I'm watching (step 15 part 3's What your couch sees: guard.ts sharesSql), only on
+// the couch they opened it on (a session alone is nobody else's), and only to the rest of that couch. Never what happens in the
+// episode.
 //
 // Together sessions (step 13 part 3; migration 0133): a planned night's watch along, one clock for everyone in it. Joining it
 // leaves your own session of that episode on the couch; anyone in it moves the clock for all (`moveTogether`: version bumped,
@@ -82,7 +84,7 @@ type WatcherRow = Watcher & { seasonId: string };
 
 /**
  * Who else on a couch is watching now: each person once (their freshest session), on the couch they opened it on, following its
- * show openly, still on the couch. Narrowed to a season, and to an episode of it, when asked. Each clock is read at the database's
+ * show openly and sharing When I'm watching, still on the couch. Narrowed to a season, and to an episode of it, when asked. Each clock is read at the database's
  * now (where it stood, plus how long it's run since).
  */
 export async function watchersOn(viewerId: string, couchId: string, where: { seasonId?: string; episode?: number } = {}): Promise<WatcherRow[]> {
@@ -101,7 +103,7 @@ export async function watchersOn(viewerId: string, couchId: string, where: { sea
       WHERE p.seen_at > now() - interval '${PRESENT_MS} milliseconds' AND p.left_at IS NULL
         AND s.couch_id = $1 AND p.user_id <> $2
         AND p.user_id IN (SELECT user_id FROM couch_members WHERE couch_id = $1)
-        AND EXISTS (SELECT 1 FROM show_follows f WHERE f.user_id = p.user_id AND f.season_id = s.season_id AND f.following AND NOT f.private)
+        AND ${sharesSql("now", "p.user_id", "s.season_id")}
         ${and.map((c) => `AND ${c}`).join(" ")}
       ORDER BY p.user_id, p.seen_at DESC`,
     params

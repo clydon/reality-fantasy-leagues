@@ -2,7 +2,7 @@ import { marksAuthor } from "@/lib/game/chat-fold";
 import { ownPace } from "@/lib/game/streaming";
 import type { ChatMessage, ChatReaction } from "@/lib/game/types";
 import { pool, HttpError } from "./db";
-import { seenThrough } from "./guard";
+import { seenThrough, switchOn } from "./guard";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { seasonSchedules } from "./schedule";
 
@@ -15,6 +15,16 @@ type RawMessage = Omit<ChatMessage, "reactions">;
 
 /** The columns a message is sent with (never author_seen: how far someone had seen is nobody else's). */
 export const MESSAGE_COLUMNS = "id, user_id, author_name, type, text, created_at, edited_at";
+
+/**
+ * chat_messages.author_seen as the fold may go by it (for a query on chat_messages unaliased): only while its author shares Where I
+ * am (step 15 part 3's What your couch sees, guard.ts switchOn), else null, so the message folds by airtime and says nothing about
+ * how far they were. Never sent: it decides the fold.
+ */
+export const AUTHOR_SEEN = `CASE WHEN ${switchOn("where", "chat_messages.user_id")} THEN chat_messages.author_seen END AS author_seen`;
+
+/** A reveal line ("riley revealed episode 5") only from someone who shares Where I am, or from `me` (a condition, unaliased). */
+export const REVEAL_SHARED = (me: string) => `(chat_messages.type <> 'reveal' OR chat_messages.user_id = ${me} OR ${switchOn("where", "chat_messages.user_id")})`;
 
 /** Where a message goes: a game's chat, or a couch's about a season it has no game on (couch-chat.ts). */
 export type ChatPlace = { leagueId: string; seasonId?: string } | { leagueId?: null; couchId: string; seasonId: string };

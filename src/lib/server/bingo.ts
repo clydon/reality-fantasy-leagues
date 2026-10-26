@@ -268,15 +268,13 @@ export async function tickBingo(user: SessionUser, seasonId: string, couchId: st
 }
 
 /**
- * Who has a bingo line that counts on an episode now (step 15 part 2's notices): each card's owner with one, their name, whether
- * they follow the show openly (only then does the couch hear of it, as everywhere bingo shows), and their couch-mates with a card
- * on the episode. On a talk show a line is settled by a couch's says, so it counts on any couch they're on. `only`: just these
+ * Who has a bingo line that counts on an episode now (step 15 part 2's notices): each card's owner with one, their name, and their
+ * couch-mates with a card on the episode (who hears of it is the guard's, per reader: push-events.ts notifyBingoLines). On a talk show a line is settled by a couch's says, so it counts on any couch they're on. `only`: just these
  * people's cards (a tick changes only its own, where results settle the squares).
  */
-export async function bingoLinesOn(seasonId: string, n: number, only?: string[], bookIn?: CallBook): Promise<{ userId: string; name: string; shares: boolean; mates: string[] }[]> {
+export async function bingoLinesOn(seasonId: string, n: number, only?: string[], bookIn?: CallBook): Promise<{ userId: string; name: string; mates: string[] }[]> {
   const { rows } = await pool.query(
-    `SELECT c.user_id, COALESCE(u.username, u.name) AS name,
-            COALESCE((SELECT f.following AND NOT f.private FROM show_follows f WHERE f.user_id = c.user_id AND f.season_id = c.season_id), false) AS shares
+    `SELECT c.user_id, COALESCE(u.username, u.name) AS name
        FROM bingo_cards c JOIN "user" u ON u.id = c.user_id
       WHERE c.season_id = $1 AND c.episode = $2 AND EXISTS (SELECT 1 FROM bingo_marks m WHERE m.card_id = c.id)`,
     [seasonId, n]
@@ -306,7 +304,6 @@ export async function bingoLinesOn(seasonId: string, n: number, only?: string[],
     .map((o) => ({
       userId: o.user_id as string,
       name: o.name as string,
-      shares: !!o.shares,
       mates: [...new Set(mates.filter((m) => m.owner === o.user_id && playing.has(m.mate)).map((m) => m.mate))],
     }));
 }

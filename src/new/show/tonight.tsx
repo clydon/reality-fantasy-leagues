@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { whereWords } from "@/lib/sharing";
 import { Check, ChevronRight, Eye, EyeOff, Grid3x3, Lock, MessageCircle, Plus } from "lucide-react";
 import { airTime, calm, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
@@ -205,12 +206,17 @@ function Following({ show }: { show: ShowData }) {
   );
 }
 
-/** Who on the couch watches it (openly) or plays a game on it, you first. Never how far anyone is (the guard shares nobody's
- *  progress), except who's watching along right now, which says the episode (step 13 part 2: the Watch along card's read). */
+/** Who on the couch watches it (openly) or plays a game on it, you first, and how far each is where they share it (step 15 part
+ *  3's Where I am: "On Episode 5", "Caught up", "2 ahead"; at your own pace "Ep 4 of 8" with a bar), and who's watching along right
+ *  now, which says the episode (step 13 part 2: the Watch along card's read, only from those who share When I'm watching). */
 function WhosWatching({ show }: { show: ShowData }) {
   const me = useMe();
   const card = useWatchCard(show.header?.seasonId ?? null, show.couch?.id ?? null, !!show.header);
   const nowOf = (userId: string) => (card.data?.now ?? []).find((w) => w.userId === userId);
+  const total = episodesOf(show) ?? 0;
+  const mine = show.following && show.seenThrough != null && Number.isFinite(show.seenThrough) ? show.seenThrough : null;
+  const seenOf = (p: { userId: string; seen?: number | null }) => (p.userId === me.id ? mine : (p.seen ?? null));
+  const where = (seen: number | null) => (seen == null ? null : whereWords(seen, { aired: show.streaming ? total : show.latestAired, total, ownPace: show.ownPace }));
   const people = (show.people ?? []).filter((p) => p.watching || p.playing.length || p.userId === me.id);
   const list = [...people.filter((p) => p.userId === me.id && (show.following || p.playing.length)), ...people.filter((p) => p.userId !== me.id)];
   if (!list.length || show.solo) return null;
@@ -223,6 +229,9 @@ function WhosWatching({ show }: { show: ShowData }) {
           const you = p.userId === me.id;
           const plays = p.playing.map(gameOf).filter(Boolean);
           const on = you ? null : nowOf(p.userId);
+          const seen = seenOf(p);
+          const at = where(seen);
+          const ahead = !you && seen != null && mine != null && seen > mine ? seen - mine : 0;
           return (
             <div key={p.userId} data-watcher={p.name} className="flex min-h-[60px] items-center gap-3 border-t border-border py-2 first:border-t-0">
               <Avatar id={p.userId} name={p.name} size={34} />
@@ -231,20 +240,32 @@ function WhosWatching({ show }: { show: ShowData }) {
                   {p.name}
                   {you && <span className="type-caption rounded-[2px] bg-foreground px-1.5 py-px text-[10px] tracking-[0.05em] text-background">You</span>}
                 </b>
-                <small className="block text-[13px] text-muted-foreground">
+                <small className="block text-[13px] text-muted-foreground" data-watcher-where={at ?? undefined}>
                   {on ? (
                     <span data-watching-now className="font-semibold text-good">
                       Watching now · Episode {on.episode}
                     </span>
-                  ) : plays.length ? (
-                    `Plays ${plays.join(" and ")}`
-                  ) : you && show.watchingPrivately ? (
-                    "Watching privately"
                   ) : (
-                    "Watches it"
+                    [
+                      plays.length ? `Plays ${plays.join(" and ")}` : null,
+                      at ?? (plays.length ? null : you && show.watchingPrivately ? "Watching privately" : "Watches it"),
+                      you && show.watchingPrivately && at ? "private" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
                   )}
                 </small>
+                {show.ownPace && seen != null && total > 0 && seen > 0 && (
+                  <span className="mt-1.5 block h-[3px] w-full max-w-[160px] overflow-hidden rounded-full bg-border" aria-hidden>
+                    <i className="block h-full bg-chyron-line" style={{ width: `${Math.min(100, (seen / total) * 100)}%` }} />
+                  </span>
+                )}
               </span>
+              {ahead > 0 && (
+                <span data-ahead={ahead} className="type-caption flex-none text-[12px] tracking-[0.04em] text-muted-foreground">
+                  {ahead} ahead
+                </span>
+              )}
             </div>
           );
         })}

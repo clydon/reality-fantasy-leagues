@@ -1,11 +1,14 @@
 // The spoiler guard, server side (src/lib/server/guard.ts, docs/PLAN-new-design.md step 0b): nothing past
 // someone's episode, an unknown episode counts as 0, secret roles only once that person has left, and a show
-// watched privately isn't shared. Also the league roles' one rule (roles.ts). Run with `npm test`.
+// watched privately isn't shared, nor what someone's What your couch sees keeps back (step 15 part 3; shares() itself is SQL,
+// checked against the database by scripts/dev-test/check-new-sharing.js). Also the league roles' one rule (roles.ts). Run with
+// `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
 const G = jiti("../src/lib/server/guard.ts");
+const S = jiti("../src/lib/sharing.ts");
 const { roleAtLeast, lastCommissionerProblem } = jiti("../src/lib/server/roles.ts");
 const { FORMATS } = require("../src/lib/game/formats/index.js");
 
@@ -66,20 +69,35 @@ test("secret roles: only the Traitors have them, and only someone who has left s
   assert.equal(still.role, "Traitor", "the original is untouched");
 });
 
-test("sharing: a show watched privately, or not followed, isn't shared; your own always is", async () => {
+test("sharing: a show watched privately, not followed, or kept back by Where I am isn't shared; your own always is", async () => {
   const follows = [
     { userId: "me", seasonId: "s1", following: true, private: true },
     { userId: "riley", seasonId: "s1", following: true, private: false },
     { userId: "jordan", seasonId: "s1", following: true, private: true },
     { userId: "sam", seasonId: "s1", following: false, private: false },
+    { userId: "kat", seasonId: "s1", following: true, private: false },
   ];
-  assert.deepEqual(G.visibleFollows("me", follows).map((f) => f.userId), ["me", "riley"]);
-  const db = fakeDb({ follows: { "riley/s1": {}, "jordan/s1": { private: true }, "sam/s1": { following: false } } });
-  assert.equal(await G.shares("me", "riley", { kind: "follow", seasonId: "s1" }, db), true);
-  assert.equal(await G.shares("me", "jordan", { kind: "follow", seasonId: "s1" }, db), false, "watched privately");
-  assert.equal(await G.shares("me", "sam", { kind: "follow", seasonId: "s1" }, db), false, "not following");
-  assert.equal(await G.shares("me", "alex", { kind: "follow", seasonId: "s1" }, db), false, "no follow at all");
-  assert.equal(await G.shares("jordan", "jordan", { kind: "follow", seasonId: "s1" }, db), true, "your own");
+  const sharing = new Map([["kat", S.SHARE_PRESETS.games]]);
+  assert.deepEqual(G.visibleFollows("me", follows, sharing).map((f) => f.userId), ["me", "riley"], "kat's Just my games keeps what she watches back");
+  assert.deepEqual(G.visibleFollows("me", follows, new Map()).map((f) => f.userId), ["me", "riley", "kat"], "nobody's settings: everything, the default");
+  assert.equal(await G.shares("jordan", "jordan", { kind: "ratings", seasonId: "s1" }, fakeDb()), true, "your own, without asking the database");
+  // The SQL each kind asks: games need only an open follow; the four switches each ask their own column too.
+  assert.doesNotMatch(G.sharesSql("play", "r.user_id", "r.season_id"), /user_settings/);
+  for (const k of S.SHARE_SWITCHES) {
+    const sql = G.sharesSql(k, "r.user_id", "r.season_id");
+    assert.ok(sql.includes(`share_${k} FROM user_settings us_ WHERE us_.user_id = r.user_id), true)`), k);
+    assert.match(sql, /sf_.following AND NOT sf_.private/, `${k}: never a show watched privately`);
+  }
+});
+
+test("sharing: the three levels, and what a save may send", () => {
+  assert.equal(S.presetOf(S.SHARE_DEFAULT), "all", "everything by default");
+  assert.equal(S.presetOf({ where: false, now: false, ratings: true, reactions: true }), "games");
+  assert.equal(S.presetOf({ where: false, now: false, ratings: false, reactions: false }), "min");
+  assert.equal(S.presetOf({ where: true, now: false, ratings: true, reactions: true }), "custom", "a mix of your own");
+  assert.deepEqual(S.sharingFrom({ preset: "games" }, S.SHARE_DEFAULT), S.SHARE_PRESETS.games);
+  assert.deepEqual(S.sharingFrom({ now: false }, S.SHARE_DEFAULT), { where: true, now: false, ratings: true, reactions: true }, "one switch over what's there");
+  for (const bad of [null, [], {}, { preset: "some" }, { now: "no" }, { where: true, colour: 1 }]) assert.equal(S.sharingFrom(bad, S.SHARE_DEFAULT), null, JSON.stringify(bad));
 });
 
 test("roles: a Commissioner can do what a Game admin can; the last Commissioner can't step down", () => {

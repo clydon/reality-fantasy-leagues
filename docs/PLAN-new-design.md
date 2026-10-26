@@ -40,7 +40,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | **done** 2026-10-26 on the branch, in three parts: watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing (each open watch along's clock kept on the server; 0132), together sessions and planned nights (one clock for everyone in a planned night's watch along, Up next's planned night, a shared start's own time, bingo ticks and the two accolades; 0133); all ship with 0b's | Opus · xhigh |
 | 14 | Streaming shows and the rail | **done** 2026-10-26 on the branch, in two parts: streaming on the couch (the release model, the rail, the show space; no migration), the fold by progress, first to finish and daily streaming off Also on (migration 0134, which ships with 0b's) | Opus · high |
-| 15 | Notifications by moment, account settings, What your couch sees | in progress on the branch, in four parts: your settings and your profile (part 1 finished 2026-10-26, migration 0135), notifications by moment (part 2 finished 2026-10-26, migration 0136), what your couch sees, Studio and the rest; 0135 and 0136 ship with 0b's | Opus · xhigh |
+| 15 | Notifications by moment, account settings, What your couch sees | in progress on the branch, in four parts: your settings and your profile (part 1 finished 2026-10-26, migration 0135), notifications by moment (part 2 finished 2026-10-26, migration 0136), what your couch sees (part 3 finished 2026-10-26, migration 0137), Studio and the rest; 0135-0137 ship with 0b's | Opus · xhigh |
 | — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
 | C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · xhigh |
 
@@ -273,9 +273,6 @@ step's As built.
   break, the solo hub's On your own, kept 60 s) works out the round on up to six of your shows until three have one, each from the
   stats facts of up to two seasons (HOSTING.md). A round kept per person, show and week (it's the same all week unless your marks
   move) would make it one read.
-- **A past season counts for trivia only if it's marked** (step 12 part 3; for 15 or a later polish). Trivia asks about a finished
-  season only when your follow says you've seen it to the end (the seasons classic leagues played were backfilled into follows in
-  0b); a season someone watched before joining is nobody's mark, and first run asks where you are only in current seasons.
 - **Predictions guess their chips from their words** (step 12 part 2; for C). A prediction has no options of its own (classic's
   propose has none), so "Who …?" gets the cast still in and "Will …?" Yes / No (`game-view.ts predictionKind`); "Which tribe wins?"
   or a question about someone already out gets words. A propose flow in the new design could let its proposer choose.
@@ -316,20 +313,6 @@ step's As built.
 - **A practice couch is in classic's list** (step 9 part 3; for C). Classic's league menu shows it as an ordinary league with
   computer players (classic plays bots), where it works, though it says nothing about being practice; the public pool is
   left out of classic's list. C removes the list.
-- **Nobody's progress on a show you watch** (step 10 part 1, the guard's rule since 0b; for 15). The mock's Who's watching and
-  The couch is watching say "caught up", "On Episode 5", "2 ahead"; the new design sends nobody else's progress, so they list
-  who watches and what they play. Step 15's What your couch sees could let people share how far they are. The one exception since
-  step 13 part 2 is who's watching along right now ("riley is watching Episode 7 now", her clock on your bar): only someone who
-  follows the show openly, on the couch they opened it on (its As built says what it reveals and to whom). Since step 14 part 1 the
-  streaming rail keeps to it too: who streams a show and who's on now, never the mock's "riley Ep 6", "3 ahead" or "2 on the couch
-  watched". Since step 14 part 2 two things say a little more: First to finish (only to someone who has finished the season themselves:
-  who got to the end first, and how many days after the drop), and the chat's fold by progress, which folds a message while its author
-  had seen further than you when they wrote it (that they were ahead then, never by how much).
-- **Who's on now can't be turned off** (step 13 part 2; for 15). Watching along a show you follow openly tells the couch you're on
-  and which episode, as reactions are heard; Watch privately is the only way out today. The mock's What your couch sees has When I'm
-  watching (share.js's `now`, on in Everything, off in Just my games and Only what games need): `watchersOn` is where it'd apply. Since
-  step 13 part 3, opening a planned night's watch along shows you in it to whoever on the couch opens it, private or not (joining is your
-  choice, as saying I'm in is); When I'm watching wouldn't change that.
 - **A show added by name has no schedule until it airs in the US listings** (step 10 part 1; since 11 part 2 the daily job links it;
   for a desk step). A show the listings don't have is a name and an empty first season: no episodes or air times, so where you are
   can't be set and nothing's "up next". The daily listings job links it once the next eight days' schedule has one show of that
@@ -468,6 +451,22 @@ step's As built.
   stand-in PushManager whose subscription is fake-push.js's (no check may reach Google's or Apple's push service); the new design's Turn on
   runs the same push-client code classic's Account settings does, which works on the couch's phones today. After the merge, someone turns
   them on from Settings on a real phone (an installed iPhone app, an Android phone) and sees a push arrive.
+- **A shared mark can lag for someone who sees results straight away** (step 15 part 3; for a later polish). Where I am shares a
+  person's follow mark ("On Episode 2", "3 ahead"). With Hide scores off they may never reveal, so it can trail what they've watched
+  until a reveal, a watch along's End or a rating moves it. Taking the latest episode they watched along, as the fold's author mark
+  does (chat.ts authorMark), would close most of the gap.
+- **Old reveal lines stay in classic's chat** (step 15 part 3; for C). Turning Where I am off stops new reveal lines and hides the old
+  ones in the new design's chat and feed, but classic's league chat still shows the ones written before (it reads chat as it always
+  has). They go with classic at C.
+- **An open Chat tab keeps its fold after someone changes what they share** (step 15 part 3; for a later polish). The chat's version
+  doesn't count people's switches, so a Chat tab already open keeps folding a message by its author's mark until something else
+  changes (a new message or reaction, an episode airing); opening it again reads it fresh. The authors' Where I am in the version
+  would.
+- **Seen it all comes after this week's play** (step 15 part 3; for a later polish). Trivia offers an earlier season to mark under your
+  score (or when there's nothing to ask), so the round it then deals is Play again, just for fun, until Monday's. Offering it before the
+  first question would make it this week's round; first run could ask about finished seasons too.
+- **A rail chip's line is cut short by a long name** (step 15 part 3; for a later polish). "riley Ep 6 · +1" fits the 244 px chip; a
+  long username ("zt_nd_riley Ep 6 · …") loses the "+1" (the faces beside it still say how many). Most names are short.
 - **Posters are TVmaze's medium image** (step 10 part 1; for a later polish). 210 by 295, soft in the tall show bar; TVmaze's
   other size is the upload itself, often over a megabyte. A resized copy we keep (or Vercel's image optimisation, which has
   limits of its own) would sharpen it.
@@ -4125,6 +4124,76 @@ bare node and imported by the new design), `src/lib/server/notify-prefs.ts`, `GE
   so a `shares` check per reader fits in the words function), and Settings' `settings.sharing` Preview is where its section goes. Its
   Noticed: nobody's progress on a show you watch, who's on now can't be turned off, a past season counts for trivia only if it's marked.
   Migration 0137 is next.
+
+### As built, step 15 part 3 (2026-10-26, on `new-design`): what your couch sees
+
+Migration **0137** (ships with 0b's, same rehearsal): four booleans on `user_settings`, `share_where`, `share_now`, `share_ratings`,
+`share_reactions`, NOT NULL and on by default (the mock's Everything, recommended), **backed up** with `user_settings` (decided: a privacy
+choice has to survive a restore; one that lost it would show what someone chose to hide). Nothing polls, runs on a schedule or pushes
+(HOSTING.md). New: `src/lib/sharing.ts` (pure: the switches, `SHARE_PRESETS`, `presetOf`, `sharingFrom`, the words, `whereWords`),
+`src/new/settings/sharing.tsx`, `follows.ts markSeenToEnd`, `trivia.ts seenAllOf` (POST `{ seen }` on the trivia route),
+`scripts/dev-test/check-new-sharing.js`.
+- **The guard's rule 3** (`guard.ts`): `shares(viewer, member, { kind, seasonId })` and its SQL twin `sharesSql(kind, who, season)`, with
+  `switchOn` and `followsOpenly` under them and `sharingOf(userIds)` for a batch. A kind is `play` (a show followed openly: your games),
+  or one of the switches, each also asking its column. A show watched privately is never shared, whatever the level. Your own always is.
+- **Where I am** (what you watch and how far you are): `followsOf` (show-space.ts, behind the home read, the space read, plans' default
+  invites, Start a game's Tell the couch line and By the numbers' shows) leaves out the follows of anyone who doesn't share it and carries
+  each shared follow's mark. The home read's members get `at` (season to mark, only for what they watch openly); the space's people get
+  `seen`. Shown as the mock has it: **Who's watching** ("Plays Outlast · Caught up", "On Episode 5", "Not started"; at your own pace "Ep 6
+  of 10" with a bar, and "3 ahead" beside anyone further than you), **The couch is watching** ("riley · Ep 2", "· caught up", "· now"),
+  the **rail** ("riley · Ep 6", "riley Ep 6 · +1", "· finished"). Also answering to it: **First to finish** (couch-hub.ts: someone who
+  doesn't share it isn't counted), the **fold by progress** (chat.ts `AUTHOR_SEEN`: a message's `author_seen` is used only while its
+  author shares Where I am, else it folds by airtime, saying nothing about how far they were; read that way by the Chat tab, the hub's
+  feed and the chat push's words, decided at read time so turning it off covers what you wrote before), **reveal lines** (reveal.ts writes
+  none while it's off; chat.ts `REVEAL_SHARED` hides old ones in the new design's chat, its "who's revealed it" and the feed) and the
+  feed's "started watching". Your games still show under every level: Who's watching lists a player as one ("Plays Outlast"), without
+  how far.
+- **When I'm watching**: `watchersOn` (watch-sessions.ts: the hub's On now, the Watch along card, a running watch along's others on the
+  bar) and By the numbers' most watch alongs. A together session still shows who's in it (step 13 part 3's decision stands).
+- **My episode ratings**: ratings.ts `OPEN` is `sharesSql("ratings")`, so the couch verdict, its people, the taste twin, everyone's
+  average and the rating accolades leave out someone who keeps theirs. **My watch along reactions**: the watch along's stream, its pins,
+  the card's count and By the numbers' most reactions. In a together session what the people in it say reaches the rest of them whatever
+  this says (they're in the room, as being in it shows them); everyone watching afterwards gets only what's shared.
+- **The notices that say what someone did**: the chat push's words go through the share-aware mark (above: "riley sent a message. It may be
+  about Episode 4", never "from further along" for someone not sharing it); a bingo line about someone else is checked per reader in the
+  words function (`shares(reader, owner, { kind: "play" })`, which bingo.ts's precomputed flag was). **Decided:** a poll, Tell the couch,
+  a planned night and someone joining name their person under every level, as the screens do: each is something you post or do on the
+  couch yourself, like a chat message, not something about your watching.
+- **Settings' What your couch sees** (the mock's share.js privHTML, after Keeping you spoiler-free): Everything (Recommended) · Just my
+  games · Only what games need, each with its line; **What riley sees about you** (someone else on the couch you're on), one line a
+  switch from your own data where you have it ("zt_nd_alex is on Episode 3 of ZT Severed 2", "... is watching ZT Severed 2 now", "... rated
+  ZT Survivor 51 Episode 4 ★5", "... left 6 reactions on ..."; only shows you follow openly), else what it would share, and Hidden with an
+  eye for what the level keeps back; **Customize** (Using the choice above / Your own mix) with the four switches and the mock's note about
+  picks and Watch privately. A level or a switch saves as it's tapped, with Undo; a mix that matches no level is your own (no ring on).
+  The profile read carries `sharing: { on, lines }`; PUT `/api/me/profile { sharing: { preset } | { where?, now?, ratings?, reactions? } }`.
+  **Changed from the mock:** the switches carry a line each (the mock had titles only), and the toast names the switch.
+- **Trivia's Seen it all** (from Noticed, a past season counts for trivia only if it's marked): the round carries `past`, the show's
+  seasons that are over with accepted results here, not seen to the end and not played (your games' reveals move those), newest first, a
+  few. Under your score (or Nothing to ask yet), **Seen an earlier season?** marks one in two taps (Seen it all, then "Yes, all 13"):
+  `markSeenToEnd` sets your mark at its last episode without following it (it doesn't join your shows), and the round it deals can ask
+  about it. Refused on a season not over (409), another show's (400), one you play (409). The sheet starts a dealt round fresh (keyed on
+  its questions).
+- **Fixtures and Preview:** `settings.sharing` is gone; `settings.appearance` (part 4) is the registry's last entry.
+- **Default for existing accounts:** everyone starts on Everything (the columns' default, the mock's recommended level), so after the switch
+  the couch will see each other's progress and who's on now unless they choose otherwise in Settings (said in HANDOFF).
+- **Checks:** `scripts/dev-test/check-new-sharing.js <outDir> [--width=390] [--keep] [--api]` (87 PASS at 390, 61 the API half) on
+  new-fixture.js, streaming-fixture.js and hub-fixture.js, with fake-push.js: the columns; the profile's sharing and lines, refusals, a
+  level, a switch over it; Where I am on the home read, the space, couch shows, the feed, reveal lines read and not written, First to
+  finish, the fold by progress and its push's words, a private follow never shown; When I'm watching on On now and the card; ratings in
+  the verdict and its average; reactions in the stream and its count; Seen it all and its refusals; then the browser as alex (the section,
+  Just my games with its Hidden lines, Customize's own mix and Undo, Severed's Who's watching with "Ep 6 of 10", "3 ahead" and bars, the
+  rail's "· +1", The couch is watching's "riley · Ep 2") and casey (Seen an earlier season?, Yes, all 13, the new round). Updated:
+  check-new-streaming (members carry `at`; Fresh Drop's chip says "sam · Ep 2"), check-new-settings and check-new-notify (one Preview
+  left: Appearance), `tests/guard.test.js` (visibleFollows with the switches, sharesSql per kind, the levels and what a save may send),
+  `tests/streaming.test.js` (the chip's progress). The rest pass, one at a time: check-new-notify (126), -settings (110), -streaming (114), -watch-along (276), -episode-games (285), -plans (104), -listings (77), -guide (57), -library (91), -start-game (75), -make-it (81), -watching (114), -solo (92), -way-in (85), -couches (114), -hub (77), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100; its castaway Override assertion missed in the batch, then passed alone: Noticed's flake), -community (82), -backstage (67), -backstage-ii (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), classic's check-chat-polls --ui (reveal lines are written there), check-foundation, check-preview and check-backup-restore; `npm test` 642 of 642; type-check clean; lint (src) as before (the old error in classic's `use-sheet-swipe.ts` and the old warning in `episode-results.ts`). Seen at 390: the section on Everything and on a mix, Severed's Who's
+  watching, the rail, The couch is watching, trivia's Seen it all before and after.
+- **Noticed, left as is:** five, now in Noticed, not fixed: a shared mark can lag for someone who sees results straight away, old reveal
+  lines stay in classic's chat, an open Chat tab keeps its fold after someone changes what they share, Seen it all comes after this week's
+  play, a rail chip's line is cut short by a long name. Taken out: nobody's progress on a show you watch, who's on now can't be turned off,
+  a past season counts for trivia only if it's marked (all above).
+- **For part 4 (Studio and the rest):** `settings.appearance` is the registry's last entry (the Studio light theme and Match phone);
+  from Noticed: only the newest 300 messages (Earlier messages), no Lock it down. At its end `src/new/preview.ts` and `src/new/fixtures/`
+  hold nothing, step 15's Status row says it's done, and the merge-and-deploy step is the user's.
 
 ## Step C: cutover
 

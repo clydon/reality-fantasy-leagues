@@ -7,7 +7,8 @@
 //   - every season header carries its drop and its listing's service (home shows and couch shows, the space read);
 //   - the release model: a streaming season is never on the air (Up next is its drop until then, nothing after; the watch card
 //     says aired, never live, even minutes after the drop); a planned night on it is a shared start (the live airing: 409);
-//   - privacy: sam's private Secret Stream in nobody else's home; casey sees only what alex (on her couch) streams;
+//   - privacy: sam's private Secret Stream in nobody else's home; casey sees only what alex (on her couch) streams; members carry
+//     how far they are only in what they watch openly (step 15 part 3's Where I am, on by default);
 //     On now names riley on Severed for the couch.
 //   - part 2, the fold by progress: a message keeps its author's mark only on a season watched at its own pace (Severed, Old
 //     Wire; not Survivor's weekly season, nor classic's route there), a watch along's episode when that's further; others' folded
@@ -127,10 +128,11 @@ function check(ok, what, detail = "") {
     const hc = await home("casey");
     const extra = couchOf(hc, fx.extraCouchId);
     check(of(hc, S.severed) && of(hc, S.soon) && !of(hc, S.fresh) && !of(hc, S.wire) && !extra.members.some((m) => m.watching.includes(S.fresh)), "casey (alex's other couch): what alex streams, not what couch A's others do");
-    // Since step 15 part 1 each member's face comes too (their chosen colour and picture version): a face, not progress.
+    // Since step 15 part 1 each member's face comes too (their chosen colour and picture version); since part 3, how far each is in
+    // what they watch openly (`at`: What your couch sees' Where I am, on by default; check-new-sharing.js turns it off), and only that.
     check(
-      couch.members.every((m) => Object.keys(m).sort().join() === "colour,joinedAt,name,picture,role,userId,watching"),
-      "nobody's progress in the home read (members carry what they watch and their face, never how far)",
+      couch.members.every((m) => Object.keys(m).sort().join() === "at,colour,joinedAt,name,picture,role,userId,watching" && Object.keys(m.at).sort().join() === [...m.watching].sort().join()),
+      "members carry what they watch openly, how far in each (Where I am), and their face: nothing else",
       JSON.stringify(couch.members[0])
     );
     // On now: riley watching along Severed's Episode 6 right now.
@@ -333,10 +335,10 @@ function check(ok, what, detail = "") {
       check(kind === "drops" && /^Drops \w{3} 9:00 PM$/i.test(words), "Coming Soon: Drops <day> 9:00 PM", words);
       const who = async (id) => [await chip(id).locator("[data-rail-who]").getAttribute("data-rail-who"), ((await chip(id).locator("[data-rail-who]").textContent()) ?? "").trim()];
       check((await who(S.severed)).join("|") === `on|${fixture.username("riley")} is on now`, "Severed: riley is on now (On now's read)", (await who(S.severed)).join("|"));
-      check((await who(S.soon)).join("|") === "waiting|1 waiting" && (await who(S.fresh)).join("|") === `names|${fixture.username("sam")}`, "Coming Soon: 1 waiting; Fresh Drop: sam");
+      check((await who(S.soon)).join("|") === "waiting|1 waiting" && (await who(S.fresh)).join("|") === `names|${fixture.username("sam")} · Ep 2`, "Coming Soon: 1 waiting; Fresh Drop: sam · Ep 2 (he shares Where I am)", (await who(S.fresh)).join("|"));
       check((await rail.locator("[data-rail-add]").evaluateAll((xs) => xs.map((x) => x.getAttribute("data-rail-add")))).sort().join() === [S.fresh, S.wire].sort().join(), "a ＋ only on what isn't his (Fresh Drop, Old Wire)");
       check((await rail.locator("[data-preview]").count()) === 0, "no Preview in the rail");
-      check(!/Ep [0-9]+ of|ahead|caught up/i.test(await rail.textContent()), "nobody's progress on a chip");
+      check(!/Ep [0-9]+ of|ahead|caught up/i.test(await rail.textContent()), "a chip says how far the first of them is in short ('· Ep 2'), never 'of 6', 'ahead' or 'caught up'");
       await pg.evaluate(() => window.scrollBy(0, -120));
       await A.shot("rail");
       await A.wide("the hub with the rail");

@@ -26,7 +26,8 @@ import { isImpersonating, requireAuthSession } from "@/lib/server/auth-helpers";
 //
 // Spoiler-safe through guard.ts: it says nothing about results beyond that they're in (and at which stage), only when
 // episodes air and how far you are.
-// Others' follows are only those they share (a show watched privately isn't), and never how far they are.
+// Others' follows are only those they share (a show watched privately isn't, nor anything of someone who doesn't share Where I am:
+// step 15 part 3's What your couch sees), each with how far they are (`at`), which is what Where I am shares.
 // Not polled yet: a screen that polls it should poll something smaller.
 //
 // Notifications (step 15 part 2): how many notices are new in the bell since you last looked (`notes`), and `?tz=` keeps the
@@ -56,7 +57,10 @@ export const GET = apiRoute(async (req) => {
   ]);
   const people = [user.id, ...[...members.values()].flat().map((m) => m.userId)];
   const follows = await followsOf(user.id, people);
-  const watching = (userId: string) => follows.filter((f) => f.userId === userId && f.following && !f.private).map((f) => f.seasonId);
+  const open = (userId: string) => follows.filter((f) => f.userId === userId && f.following && !f.private);
+  const watching = (userId: string) => open(userId).map((f) => f.seasonId);
+  // How far each is in what they watch openly (Where I am: followsOf has left out anyone who doesn't share it).
+  const at = (userId: string) => Object.fromEntries(open(userId).map((f) => [f.seasonId, f.seen ?? 0]));
 
   // Your shows: the seasons you follow, and those you play whether or not you follow them.
   const mine = follows.filter((f) => f.userId === user.id);
@@ -146,6 +150,7 @@ export const GET = apiRoute(async (req) => {
         colour: m.colour,
         picture: m.picture,
         watching: watching(m.userId),
+        at: at(m.userId),
       })),
       games: couchGames.filter((g) => g.couchId === c.id).map(gameOut),
       seasons: [...new Set(couchGames.filter((g) => g.couchId === c.id && g.seasonId).map((g) => g.seasonId as string))]

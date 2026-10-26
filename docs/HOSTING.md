@@ -342,6 +342,16 @@ Notifications reads one small row when its sheet opens; Settings' moments come w
 Waivers ran plate's seen mark comes with the waivers read (one small query), and watching a run is one tiny insert. After it writes, the
 season sync reads the bingo cards on the episodes it touched (a few rows) and claims the flags it settled (one UPDATE).
 
+**What your couch sees (new design, step 15 part 3)** polls nothing, runs nothing on a schedule and sends no push. **Stored:** four
+booleans on `user_settings` (`share_where`, `share_now`, `share_ratings`, `share_reactions`, migration 0137, on by default): a few bytes
+a person, backed up with `user_settings` (a privacy choice has to survive a restore). Trivia's Seen it all is one small `show_follows`
+write. **Reads:** the guard checks a person's switch with a lookup by primary key inside the queries that already read their rows
+(ratings, reactions, who's on now, the hub's feed and accolades, the chat's marks and reveal lines): index lookups, no more rows or
+bytes sent, so the watch along's 5 s poll and the open Chat tab's 5 s poll send what they did. The home read gains one small query
+(the couch's people's switches) and each member's mark per show they share (a few bytes a show); the space read the same for its
+people. Settings' profile read gains two small queries (your switches; your lines from your follows, latest rating and reactions
+count). Trivia's read gains one small query (the show's finished seasons you haven't marked).
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub, 14 in a watch along while its clock runs (its own 12, and the 2 of the show space's Chat badge under it), 5 while
@@ -728,3 +738,7 @@ never handles it: the user does the reset and the pasting.
   Undo), someone joining your couch. Migration 0136: `notifications` (the bell, ~40 KB a person at its 30-day cap; not backed up),
   `waiver_runs_seen` (not backed up), `notification_prefs.chat`/`.shows`, `user_settings.tz`/`.notes_read_at`, `fact_disputes.told_at`
   (backed up with their tables). The home read gains the bell's count and keeps the phone's time zone (written only when it changes).
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 15 part 3, what your couch sees. **Nothing polls, nothing runs on a
+  schedule, no pushes.** Migration 0137: four booleans on `user_settings` (backed up). The guard's sharing checks are primary-key lookups
+  inside existing queries (no more bytes sent, the polls unchanged); the home and space reads carry each person's mark where they share
+  it and one more small query; the profile read two; trivia's one; Seen it all one write.

@@ -2,6 +2,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError, withLeagueLock } from "./db";
+import { switchOn } from "./guard";
 import { revealAcrossGroup } from "./late-join";
 import { markResultsSeen } from "./results-seen";
 
@@ -11,7 +12,8 @@ import { markResultsSeen } from "./results-seen";
 //
 // Linked leagues (league-groups.ts) play the same season, so one reveal is a reveal in all of them the member is
 // in. And the conversation hears about it -- one "conor revealed episode 9" line in the shared chat -- so everyone
-// knows who's caught up and what's safe to talk about.
+// knows who's caught up and what's safe to talk about; unless they don't share Where I am (step 15 part 3's What your
+// couch sees: a reveal line says how far they are), when it says nothing.
 //
 // A late joiner catching up (StateLogic.GhostLogic) moves one episode per reveal -- the server holds that line too,
 // so nothing (a stale tab, a double tap) can carry them past the week they've watched. `jump` is the one
@@ -52,11 +54,9 @@ export async function markRevealed(user: SessionUser, leagueId: string, playerId
   if (before !== null && n > before) {
     const name = (user as { username?: string | null }).username || user.name;
     const what = n - before === 1 ? `episode ${n}` : `episodes ${before + 1}–${n}`;
-    await pool.query("INSERT INTO chat_messages (league_id, user_id, author_name, type, text) VALUES ($1, $2, $3, 'reveal', $4)", [
-      leagueId,
-      user.id,
-      name,
-      `${name} revealed ${what}`,
-    ]);
+    await pool.query(
+      `INSERT INTO chat_messages (league_id, user_id, author_name, type, text) SELECT $1::uuid, $2::text, $3::text, 'reveal', $4::text WHERE ${switchOn("where", "$2")}`,
+      [leagueId, user.id, name, `${name} revealed ${what}`]
+    );
   }
 }

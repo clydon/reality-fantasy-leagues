@@ -34,6 +34,30 @@ export async function followLeagueProgress(userId: string, leagueId: string): Pr
   }
 }
 
+/**
+ * A finished season you've seen to the end (step 15 part 3, from Noticed: trivia asks about a past season only when it's marked):
+ * your mark at its last episode, without following it (it doesn't join your shows; a follow you have keeps whether it's followed).
+ * Refused on a season that isn't over or has no episode count, and on one you play (your games' reveals move that one).
+ */
+export async function markSeenToEnd(userId: string, seasonId: string): Promise<void> {
+  const { rows } = await pool.query(
+    `SELECT x.episode_count, x.status,
+            EXISTS (SELECT 1 FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN} WHERE m.user_id = $1 AND ss.id = x.id) AS plays
+       FROM show_seasons x WHERE x.id = $2`,
+    [userId, seasonId]
+  );
+  const s = rows[0];
+  if (!s) throw new HttpError(404, "Season not found");
+  if (s.status !== "completed" || !(s.episode_count > 0)) throw new HttpError(409, "That season isn't over yet");
+  if (s.plays) throw new HttpError(409, "You play this season: where you are moves with your games' reveals.");
+  await pool.query(
+    `INSERT INTO show_follows (user_id, season_id, following, seen_through, finished_at) VALUES ($1, $2, false, $3, now())
+     ON CONFLICT (user_id, season_id) DO UPDATE
+        SET seen_through = EXCLUDED.seen_through, finished_at = COALESCE(show_follows.finished_at, now()), updated_at = now()`,
+    [userId, seasonId, s.episode_count]
+  );
+}
+
 export interface FollowChange {
   seenThrough?: unknown;
   following?: unknown;

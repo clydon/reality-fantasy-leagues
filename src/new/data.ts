@@ -43,6 +43,7 @@ import type { OnNow, Reaction, SessionWrite, TogetherAnswer, WatchCard, WatchRea
 import type { GifHit } from "@/lib/server/gifs";
 import type { Gif, TogetherChange, WatchMode } from "@/lib/game/watch-along";
 import type { AiChoice, Profile } from "@/lib/server/profile";
+import type { SharePreset, Sharing } from "@/lib/sharing";
 import type { Note, ShowNotify } from "@/lib/server/notify-prefs";
 import type { ChatMode, MomentId } from "@/lib/moments";
 import type { Face as PersonFace } from "@/lib/people";
@@ -187,8 +188,18 @@ export interface Couch {
   id: string;
   name: string;
   yourRole: "owner" | "member";
-  /** Each person's face comes with them (step 15 part 1): the colour they chose and their picture's version. */
-  members: { userId: string; name: string; role: "owner" | "member"; joinedAt: string; colour: string | null; picture: number | null; watching: string[] }[];
+  /** Each person's face comes with them (step 15 part 1): the colour they chose and their picture's version. What they watch
+   *  openly, and how far they are in each (`at`, by season: step 15 part 3), only from someone who shares Where I am. */
+  members: {
+    userId: string;
+    name: string;
+    role: "owner" | "member";
+    joinedAt: string;
+    colour: string | null;
+    picture: number | null;
+    watching: string[];
+    at?: Record<string, number>;
+  }[];
   games: GameRef[];
   /** The seasons its games are on, newest first ("Survivor 51"), for its line in the switcher. */
   seasons: { seasonId: string; label: string; status: string | null }[];
@@ -222,7 +233,8 @@ export interface Space extends SeasonHeader {
   you: { following: boolean; private: boolean; seenThrough: number | null; plays?: boolean };
   schedule: { release: string; dropAt: string | null; airTz: string; upNext: UpNext | null; latestAired: number } | null;
   games: GameRef[];
-  people: { userId: string; name: string; role: "owner" | "member"; watching: boolean; playing: string[] }[] | null;
+  /** `seen`: how far they are, where they share it (step 15 part 3's Where I am); never yours here (that's `you`). */
+  people: { userId: string; name: string; role: "owner" | "member"; watching: boolean; seen?: number | null; playing: string[] }[] | null;
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -911,9 +923,15 @@ function faceIn(h: Home, userId: string): PersonFace | null {
 }
 
 export const profileApi = {
-  /** Any of your name, colour, AI, spoiler setting or a notification moment; answers the profile as it now is. */
-  save: (body: { name?: string; colour?: string | null; ai?: AiChoice; hideScores?: boolean; notify?: { moment: MomentId; on: boolean } | { chat: ChatMode } }) =>
-    sendJson<Profile>("/api/me/profile", "PUT", body),
+  /** Any of your name, colour, AI, spoiler setting, a notification moment or What your couch sees; answers the profile as it now is. */
+  save: (body: {
+    name?: string;
+    colour?: string | null;
+    ai?: AiChoice;
+    hideScores?: boolean;
+    notify?: { moment: MomentId; on: boolean } | { chat: ChatMode };
+    sharing?: { preset: SharePreset } | Partial<Sharing>;
+  }) => sendJson<Profile>("/api/me/profile", "PUT", body),
   /** Your picture, already made small (256 by 256). Answers its version. */
   picture: async (image: Blob): Promise<{ picture: number }> => {
     const res = await fetch("/api/me/picture", { method: "PUT", headers: { "content-type": image.type }, body: image });
@@ -1382,6 +1400,8 @@ export function useMyTrivia(couchId: string | null, enabled = true) {
 
 export const triviaApi = {
   play: (seasonId: string, couchId: string | null, answers: Record<string, string>) => post<TriviaRound>(seasonUrl(seasonId, "/trivia", couchQuery(couchId)), { answers }),
+  /** An earlier season of the show seen to the end (Seen it all): answers the round again, which can now ask about it. */
+  seenAll: (seasonId: string, couchId: string | null, seen: string) => post<TriviaRound>(seasonUrl(seasonId, "/trivia", couchQuery(couchId)), { seen }),
 };
 
 /** After a round's played: the round put in place, the lists that show its score read again. */

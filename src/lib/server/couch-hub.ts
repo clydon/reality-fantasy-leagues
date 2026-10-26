@@ -7,10 +7,10 @@ import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { bingoLines } from "./bingo";
 import { callRights, endedThrough } from "./calls";
-import { withReactions } from "./chat";
+import { AUTHOR_SEEN, REVEAL_SHARED, withReactions } from "./chat";
 import { couchMembers, requireCouch } from "./couches";
 import { pool } from "./db";
-import { EVERYTHING, seenThrough } from "./guard";
+import { EVERYTHING, seenThrough, sharesSql, switchOn } from "./guard";
 import { hiddenFromGroup } from "./late-join";
 import { gameName } from "./league-season";
 import { leagueStates } from "./league-states";
@@ -224,16 +224,16 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
 }
 
 /**
- * By the numbers' couch accolades: what people share (open follows), how much they've said this month, the games; and the watch
- * along's (step 13 part 3): reactions said to the couch and episodes watched along on it this month, only on shows each follows
- * openly (as their reactions and who's on now are heard), counted, never which. First to finish (step 14 part 2): each streaming
- * season's earliest on the couch to reach its last episode (show_follows.finished_at), among you and those who follow it openly,
- * only on seasons you've finished yourself (so it says nothing your finale's verdict doesn't) and two or more of them watch.
+ * By the numbers' couch accolades: what people share (open follows, of those who share Where I am), how much they've said this
+ * month, the games; and the watch along's (step 13 part 3): reactions said to the couch and episodes watched along on it this
+ * month, only on shows each follows openly and only from those who share them (My watch along reactions, When I'm watching: step
+ * 15 part 3's What your couch sees, as their reactions and who's on now are heard), counted, never which. First to finish (step 14
+ * part 2): each streaming season's earliest on the couch to reach its last episode (show_follows.finished_at), among you and those
+ * who follow it openly and share Where I am, only on seasons you've finished yourself (so it says nothing your finale's verdict
+ * doesn't) and two or more of them watch.
  */
 async function accoladesFor(user: SessionUser, couchId: string, people: Person[], list: Game[], standings: GameStanding[]): Promise<Accolade[]> {
   const follows = (await followsOf(user.id, people.map((p) => p.userId))).filter((f) => f.following && !f.private);
-  const OPENLY = (who: string, season: string) =>
-    `EXISTS (SELECT 1 FROM show_follows f WHERE f.user_id = ${who} AND f.season_id = ${season} AND f.following AND NOT f.private)`;
   const [headers, { rows }, { rows: reacted }, { rows: along }, { rows: finishes }] = await Promise.all([
     seasonHeaders(follows.map((f) => f.seasonId)),
     pool.query(
@@ -245,7 +245,7 @@ async function accoladesFor(user: SessionUser, couchId: string, people: Person[]
     ),
     pool.query(
       `SELECT r.user_id, count(*)::int AS n FROM watch_reactions r
-        WHERE r.couch_id = $1 AND r.created_at > now() - interval '30 days' AND ${OPENLY("r.user_id", "r.season_id")}
+        WHERE r.couch_id = $1 AND r.created_at > now() - interval '30 days' AND ${sharesSql("reactions", "r.user_id", "r.season_id")}
         GROUP BY r.user_id`,
       [couchId]
     ),
@@ -253,7 +253,7 @@ async function accoladesFor(user: SessionUser, couchId: string, people: Person[]
     pool.query(
       `SELECT p.user_id, count(DISTINCT (s.season_id, s.episode))::int AS n
          FROM watch_session_people p JOIN watch_sessions s ON s.id = p.session_id
-        WHERE s.couch_id = $1 AND p.joined_at > now() - interval '30 days' AND ${OPENLY("p.user_id", "s.season_id")}
+        WHERE s.couch_id = $1 AND p.joined_at > now() - interval '30 days' AND ${sharesSql("now", "p.user_id", "s.season_id")}
           AND s.clock_ms + CASE WHEN s.running_since IS NULL OR s.running_since > now() THEN 0
                 ELSE EXTRACT(EPOCH FROM (now() - s.running_since)) * 1000 END >= 60000
         GROUP BY p.user_id`,
@@ -262,7 +262,7 @@ async function accoladesFor(user: SessionUser, couchId: string, people: Person[]
     pool.query(
       `WITH counted AS (
          SELECT f.season_id, f.user_id, f.finished_at FROM show_follows f
-          WHERE f.user_id = ANY($1::text[]) AND (f.user_id = $2 OR (f.following AND NOT f.private)))
+          WHERE f.user_id = ANY($1::text[]) AND (f.user_id = $2 OR (f.following AND NOT f.private AND ${switchOn("where", "f.user_id")})))
        SELECT DISTINCT ON (c.season_id) c.user_id, c.finished_at, ss.drop_at, s.name AS show_name
          FROM counted c JOIN show_seasons ss ON ss.id = c.season_id JOIN shows s ON s.id = ss.show_id
         WHERE ss.release = 'binge' AND c.finished_at IS NOT NULL AND ss.episode_count > 0
@@ -296,7 +296,8 @@ const FEED_SIZE = 8;
 /**
  * On the couch: the newest of what's been said in the couch's chats (folded past where you are, as the chat folds:
  * someone's words since an episode you haven't seen aired are left out), who revealed what, who joined, who
- * started watching a show they don't play (openly), and who planned a watch along (step 11 part 3).
+ * started watching a show they don't play (openly), and who planned a watch along (step 11 part 3). Who revealed what and who
+ * started watching what only from those who share Where I am (step 15 part 3).
  */
 async function feedFor(
   user: SessionUser,
@@ -309,10 +310,10 @@ async function feedFor(
   const seasonOf = new Map(list.map((g) => [g.leagueId, g.seasonId]));
   const ids = list.map((g) => g.leagueId);
   const { rows: said } = await pool.query(
-    `SELECT id, league_id, season_id, user_id, author_name, type, text, created_at, author_seen FROM chat_messages
-      WHERE (league_id = ANY($1::uuid[]) OR (league_id IS NULL AND couch_id = $2)) AND type IN ('message', 'reveal')
+    `SELECT id, league_id, season_id, user_id, author_name, type, text, created_at, ${AUTHOR_SEEN} FROM chat_messages
+      WHERE (league_id = ANY($1::uuid[]) OR (league_id IS NULL AND couch_id = $2)) AND type IN ('message', 'reveal') AND ${REVEAL_SHARED("$3")}
       ORDER BY created_at DESC LIMIT 40`,
-    [ids, couchId]
+    [ids, couchId, user.id]
   );
   // Seasons a chat mentions that the couch has no game on (a show it only watches) need their own marks and schedules.
   const extra = [...new Set(said.map((m) => m.season_id as string | null).filter((id): id is string => !!id && !marks.has(id)))];
@@ -374,7 +375,7 @@ async function feedFor(
     ),
     pool.query(
       `SELECT f.user_id, f.season_id, f.created_at FROM show_follows f
-        WHERE f.user_id = ANY($1::text[]) AND f.following AND NOT f.private AND f.created_at > now() - interval '60 days'
+        WHERE f.user_id = ANY($1::text[]) AND f.following AND NOT f.private AND ${switchOn("where", "f.user_id")} AND f.created_at > now() - interval '60 days'
           AND NOT EXISTS (SELECT 1 FROM league_memberships m JOIN leagues l ON l.id = m.league_id
                            JOIN shows s ON s.slug = l.state->'settings'->>'showId'
                            JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'

@@ -3,7 +3,7 @@ import type { Accolade, Person } from "@/lib/game/couch-standings";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { requireCouch } from "./couches";
 import { HttpError, pool } from "./db";
-import { EVERYTHING, seenThrough, seenThroughAll } from "./guard";
+import { EVERYTHING, seenThrough, seenThroughAll, sharesSql } from "./guard";
 import { latestAired, seasonSchedules } from "./schedule";
 import { seasonHeaders } from "./show-space";
 
@@ -21,8 +21,8 @@ import { seasonHeaders } from "./show-space";
 //
 // Spoiler-safe on the server: you rate only an episode you've seen (guard.ts seenThrough) that has aired, and a rating, a take
 // or a verdict about an episode is only read for someone who has seen it; the hub's numbers count only episodes within your
-// mark on each season. Only what people share: someone else's rating counts only while they follow the show openly (guard.ts
-// visibleFollows), for a couch and in everyone's average alike. A rating says you've seen that episode, as a reveal line in
+// mark on each season. Only what people share: someone else's rating counts only while they follow the show openly and share My
+// episode ratings (guard.ts sharesSql; step 15 part 3's What your couch sees), for a couch and in everyone's average alike. A rating says you've seen that episode, as a reveal line in
 // chat does. Nothing polls (docs/HOSTING.md).
 
 export const TAKE_MAX = 140;
@@ -59,8 +59,8 @@ export interface EpisodeVerdictLine {
   mine: number | null;
 }
 
-/** Someone who follows the rating's season openly (guard.ts visibleFollows): a condition on `r`. */
-const OPEN = "EXISTS (SELECT 1 FROM show_follows f WHERE f.user_id = r.user_id AND f.season_id = r.season_id AND f.following AND NOT f.private)";
+/** Someone who shares their rating on its season (guard.ts sharesSql: following it openly, My episode ratings on): a condition on `r`. */
+const OPEN = sharesSql("ratings", "r.user_id", "r.season_id");
 
 /** The couch's people who share a season (follow it openly), always yourself: a WHERE fragment on `r`, with $me and $couch. */
 const SHARED = (me: string, couch: string) => `(r.user_id = ${me} OR (r.user_id IN (SELECT user_id FROM couch_members WHERE couch_id = ${couch}) AND ${OPEN}))`;

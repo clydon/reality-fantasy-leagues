@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { byAuthorMark, foldFor, isFolded, revealedBy, type AirTime } from "@/lib/game/chat-fold";
 import type { ChatReaction } from "@/lib/game/types";
 import { isSuperAdminUser, isUuid, type SessionUser } from "./auth-helpers";
-import { authorName, insertMessage, MESSAGE_COLUMNS, messageText, withReactions } from "./chat";
+import { AUTHOR_SEEN, authorName, insertMessage, MESSAGE_COLUMNS, messageText, REVEAL_SHARED, withReactions } from "./chat";
 import { requireCouch, type CouchRole } from "./couches";
 import { pool, HttpError } from "./db";
 import { seenThrough } from "./guard";
@@ -136,10 +136,12 @@ export async function readCouchChat(
     .digest("hex");
   if (opts.v === v) return { unchanged: true, v };
 
-  // author_seen decides the fold here and is never sent (ChatLine has no place for it).
+  // author_seen decides the fold here and is never sent (ChatLine has no place for it); it, and a reveal line, only from someone who
+  // shares Where I am (step 15 part 3: chat.ts AUTHOR_SEEN, REVEAL_SHARED).
   const { rows } = await pool.query(
-    `SELECT * FROM (SELECT ${MESSAGE_COLUMNS}, author_seen FROM chat_messages WHERE ${where} AND type <> 'system' ORDER BY created_at DESC LIMIT 300) recent ORDER BY created_at ASC`,
-    params
+    `SELECT * FROM (SELECT ${MESSAGE_COLUMNS}, ${AUTHOR_SEEN} FROM chat_messages WHERE ${where} AND type <> 'system' AND ${REVEAL_SHARED("$4")}
+        ORDER BY created_at DESC LIMIT 300) recent ORDER BY created_at ASC`,
+    [...params, user.id]
   );
   const shown = rows.filter((m) => !isFolded(m, fold, user.id));
   const reacted = new Map((await withReactions(shown)).map((m) => [m.id, m.reactions]));
@@ -239,9 +241,10 @@ export async function couchChatUnread(user: SessionUser, scope: ChatScope, revea
   if (reveal !== null) {
     const [w, p] = inScope(scope);
     const { rows: lines } = await pool.query(
-      `SELECT * FROM (SELECT user_id, author_name, type, text, created_at FROM chat_messages WHERE ${w} AND type = 'reveal' ORDER BY created_at DESC LIMIT 200) recent
+      `SELECT * FROM (SELECT user_id, author_name, type, text, created_at FROM chat_messages WHERE ${w} AND type = 'reveal' AND ${REVEAL_SHARED("$4")}
+          ORDER BY created_at DESC LIMIT 200) recent
         ORDER BY created_at`,
-      p
+      [...p, user.id]
     );
     out.revealed = revealedBy(lines, reveal, user.id);
   }

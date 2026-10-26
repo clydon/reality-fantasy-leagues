@@ -115,6 +115,16 @@ test("who's on now leads the faces, and only when they stream it openly on the c
   assert.deepEqual(rail.find((i) => i.seasonId === "y").who, { kind: "names", names: ["riley"] }, "someone not streaming it openly here isn't named");
 });
 
+test("how far the first of them is, only where they share it (step 15 part 3's Where I am)", () => {
+  const rail = (people) => S.railItems([season({ seasonId: "x" })], { streamers: () => people, now: NOW })[0].who;
+  const total = season({ seasonId: "x" }).episodeCount;
+  assert.equal(S.whoLine(rail([{ ...riley, seen: 3 }])), "riley · Ep 3");
+  assert.equal(S.whoLine(rail([{ ...riley, seen: 3 }, jordan])), "riley Ep 3 · +1");
+  assert.equal(S.whoLine(rail([{ ...riley, seen: total }])), "riley · finished");
+  assert.equal(S.whoLine(rail([{ ...riley, seen: 0 }])), "riley · not started");
+  assert.equal(S.whoLine(rail([riley, { ...jordan, seen: 2 }])), "riley + 1", "the first doesn't share it: nobody's progress");
+});
+
 test("a drop is new for a week, then the couch's", () => {
   const at = (ago) => S.railItems([season({ seasonId: "x", dropAt: iso(NOW - ago) })], { streamers: () => [riley], now: NOW })[0];
   assert.equal(at(6 * DAY).rank, 1);

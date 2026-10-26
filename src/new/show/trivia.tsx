@@ -12,7 +12,9 @@ import { Face, IconBox } from "./parts";
 // "Survivor 49 trivia · 3 questions from the real season"), opened from anywhere signed in with openTrivia: this week's three
 // questions about a show's seasons you've seen (the server deals them: trivia.ts), one at a time with faces; right goes green,
 // wrong shakes and shows the answer; then your score against the couch's ("You beat riley's 2"). The week's first play counts;
-// Play again is just for fun. Also the row that opens it (the Games tab's This week).
+// Play again is just for fun. Under the score (or Nothing to ask yet), Seen an earlier season? (step 15 part 3, from Noticed: a past
+// season counts only when it's marked): a finished season of the show you've seen to the end, marked in two taps, and the round
+// can ask about it. Also the row that opens it (the Games tab's This week).
 
 export type TriviaTarget = { seasonId: string; couchId: string | null };
 
@@ -70,11 +72,15 @@ function TriviaSheet({ target, onOpenChange }: { target: TriviaTarget | null; on
       ) : !r || !target ? (
         <p className="py-4 text-sm text-muted-foreground">Couldn&apos;t load it. Try again in a moment.</p>
       ) : !r.questions.length ? (
-        <p className="py-4 text-[15px] leading-snug" data-trivia-none>
-          Nothing to ask yet. Trivia comes from a season you&apos;ve seen to the end, or the one you&apos;re on once someone&apos;s gone home.
-        </p>
+        <>
+          <p className="py-4 text-[15px] leading-snug" data-trivia-none>
+            Nothing to ask yet. Trivia comes from a season you&apos;ve seen to the end, or the one you&apos;re on once someone&apos;s gone home.
+          </p>
+          <PastSeasons target={target} r={r} />
+        </>
       ) : (
-        <Round target={target} r={r} />
+        // A new round (Seen it all deals one) starts fresh: the questions are its identity.
+        <Round key={r.questions.map((x) => x.id).join()} target={target} r={r} />
       )}
     </Sheet>
   );
@@ -141,6 +147,7 @@ function Round({ target, r }: { target: TriviaTarget; r: TriviaRound }) {
         >
           Play again
         </Btn>
+        <PastSeasons target={target} r={r} />
       </div>
     );
   }
@@ -178,6 +185,44 @@ function Round({ target, r }: { target: TriviaTarget; r: TriviaRound }) {
         })}
       </div>
     </div>
+  );
+}
+
+/** Earlier seasons over and not marked seen to the end: Seen it all (asked once more: "Yes, all 13"), then trivia can ask about it. */
+function PastSeasons({ target, r }: { target: TriviaTarget; r: TriviaRound }) {
+  const after = useAfterTrivia();
+  const [sure, setSure] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!r.past?.length) return null;
+  const mark = async (seasonId: string, label: string) => {
+    if (sure !== seasonId) return setSure(seasonId);
+    setBusy(true);
+    try {
+      after(target.seasonId, target.couchId, await triviaApi.seenAll(target.seasonId, target.couchId, seasonId));
+      toast(`${label}: seen to the end. Trivia can ask about it now`);
+      setSure(null);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mt-6 text-left" data-trivia-past>
+      <b className="block text-[15px] font-semibold">Seen an earlier season?</b>
+      <small className="block text-[13px] leading-snug text-muted-foreground">Mark one you&apos;ve seen to the end and trivia asks about it too. Its stats open up as well.</small>
+      {r.past.map((s) => (
+        <div key={s.seasonId} data-trivia-past-season={s.label} className="flex min-h-[56px] items-center gap-3 border-t border-border py-2 first-of-type:mt-2">
+          <span className="min-w-0 flex-1">
+            <b className="block truncate text-[15px] font-semibold">{s.label}</b>
+            <small className="text-[13px] text-muted-foreground">All {s.episodes} episodes</small>
+          </span>
+          <Btn className="h-10 flex-none px-3.5 text-sm" disabled={busy} data-seen-all={s.seasonId} onClick={() => mark(s.seasonId, s.label)}>
+            {sure === s.seasonId ? `Yes, all ${s.episodes}` : "Seen it all"}
+          </Btn>
+        </div>
+      ))}
+    </section>
   );
 }
 

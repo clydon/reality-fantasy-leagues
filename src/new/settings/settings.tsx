@@ -14,10 +14,12 @@ import { toast } from "../ui/toast";
 import { GamesSheet, PasswordSheet, ProfileSheet, ReportSheet } from "./sheets";
 import { Choice, SwitchRow } from "./controls";
 import { NotifySection } from "./notify";
+import { SharingSection } from "./sharing";
 
 // Settings (/settings; docs/PLAN-new-design.md step 15 part 1; the mock's settings.js accountRoute and share.js), in the mock's
 // order: you (your face, name and couches, with Edit), what we notify you about (part 2: notify.tsx), keeping you spoiler-free,
-// what your couch sees (part 3), your AI for results, appearance (part 4), your couches, help, your account, and the classic design.
+// what your couch sees (part 3: sharing.tsx), your AI for results, appearance (part 4), your couches, help, your account, and the
+// classic design.
 // Organised by the question people have, in plain words; every choice says what it does, the recommended one marked; a switch
 // or a choice saves as it's tapped (with Undo where it matters).
 
@@ -102,7 +104,7 @@ export function SettingsScreen() {
 
       <section className="mt-8">
         <SectionHead title="What your couch sees" />
-        <Preview id="settings.sharing" className="mx-4" />
+        <SharingSection p={p} save={save} viewer={current?.members.find((m) => m.userId !== me.id)?.name ?? null} />
       </section>
 
       <section className="mt-8" data-settings-ai>

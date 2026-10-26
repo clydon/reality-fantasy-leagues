@@ -5,6 +5,7 @@ import { ChartColumn, ChevronRight, Crown, Link2, Plus, RotateCcw, Tv, Trophy } 
 import { airTime, calmWhen, ticks } from "../clock";
 import { START_EARLY_MS } from "@/lib/game/watch-along";
 import { ownPace } from "@/lib/game/streaming";
+import { whereWords } from "@/lib/sharing";
 import {
   plansApi,
   useAfterWatching,
@@ -515,7 +516,7 @@ export function namesOf(who: string[]) {
 /** As people say a show: "The Traitors", not "The Traitors (US)". */
 const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
-/** Who else on the couch openly watches a season (never how far: guard.ts shares nobody's progress). */
+/** Who else on the couch openly watches a season (and shares Where I am: guard.ts; each member's `at` says how far they are). */
 export const watchersOn = (couch: Couch | null, meId: string, seasonId: string) => (couch?.members ?? []).filter((m) => m.userId !== meId && m.watching.includes(seasonId));
 
 /**
@@ -598,7 +599,7 @@ export function BothWatch({ home, couch }: { home: Home; couch: Couch | null }) 
 
 // ---------- The couch is watching ----------
 
-type Watched = { s: HomeShow | CouchShow; yours: boolean; who: { userId: string; name: string }[] };
+type Watched = { s: HomeShow | CouchShow; yours: boolean; who: { userId: string; name: string; at?: Record<string, number> }[] };
 
 /** What the couch watches (the mock's watching.js couchWatchHTML): weekly shows someone else on the couch follows openly,
  *  the ones not on your list first, then the most watched. A streaming drop, or a finished season watched at your own pace, is
@@ -649,13 +650,18 @@ export function CouchWatching({ home, couch }: { home: Home; couch: Couch | null
               </span>
               <b className="type-caption px-3 pb-1 pt-2.5 text-[18px] leading-none">{labelOf(s)}</b>
               <span className="flex flex-col gap-[5px] px-3 pb-3 text-xs text-muted-foreground">
-                {who.slice(0, 3).map((m) => (
-                  <span key={m.userId} className="flex items-center gap-1.5">
-                    <Avatar id={m.userId} name={m.name} size={20} />
-                    {m.name}
-                    {onNow(s.seasonId).some((w) => w.userId === m.userId) ? " · now" : ""}
-                  </span>
-                ))}
+                {who.slice(0, 3).map((m) => {
+                  // How far each is (step 15 part 3: only from those who share Where I am, whose `at` the home read carries).
+                  const at = m.at?.[s.seasonId];
+                  const where = at == null ? null : whereWords(at, { aired: s.latestAired, total: s.episodeCount ?? 0, ownPace: false }, true);
+                  return (
+                    <span key={m.userId} className="flex items-center gap-1.5" data-watched-who={m.name}>
+                      <Avatar id={m.userId} name={m.name} size={20} />
+                      {m.name}
+                      {onNow(s.seasonId).some((w) => w.userId === m.userId) ? " · now" : where ? ` · ${where}` : ""}
+                    </span>
+                  );
+                })}
                 {who.length > 3 && <span>+{who.length - 3} more</span>}
               </span>
             </NavLink>

@@ -528,15 +528,15 @@ async function person(pool, who, role = null) {
         switches.join()
       );
       check((await pg.locator("[data-choice=chat-quiet]").getAttribute("aria-checked")) === "true", "Couch chat: Quiet on episode nights");
-      check((await pg.locator("[data-preview]").evaluateAll((els) => els.map((e) => e.getAttribute("data-preview")))).join() === "settings.sharing,settings.appearance", "no Preview left in it");
+      check((await pg.locator("[data-preview]").evaluateAll((els) => els.map((e) => e.getAttribute("data-preview")))).join() === "settings.appearance", "no Preview left in it (Appearance, part 4's, is the page's last)");
       await pg.evaluate(() => {
         const top = document.querySelector("[data-settings-notify]").parentElement.getBoundingClientRect().top;
         window.scrollBy(0, top - 70);
       });
       await wide("Settings");
       await shot("settings-notify");
-      await pg.locator('[data-preview="settings.sharing"]').first().click();
-      check(await toasted(/Coming soon: What your couch sees/), "a Preview still left (part 3's) says Coming soon when tapped");
+      await pg.locator('[data-preview="settings.appearance"]').first().click();
+      check(await toasted(/Coming soon: Appearance/), "the Preview still left (part 4's) says Coming soon when tapped");
       await pg.locator("[data-settings-notify]").scrollIntoViewIfNeeded();
       await pg.locator("[data-phone-toggle]").click();
       check(await toasted(/On for this phone/), "Turn on: this phone is subscribed");

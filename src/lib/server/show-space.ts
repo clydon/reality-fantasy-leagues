@@ -1,6 +1,6 @@
 import { pool } from "./db";
 import { gameName } from "./league-season";
-import { visibleFollows, type FollowShare } from "./guard";
+import { sharingOf, visibleFollows, type FollowShare } from "./guard";
 import type { LeagueRole } from "./roles";
 
 // The pieces the new design's read endpoints are built from (/api/me/home, /api/couches/[id],
@@ -134,17 +134,21 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
 }
 
 /**
- * What these people follow that the viewer may see (guard.ts visibleFollows): their own, and others' open ones.
- * Not how far anyone is: someone's own progress comes from guard.ts seenThrough, and others' isn't shared.
+ * What these people follow that the viewer may see (guard.ts visibleFollows): their own, and others' open ones that they share
+ * Where I am on (step 15 part 3's What your couch sees). Each with how far they are (`seen`, their mark): shown only for a follow
+ * they share, so it's there only where the follow is. Someone's own progress for spoilers is guard.ts seenThrough, not this.
  */
-export async function followsOf(viewerId: string, userIds: string[]): Promise<FollowShare[]> {
+export async function followsOf(viewerId: string, userIds: string[]): Promise<(FollowShare & { seen: number })[]> {
   const ids = [...new Set(userIds)];
   if (!ids.length) return [];
-  const { rows } = await pool.query(
-    `SELECT user_id AS "userId", season_id AS "seasonId", following, private FROM show_follows WHERE user_id = ANY($1::text[])`,
-    [ids]
-  );
-  return visibleFollows(viewerId, rows);
+  const [{ rows }, sharing] = await Promise.all([
+    pool.query(
+      `SELECT user_id AS "userId", season_id AS "seasonId", following, private, seen_through AS seen FROM show_follows WHERE user_id = ANY($1::text[])`,
+      [ids]
+    ),
+    sharingOf(ids.filter((id) => id !== viewerId)),
+  ]);
+  return visibleFollows(viewerId, rows as (FollowShare & { seen: number })[], sharing);
 }
 
 /** Who plays which of these games: league id to its players' user ids. */

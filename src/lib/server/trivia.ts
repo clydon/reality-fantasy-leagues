@@ -3,7 +3,9 @@ import { ROUND, scoreRound, triviaRound, weekOf, type TriviaQuestion, type Trivi
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { requireCouch } from "./couches";
 import { HttpError, pool } from "./db";
+import { markSeenToEnd } from "./follows";
 import { EVERYTHING, seenThroughAll } from "./guard";
+import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { latestAired, seasonSchedules } from "./schedule";
 import { seasonFactsFor } from "./season-stats";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
@@ -11,7 +13,8 @@ import { seasonHeaders, type SeasonHeader } from "./show-space";
 // Trivia (docs/PLAN-new-design.md step 12 part 3; migration 0130 trivia_plays; the questions are trivia.ts's):
 //   GET  /api/seasons/[id]/trivia?couch=   this week's round on the season's show: three questions, your score once you've
 //        played, and the couch's scores this week
-//   POST /api/seasons/[id]/trivia?couch=   { answers: { [question]: option } }: graded here; the week's first play counts
+//   POST /api/seasons/[id]/trivia?couch=   { answers: { [question]: option } }: graded here; the week's first play counts; or
+//        { seen: seasonId }: an earlier season of the show, over, that you've seen to the end (step 15 part 3: `past`)
 //   GET  /api/me/trivia?couch=             the rounds on your shows (Commercial break's This week only, the solo hub)
 //
 // Spoiler-safe on the server: a round is only about a season you've seen to its end once it's over, or the one you're on as far
@@ -33,6 +36,9 @@ export interface TriviaRound {
   /** Others on the couch who've played this week, best first: a score each, nothing else. */
   couch: { userId: string; name: string; score: number; of: number }[];
   scope: "couch" | "solo";
+  /** Earlier seasons of the show, over and with results here, that you haven't marked seen to the end (newest first, a few):
+   *  Seen it all marks one, and trivia can ask about it (step 15 part 3, from Noticed). Not one you play. */
+  past: { seasonId: string; label: string; episodes: number }[];
 }
 
 const labelOf = (h: SeasonHeader) => `${h.show.name.replace(/^The /, "").replace(/\s*\([^)]*\)\s*$/, "")}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`;
@@ -104,10 +110,33 @@ async function scopeOf(user: SessionUser, couchId: string | null): Promise<strin
   return rows[0].n > 1 ? couchId : null;
 }
 
+/** What Seen it all can mark on a show: its seasons that are over, with results here, not seen to the end, not played. */
+async function pastOf(user: SessionUser, showId: string): Promise<TriviaRound["past"]> {
+  const [{ rows }, marks] = await Promise.all([
+    pool.query(
+      `SELECT x.id, x.episode_count FROM show_seasons x
+        WHERE x.show_id = $1 AND x.status = 'completed' AND x.episode_count > 0
+          AND EXISTS (SELECT 1 FROM season_decisions d WHERE d.season_id = x.id AND d.status = 'accepted' AND d.kind = 'elimination')
+          AND NOT EXISTS (SELECT 1 FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN} WHERE m.user_id = $2 AND ss.id = x.id)
+        ORDER BY x.season_number DESC NULLS LAST`,
+      [showId, user.id]
+    ),
+    seenThroughAll(user.id),
+  ]);
+  const open = rows.filter((r) => {
+    const mark = marks.get(r.id) ?? 0;
+    return mark !== EVERYTHING && mark < r.episode_count;
+  });
+  const headers = await seasonHeaders(open.slice(0, 3).map((r) => r.id as string));
+  return open
+    .slice(0, 3)
+    .flatMap((r) => (headers.get(r.id) ? [{ seasonId: r.id as string, label: labelOf(headers.get(r.id)!), episodes: r.episode_count as number }] : []));
+}
+
 async function roundFor(user: SessionUser, showId: string, couchId: string | null, now: Date): Promise<TriviaRound> {
   const couch = await scopeOf(user, couchId);
   const week = weekOf(now);
-  const subjects = await subjectsOf(user, showId, couchId, now);
+  const [subjects, past] = await Promise.all([subjectsOf(user, showId, couchId, now), pastOf(user, showId)]);
   const questions = triviaRound(subjects, `trivia|${showId}|${week}`);
   const [{ rows: mine }, { rows: theirs }] = await Promise.all([
     pool.query("SELECT score, questions, answers FROM trivia_plays WHERE user_id = $1 AND show_id = $2 AND week = $3", [user.id, showId, week]),
@@ -133,12 +162,21 @@ async function roundFor(user: SessionUser, showId: string, couchId: string | nul
     played: mine[0] ? { score: mine[0].score, of: mine[0].questions, answers: mine[0].answers } : null,
     couch: theirs.map((r) => ({ userId: r.user_id, name: r.name, score: r.score, of: r.questions })),
     scope: couch ? "couch" : "solo",
+    past,
   };
 }
 
 /** This week's round on a season's show. */
 export async function seasonTrivia(user: SessionUser, seasonId: string, couchId: string | null, now = new Date()): Promise<TriviaRound> {
   return roundFor(user, await showOf(seasonId), couchId, now);
+}
+
+/** Seen it all: an earlier season of this show, over, marked seen to the end (follows.ts markSeenToEnd); answers the round again. */
+export async function seenAllOf(user: SessionUser, seasonId: string, couchId: string | null, seen: unknown, now = new Date()): Promise<TriviaRound> {
+  const showId = await showOf(seasonId);
+  if (typeof seen !== "string" || (await showOf(seen).catch(() => null)) !== showId) throw new HttpError(400, "seen must be a season of this show");
+  await markSeenToEnd(user.id, seen);
+  return roundFor(user, showId, couchId, now);
 }
 
 /** Play this week's round: graded against the round as it stands for you; the week's first play is the one kept. */

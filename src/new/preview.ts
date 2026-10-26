@@ -29,12 +29,7 @@ export const PREVIEWS = {
   // have nothing left here.
 
   // ---- Settings (real since step 15 part 1: your profile, spoilers, your AI, couches, help, your account; What we notify you
-  // about since part 2; these two are parts 3 and 4's) ----
-  "settings.sharing": {
-    step: "15",
-    title: "What your couch sees",
-    line: "Everything, just your games, or only what games need: where you are, when you're watching, your ratings and reactions.",
-  },
+  // about since part 2; What your couch sees since part 3; this one is part 4's) ----
   "settings.appearance": { step: "15", title: "Appearance", line: "Night, Studio (light) or match your phone." },
 } satisfies Record<string, PreviewEntry>;
 

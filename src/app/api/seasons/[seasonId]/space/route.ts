@@ -13,7 +13,7 @@ import { LEAGUE_SEASON_JOIN } from "@/lib/server/league-season";
 // `?couch=` that couch's games and people (who plays which, who watches it), else just your own games.
 //
 // Spoiler-safe through guard.ts: no results, only air times, titles and your own progress. Someone's follow
-// shows only if they share it; nobody else's progress is sent.
+// shows only if they share it, with how far they are (step 15 part 3: Where I am shares both, or neither).
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId: string }> }) => {
   const { seasonId } = await params;
   const user = await requireAuth(req);
@@ -47,6 +47,8 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
       name: m.name,
       role: m.role,
       watching: follows.some((f) => f.userId === m.userId && f.seasonId === seasonId && f.following && (!f.private || m.userId === user.id)),
+      // How far they are, where they share it (never your own here: that's `you`).
+      seen: m.userId === user.id ? null : (follows.find((f) => f.userId === m.userId && f.seasonId === seasonId && f.following && !f.private)?.seen ?? null),
       playing: gamesHere.filter((g) => players.get(g.leagueId)?.includes(m.userId)).map((g) => g.leagueId),
     }));
   }

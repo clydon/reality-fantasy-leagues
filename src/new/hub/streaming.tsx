@@ -18,8 +18,9 @@ import { hides, useMinute } from "./guide";
 // src/lib/game/streaming.ts picks and orders it from the home read (your shows, the couch's, its people's open follows, its
 // planned nights) and the hub's On now read: yours in progress, new drops, planned nights, the couch's most watched, upcoming
 // drops. A chip opens the show; one not on your shows has a ＋ (where you are, then it's yours, staying on the hub). See all N
-// past three. On the solo hub, "Streaming": your own shows. Never how far anyone else is (the guard); who's on now, yes. A couch
-// show you've hidden from the guide is off the rail too (your own can't be hidden).
+// past three. On the solo hub, "Streaming": your own shows. How far someone else is only where they share it (the guard: step 15
+// part 3's Where I am); who's on now, from those who share it. A couch show you've hidden from the guide is off the rail too (your
+// own can't be hidden).
 
 const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
@@ -72,7 +73,7 @@ export function useRail(home: Home, couch: Couch | null): RailItem[] {
   return useMemo(() => {
     const members = couch?.members ?? [];
     const streamers = (seasonId: string) =>
-      members.filter((m) => m.userId !== home.user.id && m.watching.includes(seasonId)).map((m) => ({ userId: m.userId, name: m.name }));
+      members.filter((m) => m.userId !== home.user.id && m.watching.includes(seasonId)).map((m) => ({ userId: m.userId, name: m.name, seen: m.at?.[seasonId] ?? null }));
     const plans = couch
       ? (home.plans ?? []).filter((p) => p.couchId === couch.id && p.you !== "out").map((p) => ({ id: p.id, seasonId: p.seasonId, at: Date.parse(p.startsAt), episode: p.episode }))
       : [];

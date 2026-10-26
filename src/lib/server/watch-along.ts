@@ -20,7 +20,7 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { requireCouch } from "./couches";
 import { HttpError, pool } from "./db";
 import { gifFrom, type GifSource } from "./gifs";
-import { EVERYTHING, seenThrough } from "./guard";
+import { EVERYTHING, seenThrough, sharesSql } from "./guard";
 import { DEFAULT_RUNTIME_MIN, latestAired, seasonSchedules, upNext, type SeasonSchedule } from "./schedule";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
 import { planById, inPlan, type PlanHow, type WatchPlan } from "./watch-plans";
@@ -55,7 +55,9 @@ import {
 // Spoiler-safe on the server: you watch along an episode you've seen or your next one (guard.ts seenThrough), once it's aired
 // (the next to air opens as "soon", with nothing in it); the couch's reactions reach you only once your clock is 30 s past their
 // moment (never early, and never past what has aired since its airtime), from people on the couch who follow the show openly
-// (guard.ts visibleFollows: a private watcher's stay theirs), said to this couch. Alone (no couch, or a couch of one) it's just
+// and share My watch along reactions (guard.ts sharesSql, step 15 part 3: a private watcher's stay theirs), said to this couch.
+// Watching together, what the people in the session say in it reaches the rest of them whatever that switch says (they're in
+// the room, as being in it shows them: When I'm watching doesn't change that either). Alone (no couch, or a couch of one) it's just
 // yours. A reaction is a moment of an episode, so it says what that person was watching, as a rating says they've seen it. The
 // screen polls the read while its clock runs (docs/HOSTING.md), so a season's air times are kept a little while per server.
 //
@@ -273,10 +275,12 @@ function airedFor(schedule: SeasonSchedule, n: number, now: Date): number | null
   return ms >= 0 ? ms : null;
 }
 
-/** The couch's people (not you) who follow the season openly, as a condition on `r` with $season (1), $couch and $me. */
-const FROM_COUCH = (couch: string, me: string) => `r.couch_id = ${couch} AND r.user_id <> ${me}
-  AND r.user_id IN (SELECT user_id FROM couch_members WHERE couch_id = ${couch})
-  AND EXISTS (SELECT 1 FROM show_follows f WHERE f.user_id = r.user_id AND f.season_id = r.season_id AND f.following AND NOT f.private)`;
+/** Said to this couch by someone else on it, as a condition on `r` with $couch and $me. */
+const COUCH_MATE = (couch: string, me: string) => `r.couch_id = ${couch} AND r.user_id <> ${me}
+  AND r.user_id IN (SELECT user_id FROM couch_members WHERE couch_id = ${couch})`;
+
+/** The couch's people (not you) who share their reactions on the season (guard.ts sharesSql), as a condition on `r`. */
+const FROM_COUCH = (couch: string, me: string) => `${COUCH_MATE(couch, me)} AND ${sharesSql("reactions", "r.user_id", "r.season_id")}`;
 
 /** Said in together session $s by someone in it now, since it began (a condition on `r`). */
 const SAID_TOGETHER = (s: string) => `${s} IS NOT NULL AND r.created_at >= (SELECT created_at FROM watch_sessions WHERE id = ${s})
@@ -376,7 +380,8 @@ export async function watchRead(
   const params: unknown[] = [seasonId, n, user.id, ctx.couch, since, mineThrough, through, mate?.id ?? null];
   const scope = `r.season_id = $1 AND r.episode = $2 AND (
       (r.user_id = $3 AND r.couch_id IS NOT DISTINCT FROM $4::uuid AND r.runtime_ms <= $6)
-      OR (${FROM_COUCH("$4::uuid", "$3")} AND (r.runtime_ms <= $7 OR (r.runtime_ms <= $6 AND ${SAID_TOGETHER("$8::uuid")})))) AND r.runtime_ms > $5`;
+      OR (${COUCH_MATE("$4::uuid", "$3")} AND ((${sharesSql("reactions", "r.user_id", "r.season_id")} AND r.runtime_ms <= $7)
+        OR (${sharesSql("play", "r.user_id", "r.season_id")} AND r.runtime_ms <= $6 AND ${SAID_TOGETHER("$8::uuid")})))) AND r.runtime_ms > $5`;
   const [{ rows }, pins, left] = await Promise.all([
     pool.query(
       `SELECT * FROM (

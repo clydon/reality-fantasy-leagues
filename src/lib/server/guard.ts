@@ -1,5 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
+import { SHARE_DEFAULT, type ShareSwitch, type Sharing } from "@/lib/sharing";
 import { pool } from "./db";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { leagueStates } from "./league-states";
@@ -10,8 +11,11 @@ import { leagueStates } from "./league-states";
 //   1. Time: nothing after the episode they've seen (show_follows.seen_through), and an unknown episode is
 //      episode 0 (fail closed). Something with no known episode isn't sent at all.
 //   2. Secrets: a format's secret roles (the Traitors' faction) only for people who have left by then.
-//   3. Sharing: what someone's couches see of them (shares). For now only a show watched privately is
-//      hidden; step 15's What your couch sees adds its levels here.
+//   3. Sharing: what someone's couches see of them (shares, sharesSql). A show watched privately is never shared
+//      (show_follows.private), and on the rest What your couch sees decides (step 15 part 3; user_settings.share_*,
+//      src/lib/sharing.ts): Where I am (what you watch and how far you are), When I'm watching (who's on now), My
+//      episode ratings, My watch along reactions. Your games (picks once they lock, calls, bingo, polls) always show
+//      on a show you follow openly: the games need them ("play").
 
 /** Seen through everything: someone who turned spoiler protection off. */
 export const EVERYTHING = Number.POSITIVE_INFINITY;
@@ -102,16 +106,46 @@ export interface FollowShare {
   private: boolean;
 }
 
-/** The follows a viewer may see: their own, and everyone else's that they follow openly. */
-export function visibleFollows<T extends FollowShare>(viewerId: string, follows: T[]): T[] {
-  return follows.filter((f) => f.userId === viewerId || (f.following && !f.private));
+/**
+ * The follows a viewer may see: their own, and everyone else's that they follow openly and share Where I am on (`sharing`, by
+ * person: someone not in it shares everything, the default).
+ */
+export function visibleFollows<T extends FollowShare>(viewerId: string, follows: T[], sharing: Map<string, Sharing>): T[] {
+  return follows.filter((f) => f.userId === viewerId || (f.following && !f.private && (sharing.get(f.userId) ?? SHARE_DEFAULT).where));
 }
 
-export type Shareable = { kind: "follow"; seasonId: string };
+/** What can be shared about someone on a show: their games ("play": a show they follow openly), or one of the four switches. */
+export type ShareKind = "play" | ShareSwitch;
+export type Shareable = { kind: ShareKind; seasonId: string };
+
+/** SQL: `who` has this switch of What your couch sees on (someone with no settings row has all four on). */
+export const switchOn = (s: ShareSwitch, who: string) => `COALESCE((SELECT us_.share_${s} FROM user_settings us_ WHERE us_.user_id = ${who}), true)`;
+
+/** SQL: `who` follows `season` openly (never a show watched privately). */
+export const followsOpenly = (who: string, season: string) =>
+  `EXISTS (SELECT 1 FROM show_follows sf_ WHERE sf_.user_id = ${who} AND sf_.season_id = ${season} AND sf_.following AND NOT sf_.private)`;
+
+/** SQL: `who` shares `kind` on `season`, as shares() decides it, for a query's WHERE (`who` and `season` are its expressions). */
+export function sharesSql(kind: ShareKind, who: string, season: string): string {
+  return kind === "play" ? followsOpenly(who, season) : `(${followsOpenly(who, season)} AND ${switchOn(kind, who)})`;
+}
 
 /** Whether `memberId` shares `what` with `viewerId`. Someone always sees their own. */
 export async function shares(viewerId: string, memberId: string, what: Shareable, db: Queryable = pool): Promise<boolean> {
   if (viewerId === memberId) return true;
-  const { rows } = await db.query("SELECT following, private FROM show_follows WHERE user_id = $1 AND season_id = $2", [memberId, what.seasonId]);
-  return !!rows.length && visibleFollows(viewerId, [{ userId: memberId, seasonId: what.seasonId, following: rows[0].following, private: rows[0].private }]).length === 1;
+  const { rows } = await db.query(`SELECT ${sharesSql(what.kind, "$1", "$2::uuid")} AS ok`, [memberId, what.seasonId]);
+  return !!rows[0]?.ok;
+}
+
+/** What your couch sees, for each of these people (someone with no settings row: everything, the default). */
+export async function sharingOf(userIds: string[], db: Queryable = pool): Promise<Map<string, Sharing>> {
+  const ids = [...new Set(userIds)];
+  const out = new Map<string, Sharing>(ids.map((id) => [id, { ...SHARE_DEFAULT }]));
+  if (!ids.length) return out;
+  const { rows } = await db.query(
+    "SELECT user_id, share_where, share_now, share_ratings, share_reactions FROM user_settings WHERE user_id = ANY($1::text[])",
+    [ids]
+  );
+  for (const r of rows) out.set(r.user_id, { where: r.share_where, now: r.share_now, ratings: r.share_ratings, reactions: r.share_reactions });
+  return out;
 }

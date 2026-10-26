@@ -7,9 +7,12 @@
 // openly. In order: yours in progress (Continue · Ep 4), new drops (a week after), the couch's planned nights, the couch's
 // most watched, then upcoming drops. A finished one of yours nobody else streams leaves it (Your shows still has it).
 //
-// What it says about other people is what the guard lets out (guard.ts; Noticed, "Nobody's progress on a show you watch"):
-// who on the couch streams it openly, and who's watching along right now (the hub's On now read). Never how far anyone is;
-// your own progress is yours to see. Times are formatted by the screen, in the viewer's zone. Checked by tests/streaming.test.js.
+// What it says about other people is what the guard lets out (guard.ts rule 3): who on the couch streams it openly, how far the
+// first of them is (step 15 part 3: only from someone who shares Where I am, "riley · Ep 6"), and who's watching along right now
+// (the hub's On now read, only from those who share When I'm watching). Your own progress is yours to see. Times are formatted by
+// the screen, in the viewer's zone. Checked by tests/streaming.test.js.
+
+import { whereWords } from "../sharing";
 
 /** A season as the rail is given it (the home read's shows and couch shows). */
 export interface StreamShow {
@@ -36,6 +39,8 @@ export interface StreamShow {
 export interface RailPerson {
   userId: string;
   name: string;
+  /** How far they are, where they share it (Where I am), else null or absent. */
+  seen?: number | null;
 }
 
 /** A planned night on the couch (step 11 part 3): a streaming season's is always a shared start. */
@@ -64,8 +69,8 @@ export type RailWho =
   | { kind: "on"; name: string; more: number }
   /** Before the drop: "2 waiting". */
   | { kind: "waiting"; count: number }
-  /** "riley", "riley + 2". */
-  | { kind: "names"; names: string[] }
+  /** "riley", "riley + 2"; with how far the first is, "riley · Ep 6", "riley Ep 6 · +1". */
+  | { kind: "names"; names: string[]; where?: string | null }
   /** "Just you so far". */
   | { kind: "you" };
 
@@ -145,7 +150,9 @@ export function railItems(
       : preDrop && others.length
         ? { kind: "waiting", count: others.length }
         : others.length
-          ? { kind: "names", names: others.map((p) => p.name) }
+          ? ((where) => ({ kind: "names" as const, names: others.map((p) => p.name), ...(where ? { where } : {}) }))(
+              others[0].seen == null ? null : whereWords(others[0].seen, { aired: total, total, ownPace: true }, true)
+            )
           : { kind: "you" };
     out.push({
       seasonId: s.seasonId,
@@ -183,10 +190,11 @@ function dropAtOf(x: RailItem, shows: StreamShow[]): number {
   return Number.isFinite(t) ? t : 0;
 }
 
-/** "riley is on now", "riley is on now · +1", "2 waiting", "riley", "riley + 2", "Just you so far". */
+/** "riley is on now", "riley is on now · +1", "2 waiting", "riley", "riley + 2", "riley · Ep 6", "riley Ep 6 · +1", "Just you so far". */
 export function whoLine(w: RailWho): string {
   if (w.kind === "on") return `${w.name} is on now${w.more ? ` · +${w.more}` : ""}`;
   if (w.kind === "waiting") return `${w.count} waiting`;
+  if (w.kind === "names" && w.where) return w.names.length > 1 ? `${w.names[0]} ${w.where} · +${w.names.length - 1}` : `${w.names[0]} · ${w.where}`;
   if (w.kind === "names") return w.names.length > 1 ? `${w.names[0]} + ${w.names.length - 1}` : w.names[0];
   return "Just you so far";
 }
