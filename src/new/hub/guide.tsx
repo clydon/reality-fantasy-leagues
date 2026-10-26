@@ -5,14 +5,11 @@ import { EyeOff, Plus, UserPlus } from "lucide-react";
 import { episodeLine, eveningAt, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuidePlan, type GuideShow } from "@/lib/game/guide";
 import { alsoOn, hitOfListing, listingLine, type AlsoOnDay, type AlsoOnItem } from "@/lib/game/tv-listings";
 import { guide as guideApi, useListingsWeek, useSetGuideHidden, type Couch, type CouchShow, type HiddenShow, type Home } from "../data";
-import { PEOPLE } from "../fixtures/people";
-import { RAIL } from "../fixtures/streaming";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { airTime, timeOf } from "../clock";
 import { avatarColour } from "../ui/bars";
 import { Btn } from "../ui/parts";
-import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
@@ -28,7 +25,7 @@ import { namesOf, showOfMove } from "./sections";
 // week's listings (/api/listings/week, the same for everyone; src/lib/game/tv-listings.ts leaves out your shows, the
 // couch's and what you've hidden), the most watched few and "N more on TV". Since part 3, the couch's planned nights: a watch
 // along planned for an airing tags its card, one at a time of its own is a card of its own (it opens the plan); a couch
-// show's sheet and a listing's plan one. The rail is step 14's.
+// show's sheet and a listing's plan one. The rail under it is streaming.tsx (step 14).
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -87,7 +84,7 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
 }
 
 /** The clock the guide is drawn at, moved on each minute (the Now line, On now); nothing is read again. */
-function useMinute(): number {
+export function useMinute(): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 60_000);
@@ -97,7 +94,7 @@ function useMinute(): number {
 }
 
 /** Whether a hidden row is this show (by the show, or by its listing). */
-const hides = (h: HiddenShow, show: { id: string; tvmazeId?: number | null }) => (h.showId != null && h.showId === show.id) || (h.tvmazeId != null && h.tvmazeId === show.tvmazeId);
+export const hides = (h: HiddenShow, show: { id: string; tvmazeId?: number | null }) => (h.showId != null && h.showId === show.id) || (h.tvmazeId != null && h.tvmazeId === show.tvmazeId);
 
 /** Your shows (what you follow or play) and the couch's you don't follow (what its people watch openly), as the guide takes them. */
 export function guideShows(home: Home, couch: Couch | null): GuideShow[] {
@@ -807,69 +804,3 @@ function HiddenSheet({ open, onOpenChange, hidden }: { open: boolean; onOpenChan
   );
 }
 
-
-const RAIL_TAG = {
-  you: "bg-chyron py-0.5 pl-[5px] pr-[9px] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]",
-  new: "text-chyron-line",
-  good: "text-good",
-};
-
-export function StreamingRail() {
-  return (
-    <section className="mt-6">
-      <div className="flex items-baseline justify-between px-4 pb-2 pt-3">
-        <span className="type-caption text-[17px]">Streaming on the couch</span>
-        <small className="text-xs text-muted-foreground">Your own pace</small>
-      </div>
-      <Preview id="hub.streaming" className="mx-2">
-        <div className="flex gap-2 overflow-x-auto p-2 [scrollbar-width:none]">
-          {RAIL.map((r) => {
-            const yours = r.progress != null;
-            return (
-              <div
-                key={r.name}
-                className={`relative w-[244px] flex-none overflow-hidden rounded-[4px] outline-1 -outline-offset-1 ${yours ? "bg-card outline-border" : "outline-dashed outline-input"}`}
-              >
-                <span className="flex w-full items-stretch gap-2.5 py-1.5 pl-1.5 pr-11 text-left">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- fixture art from the published mock */}
-                  <img src={r.art} alt="" className="h-[72px] w-[54px] flex-none rounded-[3px] object-cover" style={{ objectPosition: r.position }} />
-                  <span className="flex min-w-0 flex-col justify-center gap-1">
-                    <b className="type-caption truncate text-[17px]">{r.name}</b>
-                    <span className={`type-caption self-start text-[11px] tracking-[0.04em] ${r.tag.tone ? RAIL_TAG[r.tag.tone] : "text-muted-foreground"}`}>
-                      {r.tag.text}
-                    </span>
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="flex flex-none">
-                        {r.faces.map((p) => (
-                          <span
-                            key={p}
-                            className="-mr-1 grid size-4 place-items-center rounded-[2px] text-[9px] font-extrabold text-[#121018] shadow-[0_0_0_1.5px_var(--card)]"
-                            style={{ background: PEOPLE[p] }}
-                          >
-                            {p[0].toUpperCase()}
-                          </span>
-                        ))}
-                      </span>
-                      <small className="ml-1 truncate text-[11px] text-muted-foreground">{r.who}</small>
-                    </span>
-                  </span>
-                </span>
-                {yours ? (
-                  r.progress! > 0 && (
-                    <span className="absolute inset-x-0 bottom-0 h-[3px] bg-border">
-                      <i className="block h-full bg-chyron-line" style={{ width: `${r.progress! * 100}%` }} />
-                    </span>
-                  )
-                ) : (
-                  <span className="absolute right-2 top-1/2 grid size-[34px] -translate-y-1/2 place-items-center rounded-full bg-secondary" aria-label={`Add ${r.name} to my shows`}>
-                    <Plus className="size-[18px]" strokeWidth={2.8} aria-hidden />
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </Preview>
-    </section>
-  );
-}

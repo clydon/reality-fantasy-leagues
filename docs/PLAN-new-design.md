@@ -39,7 +39,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | **done** 2026-10-26 on the branch, in three parts: the guide on the couch's shows and Hide from guide (migration 0125), all of TV in the guide and the daily listings job on the bot clock's calls (0126), planned nights (0127); all ship with 0b's | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | **done** 2026-10-26 on the branch, in three parts: watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing (each open watch along's clock kept on the server; 0132), together sessions and planned nights (one clock for everyone in a planned night's watch along, Up next's planned night, a shared start's own time, bingo ticks and the two accolades; 0133); all ship with 0b's | Opus · xhigh |
-| 14 | Streaming shows and the rail | not started | Opus · high |
+| 14 | Streaming shows and the rail | in progress, in two parts (written at its start): part 1, streaming on the couch (the release model, the rail, the show space; no migration), done 2026-10-26 on the branch; part 2, the fold by progress, first to finish and streaming off Also on (0134), next | Opus · high |
 | 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
 | — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
 | C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · xhigh |
@@ -156,7 +156,7 @@ step's As built.
 - **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
   classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
   on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
-- **The fold goes by airtime** (step 4; for 14). Everything others said since an episode you haven't seen started airing
+- **The fold goes by airtime** (step 4; for 14 part 2). Everything others said since an episode you haven't seen started airing
   is folded, which is right for weekly and nightly shows; a binge drop folds everything after the drop until you finish.
   Step 14's streaming shows could fold by the author's own progress at the time (what episode they were on) instead.
 - **Only the newest 300 messages** (step 4; for 15: step 13 part 1 left it, a watch along has its own stream), as classic: nothing
@@ -251,7 +251,7 @@ step's As built.
   4"); it needs each finished game's standings episode by episode (a table per episode, read once a season ends and kept),
   which nothing keeps. The records are most titles, ran it back, longest pool streak and best average finish.
 - **Couch accolades are what today's data can say** (step 8; ratings' since step 12 part 1, the watch along's since step 13 part 3; for 14
-  and a later polish). The mock's By the numbers also has first to finish (14's streaming drops) and Called it most from calls (since step
+  part 2 (first to finish) and a later polish). The mock's By the numbers also has first to finish (14's streaming drops) and Called it most from calls (since step
   12 part 2: `calls.ts callRights` per season, as the profile's "Called it" still counts only league predictions). `couch-standings.ts
   accoladesOf` is where they'd go (the ratings' are `ratings.ts ratingAccolades`: taste twins, the contrarian, never misses a rating; most
   reactions and most watch alongs are `accoladesOf`'s since 13 part 3).
@@ -344,7 +344,9 @@ step's As built.
   The couch is watching say "caught up", "On Episode 5", "2 ahead"; the new design sends nobody else's progress, so they list
   who watches and what they play. Step 15's What your couch sees could let people share how far they are. The one exception since
   step 13 part 2 is who's watching along right now ("riley is watching Episode 7 now", her clock on your bar): only someone who
-  follows the show openly, on the couch they opened it on (its As built says what it reveals and to whom).
+  follows the show openly, on the couch they opened it on (its As built says what it reveals and to whom). Since step 14 part 1 the
+  streaming rail keeps to it too: who streams a show and who's on now, never the mock's "riley Ep 6", "3 ahead" or "2 on the couch
+  watched".
 - **Who's on now can't be turned off** (step 13 part 2; for 15). Watching along a show you follow openly tells the couch you're on
   and which episode, as reactions are heard; Watch privately is the only way out today. The mock's What your couch sees has When I'm
   watching (share.js's `now`, on in Everything, off in Just my games and Only what games need): `watchersOn` is where it'd apply. Since
@@ -414,6 +416,17 @@ step's As built.
 - **Everyone in a together session can move it** (step 13 part 3, as the mock has it: "anyone can pause for everyone"). Nothing stops one
   person tapping +10s or Set the time for all; whoever did it is named on the plate under the clock. A night's planner keeping the clock
   would be a setting nothing reads yet.
+- **Call it skips a streaming season after its drop** (step 14 part 1; for a later polish). Call it asks about the next episode to air
+  and closes at its airtime; once every episode is out there's nothing to air, so a streaming season gets no calls (the mock's "Call it
+  before Episode 4"). A call that closes at each person's own mark (before you watch it) would bring it back, graded as now.
+- **The desk can't make a season a streaming drop** (step 14 part 1; for a later desk step). Only a listing makes a season `binge`
+  (listing.ts `releaseOf`: three or more regular episodes on one day); a season the desk makes, or a show added by name, is weekly, and
+  the desk's season page has no release or drop time to set.
+- **Where you are says "Premieres" before a drop** (step 14 part 1; for a later polish). The where sheet's line for a streaming season
+  still to drop is way-in.ts `whereLabel`'s "Premieres Oct 29", not "All 8 drop Thu 9:00 PM" (the mock's quickAdd).
+- **A drop never takes Up next** (step 14 part 1, as the mock's heroPick; for a later polish if the couch wants it). Even on its night a
+  streaming drop leaves Up next to weekly shows (only a move or results it needs of you put it there); the guide's drop card, the rail's
+  "Drops Thu 9:00 PM" and the show's drop plate carry it. Up next could take a drop due within the day.
 - **Network times are the East's** (step 11 part 2; for a later polish). TVmaze's US schedule gives a network show's Eastern airing,
   and Also on shows that moment in the phone's zone, so on the West Coast an 8 PM network show reads 5 PM, though most networks
   air it at 8 PM Pacific on tape delay (a live event doesn't). Shows here are right (a season's air time is in its own zone);
@@ -421,7 +434,7 @@ step's As built.
   sports live) would get most of it.
 - **"The most watched" is TVmaze's popularity** (step 11 part 2, as designed). Also on's few are the evening's highest TVmaze
   `weight` (how many people follow a show there, worldwide), not ratings; nothing better is free.
-- **Daily streaming shows are on every day** (step 11 part 2; for 14). A streaming show with a new episode each weekday (Peacock's
+- **Daily streaming shows are on every day** (step 11 part 2; for 14 part 2). A streaming show with a new episode each weekday (Peacock's
   soaps) has no air time, so it's a "Streaming" listing in each day's Also on, often among the few. Step 14's rail could take
   streaming listings off the guide.
 - **The job's changes aren't in the desk's History** (step 11 part 2; for a later desk step). A season the listings job makes (a
@@ -3742,6 +3755,111 @@ minutes, `TOGETHER_SLOW_MS` 30 s, `TOGETHER_STOP_AFTER_MS` an hour, `COUNTDOWN_M
 - **Step 13 is done.** For step 14 (streaming shows and the rail): a streaming season's nights are always a shared start (watch-plans.ts),
   so a binge night's watch along is a together session like any other; the fold still goes by airtime (Noticed), and daily streaming shows
   are still in every day's Also on (Noticed). Migration 0134 is next.
+
+### Step 14, in two parts
+
+Too big for one session (written 2026-10-26, at its start). Each part ends with its As built and the checks passing; step 14 is marked
+done after part 2.
+
+1. **Streaming on the couch** (the mock's streaming.js and streaming.css; no migration). **The release model end to end:** a season that
+   drops every episode at once (`show_seasons.release 'binge'`, `drop_at`) is never "on air" (schedule.ts `upNext`: before the drop its
+   Episode 1 is up next, after it nothing is, so no On now, no live watch along, no live airing to plan), and never takes the hub's Up
+   next unless one of its moves or results needs you (the mock's heroPick). Every season header carries `dropAt` and the listing's
+   `network` (the service). **The rail** under the guide (both hub shapes; the solo hub's "Streaming", your shows only): your shows in
+   progress first (Continue · Ep 4, your own progress bar), then new drops (a week after), then the couch's planned nights, then the
+   couch's most watched (by how many on the couch stream it), then upcoming drops (Drops Fri 9:00 PM); See all N past three (a sheet of
+   every chip); a ＋ on anything not on your shows (where you are, then it's yours, staying on the hub); a chip opens the show. It holds
+   streaming seasons and **finished seasons someone's watching at their own pace** (completed, and no game on it on the couch: the mock's
+   The Wire), which leave The couch is watching (weekly shows only). Who's on a chip: faces of who on the couch streams it openly and
+   "riley + 2", or "riley is on now" from the hub's On now read (the one progress the guard lets out), never how far anyone is (Noticed:
+   nobody's progress). **The show space:** the bar says "Drops in 2 days" or "All 8 episodes · Netflix", the couch line a dashed
+   "Streaming"; before the drop Tonight leads with the drop plate (All 8 episodes at once · Drops Wed 9:00 PM · the countdown · the
+   service and who's waiting) and "Plan a watch along for the premiere"; after it, the phase head is your next episode at your own pace
+   ("You finished it" at the end), Who's watching says "at their own pace"; Episodes says "All 8 out · Netflix" or "All 8 drop Wed" and
+   lists the episodes still to drop as one line. **Planned nights:** a streaming season's are a shared start (watch-plans.ts already), so
+   its watch along is a together session; the rail tags a chip with the couch's next night. Preview `hub.streaming` and the fixtures
+   `streaming.ts` and `people.ts` go. Check: `check-new-streaming.js` on a new `streaming-fixture.js`; `tests/streaming.test.js`.
+2. **The fold by progress, first to finish, streaming off Also on** (migration 0134). From Noticed: the chat's fold on a season watched at
+   its own pace goes by **the author's own mark when they wrote** (a message's `author_seen`, kept from now on; the airtime fold stays for
+   weekly seasons and for messages from before it), so a binge drop no longer folds everything until you finish. **First to finish** in
+   By the numbers (who reached a streaming season's last episode first, from a `show_follows.finished_at` kept from now on), shown only
+   to people who've finished it themselves, so it says nothing their own finale's verdict doesn't already (the guard: nobody's
+   progress). **Daily streaming shows** (one new streaming episode a day) leave the guide's Also on; a whole season's drop stays as its
+   drop day. Marks step 14 done.
+
+### As built, step 14 part 1 (2026-10-26, on `new-design`): streaming on the couch
+
+No migration, no new read, poll, job or stored row (HOSTING.md). New: `src/lib/game/streaming.ts` (pure: `ownPace`, `railItems`,
+`whoLine`), `src/new/hub/streaming.tsx` (`StreamingRail`, `useRail`, `streamShows`), `tests/streaming.test.js`,
+`scripts/dev-test/streaming-fixture.js`, `scripts/dev-test/check-new-streaming.js`.
+- **The release model** (`schedule.ts upNext`): a season that drops every episode at once (`release 'binge'`) is never on the air.
+  Before its drop, Episode 1 is up next (at the drop, `live: false`); from the drop on nothing is. Before this, a drop's first hour
+  read as "On air · Episode 1" everywhere: the show bar, Tonight, a live watch along, On now's `live`. The guide's card is never On now
+  either (`guide.ts`: any streaming card, a one-episode one too). Every season header carries its drop (`dropAt`) and its listing's
+  service (`show.network`, from `shows.listing->>'network'`; null without a listing).
+- **The rail** (the mock's streaming.js railShows / railChip / allStreamingSheet), under the guide in both hub shapes (the solo hub's
+  "Streaming", your shows only). It holds seasons **watched at your own pace** (`ownPace`): a streaming drop, or **a finished season
+  nobody plays a game on here** (decided: the mock's The Wire; completed, no game of yours or the couch's on it, so the couch's
+  finished Survivor seasons stay the trophy shelf's), each one on your shows or streamed openly by someone else on the couch. Order:
+  yours in progress (Continue · Ep 4, the yellow tag and your own progress bar), new drops for a week (New · all 6 out), the couch's
+  planned nights (Watch along · Sat 9:00 PM: its next night you haven't said no to), the couch's most watched (by how many stream it,
+  unfinished first; tag the service, "Streaming", or "All 13 episodes"), upcoming drops (Drops Thu 9:00 PM). A finished one of yours
+  nobody else streams leaves it (Your shows still has it); "You finished it" while the couch still streams it. Who's on a chip: the faces
+  of who on the couch streams it openly, whoever's watching along now first, and "riley is on now" (the hub's On now read, the one
+  progress the guard lets out), "1 waiting" before a drop, "riley + 2", or "Just you so far". "Your own pace" with three or fewer,
+  else See all N (a sheet of every chip, full width). A chip opens the show (its art grows into the show bar); one not on your shows
+  has a ＋: where you are (the where sheet, as The couch is watching's Add), then it's yours, and you stay on the hub. A couch show
+  you've hidden from the guide is off the rail too (decided: the same "not for me"; your own shows can't be hidden).
+- **The hub** around it: Up next never takes a streaming season's countdown (the mock's heroPick), only something it needs of you (a
+  move, results) puts one there; a poster's line is the drop day ("Season 1 · drops Thu") or the service ("Season 2 · Apple TV+"); The
+  couch is watching leaves seasons watched at your own pace to the rail (weekly shows only).
+- **The show space** (the mock's streaming.js wBar, wTonight, wEpisodes, inviteWatch): `ShowData` gains `streaming`, `dropAt` and
+  `ownPace` (show-space.tsx, with `episodesOf` and `allOut`). The bar says "Drops in 3 days" (a clock inside the last day), then "All 8
+  episodes · HBO Max" (a finished season at your own pace too); the couch line a dashed "Streaming". Before the drop Tonight leads with
+  **the drop plate** (All 8 episodes at once · Drops Thu 9:00 PM · the countdown · the service and who on the couch is waiting for it)
+  in place of the phase head, no Watch along card (nothing to open yet), and "Plan a watch along for the premiere". After it, the phase
+  head is "Episode 4 · Your own pace", "You finished it · All 8 episodes" or (not yours) "All 6 episodes are out"; the Watch along card
+  leads Tonight ("Episode 4 · your own pace"); Plan a watch along says a shared start ("Pick a time, start at the same moment, anyone
+  can pause"), and isn't offered once you've finished; Who's watching's aside is "at their own pace"; the follow card says "sam is
+  streaming this · All 6 episodes are out. Add it to watch along with their reactions, at your own pace" (before a drop: "All 8 episodes
+  drop Thu 9:00 PM. Add it and it's on your list, ready"). Episodes: "All 10 out · Apple TV+" (before: "All 8 drop Thu", the drop as the
+  list's one line, no "This week" block), a season you watch without a game from Episode 1 down, without the same drop time on every
+  row. The ⋯ menu's Plan a watch along: "Pick a time and start together".
+- **Planned nights** were already a shared start for a streaming season (watch-plans.ts, step 11 part 3), so a binge night's watch along
+  is a together session like any other (13 part 3). The plan sheet now says "It drops Thu 9:00 PM · one shared start" before the drop
+  ("It's streaming" after it) and an episode chip's "out" for "aired".
+- **Fixtures and Preview:** `hub.streaming` and the fixtures `streaming.ts` and `people.ts` are gone; `src/new/fixtures/` holds only
+  its index. What's left in the Preview registry is step 15's.
+- **Changed from the mock:** nobody's progress anywhere (the guard): a chip says "riley + 1", not "riley Ep 6 · +1"; Who's watching
+  keeps "Watches it" (no "Ep 6 of 10" bars or "3 ahead"); Episodes doesn't say "2 on the couch watched"; the drop plate says who's
+  "waiting for it" (they follow it), not who's "starting it then". The drop plate's tag is the plate's ink, not yellow (the yellow rule:
+  the Continue tag stays the mock's yellow, your next episode being yours to watch). Rate it and Call it are Tonight's Extras as on any
+  show, not a block of their own ("Every episode"); Call it doesn't come for a streaming season after its drop (Noticed). The solo hub
+  has the rail too.
+- **Checks:** `scripts/dev-test/check-new-streaming.js <outDir> [--width=390] [--keep] [--api]` (80 PASS at 390 and at 1280) on
+  new-fixture.js, the new **`streaming-fixture.js`** (ZT Severed alex is on 3 of, ZT Fresh Drop sam's two days old, ZT Old Wire a
+  finished weekly season jordan watches with his planned night, ZT Done Binge alex finished and riley streams, ZT Coming Soon dropping in
+  three days, ZT Alone Binge alex finished alone, ZT Secret Stream sam's private one; plus riley's planned night on Severed) and
+  solo-fixture.js: the headers' drop and service, never on the air (a drop five minutes old included), the plan sheet with no live
+  airing, privacy (sam's private one, casey's other couch, no progress in the members), On now on a streaming season; then the browser
+  as alex (the rail's order, ranks, tags, who-lines, ＋ only on what isn't his, no Preview, Up next, posters, The couch is watching, the
+  guide's drop card, See all, each show space, the plan sheet, Episodes, the ＋ to the where sheet staying on the hub, a chip opening its
+  show, the drop arriving), sam (his private one), casey and zt_so_alex (the solo hub's Streaming). `tests/streaming.test.js` (7) and
+  `tests/guide.test.js` (10: a streaming card is never On now). The rest pass, one at a time: check-new-watch-along (276),
+  -episode-games (285), -plans (104), -listings (75), -guide (57), -library (91), -start-game (75), -make-it (81), -watching (114), -solo
+  (92), -way-in (85), -couches (114), -hub (77), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100), -community (82),
+  -backstage (67), -backstage-ii (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview
+  (only step 15's Previews left) and check-backup-restore; `npm test` 627 of 627; type-check clean; lint (src) as before (the old error
+  in classic's `use-sheet-swipe.ts` and the old warning in `episode-results.ts`). Seen at 390 in the browser: the rail and See all, the
+  drop plate, each kind of Tonight, the plan sheet before a drop, Episodes before and after a drop, the ＋'s where sheet, the solo hub's
+  Streaming.
+- **Noticed, left as is:** four, now in Noticed, not fixed: Call it skips a streaming season after its drop, the desk can't make a season
+  a streaming drop, where you are says "Premieres" before a drop, and a drop never takes Up next. Nobody's progress on a show you watch
+  now says the rail keeps to it; the fold, Also on's daily streaming shows and first to finish are part 2's.
+- **For part 2:** the fold (chat-fold.ts `foldFor`/`isFolded`, couch-chat.ts; classic's chat routes share `src/lib/server/chat.ts`, so
+  a message's author mark is written in one place), first to finish (couch-standings.ts `accoladesOf`, couch-hub.ts `accoladesFor`;
+  `show_follows` has no time of reaching an episode yet), and Also on's streaming listings (tv-listings.ts `alsoOn`/`scheduleRows`).
+  `ownPace` (src/lib/game/streaming.ts) says which seasons fold by progress. Migration 0134 is next.
 
 ## Step C: cutover
 

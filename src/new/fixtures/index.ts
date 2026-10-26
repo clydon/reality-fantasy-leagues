@@ -7,6 +7,6 @@
 //   export const STEP = "8";
 //
 // `node scripts/dev-test/check-preview.js` lists every module by its STEP and fails once that step is marked done
-// in the plan's Status. At step C this folder is empty and goes. people.ts holds the demo people and the mock's
-// pictures (public/mock/showcase) that the others share.
+// in the plan's Status. At step C this folder is empty and goes. (The last fixtures, the streaming rail's and the demo
+// people they shared, went in step 14 part 1.)
 export {};

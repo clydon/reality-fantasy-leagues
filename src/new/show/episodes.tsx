@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, Clock, Eye } from "lucide-react";
-import { airTime } from "../clock";
+import { airTime, dayOf } from "../clock";
 import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverWeek } from "../data";
 import { gameColour, ordinal } from "../games";
-import type { ShowData } from "../screens/show-space";
+import { episodesOf, type ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { ShowArt } from "../ui/show-bar";
 import { first } from "./moves";
@@ -29,6 +29,8 @@ import { playsWaivers, WaiverEpisodeRow } from "./waivers";
 // shared check made to the couch's games is a line of its own at the top, and a plate on the episode's page, which ends
 // with "Something wrong in this episode?" (step 6b, something-wrong.tsx). Each episode you've seen carries the couch's verdict
 // and your stars (step 12 part 1, rate.tsx): a show you only watch opens Rate it from the row, a show you play from its page.
+// A streaming season (step 14; the mock's streaming.js wEpisodes): the drop instead of this week's episode, "All 8 out ·
+// Netflix", and a season you only watch from Episode 1 down, the way you'll watch it.
 
 /** "3 of 4 lineups set · 2 of 4 picked": who's set for the next episode in your games here, a line per kind. */
 function progressLine(show: ShowData): string | null {
@@ -63,11 +65,25 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   const weeks = (n: number) => (wv.data?.games ?? []).filter((w) => (w.run?.episode ?? w.period?.episode) === n && (w.run || (w.stage === "open" && (w.replace.length || w.swapsAllowed))));
   const waiverRows = (list: WaiverWeek[]) =>
     list.map((w) => <WaiverEpisodeRow key={w.leagueId} seasonId={seasonId} week={w} many={(wv.data?.games.length ?? 0) > 1} />);
+  const n = episodesOf(show);
+  const network = show.header?.show.network;
+  // A streaming season: Up next is its drop, until it's out (schedule.ts upNext); then, watched without a game of yours, the
+  // episodes in the order you'll watch them.
+  const drop = show.streaming && up && t != null;
+  const list = eps ? (show.streaming && !show.plays ? [...eps.episodes].reverse() : eps.episodes) : [];
+  const aside = show.streaming
+    ? drop
+      ? `${n ? `All ${n} drop` : "Drops"} ${dayOf(t!)}`
+      : `${n ? `All ${n} out` : "All out"}${network ? ` · ${network}` : ""}`
+    : eps?.stillIn != null
+      ? `${eps.stillIn} still in`
+      : null;
   return (
     <>
-      {up && show.header && (
+      {/* A streaming season's drop is the list's own line (below), not this week's episode. */}
+      {up && show.header && !drop && (
         <Block title={`Episode ${up.number}`} aside={up.live ? "On now" : "This week"}>
-          <div className="flex items-center gap-3 rounded-[4px] bg-card p-2.5">
+          <div className="flex items-center gap-3 rounded-[4px] bg-card p-2.5" data-ep-up={up.number}>
             <ShowArt seasonId={seasonId} artUrl={show.header.show.artUrl} name={show.header.show.name} className="h-[60px] w-24 flex-none rounded-[3px] text-[13px]" />
             <div className="min-w-0">
               <b className="type-caption block text-[19px]">{up.live ? "On air now" : t != null ? `Airs ${airTime(t)}` : "Up next"}</b>
@@ -100,7 +116,11 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
       <section className="mt-[26px] px-4">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <h2 className="type-caption text-[24px]">Every episode</h2>
-          {eps?.stillIn != null && <span className="text-[13px] text-muted-foreground">{eps.stillIn} still in</span>}
+          {aside && (
+            <span data-episodes-aside className="text-[13px] text-muted-foreground">
+              {aside}
+            </span>
+          )}
         </div>
         {!eps ? (
           <div aria-busy className="h-56 animate-pulse rounded-[4px] bg-card" />
@@ -109,7 +129,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
             {(eps.corrections ?? []).map((c) => (
               <CorrectionRow key={`${c.episode}-${c.decisionId}`} c={c} />
             ))}
-            {eps.episodes.map((e) => (
+            {list.map((e) => (
               <div key={e.number} className="contents">
                 {waiverRows(weeks(e.number))}
                 {e.status === "hidden" ? (
@@ -117,19 +137,23 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 ) : e.status === "waiting" ? (
                   <WaitingRow e={e} />
                 ) : e.status === "aired" ? (
-                  <AiredRow e={e} solo={show.solo} onRate={() => openRate(rateFor(e.number))} />
+                  <AiredRow e={e} solo={show.solo} streaming={show.streaming} onRate={() => openRate(rateFor(e.number))} />
                 ) : (
                   <SeenRow e={e} solo={show.solo} />
                 )}
               </div>
             ))}
-            {eps.episodes.length === 0 && <p className="border-t border-border py-4 text-sm text-muted-foreground">Nothing has aired yet.</p>}
+            {eps.episodes.length === 0 && !(drop && eps.toAir) && <p className="border-t border-border py-4 text-sm text-muted-foreground">Nothing has aired yet.</p>}
             {eps.toAir && (
-              <div className="flex min-h-[68px] items-center gap-3 border-y border-border opacity-60">
+              <div data-ep-to-air={drop ? "drop" : eps.toAir.from} className="flex min-h-[68px] items-center gap-3 border-y border-border opacity-60">
                 <span className="type-num w-7 text-[28px] text-muted-foreground">{eps.toAir.from}</span>
                 <span className="min-w-0 flex-1">
                   <b className="block text-base font-semibold">
-                    {eps.toAir.to ? `+ ${eps.toAir.to - eps.toAir.from + 1} still to air` : "More to come"}
+                    {drop
+                      ? `Drops ${airTime(t!)}`
+                      : eps.toAir.to
+                        ? `+ ${eps.toAir.to - eps.toAir.from + 1} still to air`
+                        : "More to come"}
                   </b>
                   {eps.toAir.to && eps.toAir.to > eps.toAir.from && (
                     <small className="mt-0.5 block text-[13px] text-muted-foreground">
@@ -170,14 +194,15 @@ function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
 
 /** An episode of a show you only watch, with no results to show (step 10): when it aired, and whether you've seen it. One
  *  you've seen opens Rate it (step 12 part 1), with the couch's verdict on the row. */
-function AiredRow({ e, solo, onRate }: { e: EpisodeRow; solo: boolean; onRate: () => void }) {
+function AiredRow({ e, solo, streaming, onRate }: { e: EpisodeRow; solo: boolean; streaming?: boolean; onRate: () => void }) {
   const body = (
     <>
       <span className={`type-num w-7 text-[28px] ${e.watched ? "" : "text-muted-foreground"}`}>{e.number}</span>
       <span className="min-w-0 flex-1">
         <b className="block text-base font-semibold">{e.title ?? `Episode ${e.number}`}</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
-          {e.airAt ? `Aired ${airTime(Date.parse(e.airAt))} · ` : ""}
+          {/* A streaming season's all came out at once: when isn't news. */}
+          {e.airAt && !streaming ? `Aired ${airTime(Date.parse(e.airAt))} · ` : ""}
           {e.watched ? "You've seen it" : "Not seen yet"}
         </small>
       </span>

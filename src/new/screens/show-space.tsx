@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { BookOpen, CalendarDays, Ellipsis, EyeOff, Eye, KeyRound, Bell, LogOut, Plus, RotateCcw, Tv, UserPlus, Users, X } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
-import { chatCouch, gameAdmin, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
+import { chatCouch, gameAdmin, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader } from "../data";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
@@ -34,6 +34,7 @@ import { openWatching, type WhereTarget } from "../watching/sheets";
 import { openStartGame } from "../couch/start-game";
 import { openPlan, PlanIcon } from "../couch/watch-plans";
 import { WatchAlongPage } from "../show/watch-along";
+import { ownPace } from "@/lib/game/streaming";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
@@ -80,6 +81,12 @@ export function useShow(seasonId: string) {
     ready: (space.data ?? cached)?.ready !== false,
     upNext: space.data?.schedule?.upNext ?? cached?.upNext ?? null,
     latestAired: space.data?.schedule?.latestAired ?? cached?.latestAired ?? 0,
+    /** A season that drops every episode at once (step 14): never on the air, watched at your own pace. */
+    streaming: header?.release === "binge",
+    /** Its drop, while it's still to come (ms), else null. */
+    dropAt: header?.release === "binge" && header.dropAt ? Date.parse(header.dropAt) : null,
+    /** Watched at your own pace (step 14): a streaming season, or a finished one nobody plays a game on here. */
+    ownPace: !!header && ownPace({ release: header.release, status: header.status, played: games.length > 0 }),
     moves,
     movesDue: moves.length,
     /** Your games here (game-view.ts), in the couch's order; null until they've come back. */
@@ -125,11 +132,28 @@ export function openWhere(show: ShowData) {
 /** Is this path one of this show's tabs? (Back from a page pushed over the show goes to whichever tab you left.) */
 export const isTabOf = (seasonId: string) => (prev: string) => prev.startsWith(`/show/${seasonId}/`) && isShowTab(prev.split("/")[3] ?? "");
 
+/** How many episodes a season has, as far as anyone knows: its count, else what's out. */
+export const episodesOf = (show: ShowData) => show.header?.episodeCount ?? show.latestAired;
+
+/** "All 8 episodes · Netflix" (the mock's streaming wBar): a season watched at your own pace, once it's out. */
+export function allOut(show: ShowData): string {
+  const n = episodesOf(show);
+  const network = show.header?.show.network;
+  return `${n ? `All ${n} episodes` : "Every episode"}${network ? ` · ${network}` : ""}`;
+}
+
 /** Where the show is, for the show bar: on air, results to reveal or waiting for them, then where the next episode is
- *  (calm days, a ticking clock inside the last day). */
-function useAirStatus(upNext: UpNext | null, latestAired: number, episodeCount: number | null, episodes: SeasonEpisodes | null): ReactNode {
+ *  (calm days, a ticking clock inside the last day). A streaming season (step 14): when it drops, then all of it out. */
+function useAirStatus(show: ShowData): ReactNode {
+  const { upNext, latestAired, episodes } = show;
+  const episodeCount = show.header?.episodeCount ?? null;
   const t = upNext?.airAt ? Date.parse(upNext.airAt) : null;
   const now = useNow(t != null && ticks(t));
+  if (show.streaming && !episodes?.reveal) {
+    if (show.dropAt != null && show.dropAt > now) return ticks(show.dropAt, now) ? `Drops in ${calm(show.dropAt, now)}` : `Drops ${calm(show.dropAt, now)}`;
+    return allOut(show);
+  }
+  if (show.ownPace && !upNext && !episodes?.reveal && !episodes?.waiting) return allOut(show);
   if (upNext?.live) {
     return (
       <>
@@ -153,7 +177,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
   const tab: ShowTab = isShowTab(seg) ? seg : "tonight";
   const show = useShow(seasonId);
   const nav = useNav();
-  const status = useAirStatus(show.upNext, show.latestAired, show.header?.episodeCount ?? null, show.episodes);
+  const status = useAirStatus(show);
   // The Chat tab's badge, every 30 s (the open chat polls its own instead, and reading it clears this).
   const badge = useChatBadge(seasonId, chatCouch(show), show.episodes?.reveal?.episode ?? null, tab !== "chat");
 
@@ -205,7 +229,8 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
 }
 
 /** Tonight's couch line: who's on this show with you, and how many games; on a show with no game here, who on the couch
- *  watches it (the mock's "2 on the couch watch"), and "Not a game yet" on a show nobody's set up. */
+ *  watches it (the mock's "2 on the couch watch"), "Streaming" on a season that drops at once (step 14), and "Not a game yet"
+ *  on a show nobody's set up. */
 function CouchLine({ show }: { show: ShowData }) {
   const games = show.games.length;
   const watchers = games ? null : (show.people ?? []).filter((p) => p.watching || p.playing.length);
@@ -228,6 +253,11 @@ function CouchLine({ show }: { show: ShowData }) {
             ? `${watchers.length} on the couch ${watchers.length === 1 ? "watches" : "watch"}`
             : (show.couch?.name ?? "Your couch")
           : `${show.couch?.name ?? "Your couch"} · ${games} ${games === 1 ? "game" : "games"}`}
+      {show.streaming && (
+        <span data-streaming className="type-caption rounded-[2px] px-[7px] py-[2px] text-[11px] tracking-[0.05em] outline-1 -outline-offset-1 outline-dashed outline-white/60">
+          Streaming
+        </span>
+      )}
       {!show.ready && (
         <span data-not-a-game className="type-caption rounded-[2px] px-[7px] py-[2px] text-[11px] tracking-[0.05em] outline-1 -outline-offset-1 outline-dashed outline-white/60">
           Not a game yet
@@ -331,7 +361,7 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
             <Row
               icon={PlanIcon}
               title="Plan a watch along"
-              detail="Invite the couch for the live airing or a shared start"
+              detail={show.streaming ? "Pick a time and start together; anyone can pause for everyone" : "Invite the couch for the live airing or a shared start"}
               onClick={() => {
                 setOpen(false);
                 openPlan({ kind: "new", seasonId, couchId: show.couch!.id });

@@ -157,12 +157,20 @@ export function PlanPlates({ plans, me }: { plans: WatchPlan[]; me: string }) {
 }
 
 /** Plan a watch along (the mock's w-inv): a quiet row, never yellow. */
-export function PlanInvite({ onClick, line = "Invite the couch for the live airing, or start at the same time" }: { onClick: () => void; line?: string }) {
+export function PlanInvite({
+  onClick,
+  title = "Plan a watch along",
+  line = "Invite the couch for the live airing, or start at the same time",
+}: {
+  onClick: () => void;
+  title?: string;
+  line?: string;
+}) {
   return (
     <button type="button" data-plan-invite onClick={onClick} className="nd-press flex min-h-[64px] w-full items-center gap-3 rounded-[4px] bg-card p-3.5 text-left outline-1 -outline-offset-1 outline-border">
       <UserPlus className="size-6 flex-none text-good" aria-hidden />
       <span className="min-w-0 flex-1">
-        <b className="block text-[16px]">Plan a watch along</b>
+        <b className="block text-[16px]">{title}</b>
         <small className="block text-[13px] leading-snug text-muted-foreground">{line}</small>
       </span>
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
@@ -229,10 +237,10 @@ const dayWord = (day: number, now: number) => {
   return d === 0 ? "Tonight" : d === 1 ? "Tomorrow" : d < 7 ? dayOf(day) : `${dayOf(day)} ${dateOf(day)}`;
 };
 
-/** An episode chip's line: "Ep 6 · Thu", "Ep 7 · Nov 5", "Ep 4 · aired", "Ep 6 · planned". */
-const episodeChip = (e: PlanEpisode, now: number) => {
+/** An episode chip's line: "Ep 6 · Thu", "Ep 7 · Nov 5", "Ep 4 · aired" (a streaming season's: "out"), "Ep 6 · planned". */
+const episodeChip = (e: PlanEpisode, now: number, streaming = false) => {
   if (e.planned) return `Ep ${e.number} · planned`;
-  if (e.aired) return `Ep ${e.number} · aired`;
+  if (e.aired) return `Ep ${e.number} · ${streaming ? "out" : "aired"}`;
   const at = Date.parse(e.airAt!);
   const d = dayDiff(at, now);
   return `Ep ${e.number} · ${d === 0 ? "tonight" : d === 1 ? "tomorrow" : d < 7 ? dayOf(at) : dateOf(at)}`;
@@ -334,7 +342,7 @@ function PlanForm({ o, episode: asked }: { o: PlanOptions; episode: number | nul
           <div className={ROW} data-plan-episodes>
             {o.episodes.map((x) => (
               <Chip key={x.number} on={x.number === e.number} data-plan-episode={x.number} onClick={() => setEpisode(x.number)} className="flex-none whitespace-nowrap">
-                {episodeChip(x, now)}
+                {episodeChip(x, now, o.release === "binge")}
               </Chip>
             ))}
           </div>
@@ -365,7 +373,11 @@ function PlanForm({ o, episode: asked }: { o: PlanOptions; episode: number | nul
               on={how === "start"}
               dot="var(--good)"
               title="Start at the same time"
-              line={e.live ? "Streaming · one shared clock · anyone can pause for everyone" : `${o.release === "binge" ? "It's streaming" : `Episode ${e.number} has aired`} · one shared start · anyone can pause for everyone`}
+              line={
+                e.live
+                  ? "Streaming · one shared clock · anyone can pause for everyone"
+                  : `${o.release === "binge" ? (e.aired || !e.airAt ? "It's streaming" : `It drops ${airTime(Date.parse(e.airAt))}`) : `Episode ${e.number} has aired`} · one shared start · anyone can pause for everyone`
+              }
               data-how="start"
               onClick={() => setHow("start")}
             />

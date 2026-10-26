@@ -97,11 +97,20 @@ export async function seasonSchedules(seasonIds: string[], now = new Date()): Pr
   return out;
 }
 
-/** The episode on now or coming up next (the first that hasn't finished), and whether it's on now. */
+/**
+ * The episode on now or coming up next (the first that hasn't finished), and whether it's on now. A streaming season that drops
+ * every episode at once (step 14) is never on: before the drop its first episode is up next, from the drop on nothing is (they're
+ * all out, to watch at your own pace), so no On now, no live watch along and no live airing to plan.
+ */
 export function upNext(schedule: SeasonSchedule | undefined, now = new Date()): (ScheduledEpisode & { live: boolean }) | null {
+  const binge = schedule?.release === "binge";
   for (const ep of schedule?.episodes ?? []) {
     if (!ep.airAt) continue;
     const start = new Date(ep.airAt).getTime();
+    if (binge) {
+      if (start > now.getTime()) return { ...ep, live: false };
+      continue;
+    }
     const end = start + (ep.runtimeMin ?? DEFAULT_RUNTIME_MIN) * 60_000;
     if (end > now.getTime()) return { ...ep, live: start <= now.getTime() };
   }

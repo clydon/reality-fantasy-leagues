@@ -17,9 +17,21 @@ export interface SeasonHeader {
   premiereDate: string | null;
   /** How it's released: weekly (or nightly), or a streaming drop (step 14). */
   release: "weekly" | "nightly" | "binge";
+  /** When a streaming season drops every episode (step 14), else null. */
+  dropAt: string | null;
   /** Set up as a game (shows.set_up_at, step 10): false is "Not a game yet", a show someone added to follow. */
   ready: boolean;
-  show: { id: string; slug: string; name: string; kind: string; artUrl: string | null; terms: { castaway: string; tribe: string }; tvmazeId: number | null };
+  show: {
+    id: string;
+    slug: string;
+    name: string;
+    kind: string;
+    artUrl: string | null;
+    terms: { castaway: string; tribe: string };
+    tvmazeId: number | null;
+    /** Where it airs, from its TV listing: the network, else the streaming service ("Netflix"; step 14); null without one. */
+    network: string | null;
+  };
 }
 
 /** Each season's header (show, number, status, art), by season id. */
@@ -29,8 +41,8 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
   if (!ids.length) return out;
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, ss.name, ss.status, ss.episode_count, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date,
-            ss.release, s.set_up_at IS NOT NULL AS ready,
-            s.id AS show_id, s.slug, s.name AS show_name, s.kind, s.art_url, s.castaway_term, s.tribe_term, s.tvmaze_id
+            ss.release, ss.drop_at, s.set_up_at IS NOT NULL AS ready,
+            s.id AS show_id, s.slug, s.name AS show_name, s.kind, s.art_url, s.castaway_term, s.tribe_term, s.tvmaze_id, s.listing->>'network' AS network
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE ss.id = ANY($1::uuid[])`,
     [ids]
@@ -44,6 +56,7 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
       episodeCount: r.episode_count,
       premiereDate: r.premiere_date,
       release: r.release,
+      dropAt: r.drop_at ? new Date(r.drop_at).toISOString() : null,
       ready: r.ready,
       show: {
         id: r.show_id,
@@ -53,6 +66,7 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
         artUrl: r.art_url,
         terms: { castaway: r.castaway_term, tribe: r.tribe_term },
         tvmazeId: r.tvmaze_id ?? null,
+        network: r.network ?? null,
       },
     });
   }

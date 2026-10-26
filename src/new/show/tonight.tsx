@@ -2,13 +2,13 @@
 
 import { useState, type ReactNode } from "react";
 import { Check, ChevronRight, Eye, EyeOff, Grid3x3, Lock, MessageCircle, Plus } from "lucide-react";
-import { airTime, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
+import { airTime, calm, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
 import { backstage, chatCouch, useAfterResults, useChatBadge, useWatchCard, type GameView, type PasteResult } from "../data";
 import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
-import { openWhere, type ShowData } from "../screens/show-space";
+import { episodesOf, openWhere, type ShowData } from "../screens/show-space";
 import { useMe } from "../session";
 import { namesOf } from "../hub/sections";
 import { PlayIt } from "./games";
@@ -44,7 +44,9 @@ import { useSeasonPolls } from "../data";
 // (part 2: calls.tsx, polls.tsx), Weekly Calls' calls a move card; your bingo card in Extras, and in Tonight while it's on (part
 // 3: bingo.tsx), Weekly Bingo's a card in Your moves. Results from
 // everyone (step 6b): a player who has seen an episode with only its early results gets a quiet "Full scores need one
-// paste · Fill it in" when the couch lets anyone fill them in.
+// paste · Fill it in" when the couch lets anyone fill them in. A streaming season (step 14; the mock's streaming.js wTonight):
+// before its drop, the drop plate (every episode at once, when, the countdown); after it, your next episode at your own pace,
+// with Watch along first.
 
 export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
@@ -54,6 +56,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       {playing && <WaiversRanPlate seasonId={seasonId} show={show} />}
       {playing && <CatchUpStrips show={show} onOpen={setCatchUp} />}
       <CatchUpSheet show={show} game={catchUp} onOpenChange={(o) => !o && setCatchUp(null)} />
+      <DropPlate show={show} />
       <PhaseHead show={show} />
       {!playing && <Following show={show} />}
       {playing && <AfterEpisode seasonId={seasonId} show={show} />}
@@ -73,7 +76,8 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
   );
 }
 
-/** "Episode 6 · Wed 8:05 PM · in 4 days", "On air · Episode 6 · Locked at 8:05 PM". */
+/** "Episode 6 · Wed 8:05 PM · in 4 days", "On air · Episode 6 · Locked at 8:05 PM"; at your own pace (step 14), "Episode 4 ·
+ *  Your own pace" or "You finished it". Before a streaming drop the drop plate says it all. */
 function PhaseHead({ show }: { show: ShowData }) {
   const up = show.upNext;
   const t = up?.airAt ? Date.parse(up.airAt) : null;
@@ -81,10 +85,20 @@ function PhaseHead({ show }: { show: ShowData }) {
   let title: ReactNode;
   let aside: string | null = null;
   const eps = show.episodes;
+  const n = episodesOf(show);
+  if (show.dropAt != null && show.dropAt > now) return null;
   if (!up?.live && (eps?.reveal || eps?.waiting)) {
     // An episode's results come first: in (to reveal), or not yet.
     title = `Episode ${eps.reveal?.episode ?? eps.waiting!.episode}`;
     aside = eps.reveal ? (eps.reveal.stage === "early" ? "Early results" : "Results") : justAired(eps.waiting!.airAt) ? "Just aired" : "Aired";
+  } else if (show.ownPace && !up) {
+    const seen = show.following || show.plays ? show.seenThrough : null;
+    aside = "Your own pace";
+    if (seen == null) title = n ? `All ${n} episodes are out` : "Every episode is out";
+    else if (n && seen >= n) {
+      title = "You finished it";
+      aside = `All ${n} episodes`;
+    } else title = `Episode ${seen + 1}`;
   } else if (up?.live) {
     title = (
       <>
@@ -103,10 +117,36 @@ function PhaseHead({ show }: { show: ShowData }) {
     aside = show.latestAired ? "Aired" : null;
   }
   return (
-    <div className="mx-4 mt-[18px] flex items-baseline justify-between gap-3 border-b border-border pb-2.5">
+    <div data-phase className="mx-4 mt-[18px] flex items-baseline justify-between gap-3 border-b border-border pb-2.5">
       <b className="type-caption flex items-center gap-2 text-[22px]">{title}</b>
       {aside && <span className="text-sm text-muted-foreground">{aside}</span>}
     </div>
+  );
+}
+
+/** Before a streaming season drops (step 14; the mock's b-dropbox): every episode at once, when, the countdown (calm days, then
+ *  the clock inside the last day), the service, and who on the couch is waiting for it (who follows it openly: nothing more). */
+function DropPlate({ show }: { show: ShowData }) {
+  const me = useMe();
+  const at = show.dropAt;
+  const now = useNow(at != null && ticks(at));
+  if (at == null || at <= now || !show.header) return null;
+  const n = episodesOf(show);
+  const who = (show.people ?? []).filter((p) => p.userId !== me.id && p.watching).map((p) => p.name);
+  const line = [show.header.show.network, show.solo ? null : who.length ? `${namesOf(who)} ${who.length === 1 ? "is" : "are"} waiting for it` : "Be the first on the couch"];
+  return (
+    <section className="mt-[18px] px-4">
+      <div data-drop-plate className="flex flex-col gap-1 rounded-[4px] bg-plate p-3.5 text-plate-foreground shadow-plate">
+        <span className="type-caption self-start bg-plate-foreground py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] text-plate [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
+          {n ? `All ${n} episodes at once` : "Every episode at once"}
+        </span>
+        <b className="type-caption mt-1 text-[30px] leading-none">Drops {airTime(at)}</b>
+        <span data-drop-countdown className="type-num text-[34px] leading-none">
+          {calm(at, now)}
+        </span>
+        <small className="text-[13px] leading-snug text-plate-muted">{line.filter(Boolean).join(" · ")}</small>
+      </div>
+    </section>
   );
 }
 
@@ -133,9 +173,16 @@ function Following({ show }: { show: ShowData }) {
                 ))}
             </span>
           )}
-          <b className="text-[17px] leading-tight">{who.length ? `${namesOf(who)} ${who.length === 1 ? "watches" : "watch"} this` : "Not on your shows"}</b>
+          <b className="text-[17px] leading-tight">
+            {who.length ? `${namesOf(who)} ${show.streaming ? (who.length === 1 ? "is streaming" : "are streaming") : who.length === 1 ? "watches" : "watch"} this` : "Not on your shows"}
+          </b>
           <small className="text-[13.5px] leading-snug text-muted-foreground">
-            Add it and the couch sees you watch it (or watch privately). Nothing past your episode ever shows.
+            {/* A streaming season has an Up next only before its drop (schedule.ts upNext). */}
+            {show.streaming && show.dropAt != null && show.upNext
+              ? `All ${episodesOf(show) || "its"} episodes drop ${airTime(show.dropAt)}. Add it and it's on your list, ready; nothing past your episode ever shows.`
+              : show.streaming && who.length
+                ? `All ${episodesOf(show) || "its"} episodes are out. Add it to watch along with their reactions, at your own pace.`
+                : "Add it and the couch sees you watch it (or watch privately). Nothing past your episode ever shows."}
           </small>
           <Btn wide className="mt-1" data-follow-add onClick={() => openWhere(show)}>
             <Plus className="size-5" aria-hidden />
@@ -170,7 +217,7 @@ function WhosWatching({ show }: { show: ShowData }) {
   const others = list.filter((p) => p.userId !== me.id).length;
   const gameOf = (id: string) => show.games.find((g) => g.leagueId === id)?.gameName;
   return (
-    <Block title="Who's watching" aside={`${list.length} on the couch`}>
+    <Block title="Who's watching" aside={show.ownPace ? `${list.length} · at their own pace` : `${list.length} on the couch`}>
       <div data-whos-watching>
         {list.map((p) => {
           const you = p.userId === me.id;
@@ -669,10 +716,19 @@ function PlannedNights({ seasonId, show }: { seasonId: string; show: ShowData })
   if (show.solo || !couchId || !show.header) return null;
   const plans = (show.home?.plans ?? []).filter((p) => p.couchId === couchId && p.seasonId === seasonId);
   const next = show.upNext?.number ?? (show.seenThrough ?? show.latestAired) + 1;
+  // A season watched at your own pace that you've finished has no next episode to plan (step 14).
+  const finished = show.ownPace && !show.upNext && episodesOf(show) > 0 && next > episodesOf(show);
   return (
     <section className="mt-2.5 flex flex-col gap-2.5 px-4" data-planned-nights>
       <PlanPlates plans={plans} me={me.id} />
-      {!plans.some((p) => p.episode === next) && <PlanInvite onClick={() => openPlan({ kind: "new", seasonId, couchId })} />}
+      {!finished && !plans.some((p) => p.episode === next) && (
+        <PlanInvite
+          onClick={() => openPlan({ kind: "new", seasonId, couchId })}
+          // A season watched at your own pace has no live airing (step 14): a night is a shared start, the premiere's from its drop.
+          title={show.streaming && show.upNext ? "Plan a watch along for the premiere" : undefined}
+          line={show.ownPace || show.streaming ? "Pick a time, start at the same moment, anyone can pause" : undefined}
+        />
+      )}
     </section>
   );
 }

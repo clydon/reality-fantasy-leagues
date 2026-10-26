@@ -127,7 +127,10 @@ export function WatchAlongCard({ seasonId, show, place }: { seasonId: string; sh
   const card = useWatchCard(seasonId, couchId, !!show.header);
   const open = useOpenWatch();
   const c = card.data;
-  if (!show.header || !c?.episode || (c.status === "live") !== (place === "lead")) return null;
+  // It leads Tonight while the episode's on, and always on a season watched at your own pace (step 14: the mock's streaming wTonight).
+  const leads = c?.status === "live" || (show.ownPace && c?.status === "aired");
+  // Before a streaming drop, Tonight's drop plate says when; there's nothing to open yet.
+  if (!show.header || !c?.episode || leads !== (place === "lead") || (show.streaming && c.status === "soon")) return null;
   const t = c.airAt ? Date.parse(c.airAt) : null;
   const left = leftLine(
     c.people.map((p) => p.name),
@@ -170,6 +173,8 @@ export function WatchAlongCard({ seasonId, show, place }: { seasonId: string; sh
           </>
         ) : c.status === "soon" && t != null ? (
           `Live · ${airTime(t)}`
+        ) : show.ownPace ? (
+          `Episode ${c.episode} · your own pace`
         ) : (
           `Episode ${c.episode}`
         )}

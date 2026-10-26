@@ -89,6 +89,16 @@ test("a streaming season dropping every episode at once is one card: All 8 drop"
   assert.equal(G.episodeLine(wed.slots[0]), "S1 · 8 episodes");
 });
 
+test("a streaming season is never On now, not even a single episode out minutes ago (step 14)", () => {
+  const one = [{ number: 1, airAt: iso(26, 17, 50), runtimeMin: 50 }];
+  const [today] = G.guideWeek([show({ seasonId: "special", release: "binge", tie: "watches", week: one })], NOW);
+  assert.equal(today.slots.length, 1);
+  assert.equal(today.slots[0].drop, null, "one episode isn't a drop of many");
+  assert.equal(today.slots[0].live, false);
+  const [weekly] = G.guideWeek([show({ seasonId: "weekly", week: one })], NOW);
+  assert.equal(weekly.slots[0].live, true, "the same episode on a weekly show is on now");
+});
+
 test("the due dot is on the episode a move is for; nothing past the week; Next up when today is empty", () => {
   const week = G.guideWeek(
     [

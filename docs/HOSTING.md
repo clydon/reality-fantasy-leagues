@@ -288,6 +288,13 @@ shared start, the live airing's airtime) doesn't poll. Hearing the people in it 
 reactions read, not another read. By the numbers' two new accolades (most reactions, most watch alongs) are two small grouped queries
 more in the hub's read. Not backed up: as part 2's sessions (a session goes with its night when a restore replaces the night).
 
+**Streaming shows and the rail (new design, step 14 part 1)** add no read, no poll, nothing on a schedule and no table. The rail
+under the guide is worked out in the browser from what the hub reads already: the home read (your shows, the couch's, who on the couch
+streams each openly, the couch's planned nights) and the hub's On now (`/api/couches/[id]/now`, read when the hub opens, which The couch
+is watching already asked for; the solo hub has no couch and doesn't ask). Every season header now carries its drop time
+(`show_seasons.drop_at`) and its listing's service (`shows.listing->>'network'`): two short fields more per season in the home, space and
+couch reads, a few dozen bytes each. A streaming season is never "on the air" (`schedule.ts upNext`), which only takes things away.
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub, 14 in a watch along while its clock runs (its own 12, and the 2 of the show space's Chat badge under it), 5 while
@@ -655,3 +662,6 @@ never handles it: the user does the reset and the pasting.
   four columns on `watch_sessions` (`plan_id`, who last changed the clock, how, when) and an index; still not backed up. The hub's read
   gains two small grouped queries (By the numbers' most reactions and most watch alongs). Bingo's read gains one small query while you're
   in a together session (who's in it and what they've ticked since it began).
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 14 part 1, streaming shows and the rail. **Nothing new: no read, no
+  poll, nothing on a schedule, no migration, no pushes.** The rail is drawn from the hub's home read and its On now read; season headers
+  carry two more short fields (the drop time and the listing's service).

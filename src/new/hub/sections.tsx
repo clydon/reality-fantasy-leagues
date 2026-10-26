@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChartColumn, ChevronRight, Crown, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
 import { START_EARLY_MS } from "@/lib/game/watch-along";
+import { ownPace } from "@/lib/game/streaming";
 import {
   plansApi,
   useAfterWatching,
@@ -153,7 +154,8 @@ function WhoIsSet({ progress }: { progress: WeekProgress }) {
 
 /**
  * The show to put up next, needs-you first: results in to reveal, then the show your soonest move is for, then the one
- * on now, then the soonest to air.
+ * on now, then the soonest to air. A streaming drop never takes its countdown (step 14, the mock's heroPick): its home is the
+ * rail; only something it needs of you puts it here.
  */
 export function nextShow(home: Home): HomeShow | null {
   const reveal = revealing(home)[0];
@@ -162,7 +164,7 @@ export function nextShow(home: Home): HomeShow | null {
     const s = showOfMove(home, m);
     if (s) return s;
   }
-  const on = home.shows.filter((s) => s.upNext?.airAt);
+  const on = home.shows.filter((s) => s.upNext?.airAt && s.release !== "binge");
   on.sort((a, b) => Number(b.upNext!.live) - Number(a.upNext!.live) || Date.parse(a.upNext!.airAt!) - Date.parse(b.upNext!.airAt!));
   return on[0] ?? null;
 }
@@ -382,7 +384,16 @@ const placeOf = (rank: string) => Number(rank.replace(/^T/, ""));
  */
 function Poster({ show, due, places }: { show: HomeShow; due: boolean; places: PlayingGame[] }) {
   const [flipped, setFlipped] = useState(false);
-  const night = show.upNext?.airAt ? new Date(show.upNext.airAt).toLocaleDateString("en-US", { weekday: "short" }) : null;
+  const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { weekday: "short" });
+  // A streaming season (step 14): the day it drops, then the service it's on (the mock's poster).
+  const night =
+    show.release === "binge"
+      ? show.upNext?.airAt
+        ? `drops ${day(show.upNext.airAt)}`
+        : (show.show.network ?? null)
+      : show.upNext?.airAt
+        ? day(show.upNext.airAt)
+        : null;
   const ranked = places.filter((p) => p.rank);
   const best = ranked.length ? Math.min(...ranked.map((p) => placeOf(p.rank!))) : null;
   const face = "absolute inset-0 overflow-hidden rounded-[4px] shadow-[0_12px_26px_rgba(0,0,0,.45)] [backface-visibility:hidden]";
@@ -590,8 +601,8 @@ export function BothWatch({ home, couch }: { home: Home; couch: Couch | null }) 
 type Watched = { s: HomeShow | CouchShow; yours: boolean; who: { userId: string; name: string }[] };
 
 /** What the couch watches (the mock's watching.js couchWatchHTML): weekly shows someone else on the couch follows openly,
- *  the ones not on your list first, then the most watched. A streaming drop is step 14's rail, and a show the couch plays
- *  is already on Your shows with its games. */
+ *  the ones not on your list first, then the most watched. A streaming drop, or a finished season watched at your own pace, is
+ *  the streaming rail's (step 14: streaming.tsx), and a show the couch plays is already on Your shows with its games. */
 export function couchWatching(home: Home, couch: Couch | null): Watched[] {
   if (!couch) return [];
   const played = new Set(couch.games.map((g) => g.seasonId));
@@ -600,7 +611,7 @@ export function couchWatching(home: Home, couch: Couch | null): Watched[] {
     ...home.shows.filter((s) => s.following || s.games.length).map((s) => ({ s, yours: true, who: watchersOn(couch, home.user.id, s.seasonId) })),
   ];
   return all
-    .filter((x) => x.who.length > 0 && x.s.release !== "binge" && !played.has(x.s.seasonId))
+    .filter((x) => x.who.length > 0 && !played.has(x.s.seasonId) && !ownPace({ release: x.s.release, status: x.s.status, played: "games" in x.s && x.s.games.length > 0 }))
     .sort((a, b) => Number(a.yours) - Number(b.yours) || b.who.length - a.who.length || a.s.show.name.localeCompare(b.s.show.name));
 }
 

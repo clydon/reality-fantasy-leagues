@@ -14,10 +14,11 @@ import { PoolCard, PracticeCard, PracticeSheet, poolShown, practiceShown, type P
 import { openTrivia } from "../show/trivia";
 import { Foot, nextShow, StatusLine, UpNext, YourShows } from "./sections";
 import { Guide } from "./guide";
+import { StreamingRail } from "./streaming";
 
 // The solo hub (docs/PLAN-new-design.md step 9 part 3; the mock's round2.js soloHub + solo.js): someone on no couch, first
 // run's "Just me for now". Welcome, Watching solo (start a couch), what's due and Up next when something is, the guide
-// (step 11), your shows, Play on your own (each show's public pool and your practice couch: real), On your own (Watch along on
+// (step 11), Streaming (your shows without an airtime, step 14), your shows, Play on your own (each show's public pool and your practice couch: real), On your own (Watch along on
 // one of your shows since step 13 part 1; this week's trivia on one of your shows since step 12 part 3; Who's scoring is the cast), Better with
 // friends (the season games, and Start a couch), the foot.
 
@@ -56,6 +57,7 @@ export function SoloHub({ home }: { home: Home }) {
         </div>
       )}
       <Guide home={home} couch={null} />
+      <StreamingRail home={home} couch={null} />
       <YourShows home={home} hub={undefined} />
       <PlayOnYourOwn home={home} />
       <OnYourOwn home={home} />

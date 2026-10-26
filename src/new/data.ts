@@ -122,6 +122,8 @@ export interface SeasonHeader {
   premiereDate: string | null;
   /** Weekly (or nightly), or a streaming drop (step 14). */
   release?: "weekly" | "nightly" | "binge";
+  /** When a streaming season drops every episode (step 14), else null. */
+  dropAt?: string | null;
   /** Set up as a game (step 10): false is "Not a game yet", a show someone added to follow. */
   ready?: boolean;
   show: {
@@ -133,6 +135,8 @@ export interface SeasonHeader {
     terms: { castaway: string | null; tribe: string | null };
     /** Its TV listing (step 10), so the guide knows the same show in the listings (step 11). */
     tvmazeId?: number | null;
+    /** Where it airs, from its listing: the network, else the streaming service (step 14). */
+    network?: string | null;
   };
 }
 

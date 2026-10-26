@@ -141,7 +141,8 @@ export function guideCards(shows: GuideShow[], now: number): GuideCard[] {
         numbers,
         at,
         endsAt,
-        live: drop == null && at <= now && now < endsAt,
+        // A streaming season is never on the air (step 14), not even a one-episode drop.
+        live: s.release !== "binge" && at <= now && now < endsAt,
         drop,
         due: s.dueEpisode != null && numbers.includes(s.dueEpisode),
         plan: null,
