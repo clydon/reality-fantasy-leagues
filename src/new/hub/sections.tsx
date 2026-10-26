@@ -603,7 +603,9 @@ function FeedRow({ e }: { e: FeedItem }) {
           ? `started watching ${e.label}`
           : e.kind === "started"
             ? `started ${/^[AEIOU]/.test(e.text ?? "") ? "an" : "a"} ${e.text} · tap to join`
-            : null;
+            : e.kind === "planned"
+              ? "planned a watch along"
+              : null;
   const body = (
     <>
       <Avatar id={e.userId ?? e.name} name={e.name} size={34} />
@@ -615,6 +617,11 @@ function FeedRow({ e }: { e: FeedItem }) {
           <small className="flex-none text-xs text-muted-foreground">{ago(e.at)}</small>
         </span>
         {(e.kind === "revealed" || e.kind === "started") && <span className="mt-0.5 block text-xs text-muted-foreground">{e.label}</span>}
+        {e.kind === "planned" && (
+          <span data-feed-plan className="mt-0.5 block text-xs text-muted-foreground">
+            {e.label} · Ep {e.episode} · {e.how === "live" ? "the live airing" : "starting together"} · {e.startsAt ? airTime(Date.parse(e.startsAt)) : ""} · {e.going} going
+          </span>
+        )}
         {e.kind === "said" && (
           <>
             <span className="mt-[5px] block break-words rounded-[3px] bg-card px-2.5 py-2 text-[15px]">{e.text}</span>
@@ -640,7 +647,7 @@ function FeedRow({ e }: { e: FeedItem }) {
   const cls = "flex items-start gap-2.5 border-t border-border py-[11px] text-left first:border-t-0";
   if (!e.seasonId) return <div data-feed={e.kind} className={cls}>{body}</div>;
   return (
-    <NavLink data-feed={e.kind} href={paths.show(e.seasonId, e.kind === "watching" ? "tonight" : e.kind === "started" ? "games" : "chat")} className={`${cls} nd-press`}>
+    <NavLink data-feed={e.kind} href={paths.show(e.seasonId, e.kind === "watching" || e.kind === "planned" ? "tonight" : e.kind === "started" ? "games" : "chat")} className={`${cls} nd-press`}>
       {body}
     </NavLink>
   );

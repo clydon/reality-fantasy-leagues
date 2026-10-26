@@ -33,6 +33,7 @@ import type { Started, StartOptions } from "@/lib/server/start-game";
 import type { DeletePreview, EndGame } from "@/lib/server/end-game";
 import type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 import type { WeekListing } from "@/lib/game/tv-listings";
+import type { PlanAnswerOut, PlanHow, PlanOptions, WatchPlan } from "@/lib/server/watch-plans";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -65,6 +66,7 @@ export type { MakeReview, MakeState } from "@/lib/server/make-game";
 export type { StartChoice, Started, StartOptions } from "@/lib/server/start-game";
 export type { DeletePreview, EndGame } from "@/lib/server/end-game";
 export type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
+export type { PlanAnswer, PlanEpisode, PlanHow, PlanOptions, PlanPerson, WatchPlan } from "@/lib/server/watch-plans";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -177,6 +179,8 @@ export interface Home {
   backstage: { leagueId: string; leagueName: string; text: string }[];
   /** What you've hidden from the guide (step 11); your own shows always show. */
   guideHidden: HiddenShow[];
+  /** Your couches' planned nights still to come (step 11 part 3): the guide, a show's Tonight. */
+  plans: WatchPlan[];
 }
 
 export interface Space extends SeasonHeader {
@@ -1021,3 +1025,37 @@ export const gamesApi = {
     post<DeletePreview>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "delete", leagueId, preview: true }),
   delete: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "delete", leagueId }),
 };
+
+// ---- planned nights (step 11 part 3; watch-plans.ts): a couch's watch alongs planned ahead. The plans come with the home
+// read; the plan sheet reads what can be planned when it opens. Nothing polls. ----
+
+/** What can be planned on a season for a couch: the episodes, who's on the couch, its plans there. */
+export function usePlanOptions(seasonId: string | null, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "plans", seasonId, couchId],
+    queryFn: () => get<PlanOptions>(seasonUrl(seasonId!, "/plans", { couch: couchId! })),
+    enabled: enabled && !!seasonId && !!couchId,
+    staleTime: 30_000,
+  });
+}
+
+export const plansApi = {
+  plan: (seasonId: string, couchId: string, body: { episode: number; how: PlanHow; startsAt?: string; invite: string[] }) =>
+    post<PlanAnswerOut & { told: number }>(seasonUrl(seasonId, "/plans", { couch: couchId }), body),
+  answer: (planId: string, answer: "in" | "out") => post<PlanAnswerOut>(`/api/plans/${planId}`, { answer }),
+  cancel: (planId: string, cancel: boolean) => post<PlanAnswerOut>(`/api/plans/${planId}`, { cancel }),
+};
+
+/** After a plan, an answer or calling one off: the home's plans put in place (no second read of the home), and the plan sheet's
+ *  read and the hub's feed read again. */
+export function useSetPlans() {
+  const client = useQueryClient();
+  return useCallback(
+    (plans: WatchPlan[]) => {
+      client.setQueryData<Home>(HOME_KEY, (h) => (h ? { ...h, plans } : h));
+      void client.invalidateQueries({ queryKey: ["new-design", "plans"] });
+      void client.invalidateQueries({ queryKey: ["new-design", "couch-hub"] });
+    },
+    [client]
+  );
+}

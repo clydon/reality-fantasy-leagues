@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EyeOff, Plus } from "lucide-react";
-import { episodeLine, eveningAt, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuideShow } from "@/lib/game/guide";
+import { EyeOff, Plus, UserPlus } from "lucide-react";
+import { episodeLine, eveningAt, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuidePlan, type GuideShow } from "@/lib/game/guide";
 import { alsoOn, hitOfListing, listingLine, type AlsoOnDay, type AlsoOnItem } from "@/lib/game/tv-listings";
 import { guide as guideApi, useListingsWeek, useSetGuideHidden, type Couch, type CouchShow, type HiddenShow, type Home } from "../data";
 import { PEOPLE } from "../fixtures/people";
@@ -16,6 +16,7 @@ import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
+import { openPlan, PlanPlates } from "../couch/watch-plans";
 import { ListingsCredit } from "../watching/search";
 import { openWatching } from "../watching/sheets";
 import { namesOf, showOfMove } from "./sections";
@@ -25,7 +26,9 @@ import { namesOf, showOfMove } from "./sections";
 // the home read's `week` (when each episode airs, never a title), laid out by the pure src/lib/game/guide.ts in the phone's
 // own time zone; Hide from guide (guide.ts on the server). Since part 2, Also on: the rest of TV each evening, from the
 // week's listings (/api/listings/week, the same for everyone; src/lib/game/tv-listings.ts leaves out your shows, the
-// couch's and what you've hidden), the most watched few and "N more on TV". The rail is step 14's.
+// couch's and what you've hidden), the most watched few and "N more on TV". Since part 3, the couch's planned nights: a watch
+// along planned for an airing tags its card, one at a time of its own is a card of its own (it opens the plan); a couch
+// show's sheet and a listing's plan one. The rail is step 14's.
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -137,6 +140,34 @@ export function guideShows(home: Home, couch: Couch | null): GuideShow[] {
   return [...yours, ...theirs];
 }
 
+/** The couch's planned nights as the guide takes them: not one you can't make, nor (unless you're in it) one for a show you hid. */
+export function guidePlans(home: Home, couch: Couch | null): GuidePlan[] {
+  if (!couch) return [];
+  const hidden = home.guideHidden ?? [];
+  return (home.plans ?? [])
+    .filter((p) => p.couchId === couch.id && p.you !== "out" && (p.you || !hidden.some((h) => h.showId === p.showId)))
+    .map((p) => ({
+      id: p.id,
+      seasonId: p.seasonId,
+      name: p.name,
+      seasonNumber: p.seasonNumber,
+      artUrl: p.artUrl,
+      episode: p.episode,
+      how: p.how,
+      at: Date.parse(p.startsAt),
+      endsAt: Date.parse(p.endsAt),
+      faces: p.people.filter((x) => x.answer === "in").map((x) => ({ userId: x.userId, name: x.name })),
+      you: p.you === "out" ? null : p.you,
+    }));
+}
+
+/** A planned night's people, on its card: "you + 2", "riley + jordan". */
+function planWho(p: GuidePlan, me: string): string {
+  const others = p.faces.filter((f) => f.userId !== me);
+  if (p.you === "host" || p.you === "in") return others.length ? `you + ${others.length}` : "you";
+  return others.map((f) => f.name).slice(0, 2).join(" + ") + (others.length > 2 ? ` + ${others.length - 2}` : "");
+}
+
 /** What's hidden, less anything that's yours now (your own shows always show). */
 function hiddenNow(home: Home): HiddenShow[] {
   const mine = home.shows.filter((s) => s.following || s.games.length).map((s) => s.show);
@@ -184,7 +215,8 @@ function GuideArt({ id, c, className = "" }: { id: string; c: Pick<GuideCard, "a
   );
 }
 
-function CardBody({ c, now }: { c: GuideCard; now: number }) {
+function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
+  const own = c.key.startsWith("plan:");
   return (
     <>
       <GuideArt id={`guide-${c.key}`} c={c} className={c.tie !== "plays" ? "[filter:saturate(.35)_brightness(.8)]" : ""} />
@@ -203,27 +235,46 @@ function CardBody({ c, now }: { c: GuideCard; now: number }) {
           All {c.drop} drop
         </span>
       )}
+      {/* A planned night (part 3): teal, good news rather than a duty (the mock's b-tag good). */}
+      {c.plan && (
+        <span data-plan-tag className="type-caption mb-1 self-start bg-good py-[3px] pl-1.5 pr-2.5 text-[10px] tracking-[0.06em] text-good-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]">
+          Watch along{own ? ` · Ep ${c.plan.episode}` : ""}
+        </span>
+      )}
       <span className="type-caption line-clamp-2 text-[17px] leading-[.95] [text-shadow:0_1px_8px_rgba(0,0,0,.5)]">{c.name}</span>
       <span className="mt-[3px] flex items-center justify-between gap-1 text-[11px] font-semibold opacity-85">
-        <span className="truncate">{c.at < now && !c.live && !c.drop ? `${episodeLine(c)} · aired` : episodeLine(c)}</span>
+        <span className="truncate">{own ? planWho(c.plan!, me) : c.at < now && !c.live && !c.drop ? `${episodeLine(c)} · aired` : episodeLine(c)}</span>
         <Faces faces={c.faces} />
       </span>
     </>
   );
 }
 
-/** A card: your show opens it (its art grows into the show bar); a couch show you don't follow opens its sheet. */
-function Card({ c, now, height = 104, onCouch }: { c: GuideCard; now: number; height?: number; onCouch: (c: GuideCard) => void }) {
-  const cls = `${CARD} ${c.tie !== "plays" ? DASHED : ""} ${c.tie === "couch" ? FADED : ""}`;
-  const data = { "data-guide-card": c.key, "data-tie": c.tie, "data-live": c.live || undefined, "data-drop": c.drop ?? undefined };
-  const label = `${c.name}, ${c.drop ? `all ${c.drop} episodes drop` : episodeLine(c)}, ${c.live ? "on now" : airTime(c.at)}${c.tie === "couch" ? ", not on your shows" : ""}`;
+/** A card: your show opens it (its art grows into the show bar); a couch show you don't follow opens its sheet; a planned night
+ *  of its own opens the plan. A planned night (or the airing it's for) has a solid teal edge (the mock's b-plan / b-together),
+ *  not faded while you're in it. */
+function Card({ c, now, me, height = 104, onCouch }: { c: GuideCard; now: number; me: string; height?: number; onCouch: (c: GuideCard) => void }) {
+  const own = c.key.startsWith("plan:");
+  const edge = c.plan ? "outline-[1.5px] -outline-offset-[1.5px] outline-solid outline-good" : c.tie !== "plays" ? DASHED : "";
+  const cls = `${CARD} ${edge} ${c.tie === "couch" && !c.plan?.you ? FADED : ""}`;
+  const data = { "data-guide-card": c.key, "data-tie": c.tie, "data-live": c.live || undefined, "data-drop": c.drop ?? undefined, "data-plan": c.plan?.id };
+  const label = own
+    ? `${c.name}, watch along for Episode ${c.plan!.episode}, ${c.live ? "on now" : airTime(c.at)}`
+    : `${c.name}, ${c.drop ? `all ${c.drop} episodes drop` : episodeLine(c)}, ${c.live ? "on now" : airTime(c.at)}${c.plan ? ", a watch along" : ""}${c.tie === "couch" ? ", not on your shows" : ""}`;
+  if (own) {
+    return (
+      <button type="button" {...data} aria-label={label} className={cls} style={{ height }} onClick={() => openPlan({ kind: "plan", planId: c.plan!.id })}>
+        <CardBody c={c} now={now} me={me} />
+      </button>
+    );
+  }
   return c.tie === "couch" ? (
     <button type="button" {...data} aria-label={label} className={cls} style={{ height }} onClick={() => onCouch(c)}>
-      <CardBody c={c} now={now} />
+      <CardBody c={c} now={now} me={me} />
     </button>
   ) : (
     <NavLink href={paths.show(c.seasonId)} channel {...data} aria-label={label} className={cls} style={{ height }}>
-      <CardBody c={c} now={now} />
+      <CardBody c={c} now={now} me={me} />
     </NavLink>
   );
 }
@@ -312,6 +363,7 @@ function Day({
   d,
   i,
   now,
+  me,
   week,
   also,
   onCouch,
@@ -321,6 +373,7 @@ function Day({
   d: GuideDay;
   i: number;
   now: number;
+  me: string;
   week: GuideDay[];
   also: AlsoOnDay | undefined;
   onCouch: (c: GuideCard) => void;
@@ -359,11 +412,11 @@ function Day({
                 <span>{timeOf(sl[0].at)}</span>
               </em>
               {sl.map((c) => (
-                <Card key={c.key} c={c} now={now} height={86} onCouch={onCouch} />
+                <Card key={c.key} c={c} now={now} me={me} height={86} onCouch={onCouch} />
               ))}
             </div>
           ) : (
-            <Card c={sl} now={now} onCouch={onCouch} />
+            <Card c={sl} now={now} me={me} onCouch={onCouch} />
           )}
         </div>
       ))}
@@ -389,7 +442,8 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
   const rolling = useRoll(reel);
   const now = useMinute();
   const shows = useMemo(() => guideShows(home, couch), [home, couch]);
-  const week = useMemo(() => guideWeek(shows, now), [shows, now]);
+  const plans = useMemo(() => guidePlans(home, couch), [home, couch]);
+  const week = useMemo(() => guideWeek(shows, now, undefined, plans), [shows, now, plans]);
   const hidden = hiddenNow(home);
   const listings = useListingsWeek().data?.listings;
   // Also on leaves out your shows, the couch's and what you've hidden: by their listing, or by name for a show here that
@@ -424,7 +478,7 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
         className="mx-2 flex overflow-x-auto pb-1.5 pt-2 [scrollbar-width:none] [mask-image:linear-gradient(90deg,transparent,#000_14px,#000_calc(100%_-_24px),transparent)]"
       >
         {week.map((d, i) => (
-          <Day key={d.offset} d={d} i={i} now={now} week={week} also={also[i]} onCouch={setCouchCard} onListing={setListing} onMore={setEvening} />
+          <Day key={d.offset} d={d} i={i} now={now} me={home.user.id} week={week} also={also[i]} onCouch={setCouchCard} onListing={setListing} onMore={setEvening} />
         ))}
       </div>
       <div data-guide-foot className="flex items-center justify-between gap-3 px-4 pt-1 text-[13px] text-muted-foreground">
@@ -456,7 +510,7 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
         </button>
       </div>
       <CouchShowSheet home={home} couch={couch} card={couchCard} onOpenChange={(o) => !o && setCouchCard(null)} />
-      <ListingSheet l={listing} couch={!!couch} onOpenChange={(o) => !o && setListing(null)} />
+      <ListingSheet l={listing} couchId={couch?.id ?? null} onOpenChange={(o) => !o && setListing(null)} />
       <EveningSheet day={evening} also={evening ? also[evening.offset] : undefined} now={now} onOpenChange={(o) => !o && setEvening(null)} />
       <HiddenSheet open={hiddenOpen} onOpenChange={setHiddenOpen} hidden={hidden} />
     </section>
@@ -477,8 +531,8 @@ function useHide() {
   return run;
 }
 
-/** A couch show you don't follow (the mock's tvShowSheet and episode sheet): when it's on, who watches it, Add to my shows,
- *  Hide from guide, or open it. */
+/** A couch show you don't follow (the mock's tvShowSheet and episode sheet): when it's on, who watches it, the couch's planned
+ *  nights for it (part 3: I'm in), Add to my shows, Plan a watch along, Hide from guide, or open it. */
 function CouchShowSheet({ home, couch, card, onOpenChange }: { home: Home; couch: Couch | null; card: GuideCard | null; onOpenChange: (o: boolean) => void }) {
   const hide = useHide();
   // The last one asked about, kept while the sheet slides away.
@@ -488,6 +542,7 @@ function CouchShowSheet({ home, couch, card, onOpenChange }: { home: Home; couch
   const show: CouchShow | undefined = c ? home.couchShows.find((s) => s.seasonId === c.seasonId) : undefined;
   const who = c ? (couch?.members ?? []).filter((m) => m.userId !== home.user.id && m.watching.includes(c.seasonId)).map((m) => m.name) : [];
   const when = c ? `${c.drop ? `All ${c.drop} drop` : "On"} ${airTime(c.at)} · ${c.seasonNumber != null ? `Season ${c.seasonNumber} · ` : ""}${c.drop ? `${c.drop} episodes` : `Episode ${c.numbers[0]}`}` : undefined;
+  const plans = c && couch ? (home.plans ?? []).filter((p) => p.couchId === couch.id && p.seasonId === c.seasonId) : [];
   return (
     <Sheet open={!!card} onOpenChange={onOpenChange} title={c?.name ?? ""} subtitle={when}>
       {c && (
@@ -505,6 +560,11 @@ function CouchShowSheet({ home, couch, card, onOpenChange }: { home: Home; couch
           <p className="mb-3 text-[15px] leading-snug text-muted-foreground">
             {who.length ? `${namesOf(who)} ${who.length === 1 ? "watches" : "watch"} it.` : "Someone on the couch watches it."} Add it to your shows and the couch sees you do.
           </p>
+          {plans.length > 0 && (
+            <div className="mb-3">
+              <PlanPlates plans={plans} me={home.user.id} />
+            </div>
+          )}
           <div className="flex flex-col gap-2.5">
             <Btn
               tone="ink"
@@ -535,6 +595,19 @@ function CouchShowSheet({ home, couch, card, onOpenChange }: { home: Home; couch
               <Plus className="size-5" aria-hidden />
               Add to my shows
             </Btn>
+            {couch && !plans.some((p) => c.numbers.includes(p.episode)) && (
+              <Btn
+                wide
+                data-guide-plan
+                onClick={() => {
+                  onOpenChange(false);
+                  openPlan({ kind: "new", seasonId: c.seasonId, couchId: couch.id, episode: c.numbers[0] });
+                }}
+              >
+                <UserPlus className="size-5" aria-hidden />
+                Plan a watch along
+              </Btn>
+            )}
             <Btn
               wide
               data-guide-hide
@@ -570,11 +643,13 @@ function useHideListing() {
   return run;
 }
 
-/** Add a TV listing to your shows: where you are in its season (read from the listing), then it's yours. */
-const addListing = (l: AlsoOnItem) => openWatching({ kind: "listing", hit: hitOfListing(l) });
+/** Add a TV listing to your shows: where you are in its season (read from the listing), then it's yours; `then`, once it's here. */
+const addListing = (l: AlsoOnItem, then?: (seasonId: string) => void) => openWatching({ kind: "listing", hit: hitOfListing(l), then });
 
-/** A TV listing (the mock's tvShowSheet): when it's on, Add to my shows, Hide from guide. Nobody on the couch watches it. */
-function ListingSheet({ l, couch, onOpenChange }: { l: AlsoOnItem | null; couch: boolean; onOpenChange: (o: boolean) => void }) {
+/** A TV listing (the mock's tvShowSheet): when it's on, Add to my shows, Plan a watch along (on a couch: it's added to your shows
+ *  first, as a plan needs the show here), Hide from guide. Nobody on the couch watches it. */
+function ListingSheet({ l, couchId, onOpenChange }: { l: AlsoOnItem | null; couchId: string | null; onOpenChange: (o: boolean) => void }) {
+  const couch = !!couchId;
   const hide = useHideListing();
   const [shown, setShown] = useState(l);
   if (l && l !== shown) setShown(l);
@@ -605,6 +680,19 @@ function ListingSheet({ l, couch, onOpenChange }: { l: AlsoOnItem | null; couch:
               <Plus className="size-5" aria-hidden />
               Add to my shows
             </Btn>
+            {couchId && (
+              <Btn
+                wide
+                data-listing-plan
+                onClick={() => {
+                  onOpenChange(false);
+                  addListing(c, (seasonId) => openPlan({ kind: "new", seasonId, couchId }));
+                }}
+              >
+                <UserPlus className="size-5" aria-hidden />
+                Plan a watch along
+              </Btn>
+            )}
             <Btn
               wide
               data-listing-hide

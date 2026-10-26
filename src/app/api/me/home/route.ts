@@ -9,6 +9,7 @@ import { seenThrough } from "@/lib/server/guard";
 import { followsOf, games, seasonHeaders, type Game } from "@/lib/server/show-space";
 import { latestAired, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
 import { hiddenFor, weekOf } from "@/lib/server/guide";
+import { plansFor } from "@/lib/server/watch-plans";
 import { progressOf } from "@/lib/server/season-games";
 import { leagueStates } from "@/lib/server/league-states";
 import { resultsDue } from "@/lib/game/results-due";
@@ -18,7 +19,8 @@ import { resultsDue } from "@/lib/game/results-due";
 // and the moves due across your leagues (due-moves.ts, the same items as the classic action bar), and per show what
 // its results ask of you (step 8: results in to reveal, or the morning update's final scores; results-due.ts), and the
 // couches' shows you don't follow (step 10: The couch is watching). The guide (step 11): each show's episodes around this
-// week (when each starts, never a title) and what you've hidden from it.
+// week (when each starts, never a title) and what you've hidden from it; and your couches' planned nights still to come (part
+// 3, watch-plans.ts: when, which episode and who's in).
 //
 // Spoiler-safe through guard.ts: it says nothing about results beyond that they're in (and at which stage), only when
 // episodes air and how far you are.
@@ -53,6 +55,8 @@ export const GET = apiRoute(async (req) => {
     dueMoves(user.id),
     hiddenFor(user.id),
   ]);
+  // The couches' planned nights (step 11 part 3), with what's been read already.
+  const plans = await plansFor(user.id, couchIds, new Date(), { members, schedules, headers });
   // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash; and each
   // game's state again (a hash each) for what its results ask of you.
   const [progress, states, early, seats] = await Promise.all([
@@ -137,6 +141,8 @@ export const GET = apiRoute(async (req) => {
     backstage: moves.commish,
     // What you've hidden from the guide (step 11): shows here and TV listings; your own shows always show.
     guideHidden,
+    // Your couches' planned nights still to come (step 11 part 3): the guide, a show's Tonight.
+    plans,
   });
 });
 

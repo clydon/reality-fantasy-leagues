@@ -27,10 +27,10 @@ import { WhereAsk, type WhereSeason } from "./where";
 //   where  Where you are in a season (the show space's Change, Add to my shows, The couch is watching's Add): the stepper,
 //          then saved, following it if you weren't.
 //   listing  Add to my shows from a TV listing (the guide's Also on, step 11 part 2): where you are, read from the listing's
-//          season as Add a show does, then added.
+//          season as Add a show does, then added; `then` goes on from there (part 3: Plan a watch along on the show it made).
 
 export type WhereTarget = WhereSeason & { seen: number; following: boolean; plays: boolean };
-type WatchingSheet = { kind: "add" } | { kind: "where"; target: WhereTarget } | { kind: "listing"; hit: ListingHit };
+type WatchingSheet = { kind: "add" } | { kind: "where"; target: WhereTarget } | { kind: "listing"; hit: ListingHit; then?: (seasonId: string) => void };
 
 type Store = { sheet: WatchingSheet | null; n: number };
 let store: Store = { sheet: null, n: 0 };
@@ -71,7 +71,7 @@ export function WatchingSheets() {
     <>
       <AddShowSheet key={`add-${n}`} open={sheet?.kind === "add"} onOpenChange={onOpenChange} />
       <WhereSheet key={`where-${n}`} target={sheet?.kind === "where" ? sheet.target : null} onOpenChange={onOpenChange} />
-      <ListingSheet key={`listing-${n}`} hit={sheet?.kind === "listing" ? sheet.hit : null} onOpenChange={onOpenChange} />
+      <ListingSheet key={`listing-${n}`} hit={sheet?.kind === "listing" ? sheet.hit : null} then={sheet?.kind === "listing" ? sheet.then : undefined} onOpenChange={onOpenChange} />
     </>
   );
 }
@@ -118,7 +118,7 @@ function WhereSheet({ target, onOpenChange }: { target: WhereTarget | null; onOp
 }
 
 /** Add to my shows from a TV listing: where you are in the season adding it would follow, then it's yours. */
-function ListingSheet({ hit, onOpenChange }: { hit: ListingHit | null; onOpenChange: (o: boolean) => void }) {
+function ListingSheet({ hit, then, onOpenChange }: { hit: ListingHit | null; then?: (seasonId: string) => void; onOpenChange: (o: boolean) => void }) {
   const refresh = useAfterWatching();
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(hit);
@@ -138,6 +138,7 @@ function ListingSheet({ hit, onOpenChange }: { hit: ListingHit | null; onOpenCha
                 await refresh();
                 toast(`${r.label} added to your shows${r.ready ? "" : " · not a game yet"}`);
                 close();
+                then?.(r.seasonId);
               } catch (e) {
                 toast((e as Error).message);
               } finally {

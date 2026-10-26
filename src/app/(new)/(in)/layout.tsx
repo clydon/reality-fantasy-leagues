@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { SessionProvider } from "@/new/session";
 import { CouchSheets } from "@/new/couch/couch-sheets";
 import { StartGameSheets } from "@/new/couch/start-game";
+import { PlanSheets } from "@/new/couch/watch-plans";
 import { WatchingSheets } from "@/new/watching/sheets";
 import { paths, START_STEPS } from "@/new/routes";
 
@@ -22,13 +23,14 @@ export default async function SignedInLayout({ children }: { children: React.Rea
     impersonating: !!(session.session as { impersonatedBy?: unknown }).impersonatedBy,
   };
   // The couch sheets (switch, details, invite, start, join, leave: step 9), the watching ones (Add a show, where you are:
-  // step 10) and Start a game (step 10 part 2b) open from anywhere signed in.
+  // step 10), Start a game (step 10 part 2b) and planned nights (step 11 part 3) open from anywhere signed in.
   return (
     <SessionProvider me={me}>
       {children}
       <CouchSheets />
       <WatchingSheets />
       <StartGameSheets />
+      <PlanSheets />
     </SessionProvider>
   );
 }

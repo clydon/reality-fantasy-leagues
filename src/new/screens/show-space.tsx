@@ -32,6 +32,7 @@ import { PoolPage } from "../show/solo";
 import { MakeGamePage, useOpenMake } from "../show/make-game";
 import { openWatching, type WhereTarget } from "../watching/sheets";
 import { openStartGame } from "../couch/start-game";
+import { openPlan, PlanIcon } from "../couch/watch-plans";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
@@ -255,7 +256,7 @@ function draftLine(g: DraftGame): string {
 }
 
 /** The show's ⋯ menu: Backstage for whoever runs a game here (with a dot when it needs you), Recent changes for the
- *  couch, the drafts (for games that have one), and what's still to come. */
+ *  couch, the drafts (for games that have one), Plan a watch along (step 11 part 3), and what's still to come. */
 function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [open, setOpen] = useState(false);
   const [leave, setLeave] = useState<OutPreview | null | false>(false);
@@ -322,6 +323,17 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
           )}
           {blind.length > 0 && (
             <Row href={`${paths.showPage(seasonId, "blind")}?game=${lead(blind).leagueId}`} icon={Eye} title="Blind draft" detail={draftLine(lead(blind))} />
+          )}
+          {show.couch && !show.solo && (
+            <Row
+              icon={PlanIcon}
+              title="Plan a watch along"
+              detail="Invite the couch for the live airing or a shared start"
+              onClick={() => {
+                setOpen(false);
+                openPlan({ kind: "new", seasonId, couchId: show.couch!.id });
+              }}
+            />
           )}
           {show.couch && (
             <Row

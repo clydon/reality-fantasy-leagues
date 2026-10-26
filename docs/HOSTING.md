@@ -190,6 +190,17 @@ stale (Also on empties a week later; seasons stop moving on). The backstop is a 
 [{"path": "/api/cron/listings?run=1", "schedule": "0 10 * * *"}]}` (Vercel sends `CRON_SECRET` itself when it's set). It wakes
 Neon once a day when nothing else has: ~5 minutes at 0.25 CU, about **0.6 CU-hours a month**. Not set up: the VM calls.
 
+**Planned nights (new design, step 11 part 3)** poll nothing and run nothing on a schedule. A plan is one small row
+(`watch_plans`, migration 0127, ~150 bytes) and one per person asked (`watch_plan_people`, ~80 bytes): a couch of four planning
+a night a week is a few KB a year. Called-off and past nights stay (the feed reads the last 60 days, Undo needs a called-off
+one; nothing removes them, and at this size nothing needs to). Planning one sends **one web push to each person invited**
+(free: our own VAPID keys, push-core's `invite` setting), after the answer (`after()`). The hub's home read carries your
+couches' nights still to come (one small query; their shows' headers and schedules are mostly read already, else one more
+small read for the seasons it hasn't), the hub's feed one more small query, and the plan sheet reads what can be planned
+when it opens (`/api/seasons/[id]/plans`: the season's header and schedule, the couch, who watches it, its plans: a few KB).
+An answer, a plan or calling one off answers with your couches' plans, put into the cached home, so the home isn't read
+again. Backed up with the couch's games (`backup-leagues.js`).
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub.
@@ -514,3 +525,8 @@ never handles it: the user does the reset and the pasting.
   (at most one Neon read an hour, ~130 KB). `/api/cron/listings` (CRON_SECRET) for a run by hand, its status, and a backstop
   Vercel cron should the VM stop calling (~0.6 CU-hours a month; not set up). The bot clock's answer gains `listings` (true
   when it queued the job); the VM's tick ignores it.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 11 part 3, planned nights. **Nothing polls and nothing runs on
+  a schedule.** Migration 0127: `watch_plans` and `watch_plan_people` (a ~150-byte row a night and ~80 bytes a person asked;
+  backed up). One web push to each person invited when a night is planned (push-core, the `invite` setting). The home read
+  gains one small query (your couches' nights still to come), the hub's feed one more, and the plan sheet a few small reads
+  when it opens (`/api/seasons/[id]/plans`); writes answer with the plans, so the home isn't read again.

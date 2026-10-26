@@ -14,6 +14,7 @@ import { leagueStates } from "./league-states";
 import { seasonSchedules } from "./schedule";
 import { runItBack } from "./start-game";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
+import { plansLately, type PlanHow } from "./watch-plans";
 
 // The hub's couch, for More on the couch, your profile's numbers and the feed (docs/PLAN-new-design.md step 8; GET
 // /api/couches/[id]/hub): every game the couch plays, read as you may see it, turned into power rankings, the trophy
@@ -46,8 +47,9 @@ export interface PlayingGame {
 
 export interface FeedItem {
   id: string;
-  /** started: someone started a game on the couch (step 10 part 2b; `text` is the game, "Weekly Lineup"). */
-  kind: "said" | "revealed" | "joined" | "watching" | "started";
+  /** started: someone started a game on the couch (step 10 part 2b; `text` is the game, "Weekly Lineup"). planned: someone
+   *  planned a watch along (step 11 part 3; `episode`, `how`, `startsAt`, `going`). */
+  kind: "said" | "revealed" | "joined" | "watching" | "started" | "planned";
   userId: string | null;
   name: string;
   at: string;
@@ -58,6 +60,10 @@ export interface FeedItem {
   seasonId?: string;
   label?: string;
   reactions?: { emoji: string; n: number; mine: boolean }[];
+  /** A planned night: the live airing or a shared start, when it starts, and how many are in so far. */
+  how?: PlanHow;
+  startsAt?: string;
+  going?: number;
 }
 
 export interface CouchHub {
@@ -203,8 +209,8 @@ const FEED_SIZE = 8;
 
 /**
  * On the couch: the newest of what's been said in the couch's chats (folded past where you are, as the chat folds:
- * someone's words since an episode you haven't seen aired are left out), who revealed what, who joined, and who
- * started watching a show they don't play (openly).
+ * someone's words since an episode you haven't seen aired are left out), who revealed what, who joined, who
+ * started watching a show they don't play (openly), and who planned a watch along (step 11 part 3).
  */
 async function feedFor(
   user: SessionUser,
@@ -273,7 +279,7 @@ async function feedFor(
 
   // Who joined the couch lately, who started a game, and who started watching something openly that they don't play.
   const member = new Map(people.map((p) => [p.userId, p.name]));
-  const [{ rows: joined }, { rows: watching }, { rows: started }] = await Promise.all([
+  const [{ rows: joined }, { rows: watching }, { rows: started }, planned] = await Promise.all([
     // Someone joining a couch that was already going: not its founders (on it from the start), and not you.
     pool.query(
       `SELECT m.user_id, m.joined_at FROM couch_members m JOIN couches c ON c.id = m.couch_id
@@ -295,6 +301,8 @@ async function feedFor(
         WHERE c.league_id = ANY($1::uuid[]) AND c.kind = 'game.start' AND c.created_at > now() - interval '60 days'`,
       [ids]
     ),
+    // Planned nights (step 11 part 3): never a title, only when and who's in.
+    plansLately(couchId),
   ]);
   for (const s of started) {
     const seasonId = seasonOf.get(s.league_id) as string;
@@ -307,6 +315,24 @@ async function feedFor(
       text: gameName(s.type),
       seasonId,
       label: label(seasonId),
+    });
+  }
+  const planLabels = await seasonHeaders(planned.map((p) => p.seasonId).filter((id) => !headers.has(id)));
+  for (const p of planned) {
+    const h = headers.get(p.seasonId) ?? planLabels.get(p.seasonId);
+    if (!h) continue;
+    items.push({
+      id: `plan-${p.id}`,
+      kind: "planned",
+      userId: p.userId,
+      name: (p.userId && member.get(p.userId)) || "",
+      at: p.at,
+      seasonId: p.seasonId,
+      label: `${h.show.name.replace(/^The /, "").replace(/\s*\([^)]*\)\s*$/, "")}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`,
+      episode: p.episode,
+      how: p.how,
+      startsAt: p.startsAt,
+      going: p.going,
     });
   }
   for (const j of joined) items.push({ id: `join-${j.user_id}`, kind: "joined", userId: j.user_id, name: member.get(j.user_id) ?? "", at: new Date(j.joined_at).toISOString() });

@@ -127,3 +127,52 @@ test("at 1:30 AM it's still last night: today is the day before's, its late show
   assert.equal(G.eveningAt(late), true, "still the evening (Tonight)");
   assert.equal(G.eveningAt(local(27, 9)), false);
 });
+
+const plan = (over) => ({
+  id: over.id,
+  seasonId: over.seasonId,
+  name: over.name ?? over.seasonId,
+  seasonNumber: 1,
+  artUrl: null,
+  episode: over.episode,
+  how: over.how ?? "live",
+  at: over.at,
+  endsAt: over.at + 60 * 60_000,
+  faces: over.faces ?? [{ userId: "u1", name: "riley" }],
+  you: over.you ?? "invited",
+});
+
+test("planned nights (step 11 part 3): one for the airing tags its card; a shared start, or a show not on the guide, is a card of its own", () => {
+  const shows = [
+    show({ seasonId: "surv", week: [{ number: 6, airAt: iso(29, 20), runtimeMin: 90 }] }),
+    show({ seasonId: "late", tie: "watches", week: [{ number: 31, airAt: iso(26, 23, 35), runtimeMin: 60 }] }),
+  ];
+  const week = G.guideWeek(shows, NOW, undefined, [
+    plan({ id: "p1", seasonId: "surv", episode: 6, at: local(29, 20).getTime() }),
+    plan({ id: "p2", seasonId: "late", episode: 30, how: "start", at: local(27, 21).getTime(), you: "host" }),
+    plan({ id: "p3", seasonId: "elsewhere", name: "Not here", episode: 2, how: "start", at: local(27, 21).getTime(), you: null }),
+  ]);
+  const thu = week[3].slots[0];
+  assert.equal(thu.key, "surv:6", "the airing keeps its own card");
+  assert.equal(thu.plan.id, "p1", "and carries the plan");
+  const tue = week[1].slots;
+  assert.equal(tue.length, 1, "two starting at 9 PM Tuesday: one Same time slot");
+  assert.ok(Array.isArray(tue[0]));
+  const keys = tue[0].map((c) => c.key);
+  assert.deepEqual(keys, ["plan:p2", "plan:p3"], "yours (a show you watch) before the couch's");
+  assert.equal(tue[0][0].tie, "watches", "a plan card is tied as its show is");
+  assert.equal(tue[0][1].tie, "couch", "a show not on the guide: the couch's");
+  assert.deepEqual(tue[0][0].numbers, [30]);
+  assert.equal(tue[0][0].plan.how, "start");
+  // The Late Show's own airing tonight isn't tagged: the plan is for another episode at another time.
+  assert.equal(week[0].slots[0].plan, null);
+});
+
+test("a plan on now is live; one a quarter hour off its airing doesn't tag it", () => {
+  const shows = [show({ seasonId: "surv", week: [{ number: 6, airAt: iso(26, 17, 30), runtimeMin: 90 }] })];
+  const week = G.guideWeek(shows, NOW, undefined, [plan({ id: "p", seasonId: "surv", episode: 6, how: "start", at: local(26, 17, 45).getTime() })]);
+  const cards = week[0].slots.flatMap((s) => (Array.isArray(s) ? s : [s]));
+  assert.deepEqual(cards.map((c) => c.key), ["surv:6", "plan:p"]);
+  assert.equal(cards[0].plan, null);
+  assert.equal(cards[1].live, true, "started at 5:45, on now at 6");
+});

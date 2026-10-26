@@ -36,7 +36,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **done** 2026-10-26 on the branch, in three parts (part 2 split in two): watching (migration 0121; TV listings from TVmaze on demand), Make it a game to a set-up show with its rulebook and cast (0122), Start a game that fits and archive or delete a game (0123), rulebooks phase 8: the library, the desk's New show, Fits these games, Take it over and Looks right to us (0124); all ship with 0b's | Opus · xhigh |
-| 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | in three parts (the step 11 section): part 1 finished 2026-10-26 on the branch (the guide on the couch's shows and Hide from guide; migration 0125 ships with 0b's); part 2 finished 2026-10-26 on the branch (all of TV in the guide and the daily listings job on the bot clock's calls; migration 0126 ships with 0b's); part 3 (planned nights) next | Opus · xhigh |
+| 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | **done** 2026-10-26 on the branch, in three parts: the guide on the couch's shows and Hide from guide (migration 0125), all of TV in the guide and the daily listings job on the bot clock's calls (0126), planned nights (0127); all ship with 0b's | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
 | 14 | Streaming shows and the rail | not started | Opus · xhigh |
@@ -353,9 +353,21 @@ step's As built.
   a `leagues` season whose earlier results were entered in each league by classic's research (none on the local copy: Survivor
   51 and Traitors 5 are `admin`), its cast would show people already out as still in. The check sets its fixture season to
   `admin`, as production's live seasons are.
-- **Tell the couch uses the invite setting** (step 10 part 2b; for 15). "alex started a game for Survivor" goes to people who
-  allow league invites (push-core's `invite`), linking to the show's Games tab; notifications by moment (step 15) could give it a
-  moment of its own.
+- **Tell the couch uses the invite setting** (step 10 part 2b; since step 11 part 3 a planned night's invites too; for 15). "alex
+  started a game for Survivor" and "alex planned a watch along" go to people who allow league invites (push-core's `invite`),
+  linking to the show's Games tab or Tonight; notifications by moment (step 15) could give each a moment of its own.
+- **A called-off night tells nobody** (step 11 part 3; for 15). Calling off a watch along has no push (it has Undo, and a push sent
+  before an Undo would be wrong), so whoever said I'm in finds it gone from Tonight and the guide; nor is whoever planned it told
+  when someone answers (they see it on the plate). Notifications by moment could send "called off" once the Undo has passed.
+- **A plan's push says the show's time zone** (step 11 part 3; for 15). The server can't know the phone's zone, so the invite reads
+  "Thu 8:00 PM EDT" in the season's own zone (as the waiver pushes do); the app shows the phone's. A zone kept per person (step
+  15's settings) would let pushes say the reader's time.
+- **A shared start is an evening on four days** (step 11 part 3, the mock's chips; for 13 or a later polish). The plan sheet offers
+  8 to 10 PM on the four days from when the episode's out; a weekend afternoon or a later week needs a time picker. Two people
+  wanting different nights for the same episode can't both plan it (one going per couch and episode): the second sees the first
+  and says I'm in.
+- **Up next doesn't mention a planned night** (step 11 part 3; for 13). The hub's Up next still carries Watch along's Preview
+  button; a night planned for its episode could show there ("Watch along · 3 going"), with step 13's Join.
 - **Network times are the East's** (step 11 part 2; for a later polish). TVmaze's US schedule gives a network show's Eastern airing,
   and Also on shows that moment in the phone's zone, so on the West Coast an 8 PM network show reads 5 PM, though most networks
   air it at 8 PM Pacific on tape delay (a live event doesn't). Shows here are right (a season's air time is in its own zone);
@@ -2983,6 +2995,71 @@ person's hidden listing is `guide_hidden`, which is backed up). Nothing polls an
 - **For part 3:** a guide card of yours opens the show (part 1), so planning a night from the guide lives on the couch show's
   sheet (`CouchShowSheet`) and a listing's (`ListingSheet`, which would need the show added first), besides the show's Tonight and
   ⋯ menu. Migration 0127 is next. Nothing in step 11 is Preview now, so check-preview passes either way.
+
+### As built, step 11 part 3 (2026-10-26, on `new-design`): planned nights
+
+Migration **0127** (ships with 0b's, same rehearsal): `watch_plans` (a couch's night for one episode of a season: the live airing
+or a shared start, when, who planned it, `cancelled_at` for Undo; one going per couch, season and episode, by a partial unique
+index) and `watch_plan_people` (who's asked and what they said: invited, in or out; `invited` false for whoever planned it and
+for anyone who joined on their own). Nothing polls and nothing runs on a schedule (HOSTING.md). New: `src/lib/server/watch-plans.ts`,
+`GET/POST /api/seasons/[id]/plans?couch=`, `POST /api/plans/[id]`, `src/new/couch/watch-plans.tsx` (`openPlan`, `PlanSheets` in
+the signed-in layout, `PlanPlates`, `PlanInvite`); `src/lib/game/guide.ts` gains `GuidePlan`, `withPlans` and `guideWeek`'s plans.
+- **Planning** (the mock's watching.js inviteWatch and streaming.js's): which episode (from your next one, so someone behind gets
+  aired ones; six at most, in a sideways row, "planned" on one the couch has, which when picked shows that night to say you're
+  in), how (the live airing, only for an episode still to air and never a streaming drop; or a shared start: one of four days from
+  when it's out and 8 to 10 PM, nothing before it's out or already past, 9 PM by default), who (everyone else on the couch; those
+  who watch it openly or play it here invited by default, the rest "new to it"), Send invites. The server checks the same and more
+  (on the couch, inviting people on it and not yourself, within two months, the episode has a time) and answers 409 for a second
+  night for the same episode. **One push to each person invited** ("alex planned a watch along" · "ZT Survivor 51 · Episode 6 ·
+  the live airing, Thu 8:00 PM EDT. Are you in?", in the show's own zone; push-core's `invite` setting), opening the show's Tonight.
+- **A plan** carries when (the live airing's time read from the schedule each time, so a moved airing moves it), which episode and
+  who's in, never a title or a result; the couch it's on sees it (planning a show you watch privately is your choice to show it).
+  The home read carries your couches' nights still to come (`plans`); every write answers with them, put into the cached home
+  (`useSetPlans`), and the hub's feed and the plan sheet's read go again.
+- **I'm in / Can't make it** (`{ answer }`): anyone on the couch, invited or not (joining it); whoever planned it is in, and calls
+  it off instead. **Call it off** (`{ cancel: true }`, whoever planned it; tier 1): the toast's Undo (`{ cancel: false }`) brings it
+  back with everyone's answers, refused once someone has planned that episode since. A night that's over leaves the home and
+  can't be answered.
+- **Where it shows.** Tonight, under the Watch along card: a plate for each of the couch's nights on this show (the mock's w-plan:
+  "Episode 6 · Thu 8:00 PM", the live airing · who's in; I'm in for whoever hasn't said, Open for whoever's in, Preview: Watch
+  along is step 13's), then Plan a watch along (the mock's w-inv) while your next episode has none. The ⋯ menu's Plan a watch along
+  (any episode). The plan's sheet (a plate's tap, a guide card): when, everyone and their answer, I'm in / Can't make it, Call it
+  off, Open the watch along (Preview), Open the show. **The guide:** a night planned for an airing tags its card ("Watch along",
+  a solid teal edge: the mock's b-together); any other (a shared start, or a show that isn't on your guide) is a card of its own at
+  its time ("Watch along · Ep 1", "you + 2" or "riley + jordan" with who's in: the mock's b-plan) that opens the plan, tied as its
+  show is, not faded while you're in it; a night you can't make is left off, and so is one for a show you've hidden unless you're
+  in it. A couch show's sheet shows its nights (I'm in) and plans one for that episode; a TV listing's sheet plans one once it's
+  your show (Add to my shows' where you are, then the plan sheet: `openWatching`'s new `then`). **The hub's feed:** "alex planned a
+  watch along · Survivor 51 · Ep 6 · the live airing · Thu 8:00 PM · 3 going", opening the show; a called-off night leaves it.
+- **Backups** hold both tables, sliced to the group's couches and seasons (`backup-common.js`, `backup-leagues.js`);
+  `backup-fixture.js` has a night with two people in it.
+- **Fixtures and Preview:** none added or taken out (step 11 had none left); a plate's Open and the sheet's Open the watch along
+  are `show.watch-along` (13). check-preview passes with step 11 done.
+- **Changed from the mock:** the episode is a choice (the mock's was the next airing); a shared start has days (the mock's for a
+  weekly show had times on the airing's day only); I'm in on the plate, where the mock had only Open or Join (Join is Watch along's,
+  step 13); one night per couch and episode (the mock kept one per show); an aired episode's line ("Episode 4 has aired · one
+  shared start").
+- **Checks:** `scripts/dev-test/check-new-plans.js <outDir> [--width=390] [--keep] [--api]` (102 PASS at 390) on new-fixture.js,
+  guide-fixture.js and fake-listings.js (its own listing tomorrow at 9 PM, also put into `tv_listings` and taken out): what can be
+  planned, the refusals, the home's plans for whoever planned, the invited, someone not invited and another couch, answers, the
+  feed's line, a moved airing, Call it off and Undo (refused once someone planned it since), a night that's over; then the browser
+  as alex (Tonight's plate, the ⋯ menu's sheet, a shared start's day and time, Call it off with the toast's Undo, the guide's tag
+  and a night as a card of its own, I'm in from it, a couch show's sheet, a listing's Plan a watch along), riley's I'm in on an
+  invite's plate, and casey (another couch) seeing none of it. `tests/guide.test.js` (9: a plan tags its airing or is a card of
+  its own, a plan on now). The rest pass, one at a time: check-new-listings (75), -guide (57), -library (91), -start-game (75), -make-it (81), -watching (114),
+  -solo (92), -way-in (85), -couches (114), -hub (75), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100,
+  after `touch next.config.ts`: a stale compile failed its "every league renames him" in the batch and once alone), -community
+  (82), -backstage (67), -backstage-ii (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation,
+  check-preview (step 11 done) and check-backup-restore; `npm test` 586 of 586; type-check clean; lint (src) as before (the
+  old error in classic's `use-sheet-swipe.ts` and the old warning in `episode-results.ts`). Seen at 390 in the browser: Tonight's
+  plates, the plan sheet (planned, live, a shared start), the plan's sheet, the guide's tag and plan card, the couch show's and
+  the listing's sheets, the feed, riley's invite.
+- **Noticed, left as is:** four, now in Noticed, not fixed: a called-off night tells nobody, a plan's push says the show's time
+  zone, a shared start is an evening on four days (and one night per episode), and Up next doesn't mention a planned night; Tell
+  the couch uses the invite setting now covers a night's invites too.
+- **Step 11 is done.** For step 12: Commercial break, Tonight's Extras and the Games tab still carry step 12's Previews
+  (`hub.episode-games`, `show.episode-games`, `hub.verdicts`, `hub.taste-twin`); Noticed has its items (predictions as chips, the
+  pool's Who goes home? as a per-person call, couch accolades from ratings). Migration 0128 is next.
 
 ## Step C: cutover
 

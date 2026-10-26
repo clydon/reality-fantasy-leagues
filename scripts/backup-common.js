@@ -12,7 +12,7 @@ const LEAGUE_TABLES = [
   "leagues", "league_memberships", "league_groups", "couches", "couch_members", "couch_invites", "league_invites", "league_rulesets", "waiver_claims",
   "blind_draft_picks", "episode_team_notes", "league_applied_decisions", "chat_messages", "chat_reactions",
   "chat_reads", "couch_chat_reads", "wiki_proposals", "wiki_proposal_items", "league_changes", "league_rulings", "couch_answers",
-  "results_plans", "draft_queues", "game_join_requests",
+  "results_plans", "draft_queues", "game_join_requests", "watch_plans", "watch_plan_people",
 ];
 const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
@@ -48,6 +48,8 @@ const LATER_TABLES = {
   game_join_requests: { since: "0119", fill: null },
   rulebook_checks: { since: "0124", fill: null },
   guide_hidden: { since: "0125", fill: null },
+  watch_plans: { since: "0127", fill: null },
+  watch_plan_people: { since: "0127", fill: null },
 };
 
 /** Whether the database has this table. */

@@ -165,6 +165,12 @@ async function up(pool) {
   await pool.query(`INSERT INTO rulebook_checks (rulebook_id, couch_id, user_id) VALUES ($1, $2, $3)`, [book, couch, ann]);
   // Hide from guide (0125): ann hid the show, and a TV listing nobody has made a show of.
   await pool.query(`INSERT INTO guide_hidden (user_id, show_id, tvmaze_id, name) VALUES ($1, $2, NULL, 'ZT Show'), ($1, NULL, 990099, 'ZT Listing')`, [ann, show]);
+  // A planned night (0127): ann's watch along for Episode 2's live airing, the tester invited and in.
+  const night = (await one(
+    `INSERT INTO watch_plans (couch_id, season_id, episode, how, starts_at, created_by) VALUES ($1, $2, 2, 'live', now() + interval '3 days', $3) RETURNING id`,
+    [couch, season, ann]
+  )).id;
+  await pool.query(`INSERT INTO watch_plan_people (plan_id, user_id, answer, invited, answered_at) VALUES ($1, $2, 'in', false, now()), ($1, $3, 'in', true, now())`, [night, ann, me]);
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

@@ -23,13 +23,15 @@ import { Block, Face } from "./parts";
 import { WaiversRanPlate } from "./waivers";
 import { CatchUpSheet, CatchUpStrips } from "../couch/join-game";
 import { openStartGame } from "../couch/start-game";
+import { openPlan, PlanInvite, PlanPlates } from "../couch/watch-plans";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
 // Your moves as swipeable cards (open first with the one yellow button on the first, then what you've already set
 // as done cards with Change; all done starts with one "You're set" card), Extras this week (optional, no counts),
-// Watch along, your games and the cast's stats. No dock before airtime and no commissioner job (5B: Backstage and
+// Watch along (and the couch's planned nights, step 11 part 3), your games and the cast's stats. No dock before airtime and
+// no commissioner job (5B: Backstage and
 // a dot on the show's ⋯ carry it). After an episode, by the results' stage (step 2): waiting for results (the
 // stage bar), results in (the one yellow: Reveal; a move that waits on them says so), the morning update once the
 // final scores land after an early reveal, and the last episode's recap until the next one airs. Real: all of it
@@ -53,6 +55,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       {playing && <LastTime show={show} />}
       <Extras show={show} />
       <WatchAlongCard seasonId={seasonId} show={show} />
+      <PlannedNights seasonId={seasonId} show={show} />
       {!playing && <WhosWatching show={show} />}
       {!playing && (!show.solo || !show.ready) && <PlayIt show={show} />}
       {playing && <YourGames seasonId={seasonId} show={show} />}
@@ -600,6 +603,22 @@ function WatchAlongCard({ seasonId, show }: { seasonId: string; show: ShowData }
         <small className="block text-[13px] opacity-90">Start when your episode starts · the couch&rsquo;s comments land as you reach them</small>
       </button>
     </Preview>
+  );
+}
+
+/** The couch's planned nights for this show (step 11 part 3; the mock's w-plan), and Plan a watch along when your next episode
+ *  has none. On a couch only. */
+function PlannedNights({ seasonId, show }: { seasonId: string; show: ShowData }) {
+  const me = useMe();
+  const couchId = show.couch?.id ?? null;
+  if (show.solo || !couchId || !show.header) return null;
+  const plans = (show.home?.plans ?? []).filter((p) => p.couchId === couchId && p.seasonId === seasonId);
+  const next = show.upNext?.number ?? (show.seenThrough ?? show.latestAired) + 1;
+  return (
+    <section className="mt-2.5 flex flex-col gap-2.5 px-4" data-planned-nights>
+      <PlanPlates plans={plans} me={me.id} />
+      {!plans.some((p) => p.episode === next) && <PlanInvite onClick={() => openPlan({ kind: "new", seasonId, couchId })} />}
+    </section>
   );
 }
 
