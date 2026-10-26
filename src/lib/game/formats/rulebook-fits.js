@@ -6,8 +6,8 @@
 //   Outlast         people knocked out one by one, and a winner             competitions
 //   Survival Pool   someone going home most episodes, or a result to        most competitions; a sport (a pick survives
 //                   survive each event                                       a race by scoring in it)
-//   Weekly Bingo,   one show at a time, all season                          talk, variety or awards (step 12's bingo
-//   Weekly Calls                                                             and Call it: shown, not started yet)
+//   Weekly Bingo,   one show at a time, all season                          talk, variety or awards (step 12's bingo,
+//   Weekly Calls                                                             shown, not started yet; and Call it, calls.ts)
 //
 // Start a game offers only what fits, in the kind's order (the first is recommended), and says why the rest don't. Pure,
 // plain CommonJS like everything in formats/.
@@ -18,11 +18,11 @@ const { momentsFor } = require('./rulebook-moments.js');
 
 const list = (v) => (Array.isArray(v) ? v : []);
 
-/** The league type each season game plays as (settings.leagueTypeId); null: not a league type yet (step 12). */
-const GAME_TYPES = { survivalPool: 'pickem', weeklyLineup: 'active-roster', outlast: 'classic-draft', weeklyBingo: null, weeklyCalls: null };
+/** The league type each season game plays as (settings.leagueTypeId); null: not a league type yet (step 12 part 3's bingo). */
+const GAME_TYPES = { survivalPool: 'pickem', weeklyLineup: 'active-roster', outlast: 'classic-draft', weeklyBingo: null, weeklyCalls: 'weekly-calls' };
 
 /** The step that brings a game that can't be started yet. */
-const SOON = { weeklyBingo: '12', weeklyCalls: '12' };
+const SOON = { weeklyBingo: '12' };
 
 const NEEDS = {
   weeklyLineup: 'a cast whose moments score week to week',
@@ -33,7 +33,8 @@ const NEEDS = {
 };
 
 /** A segment that runs every episode and sends someone home (or is the cause of a way out). */
-function goingHomeEachEpisode(b) {
+function goingHomeEachEpisode(blocks) {
+  const b = blocks || {};
   const ways = list(b.waysOut);
   return list(b.segments).some(
     (s) => s.often === 'everyEpisode' && (s.onTheLine === 'goingHome' || ways.some((w) => w.means === 'out' && w.cause && typeof w.cause === 'object' && w.cause.segment === s.id))
@@ -141,4 +142,4 @@ function gameLine(key, blocks, slots) {
   }[key];
 }
 
-module.exports = { GAME_TYPES, gamesFor, noFitLine, gameLine };
+module.exports = { GAME_TYPES, gamesFor, noFitLine, gameLine, goingHomeEachEpisode };

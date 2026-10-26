@@ -6,7 +6,8 @@
 //   API:
 //   - what fits each kind (rulebook-fits.js through GET /start): a competition all three (Survival Pool recommended), a
 //     series Weekly Lineup (draft the crew), a sport the draft of athletes and Survival Pool (its own word for an event), a
-//     talk show Weekly Bingo and Weekly Calls coming with step 12; the doesn't-fit line; who watches it; where it starts;
+//     talk show Weekly Calls (startable since step 12 part 2) and Weekly Bingo coming with part 3; the doesn't-fit line; who
+//     watches it; where it starts;
 //     a show that isn't a game yet, and a season that's over (with the show's next season to run it back on);
 //   - starting one: jordan's Weekly Lineup on ZT Survivor 51 (from Episode 6, linked into the couch's group, the couch told:
 //     three pushes, a line in Recent changes and the couch's feed, the season's results there as history so alex joins
@@ -213,7 +214,12 @@ function lateNight(shows) {
     const pp = await league(PP);
     check(r.status === 200 && pp.state.settings.poolSurvive === "scores" && pp.state.settings.leagueTypeId === "pickem" && r.body.linked === true && pp.group_id === (await league(PL)).group_id, "its Survival Pool survives by scoring, linked to the lineup game", JSON.stringify(r.body));
     const lo = (await opts("alex", late)).body;
-    check(lo.kind === "talk" && keys(lo) === "weeklyBingo,weeklyCalls" && lo.games.filter((g) => g.fits).every((g) => g.soon === "12"), "a talk show: Weekly Bingo and Weekly Calls, coming with episode games", JSON.stringify(lo.games));
+    const talkGame = (k) => lo.games.find((g) => g.key === k);
+    check(
+      lo.kind === "talk" && keys(lo) === "weeklyBingo,weeklyCalls" && talkGame("weeklyBingo").soon === "12" && talkGame("weeklyCalls").soon === null && talkGame("weeklyCalls").type === "weekly-calls",
+      "a talk show: Weekly Calls starts now (step 12 part 2), Weekly Bingo comes with part 3",
+      JSON.stringify(lo.games)
+    );
     check(/^Drafts need a cast that scores week to week\. ZT Late Night's games are one show at a time, all season\.$/.test(lo.noFit), "and drafts don't fit it", lo.noFit);
     check((await start("alex", late, { game: "weeklyBingo" })).status === 409 && (await start("alex", late, { game: "weeklyLineup" })).status === 400, "neither can start yet; a draft is refused");
     const oo = (await opts("alex", oldShow)).body;
@@ -380,7 +386,7 @@ function lateNight(shows) {
       await page.getByRole("button", { name: /Show menu/ }).click();
       await page.getByRole("button", { name: /Start a game/ }).last().click();
       await page.locator('[data-start-sheet="talk"]').waitFor();
-      check((await sheet.locator("[data-start-game][disabled]").count()) === 2 && (await sheet.locator("[data-start-go][disabled]").count()) === 1, "a talk show: both games shown, coming soon");
+      check((await sheet.locator("[data-start-game][disabled]").count()) === 1 && (await sheet.locator("[data-start-go][disabled]").count()) === 0, "a talk show: Weekly Calls can start, Weekly Bingo shown coming soon");
       await shot("start-talk");
       await page.keyboard.press("Escape");
 

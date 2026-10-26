@@ -37,6 +37,7 @@ const MOVE_TAG: Record<string, string> = {
   lineup: "Lineup",
   pick: "Pick",
   prediction: "Predict",
+  calls: "Call it",
   pickup: "Waivers",
   draftTurn: "Draft",
   blindDraft: "Draft",
@@ -57,6 +58,7 @@ function moveLine(m: Move, show?: HomeShow) {
   if (m.kind === "lineup") return `your ${name} lineup ${when ? `locks ${when}` : "is due"}`;
   if (m.kind === "pick") return `your ${name} pick ${when ? `locks ${when}` : "is due"}`;
   if (m.kind === "prediction") return `your ${name} prediction ${when ? `closes ${when}` : "is due"}`;
+  if (m.kind === "calls") return `your ${name} calls ${when ? `close ${when}` : "are due"}`;
   if (m.kind === "pickup") return `${name} waivers ${when ? `close ${when}` : "are open"}`;
   return m.text.charAt(0).toLowerCase() + m.text.slice(1);
 }

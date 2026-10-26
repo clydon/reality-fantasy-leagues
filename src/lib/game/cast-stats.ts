@@ -153,7 +153,7 @@ export function secretEvents(format: GameFormat, book: StatsBook | null): Set<st
   if (book) {
     const twists = (book.blocks.twists ?? []).filter((t) => t.type === "secretRole").map((t) => t.id);
     for (const m of momentsFor(book.blocks)) {
-      if (says.test(m.label) || (m.from.twist && twists.includes(m.from.twist))) out.add(book.aliases.events[m.id] ?? m.id);
+      if (says.test(m.label) || (m.from.twist && twists.includes(m.from.twist))) out.add(book.aliases?.events?.[m.id] ?? m.id);
     }
   }
   return out;
@@ -176,7 +176,7 @@ function statDefs(format: GameFormat, book: StatsBook | null): StatDef[] {
   if (book) {
     for (const m of momentsFor(book.blocks)) {
       if (m.from.wayOut) continue;
-      add({ key: book.aliases.events[m.id] ?? m.id, name: m.label, unit: m.ask && (m.ask.type === "integer" || m.ask.type === "number") ? "" : "times" });
+      add({ key: book.aliases?.events?.[m.id] ?? m.id, name: m.label, unit: m.ask && (m.ask.type === "integer" || m.ask.type === "number") ? "" : "times" });
     }
   }
   for (const e of format.events) if (!e.implied) add({ key: e.id, name: e.label, unit: "times" });
@@ -307,7 +307,7 @@ const one = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 function patterns(cast: CastStat[], groups: { name: string }[], book: StatsBook | null): Pattern[] {
   if (!book) return [];
   const found: Pattern[] = [];
-  const ev = (id: string) => book.aliases.events[id] ?? id;
+  const ev = (id: string) => book.aliases?.events?.[id] ?? id;
   const n = (c: CastStat, key: string) => c.counts[key] ?? 0;
   const live = cast.filter((c) => c.out === null);
 
@@ -330,13 +330,13 @@ function patterns(cast: CastStat[], groups: { name: string }[], book: StatsBook 
     const seg = way.cause && typeof way.cause === "object" ? book.blocks.segments.find((s) => s.id === (way.cause as { segment: string }).segment) : null;
     if (way.means !== "out" || seg?.decidedBy !== "vote") continue;
     const survived = momentsFor(book.blocks).find((m) => m.from.segment === seg.id && m.id.endsWith("SurvivedVotes"));
-    const method = book.aliases.exits[way.id] ?? way.name;
+    const method = book.aliases?.exits?.[way.id] ?? way.name;
     const gone = cast.filter((c) => c.out !== null && c.how === method);
     if (!survived || !gone.length) continue;
     const key = ev(survived.id);
     const warned = gone.filter((c) => c.events.some(([e, k]) => k === key && e < c.out!));
     // Two ways out recorded as one exit (the Traitors' banishments, by role) are told by where they happen.
-    const shared = book.blocks.waysOut.filter((w) => (book.aliases.exits[w.id] ?? w.name) === method).length > 1;
+    const shared = book.blocks.waysOut.filter((w) => (book.aliases?.exits?.[w.id] ?? w.name) === method).length > 1;
     const how = shared ? `out at the ${seg.name.replace(/^the /i, "")}` : lc(way.name);
     found.push({ text: `${warned.length} of ${gone.length} ${book.blocks.cast.plural} ${how} had received votes before`, stat: key, filter: "all" });
     break;

@@ -35,6 +35,8 @@ import type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 import type { WeekListing } from "@/lib/game/tv-listings";
 import type { PlanAnswerOut, PlanHow, PlanOptions, WatchPlan } from "@/lib/server/watch-plans";
 import type { EpisodeVerdict, ShowVerdict } from "@/lib/server/ratings";
+import type { EpisodeCalls } from "@/lib/server/calls";
+import type { Poll, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -70,6 +72,9 @@ export type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 export type { PlanAnswer, PlanEpisode, PlanHow, PlanOptions, PlanPerson, WatchPlan } from "@/lib/server/watch-plans";
 export type { EpisodeVerdict, EpisodeVerdictLine, RatingFace, ShowVerdict } from "@/lib/server/ratings";
 export type { Taste, Twin } from "@/lib/game/ratings";
+export type { CallPerson, CallSay, EpisodeCalls } from "@/lib/server/calls";
+export type { CallOption, CallQuestion, Verdict } from "@/lib/game/calls";
+export type { Poll, PollOption, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -1102,6 +1107,86 @@ export function useAfterRating() {
       void client.invalidateQueries({ queryKey: ["new-design", "episodes", v.seasonId] });
       void client.invalidateQueries({ queryKey: ["new-design", "couch-hub"] });
       void client.invalidateQueries({ queryKey: ["new-design", "verdicts"] });
+    },
+    [client]
+  );
+}
+
+// ---- Call it and the couch's polls (step 12 part 2; calls.ts, polls.ts). The call sheet reads its episode when it opens (and
+// Tonight's row the next one's, for how many you've called); a show's polls with its Games tab and Tonight; Commercial break's
+// This week only when it opens. Nothing polls. ----
+
+const couchQuery = (couchId: string | null): Record<string, string> => (couchId ? { couch: couchId } : {});
+
+/** One episode's calls: the questions, yours, how many have called it; after it's aired and you've seen it, how they did. */
+export function useEpisodeCalls(seasonId: string | null, couchId: string | null, episode: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "calls", seasonId, couchId, episode],
+    queryFn: () => get<EpisodeCalls>(seasonUrl(seasonId!, `/calls/${episode}`, couchQuery(couchId))),
+    enabled: enabled && !!seasonId && !!episode,
+    staleTime: 30_000,
+    retry: (n, e) => n < 2 && ![403, 404, 409].includes((e as { status?: number }).status ?? 0),
+  });
+}
+
+export const callsApi = {
+  call: (seasonId: string, couchId: string | null, episode: number, calls: Record<string, string | null>) =>
+    post<EpisodeCalls>(seasonUrl(seasonId, `/calls/${episode}`, couchQuery(couchId)), { calls }),
+  say: (seasonId: string, couchId: string | null, episode: number, said: Record<string, "yes" | "no" | null>) =>
+    post<EpisodeCalls>(seasonUrl(seasonId, `/calls/${episode}`, couchQuery(couchId)), { said }),
+};
+
+/** After calls or a say: the sheet's answer put in place, and what counts them read again (the games, the home's moves, the
+ *  pool, Commercial break). */
+export function useAfterCalls() {
+  const client = useQueryClient();
+  return useCallback(
+    (c: EpisodeCalls, couchId: string | null) => {
+      client.setQueryData(["new-design", "calls", c.seasonId, couchId, c.episode], c);
+      void client.invalidateQueries({ queryKey: ["new-design", "games", c.seasonId] });
+      void client.invalidateQueries({ queryKey: ["new-design", "pool", c.seasonId] });
+      void client.invalidateQueries({ queryKey: ["new-design", "this-week"] });
+      void client.invalidateQueries({ queryKey: ["new-design", "episodes", c.seasonId] });
+      void client.invalidateQueries({ queryKey: HOME_KEY });
+    },
+    [client]
+  );
+}
+
+/** The couch's polls on a season you may see, and whether you can start one. */
+export function useSeasonPolls(seasonId: string | null, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "polls", seasonId, couchId],
+    queryFn: () => get<SeasonPolls>(seasonUrl(seasonId!, "/polls", { couch: couchId! })),
+    enabled: enabled && !!seasonId && !!couchId,
+    staleTime: 30_000,
+  });
+}
+
+/** Commercial break's This week only: your shows with an episode coming up (and your calls on each), the couch's polls. */
+export function useCouchThisWeek(couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "this-week", couchId],
+    queryFn: () => get<{ shows: ThisWeekShow[]; polls: Poll[] }>(`/api/couches/${couchId}/this-week`),
+    enabled: enabled && !!couchId,
+    staleTime: 30_000,
+  });
+}
+
+export const pollsApi = {
+  start: (seasonId: string, couchId: string, body: { question: string; cast: true } | { question: string; options: string[] }) =>
+    post<SeasonPolls & { id: string }>(seasonUrl(seasonId, "/polls", { couch: couchId }), body),
+  vote: (pollId: string, vote: string | null) => post<SeasonPolls>(`/api/polls/${pollId}`, { vote }),
+  remove: (pollId: string) => post<SeasonPolls>(`/api/polls/${pollId}`, { remove: true }),
+};
+
+/** After a poll's started, voted in or taken down: the season's polls put in place, Commercial break's read again. */
+export function useAfterPoll() {
+  const client = useQueryClient();
+  return useCallback(
+    (seasonId: string, couchId: string, polls: SeasonPolls) => {
+      client.setQueryData(["new-design", "polls", seasonId, couchId], polls);
+      void client.invalidateQueries({ queryKey: ["new-design", "this-week"] });
     },
     [client]
   );

@@ -37,7 +37,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **done** 2026-10-26 on the branch, in three parts (part 2 split in two): watching (migration 0121; TV listings from TVmaze on demand), Make it a game to a set-up show with its rulebook and cast (0122), Start a game that fits and archive or delete a game (0123), rulebooks phase 8: the library, the desk's New show, Fits these games, Take it over and Looks right to us (0124); all ship with 0b's | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | **done** 2026-10-26 on the branch, in three parts: the guide on the couch's shows and Hide from guide (migration 0125), all of TV in the guide and the daily listings job on the bot clock's calls (0126), planned nights (0127); all ship with 0b's | Opus · xhigh |
-| 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | in progress on the branch, in three parts (the plan's step 12 section): part 1, Rate it and couch verdicts (migration 0128) | Opus · xhigh |
+| 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | in progress on the branch, in three parts (the plan's step 12 section): part 1, Rate it and couch verdicts (migration 0128); part 2, Call it, polls and Weekly Calls (0129) | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
 | 14 | Streaming shows and the rail | not started | Opus · xhigh |
 | 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
@@ -137,9 +137,6 @@ Behaviour a session saw and left alone because it wasn't that step's to change. 
 the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
 step's As built.
 
-- **Predictions are a text field** (step 1; for 12). Real predictions are free-text questions with free-text guesses
-  (`Bet` has no options), so the sheet's Predictions tab has a field where the mock has chips. Step 12's Call it and
-  polls could give a prediction options (a cast pick, yes / no) and bring the chips back.
 - **Traitors 5's cast stores the faction as its tribe** (step 3; the tool is 6b part 2's, doing it is the user's call). Its
   `season_cast.tribe_name` is "Traitor" for the two original Traitors and "Faithful" for everyone else, and the one league on
   that season in the local copy (production's, 2026-10-16) has tribes named Traitor and Faithful, so classic's boards and
@@ -253,12 +250,31 @@ step's As built.
   4"); it needs each finished game's standings episode by episode (a table per episode, read once a season ends and kept),
   which nothing keeps. The records are most titles, ran it back, longest pool streak and best average finish.
 - **Couch accolades are what today's data can say** (step 8; ratings' since step 12 part 1; for 13 and 14). The mock's By the
-  numbers also has most reactions and most watch alongs (13) and first to finish (14's streaming drops). `couch-standings.ts
+  numbers also has most reactions and most watch alongs (13) and first to finish (14's streaming drops), and Called it most (calls
+  since step 12 part 2: `calls.ts callRights` per season, as the profile's "Called it" still counts only league predictions). `couch-standings.ts
   accoladesOf` is where they'd go (the ratings' are `ratings.ts ratingAccolades`: taste twins, the contrarian, never misses a
   rating).
 - **A rating can't be taken back** (step 12 part 1; for a later polish). Rating an episode again changes your stars, and a take can
   be removed, but nothing removes the rating itself (`episode_ratings` has no delete). A "Clear my rating" on the sheet would be
   one DELETE.
+- **A talk show's calls are only the couch's say** (step 12 part 2; for part 3 or a later step). A talk show's moments ("The host
+  sings") have no results, so its calls wait for two on the couch to say what happened (alone on the show, your own say). Research
+  still answers them the next morning (the rulebook compiles them as episode questions, KINDS.talk's "ChatGPT checks the next
+  morning"), but nothing reads those answers; and part 3's bingo marks (squares ticked as it happens) could count as says.
+- **An episode's moment call follows the rulebook as it is** (step 12 part 2; for a later polish). Which moment an episode asks
+  about is worked out from the season's rulebook each time it's read, so a rulebook edit while calls are open (a desk fix, a show
+  change) can swap an open episode's moment: calls made on the old one are kept and still count (they're stored by their moment),
+  but the sheet no longer shows them. Keeping each episode's questions once its first call is made would hold them still.
+- **Polls don't notify** (step 12 part 2; for 15). Starting a poll pushes nobody (as a planned night's Tell the couch would); the
+  couch finds it in Tonight's Extras, the Games tab and Commercial break. Notifications by moment could send "riley started a poll".
+- **Weekly Calls never finishes** (step 12 part 2; for part 3, whose Weekly Bingo needs the same). Its league has no results, so
+  `StateLogic.seasonEnded` never says it's over: after the season it stays under You're playing, never reaches the trophy shelf or
+  Run it back (archiving it is the way out). Ending it with the season's last episode (the schedule's count) would.
+- **Weekly Calls' table says "Standings move when you reveal"** (step 12 part 2; for a later polish). A talk show has nothing to
+  reveal: its table moves as you mark episodes watched and the couch says what happened. The Games tab's footnote could say so.
+- **Predictions guess their chips from their words** (step 12 part 2; for C). A prediction has no options of its own (classic's
+  propose has none), so "Who …?" gets the cast still in and "Will …?" Yes / No (`game-view.ts predictionKind`); "Which tribe wins?"
+  or a question about someone already out gets words. A propose flow in the new design could let its proposer choose.
 - **The verdict's faces are initials** (step 12 part 1; for 15). Everyone's stars on the rate sheet and Couch verdicts are an
   avatar's letter and colour (the mock's faces), so two people with the same initial are told apart by colour only (every zt_nd_
   person in the fixtures is a Z). Step 15's profile picture would put a face there; the takes say names.
@@ -295,10 +311,6 @@ step's As built.
 - **A username-only account can't add Google later** (step 9 part 2; for 15). Linking a Google sign-in to an account goes by
   a verified email the two share; an account made with a username alone has none. Account settings (step 15) could link one
   from inside a signed-in account (Better Auth's `linkSocial`).
-- **The pool's Who goes home? is the pool's own** (step 9 part 3; for 12). A public pool's weekly call lives in its league
-  (`episode.calls`, `settings.calls`), graded from the season's results; step 12's Who goes home? is an episode game every
-  couch gets. One call per person and episode would be the better model: step 12 could keep its calls per person (the
-  pool reading yours) or read the pool's, rather than asking the same question twice.
 - **A public pool is one league's state** (step 9 part 3; for growth, the user's call on paid hosting). Every player's picks
   and calls sit in one row, read whole by anyone's next read after any pick (~2 KB a player), so a pool stops at 100
   ("The pool is full"; HOSTING.md). Past that, picks and calls in a table of their own (a row per person and episode) and
@@ -3181,6 +3193,101 @@ gains `seenThroughAll` (every season's mark in one query).
   through `seenThrough` are how a call can be kept per person; the hub's `taste`/accolades shape is where a "called it" accolade
   from calls would join. Watch along's end (step 13: "How was Episode N?" with a take) should open `openRate` rather than build a
   second rating.
+
+### As built, step 12 part 2 (2026-10-26, on `new-design`): Call it, polls and Weekly Calls
+
+Migration **0129** (ships with 0b's, same rehearsal): `episode_calls` (a person's call per season, episode and question),
+`episode_call_says` (what someone who's seen a talk show's episode says happened), `couch_polls` and `couch_poll_votes`. Nothing
+polls and nothing runs on a schedule (HOSTING.md). New: `src/lib/game/calls.ts` (pure: `callQuestions` and `callMoments` from a
+rulebook, `verdictOf`, `isRight`, `settleSays`, `tallyCalls`), `src/lib/server/calls.ts` (`GET/POST /api/seasons/[id]/calls/[n]?couch=`,
+`episodeFacts`, `callRights`, `leagueCalls`, `callsMade`, `weeklyCallMoves`), `src/lib/server/polls.ts` (`GET/POST
+/api/seasons/[id]/polls?couch=`, `POST /api/polls/[id]`, `GET /api/couches/[id]/this-week`), `src/new/show/calls.tsx` (`openCall`,
+`CallSheets` in (in)/layout, `CallRow`, `CallResultRow`, `CallResults`), `src/new/show/polls.tsx` (`openPoll`, `PollSheets`,
+`PollRow`, `StartPollRow`), `scripts/dev-test/talk-fixture.js`. Engine: a league type `weekly-calls` (NoDraftStrategy, a
+CallsScoringStrategy that leaves everyone at 0, `hasCalls`); PickEmLogic's own call storage is gone (`callsOn` stays).
+- **The calls (decided):** two one-tap calls an episode, the same for everyone, from the season's rulebook (its own, else its
+  format's blocks; never a couch's Make it ours copy). **Who goes home?** (everyone still in going into it, as faces) where a segment
+  sends someone home every episode (rulebook-fits.js `goingHomeEachEpisode`, Survival Pool's rule, now exported), then yes-or-no
+  moments: "Anyone this episode? · Played an idol or advantage", a talk show's "Tonight? · The host sings". The moment goes round
+  the show's most callable ones episode by episode: a twist's first (idols, shields, journeys, U-Turns), else what the rulebook
+  added for the show, else a segment that doesn't run every episode; never one research can't answer (the couch's own), a way out,
+  or one that gives a secret role away. A show nobody leaves (a series, a sport, a talk show) gets two moments. Stored as `out`
+  (a season_cast id) and `m:<moment>` (yes or no; the moment's event id, as the season's results record it through the
+  rulebook's aliases, or a talk show's moment id).
+- **Private until airtime, spoiler-safe on the server:** calls are open for the next episode to air (the schedule) until it
+  starts, changeable until then (`null` takes one back). Before airtime nobody else's call leaves the server, only how many on the
+  couch have called it. Calling needs the episode before it seen (the faces say who's still in: sam on 3 is `behind`, gets no
+  faces and a 403 to call), except on a talk show, whose calls give nothing away. After airtime the couch's calls and how they
+  went reach only someone who's seen the episode; your own are always yours. The couch is its people who follow the show openly,
+  as for ratings (a private watcher's calls count for nobody else); solo or on a couch of one, the calls are just yours.
+- **Graded from the season's shared results, never stored:** Who goes home? settles once who went home is in (early results: an
+  accepted elimination, never the winner's exit), and "Nobody went home" (a noexit fact, or full results with nobody out) calls it
+  off; a moment settles once every result is in (an accepted moment that episode, or someone's full answer covering it: the season
+  sync's own rule for final), yes when anyone did it. A talk show's moments have no results: whoever's seen it says what happened,
+  and two on the couch agreeing settles it (more saying so than not); with nobody else on the couch following the show, your own
+  say does (Noticed: research's answers aren't read).
+- **A public pool's Who goes home? is the same call** (Noticed's "the pool's Who goes home? is the pool's own" is out): the pool's
+  call is your `out` Call it for its pick's episode (`callPool` writes episode_calls against the season's cast: the castaway's
+  seasonCastId, else its name), read back as one of the pool's castaways (`leagueCalls`, `game-view.ts poolCallOf`); its board's
+  "N called" is right `out` calls through your mark. Called from the pool, it shows in Call it, and the other way round. (No pool
+  had calls outside the branch.)
+- **Predictions as chips** (Noticed's "Predictions are a text field" is out): a prediction has no options of its own, so its
+  words say what it asks (`game-view.ts predictionKind`): "Who …?", "Which castaway …?" get everyone still in as chips (first
+  names; the full name is the guess saved); "Will / Does / Is …?" without an "or" gets Yes and No; anything else keeps its field. A
+  guess in words already made stays as a chip. Classic's routes and grading are unchanged.
+- **Polls:** anyone on the couch who's seen the episode before the next starts one about it: a question (3-80 characters) and the
+  cast still in (faces) or 2-4 options of their own; three open at most per show and episode; only whoever started it takes it
+  down. Open until the episode airs (following the schedule if the airing moves); before then you see your vote and how many have
+  voted; after it, each option's share, who chose it and how many you're with, for whoever has seen the episode (else "see it
+  first"). Only the couch's people who've seen the episode before it see it at all. Nobody is pushed (Noticed).
+- **Weekly Calls is startable:** rulebook-fits.js gives it the type `weekly-calls` and no `soon` (Weekly Bingo keeps `'12'`); an
+  ordinary league on the couch (Start a game, joins, archive, Backstage), whose table counts each player's right calls from its
+  start through your mark (`callRights` on its couch, the hub's rankings too) and is through the latest show that's aired and
+  you've seen. Its move is the next show's calls (`weeklyCallMoves` on the home: "Make this week's two calls" until both are made;
+  Tonight's card and done card, and the dock, open Call it); never "fill in the results" or "Add the cast" (it has neither:
+  action-items.js and commissioner-items.ts skip it); out of classic's league list. Its colour is the mock's predictions pink
+  (the mock's yellow is for what you must do); Better with friends lists it.
+- **Where it shows:** Tonight's Extras: Call it for the next episode (unless Weekly Calls asks for it as a move), the couch's open
+  polls, and "Episode 6: you called 2 of 2" for the latest you've seen (a talk show's "What happened? Say"); the Games tab's This
+  week: Call it, the polls and Start a poll (bingo and trivia stay Preview); the episode page's Call it; Commercial break's This
+  week only (a Call it card per followed show with an episode this week, the couch's polls). The call sheet (the mock's callSheet
+  and predictSheet in one): faces and Yes / No, "N on the couch have called it", Lock in my calls (the one yellow; Save my calls to
+  change them), the toast saying until when; after, a score plate, who went home, your call and the couch's with ✓ and ✗.
+- **Fixed on the way:** a talk show you play Weekly Calls on lists its aired episodes (season-episodes.ts counts only games with
+  results of their own as playing); the cast stats crashed on a rulebook whose aliases are `{}` (the library's, so a desk show made
+  from a template): `cast-stats.ts` reads them as optional now.
+- **Fixtures and Preview:** `fixtures/episode-games.ts` narrowed to bingo and trivia; `hub.episode-games` and `show.episode-games`
+  say "Bingo and trivia" now (part 3's).
+- **Backups** take all four tables (the group's people's calls and says on its seasons; its couches' polls and their votes);
+  `backup-fixture.js` has a row in each.
+- **Changed from the mock:** Call it is one sheet for every kind of show (the mock had predictSheet for a competition and
+  callSheet for the rest); a show that isn't a game gets no calls (the mock's Below Deck asked "Big twist this week? / Better than
+  last week?", which nothing could settle); Who goes home? offers everyone still in as faces (the mock: four names); a poll's
+  results wait for it to close (the mock showed them on voting) and a poll is about the next episode.
+- **Checks:** `scripts/dev-test/check-new-episode-games.js` grew part 2 (203 PASS at 390, with part 1's) on new-fixture.js,
+  solo-fixture.js and the new **`talk-fixture.js`** (ZT Talk Tonight, a talk show set up as a game): Call it before and after
+  airtime (the refusals, sam behind, private until it airs, early then final results settling it, the couch's calls, sam and casey
+  told nothing), polls (start, refusals, hidden votes, three at most, take it down, closed results, waiting for sam), Commercial
+  break's This week only, predictions' chips, Weekly Calls (start, join, its move, the couch saying what happened, its table and
+  the hub, no results or cast to-dos, out of classic's list), the pool's call; then the browser as alex (Tonight's Call it and
+  sheet, the Predictions tab's chips, This week, a vote changed, Start a poll, Commercial break, the talk show's card and sheet;
+  after the episode, Tonight's result row and sheet, the poll's results, the talk show's results and Weekly Calls' table).
+  `tests/calls.test.js` (7). Updated for this part: check-new-show (Yes / No chips), check-new-solo (calls in Call it's table),
+  check-new-start-game and check-new-library (Weekly Calls startable), tests/start-game and tests/solo. The rest pass, one at a
+  time: check-new-plans (102), -listings (75), -guide (57), -library (91), -start-game (75), -make-it (81), -watching (114, after
+  one run's browser closed mid-screenshot), -solo (92), -way-in (85), -couches (114), -hub (75), -draft (90), -settling (96),
+  -results-ways (89), -ours (89), -desk (100), -community (82), -backstage (67), -backstage-ii (116), -show (69), -shell (46),
+  -reveal (49), -stats (57), -chat (52), check-foundation, check-preview and check-backup-restore; `npm test` 598 of 598;
+  type-check clean; lint (src) as before (the old error in classic's `use-sheet-swipe.ts` and the old warning in
+  `episode-results.ts`). Seen at 390 in the browser: the call sheet before and after, Tonight's rows, the Predictions tab's chips,
+  This week, the poll sheets (vote, start, results), Commercial break's cards, the talk show's Tonight, sheet and table.
+- **Noticed, left as is:** six, now in Noticed, not fixed: a talk show's calls are only the couch's say, an episode's moment call
+  follows the rulebook as it is, polls don't notify, Weekly Calls never finishes, its table's footnote says "reveal", and
+  predictions guess their chips from their words; Couch accolades now names Called it most. Out of Noticed: predictions as a text
+  field and the pool's own Who goes home?.
+- **For part 3:** bingo and trivia, Commercial break's and the Games tab's last Previews (`fixtures/episode-games.ts`), Weekly
+  Bingo (`rulebook-fits.js` SOON, a league type beside `weekly-calls`, `leagueCalls`'s shape for its table), and Weekly Calls'
+  ending with the season (Noticed). A bingo mark on a talk show's moment could count as that person's say (`episode_call_says`).
 
 ## Step C: cutover
 

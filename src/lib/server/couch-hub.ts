@@ -5,6 +5,7 @@ import { tableOf } from "@/lib/game/game-view";
 import type { Taste } from "@/lib/game/ratings";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
+import { callRights } from "./calls";
 import { withReactions } from "./chat";
 import { couchMembers, requireCouch } from "./couches";
 import { pool } from "./db";
@@ -13,7 +14,7 @@ import { hiddenFromGroup } from "./late-join";
 import { gameName } from "./league-season";
 import { leagueStates } from "./league-states";
 import { couchTaste } from "./ratings";
-import { seasonSchedules } from "./schedule";
+import { latestAired, seasonSchedules } from "./schedule";
 import { runItBack } from "./start-game";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 import { plansLately, type PlanHow } from "./watch-plans";
@@ -84,13 +85,20 @@ export interface CouchHub {
   taste: Taste;
 }
 
-/** What a game's table says, for one viewer at their mark: who placed where, the streaks, predictions called. */
-function standingOf(state: LeagueState, playerId: string | null, mark: number | null, userOf: (p: string) => string | null): { rows: StandingRow[]; through: number; ended: boolean } {
+/** What a game's table says, for one viewer at their mark: who placed where, the streaks, predictions called. `calls`: Weekly
+ *  Calls' (step 12 part 2), each player's right calls and the episode they're through (the calls aren't in the state). */
+function standingOf(
+  state: LeagueState,
+  playerId: string | null,
+  mark: number | null,
+  userOf: (p: string) => string | null,
+  calls?: { right: (p: string) => number; through: number }
+): { rows: StandingRow[]; through: number; ended: boolean } {
   const view = StateLogic.GhostLogic.viewFor(state, playerId, mark);
   const pool = StateLogic.getLeagueType(view).hasWeeklyPicks;
   const called = new Map<string, number>();
   for (const ep of view.episodes) for (const b of ep.bets || []) for (const p of b.predictions || []) if (p.correct === true) called.set(p.playerId, (called.get(p.playerId) ?? 0) + 1);
-  const rows = tableOf(view, playerId ?? "", userOf).map((r) => ({
+  const rows = tableOf(view, playerId ?? "", userOf, calls?.right).map((r) => ({
     userId: r.userId,
     name: r.name,
     place: r.place,
@@ -99,7 +107,14 @@ function standingOf(state: LeagueState, playerId: string | null, mark: number | 
     ...(pool ? { best: r.total, streak: r.week ?? 0 } : {}),
     called: called.get(r.playerId) ?? 0,
   }));
-  return { rows, through: StateLogic.SpoilerLogic.latestWithResults(view), ended: StateLogic.seasonEnded(view) };
+  return { rows, through: calls ? calls.through : StateLogic.SpoilerLogic.latestWithResults(view), ended: StateLogic.seasonEnded(view) };
+}
+
+/** A Weekly Calls game's right calls through `through`, by player (calls.ts callRights on its couch). */
+async function callsThrough(state: LeagueState, g: Game & { seasonId: string }, who: (p: string) => string | null, through: number) {
+  const userIds = state.players.map((p) => who(p.id)).filter((id): id is string => !!id);
+  const rights = await callRights(g.seasonId, userIds, { from: StateLogic.startEpisode(state), through, couchId: g.couchId });
+  return { right: (p: string) => rights.get(who(p) ?? "") ?? 0, through };
 }
 
 export async function couchHub(user: SessionUser, couchId: string): Promise<CouchHub> {
@@ -133,8 +148,11 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
     const mark = seen === EVERYTHING ? null : seen;
     const who = (p: string) => userOf.get(g.leagueId)?.get(p) ?? null;
     try {
-      const now = standingOf(state, mine.get(g.leagueId) ?? null, mark, who);
-      const before = now.through >= 2 ? standingOf(state, mine.get(g.leagueId) ?? null, now.through - 1, who).rows : null;
+      // Weekly Calls is through the latest show that's aired and you've seen, scored from the couch's calls.
+      const calls = StateLogic.getLeagueType(state).hasCalls ? await callsThrough(state, g, who, Math.min(seen, latestAired(schedules.get(g.seasonId)))) : undefined;
+      const now = standingOf(state, mine.get(g.leagueId) ?? null, mark, who, calls);
+      const back = calls && now.through >= 2 ? await callsThrough(state, g, who, now.through - 1) : undefined;
+      const before = now.through >= 2 ? standingOf(state, mine.get(g.leagueId) ?? null, now.through - 1, who, back).rows : null;
       standings.push({
         leagueId: g.leagueId,
         name: g.name,

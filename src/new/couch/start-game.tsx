@@ -17,7 +17,8 @@ import { openCouchSheet } from "./couch-sheets";
 // opened from anywhere signed in with openStartGame:
 //   - with a season: the games that fit that show (start-game.ts: rulebook-fits.js gamesFor), the kind's first recommended,
 //     each in a line in the show's own words ("Draft five drivers, start three each race"); what doesn't fit, in a line; a
-//     talk show's Weekly Bingo and Weekly Calls shown, coming with step 12; Tell the couch (one alert, on by default); Start it.
+//     talk show's Weekly Calls (step 12 part 2: two calls a show, Call it) and Weekly Bingo, shown coming with part 3; Tell the
+//     couch (one alert, on by default); Start it.
 //   - without one (the hub's foot, Commercial break, Get the couch going with nothing to suggest): Pick the show first, from
 //     your shows still airing; one that isn't a game yet goes to Make it a game.
 //   - `again` (Run it back): the same game, its name and settings, on the show's next season.

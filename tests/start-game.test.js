@@ -23,7 +23,7 @@ test("what fits each kind: a competition all three, a series Weekly Lineup, a sp
   for (const id of ["below-deck", "scrubs", "the-real-housewives-of-beverly-hills"]) assert.deepEqual(fits(LIBRARY[id].blocks, LIBRARY[id].compiled), ["weeklyLineup"], id);
   assert.deepEqual(fits(LIBRARY["world-series"].blocks, LIBRARY["world-series"].compiled), ["weeklyLineup", "survivalPool"]);
   const talk = gamesFor(LIBRARY["saturday-night-live"].blocks);
-  assert.deepEqual(talk.filter((g) => g.fits).map((g) => [g.key, g.soon, g.type]), [["weeklyBingo", "12", null], ["weeklyCalls", "12", null]], "shown, started with step 12");
+  assert.deepEqual(talk.filter((g) => g.fits).map((g) => [g.key, g.soon, g.type]), [["weeklyBingo", "12", null], ["weeklyCalls", null, "weekly-calls"]], "Weekly Calls starts (step 12 part 2), Weekly Bingo is still coming");
   assert.deepEqual(talk.filter((g) => !g.fits).map((g) => g.key), ["survivalPool", "weeklyLineup", "outlast"]);
   const types = Object.fromEntries(gamesFor(BUILT_IN_BLOCKS.survivor.blocks).map((g) => [g.key, g.type]));
   assert.deepEqual(types, { survivalPool: "pickem", weeklyLineup: "active-roster", outlast: "classic-draft" });

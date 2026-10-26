@@ -30,6 +30,11 @@ export function gameRules(state: LeagueState, castaway = StateLogic.formatOf(sta
     const swaps = StateLogic.WaiverLogic.windows(state).swaps > 0;
     if (pickups) rules.push(`Lose someone? Pick who comes in on waivers.${swaps ? " Waiver windows let you swap someone too." : ""}`);
     else if (swaps) rules.push(`Waiver windows let you swap one of your ${people} for someone new.`);
+  } else if (type.id === "weekly-calls") {
+    rules.push("No draft, no team. Before each show starts, make two calls about what will happen in it.");
+    rules.push("The couch says what happened as it watches: two of you agreeing settles a call.");
+    rules.push("Change your calls until it starts. Nobody sees them until then.");
+    rules.push("Most right calls by the finale wins.");
   } else if (type.id === "pickem") {
     rules.push(`No draft. Before each episode, pick one ${castaway} you think stays in.`);
     rules.push("Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.");

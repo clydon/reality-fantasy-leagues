@@ -14,6 +14,7 @@ import { Block, Face } from "./parts";
 import { useOpenReveal } from "./reveal";
 import { CouchMomentsCard } from "./couch-moments";
 import { openRate, rateLabel, RateRow, VerdictMark, type RateTarget } from "./rate";
+import { CallResults } from "./calls";
 import { ShowChangeCard } from "./show-change";
 import { CorrectionPlates, CorrectionRow, SomethingWrong } from "./something-wrong";
 import { playsWaivers, WaiverEpisodeRow } from "./waivers";
@@ -348,6 +349,7 @@ function EpisodeBody({ seasonId, couchId, e, seasonName, rate }: { seasonId: str
         <h2 className="type-caption mb-1 text-[24px]">How was it?</h2>
         <RateRow target={rate} verdict={e.verdict} />
       </section>
+      <CallResults target={rate} />
       <CouchMomentsCard seasonId={seasonId} couchId={couchId} episode={e.number} />
       <ShowChangeCard seasonId={seasonId} couchId={couchId} episode={e.number} seasonName={seasonName} />
       <SomethingWrong seasonId={seasonId} couchId={couchId} episode={e.number} />

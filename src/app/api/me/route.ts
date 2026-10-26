@@ -23,6 +23,7 @@ export const GET = apiRoute(async (req) => {
        LEFT JOIN league_groups g ON g.id = l.group_id
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
       WHERE m.user_id=$1 AND l.solo IS DISTINCT FROM 'public'
+        AND l.state->'settings'->>'leagueTypeId' IS DISTINCT FROM 'weekly-calls'
       ORDER BY l.name`,
     [user.id]
   );

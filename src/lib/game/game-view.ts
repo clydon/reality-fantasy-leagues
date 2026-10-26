@@ -54,7 +54,7 @@ export interface TableRow {
   picks: { episode: number; castawayId: string | null; correct: boolean | null }[];
   /** A computer player (bot-logic.js): a practice couch's. */
   bot: boolean;
-  /** A public pool's Who goes home? calls that were right (settings.calls), else 0. */
+  /** Calls that were right (Call it, step 12 part 2): a public pool's Who goes home? (settings.calls) or Weekly Calls'; else 0. */
   calls: number;
 }
 
@@ -88,16 +88,31 @@ export interface PickMove {
   streak: number;
 }
 
-/** A public pool's Who goes home? (PickEmLogic.setCall): the same episode as the pick, anyone still in. */
+/**
+ * Your calls in a game that reads them (Call it, src/lib/server/calls.ts; a person's, not the league's): a public pool's Who
+ * goes home? (`call`, a castaway of the pool's, for the pick's episode; anyone still in) or Weekly Calls' two a show.
+ */
 export interface CallMove {
   epId: string;
   episode: number;
   airsAt: string | null;
   open: boolean;
+  /** The pool's Who goes home?: whoever you called, and who you could. */
   call: string | null;
   available: string[];
+  /** How many of the episode's calls you've made, of how many. */
+  made: number;
+  of: number;
   /** Calls of yours that were right so far. */
   right: number;
+}
+
+/** What a game reads of its players' calls (they aren't in its state): each one's right calls, your move, and (Weekly Calls)
+ *  the episode its table is through. */
+export interface GameCalls {
+  right: (playerId: string) => number;
+  move: CallMove | null;
+  through?: number;
 }
 
 export interface PredictionMove {
@@ -109,6 +124,21 @@ export interface PredictionMove {
   guess: { id: string; text: string } | null;
   /** How many have answered (it pays once two have). */
   answers: number;
+  /** The answers as chips (step 12 part 2), from what the question asks (predictionKind): who's still in for "Who ...?", Yes and
+   *  No for "Will ...?"; null: answered in words. */
+  options: string[] | null;
+}
+
+/**
+ * What a prediction asks for, from its words (a prediction is free text with no options of its own, so the question says it):
+ * a person ("Who goes home?", "Which castaway ...?") or a yes or no ("Will an idol be played?"); null: anything, in words
+ * (a question with "or" in it chooses between its own words).
+ */
+export function predictionKind(label: string): "cast" | "yesno" | null {
+  const q = label.trim();
+  if (/^(who|whom|which (castaway|player|person|contestant|one|houseguest|queen|team|crew member))\b/i.test(q)) return "cast";
+  if (/^(will|does|do|did|is|are|was|were|can|could|has|have|would|should)\b/i.test(q) && !/\bor\b/i.test(q)) return "yesno";
+  return null;
 }
 
 export interface WeekProgress {
@@ -167,19 +197,19 @@ export type UserOf = (playerId: string) => string | null;
  * The game as `playerId` may see it. `full`: the league's state with air times stamped; `seen`: their mark for
  * this league (null: they see results straight away).
  */
-export function gameView(game: GameRefIn, full: LeagueState, playerId: string, seen: number | null, userOf: UserOf): GameView {
+export function gameView(game: GameRefIn, full: LeagueState, playerId: string, seen: number | null, userOf: UserOf, calls?: GameCalls): GameView {
   const view = StateLogic.GhostLogic.viewFor(full, playerId, seen);
   const type = StateLogic.getLeagueType(view);
   const catchingUp = StateLogic.GhostLogic.isCatchingUp(full, playerId) && Number.isInteger(seen);
   const hidden = StateLogic.SpoilerLogic.hiddenEpisodes(full, seen);
-  const everyone = tableOf(view, playerId, userOf);
+  const everyone = tableOf(view, playerId, userOf, calls?.right);
   const isPublic = game.solo === "public";
   const table = isPublic ? poolTop(everyone) : everyone;
   const catchUp = catchingUp ? { week: (seen as number) + 1, latest: StateLogic.SpoilerLogic.latestWithResults(full) } : null;
   return {
     ...game,
     playerId,
-    through: StateLogic.SpoilerLogic.latestWithResults(view),
+    through: type.hasCalls ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view),
     from: StateLogic.GhostLogic.startFor(view, playerId),
     table,
     you: table.find((r) => r.you) ?? null,
@@ -188,7 +218,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
     cast: castOf(view),
     lineup: type.hasActiveRoster ? lineupOf(view, playerId) : null,
     pick: type.hasWeeklyPicks ? pickOf(view, playerId) : null,
-    call: StateLogic.pickEmCallsOn(view) ? callOf(view, playerId) : null,
+    call: calls?.move ?? null,
     predictions: catchingUp ? [] : predictionsOf(view, playerId),
     progress: catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic }),
     revealFirst: hidden.length && !catchingUp ? hidden[0].number : null,
@@ -203,12 +233,14 @@ export function poolTop(rows: TableRow[]): TableRow[] {
   return rows.filter((r, j) => j < POOL_TOP || (i >= POOL_TOP && Math.abs(j - i) <= 1));
 }
 
-export function tableOf(view: LeagueState, me: string, userOf: UserOf): TableRow[] {
+/** `right`: each player's right calls (Call it), for Weekly Calls' table and a pool's "N called"; none read, none counted. */
+export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (playerId: string) => number = () => 0): TableRow[] {
   const type = StateLogic.getLeagueType(view);
   const pool = type.hasWeeklyPicks;
-  const calls = StateLogic.pickEmCallsOn(view);
+  const callsGame = !!type.hasCalls;
+  const calls = StateLogic.pickEmCallsOn(view) || callsGame;
   const bots = new Set(view.players.filter((p) => p.automated).map((p) => p.id));
-  const key = (r: ScoreRow) => (pool ? [r.longestStreak ?? 0, r.total] : [r.total]);
+  const key = (r: ScoreRow) => (callsGame ? [right(r.playerId)] : pool ? [r.longestStreak ?? 0, r.total] : [r.total]);
   const rows = [...StateLogic.computeScores(view)].sort((a, b) => {
     const [x, y] = [key(a), key(b)];
     return y[0] - x[0] || (y[1] ?? 0) - (x[1] ?? 0);
@@ -226,7 +258,7 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf): TableRow
       you,
       rank: `${tied ? "T" : ""}${first + 1}`,
       place: first + 1,
-      total: pool ? (r.longestStreak ?? 0) : r.total,
+      total: callsGame ? right(r.playerId) : pool ? (r.longestStreak ?? 0) : r.total,
       week: pool ? (r.currentStreak ?? 0) : lastEp ? teamEpisodeBreakdown(view, lastEp.id, r.playerId).total : null,
       points: r.total,
       team: type.hasRoster ? teamOrder(r.roster).map((c) => c.id) : [],
@@ -238,7 +270,7 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf): TableRow
             .map((p) => ({ episode: p.episode, castawayId: p.castawayId, correct: p.correct }))
         : [],
       bot: bots.has(r.playerId),
-      calls: calls ? StateLogic.pickEmCallHistory(view, r.playerId).right : 0,
+      calls: calls ? right(r.playerId) : 0,
     };
   });
 }
@@ -305,24 +337,26 @@ function pickOf(view: LeagueState, me: string): PickMove | null {
   };
 }
 
-/** Who goes home? for the pick's episode: anyone still in, closed with the pick. */
-function callOf(view: LeagueState, me: string): CallMove | null {
+/**
+ * A public pool's Who goes home? for the pick's episode (closed with the pick, anyone still in): `mine` is your call there as
+ * one of the pool's castaways, from your Call it (the server maps the season's cast to the pool's).
+ */
+export function poolCallOf(view: LeagueState, mine: string | null, right: number): CallMove | null {
   const { ep, open } = pickWindow(view);
   if (!ep) return null;
-  return {
-    epId: ep.id,
-    episode: ep.number,
-    airsAt: ep.airsAt ?? null,
-    open,
-    call: StateLogic.pickEmCallFor(view, ep.id, me)?.castawayId ?? null,
-    available: view.castaways.filter((c) => c.status === "active").map((c) => c.id),
-    right: StateLogic.pickEmCallHistory(view, me).right,
-  };
+  const available = view.castaways.filter((c) => c.status === "active").map((c) => c.id);
+  const call = mine && available.includes(mine) ? mine : null;
+  return { epId: ep.id, episode: ep.number, airsAt: ep.airsAt ?? null, open, call, available, made: call ? 1 : 0, of: 1, right };
 }
 
 /** Open predictions (the home's prediction move, action-items.js): unsettled, on an episode with no results yet. */
 function predictionsOf(view: LeagueState, me: string): PredictionMove[] {
   if (!view.settings.bonusEnabled) return [];
+  const stillIn = view.castaways.filter((c) => c.status !== "eliminated").map((c) => c.name);
+  const optionsFor = (label: string) => {
+    const kind = predictionKind(label);
+    return kind === "cast" ? (stillIn.length ? stillIn : null) : kind === "yesno" ? ["Yes", "No"] : null;
+  };
   return [...view.episodes]
     .filter((ep) => !ep.resultsHidden && !StateLogic.episodeHasResults(ep) && StateLogic.inPlay(view, ep.number))
     .sort((a, b) => a.number - b.number)
@@ -339,6 +373,7 @@ function predictionsOf(view: LeagueState, me: string): PredictionMove[] {
             points: bet.points || 0,
             guess: mine ? { id: mine.id, text: mine.guess } : null,
             answers: (bet.predictions || []).length,
+            options: optionsFor(bet.label),
           };
         })
     );

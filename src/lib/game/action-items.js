@@ -63,7 +63,8 @@ function byDue(a, b) {
 // since nothing says it has aired. Read from the full state: due is due whether or not the
 // commissioner has revealed what's in.
 function resultsDueEpisode(state, now) {
-  if (StateLogic.RevealLogic.isCatchingUp(state)) return null;
+  // Weekly Calls (step 12 part 2) has no results of its own: the couch's calls and what it says happened score it.
+  if (StateLogic.RevealLogic.isCatchingUp(state) || StateLogic.getLeagueType(state).hasCalls) return null;
   const t = now || Date.now();
   return (
     [...state.episodes]

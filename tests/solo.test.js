@@ -1,12 +1,12 @@
 // Playing solo (docs/PLAN-new-design.md step 9 part 3): a season's public pool (Survival Pool with a weekly Who goes home?
-// call, PickEmLogic's calls; its table the top ten and you, who's picked a count) and the practice couch's teams. On a
-// made-up demo season, so no database is needed. Run with `npm test`.
+// call, since step 12 part 2 the person's Call it, read in from outside the state; its table the top ten and you, who's
+// picked a count) and the practice couch's teams. On a made-up demo season, so no database is needed. Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
 const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
-const { gameView, poolTop, POOL_TOP } = jiti("../src/lib/game/game-view.ts");
+const { gameView, poolCallOf, poolTop, POOL_TOP } = jiti("../src/lib/game/game-view.ts");
 const { practiceTeams } = jiti("../src/lib/game/practice.ts");
 const S = require("../src/lib/game/state-logic.js");
 
@@ -29,41 +29,33 @@ const ep = (s, n) => s.episodes.find((e) => e.number === n);
 const ref = { leagueId: "l-pool", name: "Test 1 · Everyone", gameType: "pickem", gameName: "Survival Pool", yourRole: "member", solo: "public" };
 const userOf = (p) => `user-${p}`;
 
-test("Who goes home?: one call a week of anyone still in, closed once decided, right when they left that episode", () => {
+test("Who goes home?: the pick's episode, anyone still in; your call and the right ones come from Call it", () => {
   const s = pool();
   const me = s.players[0].id;
-  const six = ep(s, 6);
   const still = s.castaways.filter((c) => c.status === "active");
   const gone = s.castaways.find((c) => c.status === "eliminated");
   assert.ok(S.pickEmCallsOn(s));
-  S.setPickEmCall(s, six.id, me, gone.id);
-  assert.equal(S.pickEmCallFor(s, six.id, me), null, "nobody already out");
-  S.setPickEmCall(s, six.id, me, still[0].id);
-  S.setPickEmCall(s, six.id, me, still[1].id);
-  assert.equal(S.pickEmCallFor(s, six.id, me).castawayId, still[1].id, "one call, changed in place");
-  assert.equal(six.calls.length, 1);
-  assert.deepEqual(S.pickEmCallHistory(s, me), { rows: [{ episode: 6, castawayId: still[1].id, correct: null }], right: 0 });
-  // Episode 6: the one called goes home.
-  six.events.push({ castawayId: still[1].id, method: "Voted Out" });
-  const c = S.getCastaway(s, still[1].id);
-  c.status = "eliminated";
-  c.exitEpisodeId = six.id;
-  assert.ok(S.pickEmDecided(six));
-  S.setPickEmCall(s, six.id, me, still[2].id);
-  assert.equal(S.pickEmCallFor(s, six.id, me).castawayId, still[1].id, "closed once it's decided");
-  assert.equal(S.pickEmCallHistory(s, me).right, 1);
-  // Calls off (a couch's Survival Pool): nothing to call.
+  const move = poolCallOf(s, still[1].id, 2);
+  assert.equal(move.episode, 6);
+  assert.equal(move.call, still[1].id);
+  assert.deepEqual(move.available.sort(), still.map((c) => c.id).sort());
+  assert.equal(move.right, 2);
+  assert.equal(poolCallOf(s, gone.id, 0).call, null, "nobody already out");
+  // The game view takes the calls it's handed: the move, and each player's right calls on the table.
+  const g = gameView(ref, s, me, CURSOR, userOf, { right: (p) => (p === me ? 3 : 0), move });
+  assert.equal(g.call.call, still[1].id);
+  assert.equal(g.table.find((r) => r.you).calls, 3);
+  // Calls off (a couch's Survival Pool): nothing handed in, nothing to call.
   const off = pool();
   off.settings.calls = false;
-  S.setPickEmCall(off, ep(off, 6).id, off.players[0].id, still[0].id);
-  assert.equal(S.pickEmCallFor(off, ep(off, 6).id, off.players[0].id), null);
   assert.equal(gameView(ref, off, off.players[0].id, CURSOR, userOf).call, null);
+  assert.ok(gameView(ref, off, off.players[0].id, CURSOR, userOf).table.every((r) => r.calls === 0));
 });
 
 test("a public pool's table: the top ten and you with your neighbours, the field counted, who's picked a count", () => {
   const s = pool(30);
   const me = s.players[20].id;
-  const g = gameView(ref, s, me, CURSOR, userOf);
+  const g = gameView(ref, s, me, CURSOR, userOf, { right: () => 0, move: poolCallOf(s, null, 0) });
   assert.equal(g.players, 30);
   assert.ok(g.table.length <= POOL_TOP + 3);
   assert.ok(g.table.some((r) => r.you));

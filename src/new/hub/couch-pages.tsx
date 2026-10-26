@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { ChartColumn, ChevronRight, CircleQuestionMark, Crown, Grid3x3, Plus, Repeat, RotateCcw, Shield, ShieldCheck, Star, Trophy, Tv, Zap, type LucideIcon } from "lucide-react";
 import {
   useCouchGames,
+  useCouchThisWeek,
   useCouchVerdicts,
   useSeasonEpisodes,
   useSeasonStats,
@@ -24,13 +25,15 @@ import {
 import { HUB_THIS_WEEK } from "../fixtures/episode-games";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
 import { openStartGame } from "../couch/start-game";
-import { dayOf } from "../clock";
+import { airTime, dayOf } from "../clock";
 import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { HubStatsPage, statBoard, statOf, unitFor, useStatsPage } from "../show/stats";
 import { Face } from "../show/parts";
 import { openRate } from "../show/rate";
+import { openCall } from "../show/calls";
+import { openPoll, pollWords } from "../show/polls";
 import { verdictText } from "@/lib/game/ratings";
 import { Avatar } from "../ui/bars";
 import { PushedPage, usePushedPage } from "../ui/page";
@@ -43,8 +46,8 @@ import { movesByDue } from "./sections";
 // (?page=), so the back gesture closes it. Real since step 8 (Hub I), from the couch's own games as you may see them
 // (couch-hub.ts): power rankings, Commercial break's games, By the numbers (cast stats since step 3, the couch's
 // accolades now), Previously on (each show's story up to where you are) and the trophy shelf (once a season has ended).
-// Couch verdicts are real since step 12 part 1 (the couch's ratings, ratings.ts); Commercial break's episode games are still
-// step 12's (Preview).
+// Couch verdicts are real since step 12 part 1 (the couch's ratings, ratings.ts); Commercial break's This week only has each
+// show's Call it and the couch's polls since part 2 (calls.ts, polls.ts couchThisWeek); its bingo and trivia are part 3's (Preview).
 
 const PAGES = {
   rankings: { title: "Power rankings", line: "Where everyone stands this year", icon: Trophy },
@@ -350,8 +353,26 @@ function RankingsPage({ hub, me }: { hub: CouchHub | undefined; me: string }) {
 
 const EP_ICON = { bingo: Grid3x3, poll: ChartColumn, quiz: CircleQuestionMark };
 
+/** A This week only card: the show's art, an icon, what it is and a line (the mock's .cb-card.ep). */
+function WeekCard({ seasonId, artUrl, name, icon: Icon, title, line, onClick, ...rest }: { seasonId: string; artUrl: string | null; name: string; icon: LucideIcon; title: string; line: string; onClick?: () => void } & Record<`data-${string}`, string>) {
+  return (
+    <button type="button" onClick={onClick} {...rest} className="nd-press relative isolate flex aspect-[1/1.05] flex-col justify-end overflow-hidden rounded-[4px] p-2.5 text-left text-white">
+      <ShowArt seasonId={seasonId} artUrl={artUrl} name={name} className="absolute inset-0 -z-[2] size-full" />
+      <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(16,14,21,.2),rgba(16,14,21,.92)_70%)]" />
+      <span className="absolute left-2.5 top-2.5 grid size-[34px] place-items-center rounded-[3px] bg-plate text-plate-foreground">
+        <Icon className="size-[18px]" aria-hidden />
+      </span>
+      <b className="type-caption text-[19px] leading-none [overflow-wrap:anywhere]">{title}</b>
+      <small className="mt-1 text-xs opacity-85">{line}</small>
+    </button>
+  );
+}
+
 function CommercialBreak({ hub, home, couch }: { hub: CouchHub | undefined; home: Home | undefined; couch: Couch | null }) {
   const moves = movesByDue(home?.moves ?? []);
+  // This week only (step 12 part 2): each of your shows' Call it and the couch's polls; read when the page opens.
+  const week = useCouchThisWeek(couch?.id ?? null);
+  const artOf = (seasonId: string) => week.data?.shows.find((s) => s.seasonId === seasonId)?.artUrl ?? home?.shows.find((s) => s.seasonId === seasonId)?.show.artUrl ?? null;
   const playing = hub?.games.filter((g) => !g.ended) ?? [];
   // Games on the couch you're not in (step 9): join, ask, or see it's closed.
   const all = useCouchGames(couch?.id ?? null);
@@ -419,6 +440,37 @@ function CommercialBreak({ hub, home, couch }: { hub: CouchHub | undefined; home
       )}
       <section className="mt-6 px-3">
         <SectionHead title="This week only" aside="One night each" flush />
+        <div className="grid grid-cols-2 gap-2 p-1" data-break-week>
+          {(week.data?.shows ?? [])
+            .filter((s) => s.calls)
+            .map((s) => (
+              <WeekCard
+                key={`call-${s.seasonId}`}
+                data-week-call={s.seasonId}
+                seasonId={s.seasonId}
+                artUrl={s.artUrl}
+                name={s.label}
+                icon={CircleQuestionMark}
+                title={s.calls!.made === s.calls!.of ? "Called it" : "Call it"}
+                line={`${s.label} · Episode ${s.episode} · ${s.calls!.made === s.calls!.of ? "change until" : "closes"} ${airTime(Date.parse(s.airAt))}`}
+                onClick={() => openCall({ seasonId: s.seasonId, couchId: couch?.id ?? null, episode: s.episode, label: s.label, solo: false })}
+              />
+            ))}
+          {couch &&
+            (week.data?.polls ?? []).map((p) => (
+              <WeekCard
+                key={p.id}
+                data-week-poll={p.id}
+                seasonId={p.seasonId}
+                artUrl={artOf(p.seasonId)}
+                name={p.label}
+                icon={ChartColumn}
+                title={p.question}
+                line={pollWords(p).line}
+                onClick={() => openPoll({ kind: "vote", seasonId: p.seasonId, couchId: couch.id, pollId: p.id })}
+              />
+            ))}
+        </div>
         <Preview id="hub.episode-games">
           <div className="grid grid-cols-2 gap-2 p-1">
             {HUB_THIS_WEEK.map((e) => {

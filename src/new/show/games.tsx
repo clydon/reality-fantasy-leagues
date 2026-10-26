@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Archive, BookOpen, Check, ChevronRight, CircleQuestionMark, Eye, Grid3x3, Plus, RotateCcw, X } from "lucide-react";
 import { dayOf, timeOf } from "../clock";
 import { THIS_WEEK } from "../fixtures/episode-games";
-import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useSeasonWaivers, useStartOptions, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
+import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useSeasonPolls, useSeasonWaivers, useStartOptions, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
 import { openStartGame } from "../couch/start-game";
 import { toast } from "../ui/toast";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
@@ -22,13 +22,16 @@ import { playsWaivers, WaiversHowBody } from "./waivers";
 import { useOpenReveal } from "./reveal";
 import { SoloGames } from "./solo";
 import { useOpenMake } from "./make-game";
+import { CallRow } from "./calls";
+import { PollRow, StartPollRow } from "./polls";
+import { rateLabel } from "./rate";
 
 // Games (the mock's show.js tabStandings, gamestab.js, rulebook.js rbHowRow): where you play. Your games' tables when
 // you're in one (a pill per game, then each table; a row opens that person's team, Rules each game in plain words),
 // How it works, this week's one-night games and Start a game; a show you don't play gets Play it. Real: the tables
 // (your games through the guard: game-view.ts), each game's rules (its settings: game-rules.ts), How it works' row.
-// On fixtures behind Preview: the episode games (12). Make it a game (10 part 2a) and Start a game, Run it back and an
-// archived game's Bring it back (10 part 2b) are real.
+// On fixtures behind Preview: bingo and trivia (12 part 3); This week's Call it and the couch's polls are real (part 2). Make it a
+// game (10 part 2a) and Start a game, Run it back and an archived game's Bring it back (10 part 2b) are real.
 
 /** A game's line under its name: what it is, for a game the new design knows. */
 const lineOf = (g: GameView) => (isGameName(g.gameName) ? GAME_STYLE[g.gameName].line : g.name);
@@ -174,7 +177,8 @@ function Standings({ play, scope, onPlayer, onRules }: { play: GameView[]; scope
               key={r.playerId}
               type="button"
               data-player={r.name}
-              disabled={g.solo === "public" && !r.you}
+              // A public pool's strangers, and Weekly Calls (a count of right calls, nothing more to open: step 12 part 2).
+              disabled={(g.solo === "public" && !r.you) || g.gameType === "weekly-calls"}
               onClick={() => onPlayer(r, g)}
               className={`flex min-h-14 items-center gap-2.5 border-t text-left ${r.you ? "-mx-2 w-[calc(100%+16px)] rounded-[2px] border-transparent bg-secondary px-2" : "w-full border-border"}`}
             >
@@ -485,24 +489,40 @@ function HowRow({ show, name }: { show: ShowData; name: string }) {
 function ThisWeek({ show }: { show: ShowData }) {
   const up = show.upNext;
   const t = up?.airAt ? Date.parse(up.airAt) : null;
-  const rows = [
-    ...(up ? [{ icon: "bingo" as const, title: `Episode ${up.number} bingo`, line: `Opens ${t != null ? `${dayOf(t)} ${timeOf(t)}` : "at airtime"} · tap squares as it happens` }] : []),
-    ...THIS_WEEK,
-  ];
+  const couchId = show.couch?.id ?? null;
+  const seasonId = show.header?.seasonId ?? null;
+  const playing = show.games.some((g) => g.yourRole);
+  // Call it for the next episode (step 12 part 2), on a show that's a game you follow or play.
+  const call = seasonId && show.ready && up && !up.live && (show.following || playing) ? up.number : null;
+  // The couch's polls on this show, and Start a poll (part 2): a couch's, so not solo.
+  const onCouch = !!couchId && !show.solo && !!seasonId;
+  const polls = useSeasonPolls(seasonId, couchId, onCouch);
+  const preview = (rows: typeof THIS_WEEK) =>
+    rows.map((r) => (
+      <button key={r.title} type="button" className="flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
+        <IconBox icon={r.icon === "bingo" ? Grid3x3 : CircleQuestionMark} />
+        <span className="min-w-0 flex-1">
+          <b className="block text-[15px] font-semibold">{r.title}</b>
+          <small className="mt-0.5 block text-[13px] text-muted-foreground">{r.line}</small>
+        </span>
+        <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+      </button>
+    ));
   return (
     <Block title="This week" aside="One night each">
-      <Preview id="show.episode-games" tag={false} className="-mx-2 px-2">
-        {rows.map((r) => (
-          <button key={r.title} type="button" className="flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left">
-            <IconBox icon={r.icon === "bingo" ? Grid3x3 : CircleQuestionMark} />
-            <span className="min-w-0 flex-1">
-              <b className="block text-[15px] font-semibold">{r.title}</b>
-              <small className="mt-0.5 block text-[13px] text-muted-foreground">{r.line}</small>
-            </span>
-            <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
-          </button>
-        ))}
-      </Preview>
+      <div data-this-week>
+        {up && (
+          <Preview id="show.episode-games" tag={false} className="-mx-2 px-2">
+            {preview([{ icon: "bingo", title: `Episode ${up.number} bingo`, line: `Opens ${t != null ? `${dayOf(t)} ${timeOf(t)}` : "at airtime"} · tap squares as it happens` }])}
+          </Preview>
+        )}
+        {call && seasonId && <CallRow icon target={{ seasonId, couchId, episode: call, label: rateLabel(show), solo: show.solo }} />}
+        {onCouch && (polls.data?.polls ?? []).map((p) => <PollRow key={p.id} icon p={p} couchId={couchId!} />)}
+        <Preview id="show.episode-games" tag={false} className="-mx-2 px-2">
+          {preview(THIS_WEEK)}
+        </Preview>
+        {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={rateLabel(show)} />}
+      </div>
     </Block>
   );
 }

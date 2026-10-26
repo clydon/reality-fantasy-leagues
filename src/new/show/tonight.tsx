@@ -27,6 +27,9 @@ import { openPlan, PlanInvite, PlanPlates } from "../couch/watch-plans";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
 import { rateLabel, RateRow } from "./rate";
+import { CallResultRow, CallRow, openCall } from "./calls";
+import { PollRow } from "./polls";
+import { useSeasonPolls } from "../data";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
 // Your moves as swipeable cards (open first with the one yellow button on the first, then what you've already set
@@ -37,7 +40,8 @@ import { rateLabel, RateRow } from "./rate";
 // stage bar), results in (the one yellow: Reveal; a move that waits on them says so), the morning update once the
 // final scores land after an early reveal, and the last episode's recap until the next one airs. Real: all of it
 // but bingo (12) and Watch along (13), on fixtures behind Preview; the stats card is stats.tsx's (step 3); Rate it in Extras
-// (step 12 part 1: the latest episode you've seen, rate.tsx). Results from
+// (step 12 part 1: the latest episode you've seen, rate.tsx); Call it for the next episode and the couch's open polls in Extras
+// (part 2: calls.tsx, polls.tsx), Weekly Calls' calls a move card. Results from
 // everyone (step 6b): a player who has seen an episode with only its early results gets a quiet "Full scores need one
 // paste · Fill it in" when the couch lets anyone fill them in.
 
@@ -206,6 +210,8 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
   // With results to reveal, the reveal plate above is the one yellow.
   const quiet = !!show.episodes?.reveal;
   const done = show.play ? doneCards(show.play) : [];
+  // Weekly Calls' cards open Call it for their episode (step 12 part 2).
+  const onCall = (episode: number) => openCall({ seasonId, couchId: show.couch?.id ?? null, episode, label: rateLabel(show), solo: show.solo });
   const due = open[0]?.deadline ? Date.parse(open[0].deadline) : t;
 
   let body: ReactNode;
@@ -227,8 +233,8 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
       ...(cards.length || !up
         ? []
         : [{ key: "set", node: <SetCard title={`You're set for Episode ${up.number}`} line={t != null ? `Change anything until ${airTime(t)}` : "Change anything until it airs"} /> }]),
-      ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0 && !quiet} /> })),
-      ...done.map((c) => ({ key: c.key, node: <DoneMove card={c} /> })),
+      ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0 && !quiet} onCall={onCall} /> })),
+      ...done.map((c) => ({ key: c.key, node: <DoneMove card={c} onCall={onCall} /> })),
     ];
     // A new set of cards (a save made one done) starts back at the first, so what's still due is in view.
     body = <MoveCards key={items.map((it) => it.key).join()} items={items} />;
@@ -271,7 +277,7 @@ function MoveCards({ items }: { items: { key: string; node: ReactNode }[] }) {
 }
 
 /** A move still to make: its number, what it is, and its button (yellow only on the first). */
-function OpenCard({ card: c, n, must }: { card: MoveCard & { reveal?: number }; n: number; must: boolean }) {
+function OpenCard({ card: c, n, must, onCall }: { card: MoveCard & { reveal?: number }; n: number; must: boolean; onCall: (episode: number) => void }) {
   const openReveal = useOpenReveal();
   return (
     <div data-move={c.key} className="flex w-full flex-col gap-1.5 rounded-[4px] bg-card p-4">
@@ -286,6 +292,10 @@ function OpenCard({ card: c, n, must }: { card: MoveCard & { reveal?: number }; 
         <BtnLink href={c.href} tone={must ? "must" : "optional"} wide className="mt-auto">
           {c.action}
         </BtnLink>
+      ) : c.call ? (
+        <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => onCall(c.call!)}>
+          {c.action}
+        </Btn>
       ) : (
         <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => openMoves(c.tab ?? "lineup", c.leagueId ?? null)}>
           {c.action}
@@ -296,7 +306,7 @@ function OpenCard({ card: c, n, must }: { card: MoveCard & { reveal?: number }; 
 }
 
 /** A move you've made that can still change. */
-function DoneMove({ card: c }: { card: MoveCard }) {
+function DoneMove({ card: c, onCall }: { card: MoveCard; onCall: (episode: number) => void }) {
   return (
     <div data-done={c.key} className="flex w-full flex-col gap-1.5 rounded-[4px] bg-background p-4 outline-1 -outline-offset-1 outline-border">
       <span className="grid size-[30px] place-items-center rounded-full bg-good/20 text-good">
@@ -304,7 +314,7 @@ function DoneMove({ card: c }: { card: MoveCard }) {
       </span>
       <b className="type-caption text-[26px] leading-none">{c.title}</b>
       <small className="mb-2.5 block text-sm leading-snug text-muted-foreground">{c.line}</small>
-      <Btn wide className="mt-auto" onClick={() => openMoves(c.tab ?? "lineup", c.leagueId ?? null)}>
+      <Btn wide className="mt-auto" onClick={() => (c.call ? onCall(c.call) : openMoves(c.tab ?? "lineup", c.leagueId ?? null))}>
         {c.action}
       </Btn>
     </div>
@@ -560,22 +570,42 @@ function toRate(show: ShowData): number | null {
   return n >= 1 ? n : null;
 }
 
+/** The episode Call it asks about: the next to air (step 12 part 2), on a show that's a game you follow or play, unless your Weekly
+ *  Calls game here already asks for it as a move. */
+function toCall(show: ShowData): number | null {
+  const up = show.upNext;
+  const playing = show.games.some((g) => g.yourRole);
+  if (!show.header || !show.ready || !up || up.live || (!show.following && !playing)) return null;
+  if (show.games.some((g) => g.yourRole && g.gameType === "weekly-calls")) return null;
+  return up.number;
+}
+
 function Extras({ show }: { show: ShowData }) {
   const up = show.upNext;
   const t = up?.airAt ? Date.parse(up.airAt) : null;
   const predictions = show.moves.filter((m) => m.kind === "prediction");
   const rate = toRate(show);
+  const call = toCall(show);
+  const couchId = show.couch?.id ?? null;
+  // The couch's polls still open on this show (step 12 part 2): yours to vote in until it airs.
+  const polls = useSeasonPolls(show.header?.seasonId ?? null, couchId, !show.solo && !!couchId);
   if (up?.live) return null;
   return (
     <Block title="Extras this week" aside="Optional">
       {predictions.map((m) => (
         <ExtraRow key={m.leagueId} title={m.text} line={`Closes at airtime · ${m.leagueName}`} state="Open" onClick={() => openMoves("predict")} />
       ))}
+      {call && show.header && <CallRow target={{ seasonId: show.header.seasonId, couchId, episode: call, label: rateLabel(show), solo: show.solo }} />}
+      {couchId && (polls.data?.polls ?? []).filter((p) => p.open).map((p) => <PollRow key={p.id} p={p} couchId={couchId} />)}
       {rate && show.header && (
         <RateRow
-          target={{ seasonId: show.header.seasonId, couchId: show.couch?.id ?? null, episode: rate, label: rateLabel(show), solo: show.solo }}
+          target={{ seasonId: show.header.seasonId, couchId, episode: rate, label: rateLabel(show), solo: show.solo }}
           verdict={show.episodes?.episodes.find((e) => e.number === rate)?.verdict}
         />
+      )}
+      {/* How your calls on it went (step 12 part 2), on a show that's a game: a talk show's say what happened here. */}
+      {rate && show.header && show.ready && (
+        <CallResultRow target={{ seasonId: show.header.seasonId, couchId, episode: rate, label: rateLabel(show), solo: show.solo }} need="mine" />
       )}
       <Preview id="show.episode-games" tag={false} className="-mx-2 px-2">
         <ExtraRow title={BINGO_CARD.title} line={`Ready for ${t != null ? dayOf(t, true) : "the next episode"} · ${BINGO_CARD.line}`} state={BINGO_CARD.state} />
@@ -646,6 +676,7 @@ export function yourLine(g: GameView): string {
   const me = g.you;
   if (!me) return "Not on the table yet";
   if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
+  if (g.gameType === "weekly-calls") return `${me.total} ${me.total === 1 ? "call" : "calls"} right`;
   if (g.gameType === "active-roster") return `${me.total} pts`;
   const team = me.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c);
   return `${team.filter((c) => !c.knocked).length} of ${team.length} still in`;

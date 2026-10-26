@@ -21,11 +21,30 @@
 //   watches) rated from its Episodes; and, on solo-fixture.js (people on no couch), zt_so_alex's Rate it with everyone's verdict
 //   (a number only). Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
+// Part 2 is Call it, the couch's polls, predictions as chips and Weekly Calls (calls.ts, polls.ts), on the same fixtures plus
+// talk-fixture.js (ZT Talk Tonight, a talk show alex and riley follow through Episode 3, Episode 4 in two days):
+//   API, before Episode 6 airs: its two calls (Who goes home? from who's still in, one of the show's moments), the refusals
+//   (an episode not open yet, someone already out, a call that isn't one, maybe, saying what happened before it airs, a couch
+//   you're not on, sam behind: no faces, can't call), the couch's calls private until airtime (riley sees a count), taking a call
+//   back; polls (start on the cast or your own options, the refusals, votes hidden until it closes, three at most on an episode,
+//   only its starter takes it down, sam behind sees none); Commercial break's This week only; predictions' chips (a Who
+//   question gets who's still in, a Will question Yes and No, anything else words); Weekly Calls on the talk show (startable
+//   now, Weekly Bingo still coming; riley joins; its move on the hub until both calls are made; its game at 0; out of classic's
+//   list). In the browser before it airs: alex's Call it from Tonight (faces, Yes / No, Lock in), the Games tab's This week (Call
+//   it, the polls, Start a poll with options of his own), a vote changed, the Predictions tab's chips, Commercial break's cards,
+//   the talk show's Weekly Calls card and Start a game sheet.
+//   Then Episode 6 (and the talk show's 4) air: nobody calls it any more; alex sees his calls but nothing of the couch's until
+//   he's seen it; then waiting, who went home (early) and every result (final) settle them, the couch's calls beside his, sam
+//   and casey told nothing; the polls close (their votes for whoever's seen it, waiting for sam); the talk show's calls settled
+//   by two saying what happened, Weekly Calls' table by right calls, on the hub too; and on solo-fixture.js, a public pool's
+//   Who goes home? and Call it's are the same call, counted once its person goes home. In the browser: Tonight's row for how
+//   Episode 6's calls went and the sheet, the poll's results, the talk show's row and the Weekly Calls table.
+//
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-new-episode-games.js <outDir> [--width=390] [--keep] [--api]
 //
-// --api: the API half only. Brings new-fixture.js and solo-fixture.js up and takes them down (--keep leaves them); touches zt
-// rows only; refuses a non-local database. Prints PASS/FAIL.
+// --api: the API half only. Brings new-fixture.js, talk-fixture.js and solo-fixture.js up and takes them down (--keep leaves
+// them); touches zt rows only; refuses a non-local database. Prints PASS/FAIL.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
@@ -33,6 +52,7 @@ const { Pool } = require("pg");
 const { open, api, BASE } = require("./browser");
 const fixture = require("./new-fixture");
 const soloFixture = require("./solo-fixture");
+const talkFixture = require("./talk-fixture");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-new-episode-games runs against a local database only");
@@ -198,40 +218,200 @@ function check(ok, what, detail = "") {
     r = await solo.alex.call("GET", `/api/seasons/${so.seasonId}/ratings/5`);
     check(r.status === 200 && r.body.n === 2 && r.body.people.length === 0 && !r.body.mine && !/stranger|zt_so_/.test(JSON.stringify(r.body)), "zt_so_alex, before rating: a number, never a stranger's name or take", JSON.stringify(r.body));
 
-    if (!apiOnly) {
-      const noBadge = () => {
-        document.addEventListener("DOMContentLoaded", () => {
-          const s = document.createElement("style");
-          s.textContent = "nextjs-portal{display:none!important}";
-          document.head.appendChild(s);
-        });
-      };
-      let n = 0;
-      const browse = async (who) => {
-        const b = await open({ user: u(who), pass: PASSWORD, width, height: 844, motion: "off" });
-        closers.push(b.close);
-        await b.page.context().addInitScript(noBadge);
-        await b.page.emulateMedia({ reducedMotion: "reduce" });
-        let favicon = 0;
-        b.page.on("console", (m) => m.type() === "error" && m.location().url.endsWith("/favicon.ico") && favicon++);
-        const pg = b.page;
-        return {
-          pg,
-          shot: async (name) => {
-            await Promise.race([b.settle(), pg.waitForTimeout(3000)]);
-            await pg.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-${who}-${name}.png`) });
-          },
-          wide: async (what) => {
-            const over = await pg.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-            check(over <= 1, `${what}: nothing wider than the screen`, `${over}px`);
-          },
-          errors: () => b.errors.filter((x) => !/Failed to load resource/.test(x)).concat(b.errors.filter((x) => /Failed to load resource/.test(x)).slice(favicon)),
-          sheet: () => pg.locator("[role=dialog][data-open]"),
-          closed: () => pg.locator("[role=dialog][data-open]").waitFor({ state: "detached" }).catch(() => {}),
-          statuses: async () => (await pg.locator("[role=status]").allTextContents()).join(" | "),
-        };
-      };
+    // ================= part 2: Call it, the couch's polls, predictions as chips, Weekly Calls =================
+    const tk = await talkFixture.up(pool, fx);
+    const callsOf = (who, n, season = sid, couch = A) => as[who].call("GET", `/api/seasons/${season}/calls/${n}${q(couch)}`);
+    const callIt = (who, n, body, season = sid, couch = A) => as[who].call("POST", `/api/seasons/${season}/calls/${n}${q(couch)}`, body);
+    const storedCalls = async (who, n, season = sid) =>
+      Object.fromEntries((await pool.query("SELECT question, answer FROM episode_calls WHERE user_id = $1 AND season_id = $2 AND episode = $3", [U[who], season, n])).rows.map((x) => [x.question, x.answer]));
+    const castRows = (await pool.query("SELECT id, name FROM season_cast WHERE season_id = $1", [sid])).rows;
+    const gone = (await pool.query("SELECT castaway_name FROM season_decisions WHERE season_id = $1 AND kind = 'elimination' AND status = 'accepted'", [sid])).rows.map((x) => x.castaway_name);
 
+    // ---------- Call it, before Episode 6 airs ----------
+    let c = await callsOf("alex", 6);
+    check(c.status === 200 && c.body.status === "open" && c.body.questions.length === 2 && c.body.scope === "couch", "Call it, Episode 6 (next to air): open, two calls", JSON.stringify(c.body).slice(0, 200));
+    const outQ = c.body.questions.find((x) => x.key === "out");
+    const momentQ = c.body.questions.find((x) => x.key !== "out");
+    check(
+      !!outQ && outQ.kind === "cast" && outQ.lead === "Who goes home?" && outQ.options.length === castRows.length - gone.length && outQ.options.every((o) => !gone.includes(o.label) && !!o.photo),
+      "Who goes home?: everyone still in (with faces), nobody already out",
+      `${outQ?.options.length} of ${castRows.length}, ${gone.length} gone`
+    );
+    check(!!momentQ && momentQ.kind === "yesno" && momentQ.by === "results" && momentQ.lead === "Anyone this episode?" && /^m:/.test(momentQ.key) && !!momentQ.what, "and one of the show's moments, yes or no", JSON.stringify(momentQ));
+    const GO = outQ.options[0];
+    const STAY = outQ.options[1];
+    r = await callsOf("alex", 7);
+    check(r.status === 409 && /open for Episode 6/.test(r.body.error), "Episode 7 isn't open yet: 409", JSON.stringify(r.body));
+    r = await callIt("alex", 6, { calls: { out: castRows.find((x) => gone.includes(x.name)).id } });
+    check(r.status === 400 && /still in/.test(r.body.error), "calling someone already out: 400", JSON.stringify(r.body));
+    r = await callIt("alex", 6, { calls: { "m:nothingLikeIt": "yes" } });
+    check(r.status === 400, "a call that isn't one of Episode 6's: 400");
+    r = await callIt("alex", 6, { calls: { [momentQ.key]: "maybe" } });
+    check(r.status === 400 && /Yes or no/.test(r.body.error), "maybe isn't yes or no: 400", JSON.stringify(r.body));
+    r = await callIt("alex", 6, {});
+    check(r.status === 400, "nothing to save: 400");
+    r = await callIt("alex", 6, { said: { [momentQ.key]: "yes" } });
+    check(r.status === 403, "saying what happened before it's aired: 403");
+    r = await callsOf("casey", 6);
+    check(r.status === 404, "a couch you're not on: 404");
+    r = await as.alex.call("GET", `/api/seasons/not-a-season/calls/6${q(A)}`);
+    check(r.status === 404, "a season that isn't one: 404");
+    r = await callsOf("sam", 6);
+    check(r.status === 200 && r.body.status === "behind" && r.body.catchUp === 5 && r.body.questions.length === 0, "sam (on 3): behind, see Episode 5 first; no faces sent (they'd say who's out)", JSON.stringify(r.body).slice(0, 200));
+    r = await callIt("sam", 6, { calls: { out: GO.key } });
+    check(r.status === 403, "and he can't call it: 403");
+    r = await callIt("alex", 6, { calls: { out: GO.key, [momentQ.key]: "yes" } });
+    let mine = await storedCalls("alex", 6);
+    check(r.status === 200 && r.body.mine.out === GO.key && r.body.mine[momentQ.key] === "yes" && mine.out === GO.key && mine[momentQ.key] === "yes", "alex calls both: saved", JSON.stringify(mine));
+    await callIt("riley", 6, { calls: { out: STAY.key, [momentQ.key]: "no" } });
+    await callIt("jordan", 6, { calls: { out: GO.key } });
+    r = await callsOf("riley", 6);
+    check(
+      r.body.people.length === 0 && r.body.called === 3 && r.body.mine.out === STAY.key && !JSON.stringify(r.body).includes(u("alex")),
+      "private until it airs: riley sees that 3 have called it, not who called what",
+      JSON.stringify({ people: r.body.people, called: r.body.called })
+    );
+    r = await callIt("alex", 6, { calls: { [momentQ.key]: null } });
+    check(!r.body.mine[momentQ.key] && !(momentQ.key in (await storedCalls("alex", 6))), "a call taken back");
+    // alex makes his calls again in the browser (or here, with --api).
+    await callIt("alex", 6, apiOnly ? { calls: { [momentQ.key]: "yes" } } : { calls: { out: null } });
+    let home = (await as.alex.call("GET", "/api/me/home")).body;
+    check(!home.moves.some((m) => m.kind === "calls"), "Call it is an extra, never a move (nobody plays Weekly Calls here)");
+
+    // ---------- the couch's polls ----------
+    const pollsOf = (who, season = sid, couch = A) => as[who].call("GET", `/api/seasons/${season}/polls${q(couch)}`);
+    const startPoll = (who, body, season = sid, couch = A) => as[who].call("POST", `/api/seasons/${season}/polls${q(couch)}`, body);
+    const answer = (who, id, body) => as[who].call("POST", `/api/polls/${id}`, body);
+    const pollIn = (body, id) => body.polls.find((x) => x.id === id);
+    r = await pollsOf("alex");
+    check(r.status === 200 && r.body.polls.length === 0 && r.body.start?.episode === 6 && r.body.start.cast === true, "polls: none yet; alex can start one for Episode 6, on the cast", JSON.stringify(r.body));
+    r = await pollsOf("sam");
+    check(r.status === 200 && r.body.start === null, "sam (behind) can't start one");
+    r = await startPoll("sam", { question: "Who goes next?", cast: true });
+    check(r.status === 403, "and starting one anyway: 403");
+    for (const [body, re, what] of [
+      [{ question: "x", cast: true }, /Ask the couch/, "a question too short"],
+      [{ question: "Big twist?", options: ["A swap"] }, /Two to four/, "one option"],
+      [{ question: "Big twist?", options: ["A swap", "a swap"] }, /Each option once/, "the same option twice"],
+      [{ question: "Big twist?" }, /options required/, "no options"],
+    ]) {
+      r = await startPoll("alex", body);
+      check(r.status === 400 && re.test(r.body.error), `${what}: 400`, `${r.status} ${JSON.stringify(r.body)}`);
+    }
+    r = await startPoll("casey", { question: "Who goes next?", cast: true });
+    check(r.status === 404, "a couch you're not on: 404");
+    r = await startPoll("alex", { question: "Who gets the boot?", cast: true });
+    const P1 = r.body.id;
+    check(r.status === 200 && pollIn(r.body, P1)?.cast && pollIn(r.body, P1).options.length === outQ.options.length && pollIn(r.body, P1).yours, "alex starts a poll on the cast still in", JSON.stringify(r.body).slice(0, 200));
+    r = await startPoll("riley", { question: "Big twist this week?", options: ["A swap", "A merge", "Nothing"] });
+    const P2 = r.body.id;
+    check(r.status === 200 && pollIn(r.body, P2)?.options.map((o) => o.label).join() === "A swap,A merge,Nothing", "riley starts one with options of her own");
+    await answer("riley", P1, { vote: GO.key });
+    await answer("jordan", P1, { vote: GO.key });
+    r = await answer("alex", P1, { vote: STAY.key });
+    check(r.status === 200 && pollIn(r.body, P1).vote === STAY.key, "votes: alex's own");
+    await answer("alex", P2, { vote: "1" });
+    r = await answer("alex", P1, { vote: "nope" });
+    check(r.status === 400, "a vote for something not on it: 400");
+    r = await answer("sam", P1, { vote: GO.key });
+    check(r.status === 404, "sam (behind) can't see it to vote: 404");
+    r = await pollsOf("riley");
+    let p1 = pollIn(r.body, P1);
+    check(p1.open && p1.votes === 3 && p1.vote === GO.key && p1.results === null && !JSON.stringify(p1).includes(u("jordan")), "riley: 3 votes so far and her own; nobody else's until it closes", JSON.stringify(p1).slice(-200));
+    r = await pollsOf("sam");
+    check(r.body.polls.length === 0, "sam sees no poll about an episode two past his");
+    r = await startPoll("alex", { question: "Who finds an idol?", cast: true });
+    const P3 = r.body.id;
+    r = await startPoll("riley", { question: "One too many?", options: ["Yes", "No"] });
+    check(r.status === 409 && /3 polls on Episode 6/.test(r.body.error), "a fourth on one episode: 409", JSON.stringify(r.body));
+    r = await answer("riley", P3, { remove: true });
+    check(r.status === 403, "only whoever started it takes it down: 403");
+    r = await answer("alex", P3, { remove: true });
+    check(r.status === 200 && !pollIn(r.body, P3), "alex takes his down");
+
+    // ---------- Commercial break's This week only ----------
+    r = await as.alex.call("GET", `/api/couches/${A}/this-week`);
+    const wk = r.body.shows?.find((s) => s.seasonId === sid);
+    check(r.status === 200 && wk?.episode === 6 && wk.calls?.of === 2 && wk.calls.made === Object.keys(await storedCalls("alex", 6)).length, "This week only: ZT Survivor 51's Call it, and how far he's got", JSON.stringify(wk));
+    check(r.body.polls.map((p) => p.id).sort().join() === [P1, P2].sort().join(), "and the couch's two polls");
+
+    // ---------- predictions as chips ----------
+    await pool.query(`UPDATE leagues SET state = jsonb_set(state, '{settings,bonusEnabled}', 'true') WHERE id = $1`, [fx.leagues.lineup]);
+    for (const label of ["Who wins immunity?", "Will an idol be played?", "How many votes does the boot get?"]) {
+      r = await as.alex.call("POST", `/api/leagues/${fx.leagues.lineup}/episodes/upcoming/bets`, { label, points: 2 });
+      check(r.status === 200, `a prediction proposed: ${label}`, JSON.stringify(r.body).slice(0, 200));
+    }
+    r = await as.alex.call("GET", `/api/seasons/${sid}/games${q(A)}`);
+    const lineupG = r.body.games.find((g) => g.leagueId === fx.leagues.lineup);
+    const pred = (label) => lineupG?.predictions.find((p) => p.label === label);
+    check(pred("Who wins immunity?")?.options?.length === outQ.options.length && pred("Who wins immunity?").options.every((o) => !gone.includes(o)), "a Who prediction's answers: everyone still in", JSON.stringify(pred("Who wins immunity?")));
+    check(JSON.stringify(pred("Will an idol be played?")?.options) === '["Yes","No"]', "a Will prediction's: Yes and No");
+    check(pred("How many votes does the boot get?")?.options === null, "anything else is answered in words");
+
+    // ---------- Weekly Calls, the talk show's season game ----------
+    r = await as.alex.call("GET", `/api/seasons/${tk.seasonId}/start${q(A)}`);
+    const wcFit = r.body.games?.find((g) => g.key === "weeklyCalls");
+    const wbFit = r.body.games?.find((g) => g.key === "weeklyBingo");
+    check(r.body.kind === "talk" && wcFit?.fits && wcFit.soon === null && wcFit.type === "weekly-calls" && wbFit?.soon === "12", "a talk show: Weekly Calls starts now, Weekly Bingo still coming", JSON.stringify(r.body.games));
+    r = await as.alex.call("POST", `/api/seasons/${tk.seasonId}/start${q(A)}`, { game: "weeklyCalls", tell: false });
+    const WC = r.body.leagueId;
+    check(r.status === 200 && r.body.gameName === "Weekly Calls" && r.body.from === 4, "alex starts Weekly Calls, from Episode 4", JSON.stringify(r.body));
+    check((await pool.query("SELECT state->'settings'->>'leagueTypeId' AS t FROM leagues WHERE id = $1", [WC])).rows[0]?.t === "weekly-calls", "a league that plays as weekly-calls");
+    r = await as.riley.call("POST", `/api/couches/${A}/games/${WC}`, { action: "join", start: null });
+    check(r.status === 200, "riley joins it from the couch", JSON.stringify(r.body));
+    home = (await as.alex.call("GET", "/api/me/home")).body;
+    const mv = home.moves.find((m) => m.kind === "calls" && m.leagueId === WC);
+    check(mv?.episode === 4 && /two calls/.test(mv.text) && !!mv.deadline, "the hub: alex's move is this week's two calls", JSON.stringify(mv));
+    r = await as.alex.call("GET", `/api/seasons/${tk.seasonId}/games${q(A)}`);
+    let wg = r.body.games?.find((g) => g.leagueId === WC);
+    check(wg?.gameType === "weekly-calls" && wg.call?.made === 0 && wg.call.of === 2 && wg.call.episode === 4 && wg.table.length === 2 && wg.table.every((t) => t.total === 0), "its game: two players at 0, his calls 0 of 2", JSON.stringify(wg).slice(0, 300));
+    c = await callsOf("alex", 4, tk.seasonId);
+    const tq = c.body.questions ?? [];
+    check(c.body.status === "open" && tq.length === 2 && tq.every((x) => x.by === "couch" && x.lead === "Tonight?" && x.kind === "yesno"), "a talk show's calls: two of its moments, which the couch settles", JSON.stringify(tq));
+    await callIt("alex", 4, { calls: { [tq[0].key]: "yes", [tq[1].key]: "no" } }, tk.seasonId);
+    await callIt("riley", 4, { calls: { [tq[0].key]: "no", [tq[1].key]: "no" } }, tk.seasonId);
+    r = await callsOf("sam", 4, tk.seasonId);
+    check(r.body.status === "open", "sam (not following it) can still call a talk show: its calls give nothing away");
+    home = (await as.alex.call("GET", "/api/me/home")).body;
+    check(!home.moves.some((m) => m.kind === "calls"), "both made: the move's gone");
+    r = await as.alex.call("GET", "/api/me");
+    check(r.status === 200 && !(r.body.leagues ?? []).some((l) => l.id === WC), "and classic's league list leaves it out");
+
+    // The browser, for both parts.
+    const noBadge = () => {
+      document.addEventListener("DOMContentLoaded", () => {
+        const s = document.createElement("style");
+        s.textContent = "nextjs-portal{display:none!important}";
+        document.head.appendChild(s);
+      });
+    };
+    let n = 0;
+    const browse = async (who) => {
+      const b = await open({ user: u(who), pass: PASSWORD, width, height: 844, motion: "off" });
+      closers.push(b.close);
+      await b.page.context().addInitScript(noBadge);
+      await b.page.emulateMedia({ reducedMotion: "reduce" });
+      let favicon = 0;
+      b.page.on("console", (m) => m.type() === "error" && m.location().url.endsWith("/favicon.ico") && favicon++);
+      const pg = b.page;
+      return {
+        pg,
+        shot: async (name) => {
+          await Promise.race([b.settle(), pg.waitForTimeout(3000)]);
+          await pg.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-${who}-${name}.png`) });
+        },
+        wide: async (what) => {
+          const over = await pg.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+          check(over <= 1, `${what}: nothing wider than the screen`, `${over}px`);
+        },
+        errors: () => b.errors.filter((x) => !/Failed to load resource/.test(x)).concat(b.errors.filter((x) => /Failed to load resource/.test(x)).slice(favicon)),
+        sheet: () => pg.locator("[role=dialog][data-open]"),
+        closed: () => pg.locator("[role=dialog][data-open]").waitFor({ state: "detached" }).catch(() => {}),
+        statuses: async () => (await pg.locator("[role=status]").allTextContents()).join(" | "),
+      };
+    };
+
+    if (!apiOnly) {
       // ---------- alex ----------
       const X1 = await browse("alex");
       const pg = X1.pg;
@@ -394,6 +574,289 @@ function check(ok, what, detail = "") {
       const over = await sp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       check(over <= 1, "solo sheet: nothing wider than the screen", `${over}px`);
       check(b.errors.filter((x) => !/favicon/.test(x)).length === 0, "no page errors (solo)", b.errors.join(" | "));
+
+      // ================= part 2 in the browser, before Episode 6 airs =================
+      const C1 = await browse("alex");
+      const cp = C1.pg;
+      await cp.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
+      const crow = cp.locator('[data-call-row="6"]');
+      await crow.waitFor({ timeout: 30_000 });
+      await cp.waitForTimeout(800);
+      check((await crow.getAttribute("data-called")) === "no" && /Call it for Episode 6/.test(await crow.innerText()), "Tonight's Extras: Call it for Episode 6", await crow.innerText());
+      await crow.scrollIntoViewIfNeeded();
+      await C1.shot("tonight-call-row");
+      await crow.click();
+      const csheet = cp.locator('[data-call-sheet="6"][data-call-status="open"]');
+      await csheet.waitFor({ timeout: 20_000 });
+      await cp.waitForTimeout(500);
+      check((await csheet.locator('[data-call-q="out"] [data-call-option]').count()) === outQ.options.length, "the sheet: Who goes home?'s faces, everyone still in");
+      // riley and jordan have (alex took his back above).
+      check(/2 on the couch have called it/.test(await cp.locator("[data-call-count]").innerText()), "how many on the couch have called it, nobody's call", await cp.locator("[data-call-count]").innerText());
+      await csheet.locator(`[data-call-q="out"] [data-call-option="${GO.key}"]`).click();
+      await csheet.locator(`[data-call-q="${momentQ.key}"] [data-call-option="yes"]`).click();
+      check(/Lock in my calls/.test(await cp.locator("[data-call-save]").innerText()), "picked: Lock in my calls");
+      await C1.shot("call-sheet");
+      await C1.wide("the call sheet");
+      await cp.locator("[data-call-save]").click();
+      await C1.closed();
+      await cp.waitForFunction(() => document.querySelector('[data-call-row="6"]')?.getAttribute("data-called") === "yes", null, { timeout: 10_000 }).catch(() => {});
+      mine = await storedCalls("alex", 6);
+      check(mine.out === GO.key && mine[momentQ.key] === "yes" && /Called it · change until/.test(await C1.statuses()), "locked in: saved, and the toast says until when", JSON.stringify(mine));
+      check(/Your calls for Episode 6 are in/.test(await crow.innerText()), "the row says his calls are in", await crow.innerText());
+
+      // The Predictions tab: a Who question's faces as chips, a Will question's Yes and No.
+      await cp.getByRole("button", { name: /predictions need your guess/ }).click();
+      const moves = C1.sheet();
+      await moves.getByRole("tab", { name: "Predictions" }).click().catch(() => {});
+      await moves.locator("[data-guess-chip]").first().waitFor({ timeout: 15_000 });
+      const yes = moves.locator(`[data-guess="${pred("Will an idol be played?").betId}"][data-guess-chip="Yes"]`);
+      const who = moves.locator(`[data-guess="${pred("Who wins immunity?").betId}"][data-guess-chip="${STAY.label}"]`);
+      check((await moves.locator(`[data-guess="${pred("Who wins immunity?").betId}"][data-guess-chip]`).count()) === outQ.options.length && (await yes.count()) === 1, "the Predictions tab: the cast as chips, and Yes / No");
+      check((await moves.locator(`input[data-guess="${pred("How many votes does the boot get?").betId}"]`).count()) === 1, "a question in words keeps its field");
+      await yes.click();
+      await who.click();
+      await moves.locator(`input[data-guess="${pred("How many votes does the boot get?").betId}"]`).fill("3");
+      await C1.shot("predict-chips");
+      await moves.getByRole("button", { name: "Save" }).click();
+      await C1.closed();
+      await cp.waitForTimeout(800);
+      r = await as.alex.call("GET", `/api/seasons/${sid}/games${q(A)}`);
+      const guessOf = (label) => r.body.games.find((g) => g.leagueId === fx.leagues.lineup)?.predictions.find((p) => p.label === label)?.guess?.text;
+      check(guessOf("Will an idol be played?") === "Yes" && guessOf("Who wins immunity?") === STAY.label && guessOf("How many votes does the boot get?") === "3", "saved through the classic routes: Yes, a name, and 3", JSON.stringify(r.body.games.find((g) => g.leagueId === fx.leagues.lineup)?.predictions));
+
+      // The Games tab's This week: Call it, the couch's polls, Start a poll.
+      await cp.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
+      await cp.locator("[data-this-week] [data-call-row]").waitFor({ timeout: 30_000 });
+      await cp.locator(`[data-poll-row="${P1}"]`).waitFor({ timeout: 20_000 });
+      await cp.waitForTimeout(800);
+      check((await cp.locator(`[data-this-week] [data-poll-row]`).count()) === 2 && /You voted/.test(await cp.locator(`[data-poll-row="${P1}"]`).innerText()), "This week: Call it, both polls (alex voted in his)", await cp.locator("[data-this-week]").innerText());
+      check((await cp.locator("[data-this-week] [data-preview]").count()) >= 1, "bingo and trivia still Preview (part 3)");
+      await cp.locator("[data-this-week]").scrollIntoViewIfNeeded();
+      await C1.shot("games-this-week");
+      await C1.wide("the Games tab");
+      // Changing his vote in his own poll.
+      await cp.locator(`[data-poll-row="${P1}"]`).click();
+      const vsheet = cp.locator(`[data-poll-sheet="${P1}"][data-poll-state="open"]`);
+      await vsheet.waitFor({ timeout: 20_000 });
+      await cp.waitForTimeout(400);
+      check(/Your vote is in · 3 votes so far/.test(await cp.locator("[data-poll-line]").innerText()) && (await vsheet.locator(`[data-poll-option="${STAY.key}"][aria-pressed="true"]`).count()) === 1, "his poll: his vote, 3 so far, nobody else's", await cp.locator("[data-poll-line]").innerText());
+      await vsheet.locator(`[data-poll-option="${GO.key}"]`).click();
+      await cp.waitForFunction((k) => document.querySelector(`[data-poll-option="${k}"]`)?.getAttribute("aria-pressed") === "true", GO.key, { timeout: 10_000 }).catch(() => {});
+      check((await pool.query("SELECT option FROM couch_poll_votes WHERE poll_id = $1 AND user_id = $2", [P1, U.alex])).rows[0]?.option === GO.key, "a tap changes his vote");
+      await C1.shot("poll-vote");
+      await cp.keyboard.press("Escape");
+      await C1.closed();
+      // Start a poll with options of his own.
+      await cp.locator('[data-poll-start-row="6"]').click();
+      await cp.locator('[data-poll-start="6"]').waitFor({ timeout: 20_000 });
+      await cp.locator("[data-poll-question]").fill("Who wins the reward?");
+      await cp.locator('[data-poll-kind="own"]').click();
+      await cp.locator('[data-poll-own="0"]').fill("Toka");
+      await cp.locator('[data-poll-own="1"]').fill("Savu");
+      await cp.locator("[data-poll-add]").click();
+      await cp.locator('[data-poll-own="2"]').fill("Dina");
+      await C1.shot("poll-start");
+      await cp.locator("[data-poll-go]").click();
+      await C1.closed();
+      const made = (await pool.query("SELECT id, options FROM couch_polls WHERE couch_id = $1 AND question = 'Who wins the reward?'", [A])).rows[0];
+      check(!!made && made.options.map((o) => o.label).join() === "Toka,Savu,Dina" && /Poll started/.test(await C1.statuses()), "Start a poll: his question and three options, open until it airs", JSON.stringify(made));
+      if (made) {
+        await cp.locator(`[data-poll-row="${made.id}"]`).waitFor({ timeout: 10_000 });
+        await pool.query("DELETE FROM couch_polls WHERE id = $1", [made.id]);
+      }
+
+      // Commercial break's This week only.
+      await cp.goto(`${BASE}/home?hub=focus`, { waitUntil: "load" });
+      const brk = cp.locator('[data-more="break"] button');
+      await brk.waitFor({ timeout: 30_000 });
+      await brk.scrollIntoViewIfNeeded();
+      await brk.click();
+      await cp.locator(`[data-couch-page="break"] [data-week-call="${sid}"]`).waitFor({ timeout: 20_000 });
+      await cp.waitForTimeout(600);
+      check(/Called it/i.test(await cp.locator(`[data-week-call="${sid}"]`).innerText()) && (await cp.locator("[data-week-poll]").count()) === 2, "Commercial break: ZT Survivor 51's Call it (called) and the couch's two polls", await cp.locator("[data-break-week]").innerText());
+      await cp.locator("[data-break-week]").scrollIntoViewIfNeeded();
+      await C1.shot("break-this-week");
+      await C1.wide("Commercial break");
+
+      // The talk show: Weekly Calls' card on Tonight, and Start a game's sheet.
+      await cp.goto(`${BASE}/show/${tk.seasonId}/tonight`, { waitUntil: "load" });
+      const done = cp.locator('[data-done^="calls-done-"]');
+      await done.waitFor({ timeout: 30_000 });
+      await cp.waitForTimeout(800);
+      check(/Your calls are in/i.test(await done.innerText()), "the talk show's Tonight: Weekly Calls' card says his calls are in", await done.innerText());
+      await C1.shot("talk-tonight");
+      await done.getByRole("button", { name: "Change" }).click();
+      const tsheet = cp.locator('[data-call-sheet="4"][data-call-status="open"]');
+      await tsheet.waitFor({ timeout: 20_000 });
+      await cp.waitForTimeout(400);
+      check((await tsheet.locator(`[data-call-q="${tq[0].key}"] [data-call-option="yes"][aria-pressed="true"]`).count()) === 1 && /Tonight\?/i.test(await tsheet.innerText()), "Change: the sheet has his two calls", await tsheet.innerText());
+      await C1.shot("talk-call-sheet");
+      await cp.keyboard.press("Escape");
+      await C1.closed();
+      await cp.goto(`${BASE}/show/${tk.seasonId}/games`, { waitUntil: "load" });
+      await cp.locator(`[data-table="${WC}"]`).waitFor({ timeout: 30_000 });
+      await cp.waitForTimeout(600);
+      await C1.shot("talk-games");
+      check(C1.errors().length === 0, "no page errors (alex, part 2)", C1.errors().join(" | "));
+    }
+
+    // ================= part 2, once Episode 6 (and the talk show's 4) have aired =================
+    // The season moves four days back: Episode 6 aired a day ago, 7 is in three days. The talk show's 4 aired a day ago.
+    await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 4 WHERE id = $1", [sid]);
+    await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 3 WHERE id = $1", [tk.seasonId]);
+    r = await callIt("riley", 6, { calls: { out: GO.key } });
+    check(r.status === 409 && /closed when it started/.test(r.body.error), "once it's aired nobody calls it: 409", JSON.stringify(r.body));
+    r = await callsOf("alex", 6);
+    check(
+      r.body.status === "closed" && r.body.catchUp === 6 && r.body.verdicts === null && r.body.people.length === 0 && r.body.mine.out === GO.key,
+      "alex (still on 5): his own calls, nothing of the couch's until he's seen it",
+      JSON.stringify(r.body).slice(0, 300)
+    );
+    for (const who of ["alex", "riley", "jordan"]) await pool.query("UPDATE show_follows SET seen_through = 6 WHERE user_id = $1 AND season_id = $2", [U[who], sid]);
+    r = await callsOf("alex", 6);
+    const personIn = (body, who) => body.people.find((p) => p.name === u(who));
+    check(r.body.verdicts?.out?.state === "waiting" && r.body.verdicts[momentQ.key]?.state === "waiting", "seen, nothing in yet: both calls wait", JSON.stringify(r.body.verdicts));
+    check(r.body.people[0]?.name === u("alex") && personIn(r.body, "riley")?.calls.out === STAY.key && personIn(r.body, "jordan")?.calls.out === GO.key && !personIn(r.body, "sam"), "the couch's calls beside his, his first (sam didn't call)", JSON.stringify(r.body.people));
+    await pool.query(
+      `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, event_type, status, from_research, decided_at) VALUES ($1, 6, 'elimination', $2, 'Voted Out', '', 'accepted', true, now())`,
+      [sid, GO.label]
+    );
+    r = await callsOf("alex", 6);
+    check(JSON.stringify(r.body.verdicts?.out) === JSON.stringify({ state: "known", right: [GO.key] }) && r.body.verdicts[momentQ.key].state === "waiting", "who went home is in (early): Who goes home? settled, the moment waits for every result", JSON.stringify(r.body.verdicts));
+    check(personIn(r.body, "alex")?.right === 1 && personIn(r.body, "jordan")?.right === 1 && personIn(r.body, "riley")?.right === 0, "alex and jordan called it, riley didn't");
+    await pool.query(
+      `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, event_type, status, from_research, decided_at) VALUES ($1, 6, 'event', $2, '', $3, 'accepted', true, now())`,
+      [sid, STAY.label, momentQ.key.slice(2)]
+    );
+    r = await callsOf("alex", 6);
+    check(JSON.stringify(r.body.verdicts?.[momentQ.key]) === JSON.stringify({ state: "known", right: ["yes"] }) && personIn(r.body, "alex")?.right === 2 && personIn(r.body, "riley")?.right === 0, "every result in: it happened, alex called both", JSON.stringify(r.body.verdicts));
+    r = await callsOf("sam", 6);
+    check(r.body.status === "closed" && r.body.verdicts === null && r.body.people.length === 0 && r.body.questions.length === 0, "sam (on 3): nothing about Episode 6", JSON.stringify(r.body).slice(0, 200));
+    r = await callsOf("casey", 6, sid, X);
+    check(r.status === 200 && r.body.verdicts === null && r.body.people.length === 0, "casey (on 5, her own couch): nothing either");
+    r = await callIt("alex", 6, { said: { [momentQ.key]: "yes" } });
+    check(r.status === 400, "nobody says what happened on a call the results settle: 400");
+
+    // The polls close at airtime: their votes for whoever's seen Episode 6.
+    r = await pollsOf("alex");
+    p1 = pollIn(r.body, P1);
+    // In the browser alex moved his vote to who went home; with --api it stayed on the other.
+    const goVotes = apiOnly ? 2 : 3;
+    check(!p1.open && p1.votes === 3 && p1.results?.[0]?.key === GO.key && p1.results[0].n === goVotes && p1.results[0].people.length === goVotes, "the poll closed: the couch's votes, most on who went home", JSON.stringify(p1?.results));
+    r = await answer("riley", P1, { vote: STAY.key });
+    check(r.status === 409, "voting after it closed: 409");
+    await pool.query("UPDATE show_follows SET seen_through = 5 WHERE user_id = $1 AND season_id = $2", [U.sam, sid]);
+    r = await pollsOf("sam");
+    p1 = pollIn(r.body, P1);
+    check(!!p1 && !p1.open && p1.results === null && p1.waitsFor === 6, "sam (on 5): it's closed, and its votes wait until he's seen Episode 6", JSON.stringify(p1).slice(-160));
+    await pool.query("UPDATE show_follows SET seen_through = 3 WHERE user_id = $1 AND season_id = $2", [U.sam, sid]);
+
+    // The talk show: the couch says what happened (two agreeing), and Weekly Calls counts the calls.
+    for (const who of ["alex", "riley"]) await pool.query("UPDATE show_follows SET seen_through = 4 WHERE user_id = $1 AND season_id = $2", [U[who], tk.seasonId]);
+    r = await callsOf("alex", 4, tk.seasonId);
+    check(r.body.status === "closed" && tq.every((x) => r.body.verdicts?.[x.key]?.state === "waiting") && r.body.alone === false, "the talk show's Episode 4: both calls wait for the couch to say", JSON.stringify(r.body.verdicts));
+    r = await callIt("alex", 4, { said: { [tq[0].key]: "yes" } }, tk.seasonId);
+    check(r.body.says?.[tq[0].key]?.mine === "yes" && r.body.says[tq[0].key].settled === null && r.body.verdicts[tq[0].key].state === "waiting", "alex says it happened: one voice waits for a second", JSON.stringify(r.body.says));
+    r = await callIt("riley", 4, { said: { [tq[0].key]: "yes", [tq[1].key]: "no" } }, tk.seasonId);
+    check(JSON.stringify(r.body.verdicts?.[tq[0].key]) === JSON.stringify({ state: "known", right: ["yes"] }) && r.body.verdicts[tq[1].key].state === "waiting", "riley agrees: settled; her other say waits", JSON.stringify(r.body.verdicts));
+    r = await callIt("alex", 4, { said: { [tq[1].key]: "no" } }, tk.seasonId);
+    check(personIn(r.body, "alex")?.right === 2 && personIn(r.body, "riley")?.right === 1, "both settled: alex called 2, riley 1", JSON.stringify(r.body.people));
+    r = await as.alex.call("GET", `/api/seasons/${tk.seasonId}/games${q(A)}`);
+    wg = r.body.games?.find((g) => g.leagueId === WC);
+    check(wg?.through === 4 && wg.table[0]?.name === u("alex") && wg.table[0].total === 2 && wg.table[0].rank === "1" && wg.table[1]?.total === 1, "Weekly Calls' table: alex 2, riley 1, through Episode 4", JSON.stringify(wg?.table));
+    check(wg.call?.episode === 5 && wg.call.made === 0, "and his move is Episode 5's calls", JSON.stringify(wg.call));
+    home = (await as.alex.call("GET", "/api/me/home")).body;
+    check(
+      home.moves.filter((m) => m.leagueId === WC).map((m) => m.kind).join() === "calls" && !home.backstage.some((b) => b.leagueId === WC),
+      "nothing else to do for it: no results to fill in, no cast to add (it has neither)",
+      JSON.stringify({ moves: home.moves.filter((m) => m.leagueId === WC), backstage: home.backstage.filter((b) => b.leagueId === WC) })
+    );
+    const hubWc = (await hub("alex")).games.find((g) => g.leagueId === WC);
+    check(hubWc?.rank === "1" && hubWc.through === 4, "the hub counts it: alex 1st in Weekly Calls", JSON.stringify(hubWc));
+    r = await callsOf("sam", 4, tk.seasonId);
+    check(r.body.status === "closed" && r.body.verdicts === null && r.body.catchUp === 4, "sam (not following it, on 0): his own call, nothing settled about it");
+
+    // A public pool's Who goes home? and Call it are the same call.
+    const soS = so.seasonId;
+    await solo.alex.call("POST", `/api/seasons/${soS}/pool`, { action: "join" });
+    let pinfo = (await solo.alex.call("GET", `/api/seasons/${soS}/pool`)).body;
+    const pcall = pinfo.game?.call;
+    check(pcall?.open && pcall.episode === 6 && pcall.of === 1 && pcall.available.length > 2, "the pool: Who goes home? for Episode 6", JSON.stringify(pcall).slice(0, 200));
+    const castOfPool = (id) => pinfo.game.cast.find((x) => x.id === id);
+    const firstOut = castOfPool(pcall.available[0]);
+    r = await solo.alex.call("POST", `/api/seasons/${soS}/pool`, { action: "call", castawayId: firstOut.id });
+    c = await solo.alex.call("GET", `/api/seasons/${soS}/calls/6`);
+    const soOut = c.body.questions?.find((x) => x.key === "out");
+    check(c.body.scope === "solo" && soOut?.options.find((o) => o.key === c.body.mine.out)?.label === firstOut.name, "called from the pool: Call it has it (the same call)", JSON.stringify(c.body.mine));
+    const second = soOut.options.find((o) => o.label !== firstOut.name);
+    await solo.alex.call("POST", `/api/seasons/${soS}/calls/6`, { calls: { out: second.key } });
+    pinfo = (await solo.alex.call("GET", `/api/seasons/${soS}/pool`)).body;
+    check(castOfPool(pinfo.game.call.call)?.name === second.label, "called from Call it: the pool has it", JSON.stringify(pinfo.game.call).slice(0, 120));
+    await pool.query("UPDATE show_seasons SET premiere_date = premiere_date - 4 WHERE id = $1", [soS]);
+    await soloFixture.addExit(pool, soS, 6, second.label);
+    await pool.query("UPDATE show_follows SET seen_through = 6 WHERE user_id = (SELECT id FROM \"user\" WHERE username = $1) AND season_id = $2", [soloFixture.username("alex"), soS]);
+    pinfo = (await solo.alex.call("GET", `/api/seasons/${soS}/pool`)).body;
+    check(pinfo.game.you?.calls === 1 && pinfo.game.call?.right === 1, "he went home: one called right on the pool's board", JSON.stringify({ you: pinfo.game.you?.calls, call: pinfo.game.call }));
+
+    if (!apiOnly) {
+      // ================= part 2 in the browser, after Episode 6 =================
+      const C2 = await browse("alex");
+      const pg2 = C2.pg;
+      await pg2.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
+      const res = pg2.locator('[data-call-result-row="6"]');
+      await res.waitFor({ timeout: 30_000 });
+      await pg2.waitForTimeout(800);
+      check(/Episode 6: you called 2 of 2/.test(await res.innerText()) && (await pg2.locator('[data-call-row="7"]').count()) === 1, "Tonight's Extras: Episode 6, you called 2 of 2; and Call it for Episode 7", await res.innerText());
+      await res.scrollIntoViewIfNeeded();
+      await C2.shot("tonight-call-result");
+      await res.click();
+      const rs = pg2.locator('[data-call-sheet="6"][data-call-results]');
+      await rs.waitFor({ timeout: 20_000 });
+      await pg2.waitForTimeout(500);
+      check(/2\/2/.test(await pg2.locator("[data-call-score]").innerText()) && (await rs.locator('[data-call-result="out"] [data-call-mine="right"]').count()) === 1, "the sheet: 2/2, his Who goes home? right", await pg2.locator("[data-call-score]").innerText());
+      check(
+        (await rs.locator(`[data-call-result="out"] [data-call-person="${u("riley")}"]`).count()) === 1 && (await rs.locator(`[data-call-result="out"] [data-call-person="${u("jordan")}"]`).count()) === 1,
+        "with riley's and jordan's calls beside his"
+      );
+      check(new RegExp(`${GO.label.split(" ")[0]}.* went home`).test(await rs.locator('[data-call-result="out"] [data-call-answer]').innerText()), "and who went home", await rs.locator('[data-call-result="out"] [data-call-answer]').innerText());
+      await C2.shot("call-results");
+      await C2.wide("the call sheet's results");
+      await pg2.keyboard.press("Escape");
+      await C2.closed();
+      await pg2.goto(`${BASE}/show/${sid}/games`, { waitUntil: "load" });
+      const prow = pg2.locator(`[data-poll-row="${P1}"][data-poll-open="no"]`);
+      await prow.waitFor({ timeout: 30_000 });
+      await pg2.waitForTimeout(600);
+      await prow.click();
+      const pres = pg2.locator(`[data-poll-sheet="${P1}"][data-poll-state="results"]`);
+      await pres.waitFor({ timeout: 20_000 });
+      await pg2.waitForTimeout(800);
+      check((await pres.locator(`[data-poll-result="${GO.key}"]`).getAttribute("data-poll-votes")) === "3" && /3 votes · you're with 100% of the couch/.test(await pg2.locator("[data-poll-line]").innerText()), "the poll's results: all three on who went home", await pg2.locator("[data-poll-line]").innerText());
+      await C2.shot("poll-results");
+      await pg2.keyboard.press("Escape");
+      await C2.closed();
+      // The talk show: how the calls went, and Weekly Calls' table.
+      await pg2.goto(`${BASE}/show/${tk.seasonId}/tonight`, { waitUntil: "load" });
+      const tres = pg2.locator('[data-call-result-row="4"]');
+      await tres.waitFor({ timeout: 30_000 });
+      await pg2.waitForTimeout(800);
+      check(/Episode 4: you called 2 of 2/.test(await tres.innerText()), "the talk show's Tonight: Episode 4, you called 2 of 2", await tres.innerText());
+      await tres.click();
+      const trs = pg2.locator('[data-call-sheet="4"][data-call-results]');
+      await trs.waitFor({ timeout: 20_000 });
+      await pg2.waitForTimeout(500);
+      check(/The couch says it happened/.test(await trs.innerText()) && /The couch says it didn't/.test(await trs.innerText()), "the sheet: what the couch said happened", await trs.innerText());
+      await C2.shot("talk-results");
+      await pg2.keyboard.press("Escape");
+      await C2.closed();
+      await pg2.goto(`${BASE}/show/${tk.seasonId}/games`, { waitUntil: "load" });
+      const wrow = pg2.locator(`[data-table="${WC}"] [data-player="${u("alex")}"]`);
+      await wrow.waitFor({ timeout: 30_000 });
+      await pg2.waitForTimeout(600);
+      check(/2\s*$/.test(await wrow.innerText()) && /^1/.test((await wrow.innerText()).trim()), "Weekly Calls' table: alex 1st with 2", await wrow.innerText());
+      await C2.shot("talk-table");
+      await C2.wide("Weekly Calls' table");
+      check(C2.errors().length === 0, "no page errors (alex, after the episode)", C2.errors().join(" | "));
     }
   } catch (e) {
     console.error(e);
@@ -401,6 +864,7 @@ function check(ok, what, detail = "") {
   } finally {
     for (const c of closers) await c().catch(() => {});
     if (!args.includes("--keep")) {
+      await talkFixture.down(pool).catch((e) => console.error(e));
       await soloFixture.down(pool).catch((e) => console.error(e));
       await fixture.down(pool).catch((e) => console.error(e));
     }

@@ -13,8 +13,8 @@ import { paths } from "../routes";
 
 export type MovesTab = "lineup" | "pool" | "predict" | "outlast";
 
-/** Moves that are cards on Tonight, in the order a tie goes. */
-const REQUIRED = ["lineup", "pickup", "pick", "draftTurn", "blindDraft"];
+/** Moves that are cards on Tonight, in the order a tie goes ("calls": Weekly Calls' two calls on the next show, step 12 part 2). */
+const REQUIRED = ["lineup", "pickup", "pick", "calls", "draftTurn", "blindDraft"];
 export const isRequired = (m: Move) => REQUIRED.includes(m.kind);
 
 /** "Set your episode 5 lineup (2 empty slots)" → 2. */
@@ -26,10 +26,12 @@ export interface MoveCard {
   title: string;
   line: string;
   action: string;
-  /** Opens the moves sheet at this tab (of this game's), or goes to `href` (waivers, the drafts). */
+  /** Opens the moves sheet at this tab (of this game's), or goes to `href` (waivers, the drafts), or opens Call it for this
+   *  episode (Weekly Calls). */
   tab?: MovesTab;
   leagueId?: string;
   href?: string;
+  call?: number;
 }
 
 /** A required move as Tonight's card. `twin`: another move of the same kind is due here (two leagues), so name it. */
@@ -48,6 +50,8 @@ export function moveCard(m: Move, seasonId: string, twin: boolean): MoveCard {
       return { key, title: "Your turn to draft", line: m.leagueName, action: "Draft", href: `${paths.showPage(seasonId, "draft")}?game=${m.leagueId}` };
     case "blindDraft":
       return { key, title: "Lock in your draft picks", line: `Pick in private, reveal together${which}`, action: "Pick my team", href: `${paths.showPage(seasonId, "blind")}?game=${m.leagueId}` };
+    case "calls":
+      return { key, title: m.text, line: `Weekly Calls · closes at airtime${when ? ` · ${when}` : ""}${which}`, action: "Call it", call: m.episode ?? undefined, leagueId: m.leagueId };
     default:
       return { key, title: m.text, line: m.leagueName, action: "Open", tab: "lineup" };
   }
@@ -74,6 +78,11 @@ export function doneCards(play: GameView[]): MoveCard[] {
       const names = l.starters.map((id) => first(faceIn(g, id)?.name ?? "")).filter(Boolean);
       const until = l.airsAt ? ` · change until ${airTime(Date.parse(l.airsAt))}` : "";
       cards.push({ key: `lineup-done-${g.leagueId}`, title: "Your lineup is in", line: `${names.join(", ")}${until}${which}`, action: "Change", tab: "lineup", leagueId: g.leagueId });
+    }
+    const c = g.call;
+    if (g.gameType === "weekly-calls" && c && c.open && c.of > 0 && c.made === c.of) {
+      const until = c.airsAt ? ` · change until ${airTime(Date.parse(c.airsAt))}` : "";
+      cards.push({ key: `calls-done-${g.leagueId}`, title: "Your calls are in", line: `Weekly Calls${until}${which}`, action: "Change", call: c.episode, leagueId: g.leagueId });
     }
     const p = g.pick;
     if (p && p.open && p.pick) {
@@ -110,7 +119,8 @@ export function sheetTabs(play: GameView[]): SheetTab[] {
     ...play.filter((g) => g.gameType === "active-roster").map((g) => tab(g, "lineup")),
     ...play.filter((g) => g.gameType === "pickem").map((g) => tab(g, "pool")),
     ...(play.some((g) => g.predictions.length) ? [{ key: "predict", kind: "predict" as const, label: "Predictions", leagueId: null }] : []),
-    ...play.filter((g) => g.gameType !== "active-roster" && g.gameType !== "pickem").map((g) => tab(g, "outlast")),
+    // Weekly Calls' calls are Call it's sheet (calls.tsx), not a tab here.
+    ...play.filter((g) => g.gameType !== "active-roster" && g.gameType !== "pickem" && g.gameType !== "weekly-calls").map((g) => tab(g, "outlast")),
   ];
 }
 
@@ -119,7 +129,8 @@ export function dockWords(moves: Move[]): string {
   const words = moves.map((m) => {
     if (m.kind === "lineup") return plural(slotsOf(m), "open slot");
     if (m.kind === "pick") return "no pick";
-    if (m.kind === "prediction") return plural(Number(/^(\d+) predictions/.exec(m.text)?.[1] ?? 1), "call");
+    if (m.kind === "prediction") return plural(Number(/^(\d+) predictions/.exec(m.text)?.[1] ?? 1), "prediction");
+    if (m.kind === "calls") return "your calls";
     if (m.kind === "pickup") return m.text.charAt(0).toLowerCase() + m.text.slice(1);
     if (m.kind === "draftTurn") return "your draft turn";
     if (m.kind === "blindDraft") return "draft picks";

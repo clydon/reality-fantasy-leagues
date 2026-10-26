@@ -6,8 +6,8 @@ export type SeasonGameKey = "survivalPool" | "weeklyLineup" | "outlast" | "weekl
 export interface GameFit {
   key: SeasonGameKey;
   name: string;
-  /** settings.leagueTypeId it plays as; null: not a league type yet (step 12's bingo and calls). */
-  type: "pickem" | "active-roster" | "classic-draft" | null;
+  /** settings.leagueTypeId it plays as; null: not a league type yet (step 12 part 3's bingo). */
+  type: "pickem" | "active-roster" | "classic-draft" | "weekly-calls" | null;
   fits: boolean;
   /** What it needs from a rulebook, for the doesn't-fit line. */
   needs: string;
@@ -18,4 +18,6 @@ export interface GameFit {
 export const GAME_TYPES: Record<SeasonGameKey, GameFit["type"]>;
 export function gamesFor(blocks: Partial<RulebookBlocks> | null | undefined, compiled?: { events?: unknown[]; winnerExitMethod?: string | null } | null): GameFit[];
 export function noFitLine(games: GameFit[], blocks: Partial<RulebookBlocks> | null | undefined, show?: string | null): string | null;
+/** A segment that runs every episode and sends someone home (or is the cause of a way out): Survival Pool's rule, and Call it's Who goes home?. */
+export function goingHomeEachEpisode(blocks: Partial<RulebookBlocks> | null | undefined): boolean;
 export function gameLine(key: SeasonGameKey, blocks: Partial<RulebookBlocks> | null | undefined, slots?: { active?: number; bench?: number } | null): string;

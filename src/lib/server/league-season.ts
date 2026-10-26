@@ -10,6 +10,7 @@ const GAME_NAMES: Record<string, string> = {
   "classic-draft": "Outlast",
   "active-roster": "Weekly Lineup",
   pickem: "Survival Pool",
+  "weekly-calls": "Weekly Calls",
 };
 
 /** A league type's name in the new design ("Weekly Lineup"), from settings.leagueTypeId. */

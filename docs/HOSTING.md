@@ -211,6 +211,20 @@ per person and season with its episodes and stars as one short string, "1:4,2:5"
 episodes rated is ~5 KB per hub open, where plain rows would be ~50 KB) plus one small query for your marks. Backed up with the
 couch's games (`backup-leagues.js`).
 
+**Call it, Weekly Calls and the couch's polls (new design, step 12 part 2)** poll nothing and run nothing on a schedule. A call is
+one small row (`episode_calls`, migration 0129, ~120 bytes), two per person per episode: a couch of four calling every episode of
+five weekly shows is about 2,000 rows a year (~0.25 MB); what someone says happened on a talk show's call (`episode_call_says`)
+~100 bytes; a poll ~400 bytes (`couch_polls`, its options as JSON: ~1.5 KB for a cast poll of 18) and a vote ~100 bytes
+(`couch_poll_votes`). Nothing sends a push. The reads: the call sheet reads its episode when it opens (the season's rulebook,
+its cast, the accepted results through it and the couch's calls: a few small queries, a few KB), and Tonight's Call it row reads
+the next episode's the same way (kept 30 s); a show's Games tab and Tonight read the couch's polls on it (one small query and its
+votes); Commercial break's This week only reads when its page opens (for each show you follow with an episode this week, its
+rulebook and your calls; the couch's polls). A game that counts calls (a public pool's Who goes home?, Weekly Calls) adds two
+small queries to the games read (its players' calls on the season, the season's accepted results), and the hub's read the same
+for each Weekly Calls game; the home read adds one small read per Weekly Calls game you play (the next show's questions and
+your calls). Grades are never stored: each read works them out from the season's results (or, a talk show's, what the couch
+said). Backed up with the couch's games (`backup-leagues.js`).
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub.
@@ -545,3 +559,10 @@ never handles it: the user does the reset and the pasting.
   No pushes. The Episodes read gains one small grouped query, the hub's read one compact query for your taste and the rating
   accolades (~5 KB at a couch of four with a year of ratings) and one for your marks, and the rate sheet and Couch verdicts a
   couple of small reads when they open.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 12 part 2, Call it, Weekly Calls and the couch's polls. **Nothing
+  polls and nothing runs on a schedule.** Migration 0129: `episode_calls` (~120 bytes a call, two a person and episode),
+  `episode_call_says` (~100 bytes), `couch_polls` (~0.4-1.5 KB a poll) and `couch_poll_votes` (~100 bytes); all backed up. No
+  pushes. The call sheet, Tonight's Call it row, a show's polls and Commercial break's This week only read when they open (a few
+  small queries each); games that count calls (a public pool, Weekly Calls) add two small queries to the games and hub reads, and
+  the home read one small read per Weekly Calls game. A public pool's Who goes home? moved out of its league's state into
+  `episode_calls` (the pool's state is a little smaller).

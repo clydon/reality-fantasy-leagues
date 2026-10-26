@@ -98,6 +98,14 @@ const GROUP_SLICES = {
   show_follows: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
   // Rate it (0128, step 12 part 1): the group's people's stars and takes for its seasons' episodes, as their follows are.
   episode_ratings: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
+  // Call it (0129, step 12 part 2): the group's people's calls on its seasons' episodes (Weekly Calls and a pool count them), and
+  // what they said happened on a talk show's.
+  episode_calls: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
+  episode_call_says: "season_id = ANY($S::uuid[]) AND user_id IN (SELECT user_id FROM league_memberships WHERE league_id = ANY($L::uuid[]))",
+  // The couch's polls (0129): the group's couches' polls on its seasons, and their votes.
+  couch_polls: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[])) AND season_id = ANY($S::uuid[])",
+  couch_poll_votes: `poll_id IN (SELECT id FROM couch_polls WHERE couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[]))
+      AND season_id = ANY($S::uuid[]))`,
   episode_research: "(show_id, season_number) IN (SELECT show_id, season_number FROM show_seasons WHERE id = ANY($S::uuid[]))",
   episode_research_items: `league_id = ANY($L::uuid[]) AND research_id IN (SELECT er.id FROM episode_research er
       JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number WHERE ss.id = ANY($S::uuid[]))`,

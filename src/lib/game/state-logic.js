@@ -411,6 +411,15 @@ class PickEmScoringStrategy {
     return Object.values(results).sort((a,b)=> b.longestStreak - a.longestStreak || b.total - a.total);
   }
 }
+// Weekly Calls (docs/PLAN-new-design.md step 12 part 2): a talk show's season game, scored from each person's calls
+// (Call it), which live in the episode_calls table, not in a league's state, as a couch's calls are one per person and
+// episode whatever game reads them. So in here everyone is level at 0; the server's game view counts the calls
+// (src/lib/server/calls.ts callRights) and ranks the table by them (game-view.ts tableOf).
+class CallsScoringStrategy {
+  static compute(state){
+    return state.players.map(p => ({playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]}));
+  }
+}
 // Thin dispatcher -- see the "League types" comment near the top of this file. Delegates to
 // whichever league type's scoringStrategy is active; today that's always
 // EliminationOrderScoringStrategy, so behavior is unchanged from before this split.
@@ -1172,44 +1181,9 @@ class PickEmLogic {
   }
 
   // Who goes home? (a public pool's prediction, docs/PLAN-new-design.md step 9 part 3; settings.calls): beside the pick of
-  // who survives, one call a week of who leaves. Stored like the picks (`episode.calls: {playerId, castawayId}[]`, one per
-  // player, upserted), closed at airtime, anyone still in, no cycle rule. Right when the person called left in that
-  // episode (not the season's winner, who leaves only by winning). Counted beside the streak, never in it: the pool still
-  // ranks by its streak.
+  // who survives, one call a week of who leaves. Since step 12 part 2 the call itself is a person's Call it (the
+  // episode_calls table, src/lib/server/calls.ts), the same call whatever reads it, so a pool only says it takes one.
   static callsOn(state){ return !!(state && state.settings && state.settings.calls) && !!getLeagueType(state).hasWeeklyPicks; }
-  static callFor(state, epId, playerId){
-    const ep = PickEmLogic.findEpisode(state, epId);
-    return ep ? (ep.calls||[]).find(c=>c.playerId===playerId) || null : null;
-  }
-  static setCall(state, epId, playerId, castawayId){
-    if(!PickEmLogic.callsOn(state)) return;
-    const ep = PickEmLogic.findEpisode(state, epId);
-    const c = Core.getCastaway(state, castawayId);
-    if(!ep || !c || !Core.getPlayer(state, playerId) || c.status!=='active' || !inPlay(state, ep.number)) return;
-    if(hasAired(ep) || PickEmLogic.decided(ep, state)) return;
-    ep.calls = ep.calls || [];
-    const existing = ep.calls.find(x=>x.playerId===playerId);
-    if(existing) existing.castawayId = castawayId;
-    else ep.calls.push({playerId, castawayId});
-  }
-  static removeCall(state, epId, playerId){
-    const ep = PickEmLogic.findEpisode(state, epId);
-    if(ep && ep.calls) ep.calls = ep.calls.filter(x=>x.playerId!==playerId);
-  }
-  // A player's calls oldest first (decided ones with whether they were right, plus any still waiting) and how many were.
-  static callHistory(state, playerId){
-    const rows = [];
-    let right = 0;
-    [...state.episodes].filter(ep => ep.number >= GhostLogic.startFor(state, playerId)).sort((a,b) => a.number - b.number).forEach(ep => {
-      const call = (ep.calls||[]).find(x => x.playerId === playerId);
-      if(!call) return;
-      if(!PickEmLogic.decided(ep, state)){ rows.push({ episode: ep.number, castawayId: call.castawayId, correct: null }); return; }
-      const correct = (ep.events||[]).some(ev => ev.castawayId === call.castawayId && !isWinnerExit(state, ev.method));
-      if(correct) right++;
-      rows.push({ episode: ep.number, castawayId: call.castawayId, correct });
-    });
-    return { rows, right };
-  }
 }
 
 // ---------- League type + show registries ----------
@@ -1249,6 +1223,22 @@ const LEAGUE_TYPES = {
     hasRoster: false,
     hasWeeklyPicks: true,
     hasActiveRoster: false
+  },
+  // A talk show's season game (docs/PLAN-new-design.md step 12 part 2): no draft and no cast to own, two calls about each
+  // show before it starts (Call it), most right by the finale wins. The calls aren't in the state (CallsScoringStrategy).
+  'weekly-calls': {
+    id: 'weekly-calls',
+    name: 'Weekly Calls',
+    description: 'No draft, no team -- before each show, two calls about what will happen in it. Most right by the finale wins.',
+    draftStrategy: NoDraftStrategy,
+    scoringStrategy: CallsScoringStrategy,
+    supportsReplenish: false,
+    supportsTrade: false,
+    supportsFinalePredictions: false,
+    hasRoster: false,
+    hasWeeklyPicks: false,
+    hasActiveRoster: false,
+    hasCalls: true
   },
   'active-roster': {
     id: 'active-roster',
@@ -3994,8 +3984,7 @@ return {
   pickEmPickFor: PickEmLogic.pickFor, pickEmEligibility: PickEmLogic.eligibility, pickEmHistory: PickEmLogic.history,
   pickEmUpcomingEpisode: PickEmLogic.upcomingEpisode, pickEmDecided: (ep, state) => PickEmLogic.decided(ep, state), currentEpisode,
   setPickEmPick: PickEmLogic.setPick, removePickEmPick: PickEmLogic.removePick,
-  pickEmCallsOn: PickEmLogic.callsOn, pickEmCallFor: PickEmLogic.callFor, setPickEmCall: PickEmLogic.setCall, removePickEmCall: PickEmLogic.removeCall,
-  pickEmCallHistory: PickEmLogic.callHistory,
+  pickEmCallsOn: PickEmLogic.callsOn,
 
   // ---- domain classes: reference these directly in new code instead of the flat aliases above ----
   // ScoringLogic/DraftLogic are thin league-type dispatchers (see the "League types" comment near

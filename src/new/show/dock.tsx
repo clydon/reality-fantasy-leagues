@@ -8,11 +8,13 @@ import { NavLink, useNav } from "../nav";
 import { paths, type ShowTab } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { useNow } from "../ui/bars";
-import { Btn } from "../ui/parts";
+import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { ordinal } from "../games";
 import { closeMoves, dockWords, faceIn, first, moveCard, openMoves, sheetTabs, tabOf, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
+import { openCall } from "./calls";
+import { rateLabel } from "./rate";
 import { Face, IconBox } from "./parts";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 
@@ -123,7 +125,14 @@ export function Dock({ show }: { show: ShowData }) {
   return (
     <button
       type="button"
-      onClick={() => (draftHref ? nav.push(draftHref) : openMoves(tabOf(show.moves[0]), show.moves[0]?.leagueId ?? null))}
+      onClick={() =>
+        draftHref
+          ? nav.push(draftHref)
+          : show.moves[0]?.kind === "calls" && show.header
+            ? // Weekly Calls' calls are Call it's sheet (step 12 part 2).
+              openCall({ seasonId: show.header.seasonId, couchId: show.couch?.id ?? null, episode: show.moves[0].episode ?? up.number, label: rateLabel(show), solo: show.solo })
+            : openMoves(tabOf(show.moves[0]), show.moves[0]?.leagueId ?? null)
+      }
       className={`${base} nd-press bg-plate text-plate-foreground`}
     >
       {show.play?.some((g) => (g.lineup?.starters.length || g.pick?.pick) && !g.revealFirst) ? (
@@ -482,21 +491,33 @@ function PredictPanel({ play, guesses, onGuess }: { play: GameView[]; guesses: R
           {g.predictions.map((q) => {
             const key = guessKey(g, q.betId);
             return (
-              <label key={q.betId} className="mb-4 block">
+              <div key={q.betId} className="mb-4 block">
                 <b className="block text-[15px]">{q.label}</b>
                 <small className="mb-2 block text-[13px] text-muted-foreground">
                   {q.points} {q.points === 1 ? "point" : "points"} · Episode {q.episode}
                   {q.answers === 1 && !q.guess ? " · one more answer and it pays" : ""}
                 </small>
-                <input
-                  data-guess={q.betId}
-                  value={guesses[key] ?? ""}
-                  onChange={(e) => onGuess(key, e.target.value)}
-                  placeholder="Your guess"
-                  maxLength={120}
-                  className="h-12 w-full rounded-[3px] bg-background px-3 text-base outline-1 -outline-offset-1 outline-input placeholder:text-muted-foreground focus:outline-2 focus:outline-foreground"
-                />
-              </label>
+                {q.options ? (
+                  // A person or a yes or no (step 12 part 2): one tap, a tap again takes it back. An old guess in words stays a chip.
+                  <span className="flex flex-wrap gap-2" role="group" aria-label={q.label}>
+                    {[...q.options, ...(guesses[key] && !q.options.includes(guesses[key]) ? [guesses[key]] : [])].map((o) => (
+                      <Chip key={o} on={guesses[key] === o} data-guess-chip={o} data-guess={q.betId} onClick={() => onGuess(key, guesses[key] === o ? "" : o)} className="h-10 px-3.5 text-[15px]">
+                        {q.options!.length > 2 ? first(o) : o}
+                      </Chip>
+                    ))}
+                  </span>
+                ) : (
+                  <input
+                    data-guess={q.betId}
+                    aria-label={q.label}
+                    value={guesses[key] ?? ""}
+                    onChange={(e) => onGuess(key, e.target.value)}
+                    placeholder="Your guess"
+                    maxLength={120}
+                    className="h-12 w-full rounded-[3px] bg-background px-3 text-base outline-1 -outline-offset-1 outline-input placeholder:text-muted-foreground focus:outline-2 focus:outline-foreground"
+                  />
+                )}
+              </div>
             );
           })}
         </div>

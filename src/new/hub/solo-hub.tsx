@@ -199,4 +199,5 @@ const FRIENDS: Record<GameName, string> = {
   Outlast: "Everyone drafts a team from the cast. Each time someone goes home, the teams still holding people move up; the last one standing carries you. Start a couch, send the code, draft together.",
   "Weekly Lineup": "Draft a team, then start your best three before each episode. Points come from what they do on the night. Play against your couch, or practise against computer players first.",
   "Survival Pool": "No draft: each episode, pick someone you think survives, never the same person twice. Play with your couch, or against everyone in a season's public pool.",
+  "Weekly Calls": "A talk show's game: before each show, two calls about what will happen in it (a surprise cameo? someone breaks?). The couch says what happened as it watches; most right by the finale wins.",
 };

@@ -7,7 +7,7 @@
 //   - Your moves: a tab per game alex plays here plus Predictions; a lineup, a pick and a guess set in the sheet
 //     and saved land in the leagues (the database, as the classic app reads them) and in /games; Tonight then shows
 //     them as done cards after one "You're set"; Change opens the sheet again, and a changed lineup and guess
-//     replace the old ones (one guess per person);
+//     replace the old ones (one guess per person; "Will an idol be played?" is answered with Yes / No chips since step 12 part 2);
 //   - Episodes: the dock (Set when moves are due, else Edit, with your starters' and your pick's faces), who's set,
 //     an episode row opens its page (?page=epN) and back closes it; the dock holds still while the tabs move;
 //   - Games: a real table per game, a row opens that person's sheet, Rules says each game's own rules, the How it
@@ -190,7 +190,8 @@ function check(ok, what, detail = "") {
     await page.screenshot({ path: path.join(out, "moves-pool.png") });
     await dialog().getByRole("tab", { name: "Predictions" }).click();
     await dialog().getByText(BET).waitFor();
-    await dialog().locator("[data-guess]").first().fill("Yes, two of them");
+    // A yes-or-no question's answers are chips (step 12 part 2).
+    await dialog().locator('[data-guess-chip="Yes"]').first().click();
     await page.screenshot({ path: path.join(out, "moves-predict.png") });
     await dialog().getByRole("tab", { name: "Outlast" }).click();
     check(await dialog().getByText(/(Nothing to set|No lineup) in Outlast/).isVisible(), "Outlast's tab shows the team, no lineup to set");
@@ -206,10 +207,10 @@ function check(ok, what, detail = "") {
     check((pickEp.picks || []).some((p) => p.playerId === poolGame.playerId && p.castawayId === pickId), "the pick is in the league");
     const bet = () => stateOf(outlastGame.leagueId).then((s) => s.episodes.flatMap((e) => e.bets || []).find((x) => x.label === BET));
     let guesses = (await bet()).predictions.filter((p) => p.playerId === outlastGame.playerId);
-    check(guesses.length === 1 && guesses[0].guess === "Yes, two of them", "the guess is in the league", JSON.stringify(guesses));
+    check(guesses.length === 1 && guesses[0].guess === "Yes", "the guess is in the league", JSON.stringify(guesses));
     play = (await (await page.request.get(gamesUrl)).json()).games;
     const after = (type) => play.find((g) => g.gameType === type);
-    check(after("active-roster").lineup.set && after("pickem").pick.pick === pickId && after("classic-draft").predictions[0]?.guess?.text === "Yes, two of them", "/games reads them back");
+    check(after("active-roster").lineup.set && after("pickem").pick.pick === pickId && after("classic-draft").predictions[0]?.guess?.text === "Yes", "/games reads them back");
 
     // Tonight now: what's still due (the waiver pickup), then a done card each for the lineup and the pick.
     await page.locator("[data-done]").first().waitFor({ timeout: 10_000 });
@@ -239,7 +240,7 @@ function check(ok, what, detail = "") {
       }
     }
     await dialog().getByRole("tab", { name: "Predictions" }).click();
-    await dialog().locator("[data-guess]").first().fill("No");
+    await dialog().locator('[data-guess-chip="No"]').first().click();
     await save();
     const now = (await stateOf(lineupGame.leagueId)).episodes.find((e) => e.id === lineupGame.lineup.epId).lineups[lineupGame.playerId];
     check(!!swapped && now.includes(swapped) && !now.includes(picked[0]) && now.length === lineupGame.lineup.need, "a changed lineup replaces the old one", JSON.stringify(now));

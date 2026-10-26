@@ -173,6 +173,14 @@ async function up(pool) {
   await pool.query(`INSERT INTO watch_plan_people (plan_id, user_id, answer, invited, answered_at) VALUES ($1, $2, 'in', false, now()), ($1, $3, 'in', true, now())`, [night, ann, me]);
   // Rate it (0128): the tester's stars and take for Episode 1, ann's stars.
   await pool.query(`INSERT INTO episode_ratings (user_id, season_id, episode, stars, take) VALUES ($1, $3, 1, 4, 'zt: a good one'), ($2, $3, 1, 3, NULL)`, [me, ann, season]);
+  // Call it (0129): the tester's two calls on Episode 2, what ann said happened in Episode 1, and ann's poll with a vote each.
+  await pool.query(`INSERT INTO episode_calls (user_id, season_id, episode, question, answer) VALUES ($1, $2, 2, 'out', 'zt-cast'), ($1, $2, 2, 'm:idolPlayed', 'yes')`, [me, season]);
+  await pool.query(`INSERT INTO episode_call_says (user_id, season_id, episode, question, happened) VALUES ($1, $2, 1, 'm:hostSings', true)`, [ann, season]);
+  const poll = (await one(
+    `INSERT INTO couch_polls (couch_id, season_id, episode, question, options, created_by, closes_at) VALUES ($1, $2, 2, 'zt: who goes next?', '[{"key": "1", "label": "Castaway 0"}, {"key": "2", "label": "Castaway 1"}]', $3, now() + interval '3 days') RETURNING id`,
+    [couch, season, ann]
+  )).id;
+  await pool.query(`INSERT INTO couch_poll_votes (poll_id, user_id, option) VALUES ($1, $2, '1'), ($1, $3, '2')`, [poll, ann, me]);
 
   console.log(`[zt] backup fixture up: group ${groupId}, ${leagues.length} linked leagues + zt-outside, every backed-up table filled`);
   return { groupId, leagues };

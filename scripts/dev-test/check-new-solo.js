@@ -55,6 +55,9 @@ function check(ok, what, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"}  ${what}${!ok && detail ? `  (${detail})` : ""}`);
   if (!ok) failures++;
 }
+/** The season's Who goes home? calls for an episode, with the names they call (Call it's, since step 12 part 2). */
+const outCallsOf = async (db, seasonId, n) =>
+  (await db.query(`SELECT c.answer, sc.name FROM episode_calls c LEFT JOIN season_cast sc ON sc.id::text = c.answer WHERE c.season_id = $1 AND c.episode = $2 AND c.question = 'out'`, [seasonId, n])).rows;
 const rid = () => Array.from(crypto.randomBytes(24), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
 const until = async (fn, ms = 12000) => {
   for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 300))) if (await fn()) return true;
@@ -125,7 +128,9 @@ const until = async (fn, ms = 12000) => {
     await as.riley.call("PUT", `/api/leagues/${P}/episodes/${six}/picks?quiet`, { playerId: rileyP, castawayId: cid(st, name(6)) });
     await as.riley.call("POST", `/api/seasons/${sid}/pool`, { action: "call", castawayId: cid(st, name(5)) });
     row = await leagueOf(P);
-    check(ep(row.state, 6).picks.length === 2 && ep(row.state, 6).calls.length === 2, "two picks and two calls stored on Episode 6");
+    // A call is the person's Call it since step 12 part 2 (episode_calls, against the season's cast), not the pool's state.
+    const outCalls = (n) => outCallsOf(pool, sid, n);
+    check(ep(row.state, 6).picks.length === 2 && (await outCalls(6)).length === 2 && !ep(row.state, 6).calls, "two picks on Episode 6 in the pool, two calls in Call it's", JSON.stringify(await outCalls(6)));
     r = await as.riley.call("GET", `/api/seasons/${sid}/games`);
     const rg = r.body.games?.find((x) => x.leagueId === P);
     const aRow = rg?.table.find((x) => x.name === fixture.username("alex"));
@@ -246,7 +251,7 @@ const until = async (fn, ms = 12000) => {
     r = await as.riley.call("DELETE", `/api/seasons/${sid}/practice`);
     check(r.status === 404, "ending one that isn't there 404s");
 
-    if (!apiOnly) await browserHalf({ fx, sid, P, PR, name, leagueOf, cid, ep, setClose: (c) => (close = c) });
+    if (!apiOnly) await browserHalf({ fx, sid, P, PR, name, leagueOf, cid, ep, outCalls, setClose: (c) => (close = c) });
 
     const after = await realHash();
     check(after.h === before.h && after.n === before.n, `every real league's state unchanged (${after.n})`);
@@ -264,7 +269,7 @@ const until = async (fn, ms = 12000) => {
     process.exitCode = failures ? 1 : 0;
   }
 
-  async function browserHalf({ fx, sid, P, name, leagueOf, cid, ep, setClose }) {
+  async function browserHalf({ fx, sid, P, name, leagueOf, cid, ep, outCalls, setClose }) {
     const shot = async (page, file, full = false) => {
       await Promise.race([settle(page), page.waitForTimeout(3000)]);
       await page.evaluate(() => document.querySelectorAll("nextjs-portal").forEach((n) => (n.style.display = "none")));
@@ -316,8 +321,7 @@ const until = async (fn, ms = 12000) => {
     check(S.pickEmPickFor(st, ep(st, 7).id, alexP)?.castawayId === cid(st, name(7)), "his Episode 7 pick is saved");
     await page.locator(`[data-call="${name(8)}"]`).click();
     check(await toast(page, /You called Eric going home/), "a call: You called Eric going home");
-    st = (await leagueOf(P)).state;
-    check(S.pickEmCallFor(st, ep(st, 7).id, alexP)?.castawayId === cid(st, name(8)), "his call is saved");
+    check((await outCalls(7)).some((x) => x.name === name(8)), "his call is saved (as his Call it)", JSON.stringify(await outCalls(7)));
     await shot(page, "03-pool-picked", true);
     await fits(page, "the pool's page");
     await page.locator('[role=dialog][aria-hidden="false"] button', { hasText: "Back" }).click();

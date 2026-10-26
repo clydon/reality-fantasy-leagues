@@ -26,7 +26,8 @@ import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 //
 //   A competition  Survival Pool, Weekly Lineup, Outlast
 //   A series       Weekly Lineup: draft the crew (reality) or the characters (scripted)
-//   Talk           Weekly Bingo and Weekly Calls, shown and started with step 12's episode games
+//   Talk           Weekly Calls (step 12 part 2: two calls a show, scored from Call it, calls.ts) and Weekly Bingo, shown
+//                  until step 12 part 3 starts it
 //   A sport        the draft of athletes (Weekly Lineup, castaways on several teams: the blind draft, start some each
 //                  race) and Survival Pool (a pick survives a race by scoring in it: settings.poolSurvive 'scores')
 //
@@ -74,7 +75,7 @@ export interface StartOptions {
   next: { seasonId: string; label: string } | null;
 }
 
-const KEY_OF: Record<string, SeasonGameKey> = { pickem: "survivalPool", "active-roster": "weeklyLineup", "classic-draft": "outlast" };
+const KEY_OF: Record<string, SeasonGameKey> = { pickem: "survivalPool", "active-roster": "weeklyLineup", "classic-draft": "outlast", "weekly-calls": "weeklyCalls" };
 
 /** "Survivor", "Formula 1": a show as people say it. */
 const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").replace(/^The /, "").trim() || name;

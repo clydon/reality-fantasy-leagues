@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import StateLogic from "@/lib/game/state-logic.js";
-import { gameView, type GameView } from "@/lib/game/game-view";
+import type { GameView } from "@/lib/game/game-view";
 import { BOT_NAMES, practiceTeams, type PracticeGame } from "@/lib/game/practice";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
@@ -8,14 +8,17 @@ import { pool, withLeagueLock, HttpError } from "./db";
 import { existingSolo as existing, makeLeague } from "./new-game";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { followLeagueProgress } from "./follows";
-import { gamesHere, type GameHere } from "./season-games";
+import { seasonCastIdOf } from "./calls";
+import { readyLeague } from "./league-read";
+import { leagueStates } from "./league-states";
+import { gamesHere, viewWithCalls, type GameHere } from "./season-games";
 
 // Playing solo (docs/PLAN-new-design.md step 9 part 3; the mock's solo.js): two kinds of game on no couch
 // (db/migrations/0120's leagues.solo), both ordinary leagues the engine, the moves, the reveal and the season sync play
 // as they play any game.
 //
-//   A season's public pool ("Survivor 51 · Everyone"): Survival Pool and a weekly Who goes home? call (PickEmLogic's
-//   calls, settings.calls) against everyone on the app. Made by the first person to join; nobody runs it (every seat is a
+//   A season's public pool ("Survivor 51 · Everyone"): Survival Pool and a weekly Who goes home? call (settings.calls; since
+//   step 12 part 2 the person's Call it, calls.ts, the same call a couch reads) against everyone on the app. Made by the first person to join; nobody runs it (every seat is a
 //   member's), and its results are the season's shared facts, which the season sync brings to every league on the season.
 //   Usernames only: its seats are named after accounts, there's no chat (couch-chat.ts has no couch; classic's chat routes
 //   refuse it) and nobody hears who joined. Someone behind sees it at their mark like any game (game-view.ts through
@@ -150,7 +153,7 @@ export async function poolFor(user: SessionUser, seasonId: string, now = new Dat
   const leagueId = await existing("public", seasonId, null);
   const players = await poolPlayers(leagueId);
   const h = leagueId ? (here ?? (await yoursOn(user, seasonId))).find((x) => x.game.leagueId === leagueId) : undefined;
-  const mine = h ? viewOf(h) : null;
+  const mine = h ? await viewWithCalls(user, seasonId, h) : null;
   return {
     seasonId,
     label: label(row),
@@ -163,8 +166,6 @@ export async function poolFor(user: SessionUser, seasonId: string, now = new Dat
     game: mine,
   };
 }
-
-const viewOf = (h: GameHere) => gameView(h.ref, h.state, h.playerId, h.mark, h.userOf);
 
 /** Join a season's public pool (made now if it's the first): from the next episode to air, never catching up. */
 export async function joinPool(user: SessionUser, seasonId: string, now = new Date()): Promise<{ leagueId: string; start: number }> {
@@ -218,24 +219,36 @@ export async function leavePool(user: SessionUser, seasonId: string): Promise<{ 
   return { left: true };
 }
 
-/** Your Who goes home? call for the pool's open episode (null takes it back). */
+/**
+ * Your Who goes home? call for the pool's open episode (null takes it back): your Call it's 'out' for that episode (calls.ts),
+ * stored against the season's cast, so a couch's Call it reads the same call.
+ */
 export async function callPool(user: SessionUser, seasonId: string, castawayId: unknown): Promise<{ call: string | null }> {
   const leagueId = await existing("public", seasonId, null);
   if (!leagueId) throw new HttpError(404, "You're not in it");
   const playerId = await seatIn(leagueId, user.id);
-  let call: string | null = null;
-  await withLeagueLock(leagueId, (s) => {
-    const { ep, open } = poolWindow(s);
-    if (!ep || !open) throw new HttpError(409, "Calls for this episode closed when it started");
-    if (StateLogic.GhostLogic.startFor(s, playerId) > ep.number) throw new HttpError(409, `Your pool starts with Episode ${StateLogic.GhostLogic.startFor(s, playerId)}`);
-    if (castawayId === null) StateLogic.removePickEmCall(s, ep.id, playerId);
-    else if (typeof castawayId === "string") {
-      StateLogic.setPickEmCall(s, ep.id, playerId, castawayId);
-      if (StateLogic.pickEmCallFor(s, ep.id, playerId)?.castawayId !== castawayId) throw new HttpError(400, "They can't be called: pick someone still in");
-    } else throw new HttpError(400, "castawayId required");
-    call = StateLogic.pickEmCallFor(s, ep.id, playerId)?.castawayId ?? null;
-  });
-  return { call };
+  if (castawayId !== null && typeof castawayId !== "string") throw new HttpError(400, "castawayId required");
+  const raw = (await leagueStates([leagueId])).get(leagueId);
+  if (!raw) throw new HttpError(404, "You're not in it");
+  // Its air times stamped (league-read.ts), so the window closes when the episode starts.
+  const state = await readyLeague(leagueId, raw);
+  const { ep, open } = poolWindow(state);
+  if (!ep || !open) throw new HttpError(409, "Calls for this episode closed when it started");
+  const start = StateLogic.GhostLogic.startFor(state, playerId);
+  if (start > ep.number) throw new HttpError(409, `Your pool starts with Episode ${start}`);
+  if (castawayId === null) {
+    await pool.query("DELETE FROM episode_calls WHERE user_id = $1 AND season_id = $2 AND episode = $3 AND question = 'out'", [user.id, seasonId, ep.number]);
+    return { call: null };
+  }
+  const c = state.castaways.find((x) => x.id === castawayId);
+  const castId = c && c.status === "active" ? await seasonCastIdOf(seasonId, c) : null;
+  if (!c || !castId) throw new HttpError(400, "They can't be called: pick someone still in");
+  await pool.query(
+    `INSERT INTO episode_calls (user_id, season_id, episode, question, answer) VALUES ($1, $2, $3, 'out', $4)
+     ON CONFLICT (user_id, season_id, episode, question) DO UPDATE SET answer = EXCLUDED.answer, updated_at = now()`,
+    [user.id, seasonId, ep.number, castId]
+  );
+  return { call: c.id };
 }
 
 // ---------- the practice couch ----------
@@ -256,7 +269,7 @@ export async function practiceFor(user: SessionUser, seasonId: string, now = new
   const { row, schedule } = await seasonFor(seasonId, now);
   const leagueId = await existing("practice", seasonId, user.id);
   const h = leagueId ? (here ?? (await yoursOn(user, seasonId))).find((x) => x.game.leagueId === leagueId) : undefined;
-  const game = h ? viewOf(h) : null;
+  const game = h ? await viewWithCalls(user, seasonId, h) : null;
   const bot = h?.state.players.find((p) => p.automated);
   return {
     seasonId,

@@ -69,11 +69,14 @@ const catchingUpIn = (h: GameHere) => StateLogic.GhostLogic.isCatchingUp(h.state
 
 /** The episodes you may be told about, merged across your games here (or, playing none, the season's own results). */
 export async function seasonEpisodes(user: SessionUser, seasonId: string, couchId: string | null): Promise<SeasonEpisodes> {
-  const [{ seen, here }, schedules, follow] = await Promise.all([
+  const [{ seen, here: all }, schedules, follow] = await Promise.all([
     gamesHere(user, seasonId, couchId),
     seasonSchedules([seasonId]),
     pool.query("SELECT early_seen FROM show_follows WHERE user_id = $1 AND season_id = $2", [user.id, seasonId]),
   ]);
+  // A game scored from calls (Weekly Calls, step 12 part 2) has no results of its own: its show's episodes list as a show you
+  // only watch does, every one that's aired.
+  const here = all.filter((h) => !StateLogic.getLeagueType(h.state).hasCalls);
   const schedule = schedules.get(seasonId);
   const airAt = (n: number) => schedule?.episodes.find((e) => e.number === n)?.airAt ?? null;
   const now = Date.now();

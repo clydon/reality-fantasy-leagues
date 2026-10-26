@@ -6,6 +6,8 @@ export const GAME_STYLE = {
   Outlast: { colour: "#f2804b", line: "Draft a team. Last one standing carries you." },
   "Weekly Lineup": { colour: "#5089c9", line: "Start your best three each week." },
   "Survival Pool": { colour: "#35b5a5", line: "Pick one survivor each episode. Never the same twice." },
+  // The mock's predictions pink (its Weekly Calls was yellow, which is only for what you must do).
+  "Weekly Calls": { colour: "#e56b9f", line: "Two calls every show. Most right by the finale wins." },
 } as const;
 
 export type GameName = keyof typeof GAME_STYLE;

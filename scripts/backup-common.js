@@ -12,13 +12,13 @@ const LEAGUE_TABLES = [
   "leagues", "league_memberships", "league_groups", "couches", "couch_members", "couch_invites", "league_invites", "league_rulesets", "waiver_claims",
   "blind_draft_picks", "episode_team_notes", "league_applied_decisions", "chat_messages", "chat_reactions",
   "chat_reads", "couch_chat_reads", "wiki_proposals", "wiki_proposal_items", "league_changes", "league_rulings", "couch_answers",
-  "results_plans", "draft_queues", "game_join_requests", "watch_plans", "watch_plan_people",
+  "results_plans", "draft_queues", "game_join_requests", "watch_plans", "watch_plan_people", "couch_polls", "couch_poll_votes",
 ];
 const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
   "season_rule_changes", "episode_research", "episode_research_items", "wiki_extractions", "season_episodes", "show_follows",
   "fact_sources", "fact_disputes", "rulebooks", "rulebook_edits", "rulebook_suggestions", "admin_changes", "rulebook_checks",
-  "guide_hidden", "episode_ratings",
+  "guide_hidden", "episode_ratings", "episode_calls", "episode_call_says",
 ];
 const PEOPLE_TABLES = ["user", "user_settings", "notification_prefs"];
 const TABLES = [...LEAGUE_TABLES, ...SEASON_TABLES, ...PEOPLE_TABLES];
@@ -51,6 +51,10 @@ const LATER_TABLES = {
   watch_plans: { since: "0127", fill: null },
   watch_plan_people: { since: "0127", fill: null },
   episode_ratings: { since: "0128", fill: null },
+  episode_calls: { since: "0129", fill: null },
+  episode_call_says: { since: "0129", fill: null },
+  couch_polls: { since: "0129", fill: null },
+  couch_poll_votes: { since: "0129", fill: null },
 };
 
 /** Whether the database has this table. */
